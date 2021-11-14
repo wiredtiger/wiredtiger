@@ -144,13 +144,16 @@ snap_op_init(TINFO *tinfo, uint64_t read_ts, bool repeatable_reads)
 void
 snap_track(TINFO *tinfo, thread_op op)
 {
-    WT_ITEM *ip;
     SNAP_OPS *snap;
+    TABLE *table;
+    WT_ITEM *ip;
+
+    table = tinfo->table;
 
     snap = tinfo->snap_current;
     snap->op = op;
     snap->opid = tinfo->opid;
-    snap->id = tinfo->table->id;
+    snap->id = table->id;
     snap->keyno = tinfo->keyno;
     snap->ts = WT_TS_NONE;
     snap->repeatable = false;
@@ -161,13 +164,13 @@ snap_track(TINFO *tinfo, thread_op op)
 
     switch (op) {
     case INSERT:
-        if (tinfo->table->type == ROW)
+        if (table->type == ROW)
             testutil_check(__wt_buf_set(NULL, &snap->key, tinfo->key->data, tinfo->key->size));
         /* FALLTHROUGH */
     case MODIFY:
     case READ:
     case UPDATE:
-        if (tinfo->table->type == FIX)
+        if (table->type == FIX)
             snap->bitv = tinfo->bitv;
         else {
             ip = op == INSERT || op == UPDATE ? tinfo->new_value : tinfo->value;

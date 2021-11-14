@@ -663,7 +663,6 @@ typedef enum {
 static int
 table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
 {
-    struct col_insert *cip;
     WT_DECL_RET;
     TABLE *table;
     u_int i, j;
@@ -737,13 +736,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
             break;
         case FIX:
         case VAR:
-            /*
-             * We can only append so many new records, check for the limit, and if we reach it, skip
-             * the operation until some records drain.
-             */
-            cip = &tinfo->col_insert[table->id - 1];
-            if (cip->insert_list_cnt < WT_ELEMENTS(cip->insert_list))
-                ret = col_insert(tinfo);
+            ret = col_insert(tinfo);
             break;
         }
         positioned = false; /* Insert never leaves the cursor positioned. */
@@ -1810,12 +1803,21 @@ col_insert_add(TINFO *tinfo)
 static int
 col_insert(TINFO *tinfo)
 {
+    struct col_insert *cip;
     TABLE *table;
     WT_CURSOR *cursor;
     WT_DECL_RET;
 
     table = tinfo->table;
     cursor = tinfo->cursor;
+
+    /*
+     * We can only append so many new records, check for the limit, and if we reach it, skip the
+     * operation until some records drain.
+     */
+    cip = &tinfo->col_insert[table->id - 1];
+    if (cip->insert_list_cnt >= WT_ELEMENTS(cip->insert_list))
+        return (WT_ROLLBACK);
 
     if (table->type == FIX) {
         /* Mirrors will not have set the new value for FLCS. */
