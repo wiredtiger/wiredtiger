@@ -46,8 +46,8 @@ static const char table_config_row[] =
 static const char table_config_col[] =
   "allocation_size=4KB,leaf_page_max=4KB,key_format=r,value_format=QQQS";
 static char data_str[1024] = "";
-static const char working_dir_row[] = "WT_TEST.compact-stress-row";
-static const char working_dir_col[] = "WT_TEST.compact-stress-col";
+static const char working_dir_row[] = "WT_TEST.data-correctness-row";
+static const char working_dir_col[] = "WT_TEST.data-correctness-col";
 static const char compact_file_fmt[] = "%s/compact_started";
 static char value_a[] = "AA";
 static char value_b[] = "BB";
