@@ -1043,21 +1043,6 @@ ops(void *arg)
             WT_ORDERED_READ(max_rows, table->rows_current);
         tinfo->keyno = mmrand(&tinfo->rnd, 1, (u_int)max_rows);
 
-        /*
-         * If an insert or update, create a value. If this is a mirrored update and the table is an
-         * FLCS object, use the base table (which must be ROW or VAR), to create values usable for
-         * any table.
-         */
-        if (op == INSERT || op == UPDATE) {
-            if (table->mirror && table->type == FIX) {
-                val_gen(g.base_mirror, &tinfo->rnd, tinfo->new_value, &tinfo->bitv, tinfo->keyno);
-                val_to_flcs(g.base_mirror, tinfo->new_value, &tinfo->bitv);
-            } else {
-                val_gen(table, &tinfo->rnd, tinfo->new_value, &tinfo->bitv, tinfo->keyno);
-                val_to_flcs(table, tinfo->new_value, &tinfo->bitv);
-            }
-        }
-
         /* If modify, build a modify change vector. */
         if (op == MODIFY)
             modify_build(tinfo);
@@ -1102,17 +1087,28 @@ ops(void *arg)
         }
 
         /*
+         * If an insert or update, create a value. If the first table we're updating is FLCS and a
+         * mirrored table, use the base table (which must be ROW or VAR), to create a value usable
+         * for any table.
+         */
+        if (op == INSERT || op == UPDATE) {
+            if (table->type == FIX && table->mirror)
+                val_gen(g.base_mirror, &tinfo->rnd, tinfo->new_value, &tinfo->bitv, tinfo->keyno);
+            else
+                val_gen(table, &tinfo->rnd, tinfo->new_value, &tinfo->bitv, tinfo->keyno);
+        }
+
+        /*
          * For modify we haven't created the new value when we queue up the operation, and we have
          * to modify a RS or VLCS table first so we have a value from which we can set any FLCS
-         * value we need. Do the operation on the base mirror table first and use the resulting
-         * value to set the FLCS value, then modify the selected table, then any remaining tables.
+         * value we need. If that's the case, do the modify on the base mirror table first. Then, do
+         * the operation on the selected table, then any remaining tables.
          */
         skip1 = skip2 = NULL;
         if (op == MODIFY && table->mirror) {
             tinfo->table = g.base_mirror;
             ret = table_op(tinfo, intxn, iso_level, op);
             testutil_assert(ret == 0 || ret == WT_ROLLBACK);
-            val_to_flcs(g.base_mirror, tinfo->value, &tinfo->bitv);
             skip1 = g.base_mirror;
         }
         if (ret == 0 && table != skip1) {
@@ -1667,9 +1663,10 @@ col_update(TINFO *tinfo, bool positioned)
 
     if (!positioned)
         cursor->set_key(cursor, tinfo->keyno);
-    if (table->type == FIX)
+    if (table->type == FIX) {
+        val_to_flcs(table, tinfo->new_value, &tinfo->bitv);
         cursor->set_value(cursor, tinfo->bitv);
-    else
+    } else
         cursor->set_value(cursor, tinfo->new_value);
 
     if ((ret = cursor->update(cursor)) != 0)
@@ -1797,9 +1794,10 @@ col_insert(TINFO *tinfo)
     table = tinfo->table;
     cursor = tinfo->cursor;
 
-    if (table->type == FIX)
+    if (table->type == FIX) {
+        val_to_flcs(table, tinfo->new_value, &tinfo->bitv);
         cursor->set_value(cursor, tinfo->bitv);
-    else
+    } else
         cursor->set_value(cursor, tinfo->new_value);
 
     /* Create a record, then add the key to our list of new records for later resolution. */
