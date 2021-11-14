@@ -354,6 +354,10 @@ val_gen(TABLE *table, WT_RAND_STATE *rnd, WT_ITEM *value, uint8_t *bitvp, uint64
     *bitvp = FIX_VALUE_WRONG;
 
     if (table->type == FIX) {
+        /*
+         * FLCS remove is the same as storing a zero value, so where there are more than a couple of
+         * bits to work with, stay away from 0 values.
+         */
         switch (TV(BTREE_BITCNT)) {
         case 8:
             *bitvp = (u_int8_t)mmrand(rnd, 1, 0xff);
@@ -374,7 +378,7 @@ val_gen(TABLE *table, WT_RAND_STATE *rnd, WT_ITEM *value, uint8_t *bitvp, uint64
             *bitvp = (u_int8_t)mmrand(rnd, 1, 0x07);
             break;
         case 2:
-            *bitvp = (u_int8_t)mmrand(rnd, 1, 0x03);
+            *bitvp = (u_int8_t)mmrand(rnd, 0, 0x03);
             break;
         case 1:
             *bitvp = (u_int8_t)mmrand(rnd, 0, 1);

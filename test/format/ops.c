@@ -212,7 +212,7 @@ rollback_to_stable(void)
     if (!g.transaction_timestamps_config)
         return;
 
-    trace_msg("%-10s ts=%" PRIu64, "rts", g.stable_timestamp);
+    trace_msg("rts ts=%" PRIu64, g.stable_timestamp);
     testutil_check(g.wts_conn->rollback_to_stable(g.wts_conn, NULL));
 
     /* Check the saved snap operations for consistency. */
@@ -753,16 +753,17 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
             WRITE_OP_FAILED(false);
         break;
     case MODIFY:
-        ++tinfo->modify;
         switch (table->type) {
         case FIX:
-            /* FLCS does an update instead of a modify. */
+            ++tinfo->update; /* FLCS does an update instead of a modify. */
             ret = col_update(tinfo, positioned);
             break;
         case ROW:
+            ++tinfo->modify;
             ret = row_modify(tinfo, positioned);
             break;
         case VAR:
+            ++tinfo->modify;
             ret = col_modify(tinfo, positioned);
             break;
         }
@@ -856,6 +857,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
     /* Reset the cursor: there is no reason to keep pages pinned. */
     testutil_check(tinfo->cursor->reset(tinfo->cursor));
 
+    /* Failure already returned if in a transaction (meaning failure requires action). */
     return (0);
 }
 
@@ -1043,10 +1045,6 @@ ops(void *arg)
             WT_ORDERED_READ(max_rows, table->rows_current);
         tinfo->keyno = mmrand(&tinfo->rnd, 1, (u_int)max_rows);
 
-        /* If modify, build a modify change vector. */
-        if (op == MODIFY)
-            modify_build(tinfo);
-
         /*
          * If the operation is a truncate, select a range.
          *
@@ -1087,9 +1085,18 @@ ops(void *arg)
         }
 
         /*
-         * If an insert or update, create a value. If the first table we're updating is FLCS and a
-         * mirrored table, use the base table (which must be ROW or VAR), to create a value usable
-         * for any table.
+         * If an insert or update, create a value.
+         *
+         * This is messy: if the first table we're updating is FLCS and a mirrored table, use the
+         * base table (which must be ROW or VAR), to create a value usable for any table. Because
+         * every FLCS table tracks a different number of bits, we can't figure out the specific bits
+         * we're going to use until the insert or update call that's going to do the modify. If the
+         * first table we're updating is FLCS and not a mirrored table, we use the table we're
+         * modifying and acquire the bits for the table immediately. See the update/insert calls for
+         * the rest, where if the table is mirrored, we get the bits, otherwise, there's nothing to
+         * do, we have the value we need. If the first table we're updating isn't FLCS generate the
+         * new value for the table, no special work here, and the insert/update calls will create
+         * the new value if/when a mirrored FLCS table is updated based on this value.
          */
         if (op == INSERT || op == UPDATE) {
             if (table->type == FIX && table->mirror)
@@ -1099,10 +1106,24 @@ ops(void *arg)
         }
 
         /*
-         * For modify we haven't created the new value when we queue up the operation, and we have
-         * to modify a RS or VLCS table first so we have a value from which we can set any FLCS
-         * value we need. If that's the case, do the modify on the base mirror table first. Then, do
-         * the operation on the selected table, then any remaining tables.
+         * If modify, build a modify change vector. FLCS operations do updates instead of modifies,
+         * if we're not in a mirrored group, generate a bit value for the FLCS table. If we are in a
+         * mirrored group or not modifying an FLCS table, we'll need a change vector and we will
+         * have to modify something other than the FLCS table first, to get a new value from which
+         * we can derive the FLCS value.
+         */
+        if (op == MODIFY) {
+            if (table->type != FIX || table->mirror)
+                modify_build(tinfo);
+            else
+                val_gen(table, &tinfo->rnd, tinfo->new_value, &tinfo->bitv, tinfo->keyno);
+        }
+
+        /*
+         * For modify we haven't created the new value when we queue up the operation; we have to
+         * modify a RS or VLCS table first so we have a value from which we can set any FLCS values
+         * we need. In that case, do the modify on the base mirror table first. Then, do the
+         * operation on the selected table, then any remaining tables.
          */
         skip1 = skip2 = NULL;
         if (op == MODIFY && table->mirror) {
@@ -1262,7 +1283,7 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
         return (ret);
 
     /* Log the operation */
-    if (!g.trace_all)
+    if (!GV(TRACE_READ))
         return (0);
     switch (table->type) {
     case FIX:
@@ -1393,7 +1414,7 @@ nextprev(TINFO *tinfo, bool next)
         break;
     }
 
-    if (g.trace_all) {
+    if (GV(TRACE_CURSOR)) {
         which = next ? "next" : "prev";
         switch (table->type) {
         case FIX:
@@ -1664,7 +1685,9 @@ col_update(TINFO *tinfo, bool positioned)
     if (!positioned)
         cursor->set_key(cursor, tinfo->keyno);
     if (table->type == FIX) {
-        val_to_flcs(table, tinfo->new_value, &tinfo->bitv);
+        /* Mirrors will not have set the new value for FLCS. */
+        if (table->mirror)
+            val_to_flcs(table, tinfo->new_value, &tinfo->bitv);
         cursor->set_value(cursor, tinfo->bitv);
     } else
         cursor->set_value(cursor, tinfo->new_value);
@@ -1795,7 +1818,9 @@ col_insert(TINFO *tinfo)
     cursor = tinfo->cursor;
 
     if (table->type == FIX) {
-        val_to_flcs(table, tinfo->new_value, &tinfo->bitv);
+        /* Mirrors will not have set the new value for FLCS. */
+        if (table->mirror)
+            val_to_flcs(table, tinfo->new_value, &tinfo->bitv);
         cursor->set_value(cursor, tinfo->bitv);
     } else
         cursor->set_value(cursor, tinfo->new_value);

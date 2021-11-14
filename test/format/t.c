@@ -175,7 +175,7 @@ main(int argc, char *argv[])
     /* Set values from the command line. */
     home = NULL;
     quiet_flag = syntax_check = verify_only = false;
-    while ((ch = __wt_getopt(progname, argc, argv, "1BC:c:h:qRSrT:tv")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "1BC:c:h:qRSrtv")) != EOF)
         switch (ch) {
         case '1':
             /* Ignored for backward compatibility. */
@@ -201,9 +201,6 @@ main(int argc, char *argv[])
         case 'S': /* Configuration syntax check */
             syntax_check = true;
             break;
-        case 'T': /* Trace specifics. */
-            trace_config(__wt_optarg);
-            /* FALLTHROUGH */
         case 't': /* Trace  */
             g.trace = true;
             break;
@@ -418,8 +415,7 @@ static void
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s [-BqRtv] [-C wiredtiger-config]\n    "
-      "[-c config-file] [-h home] [-T trace-options] [name=value ...]\n",
+      "usage: %s [-BqRtv] [-C wiredtiger-config] [-c config-file] [-h home] [name=value ...]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-B maintain 3.3 release log and configuration option compatibility\n"
@@ -428,11 +424,7 @@ usage(void)
       "\t-h run directory (default 'RUNDIR')\n"
       "\t-q quiet\n"
       "\t-R reopen an existing database\n"
-      "\t-T all\t\t"
-      "also trace reads and bulk loads\n"
-      "\t-T local\t"
-      "store trace operations in the test database (default 'OPS.TRACE')\n"
-      "\t-t trace writes in the WiredTiger log\n"
+      "\t-t trace writes in the WiredTiger log (default 'OPS.TRACE')\n"
       "\t-v verify database and exit\n");
 
     config_error();

@@ -215,6 +215,15 @@ config_table(TABLE *table, void *arg)
     (void)arg; /* unused argument */
 
     /*
+     * For any values set in the base configuration, export them to this table (where this table
+     * doesn't already have a value set).
+     */
+    if (ntables != 0)
+        for (cp = configuration_list; cp->name != NULL; ++cp)
+            if (F_ISSET(cp, C_TABLE) && !table->v[cp->off].set && tables[0]->v[cp->off].set)
+                config_promote(table, cp, &tables[0]->v[cp->off]);
+
+    /*
      * Choose a file format and a data source: they're interrelated (LSM is only compatible with
      * row-store) and other items depend on them.
      */
@@ -232,15 +241,6 @@ config_table(TABLE *table, void *arg)
           DATASOURCE(table, "file") ? "file:F%05u" : "table:T%05u", table->id));
     testutil_check(
       __wt_snprintf(table->track_prefix, sizeof(table->track_prefix), "table %u", table->id));
-
-    /*
-     * For any values set in the base configuration, export them to this table (where this table
-     * doesn't already have a value set).
-     */
-    if (ntables != 0)
-        for (cp = configuration_list; cp->name != NULL; ++cp)
-            if (F_ISSET(cp, C_TABLE) && !table->v[cp->off].set && tables[0]->v[cp->off].set)
-                config_promote(table, cp, &tables[0]->v[cp->off]);
 
     /* Fill in random values for the rest of the run. */
     config_random(table, true);
@@ -1088,11 +1088,6 @@ config_pct(TABLE *table)
             list[i].order = mmrand(NULL, 1, 1000);
         pct = 0;
     }
-
-    /* Cursor modify isn't possible for fixed-length column store. */
-    if (table->type == FIX && config_explicit(table, "ops.pct.modify") && TV(OPS_PCT_MODIFY) != 0)
-        WARN("%s",
-          "WT_CURSOR.modify not supported by fixed-length column store, switching to updates");
 
     /*
      * Walk the list, allocating random numbers of operations in a random order.

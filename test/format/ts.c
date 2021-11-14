@@ -107,8 +107,10 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
     lock_writelock(session, &g.prepare_commit_lock);
     testutil_check(conn->set_timestamp(conn, buf));
     lock_writeunlock(session, &g.prepare_commit_lock);
-    trace_msg(
-      "%-10s oldest=%" PRIu64 ", stable=%" PRIu64, "setts", g.oldest_timestamp, g.stable_timestamp);
+
+    if (GV(TRACE_TIMESTAMP))
+        trace_msg(
+          "setts oldest=%" PRIu64 ", stable=%" PRIu64, g.oldest_timestamp, g.stable_timestamp);
 }
 
 /*

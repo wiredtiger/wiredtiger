@@ -202,8 +202,6 @@ typedef struct {
     char *config_open; /* Command-line configuration */
 
     bool trace;                /* trace operations  */
-    bool trace_all;            /* trace all operations  */
-    bool trace_local;          /* write trace to the primary database */
     char tidbuf[128];          /* thread ID in printable form */
     WT_CONNECTION *trace_conn; /* optional tracing database */
     WT_SESSION *trace_session;

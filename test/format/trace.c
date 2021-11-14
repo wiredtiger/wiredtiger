@@ -32,37 +32,6 @@
 #define TRACE_INIT_CMD "rm -rf %s/" TRACE_DIR " && mkdir %s/" TRACE_DIR
 
 /*
- * trace_config --
- *     Configure operation tracing.
- */
-void
-trace_config(const char *config)
-{
-    char *copy, *p;
-
-    copy = dstrdup(config);
-    for (;;) {
-        if ((p = strstr(copy, "all")) != NULL) {
-            g.trace_all = true;
-            memset(p, ' ', strlen("all"));
-            continue;
-        }
-        if ((p = strstr(copy, "local")) != NULL) {
-            g.trace_local = true;
-            memset(p, ' ', strlen("local"));
-            continue;
-        }
-        break;
-    }
-
-    for (p = copy; *p != '\0'; ++p)
-        if (*p != ',' && !__wt_isspace((u_char)*p))
-            testutil_assertfmt(0, "unexpected trace configuration \"%s\"\n", config);
-
-    free(copy);
-}
-
-/*
  * trace_init --
  *     Initialize operation tracing.
  */
@@ -71,15 +40,17 @@ trace_init(void)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    size_t len;
-    char *p;
-    const char *config;
+    uint32_t retain;
+    char config[100], tracedir[MAX_FORMAT_PATH * 2];
 
     if (!g.trace)
         return;
 
+    /* Retain a minimum of 10 log files. */
+    retain = WT_MAX(GV(TRACE_LOG_RETAIN), 10);
+
     /* Write traces to a separate database by default, optionally write traces to the primary. */
-    if (g.trace_local) {
+    if (GV(TRACE_LOCAL)) {
         if (!GV(LOGGING))
             testutil_die(EINVAL,
               "operation logging to the primary database requires logging be configured for that "
@@ -88,21 +59,20 @@ trace_init(void)
         conn = g.wts_conn;
 
         /* Keep the last N log files. */
-        testutil_check(conn->reconfigure(conn, "debug_mode=(log_retention=25)"));
+        testutil_check(
+          __wt_snprintf(config, sizeof(config), "debug_mode=(log_retention=%" PRIu32 ")", retain));
+        testutil_check(conn->reconfigure(conn, config));
     } else {
-        len = strlen(g.home) * 2 + strlen(TRACE_INIT_CMD) + 10;
-        p = dmalloc(len);
-        testutil_check(__wt_snprintf(p, len, TRACE_INIT_CMD, g.home, g.home));
-        testutil_checkfmt(system(p), "%s", "logging directory creation failed");
-        free(p);
+        /* Create the trace directory. */
+        testutil_check(__wt_snprintf(tracedir, sizeof(tracedir), TRACE_INIT_CMD, g.home, g.home));
+        testutil_checkfmt(system(tracedir), "%s", "logging directory creation failed");
 
         /* Configure logging with archival, and keep the last N log files. */
-        len = strlen(g.home) * strlen(TRACE_DIR) + 10;
-        p = dmalloc(len);
-        testutil_check(__wt_snprintf(p, len, "%s/%s", g.home, TRACE_DIR));
-        config = "create,log=(enabled,archive),debug_mode=(log_retention=25)";
-        testutil_checkfmt(wiredtiger_open(p, NULL, config, &conn), "%s: %s", p, config);
-        free(p);
+        testutil_check(__wt_snprintf(config, sizeof(config),
+          "create,log=(enabled,archive),debug_mode=(log_retention=%" PRIu32 ")", retain));
+        testutil_check(__wt_snprintf(tracedir, sizeof(tracedir), "%s/%s", g.home, TRACE_DIR));
+        testutil_checkfmt(
+          wiredtiger_open(tracedir, NULL, config, &conn), "%s: %s", tracedir, config);
     }
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));

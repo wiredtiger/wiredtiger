@@ -353,7 +353,7 @@ snap_verify(TINFO *tinfo, SNAP_OPS *snap)
     key = NULL;
     keyno = snap->keyno;
 
-    if (g.trace_all) {
+    if (GV(TRACE_READ)) {
         if (snap->op == REMOVE)
             trace_uri_op(
               tinfo, table->uri, "repeat %" PRIu64 " ts=%" PRIu64 " {deleted}", keyno, snap->ts);

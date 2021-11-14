@@ -134,20 +134,20 @@ table_load(TABLE *base, TABLE *table)
             if (!is_bulk)
                 cursor->set_key(cursor, keyno);
             cursor->set_value(cursor, bitv);
-            if (g.trace_all)
+            if (GV(TRACE_BULK))
                 trace_msg("bulk %" PRIu32 " {0x%02" PRIx8 "}", keyno, bitv);
             break;
         case VAR:
             if (!is_bulk)
                 cursor->set_key(cursor, keyno);
             cursor->set_value(cursor, &value);
-            if (g.trace_all)
+            if (GV(TRACE_BULK))
                 trace_msg("bulk %" PRIu32 " {%.*s}", keyno, (int)value.size, (char *)value.data);
             break;
         case ROW:
             cursor->set_key(cursor, &key);
             cursor->set_value(cursor, &value);
-            if (g.trace_all)
+            if (GV(TRACE_BULK))
                 trace_msg("bulk %" PRIu32 " {%.*s}, {%.*s}", keyno, (int)key.size, (char *)key.data,
                   (int)value.size, (char *)value.data);
             break;
