@@ -1,0 +1,62 @@
+Tracing format operations can be useful in debugging.
+
+Turn on tracing with the "-t" flag:
+
+    -t	Trace operations into a WiredTiger log
+
+That causes format to trace operations in a WiredTiger log.
+
+By default only modifications and transactions are traced to limit how much data is stored.
+You can trace more operations by adding "trace.XXX" configurations to the run:
+
+    trace.bulk=1	trace bulk loads
+    trace.cursor=1	trace cursor operations
+    trace.read=1	trace read operations
+    trace.timestamp=1	trace timestamp operations (setting oldest, stable TS)
+
+By default, operations are logged into a separate database from the run, "OPS.TRACE" in the
+run's home directory. If you want to trace format operations with logs from in the WiredTiger
+library, you can log format operations into the primary database:
+
+    trace.local=1	trace into the primary database
+
+By default, only 10 log files are retained at a time, but you can increase that number if you
+need longer tracking:
+
+    trace.log_retain=100
+
+After the run, you can dump the trace records with the wt utility:
+
+    wt -h RUNDIR/OPS.TRACE printlog -um
+
+The output will look something like this:
+
+    [1636905807:928201][18388:0x7f91957fa700] begin snapshot read-ts=36417 (repeatable)
+    [1636905807:928462][18388:0x7f9195ffb700] begin snapshot read-ts=36417 (repeatable)
+    [1636905807:928469][18388:0x7f91957fa700] begin snapshot read-ts=36417 (repeatable)
+    [1636905807:928701][18388:0x7f9195ffb700] commit read-ts=36417, commit-ts=36436
+    [1636905807:929279][18388:0x7f91957fa700] commit read-ts=36417, commit-ts=36448
+    [1636905810:936417][18388:0x7f918f7fe700] commit read-ts=48394, commit-ts=48400
+    [1636905811:364172][18388:0x7f918f7fe700]:table:T00005 update 82644 {0000082644.00/opqrstuvwxyzabcdefghi}, {0000082644/wMNOPQRSTUVW}
+    [1636905812:836417][18388:0x7f9194ff9700]:table:T00002 remove 12940
+    [1636905813:736417][18388:0x7f9194ff9700]:table:T00002 insert 7105 {0000007105.02/opqrstuvwxyza}, {0000007105/yMNOPQRS}
+    [1636905817:364173][18388:0x7f91957fa700] abort read-ts=75859
+    [1636905818:936417][18388:0x7f9195ffb700] begin snapshot read-ts=82671 (repeatable)
+    [1636905822:36417][18388:0x7f9194ff9700] begin snapshot read-ts=97401 (not repeatable)
+    [1636905822:364170][18388:0x7f918f7fe700]:table:T00007 insert 130589 {0000130589.08/opqrstuvwx}, {0000021495/gMNOPQRSTU}
+    [1636905822:364177][18388:0x7f918f7fe700]:table:T00008 insert 130589 {0000130589.13/opqrstuvwxyza}, {0000021495/gMNOPQRSTU}
+    [1636905824:936417][18388:0x7f9194ff9700]:table:T00007 insert 134463 {0000134463.02/opqrstuvwxyzabc}, {0000072829/}
+    [1636905826:128998][18388:0x7f9194ff9700]:table:T00004 insert 136417 {DUPLICATEV/LMNOPQRST}
+    [1636905826:936417][18388:0x7f918f7fe700]:table:T00005 remove 1441
+    [1636905830:364176][18388:0x7f9195ffb700]:table:T00005 insert 142810 {0000142810.08/opqrstuvwxyzabcde}, {0000065596/xMNOPQRSTUVW}
+    [1636905830:619754][18388:0x7f91957fa700] begin snapshot read-ts=136417 (not repeatable)
+    [1636905830:620971][18388:0x7f91957fa700] commit read-ts=136417, commit-ts=136421
+    [1636905831:236417][18388:0x7f918f7fe700] begin snapshot read-ts=139290 (not repeatable)
+
+The fields are a timestamp, a thread and session ID, and then an operation. When the operation
+is per object (like and update or remove), there's an object name and a row number.
+
+
+Additionally, when format detects a failure, it will dump the cursor page that was the source
+of the row that didn't match the expected value, as well as the history store. The dumps are
+in format's run directory, in files named "FAIL.pagedump" and "FAIL.HSdump".
