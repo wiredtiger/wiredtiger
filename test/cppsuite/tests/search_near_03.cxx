@@ -41,6 +41,7 @@ using namespace test_harness;
  * collections do not change.
  */
 class search_near_03 : public test_harness::test {
+    /* a 2D array consisted of a mapping between collection and their inserted prefixes. */
     std::vector<std::vector<std::string>> prefixes_map;
     const std::string ALPHABET{"abcdefghijklmnopqrstuvwxyz"};
 
@@ -57,8 +58,8 @@ class search_near_03 : public test_harness::test {
      * Here's how we insert a unique index:
      * 1. Insert the prefix.
      * 2. Remove the prefix.
-     * 3. Search near for the prefix. In the case we find a record, we stop here as the full value
-     * is already present in the table. Otherwise if the record is not found, we can proceed to
+     * 3. Search near for the prefix. In the case we find a record, we stop here as a value with the
+     * prefix already exists in the table. Otherwise if the record is not found, we can proceed to
      * insert the full value.
      * 4. Insert the full value (prefix, id).
      * All of these operations are wrapped in the same transaction.
@@ -134,10 +135,7 @@ class search_near_03 : public test_harness::test {
     get_prefix_from_key(std::string const &s)
     {
         const std::string::size_type pos = s.find(',');
-        if (pos != std::string::npos)
-            return s.substr(0, pos);
-        else
-            return s;
+        return pos != std::string::npos ? s.substr(0, pos) : s;
     }
 
     void
@@ -188,24 +186,24 @@ class search_near_03 : public test_harness::test {
         }
 
         /*
-         * Construct a mapping of all the inserted prefixes to it's respective collection. We
+         * Construct a mapping of all the inserted prefixes to their respective collections. We
          * traverse through each collection using a cursor to collect the prefix and push it into a
          * 2D vector.
          */
         scoped_session session = connection_manager::instance().create_session();
         const char *key_tmp;
+        int ret = 0;
         for (uint64_t i = 0; i < database.get_collection_count(); i++) {
             collection &coll = database.get_collection(i);
             scoped_cursor cursor = session.open_scoped_cursor(coll.name);
             std::vector<std::string> prefixes;
-            while (true) {
-                auto ret = cursor->next(cursor.get());
-                if (ret != 0) {
-                    if (ret == WT_NOTFOUND) {
-                        break;
-                    } else
-                        testutil_die(ret, "Unexpected error returned from cursor->next()");
-                }
+            ret = 0;
+            while (ret == 0) {
+                ret = cursor->next(cursor.get());
+                testutil_assertfmt(
+                  ret == 0 || ret == WT_NOTFOUND, "Unexpected error returned from cursor->next()");
+                if (ret == WT_NOTFOUND)
+                    continue;
                 cursor->get_key(cursor.get(), &key_tmp);
                 prefixes.push_back(std::string(key_tmp));
             }
@@ -245,7 +243,7 @@ class search_near_03 : public test_harness::test {
              * fail to insert, because it should already exist.
              */
             random_index = random_generator::instance().generate_integer(
-              static_cast<size_t>(0), prefixes_map.at(0).size() - 1);
+              static_cast<size_t>(0), prefixes_map.at(coll.id).size() - 1);
             prefix_key = get_prefix_from_key(prefixes_map.at(coll.id).at(random_index));
             logger::log_msg(LOG_INFO,
               type_string(tc->type) +
@@ -261,6 +259,7 @@ class search_near_03 : public test_harness::test {
     read_operation(test_harness::thread_context *tc) override final
     {
         uint64_t key_count = 0;
+        int ret = 0;
         logger::log_msg(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
         /*
@@ -272,14 +271,13 @@ class search_near_03 : public test_harness::test {
             for (int i = 0; i < tc->db.get_collection_count(); i++) {
                 collection &coll = tc->db.get_collection(i);
                 scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
-                while (tc->running()) {
-                    auto ret = cursor->next(cursor.get());
-                    if (ret != 0) {
-                        if (ret == WT_NOTFOUND) {
-                            break;
-                        } else
-                            testutil_die(ret, "Unexpected error returned from cursor->next()");
-                    }
+                ret = 0;
+                while (ret == 0) {
+                    ret = cursor->next(cursor.get());
+                    testutil_assertfmt(ret == 0 || ret == WT_NOTFOUND,
+                      "Unexpected error returned from cursor->next()");
+                    if (ret == WT_NOTFOUND)
+                        continue;
                     key_count++;
                 }
                 tc->sleep();
