@@ -84,6 +84,7 @@ class search_near_03 : public test_harness::test {
          * to be returned. If the key is present, it means the (prefix, id) has been inserted
          * already, double check that the prefix portion match.
          */
+        cursor->reconfigure(cursor.get(), "prefix_search=true");
         cursor->set_key(cursor.get(), prefix_key.c_str());
         ret = cursor->search_near(cursor.get(), &exact_prefix);
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
@@ -200,8 +201,8 @@ class search_near_03 : public test_harness::test {
             ret = 0;
             while (ret == 0) {
                 ret = cursor->next(cursor.get());
-                testutil_assertfmt(
-                  ret == 0 || ret == WT_NOTFOUND, "Unexpected error returned from cursor->next()");
+                testutil_assertfmt(ret == 0 || ret == WT_NOTFOUND,
+                  "Unexpected error %d returned from cursor->next()", ret);
                 if (ret == WT_NOTFOUND)
                     continue;
                 cursor->get_key(cursor.get(), &key_tmp);
@@ -275,7 +276,7 @@ class search_near_03 : public test_harness::test {
                 while (ret == 0) {
                     ret = cursor->next(cursor.get());
                     testutil_assertfmt(ret == 0 || ret == WT_NOTFOUND,
-                      "Unexpected error returned from cursor->next()");
+                      "Unexpected error %d returned from cursor->next()", ret);
                     if (ret == WT_NOTFOUND)
                         continue;
                     key_count++;
