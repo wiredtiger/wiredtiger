@@ -160,20 +160,25 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
         }
 
         /*
-         * Tables can run out of keys at different times as RS inserts between table rows and
-         * VLCS/FLCS insert after the initial table rows. There's not much to say about the
-         * relationships between them (especially as we skip rows that are removed, so our last
-         * successful check may have been before the end of the original rows).
+         * Tables run out of keys at different times as RS inserts between the initial table rows
+         * and VLCS/FLCS inserts after the initial table rows. There's not much to say about the
+         * relationships between them (especially as we skip deleted rows in RS and VLCS, so our
+         * last successful check can be before the end of the original rows). If we run out of keys,
+         * we're done. If both keys are past the end of the original keys, we're done. There are
+         * some potential problems we're not going to catch at the end of the original rows, but
+         * those problems should also appear in the middle of the tree.
+         *
+         * If we have two key/value pairs from the original rows, assert the keys have the same key
+         * number (the keys themselves won't match), and keys are larger than or equal to the
+         * counter. If the counter is smaller than the keys, that means rows were deleted, which is
+         * expected.
          */
         if (base_ret == WT_NOTFOUND || table_ret == WT_NOTFOUND)
             break;
-
-        /*
-         * Otherwise, assert mirrors are larger than or equal to the counter and have the same key
-         * number (the keys themselves won't match). If the counter is smaller than the keys, that
-         * means rows were deleted, which is expected.
-         */
-        testutil_assert(rows <= base_keyno && base_keyno == table_keyno);
+        if (base_keyno > TV(RUNS_ROWS) && table_keyno > TV(RUNS_ROWS))
+            break;
+        testutil_assert(base_keyno == table_keyno);
+        testutil_assert(rows <= base_keyno);
         rows = base_keyno;
 
         testutil_check(base_cursor->get_value(base_cursor, &base_value));
