@@ -482,25 +482,36 @@ __recovery_set_checkpoint_snapshot(WT_SESSION_IMPL *session)
       __wt_metadata_search(session, WT_SYSTEM_CKPT_SNAPSHOT_URI, &sys_config), false);
     if (sys_config != NULL) {
         WT_CLEAR(cval);
-        if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MIN, &cval) == 0 &&
+        if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_VERSION, &cval) == 0 &&
           cval.len != 0)
-            conn->recovery_ckpt_snap_min = (uint64_t)cval.val;
+            conn->recovery_ckpt_snapshot_version = (uint64_t)cval.val;
 
-        if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MAX, &cval) == 0 &&
-          cval.len != 0)
-            conn->recovery_ckpt_snap_max = (uint64_t)cval.val;
+        /*
+         * Read the reset of the snapshot information when the on-disk snapshot version matches with
+         * the expected.
+         */
+        if (conn->recovery_ckpt_snapshot_version == WT_CKPT_SNAPSHOT_VERSION) {
+            if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MIN, &cval) == 0 &&
+              cval.len != 0)
+                conn->recovery_ckpt_snap_min = (uint64_t)cval.val;
 
-        if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_COUNT, &cval) == 0 &&
-          cval.len != 0)
-            conn->recovery_ckpt_snapshot_count = (uint32_t)cval.val;
+            if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MAX, &cval) == 0 &&
+              cval.len != 0)
+                conn->recovery_ckpt_snap_max = (uint64_t)cval.val;
 
-        if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT, &cval) == 0 &&
-          cval.len != 0) {
-            __wt_config_subinit(session, &list, &cval);
-            WT_ERR(__wt_calloc_def(
-              session, conn->recovery_ckpt_snapshot_count, &conn->recovery_ckpt_snapshot));
-            while (__wt_config_subget_next(&list, &k) == 0)
-                conn->recovery_ckpt_snapshot[counter++] = (uint64_t)k.val;
+            if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_COUNT, &cval) ==
+                0 &&
+              cval.len != 0)
+                conn->recovery_ckpt_snapshot_count = (uint32_t)cval.val;
+
+            if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT, &cval) == 0 &&
+              cval.len != 0) {
+                __wt_config_subinit(session, &list, &cval);
+                WT_ERR(__wt_calloc_def(
+                  session, conn->recovery_ckpt_snapshot_count, &conn->recovery_ckpt_snapshot));
+                while (__wt_config_subget_next(&list, &k) == 0)
+                    conn->recovery_ckpt_snapshot[counter++] = (uint64_t)k.val;
+            }
         }
 
         /*

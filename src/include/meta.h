@@ -38,6 +38,7 @@
 #define WT_SYSTEM_CKPT_URI "system:checkpoint"                   /* Checkpoint timestamp URI */
 #define WT_SYSTEM_OLDEST_TS "oldest_timestamp"                   /* Oldest timestamp name */
 #define WT_SYSTEM_OLDEST_URI "system:oldest"                     /* Oldest timestamp URI */
+#define WT_SYSTEM_CKPT_SNAPSHOT_VERSION "snapshot_version"       /* Snapshot version */
 #define WT_SYSTEM_CKPT_SNAPSHOT "snapshots"                      /* List of snapshots */
 #define WT_SYSTEM_CKPT_SNAPSHOT_MIN "snapshot_min"               /* Snapshot minimum */
 #define WT_SYSTEM_CKPT_SNAPSHOT_MAX "snapshot_max"               /* Snapshot maximum */
@@ -45,6 +46,9 @@
 #define WT_SYSTEM_CKPT_SNAPSHOT_URI "system:checkpoint_snapshot" /* Checkpoint snapshot URI */
 #define WT_SYSTEM_BASE_WRITE_GEN_URI "system:checkpoint_base_write_gen" /* Base write gen URI */
 #define WT_SYSTEM_BASE_WRITE_GEN "base_write_gen"                       /* Base write gen name */
+
+/* Snapshot version */
+#define WT_CKPT_SNAPSHOT_VERSION 1
 
 /* Check whether a string is a legal URI for a btree object */
 #define WT_BTREE_PREFIX(str) (WT_PREFIX_MATCH(str, "file:") || WT_PREFIX_MATCH(str, "tiered:"))
