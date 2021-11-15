@@ -197,14 +197,15 @@ __eventv_unpack_json_str(u_char *dest, size_t dest_len, char *src, size_t src_le
  */
 static int
 __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, bool is_json,
-  int error, const char *func, int line, const char *fmt, va_list ap) WT_GCC_FUNC_ATTRIBUTE((cold))
+  int error, const char *func, int line, WT_VERBOSE_CATEGORY category, WT_VERBOSE_LEVEL level,
+  const char *fmt, va_list ap) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     struct timespec ts;
     WT_DECL_RET;
     size_t len, msg_len, remain, remain_msg, unpacked_msg_len;
     u_char *unpacked_json_str;
     char msg_str[2 * 1024], *p, *p_msg, tid[128];
-    const char *err, *prefix;
+    const char *err, *prefix, *verbosity_level_tag;
 
     p = buffer;
     p_msg = msg_str;
@@ -257,6 +258,13 @@ __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, boo
 
     /* Message. */
     if (is_json) {
+        /* Category and verbosity level. */
+        WT_ERROR_APPEND(p, remain, "\"category\":\"%s\",", WT_VERBOSE_CATEGORY_STR(category));
+        WT_ERROR_APPEND(p, remain, "\"category_id\":%" PRIu32 ",", category);
+        WT_VERBOSE_LEVEL_STR(level, verbosity_level_tag);
+        WT_ERROR_APPEND(p, remain, "\"verbose_level\":\"%s\",", verbosity_level_tag);
+        WT_ERROR_APPEND(p, remain, "\"verbose_level_id\":%d,", level);
+
         /* Format the content of the message into an intermediate buffer. */
         WT_ERROR_APPEND_AP(p_msg, remain_msg, fmt, ap);
 
@@ -275,6 +283,12 @@ __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, boo
         WT_ERROR_APPEND(p, remain, ": ");
         if (func != NULL)
             WT_ERROR_APPEND(p, remain, "%s, %d: ", func, line);
+
+        /* Category and verbosity level. */
+        WT_VERBOSE_LEVEL_STR(level, verbosity_level_tag);
+        WT_ERROR_APPEND(
+          p, remain, "[%s][%s]", WT_VERBOSE_CATEGORY_STR(category), verbosity_level_tag);
+
         WT_ERROR_APPEND(p, remain, ": ");
         WT_ERROR_APPEND_AP(p, remain, fmt, ap);
     }
@@ -316,7 +330,8 @@ err:
  */
 static int
 __eventv(WT_SESSION_IMPL *session, bool msg_event, bool is_json, int error, const char *func,
-  int line, const char *fmt, va_list ap) WT_GCC_FUNC_ATTRIBUTE((cold))
+  int line, WT_VERBOSE_CATEGORY category, WT_VERBOSE_LEVEL level, const char *fmt, va_list ap)
+  WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     WT_DECL_RET;
     WT_EVENT_HANDLER *handler;
@@ -348,7 +363,8 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, bool is_json, int error, cons
         goto err;
 
     /* Format the message. */
-    WT_ERR(__eventv_gen_msg(session, s, &remain, is_json, error, func, line, fmt, ap));
+    WT_ERR(
+      __eventv_gen_msg(session, s, &remain, is_json, error, func, line, category, level, fmt, ap));
 
     /*
      * If a handler fails, return the error status: if we're in the process of handling an error,
