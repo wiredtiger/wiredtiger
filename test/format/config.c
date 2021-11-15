@@ -351,7 +351,9 @@ config_run(void)
         config_backward_compatible();
 
     config_mirrors(); /* Mirrors */
-    config_cache();   /* Cache */
+
+    /* Configure the cache last, cache size depends on everything else. */
+    config_cache(); /* Cache */
 
     /*
      * Run-length is configured by a number of operations and a timer.
