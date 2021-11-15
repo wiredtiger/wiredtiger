@@ -182,21 +182,21 @@ class search_near_01 : public test_harness::test {
         std::map<uint64_t, scoped_cursor> cursors;
         tc->stat_cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
         std::string srch_key;
-        int64_t entries_stat, prefix_stat, prev_entries_stat, prev_prefix_stat, expected_entries,
-          prev_search_near_calls;
+        int64_t buffer, entries_stat, expected_entries, prefix_stat, prev_entries_stat;
+        int64_t prev_prefix_stat, prev_search_near_calls, total_expected_entries;
         int cmpp;
 
         cmpp = 0;
         prev_entries_stat = 0;
         prev_prefix_stat = 0;
+        prev_search_near_calls = 0;
 
         /*
          * The number of expected entries is calculated to account for the maximum allowed entries
          * per search near function call. The key we search near can be different in length, which
          * will increase the number of entries search by a factor of 26.
          */
-        expected_entries =
-          tc->thread_count * keys_per_prefix * pow(ALPHABET.size(), PREFIX_KEY_LEN - srchkey_len);
+        expected_entries = keys_per_prefix * pow(ALPHABET.size(), PREFIX_KEY_LEN - srchkey_len);
 
         /*
          * Read at timestamp 10, so that no keys are visible to this transaction. This allows prefix
@@ -228,8 +228,7 @@ class search_near_01 : public test_harness::test {
                   tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &prev_entries_stat);
                 runtime_monitor::get_stat(tc->stat_cursor,
                   WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prev_prefix_stat);
-                prev_search_near_calls = search_near_calls;
-
+                ++search_near_calls;
                 cursor->set_key(cursor.get(), srch_key.c_str());
                 testutil_assert(cursor->search_near(cursor.get(), &cmpp) == WT_NOTFOUND);
 
@@ -237,15 +236,13 @@ class search_near_01 : public test_harness::test {
                   tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entries_stat);
                 runtime_monitor::get_stat(
                   tc->stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prefix_stat);
-                ++search_near_calls;
-                if (search_near_calls - prev_search_near_calls > 10) {
-                    logger::log_msg(LOG_ERROR,
-                      "Read thread {" + std::to_string(tc->id) +
-                        "} skipped entries: " + std::to_string(entries_stat - prev_entries_stat) +
-                        " prefix fash path:  " + std::to_string(prefix_stat - prev_prefix_stat) +
-                        " search near calls: " +
-                        std::to_string(search_near_calls - prev_search_near_calls));
-                }
+
+                logger::log_msg(LOG_INFO,
+                  "Read thread {" + std::to_string(tc->id) +
+                    "} skipped entries: " + std::to_string(entries_stat - prev_entries_stat) +
+                    " prefix fash path:  " + std::to_string(prefix_stat - prev_prefix_stat) +
+                    " search near calls: " +
+                    std::to_string(search_near_calls - prev_search_near_calls));
                 /*
                  * It is possible that WiredTiger increments the entries skipped stat irrelevant to
                  * prefix search near. This is dependent on how many read threads are present in the
@@ -253,8 +250,12 @@ class search_near_01 : public test_harness::test {
                  * the number of expected entries is the upper limit which the prefix search near
                  * can traverse and the prefix fast path is incremented.
                  */
-                testutil_assert(((search_near_calls - prev_search_near_calls) * expected_entries) >=
-                  entries_stat - prev_entries_stat);
+                total_expected_entries =
+                  (search_near_calls - prev_search_near_calls) * (expected_entries);
+                buffer = std::max(total_expected_entries / 2, static_cast<int64_t>(20));
+                testutil_assert(
+                  total_expected_entries + buffer >= entries_stat - prev_entries_stat);
+
                 /*
                  * There is an edge case where we may not early exit the prefix search near call
                  * because the specified prefix matches the rest of the entries in the tree.
@@ -274,6 +275,7 @@ class search_near_01 : public test_harness::test {
                     testutil_assert(prefix_stat > prev_prefix_stat);
                 }
 
+                prev_search_near_calls = search_near_calls;
                 tc->transaction.add_op();
                 tc->sleep();
             }
