@@ -131,7 +131,7 @@ def run_test_wrapper(config: WTPerfConfig, index: int = 0, arguments: List[str] 
 def run_test(config: WTPerfConfig, test_run: int, index: int = 0, arguments: List[str] = None):
     test_home = create_test_home_path(home=config.home_dir, test_run=test_run, index=index)
     if config.verbose:
-        print("Home directory created: {}".format(test_home))
+        print("Home directory path created: {}".format(test_home))
     command_line = construct_wtperf_command_line(
         wtperf=config.wtperf_path,
         env=config.environment,
