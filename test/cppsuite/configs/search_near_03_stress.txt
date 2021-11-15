@@ -3,7 +3,7 @@
 # key count for each collection. 
 # Threads:
 #  - Each insert thread performs unique index insertions on existing prefixes.
-#  - Each read thread counts the number of current records in each collection, and check if the
+#  - Each read thread counts the number of current records in each collection, and checks if the
 # table has changed.
 duration_seconds=1800,
 cache_size_mb=500,

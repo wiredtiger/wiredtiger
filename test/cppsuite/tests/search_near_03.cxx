@@ -34,28 +34,22 @@ using namespace test_harness;
 
 /*
  * In this test, we want to verify search_near with prefix enabled when performing unique index
- * insertions. During the test duration:
- *  - N threads will keep performing unique index insertions on existing keys in the table, in which
- * we are expecting it to fail.
- *  - M threads traverse all the keys in all the collections, to make sure that the number of
- * collections do not change.
+ * insertions. For the test duration:
+ *  - N thread will perform unique index insertions on existing keys in the table. These insertions
+ * are expected to fail.
+ *  - M threads will traverse the collections and ensure that the number of records in the
+ * collections don't change.
  */
 class search_near_03 : public test_harness::test {
-    /* a 2D array consisted of a mapping between collection and their inserted prefixes. */
+    /* A 2D array consisted of a mapping between each collection and their inserted prefixes. */
     std::vector<std::vector<std::string>> prefixes_map;
     const std::string ALPHABET{"abcdefghijklmnopqrstuvwxyz"};
 
     public:
     search_near_03(const test_harness::test_args &args) : test(args) {}
 
-    void
-    run() override final
-    {
-        test::run();
-    }
-
     /*
-     * Here's how we insert a unique index:
+     * Here's how we insert an entry into a unique index:
      * 1. Insert the prefix.
      * 2. Remove the prefix.
      * 3. Search near for the prefix. In the case we find a record, we stop here as a value with the
@@ -68,6 +62,7 @@ class search_near_03 : public test_harness::test {
     perform_unique_index_insertions(
       thread_context *tc, scoped_cursor &cursor, collection &coll, std::string &prefix_key)
     {
+        std::string ret_key;
         const char *key_tmp;
         int exact_prefix, ret;
 
@@ -80,18 +75,18 @@ class search_near_03 : public test_harness::test {
             return false;
 
         /*
-         * Prefix search near the prefix. We expect that the key is deleted and a WT_NOTFOUND error
-         * to be returned. If the key is present, it means the (prefix, id) has been inserted
-         * already, double check that the prefix portion match.
+         * Prefix search near for the prefix. We expect that the prefix is not visible to us and a
+         * WT_NOTFOUND error code is returned. If the prefix is present it means the (prefix, id)
+         * has been inserted already. Double check that the prefix potion matches.
          */
-        cursor->reconfigure(cursor.get(), "prefix_search=true");
         cursor->set_key(cursor.get(), prefix_key.c_str());
         ret = cursor->search_near(cursor.get(), &exact_prefix);
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
         if (ret == 0) {
             cursor->get_key(cursor.get(), &key_tmp);
+            ret_key = get_prefix_from_key(std::string(key_tmp));
             testutil_assert(exact_prefix == 1);
-            testutil_assert(prefix_key == std::string(key_tmp).substr(0, prefix_key.size()));
+            testutil_assert(prefix_key == ret_key);
             return false;
         }
 
@@ -114,6 +109,7 @@ class search_near_03 : public test_harness::test {
          */
         collection &coll = tc->db.get_collection(tc->id);
         scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+        cursor->reconfigure(cursor.get(), "prefix_search=true");
         for (uint64_t count = 0; count < tc->key_count; ++count) {
             tc->transaction.begin();
             /*
@@ -126,17 +122,18 @@ class search_near_03 : public test_harness::test {
             } else {
                 tc->transaction.rollback();
                 ++rollback_retries;
-                --count;
+                if (count > 0)
+                    --count;
             }
             testutil_assert(rollback_retries < MAX_ROLLBACKS);
         }
     }
 
-    const std::string
+    static const std::string
     get_prefix_from_key(std::string const &s)
     {
         const std::string::size_type pos = s.find(',');
-        return pos != std::string::npos ? s.substr(0, pos) : s;
+        return pos != std::string::npos ? s.substr(0, pos) : nullptr;
     }
 
     void
