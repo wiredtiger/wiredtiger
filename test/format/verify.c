@@ -120,8 +120,10 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
             testutil_assert(base->type != FIX);
             break;
         case VAR:
-            testutil_assert(read_op(base_cursor, NEXT, NULL) == 0);
-            testutil_check(base_cursor->get_key(base_cursor, &base_keyno));
+            base_ret = read_op(base_cursor, NEXT, NULL);
+            testutil_assert(base_ret == 0 || base_ret == WT_NOTFOUND);
+            if (base_ret == 0)
+                testutil_check(base_cursor->get_key(base_cursor, &base_keyno));
             break;
         case ROW:
             base_ret = table_mirror_row_next(base, base_cursor, &base_key, &base_keyno);
@@ -135,7 +137,10 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
              * matching key number, asserting intermediate records have values of 0.
              */
             for (;;) {
-                testutil_assert(read_op(table_cursor, NEXT, NULL) == 0);
+                table_ret = read_op(table_cursor, NEXT, NULL);
+                testutil_assert(table_ret == 0 || table_ret == WT_NOTFOUND);
+                if (table_ret != 0)
+                    break;
                 testutil_check(table_cursor->get_key(table_cursor, &table_keyno));
                 if (table_keyno >= base_keyno)
                     break;
@@ -144,8 +149,10 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
             }
             break;
         case VAR:
-            testutil_assert(read_op(table_cursor, NEXT, NULL) == 0);
-            testutil_check(table_cursor->get_key(table_cursor, &table_keyno));
+            table_ret = read_op(table_cursor, NEXT, NULL);
+            testutil_assert(table_ret == 0 || table_ret == WT_NOTFOUND);
+            if (table_ret == 0)
+                testutil_check(table_cursor->get_key(table_cursor, &table_keyno));
             break;
         case ROW:
             table_ret = table_mirror_row_next(table, table_cursor, &table_key, &table_keyno);
