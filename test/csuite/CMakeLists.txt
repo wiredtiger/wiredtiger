@@ -218,6 +218,14 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_wt2719_reconfig
+    SOURCES wt2719_reconfig/main.c
+    DIR_NAME wt2719_reconfig
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2719_reconfig>/WT_HOME>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_wt2999_join_extractor
     SOURCES wt2999_join_extractor/main.c
     DIR_NAME wt2999_join_extractor
