@@ -999,7 +999,7 @@ config_mirrors(void)
     }
 
     /*
-     * Don't mirror if there are custom collator, it would complicate the cursor traversal when
+     * Don't mirror if there is a custom collator, it would complicate the cursor traversal when
      * comparing tables.
      */
     for (i = 1; i <= ntables; ++i)
