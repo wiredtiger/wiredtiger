@@ -532,8 +532,11 @@ struct __wt_cursor_version {
 
     WT_CURSOR *hs_cursor;    /* Queries of history cursor. */
     WT_CURSOR *table_cursor; /* Queries of regular table cursor. */
-    WT_ITEM *table_key;
     WT_UPDATE *next_upd;
+
+#define WT_VERSION_UPDATE_CHAIN 0
+#define WT_VERSION_DISK_IMAGE 1
+#define WT_VERSION_HISTORY_STORE 2
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_VERSION_CUR_HS_EXAUSTED 0x1u

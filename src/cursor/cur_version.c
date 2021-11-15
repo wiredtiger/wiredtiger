@@ -89,8 +89,7 @@ __curversion_close(WT_CURSOR *cursor)
  *     Initialize a version cursor.
  */
 int
-__wt_curversion_open(
-  WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, WT_CURSOR **cursorp)
+__wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR **cursorp)
 {
     WT_CURSOR_STATIC_INIT(iface, __curversion_get_key, /* get-key */
       __curversion_get_value,                          /* get-value */
@@ -114,10 +113,38 @@ __wt_curversion_open(
       __wt_cursor_reopen_notsup,                       /* reopen */
       __curversion_close);                             /* close */
 
-    WT_UNUSED(iface);
-    WT_UNUSED(session);
-    WT_UNUSED(uri);
-    WT_UNUSED(owner);
-    WT_UNUSED(cursorp);
-    return (0);
+    WT_CURSOR *cursor;
+    WT_CURSOR_VERSION *version_cursor;
+    WT_DECL_RET;
+    const char *table_uri;
+    /* The table cursor is read only. */
+    const char *table_cursor_cfg[] = {
+      WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "read_only=true", NULL};
+
+    /* The table uri is the uri without prefix 'version:'. */
+    table_uri = uri + 8;
+
+    *cursorp = NULL;
+    WT_RET(__wt_calloc_one(session, &version_cursor));
+    cursor = (WT_CURSOR *)version_cursor;
+    *cursor = iface;
+    cursor->session = (WT_SESSION *)session;
+
+    /* Open the table cursor. */
+    WT_ERR(__wt_open_cursor(
+      session, table_uri, cursor, table_cursor_cfg, &version_cursor->table_cursor));
+
+    cursor->key_format = WT_UNCHECKED_STRING(QQQQQQBBB);
+    cursor->value_format = version_cursor->table_cursor->value_format;
+    WT_ERR(__wt_strdup(session, uri, &cursor->uri));
+
+    /* Open the history store cursor for operations on the regular history store .*/
+    WT_ERR(__wt_curhs_open(session, cursor, &version_cursor->hs_cursor));
+
+    if (0) {
+err:
+        WT_TRET(cursor->close(cursor));
+        *cursorp = NULL;
+    }
+    return (ret);
 }
