@@ -58,19 +58,18 @@ if(HAVE_BUILTIN_EXTENSION_ZLIB OR ENABLE_ZLIB)
             ${CMAKE_SOURCE_DIR}/src/include
             ${CMAKE_BINARY_DIR}/include
             ${CMAKE_BINARY_DIR}/config
+            ${HAVE_LIBZ_INCLUDES}
         )
     target_compile_options(
         wiredtiger_zlib
-        PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+        PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
     )
 
     set_property(TARGET wiredtiger_zlib PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif()
 
 if(ENABLE_ZLIB)
-    # HAVE_LIBZ contains the full pathname to the lib, which is
-    # what the cmake docs recommend using.
-    target_link_libraries(wiredtiger_zlib ${HAVE_LIBZ})
+    target_link_libraries(wiredtiger_zlib wt::zlib)
     install(TARGETS wiredtiger_zlib
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

@@ -51,7 +51,7 @@ target_include_directories(
         ${CMAKE_BINARY_DIR}/config
         ${CMAKE_SOURCE_DIR}/src/include
 )
-target_link_libraries(test_util wiredtiger)
+target_link_libraries(test_util wt::wiredtiger)
 
 if(WT_WIN)
     target_include_directories(
@@ -63,5 +63,5 @@ endif()
 
 target_compile_options(
     test_util
-    PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+    PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
 )

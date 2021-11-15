@@ -36,6 +36,7 @@ set(format_sources
     compact.c
     config.c
     config_compat.c
+    config_def.c
     hs.c
     import.c
     kv.c

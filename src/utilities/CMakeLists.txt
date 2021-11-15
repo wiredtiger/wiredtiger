@@ -36,14 +36,14 @@ set(sources
 )
 
 add_executable(wt ${sources})
-target_compile_options(wt PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS})
+target_compile_options(wt PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS})
 target_include_directories(wt
     PRIVATE ${CMAKE_SOURCE_DIR}/src/include  ${CMAKE_BINARY_DIR}/config
 )
-target_link_libraries(wt wiredtiger)
+target_link_libraries(wt wt::wiredtiger)
 
-if(ENABLE_TCMALLOC AND HAVE_LIBTCMALLOC)
-    target_link_libraries(wt ${HAVE_LIBTCMALLOC})
+if(ENABLE_TCMALLOC)
+    target_link_libraries(wt wt::tcmalloc)
 endif()
 
 # Our test suite expects `wt` to sit at the top level build directory.
