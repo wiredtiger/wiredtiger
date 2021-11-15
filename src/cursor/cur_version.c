@@ -89,7 +89,8 @@ __curversion_close(WT_CURSOR *cursor)
  *     Initialize a version cursor.
  */
 int
-__wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR **cursorp)
+__wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, const char *cfg[],
+  WT_CURSOR **cursorp)
 {
     WT_CURSOR_STATIC_INIT(iface, __curversion_get_key, /* get-key */
       __curversion_get_value,                          /* get-value */
@@ -140,6 +141,8 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR **curs
 
     /* Open the history store cursor for operations on the regular history store .*/
     WT_ERR(__wt_curhs_open(session, cursor, &version_cursor->hs_cursor));
+
+    WT_ERR(__wt_cursor_init(cursor, cursor->uri, owner, cfg, cursorp));
 
     if (0) {
 err:
