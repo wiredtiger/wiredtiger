@@ -4,7 +4,8 @@ Turn on tracing with the "-t" flag:
 
     -t	Trace operations into a WiredTiger log
 
-That causes format to trace operations in a WiredTiger log.
+That causes format to write trace messages into a WiredTiger log, using WT_SESSION.log_printf()
+that can be used to track operations.
 
 By default only modifications and transactions are traced to limit how much data is stored.
 You can trace more operations by adding "trace.XXX" configurations to the run:
@@ -25,7 +26,8 @@ need longer tracking:
 
     trace.log_retain=100
 
-After the run, you can dump the trace records with the wt utility:
+After the run, you can dump the trace records from the WiredTiger log files with the wt utility,
+for example:
 
     wt -h RUNDIR/OPS.TRACE printlog -um
 
@@ -55,7 +57,6 @@ The output will look something like this:
 
 The fields are a timestamp, a thread and session ID, and then an operation. When the operation
 is per object (like and update or remove), there's an object name and a row number.
-
 
 Additionally, when format detects a failure, it will dump the cursor page that was the source
 of the row that didn't match the expected value, as well as the history store. The dumps are
