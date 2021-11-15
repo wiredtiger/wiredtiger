@@ -9,6 +9,7 @@
 #include "wt_internal.h"
 
 static void __free_page_modify(WT_SESSION_IMPL *, WT_PAGE *);
+static void __free_page_col_fix(WT_SESSION_IMPL *, WT_PAGE *);
 static void __free_page_col_var(WT_SESSION_IMPL *, WT_PAGE *);
 static void __free_page_int(WT_SESSION_IMPL *, WT_PAGE *);
 static void __free_page_row_leaf(WT_SESSION_IMPL *, WT_PAGE *);
@@ -74,7 +75,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 
     /* Assert we never discard a dirty page or a page queue for eviction. */
     WT_ASSERT(session, !__wt_page_is_modified(page));
-    WT_ASSERT(session, !F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU));
+    WT_ASSERT(session, !F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU));
 
     /*
      * If a root page split, there may be one or more pages linked from the page; walk the list,
@@ -93,11 +94,11 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     __wt_cache_page_evict(session, page);
 
     dsk = (WT_PAGE_HEADER *)page->dsk;
-    if (F_ISSET_ATOMIC(page, WT_PAGE_DISK_ALLOC))
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC))
         __wt_cache_page_image_decr(session, page);
 
     /* Discard any mapped image. */
-    if (F_ISSET_ATOMIC(page, WT_PAGE_DISK_MAPPED))
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_MAPPED))
         (void)S2BT(session)->bm->map_discard(
           S2BT(session)->bm, session, dsk, (size_t)dsk->mem_size);
 
@@ -114,6 +115,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:
+        __free_page_col_fix(session, page);
         break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
@@ -128,7 +130,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     }
 
     /* Discard any allocated disk image. */
-    if (F_ISSET_ATOMIC(page, WT_PAGE_DISK_ALLOC))
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC))
         __wt_overwrite_and_free_len(session, dsk, dsk->mem_size);
 
     __wt_overwrite_and_free(session, page);
@@ -150,7 +152,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
     mod = page->modify;
 
     /* In some failed-split cases, we can't discard updates. */
-    update_ignore = F_ISSET_ATOMIC(page, WT_PAGE_UPDATE_IGNORE);
+    update_ignore = F_ISSET_ATOMIC_16(page, WT_PAGE_UPDATE_IGNORE);
 
     switch (mod->rec_result) {
     case WT_PM_REC_MULTIBLOCK:
@@ -338,6 +340,17 @@ __wt_free_ref_index(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pind
         __wt_free_ref(session, ref, page->type, free_pages);
     }
     __wt_free(session, pindex);
+}
+
+/*
+ * __free_page_col_fix --
+ *     Discard a WT_PAGE_COL_FIX page.
+ */
+static void
+__free_page_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    /* Free the time window lookup array. */
+    __wt_free(session, page->u.col_fix.fix_tw);
 }
 
 /*

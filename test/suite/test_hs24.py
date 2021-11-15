@@ -26,6 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import time
+
 import wttest, threading, wiredtiger
 from helper import simulate_crash_restart
 from wtscenario import make_scenarios
@@ -33,9 +35,10 @@ from wtscenario import make_scenarios
 # test_hs24.py
 # Test that out of order timestamp fix racing with checkpointing the history store doesn't create inconsistent checkpoint.
 class test_hs24(wttest.WiredTigerTestCase):
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('integer_row', dict(key_format='i')),
+    format_values = [
+        ('column', dict(key_format='r', value_format='S')),
+        ('column_fix', dict(key_format='r', value_format='8t')),
+        ('integer_row', dict(key_format='i', value_format='S')),
     ]
 
     checkpoint_stress_scenarios = [
@@ -43,7 +46,7 @@ class test_hs24(wttest.WiredTigerTestCase):
         ('history_store_checkpoint_delay_stress', dict(checkpoint_stress='history_store_checkpoint_delay')),
     ]
 
-    scenarios = make_scenarios(key_format_values, checkpoint_stress_scenarios)
+    scenarios = make_scenarios(format_values, checkpoint_stress_scenarios)
 
     def conn_config(self):
         return 'timing_stress_for_test=({})'.format(self.checkpoint_stress)
@@ -52,12 +55,22 @@ class test_hs24(wttest.WiredTigerTestCase):
     uri = 'table:test_hs24'
     numrows = 2000
 
-    value1 = 'a' * 500
-    value2 = 'b' * 500
-    value3 = 'c' * 500
-    value4 = 'd' * 500
+    def moresetup(self):
+        self.format = 'key_format={},value_format={}'. format(self.key_format, self.value_format)
+        if self.value_format == '8t':
+            self.value1 = 97
+            self.value2 = 98
+            self.value3 = 99
+            self.value4 = 100
+        else:
+            self.value1 = 'a' * 500
+            self.value2 = 'b' * 500
+            self.value3 = 'c' * 500
+            self.value4 = 'd' * 500
+
     def test_zero_ts(self):
-        self.session.create(self.uri, 'key_format={},value_format=S'. format(self.key_format))
+        self.moresetup()
+        self.session.create(self.uri, self.format)
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
         for i in range(1, self.numrows + 1):
@@ -71,6 +84,10 @@ class test_hs24(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
         thread = threading.Thread(target=self.zero_ts_deletes)
         thread.start()
+        # Give the thread a chance to get going. Otherwise typically none of the deletions
+        # appear in the checkpoint and we lose the ability to test that anything interesting
+        # happened.
+        time.sleep(3)
         self.session.checkpoint()
         thread.join()
         simulate_crash_restart(self, '.', "RESTART")
@@ -88,6 +105,14 @@ class test_hs24(wttest.WiredTigerTestCase):
             cursor2.set_key(i)
             ret = cursor.search()
             ret2 = cursor2.search()
+
+            # In FLCS, deleted values read back as 0. Adjust accordingly.
+            if self.value_format == '8t':
+                if ret == 0 and cursor.get_value() == 0:
+                    ret = wiredtiger.WT_NOTFOUND
+                if ret2 == 0 and cursor2.get_value() == 0:
+                    ret2 = wiredtiger.WT_NOTFOUND
+
             if not newer_data_visible:
                 newer_data_visible = ret != wiredtiger.WT_NOTFOUND
             if newer_data_visible:
@@ -110,7 +135,8 @@ class test_hs24(wttest.WiredTigerTestCase):
         session.close()
 
     def test_zero_commit(self):
-        self.session.create(self.uri, 'key_format={},value_format=S'.format(self.key_format))
+        self.moresetup()
+        self.session.create(self.uri, self.format)
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
         for i in range(1, self.numrows + 1):
@@ -153,7 +179,8 @@ class test_hs24(wttest.WiredTigerTestCase):
         session.close()
 
     def test_out_of_order_ts(self):
-        self.session.create(self.uri, 'key_format={},value_format=S'.format(self.key_format))
+        self.moresetup()
+        self.session.create(self.uri, self.format)
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
         for i in range(1, self.numrows + 1):
