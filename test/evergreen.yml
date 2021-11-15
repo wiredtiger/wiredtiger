@@ -3629,7 +3629,7 @@ tasks:
           perf-test-name: 500m-btree-50r50u
           maxruns: 1
           no_create: true
-          wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"read", "update", "warnings"']
+          wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"read", "update", "warnings", "max_latency_read_update"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: 500m-btree-50r50u

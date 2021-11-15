@@ -207,6 +207,11 @@ def setup_perf_stats():
                                         output_label='Latency(insert) Max',
                                         ops = ['insert'],
                                         num_max = 1))
+    perf_stats.add_stat(PerfStatLatency(short_label="max_latency_read_update",
+                                        stat_file='monitor.json',
+                                        output_label='Latency(read, update) Max',
+                                        ops = ['read', 'update'],
+                                        num_max = 1))
     return perf_stats
 
 
