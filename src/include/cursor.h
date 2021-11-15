@@ -527,6 +527,22 @@ struct __wt_cursor_table {
     WT_CURSOR **idx_cursors;
 };
 
+struct __wt_cursor_version {
+    WT_CURSOR iface;
+
+    WT_CURSOR *hs_cursor;    /* Queries of history cursor. */
+    WT_CURSOR *table_cursor; /* Queries of regular table cursor. */
+    WT_ITEM *table_key;
+    WT_UPDATE *next_upd;
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_VERSION_CUR_HS_EXAUSTED 0x1u
+#define WT_VERSION_CUR_ON_DISK_EXHAUSTED 0x2u
+#define WT_VERSION_CUR_UPDATE_EXHAUSTED 0x4u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t flags;
+};
+
 #define WT_CURSOR_PRIMARY(cursor) (((WT_CURSOR_TABLE *)(cursor))->cg_cursors[0])
 
 #define WT_CURSOR_RECNO(cursor) WT_STREQ((cursor)->key_format, "r")
