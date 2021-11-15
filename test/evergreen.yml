@@ -3615,6 +3615,10 @@ tasks:
     depends_on:
       - name: compile
     commands:
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 86400
+          timeout_secs: 86400
       - func: "fetch artifacts"
       - func: "run-perf-test"
         vars:
