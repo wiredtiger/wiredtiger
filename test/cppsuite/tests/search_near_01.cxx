@@ -236,7 +236,6 @@ class search_near_01 : public test_harness::test {
                   tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entries_stat);
                 runtime_monitor::get_stat(
                   tc->stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prefix_stat);
-
                 logger::log_msg(LOG_INFO,
                   "Read thread {" + std::to_string(tc->id) +
                     "} skipped entries: " + std::to_string(entries_stat - prev_entries_stat) +
@@ -255,7 +254,6 @@ class search_near_01 : public test_harness::test {
                 buffer = std::max(total_expected_entries / 2, static_cast<int64_t>(20));
                 testutil_assert(
                   total_expected_entries + buffer >= entries_stat - prev_entries_stat);
-
                 /*
                  * There is an edge case where we may not early exit the prefix search near call
                  * because the specified prefix matches the rest of the entries in the tree.
