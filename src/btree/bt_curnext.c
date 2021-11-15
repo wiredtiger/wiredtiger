@@ -779,8 +779,8 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
                  * have exited the cursor row next function due to a prefix key mismatch. If so, we
                  * can immediately return WT_NOTFOUND and we do not have to walk onto the next page.
                  */
-                if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH)) {
-                    //WT_ASSERT(session, ret == WT_NOTFOUND);
+                if (prefix_key_out_of_bounds) {
+                    WT_ASSERT(session, ret == WT_NOTFOUND);
                     return (WT_NOTFOUND);
                 }
                 break;
