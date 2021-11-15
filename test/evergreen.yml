@@ -3665,6 +3665,25 @@ tasks:
         vars:
           perf-test-name: 500m-btree-rdonly
 
+  - name: perf-test-long-checkpoint-stress
+    tags: ["long-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 86400
+          timeout_secs: 86400
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: checkpoint-stress
+          maxruns: 1
+          wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"update", "checkpoint"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: checkpoint-stress
+
 #######################################
 #            Buildvariants            #
 #######################################

@@ -182,6 +182,10 @@ def setup_perf_stats():
                                  pattern=r'Executed \d+ update operations',
                                  input_offset=1,
                                  output_label='Update count'))
+    perf_stats.add_stat(PerfStat(short_label="checkpoint",
+                                 pattern=r'Executed \d+ checkpoint operations',
+                                 input_offset=1,
+                                 output_label='Checkpoint count'))
     perf_stats.add_stat(PerfStatMax(short_label="max_update_throughput",
                                     pattern=r'updates,',
                                     input_offset=8,
