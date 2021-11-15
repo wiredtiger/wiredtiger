@@ -57,7 +57,7 @@ static char value_d[] = "DD";
 static void sig_handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /* Forward declarations. */
-static int run_test(bool column_store, const char *uri);
+static int run_test(bool column_store, const char *uri, bool preserve);
 static void populate(WT_SESSION *session, const char *uri);
 static void workload_compact(const char *, const char *, const char *uri);
 static void remove_records(WT_SESSION *session, const char *uri, int commit_ts);
@@ -91,9 +91,9 @@ main(int argc, char *argv[])
     memset(opts, 0, sizeof(*opts));
     testutil_check(testutil_parse_opts(argc, argv, opts));
 
-    testutil_assert(run_test(false, opts->uri) == EXIT_SUCCESS);
+    testutil_assert(run_test(false, opts->uri, opts->preserve) == EXIT_SUCCESS);
 
-    testutil_assert(run_test(true, opts->uri) == EXIT_SUCCESS);
+    testutil_assert(run_test(true, opts->uri, opts->preserve) == EXIT_SUCCESS);
 
     testutil_cleanup(opts);
 
@@ -110,7 +110,7 @@ run_compact(WT_SESSION *session, const char *uri)
 }
 
 static int
-run_test(bool column_store, const char *uri)
+run_test(bool column_store, const char *uri, bool preserve)
 {
     struct sigaction sa;
     struct stat sb;
@@ -203,6 +203,11 @@ run_test(bool column_store, const char *uri)
 
     testutil_check(conn->close(conn, NULL));
     conn = NULL;
+
+    /* Cleanup */
+    if (!preserve)
+        testutil_clean_work_dir(home);
+
     return (EXIT_SUCCESS);
 }
 
