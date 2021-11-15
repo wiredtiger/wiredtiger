@@ -12,8 +12,8 @@ Before understanding the compaction process, we need to understand how disk bloc
 checkpoints. Each checkpoint references a certain set of disk blocks for a table. When a dirty
 btree page is reconciled, a new disk block is assigned for the page and a new checkpoint starts
 referencing the new block used for the page. Once the checkpoint referencing the old block is deleted,
-the old disk block becomes available for reuse. Compaction process copies over the data from
-the blocks at the end of the file to the blocks at the start of the file that are available for reuse.
+the old disk block becomes available for reuse. The compaction process copies over the data from
+the blocks at the end of the file to the reusable blocks at the start of the file.
 
 The compaction process starts with a system-wide checkpoint. There are potentially many dirty blocks
 in the cache, and the intention here is to write them out and then discard previous checkpoints so
@@ -60,6 +60,6 @@ Compaction is a time-consuming operation and therefore logs have been added in c
 track current progress. Some of the verbose logs for compaction can be activated by setting
 \c "verbose=[compact,compact_progress]" configuration option for \c wiredtiger_open() method. Apart from
 verbose logs, WT also records statistics about compact progress that can be used to debug issues
-with compaction process.
+with the compaction process.
 
 */
