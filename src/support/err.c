@@ -419,9 +419,9 @@ err:
  *     Report an error.
  */
 void
-__wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line, const char *fmt, ...)
-  WT_GCC_FUNC_ATTRIBUTE((cold)) WT_GCC_FUNC_ATTRIBUTE((format(printf, 5, 6)))
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
+  WT_VERBOSE_CATEGORY category, const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((cold))
+  WT_GCC_FUNC_ATTRIBUTE((format(printf, 6, 7))) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     va_list ap;
 
@@ -432,7 +432,7 @@ __wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line, c
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session, false,
       session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, error, func,
-      line, fmt, ap));
+      line, category, WT_VERBOSE_ERROR, fmt, ap));
     va_end(ap);
 }
 
@@ -441,9 +441,9 @@ __wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line, c
  *     Report an error with no error code.
  */
 void
-__wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, const char *fmt, ...)
-  WT_GCC_FUNC_ATTRIBUTE((cold)) WT_GCC_FUNC_ATTRIBUTE((format(printf, 4, 5)))
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, WT_VERBOSE_CATEGORY category,
+  const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((cold)) WT_GCC_FUNC_ATTRIBUTE((format(printf, 5, 6)))
+  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     va_list ap;
 
@@ -454,7 +454,7 @@ __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, const char 
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session, false,
       session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0, func, line,
-      fmt, ap));
+      category, WT_VERBOSE_ERROR, fmt, ap));
     va_end(ap);
 }
 
@@ -463,9 +463,9 @@ __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, const char 
  *     A standard error message when we panic.
  */
 int
-__wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line, const char *fmt,
-  ...) WT_GCC_FUNC_ATTRIBUTE((cold)) WT_GCC_FUNC_ATTRIBUTE((format(printf, 5, 6)))
-  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
+  WT_VERBOSE_CATEGORY category, const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((cold))
+  WT_GCC_FUNC_ATTRIBUTE((format(printf, 6, 7))) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     WT_CONNECTION_IMPL *conn;
     va_list ap;
@@ -479,7 +479,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
     va_start(ap, fmt);
     WT_IGNORE_RET(
       __eventv(session, false, session ? FLD_ISSET(conn->json_output, WT_JSON_OUTPUT_ERROR) : false,
-        error, func, line, fmt, ap));
+        error, func, line, category, WT_VERBOSE_ERROR, fmt, ap));
     va_end(ap);
 
     /*
@@ -499,7 +499,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      */
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session, false, FLD_ISSET(conn->json_output, WT_JSON_OUTPUT_ERROR),
-      WT_PANIC, func, line, "the process must exit and restart", ap));
+      WT_PANIC, func, line, category, WT_VERBOSE_ERROR, "the process must exit and restart", ap));
     va_end(ap);
 
 #if defined(HAVE_DIAGNOSTIC)
@@ -562,7 +562,7 @@ __wt_ext_err_printf(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char
 
     va_start(ap, fmt);
     ret = __eventv(session, false,
-      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0, NULL, 0, fmt,
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0, NULL, 0, WT_VERB_EXTENSION, WT_VERBOSE_ERROR, fmt,
       ap);
     va_end(ap);
     return (ret);
