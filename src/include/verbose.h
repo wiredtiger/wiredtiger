@@ -105,7 +105,14 @@ typedef enum {
  * Default verbosity level. WT_VERBOSE_DEBUG being the default level assigned to verbose messages
  * prior to the introduction of verbosity levels.
  */
-#define WT_VERBOSE_DEFAULT WT_VERBOSE_DEBUG
+#ifndef WT_VERBOSE_LEVEL_DEFAULT
+#define WT_VERBOSE_LEVEL_DEFAULT WT_VERBOSE_DEBUG
+#endif
+
+/* Default category for messages that don't explicitly specify a category. */
+#ifndef WT_VERBOSE_CATEGORY_DEFAULT
+#define WT_VERBOSE_CATEGORY_DEFAULT WT_VERB_DEFAULT
+#endif
 
 /*
  * WT_VERBOSE_MULTI_CATEGORY --
@@ -128,7 +135,7 @@ struct __wt_verbose_multi_category {
  * given category satisfies the default verbosity level.
  */
 #define WT_VERBOSE_ISSET(session, category) \
-    WT_VERBOSE_LEVEL_ISSET(session, category, WT_VERBOSE_DEFAULT)
+    WT_VERBOSE_LEVEL_ISSET(session, category, WT_VERBOSE_LEVEL_DEFAULT)
 
 /*
  * __wt_verbose_level --
@@ -177,7 +184,7 @@ struct __wt_verbose_multi_category {
  *     comma before an empty __VA_ARGS__ value.
  */
 #define __wt_verbose(session, category, fmt, ...) \
-    __wt_verbose_level(session, category, WT_VERBOSE_DEFAULT, fmt, __VA_ARGS__)
+    __wt_verbose_level(session, category, WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__)
 
 /*
  * __wt_verbose_level_multi --
