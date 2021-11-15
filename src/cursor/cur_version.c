@@ -37,7 +37,7 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
 static void
 __curversion_set_key(WT_CURSOR *cursor, ...)
 {
-    WT_UNUSED(cursor);
+    __wt_curtable_set_key(cursor);
 }
 
 /*
