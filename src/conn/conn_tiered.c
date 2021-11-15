@@ -111,6 +111,7 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
      */
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT));
     __wt_seconds(session, &flush_time);
+    /* XXX If/when flush tier no longer requires the checkpoint lock, this needs consideration. */
     conn->flush_most_recent = WT_MAX(flush_time, conn->ckpt_most_recent);
 
     /*
@@ -131,6 +132,10 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
                  * checkpoint more recent than the last flush time.
                  */
                 WT_ERR(__wt_meta_checkpoint(session, key, NULL, &ckpt));
+                /*
+                 * XXX If/when flush tier no longer requires the checkpoint lock, this needs
+                 * consideration.
+                 */
                 ckpt_time = ckpt.sec;
                 __wt_meta_checkpoint_free(session, &ckpt);
                 WT_ERR(__wt_config_getones(session, value, "flush_time", &cval));
