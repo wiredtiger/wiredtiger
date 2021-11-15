@@ -41,8 +41,8 @@ struct __wt_hazard_weak {
 
 /*
  * WT_HAZARD_WEAK_ARRAY --
- *	A per-session array of weak hazard pointers.  These are grown by adding a new array, and are
- *only freed when the session is closed.
+ *	A per-session array of weak hazard pointers. These are grown by adding a new array, and are
+ *  only freed when the session is closed.
  */
 struct __wt_hazard_weak_array {
     uint32_t hazard_size;  /* Weak hazard pointer array slots */

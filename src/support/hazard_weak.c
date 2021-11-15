@@ -50,12 +50,12 @@ __wt_hazard_weak_close(WT_SESSION_IMPL *session)
     __wt_errx(
       session, "session %p: close weak hazard pointer table: table not empty", (void *)session);
 
-    WT_HAZARD_WEAK_FORALL(session, wha, whp)
-    if (whp->ref != NULL) {
-        whp->ref = NULL;
-        --wha->nhazard;
-        --nhazard_weak;
-    }
+    WT_HAZARD_WEAK_FORALL (session, wha, whp)
+        if (whp->ref != NULL) {
+            whp->ref = NULL;
+            --wha->nhazard;
+            --nhazard_weak;
+        }
 
     if (nhazard_weak != 0)
         __wt_errx(session,
