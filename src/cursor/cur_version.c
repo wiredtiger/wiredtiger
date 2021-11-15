@@ -58,8 +58,27 @@ __curversion_next(WT_CURSOR *cursor)
 static int
 __curversion_reset(WT_CURSOR *cursor)
 {
-    WT_UNUSED(cursor);
-    return (0);
+    WT_CURSOR *hs_cursor, *table_cursor;
+    WT_CURSOR_VERSION *version_cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    version_cursor = (WT_CURSOR_VERSION *)cursor;
+    hs_cursor = version_cursor->hs_cursor;
+    table_cursor = version_cursor->table_cursor;
+    CURSOR_API_CALL(cursor, session, reset, NULL);
+
+    if (table_cursor != NULL)
+        WT_TRET(table_cursor->reset(table_cursor));
+    if (hs_cursor != NULL)
+        WT_TRET(hs_cursor->reset(hs_cursor));
+    version_cursor->next_upd = NULL;
+    version_cursor->flags = 0;
+    F_CLR(cursor, WT_CURSTD_KEY_SET);
+    F_CLR(cursor, WT_CURSTD_VALUE_SET);
+
+err:
+    API_END_RET(session, ret);
 }
 
 /*
@@ -80,8 +99,24 @@ __curversion_search(WT_CURSOR *cursor)
 static int
 __curversion_close(WT_CURSOR *cursor)
 {
-    WT_UNUSED(cursor);
-    return (0);
+    WT_CURSOR *hs_cursor, *table_cursor;
+    WT_CURSOR_VERSION *version_cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    version_cursor = (WT_CURSOR_VERSION *)cursor;
+    hs_cursor = version_cursor->hs_cursor;
+    table_cursor = version_cursor->table_cursor;
+    CURSOR_API_CALL(cursor, session, close, NULL);
+err:
+    version_cursor->next_upd = NULL;
+    if (table_cursor != NULL)
+        WT_TRET(table_cursor->close(table_cursor));
+    if (hs_cursor != NULL)
+        WT_TRET(hs_cursor->close(hs_cursor));
+    __wt_cursor_close(cursor);
+
+    API_END_RET(session, ret);
 }
 
 /*
