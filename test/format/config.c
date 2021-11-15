@@ -325,9 +325,9 @@ config_table(TABLE *table, void *arg)
 void
 config_run(void)
 {
-    config_in_memory(); /* Periodically run in-memory. */
-
     config_random(tables[0], false); /* Configure the remaining global name space. */
+
+    config_in_memory(); /* Periodically run in-memory. */
 
     tables_apply(config_table, NULL); /* Configure the tables. */
 
@@ -815,11 +815,15 @@ static void
 config_in_memory(void)
 {
     /*
-     * Configure in-memory before configuring anything else, in-memory has many related
-     * requirements. Don't configure in-memory if there's any incompatible configurations, so we
-     * don't have to configure in-memory every time we configure something like LSM, that's too
-     * painful.
+     * Configure in-memory before anything else, in-memory has many related requirements. Don't
+     * configure in-memory if there's any incompatible configurations, so we don't have to
+     * reconfigure in-memory every time we configure something like LSM, that's too painful.
+     *
+     * Limit the number of tables in any in-memory run, otherwise it's too easy to blow out the
+     * cache.
      */
+    if (ntables > 10)
+        return;
     if (config_explicit(NULL, "backup"))
         return;
     if (config_explicit(NULL, "block_cache"))
