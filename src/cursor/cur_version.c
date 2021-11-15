@@ -37,7 +37,12 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
 static void
 __curversion_set_key(WT_CURSOR *cursor, ...)
 {
-    __wt_curtable_set_key(cursor);
+    WT_CURSOR *table_cursor;
+    WT_CURSOR_VERSION *version_cursor;
+
+    version_cursor = (WT_CURSOR_VERSION *)cursor;
+    table_cursor = version_cursor->table_cursor;
+    table_cursor->set_key(table_cursor);
 }
 
 /*
