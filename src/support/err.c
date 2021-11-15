@@ -598,15 +598,15 @@ __wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag, double probability)
  *     Verbose message.
  */
 void
-__wt_verbose_worker(WT_SESSION_IMPL *session, const char *fmt, ...)
-  WT_GCC_FUNC_ATTRIBUTE((format(printf, 2, 3))) WT_GCC_FUNC_ATTRIBUTE((cold))
+__wt_verbose_worker(WT_SESSION_IMPL *session, WT_VERBOSE_CATEGORY category, WT_VERBOSE_LEVEL level,
+  const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((format(printf, 4, 5))) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     va_list ap;
 
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session, true,
       session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_MESSAGE) : false, 0, NULL, 0,
-      fmt, ap));
+      category, level, fmt, ap));
     va_end(ap);
 }
 

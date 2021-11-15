@@ -1896,8 +1896,9 @@ extern void __wt_update_vector_peek(WT_UPDATE_VECTOR *updates, WT_UPDATE **updp)
 extern void __wt_update_vector_pop(WT_UPDATE_VECTOR *updates, WT_UPDATE **updp);
 extern void __wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VALUE *upd_value);
 extern void __wt_verbose_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t ts, const char *msg);
-extern void __wt_verbose_worker(WT_SESSION_IMPL *session, const char *fmt, ...)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 2, 3))) WT_GCC_FUNC_DECL_ATTRIBUTE((cold));
+extern void __wt_verbose_worker(WT_SESSION_IMPL *session, WT_VERBOSE_CATEGORY category,
+  WT_VERBOSE_LEVEL level, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 4, 5)))
+  WT_GCC_FUNC_DECL_ATTRIBUTE((cold));
 extern void __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern void __wt_writeunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 static inline WT_BTREE *__wt_curhs_get_btree(WT_CURSOR *cursor)

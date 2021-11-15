@@ -141,10 +141,10 @@ struct __wt_verbose_multi_category {
  * __wt_verbose_level --
  *     Display a verbose message considering a category and a verbosity level.
  */
-#define __wt_verbose_level(session, category, level, fmt, ...)                 \
-    do {                                                                       \
-        if (WT_VERBOSE_LEVEL_ISSET(session, category, level))                  \
-            __wt_verbose_worker(session, "[" #category "] " fmt, __VA_ARGS__); \
+#define __wt_verbose_level(session, category, level, fmt, ...)               \
+    do {                                                                     \
+        if (WT_VERBOSE_LEVEL_ISSET(session, category, level))                \
+            __wt_verbose_worker(session, category, level, fmt, __VA_ARGS__); \
     } while (0)
 
 /*
@@ -196,7 +196,8 @@ struct __wt_verbose_multi_category {
         uint32_t __v_idx;                                                                     \
         for (__v_idx = 0; __v_idx < multi_category.cnt; __v_idx++) {                          \
             if (WT_VERBOSE_LEVEL_ISSET(session, multi_category.categories[__v_idx], level)) { \
-                __wt_verbose_worker(session, "[" #multi_category "] " fmt, __VA_ARGS__);      \
+                __wt_verbose_worker(                                                          \
+                  session, multi_category.categories[__v_idx], level, fmt, __VA_ARGS__);      \
                 break;                                                                        \
             }                                                                                 \
         }                                                                                     \
@@ -207,13 +208,14 @@ struct __wt_verbose_multi_category {
  *     Display a verbose message, given a set of multiple verbose categories using the default
  *     verbosity level.
  */
-#define __wt_verbose_multi(session, multi_category, fmt, ...)                            \
-    do {                                                                                 \
-        uint32_t __v_idx;                                                                \
-        for (__v_idx = 0; __v_idx < multi_category.cnt; __v_idx++) {                     \
-            if (WT_VERBOSE_ISSET(session, multi_category.categories[__v_idx])) {         \
-                __wt_verbose_worker(session, "[" #multi_category "] " fmt, __VA_ARGS__); \
-                break;                                                                   \
-            }                                                                            \
-        }                                                                                \
+#define __wt_verbose_multi(session, multi_category, fmt, ...)                    \
+    do {                                                                         \
+        uint32_t __v_idx;                                                        \
+        for (__v_idx = 0; __v_idx < multi_category.cnt; __v_idx++) {             \
+            if (WT_VERBOSE_ISSET(session, multi_category.categories[__v_idx])) { \
+                __wt_verbose_worker(session, multi_category.categories[__v_idx], \
+                  WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__);                   \
+                break;                                                           \
+            }                                                                    \
+        }                                                                        \
     } while (0)
