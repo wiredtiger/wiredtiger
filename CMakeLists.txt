@@ -186,12 +186,14 @@ add_subdirectory(src/utilities)
 # Establish our install target configuration.
 include(cmake/install/install.cmake)
 
+# Enable CTest. Subsequent targets may additionally define their own ctest definitions.
+enable_testing()
+
 if(ENABLE_PYTHON)
    add_subdirectory(lang/python)
 endif()
 
 # Build the wiredtiger test suites.
-enable_testing()
 add_subdirectory(bench/workgen)
 add_subdirectory(bench/wtperf)
 add_subdirectory(examples)
