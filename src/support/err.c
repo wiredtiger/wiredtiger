@@ -415,7 +415,8 @@ __wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line, c
      */
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session, false,
-      FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR), error, func, line, fmt, ap));
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, error, func,
+      line, fmt, ap));
     va_end(ap);
 }
 
@@ -436,7 +437,8 @@ __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, const char 
      */
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session, false,
-      FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR), 0, func, line, fmt, ap));
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0, func, line,
+      fmt, ap));
     va_end(ap);
 }
 
@@ -459,8 +461,9 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      * return.
      */
     va_start(ap, fmt);
-    WT_IGNORE_RET(__eventv(session, false, FLD_ISSET(conn->json_output, WT_JSON_OUTPUT_ERROR),
-      error, func, line, fmt, ap));
+    WT_IGNORE_RET(
+      __eventv(session, false, session ? FLD_ISSET(conn->json_output, WT_JSON_OUTPUT_ERROR) : false,
+        error, func, line, fmt, ap));
     va_end(ap);
 
     /*
@@ -542,8 +545,9 @@ __wt_ext_err_printf(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char
         session = ((WT_CONNECTION_IMPL *)wt_api->conn)->default_session;
 
     va_start(ap, fmt);
-    ret = __eventv(session, false, FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR), 0,
-      NULL, 0, fmt, ap);
+    ret = __eventv(session, false,
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0, NULL, 0, fmt,
+      ap);
     va_end(ap);
     return (ret);
 }
@@ -585,7 +589,8 @@ __wt_verbose_worker(WT_SESSION_IMPL *session, const char *fmt, ...)
 
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session, true,
-      FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_MESSAGE), 0, NULL, 0, fmt, ap));
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_MESSAGE) : false, 0, NULL, 0,
+      fmt, ap));
     va_end(ap);
 }
 
