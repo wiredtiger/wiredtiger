@@ -212,6 +212,14 @@ def setup_perf_stats():
                                         output_label='Latency(read, update) Max',
                                         ops = ['read', 'update'],
                                         num_max = 1))
+    perf_stats.add_stat(PerfStatMax(short_label="max_read_throughput",
+                                    pattern=r'updates,',
+                                    input_offset=4,
+                                    output_label='Max read throughput'))
+    perf_stats.add_stat(PerfStatMin(short_label="min_read_throughput",
+                                    pattern=r'updates,',
+                                    input_offset=4,
+                                    output_label='Min read throughput'))
     return perf_stats
 
 

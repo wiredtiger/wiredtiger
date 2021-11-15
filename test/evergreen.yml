@@ -3651,6 +3651,15 @@ tasks:
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: 500m-btree-80r20u
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: 500m-btree-rdonly
+          maxruns: 1
+          no_create: true
+          wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"read", "warnings", "max_latency_read_update", "min_read_throughput", "max_read_throughput"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: 500m-btree-rdonly
 
 #######################################
 #            Buildvariants            #
