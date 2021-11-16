@@ -40,8 +40,8 @@ import json
 class test_verbose03(test_verbose_base):
     # The maximum number of lines we will read from stdout/stderr in any given context.
     nlines = 50000
-    # The JSON schema we expect all messages to follow. Captures all possible field names, for
-    # for each field, their associated type and whether we always expect for that field to be
+    # The JSON schema we expect all messages to follow. Captures all possible fields, detailing
+    # each field's name, associated type and whether we always expect for that field to be
     # present.
     expected_json_schema = {
         'ts_sec': {'type': int, 'always_expected': True },
