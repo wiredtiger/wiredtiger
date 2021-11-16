@@ -748,6 +748,13 @@ connection_runtime_config = [
             is 1MB.''',
             min='0', max='1TB'),
         ]),
+    Config('json_output', '[]', r'''
+        enable JSON formatted messages on the event handler interface. Options are
+        given as a list, where each option specifies an event handler category e.g.
+        'error' represents the messages from the WT_EVENT_HANDLER::handle_error method.''',
+        type='list', choices=[
+            'error',
+            'message']),
     Config('lsm_manager', '', r'''
         configure database wide options for LSM tree management. The LSM
         manager is started automatically the first time an LSM tree is opened.
@@ -1090,15 +1097,6 @@ session_config = [
         closed. This value is inherited from ::wiredtiger_open
         \c cache_cursors''',
         type='boolean'),
-    Config('debug', '', r'''
-        configure debug specific behavior on a session. Generally only used
-        for internal testing purposes.''',
-        type='category', subconfig=[
-        Config('release_evict_page', 'false', r'''
-            Configure the session to evict the page when it is released and
-            no longer needed.''',
-            type='boolean'),
-        ]),
     Config('cache_max_wait_ms', '0', r'''
         the maximum number of milliseconds an application thread will wait
         for space to be available in cache before giving up.
