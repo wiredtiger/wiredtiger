@@ -95,9 +95,6 @@ typedef enum {
         case WT_VERBOSE_DEBUG:                 \
             (level_str) = "DEBUG";             \
             break;                             \
-        default:                               \
-            ret = EINVAL;                      \
-            WT_ERR(ret);                       \
         }                                      \
     } while (0)
 
