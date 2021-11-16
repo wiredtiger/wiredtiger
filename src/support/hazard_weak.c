@@ -65,7 +65,10 @@ __wt_hazard_weak_close(WT_SESSION_IMPL *session)
 
 /*
  * hazard_weak_grow --
- *     Grow a weak hazard pointer array.
+ *     Grow a weak hazard pointer array. What we have is a list of arrays doubling in size, with the
+ *     largest array being at the head of the list. The array at the head of the list is the only
+ *     one we actively use to set the new weak hazard pointers. The older arrays get emptied as the
+ *     sessions using them resolve their transactions, eventually leaving them all empty.
  */
 static int
 hazard_weak_grow(WT_SESSION_IMPL *session)
