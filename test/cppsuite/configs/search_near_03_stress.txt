@@ -5,6 +5,8 @@
 #  - Each insert thread performs unique index insertions on existing prefixes.
 #  - Each read thread counts the number of current records in each collection, and checks if the
 # table has changed.
+# For the stress test set a large key and value size, as we want the key and values to take enough
+# space to split across pages.
 duration_seconds=1800,
 cache_size_mb=500,
 workload_generator=

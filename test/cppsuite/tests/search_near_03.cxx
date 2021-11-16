@@ -130,7 +130,7 @@ class search_near_03 : public test_harness::test {
     }
 
     static const std::string
-    get_prefix_from_key(std::string const &s)
+    get_prefix_from_key(const std::string &s)
     {
         const std::string::size_type pos = s.find(',');
         return pos != std::string::npos ? s.substr(0, pos) : nullptr;
