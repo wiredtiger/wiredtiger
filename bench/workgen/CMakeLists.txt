@@ -66,7 +66,8 @@ set(python_executable)
 source_python3_package(python_libs python_version python_executable)
 
 # Compile the intermediate C++ workgen sources into static library.
-add_library(workgen_cxx
+add_library(
+    workgen_cxx
     STATIC
         ${CMAKE_CURRENT_SOURCE_DIR}/workgen.cxx
         ${CMAKE_CURRENT_SOURCE_DIR}/workgen_func.c
