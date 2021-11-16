@@ -39,7 +39,7 @@ from perf_stat import PerfStat
 from perf_stat_collection import PerfStatCollection
 from pygit2 import discover_repository, Repository
 from pygit2 import GIT_SORT_NONE
-from typing import List
+from typing import Dict, List, Tuple
 from wtperf_config import WTPerfConfig
 
 
@@ -152,7 +152,7 @@ def run_test(config: WTPerfConfig, test_run: int, index: int = 0, arguments: Lis
         exit(1)
 
 
-def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, operations: List[str] = None, index: int = 0) -> List[PerfStat]:
+def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, index: int = 0) -> List[PerfStat]:
     for test_run in range(config.run_max):
         test_home = create_test_home_path(home=config.home_dir, test_run=test_run, index=index)
         if config.verbose:
@@ -161,7 +161,7 @@ def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, operat
     return perf_stats.to_report
 
 
-def main():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--wtperf', help='path of the wtperf executable')
     parser.add_argument('-e', '--env', help='any environment variables that need to be set for running wtperf')
@@ -214,6 +214,9 @@ def main():
         sys.exit("Enable verbosity (or provide a file path) to dump the stats. "
                  "Try 'python3 wtperf_run.py --help' for more information.")
 
+    return args
+
+def parse_json_args(args: argparse.Namespace) -> Tuple[List[str], List[str], WTPerfConfig, Dict]:
     json_info = json.loads(args.json_info) if args.json_info else {}
     arguments = json.loads(args.arguments) if args.arguments else None
     operations = json.loads(args.operations) if args.operations else None
@@ -230,12 +233,16 @@ def main():
                           git_root=args.git_root,
                           json_info=json_info)
 
+    batch_file_contents = None
     if config.batch_file:
         if args.verbose:
             print("Reading batch file {}".format(config.batch_file))
         with open(config.batch_file, "r") as file:
             batch_file_contents = json.load(file)
 
+    return (arguments, operations, config, batch_file_contents)
+
+def validate_operations(config: WTPerfConfig, batch_file_contents: Dict, operations: List[str]):
     # Check for duplicate operations, and exit if duplicates are found
     # First, construct a list of all operations, including potential duplicates
     all_operations = []
@@ -251,6 +258,11 @@ def main():
     if len(all_operations_nodups) != len(all_operations):
         sys.exit("List of all operations ({}) contains duplicates".format(all_operations))
 
+def run_perf_tests(config: WTPerfConfig, 
+                   batch_file_contents: Dict, 
+                   args: argparse.Namespace, 
+                   arguments: List[str], 
+                   operations: List[str]) -> List[PerfStat]:
     reported_stats : List[PerfStat] = []
 
     if config.batch_file:
@@ -264,13 +276,16 @@ def main():
                 if not args.reuse:
                     run_test_wrapper(config=config, index=index, arguments=content["arguments"])
                 perf_stats = PerfStatCollection(content["operations"])
-                reported_stats += process_results(config, perf_stats, operations=content["operations"], index=index)
+                reported_stats += process_results(config, perf_stats, index=index)
     else:
         if not args.reuse:
             run_test_wrapper(config=config, index=0, arguments=arguments)
         perf_stats = PerfStatCollection(operations)
-        reported_stats = process_results(config, perf_stats, operations=operations, index=0)
+        reported_stats = process_results(config, perf_stats)
 
+    return reported_stats
+
+def report_results(args: argparse.Namespace, config: WTPerfConfig, reported_stats: List[PerfStat]):
     if args.brief_output:
         if args.verbose:
             print("Brief stats output (Evergreen compatible format):")
@@ -291,6 +306,16 @@ def main():
         with open(args.outfile, 'w') as outfile:
             json.dump(perf_results, outfile, indent=4, sort_keys=True)
 
+def main():
+    args = parse_args()
+    (arguments, operations, config, batch_file_contents) = parse_json_args(args=args)
+    validate_operations(config=config, batch_file_contents=batch_file_contents, operations=operations)
+    reported_stats = run_perf_tests(config=config, 
+                                    batch_file_contents=batch_file_contents,
+                                    args=args, 
+                                    arguments=arguments,
+                                    operations=operations)
+    report_results(args=args, config=config, reported_stats=reported_stats)
 
 if __name__ == '__main__':
     main()
