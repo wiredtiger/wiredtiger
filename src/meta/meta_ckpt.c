@@ -1317,7 +1317,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
 
     /* Record snapshot information in metadata for checkpoint. */
     WT_ERR(__wt_buf_fmt(session, buf,
-      WT_SYSTEM_CKPT_SNAPSHOT_VERSION "=%" PRIu32 "," WT_SYSTEM_CKPT_SNAPSHOT_MIN "=%" PRIu64
+      WT_SYSTEM_CKPT_SNAPSHOT_VERSION "=%d," WT_SYSTEM_CKPT_SNAPSHOT_MIN "=%" PRIu64
                                       "," WT_SYSTEM_CKPT_SNAPSHOT_MAX "=%" PRIu64
                                       "," WT_SYSTEM_CKPT_SNAPSHOT_COUNT "=%" PRIu32,
       WT_CKPT_SNAPSHOT_VERSION, txn->snap_min, txn->snap_max, txn->snapshot_count));
