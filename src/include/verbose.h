@@ -73,8 +73,9 @@ typedef enum {
  * level (mostly adopted for debugging).
  */
 typedef enum {
-    WT_VERBOSE_ERROR = -2,
+    WT_VERBOSE_ERROR = -3,
     WT_VERBOSE_WARNING,
+    WT_VERBOSE_NOTICE,
     WT_VERBOSE_INFO,
     WT_VERBOSE_DEBUG
 } WT_VERBOSE_LEVEL;
@@ -89,6 +90,9 @@ typedef enum {
             break;                             \
         case WT_VERBOSE_WARNING:               \
             (level_str) = "WARNING";           \
+            break;                             \
+        case WT_VERBOSE_NOTICE:                \
+            (level_str) = "NOTICE";            \
             break;                             \
         case WT_VERBOSE_INFO:                  \
             (level_str) = "INFO";              \
@@ -158,6 +162,13 @@ struct __wt_verbose_multi_category {
  */
 #define __wt_verbose_warning(session, category, fmt, ...) \
     __wt_verbose_level(session, category, WT_VERBOSE_WARNING, fmt, __VA_ARGS__)
+
+/*
+ * __wt_verbose_notice --
+ *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_NOTICE.
+ */
+#define __wt_verbose_notice(session, category, fmt, ...) \
+    __wt_verbose_level(session, category, WT_VERBOSE_NOTICE, fmt, __VA_ARGS__)
 
 /*
  * __wt_verbose_info --

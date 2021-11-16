@@ -2037,9 +2037,10 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
         if (ret == WT_NOTFOUND)
             /*
              * If the given event isn't specified in configuration string, default it to the
-             * WT_VERBOSE_WARNING verbosity level.
+             * WT_VERBOSE_NOTICE verbosity level. WT_VERBOSE_NOTICE being an always-on informational
+             * verbosity message.
              */
-            conn->verbose[ft->flag] = WT_VERBOSE_WARNING;
+            conn->verbose[ft->flag] = WT_VERBOSE_NOTICE;
         else if (sval.type == WT_CONFIG_ITEM_BOOL && sval.len == 0)
             /*
              * If no value is associated with the event (i.e passing verbose=[checkpoint]), default
