@@ -31,7 +31,7 @@
 #   pages as they are released.
 #
 
-import wiredtiger, wttest
+import time, wiredtiger, wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
@@ -90,6 +90,7 @@ class test_config10(wttest.WiredTigerTestCase):
             s.rollback_transaction()
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
+        time.sleep(10)
         cache_usage = stat_cursor[stat.conn.cache_bytes_inuse][2]
         self.assertGreater(prev_cache_usage, cache_usage * 2)
         stat_cursor.close()
