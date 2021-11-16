@@ -252,9 +252,8 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
     inserted_to_update_chain = true;
 
     /* If the update was successful, add it to the in-memory log. */
-    if (logged) {
-        if (modify_type != WT_UPDATE_RESERVE)
-            WT_ERR(__wt_txn_log_op(session, cbt));
+    if (logged && modify_type != WT_UPDATE_RESERVE) {
+        WT_ERR(__wt_txn_log_op(session, cbt));
 
         /*
          * Set the key in the transaction operation to be used in case this transaction is prepared
