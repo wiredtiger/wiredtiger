@@ -28,6 +28,12 @@
 
 project(workgen CXX)
 
+# Skip compiling workgen on non-Posix systems. Currently workgen isn't supported
+# for our Windows builds.
+if (NOT WT_POSIX)
+    return()
+endif()
+
 # UseSWIG: Policy option to use the standard target name over a generated name.
 if(POLICY CMP0078)
     cmake_policy(SET CMP0078 OLD)
