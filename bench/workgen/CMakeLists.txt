@@ -68,7 +68,7 @@ endif()
 set(python_libs)
 set(python_version)
 set(python_executable)
-# Source the users Python3 install, extracting the Python 3 version, library and interpreter install paths.
+# Source the user's Python3 install, extracting the Python 3 version, library and interpreter install paths.
 source_python3_package(python_libs python_version python_executable)
 
 # Compile the intermediate C++ workgen sources into static library.
