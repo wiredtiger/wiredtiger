@@ -1636,7 +1636,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
     cursor = NULL;
     txn = session->txn;
-    txn->in_commit_phase = true;
     txn_global = &conn->txn_global;
 #ifdef HAVE_DIAGNOSTIC
     prepare_count = 0;
@@ -1658,6 +1657,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (!prepare)
         F_CLR(txn, WT_TXN_TS_ROUND_PREPARED);
+
+    F_SET(txn, WT_TXN_IN_COMMIT_PHASE);
 
     /* Set the commit and the durable timestamps. */
     WT_ERR(__wt_txn_set_timestamp(session, cfg));

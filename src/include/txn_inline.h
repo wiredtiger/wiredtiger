@@ -371,8 +371,8 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
                  * will apply the first commit timestamp used in the transaction to prevent
                  * timestamp ordering issues from occurring.
                  */
-                upd->start_ts =
-                  txn->in_commit_phase ? txn->first_commit_timestamp : txn->commit_timestamp;
+                upd->start_ts = F_ISSET(txn, WT_TXN_IN_COMMIT_PHASE) ? txn->first_commit_timestamp :
+                                                                       txn->commit_timestamp;
                 upd->durable_ts = txn->durable_timestamp;
             }
         }
@@ -1116,7 +1116,6 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
     txn = session->txn;
     txn->isolation = session->isolation;
     txn->txn_logsync = S2C(session)->txn_logsync;
-    txn->in_commit_phase = false;
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
 
