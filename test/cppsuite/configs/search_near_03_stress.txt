@@ -13,12 +13,14 @@ workload_generator=
     (
         collection_count=10,
         key_count_per_collection=2000,
-        key_size=30
+        key_size=30,
+        value_size=40
     ),
     insert_config=
     (
         op_rate=10ms,
-        thread_count=15
+        thread_count=15,
+        value_size=40
     ),
     read_config=
     (
