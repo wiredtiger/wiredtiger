@@ -1723,9 +1723,8 @@ row_insert(TINFO *tinfo, bool positioned)
         return (ret);
 
     /* Log the operation */
-    trace_op(tinfo, "insert(%s) %" PRIu64 " {%.*s}, {%.*s}", tinfo->table->mirror ? "M" : "-",
-      tinfo->keyno, (int)tinfo->key->size, (char *)tinfo->key->data, (int)tinfo->new_value->size,
-      tinfo->new_value->data);
+    trace_op(tinfo, "insert %" PRIu64 " {%.*s}, {%.*s}", tinfo->keyno, (int)tinfo->key->size,
+      (char *)tinfo->key->data, (int)tinfo->new_value->size, tinfo->new_value->data);
 
     return (0);
 }
