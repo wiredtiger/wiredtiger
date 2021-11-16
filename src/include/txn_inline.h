@@ -907,10 +907,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
             continue;
         }
 
-        if (F_ISSET(&cbt->iface, WT_CURSTD_VISIBLE_ALL))
-            upd_visible = WT_VISIBLE_TRUE;
-        else
-            upd_visible = __wt_txn_upd_visible_type(session, upd);
+        upd_visible = __wt_txn_upd_visible_type(session, upd);
 
         if (upd_visible == WT_VISIBLE_TRUE)
             break;
@@ -1050,11 +1047,9 @@ retry:
         /*
          * We return the onpage value in the following cases:
          * 1. The record is from the history store.
-         * 2. It has the WT_CURSTD_VISIBLE_ALL flag set.
-         * 3. It is visible to the reader.
+         * 2. It is visible to the reader.
          */
-        if (WT_IS_HS(session->dhandle) || F_ISSET(&cbt->iface, WT_CURSTD_VISIBLE_ALL) ||
-          __wt_txn_tw_start_visible(session, &tw)) {
+        if (WT_IS_HS(session->dhandle) || __wt_txn_tw_start_visible(session, &tw)) {
             if (cbt->upd_value->skip_buf) {
                 cbt->upd_value->buf.data = NULL;
                 cbt->upd_value->buf.size = 0;
@@ -1324,10 +1319,13 @@ static inline int
 __wt_txn_modify_check(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, wt_timestamp_t *prev_tsp)
 {
+    WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_TIME_WINDOW tw;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
+    uint32_t snap_count;
+    char ts_string[WT_TS_INT_STRING_SIZE];
     bool ignore_prepare_set, rollback, tw_found;
 
     rollback = tw_found = false;
@@ -1349,6 +1347,9 @@ __wt_txn_modify_check(
     F_CLR(txn, WT_TXN_IGNORE_PREPARE);
     for (; upd != NULL && !__wt_txn_upd_visible(session, upd); upd = upd->next) {
         if (upd->txnid != WT_TXN_ABORTED) {
+            __wt_verbose_debug(session, WT_VERB_TRANSACTION,
+              "Conflict with update with txn id %" PRIu64 " at timestamp: %s", upd->txnid,
+              __wt_timestamp_to_string(upd->start_ts, ts_string));
             rollback = true;
             break;
         }
@@ -1362,16 +1363,41 @@ __wt_txn_modify_check(
      * uncommitted update or determined that it would be safe to write if we saw a committed update.
      */
     if (!rollback && upd == NULL) {
-        __wt_read_cell_time_window(cbt, &tw, &tw_found);
+        tw_found = __wt_read_cell_time_window(cbt, &tw);
         if (tw_found) {
-            if (WT_TIME_WINDOW_HAS_STOP(&tw))
+            if (WT_TIME_WINDOW_HAS_STOP(&tw)) {
                 rollback = !__wt_txn_tw_stop_visible(session, &tw);
-            else
+                if (rollback)
+                    __wt_verbose_debug(session, WT_VERB_TRANSACTION,
+                      "Conflict with update %" PRIu64 " at stop timestamp: %s", tw.stop_txn,
+                      __wt_timestamp_to_string(tw.stop_ts, ts_string));
+            } else {
                 rollback = !__wt_txn_tw_start_visible(session, &tw);
+                if (rollback)
+                    __wt_verbose_debug(session, WT_VERB_TRANSACTION,
+                      "Conflict with update %" PRIu64 " at start timestamp: %s", tw.start_txn,
+                      __wt_timestamp_to_string(tw.start_ts, ts_string));
+            }
         }
     }
 
     if (rollback) {
+        /* Dump information about the txn snapshot. */
+        if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_TRANSACTION, WT_VERBOSE_DEBUG)) {
+            WT_ERR(__wt_scr_alloc(session, 1024, &buf));
+            WT_ERR(__wt_buf_fmt(session, buf,
+              "snapshot_min=%" PRIu64 ", snapshot_max=%" PRIu64 ", snapshot_count=%" PRIu32,
+              txn->snap_min, txn->snap_max, txn->snapshot_count));
+            if (txn->snapshot_count > 0) {
+                WT_ERR(__wt_buf_catfmt(session, buf, ", snapshots=["));
+                for (snap_count = 0; snap_count < txn->snapshot_count - 1; ++snap_count)
+                    WT_ERR(
+                      __wt_buf_catfmt(session, buf, "%" PRIu64 ",", txn->snapshot[snap_count]));
+                WT_ERR(__wt_buf_catfmt(session, buf, "%" PRIu64 "]", txn->snapshot[snap_count]));
+            }
+            __wt_verbose_debug(session, WT_VERB_TRANSACTION, "%s", (const char *)buf->data);
+        }
+
         WT_STAT_CONN_DATA_INCR(session, txn_update_conflict);
         ret = __wt_txn_rollback_required(session, "conflict between concurrent operations");
     }
@@ -1392,8 +1418,12 @@ __wt_txn_modify_check(
         } else if (tw_found)
             *prev_tsp = WT_TIME_WINDOW_HAS_STOP(&tw) ? tw.durable_stop_ts : tw.durable_start_ts;
     }
+
     if (ignore_prepare_set)
         F_SET(txn, WT_TXN_IGNORE_PREPARE);
+
+err:
+    __wt_scr_free(session, &buf);
     return (ret);
 }
 

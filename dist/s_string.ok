@@ -35,6 +35,7 @@ BBBBBBBBBBBBBBBBBB
 BDB
 BDB's
 BIGENDIAN
+BLKCACHE
 BOOL
 BSR
 BTREE
@@ -143,6 +144,7 @@ FALLOC
 FALLTHROUGH
 FH
 FIXME
+FLCS
 FLD
 FLSv
 FLv
@@ -225,6 +227,7 @@ Kounavis
 LANGID
 LAS
 LF
+LIBMEMKIND
 LLLLLL
 LLLLLLL
 LLVM
@@ -296,6 +299,7 @@ NOVALUE
 NOWAIT
 NUL
 NUM
+NVRAM
 NZD
 NetBSD
 NoAddr
@@ -310,6 +314,7 @@ OVFL
 ObWgfvgw
 Obama
 Opcode
+Optane
 Outfmt
 PARAM
 PFX
@@ -408,6 +413,7 @@ TMP
 TODO
 TORTIOUS
 TSO
+TW
 TXN
 TXNC
 Teardown
@@ -441,6 +447,7 @@ Unordered
 Uryyb
 VALGRIND
 VARCHAR
+VLCS
 VLDB
 VMSG
 VPM
@@ -503,6 +510,7 @@ abcdefghijklmnopqrstuvwxyz
 addl
 addr
 addrs
+addtw
 agc
 alfred
 alloc
@@ -527,6 +535,9 @@ auth
 autocommit
 autoconf
 automake
+auxheader
+auximage
+auxincr
 bInheritHandle
 backoff
 backport
@@ -545,6 +556,7 @@ bitpos
 bitstring
 bitwise
 blk
+blkcache
 blkmod
 bm
 bnd
@@ -677,6 +689,7 @@ curlog
 curmetadata
 cursoring
 cursorp
+curstartrecno
 curstat
 curtable
 curtiered
@@ -734,6 +747,7 @@ directio
 dirlist
 disjunction
 disjunctions
+disproportionally
 dlclose
 dlh
 dll
@@ -826,6 +840,7 @@ filesystems
 fillms
 firstfit
 fixup
+floatcmp
 floatnum
 fmt
 fmterr
@@ -881,6 +896,8 @@ gt
 handleops
 handlep
 hardcoded
+hashsize
+hashtable
 hashval
 havesize
 hdr
@@ -997,6 +1014,7 @@ lexicographically
 lf
 lfence
 libdatasource
+libmemkind
 libs
 libsodium
 libtool
@@ -1061,9 +1079,11 @@ memcmp
 memcpy
 memdup
 memget
+memkind
 memmove
 memset
 memsize
+mergeable
 metaconf
 metadata
 metadata's
@@ -1121,6 +1141,7 @@ nocrypto
 nolock
 nonces
 nonliteral
+nontransactionally
 noop
 nop
 noraw
@@ -1129,6 +1150,8 @@ notsup
 notused
 novalue
 nowait
+nrecs
+ns
 nsec
 nset
 nsnap
@@ -1138,6 +1161,7 @@ nuls
 num
 numSymbols
 numbare
+nvram
 objs
 offpage
 ofh
@@ -1158,13 +1182,16 @@ optimizations
 optrack
 optype
 ori
+origstartrecno
 os
 osfhandle
 other's
+oversized
 ovfl
 ownp
 packv
 pagedump
+pageref
 pagesize
 parens
 pareto
@@ -1177,6 +1204,7 @@ pcpu
 perf
 pfx
 pluggable
+pmem
 poc
 popen
 poptable
@@ -1245,6 +1273,7 @@ readv
 realloc
 rebalance
 rebalancing
+recency
 recno
 recnos
 reconfig
@@ -1425,6 +1454,7 @@ unbuffered
 uncacheable
 uncompressed
 uncompressing
+unconfigured
 uncustomized
 undef
 underflowed

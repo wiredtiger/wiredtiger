@@ -146,8 +146,8 @@ static inline void
 __evict_list_clear(WT_SESSION_IMPL *session, WT_EVICT_ENTRY *e)
 {
     if (e->ref != NULL) {
-        WT_ASSERT(session, F_ISSET_ATOMIC(e->ref->page, WT_PAGE_EVICT_LRU));
-        F_CLR_ATOMIC(e->ref->page, WT_PAGE_EVICT_LRU);
+        WT_ASSERT(session, F_ISSET_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU));
+        F_CLR_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU);
     }
     e->ref = NULL;
     e->btree = WT_DEBUG_POINT;
@@ -169,7 +169,7 @@ __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT(session, __wt_ref_is_root(ref) || ref->state == WT_REF_LOCKED);
 
     /* Fast path: if the page isn't on the queue, don't bother searching. */
-    if (!F_ISSET_ATOMIC(ref->page, WT_PAGE_EVICT_LRU))
+    if (!F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU))
         return;
 
     cache = S2C(session)->cache;
@@ -187,7 +187,7 @@ __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
             }
         __wt_spin_unlock(session, &cache->evict_queues[q].evict_lock);
     }
-    WT_ASSERT(session, !F_ISSET_ATOMIC(ref->page, WT_PAGE_EVICT_LRU));
+    WT_ASSERT(session, !F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU));
 
     __wt_spin_unlock(session, &cache->evict_queue_lock);
 }
@@ -1582,7 +1582,7 @@ static bool
 __evict_push_candidate(
   WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_EVICT_ENTRY *evict, WT_REF *ref)
 {
-    uint8_t orig_flags, new_flags;
+    uint16_t orig_flags, new_flags;
     u_int slot;
 
     /*
@@ -1592,7 +1592,7 @@ __evict_push_candidate(
     orig_flags = new_flags = ref->page->flags_atomic;
     FLD_SET(new_flags, WT_PAGE_EVICT_LRU);
     if (orig_flags == new_flags ||
-      !__wt_atomic_cas8(&ref->page->flags_atomic, orig_flags, new_flags))
+      !__wt_atomic_cas16(&ref->page->flags_atomic, orig_flags, new_flags))
         return (false);
 
     /* Keep track of the maximum slot we are using. */
@@ -1923,7 +1923,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
             internal_pages_seen++;
 
         /* Use the EVICT_LRU flag to avoid putting pages onto the list multiple times. */
-        if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU)) {
+        if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU)) {
             pages_already_queued++;
             if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
                 internal_pages_already_queued++;
@@ -2340,8 +2340,8 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     WT_TRACK_OP_DECL;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
+    uint64_t cache_max_wait_us, initial_progress, max_progress;
     uint64_t elapsed, time_start, time_stop;
-    uint64_t initial_progress, max_progress;
     bool app_thread;
 
     WT_TRACK_OP_INIT(session);
@@ -2352,6 +2352,11 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     time_start = time_stop = 0;
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
+
+    if (session->cache_max_wait_us != 0)
+        cache_max_wait_us = session->cache_max_wait_us;
+    else
+        cache_max_wait_us = cache->cache_max_wait_us;
 
     /*
      * Before we enter the eviction generation, make sure this session has a cached history store
@@ -2383,6 +2388,8 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
         if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_cache_stuck(session)) {
             ret = __wt_txn_is_blocking(session);
             if (ret == WT_ROLLBACK) {
+                __wt_verbose_debug(
+                  session, WT_VERB_TRANSACTION, "Rollback reason: %s", "Cache full");
                 --cache->evict_aggressive_score;
                 WT_STAT_CONN_INCR(session, txn_fail_cache);
                 if (app_thread)
@@ -2436,10 +2443,9 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
             goto err;
         }
         /* Stop if we've exceeded the time out. */
-        if (app_thread && cache->cache_max_wait_us != 0) {
+        if (app_thread && cache_max_wait_us != 0) {
             time_stop = __wt_clock(session);
-            if (session->cache_wait_us + WT_CLOCKDIFF_US(time_stop, time_start) >
-              cache->cache_max_wait_us)
+            if (session->cache_wait_us + WT_CLOCKDIFF_US(time_stop, time_start) > cache_max_wait_us)
                 goto err;
         }
     }
@@ -2451,7 +2457,7 @@ err:
         WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
         WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
         session->cache_wait_us += elapsed;
-        if (cache->cache_max_wait_us != 0 && session->cache_wait_us > cache->cache_max_wait_us) {
+        if (cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
             WT_TRET(WT_CACHE_FULL);
             WT_STAT_CONN_INCR(session, cache_timed_out_ops);
         }
@@ -2480,7 +2486,7 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT(session, !__wt_ref_is_root(ref));
 
     page = ref->page;
-    if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU) || S2BT(session)->evict_disabled > 0)
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU) || S2BT(session)->evict_disabled > 0)
         return (false);
 
     /* Append to the urgent queue if we can. */
@@ -2489,7 +2495,7 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
     queued = false;
 
     __wt_spin_lock(session, &cache->evict_queue_lock);
-    if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU) || S2BT(session)->evict_disabled > 0)
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU) || S2BT(session)->evict_disabled > 0)
         goto done;
 
     __wt_spin_lock(session, &urgent_queue->evict_lock);
