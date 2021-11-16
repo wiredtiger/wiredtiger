@@ -35,7 +35,7 @@ import psutil
 import subprocess
 import sys
 import json
-from perf_stat import PerfStat, PerfStatCount, PerfStatLatency, PerfStatMax, PerfStatMin
+from perf_stat import PerfStat
 from perf_stat_collection import PerfStatCollection
 from pygit2 import discover_repository, Repository
 from pygit2 import GIT_SORT_NONE
@@ -93,9 +93,8 @@ def construct_wtperf_command_line(wtperf: str, env: str, test: str, home: str, a
 def to_value_list(reported_stats: List[PerfStat], brief: bool):
     stats_list = []
     for stat in reported_stats:
-        if not stat.are_values_all_zero():
-            stat_list = stat.get_value_list(brief = brief)
-            stats_list.extend(stat_list)
+        stat_list = stat.get_value_list(brief = brief)
+        stats_list.extend(stat_list)
     return stats_list
 
 def brief_perf_stats(config: WTPerfConfig, reported_stats: List[PerfStat]):
@@ -158,81 +157,8 @@ def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, operat
         test_home = create_test_home_path(home=config.home_dir, test_run=test_run, index=index)
         if config.verbose:
             print('Reading stats from {} directory.'.format(test_home))
-        perf_stats.find_stats(test_home=test_home, operations=operations)
-    return perf_stats.perf_stats.values()
-
-
-def setup_perf_stats():
-    perf_stats = PerfStatCollection()
-    perf_stats.add_stat(PerfStat(short_label="load",
-                                 pattern='Load time:',
-                                 input_offset=2,
-                                 output_label='Load time',
-                                 output_precision=2,
-                                 conversion_function=float))
-    perf_stats.add_stat(PerfStat(short_label="insert",
-                                 pattern=r'Executed \d+ insert operations',
-                                 input_offset=1,
-                                 output_label='Insert count'))
-    perf_stats.add_stat(PerfStat(short_label="modify",
-                                 pattern=r'Executed \d+ modify operations',
-                                 input_offset=1,
-                                 output_label='Modify count'))
-    perf_stats.add_stat(PerfStat(short_label="read",
-                                 pattern=r'Executed \d+ read operations',
-                                 input_offset=1,
-                                 output_label='Read count'))
-    perf_stats.add_stat(PerfStat(short_label="truncate",
-                                 pattern=r'Executed \d+ truncate operations',
-                                 input_offset=1,
-                                 output_label='Truncate count'))
-    perf_stats.add_stat(PerfStat(short_label="update",
-                                 pattern=r'Executed \d+ update operations',
-                                 input_offset=1,
-                                 output_label='Update count'))
-    perf_stats.add_stat(PerfStat(short_label="checkpoint",
-                                 pattern=r'Executed \d+ checkpoint operations',
-                                 input_offset=1,
-                                 output_label='Checkpoint count'))
-    perf_stats.add_stat(PerfStatMax(short_label="max_update_throughput",
-                                    pattern=r'updates,',
-                                    input_offset=8,
-                                    output_label='Max update throughput'))
-    perf_stats.add_stat(PerfStatMin(short_label="min_update_throughput",
-                                    pattern=r'updates,',
-                                    input_offset=8,
-                                    output_label='Min update throughput'))
-    perf_stats.add_stat(PerfStatCount(short_label="warnings",
-                                      pattern='WARN',
-                                      output_label='Latency warnings'))
-    perf_stats.add_stat(PerfStatLatency(short_label="top5_latencies_read_update",
-                                        stat_file='monitor.json',
-                                        output_label='Latency(read, update) Max',
-                                        ops = ['read', 'update'],
-                                        num_max = 5))
-    perf_stats.add_stat(PerfStatCount(short_label="eviction_page_seen",
-                                      stat_file='WiredTigerStat*',
-                                      pattern='[0-9].wt cache: pages seen by eviction',
-                                      output_label='Pages seen by eviction'))
-    perf_stats.add_stat(PerfStatLatency(short_label="max_latency_insert",
-                                        stat_file='monitor.json',
-                                        output_label='Latency(insert) Max',
-                                        ops = ['insert'],
-                                        num_max = 1))
-    perf_stats.add_stat(PerfStatLatency(short_label="max_latency_read_update",
-                                        stat_file='monitor.json',
-                                        output_label='Latency(read, update) Max',
-                                        ops = ['read', 'update'],
-                                        num_max = 1))
-    perf_stats.add_stat(PerfStatMax(short_label="max_read_throughput",
-                                    pattern=r'updates,',
-                                    input_offset=4,
-                                    output_label='Max read throughput'))
-    perf_stats.add_stat(PerfStatMin(short_label="min_read_throughput",
-                                    pattern=r'updates,',
-                                    input_offset=4,
-                                    output_label='Min read throughput'))
-    return perf_stats
+        perf_stats.find_stats(test_home=test_home)
+    return perf_stats.to_report
 
 
 def main():
@@ -335,14 +261,14 @@ def main():
             if args.verbose:
                 print("Batch test {}: Arguments: {}, Operations: {}".
                         format(index,  content["arguments"], content["operations"]))
-                perf_stats = setup_perf_stats() # PerfStatCollection(content["operations"]) TODO
                 if not args.reuse:
                     run_test_wrapper(config=config, index=index, arguments=content["arguments"])
+                perf_stats = PerfStatCollection(content["operations"])
                 reported_stats += process_results(config, perf_stats, operations=content["operations"], index=index)
     else:
-        perf_stats = setup_perf_stats() # PerfStatCollection(operations) TODO
         if not args.reuse:
             run_test_wrapper(config=config, index=0, arguments=arguments)
+        perf_stats = PerfStatCollection(operations)
         reported_stats = process_results(config, perf_stats, operations=operations, index=0)
 
     if args.brief_output:
