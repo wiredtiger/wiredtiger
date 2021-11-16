@@ -90,23 +90,30 @@ def construct_wtperf_command_line(wtperf: str, env: str, test: str, home: str, a
         command_line.append(home)
     return command_line
 
+def to_value_list(reported_stats: List[PerfStat], brief: bool):
+    stats_list = []
+    for stat in reported_stats:
+        if not stat.are_values_all_zero():
+            stat_list = stat.get_value_list(brief = brief)
+            stats_list.extend(stat_list)
+    return stats_list
 
-def brief_perf_stats(config: WTPerfConfig, perf_stats: PerfStatCollection):
+def brief_perf_stats(config: WTPerfConfig, reported_stats: List[PerfStat]):
     as_list = [{
         "info": {
             "test_name": os.path.basename(config.test)
         },
-        "metrics": perf_stats.to_value_list(brief=True)
+        "metrics": to_value_list(reported_stats, brief=True)
     }]
     return as_list
 
 
-def detailed_perf_stats(config: WTPerfConfig, perf_stats: PerfStatCollection):
+def detailed_perf_stats(config: WTPerfConfig, reported_stats: List[PerfStat]):
     total_memory_gb = psutil.virtual_memory().total / (1024 * 1024 * 1024)
     as_dict = {
                 'Test Name': os.path.basename(config.test),
                 'config': config.to_value_dict(),
-                'metrics': perf_stats.to_value_list(brief=False),
+                'metrics': to_value_list(reported_stats, brief=False),
                 'system': {
                    'cpu_physical_cores': psutil.cpu_count(logical=False),
                    'cpu_logical_cores': psutil.cpu_count(),
@@ -146,12 +153,13 @@ def run_test(config: WTPerfConfig, test_run: int, index: int = 0, arguments: Lis
         exit(1)
 
 
-def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, operations: List[str] = None, index: int = 0):
+def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, operations: List[str] = None, index: int = 0) -> List[PerfStat]:
     for test_run in range(config.run_max):
         test_home = create_test_home_path(home=config.home_dir, test_run=test_run, index=index)
         if config.verbose:
             print('Reading stats from {} directory.'.format(test_home))
         perf_stats.find_stats(test_home=test_home, operations=operations)
+    return perf_stats.perf_stats.values()
 
 
 def setup_perf_stats():
@@ -296,8 +304,6 @@ def main():
                           git_root=args.git_root,
                           json_info=json_info)
 
-    perf_stats: PerfStatCollection = setup_perf_stats()
-
     if config.batch_file:
         if args.verbose:
             print("Reading batch file {}".format(config.batch_file))
@@ -319,41 +325,34 @@ def main():
     if len(all_operations_nodups) != len(all_operations):
         sys.exit("List of all operations ({}) contains duplicates".format(all_operations))
 
-    # Run test
-    if not args.reuse:
-        if config.batch_file:
-            if args.verbose:
-                print("Batch tests to run: {}".format(len(batch_file_contents)))
-            for content in batch_file_contents:
-                index = batch_file_contents.index(content)
-                if args.verbose:
-                    print("Batch test {}: Arguments: {}, Operations: {}".
-                          format(index,  content["arguments"], content["operations"]))
-                run_test_wrapper(config=config, index=index, arguments=content["arguments"])
-        else:
-            run_test_wrapper(config=config, arguments=arguments)
+    reported_stats : List[PerfStat] = []
 
-    # Process results
     if config.batch_file:
+        if args.verbose:
+            print("Batch tests to run: {}".format(len(batch_file_contents)))
         for content in batch_file_contents:
-            process_results(config,
-                            perf_stats,
-                            operations=content["operations"],
-                            index=batch_file_contents.index(content))
+            index = batch_file_contents.index(content)
+            if args.verbose:
+                print("Batch test {}: Arguments: {}, Operations: {}".
+                        format(index,  content["arguments"], content["operations"]))
+                perf_stats = setup_perf_stats() # PerfStatCollection(content["operations"]) TODO
+                if not args.reuse:
+                    run_test_wrapper(config=config, index=index, arguments=content["arguments"])
+                reported_stats += process_results(config, perf_stats, operations=content["operations"], index=index)
     else:
-        process_results(config,
-                        perf_stats,
-                        operations=operations)
+        perf_stats = setup_perf_stats() # PerfStatCollection(operations) TODO
+        if not args.reuse:
+            run_test_wrapper(config=config, index=0, arguments=arguments)
+        reported_stats = process_results(config, perf_stats, operations=operations, index=0)
 
-    # Output result
     if args.brief_output:
         if args.verbose:
             print("Brief stats output (Evergreen compatible format):")
-        perf_results = brief_perf_stats(config, perf_stats)
+        perf_results = brief_perf_stats(config, reported_stats)
     else:
         if args.verbose:
             print("Detailed stats output (Atlas compatible format):")
-        perf_results = detailed_perf_stats(config, perf_stats)
+        perf_results = detailed_perf_stats(config, reported_stats)
 
     if args.verbose:
         perf_json = json.dumps(perf_results, indent=4, sort_keys=True)

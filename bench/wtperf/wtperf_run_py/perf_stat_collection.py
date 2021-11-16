@@ -51,10 +51,3 @@ class PerfStatCollection:
                 values = stat.find_stat(test_stat_path=test_stat_path)
                 stat.add_values(values=values)
 
-    def to_value_list(self, brief: bool):
-        stats_list = []
-        for stat in self.perf_stats.values():
-            if not stat.are_values_all_zero():
-                stat_list = stat.get_value_list(brief = brief)
-                stats_list.extend(stat_list)
-        return stats_list
