@@ -178,7 +178,7 @@ class search_near_01 : public test_harness::test {
         std::map<uint64_t, scoped_cursor> cursors;
         tc->stat_cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
         std::string srch_key;
-        int64_t entries_stat, prefix_stat, prev_entries_stat, prev_prefix_stat, expected_entries;
+        int64_t entries_stat, prefix_stat, prev_entries_stat, prev_prefix_stat, expected_entries, buffer;
         int cmpp;
 
         cmpp = 0;
@@ -243,8 +243,9 @@ class search_near_01 : public test_harness::test {
                  * the number of expected entries is the upper limit which the prefix search near
                  * can traverse and the prefix fast path is incremented.
                  */
+                buffer = std::max(2 * tc->thread_count, 2 * expected_entries);
                 testutil_assert(
-                  (expected_entries + (2 * tc->thread_count)) >= entries_stat - prev_entries_stat);
+                  (expected_entries + buffer) >= entries_stat - prev_entries_stat);
                 /*
                  * There is an edge case where we may not early exit the prefix search near call
                  * because the specified prefix matches the rest of the entries in the tree.
