@@ -59,6 +59,8 @@ target_compile_options(
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 target_link_libraries(cppsuite_test_harness PRIVATE test_util)
+# There's no special sub-path to access a given extension.
+target_compile_options(cppsuite_test_harness PUBLIC -DEXTSUBPATH=\"\")
 
 # Create the different executables.
 create_test_executable(run
@@ -79,11 +81,6 @@ create_test_executable(csuite_style_example_test
 if(ENABLE_TCMALLOC)
     target_link_libraries(run wt::tcmalloc)
     target_link_libraries(csuite_style_example_test wt::tcmalloc)
-endif()
-
-if(ENABLE_SNAPPY)
-    # We use Snappy compression to avoid excessive disk spage usage.
-    target_compile_options(run PRIVATE -DSNAPPY_PATH=\"$<TARGET_FILE:wiredtiger_snappy>\")
 endif()
 
 # Test definitions.
