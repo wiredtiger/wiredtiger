@@ -44,7 +44,7 @@ from wtperf_config import WTPerfConfig
 
 
 def create_test_home_path(home: str, test_run: int, index:int):
-    home_path = "{}_{}_{}".format(home, test_run, index)
+    home_path = "{}_{}_{}".format(home, index, test_run)
     return home_path
 
 
