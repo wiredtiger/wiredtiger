@@ -87,7 +87,7 @@ endif()
 add_test(NAME cppsuite COMMAND ${CMAKE_CURRENT_BINARY_DIR}/run)
 
 add_test(NAME csuite_style_example COMMAND csuite_style_example_test)
-set_tests_properties(csuite_style_example PROPERTIES LABELS "check")
+set_tests_properties(csuite_style_example PROPERTIES LABELS "check;cppsuite")
 
 # Run this during a "ctest check" smoke test.
-set_tests_properties(cppsuite PROPERTIES LABELS "check")
+set_tests_properties(cppsuite PROPERTIES LABELS "check;cppsuite")
