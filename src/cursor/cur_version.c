@@ -163,13 +163,11 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     WT_CURSOR *cursor;
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
-    const char *table_uri;
+    char *key_format;
+    size_t len;
     /* The table cursor is read only. */
     const char *table_cursor_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "read_only=true", NULL};
-
-    /* The table uri is the uri without prefix 'version:'. */
-    table_uri = uri + 8;
 
     *cursorp = NULL;
     WT_RET(__wt_calloc_one(session, &version_cursor));
@@ -178,10 +176,13 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     cursor->session = (WT_SESSION *)session;
 
     /* Open the table cursor. */
-    WT_ERR(__wt_open_cursor(
-      session, table_uri, cursor, table_cursor_cfg, &version_cursor->table_cursor));
+    WT_ERR(__wt_open_cursor(session, uri, cursor, table_cursor_cfg, &version_cursor->table_cursor));
 
-    cursor->key_format = WT_UNCHECKED_STRING(QQQQQQBBB);
+    len = strlen(version_cursor->table_cursor->value_format) + 10;
+    WT_ERR(__wt_calloc(session, 1, len, &key_format));
+    WT_ERR(__wt_snprintf(key_format, len, "%s%s", version_cursor->table_cursor->key_format,
+      WT_UNCHECKED_STRING(QQQQQQBBB)));
+    cursor->key_format = key_format;
     cursor->value_format = version_cursor->table_cursor->value_format;
     WT_ERR(__wt_strdup(session, uri, &cursor->uri));
 
