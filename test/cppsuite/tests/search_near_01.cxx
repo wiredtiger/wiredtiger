@@ -45,6 +45,7 @@ class search_near_01 : public test_harness::test {
     uint64_t srchkey_len = 0;
     const std::string ALPHABET{"abcdefghijklmnopqrstuvwxyz"};
     const uint64_t PREFIX_KEY_LEN = 3;
+    const int64_t MINIMUM_EXPECTED_ENTRIES = 40;
 
     static void
     populate_worker(thread_context *tc, const std::string &ALPHABET, uint64_t PREFIX_KEY_LEN)
@@ -241,11 +242,13 @@ class search_near_01 : public test_harness::test {
                  * Due to the concurrency of multiple threads and how WiredTiger increments the
                  * entries skipped stat, it is possible that a thread can perform multiple search
                  * nears before another can finish one. Account for this problem by creating a
-                 * buffer roughly equivalent to the calculated 2 * expected entries. Assert that the
-                 * number of expected entries is the upper limit which the prefix search near can
-                 * traverse and the prefix fast path is incremented.
+                 * buffer taking the maximum of either calculated 2 * expected entries or the
+                 * minimum expected entries. The minimum expected entries is necessary in the case
+                 * that expected entries is a low number. Assert that the number of expected
+                 * entries is the upper limit which the prefix search near can traverse and the
+                 * prefix fast path is incremented.
                  */
-                buffer = std::max(2 * expected_entries, static_cast<int64_t>(40));
+                buffer = std::max(2 * expected_entries, MINIMUM_EXPECTED_ENTRIES);
                 testutil_assert((expected_entries + buffer) >= entries_stat - prev_entries_stat);
 
                 /*
