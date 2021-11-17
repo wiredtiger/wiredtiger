@@ -268,7 +268,7 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     op = txn->mod + txn->mod_count - 1;
     fileid = op->btree->id;
 
-   /*
+    /*
      * If there are older updates to this key by the same transaction, set the repeated key flag on
      * the previous operation. This is used in txn commit/prepare/rollback so we only resolve each
      * set of updates once. The most recent update (which appears later in the modification array)
