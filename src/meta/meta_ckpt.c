@@ -615,7 +615,7 @@ __meta_ckptlist_allocate_new_ckpt(
         WT_ORDERED_READ(most_recent, conn->ckpt_most_recent);
         ckpt->sec = WT_MAX(ckpt->sec, conn->flush_most_recent);
         ckpt->sec = WT_MAX(ckpt->sec, most_recent);
-        if (ckpt->sec <= most_recent ||
+        if (ckpt->sec == most_recent ||
           __wt_atomic_cas64(&conn->ckpt_most_recent, most_recent, ckpt->sec))
             break;
     }
