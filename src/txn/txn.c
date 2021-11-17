@@ -1658,8 +1658,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     if (!prepare)
         F_CLR(txn, WT_TXN_TS_ROUND_PREPARED);
 
-    F_SET(txn, WT_TXN_IN_COMMIT_PHASE);
-
     /* Set the commit and the durable timestamps. */
     WT_ERR(__wt_txn_set_timestamp(session, cfg));
 
@@ -1789,7 +1787,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                 if (conn->cache->hs_fileid != 0 && fileid == conn->cache->hs_fileid)
                     break;
 
-                __wt_txn_op_set_timestamp(session, op);
+                __wt_txn_op_set_timestamp(session, op, true);
                 WT_ERR(__txn_commit_timestamps_usage_check(session, op, upd));
             } else {
                 /*
@@ -1836,7 +1834,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      */
     for (i = 0, op = txn->mod; ft_resolution > 0 && i < txn->mod_count; i++, op++)
         if (op->type == WT_TXN_OP_REF_DELETE) {
-            __wt_txn_op_set_timestamp(session, op);
+            __wt_txn_op_set_timestamp(session, op, true);
 
             WT_REF_LOCK(session, op->u.ref, &previous_state);
             if (previous_state == WT_REF_DELETED)

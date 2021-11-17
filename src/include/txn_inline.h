@@ -329,7 +329,7 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
  *     existing timestamp.
  */
 static inline void
-__wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
+__wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool in_commit_phase)
 {
     WT_TXN *txn;
     WT_UPDATE *upd;
@@ -371,8 +371,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
                  * will apply the first commit timestamp used in the transaction to prevent
                  * timestamp ordering issues from occurring.
                  */
-                upd->start_ts = F_ISSET(txn, WT_TXN_IN_COMMIT_PHASE) ? txn->first_commit_timestamp :
-                                                                       txn->commit_timestamp;
+                upd->start_ts = in_commit_phase ? txn->first_commit_timestamp : txn->commit_timestamp;
                 upd->durable_ts = txn->durable_timestamp;
             }
         }
@@ -416,7 +415,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     WT_ASSERT(session, !WT_IS_HS((S2BT(session))->dhandle));
 
     upd->txnid = session->txn->id;
-    __wt_txn_op_set_timestamp(session, op);
+    __wt_txn_op_set_timestamp(session, op, false);
 
     return (0);
 }
@@ -440,7 +439,7 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* This access to the WT_PAGE_DELETED structure is safe, caller has the WT_REF locked. */
     ref->ft_info.del->txnid = txn->id;
-    __wt_txn_op_set_timestamp(session, op);
+    __wt_txn_op_set_timestamp(session, op, false);
 
     WT_ERR(__wt_txn_log_op(session, NULL));
     return (0);
