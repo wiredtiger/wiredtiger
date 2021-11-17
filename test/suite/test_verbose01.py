@@ -37,6 +37,38 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
     # The maximum number of lines we will read from stdout in any given context.
     nlines = 50000
 
+    # The JSON schema we expect all messages to follow. Captures all possible fields, detailing
+    # each field's name, associated type and whether we always expect for that field to be
+    # present.
+    expected_json_schema = {
+        'ts_sec': {'type': int, 'always_expected': True },
+        'ts_usec': {'type': int, 'always_expected': True },
+        'thread': {'type': str, 'always_expected': True },
+        'session_err_prefix': {'type': str, 'always_expected': False },
+        'session_dhandle_name': {'type': str, 'always_expected': False },
+        'session_name': {'type': str, 'always_expected': False },
+        'error_str': {'type': str, 'always_expected': False },
+        'error_code': {'type': int, 'always_expected': False },
+        'msg': {'type': str, 'always_expected': True },
+    }
+
+    # Validates the JSON schema of a given event handler message, ensuring the schema is consistent and expected.
+    def validate_json_schema(self, json_msg):
+        expected_schema = dict(self.expected_json_schema)
+        for field in json_msg:
+            # Assert the JSON field is valid and expected.
+            self.assertTrue(field in expected_schema, 'Unexpected field "%s" in JSON message: %s' % (field, str(json_msg)))
+            # Assert the type of the JSON field is expected.
+            self.assertEqual(type(json_msg[field]), expected_schema[field]['type'],
+                    'Unexpected type of field "%s" in JSON message, expected "%s" but got "%s": %s' % (field,
+                        str(expected_schema[field]['type']), str(type(json_msg[field])), str(json_msg)))
+            expected_schema.pop(field, None)
+        # Go through the remaining fields in the schema and ensure we've seen all the fields that are always expected be present
+        # in the JSON message
+        for field in expected_schema:
+            self.assertFalse(expected_schema[field]['always_expected'], 'Expected field "%s" in JSON message, but not found: %s' %
+                (field, str(json_msg)))
+
     def create_verbose_configuration(self, categories):
         if len(categories) == 0:
             return ''
