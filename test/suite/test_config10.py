@@ -90,6 +90,8 @@ class test_config10(wttest.WiredTigerTestCase):
             s.rollback_transaction()
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
+        # Ensure that the cache usage statistic has had enough time to properly
+        # update.
         time.sleep(10)
         cache_usage = stat_cursor[stat.conn.cache_bytes_inuse][2]
         self.assertGreater(prev_cache_usage, cache_usage * 2)
