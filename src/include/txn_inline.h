@@ -329,10 +329,9 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
  *     existing timestamp.
  */
 static inline void
-__wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
+__wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *upd)
 {
     WT_TXN *txn;
-    WT_UPDATE *upd;
 
     txn = session->txn;
 
@@ -351,8 +350,6 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
         if (op->type == WT_TXN_OP_REF_DELETE)
             __wt_txn_op_apply_prepare_state(session, op->u.ref, true);
         else {
-            upd = op->u.op_upd;
-
             /* Resolve prepared update to be committed update. */
             __txn_resolve_prepared_update(session, upd);
         }
@@ -410,7 +407,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     WT_ASSERT(session, !WT_IS_HS((S2BT(session))->dhandle));
 
     upd->txnid = session->txn->id;
-    __wt_txn_op_set_timestamp(session, op);
+    __wt_txn_op_set_timestamp(session, op, upd);
 
     return (0);
 }
@@ -434,7 +431,7 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* This access to the WT_PAGE_DELETED structure is safe, caller has the WT_REF locked. */
     ref->ft_info.del->txnid = txn->id;
-    __wt_txn_op_set_timestamp(session, op);
+    __wt_txn_op_set_timestamp(session, op, NULL);
 
     WT_ERR(__wt_txn_log_op(session, NULL));
     return (0);

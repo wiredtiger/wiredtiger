@@ -122,10 +122,6 @@ __wt_hazard_weak_set(WT_SESSION_IMPL *session, WT_REF *ref, WT_TXN_OP *op)
     WT_ASSERT(session, ref != NULL);
     WT_ASSERT(session, op->whp == NULL);
 
-    /* If a file can never be evicted, hazard pointers aren't required. */
-    if (F_ISSET(op->btree, WT_BTREE_IN_MEMORY))
-        return (0);
-
     /* If we have filled the current hazard pointer array, grow it. */
     for (wha = session->hazard_weak; wha != NULL && wha->nhazard >= wha->hazard_size;
          wha = wha->next)
@@ -277,4 +273,70 @@ __wt_hazard_weak_invalidate(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_HAZARD_WEAK_FORALL_BARRIER_END
     }
     WT_STAT_CONN_INCRV(session, cache_hazard_walks, walk_cnt);
+}
+
+/*
+ * __wt_hazard_weak_try_upgrade --
+ *     Attempts to convert a weak hazard pointer into a full hazard pointer, failing if it has been
+ *     invalidated.
+ */
+int
+__wt_hazard_weak_try_upgrade(WT_SESSION_IMPL *session, WT_HAZARD_WEAK *whp, WT_REF **refp)
+{
+    bool busy;
+
+    WT_ASSERT(session, whp != NULL && whp->ref != NULL);
+
+    if (!whp->valid)
+        return (EBUSY);
+
+    WT_RET(__wt_hazard_set(session, whp->ref, &busy));
+    if (busy)
+        return (EBUSY);
+
+    *refp = whp->ref;
+    return (0);
+}
+
+/*
+ * __wt_hazard_weak_upgrade --
+ *     Attempts to convert a weak hazard pointer into a full hazard pointer, failing if it has been
+ *     invalidated. Destructor.
+ */
+int
+__wt_hazard_weak_upgrade(WT_SESSION_IMPL *session, WT_HAZARD_WEAK **whpp, WT_REF **refp)
+{
+    WT_DECL_RET;
+    WT_HAZARD_WEAK *whp;
+    WT_HAZARD_WEAK_ARRAY *wha;
+    bool busy;
+
+    whp = *whpp;
+    *whpp = NULL;
+    WT_ASSERT(session, whp != NULL && whp->ref != NULL);
+
+    if (!whp->valid)
+        WT_ERR(EBUSY);
+
+    WT_ERR(__wt_hazard_set(session, whp->ref, &busy));
+    if (busy)
+        WT_ERR(EBUSY);
+
+    *refp = whp->ref;
+
+err:
+    whp->ref = NULL;
+
+    for (wha = session->hazard_weak; wha != NULL; wha = wha->next) {
+        if (whp >= wha->hazard && whp < wha->hazard + wha->hazard_size) {
+            if (wha->nhazard == 0)
+                WT_RET_PANIC(session, EINVAL,
+                  "session %p: While clearing weak hazard pointer, the count of the pointers "
+                  "went negative for the relevant array.",
+                  (void *)session);
+            if (--wha->nhazard == 0)
+                WT_PUBLISH(wha->hazard_inuse, 0);
+        }
+    }
+    return (ret);
 }

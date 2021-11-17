@@ -296,7 +296,7 @@ extern int __wt_btcur_reset(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((wa
 extern int __wt_btcur_search(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
+extern int __wt_btcur_search_uncommitted(WT_CURSOR *cursor, WT_UPDATE **updp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_update(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btree_close(WT_SESSION_IMPL *session)
@@ -785,6 +785,10 @@ extern int __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *bus
 extern int __wt_hazard_weak_clear(WT_SESSION_IMPL *session, WT_TXN_OP *op)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hazard_weak_set(WT_SESSION_IMPL *session, WT_REF *ref, WT_TXN_OP *op)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_hazard_weak_try_upgrade(WT_SESSION_IMPL *session, WT_HAZARD_WEAK *whp,
+  WT_REF **refp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_hazard_weak_upgrade(WT_SESSION_IMPL *session, WT_HAZARD_WEAK **whpp, WT_REF **refp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hex2byte(const u_char *from, u_char *to)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2372,7 +2376,8 @@ static inline void __wt_txn_op_apply_prepare_state(
 static inline void __wt_txn_op_delete_commit_apply_timestamps(
   WT_SESSION_IMPL *session, WT_REF *ref);
 static inline void __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno);
-static inline void __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op);
+static inline void __wt_txn_op_set_timestamp(
+  WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *upd);
 static inline void __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp);
 static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
 static inline void __wt_txn_timestamp_flags(WT_SESSION_IMPL *session);
