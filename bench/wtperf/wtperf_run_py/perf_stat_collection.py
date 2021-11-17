@@ -39,7 +39,9 @@ def create_test_stat_path(test_home_path: str, test_stats_file: str):
 
 class PerfStatCollection:
     def __init__(self, operations: List[str]):
-        self.to_report: List[PerfStat] = [stat for stat in self.all_stats() if stat.short_label in operations]
+        self.to_report: List[PerfStat] = []
+        if operations:
+            self.to_report = [stat for stat in self.all_stats() if stat.short_label in operations]
 
     def find_stats(self, test_home: str):
         for stat in self.to_report:
