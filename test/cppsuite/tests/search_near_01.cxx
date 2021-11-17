@@ -247,7 +247,7 @@ class search_near_01 : public test_harness::test {
                  * that expected entries is a low number.
                  *
                  * Assert that the number of expected entries is the maximum allowed limit that the
-                 * prefix search nears can traverse and the prefix fast path is incremented.
+                 * prefix search nears can traverse.
                  */
                 buffer = std::max(2 * expected_entries, MINIMUM_EXPECTED_ENTRIES);
                 testutil_assert((expected_entries + buffer) >= entries_stat - prev_entries_stat);
