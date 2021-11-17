@@ -371,7 +371,8 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool in_commi
                  * will apply the first commit timestamp used in the transaction to prevent
                  * timestamp ordering issues from occurring.
                  */
-                upd->start_ts = in_commit_phase ? txn->first_commit_timestamp : txn->commit_timestamp;
+                upd->start_ts =
+                  in_commit_phase ? txn->first_commit_timestamp : txn->commit_timestamp;
                 upd->durable_ts = txn->durable_timestamp;
             }
         }
