@@ -6,8 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
-#define WT_GEN_VERBOSE_ENUM(enum) enum,
-#define WT_GEN_VERBOSE_ENUM_STR(enum_str) #enum_str,
+#define WT_GEN_VERBOSE_ENUM(value) value,
+#define WT_GEN_VERBOSE_ENUM_STR(value_str) #value_str,
 
 /* Disable clang format for the following macro to keep the categories formatted on a new line. */
 /* clang-format off */
