@@ -30,6 +30,28 @@ struct __wt_hazard {
 #endif
 };
 
+/*
+ * WT_HAZARD_WEAK --
+ *	A weak hazard pointer.
+ */
+struct __wt_hazard_weak {
+    WT_REF *ref; /* Page reference */
+    bool valid;  /* Is the weak hazard pointer still valid? */
+};
+
+/*
+ * WT_HAZARD_WEAK_ARRAY --
+ *	A per-session array of weak hazard pointers. These are grown by adding a new array, and are
+ *  only freed when the session is closed.
+ */
+struct __wt_hazard_weak_array {
+    uint32_t hazard_size;  /* Weak hazard pointer array slots */
+    uint32_t hazard_inuse; /* Weak hazard pointer array slots in-use */
+    uint32_t nhazard;      /* Count of active weak hazard pointers */
+    WT_HAZARD_WEAK_ARRAY *next;
+    WT_HAZARD_WEAK hazard[0]; /* Weak hazard pointer array */
+};
+
 /* Get the connection implementation for a session */
 #define S2C(session) ((WT_CONNECTION_IMPL *)(session)->iface.connection)
 
@@ -194,22 +216,21 @@ struct __wt_session_impl {
 #define WT_SESSION_BACKUP_DUP 0x00002u
 #define WT_SESSION_CACHE_CURSORS 0x00004u
 #define WT_SESSION_CAN_WAIT 0x00008u
-#define WT_SESSION_DEBUG_RELEASE_EVICT 0x00010u
-#define WT_SESSION_EVICTION 0x00020u
-#define WT_SESSION_IGNORE_CACHE_SIZE 0x00040u
-#define WT_SESSION_IMPORT 0x00080u
-#define WT_SESSION_IMPORT_REPAIR 0x00100u
-#define WT_SESSION_INTERNAL 0x00200u
-#define WT_SESSION_LOGGING_INMEM 0x00400u
-#define WT_SESSION_NO_DATA_HANDLES 0x00800u
-#define WT_SESSION_NO_LOGGING 0x01000u
-#define WT_SESSION_NO_RECONCILE 0x02000u
-#define WT_SESSION_QUIET_CORRUPT_FILE 0x04000u
-#define WT_SESSION_QUIET_TIERED 0x08000u
-#define WT_SESSION_READ_WONT_NEED 0x10000u
-#define WT_SESSION_RESOLVING_TXN 0x20000u
-#define WT_SESSION_ROLLBACK_TO_STABLE 0x40000u
-#define WT_SESSION_SCHEMA_TXN 0x80000u
+#define WT_SESSION_EVICTION 0x00010u
+#define WT_SESSION_IGNORE_CACHE_SIZE 0x00020u
+#define WT_SESSION_IMPORT 0x00040u
+#define WT_SESSION_IMPORT_REPAIR 0x00080u
+#define WT_SESSION_INTERNAL 0x00100u
+#define WT_SESSION_LOGGING_INMEM 0x00200u
+#define WT_SESSION_NO_DATA_HANDLES 0x00400u
+#define WT_SESSION_NO_LOGGING 0x00800u
+#define WT_SESSION_NO_RECONCILE 0x01000u
+#define WT_SESSION_QUIET_CORRUPT_FILE 0x02000u
+#define WT_SESSION_QUIET_TIERED 0x04000u
+#define WT_SESSION_READ_WONT_NEED 0x08000u
+#define WT_SESSION_RESOLVING_TXN 0x10000u
+#define WT_SESSION_ROLLBACK_TO_STABLE 0x20000u
+#define WT_SESSION_SCHEMA_TXN 0x40000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 
@@ -278,6 +299,8 @@ struct __wt_session_impl {
     uint32_t hazard_inuse; /* Hazard pointer array slots in-use */
     uint32_t nhazard;      /* Count of active hazard pointers */
     WT_HAZARD *hazard;     /* Hazard pointer array */
+
+    WT_HAZARD_WEAK_ARRAY *hazard_weak;
 
     /*
      * Operation tracking.
