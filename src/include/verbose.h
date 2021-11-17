@@ -82,7 +82,7 @@ typedef enum {
 /* Convert a verbose level to its string representation. */
 #define WT_VERBOSE_LEVEL_STR(level, level_str) \
     do {                                       \
-        level_str = "";                        \
+        (level_str) = "";                      \
         switch (level) {                       \
         case WT_VERBOSE_ERROR:                 \
             (level_str) = "ERROR";             \
