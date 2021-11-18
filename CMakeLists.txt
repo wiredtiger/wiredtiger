@@ -192,6 +192,7 @@ endif()
 
 # Build the wiredtiger test suites.
 enable_testing()
-add_subdirectory(test)
-add_subdirectory(examples)
+add_subdirectory(bench/workgen)
 add_subdirectory(bench/wtperf)
+add_subdirectory(examples)
+add_subdirectory(test)
