@@ -487,8 +487,8 @@ __recovery_set_checkpoint_snapshot(WT_SESSION_IMPL *session)
             conn->recovery_ckpt_snapshot_version = (uint32_t)cval.val;
 
         /*
-         * Read the reset of the snapshot information when the on-disk snapshot version matches with
-         * the expected.
+         * Read the rest of the checkpoint snapshot information when the on-disk snapshot version
+         * matches with the expected version.
          */
         if (conn->recovery_ckpt_snapshot_version == WT_CKPT_SNAPSHOT_VERSION) {
             if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MIN, &cval) == 0 &&
