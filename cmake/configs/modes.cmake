@@ -107,7 +107,6 @@ if(MSVC)
     set(no_omit_frame_flag "/Oy-")
 else()
     set(no_omit_frame_flag "-fno-omit-frame-pointer")
-    set(no_omit_frame_flag "-fno-omit-frame-pointer")
 endif()
 
 # ASAN build variant flags.
