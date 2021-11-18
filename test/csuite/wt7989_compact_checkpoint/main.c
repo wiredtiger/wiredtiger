@@ -417,13 +417,13 @@ check_db_size(WT_SESSION *session, const char *uri)
       file_sz / WT_MEGABYTE, file_sz, avail_bytes / WT_MEGABYTE, avail_bytes, available_pct);
 
     /*
-     * Compaction is a best effort algorithm. It moves blocks from the end to the beginning of the
+     * Compaction is a best-effort algorithm. It moves blocks from the end to the beginning of the
      * file but there is no guarantee that all empty space at the beginning will be filled. The
      * logic in the algorithm checks if at least 20% of the file is available in the first 80% of
      * the file, we'll try compaction on the last 20% of the file. Else if at least 10% of the total
      * file is available in the first 90% of the file, we'll try compaction on the last 10% of the
      * file. It may well happen that 9.9% of the space is available for reuse in the first 90% of
-     * the file. And 9.9% available in the last 10% of the file. In this case the algorithm would
+     * the file. And 9.9% available in the last 10% of the file. In this case, the algorithm would
      * give up. But total available space in the file would be 19.8%. So we need to check that there
      * is a maximum of 20% space available for reuse after compaction.
      */
