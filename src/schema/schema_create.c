@@ -66,6 +66,7 @@ __check_imported_ts(
 
     ckptbase = NULL;
     txn_global = &S2C(session)->txn_global;
+    ts = against_stable ? txn_global->stable_timestamp : txn_global->oldest_timestamp;
     ts_name = against_stable ? "stable" : "oldest";
 
     WT_ERR_NOTFOUND_OK(
@@ -76,7 +77,6 @@ __check_imported_ts(
 
     /* Now iterate over each checkpoint and compare the aggregate timestamps with our oldest. */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
-        ts = against_stable ? txn_global->stable_timestamp : txn_global->oldest_timestamp;
         if (ckpt->ta.newest_start_durable_ts > ts)
             WT_ERR_MSG(session, EINVAL,
               "%s: import found aggregated newest start durable timestamp newer than the current "
