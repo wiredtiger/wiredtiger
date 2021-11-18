@@ -280,14 +280,14 @@ def run_perf_tests(config: WTPerfConfig,
             if args.verbose:
                 print("Batch test {}: Arguments: {}, Operations: {}".
                         format(index,  content["arguments"], content["operations"]))
+                perf_stats = PerfStatCollection(content["operations"])
                 if not args.reuse:
                     run_test_wrapper(config=config, index=index, arguments=content["arguments"])
-                perf_stats = PerfStatCollection(content["operations"])
                 reported_stats += process_results(config, perf_stats, index=index)
     else:
+        perf_stats = PerfStatCollection(operations)
         if not args.reuse:
             run_test_wrapper(config=config, index=0, arguments=arguments)
-        perf_stats = PerfStatCollection(operations)
         reported_stats = process_results(config, perf_stats)
 
     return reported_stats
