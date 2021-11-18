@@ -1842,7 +1842,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             if (prepare)
                 ++prepare_count;
 #endif
-            ret = __txn_op_commit(session, op, upd, prepare, &cursor);
+            WT_WITH_BTREE(
+              session, op->btree, ret = __txn_op_commit(session, op, upd, prepare, &cursor));
 
             if (ref != NULL) {
                 WT_WITH_BTREE(session, op->btree, WT_TRET(__wt_hazard_clear(session, ref)));
@@ -2306,7 +2307,10 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
                 continue;
             }
 
-            WT_TRET(__txn_op_rollback(session, op, upd, prepare, &cursor));
+            WT_WITH_BTREE(
+              session, op->btree, tret = __txn_op_rollback(session, op, upd, prepare, &cursor));
+            if (tret != 0)
+                WT_TRET(tret);
 
 #ifdef HAVE_DIAGNOSTIC
             if (prepare)
