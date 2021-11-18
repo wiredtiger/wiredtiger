@@ -258,6 +258,13 @@ def validate_operations(config: WTPerfConfig, batch_file_contents: Dict, operati
     if len(all_operations_nodups) != len(all_operations):
         sys.exit("List of all operations ({}) contains duplicates".format(all_operations))
 
+    # Also check that all operations provided have an associated PerfStat.
+    all_stat_names = [stat.short_label for stat in PerfStatCollection.all_stats()]
+    for oper in all_operations:
+        if oper not in all_stat_names:
+            sys.exit(f"Provided operation '{oper}' does not match any known PerfStats.\n"
+                     f"Possible names are: {sorted(all_stat_names)}")
+
 def run_perf_tests(config: WTPerfConfig, 
                    batch_file_contents: Dict, 
                    args: argparse.Namespace, 

@@ -41,7 +41,7 @@ class PerfStatCollection:
     def __init__(self, operations: List[str]):
         self.to_report: List[PerfStat] = []
         if operations:
-            self.to_report = [stat for stat in self.all_stats() if stat.short_label in operations]
+            self.to_report = [stat for stat in PerfStatCollection.all_stats() if stat.short_label in operations]
 
     def find_stats(self, test_home: str):
         for stat in self.to_report:
@@ -49,7 +49,8 @@ class PerfStatCollection:
             values = stat.find_stat(test_stat_path=test_stat_path)
             stat.add_values(values=values)
 
-    def all_stats(self):
+    @staticmethod
+    def all_stats():
         return [
             PerfStat(short_label="load",
                         pattern='Load time:',
