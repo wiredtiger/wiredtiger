@@ -1164,6 +1164,9 @@ struct __wt_session {
 	 * by any update to a record in the table., a boolean flag; default \c false.}
 	 * @config{import = (, configure import of an existing object into the currently running
 	 * database., a set of related configuration options defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;compare_timestamp, Allow importing files with timestamps
+	 * smaller or equal to the configured global timestamps., a string\, chosen from the
+	 * following options: \c "oldest"\, \c "stable"; default \c oldest.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, whether to import the input URI from disk., a
 	 * boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_metadata, the file

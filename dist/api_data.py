@@ -1391,6 +1391,9 @@ methods = {
     Config('import', '', r'''
         configure import of an existing object into the currently running database''',
         type='category', subconfig=[
+        Config('compare_timestamp', 'oldest', r'''
+            Allow importing files with timestamps smaller or equal to the configured global timestamps''',
+            choices=['oldest', 'stable']),
         Config('enabled', 'false', r'''
             whether to import the input URI from disk''',
             type='boolean'),
