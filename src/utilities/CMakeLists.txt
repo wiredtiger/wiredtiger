@@ -40,7 +40,7 @@ target_compile_options(wt PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS})
 target_include_directories(wt
     PRIVATE ${CMAKE_SOURCE_DIR}/src/include  ${CMAKE_BINARY_DIR}/config
 )
-target_link_libraries(wt wiredtiger)
+target_link_libraries(wt wt::wiredtiger)
 
 if(ENABLE_TCMALLOC)
     target_link_libraries(wt wt::tcmalloc)

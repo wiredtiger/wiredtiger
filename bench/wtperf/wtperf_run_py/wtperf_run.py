@@ -29,44 +29,23 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import argparse
-import json
 import os.path
-import re
-import subprocess
-import sys
 import platform
 import psutil
-from pygit2 import discover_repository, Repository
-from pygit2 import GIT_SORT_TOPOLOGICAL, GIT_SORT_REVERSE, GIT_SORT_NONE
-from typing import List
-
-from wtperf_config import WTPerfConfig
-from perf_stat import PerfStat
+import subprocess
+import sys
+import json
+from perf_stat import PerfStat, PerfStatCount, PerfStatLatency, PerfStatMax, PerfStatMin
 from perf_stat_collection import PerfStatCollection
+from pygit2 import discover_repository, Repository
+from pygit2 import GIT_SORT_NONE
+from typing import List
+from wtperf_config import WTPerfConfig
 
-# the 'test.stat' file is where wt-perf.c writes out it's statistics
-# (within the directory specified by the 'home' parameter)
-test_stats_file = 'test.stat'
 
-
-def create_test_home_path(home: str, test_run: int, operations: List[str] = None):
-    home_path = "{}_{}".format(home, test_run)
-    if operations:
-        # Use the first operation name as part of the home path
-        home_path += "_{}".format(operations[0])
+def create_test_home_path(home: str, test_run: int, index:int):
+    home_path = "{}_{}_{}".format(home, test_run, index)
     return home_path
-
-
-def create_test_stat_path(test_home_path: str):
-    return os.path.join(test_home_path, test_stats_file)
-
-
-def find_stat(test_stat_path: str, pattern: str, position_of_value: int):
-    for line in open(test_stat_path):
-        match = re.match(pattern, line)
-        if match:
-            return line.split()[position_of_value]
-    return 0
 
 
 def get_git_info(git_working_tree_dir):
@@ -96,7 +75,7 @@ def get_git_info(git_working_tree_dir):
     return git_info
 
 
-def construct_wtperf_command_line(wtperf: str, env: str, test: str, home: str, argument: str):
+def construct_wtperf_command_line(wtperf: str, env: str, test: str, home: str, arguments: List[str]):
     command_line = []
     if env is not None:
         command_line.append(env)
@@ -104,8 +83,8 @@ def construct_wtperf_command_line(wtperf: str, env: str, test: str, home: str, a
     if test is not None:
         command_line.append('-O')
         command_line.append(test)
-    if argument is not None:
-        command_line.append(argument)
+    if arguments is not None:
+        command_line.extend(arguments)
     if home is not None:
         command_line.append('-h')
         command_line.append(home)
@@ -125,6 +104,7 @@ def brief_perf_stats(config: WTPerfConfig, perf_stats: PerfStatCollection):
 def detailed_perf_stats(config: WTPerfConfig, perf_stats: PerfStatCollection):
     total_memory_gb = psutil.virtual_memory().total / (1024 * 1024 * 1024)
     as_dict = {
+                'Test Name': os.path.basename(config.test),
                 'config': config.to_value_dict(),
                 'metrics': perf_stats.to_value_list(brief=False),
                 'system': {
@@ -141,31 +121,37 @@ def detailed_perf_stats(config: WTPerfConfig, perf_stats: PerfStatCollection):
     return as_dict
 
 
-def run_test_wrapper(config: WTPerfConfig, operations: List[str] = None, argument: str = None):
+def run_test_wrapper(config: WTPerfConfig, index: int = 0, arguments: List[str] = None):
     for test_run in range(config.run_max):
         print("Starting test  {}".format(test_run))
-        run_test(config=config, test_run=test_run, operations=operations, argument=argument)
+        run_test(config=config, test_run=test_run, index=index, arguments=arguments)
         print("Completed test {}".format(test_run))
 
 
-def run_test(config: WTPerfConfig, test_run: int, operations: List[str] = None, argument: str = None):
-    test_home = create_test_home_path(home=config.home_dir, test_run=test_run, operations=operations)
+def run_test(config: WTPerfConfig, test_run: int, index: int = 0, arguments: List[str] = None):
+    test_home = create_test_home_path(home=config.home_dir, test_run=test_run, index=index)
+    if config.verbose:
+        print("Home directory path created: {}".format(test_home))
     command_line = construct_wtperf_command_line(
         wtperf=config.wtperf_path,
         env=config.environment,
-        argument=argument,
+        arguments=arguments,
         test=config.test,
         home=test_home)
-    subprocess.run(command_line)
+    try:
+        subprocess.run(command_line, check=True, stderr=subprocess.STDOUT, stdout=subprocess.PIPE,
+                       universal_newlines=True)
+    except subprocess.CalledProcessError as cpe:
+        print("Error: {}".format(cpe.output))
+        exit(1)
 
 
-def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, operations: List[str] = None):
+def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, operations: List[str] = None, index: int = 0):
     for test_run in range(config.run_max):
-        test_home = create_test_home_path(home=config.home_dir, test_run=test_run, operations=operations)
-        test_stats_path = create_test_stat_path(test_home)
+        test_home = create_test_home_path(home=config.home_dir, test_run=test_run, index=index)
         if config.verbose:
-            print('Reading test stats file: {}'.format(test_stats_path))
-        perf_stats.find_stats(test_stat_path=test_stats_path, operations=operations)
+            print('Reading stats from {} directory.'.format(test_home))
+        perf_stats.find_stats(test_home=test_home, operations=operations)
 
 
 def setup_perf_stats():
@@ -196,6 +182,48 @@ def setup_perf_stats():
                                  pattern=r'Executed \d+ update operations',
                                  input_offset=1,
                                  output_label='Update count'))
+    perf_stats.add_stat(PerfStat(short_label="checkpoint",
+                                 pattern=r'Executed \d+ checkpoint operations',
+                                 input_offset=1,
+                                 output_label='Checkpoint count'))
+    perf_stats.add_stat(PerfStatMax(short_label="max_update_throughput",
+                                    pattern=r'updates,',
+                                    input_offset=8,
+                                    output_label='Max update throughput'))
+    perf_stats.add_stat(PerfStatMin(short_label="min_update_throughput",
+                                    pattern=r'updates,',
+                                    input_offset=8,
+                                    output_label='Min update throughput'))
+    perf_stats.add_stat(PerfStatCount(short_label="warnings",
+                                      pattern='WARN',
+                                      output_label='Latency warnings'))
+    perf_stats.add_stat(PerfStatLatency(short_label="top5_latencies_read_update",
+                                        stat_file='monitor.json',
+                                        output_label='Latency(read, update) Max',
+                                        ops = ['read', 'update'],
+                                        num_max = 5))
+    perf_stats.add_stat(PerfStatCount(short_label="eviction_page_seen",
+                                      stat_file='WiredTigerStat*',
+                                      pattern='[0-9].wt cache: pages seen by eviction',
+                                      output_label='Pages seen by eviction'))
+    perf_stats.add_stat(PerfStatLatency(short_label="max_latency_insert",
+                                        stat_file='monitor.json',
+                                        output_label='Latency(insert) Max',
+                                        ops = ['insert'],
+                                        num_max = 1))
+    perf_stats.add_stat(PerfStatLatency(short_label="max_latency_read_update",
+                                        stat_file='monitor.json',
+                                        output_label='Latency(read, update) Max',
+                                        ops = ['read', 'update'],
+                                        num_max = 1))
+    perf_stats.add_stat(PerfStatMax(short_label="max_read_throughput",
+                                    pattern=r'updates,',
+                                    input_offset=4,
+                                    output_label='Max read throughput'))
+    perf_stats.add_stat(PerfStatMin(short_label="min_read_throughput",
+                                    pattern=r'updates,',
+                                    input_offset=4,
+                                    output_label='Min read throughput'))
     return perf_stats
 
 
@@ -214,7 +242,9 @@ def main():
                         help='reuse and reanalyse results from previous tests rather than running tests again')
     parser.add_argument('-g', '--git_root', help='path of the Git working directory')
     parser.add_argument('-i', '--json_info', help='additional test information in a json format string')
-    parser.add_argument('-a', '--arg_file', help='additional wtperf arguments in a json format file')
+    parser.add_argument('-bf', '--batch_file', help='Run all specified configurations for a single test')
+    parser.add_argument('-args', '--arguments', help='Additional arguments to pass into wtperf')
+    parser.add_argument('-ops', '--operations', help='List of operations to report metrics for')
     parser.add_argument('-v', '--verbose', action="store_true", help='be verbose')
     args = parser.parse_args()
 
@@ -222,17 +252,19 @@ def main():
         print('WTPerfPy')
         print('========')
         print("Configuration:")
-        print("  WtPerf path:              {}".format(args.wtperf))
-        print("  Environment:              {}".format(args.env))
-        print("  Test path:                {}".format(args.test))
-        print("  Home base:                {}".format(args.home))
-        print("  Addition arguments(file): {}".format(args.arg_file))
-        print("  Git root:                 {}".format(args.git_root))
-        print("  Outfile:                  {}".format(args.outfile))
-        print("  Runmax:                   {}".format(args.runmax))
-        print("  JSON info                 {}".format(args.json_info))
-        print("  Reuse results:            {}".format(args.reuse))
-        print("  Brief output:             {}".format(args.brief_output))
+        print("  WtPerf path:       {}".format(args.wtperf))
+        print("  Environment:       {}".format(args.env))
+        print("  Test path:         {}".format(args.test))
+        print("  Home base:         {}".format(args.home))
+        print("  Batch file:        {}".format(args.batch_file))
+        print("  Arguments:         {}".format(args.arguments))
+        print("  Operations:        {}".format(args.operations))
+        print("  Git root:          {}".format(args.git_root))
+        print("  Outfile:           {}".format(args.outfile))
+        print("  Runmax:            {}".format(args.runmax))
+        print("  JSON info          {}".format(args.json_info))
+        print("  Reuse results:     {}".format(args.reuse))
+        print("  Brief output:      {}".format(args.brief_output))
 
     if args.wtperf is None:
         sys.exit('The path to the wtperf executable is required')
@@ -240,15 +272,24 @@ def main():
         sys.exit('The path to the test file is required')
     if args.home is None:
         sys.exit('The path to the "home" directory is required')
-    if args.arg_file and not os.path.isfile(args.arg_file):
-        sys.exit("arg_file: {} not found!".format(args.arg_file))
+    if args.batch_file and not os.path.isfile(args.batch_file):
+        sys.exit("batch_file: {} not found!".format(args.batch_file))
+    if args.batch_file and (args.arguments or args.operations):
+        sys.exit("A batch file (-bf) should not be defined at the same time as -ops or -args")
+    if not args.verbose and not args.outfile:
+        sys.exit("Enable verbosity (or provide a file path) to dump the stats. "
+                 "Try 'python3 wtperf_run.py --help' for more information.")
 
     json_info = json.loads(args.json_info) if args.json_info else {}
+    arguments = json.loads(args.arguments) if args.arguments else None
+    operations = json.loads(args.operations) if args.operations else None
 
     config = WTPerfConfig(wtperf_path=args.wtperf,
                           home_dir=args.home,
                           test=args.test,
-                          arg_file=args.arg_file,
+                          batch_file=args.batch_file,
+                          arguments=arguments,
+                          operations=operations,
                           environment=args.env,
                           run_max=args.runmax,
                           verbose=args.verbose,
@@ -257,32 +298,52 @@ def main():
 
     perf_stats: PerfStatCollection = setup_perf_stats()
 
-    if config.arg_file:
+    if config.batch_file:
         if args.verbose:
-            print("Reading arguments file {}".format(config.arg_file))
-        with open(config.arg_file, "r") as file:
-            arg_file_contents = json.load(file)
+            print("Reading batch file {}".format(config.batch_file))
+        with open(config.batch_file, "r") as file:
+            batch_file_contents = json.load(file)
+
+    # Check for duplicate operations, and exit if duplicates are found
+    # First, construct a list of all operations, including potential duplicates
+    all_operations = []
+    if config.batch_file:
+        for content in batch_file_contents:
+            all_operations += content["operations"]
+    elif operations:
+        all_operations += operations
+    # Next, construct a new list with duplicates removed.
+    # Converting to a dict and back is a simple way of doing this.
+    all_operations_nodups = list(dict.fromkeys(all_operations))
+    # Now check if any duplicate operations were removed in the deduplication step.
+    if len(all_operations_nodups) != len(all_operations):
+        sys.exit("List of all operations ({}) contains duplicates".format(all_operations))
 
     # Run test
     if not args.reuse:
-        if config.arg_file:
-            for content in arg_file_contents:
+        if config.batch_file:
+            if args.verbose:
+                print("Batch tests to run: {}".format(len(batch_file_contents)))
+            for content in batch_file_contents:
+                index = batch_file_contents.index(content)
                 if args.verbose:
-                    print("Argument: {},  Operation: {}".format(content["argument"], content["operations"]))
-                run_test_wrapper(config=config, operations=content["operations"], argument=content["argument"])
+                    print("Batch test {}: Arguments: {}, Operations: {}".
+                          format(index,  content["arguments"], content["operations"]))
+                run_test_wrapper(config=config, index=index, arguments=content["arguments"])
         else:
-            run_test_wrapper(config=config)
+            run_test_wrapper(config=config, arguments=arguments)
 
-    if not args.verbose and not args.outfile:
-        sys.exit("Enable verbosity (or provide a file path) to dump the stats. "
-                 "Try 'python3 wtperf_run.py --help' for more information.")
-
-    # Process result
-    if config.arg_file:
-        for content in arg_file_contents:
-            process_results(config, perf_stats, operations=content["operations"])
+    # Process results
+    if config.batch_file:
+        for content in batch_file_contents:
+            process_results(config,
+                            perf_stats,
+                            operations=content["operations"],
+                            index=batch_file_contents.index(content))
     else:
-        process_results(config, perf_stats)
+        process_results(config,
+                        perf_stats,
+                        operations=operations)
 
     # Output result
     if args.brief_output:
