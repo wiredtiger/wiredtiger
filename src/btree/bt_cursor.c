@@ -575,9 +575,12 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
         }
     }
 
-    if (valid)
-        ret = __cursor_kv_return(cbt, cbt->upd_value);
-    else if (__cursor_fix_implicit(btree, cbt)) {
+    if (valid) {
+        if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
+            ret = __wt_key_return(cbt);
+        else
+            ret = __cursor_kv_return(cbt, cbt->upd_value);
+    } else if (__cursor_fix_implicit(btree, cbt)) {
         /*
          * Creating a record past the end of the tree in a fixed-length column-store implicitly
          * fills the gap with empty records.

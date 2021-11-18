@@ -86,26 +86,22 @@ __curversion_search(WT_CURSOR *cursor)
     table_cursor = version_cursor->table_cursor;
     key_only = F_ISSET(cursor, WT_CURSTD_KEY_ONLY);
 
-    /* 
-     * For now, we assume that we are using simple cursors only,
-     * and row store only.
+    /*
+     * For now, we assume that we are using simple cursors only, and row store only.
      */
     cbt = (WT_CURSOR_BTREE *)table_cursor;
     CURSOR_API_CALL(cursor, session, search, CUR2BT(cbt));
     WT_ERR(__cursor_checkkey(cursor));
 
-    /* 
-     * Do a search to see if we position on a key. If the key exists,
-     * we would like to position on it regardless of visibility.
-     * TODO: Implement search while ignoring visibility.
-     */
+    /* Do a search and position on they key if it is found */
     F_SET(cursor, WT_CURSTD_KEY_ONLY);
     WT_ERR(__wt_btcur_search(cbt));
     if (!F_ISSET(cbt, WT_CURSTD_KEY_SET))
         return (WT_NOTFOUND);
 
-    /* If we position on a key, set next update of the version cursor
-     * to be the first update on the key if any.
+    /*
+     * If we position on a key, set next update of the version cursor to be the first update on the
+     * key if any.
      */
     page = cbt->ref->page;
     rip = &page->pg_row[cbt->slot];
