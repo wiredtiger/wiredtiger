@@ -24,13 +24,50 @@ __curversion_set_key(WT_CURSOR *cursor, ...)
 }
 
 /*
+ * __curversion_get_key --
+ *     WT_CURSOR->get_key implementation for version cursors.
+ */
+static int
+__curversion_get_key(WT_CURSOR *cursor, ...)
+{
+    WT_CURSOR *table_cursor;
+    WT_CURSOR_VERSION *version_cursor;
+    WT_DECL_RET;
+    va_list ap;
+
+    version_cursor = (WT_CURSOR_VERSION *)cursor;
+    table_cursor = version_cursor->table_cursor;
+    va_start(ap, cursor);
+    WT_ERR(__wt_cursor_get_keyv(cursor, cursor->flags, ap));
+    WT_ERR(__wt_cursor_get_keyv(table_cursor, table_cursor->flags, ap));
+
+err:
+    va_end(ap);
+    return (ret);
+}
+
+/*
  * __curversion_next --
  *     WT_CURSOR->next method for version cursors.
  */
 static int
 __curversion_next(WT_CURSOR *cursor)
 {
-    WT_UNUSED(cursor);
+    WT_CURSOR_VERSION *version_cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    version_cursor = (WT_CURSOR_VERSION *)cursor;
+    CURSOR_API_CALL(cursor, session, next, NULL);
+
+    if (!F_ISSET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED)) {
+    }
+
+    if (0) {
+err:
+        WT_TRET(cursor->reset(cursor));
+    }
+    API_END_RET(session, ret);
     return (0);
 }
 
@@ -154,33 +191,31 @@ int
 __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, const char *cfg[],
   WT_CURSOR **cursorp)
 {
-    WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
-      __wt_cursor_get_value,                          /* get-value */
-      __curversion_set_key,                           /* set-key */
-      __wt_cursor_set_value_notsup,                   /* set-value */
-      __wt_cursor_compare_notsup,                     /* compare */
-      __wt_cursor_equals_notsup,                      /* equals */
-      __curversion_next,                              /* next */
-      __wt_cursor_notsup,                             /* prev */
-      __curversion_reset,                             /* reset */
-      __curversion_search,                            /* search */
-      __wt_cursor_search_near_notsup,                 /* search-near */
-      __wt_cursor_notsup,                             /* insert */
-      __wt_cursor_modify_notsup,                      /* modify */
-      __wt_cursor_notsup,                             /* update */
-      __wt_cursor_notsup,                             /* remove */
-      __wt_cursor_notsup,                             /* reserve */
-      __wt_cursor_reconfigure_notsup,                 /* reconfigure */
-      __wt_cursor_notsup,                             /* largest_key */
-      __wt_cursor_notsup,                             /* cache */
-      __wt_cursor_reopen_notsup,                      /* reopen */
-      __curversion_close);                            /* close */
+    WT_CURSOR_STATIC_INIT(iface, __curversion_get_key, /* get-key */
+      __wt_cursor_get_value,                           /* get-value */
+      __curversion_set_key,                            /* set-key */
+      __wt_cursor_set_value_notsup,                    /* set-value */
+      __wt_cursor_compare_notsup,                      /* compare */
+      __wt_cursor_equals_notsup,                       /* equals */
+      __curversion_next,                               /* next */
+      __wt_cursor_notsup,                              /* prev */
+      __curversion_reset,                              /* reset */
+      __curversion_search,                             /* search */
+      __wt_cursor_search_near_notsup,                  /* search-near */
+      __wt_cursor_notsup,                              /* insert */
+      __wt_cursor_modify_notsup,                       /* modify */
+      __wt_cursor_notsup,                              /* update */
+      __wt_cursor_notsup,                              /* remove */
+      __wt_cursor_notsup,                              /* reserve */
+      __wt_cursor_reconfigure_notsup,                  /* reconfigure */
+      __wt_cursor_notsup,                              /* largest_key */
+      __wt_cursor_notsup,                              /* cache */
+      __wt_cursor_reopen_notsup,                       /* reopen */
+      __curversion_close);                             /* close */
 
     WT_CURSOR *cursor;
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
-    char *key_format;
-    size_t len;
     /* The table cursor is read only. */
     const char *table_cursor_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "read_only=true", NULL};
@@ -193,12 +228,7 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
 
     /* Open the table cursor. */
     WT_ERR(__wt_open_cursor(session, uri, cursor, table_cursor_cfg, &version_cursor->table_cursor));
-
-    len = strlen(version_cursor->table_cursor->value_format) + 10;
-    WT_ERR(__wt_calloc(session, 1, len, &key_format));
-    WT_ERR(__wt_snprintf(key_format, len, "%s%s", version_cursor->table_cursor->key_format,
-      WT_UNCHECKED_STRING(QQQQQQBBB)));
-    cursor->key_format = key_format;
+    cursor->key_format = WT_UNCHECKED_STRING(QQQQQQBBB);
     cursor->value_format = version_cursor->table_cursor->value_format;
     WT_ERR(__wt_strdup(session, uri, &cursor->uri));
 
