@@ -145,6 +145,16 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             /* If there are existing updates, append them after the new updates. */
             for (last_upd = upd; last_upd->next != NULL; last_upd = last_upd->next)
                 ;
+
+            /*
+             * If the last update on the update chain has been marked as being restored from the
+             * history store and the existing update is an in-progress prepared update, do not
+             * append the existing update chain.
+             */
+            if (F_ISSET(last_upd, WT_UPDATE_RESTORED_FROM_HS) && *upd_entry != NULL &&
+              (*upd_entry)->prepare_state == WT_PREPARE_INPROGRESS &&
+              F_ISSET(*upd_entry, WT_UPDATE_RESTORED_FROM_DS))
+                *upd_entry = NULL;
             last_upd->next = *upd_entry;
 
             /*
