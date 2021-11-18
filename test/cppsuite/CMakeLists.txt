@@ -60,7 +60,7 @@ target_compile_options(
 )
 target_link_libraries(cppsuite_test_harness PRIVATE test_util)
 # There's no special sub-path to access a given extension.
-target_compile_options(cppsuite_test_harness PUBLIC -DEXTSUBPATH=\"\")
+target_compile_options(cppsuite_test_harness PUBLIC -DEXTSUBPATH="")
 
 # Create the different executables.
 create_test_executable(run
