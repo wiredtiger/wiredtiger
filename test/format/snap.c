@@ -28,6 +28,8 @@
 
 #include "format.h"
 
+#define SNAP_LIST_SIZE 512
+
 /*
  * snap_init --
  *     Initialize the repeatable operation tracking.
@@ -356,7 +358,7 @@ snap_verify(TINFO *tinfo, SNAP_OPS *snap)
     key = NULL;
     keyno = snap->keyno;
 
-    if (GV(TRACE_READ)) {
+    if (g.trace_read) {
         if (snap->op == REMOVE)
             trace_uri_op(
               tinfo, table->uri, "repeat %" PRIu64 " ts=%" PRIu64 " {deleted}", keyno, snap->ts);
@@ -717,7 +719,7 @@ snap_repeat_rollback(TINFO **tinfo_array, size_t tinfo_count)
         tinfo = *tinfop;
         if ((push_session = tinfo->session) == NULL) {
             if (session == NULL)
-                testutil_check(g.wts_conn->open_session(g.wts_conn, NULL, NULL, &session));
+                wiredtiger_open_session(g.wts_conn, &tinfo->sap, NULL, &session);
             tinfo->session = session;
         }
 
@@ -753,5 +755,5 @@ snap_repeat_rollback(TINFO **tinfo_array, size_t tinfo_count)
     track(buf, 0ULL);
 
     if (session != NULL)
-        testutil_check(session->close(session, NULL));
+        wiredtiger_close_session(session);
 }

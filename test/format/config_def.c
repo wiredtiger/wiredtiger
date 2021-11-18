@@ -308,24 +308,6 @@ CONFIG configuration_list[] = {
   {"stress.split_7", "stress splits (#7)",
     C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_SPLIT_7},
 
-  {"trace.bulk", "trace bulk loads",
-    C_BOOL | C_IGNORE, 0, 0, 0, V_GLOBAL_TRACE_BULK},
-
-  {"trace.cursor", "trace cursor operations",
-    C_BOOL | C_IGNORE, 0, 0, 0, V_GLOBAL_TRACE_CURSOR},
-
-  {"trace.local", "log traces into the primary database",
-    C_BOOL | C_IGNORE, 0, 0, 0, V_GLOBAL_TRACE_LOCAL},
-
-  {"trace.log_retain", "number of trace log files to retain (default 10)",
-    C_IGNORE, 0, 0, 0, V_GLOBAL_TRACE_LOG_RETAIN},
-
-  {"trace.read", "trace read operations",
-    C_BOOL | C_IGNORE, 0, 0, 0, V_GLOBAL_TRACE_READ},
-
-  {"trace.timestamp", "trace timestamp setting operations",
-    C_BOOL | C_IGNORE, 0, 0, 0, V_GLOBAL_TRACE_TIMESTAMP},
-
   {"transaction.implicit", "implicit, without timestamps, transactions (percentage)",
     0, 0, 100, 100, V_GLOBAL_TRANSACTION_IMPLICIT},
 

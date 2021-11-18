@@ -175,7 +175,7 @@ main(int argc, char *argv[])
     /* Set values from the command line. */
     home = NULL;
     quiet_flag = syntax_check = verify_only = false;
-    while ((ch = __wt_getopt(progname, argc, argv, "1BC:c:h:qRSrtv")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "1BC:c:h:qRSrt:v")) != EOF)
         switch (ch) {
         case '1':
             /* Ignored for backward compatibility. */
@@ -202,7 +202,7 @@ main(int argc, char *argv[])
             syntax_check = true;
             break;
         case 't': /* Trace  */
-            g.trace = true;
+            trace_config(__wt_optarg);
             break;
         case 'v': /* Verify only */
             verify_only = true;
@@ -219,9 +219,6 @@ main(int argc, char *argv[])
     }
 
     __wt_random_init_seed(NULL, &g.rnd); /* Initialize the RNG. */
-
-    /* Printable thread ID. */
-    testutil_check(__wt_thread_str(g.tidbuf, sizeof(g.tidbuf)));
 
     /* Initialize lock to ensure single threading during failure handling */
     testutil_check(pthread_rwlock_init(&g.death_lock, NULL));
@@ -276,11 +273,6 @@ main(int argc, char *argv[])
     if (syntax_check)
         exit(0);
 
-    /* Initialize locks to single-thread backups and timestamps. */
-    lock_init(g.wts_session, &g.backup_lock);
-    lock_init(g.wts_session, &g.ts_lock);
-    lock_init(g.wts_session, &g.prepare_commit_lock);
-
     __wt_seconds(NULL, &start);
     track("starting up", 0ULL);
 
@@ -288,18 +280,17 @@ main(int argc, char *argv[])
     if (g.reopen) {
         if (GV(RUNS_IN_MEMORY))
             testutil_die(0, "reopen impossible after in-memory run");
-        wts_open(g.home, &g.wts_conn, &g.wts_session, true);
+        wts_open(g.home, &g.wts_conn, true);
         timestamp_init();
         set_oldest_timestamp();
     } else {
         wts_create_home();
         config_print(false);
+        trace_init();
         wts_create_database();
-        wts_open(g.home, &g.wts_conn, &g.wts_session, true);
+        wts_open(g.home, &g.wts_conn, true);
         timestamp_init();
     }
-
-    trace_init(); /* Initialize operation tracing. */
 
     /*
      * Initialize key/value information. Load and verify initial records (at least a brief scan if
@@ -340,7 +331,7 @@ main(int argc, char *argv[])
     TIMED_MAJOR_OP(wts_verify(g.wts_conn, true));
 
     track("shutting down", 0ULL);
-    wts_close(&g.wts_conn, &g.wts_session);
+    wts_close(&g.wts_conn);
 
     /* Salvage testing. */
     TIMED_MAJOR_OP(tables_apply(wts_salvage, NULL));
@@ -356,10 +347,6 @@ skip_operations:
     fflush(stdout);
 
     config_clear();
-
-    lock_destroy(g.wts_session, &g.backup_lock);
-    lock_destroy(g.wts_session, &g.ts_lock);
-    lock_destroy(g.wts_session, &g.prepare_commit_lock);
 
     return (EXIT_SUCCESS);
 }
@@ -398,10 +385,6 @@ format_die(void)
     if (g.configured)
         config_print(true);
 
-    /* Flush the logs, they may contain debugging information. */
-    if (GV(LOGGING) && g.wts_session != NULL)
-        testutil_check(g.wts_session->log_flush(g.wts_session, "sync=off"));
-
     /* Now about to close shared resources, give them a chance to empty. */
     __wt_sleep(2, 0);
     trace_teardown();
@@ -415,7 +398,8 @@ static void
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s [-BqRtv] [-C wiredtiger-config] [-c config-file] [-h home] [name=value ...]\n",
+      "usage: %s [-BqRv]\n    "
+      "[-C wiredtiger-config] [-c config-file] [-h home] [-t trace-config] [name=value ...]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-B maintain 3.3 release log and configuration option compatibility\n"
@@ -424,7 +408,7 @@ usage(void)
       "\t-h run directory (default 'RUNDIR')\n"
       "\t-q quiet\n"
       "\t-R reopen an existing database\n"
-      "\t-t trace writes in the WiredTiger log (default 'OPS.TRACE')\n"
+      "\t-t trace operations in the WiredTiger log\n"
       "\t-v verify database and exit\n");
 
     config_error();

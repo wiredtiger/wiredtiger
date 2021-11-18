@@ -142,65 +142,29 @@ __wt_event_handler_set(WT_SESSION_IMPL *session, WT_EVENT_HANDLER *handler)
     session->event_handler = handler;
 }
 
-#define WT_ERROR_APPEND(p, remain, ...)                                \
+#define WT_EVENT_APPEND(p, remain, ...)                                \
     do {                                                               \
         size_t __len;                                                  \
-        WT_ERR(__wt_snprintf_len_set(p, remain, &__len, __VA_ARGS__)); \
+        WT_RET(__wt_snprintf_len_set(p, remain, &__len, __VA_ARGS__)); \
         if (__len > remain)                                            \
             __len = remain;                                            \
         p += __len;                                                    \
         remain -= __len;                                               \
     } while (0)
-#define WT_ERROR_APPEND_AP(p, remain, ...)                              \
-    do {                                                                \
-        size_t __len;                                                   \
-        WT_ERR(__wt_vsnprintf_len_set(p, remain, &__len, __VA_ARGS__)); \
-        if (__len > remain)                                             \
-            __len = remain;                                             \
-        p += __len;                                                     \
-        remain -= __len;                                                \
-    } while (0)
 
 /*
- * __eventv --
- *     Report a message to an event handler.
+ * __eventv_prefix --
+ *     Build the message prefix.
  */
 static int
-__eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, int line,
-  const char *fmt, va_list ap) WT_GCC_FUNC_ATTRIBUTE((cold))
+__eventv_prefix(WT_SESSION_IMPL *session, const char *func, int line, char *p, size_t *remainp)
 {
     struct timespec ts;
-    WT_DECL_RET;
-    WT_EVENT_HANDLER *handler;
-    WT_SESSION *wt_session;
-    size_t len, remain;
-    char *p, tid[128];
-    const char *err, *prefix;
+    size_t remain;
+    char tid[128];
+    const char *prefix;
 
-    /*
-     * We're using a stack buffer because we want error messages no matter
-     * what, and allocating a WT_ITEM, or the memory it needs, might fail.
-     *
-     * !!!
-     * SECURITY:
-     * Buffer placed at the end of the stack in case snprintf overflows.
-     */
-    char s[4 * 1024];
-    p = s;
-    remain = sizeof(s);
-
-    /*
-     * !!!
-     * This function MUST handle a NULL WT_SESSION_IMPL handle.
-     *
-     * Without a session, we don't have event handlers or prefixes for the
-     * error message.  Write the error to stderr and call it a day.  (It's
-     * almost impossible for that to happen given how early we allocate the
-     * first session, but if the allocation of the first session fails, for
-     * example, we can end up here without a session.)
-     */
-    if (session == NULL)
-        goto err;
+    remain = *remainp;
 
     /*
      * We have several prefixes for the error message: a timestamp and the process and thread ids,
@@ -208,41 +172,175 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, 
      * comma-separate list, followed by a colon.
      */
     __wt_epoch(session, &ts);
-    WT_ERR(__wt_thread_str(tid, sizeof(tid)));
-    WT_ERROR_APPEND(p, remain, "[%" PRIuMAX ":%" PRIuMAX "][%s]", (uintmax_t)ts.tv_sec,
+    WT_RET(__wt_thread_str(tid, sizeof(tid)));
+    WT_EVENT_APPEND(p, remain, "[%" PRIuMAX ":%" PRIuMAX "][%s]", (uintmax_t)ts.tv_sec,
       (uintmax_t)ts.tv_nsec / WT_THOUSAND, tid);
 
+    /*
+     * The buffer size is plenty large enough for reasonable values, but these fields can be set by
+     * the application, limit the prefix strings to 1024.
+     */
     if ((prefix = S2C(session)->error_prefix) != NULL)
-        WT_ERROR_APPEND(p, remain, ", %s", prefix);
+        WT_EVENT_APPEND(p, remain, ", %.*s", 1024, prefix);
     prefix = session->dhandle == NULL ? NULL : session->dhandle->name;
     if (prefix != NULL)
-        WT_ERROR_APPEND(p, remain, ", %s", prefix);
+        WT_EVENT_APPEND(p, remain, ", %.*s", 1024, prefix);
     if ((prefix = session->name) != NULL)
-        WT_ERROR_APPEND(p, remain, ", %s", prefix);
-    WT_ERROR_APPEND(p, remain, ": ");
-
+        WT_EVENT_APPEND(p, remain, ", %.*s", 1024, prefix);
+    WT_EVENT_APPEND(p, remain, ": ");
     if (func != NULL)
-        WT_ERROR_APPEND(p, remain, "%s, %d: ", func, line);
+        WT_EVENT_APPEND(p, remain, "%s, %d: ", func, line);
 
-    WT_ERROR_APPEND_AP(p, remain, fmt, ap);
+    *remainp = remain;
+    return (0);
+}
 
-    if (error != 0) {
-        /*
-         * When the engine calls __wt_err on error, it often outputs an error message including the
-         * string associated with the error it's returning. We could change the calls to call
-         * __wt_errx, but it's simpler to not append an error string if all we are doing is
-         * duplicating an existing error string.
-         *
-         * Use strcmp to compare: both strings are nul-terminated, and we don't want to run past the
-         * end of the buffer.
-         */
-        err = __wt_strerror(session, error, NULL, 0);
-        len = strlen(err);
-        if (WT_PTRDIFF(p, s) < len || strcmp(p - len, err) != 0)
-            WT_ERROR_APPEND(p, remain, ": %s", err);
+/*
+ * __eventv_stderr --
+ *     Report a message on stderr.
+ */
+static int
+__eventv_stderr(int error, const char *func, int line, const char *fmt, va_list ap)
+{
+    WT_DECL_RET;
+
+    if (fprintf(stderr, "WiredTiger Error: ") < 0)
+        WT_TRET(EIO);
+    if (error != 0 && fprintf(stderr, "error %d: ", error) < 0)
+        WT_TRET(EIO);
+    if (func != NULL && fprintf(stderr, "%s, %d: ", func, line) < 0)
+        WT_TRET(EIO);
+    if (vfprintf(stderr, fmt, ap) < 0)
+        WT_TRET(EIO);
+    if (fprintf(stderr, "\n") < 0)
+        WT_TRET(EIO);
+    if (fflush(stderr) != 0)
+        WT_TRET(EIO);
+
+    return (ret);
+}
+
+/*
+ * __eventv_append_error --
+ *     Append the error message into a buffer.
+ */
+static void
+__eventv_append_error(WT_SESSION_IMPL *session, int error, char *s, char *p, size_t *remainp)
+{
+    size_t len;
+    const char *err;
+
+    if (error == 0)
+        return;
+
+    /*
+     * When the engine calls __wt_err on error, it often outputs an error message including the
+     * string associated with the error it's returning. We could change the calls to call __wt_errx,
+     * but it's simpler to not append an error string if all we are doing is duplicating an existing
+     * error string.
+     *
+     * Use strcmp to compare: both strings are nul-terminated, and we don't want to run past the end
+     * of the buffer.
+     */
+    err = __wt_strerror(session, error, NULL, 0);
+    len = strlen(err);
+    if ((WT_PTRDIFF(p, s) < len + 2 || strcmp(p - len, err) != 0) && *remainp > len + 2) {
+        p[0] = ':';
+        p[1] = ' ';
+        strcpy(p + 2, err);
+        *remainp -= len + 2;
+    } else
+        *remainp = 0;
+}
+
+/*
+ * __eventv --
+ *     Report a message to an event handler.
+ */
+static int
+__eventv(WT_SESSION_IMPL *session, bool verbose, int error, const char *func, int line,
+  const char *fmt, va_list ap) WT_GCC_FUNC_ATTRIBUTE((cold))
+{
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    WT_EVENT_HANDLER *handler;
+    WT_SESSION *wt_session;
+    size_t prefix_len, len, remain;
+    char *p;
+    bool close_ap;
+    va_list ap_copy;
+
+    /* SECURITY: Buffer placed at the end of the stack in case snprintf overflows. */
+    char *s, stack_buf[4 * 1024];
+
+    close_ap = false;
+
+    /*
+     * This function MUST handle a NULL WT_SESSION_IMPL handle. Without a session, we don't have
+     * event handlers or prefixes for the error message. Write the error to stderr and call it a
+     * day. (It's almost impossible for that to happen given how early we allocate the first
+     * session, but if the allocation of the first session fails, for example, we can end up here
+     * without a session.)
+     */
+    if (session == NULL)
+        goto err;
+
+    /*
+     * Build the error prefix; the buffer is plenty big enough for any reasonable prefix, and we
+     * check to ensure the application can't overflow it. Fallback if we can't build the prefix.
+     */
+    s = stack_buf;
+    remain = sizeof(stack_buf);
+    WT_ERR(__eventv_prefix(session, func, line, s, &remain));
+    if (remain == 0)
+        goto err;
+
+    /*
+     * Try to append the message to the stack buffer. If that fails we'll try again with allocated
+     * memory, which requires a copy of argument list.
+     */
+    va_copy(ap_copy, ap);
+    close_ap = true;
+
+    prefix_len = sizeof(stack_buf) - remain;
+    p = s + prefix_len;
+    WT_ERR(__wt_vsnprintf_len_set(p, remain, &len, fmt, ap));
+    if (len <= remain) {
+        remain -= len;
+        p += len;
+        __eventv_append_error(session, error, s, p, &remain);
+    } else
+        remain = 0;
+
+    /*
+     * If we were unable to build the message in the stack buffer, try allocating memory. We aren't
+     * using general buffer functions here and don't bother tracking the data and size fields, all
+     * we care about is the buffer size and that the string is nul terminated.
+     *
+     * The total space we need is the prefix length plus whatever the arguments required (returned
+     * by our previous call to snprintf), plus a relatively small system error string.
+     */
+    if (remain == 0) {
+        WT_ERR(__wt_scr_alloc(session, prefix_len + len + 1024, &tmp));
+        WT_ERR(__wt_buf_set(session, tmp, s, prefix_len));
+        p = (char *)tmp->mem + prefix_len;
+        remain = tmp->memsize - prefix_len;
+        WT_ERR(__wt_vsnprintf_len_set(p, remain, &len, fmt, ap_copy));
+        if (len >= remain)
+            remain = 0; /* Shouldn't happen unless the format and arguments somehow changed. */
+        else {
+            remain -= len;
+            p += len;
+            __eventv_append_error(session, error, tmp->mem, p, &remain);
+        }
+        if (remain == 0)
+            goto err;
+        s = tmp->mem;
     }
 
     /*
+     * If this is a verbose message, optionally push it into the log.
+     *
      * If a handler fails, return the error status: if we're in the process of handling an error,
      * any return value we provide will be ignored by our caller, our caller presumably already has
      * an error value it will be returning.
@@ -255,7 +353,7 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, 
      */
     wt_session = (WT_SESSION *)session;
     handler = session->event_handler;
-    if (msg_event) {
+    if (verbose) {
         ret = handler->handle_message(handler, wt_session, s);
         if (ret != 0)
             __handler_failure(session, ret, "message", false);
@@ -265,28 +363,14 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, 
             __handler_failure(session, ret, "error", true);
     }
 
-    /*
-     * The buffer is fixed sized, complain if we overflow. (The test is for no more bytes remaining
-     * in the buffer, so technically we might have filled it exactly.) Be cautious changing this
-     * code, it's a recursive call.
-     */
-    if (ret == 0 && remain == 0)
-        __wt_err(
-          session, ENOMEM, "error or message truncated: internal WiredTiger buffer too small");
-
-    if (ret != 0) {
+    if (0) {
 err:
-        if (fprintf(stderr, "WiredTiger Error%s%s: ", error == 0 ? "" : ": ",
-              error == 0 ? "" : __wt_strerror(session, error, NULL, 0)) < 0)
-            WT_TRET(EIO);
-        if (vfprintf(stderr, fmt, ap) < 0)
-            WT_TRET(EIO);
-        if (fprintf(stderr, "\n") < 0)
-            WT_TRET(EIO);
-        if (fflush(stderr) != 0)
-            WT_TRET(EIO);
+        WT_TRET(__eventv_stderr(error, func, line, fmt, ap));
     }
-
+    if (close_ap)
+        va_end(ap_copy);
+    if (session != NULL)
+        __wt_scr_free(session, &tmp);
     return (ret);
 }
 

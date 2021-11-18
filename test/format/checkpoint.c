@@ -61,6 +61,7 @@ wts_checkpoints(void)
 WT_THREAD_RET
 checkpoint(void *arg)
 {
+    SAP sap;
     WT_CONNECTION *conn;
     WT_DECL_RET;
     WT_SESSION *session;
@@ -72,9 +73,11 @@ checkpoint(void *arg)
     (void)arg;
 
     conn = g.wts_conn;
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    named_checkpoints = !g.lsm_config;
 
+    memset(&sap, 0, sizeof(sap));
+    wiredtiger_open_session(conn, &sap, NULL, &session);
+
+    named_checkpoints = !g.lsm_config;
     for (secs = mmrand(NULL, 1, 10); !g.workers_finished;) {
         if (secs > 0) {
             __wt_sleep(1, 0);
@@ -128,6 +131,6 @@ checkpoint(void *arg)
         secs = mmrand(NULL, 5, 40);
     }
 
-    testutil_check(session->close(session, NULL));
+    wiredtiger_open_session(conn, &sap, NULL, &session);
     return (WT_THREAD_RET_VALUE);
 }

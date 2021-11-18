@@ -35,6 +35,7 @@
 WT_THREAD_RET
 random_kv(void *arg)
 {
+    SAP sap;
     TABLE *table;
     WT_CONNECTION *conn;
     WT_CURSOR *cursor;
@@ -48,6 +49,8 @@ random_kv(void *arg)
 
     (void)(arg); /* Unused parameter */
 
+    conn = g.wts_conn;
+
     /* Random cursor ops are only supported on row-store, make sure there's a row-store table. */
     if (ntables == 0 && tables[0]->type != ROW)
         return (WT_THREAD_RET_VALUE);
@@ -60,8 +63,8 @@ random_kv(void *arg)
     }
 
     /* Open a session. */
-    conn = g.wts_conn;
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    memset(&sap, 0, sizeof(sap));
+    wiredtiger_open_session(conn, &sap, NULL, &session);
 
     for (simple = false;;) {
         /* Alternate between simple random cursors and sample-size random cursors. */
@@ -103,7 +106,7 @@ random_kv(void *arg)
             break;
     }
 
-    testutil_check(session->close(session, NULL));
+    wiredtiger_close_session(session);
 
     return (WT_THREAD_RET_VALUE);
 }

@@ -35,6 +35,7 @@
 void
 table_verify(TABLE *table, void *arg)
 {
+    SAP sap;
     WT_CONNECTION *conn;
     WT_DECL_RET;
     WT_SESSION *session;
@@ -46,8 +47,8 @@ table_verify(TABLE *table, void *arg)
      * Verify can return EBUSY if the handle isn't available. Don't yield and retry, in the case of
      * LSM, the handle may not be available for a long time.
      */
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    session->app_private = table->track_prefix;
+    memset(&sap, 0, sizeof(sap));
+    wiredtiger_open_session(conn, &sap, table->track_prefix, &session);
     for (i = 0; ++i <= 5; __wt_sleep(1, 0)) {
         if ((ret = session->verify(session, table->uri, "strict")) == 0)
             break;
@@ -55,7 +56,7 @@ table_verify(TABLE *table, void *arg)
     }
     if (ret == EBUSY)
         WARN("table.%u skipped verify because of EBUSY", table->id);
-    testutil_check(session->close(session, NULL));
+    wiredtiger_close_session(session);
 }
 
 /*
@@ -95,6 +96,7 @@ table_mirror_row_next(TABLE *table, WT_CURSOR *cursor, WT_ITEM *key, uint64_t *k
 static void
 table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
 {
+    SAP sap;
     WT_CURSOR *base_cursor, *table_cursor;
     WT_ITEM base_key, base_value, table_key, table_value;
     WT_SESSION *session;
@@ -110,7 +112,8 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
     testutil_check(
       __wt_snprintf(track_buf, sizeof(track_buf), "table %u mirror verify", table->id));
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    memset(&sap, 0, sizeof(sap));
+    wiredtiger_open_session(conn, &sap, NULL, &session);
     wiredtiger_open_cursor(session, base->uri, NULL, &base_cursor);
     wiredtiger_open_cursor(session, table->uri, NULL, &table_cursor);
 
@@ -198,7 +201,7 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
             track(track_buf, rows);
     }
 
-    testutil_check(session->close(session, NULL));
+    wiredtiger_close_session(session);
 }
 
 /*

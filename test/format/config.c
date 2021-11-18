@@ -338,22 +338,12 @@ config_run(void)
     config_compression(NULL, "logging.compression"); /* Logging compression */
     config_directio();                               /* Direct I/O */
     config_encryption();                             /* Encryption */
-
-    /* If doing an in-memory run, make sure we haven't configured something that won't work. */
-    if (GV(RUNS_IN_MEMORY))
-        config_in_memory_reset();
-
-    /*
-     * If built in a branch that doesn't support all current options, or creating a database for
-     * such an environment, strip out configurations that won't work.
-     */
-    if (g.backward_compatible)
-        config_backward_compatible();
-
-    config_mirrors(); /* Mirrors */
+    config_in_memory_reset();                        /* Reset in-memory as needed */
+    config_backward_compatible();                    /* Reset backward compatibility as needed */
+    config_mirrors();                                /* Mirrors */
 
     /* Configure the cache last, cache size depends on everything else. */
-    config_cache(); /* Cache */
+    config_cache();
 
     /*
      * Run-length is configured by a number of operations and a timer.
@@ -502,6 +492,13 @@ config_backward_compatible_table(TABLE *table, void *arg)
 static void
 config_backward_compatible(void)
 {
+    /*
+     * If built in a branch that doesn't support all current options, or creating a database for
+     * such an environment, strip out configurations that won't work.
+     */
+    if (!g.backward_compatible)
+        return;
+
 #undef BC_CHECK
 #define BC_CHECK(name, flag)                                                               \
     if (GV(flag)) {                                                                        \
@@ -862,6 +859,10 @@ config_in_memory(void)
 static void
 config_in_memory_reset(void)
 {
+    /* If doing an in-memory run, make sure we haven't configured something that won't work. */
+    if (!GV(RUNS_IN_MEMORY))
+        return;
+
     /* Turn off a lot of stuff. */
     if (!config_explicit(NULL, "backup"))
         config_off(NULL, "backup");

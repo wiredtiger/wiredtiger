@@ -108,9 +108,9 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
     testutil_check(conn->set_timestamp(conn, buf));
     lock_writeunlock(session, &g.prepare_commit_lock);
 
-    if (GV(TRACE_TIMESTAMP))
-        trace_msg(
-          "setts oldest=%" PRIu64 ", stable=%" PRIu64, g.oldest_timestamp, g.stable_timestamp);
+    if (g.trace_timestamp)
+        trace_msg(session, "setts oldest=%" PRIu64 ", stable=%" PRIu64, g.oldest_timestamp,
+          g.stable_timestamp);
 }
 
 /*
@@ -120,6 +120,7 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
 WT_THREAD_RET
 timestamp(void *arg)
 {
+    SAP sap;
     WT_CONNECTION *conn;
     WT_SESSION *session;
 
@@ -128,7 +129,8 @@ timestamp(void *arg)
     conn = g.wts_conn;
 
     /* Locks need session */
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    memset(&sap, 0, sizeof(sap));
+    wiredtiger_open_session(conn, &sap, NULL, &session);
 
     /* Update the oldest and stable timestamps at least once every 15 seconds. */
     while (!g.workers_finished) {
@@ -137,7 +139,7 @@ timestamp(void *arg)
         timestamp_once(session, true, false);
     }
 
-    testutil_check(session->close(session, NULL));
+    wiredtiger_close_session(session);
     return (WT_THREAD_RET_VALUE);
 }
 

@@ -35,6 +35,7 @@
 WT_THREAD_RET
 alter(void *arg)
 {
+    SAP sap;
     TABLE *table;
     WT_CONNECTION *conn;
     WT_DECL_RET;
@@ -44,6 +45,7 @@ alter(void *arg)
     bool access_value;
 
     (void)(arg);
+
     conn = g.wts_conn;
 
     /*
@@ -53,7 +55,8 @@ alter(void *arg)
     access_value = false;
 
     /* Open a session */
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    memset(&sap, 0, sizeof(sap));
+    wiredtiger_open_session(conn, &sap, NULL, &session);
 
     while (!g.workers_finished) {
         period = mmrand(NULL, 1, 10);
@@ -72,6 +75,6 @@ alter(void *arg)
         }
     }
 
-    testutil_check(session->close(session, NULL));
+    wiredtiger_close_session(session);
     return (WT_THREAD_RET_VALUE);
 }

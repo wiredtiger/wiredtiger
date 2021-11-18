@@ -37,7 +37,6 @@ check_copy(void)
 {
     WT_CONNECTION *conn;
     WT_DECL_RET;
-    WT_SESSION *session;
     size_t len;
     char *path;
 
@@ -69,12 +68,12 @@ check_copy(void)
 
     /* Now setup and open the path for real. */
     testutil_check(__wt_snprintf(path, len, "%s/BACKUP", g.home));
-    wts_open(path, &conn, &session, true);
+    wts_open(path, &conn, true);
 
     /* Verify the objects. */
     wts_verify(conn, false);
 
-    wts_close(&conn, &session);
+    wts_close(&conn);
 
     free(path);
 }
@@ -466,6 +465,7 @@ WT_THREAD_RET
 backup(void *arg)
 {
     ACTIVE_FILES active[2], *active_now, *active_prev;
+    SAP sap;
     WT_CONNECTION *conn;
     WT_CURSOR *backup_cursor;
     WT_DECL_RET;
@@ -479,8 +479,10 @@ backup(void *arg)
     (void)(arg);
 
     conn = g.wts_conn;
+
     /* Open a session. */
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    memset(&sap, 0, sizeof(sap));
+    wiredtiger_open_session(conn, &sap, NULL, &session);
 
     __wt_seconds(NULL, &g.backup_id);
     active_files_init(&active[0]);
@@ -641,7 +643,7 @@ backup(void *arg)
 
     active_files_free(&active[0]);
     active_files_free(&active[1]);
-    testutil_check(session->close(session, NULL));
+    wiredtiger_close_session(session);
 
     return (WT_THREAD_RET_VALUE);
 }

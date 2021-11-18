@@ -104,6 +104,12 @@ typedef struct {
     enum { LOCK_NONE = 0, LOCK_WT, LOCK_PTHREAD } lock_type;
 } RWLOCK;
 
+/* Session application private information referenced in the event handlers. */
+typedef struct {
+    WT_SESSION *trace; /* Tracing session for logging operations */
+    const char *track; /* Tag for tracking operation progress */
+} SAP;
+
 /*
  * Default fixed-length column-store value when there's no available base mirror value, something
  * with half the bits set.
@@ -185,12 +191,21 @@ extern u_int ntables;
 typedef struct {
     WT_CONNECTION *wts_conn;
     WT_CONNECTION *wts_conn_inmemory;
-    WT_SESSION *wts_session;
 
     bool backward_compatible; /* Backward compatibility testing */
     bool configured;          /* Configuration completed */
     bool reopen;              /* Reopen an existing database */
     bool workers_finished;    /* Operations completed */
+
+    WT_CONNECTION *trace_conn; /* Tracing operations */
+    WT_SESSION *trace_session;
+    WT_SPINLOCK trace_lock;
+    bool trace;
+    bool trace_bulk;
+    bool trace_cursor;
+    bool trace_read;
+    int trace_retain;
+    bool trace_timestamp;
 
     char *home;          /* Home directory */
     char *home_config;   /* Run CONFIG file path */
@@ -200,11 +215,6 @@ typedef struct {
     char *home_stats;    /* Statistics file path */
 
     char *config_open; /* Command-line configuration */
-
-    bool trace;                /* trace operations  */
-    char tidbuf[128];          /* thread ID in printable form */
-    WT_CONNECTION *trace_conn; /* optional tracing database */
-    WT_SESSION *trace_session;
 
     TABLE *base_mirror; /* First mirrored table */
 
@@ -306,9 +316,10 @@ typedef struct {
 } SNAP_STATE;
 
 typedef struct {
-    int id;           /* simple thread ID */
-    wt_thread_t tid;  /* thread ID */
-    char tidbuf[128]; /* thread ID in printable form */
+    int id;          /* thread ID */
+    wt_thread_t tid; /* thread ID */
+
+    SAP sap; /* Thread's session event handler information */
 
     WT_RAND_STATE rnd; /* thread RNG state */
 
@@ -334,8 +345,6 @@ typedef struct {
         uint32_t insert_list[256]; /* Inserted column-store records, maps one-to-one to tables */
         u_int insert_list_cnt;
     } * col_insert;
-
-    WT_SESSION *trace; /* WiredTiger operations tracing session */
 
     uint64_t keyno;                 /* key */
     WT_ITEM *key, _key;             /* read key */
@@ -370,8 +379,6 @@ typedef struct {
     volatile int state;  /* state */
 } TINFO;
 extern TINFO **tinfo_list;
-
-#define SNAP_LIST_SIZE 512
 
 WT_THREAD_RET alter(void *);
 WT_THREAD_RET backup(void *);
@@ -427,12 +434,12 @@ void val_gen_teardown(WT_ITEM *);
 void val_init(TABLE *, void *);
 void val_to_flcs(TABLE *, WT_ITEM *, uint8_t *);
 void wts_checkpoints(void);
-void wts_close(WT_CONNECTION **, WT_SESSION **);
+void wts_close(WT_CONNECTION **);
 void wts_create_database(void);
 void wts_create_home(void);
 void wts_dump(const char *, bool);
 void wts_load(void);
-void wts_open(const char *, WT_CONNECTION **, WT_SESSION **, bool);
+void wts_open(const char *, WT_CONNECTION **, bool);
 void wts_read_scan(TABLE *, void *);
 void wts_reopen(void);
 void wts_salvage(TABLE *, void *);

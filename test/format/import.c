@@ -130,7 +130,7 @@ import(void *arg)
             __wt_sleep(1, 0);
         }
     }
-    wts_close(&import_conn, &import_session);
+    wts_close(&import_conn);
     testutil_check(session->close(session, NULL));
     return (WT_THREAD_RET_VALUE);
 }

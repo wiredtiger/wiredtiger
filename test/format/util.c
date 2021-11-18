@@ -295,6 +295,7 @@ lock_destroy(WT_SESSION *session, RWLOCK *lock)
         __wt_rwlock_destroy((WT_SESSION_IMPL *)session, &lock->l.wt);
         break;
     }
+    lock->lock_type = LOCK_NONE;
 }
 
 /*

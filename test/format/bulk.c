@@ -80,6 +80,7 @@ bulk_rollback_transaction(WT_SESSION *session)
 static void
 table_load(TABLE *base, TABLE *table)
 {
+    SAP sap;
     WT_CONNECTION *conn;
     WT_CURSOR *base_cursor, *cursor;
     WT_DECL_RET;
@@ -92,10 +93,12 @@ table_load(TABLE *base, TABLE *table)
 
     conn = g.wts_conn;
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    memset(&sap, 0, sizeof(sap));
+    wiredtiger_open_session(conn, &sap, NULL, &session);
+
     testutil_check(__wt_snprintf(track_buf, sizeof(track_buf), "table %u %s load", table->id,
       base == NULL ? "bulk" : "mirror"));
-    trace_msg("=============== %s bulk load start", table->uri);
+    trace_msg(session, "=============== %s bulk load start", table->uri);
 
     /* Optionally open the base mirror. */
     base_cursor = NULL;
@@ -134,22 +137,23 @@ table_load(TABLE *base, TABLE *table)
             if (!is_bulk)
                 cursor->set_key(cursor, keyno);
             cursor->set_value(cursor, bitv);
-            if (GV(TRACE_BULK))
-                trace_msg("bulk %" PRIu32 " {0x%02" PRIx8 "}", keyno, bitv);
+            if (g.trace_bulk)
+                trace_msg(session, "bulk %" PRIu32 " {0x%02" PRIx8 "}", keyno, bitv);
             break;
         case VAR:
             if (!is_bulk)
                 cursor->set_key(cursor, keyno);
             cursor->set_value(cursor, &value);
-            if (GV(TRACE_BULK))
-                trace_msg("bulk %" PRIu32 " {%.*s}", keyno, (int)value.size, (char *)value.data);
+            if (g.trace_bulk)
+                trace_msg(
+                  session, "bulk %" PRIu32 " {%.*s}", keyno, (int)value.size, (char *)value.data);
             break;
         case ROW:
             cursor->set_key(cursor, &key);
             cursor->set_value(cursor, &value);
-            if (GV(TRACE_BULK))
-                trace_msg("bulk %" PRIu32 " {%.*s}, {%.*s}", keyno, (int)key.size, (char *)key.data,
-                  (int)value.size, (char *)value.data);
+            if (g.trace_bulk)
+                trace_msg(session, "bulk %" PRIu32 " {%.*s}, {%.*s}", keyno, (int)key.size,
+                  (char *)key.data, (int)value.size, (char *)value.data);
             break;
         }
 
@@ -204,8 +208,8 @@ table_load(TABLE *base, TABLE *table)
     if (g.transaction_timestamps_config)
         bulk_commit_transaction(session);
 
-    trace_msg("=============== %s bulk load stop", table->uri);
-    testutil_check(session->close(session, NULL));
+    trace_msg(session, "=============== %s bulk load stop", table->uri);
+    wiredtiger_close_session(session);
 
     /*
      * Ideally, the insert loop runs until the number of rows plus one, in which case row counts are
@@ -238,6 +242,7 @@ table_load(TABLE *base, TABLE *table)
 void
 wts_load(void)
 {
+    SAP sap;
     WT_CONNECTION *conn;
     WT_SESSION *session;
     u_int i;
@@ -259,8 +264,9 @@ wts_load(void)
 
     /* Checkpoint to ensure bulk loaded records are durable. */
     if (!GV(RUNS_IN_MEMORY)) {
-        testutil_check(conn->open_session(conn, NULL, NULL, &session));
+        memset(&sap, 0, sizeof(sap));
+        wiredtiger_open_session(conn, &sap, NULL, &session);
         testutil_check(session->checkpoint(session, NULL));
-        testutil_check(session->close(session, NULL));
+        wiredtiger_close_session(session);
     }
 }

@@ -1987,7 +1987,7 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
  *     Set verbose configuration.
  */
 int
-__wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
     static const WT_NAME_FLAG verbtypes[] = {{"api", WT_VERB_API}, {"backup", WT_VERB_BACKUP},
       {"block", WT_VERB_BLOCK}, {"block_cache", WT_VERB_BLKCACHE},
@@ -2014,8 +2014,12 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
 
-    WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
+    /* When reconfiguring, check if there are any modifications that we care about. */
+    if (reconfig && (ret = __wt_config_gets(session, cfg + 1, "verbose", &cval)) == WT_NOTFOUND)
+        return (0);
+    WT_RET(ret);
 
+    WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
     for (ft = verbtypes; ft->name != NULL; ft++) {
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
         WT_RET_NOTFOUND_OK(ret);
@@ -2711,7 +2715,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         __wt_free(session, conn->error_prefix);
         WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->error_prefix));
     }
-    WT_ERR(__wt_verbose_config(session, cfg));
+    WT_ERR(__wt_verbose_config(session, cfg, false));
     WT_ERR(__wt_timing_stress_config(session, cfg));
     WT_ERR(__wt_block_cache_setup(session, cfg, false));
     WT_ERR(__wt_conn_optrack_setup(session, cfg, false));

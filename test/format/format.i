@@ -251,6 +251,50 @@ table_select_type(table_type type)
 }
 
 /*
+ * wiredtiger_open_session --
+ *     Open a WiredTiger session.
+ */
+static inline void
+wiredtiger_open_session(WT_CONNECTION *conn, SAP *sap, const char *track, WT_SESSION **sessionp)
+{
+    WT_SESSION *session;
+
+    *sessionp = NULL;
+
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+
+    if (g.trace_conn != NULL && sap->trace == NULL)
+	testutil_check(g.trace_conn->open_session(g.trace_conn, NULL, NULL, &sap->trace));
+
+    sap->track = track;
+    session->app_private = sap;
+
+    *sessionp = session;
+}
+
+/*
+ * wiredtiger_close_session --
+ *	Close a WiredTiger session.
+ */
+static inline void
+wiredtiger_close_session(WT_SESSION *session)
+{
+    SAP *sap;
+    WT_SESSION *trace;
+
+    trace = NULL;
+    if ((sap = session->app_private) != NULL) {
+	trace = sap->trace;
+	memset(sap, 0, sizeof(*sap));
+    }
+
+    testutil_check(session->close(session, NULL));
+
+    if (trace != NULL)
+	testutil_check(trace->close(trace, NULL));
+}
+
+/*
  * wiredtiger_open_cursor --
  *     Open a WiredTiger cursor.
  */
@@ -397,26 +441,16 @@ lock_readunlock(WT_SESSION *session, RWLOCK *lock)
         testutil_check(pthread_rwlock_unlock(&lock->l.pthread));
 }
 
-#define trace_msg(fmt, ...)                                                                        \
-    do {                                                                                           \
-        if (g.trace) {                                                                             \
-            struct timespec __ts;                                                                  \
-            WT_SESSION *__s = g.trace_session;                                                     \
-            __wt_epoch((WT_SESSION_IMPL *)__s, &__ts);                                             \
-            testutil_check(                                                                        \
-              __s->log_printf(__s, "[%" PRIuMAX ":%" PRIuMAX "][%s] " fmt, (uintmax_t)__ts.tv_sec, \
-                (uintmax_t)__ts.tv_nsec / WT_THOUSAND, g.tidbuf, __VA_ARGS__));                    \
-        }                                                                                          \
+#define trace_msg(s, fmt, ...)                                                            \
+    do {                                                                               \
+        if (g.trace)                                                                   \
+            __wt_verbose_worker((WT_SESSION_IMPL *)(s), fmt, __VA_ARGS__); \
     } while (0)
-#define trace_uri_op(tinfo, uri, fmt, ...)                                                    \
-    do {                                                                                      \
-        if (g.trace) {                                                                        \
-            struct timespec __ts;                                                             \
-            WT_SESSION *__s = (tinfo)->trace;                                                 \
-            __wt_epoch((WT_SESSION_IMPL *)__s, &__ts);                                        \
-            testutil_check(__s->log_printf(__s, "[%" PRIuMAX ":%" PRIuMAX "][%s]%s%s " fmt,   \
-              (uintmax_t)__ts.tv_sec, (uintmax_t)__ts.tv_nsec / WT_THOUSAND, (tinfo)->tidbuf, \
-              (uri) == NULL ? "" : ":", (uri) == NULL ? "" : (uri), __VA_ARGS__));            \
-        }                                                                                     \
+#define trace_uri_op(tinfo, uri, fmt, ...)                                         \
+    do {                                                                           \
+        if (g.trace) {                                                             \
+            __wt_verbose_worker((WT_SESSION_IMPL *)(tinfo)->session, "%s%s" fmt,     \
+              (uri) == NULL ? "" : (uri), (uri) == NULL ? "" : ": ", __VA_ARGS__); \
+        }                                                                          \
     } while (0)
 #define trace_op(tinfo, fmt, ...) trace_uri_op(tinfo, (tinfo)->table->uri, fmt, __VA_ARGS__)
