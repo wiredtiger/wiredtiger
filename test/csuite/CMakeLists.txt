@@ -189,6 +189,14 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_wt2719_reconfig
+    SOURCES wt2719_reconfig/main.c
+    DIR_NAME wt2719_reconfig
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2719_reconfig>/WT_HOME>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_wt2834_join_bloom_fix
     SOURCES wt2834_join_bloom_fix/main.c
     DIR_NAME wt2834_join_bloom_fix
@@ -214,14 +222,6 @@ define_c_test(
     FLAGS "-DWT_FAIL_FS_LIB=\"ext/test/fail_fs/libwiredtiger_fail_fs.so\""
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt2909_checkpoint_integrity/smoke.sh
     ARGUMENTS -b ${CMAKE_BINARY_DIR} $<TARGET_FILE:test_wt2909_checkpoint_integrity>
-    DEPENDS "WT_POSIX"
-)
-
-define_c_test(
-    TARGET test_wt2719_reconfig
-    SOURCES wt2719_reconfig/main.c
-    DIR_NAME wt2719_reconfig
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2719_reconfig>/WT_HOME>
     DEPENDS "WT_POSIX"
 )
 
