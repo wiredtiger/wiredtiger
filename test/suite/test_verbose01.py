@@ -49,6 +49,10 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
         'session_name': {'type': str, 'always_expected': False },
         'error_str': {'type': str, 'always_expected': False },
         'error_code': {'type': int, 'always_expected': False },
+        'category': {'type': str, 'always_expected': True },
+        'category_id': {'type': int, 'always_expected': True },
+        'verbose_level': {'type': str, 'always_expected': True },
+        'verbose_level_id': {'type': int, 'always_expected': True },
         'msg': {'type': str, 'always_expected': True },
     }
 
