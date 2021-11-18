@@ -78,7 +78,7 @@ set(swig_wt_target ${SWIG_MODULE__wiredtiger_REAL_NAME})
 # Depending on the chosen compiler (cl, clang or gcc), a slightly different set of compiler flags
 # will be used.
 set(swig_c_flags)
-if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
+if("${CMAKE_C_COMPILER_ID}" MATCHES "^(Apple)?(C|c?)lang")
     set(swig_c_flags
         -Wno-pointer-sign
         -Wno-ignored-qualifiers
