@@ -179,11 +179,11 @@ worker_mm_delete(WT_CURSOR *cursor, uint64_t keyno)
 }
 
 /*
- * cursor_fix_atzero --
+ * cursor_fix_at_zero --
  *     Check if we're on a zero (deleted) value. FLCS only.
  */
 static bool
-cursor_fix_atzero(WT_CURSOR *cursor)
+cursor_fix_at_zero(WT_CURSOR *cursor)
 {
     uint8_t val;
 
@@ -199,10 +199,10 @@ static inline int
 worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
 {
     WT_MODIFY entries[MAX_MODIFY_ENTRIES];
+    uint8_t val8;
     int cmp, ret;
     int nentries;
     char valuebuf[64];
-    uint8_t val8;
 
     cursor->set_key(cursor, keyno);
     /* Roughly half inserts, then balanced inserts / range removes. */
@@ -225,7 +225,7 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
             }
         } else if (type == FIX) {
             /* To match what happens in VAR and ROW, advance to the next nonzero key. */
-            while (cursor_fix_atzero(cursor))
+            while (cursor_fix_at_zero(cursor))
                 if ((ret = cursor->next(cursor)) != 0) {
                     if (ret == WT_NOTFOUND)
                         return (0);
@@ -234,7 +234,7 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
                     return (log_print_err("cursor.next", ret, 1));
                 }
         }
-            
+
         for (int i = 10; i > 0; i--) {
             if ((ret = cursor->remove(cursor)) != 0) {
                 if (ret == WT_ROLLBACK)
@@ -250,7 +250,7 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
             }
             if (type == FIX) {
                 /* To match what happens in VAR and ROW, advance to the next nonzero key. */
-                while (cursor_fix_atzero(cursor))
+                while (cursor_fix_at_zero(cursor))
                     if ((ret = cursor->next(cursor)) != 0) {
                         if (ret == WT_NOTFOUND)
                             return (0);
@@ -274,10 +274,10 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
         if (new_val % 39 < 30) {
             // Do modify
             ret = cursor->search(cursor);
-            if (ret == 0 && (type != FIX || !cursor_fix_atzero(cursor))) {
+            if (ret == 0 && (type != FIX || !cursor_fix_at_zero(cursor))) {
                 modify_build(entries, &nentries, new_val);
                 if (type == FIX) {
-                    /* Deleted (including not-yet-written) values read back as 0; accomodate. */
+                    /* Deleted (including not-yet-written) values read back as 0; accommodate. */
                     ret = cursor->get_value(cursor, &val8);
                     if (ret != 0)
                         return (log_print_err("cursor.get_value", ret, 1));

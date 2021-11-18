@@ -249,8 +249,8 @@ done:
 static int
 do_cursor_next(table_type type, WT_CURSOR *cursor)
 {
-    int ret;
     uint8_t val;
+    int ret;
 
     while ((ret = cursor->next(cursor)) != WT_NOTFOUND) {
         if (ret == 0) {
@@ -283,8 +283,8 @@ do_cursor_next(table_type type, WT_CURSOR *cursor)
 static int
 do_cursor_prev(table_type type, WT_CURSOR *cursor)
 {
-    int ret;
     uint8_t val;
+    int ret;
 
     while ((ret = cursor->prev(cursor)) != WT_NOTFOUND) {
         if (ret == 0) {
@@ -393,9 +393,10 @@ verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts)
                 goto err;
             }
 
-            if ((ret = compare_cursors(
-                   cursors[reference_table], g.cookies[reference_table].type, cursors[i], g.cookies[i].type)) != 0) {
-                (void)diagnose_key_error(cursors[reference_table], g.cookies[reference_table].type, reference_table, cursors[i], g.cookies[i].type, i);
+            if ((ret = compare_cursors(cursors[reference_table], g.cookies[reference_table].type,
+                   cursors[i], g.cookies[i].type)) != 0) {
+                (void)diagnose_key_error(cursors[reference_table], g.cookies[reference_table].type,
+                  reference_table, cursors[i], g.cookies[i].type, i);
                 (void)log_print_err("verify_consistency - mismatching data", EFAULT, 1);
                 goto err;
             }
@@ -433,7 +434,8 @@ compare_cursors(WT_CURSOR *cursor1, table_type type1, WT_CURSOR *cursor2, table_
         return (log_print_err("Error getting keys", EINVAL, 1));
 
     /*
-     * Get the values. For all table types set both strval (so we can print) and fixval.
+     * Get the values. For all table types set both the string value (so we can print) and the FLCS
+     * value.
      */
 
     if (type1 == FIX) {
@@ -472,7 +474,7 @@ compare_cursors(WT_CURSOR *cursor1, table_type type1, WT_CURSOR *cursor2, table_
      * to treat it as matching any value from another table type.
      */
     if ((type1 == FIX && type2 != FIX && fixval1 == FLCS_UNKNOWN) ||
-        (type1 != FIX && type2 == FIX && fixval2 == FLCS_UNKNOWN)) {
+      (type1 != FIX && type2 == FIX && fixval2 == FLCS_UNKNOWN)) {
         return (0);
     }
 
@@ -503,7 +505,8 @@ valuefail:
  *     as we can.
  */
 static int
-diagnose_key_error(WT_CURSOR *cursor1, table_type type1, int index1, WT_CURSOR *cursor2, table_type type2, int index2)
+diagnose_key_error(WT_CURSOR *cursor1, table_type type1, int index1, WT_CURSOR *cursor2,
+  table_type type2, int index2)
 {
     WT_CURSOR *c;
     WT_SESSION *session;

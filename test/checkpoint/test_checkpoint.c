@@ -404,8 +404,8 @@ log_print_err(const char *m, int e, int fatal)
  * of the first digit that's a prime (2, 3, 5, or 7), and which prime it is. We encode this as
  * digit-number * 4 + [2 -> 0; 3 -> 1; 5 -> 2; 7 -> 3], plus 1 overall so as to never store zero.
  * (That allows assuming any zero read back is a deleted value.) If there is no such digit, we
- * return FLCS_NONE. If we lose track, we return FLCS_UNKNOWN. This allows remembering offsets up
- * to 62 before we lose track.
+ * return FLCS_NONE. If we lose track, we return FLCS_UNKNOWN. This allows remembering offsets up to
+ * 62 before we lose track.
  */
 
 #define FLCS_OFFSET 1 /* avoid storing zero */
@@ -421,7 +421,7 @@ log_print_err(const char *m, int e, int fatal)
  *     Store an offset and digit in an 8-bit value.
  */
 static uint8_t
-flcs_encode_value(u_int offset, char digit)
+flcs_encode_value(size_t offset, char digit)
 {
     uint8_t digitx;
 
@@ -445,7 +445,7 @@ flcs_encode_value(u_int offset, char digit)
  *     Unpack flcs_encode_value results.
  */
 static void
-flcs_decode_value(uint8_t value, u_int *offsetp, char *digitp)
+flcs_decode_value(uint8_t value, size_t *offsetp, char *digitp)
 {
     static const char digits[4] = "2357";
 
@@ -478,9 +478,11 @@ flcs_encode(const char *s)
 uint8_t
 flcs_modify(WT_MODIFY *entries, int nentries, uint8_t oldval)
 {
+    size_t j, offset;
     int i;
-    u_int j, offset;
     char digit, newdigit;
+
+    newdigit = 0; /* clang -Wconditional-uninitialized */
 
     /* If we've lost track, we've lost track. */
     if (oldval == FLCS_UNKNOWN)
