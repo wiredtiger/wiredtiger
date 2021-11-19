@@ -237,6 +237,13 @@ config_lib(
 )
 
 config_lib(
+    HAVE_LIBURING
+    "Uring library exists."
+    LIB "uring"
+    HEADER "liburing.h"
+)
+
+config_lib(
     HAVE_LIBDL
     "dl library exists."
     LIB "dl"

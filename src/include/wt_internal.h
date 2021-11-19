@@ -32,6 +32,7 @@ extern "C" {
 #endif
 #ifndef _WIN32
 #include <dlfcn.h>
+#include <liburing.h>
 #endif
 #include <errno.h>
 #include <fcntl.h>
@@ -60,9 +61,6 @@ extern "C" {
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
-
-/* io_uring support */
-#include <liburing.h>
 
 /*
  * DO NOT EDIT: automatically built by dist/s_typedef.
