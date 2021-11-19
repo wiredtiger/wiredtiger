@@ -34,6 +34,7 @@ usage() {
 	echo "    -R           add configuration for randomized split stress (defaults to none)"
 	echo "    -r binary    record with UndoDB binary (defaults to no recording)"
 	echo "    -S           run smoke-test configurations (defaults to off)"
+	echo "    -T           turn on format tracing (defaults to off)"
 	echo "    -t minutes   minutes to run (defaults to no limit)"
 	echo "    -v           verbose output (defaults to off)"
 	echo "    --           separates $name arguments from additional format arguments"
@@ -87,6 +88,7 @@ parallel_jobs=8
 skip_errors=0
 stress_split_test=0
 total_jobs=0
+trace=""
 verbose=0
 
 while :; do
@@ -150,6 +152,9 @@ while :; do
 		shift; shift ;;
 	-S)
 		smoke_test=1
+		shift ;;
+	-T)
+		trace='-t ,,'
 		shift ;;
 	-t)
 		minutes="$2"
@@ -535,7 +540,7 @@ format()
 		live_record_binary="$live_record_binary --save-on=error"
 	fi
 
-	cmd="$live_record_binary $format_binary -c "$config" -h "$dir" $args quiet=1"
+	cmd="$live_record_binary $format_binary -c "$config" -h "$dir" $trace $args quiet=1"
 	echo "$name: $cmd"
 
 	# Disassociate the command from the shell script so we can exit and let the command
