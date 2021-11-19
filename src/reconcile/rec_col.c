@@ -719,7 +719,8 @@ __wt_rec_col_fix(
             __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
 
             /* Clear the on-disk cell time window if it is obsolete. */
-            __wt_rec_time_window_clear_obsolete(session, &unpack.tw, r);
+            if (unpack.tw.start_ts != WT_TS_NONE)
+                __wt_rec_time_window_clear_obsolete(session, &unpack.tw, r);
 
             /* If it's from a previous run, it might become empty; if so, skip it. */
             if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
@@ -827,7 +828,8 @@ __wt_rec_col_fix(
             continue;
 
         /* Clear the on-disk cell time window if it is obsolete. */
-        __wt_rec_time_window_clear_obsolete(session, &unpack.tw, r);
+        if (unpack.tw.start_ts != WT_TS_NONE)
+            __wt_rec_time_window_clear_obsolete(session, &unpack.tw, r);
 
         /* If it's from a previous run, it might become empty; if so, skip it. */
         if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
