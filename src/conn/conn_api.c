@@ -2029,6 +2029,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     conn->json_output = flags;
 
     /* When reconfiguring, check if there are any modifications that we care about. */
+    ret = 0;
     if (reconfig && (ret = __wt_config_gets(session, cfg + 1, "verbose", &cval)) == WT_NOTFOUND)
         return (0);
     WT_RET(ret);
