@@ -53,14 +53,41 @@ err:
 static int
 __curversion_next(WT_CURSOR *cursor)
 {
+    WT_CURSOR *hs_cursor;
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    WT_UPDATE *upd;
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
+    hs_cursor = version_cursor->hs_cursor;
     CURSOR_API_CALL(cursor, session, next, NULL);
+        
+    /* 
+     * - If there are untraversed updates in the update chain, return
+     * the next one. 
+     * - If there are no updates or all the updates have been exhausted,
+     * return the ondisk value.
+     * - Once the ondisk value is exhausted, check if there are any values
+     * in the history store.
+     */
+    upd = version_cursor->next_upd;
+    if (upd != NULL && !F_ISSET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED)) {
+        upd = upd->next;
+        
+        if (upd == NULL)
+            F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
+    } else if (!F_ISSET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED)) {
+        F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
+    } else if (!F_ISSET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED)) {
+        /* Use the history store cursor to position on the key. */
+        hs_cursor->next(hs_cursor);
 
-    if (!F_ISSET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED)) {
+        if (ret != 0)
+            F_SET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED);
+    } else {
+        /* We have exhausted all versions of the key. */
+        ret = WT_NOTFOUND;
     }
 
     if (0) {
@@ -146,8 +173,10 @@ __curversion_search(WT_CURSOR *cursor)
         first_upd = ins->upd;
     else if ((upd = WT_ROW_UPDATE(page, rip)) != NULL)
         first_upd = upd;
-    else
+    else {
         first_upd = NULL;
+        F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
+    }
     version_cursor->next_upd = first_upd;
 
 err:
