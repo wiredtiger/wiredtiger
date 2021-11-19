@@ -719,8 +719,7 @@ __wt_rec_col_fix(
             __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
 
             /* Clear the on-disk cell time window if it is obsolete. */
-            if (unpack.tw.start_ts != WT_TS_NONE)
-                __wt_rec_time_window_clear_obsolete(session, &unpack.tw, r);
+            __wt_rec_time_window_clear_obsolete(session, NULL, &unpack, r);
 
             /* If it's from a previous run, it might become empty; if so, skip it. */
             if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
@@ -828,8 +827,7 @@ __wt_rec_col_fix(
             continue;
 
         /* Clear the on-disk cell time window if it is obsolete. */
-        if (unpack.tw.start_ts != WT_TS_NONE)
-            __wt_rec_time_window_clear_obsolete(session, &unpack.tw, r);
+        __wt_rec_time_window_clear_obsolete(session, NULL, &unpack, r);
 
         /* If it's from a previous run, it might become empty; if so, skip it. */
         if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
@@ -1357,8 +1355,7 @@ record_loop:
                 twp = &vpack->tw;
 
                 /* Clear the on-disk cell time window if it is obsolete. */
-                if (twp->start_ts != WT_TS_NONE)
-                    __wt_rec_time_window_clear_obsolete(session, twp, r);
+                __wt_rec_time_window_clear_obsolete(session, NULL, vpack, r);
 
                 /*
                  * If we are handling overflow items, use the overflow item itself exactly once,
