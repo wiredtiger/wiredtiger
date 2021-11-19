@@ -293,7 +293,8 @@ __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool comm
  *     Apply the correct start and durable timestamps to any updates in the page del update list.
  */
 static inline void
-__wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_txn_op_delete_commit_apply_timestamps(
+  WT_SESSION_IMPL *session, WT_REF *ref, bool in_commit_phase)
 {
     WT_TXN *txn;
     WT_UPDATE **updp;
@@ -310,16 +311,48 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
      */
     if (previous_state == WT_REF_DELETED) {
         if (ref->ft_info.del->timestamp == WT_TS_NONE) {
-            ref->ft_info.del->timestamp = txn->commit_timestamp;
-            ref->ft_info.del->durable_timestamp = txn->durable_timestamp;
+            if (in_commit_phase) {
+                ref->ft_info.del->timestamp = txn->first_commit_timestamp;
+                ref->ft_info.del->durable_timestamp = txn->first_commit_timestamp;
+            } else {
+                ref->ft_info.del->timestamp = txn->commit_timestamp;
+                ref->ft_info.del->durable_timestamp = txn->durable_timestamp;
+            }
         }
     } else if ((updp = ref->ft_info.update) != NULL)
-        for (; *updp != NULL; ++updp) {
-            (*updp)->start_ts = txn->commit_timestamp;
-            (*updp)->durable_ts = txn->durable_timestamp;
-        }
+        for (; *updp != NULL; ++updp)
+            if ((*updp)->start_ts == WT_TS_NONE)
+                __wt_txn_untimestamped_upd_set_timestamp(session, *updp, in_commit_phase);
 
     WT_REF_UNLOCK(ref, previous_state);
+}
+
+/*
+ * __wt_txn_untimestamped_upd_set_timestamp --
+ *     Set the timestamp for an untimestamped update.
+ */
+static inline void
+__wt_txn_untimestamped_upd_set_timestamp(
+  WT_SESSION_IMPL *session, WT_UPDATE *upd, bool in_commit_phase)
+{
+    WT_TXN *txn;
+    txn = session->txn;
+
+    WT_ASSERT(session, upd->start_ts == WT_TS_NONE);
+
+    if (in_commit_phase) {
+        /*
+         * Updates without a timestamp can be retroactively timestamped on transaction commit, but
+         * if this happens for a partially timestamped transaction then using commit_timestamp will
+         * lead to out-of-order timestamps. Using first_commit_timestamp will guarantee a correct
+         * timestamp ordering.
+         */
+        upd->start_ts = txn->first_commit_timestamp;
+        upd->durable_ts = txn->first_commit_timestamp;
+    } else {
+        upd->start_ts = txn->commit_timestamp;
+        upd->durable_ts = txn->durable_timestamp;
+    }
 }
 
 /*
@@ -358,7 +391,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool in_commi
         }
     } else {
         if (op->type == WT_TXN_OP_REF_DELETE)
-            __wt_txn_op_delete_commit_apply_timestamps(session, op->u.ref);
+            __wt_txn_op_delete_commit_apply_timestamps(session, op->u.ref, in_commit_phase);
         else {
             /*
              * The timestamp is in the update for operations other than truncate. Both commit and
@@ -366,14 +399,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool in_commi
              */
             upd = op->u.op_upd;
             if (upd->start_ts == WT_TS_NONE) {
-                /*
-                 * If we are committing a transaction and the update doesn't have a timestamp, we
-                 * will apply the first commit timestamp used in the transaction to prevent
-                 * timestamp ordering issues from occurring.
-                 */
-                upd->start_ts =
-                  in_commit_phase ? txn->first_commit_timestamp : txn->commit_timestamp;
-                upd->durable_ts = txn->durable_timestamp;
+                __wt_txn_untimestamped_upd_set_timestamp(session, upd, in_commit_phase);
             }
         }
     }
