@@ -82,7 +82,7 @@ __check_imported_ts(
               "%s: import found aggregated newest start durable timestamp newer than the current "
               "%s timestamp, newest_start_durable_ts=%" PRIu64 ", %s_ts=%" PRIu64,
               uri, ts_name, ckpt->ta.newest_start_durable_ts, ts_name,
-              txn_global->oldest_timestamp);
+              ts);
 
         /*
          * No need to check "newest stop" here as "newest stop durable" serves that purpose. When a
@@ -95,7 +95,7 @@ __check_imported_ts(
             WT_ERR_MSG(session, EINVAL,
               "%s: import found aggregated newest stop durable timestamp newer than the current "
               "%s timestamp, newest_stop_durable_ts=%" PRIu64 ", %s_ts=%" PRIu64,
-              uri, ts_name, ckpt->ta.newest_stop_durable_ts, ts_name, txn_global->oldest_timestamp);
+              uri, ts_name, ckpt->ta.newest_stop_durable_ts, ts_name, ts);
         }
     }
 
