@@ -312,6 +312,12 @@ __wt_txn_op_delete_commit_apply_timestamps(
     if (previous_state == WT_REF_DELETED) {
         if (ref->ft_info.del->timestamp == WT_TS_NONE) {
             if (in_commit_phase) {
+                /*
+                 * Updates without a timestamp can be retroactively timestamped on transaction
+                 * commit, but if this happens for a partially timestamped transaction then using
+                 * commit_timestamp will lead to out-of-order timestamps. Using
+                 * first_commit_timestamp will guarantee a correct timestamp ordering.
+                 */
                 ref->ft_info.del->timestamp = txn->first_commit_timestamp;
                 ref->ft_info.del->durable_timestamp = txn->first_commit_timestamp;
             } else {
