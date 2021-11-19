@@ -1393,7 +1393,9 @@ methods = {
         type='category', subconfig=[
         Config('compare_timestamp', 'oldest', r'''
             Allow importing files with timestamps smaller or equal to the configured
-            global timestamps''',
+            global timestamps. Note that the history of the files are not imported
+            together and thus snapshot read of historical data will not work with the
+            option "stable"''',
             choices=['oldest', 'stable']),
         Config('enabled', 'false', r'''
             whether to import the input URI from disk''',
