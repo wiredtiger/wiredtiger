@@ -280,11 +280,6 @@ operations(u_int ops_seconds, bool lastrun)
     memset(&sap, 0, sizeof(sap));
     wiredtiger_open_session(conn, &sap, NULL, &session);
 
-    /* Initialize locks to single-thread backups and timestamps. */
-    lock_init(session, &g.backup_lock);
-    lock_init(session, &g.ts_lock);
-    lock_init(session, &g.prepare_commit_lock);
-
     /* Initialize and start the worker threads. */
     tinfo_init();
     trace_msg(session, "%s", "=============== thread ops start");
@@ -417,10 +412,6 @@ operations(u_int ops_seconds, bool lastrun)
         tinfo_teardown();
         timestamp_teardown(session);
     }
-
-    lock_destroy(session, &g.backup_lock);
-    lock_destroy(session, &g.ts_lock);
-    lock_destroy(session, &g.prepare_commit_lock);
 
     wiredtiger_close_session(session);
 }

@@ -133,6 +133,38 @@ format_process_env(void)
 }
 
 /*
+ * locks_init --
+ *     Initialize locks to single-thread backups and timestamps.
+ */
+static void
+locks_init(WT_CONNECTION *conn)
+{
+    WT_SESSION *session;
+
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    lock_init(session, &g.backup_lock);
+    lock_init(session, &g.ts_lock);
+    lock_init(session, &g.prepare_commit_lock);
+    testutil_check(session->close(session, NULL));
+}
+
+/*
+ * locks_destroy --
+ *     Discard locks to single-thread backups and timestamps.
+ */
+static void
+locks_destroy(WT_CONNECTION *conn)
+{
+    WT_SESSION *session;
+
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    lock_destroy(session, &g.backup_lock);
+    lock_destroy(session, &g.ts_lock);
+    lock_destroy(session, &g.prepare_commit_lock);
+    testutil_check(session->close(session, NULL));
+}
+
+/*
  * TIMED_MAJOR_OP --
  *	Set a timer and perform a major operation (for example, verify or salvage).
  */
@@ -292,6 +324,8 @@ main(int argc, char *argv[])
         timestamp_init();
     }
 
+    locks_init(g.wts_conn);
+
     /*
      * Initialize key/value information. Load and verify initial records (at least a brief scan if
      * not doing a full verify).
@@ -324,6 +358,9 @@ main(int argc, char *argv[])
     /* Copy out the run's statistics. */
     TIMED_MAJOR_OP(wts_stats());
 
+skip_operations:
+    locks_destroy(g.wts_conn);
+
     /*
      * Verify the objects. Verify closes the underlying handle and discards the statistics, read
      * them first.
@@ -334,9 +371,9 @@ main(int argc, char *argv[])
     wts_close(&g.wts_conn);
 
     /* Salvage testing. */
-    TIMED_MAJOR_OP(tables_apply(wts_salvage, NULL));
+    if (!verify_only)
+        TIMED_MAJOR_OP(tables_apply(wts_salvage, NULL));
 
-skip_operations:
     trace_teardown();
 
     /* Overwrite the progress line with a completion line. */
