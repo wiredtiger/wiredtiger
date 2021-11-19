@@ -62,6 +62,11 @@ The output will look something like this:
 The fields are a timestamp, a thread and session ID, the program name and then an operation. When
 the operation is per object (like and update or remove), there's an object name and a row number.
 
-Additionally, when format detects a failure, it will dump the cursor page that was the source
-of the row that didn't match the expected value, as well as the history store. The dumps are
-in format's run directory, in files named "FAIL.pagedump" and "FAIL.HSdump".
+When format detects a mismatch in the row that's about to be returned and the row the read
+expected, it will dump the cursor page that was the source of the row that didn't match the
+expected value, as well as the history store. The dumps are in format's run directory, in files
+named "FAIL.pagedump" and "FAIL.HSdump". Alternatively, if you have a debugger attached to the
+failure, you can dump the underlying Btree pages the cursor references, using either a WT_CURSOR
+or WT_CURSOR_BTREE cursor:
+
+    (gdb) print __wt_debug_cursor_page(cursor, "/tmp/XX")
