@@ -48,10 +48,9 @@ err:
 
 /*
  * __curversion_next --
- *     WT_CURSOR->next method for version cursors. The next function will position
- *     the cursor on the next update of the key it is positioned at. We traverse
- *     through updates on the update chain, then the ondisk value, and finally
- *     from the history store.
+ *     WT_CURSOR->next method for version cursors. The next function will position the cursor on the
+ *     next update of the key it is positioned at. We traverse through updates on the update chain,
+ *     then the ondisk value, and finally from the history store.
  */
 static int
 __curversion_next(WT_CURSOR *cursor)
@@ -65,10 +64,14 @@ __curversion_next(WT_CURSOR *cursor)
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     hs_cursor = version_cursor->hs_cursor;
     CURSOR_API_CALL(cursor, session, next, NULL);
-        
-    /* 
-     * - If there are untraversed updates in the update chain, return
-     * the next one. 
+
+    /* The cursor should be positioned. */
+    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT))
+        goto err;
+
+    /*
+     * - If there are updates in the update chain that have not been traversed,
+     * return the next one.
      * - If there are no updates or all the updates have been exhausted,
      * return the ondisk value.
      * - Once the ondisk value is exhausted, check if there are any values
@@ -77,14 +80,18 @@ __curversion_next(WT_CURSOR *cursor)
     upd = version_cursor->next_upd;
     if (upd != NULL && !F_ISSET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED)) {
         upd = upd->next;
-        
+        /* Set the record's metadata in the version cursor. */
+        __wt_cursor_set_key(cursor);
+
         if (upd == NULL)
             F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
     } else if (!F_ISSET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED)) {
+        __wt_cursor_set_key(cursor);
         F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
     } else if (!F_ISSET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED)) {
         /* Use the history store cursor to position on the key. */
         hs_cursor->next(hs_cursor);
+        __wt_cursor_set_key(cursor);
 
         if (ret == WT_NOTFOUND)
             F_SET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED);
@@ -98,7 +105,6 @@ err:
         WT_TRET(cursor->reset(cursor));
     }
     API_END_RET(session, ret);
-    return (0);
 }
 
 /*
