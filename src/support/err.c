@@ -365,7 +365,7 @@ __eventv(WT_SESSION_IMPL *session, bool verbose, int error, const char *func, in
 
     if (0) {
 err:
-        WT_TRET(__eventv_stderr(error, func, line, fmt, ap));
+        WT_TRET(__eventv_stderr(error, func, line, fmt, close_ap ? ap_copy : ap));
     }
     if (close_ap)
         va_end(ap_copy);
