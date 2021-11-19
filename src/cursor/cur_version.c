@@ -48,7 +48,10 @@ err:
 
 /*
  * __curversion_next --
- *     WT_CURSOR->next method for version cursors.
+ *     WT_CURSOR->next method for version cursors. The next function will position
+ *     the cursor on the next update of the key it is positioned at. We traverse
+ *     through updates on the update chain, then the ondisk value, and finally
+ *     from the history store.
  */
 static int
 __curversion_next(WT_CURSOR *cursor)
@@ -83,7 +86,7 @@ __curversion_next(WT_CURSOR *cursor)
         /* Use the history store cursor to position on the key. */
         hs_cursor->next(hs_cursor);
 
-        if (ret != 0)
+        if (ret == WT_NOTFOUND)
             F_SET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED);
     } else {
         /* We have exhausted all versions of the key. */
@@ -143,7 +146,7 @@ __curversion_search(WT_CURSOR *cursor)
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *first_upd, *upd;
+    WT_UPDATE *upd;
     bool key_only;
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
@@ -151,11 +154,11 @@ __curversion_search(WT_CURSOR *cursor)
     key_only = F_ISSET(cursor, WT_CURSTD_KEY_ONLY);
 
     /*
-     * For now, we assume that we are using simple cursors only, and row store only.
+     * For now, we assume that we are using simple cursors only.
      */
     cbt = (WT_CURSOR_BTREE *)table_cursor;
     CURSOR_API_CALL(cursor, session, search, CUR2BT(cbt));
-    WT_ERR(__cursor_checkkey(cursor));
+    WT_ERR(__cursor_checkkey(table_cursor));
 
     /* Do a search and position on they key if it is found */
     F_SET(cursor, WT_CURSTD_KEY_ONLY);
@@ -170,14 +173,13 @@ __curversion_search(WT_CURSOR *cursor)
     page = cbt->ref->page;
     rip = &page->pg_row[cbt->slot];
     if (cbt->ins != NULL)
-        first_upd = ins->upd;
+        version_cursor->next_upd = ins->upd;
     else if ((upd = WT_ROW_UPDATE(page, rip)) != NULL)
-        first_upd = upd;
+        version_cursor->next_upd = upd;
     else {
-        first_upd = NULL;
+        version_cursor->next_upd = NULL;
         F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
     }
-    version_cursor->next_upd = first_upd;
 
 err:
     if (!key_only)
