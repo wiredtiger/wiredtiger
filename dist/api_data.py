@@ -460,6 +460,8 @@ lsm_meta = file_config + lsm_config + [
 ]
 
 tiered_meta = file_meta + tiered_config + [
+    Config('flush_time', '0', r'''
+        indicates the time this tree was flushed to shared storage or 0 if unflushed'''),
     Config('last', '0', r'''
         the last allocated object ID'''),
     Config('oldest', '1', r'''
@@ -472,7 +474,7 @@ tier_meta = file_meta + tiered_tree_config
 # Objects need to have the readonly setting set and bucket_prefix.
 # The file_meta already contains those pieces.
 object_meta = file_meta + [
-    Config('flush', '0', r'''
+    Config('flush_time', '0', r'''
         indicates the time this object was flushed to shared storage or 0 if unflushed'''),
 ]
 
@@ -748,6 +750,13 @@ connection_runtime_config = [
             is 1MB.''',
             min='0', max='1TB'),
         ]),
+    Config('json_output', '[]', r'''
+        enable JSON formatted messages on the event handler interface. Options are
+        given as a list, where each option specifies an event handler category e.g.
+        'error' represents the messages from the WT_EVENT_HANDLER::handle_error method.''',
+        type='list', choices=[
+            'error',
+            'message']),
     Config('lsm_manager', '', r'''
         configure database wide options for LSM tree management. The LSM
         manager is started automatically the first time an LSM tree is opened.

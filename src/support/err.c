@@ -142,115 +142,186 @@ __wt_event_handler_set(WT_SESSION_IMPL *session, WT_EVENT_HANDLER *handler)
     session->event_handler = handler;
 }
 
-#define WT_EVENT_APPEND(p, remain, ...)                                \
+#define WT_ERROR_APPEND(p, remain, ...)                                \
     do {                                                               \
         size_t __len;                                                  \
-        WT_RET(__wt_snprintf_len_set(p, remain, &__len, __VA_ARGS__)); \
+        WT_ERR(__wt_snprintf_len_set(p, remain, &__len, __VA_ARGS__)); \
         if (__len > remain)                                            \
             __len = remain;                                            \
         p += __len;                                                    \
         remain -= __len;                                               \
     } while (0)
+#define WT_ERROR_APPEND_AP(p, remain, ...)                              \
+    do {                                                                \
+        size_t __len;                                                   \
+        WT_ERR(__wt_vsnprintf_len_set(p, remain, &__len, __VA_ARGS__)); \
+        if (__len > remain)                                             \
+            __len = remain;                                             \
+        p += __len;                                                     \
+        remain -= __len;                                                \
+    } while (0)
 
 /*
- * __eventv_prefix --
- *     Build the message prefix.
+ * __eventv_unpack_json_str --
+ *     Unpack a string into JSON escaped format. Can be called with null destination for sizing.
+ */
+static size_t
+__eventv_unpack_json_str(u_char *dest, size_t dest_len, char *src, size_t src_len)
+  WT_GCC_FUNC_ATTRIBUTE((cold))
+{
+    size_t len, n, nchars;
+    u_char *q;
+    const char *p;
+
+    nchars = 0;
+    q = dest;
+
+    for (p = src, len = src_len; len > 0; p++, --len) {
+        n = __wt_json_unpack_char((u_char)*p, q, dest_len, false);
+        nchars += n;
+        if (q != NULL) {
+            dest_len -= n;
+            q += n;
+        }
+    }
+
+    if (q != NULL)
+        *q = '\0';
+
+    return (nchars);
+}
+
+/*
+ * __eventv_gen_msg --
+ *     Generate a formatted message.
  */
 static int
-__eventv_prefix(WT_SESSION_IMPL *session, const char *func, int line, char *p, size_t *remainp)
+__eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, bool is_json,
+  int error, const char *func, int line, WT_VERBOSE_CATEGORY category, WT_VERBOSE_LEVEL level,
+  const char *fmt, va_list ap) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     struct timespec ts;
-    size_t remain;
-    char tid[128];
-    const char *prefix;
-
-    remain = *remainp;
-
-    /*
-     * We have several prefixes for the error message: a timestamp and the process and thread ids,
-     * the database error prefix, the data-source's name, and the session's name. Write them as a
-     * comma-separate list, followed by a colon.
-     */
-    __wt_epoch(session, &ts);
-    WT_RET(__wt_thread_str(tid, sizeof(tid)));
-    WT_EVENT_APPEND(p, remain, "[%" PRIuMAX ":%" PRIuMAX "][%s]", (uintmax_t)ts.tv_sec,
-      (uintmax_t)ts.tv_nsec / WT_THOUSAND, tid);
-
-    /*
-     * The buffer size is plenty large enough for reasonable values, but these fields can be set by
-     * the application, limit the prefix strings to 1024.
-     */
-    if ((prefix = S2C(session)->error_prefix) != NULL)
-        WT_EVENT_APPEND(p, remain, ", %.*s", 1024, prefix);
-    prefix = session->dhandle == NULL ? NULL : session->dhandle->name;
-    if (prefix != NULL)
-        WT_EVENT_APPEND(p, remain, ", %.*s", 1024, prefix);
-    if ((prefix = session->name) != NULL)
-        WT_EVENT_APPEND(p, remain, ", %.*s", 1024, prefix);
-    WT_EVENT_APPEND(p, remain, ": ");
-    if (func != NULL)
-        WT_EVENT_APPEND(p, remain, "%s, %d: ", func, line);
-
-    *remainp = remain;
-    return (0);
-}
-
-/*
- * __eventv_stderr --
- *     Report a message on stderr.
- */
-static int
-__eventv_stderr(int error, const char *func, int line, const char *fmt, va_list ap)
-{
     WT_DECL_RET;
+    size_t len, msg_len, remain, remain_msg, unpacked_msg_len;
+    u_char *unpacked_json_str;
+    char msg_str[2 * 1024], *p, *p_msg, tid[128];
+    const char *err, *prefix, *verbosity_level_tag;
 
-    if (fprintf(stderr, "WiredTiger Error: ") < 0)
-        WT_TRET(EIO);
-    if (error != 0 && fprintf(stderr, "error %d: ", error) < 0)
-        WT_TRET(EIO);
-    if (func != NULL && fprintf(stderr, "%s, %d: ", func, line) < 0)
-        WT_TRET(EIO);
-    if (vfprintf(stderr, fmt, ap) < 0)
-        WT_TRET(EIO);
-    if (fprintf(stderr, "\n") < 0)
-        WT_TRET(EIO);
-    if (fflush(stderr) != 0)
-        WT_TRET(EIO);
+    p = buffer;
+    p_msg = msg_str;
+    unpacked_json_str = NULL;
 
+    remain = *buffer_len;
+    remain_msg = sizeof(msg_str);
+
+    if (is_json)
+        WT_ERROR_APPEND(p, remain, "{");
+
+    /* Timestamp and thread id. */
+    __wt_epoch(session, &ts);
+    WT_ERR(__wt_thread_str(tid, sizeof(tid)));
+    if (is_json) {
+        WT_ERROR_APPEND(p, remain, "\"ts_sec\":%" PRIuMAX ",", (uintmax_t)ts.tv_sec);
+        WT_ERROR_APPEND(
+          p, remain, "\"ts_usec\":%" PRIuMAX ",", (uintmax_t)ts.tv_nsec / WT_THOUSAND);
+        WT_ERROR_APPEND(p, remain, "\"thread\":\"%s\",", tid);
+    } else {
+        WT_ERR(__wt_thread_str(tid, sizeof(tid)));
+        WT_ERROR_APPEND(p, remain, "[%" PRIuMAX ":%" PRIuMAX "][%s]", (uintmax_t)ts.tv_sec,
+          (uintmax_t)ts.tv_nsec / WT_THOUSAND, tid);
+    }
+
+    /* Error prefix. */
+    if ((prefix = S2C(session)->error_prefix) != NULL) {
+        if (is_json)
+            WT_ERROR_APPEND(p, remain, "\"session_err_prefix\":\"%s\",", prefix);
+        else
+            WT_ERROR_APPEND(p, remain, ", %s", prefix);
+    }
+
+    /* Session dhandle name. */
+    prefix = session->dhandle == NULL ? NULL : session->dhandle->name;
+    if (prefix != NULL) {
+        if (is_json)
+            WT_ERROR_APPEND(p, remain, "\"session_dhandle_name\":\"%s\",", prefix);
+        else
+            WT_ERROR_APPEND(p, remain, ", %s", prefix);
+    }
+
+    /* Session name. */
+    if ((prefix = session->name) != NULL) {
+        if (is_json)
+            WT_ERROR_APPEND(p, remain, "\"session_name\":\"%s\",", prefix);
+        else
+            WT_ERROR_APPEND(p, remain, ", %s", prefix);
+    }
+
+    /* Message. */
+    if (is_json) {
+        /* Category and verbosity level. */
+        WT_ERROR_APPEND(p, remain, "\"category\":\"%s\",", WT_VERBOSE_CATEGORY_STR(category));
+        WT_ERROR_APPEND(p, remain, "\"category_id\":%" PRIu32 ",", category);
+        WT_VERBOSE_LEVEL_STR(level, verbosity_level_tag);
+        WT_ERROR_APPEND(p, remain, "\"verbose_level\":\"%s\",", verbosity_level_tag);
+        WT_ERROR_APPEND(p, remain, "\"verbose_level_id\":%d,", level);
+
+        /* Format the content of the message into an intermediate buffer. */
+        WT_ERROR_APPEND_AP(p_msg, remain_msg, fmt, ap);
+
+        /* Escape any characters that are special for JSON. */
+        msg_len = sizeof(msg_str) - remain_msg;
+        unpacked_msg_len = __eventv_unpack_json_str(NULL, 0, msg_str, msg_len);
+        WT_ERR(__wt_malloc(session, unpacked_msg_len + 1, &unpacked_json_str));
+        WT_UNUSED(__eventv_unpack_json_str(unpacked_json_str, unpacked_msg_len, msg_str, msg_len));
+
+        WT_ERROR_APPEND(p, remain, "\"msg\":\"");
+        if (func != NULL)
+            WT_ERROR_APPEND(p, remain, "%s:%d:", func, line);
+        WT_ERROR_APPEND(p, remain, "%s", unpacked_json_str);
+        WT_ERROR_APPEND(p, remain, "\"");
+    } else {
+        WT_ERROR_APPEND(p, remain, ": ");
+        if (func != NULL)
+            WT_ERROR_APPEND(p, remain, "%s, %d: ", func, line);
+
+        /* Category and verbosity level. */
+        WT_VERBOSE_LEVEL_STR(level, verbosity_level_tag);
+        WT_ERROR_APPEND(
+          p, remain, "[%s][%s]", WT_VERBOSE_CATEGORY_STR(category), verbosity_level_tag);
+
+        WT_ERROR_APPEND(p, remain, ": ");
+        WT_ERROR_APPEND_AP(p, remain, fmt, ap);
+    }
+
+    /* Error message. */
+    if (error != 0) {
+        /*
+         * When the engine calls __wt_err on error, it often outputs an error message including the
+         * string associated with the error it's returning. We could change the calls to call
+         * __wt_errx, but it's simpler to not append an error string if all we are doing is
+         * duplicating an existing error string.
+         *
+         * Use strcmp to compare: both strings are nul-terminated, and we don't want to run past the
+         * end of the buffer.
+         */
+        err = __wt_strerror(session, error, NULL, 0);
+        if (is_json) {
+            WT_ERROR_APPEND(p, remain, ",");
+            WT_ERROR_APPEND(p, remain, "\"error_str\":\"%s\",", err);
+            WT_ERROR_APPEND(p, remain, "\"error_code\":%d", error);
+        } else {
+            len = strlen(err);
+            if (WT_PTRDIFF(p, buffer) < len || strcmp(p - len, err) != 0)
+                WT_ERROR_APPEND(p, remain, ": %s", err);
+        }
+    }
+
+    if (is_json)
+        WT_ERROR_APPEND(p, remain, "}");
+
+err:
+    __wt_free(session, unpacked_json_str);
     return (ret);
-}
-
-/*
- * __eventv_append_error --
- *     Append the error message into a buffer.
- */
-static void
-__eventv_append_error(WT_SESSION_IMPL *session, int error, char *s, char *p, size_t *remainp)
-{
-    size_t len;
-    const char *err;
-
-    if (error == 0)
-        return;
-
-    /*
-     * When the engine calls __wt_err on error, it often outputs an error message including the
-     * string associated with the error it's returning. We could change the calls to call __wt_errx,
-     * but it's simpler to not append an error string if all we are doing is duplicating an existing
-     * error string.
-     *
-     * Use strcmp to compare: both strings are nul-terminated, and we don't want to run past the end
-     * of the buffer.
-     */
-    err = __wt_strerror(session, error, NULL, 0);
-    len = strlen(err);
-    if ((WT_PTRDIFF(p, s) < len + 2 || strcmp(p - len, err) != 0) && *remainp > len + 2) {
-        p[0] = ':';
-        p[1] = ' ';
-        strcpy(p + 2, err);
-        *remainp -= len + 2;
-    } else
-        *remainp = 0;
 }
 
 /*
@@ -258,89 +329,44 @@ __eventv_append_error(WT_SESSION_IMPL *session, int error, char *s, char *p, siz
  *     Report a message to an event handler.
  */
 static int
-__eventv(WT_SESSION_IMPL *session, bool verbose, int error, const char *func, int line,
-  const char *fmt, va_list ap) WT_GCC_FUNC_ATTRIBUTE((cold))
+__eventv(WT_SESSION_IMPL *session, bool msg_event, bool is_json, int error, const char *func,
+  int line, WT_VERBOSE_CATEGORY category, WT_VERBOSE_LEVEL level, const char *fmt, va_list ap)
+  WT_GCC_FUNC_ATTRIBUTE((cold))
 {
-    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_EVENT_HANDLER *handler;
     WT_SESSION *wt_session;
-    size_t prefix_len, len, remain;
-    char *p;
-    bool close_ap;
-    va_list ap_copy;
-
-    /* SECURITY: Buffer placed at the end of the stack in case snprintf overflows. */
-    char *s, stack_buf[4 * 1024];
-
-    close_ap = false;
+    size_t remain;
 
     /*
-     * This function MUST handle a NULL WT_SESSION_IMPL handle. Without a session, we don't have
-     * event handlers or prefixes for the error message. Write the error to stderr and call it a
-     * day. (It's almost impossible for that to happen given how early we allocate the first
-     * session, but if the allocation of the first session fails, for example, we can end up here
-     * without a session.)
+     * We're using a stack buffer because we want error messages no matter
+     * what, and allocating a WT_ITEM, or the memory it needs, might fail.
+     *
+     * !!!
+     * SECURITY:
+     * Buffer placed at the end of the stack in case snprintf overflows.
+     */
+    char s[4 * 1024];
+    remain = sizeof(s);
+
+    /*
+     * !!!
+     * This function MUST handle a NULL WT_SESSION_IMPL handle.
+     *
+     * Without a session, we don't have event handlers or prefixes for the
+     * error message.  Write the error to stderr and call it a day.  (It's
+     * almost impossible for that to happen given how early we allocate the
+     * first session, but if the allocation of the first session fails, for
+     * example, we can end up here without a session.)
      */
     if (session == NULL)
         goto err;
 
-    /*
-     * Build the error prefix; the buffer is plenty big enough for any reasonable prefix, and we
-     * check to ensure the application can't overflow it. Fallback if we can't build the prefix.
-     */
-    s = stack_buf;
-    remain = sizeof(stack_buf);
-    WT_ERR(__eventv_prefix(session, func, line, s, &remain));
-    if (remain == 0)
-        goto err;
+    /* Format the message. */
+    WT_ERR(
+      __eventv_gen_msg(session, s, &remain, is_json, error, func, line, category, level, fmt, ap));
 
     /*
-     * Try to append the message to the stack buffer. If that fails we'll try again with allocated
-     * memory, which requires a copy of argument list.
-     */
-    va_copy(ap_copy, ap);
-    close_ap = true;
-
-    prefix_len = sizeof(stack_buf) - remain;
-    p = s + prefix_len;
-    WT_ERR(__wt_vsnprintf_len_set(p, remain, &len, fmt, ap));
-    if (len <= remain) {
-        remain -= len;
-        p += len;
-        __eventv_append_error(session, error, s, p, &remain);
-    } else
-        remain = 0;
-
-    /*
-     * If we were unable to build the message in the stack buffer, try allocating memory. We aren't
-     * using general buffer functions here and don't bother tracking the data and size fields, all
-     * we care about is the buffer size and that the string is nul terminated.
-     *
-     * The total space we need is the prefix length plus whatever the arguments required (returned
-     * by our previous call to snprintf), plus a relatively small system error string.
-     */
-    if (remain == 0) {
-        WT_ERR(__wt_scr_alloc(session, prefix_len + len + 1024, &tmp));
-        WT_ERR(__wt_buf_set(session, tmp, s, prefix_len));
-        p = (char *)tmp->mem + prefix_len;
-        remain = tmp->memsize - prefix_len;
-        WT_ERR(__wt_vsnprintf_len_set(p, remain, &len, fmt, ap_copy));
-        if (len >= remain)
-            remain = 0; /* Shouldn't happen unless the format and arguments somehow changed. */
-        else {
-            remain -= len;
-            p += len;
-            __eventv_append_error(session, error, tmp->mem, p, &remain);
-        }
-        if (remain == 0)
-            goto err;
-        s = tmp->mem;
-    }
-
-    /*
-     * If this is a verbose message, optionally push it into the log.
-     *
      * If a handler fails, return the error status: if we're in the process of handling an error,
      * any return value we provide will be ignored by our caller, our caller presumably already has
      * an error value it will be returning.
@@ -353,7 +379,7 @@ __eventv(WT_SESSION_IMPL *session, bool verbose, int error, const char *func, in
      */
     wt_session = (WT_SESSION *)session;
     handler = session->event_handler;
-    if (verbose) {
+    if (msg_event) {
         ret = handler->handle_message(handler, wt_session, s);
         if (ret != 0)
             __handler_failure(session, ret, "message", false);
@@ -363,14 +389,28 @@ __eventv(WT_SESSION_IMPL *session, bool verbose, int error, const char *func, in
             __handler_failure(session, ret, "error", true);
     }
 
-    if (0) {
+    /*
+     * The buffer is fixed sized, complain if we overflow. (The test is for no more bytes remaining
+     * in the buffer, so technically we might have filled it exactly.) Be cautious changing this
+     * code, it's a recursive call.
+     */
+    if (ret == 0 && remain == 0)
+        __wt_err(
+          session, ENOMEM, "error or message truncated: internal WiredTiger buffer too small");
+
+    if (ret != 0) {
 err:
-        WT_TRET(__eventv_stderr(error, func, line, fmt, close_ap ? ap_copy : ap));
+        if (fprintf(stderr, "WiredTiger Error%s%s: ", error == 0 ? "" : ": ",
+              error == 0 ? "" : __wt_strerror(session, error, NULL, 0)) < 0)
+            WT_TRET(EIO);
+        if (vfprintf(stderr, fmt, ap) < 0)
+            WT_TRET(EIO);
+        if (fprintf(stderr, "\n") < 0)
+            WT_TRET(EIO);
+        if (fflush(stderr) != 0)
+            WT_TRET(EIO);
     }
-    if (close_ap)
-        va_end(ap_copy);
-    if (session != NULL)
-        __wt_scr_free(session, &tmp);
+
     return (ret);
 }
 
@@ -379,9 +419,9 @@ err:
  *     Report an error.
  */
 void
-__wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line, const char *fmt, ...)
-  WT_GCC_FUNC_ATTRIBUTE((cold)) WT_GCC_FUNC_ATTRIBUTE((format(printf, 5, 6)))
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
+  WT_VERBOSE_CATEGORY category, const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((cold))
+  WT_GCC_FUNC_ATTRIBUTE((format(printf, 6, 7))) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     va_list ap;
 
@@ -390,7 +430,9 @@ __wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line, c
      * return.
      */
     va_start(ap, fmt);
-    WT_IGNORE_RET(__eventv(session, false, error, func, line, fmt, ap));
+    WT_IGNORE_RET(__eventv(session, false,
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, error, func,
+      line, category, WT_VERBOSE_ERROR, fmt, ap));
     va_end(ap);
 }
 
@@ -399,9 +441,9 @@ __wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line, c
  *     Report an error with no error code.
  */
 void
-__wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, const char *fmt, ...)
-  WT_GCC_FUNC_ATTRIBUTE((cold)) WT_GCC_FUNC_ATTRIBUTE((format(printf, 4, 5)))
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, WT_VERBOSE_CATEGORY category,
+  const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((cold)) WT_GCC_FUNC_ATTRIBUTE((format(printf, 5, 6)))
+  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     va_list ap;
 
@@ -410,7 +452,9 @@ __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, const char 
      * return.
      */
     va_start(ap, fmt);
-    WT_IGNORE_RET(__eventv(session, false, 0, func, line, fmt, ap));
+    WT_IGNORE_RET(__eventv(session, false,
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0, func, line,
+      category, WT_VERBOSE_ERROR, fmt, ap));
     va_end(ap);
 }
 
@@ -419,9 +463,9 @@ __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, const char 
  *     A standard error message when we panic.
  */
 int
-__wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line, const char *fmt,
-  ...) WT_GCC_FUNC_ATTRIBUTE((cold)) WT_GCC_FUNC_ATTRIBUTE((format(printf, 5, 6)))
-  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
+  WT_VERBOSE_CATEGORY category, const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((cold))
+  WT_GCC_FUNC_ATTRIBUTE((format(printf, 6, 7))) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     WT_CONNECTION_IMPL *conn;
     va_list ap;
@@ -433,7 +477,9 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      * return.
      */
     va_start(ap, fmt);
-    WT_IGNORE_RET(__eventv(session, false, error, func, line, fmt, ap));
+    WT_IGNORE_RET(
+      __eventv(session, false, session ? FLD_ISSET(conn->json_output, WT_JSON_OUTPUT_ERROR) : false,
+        error, func, line, category, WT_VERBOSE_ERROR, fmt, ap));
     va_end(ap);
 
     /*
@@ -452,8 +498,8 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      * I'm not confident of underlying support for a NULL.
      */
     va_start(ap, fmt);
-    WT_IGNORE_RET(
-      __eventv(session, false, WT_PANIC, func, line, "the process must exit and restart", ap));
+    WT_IGNORE_RET(__eventv(session, false, FLD_ISSET(conn->json_output, WT_JSON_OUTPUT_ERROR),
+      WT_PANIC, func, line, category, WT_VERBOSE_ERROR, "the process must exit and restart", ap));
     va_end(ap);
 
 #if defined(HAVE_DIAGNOSTIC)
@@ -515,7 +561,9 @@ __wt_ext_err_printf(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char
         session = ((WT_CONNECTION_IMPL *)wt_api->conn)->default_session;
 
     va_start(ap, fmt);
-    ret = __eventv(session, false, 0, NULL, 0, fmt, ap);
+    ret = __eventv(session, false,
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0, NULL, 0,
+      WT_VERB_EXTENSION, WT_VERBOSE_ERROR, fmt, ap);
     va_end(ap);
     return (ret);
 }
@@ -550,13 +598,15 @@ __wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag, double probability)
  *     Verbose message.
  */
 void
-__wt_verbose_worker(WT_SESSION_IMPL *session, const char *fmt, ...)
-  WT_GCC_FUNC_ATTRIBUTE((format(printf, 2, 3))) WT_GCC_FUNC_ATTRIBUTE((cold))
+__wt_verbose_worker(WT_SESSION_IMPL *session, WT_VERBOSE_CATEGORY category, WT_VERBOSE_LEVEL level,
+  const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((format(printf, 4, 5))) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     va_list ap;
 
     va_start(ap, fmt);
-    WT_IGNORE_RET(__eventv(session, true, 0, NULL, 0, fmt, ap));
+    WT_IGNORE_RET(__eventv(session, true,
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_MESSAGE) : false, 0, NULL, 0,
+      category, level, fmt, ap));
     va_end(ap);
 }
 

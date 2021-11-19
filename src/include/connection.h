@@ -435,6 +435,7 @@ struct __wt_connection_impl {
     WT_CONDVAR *flush_cond;          /* Flush wait mutex */
     WT_CONDVAR *tiered_cond;         /* Tiered wait mutex */
     bool tiered_server_running;      /* Internal tiered server operating */
+    uint64_t flush_most_recent;      /* Clock value of most recent flush_tier */
     uint32_t flush_state;            /* State of last flush tier */
 
     WT_TIERED_MANAGER tiered_mgr;        /* Tiered manager thread information */
@@ -562,6 +563,12 @@ struct __wt_connection_impl {
 
     /* Verbose settings for our various categories. */
     WT_VERBOSE_LEVEL verbose[WT_VERB_NUM_CATEGORIES];
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_JSON_OUTPUT_ERROR 0x1u
+#define WT_JSON_OUTPUT_MESSAGE 0x2u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t json_output; /* Output event handler messages in JSON format */
 
 /*
  * Variable with flags for which subsystems the diagnostic stress timing delays have been requested.

@@ -264,7 +264,7 @@ wiredtiger_open_session(WT_CONNECTION *conn, SAP *sap, const char *track, WT_SES
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     if (g.trace_conn != NULL && sap->trace == NULL)
-	testutil_check(g.trace_conn->open_session(g.trace_conn, NULL, NULL, &sap->trace));
+        testutil_check(g.trace_conn->open_session(g.trace_conn, NULL, NULL, &sap->trace));
 
     sap->track = track;
     session->app_private = sap;
@@ -274,7 +274,7 @@ wiredtiger_open_session(WT_CONNECTION *conn, SAP *sap, const char *track, WT_SES
 
 /*
  * wiredtiger_close_session --
- *	Close a WiredTiger session.
+ *     Close a WiredTiger session.
  */
 static inline void
 wiredtiger_close_session(WT_SESSION *session)
@@ -284,14 +284,14 @@ wiredtiger_close_session(WT_SESSION *session)
 
     trace = NULL;
     if ((sap = session->app_private) != NULL) {
-	trace = sap->trace;
-	memset(sap, 0, sizeof(*sap));
+        trace = sap->trace;
+        memset(sap, 0, sizeof(*sap));
     }
 
     testutil_check(session->close(session, NULL));
 
     if (trace != NULL)
-	testutil_check(trace->close(trace, NULL));
+        testutil_check(trace->close(trace, NULL));
 }
 
 /*
@@ -441,16 +441,18 @@ lock_readunlock(WT_SESSION *session, RWLOCK *lock)
         testutil_check(pthread_rwlock_unlock(&lock->l.pthread));
 }
 
-#define trace_msg(s, fmt, ...)                                                            \
-    do {                                                                               \
-        if (g.trace)                                                                   \
-            __wt_verbose_worker((WT_SESSION_IMPL *)(s), fmt, __VA_ARGS__); \
+#define trace_msg(s, fmt, ...)                                                               \
+    do {                                                                                     \
+        if (g.trace)                                                                         \
+            __wt_verbose_worker(                                                             \
+              (WT_SESSION_IMPL *)(s), WT_VERB_TEMPORARY, WT_VERBOSE_INFO, fmt, __VA_ARGS__); \
     } while (0)
-#define trace_uri_op(tinfo, uri, fmt, ...)                                         \
-    do {                                                                           \
-        if (g.trace) {                                                             \
-            __wt_verbose_worker((WT_SESSION_IMPL *)(tinfo)->session, "%s%s" fmt,     \
-              (uri) == NULL ? "" : (uri), (uri) == NULL ? "" : ": ", __VA_ARGS__); \
-        }                                                                          \
+#define trace_uri_op(tinfo, uri, fmt, ...)                                                        \
+    do {                                                                                          \
+        if (g.trace) {                                                                            \
+            __wt_verbose_worker((WT_SESSION_IMPL *)(tinfo)->session, WT_VERB_TEMPORARY,           \
+              WT_VERBOSE_INFO, "%s%s" fmt, (uri) == NULL ? "" : (uri), (uri) == NULL ? "" : ": ", \
+              __VA_ARGS__);                                                                       \
+        }                                                                                         \
     } while (0)
 #define trace_op(tinfo, fmt, ...) trace_uri_op(tinfo, (tinfo)->table->uri, fmt, __VA_ARGS__)
