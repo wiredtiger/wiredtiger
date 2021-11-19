@@ -979,13 +979,6 @@ config_mirrors(void)
         return;
     config_off_all("runs.mirror");
 
-    /* In-memory runs don't mirror tables, there's no point. */
-    if (GV(RUNS_IN_MEMORY)) {
-        if (explicit_mirror)
-            testutil_die(EINVAL, "runs.mirror incompatible with in-memory configuration");
-        return;
-    }
-
     /*
      * We can't mirror if we don't have enough tables. A FLCS table can be a mirror, but it can't be
      * the source of the bulk-load mirror records. Find the first table we can use as a base.
