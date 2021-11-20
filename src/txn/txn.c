@@ -1106,11 +1106,11 @@ err:
 }
 
 /*
- * __txn_search_prepared_op --
- *     Search for an operation's prepared update.
+ * __txn_search_uncommitted_op --
+ *     Search for an operation's uncommitted update.
  */
 static int
-__txn_search_prepared_op(
+__txn_search_uncommitted_op(
   WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR **cursorp, WT_UPDATE **updp)
 {
     WT_CURSOR *cursor;
@@ -1204,7 +1204,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     fix_upd = tombstone = NULL;
     upd_appended = false;
 
-    WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
+    WT_RET(__txn_search_uncommitted_op(session, op, cursorp, &upd));
 
     if (commit)
         __wt_verbose(session, WT_VERB_TRANSACTION,
@@ -1496,7 +1496,7 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
 
         /* Search for prepared updates. */
         if (F_ISSET(txn, WT_TXN_PREPARE))
-            WT_ERR(__txn_search_prepared_op(session, op, &cursor, &upd));
+            WT_ERR(__txn_search_uncommitted_op(session, op, &cursor, &upd));
         else
             upd = op->u.op_upd;
 
