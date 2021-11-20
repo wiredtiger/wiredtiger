@@ -1620,6 +1620,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_REF *ref;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_OP *op;
@@ -1635,6 +1636,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
     cursor = NULL;
+    ref = NULL;
     txn = session->txn;
     txn_global = &conn->txn_global;
 #ifdef HAVE_DIAGNOSTIC
@@ -1780,12 +1782,19 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                 }
 
                 /*
-                 * For now just confirm that each operation has a weak hazard pointer and clear it
-                 * before proceeding.
+                 * For now just try to upgrade and in case successful immediately release the active
+                 * hazard pointer.
                  */
                 if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
-                  !WT_IS_METADATA(op->btree->dhandle) && upd->type != WT_UPDATE_RESERVE)
-                    WT_ERR(__wt_hazard_weak_clear(session, op));
+                  !WT_IS_METADATA(op->btree->dhandle) && upd->type != WT_UPDATE_RESERVE) {
+                    WT_WITH_BTREE(session, op->btree,
+                                  if ((ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref)) ==
+                                    0) WT_ERR(__wt_hazard_clear(session, ref));
+                                  else if (ret == EBUSY)
+                                  /* Slow path - resolve */
+                                  ret = 0;
+                                  else WT_ERR(ret););
+                }
 
                 /*
                  * Don't reset the timestamp of the history store records with history store
@@ -1959,11 +1968,14 @@ err:
 int
 __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_DECL_RET;
+    WT_REF *ref;
     WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *upd, *tmp;
     u_int i, prepared_updates, prepared_updates_key_repeated;
 
+    ref = NULL;
     txn = session->txn;
     prepared_updates = prepared_updates_key_repeated = 0;
 
@@ -2031,12 +2043,19 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
             }
 
             /*
-             * For now just confirm that each operation has a weak hazard pointer and clear it
-             * before proceeding.
+             * For now just try to upgrade and in case successful immediately release the active
+             * hazard pointer.
              */
             if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
-              !WT_IS_METADATA(op->btree->dhandle) && upd->type != WT_UPDATE_RESERVE)
-                WT_RET(__wt_hazard_weak_clear(session, op));
+              !WT_IS_METADATA(op->btree->dhandle) && upd->type != WT_UPDATE_RESERVE) {
+                WT_WITH_BTREE(session, op->btree,
+                              if ((ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref)) == 0)
+                                WT_RET(__wt_hazard_clear(session, ref));
+                              else if (ret == EBUSY)
+                              /* Slow path - resolve */
+                              ret = 0;
+                              else WT_RET(ret););
+            }
 
             ++prepared_updates;
 
@@ -2109,6 +2128,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_REF *ref;
     WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *upd;
@@ -2119,6 +2139,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     bool prepare, readonly;
 
     cursor = NULL;
+    ref = NULL;
     txn = session->txn;
 #ifdef HAVE_DIAGNOSTIC
     prepare_count = 0;
@@ -2163,12 +2184,19 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
             if (!prepare) {
                 /*
-                 * For now just confirm that each operation has a weak hazard pointer and clear it
-                 * before proceeding.
+                 * For now just try to upgrade and in case successful immediately release the active
+                 * hazard pointer.
                  */
                 if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
-                  !WT_IS_METADATA(op->btree->dhandle) && upd->type != WT_UPDATE_RESERVE)
-                    WT_TRET(__wt_hazard_weak_clear(session, op));
+                  !WT_IS_METADATA(op->btree->dhandle) && upd->type != WT_UPDATE_RESERVE) {
+                    WT_WITH_BTREE(session, op->btree,
+                                  if ((ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref)) ==
+                                    0) WT_RET(__wt_hazard_clear(session, ref));
+                                  else if (ret == EBUSY)
+                                  /* Slow path - resolve */
+                                  ret = 0;
+                                  else WT_RET(ret););
+                }
 
                 if (S2C(session)->cache->hs_fileid != 0 &&
                   op->btree->id == S2C(session)->cache->hs_fileid)
