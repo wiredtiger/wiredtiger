@@ -317,7 +317,12 @@ __wt_txn_op_delete_commit_apply_timestamps(
                  * commit, but if this happens for a partially timestamped transaction then using
                  * commit_timestamp will lead to out-of-order timestamps. Using
                  * first_commit_timestamp will guarantee a correct timestamp ordering.
+                 *
+                 * Setting durable_timestamp to a value other than the latest timestamp could be an
+                 * issue for prepared transactions, but we can guarantee this function is only
+                 * called on non-prepared transactions.
                  */
+                WT_ASSERT(session, !F_ISSET(txn, WT_TXN_PREPARE));
                 ref->ft_info.del->timestamp = txn->first_commit_timestamp;
                 ref->ft_info.del->durable_timestamp = txn->first_commit_timestamp;
             } else {
@@ -352,7 +357,12 @@ __wt_txn_untimestamped_upd_set_timestamp(
          * if this happens for a partially timestamped transaction then using commit_timestamp will
          * lead to out-of-order timestamps. Using first_commit_timestamp will guarantee a correct
          * timestamp ordering.
+         *
+         * Setting durable_timestamp to a value other than the latest timestamp could be an issue
+         * for prepared transactions, but we can guarantee this function is only called on
+         * non-prepared transactions.
          */
+        WT_ASSERT(session, !F_ISSET(txn, WT_TXN_PREPARE));
         upd->start_ts = txn->first_commit_timestamp;
         upd->durable_ts = txn->first_commit_timestamp;
     } else {
