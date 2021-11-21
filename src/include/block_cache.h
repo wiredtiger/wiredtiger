@@ -24,33 +24,23 @@
 #define BLKCACHE_HASHSIZE_MIN 512
 #define BLKCACHE_HASHSIZE_MAX WT_GIGABYTE
 
-#define WT_BLKCACHE_FULL -2
-#define WT_BLKCACHE_BYPASS -3
-
 #define BLKCACHE_MINREF_INCREMENT 20
 #define BLKCACHE_EVICT_OTHER 0
 #define BLKCACHE_NOT_EVICTION_CANDIDATE 1
-
-/*
- * WT_BLKCACHE_ID --
- *    File ID, checksum, offset and size uniquely identify a block.
- */
-WT_PACKED_STRUCT_BEGIN(__wt_blkcache_id)
-    uint32_t fid;
-    uint32_t checksum;
-    uint32_t size;
-    wt_off_t offset;
-WT_PACKED_STRUCT_END
-#define WT_BLKCACHE_ID_SIZE (sizeof(wt_off_t) + 3 * sizeof(uint32_t))
 
 /*
  * WT_BLKCACHE_ITEM --
  *     Block cache item. It links with other items in the same hash bucket.
  */
 struct __wt_blkcache_item {
-    struct __wt_blkcache_id id;
     TAILQ_ENTRY(__wt_blkcache_item) hashq;
+
+    uint32_t addr[WT_INTPACK64_MAXSIZE * 3];
+    uint32_t fid;
+    uint8_t addr_size;
+
     void *data;
+    uint32_t data_size;
     uint32_t num_references;
 
     /*

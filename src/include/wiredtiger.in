@@ -5139,7 +5139,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! block-manager: block cache file size causing bypass */
 #define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_FILESIZE	1013
 /*! block-manager: block cache lookups */
-#define	WT_STAT_CONN_BLOCK_CACHE_DATA_REFS		1014
+#define	WT_STAT_CONN_BLOCK_CACHE_LOOKUPS		1014
 /*!
  * block-manager: block cache number of blocks not evicted due to
  * overhead
@@ -5161,9 +5161,9 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_PUT		1019
 /*! block-manager: block cache number of eviction passes */
 #define	WT_STAT_CONN_BLOCK_CACHE_EVICTION_PASSES	1020
-/*! block-manager: block cache number of hits including existence checks */
+/*! block-manager: block cache number of hits */
 #define	WT_STAT_CONN_BLOCK_CACHE_HITS			1021
-/*! block-manager: block cache number of misses including existence checks */
+/*! block-manager: block cache number of misses */
 #define	WT_STAT_CONN_BLOCK_CACHE_MISSES			1022
 /*! block-manager: block cache number of put bypasses on checkpoint I/O */
 #define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_CHKPT		1023
