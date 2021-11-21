@@ -129,7 +129,7 @@ class test_timestamp18(wttest.WiredTigerTestCase):
                         self.assertEqual(cursor[self.get_key(i)], value3)
             self.session.rollback_transaction()
 
-    # check that updates with no timestamp at commit time use first_commit_timestamp
+    # Check that updates with no timestamp at commit time use first_commit_timestamp.
     def test_timestamp_backfilling(self):
         self.session.create(self.uri, 'key_format=S, value_format=i'.format(self.key_format))
         c = self.session.open_cursor(self.uri)
