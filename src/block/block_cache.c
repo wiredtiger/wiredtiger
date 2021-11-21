@@ -488,7 +488,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, WT_ITEM *data, const uint8_t *addr, 
      * block is single-threaded at a higher level, and as there should never be a collision, only
      * check in diagnostic mode.
      */
-#ifdef HAVE_DIAGNOSTIC
+#if !defined(HAVE_DIAGNOSTIC)
     if (!write)
 #endif
         TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq)
