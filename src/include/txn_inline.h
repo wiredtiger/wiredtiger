@@ -333,18 +333,17 @@ __wt_txn_op_delete_commit_apply_timestamps(
     } else if ((updp = ref->ft_info.update) != NULL)
         for (; *updp != NULL; ++updp)
             if ((*updp)->start_ts == WT_TS_NONE)
-                __wt_txn_untimestamped_upd_set_timestamp(session, *updp, in_commit_phase);
+                __txn_upd_set_timestamp(session, *updp, in_commit_phase);
 
     WT_REF_UNLOCK(ref, previous_state);
 }
 
 /*
- * __wt_txn_untimestamped_upd_set_timestamp --
+ * __txn_upd_set_timestamp --
  *     Set the timestamp for an untimestamped update.
  */
 static inline void
-__wt_txn_untimestamped_upd_set_timestamp(
-  WT_SESSION_IMPL *session, WT_UPDATE *upd, bool in_commit_phase)
+__txn_upd_set_timestamp(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool in_commit_phase)
 {
     WT_TXN *txn;
     txn = session->txn;
@@ -415,7 +414,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool in_commi
              */
             upd = op->u.op_upd;
             if (upd->start_ts == WT_TS_NONE) {
-                __wt_txn_untimestamped_upd_set_timestamp(session, upd, in_commit_phase);
+                __txn_upd_set_timestamp(session, upd, in_commit_phase);
             }
         }
     }
