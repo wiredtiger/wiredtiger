@@ -153,7 +153,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
              */
             if (F_ISSET(last_upd, WT_UPDATE_RESTORED_FROM_HS) && *upd_entry != NULL &&
               (*upd_entry)->prepare_state == WT_PREPARE_INPROGRESS &&
-              F_ISSET(*upd_entry, WT_UPDATE_RESTORED_FROM_DS)) {
+              F_ISSET(*upd_entry, WT_UPDATE_PREPARE_RESTORED_FROM_DS)) {
                 __wt_free_update_list(session, upd_entry);
                 *upd_entry = NULL;
             }
