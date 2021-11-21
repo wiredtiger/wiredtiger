@@ -36,7 +36,6 @@ class WTPerfConfig:
                  batch_file: str = None,
                  arguments=None,
                  operations=None,
-                 environment: str = None,
                  run_max: int = 1,
                  verbose: bool = False,
                  git_root: str = None,
@@ -49,7 +48,6 @@ class WTPerfConfig:
         self.batch_file = batch_file
         self.arguments = arguments
         self.operations = operations
-        self.environment: str = environment
         self.run_max: int = run_max
         self.verbose: bool = verbose
         self.git_root: str = git_root
@@ -62,7 +60,6 @@ class WTPerfConfig:
                    'arguments': self.arguments,
                    'operations': self.operations,
                    'home_dir': self.home_dir,
-                   'environment': self.environment,
                    'run_max': self.run_max,
                    'verbose': self.verbose,
                    'git_root': self.git_root,

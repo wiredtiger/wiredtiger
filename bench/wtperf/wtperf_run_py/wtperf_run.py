@@ -75,10 +75,8 @@ def get_git_info(git_working_tree_dir):
     return git_info
 
 
-def construct_wtperf_command_line(wtperf: str, env: str, test: str, home: str, arguments: List[str]):
+def construct_wtperf_command_line(wtperf: str, test: str, home: str, arguments: List[str]):
     command_line = []
-    if env is not None:
-        command_line.append(env)
     command_line.append(wtperf)
     if test is not None:
         command_line.append('-O')
@@ -140,7 +138,6 @@ def run_test(config: WTPerfConfig, test_run: int, index: int = 0, arguments: Lis
         print("Home directory path created: {}".format(test_home))
     command_line = construct_wtperf_command_line(
         wtperf=config.wtperf_path,
-        env=config.environment,
         arguments=arguments,
         test=config.test,
         home=test_home)
@@ -164,7 +161,6 @@ def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, index:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--wtperf', help='path of the wtperf executable')
-    parser.add_argument('-e', '--env', help='any environment variables that need to be set for running wtperf')
     parser.add_argument('-t', '--test', help='path of the wtperf test to execute')
     parser.add_argument('-o', '--outfile', help='path of the file to write test output to')
     parser.add_argument('-b', '--brief_output', action="store_true", help='brief (not detailed) test output')
@@ -187,7 +183,6 @@ def parse_args() -> argparse.Namespace:
         print('========')
         print("Configuration:")
         print("  WtPerf path:       {}".format(args.wtperf))
-        print("  Environment:       {}".format(args.env))
         print("  Test path:         {}".format(args.test))
         print("  Home base:         {}".format(args.home))
         print("  Batch file:        {}".format(args.batch_file))
@@ -227,7 +222,6 @@ def parse_json_args(args: argparse.Namespace) -> Tuple[List[str], List[str], WTP
                           batch_file=args.batch_file,
                           arguments=arguments,
                           operations=operations,
-                          environment=args.env,
                           run_max=args.runmax,
                           verbose=args.verbose,
                           git_root=args.git_root,
