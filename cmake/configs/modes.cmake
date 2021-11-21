@@ -111,7 +111,7 @@ endif()
 
 # ASAN build variant flags.
 if(MSVC)
-    set(asan_link_c_flags "/fsanitize=address")
+    set(asan_link_flags "/fsanitize=address")
     set(asan_compiler_c_flag "/fsanitize=address")
     set(asan_compiler_cxx_flag "/fsanitize=address")
 else()
