@@ -713,11 +713,10 @@ __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
 
     WT_ERR(__eventv_gen_msg(session, buffer, &remain, is_json, 0, NULL, 0, WT_VERB_PROGRESS,
       WT_VERBOSE_INFO, &v, "", ap));
-    if (handler != NULL && handler->handle_progress != NULL)
-        ret = handler->handle_progress(handler, wt_session, operation, v);
 err:
-    if (ret != 0)
-        __handler_failure(session, ret, "progress", false);
+    if (handler != NULL && handler->handle_progress != NULL)
+        if ((ret = handler->handle_progress(handler, wt_session, operation, v)) != 0)
+            __handler_failure(session, ret, "progress", false);
     return (0);
 }
 
