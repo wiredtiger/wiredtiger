@@ -198,7 +198,7 @@ __eventv_unpack_json_str(u_char *dest, size_t dest_len, char *src, size_t src_le
 static int
 __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, bool is_json,
   int error, const char *func, int line, WT_VERBOSE_CATEGORY category, WT_VERBOSE_LEVEL level,
-  uint64_t *progress, const char *fmt, va_list ap) WT_GCC_FUNC_ATTRIBUTE((cold))
+  uint64_t *progress, const char *msg) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     struct timespec ts;
     WT_DECL_RET;
@@ -256,7 +256,6 @@ __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, boo
             WT_ERROR_APPEND(p, remain, ", %s", prefix);
     }
 
-    /* Message. */
     if (is_json) {
         /* Category and verbosity level. */
         WT_ERROR_APPEND(p, remain, "\"category\":\"%s\",", WT_VERBOSE_CATEGORY_STR(category));
@@ -266,7 +265,7 @@ __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, boo
         WT_ERROR_APPEND(p, remain, "\"verbose_level_id\":%d,", level);
 
         /* Format the content of the message into an intermediate buffer. */
-        WT_ERROR_APPEND_AP(p_msg, remain_msg, fmt, ap);
+        WT_ERROR_APPEND(p_msg, remain_msg, "%s", msg);
 
         /* Escape any characters that are special for JSON. */
         msg_len = sizeof(msg_str) - remain_msg;
@@ -274,6 +273,7 @@ __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, boo
         WT_ERR(__wt_malloc(session, unpacked_msg_len + 1, &unpacked_json_str));
         WT_UNUSED(__eventv_unpack_json_str(unpacked_json_str, unpacked_msg_len, msg_str, msg_len));
 
+        /* Message. */
         WT_ERROR_APPEND(p, remain, "\"msg\":\"");
         if (func != NULL)
             WT_ERROR_APPEND(p, remain, "%s:%d:", func, line);
@@ -297,10 +297,9 @@ __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, boo
         if (progress != NULL)
             WT_ERROR_APPEND(p, remain, " progress %" PRIu64, *progress);
 
-        if (strlen(fmt) > 0) {
-            WT_ERROR_APPEND(p, remain, ": ");
-            WT_ERROR_APPEND_AP(p, remain, fmt, ap);
-        }
+        /* Message. */
+        if (strlen(msg) > 0)
+            WT_ERROR_APPEND(p, remain, ": %s", msg);
     }
 
     /* Error message. */
@@ -346,7 +345,8 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, bool is_json, int error, cons
     WT_DECL_RET;
     WT_EVENT_HANDLER *handler;
     WT_SESSION *wt_session;
-    size_t remain;
+    size_t remain, remain_msg;
+    char *p;
 
     /*
      * We're using a stack buffer because we want error messages no matter
@@ -356,8 +356,10 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, bool is_json, int error, cons
      * SECURITY:
      * Buffer placed at the end of the stack in case snprintf overflows.
      */
-    char s[4 * 1024];
+    char msg[4 * 1024], s[4 * 1024];
+    p = msg;
     remain = sizeof(s);
+    remain_msg = sizeof(msg);
 
     /*
      * !!!
@@ -373,8 +375,9 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, bool is_json, int error, cons
         goto err;
 
     /* Format the message. */
+    WT_ERROR_APPEND_AP(p, remain_msg, fmt, ap);
     WT_ERR(__eventv_gen_msg(
-      session, s, &remain, is_json, error, func, line, category, level, NULL, fmt, ap));
+      session, s, &remain, is_json, error, func, line, category, level, NULL, msg));
 
     /*
      * If a handler fails, return the error status: if we're in the process of handling an error,
@@ -700,20 +703,20 @@ __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
     WT_SESSION *wt_session;
     size_t remain;
     char buffer[1024];
-    const char *operation;
+    const char *operation, *msg;
     bool is_json;
-    va_list ap;
 
     wt_session = (WT_SESSION *)session;
 
     handler = session->event_handler;
     is_json = FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_PROGRESS);
+    msg = "";
     operation = s == NULL ? session->name : s;
     remain = sizeof(buffer);
 
-    WT_ERR(__eventv_gen_msg(session, buffer, &remain, is_json, 0, NULL, 0, WT_VERB_PROGRESS,
-      WT_VERBOSE_INFO, &v, "", ap));
-err:
+    WT_RET(__eventv_gen_msg(
+      session, buffer, &remain, is_json, 0, NULL, 0, WT_VERB_PROGRESS, WT_VERBOSE_INFO, &v, msg));
+
     if (handler != NULL && handler->handle_progress != NULL)
         if ((ret = handler->handle_progress(handler, wt_session, operation, v)) != 0)
             __handler_failure(session, ret, "progress", false);
