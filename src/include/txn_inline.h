@@ -289,6 +289,38 @@ __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool comm
 }
 
 /*
+ * __txn_upd_set_timestamp --
+ *     Set the timestamp for an untimestamped update.
+ */
+static inline void
+__txn_upd_set_timestamp(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool in_commit_phase)
+{
+    WT_TXN *txn;
+    txn = session->txn;
+
+    WT_ASSERT(session, upd->start_ts == WT_TS_NONE);
+
+    if (in_commit_phase) {
+        /*
+         * Updates without a timestamp can be retroactively timestamped on transaction commit, but
+         * if this happens for a partially timestamped transaction then using commit_timestamp will
+         * lead to out-of-order timestamps. Using first_commit_timestamp will guarantee a correct
+         * timestamp ordering.
+         *
+         * Setting durable_timestamp to a value other than the latest timestamp could be an issue
+         * for prepared transactions, but we can guarantee this function is only called on
+         * non-prepared transactions.
+         */
+        WT_ASSERT(session, !F_ISSET(txn, WT_TXN_PREPARE));
+        upd->start_ts = txn->first_commit_timestamp;
+        upd->durable_ts = txn->first_commit_timestamp;
+    } else {
+        upd->start_ts = txn->commit_timestamp;
+        upd->durable_ts = txn->durable_timestamp;
+    }
+}
+
+/*
  * __wt_txn_op_delete_commit_apply_timestamps --
  *     Apply the correct start and durable timestamps to any updates in the page del update list.
  */
@@ -336,38 +368,6 @@ __wt_txn_op_delete_commit_apply_timestamps(
                 __txn_upd_set_timestamp(session, *updp, in_commit_phase);
 
     WT_REF_UNLOCK(ref, previous_state);
-}
-
-/*
- * __txn_upd_set_timestamp --
- *     Set the timestamp for an untimestamped update.
- */
-static inline void
-__txn_upd_set_timestamp(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool in_commit_phase)
-{
-    WT_TXN *txn;
-    txn = session->txn;
-
-    WT_ASSERT(session, upd->start_ts == WT_TS_NONE);
-
-    if (in_commit_phase) {
-        /*
-         * Updates without a timestamp can be retroactively timestamped on transaction commit, but
-         * if this happens for a partially timestamped transaction then using commit_timestamp will
-         * lead to out-of-order timestamps. Using first_commit_timestamp will guarantee a correct
-         * timestamp ordering.
-         *
-         * Setting durable_timestamp to a value other than the latest timestamp could be an issue
-         * for prepared transactions, but we can guarantee this function is only called on
-         * non-prepared transactions.
-         */
-        WT_ASSERT(session, !F_ISSET(txn, WT_TXN_PREPARE));
-        upd->start_ts = txn->first_commit_timestamp;
-        upd->durable_ts = txn->first_commit_timestamp;
-    } else {
-        upd->start_ts = txn->commit_timestamp;
-        upd->durable_ts = txn->durable_timestamp;
-    }
 }
 
 /*
