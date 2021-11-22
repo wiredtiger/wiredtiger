@@ -275,16 +275,17 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
      */
     if ((op->type == WT_TXN_OP_BASIC_COL || op->type == WT_TXN_OP_INMEM_COL ||
           op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
-      (upd = op->u.op_upd) != NULL && upd->next != NULL && upd->next->txnid == txn->id &&
-      !F_ISSET(upd, WT_UPDATE_RESTORED_FAST_TRUNCATE)) {
+      (upd = op->u.op_upd) != NULL && upd->next != NULL && upd->next->txnid == txn->id) {
         upd = upd->next;
-        for (prevop = op - 1; prevop >= txn->mod; prevop--) {
-            if (prevop->type == op->type && prevop->u.op_upd == upd) {
-                F_SET(prevop, WT_TXN_OP_KEY_REPEATED);
-                break;
+        if (!F_ISSET(upd, WT_UPDATE_RESTORED_FAST_TRUNCATE)) {
+            for (prevop = op - 1; prevop >= txn->mod; prevop--) {
+                if (prevop->type == op->type && prevop->u.op_upd == upd) {
+                    F_SET(prevop, WT_TXN_OP_KEY_REPEATED);
+                    break;
+                }
             }
+            WT_ASSERT(session, prevop >= txn->mod);
         }
-        WT_ASSERT(session, prevop >= txn->mod);
     }
 
     /* Set the weak hazard pointer for this update. */
