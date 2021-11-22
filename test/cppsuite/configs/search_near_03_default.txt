@@ -7,6 +7,10 @@
 # table has changed.
 duration_seconds=300,
 cache_size_mb=500,
+timestamp_manager=
+(
+    stable_lag=30,
+),
 workload_generator=
 (
     populate_config=

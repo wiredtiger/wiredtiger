@@ -9,6 +9,10 @@
 # space to split across pages.
 duration_seconds=1800,
 cache_size_mb=500,
+timestamp_manager=
+(
+    stable_lag=60,
+),
 workload_generator=
 (
     populate_config=
