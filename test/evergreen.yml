@@ -608,8 +608,8 @@ functions:
           ${pip3_binary} install psutil pygit2
           JSON_TASK_INFO='{ "evergreen_task_info": { "is_patch": "'${is_patch}'", "task_id": "'${task_id}'", "distro_id": "'${distro_id}'" } }'
           echo "JSON_TASK_INFO: $JSON_TASK_INFO"
-          ${test_env_vars|} ${python_binary} ../../../bench/wtperf/wtperf_run_py/wtperf_run.py -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
-          ${test_env_vars|} ${python_binary} ../../../bench/wtperf/wtperf_run_py/wtperf_run.py -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -re -o test_stats/atlas_out_${perf-test-name}.json ${wtarg}
+          ${test_env_vars|} ${python_binary} ../../../bench/perf_run_py/perf_run.py -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
+          ${test_env_vars|} ${python_binary} ../../../bench/perf_run_py/perf_run.py -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -re -o test_stats/atlas_out_${perf-test-name}.json ${wtarg}
 
   "upload-perf-test-stats":
     - command: shell.exec
@@ -650,7 +650,7 @@ functions:
           set -o errexit
           ${virtualenv_binary} -p ${python_binary} venv
           source venv/bin/activate
-          ${python_binary} ../../../bench/wtperf/wtperf_run_py/validate_expected_stats.py '${expected-stats}' '${stat_file}'
+          ${python_binary} ../../../bench/perf_run_py/validate_expected_stats.py '${expected-stats}' '${stat_file}'
 
 #######################################
 #               Variables             #

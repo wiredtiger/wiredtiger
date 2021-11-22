@@ -215,7 +215,7 @@ def parse_args() -> argparse.Namespace:
         sys.exit("A batch file (-bf) should not be defined at the same time as -ops or -args")
     if not args.verbose and not args.outfile:
         sys.exit("Enable verbosity (or provide a file path) to dump the stats. "
-                 "Try 'python3 wtperf_run.py --help' for more information.")
+                 "Try 'python3 perf_run.py --help' for more information.")
     return args
 
 def parse_json_args(args: argparse.Namespace) -> Tuple[List[str], List[str], PerfConfig, Dict]:
