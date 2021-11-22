@@ -36,6 +36,7 @@
     gen(WT_VERB_LSM_MANAGER)           \
     gen(WT_VERB_METADATA)              \
     gen(WT_VERB_MUTEX)                 \
+    gen(WT_VERB_OUT_OF_ORDER)          \
     gen(WT_VERB_OVERFLOW)              \
     gen(WT_VERB_READ)                  \
     gen(WT_VERB_RECONCILE)             \
