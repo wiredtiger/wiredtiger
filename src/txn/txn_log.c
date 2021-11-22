@@ -277,14 +277,11 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
           op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
       (upd = op->u.op_upd) != NULL && upd->next != NULL && upd->next->txnid == txn->id) {
         upd = upd->next;
-        if (!F_ISSET(upd, WT_UPDATE_RESTORED_FAST_TRUNCATE)) {
-            for (prevop = op - 1; prevop >= txn->mod; prevop--) {
-                if (prevop->type == op->type && prevop->u.op_upd == upd) {
-                    F_SET(prevop, WT_TXN_OP_KEY_REPEATED);
-                    break;
-                }
+        for (prevop = op - 1; prevop >= txn->mod; prevop--) {
+            if (prevop->type == op->type && prevop->u.op_upd == upd) {
+                F_SET(prevop, WT_TXN_OP_KEY_REPEATED);
+                break;
             }
-            WT_ASSERT(session, prevop >= txn->mod);
         }
     }
 
