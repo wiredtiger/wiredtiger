@@ -650,7 +650,7 @@ functions:
           set -o errexit
           ${virtualenv_binary} -p ${python_binary} venv
           source venv/bin/activate
-          ${python_binary} ../../../bench/perf_run_py/validate_expected_stats.py '${expected-stats}' '${stat_file}'
+          ${python_binary} ../../../bench/perf_run_py/validate_expected_stats.py '${stat_file}' ${comparison_op} '${expected-stats}'
 
 #######################################
 #               Variables             #
@@ -3444,8 +3444,9 @@ tasks:
           wtarg: -args ['"-C statistics_log=(wait=10000,on_close=true,json=false,sources=[file:])", "-o reopen_connection=false"'] -ops ['"eviction_page_seen"']
       - func: "validate-expected-stats"
         vars:
-          expected-stats: '{"Pages seen by eviction": 200}'
           stat_file: './test_stats/evergreen_out_evict-fairness.wtperf.json'
+          comparison_op: "eq"
+          expected-stats: '{"Pages seen by eviction": 200}'
 
   - name: perf-test-evict-btree-stress-multi
     tags: ["stress-perf"]
@@ -3710,6 +3711,11 @@ tasks:
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: many-dhandle-stress.py
+      - func: "validate-expected-stats"
+        vars:
+          stat_file: './test_stats/evergreen_out_many-dhandle-stress.py.json'
+          comparison_op: "lt"
+          expected-stats: '{"Warning Idle (drop)": 50, "Latency drop(in sec.) Max1": 500, "Latency warnings (read, insert, update)": 500}'
 
 #######################################
 #            Buildvariants            #
