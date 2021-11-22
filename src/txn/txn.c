@@ -1623,7 +1623,7 @@ __txn_op_commit(
 
     /*
      * If an operation has the key repeated flag set, skip resolving updates as the work will happen
-     * on a different modification in this txn.
+     * on a different operation in this txn.
      */
     if (F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
         return (0);
@@ -2008,7 +2008,7 @@ __txn_op_prepare(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *upd, u_int 
 
     /*
      * If an operation has the key repeated flag set, skip resolving updates as the work will happen
-     * on a different modification in this txn.
+     * on a different operation in this txn.
      */
     if (F_ISSET(op, WT_TXN_OP_KEY_REPEATED)) {
         ++(*key_repeated_updatesp);
@@ -2046,7 +2046,6 @@ __txn_op_prepare(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *upd, u_int 
          * problem.
          */
         upd->durable_ts = WT_TS_NONE;
-
         WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
     }
 }
@@ -2195,7 +2194,7 @@ __txn_op_rollback(
 
     /*
      * If an operation has the key repeated flag set, skip resolving updates as the work will happen
-     * on a different modification in this txn.
+     * on a different operation in this txn.
      */
     if (F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
         return (0);

@@ -497,10 +497,6 @@ __wt_btcur_search_uncommitted(WT_CURSOR *cursor, WT_UPDATE **updp)
             upd = cbt->ins->upd;
         else if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
             upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
-        else
-            upd = NULL;
-
-        WT_ASSERT(CUR2S(cursor), upd != NULL);
         break;
     case BTREE_COL_FIX:
     case BTREE_COL_VAR:
