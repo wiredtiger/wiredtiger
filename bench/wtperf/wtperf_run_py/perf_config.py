@@ -28,9 +28,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-class WTPerfConfig:
+class PerfConfig:
     def __init__(self,
-                 wtperf_path: str,
+                 exec_path: str,
                  home_dir: str,
                  test: str,
                  batch_file: str = None,
@@ -42,7 +42,7 @@ class WTPerfConfig:
                  json_info=None):
         if json_info is None:
             json_info = {}
-        self.wtperf_path: str = wtperf_path
+        self.exec_path: str = exec_path
         self.home_dir: str = home_dir
         self.test: str = test
         self.batch_file = batch_file
@@ -54,7 +54,7 @@ class WTPerfConfig:
         self.json_info: dict = json_info
 
     def to_value_dict(self):
-        as_dict = {'wt_perf_path': self.wtperf_path,
+        as_dict = {'exec_path': self.exec_path,
                    'test': self.test,
                    'batch_file': self.batch_file,
                    'arguments': self.arguments,
