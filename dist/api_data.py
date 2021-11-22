@@ -1504,7 +1504,12 @@ methods = {
         Config('release_evict', 'false', r'''
             Configure the cursor to evict the page positioned on when the
             reset API is used''',
-            type='boolean')
+            type='boolean'),
+        Config('version_cursor', 'false', r'''
+            open a version cursor, which is a debug cursor on a table that
+            enables iteration through all updates/versions of a key inside
+            the table.''',
+            type='boolean'),
         ]),
     Config('dump', '', r'''
         configure the cursor for dump format inputs and outputs: "hex"

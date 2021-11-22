@@ -448,6 +448,7 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
   WT_CURSOR *other, const char *cfg[], uint64_t hash_value, WT_CURSOR **cursorp)
 {
     WT_COLGROUP *colgroup;
+    WT_CONFIG_ITEM cval;
     WT_DATA_SOURCE *dsrc;
     WT_DECL_RET;
 
@@ -465,8 +466,18 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
      * Common cursor types.
      */
     case 't':
-        if (WT_PREFIX_MATCH(uri, "table:"))
-            WT_RET(__wt_curtable_open(session, uri, owner, cfg, cursorp));
+        if (WT_PREFIX_MATCH(uri, "table:")) {
+            /*
+             * Open a version cursor instead of a table cursor if we are using the special debug
+             * configuration.
+             */
+            if ((ret = __wt_config_gets_def(session, cfg, "debug.version_cursor", 0, &cval)) == 0) {
+                if (cval.val)
+                    WT_RET(__wt_curversion_open(session, uri, owner, cfg, cursorp));
+                else
+                    WT_RET(__wt_curtable_open(session, uri, owner, cfg, cursorp));
+            }
+        }
         if (WT_PREFIX_MATCH(uri, "tiered:"))
             WT_RET(__wt_curfile_open(session, uri, owner, cfg, cursorp));
         break;
