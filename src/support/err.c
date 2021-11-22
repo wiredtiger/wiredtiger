@@ -297,8 +297,10 @@ __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, boo
         if (progress != NULL)
             WT_ERROR_APPEND(p, remain, " progress %" PRIu64, *progress);
 
-        WT_ERROR_APPEND(p, remain, ": ");
-        WT_ERROR_APPEND_AP(p, remain, fmt, ap);
+        if (strlen(fmt) > 0) {
+            WT_ERROR_APPEND(p, remain, ": ");
+            WT_ERROR_APPEND_AP(p, remain, fmt, ap);
+        }
     }
 
     /* Error message. */
