@@ -287,7 +287,6 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
                 }
 
             WT_ASSERT(session, prevop >= txn->mod);
-            break;
         }
 
     /* Set the weak hazard pointer for this update. */
