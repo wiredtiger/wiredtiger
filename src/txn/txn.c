@@ -2047,8 +2047,6 @@ __txn_op_prepare(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *upd, u_int 
          */
         upd->durable_ts = WT_TS_NONE;
 
-        if (upd->next != NULL && upd->next->txnid == upd->txnid)
-            F_SET(op, WT_TXN_OP_KEY_REPEATED);
         WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
     }
 }

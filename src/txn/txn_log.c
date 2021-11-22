@@ -253,7 +253,8 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     WT_DECL_RET;
     WT_ITEM *logrec;
     WT_TXN *txn;
-    WT_TXN_OP *op;
+    WT_TXN_OP *op, *prevop;
+    WT_UPDATE *upd;
     uint32_t fileid;
 
     conn = S2C(session);
@@ -265,6 +266,29 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     WT_ASSERT(session, txn->mod_count > 0);
     op = txn->mod + txn->mod_count - 1;
     fileid = op->btree->id;
+
+    /*
+     * If there are older updates to this key by the same transaction, set the repeated key flag on
+     * the previous operation. This is used in txn commit/prepare/rollback so we only resolve each
+     * set of updates once. The most recent update (which appears later in the modification array)
+     * is the one we need to resolve in order to find all the updates.
+     */
+    if ((op->type == WT_TXN_OP_BASIC_COL || op->type == WT_TXN_OP_INMEM_COL ||
+          op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
+      (upd = op->u.op_upd) != NULL)
+        for (upd = upd->next; upd != NULL && upd->txnid == txn->id; upd = upd->next) {
+            if (F_ISSET(upd, WT_UPDATE_RESTORED_FAST_TRUNCATE))
+                break;
+
+            for (prevop = op - 1; prevop >= txn->mod; prevop--)
+                if (prevop->type == op->type && prevop->u.op_upd == upd) {
+                    F_SET(prevop, WT_TXN_OP_KEY_REPEATED);
+                    break;
+                }
+
+            WT_ASSERT(session, prevop >= txn->mod);
+            break;
+        }
 
     /* Set the weak hazard pointer for this update. */
     if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW)) {
