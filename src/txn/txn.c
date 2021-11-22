@@ -1787,13 +1787,19 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  */
                 if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
                   !WT_IS_METADATA(op->btree->dhandle) && upd->type != WT_UPDATE_RESERVE) {
-                    WT_WITH_BTREE(session, op->btree,
-                                  if ((ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref)) ==
-                                    0) WT_ERR(__wt_hazard_clear(session, ref));
-                                  else if (ret == EBUSY)
-                                  /* Slow path - resolve */
-                                  ret = 0;
-                                  else WT_ERR(ret););
+                    WT_WITH_BTREE(
+                      session, op->btree, ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref));
+                    if (ret == 0)
+                        WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_clear(session, ref));
+                    else if (ret == EBUSY) {
+                        /* Slow path - resolve */
+                        ret = 0;
+                        WT_SAVE_DHANDLE(
+                          session, ret = __txn_search_uncommitted_op(session, op, &cursor, &upd));
+                        WT_ERR(ret);
+                        WT_ASSERT(session, op->u.op_upd == upd);
+                    } else
+                        WT_ERR(ret);
                 }
 
                 /*
@@ -2048,13 +2054,19 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
              */
             if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
               !WT_IS_METADATA(op->btree->dhandle) && upd->type != WT_UPDATE_RESERVE) {
-                WT_WITH_BTREE(session, op->btree,
-                              if ((ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref)) == 0)
-                                WT_RET(__wt_hazard_clear(session, ref));
-                              else if (ret == EBUSY)
-                              /* Slow path - resolve */
-                              ret = 0;
-                              else WT_RET(ret););
+                WT_WITH_BTREE(
+                  session, op->btree, ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref));
+                if (ret == 0)
+                    WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_clear(session, ref));
+                else if (ret == EBUSY) {
+                    /* Slow path - resolve */
+                    ret = 0;
+                    //WT_SAVE_DHANDLE(
+                    //  session, ret = __txn_search_uncommitted_op(session, op, &cursor, &upd));
+                    //WT_RET(ret);
+                    //WT_ASSERT(session, op->u.op_upd == upd);
+                } else
+                    WT_RET(ret);
             }
 
             ++prepared_updates;
@@ -2189,13 +2201,19 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
                  */
                 if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
                   !WT_IS_METADATA(op->btree->dhandle) && upd->type != WT_UPDATE_RESERVE) {
-                    WT_WITH_BTREE(session, op->btree,
-                                  if ((ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref)) ==
-                                    0) WT_RET(__wt_hazard_clear(session, ref));
-                                  else if (ret == EBUSY)
-                                  /* Slow path - resolve */
-                                  ret = 0;
-                                  else WT_RET(ret););
+                    WT_WITH_BTREE(
+                      session, op->btree, ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref));
+                    if (ret == 0)
+                        WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_clear(session, ref));
+                    else if (ret == EBUSY) {
+                        /* Slow path - resolve */
+                        ret = 0;
+                        WT_SAVE_DHANDLE(
+                          session, ret = __txn_search_uncommitted_op(session, op, &cursor, &upd));
+                        WT_RET(ret);
+                        WT_ASSERT(session, op->u.op_upd == upd);
+                    } else
+                        WT_RET(ret);
                 }
 
                 if (S2C(session)->cache->hs_fileid != 0 &&
