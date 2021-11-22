@@ -99,13 +99,13 @@ define_c_test(
 #         "test_tiered_abort_5_thread;-b ${CMAKE_BINARY_DIR} -t 10 -T 5"
 #     DEPENDS "WT_POSIX"
 # )
-if (WT_POSIX)    
-    create_test_executable(test_tiered_abort    
-        SOURCES tiered_abort/main.c    
-        FLAGS "-DWT_STORAGE_LIB=\"ext/storage_sources/local_store/libwiredtiger_local_store.so\""    
-        BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/tiered_abort    
-    )                                                                                                                                                      
-endif() 
+if (WT_POSIX)
+    create_test_executable(test_tiered_abort
+        SOURCES tiered_abort/main.c
+        FLAGS "-DWT_STORAGE_LIB=\"ext/storage_sources/local_store/libwiredtiger_local_store.so\""
+        BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/tiered_abort
+    )
+endif()
 
 define_c_test(
     TARGET test_timestamp_abort
@@ -186,6 +186,14 @@ define_c_test(
     SOURCES wt2592_join_schema/main.c
     DIR_NAME wt2592_join_schema
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2592_join_schema>/WT_HOME>
+)
+
+define_c_test(
+    TARGET test_wt2719_reconfig
+    SOURCES wt2719_reconfig/main.c
+    DIR_NAME wt2719_reconfig
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2719_reconfig>/WT_HOME>
+    DEPENDS "WT_POSIX"
 )
 
 define_c_test(
