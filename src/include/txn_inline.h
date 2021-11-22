@@ -361,7 +361,6 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *up
              * The timestamp is in the update for operations other than truncate. Both commit and
              * durable timestamps need to be updated.
              */
-            upd = op->u.op_upd;
             if (upd->start_ts == WT_TS_NONE) {
                 upd->start_ts = txn->commit_timestamp;
                 upd->durable_ts = txn->durable_timestamp;
