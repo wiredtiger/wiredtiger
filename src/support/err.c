@@ -696,7 +696,7 @@ __wt_ext_strerror(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, int error)
  *     Progress message.
  */
 int
-__wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
+__wt_progress(WT_SESSION_IMPL *session, WT_VERBOSE_CATEGORY category, const char *s, uint64_t v)
 {
     WT_DECL_RET;
     WT_EVENT_HANDLER *handler;
@@ -715,7 +715,7 @@ __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
     remain = sizeof(buffer);
 
     WT_RET(__eventv_gen_msg(
-      session, buffer, &remain, is_json, 0, NULL, 0, WT_VERB_PROGRESS, WT_VERBOSE_INFO, &v, msg));
+      session, buffer, &remain, is_json, 0, NULL, 0, category, WT_VERBOSE_INFO, &v, msg));
 
     if (handler != NULL && handler->handle_progress != NULL)
         if ((ret = handler->handle_progress(handler, wt_session, operation, v)) != 0)
