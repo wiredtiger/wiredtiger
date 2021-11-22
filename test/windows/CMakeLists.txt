@@ -33,12 +33,7 @@ set(sources
 )
 
 set(link_type)
-if(ENABLE_STATIC)
-    set(link_type "STATIC")
-else()
-    set(link_type "SHARED")
-endif()
-add_library(windows_shim ${link_type} ${sources})
+add_library(windows_shim STATIC ${sources})
 
 target_include_directories(
     windows_shim
