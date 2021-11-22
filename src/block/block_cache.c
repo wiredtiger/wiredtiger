@@ -469,10 +469,9 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, WT_ITEM *data, const uint8_t *addr, 
     WT_ASSERT(session, addr_size <= sizeof(blkcache_store->addr));
     blkcache_store->addr_size = (uint8_t)addr_size;
     memcpy(blkcache_store->addr, addr, addr_size);
-    blkcache_store->data_size = WT_STORE_SIZE(data->size);
     blkcache_store->data = data_ptr;
+    blkcache_store->data_size = WT_STORE_SIZE(data->size);
     memcpy(blkcache_store->data, data->data, data->size);
-    blkcache_store->data_size = data->size;
 
     hash = __wt_hash_city64(addr, addr_size);
     bucket = hash % blkcache->hash_size;
