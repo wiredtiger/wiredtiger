@@ -46,6 +46,7 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
         'error_str': {'type': str, 'always_expected': False },
         'error_code': {'type': int, 'always_expected': False },
         'msg': {'type': str, 'always_expected': True },
+        'progress': {'type': int, 'always_expected': False },
         'session_dhandle_name': {'type': str, 'always_expected': False },
         'session_err_prefix': {'type': str, 'always_expected': False },
         'session_name': {'type': str, 'always_expected': False },
