@@ -37,6 +37,7 @@
     gen(WT_VERB_METADATA)              \
     gen(WT_VERB_MUTEX)                 \
     gen(WT_VERB_OVERFLOW)              \
+    gen(WT_VERB_PROGRESS)              \
     gen(WT_VERB_READ)                  \
     gen(WT_VERB_RECONCILE)             \
     gen(WT_VERB_RECOVERY)              \
