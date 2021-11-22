@@ -49,9 +49,9 @@ def main():
     args = parser.parse_args()
 
     stat_file_regex = re.compile(r"evergreen_out[\w\\.-]*\.json")
-    # if not re.match(stat_file_regex, os.path.basename(args.stat_file)):
-    #     print(f"ERROR: '{args.stat_file}' should be the path to an evergreen_out*.json file")
-    #     exit(1)
+    if not re.match(stat_file_regex, os.path.basename(args.stat_file)):
+        print(f"ERROR: '{args.stat_file}' should be the path to an evergreen_out*.json file")
+        exit(1)
 
     if args.comparison_op not in ["eq", "gt", "lt"]:
         print(f"ERROR: comparison operator should be 'eq', 'gt', or 'lt', provided operator: '{args.comparison_op}'")
@@ -71,10 +71,10 @@ def main():
                     errors.append(f"Error: '{stat}'\t value mismatch. Expected: {expected_stats[stat]}, Actual: {test_output[stat]}")
             elif args.comparison_op == "gt":
                 if test_output[stat] <= expected_stats[stat]:
-                    errors.append(f"Error: Expected '{stat}' (value: {test_output[stat]}) from '{args.stat_file}' to be greater than the expected value {expected_stats[stat]}")
+                    errors.append(f"Error: '{stat}' (value: {test_output[stat]}) in '{args.stat_file}' is less than(or equal) to {expected_stats[stat]}")
             elif args.comparison_op == "lt":
                 if test_output[stat] >= expected_stats[stat]:
-                     errors.append(f"Error: Expected '{stat}' (value: {test_output[stat]}) from '{args.stat_file}' to be less than the expected value {expected_stats[stat]}")
+                    errors.append(f"Error: '{stat}' (value: {test_output[stat]}) in '{args.stat_file}' is greater than(or equal) to the threshold value {expected_stats[stat]}")
     if errors:
         print("ERROR: Expected values not found:")
         print('\n'.join(errors))
