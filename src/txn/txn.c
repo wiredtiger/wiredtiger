@@ -2022,6 +2022,12 @@ __txn_op_prepare(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *upd, u_int 
             break;
 
         /*
+         * Increment the number of found prepared updates. We count reserved updates as prepared
+         * updates as we can't distinguish them yet in commit or rollback from regular updates.
+         */
+        ++(*prepared_updatesp);
+
+        /*
          * Switch reserved operation to abort to simplify obsolete update list truncation. The
          * object free function clears the operation type so we don't try to visit this update
          * again: it can be discarded.
@@ -2040,9 +2046,6 @@ __txn_op_prepare(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *upd, u_int 
          * problem.
          */
         upd->durable_ts = WT_TS_NONE;
-
-        /* Increment the number of found prepared updates. */
-        ++(*prepared_updatesp);
 
         if (upd->next != NULL && upd->next->txnid == upd->txnid)
             F_SET(op, WT_TXN_OP_KEY_REPEATED);
