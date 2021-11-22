@@ -253,8 +253,7 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     WT_DECL_RET;
     WT_ITEM *logrec;
     WT_TXN *txn;
-    WT_TXN_OP *op, *prevop;
-    WT_UPDATE *upd;
+    WT_TXN_OP *op;
     uint32_t fileid;
 
     conn = S2C(session);
