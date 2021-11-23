@@ -28,7 +28,7 @@
     gen(WT_VERB_EVICT_STUCK)           \
     gen(WT_VERB_EXTENSION)             \
     gen(WT_VERB_FILEOPS)               \
-    gen(WT_VERB_GEN)                   \
+    gen(WT_VERB_GENERATION)            \
     gen(WT_VERB_HANDLEOPS)             \
     gen(WT_VERB_HS)                    \
     gen(WT_VERB_HS_ACTIVITY)           \

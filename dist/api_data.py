@@ -882,7 +882,7 @@ connection_runtime_config = [
             'evict_stuck',
             'evictserver',
             'fileops',
-            'gen',
+            'generation',
             'handleops',
             'history_store',
             'history_store_activity',

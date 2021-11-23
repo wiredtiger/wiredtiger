@@ -163,7 +163,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
             } else {
                 __wt_seconds(session, &stop);
                 if (stop - start > minutes * WT_MINUTE) {
-                    __wt_verbose_notice(session, WT_VERB_GEN,
+                    __wt_verbose_notice(session, WT_VERB_GENERATION,
                       "%s generation drain waited %u minutes", __gen_name(which), minutes);
                     ++minutes;
                     WT_ASSERT(session, minutes < 4);
