@@ -435,7 +435,7 @@ resolve()
 			 echo "$name: original directory copied into $dir.RECOVER"
 			 echo) >> $log
 
-			if $format_binary -Rqv -h $dir > $log 2>&1; then
+			if $format_binary -Rqv -h $dir $trace > $log 2>&1; then
 			    rm -rf $dir $dir.RECOVER $log
 			    success=$(($success + 1))
 			    verbose "$name: job in $dir successfully completed"
