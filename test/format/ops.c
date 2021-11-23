@@ -668,7 +668,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
     WT_DECL_RET;
     TABLE *table;
     u_int i, j;
-    bool next, positioned;
+    bool evict_page, next, positioned;
 
     table = tinfo->table;
 
@@ -849,8 +849,16 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         }
     }
 
-    /* Reset the cursor: there is no reason to keep pages pinned. */
+    /*
+     * Reset the cursor: there is no reason to keep pages pinned, periodically forcibly evict the
+     * underlying page.
+     */
+    evict_page = mmrand(&tinfo->rnd, 1, 20) == 1);
+    if (evict_page)
+        F_SET(tinfo->cursor, WT_CURSTD_DEBUG_RESET_EVICT);
     testutil_check(tinfo->cursor->reset(tinfo->cursor));
+    if (evict_page)
+        F_CLR(tinfo->cursor, WT_CURSTD_DEBUG_RESET_EVICT);
 
     /* Failure already returned if in a transaction (meaning failure requires action). */
     return (0);
@@ -1592,7 +1600,7 @@ row_truncate(TINFO *tinfo)
         WT_RET(ret);
     }
 
-    trace_op(tinfo, "truncate %" PRIu64 ", %" PRIu64, tinfo->keyno, tinfo->last);
+    trace_op(tinfo, "truncate %" PRIu64 "-%" PRIu64, tinfo->keyno, tinfo->last);
 
     return (0);
 }
