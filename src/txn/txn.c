@@ -2088,6 +2088,12 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
         WT_RET(__wt_session_copy_values(session));
     }
 
+    /* For now we will decide not to resolve uncommitted updates on prepare. */
+    if (txn->resolve_uncommitted) {
+        WT_RET(__wt_txn_op_list_clear_weak_hazard(session));
+        txn->resolve_uncommitted = false;
+    }
+
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
         /* Assert it's not an update to the history store file. */
         WT_ASSERT(session, S2C(session)->cache->hs_fileid == 0 || !WT_IS_HS(op->btree->dhandle));
