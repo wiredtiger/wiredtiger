@@ -482,6 +482,17 @@ __recovery_set_checkpoint_snapshot(WT_SESSION_IMPL *session)
       __wt_metadata_search(session, WT_SYSTEM_CKPT_SNAPSHOT_URI, &sys_config), false);
     if (sys_config != NULL) {
         WT_CLEAR(cval);
+        if (__wt_config_getones(session, sys_config, WT_SYSTEM_WRITE_GEN, &cval) == 0 &&
+          cval.len != 0) {
+            /*
+             * Verify the calculated connection write generation number with the saved metadata
+             * information to decide whether the snapshot is valid or not.
+             */
+            if (conn->write_gen != (uint64_t)cval.val)
+                goto err;
+        } else
+            goto err;
+
         if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MIN, &cval) == 0 &&
           cval.len != 0)
             conn->recovery_ckpt_snap_min = (uint64_t)cval.val;
@@ -604,7 +615,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
         WT_ASSIGN_LSN(&r->max_ckpt_lsn, &lsn);
 
     /* Update the base write gen based on this file's configuration. */
-    if ((ret = __wt_metadata_update_base_write_gen(r->session, config)) != 0)
+    if ((ret = __wt_metadata_update_base_write_gen(r->session, uri, config)) != 0)
         WT_RET_MSG(r->session, ret, "Failed recovery setup for %s: cannot update write gen", uri);
     return (0);
 }
