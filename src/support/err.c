@@ -293,13 +293,13 @@ __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, boo
         WT_ERROR_APPEND(
           p, remain, "[%s][%s]", WT_VERBOSE_CATEGORY_STR(category), verbosity_level_tag);
 
-        /* Progress. */
-        if (progress != NULL)
-            WT_ERROR_APPEND(p, remain, " progress %" PRIu64, *progress);
-
         /* Message. */
         if (strlen(msg) > 0)
             WT_ERROR_APPEND(p, remain, ": %s", msg);
+
+        /* Progress. */
+        if (progress != NULL)
+            WT_ERROR_APPEND(p, remain, " progress %" PRIu64, *progress);
     }
 
     /* Error message. */
