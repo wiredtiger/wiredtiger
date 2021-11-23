@@ -253,12 +253,15 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     WT_DECL_RET;
     WT_ITEM *logrec;
     WT_TXN *txn;
-    WT_TXN_OP *op;
+    WT_TXN_OP *op, *prevop;
+    WT_UPDATE *upd;
+    bool resolve_uncommitted, undo_resolving_uncommitted;
 
     uint32_t fileid;
 
     conn = S2C(session);
     txn = session->txn;
+    undo_resolving_uncommitted = false;
 
     /* We'd better have a transaction. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING) && F_ISSET(txn, WT_TXN_HAS_ID));
@@ -266,14 +269,46 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     WT_ASSERT(session, txn->mod_count > 0);
     op = txn->mod + txn->mod_count - 1;
     fileid = op->btree->id;
+    resolve_uncommitted = (txn->resolve_uncommitted && !WT_IS_METADATA(op->btree->dhandle) &&
+      (op->type == WT_TXN_OP_BASIC_COL || op->type == WT_TXN_OP_INMEM_COL ||
+        op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW));
+
+    /*
+     * This is temporary till we support more cases for resolving uncommitted updates: If there are
+     * older updates to this key by the same transaction, or if there are truncates, for now decide
+     * not to proceed with resolving uncommitted updates.
+     */
+    if (resolve_uncommitted && (upd = op->u.op_upd) != NULL)
+        for (upd = upd->next; upd != NULL && upd->txnid == txn->id; upd = upd->next) {
+            if (F_ISSET(upd, WT_UPDATE_RESTORED_FAST_TRUNCATE)) {
+                undo_resolving_uncommitted = true;
+                break;
+            }
+
+            for (prevop = op - 1; prevop >= txn->mod; prevop--)
+                if (prevop->type == op->type && prevop->u.op_upd == upd) {
+                    undo_resolving_uncommitted = true;
+                    break;
+                }
+
+            /* If we are here make sure we found the previous update operation. */
+            WT_ASSERT(session, prevop >= txn->mod);
+            break;
+        }
+
+    /*
+     * If we decide to stop resolving the uncommitted updates, we need to clear the weak hazard
+     * pointers for the operations that have taken one.
+     */
+    if (undo_resolving_uncommitted) {
+        WT_RET(__wt_txn_op_list_clear_weak_hazard(session));
+        resolve_uncommitted = txn->resolve_uncommitted = false;
+    }
 
     /* Set the weak hazard pointer for this update. */
-    if (txn->resolve_uncommitted &&
-      (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW)) {
-        if (!WT_IS_METADATA(op->btree->dhandle)) {
-            WT_ASSERT(session, cbt != NULL);
-            WT_RET(__wt_hazard_weak_set(session, cbt->ref, op));
-        }
+    if (resolve_uncommitted) {
+        WT_ASSERT(session, cbt != NULL);
+        WT_RET(__wt_hazard_weak_set(session, cbt->ref, op));
     }
 
     if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||

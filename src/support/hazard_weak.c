@@ -181,7 +181,7 @@ __wt_hazard_weak_set(WT_SESSION_IMPL *session, WT_REF *ref, WT_TXN_OP *op)
  * __wt_hazard_weak_clear --
  *     Clear a weak hazard pointer.
  */
-static int
+int
 __wt_hazard_weak_clear(WT_SESSION_IMPL *session, WT_HAZARD_WEAK **whpp)
 {
     WT_HAZARD_WEAK *whp;

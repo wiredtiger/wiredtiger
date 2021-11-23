@@ -1612,6 +1612,27 @@ __txn_mod_compare(const void *a, const void *b)
 }
 
 /*
+ * __wt_txn_op_list_clear_weak_hazard --
+ *     Walk the transaction op list clearing all the weak hazard pointers.
+ */
+int
+__wt_txn_op_list_clear_weak_hazard(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    WT_TXN *txn;
+    WT_TXN_OP *op;
+    u_int i;
+
+    txn = session->txn;
+    for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+        if (op->whp != NULL)
+            WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_weak_clear(session, &op->whp));
+        WT_RET(ret);
+    }
+    return (0);
+}
+
+/*
  * __txn_resolve_uncommitted_op --
  *     Resolve an uncommitted op if needed. Fetches the latest update pointer to be used as part of
  *     the transaction operation.
@@ -1635,8 +1656,9 @@ __txn_resolve_uncommitted_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_REF **r
     if (!txn->resolve_uncommitted)
         return (0);
 
-    if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
-      !WT_IS_METADATA(op->btree->dhandle)) {
+    if (!WT_IS_METADATA(op->btree->dhandle) &&
+      (op->type == WT_TXN_OP_BASIC_COL || op->type == WT_TXN_OP_INMEM_COL ||
+        op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW)) {
         /*
          * Try to upgrade the weak pointer. If successful the page is still in memory and we are
          * holding an active hazard pointer. The caller will have to clear the active hazard pointer
