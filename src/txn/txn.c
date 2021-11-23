@@ -1666,11 +1666,6 @@ __txn_resolve_weak_hazard_updates(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_RE
          */
         WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref));
 
-        if (ret == 0) {
-            *refp = ref;
-            return (0);
-        }
-
         /*
          * We could not upgrade the weak pointer - need to resolve the slow path. For diagnostic
          * purposes also attempt a slow path resolution once in a while.
@@ -1680,7 +1675,6 @@ __txn_resolve_weak_hazard_updates(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_RE
           || __wt_random(&session->rnd) % 3 == 0
 #endif
         ) {
-            ret = 0;
             WT_SAVE_DHANDLE(session, ret = __txn_search_uncommitted_op(session, op, &cursor, &upd));
             WT_ERR(ret);
 
@@ -1688,6 +1682,9 @@ __txn_resolve_weak_hazard_updates(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_RE
             WT_ASSERT(session, op->u.op_upd == upd);
 
             op->u.op_upd = upd;
+        } else if (ret == 0) {
+            *refp = ref;
+            return (0);
         }
         WT_ERR(ret);
     }
