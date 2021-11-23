@@ -702,21 +702,22 @@ __wt_progress(WT_SESSION_IMPL *session, WT_VERBOSE_CATEGORY category, const char
     WT_EVENT_HANDLER *handler;
     WT_SESSION *wt_session;
     size_t remain;
-    char buffer[1024];
-    const char *operation, *msg;
+    char operation[1024];
+    const char *msg;
     bool is_json;
 
     wt_session = (WT_SESSION *)session;
 
     handler = session->event_handler;
     is_json = FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_PROGRESS);
-    msg = "";
-    operation = s == NULL ? session->name : s;
-    remain = sizeof(buffer);
+    msg = s == NULL ? session->name : s;
+    remain = sizeof(operation);
 
+    /* Generate message. */
     WT_RET(__eventv_gen_msg(
-      session, buffer, &remain, is_json, 0, NULL, 0, category, WT_VERBOSE_INFO, &v, msg));
+      session, operation, &remain, is_json, 0, NULL, 0, category, WT_VERBOSE_INFO, &v, msg));
 
+    /* Write message. */
     if (handler != NULL && handler->handle_progress != NULL)
         if ((ret = handler->handle_progress(handler, wt_session, operation, v)) != 0)
             __handler_failure(session, ret, "progress", false);
