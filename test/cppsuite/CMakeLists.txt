@@ -59,6 +59,8 @@ target_compile_options(
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 target_link_libraries(cppsuite_test_harness PRIVATE test_util)
+# There's no special sub-path to access a given extension.
+target_compile_options(cppsuite_test_harness PUBLIC -DEXTSUBPATH="")
 
 # Create the different executables.
 create_test_executable(run
@@ -81,16 +83,11 @@ if(ENABLE_TCMALLOC)
     target_link_libraries(csuite_style_example_test wt::tcmalloc)
 endif()
 
-if(ENABLE_SNAPPY)
-    # We use Snappy compression to avoid excessive disk spage usage.
-    target_compile_options(run PRIVATE -DSNAPPY_PATH=\"$<TARGET_FILE:wiredtiger_snappy>\")
-endif()
-
 # Test definitions.
 add_test(NAME cppsuite COMMAND ${CMAKE_CURRENT_BINARY_DIR}/run)
 
 add_test(NAME csuite_style_example COMMAND csuite_style_example_test)
-set_tests_properties(csuite_style_example PROPERTIES LABELS "check")
+set_tests_properties(csuite_style_example PROPERTIES LABELS "check;cppsuite")
 
 # Run this during a "ctest check" smoke test.
-set_tests_properties(cppsuite PROPERTIES LABELS "check")
+set_tests_properties(cppsuite PROPERTIES LABELS "check;cppsuite")

@@ -66,14 +66,14 @@ endif()
 if(ENABLE_STRICT)
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
         include(cmake/strict/gcc_strict.cmake)
-    elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
+    elseif("${CMAKE_C_COMPILER_ID}" MATCHES "^(Apple)?(C|c?)lang")
         include(cmake/strict/clang_strict.cmake)
     elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
         include(cmake/strict/cl_strict.cmake)
     endif()
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
         include(cmake/strict/gxx_strict.cmake)
-    elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
+    elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "^(Apple)?(C|c?)lang")
         include(cmake/strict/clangxx_strict.cmake)
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
         include(cmake/strict/clxx_strict.cmake)
@@ -186,12 +186,14 @@ add_subdirectory(src/utilities)
 # Establish our install target configuration.
 include(cmake/install/install.cmake)
 
+# Enable CTest. Subsequent targets may additionally define their own ctest definitions.
+enable_testing()
+
 if(ENABLE_PYTHON)
    add_subdirectory(lang/python)
 endif()
 
 # Build the wiredtiger test suites.
-enable_testing()
 add_subdirectory(bench/workgen)
 add_subdirectory(bench/wtperf)
 add_subdirectory(examples)
