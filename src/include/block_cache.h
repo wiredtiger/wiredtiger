@@ -35,10 +35,6 @@
 struct __wt_blkcache_item {
     TAILQ_ENTRY(__wt_blkcache_item) hashq;
 
-    uint32_t addr[WT_INTPACK64_MAXSIZE * 3];
-    uint32_t fid;
-    uint8_t addr_size;
-
     void *data;
     uint32_t data_size;
     uint32_t num_references;
@@ -50,6 +46,10 @@ struct __wt_blkcache_item {
      * this counter is a metric combining frequency and recency, and hence its name.
      */
     int32_t freq_rec_counter;
+
+    uint32_t fid;      /* File ID */
+    uint8_t addr_size; /* Address cookie */
+    uint8_t addr[];
 };
 
 /*

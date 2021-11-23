@@ -464,14 +464,13 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, WT_ITEM *data, const uint8_t *addr, 
     WT_RET(__blkcache_alloc(session, data->size, &data_ptr));
     if (data_ptr == NULL)
         return (0);
-    WT_ERR(__wt_calloc_one(session, &blkcache_store));
-    blkcache_store->fid = S2BT(session)->id;
-    WT_ASSERT(session, addr_size <= sizeof(blkcache_store->addr));
-    blkcache_store->addr_size = (uint8_t)addr_size;
-    memcpy(blkcache_store->addr, addr, addr_size);
+    WT_ERR(__wt_calloc(session, 1, sizeof(*blkcache_store) + addr_size, &blkcache_store));
     blkcache_store->data = data_ptr;
     blkcache_store->data_size = WT_STORE_SIZE(data->size);
     memcpy(blkcache_store->data, data->data, data->size);
+    blkcache_store->fid = S2BT(session)->id;
+    blkcache_store->addr_size = (uint8_t)addr_size;
+    memcpy(blkcache_store->addr, addr, addr_size);
 
     hash = __wt_hash_city64(addr, addr_size);
     bucket = hash % blkcache->hash_size;
