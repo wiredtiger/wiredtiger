@@ -1077,7 +1077,7 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
          * generation informations as this information is going to be saved in the metadata file
          * itself for every checkpoint.
          */
-        if (!WT_IS_METADATA(session->dhandle))
+        if (session->dhandle == NULL || !WT_IS_METADATA(session->dhandle))
             S2C(session)->write_gen = WT_MAX(ckpt->write_gen, S2C(session)->write_gen);
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
