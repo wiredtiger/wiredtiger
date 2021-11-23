@@ -269,7 +269,7 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 
     /* Set the weak hazard pointer for this update. */
     if (txn->resolve_uncommitted &&
-        (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW)) {
+      (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW)) {
         if (!WT_IS_METADATA(op->btree->dhandle)) {
             WT_ASSERT(session, cbt != NULL);
             WT_RET(__wt_hazard_weak_set(session, cbt->ref, op));

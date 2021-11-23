@@ -1612,6 +1612,74 @@ __txn_mod_compare(const void *a, const void *b)
 }
 
 /*
+ * __txn_resolve_uncommitted_op --
+ *     Resolve an uncommitted op if needed. Fetches the latest update pointer to be used as part of
+ *     the transaction operation.
+ */
+static int
+__txn_resolve_uncommitted_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_REF **refp)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_REF *ref;
+    WT_TXN *txn;
+    WT_UPDATE *upd;
+
+    *refp = NULL;
+
+    cursor = NULL;
+    ref = NULL;
+    txn = session->txn;
+
+    /* If we disabled resolution for some reason - do nothing. */
+    if (!txn->resolve_uncommitted)
+        return (0);
+
+    if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
+      !WT_IS_METADATA(op->btree->dhandle)) {
+        /*
+         * Try to upgrade the weak pointer. If successful the page is still in memory and we are
+         * holding an active hazard pointer. The caller will have to clear the active hazard pointer
+         * when it is done using the page.
+         */
+        WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref));
+
+        if (ret == 0) {
+            *refp = ref;
+            return (0);
+        }
+
+        /*
+         * We could not upgrade the weak pointer - need to resolve the slow path. For diagnostic
+         * purposes also attempt a slow path resolution once in a while.
+         */
+        if (ret == EBUSY
+#ifdef HAVE_DIAGNOSTIC
+          || __wt_random(&session->rnd) % 3 == 0
+#endif
+        ) {
+            ret = 0;
+            WT_SAVE_DHANDLE(session, ret = __txn_search_uncommitted_op(session, op, &cursor, &upd));
+            WT_ERR(ret);
+
+            /* Since we are not evicting yet - we expect to find the update we already have. */
+            WT_ASSERT(session, op->u.op_upd == upd);
+
+            op->u.op_upd = upd;
+        }
+        WT_ERR(ret);
+    }
+
+err:
+    if (cursor != NULL) {
+        WT_CLEAR(cursor->key);
+        WT_TRET(cursor->close(cursor));
+    }
+
+    return (ret);
+}
+
+/*
  * __wt_txn_commit --
  *     Commit the current transaction.
  */
@@ -1776,26 +1844,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
             if (!prepare) {
                 /*
-                 * For now just try to upgrade and in case successful immediately release the active
-                 * hazard pointer.
+                 * For now just try to resolve and if successful and returned an active hazard
+                 * reference, immediately release the active hazard pointer.
                  */
-                if (txn->resolve_uncommitted &&
-                  (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
-                  !WT_IS_METADATA(op->btree->dhandle) && upd->type != WT_UPDATE_RESERVE) {
-                    WT_WITH_BTREE(
-                      session, op->btree, ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref));
-                    if (ret == 0)
-                        WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_clear(session, ref));
-                    else if (ret == EBUSY) {
-                        /* Slow path - resolve */
-                        ret = 0;
-                        WT_SAVE_DHANDLE(
-                          session, ret = __txn_search_uncommitted_op(session, op, &cursor, &upd));
-                        WT_ERR(ret);
-                        WT_ASSERT(session, op->u.op_upd == upd);
-                    } else
-                        WT_ERR(ret);
-                }
+                WT_ERR(__txn_resolve_uncommitted_op(session, op, &ref));
+                if (ref != NULL)
+                    WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_clear(session, ref));
 
                 /*
                  * Switch reserved operations to abort to simplify obsolete update list truncation.
@@ -2175,26 +2229,12 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
             if (!prepare) {
                 /*
-                 * For now just try to upgrade and in case successful immediately release the active
-                 * hazard pointer.
+                 * For now just try to resolve and if successful and returned an active hazard
+                 * reference, immediately release the active hazard pointer.
                  */
-                if (txn->resolve_uncommitted &&
-                  (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
-                  !WT_IS_METADATA(op->btree->dhandle) && upd->type != WT_UPDATE_RESERVE) {
-                    WT_WITH_BTREE(
-                      session, op->btree, ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref));
-                    if (ret == 0)
-                        WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_clear(session, ref));
-                    else if (ret == EBUSY) {
-                        /* Slow path - resolve */
-                        ret = 0;
-                        WT_SAVE_DHANDLE(
-                          session, ret = __txn_search_uncommitted_op(session, op, &cursor, &upd));
-                        WT_RET(ret);
-                        WT_ASSERT(session, op->u.op_upd == upd);
-                    } else
-                        WT_RET(ret);
-                }
+                WT_RET(__txn_resolve_uncommitted_op(session, op, &ref));
+                if (ref != NULL)
+                    WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_clear(session, ref));
 
                 if (S2C(session)->cache->hs_fileid != 0 &&
                   op->btree->id == S2C(session)->cache->hs_fileid)
