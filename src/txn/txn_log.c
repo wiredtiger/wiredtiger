@@ -253,9 +253,9 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     WT_DECL_RET;
     WT_ITEM *logrec;
     WT_TXN *txn;
-    WT_TXN_OP *op, *prevop;
+    WT_TXN_OP *op;
     WT_UPDATE *upd;
-    bool resolve_uncommitted, undo_resolving_uncommitted;
+    bool set_weak_hazard, undo_resolving_uncommitted;
 
     uint32_t fileid;
 
@@ -269,7 +269,13 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     WT_ASSERT(session, txn->mod_count > 0);
     op = txn->mod + txn->mod_count - 1;
     fileid = op->btree->id;
-    resolve_uncommitted = (txn->resolve_uncommitted && !WT_IS_METADATA(op->btree->dhandle) &&
+
+    /*
+     * We take a weak hazard pointer for an operation if this transaction is marked to be resolving
+     * the uncommitted updates. This is not supported on the metadata, and is only supported on the
+     * row and column store operations.
+     */
+    set_weak_hazard = (txn->resolve_uncommitted && !WT_IS_METADATA(op->btree->dhandle) &&
       (op->type == WT_TXN_OP_BASIC_COL || op->type == WT_TXN_OP_INMEM_COL ||
         op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW));
 
@@ -278,23 +284,10 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
      * older updates to this key by the same transaction, or if there are truncates, for now decide
      * not to proceed with resolving uncommitted updates.
      */
-    if (resolve_uncommitted && (upd = op->u.op_upd) != NULL)
-        for (upd = upd->next; upd != NULL && upd->txnid == txn->id; upd = upd->next) {
-            if (F_ISSET(upd, WT_UPDATE_RESTORED_FAST_TRUNCATE)) {
-                undo_resolving_uncommitted = true;
-                break;
-            }
-
-            for (prevop = op - 1; prevop >= txn->mod; prevop--)
-                if (prevop->type == op->type && prevop->u.op_upd == upd) {
-                    undo_resolving_uncommitted = true;
-                    break;
-                }
-
-            /* If we are here make sure we found the previous update operation. */
-            WT_ASSERT(session, prevop >= txn->mod);
-            break;
-        }
+    upd = op->u.op_upd;
+    if (set_weak_hazard && upd != NULL && upd->next != NULL &&
+      (upd->next->txnid == txn->id || F_ISSET(upd->next, WT_UPDATE_RESTORED_FAST_TRUNCATE)))
+        undo_resolving_uncommitted = true;
 
     /*
      * If we decide to stop resolving the uncommitted updates, we need to clear the weak hazard
@@ -302,11 +295,11 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
      */
     if (undo_resolving_uncommitted) {
         WT_RET(__wt_txn_op_list_clear_weak_hazard(session));
-        resolve_uncommitted = txn->resolve_uncommitted = false;
+        set_weak_hazard = txn->resolve_uncommitted = false;
     }
 
     /* Set the weak hazard pointer for this update. */
-    if (resolve_uncommitted) {
+    if (set_weak_hazard) {
         WT_ASSERT(session, cbt != NULL);
         WT_RET(__wt_hazard_weak_set(session, cbt->ref, op));
     }
