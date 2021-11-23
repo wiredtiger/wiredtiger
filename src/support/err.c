@@ -290,8 +290,7 @@ __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, boo
           p, remain, "[%s][%s]", WT_VERBOSE_CATEGORY_STR(category), verbosity_level_tag);
 
         /* Message. */
-        if (strlen(msg) > 0)
-            WT_ERROR_APPEND(p, remain, ": %s", msg);
+        WT_ERROR_APPEND(p, remain, ": %s", msg);
     }
 
     /* Error message. */
