@@ -760,6 +760,8 @@ __wt_txn_release(WT_SESSION_IMPL *session)
     txn->flags = 0;
     txn->prepare_timestamp = WT_TS_NONE;
 
+    txn->resolve_uncommitted = false;
+
     /* Clear operation timer. */
     txn->operation_timeout_us = 0;
 }
@@ -1774,18 +1776,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
             if (!prepare) {
                 /*
-                 * Switch reserved operations to abort to simplify obsolete update list truncation.
-                 */
-                if (upd->type == WT_UPDATE_RESERVE) {
-                    upd->txnid = WT_TXN_ABORTED;
-                    break;
-                }
-
-                /*
                  * For now just try to upgrade and in case successful immediately release the active
                  * hazard pointer.
                  */
-                if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
+                if (txn->resolve_uncommitted &&
+                  (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
                   !WT_IS_METADATA(op->btree->dhandle) && upd->type != WT_UPDATE_RESERVE) {
                     WT_WITH_BTREE(
                       session, op->btree, ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref));
@@ -1800,6 +1795,14 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                         WT_ASSERT(session, op->u.op_upd == upd);
                     } else
                         WT_ERR(ret);
+                }
+
+                /*
+                 * Switch reserved operations to abort to simplify obsolete update list truncation.
+                 */
+                if (upd->type == WT_UPDATE_RESERVE) {
+                    upd->txnid = WT_TXN_ABORTED;
+                    break;
                 }
 
                 /*
@@ -1974,14 +1977,11 @@ err:
 int
 __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    WT_DECL_RET;
-    WT_REF *ref;
     WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *upd, *tmp;
     u_int i, prepared_updates, prepared_updates_key_repeated;
 
-    ref = NULL;
     txn = session->txn;
     prepared_updates = prepared_updates_key_repeated = 0;
 
@@ -2046,27 +2046,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
                 upd->txnid = WT_TXN_ABORTED;
                 __wt_txn_op_free(session, op);
                 break;
-            }
-
-            /*
-             * For now just try to upgrade and in case successful immediately release the active
-             * hazard pointer.
-             */
-            if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
-              !WT_IS_METADATA(op->btree->dhandle) && upd->type != WT_UPDATE_RESERVE) {
-                WT_WITH_BTREE(
-                  session, op->btree, ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref));
-                if (ret == 0)
-                    WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_clear(session, ref));
-                else if (ret == EBUSY) {
-                    /* Slow path - resolve */
-                    ret = 0;
-                    //WT_SAVE_DHANDLE(
-                    //  session, ret = __txn_search_uncommitted_op(session, op, &cursor, &upd));
-                    //WT_RET(ret);
-                    //WT_ASSERT(session, op->u.op_upd == upd);
-                } else
-                    WT_RET(ret);
             }
 
             ++prepared_updates;
@@ -2199,7 +2178,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
                  * For now just try to upgrade and in case successful immediately release the active
                  * hazard pointer.
                  */
-                if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
+                if (txn->resolve_uncommitted &&
+                  (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
                   !WT_IS_METADATA(op->btree->dhandle) && upd->type != WT_UPDATE_RESERVE) {
                     WT_WITH_BTREE(
                       session, op->btree, ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref));
