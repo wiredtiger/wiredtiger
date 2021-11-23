@@ -853,7 +853,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
      * Reset the cursor: there is no reason to keep pages pinned, periodically forcibly evict the
      * underlying page.
      */
-    evict_page = mmrand(&tinfo->rnd, 1, 20) == 1);
+    evict_page = mmrand(&tinfo->rnd, 1, 20) == 1;
     if (evict_page)
         F_SET(tinfo->cursor, WT_CURSTD_DEBUG_RESET_EVICT);
     testutil_check(tinfo->cursor->reset(tinfo->cursor));
