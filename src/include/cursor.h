@@ -534,6 +534,17 @@ struct __wt_cursor_version {
     WT_CURSOR *table_cursor; /* Queries of regular table cursor. */
     WT_UPDATE *next_upd;
 
+    /*
+     * While we are iterating through updates on the update list, we need to remember information
+     * about the previous update we have just traversed so that we can record this as part of the
+     * debug metadata in the version cursor's key.
+     */
+    volatile uint64_t upd_txnid;
+    /* The previous traversed udpate's durable_ts will become the durable_stop_ts. */
+    wt_timestamp_t upd_durable_stop_ts;
+    /* The previous traversed update's start_ts will become the stop_ts. */
+    wt_timestamp_t upd_stop_ts;
+
 #define WT_VERSION_UPDATE_CHAIN 0
 #define WT_VERSION_DISK_IMAGE 1
 #define WT_VERSION_HISTORY_STORE 2
