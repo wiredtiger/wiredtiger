@@ -275,7 +275,7 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
      * the uncommitted updates. This is not supported on the metadata, and is only supported on the
      * row and column store operations.
      */
-    set_weak_hazard = (txn->resolve_uncommitted && !WT_IS_METADATA(op->btree->dhandle) &&
+    set_weak_hazard = (txn->resolve_weak_hazard_updates && !WT_IS_METADATA(op->btree->dhandle) &&
       (op->type == WT_TXN_OP_BASIC_COL || op->type == WT_TXN_OP_INMEM_COL ||
         op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW));
 
@@ -295,7 +295,7 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
      */
     if (undo_resolving_uncommitted) {
         WT_RET(__wt_txn_op_list_clear_weak_hazard(session));
-        set_weak_hazard = txn->resolve_uncommitted = false;
+        set_weak_hazard = txn->resolve_weak_hazard_updates = false;
     }
 
     /* Set the weak hazard pointer for this update. */

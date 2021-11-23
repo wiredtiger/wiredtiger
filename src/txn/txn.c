@@ -760,7 +760,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
     txn->flags = 0;
     txn->prepare_timestamp = WT_TS_NONE;
 
-    txn->resolve_uncommitted = false;
+    txn->resolve_weak_hazard_updates = false;
 
     /* Clear operation timer. */
     txn->operation_timeout_us = 0;
@@ -1633,12 +1633,12 @@ __wt_txn_op_list_clear_weak_hazard(WT_SESSION_IMPL *session)
 }
 
 /*
- * __txn_resolve_uncommitted_op --
+ * __txn_resolve_weak_hazard_updates --
  *     Resolve an uncommitted op if needed. Fetches the latest update pointer to be used as part of
  *     the transaction operation.
  */
 static int
-__txn_resolve_uncommitted_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_REF **refp)
+__txn_resolve_weak_hazard_updates(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_REF **refp)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -1653,7 +1653,7 @@ __txn_resolve_uncommitted_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_REF **r
     txn = session->txn;
 
     /* If we disabled resolution for some reason - do nothing. */
-    if (!txn->resolve_uncommitted)
+    if (!txn->resolve_weak_hazard_updates)
         return (0);
 
     if (!WT_IS_METADATA(op->btree->dhandle) &&
@@ -1869,7 +1869,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * For now just try to resolve and if successful and returned an active hazard
                  * reference, immediately release the active hazard pointer.
                  */
-                WT_ERR(__txn_resolve_uncommitted_op(session, op, &ref));
+                WT_ERR(__txn_resolve_weak_hazard_updates(session, op, &ref));
                 if (ref != NULL)
                     WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_clear(session, ref));
 
@@ -2089,9 +2089,9 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /* For now we will decide not to resolve uncommitted updates on prepare. */
-    if (txn->resolve_uncommitted) {
+    if (txn->resolve_weak_hazard_updates) {
         WT_RET(__wt_txn_op_list_clear_weak_hazard(session));
-        txn->resolve_uncommitted = false;
+        txn->resolve_weak_hazard_updates = false;
     }
 
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
@@ -2260,7 +2260,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
                  * For now just try to resolve and if successful and returned an active hazard
                  * reference, immediately release the active hazard pointer.
                  */
-                WT_RET(__txn_resolve_uncommitted_op(session, op, &ref));
+                WT_RET(__txn_resolve_weak_hazard_updates(session, op, &ref));
                 if (ref != NULL)
                     WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_clear(session, ref));
 

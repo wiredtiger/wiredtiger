@@ -269,8 +269,8 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
      * reserve update, we don't want to continue with resolving uncommitted updates. We also have to
      * clear the weak hazard pointers we have already saved.
      */
-    if (txn->resolve_uncommitted && modify_type == WT_UPDATE_RESERVE) {
-        txn->resolve_uncommitted = false;
+    if (txn->resolve_weak_hazard_updates && modify_type == WT_UPDATE_RESERVE) {
+        txn->resolve_weak_hazard_updates = false;
         WT_ERR(__wt_txn_op_list_clear_weak_hazard(session));
     }
 
