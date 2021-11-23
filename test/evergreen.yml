@@ -3707,7 +3707,7 @@ tasks:
           perf-test-path: ../../../bench/workgen/runner
           perf-test-name: many-dhandle-stress.py
           maxruns: 1
-          wtarg: -ops ['"warning_operations", "warning_idle_drop", "max_latency_drop"']
+          wtarg: -ops ['"warning_operations", "warning_read", "warning_insert", "warning_update" ,"warning_idle", "warning_idle_create","warning_idle_drop", "max_latency_drop_diff","max_latency_drop", "max_latency_create", "max_latency_read_micro_sec", "max_latency_insert_micro_sec", "max_latency_update_micro_sec"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: many-dhandle-stress.py
