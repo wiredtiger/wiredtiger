@@ -133,7 +133,7 @@ class PerfStatLatency(PerfStat):
 
     def get_value_list(self, brief: bool):
         as_list = []
-        num_max = len(self.values) if self.num_max > len(self.values) else self.num_max
+        num_max = min(len(self.values), self.num_max)
         for i in range(1, num_max + 1):
             as_dict = {
                 'name': self.output_label + str(i),
@@ -152,7 +152,7 @@ class PerfStatLatencyWorkgen(PerfStat):
 
     def get_value_list(self, brief: bool):
         as_list = []
-        num_max = len(self.values) if 5 > len(self.values) else 5
+        num_max = min(len(self.values), 5)
         for i in range(1, num_max + 1):
             as_dict = {
                 'name': self.output_label + str(i),

@@ -71,10 +71,10 @@ def main():
                     errors.append(f"Error: '{stat}'\t value mismatch. Expected: {expected_stats[stat]}, Actual: {test_output[stat]}")
             elif args.comparison_op == "gt":
                 if test_output[stat] <= expected_stats[stat]:
-                    errors.append(f"Error: '{stat}' (value: {test_output[stat]}) in '{args.stat_file}' is less than(or equal) to {expected_stats[stat]}")
+                    errors.append(f"Error: '{stat}' (value: {test_output[stat]}) in '{args.stat_file}' is less than (or equal) to {expected_stats[stat]}")
             elif args.comparison_op == "lt":
                 if test_output[stat] >= expected_stats[stat]:
-                    errors.append(f"Error: '{stat}' (value: {test_output[stat]}) in '{args.stat_file}' is greater than(or equal) to the threshold value {expected_stats[stat]}")
+                    errors.append(f"Error: '{stat}' (value: {test_output[stat]}) in '{args.stat_file}' is greater than (or equal) to the threshold value {expected_stats[stat]}")
     if errors:
         print("ERROR: Expected values not found:")
         print('\n'.join(errors))
