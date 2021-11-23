@@ -47,7 +47,7 @@ def is_wtperf_test(exec: str):
     return "wtperf" in exec
 
 
-def create_test_home_path(home: str, test_run: int, index:int):
+def create_test_home_path(home: str, test_run: int, index: int):
     home_path = "{}_{}_{}".format(home, index, test_run)
     return home_path
 
@@ -92,12 +92,14 @@ def construct_command_line(exec_path: str, test: str, home: str, arguments: List
         command_line.append(home)
     return command_line
 
+
 def to_value_list(reported_stats: List[PerfStat], brief: bool):
     stats_list = []
     for stat in reported_stats:
-        stat_list = stat.get_value_list(brief = brief)
+        stat_list = stat.get_value_list(brief=brief)
         stats_list.extend(stat_list)
     return stats_list
+
 
 def brief_perf_stats(config: PerfConfig, reported_stats: List[PerfStat]):
     as_list = [{
@@ -216,7 +218,9 @@ def parse_args() -> argparse.Namespace:
     if not args.verbose and not args.outfile:
         sys.exit("Enable verbosity (or provide a file path) to dump the stats. "
                  "Try 'python3 perf_run.py --help' for more information.")
+
     return args
+
 
 def parse_json_args(args: argparse.Namespace) -> Tuple[List[str], List[str], PerfConfig, Dict]:
     json_info = json.loads(args.json_info) if args.json_info else {}
@@ -243,6 +247,7 @@ def parse_json_args(args: argparse.Namespace) -> Tuple[List[str], List[str], Per
 
     return (arguments, operations, config, batch_file_contents)
 
+
 def validate_operations(config: PerfConfig, batch_file_contents: Dict, operations: List[str]):
     # Check for duplicate operations, and exit if duplicates are found
     # First, construct a list of all operations, including potential duplicates
@@ -266,12 +271,13 @@ def validate_operations(config: PerfConfig, batch_file_contents: Dict, operation
             sys.exit(f"Provided operation '{oper}' does not match any known PerfStats.\n"
                      f"Possible names are: {sorted(all_stat_names)}")
 
+
 def run_perf_tests(config: PerfConfig,
-                   batch_file_contents: Dict, 
-                   args: argparse.Namespace, 
-                   arguments: List[str], 
+                   batch_file_contents: Dict,
+                   args: argparse.Namespace,
+                   arguments: List[str],
                    operations: List[str]) -> List[PerfStat]:
-    reported_stats : List[PerfStat] = []
+    reported_stats: List[PerfStat] = []
 
     if config.batch_file:
         if args.verbose:
@@ -280,7 +286,7 @@ def run_perf_tests(config: PerfConfig,
             index = batch_file_contents.index(content)
             if args.verbose:
                 print("Batch test {}: Arguments: {}, Operations: {}".
-                        format(index,  content["arguments"], content["operations"]))
+                      format(index,  content["arguments"], content["operations"]))
                 perf_stats = PerfStatCollection(content["operations"])
                 if not args.reuse:
                     run_test_wrapper(config=config, index=index, arguments=content["arguments"])
@@ -292,6 +298,7 @@ def run_perf_tests(config: PerfConfig,
         reported_stats = process_results(config, perf_stats)
 
     return reported_stats
+
 
 def report_results(args: argparse.Namespace, config: PerfConfig, reported_stats: List[PerfStat]):
     if args.brief_output:
@@ -314,13 +321,14 @@ def report_results(args: argparse.Namespace, config: PerfConfig, reported_stats:
         with open(args.outfile, 'w') as outfile:
             json.dump(perf_results, outfile, indent=4, sort_keys=True)
 
+
 def main():
     args = parse_args()
     (arguments, operations, config, batch_file_contents) = parse_json_args(args=args)
     validate_operations(config=config, batch_file_contents=batch_file_contents, operations=operations)
-    reported_stats = run_perf_tests(config=config, 
+    reported_stats = run_perf_tests(config=config,
                                     batch_file_contents=batch_file_contents,
-                                    args=args, 
+                                    args=args,
                                     arguments=arguments,
                                     operations=operations)
     report_results(args=args, config=config, reported_stats=reported_stats)

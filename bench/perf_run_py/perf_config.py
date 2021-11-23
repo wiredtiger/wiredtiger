@@ -28,6 +28,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+
 class PerfConfig:
     def __init__(self,
                  exec_path: str,
