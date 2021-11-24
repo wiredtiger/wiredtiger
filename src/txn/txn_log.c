@@ -255,13 +255,12 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *upd;
-    bool set_weak_hazard, undo_resolving_uncommitted;
+    bool set_weak_hazard;
 
     uint32_t fileid;
 
     conn = S2C(session);
     txn = session->txn;
-    undo_resolving_uncommitted = false;
 
     /* We'd better have a transaction. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING) && F_ISSET(txn, WT_TXN_HAS_ID));
@@ -282,18 +281,13 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     /*
      * This is temporary till we support more cases for resolving uncommitted updates: If there are
      * older updates to this key by the same transaction, or if there are truncates, for now decide
-     * not to proceed with resolving uncommitted updates.
+     * not to proceed with resolving uncommitted updates. If we decide to stop resolving the
+     * uncommitted updates, we need to clear the weak hazard pointers for the operations that have
+     * taken one.
      */
     upd = op->u.op_upd;
     if (set_weak_hazard && upd != NULL && upd->next != NULL &&
-      (upd->next->txnid == txn->id || F_ISSET(upd->next, WT_UPDATE_RESTORED_FAST_TRUNCATE)))
-        undo_resolving_uncommitted = true;
-
-    /*
-     * If we decide to stop resolving the uncommitted updates, we need to clear the weak hazard
-     * pointers for the operations that have taken one.
-     */
-    if (undo_resolving_uncommitted) {
+      (upd->next->txnid == txn->id || F_ISSET(upd->next, WT_UPDATE_RESTORED_FAST_TRUNCATE))) {
         WT_RET(__wt_txn_op_list_clear_weak_hazard(session));
         set_weak_hazard = txn->resolve_weak_hazard_updates = false;
     }
