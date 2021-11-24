@@ -28,9 +28,27 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+class TestType:
+    def __init__(self):
+        self.wtperf = False
+        self.workgen = False
+
+    def get_home_arg(self, home: str):
+        if self.wtperf:
+            return ['-h', home]
+        if self.workgen:
+            return ['--home', home]
+
+    def get_test_arg(self, test: str):
+        if self.wtperf:
+            return ['-O', test]
+        if self.workgen:
+            return [test]
+
 
 class PerfConfig:
     def __init__(self,
+                 test_type: TestType,
                  exec_path: str,
                  home_dir: str,
                  test: str,
@@ -43,6 +61,7 @@ class PerfConfig:
                  json_info=None):
         if json_info is None:
             json_info = {}
+        self.test_type: TestType = test_type
         self.exec_path: str = exec_path
         self.home_dir: str = home_dir
         self.test: str = test

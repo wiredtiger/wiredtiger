@@ -40,7 +40,7 @@ from perf_stat_collection import PerfStatCollection
 from pygit2 import discover_repository, Repository
 from pygit2 import GIT_SORT_NONE
 from typing import Dict, List, Tuple
-from perf_config import PerfConfig
+from perf_config import PerfConfig, TestType
 
 
 def is_wtperf_test(exec: str):
@@ -79,17 +79,15 @@ def get_git_info(git_working_tree_dir):
     return git_info
 
 
-def construct_command_line(exec_path: str, test: str, home: str, arguments: List[str]):
+def construct_command_line(exec_path: str, test: List[str], home: List[str], arguments: List[str]):
     command_line = []
     command_line.append(exec_path)
     if test is not None:
-        command_line.append('-O') if is_wtperf_test(exec_path) else None
-        command_line.append(test)
+        command_line.extend(test)
     if arguments is not None:
         command_line.extend(arguments)
     if home is not None:
-        command_line.append('-h') if is_wtperf_test(exec_path) else command_line.append('--home')
-        command_line.append(home)
+        command_line.extend(home)
     return command_line
 
 
@@ -146,8 +144,9 @@ def run_test(config: PerfConfig, test_run: int, index: int = 0, arguments: List[
     command_line = construct_command_line(
         exec_path=config.exec_path,
         arguments=arguments,
-        test=config.test,
-        home=test_home)
+        test=config.test_type.get_test_arg(config.test),
+        home=config.test_type.get_home_arg(test_home))
+
     try:
         proc = subprocess.run(command_line, check=True,
                               stdout=subprocess.PIPE,
@@ -172,6 +171,11 @@ def process_results(config: PerfConfig, perf_stats: PerfStatCollection, index: i
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
+
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--wtperf', action='store_true', help='run wtperf tests')
+    group.add_argument('--workgen', action='store_true', help='run workgen tests')
+
     parser.add_argument('-e', '--exec_path', help='path of the test executable')
     parser.add_argument('-t', '--test', help='path of the test to execute')
     parser.add_argument('-o', '--outfile', help='path of the file to write test output to')
@@ -227,7 +231,14 @@ def parse_json_args(args: argparse.Namespace) -> Tuple[List[str], List[str], Per
     arguments = json.loads(args.arguments) if args.arguments else None
     operations = json.loads(args.operations) if args.operations else None
 
-    config = PerfConfig(exec_path=args.exec_path,
+    test_type = TestType()
+    if args.wtperf:
+        test_type.wtperf = True
+    elif args.workgen:
+        test_type.workgen = True
+
+    config = PerfConfig(test_type=test_type,
+                        exec_path=args.exec_path,
                         home_dir=args.home,
                         test=args.test,
                         batch_file=args.batch_file,
