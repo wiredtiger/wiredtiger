@@ -100,8 +100,9 @@ class search_near_01 : public test_harness::test {
     }
 
     public:
-    search_near_01(const test_harness::test_args &args) : test(args) {
-      z_key_searches = 0;
+    search_near_01(const test_harness::test_args &args) : test(args)
+    {
+        z_key_searches = 0;
     }
 
     void
@@ -177,8 +178,8 @@ class search_near_01 : public test_harness::test {
     }
 
     static void
-    perform_search_near(
-      test_harness::thread_context *tc, std::string collection_name, uint64_t srchkey_len, std::atomic<int64_t>& z_key_searches)
+    perform_search_near(test_harness::thread_context *tc, std::string collection_name,
+      uint64_t srchkey_len, std::atomic<int64_t> &z_key_searches)
     {
         std::string srch_key;
         int cmpp = 0;
@@ -210,11 +211,11 @@ class search_near_01 : public test_harness::test {
              * In this test, the keys in our database start with prefixes aaa -> zzz. If we search
              * with a prefix such as "z", we will not early exit the search near call because the
              * rest of the keys will also start with "z" and match the prefix. The statistic will
-             * stay the same if we do not early exit search near, track this through incrementing 
+             * stay the same if we do not early exit search near, track this through incrementing
              * the number of z key searches we have done this iteration.
              */
             if (srch_key == "z" || srch_key == "zz" || srch_key == "zzz")
-              ++z_key_searches;
+                ++z_key_searches;
             tc->transaction.rollback();
         }
     }
@@ -226,19 +227,19 @@ class search_near_01 : public test_harness::test {
         testutil_assert(tc->stat_cursor.get() == nullptr);
         /* This test will only work with one read thread. */
         testutil_assert(tc->thread_count == 1);
-        test_harness::configuration* workload_config;
+        test_harness::configuration *workload_config;
         std::vector<thread_context *> workers;
         tc->stat_cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
         int64_t entries_stat, prev_entries_stat, expected_entries, prefix_stat, prev_prefix_stat;
-        int num_threads; 
-        
+        int num_threads;
+
         prev_entries_stat = 0;
         prev_prefix_stat = 0;
         num_threads = _config->get_int("search_near_threads");
-        workload_config =  _config->get_subconfig(WORKLOAD_GENERATOR);
-        
+        workload_config = _config->get_subconfig(WORKLOAD_GENERATOR);
+
         logger::log_msg(LOG_INFO, type_string(tc->type) + " thread commencing.");
-        
+
         /*
          * The number of expected entries is calculated to account for the maximum allowed entries
          * per search near function call. The key we search near can be different in length, which
@@ -255,10 +256,12 @@ class search_near_01 : public test_harness::test {
             for (uint64_t i = 0; i < num_threads; ++i) {
                 /* Get a collection and find a cached cursor. */
                 collection &coll = tc->db.get_random_collection();
-                thread_context *search_near_tc = new thread_context(i, thread_type::READ, workload_config->get_subconfig(READ_CONFIG),
+                thread_context *search_near_tc = new thread_context(i, thread_type::READ,
+                  workload_config->get_subconfig(READ_CONFIG),
                   connection_manager::instance().create_session(), tc->tsm, tc->tracking, tc->db);
                 workers.push_back(search_near_tc);
-                tm.add_thread(perform_search_near, search_near_tc, coll.name, srchkey_len, std::ref(z_key_searches));
+                tm.add_thread(perform_search_near, search_near_tc, coll.name, srchkey_len,
+                  std::ref(z_key_searches));
             }
 
             tm.join();
@@ -279,16 +282,16 @@ class search_near_01 : public test_harness::test {
             /*
              * It is possible that WiredTiger increments the entries skipped stat irrelevant to
              * prefix search near. This is dependent on how many read threads are present in the
-             * test. Account for this by creating a small buffer using thread count. Assert that
-             * the number of expected entries is the upper limit which the prefix search near
-             * can traverse
+             * test. Account for this by creating a small buffer using thread count. Assert that the
+             * number of expected entries is the upper limit which the prefix search near can
+             * traverse
              *
              * Assert that the number of expected entries is the maximum allowed limit that the
              * prefix search nears can traverse and that the prefix fast path has increased by the
              * number of threads minus the number of search nears with z key.
              */
-            testutil_assert(
-              num_threads * expected_entries + (2 * num_threads) >= entries_stat - prev_entries_stat);
+            testutil_assert(num_threads * expected_entries + (2 * num_threads) >=
+              entries_stat - prev_entries_stat);
             testutil_assert(prefix_stat - num_threads + z_key_searches == prev_prefix_stat);
             z_key_searches = 0;
             tc->sleep();
