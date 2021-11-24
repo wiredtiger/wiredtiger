@@ -49,7 +49,6 @@ class search_near_01 : public test_harness::test {
     const std::string ALPHABET{"abcdefghijklmnopqrstuvwxyz"};
     const uint64_t PREFIX_KEY_LEN = 3;
     const int64_t MINIMUM_EXPECTED_ENTRIES = 40;
-    std::atomic<int64_t> z_key_searches;
 
     static void
     populate_worker(thread_context *tc, const std::string &ALPHABET, uint64_t PREFIX_KEY_LEN)
@@ -100,10 +99,7 @@ class search_near_01 : public test_harness::test {
     }
 
     public:
-    search_near_01(const test_harness::test_args &args) : test(args)
-    {
-        z_key_searches = 0;
-    }
+    search_near_01(const test_harness::test_args &args) : test(args) {}
 
     void
     populate(test_harness::database &database, test_harness::timestamp_manager *tsm,
@@ -229,13 +225,14 @@ class search_near_01 : public test_harness::test {
         testutil_assert(tc->thread_count == 1);
         test_harness::configuration *workload_config;
         std::vector<thread_context *> workers;
-        tc->stat_cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
-        int64_t entries_stat, prev_entries_stat, expected_entries, prefix_stat, prev_prefix_stat;
+        std::atomic<int64_t> z_key_searches;
+        int64_t entries_stat, expected_entries, prefix_stat, prev_entries_stat, prev_prefix_stat;
         int num_threads;
 
         prev_entries_stat = 0;
         prev_prefix_stat = 0;
         num_threads = _config->get_int("search_near_threads");
+        tc->stat_cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
         workload_config = _config->get_subconfig(WORKLOAD_GENERATOR);
 
         logger::log_msg(LOG_INFO, type_string(tc->type) + " thread commencing.");
@@ -296,8 +293,5 @@ class search_near_01 : public test_harness::test {
             z_key_searches = 0;
             tc->sleep();
         }
-        /* Make sure the last transaction is rolled back now the work is finished. */
-        if (tc->transaction.active())
-            tc->transaction.rollback();
     }
 };
