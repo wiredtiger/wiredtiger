@@ -1913,6 +1913,13 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             WT_CLEAR(cursor->key);
     }
 
+    /*
+     * This is temporary till we fix accounting for cached cursors in python testing: Don't cache
+     * the cursor that was opened for slow resolution of the updates.
+     */
+    if (cursor != NULL && slow_resolved)
+        F_CLR(cursor, WT_CURSTD_CACHEABLE);
+
     if (cursor != NULL) {
         WT_ERR(cursor->close(cursor));
         cursor = NULL;
