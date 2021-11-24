@@ -36,10 +36,10 @@ echo "checkpoint: 6 fixed-length column-store tables, named checkpoint with prep
 $TEST_WRAPPER ./t -t f -T 6  -c 'TeSt' -p
 
 echo "checkpoint: fixed-length column-store tables, stress history store. Sweep and timestamps"
-$TEST_WRAPPER ./t -t c -W 3 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=100MB -D
+$TEST_WRAPPER ./t -t f -W 3 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=100MB -D
 
 echo "checkpoint: fixed-length column-store tables, Sweep and timestamps"
-$TEST_WRAPPER ./t -t c -W 3 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=100MB
+$TEST_WRAPPER ./t -t f -W 3 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=100MB
 
 # 3. VLCS cases.
 
