@@ -540,7 +540,7 @@ struct __wt_cursor_version {
      * debug metadata in the version cursor's key.
      */
     volatile uint64_t upd_txnid;
-    /* The previous traversed udpate's durable_ts will become the durable_stop_ts. */
+    /* The previous traversed update's durable_ts will become the durable_stop_ts. */
     wt_timestamp_t upd_durable_stop_ts;
     /* The previous traversed update's start_ts will become the stop_ts. */
     wt_timestamp_t upd_stop_ts;
