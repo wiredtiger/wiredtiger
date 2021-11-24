@@ -85,18 +85,19 @@ class PerfStat:
         return [as_dict]
 
 
-class PerfStatMin(PerfStat):
-    def get_value(self):
-        """Return the averaged minimum of all gathered values"""
-        min_3_vals = sorted(self.values)[:3]
-        return self.average(min_3_vals)
+class PerfStatMinMax(PerfStat):
+    def get_value_list(self, brief: bool):
+        avg_min_3_vals = self.average(sorted(self.values)[:3])
+        avg_max_3_vals = self.average(sorted(self.values)[-3:])
 
+        as_list = [
+            {'name': f"{self.output_label} (min)", 'value': avg_min_3_vals},
+            {'name': f"{self.output_label} (max)", 'value': avg_max_3_vals},
+        ]
 
-class PerfStatMax(PerfStat):
-    def get_value(self):
-        """Return the averaged maximum of all gathered values"""
-        max_3_vals = sorted(self.values)[-3:]
-        return self.average(max_3_vals)
+        if not brief:
+            as_list.append({'name': f"{self.output_label} (all)", 'values': sorted(self.values)})
+        return as_list
 
 
 class PerfStatCount(PerfStat):
