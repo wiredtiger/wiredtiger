@@ -62,6 +62,9 @@ __curversion_next(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
     WT_TIME_WINDOW tw;
     WT_UPDATE *upd;
+    wt_timestamp_t ondisk_durable_stop_ts;
+    wt_timestamp_t ondisk_stop_ts;
+    uint64_t ondisk_stop_txn;
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     hs_cursor = version_cursor->hs_cursor;
@@ -77,92 +80,92 @@ __curversion_next(WT_CURSOR *cursor)
 
     upd = version_cursor->next_upd;
 
-update_chain:
     if (upd != NULL && !F_ISSET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED)) {
         /*
          * If the update is an aborted update, we want to skip to the next update immediately or get
          * the ondisk value if the update is the last one in the update chain.
          */
-        if (upd->txnid == WT_TXN_ABORTED) {
+        while (upd != NULL && upd->txnid == WT_TXN_ABORTED) {
             upd = upd->next;
-            if (upd != NULL)
-                goto update_chain;
-            else {
-                F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
-                goto disk_image;
-            }
-        }
-        /*
-         * If the update is a tombstone, we still want to record the stop information but we also
-         * need traverse to the next update to get the full value. If the tombstone was the last
-         * update in the update list, retrieve the ondisk value.
-         */
-        version_cursor->upd_txnid = upd->txnid;
-        version_cursor->upd_durable_stop_ts = upd->durable_ts;
-        version_cursor->upd_stop_ts = upd->start_ts;
-        if (upd->type == WT_UPDATE_TOMBSTONE) {
-            upd = upd->next;
-            if (upd == NULL) {
-                F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
-                goto disk_image;
-            }
         }
 
-        /*
-         * Set the version cursor's key, which contains all the record metadata for that particular
-         * version of the update.
-         */
-        __wt_cursor_set_key(cursor, upd->txnid, upd->durable_ts, upd->start_ts,
-          version_cursor->upd_txnid, version_cursor->upd_durable_stop_ts,
-          version_cursor->upd_stop_ts, upd->type, upd->prepare_state, upd->flags,
-          WT_VERSION_UPDATE_CHAIN);
-
-        /*
-         * Set the version cursor's value to be the update value. If the update is a modify,
-         * reconstruct the value.
-         */
-        if (upd->type != WT_UPDATE_MODIFY) {
-            __wt_upd_value_assign(cbt->upd_value, upd);
-            ret = 0;
-        }
-        else
-            WT_RET(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
-
-        __wt_cursor_set_value(cursor, cbt->upd_value->buf);
-
-        upd = upd->next;
         if (upd == NULL)
             F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
-        goto done;
+        else {
+            /*
+             * If the update is a tombstone, we still want to record the stop information but we
+             * also need traverse to the next update to get the full value. If the tombstone was the
+             * last update in the update list, retrieve the ondisk value.
+             */
+            version_cursor->upd_txnid = upd->txnid;
+            version_cursor->upd_durable_stop_ts = upd->durable_ts;
+            version_cursor->upd_stop_ts = upd->start_ts;
+            if (upd->type == WT_UPDATE_TOMBSTONE)
+                upd = upd->next;
+
+            if (upd == NULL)
+                F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
+            else {
+                /*
+                 * Set the version cursor's key, which contains all the record metadata for that
+                 * particular version of the update.
+                 */
+                __wt_cursor_set_key(cursor, upd->txnid, upd->durable_ts, upd->start_ts,
+                  version_cursor->upd_txnid, version_cursor->upd_durable_stop_ts,
+                  version_cursor->upd_stop_ts, upd->type, upd->prepare_state, upd->flags,
+                  WT_VERSION_UPDATE_CHAIN);
+
+                /*
+                 * Set the version cursor's value to be the update value. If the update is a modify,
+                 * reconstruct the value.
+                 */
+                if (upd->type != WT_UPDATE_MODIFY) {
+                    __wt_upd_value_assign(cbt->upd_value, upd);
+                    ret = 0;
+                } else
+                    WT_RET(
+                      __wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
+
+                __wt_cursor_set_value(cursor, cbt->upd_value->buf);
+
+                upd = upd->next;
+                if (upd == NULL)
+                    F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
+                goto done;
+            }
+        }
     }
 
-disk_image:
-    /* Get the ondisk value. */
     if (!F_ISSET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED)) {
         WT_RET(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw));
 
-        __wt_cursor_set_key(cursor, tw.start_txn, tw.durable_start_ts, tw.start_ts,
-          tw.stop_txn != WT_TXN_MAX ? tw.stop_txn : version_cursor->upd_txnid,
-          tw.durable_stop_ts != WT_TS_MAX ? tw.durable_stop_ts :
-                                            version_cursor->upd_durable_stop_ts,
-          tw.stop_ts != WT_TS_MAX ? tw.stop_ts : version_cursor->upd_stop_ts, cbt->upd_value->type,
-          0, 0, WT_VERSION_DISK_IMAGE);
+        if (!WT_TIME_WINDOW_HAS_STOP(&tw)) {
+            ondisk_durable_stop_ts = version_cursor->upd_durable_stop_ts;
+            ondisk_stop_ts = version_cursor->upd_stop_ts;
+            ondisk_stop_txn = version_cursor->upd_txnid;
+        } else {
+            ondisk_durable_stop_ts = tw.durable_stop_ts;
+            ondisk_stop_ts = tw.stop_ts;
+            ondisk_stop_txn = tw.stop_txn;
+        }
+
+        __wt_cursor_set_key(cursor, tw.start_txn, tw.durable_start_ts, tw.start_ts, ondisk_stop_txn,
+          ondisk_durable_stop_ts, ondisk_stop_ts, 0, 0, 0, WT_VERSION_DISK_IMAGE);
         __wt_cursor_set_value(cursor, cbt->upd_value->buf);
 
         F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
         goto done;
     }
 
-history_store:
     if (!F_ISSET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED)) {
         hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, cursor->key, WT_TS_MAX, UINT64_MAX);
         ret = __wt_curhs_search_near_before(session, hs_cursor);
         ret = hs_cursor->prev(hs_cursor);
 
-        /* 
+        /*
          * If there are no history store records for the given key or if we have iterated through
          * all the records already, we have exhausted ths history store.
-         */ 
+         */
         /* TODO Set the key and value data for HS versions. */
         if (ret == 0) {
             __wt_cursor_set_key(cursor, WT_VERSION_HISTORY_STORE);
@@ -172,6 +175,12 @@ history_store:
         }
         goto done;
     }
+
+    /*
+     * If we are not finished by here, this means we have already traversed all versions previously
+     * and there are no more versions to iterate.
+     */
+    ret = WT_NOTFOUND;
 
     if (0) {
 err:
