@@ -134,7 +134,7 @@ run_test(bool stress_test, bool column_store, const char *home, const char *uri)
     WT_CONNECTION *conn;
     WT_SESSION *session;
     pthread_t thread_checkpoint;
-    uint64_t pages_reviewed, pages_rewritten, pages_selected;
+    uint64_t pages_reviewed, pages_rewritten, pages_skipped;
     bool size_check_res;
 
     testutil_make_work_dir(home);
@@ -184,7 +184,7 @@ run_test(bool stress_test, bool column_store, const char *home, const char *uri)
     (void)pthread_join(thread_compact, NULL);
 
     /* Collect compact progress stats. */
-    get_compact_progress(session, uri, &pages_reviewed, &pages_selected, &pages_rewritten);
+    get_compact_progress(session, uri, &pages_reviewed, &pages_skipped, &pages_rewritten);
     size_check_res = check_db_size(session, uri);
 
     /* Cleanup */
@@ -200,10 +200,9 @@ run_test(bool stress_test, bool column_store, const char *home, const char *uri)
     conn = NULL;
 
     printf(" - Pages reviewed: %" PRIu64 "\n", pages_reviewed);
-    printf(" - Pages selected for being rewritten: %" PRIu64 "\n", pages_selected);
-    printf(" - Pages actually rewritten: %" PRIu64 "\n", pages_rewritten);
+    printf(" - Pages selected for being rewritten: %" PRIu64 "\n", pages_rewritten);
+    printf(" - Pages skipped: %" PRIu64 "\n", pages_skipped);
     testutil_assert(pages_reviewed > 0);
-    testutil_assert(pages_selected > 0);
     testutil_assert(pages_rewritten > 0);
     /*
      * Check if there's more than 10% available space in the file. Checking result here to allow
@@ -382,7 +381,7 @@ set_timing_stress_checkpoint(WT_CONNECTION *conn)
 
 static void
 get_compact_progress(WT_SESSION *session, const char *uri, uint64_t *pages_reviewed,
-  uint64_t *pages_selected, uint64_t *pages_rewritten)
+  uint64_t *pages_skipped, uint64_t *pages_rewritten)
 {
 
     WT_CURSOR *cur_stat;
@@ -395,9 +394,9 @@ get_compact_progress(WT_SESSION *session, const char *uri, uint64_t *pages_revie
     cur_stat->set_key(cur_stat, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REVIEWED);
     testutil_check(cur_stat->search(cur_stat));
     testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, pages_reviewed));
-    cur_stat->set_key(cur_stat, WT_STAT_DSRC_BTREE_COMPACT_PAGES_WRITE_SELECTED);
+    cur_stat->set_key(cur_stat, WT_STAT_DSRC_BTREE_COMPACT_PAGES_SKIPPED);
     testutil_check(cur_stat->search(cur_stat));
-    testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, pages_selected));
+    testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, pages_skipped));
     cur_stat->set_key(cur_stat, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REWRITTEN);
     testutil_check(cur_stat->search(cur_stat));
     testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, pages_rewritten));
@@ -412,11 +411,21 @@ check_db_size(WT_SESSION *session, const char *uri)
 
     get_file_stats(session, uri, &file_sz, &avail_bytes);
 
-    /* Check if there's maximum of 10% space available after compaction. */
     available_pct = (avail_bytes * 100) / file_sz;
     printf(" - Compacted file size: %" PRIu64 "MB (%" PRIu64 "B)\n - Available for reuse: %" PRIu64
            "MB (%" PRIu64 "B)\n - %" PRIu64 "%% space available in the file.\n",
       file_sz / WT_MEGABYTE, file_sz, avail_bytes / WT_MEGABYTE, avail_bytes, available_pct);
 
-    return (available_pct <= 10);
+    /*
+     * Compaction is a best-effort algorithm. It moves blocks from the end to the beginning of the
+     * file but there is no guarantee that all empty space at the beginning will be filled. The
+     * logic in the algorithm checks if at least 20% of the file is available in the first 80% of
+     * the file, we'll try compaction on the last 20% of the file. Else if at least 10% of the total
+     * file is available in the first 90% of the file, we'll try compaction on the last 10% of the
+     * file. It may well happen that 9.9% of the space is available for reuse in the first 90% of
+     * the file. And 9.9% available in the last 10% of the file. In this case, the algorithm would
+     * give up. But total available space in the file would be 19.8%. So we need to check that there
+     * is a maximum of 20% space available for reuse after compaction.
+     */
+    return (available_pct <= 20);
 }

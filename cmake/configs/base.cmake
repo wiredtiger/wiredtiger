@@ -38,7 +38,7 @@ config_bool(
 
 config_string(
     WT_BUFFER_ALIGNMENT_DEFAULT
-    "WiredTiger buffer boundary aligment"
+    "WiredTiger buffer boundary alignment"
     DEFAULT 0
 )
 
@@ -57,6 +57,19 @@ config_bool(
 config_bool(
     ENABLE_STATIC
     "Compile as a static library"
+    DEFAULT OFF
+)
+
+config_bool(
+    ENABLE_SHARED
+    "Compile as a shared library"
+    DEFAULT ON
+)
+
+config_bool(
+    WITH_PIC
+    "Generate position-independent code. Note PIC will always \
+    be used on shared targets, irrespective of the value of this configuration."
     DEFAULT OFF
 )
 
@@ -108,7 +121,7 @@ config_choice(
         "pthread;SPINLOCK_PTHREAD_MUTEX;HAVE_LIBPTHREAD"
         "gcc;SPINLOCK_GCC;"
         "msvc;SPINLOCK_MSVC;WT_WIN"
-        "pthread_adaptive;SPINLOCK_PTHREAD_ADAPTIVE;HAVE_LIBPTHREAD"
+        "pthread_adaptive;SPINLOCK_PTHREAD_MUTEX_ADAPTIVE;HAVE_LIBPTHREAD"
 )
 
 config_bool(

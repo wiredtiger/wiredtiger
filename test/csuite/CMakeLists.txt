@@ -85,14 +85,27 @@ define_c_test(
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_scope>/WT_HOME>
 )
 
-define_c_test(
-    TARGET test_tiered_abort
-    SOURCES tiered_abort/main.c
-    DIR_NAME tiered_abort
-    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/tiered_abort/smoke.sh
-    ARGUMENTS -b $<TARGET_FILE:test_tiered_abort>
-    DEPENDS "WT_POSIX"
-)
+# Currently the tiered abort test does not consisently pass, thus comment out the tiered abort test
+# from our csuite, until we gain more confidence in flush tier. For now, just compile the test.
+# define_c_test(
+#     TARGET test_tiered_abort
+#     SOURCES tiered_abort/main.c
+#     DIR_NAME tiered_abort
+#     # We need to manually specify the location of the local store library
+#     # and build directory as this path is more dynamic compared to layout autoconf
+#     # produces in build_posix.
+#     FLAGS "-DWT_STORAGE_LIB=\"ext/storage_sources/local_store/libwiredtiger_local_store.so\""
+#     VARIANTS
+#         "test_tiered_abort_5_thread;-b ${CMAKE_BINARY_DIR} -t 10 -T 5"
+#     DEPENDS "WT_POSIX"
+# )
+if (WT_POSIX)
+    create_test_executable(test_tiered_abort
+        SOURCES tiered_abort/main.c
+        FLAGS "-DWT_STORAGE_LIB=\"ext/storage_sources/local_store/libwiredtiger_local_store.so\""
+        BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/tiered_abort
+    )
+endif()
 
 define_c_test(
     TARGET test_timestamp_abort
@@ -173,6 +186,14 @@ define_c_test(
     SOURCES wt2592_join_schema/main.c
     DIR_NAME wt2592_join_schema
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2592_join_schema>/WT_HOME>
+)
+
+define_c_test(
+    TARGET test_wt2719_reconfig
+    SOURCES wt2719_reconfig/main.c
+    DIR_NAME wt2719_reconfig
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2719_reconfig>/WT_HOME>
+    DEPENDS "WT_POSIX"
 )
 
 define_c_test(
@@ -345,5 +366,13 @@ define_c_test(
     SOURCES wt8057_compact_stress/main.c
     DIR_NAME wt8057_compact_stress
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8057_compact_stress>/WT_HOME>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt8246_compact_rts_data_correctness
+    SOURCES wt8246_compact_rts_data_correctness/main.c
+    DIR_NAME wt8246_compact_rts_data_correctness
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8246_compact_rts_data_correctness>/WT_HOME>
     DEPENDS "WT_POSIX"
 )

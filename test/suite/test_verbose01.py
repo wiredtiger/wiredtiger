@@ -29,17 +29,49 @@
 
 from suite_subprocess import suite_subprocess
 from contextlib import contextmanager
-import wiredtiger, wttest
-import re
+from wtscenario import make_scenarios
+import json, re, wiredtiger, wttest
 
-# test_verbose01.py
-# Tests that basic uses of the verbose configuration API work as intended i.e. passing
-# single & multiple valid and invalid verbose categories. This test is mainly focused on uses
-# of the interface prior to the introduction of verbosity levels, ensuring 'legacy'-style
-# uses of the interface are still supported.
-class test_verbose01(wttest.WiredTigerTestCase, suite_subprocess):
+# Shared base class used by verbose tests.
+class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
     # The maximum number of lines we will read from stdout in any given context.
-    nlines = 30000
+    nlines = 50000
+
+    # The JSON schema we expect all messages to follow. Captures all possible fields, detailing
+    # each field's name, associated type and whether we always expect for that field to be
+    # present.
+    expected_json_schema = {
+        'ts_sec': {'type': int, 'always_expected': True },
+        'ts_usec': {'type': int, 'always_expected': True },
+        'thread': {'type': str, 'always_expected': True },
+        'session_err_prefix': {'type': str, 'always_expected': False },
+        'session_dhandle_name': {'type': str, 'always_expected': False },
+        'session_name': {'type': str, 'always_expected': False },
+        'error_str': {'type': str, 'always_expected': False },
+        'error_code': {'type': int, 'always_expected': False },
+        'category': {'type': str, 'always_expected': True },
+        'category_id': {'type': int, 'always_expected': True },
+        'verbose_level': {'type': str, 'always_expected': True },
+        'verbose_level_id': {'type': int, 'always_expected': True },
+        'msg': {'type': str, 'always_expected': True },
+    }
+
+    # Validates the JSON schema of a given event handler message, ensuring the schema is consistent and expected.
+    def validate_json_schema(self, json_msg):
+        expected_schema = dict(self.expected_json_schema)
+        for field in json_msg:
+            # Assert the JSON field is valid and expected.
+            self.assertTrue(field in expected_schema, 'Unexpected field "%s" in JSON message: %s' % (field, str(json_msg)))
+            # Assert the type of the JSON field is expected.
+            self.assertEqual(type(json_msg[field]), expected_schema[field]['type'],
+                    'Unexpected type of field "%s" in JSON message, expected "%s" but got "%s": %s' % (field,
+                        str(expected_schema[field]['type']), str(type(json_msg[field])), str(json_msg)))
+            expected_schema.pop(field, None)
+        # Go through the remaining fields in the schema and ensure we've seen all the fields that are always expected be present
+        # in the JSON message
+        for field in expected_schema:
+            self.assertFalse(expected_schema[field]['always_expected'], 'Expected field "%s" in JSON message, but not found: %s' %
+                (field, str(json_msg)))
 
     def create_verbose_configuration(self, categories):
         if len(categories) == 0:
@@ -47,12 +79,15 @@ class test_verbose01(wttest.WiredTigerTestCase, suite_subprocess):
         return 'verbose=[' + ','.join(categories) + ']'
 
     @contextmanager
-    def expect_verbose(self, categories, patterns):
+    def expect_verbose(self, categories, patterns, expect_json, expect_output = True):
         # Clean the stdout resource before yielding the context to the execution block. We only want to
         # capture the verbose output of the using context (ignoring any previous output up to this point).
         self.cleanStdout()
         # Create a new connection with the given verbose categories.
         verbose_config = self.create_verbose_configuration(categories)
+        # Enable JSON output if required.
+        if expect_json:
+            verbose_config += ",json_output=[message]"
         conn = self.wiredtiger_open(self.home, verbose_config)
         # Yield the connection resource to the execution context, allowing it to perform any necessary
         # operations on the connection (for generating the expected verbose output).
@@ -63,19 +98,49 @@ class test_verbose01(wttest.WiredTigerTestCase, suite_subprocess):
         # to ensure we've only generated verbose messages for the expected categories.
         verbose_messages = output.splitlines()
 
-        # If no categories were passed, we aren't expecting any output.
-        if len(categories) == 0:
+        if expect_output:
+            self.assertGreater(len(verbose_messages), 0)
+        else:
             self.assertEqual(len(verbose_messages), 0)
+
+        if len(output) >= self.nlines:
+            # If we've read the maximum number of characters, its likely that the last line is truncated ('...'). In this
+            # case, trim the last message as we can't parse it.
+            verbose_messages = verbose_messages[:-1]
 
         # Test the contents of each verbose message, ensuring it satisfies the expected pattern.
         verb_pattern = re.compile('|'.join(patterns))
+        # To avoid truncated messages, slice out the last message string in the
         for line in verbose_messages:
+            # Check JSON validity
+            if expect_json:
+                try:
+                    json.loads(line)
+                except Exception as e:
+                    self.prout('Unable to parse JSON message: %s' % line)
+                    raise e
+
             self.assertTrue(verb_pattern.search(line) != None, 'Unexpected verbose message: ' + line)
 
         # Close the connection resource and clean up the contents of the stdout file, flushing out the
         # verbose output that occurred during the execution of this context.
         conn.close()
         self.cleanStdout()
+
+# test_verbose01.py
+# Verify basic uses of the verbose configuration API work as intended i.e. passing
+# single & multiple valid and invalid verbose categories. These tests are mainly focused on uses
+# of the interface prior to the introduction of verbosity levels, ensuring 'legacy'-style
+# uses of the interface are still supported.
+class test_verbose01(test_verbose_base):
+
+    format = [
+        ('flat', dict(is_json=False)),
+        ('json', dict(is_json=True)),
+    ]
+    scenarios = make_scenarios(format)
+
+    collection_cfg = 'key_format=S,value_format=S'
 
     # Test use cases passing single verbose categories, ensuring we only produce verbose output for the single category.
     def test_verbose_single(self):
@@ -85,12 +150,12 @@ class test_verbose01(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Test passing a single verbose category, 'api'. Ensuring the only verbose output generated is related to
         # the 'api' category.
-        with self.expect_verbose(['api'], ['WT_VERB_API']) as conn:
+        with self.expect_verbose(['api'], ['WT_VERB_API'], self.is_json) as conn:
             # Perform a set of simple API operations (table creations and cursor operations) to generate verbose API
             # messages.
             uri = 'table:test_verbose01_api'
             session = conn.open_session()
-            session.create(uri, 'key_format=S,value_format=S')
+            session.create(uri, self.collection_cfg)
             c = session.open_cursor(uri)
             c['api'] = 'api'
             c.close()
@@ -98,13 +163,13 @@ class test_verbose01(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Test passing another single verbose category, 'compact'. Ensuring the only verbose output generated is related to
         # the 'compact' category.
-        with self.expect_verbose(['compact'], ['WT_VERB_COMPACT']) as conn:
+        with self.expect_verbose(['compact'], ['WT_VERB_COMPACT'], self.is_json) as conn:
             # Create a simple table to invoke compaction on. We aren't doing anything interesting with the table
             # such that the data source will be compacted. Rather we want to simply invoke a compaction pass to
             # generate verbose messages.
             uri = 'table:test_verbose01_compact'
             session = conn.open_session()
-            session.create(uri, 'key_format=S,value_format=S')
+            session.create(uri, self.collection_cfg)
             session.compact(uri)
             session.close()
 
@@ -113,13 +178,13 @@ class test_verbose01(wttest.WiredTigerTestCase, suite_subprocess):
         self.close_conn()
         # Test passing multiple verbose categories, being 'api' & 'version'. Ensuring the only verbose output generated
         # is related to those two categories.
-        with self.expect_verbose(['api','version'], ['WT_VERB_API', 'WT_VERB_VERSION']) as conn:
+        with self.expect_verbose(['api','version'], ['WT_VERB_API', 'WT_VERB_VERSION'], self.is_json) as conn:
             # Perform a set of simple API operations (table creations and cursor operations) to generate verbose API
             # messages. Beyond opening the connection resource, we shouldn't need to do anything special for the version
             # category.
             uri = 'table:test_verbose01_multiple'
             session = conn.open_session()
-            session.create(uri, 'key_format=S,value_format=S')
+            session.create(uri, self.collection_cfg)
             c = session.open_cursor(uri)
             c['multiple'] = 'multiple'
             c.close()
@@ -128,22 +193,23 @@ class test_verbose01(wttest.WiredTigerTestCase, suite_subprocess):
     def test_verbose_none(self):
         self.close_conn()
         # Testing passing an empty set of categories. Ensuring no verbose output is generated.
-        with self.expect_verbose([], []) as conn:
+        with self.expect_verbose([], [], self.is_json, False) as conn:
             # Perform a set of simple API operations (table creations and cursor operations). Ensuring no verbose messages
             # are generated.
             uri = 'table:test_verbose01_none'
             session = conn.open_session()
-            session.create(uri, 'key_format=S,value_format=S')
+            session.create(uri, self.collection_cfg)
             c = session.open_cursor(uri)
             c['none'] = 'none'
             c.close()
 
-    # Test use cases passing invalid verbose categories, ensuring the appropriate error message is raised.
+    # Test use cases passing invalid verbose categories, ensuring the appropriate error message is
+    # raised.
     def test_verbose_invalid(self):
         self.close_conn()
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
                 lambda:self.wiredtiger_open(self.home, 'verbose=[test_verbose_invalid]'),
-                '/\'test_verbose_invalid\' not a permitted choice/')
+                '/\'test_verbose_invalid\' not a permitted choice for key \'verbose\'/')
 
 if __name__ == '__main__':
     wttest.run()

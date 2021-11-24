@@ -193,7 +193,7 @@ __tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
       __wt_tiered_name(session, &tiered->iface, tiered->current_id, WT_TIERED_NAME_OBJECT, &name));
     cfg[0] = WT_CONFIG_BASE(session, object_meta);
     cfg[1] = tiered->obj_config;
-    cfg[2] = "flush=0,readonly=true";
+    cfg[2] = "flush_time=0,flush_timestamp=0,readonly=true";
     WT_ASSERT(session, tiered->obj_config != NULL);
     WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&config));
     __wt_verbose(
@@ -300,8 +300,12 @@ int
 __wt_tiered_set_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_ITEM *buf)
 {
     uint32_t i;
+    char hex_timestamp[WT_TS_HEX_STRING_SIZE];
 
-    WT_RET(__wt_buf_catfmt(session, buf, ",last=%" PRIu32 ",tiers=(", tiered->current_id));
+    __wt_timestamp_to_hex_string(S2C(session)->flush_ts, hex_timestamp);
+    WT_RET(__wt_buf_catfmt(session, buf,
+      ",flush_time=%" PRIu64 ",flush_timestamp=\"%s\",last=%" PRIu32 ",oldest=%" PRIu32 ",tiers=(",
+      S2C(session)->flush_most_recent, hex_timestamp, tiered->current_id, tiered->oldest_id));
     for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
         if (tiered->tiers[i].name == NULL) {
             __wt_verbose(session, WT_VERB_TIERED, "TIER_SET_META: names[%" PRIu32 "] NULL", i);
@@ -543,8 +547,18 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_config_getones(session, config, "last", &cval));
     tiered->current_id = (uint32_t)cval.val;
     tiered->next_id = tiered->current_id + 1;
-    __wt_verbose(session, WT_VERB_TIERED, "TIERED_OPEN: current %d, next %d",
-      (int)tiered->current_id, (int)tiered->next_id);
+    /*
+     * For now this is always one. When garbage collection gets implemented then it will be updated
+     * to reflect the first object number that exists. Knowing this information will be helpful for
+     * other tasks such as tiered backup.
+     */
+    WT_ERR(__wt_config_getones(session, config, "oldest", &cval));
+    tiered->oldest_id = (uint32_t)cval.val;
+    WT_ASSERT(session, tiered->oldest_id == 1);
+
+    __wt_verbose(session, WT_VERB_TIERED,
+      "TIERED_OPEN: current %" PRIu32 ", next %" PRIu32 ", oldest %" PRIu32, tiered->current_id,
+      tiered->next_id, tiered->oldest_id);
 
     ret = __wt_config_getones(session, config, "tiers", &tierconf);
     WT_ERR_NOTFOUND_OK(ret, true);

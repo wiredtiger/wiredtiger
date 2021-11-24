@@ -34,11 +34,12 @@ from wtscenario import make_scenarios
 class test_hs18(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=5MB,eviction=(threads_max=1)'
     session_config = 'isolation=snapshot'
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('string-row', dict(key_format='S'))
+    format_values = [
+        ('column', dict(key_format='r', value_format='S')),
+        ('column-fix', dict(key_format='r', value_format='8t')),
+        ('string-row', dict(key_format='S', value_format='S'))
     ]
-    scenarios = make_scenarios(key_format_values)
+    scenarios = make_scenarios(format_values)
 
     def create_key(self, i):
         if self.key_format == 'S':
@@ -56,19 +57,36 @@ class test_hs18(wttest.WiredTigerTestCase):
         sessions[i].begin_transaction()
         self.check_value(cursors[i], values[i])
 
+    def evict_key(self, uri):
+        # Evict the update using a debug cursor
+        evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
+        evict_cursor.set_key(self.create_key(1))
+        self.assertEqual(evict_cursor.search(), 0)
+        evict_cursor.reset()
+        evict_cursor.close()
+
     def test_base_scenario(self):
         uri = 'table:test_base_scenario'
-        self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
+        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        self.session.create(uri, format)
         session2 = self.setUpSessionOpen(self.conn)
         cursor = self.session.open_cursor(uri)
         cursor2 = session2.open_cursor(uri)
 
-        value0 = 'f' * 500
-        value1 = 'a' * 500
-        value2 = 'b' * 500
-        value3 = 'c' * 500
-        value4 = 'd' * 500
-        value5 = 'e' * 500
+        if self.value_format == '8t':
+            value0 = 102
+            value1 = 97
+            value2 = 98
+            value3 = 99
+            value4 = 100
+            value5 = 101
+        else:
+            value0 = 'f' * 500
+            value1 = 'a' * 500
+            value2 = 'b' * 500
+            value3 = 'c' * 500
+            value4 = 'd' * 500
+            value5 = 'e' * 500
 
         # Insert an update at timestamp 3
         self.session.begin_transaction()
@@ -89,11 +107,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         cursor[self.create_key(1)] = value2
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
 
-        # Insert a bunch of contents to fill the cache
-        for i in range(2000, 10000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value3
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction()
@@ -108,11 +124,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         # Check our value is still correct.
         self.check_value(cursor2, value0)
 
-        # Insert a bunch of other contents to trigger eviction
-        for i in range(10001, 11000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value3
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Check our value is still correct.
         self.check_value(cursor2, value0)
@@ -120,18 +134,26 @@ class test_hs18(wttest.WiredTigerTestCase):
     # Test that we don't get the wrong value if we read with a timestamp originally.
     def test_read_timestamp_weirdness(self):
         uri = 'table:test_hs18'
-        self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
+        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        self.session.create(uri, format)
         cursor = self.session.open_cursor(uri)
         session2 = self.setUpSessionOpen(self.conn)
         cursor2 = session2.open_cursor(uri)
         session3 = self.setUpSessionOpen(self.conn)
         cursor3 = session3.open_cursor(uri)
 
-        value1 = 'a' * 500
-        value2 = 'b' * 500
-        value3 = 'c' * 500
-        value4 = 'd' * 500
-        value5 = 'e' * 500
+        if self.value_format == '8t':
+            value1 = 97
+            value2 = 98
+            value3 = 99
+            value4 = 100
+            value5 = 101
+        else:
+            value1 = 'a' * 500
+            value2 = 'b' * 500
+            value3 = 'c' * 500
+            value4 = 'd' * 500
+            value5 = 'e' * 500
 
         # Insert an update at timestamp 3
         self.session.begin_transaction()
@@ -153,11 +175,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         # Check our value is still correct.
         self.check_value(cursor3, value1)
 
-        # Insert a bunch of contents to fill the cache
-        for i in range(1000, 10000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value3
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction()
@@ -173,11 +193,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         self.check_value(cursor2, value1)
         self.check_value(cursor3, value1)
 
-        # Insert a bunch of other contents to trigger eviction
-        for i in range(10001, 20000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value3
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Check our value is still correct.
         self.check_value(cursor2, value1)
@@ -187,15 +205,24 @@ class test_hs18(wttest.WiredTigerTestCase):
     # Test that forces us to ignore tombstone in order to not remove the first non timestamped updated.
     def test_ignore_tombstone(self):
         uri = 'table:test_ignore_tombstone'
-        self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
+        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        self.session.create(uri, format)
         session2 = self.setUpSessionOpen(self.conn)
         cursor = self.session.open_cursor(uri)
         cursor2 = session2.open_cursor(uri)
-        value0 = 'A' * 500
-        value1 = 'a' * 500
-        value2 = 'b' * 500
-        value3 = 'c' * 500
-        value4 = 'd' * 500
+
+        if self.value_format == '8t':
+            value0 = 65
+            value1 = 97
+            value2 = 98
+            value3 = 99
+            value4 = 100
+        else:
+            value0 = 'A' * 500
+            value1 = 'a' * 500
+            value2 = 'b' * 500
+            value3 = 'c' * 500
+            value4 = 'd' * 500
 
         # Insert an update without a timestamp
         self.session.begin_transaction()
@@ -218,11 +245,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         cursor[self.create_key(1)] = value2
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
 
-        # Insert a bunch of other contents to trigger eviction
-        for i in range(2, 10000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value3
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Check our value is still correct.
         self.check_value(cursor2, value0)
@@ -232,11 +257,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         cursor[self.create_key(1)] = value4
         self.session.commit_transaction()
 
-        # Insert a bunch of other contents to trigger eviction
-        for i in range(10000, 11000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value3
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Check our value is still correct.
         self.check_value(cursor2, value0)
@@ -244,7 +267,8 @@ class test_hs18(wttest.WiredTigerTestCase):
     # Test older readers for each of the updates moved to the history store.
     def test_multiple_older_readers(self):
         uri = 'table:test_multiple_older_readers'
-        self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
+        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        self.session.create(uri, format)
         cursor = self.session.open_cursor(uri)
 
         # The ID of the session corresponds the value it should see.
@@ -254,9 +278,10 @@ class test_hs18(wttest.WiredTigerTestCase):
         for i in range(0, 5):
             sessions.append(self.setUpSessionOpen(self.conn))
             cursors.append(sessions[i].open_cursor(uri))
-            values.append(str(i) * 10)
-
-        value_junk = 'aaaaa' * 100
+            if self.value_format == '8t':
+                values.append(i + 48)
+            else:
+                values.append(str(i) * 10)
 
         # Insert an update at timestamp 3
         self.session.begin_transaction()
@@ -282,11 +307,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         # Start a transaction that will see update 2.
         self.start_txn(sessions, cursors, values, 2)
 
-        # Insert a bunch of other contents to trigger eviction
-        for i in range(1000, 10000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value_junk
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction()
@@ -301,11 +324,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         cursor[self.create_key(1)] = values[4]
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(15))
 
-        # Insert a bunch of other contents to trigger eviction
-        for i in range(10001, 20000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value_junk
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Validate all values are visible and correct.
         for i in range(0, 3):
@@ -316,7 +337,8 @@ class test_hs18(wttest.WiredTigerTestCase):
 
     def test_multiple_older_readers_with_multiple_mixed_mode(self):
         uri = 'table:test_multiple_older_readers'
-        self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
+        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        self.session.create(uri, format)
         cursor = self.session.open_cursor(uri)
 
         # The ID of the session corresponds the value it should see.
@@ -326,9 +348,10 @@ class test_hs18(wttest.WiredTigerTestCase):
         for i in range(0, 9):
             sessions.append(self.setUpSessionOpen(self.conn))
             cursors.append(sessions[i].open_cursor(uri))
-            values.append(str(i) * 10)
-
-        value_junk = 'aaaaa' * 100
+            if self.value_format == '8t':
+                values.append(i + 48)
+            else:
+                values.append(str(i) * 10)
 
         # Insert an update at timestamp 3
         self.session.begin_transaction()
@@ -354,11 +377,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         # Start a transaction that will see update 2.
         self.start_txn(sessions, cursors, values, 2)
 
-        # Insert a bunch of other contents to trigger eviction
-        for i in range(1000, 10000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value_junk
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction()
@@ -392,11 +413,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         # Start a transaction that will see update 6.
         self.start_txn(sessions, cursors, values, 6)
 
-        # Insert a bunch of other contents to trigger eviction
-        for i in range(10001, 20000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value_junk
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Validate all values are visible and correct.
         for i in range(0, 6):
@@ -418,11 +437,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         cursor[self.create_key(1)] = values[8]
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
 
-        # Insert a bunch of other contents to trigger eviction
-        for i in range(10001, 20000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = values[3]
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Validate all values are visible and correct.
         for i in range(0, 7):
@@ -432,8 +449,13 @@ class test_hs18(wttest.WiredTigerTestCase):
             cursors[i].reset()
 
     def test_modifies(self):
+        # FLCS doesn't support modify, so just skip this case.
+        if self.value_format == '8t':
+            return
+
         uri = 'table:test_modifies'
-        self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
+        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        self.session.create(uri, format)
         cursor = self.session.open_cursor(uri)
         session_ts_reader = self.setUpSessionOpen(self.conn)
         cursor_ts_reader = session_ts_reader.open_cursor(uri)
@@ -483,11 +505,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Evict the update using a debug cursor
         cursor.reset()
-        evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
-        evict_cursor.set_key(self.create_key(1))
-        self.assertEqual(evict_cursor.search(), 0)
-        evict_cursor.reset()
-        evict_cursor.close()
+        self.evict_key(uri)
 
         # Commit a modify without a timestamp on our original key
         self.session.begin_transaction()
@@ -511,11 +529,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Evict the update using a debug cursor
         cursor.reset()
-        evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
-        evict_cursor.set_key(self.create_key(1))
-        self.assertEqual(evict_cursor.search(), 0)
-        evict_cursor.reset()
-        evict_cursor.close()
+        self.evict_key(uri)
 
         # Check our values are still correct.
         for i in range(0, 5):

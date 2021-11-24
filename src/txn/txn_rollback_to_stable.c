@@ -206,7 +206,7 @@ __rollback_has_stable_update(WT_UPDATE *upd)
 {
     while (upd != NULL && (upd->type == WT_UPDATE_INVALID || upd->txnid == WT_TXN_ABORTED))
         upd = upd->next;
-    return upd != NULL;
+    return (upd != NULL);
 }
 
 /*
@@ -683,7 +683,9 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, u
         else {
             /*
              * In-memory database don't have a history store to provide a stable update, so remove
-             * the key.
+             * the key. Note that an in-memory database will have saved old values in the update
+             * chain, so we should only get here for a key/value that never existed at all as of the
+             * rollback timestamp; thus, deleting it is the correct response.
              */
             WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
             WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
@@ -897,27 +899,105 @@ stop:
 }
 
 /*
+ * __rollback_abort_col_fix_one --
+ *     Handle one possibly unstable on-disk time window.
+ */
+static int
+__rollback_abort_col_fix_one(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t tw,
+  uint32_t recno_offset, wt_timestamp_t rollback_timestamp)
+{
+    WT_BTREE *btree;
+    WT_CELL *cell;
+    WT_CELL_UNPACK_KV unpack;
+    WT_PAGE *page;
+    uint8_t value;
+
+    btree = S2BT(session);
+    page = ref->page;
+
+    /* Unpack the cell to get the time window. */
+    cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[tw]);
+    __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
+
+    /* Fake up the value (which is not physically in the cell) in case it's wanted. */
+    value = __bit_getv(page->pg_fix_bitf, recno_offset, btree->bitcnt);
+    unpack.data = &value;
+    unpack.size = 1;
+
+    return (__rollback_abort_ondisk_kv(session, ref, NULL, page->dsk->recno + recno_offset, NULL,
+      &unpack, rollback_timestamp, NULL));
+}
+
+/*
  * __rollback_abort_col_fix --
  *     Abort updates on a fixed length col leaf page with timestamps newer than the rollback
  *     timestamp.
  */
 static int
-__rollback_abort_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
+__rollback_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
-    WT_INSERT_HEAD *ins;
+    WT_INSERT *ins;
+    WT_INSERT_HEAD *inshead;
+    WT_PAGE *page;
+    uint32_t ins_recno_offset, recno_offset, numtws, tw;
 
-    /* Review the changes to the original on-page data items */
-    if ((ins = WT_COL_UPDATE_SINGLE(page)) != NULL)
-        WT_RET(__rollback_abort_insert_list(session, page, ins, rollback_timestamp, NULL));
+    page = ref->page;
 
-    /* Review the append list */
-    if ((ins = WT_COL_APPEND(page)) != NULL)
-        WT_RET(__rollback_abort_insert_list(session, page, ins, rollback_timestamp, NULL));
+    /*
+     * Review the changes to the original on-page data items. Note that while this can report back
+     * to us whether it saw a stable update, that information doesn't do us any good -- unlike in
+     * VLCS where the uniformity of cells lets us reason about the timestamps of all of them based
+     * on the timestamp of an update to any of them, in FLCS everything is just thrown together, so
+     * we'll need to iterate over all the keys anyway.
+     */
+    if ((inshead = WT_COL_UPDATE_SINGLE(page)) != NULL)
+        WT_RET(__rollback_abort_insert_list(session, page, inshead, rollback_timestamp, NULL));
+
+    /*
+     * Iterate over all the keys, stopping only on keys that (a) have a time window on disk, and
+     * also (b) do not have a stable update remaining in the update list. Keys with no on-disk time
+     * window are stable. And we must not try to adjust the on-disk value for keys with stable
+     * updates, because the downstream code assumes that has already been checked and in some cases
+     * (e.g. in-memory databases) the wrong thing will happen.
+     *
+     * Iterate over the update list and carry along the iteration over the time window list in
+     * parallel, even though the code would perhaps make more sense the other way around, because
+     * this allows using the skiplist iterator macro instead of an open-coded mess.
+     */
+    numtws = WT_COL_FIX_TWS_SET(page) ? page->pg_fix_numtws : 0;
+    WT_ASSERT(session, numtws == 0 || page->dsk != NULL);
+    tw = 0;
+    if (inshead != NULL) {
+        WT_SKIP_FOREACH (ins, inshead) {
+            /* Process all the keys before this update entry. */
+            ins_recno_offset = (uint32_t)(WT_INSERT_RECNO(ins) - ref->ref_recno);
+            while (tw < numtws &&
+              (recno_offset = page->pg_fix_tws[tw].recno_offset) < ins_recno_offset) {
+
+                WT_RET(
+                  __rollback_abort_col_fix_one(session, ref, tw, recno_offset, rollback_timestamp));
+                tw++;
+            }
+            /* If this key has a stable update, skip over it. */
+            if (tw < numtws && page->pg_fix_tws[tw].recno_offset == ins_recno_offset &&
+              ins->upd != NULL && __rollback_has_stable_update(ins->upd))
+                tw++;
+        }
+    }
+    /* Process the rest of the keys with time windows. */
+    while (tw < numtws) {
+        recno_offset = page->pg_fix_tws[tw].recno_offset;
+        WT_RET(__rollback_abort_col_fix_one(session, ref, tw, recno_offset, rollback_timestamp));
+        tw++;
+    }
+
+    /* Review the append list. */
+    if ((inshead = WT_COL_APPEND(page)) != NULL)
+        WT_RET(__rollback_abort_insert_list(session, page, inshead, rollback_timestamp, NULL));
 
     /* Mark the page as dirty to reconcile the page. */
     if (page->modify)
         __wt_page_modify_set(session, page);
-
     return (0);
 }
 
@@ -1107,7 +1187,7 @@ __rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:
-        WT_RET(__rollback_abort_col_fix(session, page, rollback_timestamp));
+        WT_RET(__rollback_abort_col_fix(session, ref, rollback_timestamp));
         break;
     case WT_PAGE_COL_VAR:
         WT_RET(__rollback_abort_col_var(session, ref, rollback_timestamp));
@@ -1428,7 +1508,7 @@ __rollback_to_stable_btree_apply(
     wt_timestamp_t max_durable_ts, newest_start_durable_ts, newest_stop_durable_ts;
     size_t addr_size;
     uint64_t rollback_txnid, write_gen;
-    uint32_t btree_id, handle_open_flags;
+    uint32_t btree_id;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool dhandle_allocated, durable_ts_found, has_txn_updates_gt_than_ckpt_snap, perform_rts;
     bool prepared_updates;
@@ -1529,16 +1609,7 @@ __rollback_to_stable_btree_apply(
 
     if (perform_rts || max_durable_ts > rollback_timestamp || prepared_updates ||
       !durable_ts_found || has_txn_updates_gt_than_ckpt_snap) {
-        /*
-         * MongoDB does not close all open handles before calling rollback-to-stable; otherwise,
-         * don't permit that behavior, the application is likely making a mistake.
-         */
-#ifdef WT_STANDALONE_BUILD
-        handle_open_flags = WT_DHANDLE_DISCARD | WT_DHANDLE_EXCLUSIVE;
-#else
-        handle_open_flags = 0;
-#endif
-        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, handle_open_flags);
+        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
         if (ret != 0)
             WT_ERR_MSG(session, ret, "%s: unable to open handle%s", uri,
               ret == EBUSY ? ", error indicates handle is unavailable due to concurrent use" : "");

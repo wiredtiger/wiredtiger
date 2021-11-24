@@ -17,11 +17,12 @@ endif(CCACHE_FOUND)
 
 project(WiredTiger C CXX ASM)
 
-# Import our available build types prior to initialing the
+# Import our available build types prior to initializing the
 # project.
 include(cmake/configs/modes.cmake)
-
+# Import our helpers.
 include(cmake/helpers.cmake)
+include(cmake/define_libwiredtiger.cmake)
 
 # If the user doesn't manually specify the target ARCH and OS (i.e not cross-compiling)
 # we will infer the target from the host.
@@ -50,29 +51,33 @@ include(cmake/configs/auto.cmake)
 # Load WiredTiger related configuration options.
 include(cmake/configs/base.cmake)
 
+# Import our third party library definitions.
+include(cmake/third_party/gperftools.cmake)
+include(cmake/third_party/lz4.cmake)
+include(cmake/third_party/zstd.cmake)
+include(cmake/third_party/snappy.cmake)
+include(cmake/third_party/zlib.cmake)
+include(cmake/third_party/sodium.cmake)
+
+if(NOT ENABLE_SHARED AND NOT ENABLE_STATIC)
+    message(FATAL_ERROR "Both ENABLE_SHARED & ENABLE_STATIC are disabled. Need to enable at least one build flavour.")
+endif()
+
 if(ENABLE_STRICT)
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
         include(cmake/strict/gcc_strict.cmake)
-    elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
+    elseif("${CMAKE_C_COMPILER_ID}" MATCHES "^(Apple)?(C|c?)lang")
         include(cmake/strict/clang_strict.cmake)
     elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
         include(cmake/strict/cl_strict.cmake)
     endif()
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
         include(cmake/strict/gxx_strict.cmake)
-    elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
+    elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "^(Apple)?(C|c?)lang")
         include(cmake/strict/clangxx_strict.cmake)
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
         include(cmake/strict/clxx_strict.cmake)
     endif()
-endif()
-
-set(link_type)
-if(ENABLE_STATIC)
-    set(link_type "STATIC")
-else()
-    set(link_type "SHARED")
-    set_property(GLOBAL PROPERTY TARGET_SUPPORTS_SHARED_LIBS TRUE)
 endif()
 
 # Include the extensions to the build.
@@ -106,72 +111,73 @@ if(HAVE_BUILTIN_EXTENSION_ZSTD)
     list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_zstd>)
 endif()
 
-# Establish wiredtiger library target.
-add_library(wiredtiger ${link_type} ${wt_sources} ${builtin_objs})
-
 # Generate wiredtiger.h include file.
 configure_file(src/include/wiredtiger.in "include/wiredtiger.h" @ONLY)
 # Generate our wiredtiger_config.h include file.
 configure_file(cmake/configs/wiredtiger_config.h.in "config/wiredtiger_config.h" @ONLY)
-# Set our targets public and private includes.
-target_include_directories(
-    wiredtiger
-    PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_LIST_DIR}/src/include
-)
-target_compile_options(
-    wiredtiger
-    PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
-)
 
-if(ENABLE_STATIC AND NOT ENABLE_PYTHON)
-    # Avoid compiling with fPIC for static builds, this can often lead to
-    # GCC disabling many optimizations e.g. inlining, possibly introducing
-    # an overhead. We additionally can't turn off fPIC if we are compiling
-    # with python support as the python API library depends on shared library
-    # support.
-    set_property(TARGET wiredtiger PROPERTY POSITION_INDEPENDENT_CODE OFF)
+# If compiling with fPIC, we can create a intermediate library of
+# position independent objects, that both the static and shared builds
+# can use. This saving on the cost of recompiling the WiredTiger sources
+# two times over.
+if(WITH_PIC OR ENABLE_SHARED)
+    add_library(wt_objs OBJECT ${wt_sources})
+    target_include_directories(wt_objs
+        PRIVATE
+        ${CMAKE_CURRENT_BINARY_DIR}/include
+        ${CMAKE_CURRENT_BINARY_DIR}/config
+        ${CMAKE_CURRENT_LIST_DIR}/src/include
+    )
+    if(ENABLE_TCMALLOC)
+        target_include_directories(wt_objs PRIVATE ${HAVE_LIBTCMALLOC_INCLUDES})
+    endif()
+    if(HAVE_LIBPTHREAD)
+        target_include_directories(wt_objs PRIVATE ${HAVE_LIBPTHREAD_INCLUDES})
+    endif()
+    if(HAVE_LIBRT)
+        target_include_directories(wt_objs PRIVATE ${HAVE_LIBRT_INCLUDES})
+    endif()
+    if(HAVE_LIBDL)
+        target_include_directories(wt_objs PRIVATE ${HAVE_LIBDL_INCLUDES})
+    endif()
+    set_property(TARGET wt_objs PROPERTY POSITION_INDEPENDENT_CODE ON)
+endif()
+
+if(ENABLE_STATIC)
+    if(WITH_PIC)
+        define_wiredtiger_library(wiredtiger_static STATIC
+            SOURCES $<TARGET_OBJECTS:wt_objs> ${builtin_objs}
+            PUBLIC_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/include
+            PRIVATE_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_LIST_DIR}/src/include
+        )
+    else()
+        define_wiredtiger_library(wiredtiger_static STATIC
+            SOURCES ${wt_sources} ${builtin_objs}
+            PUBLIC_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/include
+            PRIVATE_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_LIST_DIR}/src/include
+        )
+    endif()
+endif()
+
+if(ENABLE_SHARED)
+    define_wiredtiger_library(wiredtiger_shared SHARED
+        SOURCES $<TARGET_OBJECTS:wt_objs> ${builtin_objs}
+        PUBLIC_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/include
+        PRIVATE_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_LIST_DIR}/src/include
+    )
+    # Set the SOVERSION property of the wiredtiger library, so we can export the appropriately versioned symlinks.
+    set_target_properties(wiredtiger_shared PROPERTIES SOVERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
+endif()
+
+# Define an alias target for the WiredTiger library. This being a general target other
+# executables can use to link against. Preference the static library build if available
+# otherwise fallback to the shared library. We also namespace (::) the target to
+# tell CMake that the target name is associated with an ALIAS target, allowing CMake
+# to issue a diagnostic message if the target isn't found on subsequent linking commands.
+if (ENABLE_STATIC)
+    add_library(wt::wiredtiger ALIAS wiredtiger_static)
 else()
-    set_property(TARGET wiredtiger PROPERTY POSITION_INDEPENDENT_CODE ON)
-endif()
-
-# Ensure we link any available library dependencies to our wiredtiger target.
-if(HAVE_LIBPTHREAD)
-    target_link_libraries(wiredtiger "pthread")
-endif()
-
-if(HAVE_LIBRT)
-    target_link_libraries(wiredtiger "rt")
-endif()
-
-if(HAVE_LIBDL)
-    target_link_libraries(wiredtiger "dl")
-endif()
-
-if(ENABLE_TCMALLOC AND HAVE_LIBTCMALLOC)
-    target_link_libraries(wiredtiger ${HAVE_LIBTCMALLOC})
-endif()
-
-# We want to capture any transitive dependencies associated with the builtin library
-# target and ensure we are explicitly linking the 3rd party libraries.
-if(HAVE_BUILTIN_EXTENSION_LZ4)
-    target_link_libraries(wiredtiger ${HAVE_LIBLZ4})
-endif()
-
-if(HAVE_BUILTIN_EXTENSION_SNAPPY)
-    target_link_libraries(wiredtiger ${HAVE_LIBSNAPPY})
-endif()
-
-if(HAVE_BUILTIN_EXTENSION_SODIUM)
-    target_link_libraries(wiredtiger ${HAVE_LIBSODIUM})
-endif()
-
-if(HAVE_BUILTIN_EXTENSION_ZLIB)
-    target_link_libraries(wiredtiger ${HAVE_LIBZ})
-endif()
-
-if(HAVE_BUILTIN_EXTENSION_ZSTD)
-    target_link_libraries(wiredtiger ${HAVE_LIBZSTD})
+    add_library(wt::wiredtiger ALIAS wiredtiger_shared)
 endif()
 
 # Build the wt utility.
@@ -180,12 +186,15 @@ add_subdirectory(src/utilities)
 # Establish our install target configuration.
 include(cmake/install/install.cmake)
 
+# Enable CTest. Subsequent targets may additionally define their own ctest definitions.
+enable_testing()
+
 if(ENABLE_PYTHON)
    add_subdirectory(lang/python)
 endif()
 
 # Build the wiredtiger test suites.
-enable_testing()
-add_subdirectory(test)
-add_subdirectory(examples)
+add_subdirectory(bench/workgen)
 add_subdirectory(bench/wtperf)
+add_subdirectory(examples)
+add_subdirectory(test)

@@ -36,12 +36,8 @@ set(sources
 )
 
 set(link_type)
-if(ENABLE_STATIC)
-    set(link_type "STATIC")
-else()
-    set(link_type "SHARED")
-endif()
-add_library(test_util ${link_type} ${sources})
+add_library(test_util STATIC ${sources})
+set_property(TARGET test_util PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(
     test_util
@@ -51,14 +47,14 @@ target_include_directories(
         ${CMAKE_BINARY_DIR}/config
         ${CMAKE_SOURCE_DIR}/src/include
 )
-target_link_libraries(test_util wiredtiger)
+target_link_libraries(test_util PRIVATE wt::wiredtiger)
 
 if(WT_WIN)
     target_include_directories(
         test_util
         PUBLIC ${CMAKE_SOURCE_DIR}/test/windows
     )
-    target_link_libraries(test_util windows_shim)
+    target_link_libraries(test_util PRIVATE windows_shim)
 endif()
 
 target_compile_options(
