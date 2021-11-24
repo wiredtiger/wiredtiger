@@ -1638,9 +1638,9 @@ __wt_txn_op_list_clear_weak_hazard(WT_SESSION_IMPL *session)
  *     the transaction operation.
  */
 static int
-__txn_resolve_weak_hazard_updates(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_REF **refp)
+__txn_resolve_weak_hazard_updates(
+  WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR **cursorp, WT_REF **refp)
 {
-    WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_REF *ref;
     WT_TXN *txn;
@@ -1648,45 +1648,37 @@ __txn_resolve_weak_hazard_updates(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_RE
 
     *refp = NULL;
 
-    cursor = NULL;
     ref = NULL;
     txn = session->txn;
 
-    /* If we disabled resolution for some reason - do nothing. */
+    /* If we disabled resolution for some reason, or these are unsupported cases - do nothing. */
     if (!txn->resolve_weak_hazard_updates)
         return (0);
+    if (WT_IS_METADATA(op->btree->dhandle) ||
+      (op->type != WT_TXN_OP_BASIC_COL && op->type != WT_TXN_OP_INMEM_COL &&
+        op->type != WT_TXN_OP_BASIC_ROW && op->type != WT_TXN_OP_INMEM_ROW))
+        return (0);
 
-    if (!WT_IS_METADATA(op->btree->dhandle) &&
-      (op->type == WT_TXN_OP_BASIC_COL || op->type == WT_TXN_OP_INMEM_COL ||
-        op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW)) {
-        /*
-         * Try to upgrade the weak pointer. If successful the page is still in memory and we are
-         * holding an active hazard pointer. The caller will have to clear the active hazard pointer
-         * when it is done using the page.
-         */
-        WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref));
-        if (ret == 0) {
-            *refp = ref;
-            return (0);
-        }
-
-        /* We could not upgrade the weak pointer - need to resolve the slow path. */
-        if (ret == EBUSY) {
-            WT_SAVE_DHANDLE(session, ret = __txn_search_uncommitted_op(session, op, &cursor, &upd));
-            WT_ERR(ret);
-
-            /* Since we are not evicting yet - we expect to find the update we already have. */
-            WT_ASSERT(session, op->u.op_upd == upd);
-
-            op->u.op_upd = upd;
-        }
-        WT_ERR(ret);
+    /*
+     * Try to upgrade the weak pointer. If successful the page is still in memory and we are holding
+     * an active hazard pointer. The caller will have to clear the active hazard pointer when it is
+     * done using the page.
+     */
+    WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref));
+    if (ret == 0) {
+        *refp = ref;
+        return (0);
     }
 
-err:
-    if (cursor != NULL) {
-        WT_CLEAR(cursor->key);
-        WT_TRET(cursor->close(cursor));
+    /* We could not upgrade the weak pointer - need to resolve the slow path. */
+    if (ret == EBUSY) {
+        WT_SAVE_DHANDLE(session, ret = __txn_search_uncommitted_op(session, op, cursorp, &upd));
+        WT_RET(ret);
+
+        /* Since we are not evicting yet - we expect to find the update we already have. */
+        WT_ASSERT(session, op->u.op_upd == upd);
+
+        op->u.op_upd = upd;
     }
 
     return (ret);
@@ -1858,7 +1850,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * For now just try to resolve and if successful and returned an active hazard
                  * reference, immediately release the active hazard pointer.
                  */
-                WT_ERR(__txn_resolve_weak_hazard_updates(session, op, &ref));
+                WT_ERR(__txn_resolve_weak_hazard_updates(session, op, &cursor, &ref));
                 if (ref != NULL)
                     WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_clear(session, ref));
                 upd = op->u.op_upd;
@@ -2248,7 +2240,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
                  * For now just try to resolve and if successful and returned an active hazard
                  * reference, immediately release the active hazard pointer.
                  */
-                WT_RET(__txn_resolve_weak_hazard_updates(session, op, &ref));
+                WT_RET(__txn_resolve_weak_hazard_updates(session, op, &cursor, &ref));
                 if (ref != NULL)
                     WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_clear(session, ref));
                 upd = op->u.op_upd;
