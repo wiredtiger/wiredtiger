@@ -234,6 +234,7 @@ class search_near_01 : public test_harness::test {
         num_threads = _config->get_int("search_near_threads");
         tc->stat_cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
         workload_config = _config->get_subconfig(WORKLOAD_GENERATOR);
+        z_key_searches = 0;
 
         logger::log_msg(LOG_INFO, type_string(tc->type) + " thread commencing.");
 
@@ -275,7 +276,7 @@ class search_near_01 : public test_harness::test {
               tc->stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prefix_stat);
             logger::log_msg(LOG_INFO,
               "Read thread skipped entries: " + std::to_string(entries_stat - prev_entries_stat) +
-                " prefix early exit: " + std::to_string(prefix_stat - prev_prefix_stat));
+                " prefix early exit: " + std::to_string(prefix_stat - prev_prefix_stat - z_key_searches));
             /*
              * It is possible that WiredTiger increments the entries skipped stat irrelevant to
              * prefix search near. This is dependent on how many read threads are present in the
@@ -293,5 +294,6 @@ class search_near_01 : public test_harness::test {
             z_key_searches = 0;
             tc->sleep();
         }
+        delete workload_config;
     }
 };
