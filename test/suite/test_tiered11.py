@@ -93,9 +93,8 @@ class test_tiered11(wttest.WiredTigerTestCase):
 
     # Test calling the flush_tier API.
     def test_tiered11(self):
-        # Create three tables. One using the system tiered storage, one
-        # specifying its own bucket and object size and one using no
-        # tiered storage. Use stats to verify correct setup.
+        # Create a tiered table and checkpoint. Make sure the recorded
+        # timestamp is what we expect.
         intl_page = 'internal_page_max=16K'
         base_create = 'key_format=i,value_format=i,' + intl_page
         self.session.create(self.uri, base_create)

@@ -101,7 +101,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
         cfg[1] = NULL;
         if (dhandle->type == WT_DHANDLE_TYPE_TIERED)
             strip =
-              "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,flush_time=,flush_timestamp,"
+              "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,flush_time=,flush_timestamp=,"
               "last=,tiers=()";
         else
             strip = "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=";
