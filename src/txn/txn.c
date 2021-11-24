@@ -1857,7 +1857,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                 /* This is temporary for testing: */
                 WT_ERR_ASSERT(
                   session, ret == 0, ret, "Failed to resolve an update during txn_commit");
-                WT_ERR(ret);
 
                 if (ref == NULL)
                     slow_resolved = true;
@@ -2258,9 +2257,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
                  */
                 ret = __txn_resolve_weak_hazard_updates(session, op, &cursor, &ref);
                 /* This is temporary for testing: */
-                WT_ERR_ASSERT(
+                WT_RET_ASSERT(
                   session, ret == 0, ret, "Failed to resolve an update during txn_rollback");
-                WT_RET(ret);
 
                 if (ref == NULL)
                     slow_resolved = true;
