@@ -212,6 +212,8 @@ config_table(TABLE *table, void *arg)
 
     (void)arg; /* unused argument */
 
+    testutil_assert(table != NULL);
+
     /*
      * Choose a file format and a data source: they're interrelated (LSM is only compatible with
      * row-store) and other items depend on them.
@@ -482,6 +484,7 @@ static void
 config_backward_compatible_table(TABLE *table, void *arg)
 {
     (void)arg; /* unused argument */
+    testutil_assert(table != NULL);
 
 #undef BC_CHECK
 #define BC_CHECK(name, flag)                                                               \
@@ -525,8 +528,7 @@ config_backward_compatible(void)
 static void
 config_cache(void)
 {
-    uint64_t cache;
-    uint32_t workers;
+    uint64_t cache, workers;
 
     /* Check if both min and max cache sizes have been specified and if they're consistent. */
     if (config_explicit(NULL, "cache")) {

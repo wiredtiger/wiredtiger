@@ -78,7 +78,7 @@ set(swig_wt_target ${SWIG_MODULE__wiredtiger_REAL_NAME})
 # Depending on the chosen compiler (cl, clang or gcc), a slightly different set of compiler flags
 # will be used.
 set(swig_c_flags)
-if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
+if("${CMAKE_C_COMPILER_ID}" MATCHES "^(Apple)?(C|c?)lang")
     set(swig_c_flags
         -Wno-pointer-sign
         -Wno-ignored-qualifiers
@@ -163,4 +163,13 @@ set_target_properties(${swig_wt_target} PROPERTIES OUTPUT_NAME "_wiredtiger")
 # doesn't work well for dynamic modules loaded by python.
 if(WT_DARWIN)
     set_target_properties(${swig_wt_target} PROPERTIES SUFFIX ".so")
+endif()
+
+# Define a simple smoke test to check the Python API can be used.
+if(WT_POSIX)
+    add_test(NAME test_ex_access
+        COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}
+            ${python_executable} -S ${CMAKE_SOURCE_DIR}/examples/python/ex_access.py
+    )
+    set_tests_properties(test_ex_access PROPERTIES LABELS "check")
 endif()
