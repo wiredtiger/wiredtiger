@@ -124,7 +124,8 @@ update_chain:
         if (upd->type != WT_UPDATE_MODIFY) {
             __wt_upd_value_assign(cbt->upd_value, upd);
             ret = 0;
-        } else
+        }
+        else
             WT_RET(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
 
         __wt_cursor_set_value(cursor, cbt->upd_value->buf);
@@ -156,17 +157,19 @@ history_store:
     if (!F_ISSET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED)) {
         hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, cursor->key, WT_TS_MAX, UINT64_MAX);
         ret = __wt_curhs_search_near_before(session, hs_cursor);
+        ret = hs_cursor->prev(hs_cursor);
 
-        if (ret != 0)
-            goto done;
-
+        /* 
+         * If there are no history store records for the given key or if we have iterated through
+         * all the records already, we have exhausted ths history store.
+         */ 
         /* TODO Set the key and value data for HS versions. */
-        for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
+        if (ret == 0) {
             __wt_cursor_set_key(cursor, WT_VERSION_HISTORY_STORE);
             __wt_cursor_set_value(cursor);
+        } else {
+            F_SET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED);
         }
-
-        F_SET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED);
         goto done;
     }
 
