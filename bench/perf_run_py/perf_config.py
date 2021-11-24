@@ -29,20 +29,20 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 class TestType:
-    def __init__(self):
-        self.wtperf = False
-        self.workgen = False
+    def __init__(self, is_wtperf: bool, is_workgen: bool):
+        self.is_wtperf = is_wtperf
+        self.is_workgen = is_workgen
 
     def get_home_arg(self, home: str):
-        if self.wtperf:
+        if self.is_wtperf:
             return ['-h', home]
-        if self.workgen:
+        if self.is_workgen:
             return ['--home', home]
 
     def get_test_arg(self, test: str):
-        if self.wtperf:
+        if self.is_wtperf:
             return ['-O', test]
-        if self.workgen:
+        if self.is_workgen:
             return [test]
 
 

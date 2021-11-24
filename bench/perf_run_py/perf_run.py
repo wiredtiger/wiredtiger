@@ -226,12 +226,7 @@ def parse_json_args(args: argparse.Namespace) -> Tuple[List[str], List[str], Per
     json_info = json.loads(args.json_info) if args.json_info else {}
     arguments = json.loads(args.arguments) if args.arguments else None
     operations = json.loads(args.operations) if args.operations else None
-
-    test_type = TestType()
-    if args.wtperf:
-        test_type.wtperf = True
-    elif args.workgen:
-        test_type.workgen = True
+    test_type = TestType(is_wtperf=args.wtperf, is_workgen=args.workgen)
 
     config = PerfConfig(test_type=test_type,
                         exec_path=args.exec_path,
