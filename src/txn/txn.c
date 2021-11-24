@@ -1661,7 +1661,7 @@ __txn_resolve_weak_hazard_updates(
 
     /*
      * Try to upgrade the weak pointer. If successful the page is still in memory and we are holding
-     * an active hazard pointer. The caller will have to clear the active hazard pointer when it is
+     * a strong hazard pointer. The caller will have to clear the strong hazard pointer when it is
      * done using the page.
      */
     WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_weak_upgrade(session, &op->whp, &ref));

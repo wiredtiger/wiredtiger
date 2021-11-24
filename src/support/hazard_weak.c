@@ -307,7 +307,7 @@ __wt_hazard_weak_upgrade(WT_SESSION_IMPL *session, WT_HAZARD_WEAK **whpp, WT_REF
 #endif
 
     /*
-     * Attempt to take an active hazard pointer. Eviction on this page might prevent us from being
+     * Attempt to take a strong hazard pointer. Eviction on this page might prevent us from being
      * able to do so, in such a case we can't upgrade, we are done.
      */
     WT_ERR(__wt_hazard_set(session, whp->ref, &busy));
@@ -316,7 +316,7 @@ __wt_hazard_weak_upgrade(WT_SESSION_IMPL *session, WT_HAZARD_WEAK **whpp, WT_REF
 
     /*
      * Paranoia: Eviction could still race with us and mark the pointers invalid after we have
-     * checked their validity and before setting active hazard pointer. Check again.
+     * checked their validity and before setting strong hazard pointer. Check again.
      */
     if (!whp->valid) {
         WT_ERR(__wt_hazard_clear(session, whp->ref));
