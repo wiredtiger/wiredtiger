@@ -1707,7 +1707,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_DIAGNOSTIC
     u_int prepare_count;
 #endif
-    bool locked, prepare, readonly, update_durable_ts;
+    bool locked, prepare, readonly, slow_resolved, update_durable_ts;
 
     conn = S2C(session);
     cursor = NULL;
@@ -1720,6 +1720,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     locked = false;
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     readonly = txn->mod_count == 0;
+    slow_resolved = false;
 
     /* Permit the commit if the transaction failed, but was read-only. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
@@ -1847,11 +1848,15 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_INMEM_ROW:
             if (!prepare) {
                 /*
-                 * For now just try to resolve and if successful and returned an active hazard
-                 * reference, immediately release the active hazard pointer.
+                 * The page carrying the updates could have been evicted already. We will need to
+                 * fix the update pointer in the transaction op in such a case. If the resolution
+                 * returns a reference, the page was not evicted and we hold a strong hazard pointer
+                 * that we need to clear after the use.
                  */
                 WT_ERR(__txn_resolve_weak_hazard_updates(session, op, &cursor, &ref));
-                if (ref != NULL)
+                if (ref == NULL)
+                    slow_resolved = true;
+                else
                     WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_clear(session, ref));
                 upd = op->u.op_upd;
 
@@ -2001,6 +2006,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
           "transaction's "
           "durable timestamp");
     }
+
+    if (slow_resolved)
+        WT_STAT_CONN_INCR(session, txn_commit_slow_resolved);
 
     return (0);
 
@@ -2191,7 +2199,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_DIAGNOSTIC
     u_int prepare_count;
 #endif
-    bool prepare, readonly;
+    bool prepare, readonly, slow_resolved;
 
     cursor = NULL;
     ref = NULL;
@@ -2201,6 +2209,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     readonly = txn->mod_count == 0;
+    slow_resolved = false;
 
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
@@ -2237,11 +2246,15 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_INMEM_ROW:
             if (!prepare) {
                 /*
-                 * For now just try to resolve and if successful and returned an active hazard
-                 * reference, immediately release the active hazard pointer.
+                 * The page carrying the updates could have been evicted already. We will need to
+                 * fix the update pointer in the transaction op in such a case. If the resolution
+                 * returns a reference, the page was not evicted and we hold a strong hazard pointer
+                 * that we need to clear after the use.
                  */
                 WT_RET(__txn_resolve_weak_hazard_updates(session, op, &cursor, &ref));
-                if (ref != NULL)
+                if (ref == NULL)
+                    slow_resolved = true;
+                else
                     WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_clear(session, ref));
                 upd = op->u.op_upd;
 
@@ -2285,6 +2298,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ASSERT(session, txn->prepare_count == prepare_count);
     txn->prepare_count = 0;
 #endif
+
+    if (slow_resolved)
+        WT_STAT_CONN_INCR(session, txn_rollback_slow_resolved);
 
     if (cursor != NULL) {
         WT_TRET(cursor->close(cursor));
