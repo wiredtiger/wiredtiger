@@ -297,6 +297,15 @@ __wt_hazard_weak_upgrade(WT_SESSION_IMPL *session, WT_HAZARD_WEAK **whpp, WT_REF
     if (!whp->valid)
         WT_ERR(EBUSY);
 
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * Failing to upgrade the hazard pointer will encourage testing the resolution of uncommitted
+     * updates more often.
+     */
+    if (__wt_random(&session->rnd) % 10 == 0)
+        WT_ERR(EBUSY);
+#endif
+
     /*
      * Attempt to take an active hazard pointer. Eviction on this page might prevent us from being
      * able to do so, in such a case we can't upgrade, we are done.
