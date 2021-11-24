@@ -139,9 +139,12 @@ class PerfStatLatency(PerfStat):
                 'name': self.output_label + str(i),
                 'value': self.get_value(i)
             }
-            if not brief:
-                as_dict['values'] = self.values
             as_list.append(as_dict)
+        if not brief:
+            as_list.append({
+                'name': "Latencies",
+                'values': sorted(self.values)
+            })
         return as_list
 
 
@@ -158,7 +161,10 @@ class PerfStatLatencyWorkgen(PerfStat):
                 'name': self.output_label + str(i),
                 'value': self.get_value(i)
             }
-            if not brief:
-                as_dict['values'] = self.values
             as_list.append(as_dict)
+        if not brief:
+            as_list.append({
+                'name': "Latencies",
+                'values': sorted(self.values)
+            })
         return as_list
