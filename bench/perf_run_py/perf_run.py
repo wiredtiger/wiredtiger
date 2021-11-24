@@ -43,10 +43,6 @@ from typing import Dict, List, Tuple
 from perf_config import PerfConfig, TestType
 
 
-def is_wtperf_test(exec: str):
-    return "wtperf" in exec
-
-
 def create_test_home_path(home: str, test_run: int, index: int):
     home_path = "{}_{}_{}".format(home, index, test_run)
     return home_path
