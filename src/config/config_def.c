@@ -17,9 +17,13 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_load_extension[] = {
   {"entry", "string", NULL, NULL, NULL, 0}, {"terminate", "string", NULL, NULL, NULL, 0},
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
+static const WT_CONFIG_CHECK confchk_WT_CONNECTION_open_session_debug_subconfigs[] = {
+  {"release_evict_page", "boolean", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
+
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_open_session[] = {
   {"cache_cursors", "boolean", NULL, NULL, NULL, 0},
   {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0},
+  {"debug", "category", NULL, NULL, confchk_WT_CONNECTION_open_session_debug_subconfigs, 1},
   {"ignore_cache_size", "boolean", NULL, NULL, NULL, 0},
   {"isolation", "string", NULL,
     "choices=[\"read-uncommitted\",\"read-committed\","
@@ -409,6 +413,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_query_timestamp[] = {
 static const WT_CONFIG_CHECK confchk_WT_SESSION_reconfigure[] = {
   {"cache_cursors", "boolean", NULL, NULL, NULL, 0},
   {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0},
+  {"debug", "category", NULL, NULL, confchk_WT_CONNECTION_open_session_debug_subconfigs, 1},
   {"ignore_cache_size", "boolean", NULL, NULL, NULL, 0},
   {"isolation", "string", NULL,
     "choices=[\"read-uncommitted\",\"read-committed\","
@@ -633,7 +638,7 @@ static const WT_CONFIG_CHECK confchk_object_meta[] = {
   {"collator", "string", NULL, NULL, NULL, 0}, {"columns", "list", NULL, NULL, NULL, 0},
   {"dictionary", "int", NULL, "min=0", NULL, 0},
   {"encryption", "category", NULL, NULL, confchk_WT_SESSION_create_encryption_subconfigs, 2},
-  {"flush_time", "string", NULL, NULL, NULL, 0},
+  {"flush_time", "string", NULL, NULL, NULL, 0}, {"flush_timestamp", "string", NULL, NULL, NULL, 0},
   {"format", "string", NULL, "choices=[\"btree\"]", NULL, 0},
   {"huffman_key", "string", NULL, NULL, NULL, 0}, {"huffman_value", "string", NULL, NULL, NULL, 0},
   {"id", "string", NULL, NULL, NULL, 0},
@@ -756,7 +761,7 @@ static const WT_CONFIG_CHECK confchk_tiered_meta[] = {
   {"collator", "string", NULL, NULL, NULL, 0}, {"columns", "list", NULL, NULL, NULL, 0},
   {"dictionary", "int", NULL, "min=0", NULL, 0},
   {"encryption", "category", NULL, NULL, confchk_WT_SESSION_create_encryption_subconfigs, 2},
-  {"flush_time", "string", NULL, NULL, NULL, 0},
+  {"flush_time", "string", NULL, NULL, NULL, 0}, {"flush_timestamp", "string", NULL, NULL, NULL, 0},
   {"format", "string", NULL, "choices=[\"btree\"]", NULL, 0},
   {"huffman_key", "string", NULL, NULL, NULL, 0}, {"huffman_value", "string", NULL, NULL, NULL, 0},
   {"id", "string", NULL, NULL, NULL, 0},
@@ -1175,9 +1180,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "terminate=wiredtiger_extension_terminate",
     confchk_WT_CONNECTION_load_extension, 4},
   {"WT_CONNECTION.open_session",
-    "cache_cursors=true,cache_max_wait_ms=0,ignore_cache_size=false,"
+    "cache_cursors=true,cache_max_wait_ms=0,"
+    "debug=(release_evict_page=false),ignore_cache_size=false,"
     "isolation=snapshot",
-    confchk_WT_CONNECTION_open_session, 4},
+    confchk_WT_CONNECTION_open_session, 5},
   {"WT_CONNECTION.query_timestamp", "get=all_durable", confchk_WT_CONNECTION_query_timestamp, 1},
   {"WT_CONNECTION.reconfigure",
     "block_cache=(blkcache_eviction_aggression=1800,"
@@ -1286,9 +1292,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     1},
   {"WT_SESSION.query_timestamp", "get=read", confchk_WT_SESSION_query_timestamp, 1},
   {"WT_SESSION.reconfigure",
-    "cache_cursors=true,cache_max_wait_ms=0,ignore_cache_size=false,"
+    "cache_cursors=true,cache_max_wait_ms=0,"
+    "debug=(release_evict_page=false),ignore_cache_size=false,"
     "isolation=snapshot",
-    confchk_WT_SESSION_reconfigure, 4},
+    confchk_WT_SESSION_reconfigure, 5},
   {"WT_SESSION.rename", "", NULL, 0}, {"WT_SESSION.reset", "", NULL, 0},
   {"WT_SESSION.reset_snapshot", "", NULL, 0},
   {"WT_SESSION.rollback_transaction", "operation_timeout_ms=0",
@@ -1390,7 +1397,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "block_compressor=,cache_resident=false,checkpoint=,"
     "checkpoint_backup_info=,checkpoint_lsn=,checksum=on,collator=,"
     "columns=,dictionary=0,encryption=(keyid=,name=),flush_time=0,"
-    "format=btree,huffman_key=,huffman_value=,id=,"
+    "flush_timestamp=0,format=btree,huffman_key=,huffman_value=,id=,"
     "ignore_in_memory_cache_size=false,internal_item_max=0,"
     "internal_key_max=0,internal_key_truncate=true,"
     "internal_page_max=4KB,key_format=u,key_gap=10,leaf_item_max=0,"
@@ -1403,7 +1410,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "cache_directory=,local_retention=300,name=,"
     "object_target_size=10M),value_format=u,verbose=[],"
     "version=(major=0,minor=0),write_timestamp_usage=none",
-    confchk_object_meta, 48},
+    confchk_object_meta, 49},
   {"table.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
@@ -1438,7 +1445,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "block_compressor=,cache_resident=false,checkpoint=,"
     "checkpoint_backup_info=,checkpoint_lsn=,checksum=on,collator=,"
     "columns=,dictionary=0,encryption=(keyid=,name=),flush_time=0,"
-    "format=btree,huffman_key=,huffman_value=,id=,"
+    "flush_timestamp=0,format=btree,huffman_key=,huffman_value=,id=,"
     "ignore_in_memory_cache_size=false,internal_item_max=0,"
     "internal_key_max=0,internal_key_truncate=true,"
     "internal_page_max=4KB,key_format=u,key_gap=10,last=0,"
@@ -1451,7 +1458,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "bucket=,bucket_prefix=,cache_directory=,local_retention=300,"
     "name=,object_target_size=10M),tiers=,value_format=u,verbose=[],"
     "version=(major=0,minor=0),write_timestamp_usage=none",
-    confchk_tiered_meta, 51},
+    confchk_tiered_meta, 52},
   {"wiredtiger_open",
     "block_cache=(blkcache_eviction_aggression=1800,"
     "cache_on_checkpoint=true,cache_on_writes=true,enabled=false,"

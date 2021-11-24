@@ -462,6 +462,8 @@ lsm_meta = file_config + lsm_config + [
 tiered_meta = file_meta + tiered_config + [
     Config('flush_time', '0', r'''
         indicates the time this tree was flushed to shared storage or 0 if unflushed'''),
+    Config('flush_timestamp', '0', r'''
+        timestamp at which this tree was flushed to shared storage or 0 if unflushed'''),
     Config('last', '0', r'''
         the last allocated object ID'''),
     Config('oldest', '1', r'''
@@ -476,6 +478,8 @@ tier_meta = file_meta + tiered_tree_config
 object_meta = file_meta + [
     Config('flush_time', '0', r'''
         indicates the time this object was flushed to shared storage or 0 if unflushed'''),
+    Config('flush_timestamp', '0', r'''
+        timestamp at which this object was flushed to shared storage or 0 if unflushed'''),
 ]
 
 table_only_config = [
@@ -1099,6 +1103,15 @@ session_config = [
         closed. This value is inherited from ::wiredtiger_open
         \c cache_cursors''',
         type='boolean'),
+    Config('debug', '', r'''
+        configure debug specific behavior on a session. Generally only used
+        for internal testing purposes.''',
+        type='category', subconfig=[
+        Config('release_evict_page', 'false', r'''
+            Configure the session to evict the page when it is released and
+            no longer needed.''',
+            type='boolean'),
+        ]),
     Config('cache_max_wait_ms', '0', r'''
         the maximum number of milliseconds an application thread will wait
         for space to be available in cache before giving up.
