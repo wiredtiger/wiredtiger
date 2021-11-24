@@ -64,12 +64,16 @@ class test_tiered11(wttest.WiredTigerTestCase):
 
     # Check for a specific string as part of the uri's metadata.
     def check_metadata(self, uri, val_str, match=True):
+        #self.pr("Check_meta: uri: " + uri)
         c = self.session.open_cursor('metadata:')
         val = c[uri]
         c.close()
+        #self.pr("Check_meta: metadata val: " + val)
         if match:
+            #self.pr("Check_meta: Should see val_str: " + val_str)
             self.assertTrue(val_str in val)
         else:
+            #self.pr("Check_meta: Should not see val_str: " + val_str)
             self.assertFalse(val_str in val)
 
     def add_data(self, start):
@@ -103,6 +107,9 @@ class test_tiered11(wttest.WiredTigerTestCase):
         # We have a new stable timestamp, but after the checkpoint. Make
         # sure the flush tier records the correct timestamp.
         self.session.flush_tier(None)
+        # Make sure a new checkpoint doesn't change any of our timestamp info.
+        self.session.checkpoint()
+
         flush_str = 'flush_timestamp="' + end_ts + '"'
         self.check_metadata(self.tiereduri, flush_str)
         self.check_metadata(self.objuri, flush_str)
