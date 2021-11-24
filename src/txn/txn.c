@@ -1859,8 +1859,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_BASIC_ROW:
         case WT_TXN_OP_INMEM_COL:
         case WT_TXN_OP_INMEM_ROW:
-            upd = op->u.op_upd;
-
             if (!prepare) {
                 /*
                  * For now just try to resolve and if successful and returned an active hazard
@@ -1869,6 +1867,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                 WT_ERR(__txn_resolve_weak_hazard_updates(session, op, &ref));
                 if (ref != NULL)
                     WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_clear(session, ref));
+                upd = op->u.op_upd;
 
                 /*
                  * Switch reserved operations to abort to simplify obsolete update list truncation.
@@ -2250,8 +2249,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_BASIC_ROW:
         case WT_TXN_OP_INMEM_COL:
         case WT_TXN_OP_INMEM_ROW:
-            upd = op->u.op_upd;
-
             if (!prepare) {
                 /*
                  * For now just try to resolve and if successful and returned an active hazard
@@ -2260,6 +2257,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
                 WT_RET(__txn_resolve_weak_hazard_updates(session, op, &ref));
                 if (ref != NULL)
                     WT_WITH_BTREE(session, op->btree, ret = __wt_hazard_clear(session, ref));
+                upd = op->u.op_upd;
 
                 if (S2C(session)->cache->hs_fileid != 0 &&
                   op->btree->id == S2C(session)->cache->hs_fileid)
