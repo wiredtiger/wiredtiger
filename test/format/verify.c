@@ -42,6 +42,7 @@ table_verify(TABLE *table, void *arg)
     int i;
 
     conn = (WT_CONNECTION *)arg;
+    testutil_assert(table != NULL);
 
     /*
      * Verify can return EBUSY if the handle isn't available. Don't yield and retry, in the case of

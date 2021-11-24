@@ -1324,6 +1324,7 @@ wts_read_scan(TABLE *table, void *arg)
     uint8_t bitv;
 
     conn = (WT_CONNECTION *)arg;
+    testutil_assert(table != NULL);
 
     /*
      * We're not configuring transactions or read timestamps: if there's a diagnostic check that all
@@ -1752,6 +1753,8 @@ col_insert_resolve(TABLE *table, void *arg)
     u_int i;
 
     tinfo = arg;
+    testutil_assert(table != NULL);
+
     cip = &tinfo->col_insert[table->id - 1];
     if (cip->insert_list_cnt == 0)
         return;

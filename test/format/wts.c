@@ -342,6 +342,8 @@ create_object(TABLE *table, void *arg)
     const char *s;
 
     conn = (WT_CONNECTION *)arg;
+    testutil_assert(table != NULL);
+
     p = config;
     max = sizeof(config);
 
@@ -586,6 +588,8 @@ stats_data_source(TABLE *table, void *arg)
     char buf[1024];
 
     args = arg;
+    testutil_assert(table != NULL);
+
     fp = args->fp;
     session = args->session;
 

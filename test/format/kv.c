@@ -63,6 +63,7 @@ key_init(TABLE *table, void *arg)
     char buf[MAX_FORMAT_PATH];
 
     (void)arg; /* unused argument */
+    testutil_assert(table != NULL);
 
     /* Key initialization is only required by row-store objects. */
     if (table->type != ROW)
@@ -244,6 +245,7 @@ val_init(TABLE *table, void *arg)
     uint32_t len;
 
     (void)arg; /* unused argument */
+    testutil_assert(table != NULL);
 
     /* Discard any previous value initialization. */
     free(table->val_base);
