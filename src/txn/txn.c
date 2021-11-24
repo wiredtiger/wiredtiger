@@ -1851,10 +1851,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * The page carrying the updates could have been evicted already. We will need to
                  * fix the update pointer in the transaction op in such a case. If the resolution
                  * returns a reference, the page was not evicted and we hold a strong hazard pointer
-                 * that we need to clear after the use.
+                 * that we need to clear after the use. For testing purposes assert if resolution
+                 * fails.
                  */
                 ret = __txn_resolve_weak_hazard_updates(session, op, &cursor, &ref);
-                /* This is temporary for testing: */
                 WT_ERR_ASSERT(
                   session, ret == 0, ret, "Failed to resolve an update during txn_commit");
 
@@ -2260,10 +2260,10 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
                  * The page carrying the updates could have been evicted already. We will need to
                  * fix the update pointer in the transaction op in such a case. If the resolution
                  * returns a reference, the page was not evicted and we hold a strong hazard pointer
-                 * that we need to clear after the use.
+                 * that we need to clear after the use. For testing purposes assert if resolution
+                 * fails.
                  */
                 ret = __txn_resolve_weak_hazard_updates(session, op, &cursor, &ref);
-                /* This is temporary for testing: */
                 WT_RET_ASSERT(
                   session, ret == 0, ret, "Failed to resolve an update during txn_rollback");
 
