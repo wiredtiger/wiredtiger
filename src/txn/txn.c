@@ -1853,7 +1853,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * returns a reference, the page was not evicted and we hold a strong hazard pointer
                  * that we need to clear after the use.
                  */
-                WT_ERR(__txn_resolve_weak_hazard_updates(session, op, &cursor, &ref));
+                ret = __txn_resolve_weak_hazard_updates(session, op, &cursor, &ref);
+                /* This is temporary for testing: */
+                WT_ERR_ASSERT(
+                  session, ret == 0, ret, "Failed to resolve an update during txn_commit");
+                WT_ERR(ret);
+
                 if (ref == NULL)
                     slow_resolved = true;
                 else
@@ -2251,7 +2256,12 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
                  * returns a reference, the page was not evicted and we hold a strong hazard pointer
                  * that we need to clear after the use.
                  */
-                WT_RET(__txn_resolve_weak_hazard_updates(session, op, &cursor, &ref));
+                ret = __txn_resolve_weak_hazard_updates(session, op, &cursor, &ref);
+                /* This is temporary for testing: */
+                WT_ERR_ASSERT(
+                  session, ret == 0, ret, "Failed to resolve an update during txn_rollback");
+                WT_RET(ret);
+
                 if (ref == NULL)
                     slow_resolved = true;
                 else
