@@ -211,8 +211,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
      * visible to checkpoint and the modifications it makes to the history store will be the same as
      * what checkpoint would've done.
      */
-    if (error_on_ooo_ts &&
-      (__wt_txn_tw_stop_visible_all(session, tw) || __wt_txn_tw_start_visible_all(session, tw))) {
+    if (error_on_ooo_ts && __wt_txn_tw_start_visible_all(session, tw)) {
         error_on_ooo_ts = false;
     }
 
