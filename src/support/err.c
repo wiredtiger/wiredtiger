@@ -704,7 +704,7 @@ __wt_progress(WT_SESSION_IMPL *session, WT_VERBOSE_CATEGORY category, const char
 
     /* Generate message. */
     WT_RET(__eventv_gen_msg(
-      session, operation, &remain, is_json, 0, NULL, 0, category, WT_VERBOSE_INFO, msg));
+      session, operation, &remain, is_json, 0, NULL, 0, category, WT_VERBOSE_NOTICE, msg));
 
     /* Write message. */
     if (handler != NULL && handler->handle_progress != NULL)
