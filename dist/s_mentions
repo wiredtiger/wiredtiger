@@ -17,8 +17,11 @@ ticket_id=$(echo "$branch_name" | cut -d "-" -f-2)
 
 search_function="grep -Iinr --exclude-dir=.git $ticket_id ../"
 
-# Relative to HOME as some scripts strip home from the path.
-wt_src_path=$(realpath --relative-to="$HOME" ../)
+# The wiredtiger source path need to be relative to $HOME
+# as some scripts will strip $HOME from the path.
+wt_src_path=$(readlink -f ../)
+wt_src_path=${wt_src_path#"$(readlink -f "$HOME")/"}
+
 if [[ $wt_src_path =~ .*${wt_ticket_regex}.* ]]; then
     # If the wiredtiger filepath contains $ticket_id (e.g. ~/src/$ticket_id/wiredtiger) then we will
     # match generated build scripts containing this path. Filter these results from the search.
