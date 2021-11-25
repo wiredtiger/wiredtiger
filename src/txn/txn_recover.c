@@ -478,7 +478,8 @@ __recovery_set_checkpoint_snapshot(WT_SESSION_IMPL *session)
      * WiredTiger versions 10.0.1 onward have a valid checkpoint snapshot on-disk. Ignore reading
      * the on-disk checkpoint snapshot from older versions.
      */
-    if (conn->recovery_major < 10 || (conn->recovery_minor == 0 && conn->recovery_patch < 1))
+    if (conn->recovery_major < 10 ||
+      (conn->recovery_major == 10 && conn->recovery_minor == 0 && conn->recovery_patch == 0))
         return (0);
 
     /*
