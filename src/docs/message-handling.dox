@@ -61,20 +61,20 @@ flat string format.
 The JSON output follows a specific schema with the following fields:
 
 <table>
-@hrow{Field, Description}
-@row{category, Message category defined by \c WT_VERBOSE_CATEGORY}
-@row{category_id, Value representation of the message category}
-@row{error_code, Value representation of the error}
-@row{error_str, Error message}
-@row{msg, Message}
-@row{session_dhandle_name, Session dhandle name}
-@row{session_err_prefix, Database error prefix defined in the \c WT_CONNECTION_IMPL structure}
-@row{session_name, Session name}
-@row{ts_sec, Time in seconds at which the message was generated}
-@row{ts_uec, Time in microseconds at which the message was generated}
+@hrow{Field, Description, Type}
+@row{category, Message category defined by \c WT_VERBOSE_CATEGORY, String}
+@row{category_id, Value representation of the message category, Int}
+@row{error_code, Value representation of the error, Int}
+@row{error_str, Error message, String}
+@row{msg, Message, String}
+@row{session_dhandle_name, Session dhandle name, String}
+@row{session_err_prefix, Database error prefix defined in the \c WT_CONNECTION_IMPL structure, String}
+@row{session_name, Session name, String}
+@row{ts_sec, Time in seconds at which the message was generated, Int}
+@row{ts_uec, Time in microseconds at which the message was generated, Int}
 @row{verbose_level, Severity level associated with the message. See @ref verbose_messaging for more
-details}
-@row{verbose_level_id, Value representation of the verbose level}
+details, String}
+@row{verbose_level_id, Value representation of the verbose level, Int}
 </table>
 
 Note: The information present in a message depends on the available data at the time when the
