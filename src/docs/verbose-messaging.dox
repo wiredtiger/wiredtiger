@@ -9,7 +9,7 @@ debug and diagnose events across WiredTiger's runtime.
 @section verbosity_levels Verbosity Levels
 
 WiredTiger associates a verbosity level with each message. The verbosity
-level denotes to the severity of a given message, ranging from high
+level denotes the severity of a given message, ranging from high
 severity error messages (\c ERROR) to low severity debug informational
 messages (\c DEBUG). The full range of verbosity levels and their associated
 meanings are:
@@ -26,7 +26,7 @@ meanings are:
 @section verbosity_categories Verbosity Categories
 
 Each verbose message is associated with a category. Verbose categories represent a range of different
-sub-systems in WiredTiger, where messages will denote to a specific operation or event under a given sub-system.
+sub-systems in WiredTiger, where messages will denote a specific operation or event under a given sub-system.
 To see the complete exhaustive list of available verbose categories, refer to the \c 'verbose' configuration option
 under ::wiredtiger_open.
 
