@@ -93,17 +93,13 @@ __wt_blkcache_map_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const 
     *foundp = false;
 
     /*
-     * FIXME PM-1982: This code isn't used as we no longer open checkpoint cursors, which is
-     * probably good since it doesn't work anyway.
-     *
      * FIXME WT-7872: The WT_BLOCK.map test is wrong; tiered storage assumes object IDs translate to
      * WT_FH structures, not WT_BLOCK structures. When we check if the WT_BLOCK handle references a
-     * mapped object, that's not going to work as we might have switched to a different WT_FH handle
-     * which may or may not reference a mapped object.
+     * mapped object, that's not going to work as we might be about to switch to a different WT_FH
+     * handle which may or may not reference a mapped object.
      */
     if (!bm->map)
         return (0);
-    WT_ASSERT(session, !bm->map);
 
     block = bm->block;
 
