@@ -66,8 +66,8 @@ The JSON output follows a specific schema with the following fields:
 <table>
 @hrow{Field, Description, Type}
 @row{category, Message category defined by \c WT_VERBOSE_CATEGORY, String}
-@row{category_id, Value representation of the message category, Int}
-@row{error_code, Value representation of the error, Int}
+@row{category_id, Value representation of the message category, Integer}
+@row{error_code, Value representation of the error, Integer}
 @row{error_str, Error message, String}
 @row{msg, Message, String}
 @row{session_dhandle_name, Session dhandle name, String}
@@ -75,12 +75,12 @@ The JSON output follows a specific schema with the following fields:
 @row{session_name, Session name, String}
 @row{thread, Thread id, String}
 @row{ts_sec, Time since the Epoch as reported by the system in seconds at which the message was
-generated, Int}
+generated, Integer}
 @row{ts_usec, Time since the Epoch as reported by the system in microseconds at which the message
-was generated, Int}
+was generated, Integer}
 @row{verbose_level, Severity level associated with the message. See @ref verbose_messaging for more
 details, String}
-@row{verbose_level_id, Value representation of the verbose level, Int}
+@row{verbose_level_id, Value representation of the verbose level, Integer}
 </table>
 
 Note: The information present in a message depends on the available data at the time when the
