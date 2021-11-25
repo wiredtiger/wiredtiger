@@ -63,9 +63,9 @@ __curversion_next(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
     WT_TIME_WINDOW tw;
     WT_UPDATE *upd;
-    wt_timestamp_t ondisk_durable_stop_ts;
-    wt_timestamp_t ondisk_stop_ts;
-    uint64_t hs_counter, ondisk_stop_txn;
+    wt_timestamp_t durable_stop_ts;
+    wt_timestamp_t stop_ts;
+    uint64_t hs_counter, stop_txn;
     uint32_t hs_btree_id, hs_upd_type;
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
@@ -80,7 +80,7 @@ __curversion_next(WT_CURSOR *cursor)
 
     upd = version_cursor->next_upd;
 
-    if (upd != NULL && !F_ISSET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED)) {
+    if (!F_ISSET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED)) {
         /*
          * If the update is an aborted update, we want to skip to the next update immediately or get
          * the ondisk value if the update is the last one in the update chain.
@@ -114,9 +114,9 @@ __curversion_next(WT_CURSOR *cursor)
                  * Set the version cursor's key, which contains all the record metadata for that
                  * particular version of the update.
                  */
-                __wt_cursor_set_key(cursor, upd->txnid, upd->durable_ts, upd->start_ts,
-                  version_cursor->upd_txnid, version_cursor->upd_durable_stop_ts,
-                  version_cursor->upd_stop_ts, upd->type, upd->prepare_state, upd->flags,
+                __wt_cursor_set_key(cursor, upd->txnid, upd->start_ts, upd->durable_ts,
+                  version_cursor->upd_txnid, version_cursor->upd_stop_ts,
+                  version_cursor->upd_durable_stop_ts, upd->type, upd->prepare_state, upd->flags,
                   WT_VERSION_UPDATE_CHAIN);
 
                 /*
@@ -126,12 +126,12 @@ __curversion_next(WT_CURSOR *cursor)
                 if (upd->type != WT_UPDATE_MODIFY)
                     __wt_upd_value_assign(cbt->upd_value, upd);
                 else
-                    WT_RET(
+                    WT_ERR(
                       __wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
 
                 __wt_cursor_set_value(cursor, cbt->upd_value->buf);
 
-                upd = upd->next;
+                version_cursor->next_upd = upd->next;
                 if (upd == NULL)
                     F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
                 goto done;
@@ -140,20 +140,20 @@ __curversion_next(WT_CURSOR *cursor)
     }
 
     if (!F_ISSET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED)) {
-        WT_RET(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw));
+        WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw));
 
         if (!WT_TIME_WINDOW_HAS_STOP(&tw)) {
-            ondisk_durable_stop_ts = version_cursor->upd_durable_stop_ts;
-            ondisk_stop_ts = version_cursor->upd_stop_ts;
-            ondisk_stop_txn = version_cursor->upd_txnid;
+            durable_stop_ts = version_cursor->upd_durable_stop_ts;
+            stop_ts = version_cursor->upd_stop_ts;
+            stop_txn = version_cursor->upd_txnid;
         } else {
-            ondisk_durable_stop_ts = tw.durable_stop_ts;
-            ondisk_stop_ts = tw.stop_ts;
-            ondisk_stop_txn = tw.stop_txn;
+            durable_stop_ts = tw.durable_stop_ts;
+            stop_ts = tw.stop_ts;
+            stop_txn = tw.stop_txn;
         }
 
-        __wt_cursor_set_key(cursor, tw.start_txn, tw.durable_start_ts, tw.start_ts, ondisk_stop_txn,
-          ondisk_durable_stop_ts, ondisk_stop_ts, 0, 0, 0, WT_VERSION_DISK_IMAGE);
+        __wt_cursor_set_key(cursor, tw.start_txn, tw.start_ts, tw.durable_start_ts, stop_txn,
+          stop_ts, durable_stop_ts, 0, 0, 0, WT_VERSION_DISK_IMAGE);
         __wt_cursor_set_value(cursor, cbt->upd_value->buf);
 
         version_cursor->upd_txnid = tw.start_txn;
@@ -178,9 +178,9 @@ __curversion_next(WT_CURSOR *cursor)
             hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &tw.start_ts, &hs_counter);
             hs_cursor->get_value(
               hs_cursor, &tw.stop_ts, &tw.durable_start_ts, &hs_upd_type, hs_value);
-            __wt_cursor_set_key(cursor, tw.start_txn, tw.durable_start_ts, tw.start_ts,
-              version_cursor->upd_txnid, version_cursor->upd_durable_stop_ts,
-              version_cursor->upd_stop_ts, hs_upd_type, 0, 0, WT_VERSION_HISTORY_STORE);
+            __wt_cursor_set_key(cursor, tw.start_txn, tw.start_ts, tw.durable_start_ts,
+              version_cursor->upd_txnid, tw.stop_ts,
+              version_cursor->upd_durable_stop_ts, hs_upd_type, 0, 0, WT_VERSION_HISTORY_STORE);
             __wt_cursor_set_value(cursor, hs_value->data);
 
             version_cursor->upd_txnid = tw.stop_txn;
