@@ -22,7 +22,12 @@ Note that no further WiredTiger calls are required after an error handler
 is called with \c WT_PANIC (and further calls will themselves immediately
 fail).
 
+The following is a programmatic example of creating a custom event handler:
+
 @snippet ex_event_handler.c Function event_handler
+
+The following is a programmatic example of configuring the previously defined custom event handler:
+
 @snippet ex_event_handler.c Configure event_handler
 
 */
