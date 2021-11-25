@@ -415,24 +415,6 @@ __bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr
 }
 
 /*
- * __bm_preload --
- *     Pre-load a page.
- */
-static int
-__bm_preload(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
-{
-    WT_DECL_ITEM(tmp);
-    WT_DECL_RET;
-
-    WT_STAT_CONN_INCR(session, block_preload);
-
-    WT_RET(__wt_scr_alloc(session, 0, &tmp));
-    ret = __bm_read(bm, session, tmp, addr, addr_size);
-    __wt_scr_free(session, &tmp);
-    return (ret);
-}
-
-/*
  * __bm_salvage_end --
  *     End a block manager salvage.
  */
@@ -698,7 +680,6 @@ __bm_method_set(WT_BM *bm, bool readonly)
     bm->free = __bm_free;
     bm->is_mapped = __bm_is_mapped;
     bm->map_discard = __bm_map_discard;
-    bm->preload = __bm_preload;
     bm->read = __bm_read;
     bm->salvage_end = __bm_salvage_end;
     bm->salvage_next = __bm_salvage_next;
