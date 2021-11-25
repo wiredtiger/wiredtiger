@@ -475,6 +475,13 @@ __recovery_set_checkpoint_snapshot(WT_SESSION_IMPL *session)
     counter = 0;
 
     /*
+     * WiredTiger versions 10.0.1 onward have a valid checkpoint snapshot on-disk. Ignore reading
+     * the on-disk checkpoint snapshot from older versions.
+     */
+    if (conn->recovery_major < 10 || conn->recovery_minor < 0 || conn->recovery_patch < 1)
+        return (0);
+
+    /*
      * Read the system checkpoint information from the metadata file and save the snapshot related
      * details of the last checkpoint for later query. This gets saved in the connection.
      */
