@@ -1476,6 +1476,11 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             /* Search the page. */
             WT_ERR(__wt_row_search(&cbt, key, true, ref, true, NULL));
 
+            /* If required, remove the existing prepared update restored from the disk. */
+            if (supd->restore && supd->ins == NULL && prepare &&
+              !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+                WT_ERR(__wt_page_inmem_remove_prepared(session, &cbt));
+
             /* Apply the modification. */
 #ifdef HAVE_DIAGNOSTIC
             WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true, true));

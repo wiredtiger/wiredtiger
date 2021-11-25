@@ -328,6 +328,51 @@ err:
 }
 
 /*
+ * __wt_page_inmem_remove_prepared --
+ *     Remove the existing prepared update chain for key pointed to by the cursor.
+ */
+int
+__wt_page_inmem_remove_prepared(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+{
+    WT_PAGE *page;
+    WT_PAGE_MODIFY *mod;
+    WT_UPDATE **upd_entry;
+
+    size_t upd_size;
+
+    page = cbt->ref->page;
+    mod = page->modify;
+
+    if (cbt->compare != 0)
+        return (0);
+    if (mod == NULL)
+        return (0);
+
+    WT_ASSERT(session, page->type == WT_PAGE_ROW_LEAF);
+
+    if (mod->mod_row_update == NULL)
+        return (0);
+
+    /* Set the WT_UPDATE array reference. */
+    upd_entry = &mod->mod_row_update[cbt->slot];
+    if (upd_entry == NULL || *upd_entry == NULL)
+        return 0;
+    if ((*upd_entry)->prepare_state != WT_PREPARE_INPROGRESS)
+        return (0);
+
+    WT_ASSERT(session, F_ISSET(*upd_entry, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
+    WT_ASSERT(session, (*upd_entry)->txnid != WT_TXN_ABORTED);
+
+    /* Remove the update list and update cache statistics. */
+    upd_size = __wt_update_list_memsize(*upd_entry);
+    __wt_free_update_list(session, upd_entry);
+    *upd_entry = NULL;
+    __wt_cache_page_byte_dirty_decr(session, page, upd_size);
+
+    return (0);
+}
+
+/*
  * __wt_page_inmem --
  *     Build in-memory page information.
  */
