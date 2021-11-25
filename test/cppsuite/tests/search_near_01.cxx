@@ -229,9 +229,6 @@ class search_near_01 : public test_harness::test {
         int64_t entries_stat, expected_entries, prefix_stat, prev_entries_stat, prev_prefix_stat;
         int num_threads;
 
-
-        std::cout << "TESTING" << std::endl;
-
         prev_entries_stat = 0;
         prev_prefix_stat = 0;
         num_threads = _config->get_int("search_near_threads");
