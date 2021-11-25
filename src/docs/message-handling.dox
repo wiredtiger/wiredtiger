@@ -70,8 +70,10 @@ The JSON output follows a specific schema with the following fields:
 @row{session_dhandle_name, Session dhandle name, String}
 @row{session_err_prefix, Database error prefix defined in the \c WT_CONNECTION_IMPL structure, String}
 @row{session_name, Session name, String}
-@row{ts_sec, Time in seconds at which the message was generated, Int}
-@row{ts_uec, Time in microseconds at which the message was generated, Int}
+@row{ts_sec, Time since the Epoch as reported by the system in seconds at which the message was
+generated, Int}
+@row{ts_usec, Time since the Epoch as reported by the system in microseconds at which the message
+was generated, Int}
 @row{verbose_level, Severity level associated with the message. See @ref verbose_messaging for more
 details, String}
 @row{verbose_level_id, Value representation of the verbose level, Int}
