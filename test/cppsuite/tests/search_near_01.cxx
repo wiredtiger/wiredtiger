@@ -229,6 +229,9 @@ class search_near_01 : public test_harness::test {
         int64_t entries_stat, expected_entries, prefix_stat, prev_entries_stat, prev_prefix_stat;
         int num_threads;
 
+
+        std::cout << "TESTING" << std::endl;
+
         prev_entries_stat = 0;
         prev_prefix_stat = 0;
         num_threads = _config->get_int("search_near_threads");
@@ -237,7 +240,9 @@ class search_near_01 : public test_harness::test {
         read_config = workload_config->get_subconfig(READ_CONFIG);
         z_key_searches = 0;
 
-        logger::log_msg(LOG_INFO, type_string(tc->type) + " thread commencing.");
+        logger::log_msg(LOG_INFO,
+          type_string(tc->type) + " thread commencing. Spawning " + std::to_string(num_threads) +
+            " search near threads.");
 
         /*
          * The number of expected entries is calculated to account for the maximum allowed entries
@@ -270,6 +275,7 @@ class search_near_01 : public test_harness::test {
                 delete it;
                 it = nullptr;
             }
+            // workers.clear();
 
             runtime_monitor::get_stat(
               tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entries_stat);
@@ -292,7 +298,7 @@ class search_near_01 : public test_harness::test {
              */
             testutil_assert(num_threads * expected_entries + (2 * num_threads) >=
               entries_stat - prev_entries_stat);
-            testutil_assert(prefix_stat - num_threads + z_key_searches == prev_prefix_stat);
+            testutil_assert(prefix_stat - prev_prefix_stat == num_threads - z_key_searches);
             z_key_searches = 0;
             tc->sleep();
         }

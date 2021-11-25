@@ -222,8 +222,7 @@ methods = {
     'hs_cleanup' : Method(test_config),
     'search_near_01' : Method(test_config + [
                         Config("search_near_threads", 10, r'''
-                            Config that specify the number of search near threads that are
-                            spawned.''')]),
+                            Number of threads that execute search near calls.''')]),
     'search_near_02' : Method(test_config),
     'search_near_03' : Method(test_config),
 }
