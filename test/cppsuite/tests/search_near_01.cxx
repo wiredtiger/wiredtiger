@@ -272,7 +272,7 @@ class search_near_01 : public test_harness::test {
                 delete it;
                 it = nullptr;
             }
-            // workers.clear();
+            workers.clear();
 
             runtime_monitor::get_stat(
               tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entries_stat);
