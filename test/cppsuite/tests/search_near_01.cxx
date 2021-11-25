@@ -190,9 +190,9 @@ class search_near_01 : public test_harness::test {
             "} performing prefix search near with key: " + srch_key);
 
         /*
-         * Read at timestamp 10, so that no keys are visible to this transaction. This allows prefix
-         * search near to early exit out of it's prefix range when it's trying to search for a
-         * visible key in the tree.
+         * Read at timestamp 10, so that no keys are visible to this transaction. When performing
+         * prefix search near, we expect the search to early exit out of it's prefix range and
+         * return WT_NOTFOUND.
          */
         tc->transaction.begin("read_timestamp=" + tc->tsm->decimal_to_hex(10));
         if (tc->transaction.active()) {
@@ -287,7 +287,7 @@ class search_near_01 : public test_harness::test {
              * prefix search near. This is dependent on how many read threads are present in the
              * test. Account for this by creating a small buffer using thread count. Assert that the
              * number of expected entries is the upper limit which the prefix search near can
-             * traverse
+             * traverse.
              *
              * Assert that the number of expected entries is the maximum allowed limit that the
              * prefix search nears can traverse and that the prefix fast path has increased by the
