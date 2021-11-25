@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_block_map --
+ * __wt_blkcache_map --
  *     Map a segment of the file in, if possible.
  */
 int
-__wt_block_map(WT_SESSION_IMPL *session, WT_BLOCK *block, void *mapped_regionp, size_t *lengthp,
+__wt_blkcache_map(WT_SESSION_IMPL *session, WT_BLOCK *block, void *mapped_regionp, size_t *lengthp,
   void *mapped_cookiep)
 {
     WT_DECL_RET;
@@ -62,11 +62,11 @@ __wt_block_map(WT_SESSION_IMPL *session, WT_BLOCK *block, void *mapped_regionp, 
 }
 
 /*
- * __wt_block_unmap --
+ * __wt_blkcache_unmap --
  *     Unmap any mapped-in segment of the file.
  */
 int
-__wt_block_unmap(WT_SESSION_IMPL *session, WT_BLOCK *block, void *mapped_region, size_t length,
+__wt_blkcache_unmap(WT_SESSION_IMPL *session, WT_BLOCK *block, void *mapped_region, size_t length,
   void *mapped_cookie)
 {
     WT_FILE_HANDLE *handle;
@@ -74,4 +74,58 @@ __wt_block_unmap(WT_SESSION_IMPL *session, WT_BLOCK *block, void *mapped_region,
     /* Unmap the file from memory. */
     handle = block->fh->handle;
     return (handle->fh_unmap(handle, (WT_SESSION *)session, mapped_region, length, mapped_cookie));
+}
+
+/*
+ * __wt_blkcache_map_read --
+ *     Map address cookie referenced block into a buffer.
+ */
+int
+__wt_blkcache_map_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr,
+  size_t addr_size, bool *foundp)
+{
+    WT_BLOCK *block;
+    WT_FH *fh;
+    WT_FILE_HANDLE *handle;
+    wt_off_t offset;
+    uint32_t checksum, objectid, size;
+
+    *foundp = false;
+
+    /*
+     * FIXME PM-1982: This code isn't used as we no longer open checkpoint cursors, which is
+     * probably good since it doesn't work anyway.
+     *
+     * FIXME WT-7872: The WT_BLOCK.map test is wrong; tiered storage assumes object IDs translate to
+     * WT_FH structures, not WT_BLOCK structures. When we check if the WT_BLOCK handle references a
+     * mapped object, that's not going to work as we might have switched to a different WT_FH handle
+     * which may or may not reference a mapped object.
+     */
+    if (!bm->map)
+        return (0);
+    WT_ASSERT(session, !bm->map);
+
+    block = bm->block;
+
+    /* Crack the cookie. */
+    WT_RET(__wt_block_addr_unpack(
+      session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
+
+    /* Map the block if it's possible. */
+    WT_RET(__wt_block_fh(session, block, objectid, &fh));
+    handle = fh->handle;
+    if (handle->fh_map_preload != NULL && offset + size <= (wt_off_t)bm->maplen &&
+      handle->fh_map_preload(
+        handle, (WT_SESSION *)session, (uint8_t *)bm->map + offset, size, bm->mapped_cookie) == 0) {
+        if (buf != NULL) {
+            buf->data = (uint8_t *)bm->map + offset;
+            buf->size = size;
+        }
+
+        *foundp = true;
+        WT_STAT_CONN_INCR(session, block_map_read);
+        WT_STAT_CONN_INCRV(session, block_byte_map_read, size);
+    }
+
+    return (0);
 }

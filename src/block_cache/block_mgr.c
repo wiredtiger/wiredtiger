@@ -108,7 +108,7 @@ __bm_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, s
          * Read-only objects are optionally mapped into memory instead of being read into cache
          * buffers.
          */
-        WT_RET(__wt_block_map(session, bm->block, &bm->map, &bm->maplen, &bm->mapped_cookie));
+        WT_RET(__wt_blkcache_map(session, bm->block, &bm->map, &bm->maplen, &bm->mapped_cookie));
 
         /*
          * If this handle is for a checkpoint, that is, read-only, there isn't a lot you can do with
@@ -174,7 +174,7 @@ __bm_checkpoint_unload(WT_BM *bm, WT_SESSION_IMPL *session)
 
     /* Unmap any mapped segment. */
     if (bm->map != NULL)
-        WT_TRET(__wt_block_unmap(session, bm->block, bm->map, bm->maplen, &bm->mapped_cookie));
+        WT_TRET(__wt_blkcache_unmap(session, bm->block, bm->map, bm->maplen, &bm->mapped_cookie));
 
     /* Unload the checkpoint. */
     WT_TRET(__wt_block_checkpoint_unload(session, bm->block, !bm->is_live));
@@ -392,6 +392,11 @@ __bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr
 
     blkcache = &S2C(session)->blkcache;
 
+    /* Check for mapped blocks. */
+    WT_RET(__wt_blkcache_map_read(bm, session, buf, addr, addr_size, &found));
+    if (found)
+        return (0);
+
     /* Check the block cache. */
     skip_cache = true;
     if (blkcache->type != BLKCACHE_UNCONFIGURED) {
@@ -419,11 +424,8 @@ __bm_preload(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t ad
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
 
-    /* Ignore underlying preload errors, just use them as an indication preload didn't work. */
-    if (__wt_bm_preload(bm, session, addr, addr_size) == 0)
-        return (0);
+    WT_STAT_CONN_INCR(session, block_preload);
 
-    /* Do it the slow way. */
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
     ret = __bm_read(bm, session, tmp, addr, addr_size);
     __wt_scr_free(session, &tmp);
