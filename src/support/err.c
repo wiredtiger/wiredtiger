@@ -224,11 +224,9 @@ __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *remain, bool is
         WT_ERROR_APPEND(
           p, *remain, "\"ts_usec\":%" PRIuMAX ",", (uintmax_t)ts.tv_nsec / WT_THOUSAND);
         WT_ERROR_APPEND(p, *remain, "\"thread\":\"%s\",", tid);
-    } else {
-        WT_ERR(__wt_thread_str(tid, sizeof(tid)));
+    } else
         WT_ERROR_APPEND(p, *remain, "[%" PRIuMAX ":%" PRIuMAX "][%s]", (uintmax_t)ts.tv_sec,
           (uintmax_t)ts.tv_nsec / WT_THOUSAND, tid);
-    }
 
     /* Error prefix. */
     if ((prefix = S2C(session)->error_prefix) != NULL) {
