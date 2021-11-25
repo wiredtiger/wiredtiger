@@ -35,8 +35,8 @@ This allowing the end user to fine tune and tailor the verbosity of each categor
 e.g configuring WiredTiger's runtime for debugging/monitoring a specific sub-system.
 
 When a category is assigned a verbosity level, any associated message less than or equal to (\c <=) that level will be displayed.
-As an example, configuring the \c checkpoint category with the \c DEBUG verbosity level would allow any \c checkpoint related messages
-less than or equal to the \c DEBUG level be displayed.
+As an example, configuring the \c checkpoint category with the \c DEBUG verbosity level would display \c checkpoint related messages
+less than or equal to the \c DEBUG level.
 Any category that is not explicitly configured with a verbosity level will default to the \c NOTICE (\c -1) level, effectively masking
 \c INFO and \c DEBUG informational messages.
 
