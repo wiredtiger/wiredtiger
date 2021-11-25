@@ -362,9 +362,6 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         uncompressed data, that is, the limit is applied before any
         block compression is done''',
         min='512B', max='512MB'),
-    Config('internal_item_max', '0', r'''
-        This option is no longer supported, retained for backward compatibility''',
-        min=0),
     Config('internal_key_max', '0', r'''
         This option is no longer supported, retained for backward compatibility''',
         min='0'),
@@ -393,9 +390,6 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         when large values are written. The default is one-half the size of
         a newly split leaf page''',
         min='0'),
-    Config('leaf_item_max', '0', r'''
-        This option is no longer supported, retained for backward compatibility''',
-        min=0),
     Config('memory_page_image_max', '0', r'''
         the maximum in-memory page image represented by a single storage block.
         Depending on compression efficiency, compression can create storage

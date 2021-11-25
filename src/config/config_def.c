@@ -313,13 +313,11 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
   {"ignore_in_memory_cache_size", "boolean", NULL, NULL, NULL, 0},
   {"immutable", "boolean", NULL, NULL, NULL, 0},
   {"import", "category", NULL, NULL, confchk_WT_SESSION_create_import_subconfigs, 3},
-  {"internal_item_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_truncate", "boolean", NULL, NULL, NULL, 0},
   {"internal_page_max", "int", NULL, "min=512B,max=512MB", NULL, 0},
   {"key_format", "format", __wt_struct_confchk, NULL, NULL, 0},
-  {"key_gap", "int", NULL, "min=0", NULL, 0}, {"leaf_item_max", "int", NULL, "min=0", NULL, 0},
-  {"leaf_key_max", "int", NULL, "min=0", NULL, 0},
+  {"key_gap", "int", NULL, "min=0", NULL, 0}, {"leaf_key_max", "int", NULL, "min=0", NULL, 0},
   {"leaf_page_max", "int", NULL, "min=512B,max=512MB", NULL, 0},
   {"leaf_value_max", "int", NULL, "min=0", NULL, 0},
   {"log", "category", NULL, NULL, confchk_WT_SESSION_create_log_subconfigs, 1},
@@ -471,13 +469,11 @@ static const WT_CONFIG_CHECK confchk_file_config[] = {
   {"format", "string", NULL, "choices=[\"btree\"]", NULL, 0},
   {"huffman_key", "string", NULL, NULL, NULL, 0}, {"huffman_value", "string", NULL, NULL, NULL, 0},
   {"ignore_in_memory_cache_size", "boolean", NULL, NULL, NULL, 0},
-  {"internal_item_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_truncate", "boolean", NULL, NULL, NULL, 0},
   {"internal_page_max", "int", NULL, "min=512B,max=512MB", NULL, 0},
   {"key_format", "format", __wt_struct_confchk, NULL, NULL, 0},
-  {"key_gap", "int", NULL, "min=0", NULL, 0}, {"leaf_item_max", "int", NULL, "min=0", NULL, 0},
-  {"leaf_key_max", "int", NULL, "min=0", NULL, 0},
+  {"key_gap", "int", NULL, "min=0", NULL, 0}, {"leaf_key_max", "int", NULL, "min=0", NULL, 0},
   {"leaf_page_max", "int", NULL, "min=512B,max=512MB", NULL, 0},
   {"leaf_value_max", "int", NULL, "min=0", NULL, 0},
   {"log", "category", NULL, NULL, confchk_WT_SESSION_create_log_subconfigs, 1},
@@ -523,13 +519,11 @@ static const WT_CONFIG_CHECK confchk_file_meta[] = {
   {"huffman_key", "string", NULL, NULL, NULL, 0}, {"huffman_value", "string", NULL, NULL, NULL, 0},
   {"id", "string", NULL, NULL, NULL, 0},
   {"ignore_in_memory_cache_size", "boolean", NULL, NULL, NULL, 0},
-  {"internal_item_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_truncate", "boolean", NULL, NULL, NULL, 0},
   {"internal_page_max", "int", NULL, "min=512B,max=512MB", NULL, 0},
   {"key_format", "format", __wt_struct_confchk, NULL, NULL, 0},
-  {"key_gap", "int", NULL, "min=0", NULL, 0}, {"leaf_item_max", "int", NULL, "min=0", NULL, 0},
-  {"leaf_key_max", "int", NULL, "min=0", NULL, 0},
+  {"key_gap", "int", NULL, "min=0", NULL, 0}, {"leaf_key_max", "int", NULL, "min=0", NULL, 0},
   {"leaf_page_max", "int", NULL, "min=512B,max=512MB", NULL, 0},
   {"leaf_value_max", "int", NULL, "min=0", NULL, 0},
   {"log", "category", NULL, NULL, confchk_WT_SESSION_create_log_subconfigs, 1},
@@ -589,13 +583,12 @@ static const WT_CONFIG_CHECK confchk_lsm_meta[] = {
   {"format", "string", NULL, "choices=[\"btree\"]", NULL, 0},
   {"huffman_key", "string", NULL, NULL, NULL, 0}, {"huffman_value", "string", NULL, NULL, NULL, 0},
   {"ignore_in_memory_cache_size", "boolean", NULL, NULL, NULL, 0},
-  {"internal_item_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_truncate", "boolean", NULL, NULL, NULL, 0},
   {"internal_page_max", "int", NULL, "min=512B,max=512MB", NULL, 0},
   {"key_format", "format", __wt_struct_confchk, NULL, NULL, 0},
   {"key_gap", "int", NULL, "min=0", NULL, 0}, {"last", "string", NULL, NULL, NULL, 0},
-  {"leaf_item_max", "int", NULL, "min=0", NULL, 0}, {"leaf_key_max", "int", NULL, "min=0", NULL, 0},
+  {"leaf_key_max", "int", NULL, "min=0", NULL, 0},
   {"leaf_page_max", "int", NULL, "min=512B,max=512MB", NULL, 0},
   {"leaf_value_max", "int", NULL, "min=0", NULL, 0},
   {"log", "category", NULL, NULL, confchk_WT_SESSION_create_log_subconfigs, 1},
@@ -644,13 +637,11 @@ static const WT_CONFIG_CHECK confchk_object_meta[] = {
   {"huffman_key", "string", NULL, NULL, NULL, 0}, {"huffman_value", "string", NULL, NULL, NULL, 0},
   {"id", "string", NULL, NULL, NULL, 0},
   {"ignore_in_memory_cache_size", "boolean", NULL, NULL, NULL, 0},
-  {"internal_item_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_truncate", "boolean", NULL, NULL, NULL, 0},
   {"internal_page_max", "int", NULL, "min=512B,max=512MB", NULL, 0},
   {"key_format", "format", __wt_struct_confchk, NULL, NULL, 0},
-  {"key_gap", "int", NULL, "min=0", NULL, 0}, {"leaf_item_max", "int", NULL, "min=0", NULL, 0},
-  {"leaf_key_max", "int", NULL, "min=0", NULL, 0},
+  {"key_gap", "int", NULL, "min=0", NULL, 0}, {"leaf_key_max", "int", NULL, "min=0", NULL, 0},
   {"leaf_page_max", "int", NULL, "min=512B,max=512MB", NULL, 0},
   {"leaf_value_max", "int", NULL, "min=0", NULL, 0},
   {"log", "category", NULL, NULL, confchk_WT_SESSION_create_log_subconfigs, 1},
@@ -713,13 +704,11 @@ static const WT_CONFIG_CHECK confchk_tier_meta[] = {
   {"huffman_key", "string", NULL, NULL, NULL, 0}, {"huffman_value", "string", NULL, NULL, NULL, 0},
   {"id", "string", NULL, NULL, NULL, 0},
   {"ignore_in_memory_cache_size", "boolean", NULL, NULL, NULL, 0},
-  {"internal_item_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_truncate", "boolean", NULL, NULL, NULL, 0},
   {"internal_page_max", "int", NULL, "min=512B,max=512MB", NULL, 0},
   {"key_format", "format", __wt_struct_confchk, NULL, NULL, 0},
-  {"key_gap", "int", NULL, "min=0", NULL, 0}, {"leaf_item_max", "int", NULL, "min=0", NULL, 0},
-  {"leaf_key_max", "int", NULL, "min=0", NULL, 0},
+  {"key_gap", "int", NULL, "min=0", NULL, 0}, {"leaf_key_max", "int", NULL, "min=0", NULL, 0},
   {"leaf_page_max", "int", NULL, "min=512B,max=512MB", NULL, 0},
   {"leaf_value_max", "int", NULL, "min=0", NULL, 0},
   {"log", "category", NULL, NULL, confchk_WT_SESSION_create_log_subconfigs, 1},
@@ -767,13 +756,12 @@ static const WT_CONFIG_CHECK confchk_tiered_meta[] = {
   {"huffman_key", "string", NULL, NULL, NULL, 0}, {"huffman_value", "string", NULL, NULL, NULL, 0},
   {"id", "string", NULL, NULL, NULL, 0},
   {"ignore_in_memory_cache_size", "boolean", NULL, NULL, NULL, 0},
-  {"internal_item_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_truncate", "boolean", NULL, NULL, NULL, 0},
   {"internal_page_max", "int", NULL, "min=512B,max=512MB", NULL, 0},
   {"key_format", "format", __wt_struct_confchk, NULL, NULL, 0},
   {"key_gap", "int", NULL, "min=0", NULL, 0}, {"last", "string", NULL, NULL, NULL, 0},
-  {"leaf_item_max", "int", NULL, "min=0", NULL, 0}, {"leaf_key_max", "int", NULL, "min=0", NULL, 0},
+  {"leaf_key_max", "int", NULL, "min=0", NULL, 0},
   {"leaf_page_max", "int", NULL, "min=512B,max=512MB", NULL, 0},
   {"leaf_value_max", "int", NULL, "min=0", NULL, 0},
   {"log", "category", NULL, NULL, confchk_WT_SESSION_create_log_subconfigs, 1},
@@ -1256,22 +1244,22 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "exclusive=false,extractor=,format=btree,huffman_key=,"
     "huffman_value=,ignore_in_memory_cache_size=false,immutable=false"
     ",import=(enabled=false,file_metadata=,repair=false),"
-    "internal_item_max=0,internal_key_max=0,"
-    "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
-    "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
-    "leaf_value_max=0,log=(enabled=true),lsm=(auto_throttle=true,"
-    "bloom=true,bloom_bit_count=16,bloom_config=,bloom_hash_count=8,"
-    "bloom_oldest=false,chunk_count_limit=0,chunk_max=5GB,"
-    "chunk_size=10MB,merge_custom=(prefix=,start_generation=0,"
-    "suffix=),merge_max=15,merge_min=0),memory_page_image_max=0,"
-    "memory_page_max=5MB,os_cache_dirty_max=0,os_cache_max=0,"
-    "prefix_compression=false,prefix_compression_min=4,readonly=false"
-    ",source=,split_deepen_min_child=0,split_deepen_per_child=0,"
-    "split_pct=90,tiered_object=false,tiered_storage=(auth_token=,"
-    "bucket=,bucket_prefix=,cache_directory=,local_retention=300,"
-    "name=,object_target_size=10M),type=file,value_format=u,"
-    "verbose=[],write_timestamp_usage=none",
-    confchk_WT_SESSION_create, 50},
+    "internal_key_max=0,internal_key_truncate=true,"
+    "internal_page_max=4KB,key_format=u,key_gap=10,leaf_key_max=0,"
+    "leaf_page_max=32KB,leaf_value_max=0,log=(enabled=true),"
+    "lsm=(auto_throttle=true,bloom=true,bloom_bit_count=16,"
+    "bloom_config=,bloom_hash_count=8,bloom_oldest=false,"
+    "chunk_count_limit=0,chunk_max=5GB,chunk_size=10MB,"
+    "merge_custom=(prefix=,start_generation=0,suffix=),merge_max=15,"
+    "merge_min=0),memory_page_image_max=0,memory_page_max=5MB,"
+    "os_cache_dirty_max=0,os_cache_max=0,prefix_compression=false,"
+    "prefix_compression_min=4,readonly=false,source=,"
+    "split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
+    "tiered_object=false,tiered_storage=(auth_token=,bucket=,"
+    "bucket_prefix=,cache_directory=,local_retention=300,name=,"
+    "object_target_size=10M),type=file,value_format=u,verbose=[],"
+    "write_timestamp_usage=none",
+    confchk_WT_SESSION_create, 48},
   {"WT_SESSION.drop",
     "checkpoint_wait=true,force=false,lock_wait=true,"
     "remove_files=true",
@@ -1330,18 +1318,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "block_compressor=,cache_resident=false,checksum=on,collator=,"
     "columns=,dictionary=0,encryption=(keyid=,name=),format=btree,"
     "huffman_key=,huffman_value=,ignore_in_memory_cache_size=false,"
-    "internal_item_max=0,internal_key_max=0,"
-    "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
-    "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
-    "leaf_value_max=0,log=(enabled=true),memory_page_image_max=0,"
-    "memory_page_max=5MB,os_cache_dirty_max=0,os_cache_max=0,"
-    "prefix_compression=false,prefix_compression_min=4,readonly=false"
-    ",split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
-    "tiered_object=false,tiered_storage=(auth_token=,bucket=,"
-    "bucket_prefix=,cache_directory=,local_retention=300,name=,"
+    "internal_key_max=0,internal_key_truncate=true,"
+    "internal_page_max=4KB,key_format=u,key_gap=10,leaf_key_max=0,"
+    "leaf_page_max=32KB,leaf_value_max=0,log=(enabled=true),"
+    "memory_page_image_max=0,memory_page_max=5MB,os_cache_dirty_max=0"
+    ",os_cache_max=0,prefix_compression=false,"
+    "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
+    ",split_deepen_per_child=0,split_pct=90,tiered_object=false,"
+    "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
+    "cache_directory=,local_retention=300,name=,"
     "object_target_size=10M),value_format=u,verbose=[],"
     "write_timestamp_usage=none",
-    confchk_file_config, 42},
+    confchk_file_config, 40},
   {"file.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
@@ -1350,10 +1338,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "checkpoint_backup_info=,checkpoint_lsn=,checksum=on,collator=,"
     "columns=,dictionary=0,encryption=(keyid=,name=),format=btree,"
     "huffman_key=,huffman_value=,id=,"
-    "ignore_in_memory_cache_size=false,internal_item_max=0,"
-    "internal_key_max=0,internal_key_truncate=true,"
-    "internal_page_max=4KB,key_format=u,key_gap=10,leaf_item_max=0,"
-    "leaf_key_max=0,leaf_page_max=32KB,leaf_value_max=0,"
+    "ignore_in_memory_cache_size=false,internal_key_max=0,"
+    "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
+    "key_gap=10,leaf_key_max=0,leaf_page_max=32KB,leaf_value_max=0,"
     "log=(enabled=true),memory_page_image_max=0,memory_page_max=5MB,"
     "os_cache_dirty_max=0,os_cache_max=0,prefix_compression=false,"
     "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
@@ -1362,7 +1349,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "cache_directory=,local_retention=300,name=,"
     "object_target_size=10M),value_format=u,verbose=[],"
     "version=(major=0,minor=0),write_timestamp_usage=none",
-    confchk_file_meta, 47},
+    confchk_file_meta, 45},
   {"index.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
@@ -1377,10 +1364,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "block_compressor=,cache_resident=false,checksum=on,chunks=,"
     "collator=,columns=,dictionary=0,encryption=(keyid=,name=),"
     "format=btree,huffman_key=,huffman_value=,"
-    "ignore_in_memory_cache_size=false,internal_item_max=0,"
-    "internal_key_max=0,internal_key_truncate=true,"
-    "internal_page_max=4KB,key_format=u,key_gap=10,last=0,"
-    "leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
+    "ignore_in_memory_cache_size=false,internal_key_max=0,"
+    "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
+    "key_gap=10,last=0,leaf_key_max=0,leaf_page_max=32KB,"
     "leaf_value_max=0,log=(enabled=true),lsm=(auto_throttle=true,"
     "bloom=true,bloom_bit_count=16,bloom_config=,bloom_hash_count=8,"
     "bloom_oldest=false,chunk_count_limit=0,chunk_max=5GB,"
@@ -1394,7 +1380,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "cache_directory=,local_retention=300,name=,"
     "object_target_size=10M),value_format=u,verbose=[],"
     "write_timestamp_usage=none",
-    confchk_lsm_meta, 46},
+    confchk_lsm_meta, 44},
   {"object.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
@@ -1403,10 +1389,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "checkpoint_backup_info=,checkpoint_lsn=,checksum=on,collator=,"
     "columns=,dictionary=0,encryption=(keyid=,name=),flush_time=0,"
     "flush_timestamp=0,format=btree,huffman_key=,huffman_value=,id=,"
-    "ignore_in_memory_cache_size=false,internal_item_max=0,"
-    "internal_key_max=0,internal_key_truncate=true,"
-    "internal_page_max=4KB,key_format=u,key_gap=10,leaf_item_max=0,"
-    "leaf_key_max=0,leaf_page_max=32KB,leaf_value_max=0,"
+    "ignore_in_memory_cache_size=false,internal_key_max=0,"
+    "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
+    "key_gap=10,leaf_key_max=0,leaf_page_max=32KB,leaf_value_max=0,"
     "log=(enabled=true),memory_page_image_max=0,memory_page_max=5MB,"
     "os_cache_dirty_max=0,os_cache_max=0,prefix_compression=false,"
     "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
@@ -1415,7 +1400,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "cache_directory=,local_retention=300,name=,"
     "object_target_size=10M),value_format=u,verbose=[],"
     "version=(major=0,minor=0),write_timestamp_usage=none",
-    confchk_object_meta, 49},
+    confchk_object_meta, 47},
   {"table.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
@@ -1431,18 +1416,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "checkpoint_lsn=,checksum=on,collator=,columns=,dictionary=0,"
     "encryption=(keyid=,name=),format=btree,huffman_key=,"
     "huffman_value=,id=,ignore_in_memory_cache_size=false,"
-    "internal_item_max=0,internal_key_max=0,"
-    "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
-    "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
-    "leaf_value_max=0,log=(enabled=true),memory_page_image_max=0,"
-    "memory_page_max=5MB,os_cache_dirty_max=0,os_cache_max=0,"
-    "prefix_compression=false,prefix_compression_min=4,readonly=false"
-    ",split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
-    "tiered_object=false,tiered_storage=(auth_token=,bucket=,"
-    "bucket_prefix=,cache_directory=,local_retention=300,name=,"
+    "internal_key_max=0,internal_key_truncate=true,"
+    "internal_page_max=4KB,key_format=u,key_gap=10,leaf_key_max=0,"
+    "leaf_page_max=32KB,leaf_value_max=0,log=(enabled=true),"
+    "memory_page_image_max=0,memory_page_max=5MB,os_cache_dirty_max=0"
+    ",os_cache_max=0,prefix_compression=false,"
+    "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
+    ",split_deepen_per_child=0,split_pct=90,tiered_object=false,"
+    "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
+    "cache_directory=,local_retention=300,name=,"
     "object_target_size=10M),value_format=u,verbose=[],"
     "version=(major=0,minor=0),write_timestamp_usage=none",
-    confchk_tier_meta, 50},
+    confchk_tier_meta, 48},
   {"tiered.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
@@ -1451,10 +1436,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "checkpoint_backup_info=,checkpoint_lsn=,checksum=on,collator=,"
     "columns=,dictionary=0,encryption=(keyid=,name=),flush_time=0,"
     "flush_timestamp=0,format=btree,huffman_key=,huffman_value=,id=,"
-    "ignore_in_memory_cache_size=false,internal_item_max=0,"
-    "internal_key_max=0,internal_key_truncate=true,"
-    "internal_page_max=4KB,key_format=u,key_gap=10,last=0,"
-    "leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
+    "ignore_in_memory_cache_size=false,internal_key_max=0,"
+    "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
+    "key_gap=10,last=0,leaf_key_max=0,leaf_page_max=32KB,"
     "leaf_value_max=0,log=(enabled=true),memory_page_image_max=0,"
     "memory_page_max=5MB,oldest=1,os_cache_dirty_max=0,os_cache_max=0"
     ",prefix_compression=false,prefix_compression_min=4,"
@@ -1463,7 +1447,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "bucket=,bucket_prefix=,cache_directory=,local_retention=300,"
     "name=,object_target_size=10M),tiers=,value_format=u,verbose=[],"
     "version=(major=0,minor=0),write_timestamp_usage=none",
-    confchk_tiered_meta, 52},
+    confchk_tiered_meta, 50},
   {"wiredtiger_open",
     "block_cache=(blkcache_eviction_aggression=1800,"
     "cache_on_checkpoint=true,cache_on_writes=true,enabled=false,"
