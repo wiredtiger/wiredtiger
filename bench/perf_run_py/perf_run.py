@@ -75,15 +75,15 @@ def get_git_info(git_working_tree_dir):
     return git_info
 
 
-def construct_command_line(exec_path: str, test: List[str], home: List[str], arguments: List[str]):
+def construct_command_line(exec_path: str, test_arg: List[str], home_arg: List[str], arguments: List[str]):
     command_line = []
     command_line.append(exec_path)
-    if test is not None:
-        command_line.extend(test)
+    if test_arg is not None:
+        command_line.extend(test_arg)
     if arguments is not None:
         command_line.extend(arguments)
-    if home is not None:
-        command_line.extend(home)
+    if home_arg is not None:
+        command_line.extend(home_arg)
     return command_line
 
 
@@ -140,8 +140,8 @@ def run_test(config: PerfConfig, test_run: int, index: int = 0, arguments: List[
     command_line = construct_command_line(
         exec_path=config.exec_path,
         arguments=arguments,
-        test=config.test_type.get_test_arg(config.test),
-        home=config.test_type.get_home_arg(test_home))
+        test_arg=config.test_type.get_test_arg(config.test),
+        home_arg=config.test_type.get_home_arg(test_home))
 
     try:
         proc = subprocess.run(command_line, check=True,
