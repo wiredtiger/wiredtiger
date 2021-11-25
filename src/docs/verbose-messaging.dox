@@ -55,7 +55,7 @@ In the above example:
 level (.e.g \c <code>:0</code>), the category will default to the \c DEBUG level (i.e \c <code>verbose=[version]</code> is equivalent to <code>verbose=[version:1]</code>).
 - \c write is configured to the \c INFO verbosity level.
 
-When configuring verbosity levels, the lowest value the user can associate with a category is \c 0 (\c INFO). This in effect ensuring
+When configuring verbosity levels, the lowest value the user can associate with a category is \c 0 (\c INFO). This ensuring
 the lower verbosity levels, \c NOTICE (\c -1) and below, are unmasked. Messages with levels less than or equal to \c NOTICE are considered
 to have important diagnostic information and thus should not be hidden.
 
