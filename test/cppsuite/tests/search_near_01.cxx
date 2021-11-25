@@ -277,7 +277,8 @@ class search_near_01 : public test_harness::test {
               tc->stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prefix_stat);
             logger::log_msg(LOG_INFO,
               "Read thread skipped entries: " + std::to_string(entries_stat - prev_entries_stat) +
-                " prefix early exit: " + std::to_string(prefix_stat - prev_prefix_stat - z_key_searches));
+                " prefix early exit: " +
+                std::to_string(prefix_stat - prev_prefix_stat - z_key_searches));
             /*
              * It is possible that WiredTiger increments the entries skipped stat irrelevant to
              * prefix search near. This is dependent on how many read threads are present in the
