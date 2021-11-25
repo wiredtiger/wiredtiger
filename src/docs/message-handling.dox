@@ -46,9 +46,12 @@ example below shows a message following the flat string format:
 
 @subsection message_handling_output_json JSON format
 
-The connection setting \c json_ouput can be configured to enable JSON encoding for specific message
-categories. For instance, to print all \b messages and \b error events in JSON format, the
-following setting needs to be added to the connection configuration:
+When configuring a WiredTiger connection through ::wiredtiger_open or WT_CONNECTION::reconfigure, it
+is possible to configure the WT_EVENT_HANDLER interface to produce JSON encoded messages via the
+\c json_output configuration option. The \c json_output option takes a list message categories,
+where each category represents a method defined by the WT_EVENT_HANDLER interface, i.e. 'message'
+represents the ::handle_message interface. For instance, to print all \b messages and \b error
+events in JSON format, the following setting needs to be added to the connection configuration:
 
 @code
 json_output=(message, error)
