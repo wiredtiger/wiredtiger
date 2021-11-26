@@ -138,7 +138,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     timer = !F_ISSET(session, WT_SESSION_INTERNAL);
     if (timer)
         time_start = __wt_clock(session);
-    WT_ERR(__wt_bt_read(session, &tmp, addr.addr, addr.size));
+    WT_ERR(__wt_blkcache_read(session, &tmp, addr.addr, addr.size));
     if (timer) {
         time_stop = __wt_clock(session);
         time_diff = WT_CLOCKDIFF_US(time_stop, time_start);

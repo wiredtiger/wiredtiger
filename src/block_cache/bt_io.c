@@ -14,11 +14,11 @@
 WT_STAT_COMPR_RATIO_HIST_INCR_FUNC(ratio)
 
 /*
- * __wt_bt_read --
- *     Read a cookie referenced block into a buffer.
+ * __wt_blkcache_read --
+ *     Read an address-cookie referenced block into a buffer.
  */
 int
-__wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
+__wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
 {
     WT_BM *bm;
     WT_BTREE *btree;
