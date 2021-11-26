@@ -112,10 +112,10 @@ typedef struct {
  * testutil_assert_errno --
  *     Complain and quit if something isn't true, with errno.
  */
-#define testutil_assert_errno(call)                                                 \
-    do {                                                                            \
-        if (call)                                                                   \
-            testutil_die(errno, "%s/%d: %s", __PRETTY_FUNCTION__, __LINE__, #call); \
+#define testutil_assert_errno(a)                                                 \
+    do {                                                                         \
+        if (!(a))                                                                \
+            testutil_die(errno, "%s/%d: %s", __PRETTY_FUNCTION__, __LINE__, #a); \
     } while (0)
 
 /*
