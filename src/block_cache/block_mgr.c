@@ -10,6 +10,24 @@
 
 static void __bm_method_set(WT_BM *, bool);
 
+/* Track statistics on cache writes. */
+#define WT_CACHE_WRITE_STATS(session, call)                            \
+    do {                                                               \
+        uint64_t __diff, __start, __stop;                              \
+        bool __timer;                                                  \
+        __timer = !F_ISSET(session, WT_SESSION_INTERNAL);              \
+        if (__timer)                                                   \
+            __start = __wt_clock(session);                             \
+        WT_RET(call);                                                  \
+        if (__timer) {                                                 \
+            __stop = __wt_clock(session);                              \
+            __diff = WT_CLOCKDIFF_US(__stop, __start);                 \
+            WT_STAT_CONN_INCR(session, cache_write_app_count);         \
+            WT_STAT_CONN_INCRV(session, cache_write_app_time, __diff); \
+            WT_STAT_SESSION_INCRV(session, write_time, __diff);        \
+        }                                                              \
+    } while (0)
+
 /*
  * __bm_readonly --
  *     General-purpose "writes not supported on this handle" function.
@@ -60,7 +78,9 @@ static int
 __bm_checkpoint(
   WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
 {
-    return (__wt_block_checkpoint(session, bm->block, buf, ckptbase, data_checksum));
+    WT_CACHE_WRITE_STATS(
+      session, __wt_block_checkpoint(session, bm->block, buf, ckptbase, data_checksum));
+    return (0);
 }
 
 /*
@@ -606,7 +626,7 @@ __bm_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, siz
     __wt_capacity_throttle(
       session, buf->size, checkpoint_io ? WT_THROTTLE_CKPT : WT_THROTTLE_EVICT);
 
-    WT_RET(
+    WT_CACHE_WRITE_STATS(session,
       __wt_block_write(session, bm->block, buf, addr, addr_sizep, data_checksum, checkpoint_io));
 
     if (blkcache->type != BLKCACHE_UNCONFIGURED)
