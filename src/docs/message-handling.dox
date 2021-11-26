@@ -50,9 +50,9 @@ When configuring a WiredTiger connection through ::wiredtiger_open or WT_CONNECT
 is possible to configure the WT_EVENT_HANDLER interface to produce <a href="http://www.json.org">JSON</a>
 encoded messages via the \c json_output configuration option. The \c json_output option takes a list
 message categories, where each category represents a method defined by the WT_EVENT_HANDLER
-interface, i.e. 'message' represents the ::handle_message interface. For instance, to print all
-\b messages and \b error events in JSON format, the following setting needs to be added to the
-connection configuration:
+interface, i.e. 'message' represents the WT_EVENT_HANDLER::handle_message interface. For instance,
+to print all \b messages and \b error events in JSON format, the following setting needs to be added
+to the connection configuration:
 
 @code
 json_output=(message, error)
