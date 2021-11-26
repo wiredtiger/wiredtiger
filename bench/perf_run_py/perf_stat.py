@@ -91,12 +91,12 @@ class PerfStatMinMax(PerfStat):
         avg_max_3_vals = self.average(sorted(self.values)[-3:])
 
         as_list = [
-            {'name': f"{self.output_label} (min)", 'value': avg_min_3_vals},
-            {'name': f"{self.output_label} (max)", 'value': avg_max_3_vals},
+            {'name': f"Min {self.output_label}", 'value': avg_min_3_vals},
+            {'name': f"Max {self.output_label}", 'value': avg_max_3_vals},
         ]
 
         if not brief:
-            as_list.append({'name': f"{self.output_label} (all)", 'values': sorted(self.values)})
+            as_list.append({'name': f"All {self.output_label}s", 'values': sorted(self.values)})
         return as_list
 
 
