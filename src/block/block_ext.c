@@ -588,9 +588,6 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
     ret = __wt_block_off_free(session, block, objectid, offset, (wt_off_t)size);
     __wt_spin_unlock(session, &block->live_lock);
 
-    /* Evict the freed block from the block cache */
-    __wt_blkcache_remove(session, offset, size, checksum);
-
     return (ret);
 }
 
@@ -1334,6 +1331,7 @@ __block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, 
     WT_DECL_ITEM(t2);
     WT_DECL_RET;
     WT_EXT *ext;
+    WT_VERBOSE_LEVEL level;
     uint64_t pow, sizes[64];
     u_int i;
     const char *sep;
@@ -1343,11 +1341,12 @@ __block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, 
 
     WT_ERR(__wt_scr_alloc(session, 0, &t1));
     if (block->verify_layout)
-        WT_ERR(__wt_msg(session, "%s extent list %s, %" PRIu32 " entries, %s bytes", tag, el->name,
-          el->entries, __wt_buf_set_size(session, el->bytes, true, t1)));
+        level = WT_VERBOSE_NOTICE;
     else
-        __wt_verbose(session, WT_VERB_BLOCK, "%s extent list %s, %" PRIu32 " entries, %s bytes",
-          tag, el->name, el->entries, __wt_buf_set_size(session, el->bytes, true, t1));
+        level = WT_VERBOSE_DEBUG;
+    __wt_verbose_level(session, WT_VERB_BLOCK, level,
+      "%s extent list %s, %" PRIu32 " entries, %s bytes", tag, el->name, el->entries,
+      __wt_buf_set_size(session, el->bytes, true, t1));
 
     if (el->entries == 0)
         goto done;
@@ -1369,10 +1368,7 @@ __block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, 
             sep = ",";
         }
 
-    if (block->verify_layout)
-        WT_ERR(__wt_msg(session, "%s", (char *)t1->data));
-    else
-        __wt_verbose(session, WT_VERB_BLOCK, "%s", (char *)t1->data);
+    __wt_verbose_level(session, WT_VERB_BLOCK, level, "%s", (char *)t1->data);
 
 done:
 err:
