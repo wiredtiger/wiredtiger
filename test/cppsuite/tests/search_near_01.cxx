@@ -191,7 +191,7 @@ class search_near_01 : public test_harness::test {
 
         /*
          * Read at timestamp 10, so that no keys are visible to this transaction. When performing
-         * prefix search near, we expect the search to early exit out of it's prefix range and
+         * prefix search near, we expect the search to early exit out of its prefix range and
          * return WT_NOTFOUND.
          */
         tc->transaction.begin("read_timestamp=" + tc->tsm->decimal_to_hex(10));
