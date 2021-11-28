@@ -545,6 +545,13 @@ struct __wt_cursor_version {
     /* The previous traversed update's start_ts will become the stop_ts. */
     wt_timestamp_t upd_stop_ts;
 
+    /*
+     * We cache either the onpage update or the latest traversed standard history update (if any)
+     * so that we don't need to walk through multiple history store entries to reconstruct the
+     * value for a reverse modify.
+     */
+    WT_ITEM *hs_base_upd;
+
 #define WT_VERSION_UPDATE_CHAIN 0
 #define WT_VERSION_DISK_IMAGE 1
 #define WT_VERSION_HISTORY_STORE 2

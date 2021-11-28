@@ -55,32 +55,39 @@ err:
 static int
 __curversion_next(WT_CURSOR *cursor)
 {
+    WT_CELL_UNPACK_KV *vpack;
     WT_CURSOR *hs_cursor, *table_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
     WT_ITEM *hs_key, *hs_value;
+    WT_PAGE *page;
+    WT_ROW *rip;
     WT_SESSION_IMPL *session;
     WT_TIME_WINDOW tw;
     WT_UPDATE *upd;
-    wt_timestamp_t durable_stop_ts;
-    wt_timestamp_t stop_ts;
+    bool upd_found;
+    wt_timestamp_t durable_stop_ts, stop_ts;
     uint64_t hs_counter, stop_txn;
     uint32_t hs_btree_id, hs_upd_type;
 
+    upd_found = false;
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     hs_cursor = version_cursor->hs_cursor;
     table_cursor = version_cursor->table_cursor;
     cbt = (WT_CURSOR_BTREE *)table_cursor;
     CURSOR_API_CALL(cursor, session, next, NULL);
 
-    /* The cursor should be positioned. */
-    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT))
-        goto err;
+    /* The cursor should be positioned, otherwise the next call will fail. */
+    if (!F_ISSET(cursor, WT_CURSTD_KEY_SET)) {
+        WT_IGNORE_RET(__wt_msg(
+          session, "WT_ROLLBACK: rolling back version_cursor->next due to no initial position"));
+        WT_ERR(WT_ROLLBACK);
+    }
 
     upd = version_cursor->next_upd;
 
-    if (!F_ISSET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED)) {
+    if (!upd_found && !F_ISSET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED)) {
         /*
          * If the update is an aborted update, we want to skip to the next update immediately or get
          * the ondisk value if the update is the last one in the update chain.
@@ -120,8 +127,8 @@ __curversion_next(WT_CURSOR *cursor)
                   WT_VERSION_UPDATE_CHAIN);
 
                 /*
-                 * Set the version cursor's value to be the update value. If the update is a modify,
-                 * reconstruct the value.
+                 * Copy the update value into the version cursor as we don't know the value format.
+                 * If the update is a modify, reconstruct the value.
                  */
                 if (upd->type != WT_UPDATE_MODIFY)
                     __wt_upd_value_assign(cbt->upd_value, upd);
@@ -129,46 +136,65 @@ __curversion_next(WT_CURSOR *cursor)
                     WT_ERR(
                       __wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
 
-                __wt_cursor_set_value(cursor, cbt->upd_value->buf);
+                cursor->value = cbt->upd_value->buf;
+                F_SET(cursor, WT_CURSTD_VALUE_EXT);
+                version_cursor->hs_base_upd = &(cbt->upd_value->buf);
 
+                upd_found = true;
                 version_cursor->next_upd = upd->next;
-                if (upd == NULL)
-                    F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
-                goto done;
             }
         }
     }
 
-    if (!F_ISSET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED)) {
-        WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw));
+    if (!upd_found && !F_ISSET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED)) {
+        /* Retrieve the value for each type of underlying table structure. */
+        /* If the key is on an insert list only, there is no ondisk value. */
+        if (cbt->ins)
+            F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
+        else {
+            page = cbt->ref->page;
+            rip = &page->pg_row[cbt->slot];
 
-        if (!WT_TIME_WINDOW_HAS_STOP(&tw)) {
-            durable_stop_ts = version_cursor->upd_durable_stop_ts;
-            stop_ts = version_cursor->upd_stop_ts;
-            stop_txn = version_cursor->upd_txnid;
-        } else {
-            durable_stop_ts = tw.durable_stop_ts;
-            stop_ts = tw.stop_ts;
-            stop_txn = tw.stop_txn;
+            __wt_row_leaf_value_cell(session, cbt->ref->page, rip, vpack);
+
+            WT_TIME_WINDOW_COPY(&tw, &vpack->tw);
+
+            if (!WT_TIME_WINDOW_HAS_STOP(&tw)) {
+                durable_stop_ts = version_cursor->upd_durable_stop_ts;
+                stop_ts = version_cursor->upd_stop_ts;
+                stop_txn = version_cursor->upd_txnid;
+            } else {
+                durable_stop_ts = tw.durable_stop_ts;
+                stop_ts = tw.stop_ts;
+                stop_txn = tw.stop_txn;
+            }
+
+            __wt_cursor_set_key(cursor, tw.start_txn, tw.start_ts, tw.durable_start_ts, stop_txn,
+            stop_ts, durable_stop_ts, 0, 0, 0, WT_VERSION_DISK_IMAGE);
+            cursor->value = *(WT_ITEM *)(vpack->data);
+            F_SET(cursor, WT_CURSTD_VALUE_EXT);
+
+            version_cursor->upd_txnid = tw.start_txn;
+            version_cursor->upd_durable_stop_ts = tw.durable_start_ts;
+            version_cursor->upd_stop_ts = tw.start_ts;
+
+            upd_found = true;
+            F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
         }
-
-        __wt_cursor_set_key(cursor, tw.start_txn, tw.start_ts, tw.durable_start_ts, stop_txn,
-          stop_ts, durable_stop_ts, 0, 0, 0, WT_VERSION_DISK_IMAGE);
-        __wt_cursor_set_value(cursor, cbt->upd_value->buf);
-
-        version_cursor->upd_txnid = tw.start_txn;
-        version_cursor->upd_durable_stop_ts = tw.durable_start_ts;
-        version_cursor->upd_stop_ts = tw.start_ts;
-
-        F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
-        goto done;
     }
 
-    if (!F_ISSET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED)) {
-        hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, cursor->key, WT_TS_MAX, UINT64_MAX);
-        ret = __wt_curhs_search_near_before(session, hs_cursor);
-        ret = hs_cursor->prev(hs_cursor);
+    if (!upd_found && !F_ISSET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED)) {
+        /*
+         * If the history store cursor is not yet positioned, then we are traversing the history
+         * store versions for the first time.
+         */
+        if (!F_ISSET(hs_cursor, WT_CURSTD_KEY_INT)) {
+            hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, cursor->key, WT_TS_MAX, UINT64_MAX);
+            WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, hs_cursor), true);
+        } else
+            WT_ERR_NOTFOUND_OK(ret = hs_cursor->prev(hs_cursor), true);
 
+        WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
         /*
          * If there are no history store records for the given key or if we have iterated through
          * all the records already, we have exhausted the history store.
@@ -179,24 +205,23 @@ __curversion_next(WT_CURSOR *cursor)
             hs_cursor->get_value(
               hs_cursor, &tw.stop_ts, &tw.durable_start_ts, &hs_upd_type, hs_value);
             __wt_cursor_set_key(cursor, tw.start_txn, tw.start_ts, tw.durable_start_ts,
-              version_cursor->upd_txnid, tw.stop_ts,
-              version_cursor->upd_durable_stop_ts, hs_upd_type, 0, 0, WT_VERSION_HISTORY_STORE);
-            __wt_cursor_set_value(cursor, hs_value->data);
+              tw.stop_txn, tw.stop_ts, tw.durable_stop_ts, hs_upd_type, 0, 0, WT_VERSION_HISTORY_STORE);
 
-            version_cursor->upd_txnid = tw.stop_txn;
-            version_cursor->upd_durable_stop_ts = tw.durable_start_ts;
-            version_cursor->upd_stop_ts = tw.start_ts;
-        } else {
+            /* Reconstruct the history store value if needed. */
+            if (hs_upd_type == WT_UPDATE_MODIFY) {
+                WT_ERR(__wt_modify_apply_item(
+                  session, table_cursor->value_format, version_cursor->hs_base_upd, hs_value->data));
+                cursor->value = *(version_cursor->hs_base_upd);
+            } else {
+                WT_ASSERT(session, hs_upd_type == WT_UPDATE_STANDARD);
+                cursor->value = *(WT_ITEM *)(hs_value->data);
+                version_cursor->hs_base_upd = hs_value;
+            }
+            F_SET(cursor, WT_CURSTD_VALUE_EXT);
+            upd_found = true;
+        } else
             F_SET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED);
-        }
-        goto done;
     }
-
-    /*
-     * If we are not finished by here, this means we have already traversed all versions previously
-     * and there are no more versions to iterate.
-     */
-    ret = WT_NOTFOUND;
 
     if (0) {
 err:
