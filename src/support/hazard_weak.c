@@ -285,13 +285,10 @@ __wt_hazard_weak_upgrade(WT_SESSION_IMPL *session, WT_HAZARD_WEAK **whpp, WT_REF
         return (0);
 
     /*
-     * An empty slot reflects a serious error, we should always find the weak hazard pointer. Panic,
-     * because we messed up in and it could imply corruption.
+     * An empty slot reflects a serious error, we should always find the weak hazard pointer.
+     * Assert, because we messed up in and it could imply corruption.
      */
-    if (whp == NULL || whp->ref == NULL)
-        WT_RET_PANIC(session, WT_PANIC,
-          "session %p: could not find the weak hazard pointer for a modify operation",
-          (void *)session);
+    WT_ASSERT(session, whp != NULL && whp->ref != NULL);
 
     /* If the weak pointer has already been invalidated, we can't upgrade, we are done. */
     if (!whp->valid)
