@@ -1670,12 +1670,15 @@ __txn_resolve_weak_hazard_updates(
         return (0);
     }
 
-    /* We could not upgrade the weak pointer - need to resolve the slow path. */
+    /* We could not upgrade the weak pointer, resolve the reference by searching for the update. */
     if (ret == EBUSY) {
         WT_SAVE_DHANDLE(session, ret = __txn_search_uncommitted_op(session, op, cursorp, &upd));
         WT_RET(ret);
 
-        /* Since we are not evicting yet - we expect to find the update we already have. */
+        /*
+         * Since we are not evicting yet and we don't resolve updates on keys with multiple updates
+         * we expect to find the update we already have.
+         */
         WT_ASSERT(session, op->u.op_upd == upd);
 
         op->u.op_upd = upd;
