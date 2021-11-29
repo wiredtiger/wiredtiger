@@ -604,7 +604,7 @@ __wt_verbose_worker(WT_SESSION_IMPL *session, WT_VERBOSE_CATEGORY category, WT_V
     va_list ap;
 
     va_start(ap, fmt);
-    WT_IGNORE_RET(__eventv(session, true,
+    WT_IGNORE_RET(__eventv(session, level == WT_VERBOSE_ERROR ? false : true,
       session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_MESSAGE) : false, 0, NULL, 0,
       category, level, fmt, ap));
     va_end(ap);
