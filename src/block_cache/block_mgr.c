@@ -10,24 +10,6 @@
 
 static void __bm_method_set(WT_BM *, bool);
 
-/* Track statistics on cache writes. */
-#define WT_CACHE_WRITE_STATS(session, call)                            \
-    do {                                                               \
-        uint64_t __diff, __start, __stop;                              \
-        bool __timer;                                                  \
-        __timer = !F_ISSET(session, WT_SESSION_INTERNAL);              \
-        if (__timer)                                                   \
-            __start = __wt_clock(session);                             \
-        WT_RET(call);                                                  \
-        if (__timer) {                                                 \
-            __stop = __wt_clock(session);                              \
-            __diff = WT_CLOCKDIFF_US(__stop, __start);                 \
-            WT_STAT_CONN_INCR(session, cache_write_app_count);         \
-            WT_STAT_CONN_INCRV(session, cache_write_app_time, __diff); \
-            WT_STAT_SESSION_INCRV(session, write_time, __diff);        \
-        }                                                              \
-    } while (0)
-
 /*
  * __bm_readonly --
  *     General-purpose "writes not supported on this handle" function.
@@ -78,9 +60,7 @@ static int
 __bm_checkpoint(
   WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
 {
-    WT_CACHE_WRITE_STATS(
-      session, __wt_block_checkpoint(session, bm->block, buf, ckptbase, data_checksum));
-    return (0);
+    return (__wt_block_checkpoint(session, bm->block, buf, ckptbase, data_checksum));
 }
 
 /*
@@ -407,31 +387,7 @@ __bm_map_discard(WT_BM *bm, WT_SESSION_IMPL *session, void *map, size_t len)
 static int
 __bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
 {
-    WT_BLKCACHE *blkcache;
-    bool found, skip_cache;
-
-    blkcache = &S2C(session)->blkcache;
-
-    /* Check for mapped blocks. */
-    WT_RET(__wt_blkcache_map_read(bm, session, buf, addr, addr_size, &found));
-    if (found)
-        return (0);
-
-    /* Check the block cache. */
-    skip_cache = true;
-    if (blkcache->type != BLKCACHE_UNCONFIGURED) {
-        WT_RET(__wt_blkcache_get(session, buf, addr, addr_size, &found, &skip_cache));
-        if (found)
-            return (0);
-    }
-
-    /* Read the block. */
-    WT_RET(__wt_bm_read(bm, session, buf, addr, addr_size));
-
-    /* Optionally store in the block cache. */
-    if (!skip_cache)
-        WT_RET(__wt_blkcache_put(session, buf, addr, addr_size, false, false));
-    return (0);
+    return (__wt_bm_read(bm, session, buf, addr, addr_size));
 }
 
 /*
@@ -619,19 +575,11 @@ static int
 __bm_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_sizep,
   bool data_checksum, bool checkpoint_io)
 {
-    WT_BLKCACHE *blkcache;
-
-    blkcache = &S2C(session)->blkcache;
-
     __wt_capacity_throttle(
       session, buf->size, checkpoint_io ? WT_THROTTLE_CKPT : WT_THROTTLE_EVICT);
 
-    WT_CACHE_WRITE_STATS(session,
+    return (
       __wt_block_write(session, bm->block, buf, addr, addr_sizep, data_checksum, checkpoint_io));
-
-    if (blkcache->type != BLKCACHE_UNCONFIGURED)
-        WT_RET(__wt_blkcache_put(session, buf, addr, *addr_sizep, checkpoint_io, true));
-    return (0);
 }
 
 /*

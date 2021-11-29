@@ -31,7 +31,6 @@ file_parse()
 func_ok()
 {
 	sed \
-	    -e '/int __bm_checkpoint$/d' \
 	    -e '/int __bm_stat$/d' \
 	    -e '/int __checkpoint_presync$/d' \
 	    -e '/int __compact_uri_analyze$/d' \

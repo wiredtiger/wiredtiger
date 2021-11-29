@@ -47,24 +47,11 @@ struct __wt_blkcache_item {
      */
     int32_t freq_rec_counter;
 
+    uint32_t ref_count; /* References */
+
     uint32_t fid;      /* File ID */
     uint8_t addr_size; /* Address cookie */
     uint8_t addr[];
-};
-
-/*
- * WT_BLKCACHE_BUCKET_METADATA --
- *     The metadata indicating the number of bytes in cache is accumulated per
- *     bucket, because we do locking per bucket. Then the eviction thread accumulates
- *     per-bucket data into a global metadata value that is stored in the block
- *     cache structure.
- */
-
-struct __wt_blkcache_bucket_metadata {
-    WT_CACHE_LINE_PAD_BEGIN
-    volatile uint64_t bucket_num_data_blocks; /* Number of blocks in the bucket */
-    volatile uint64_t bucket_bytes_used;      /* Bytes in the bucket */
-    WT_CACHE_LINE_PAD_END
 };
 
 /*
@@ -76,7 +63,6 @@ struct __wt_blkcache {
     /* Locked: Block manager cache. Locks are per-bucket. */
     TAILQ_HEAD(__wt_blkcache_hash, __wt_blkcache_item) * hash;
     WT_SPINLOCK *hash_locks;
-    WT_BLKCACHE_BUCKET_METADATA *bucket_metadata;
 
     wt_thread_t evict_thread_tid;
     volatile bool blkcache_exiting; /* If destroying the cache */
@@ -108,12 +94,11 @@ struct __wt_blkcache {
      */
     u_int percent_file_in_os_cache;
 
-    u_int hash_size;                   /* Number of block cache hash buckets */
-    u_int type;                        /* Type of block cache (NVRAM or DRAM) */
-    volatile uint64_t bytes_used;      /* Bytes in the block cache */
-    volatile uint64_t num_data_blocks; /* Number of blocks in the block cache */
-    uint64_t max_bytes;                /* Block cache size */
-    uint64_t system_ram;               /* Configured size of system RAM */
+    u_int hash_size;     /* Number of block cache hash buckets */
+    u_int type;          /* Type of block cache (NVRAM or DRAM) */
+    uint64_t bytes_used; /* Bytes in the block cache */
+    uint64_t max_bytes;  /* Block cache size */
+    uint64_t system_ram; /* Configured size of system RAM */
 
     uint32_t min_num_references; /* The per-block number of references triggering eviction. */
 
