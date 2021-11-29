@@ -1134,7 +1134,8 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_txn_get_snapshot(session);
     }
 
-    txn->resolve_weak_hazard_updates = true;
+    /* Disable the feature to resolve uncommitted updates during commit/rollback. */
+    txn->resolve_weak_hazard_updates = false;
 
     F_SET(txn, WT_TXN_RUNNING);
     if (F_ISSET(S2C(session), WT_CONN_READONLY))
