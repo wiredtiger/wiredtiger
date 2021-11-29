@@ -158,9 +158,12 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
 
     dsk = ip->data;
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
-        if (compressor == NULL || compressor->decompress == NULL)
-            WT_ERR(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
-              "compressed block for which no compression configured"));
+        if (compressor == NULL || compressor->decompress == NULL) {
+            ret = __blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
+              "compressed block for which no compression configured");
+	    /* Odd error handling structure to avoid static analyzer complaints. */
+	    WT_ERR(ret == 0 ? WT_ERROR : ret);
+	}
 
         /* Size the buffer based on the in-memory bytes we're expecting from decompression. */
         WT_ERR(__wt_buf_initsize(session, buf, dsk->mem_size));
