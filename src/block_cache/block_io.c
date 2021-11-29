@@ -122,13 +122,11 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     }
 
     /*
-     * If the block is encrypted, copy the skipped bytes of the image into place, then decrypt.
-     * Block-cache blocks are never encrypted.
-     *
-     * KEITH: NVRAM are encrypted but that needs configuration work
+     * If the block is encrypted, copy the skipped bytes of the image into place, then decrypt. DRAM
+     * block-cache blocks are never encrypted.
      */
     dsk = ip->data;
-    if (!blkcache_found) {
+    if (!blkcache_found || blkcache->type != BLKCACHE_DRAM) {
         if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
             encryptor = btree->kencryptor == NULL ? NULL : btree->kencryptor->encryptor;
             if (encryptor == NULL || encryptor->decrypt == NULL)
