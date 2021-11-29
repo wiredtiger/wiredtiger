@@ -55,27 +55,29 @@ err:
 static int
 __curversion_next(WT_CURSOR *cursor)
 {
+    WT_BTREE *btree;
     WT_CELL_UNPACK_KV *vpack;
     WT_CURSOR *hs_cursor, *table_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
-    WT_ITEM *hs_key, *hs_value;
+    WT_ITEM hs_key, hs_value;
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
     WT_TIME_WINDOW tw;
     WT_UPDATE *upd;
-    bool upd_found;
     wt_timestamp_t durable_stop_ts, stop_ts;
     uint64_t hs_counter, stop_txn;
     uint32_t hs_btree_id, hs_upd_type;
+    bool upd_found;
 
     upd_found = false;
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     hs_cursor = version_cursor->hs_cursor;
     table_cursor = version_cursor->table_cursor;
     cbt = (WT_CURSOR_BTREE *)table_cursor;
+    btree = CUR2BT(cbt);
     CURSOR_API_CALL(cursor, session, next, NULL);
 
     /* The cursor should be positioned, otherwise the next call will fail. */
@@ -136,9 +138,9 @@ __curversion_next(WT_CURSOR *cursor)
                     WT_ERR(
                       __wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
 
-                cursor->value = cbt->upd_value->buf;
-                F_SET(cursor, WT_CURSTD_VALUE_EXT);
-                version_cursor->hs_base_upd = &(cbt->upd_value->buf);
+                cursor->value.data = cbt->upd_value->buf.data;
+                cursor->value.size = cbt->upd_value->buf.size;
+                F_SET(cursor, WT_CURSTD_VALUE_INT);
 
                 upd_found = true;
                 version_cursor->next_upd = upd->next;
@@ -153,9 +155,19 @@ __curversion_next(WT_CURSOR *cursor)
             F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
         else {
             page = cbt->ref->page;
-            rip = &page->pg_row[cbt->slot];
-
-            __wt_row_leaf_value_cell(session, cbt->ref->page, rip, vpack);
+            switch (page->type) {
+                case WT_PAGE_ROW_LEAF:
+                    rip = &page->pg_row[cbt->slot];
+                    __wt_row_leaf_value_cell(session, cbt->ref->page, rip, vpack);
+                    break;
+                case WT_PAGE_COL_FIX:
+                    break;
+                case WT_PAGE_COL_VAR:
+                    break;
+                default:
+                    ret = __wt_illegal_value(session, page->type);
+                    break;
+            }
 
             WT_TIME_WINDOW_COPY(&tw, &vpack->tw);
 
@@ -170,13 +182,16 @@ __curversion_next(WT_CURSOR *cursor)
             }
 
             __wt_cursor_set_key(cursor, tw.start_txn, tw.start_ts, tw.durable_start_ts, stop_txn,
-            stop_ts, durable_stop_ts, 0, 0, 0, WT_VERSION_DISK_IMAGE);
-            cursor->value = *(WT_ITEM *)(vpack->data);
+              stop_ts, durable_stop_ts, 0, 0, 0, WT_VERSION_DISK_IMAGE);
+            cursor->value.data = vpack->data;
+            cursor->value.size = vpack->size;
             F_SET(cursor, WT_CURSTD_VALUE_EXT);
 
             version_cursor->upd_txnid = tw.start_txn;
             version_cursor->upd_durable_stop_ts = tw.durable_start_ts;
             version_cursor->upd_stop_ts = tw.start_ts;
+            version_cursor->hs_base_upd->data = vpack->data;
+            version_cursor->hs_base_upd->size = vpack->size;
 
             upd_found = true;
             F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
@@ -194,28 +209,30 @@ __curversion_next(WT_CURSOR *cursor)
         } else
             WT_ERR_NOTFOUND_OK(ret = hs_cursor->prev(hs_cursor), true);
 
-        WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
         /*
          * If there are no history store records for the given key or if we have iterated through
          * all the records already, we have exhausted the history store.
          */
         if (ret == 0) {
             WT_TIME_WINDOW_INIT(&tw);
-            hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &tw.start_ts, &hs_counter);
+            hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &tw.start_ts, &hs_counter);
             hs_cursor->get_value(
-              hs_cursor, &tw.stop_ts, &tw.durable_start_ts, &hs_upd_type, hs_value);
-            __wt_cursor_set_key(cursor, tw.start_txn, tw.start_ts, tw.durable_start_ts,
-              tw.stop_txn, tw.stop_ts, tw.durable_stop_ts, hs_upd_type, 0, 0, WT_VERSION_HISTORY_STORE);
+              hs_cursor, &tw.stop_ts, &tw.durable_start_ts, &hs_upd_type, &hs_value);
+            __wt_cursor_set_key(cursor, tw.start_txn, tw.start_ts, tw.durable_start_ts, tw.stop_txn,
+              tw.stop_ts, tw.durable_stop_ts, hs_upd_type, 0, 0, WT_VERSION_HISTORY_STORE);
 
             /* Reconstruct the history store value if needed. */
             if (hs_upd_type == WT_UPDATE_MODIFY) {
                 WT_ERR(__wt_modify_apply_item(
-                  session, table_cursor->value_format, version_cursor->hs_base_upd, hs_value->data));
-                cursor->value = *(version_cursor->hs_base_upd);
+                  session, table_cursor->value_format, version_cursor->hs_base_upd, hs_value.data));
+                cursor->value.data = version_cursor->hs_base_upd->data;
+                cursor->value.size = version_cursor->hs_base_upd->size;
             } else {
                 WT_ASSERT(session, hs_upd_type == WT_UPDATE_STANDARD);
-                cursor->value = *(WT_ITEM *)(hs_value->data);
-                version_cursor->hs_base_upd = hs_value;
+                cursor->value.data = hs_value.data;
+                cursor->value.size = hs_value.size;
+                version_cursor->hs_base_upd->data = hs_value.data;
+                version_cursor->hs_base_upd->size = hs_value.size;
             }
             F_SET(cursor, WT_CURSTD_VALUE_EXT);
             upd_found = true;
@@ -223,12 +240,13 @@ __curversion_next(WT_CURSOR *cursor)
             F_SET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED);
     }
 
+done:
+    API_END_RET(session, ret);
+
     if (0) {
 err:
         WT_TRET(cursor->reset(cursor));
     }
-done:
-    API_END_RET(session, ret);
 }
 
 /*
@@ -258,6 +276,7 @@ __curversion_reset(WT_CURSOR *cursor)
     F_CLR(cursor, WT_CURSTD_VALUE_SET);
 
 err:
+    __wt_scr_free(session, &(version_cursor->hs_base_upd));
     API_END_RET(session, ret);
 }
 
@@ -335,6 +354,7 @@ __curversion_close(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, close, NULL);
 err:
     version_cursor->next_upd = NULL;
+    __wt_scr_free(session, &(version_cursor->hs_base_upd));
     if (table_cursor != NULL)
         WT_TRET(table_cursor->close(table_cursor));
     if (hs_cursor != NULL)
