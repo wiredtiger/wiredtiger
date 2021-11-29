@@ -2695,45 +2695,96 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(msg);
     WT_DECL_RET;
     double pct;
-    uint64_t total_bytes, total_dirty_bytes, total_updates_bytes;
-    bool needed;
+    uint64_t tmp_len, total_bytes, total_dirty_bytes, total_updates_bytes;
+    char tmp[1024];
+    bool json_output, needed;
 
     conn = S2C(session);
     cache = conn->cache;
+    json_output = FLD_ISSET(conn->json_output, WT_JSON_OUTPUT_MESSAGE);
     total_bytes = total_dirty_bytes = total_updates_bytes = 0;
     pct = 0.0; /* [-Werror=uninitialized] */
+    tmp_len = sizeof(tmp);
 
-    WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
-    WT_RET(__wt_msg(session, "cache dump"));
+    if (json_output) {
+        WT_ERR(__wt_scr_alloc(session, 0, &msg));
+        WT_ERR(__wt_buf_catfmt(session, msg, "{"));
+        WT_ERR(__wt_buf_catfmt(session, msg, "\"cache dump\":{"));
+    } else {
+        WT_ERR(__wt_msg(session, "%s", WT_DIVIDER));
+        WT_ERR(__wt_msg(session, "cache dump"));
+    }
 
-    WT_RET(__wt_msg(session, "cache full: %s", __wt_cache_full(session) ? "yes" : "no"));
+    needed = __wt_cache_full(session);
+    WT_ERR(__wt_snprintf(tmp, tmp_len, "%s", needed ? "yes" : "no"));
+    if (json_output)
+        WT_ERR(__wt_buf_catfmt(session, msg, "\"cache full\":\"%s\",", tmp));
+    else
+        WT_ERR(__wt_msg(session, "cache full: %s", tmp));
+
     needed = __wt_eviction_clean_needed(session, &pct);
-    WT_RET(__wt_msg(session, "cache clean check: %s (%2.3f%%)", needed ? "yes" : "no", pct));
+    WT_ERR(__wt_snprintf(tmp, tmp_len, "%s (%2.3f%%)", needed ? "yes" : "no", pct));
+    if (json_output)
+        WT_ERR(__wt_buf_catfmt(session, msg, "\"cache clean check\":\"%s\",", tmp));
+    else
+        WT_ERR(__wt_msg(session, "cache clean check: %s", tmp));
+
     needed = __wt_eviction_dirty_needed(session, &pct);
-    WT_RET(__wt_msg(session, "cache dirty check: %s (%2.3f%%)", needed ? "yes" : "no", pct));
+    WT_ERR(__wt_snprintf(tmp, tmp_len, "%s (%2.3f%%)", needed ? "yes" : "no", pct));
+    if (json_output)
+        WT_ERR(__wt_buf_catfmt(session, msg, "\"cache dirty check\":\"%s\",", tmp));
+    else
+        WT_ERR(__wt_msg(session, "cache dirty check: %s", tmp));
+
     needed = __wt_eviction_updates_needed(session, &pct);
-    WT_RET(__wt_msg(session, "cache updates check: %s (%2.3f%%)", needed ? "yes" : "no", pct));
+    WT_ERR(__wt_snprintf(tmp, tmp_len, "%s (%2.3f%%)", needed ? "yes" : "no", pct));
+    if (json_output)
+        WT_ERR(__wt_buf_catfmt(session, msg, "\"cache updates check\":\"%s\",", tmp));
+    else
+        WT_ERR(__wt_msg(session, "cache updates check: %s", tmp));
 
     WT_WITH_HANDLE_LIST_READ_LOCK(session,
       ret = __verbose_dump_cache_apply(
         session, &total_bytes, &total_dirty_bytes, &total_updates_bytes));
-    WT_RET(ret);
+    if (ret != 0)
+        goto err;
 
     /*
      * Apply the overhead percentage so our total bytes are comparable with the tracked value.
      */
     total_bytes = __wt_cache_bytes_plus_overhead(conn->cache, total_bytes);
 
-    WT_RET(
-      __wt_msg(session, "cache dump: total found: %" PRIu64 "MB vs tracked inuse %" PRIu64 "MB",
-        total_bytes / WT_MEGABYTE, cache->bytes_inmem / WT_MEGABYTE));
-    WT_RET(__wt_msg(session, "total dirty bytes: %" PRIu64 "MB vs tracked dirty %" PRIu64 "MB",
+    WT_ERR(__wt_snprintf(tmp, tmp_len, "%" PRIu64 " MB vs tracked inuse %" PRIu64 "MB",
+      total_bytes / WT_MEGABYTE, cache->bytes_inmem / WT_MEGABYTE));
+    if (json_output)
+        WT_ERR(__wt_buf_catfmt(session, msg, "\"total found\":\"%s\",", tmp));
+    else
+        WT_ERR(__wt_msg(session, "cache dump: total found: %s", tmp));
+
+    WT_ERR(__wt_snprintf(tmp, tmp_len, "%" PRIu64 " MB vs tracked dirty %" PRIu64 "MB",
       total_dirty_bytes / WT_MEGABYTE,
       (cache->bytes_dirty_intl + cache->bytes_dirty_leaf) / WT_MEGABYTE));
-    WT_RET(__wt_msg(session, "total updates bytes: %" PRIu64 "MB vs tracked updates %" PRIu64 "MB",
-      total_updates_bytes / WT_MEGABYTE, __wt_cache_bytes_updates(cache) / WT_MEGABYTE));
+    if (json_output)
+        WT_ERR(__wt_buf_catfmt(session, msg, "\"total dirty bytes\":\"%s\",", tmp));
+    else
+        WT_ERR(__wt_msg(session, "total dirty bytes: %s", tmp));
 
-    return (0);
+    WT_ERR(__wt_snprintf(tmp, tmp_len, "%" PRIu64 " MB vs tracked updates %" PRIu64 "MB",
+      total_updates_bytes / WT_MEGABYTE, __wt_cache_bytes_updates(cache) / WT_MEGABYTE));
+    if (json_output)
+        WT_ERR(__wt_buf_catfmt(session, msg, "\"total updates bytes\":\"%s\"", tmp));
+    else
+        WT_ERR(__wt_msg(session, "total updates bytes: %s", tmp));
+
+    if (json_output) {
+        WT_ERR(__wt_buf_catfmt(session, msg, "}}"));
+        WT_ERR(__wt_msg(session, "%s", (const char *)msg->data));
+    }
+
+err:
+    __wt_scr_free(session, &msg);
+    return (ret);
 }
