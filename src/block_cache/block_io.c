@@ -48,6 +48,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     WT_BLKCACHE_ITEM *blkcache_item;
     WT_BM *bm;
     WT_BTREE *btree;
+    WT_COMPRESSOR *compressor;
     WT_DECL_ITEM(etmp);
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
@@ -62,6 +63,8 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     blkcache_item = NULL;
     btree = S2BT(session);
     bm = btree->bm;
+    compressor = btree->compressor;
+    encryptor = btree->kencryptor == NULL ? NULL : btree->kencryptor->encryptor;
     blkcache_found = found = false;
     skip_cache = blkcache->type == BLKCACHE_UNCONFIGURED;
 
@@ -70,7 +73,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
      * the caller's buffer. Else, start with the caller's buffer.
      */
     ip = buf;
-    expect_conversion = btree->compressor != NULL || btree->kencryptor != NULL;
+    expect_conversion = compressor != NULL || encryptor != NULL;
     if (expect_conversion) {
         WT_RET(__wt_scr_alloc(session, 4 * 1024, &tmp));
         ip = tmp;
@@ -128,7 +131,6 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     dsk = ip->data;
     if (!blkcache_found || blkcache->type != BLKCACHE_DRAM) {
         if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
-            encryptor = btree->kencryptor == NULL ? NULL : btree->kencryptor->encryptor;
             if (encryptor == NULL || encryptor->decrypt == NULL)
                 WT_ERR(__blkcache_read_corrupt(session, ret, addr, addr_size,
                   "encrypted block for which no decryptor configured"));
@@ -154,7 +156,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
 
     dsk = ip->data;
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
-        if (btree->compressor == NULL || btree->compressor->decompress == NULL)
+        if (compressor == NULL || compressor->decompress == NULL)
             WT_ERR(__blkcache_read_corrupt(session, ret, addr, addr_size,
               "compressed block for which no compression configured"));
 
@@ -170,7 +172,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
          * In other words, the "tmp" in the decompress call isn't a mistake.
          */
         memcpy(buf->mem, ip->data, WT_BLOCK_COMPRESS_SKIP);
-        ret = btree->compressor->decompress(btree->compressor, &session->iface,
+        ret = compressor->decompress(btree->compressor, &session->iface,
           (uint8_t *)ip->data + WT_BLOCK_COMPRESS_SKIP, tmp->size - WT_BLOCK_COMPRESS_SKIP,
           (uint8_t *)buf->mem + WT_BLOCK_COMPRESS_SKIP, dsk->mem_size - WT_BLOCK_COMPRESS_SKIP,
           &result_len);
