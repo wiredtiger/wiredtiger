@@ -14,9 +14,9 @@ src/block/block_tiered.c
 src/block/block_vrfy.c
 src/block/block_write.c
 src/block_cache/block_cache.c
+src/block_cache/block_io.c
 src/block_cache/block_map.c
 src/block_cache/block_mgr.c
-src/block_cache/bt_io.c
 src/bloom/bloom.c
 src/btree/bt_compact.c
 src/btree/bt_curnext.c
