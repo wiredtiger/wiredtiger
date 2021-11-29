@@ -1019,25 +1019,93 @@ __wt_verbose_dump_handles(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
+    WT_DECL_ITEM(msg);
+    WT_DECL_RET;
+    uint64_t tmp_len;
+    char tmp[1024];
+    bool first_dhandle, json_output;
 
     conn = S2C(session);
+    json_output = FLD_ISSET(conn->json_output, WT_JSON_OUTPUT_MESSAGE);
+    tmp_len = sizeof(tmp);
 
-    WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
-    WT_RET(__wt_msg(session, "Data handle dump:"));
+    if (json_output) {
+        WT_ERR(__wt_scr_alloc(session, 0, &msg));
+        WT_ERR(__wt_buf_catfmt(session, msg, "{"));
+        WT_ERR(__wt_buf_catfmt(session, msg, "\"Data handle dump\":["));
+    } else {
+        WT_ERR(__wt_msg(session, "%s", WT_DIVIDER));
+        WT_ERR(__wt_msg(session, "Data handle dump:"));
+    }
+
+    first_dhandle = true;
     for (dhandle = NULL;;) {
         WT_WITH_HANDLE_LIST_READ_LOCK(session, WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
         if (dhandle == NULL)
             break;
-        WT_RET(__wt_msg(session, "Name: %s", dhandle->name));
-        if (dhandle->checkpoint != NULL)
-            WT_RET(__wt_msg(session, "Checkpoint: %s", dhandle->checkpoint));
-        WT_RET(__wt_msg(session, "  Sessions referencing handle: %" PRIu32, dhandle->session_ref));
-        WT_RET(__wt_msg(session, "  Sessions using handle: %" PRId32, dhandle->session_inuse));
-        WT_RET(__wt_msg(session, "  Exclusive references to handle: %" PRIu32, dhandle->excl_ref));
-        if (dhandle->excl_ref != 0)
-            WT_RET(
-              __wt_msg(session, "  Session with exclusive use: %p", (void *)dhandle->excl_session));
-        WT_RET(__wt_msg(session, "  Flags: 0x%08" PRIx32, dhandle->flags));
+        else if (json_output) {
+            if (!first_dhandle)
+                WT_ERR(__wt_buf_catfmt(session, msg, ","));
+            else
+                first_dhandle = false;
+            WT_ERR(__wt_buf_catfmt(session, msg, "{"));
+        }
+
+        WT_ERR(__wt_snprintf(tmp, tmp_len, "%s", dhandle->name));
+        if (json_output)
+            WT_ERR(__wt_buf_catfmt(session, msg, "\"Name\":\"%s\",", tmp));
+        else
+            WT_ERR(__wt_msg(session, "Name: %s", tmp));
+
+        if (dhandle->checkpoint != NULL) {
+            WT_ERR(__wt_snprintf(tmp, tmp_len, "%s", dhandle->checkpoint));
+            if (json_output)
+                WT_ERR(__wt_buf_catfmt(session, msg, "\"Checkpoint\":\"%s\",", tmp));
+            else
+                WT_ERR(__wt_msg(session, "Checkpoint: %s", tmp));
+        }
+
+        if (json_output) {
+            WT_ERR(__wt_buf_catfmt(
+              session, msg, "\"Sessions referencing handle\":%" PRIu32 ",", dhandle->session_ref));
+            WT_ERR(__wt_buf_catfmt(
+              session, msg, "\"Sessions using handle\":%" PRId32 ",", dhandle->session_inuse));
+            WT_ERR(__wt_buf_catfmt(
+              session, msg, "\"Exclusive references to handle\":%" PRIu32 ",", dhandle->excl_ref));
+
+        } else {
+            WT_ERR(
+              __wt_msg(session, "  Sessions referencing handle: %" PRIu32, dhandle->session_ref));
+            WT_ERR(__wt_msg(session, "  Sessions using handle: %" PRId32, dhandle->session_inuse));
+            WT_ERR(
+              __wt_msg(session, "  Exclusive references to handle: %" PRIu32, dhandle->excl_ref));
+        }
+
+        if (dhandle->excl_ref != 0) {
+            if (json_output)
+                WT_ERR(__wt_buf_catfmt(session, msg, "\"Session with exclusive use\":%p,",
+                  (void *)dhandle->excl_session));
+            else
+                WT_ERR(__wt_msg(
+                  session, "  Session with exclusive use: %p", (void *)dhandle->excl_session));
+        }
+
+        WT_ERR(__wt_snprintf(tmp, tmp_len, "0x%08" PRIx32, dhandle->flags));
+        if (json_output)
+            WT_ERR(__wt_buf_catfmt(session, msg, "\"Flags\":\"%s\"", tmp));
+        else
+            WT_ERR(__wt_msg(session, "  Flags: %s", tmp));
+
+        if (json_output)
+            WT_ERR(__wt_buf_catfmt(session, msg, "}"));
     }
-    return (0);
+
+    if (json_output) {
+        WT_ERR(__wt_buf_catfmt(session, msg, "]}"));
+        WT_ERR(__wt_msg(session, "%s", (const char *)msg->data));
+    }
+
+err:
+    __wt_scr_free(session, &msg);
+    return (ret);
 }
