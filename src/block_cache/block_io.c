@@ -18,7 +18,7 @@ WT_STAT_COMPR_RATIO_HIST_INCR_FUNC(ratio)
  *     Handle a failed read.
  */
 static int
-__blkcache_read_corrupt(WT_SESSION_IMPL *session, int err, const uint8_t *addr, size_t addr_size,
+__blkcache_read_corrupt(WT_SESSION_IMPL *session, int error, const uint8_t *addr, size_t addr_size,
   const char *fail_msg) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     WT_BM *bm;
@@ -27,7 +27,9 @@ __blkcache_read_corrupt(WT_SESSION_IMPL *session, int err, const uint8_t *addr, 
 
     btree = S2BT(session);
     bm = btree->bm;
-    ret = err == 0 ? WT_ERROR : err;
+
+    ret = error;
+    WT_ASSERT(session, ret != 0);
 
     F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
     if (!F_ISSET(btree, WT_BTREE_VERIFY) && !F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE)) {
@@ -132,7 +134,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     if (!blkcache_found || blkcache->type != BLKCACHE_DRAM) {
         if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
             if (encryptor == NULL || encryptor->decrypt == NULL)
-                WT_ERR(__blkcache_read_corrupt(session, ret, addr, addr_size,
+                WT_ERR(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
                   "encrypted block for which no decryptor configured"));
 
             /*
@@ -146,8 +148,8 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
 
             ip = etmp;
         } else if (btree->kencryptor != NULL)
-            WT_ERR(__blkcache_read_corrupt(
-              session, ret, addr, addr_size, "unencrypted block for which encryption configured"));
+            WT_ERR(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
+              "unencrypted block for which encryption configured"));
     }
 
     /* Store the decrypted, possibly compressed, block in the block_cache. */
@@ -157,7 +159,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     dsk = ip->data;
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
         if (compressor == NULL || compressor->decompress == NULL)
-            WT_ERR(__blkcache_read_corrupt(session, ret, addr, addr_size,
+            WT_ERR(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
               "compressed block for which no compression configured"));
 
         /* Size the buffer based on the in-memory bytes we're expecting from decompression. */
@@ -176,12 +178,14 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
           (uint8_t *)ip->data + WT_BLOCK_COMPRESS_SKIP, tmp->size - WT_BLOCK_COMPRESS_SKIP,
           (uint8_t *)buf->mem + WT_BLOCK_COMPRESS_SKIP, dsk->mem_size - WT_BLOCK_COMPRESS_SKIP,
           &result_len);
+        if (result_len != dsk->mem_size - WT_BLOCK_COMPRESS_SKIP)
+            WT_TRET(WT_ERROR);
 
         /*
          * If checksums were turned off because we're depending on decompression to fail on any
          * corrupted data, we'll end up here on corrupted data.
          */
-        if (ret != 0 || result_len != dsk->mem_size - WT_BLOCK_COMPRESS_SKIP)
+        if (ret != 0)
             WT_ERR(
               __blkcache_read_corrupt(session, ret, addr, addr_size, "block decompression failed"));
 
