@@ -749,7 +749,8 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
         cache_type = BLKCACHE_NVRAM;
         WT_RET(__wt_config_gets(session, cfg, "block_cache.nvram_path", &cval));
         WT_RET(__wt_strndup(session, cval.str, cval.len, &nvram_device_path));
-        WT_ASSERT(session, __wt_absolute_path(nvram_device_path));
+        if (!__wt_absolute_path(nvram_device_path))
+            WT_RET_MSG(session, EINVAL, "NVRAM device path must be an absolute path");
 #else
         WT_RET_MSG(session, EINVAL, "NVRAM block cache requires libmemkind");
 #endif
