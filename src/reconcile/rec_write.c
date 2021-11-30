@@ -160,12 +160,14 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_DECL_RET;
     WT_PAGE *page;
     WT_RECONCILE *r;
+    bool panic;
 #ifdef HAVE_DIAGNOSTIC
     void *addr;
 #endif
 
     btree = S2BT(session);
     page = ref->page;
+    panic = false;
 
     /* Save the eviction state. */
     __reconcile_save_evict_state(session, ref, flags);
@@ -232,9 +234,9 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_ASSERT(session, addr == NULL || ref->addr != NULL);
         WT_TRET(__rec_write_err(session, r, page));
     } else {
+        panic = true;
         /* Wrap up the page reconciliation. Panic on failure. */
-        if ((ret = __rec_write_wrapup(session, r, page)) != 0)
-            goto panic;
+        WT_ERR(__rec_write_wrapup(session, r, page));
         __rec_write_page_status(session, r);
     }
 
@@ -263,7 +265,10 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         btree->rec_multiblock_max = r->multi_next;
 
     /* Clean up the reconciliation structure. */
-    WT_RET(__rec_cleanup(session, r));
+    if (panic)
+        WT_ERR(__rec_cleanup(session, r));
+    else
+        WT_TRET(__rec_cleanup(session, r));
 
     /*
      * When threads perform eviction, don't cache block manager structures (even across calls), we
@@ -278,13 +283,16 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
          * well, and there's no obvious place to do that.
          */
         if (session->block_manager_cleanup != NULL) {
-            if (ret == 0 && (ret = session->block_manager_cleanup(session)) != 0) {
-                goto panic;
-            } else
+            if (panic)
+                WT_ERR(session->block_manager_cleanup(session));
+            else
                 WT_TRET(session->block_manager_cleanup(session));
         }
 
-        WT_TRET(__rec_destroy_session(session));
+        if (panic)
+            WT_ERR(__rec_destroy_session(session));
+        else
+            WT_TRET(__rec_destroy_session(session));
     }
     /*
      * This return statement covers non-panic error scenarios, any failure beyond this point is a
@@ -299,7 +307,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     if (__wt_ref_is_root(ref)) {
         WT_WITH_PAGE_INDEX(session, ret = __rec_root_write(session, page, flags));
         if (ret != 0)
-            goto panic;
+            goto err;
         return (0);
     }
 
@@ -308,11 +316,12 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * in service of a checkpoint, it's cleared the tree's dirty flag, and we don't want to set it
      * again as part of that walk.
      */
-    if ((ret = __wt_page_parent_modify_set(session, ref, true)) == 0)
-        return (0);
+    WT_ERR(__wt_page_parent_modify_set(session, ref, true));
 
-panic:
-    WT_RET_PANIC(session, ret, "reconciliation failed after building the disk image");
+err:
+    if (panic && ret != 0)
+        WT_RET_PANIC(session, ret, "reconciliation failed after building the disk image");
+    return (ret);
 }
 
 /*
