@@ -168,10 +168,11 @@ __blkcache_should_evict(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_ite
         return (false);
 
     /*
-     * Don't evict if there is high overhead due to blocks being inserted/removed. Churn kills
-     * performance and evicting when churn is high will exacerbate the overhead.
+     * In an NVRAM cache, don't evict if there is high overhead due to blocks being
+     * inserted/removed. Churn kills performance and evicting when churn is high will exacerbate the
+     * overhead.
      */
-    if (__blkcache_high_overhead(session)) {
+    if (blkcache->type == BLKCACHE_NVRAM && __blkcache_high_overhead(session)) {
         WT_STAT_CONN_INCR(session, block_cache_not_evicted_overhead);
         return (false);
     }
@@ -332,10 +333,12 @@ __wt_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
     WT_STAT_CONN_INCR(session, block_cache_lookups);
 
     /*
-     * We race to avoid using synchronization. We only care about an approximate value, so we accept
-     * inaccuracy for the sake of avoiding synchronization on the critical path.
+     * In an NVRAM cache, we track lookups to calculate the overhead of using the cache. We race to
+     * avoid using synchronization. We only care about an approximate value, so we accept inaccuracy
+     * for the sake of avoiding synchronization on the critical path.
      */
-    blkcache->lookups++;
+    if (blkcache->type == BLKCACHE_NVRAM)
+        blkcache->lookups++;
 
     /*
      * An NVRAM cache is slower than retrieving the block from the OS buffer cache, a DRAM cache is
