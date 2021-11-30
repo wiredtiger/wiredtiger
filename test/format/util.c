@@ -315,13 +315,13 @@ set_core(bool off)
      * unimportant) enough that I'm not fixing it.
      */
     if (!saved) {
-        testutil_checksys(getrlimit(RLIMIT_CORE, &saved_rlim));
+        testutil_assert_errno(getrlimit(RLIMIT_CORE, &saved_rlim) == 0);
         saved = true;
     }
     rlim = saved_rlim;
     if (off)
         rlim.rlim_cur = 0;
-    testutil_checksys(setrlimit(RLIMIT_CORE, &rlim));
+    testutil_assert_errno(setrlimit(RLIMIT_CORE, &rlim) == 0);
 #endif
 }
 

@@ -87,7 +87,7 @@ key_init(TABLE *table, void *arg)
         if ((fp = fopen(buf, "r")) == NULL)
             testutil_die(errno, "%s", buf);
         for (i = 0; i < WT_ELEMENTS(table->key_rand_len); ++i) {
-            testutil_checksys(fgets(buf, sizeof(buf), fp) == NULL);
+            testutil_assert_errno(fgets(buf, sizeof(buf), fp) != NULL);
             table->key_rand_len[i] = atou32(__func__, buf, '\n');
         }
         fclose_and_clear(&fp);
