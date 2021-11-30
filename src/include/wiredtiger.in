@@ -1177,8 +1177,6 @@ struct __wt_session {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;repair, whether to reconstruct the metadata from
 	 * the raw file content., a boolean flag; default \c false.}
 	 * @config{ ),,}
-	 * @config{internal_item_max, This option is no longer supported\, retained for backward
-	 * compatibility., an integer greater than or equal to 0; default \c 0.}
 	 * @config{internal_key_max, This option is no longer supported\, retained for backward
 	 * compatibility., an integer greater than or equal to 0; default \c 0.}
 	 * @config{internal_key_truncate, configure internal key truncation\, discarding unnecessary
@@ -1196,8 +1194,6 @@ struct __wt_session {
 	 * number are stored in column-store files., a format string; default \c u.}
 	 * @config{key_gap, This option is no longer supported\, retained for backward
 	 * compatibility., an integer greater than or equal to 0; default \c 10.}
-	 * @config{leaf_item_max, This option is no longer supported\, retained for backward
-	 * compatibility., an integer greater than or equal to 0; default \c 0.}
 	 * @config{leaf_key_max, the largest key stored in a leaf node\, in bytes.  If set\, keys
 	 * larger than the specified size are stored as overflow items (which may require additional
 	 * I/O to access). The default value is one-tenth the size of a newly split leaf page., an
@@ -2208,7 +2204,8 @@ struct __wt_connection {
 	 * @config{json_output, enable JSON formatted messages on the event handler interface.
 	 * Options are given as a list\, where each option specifies an event handler category e.g.
 	 * 'error' represents the messages from the WT_EVENT_HANDLER::handle_error method., a list\,
-	 * with values chosen from the following options: \c "error"\, \c "message"; default \c [].}
+	 * with values chosen from the following options: \c "error"\, \c "message"\, \c "progress";
+	 * default \c [].}
 	 * @config{log = (, enable logging.  Enabling logging uses three sessions from the
 	 * configured session_max., a set of related configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;archive, automatically archive unneeded log files., a
@@ -2988,7 +2985,7 @@ struct __wt_connection {
  * @config{json_output, enable JSON formatted messages on the event handler interface.  Options are
  * given as a list\, where each option specifies an event handler category e.g.  'error' represents
  * the messages from the WT_EVENT_HANDLER::handle_error method., a list\, with values chosen from
- * the following options: \c "error"\, \c "message"; default \c [].}
+ * the following options: \c "error"\, \c "message"\, \c "progress"; default \c [].}
  * @config{log = (, enable logging.  Enabling logging uses three sessions from the configured
  * session_max., a set of related configuration options defined below.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;archive, automatically archive unneeded log files., a boolean
@@ -6352,10 +6349,20 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_WALK_SESSIONS			1514
 /*! transaction: transactions committed */
 #define	WT_STAT_CONN_TXN_COMMIT				1515
+/*!
+ * transaction: transactions committed with one or more updates resolved
+ * through the slow path
+ */
+#define	WT_STAT_CONN_TXN_COMMIT_SLOW_RESOLVED		1516
 /*! transaction: transactions rolled back */
-#define	WT_STAT_CONN_TXN_ROLLBACK			1516
+#define	WT_STAT_CONN_TXN_ROLLBACK			1517
+/*!
+ * transaction: transactions rolled back with one or more updates
+ * resolved through the slow path
+ */
+#define	WT_STAT_CONN_TXN_ROLLBACK_SLOW_RESOLVED		1518
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1517
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1519
 
 /*!
  * @}
