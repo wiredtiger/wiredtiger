@@ -205,7 +205,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     else
         WT_ERR(__evict_page_dirty_update(session, ref, flags));
 
-    if (time_start != 0 /* WT_EVICT_CALL_URGENT */) {
+    if (time_start != 0) {
         time_stop = __wt_clock(session);
         if (force_evict_hs)
             WT_STAT_CONN_INCR(session, cache_eviction_force_hs_success);
@@ -233,7 +233,7 @@ err:
         if (!closing)
             __evict_exclusive_clear(session, ref, previous_state);
 
-        if (time_start != 0 /* WT_EVICT_CALL_URGENT */) {
+        if (time_start != 0) {
             time_stop = __wt_clock(session);
             if (force_evict_hs)
                 WT_STAT_CONN_INCR(session, cache_eviction_force_hs_fail);
