@@ -539,18 +539,11 @@ struct __wt_cursor_version {
      * about the previous update we have just traversed so that we can record this as part of the
      * debug metadata in the version cursor's key.
      */
-    volatile uint64_t upd_txnid;
+    volatile uint64_t upd_stop_txnid;
     /* The previous traversed update's durable_ts will become the durable_stop_ts. */
     wt_timestamp_t upd_durable_stop_ts;
     /* The previous traversed update's start_ts will become the stop_ts. */
     wt_timestamp_t upd_stop_ts;
-
-    /*
-     * We cache either the onpage update or the latest traversed standard history update (if any) so
-     * that we don't need to walk through multiple history store entries to reconstruct the value
-     * for a reverse modify.
-     */
-    WT_ITEM *hs_base_upd;
 
 #define WT_VERSION_UPDATE_CHAIN 0
 #define WT_VERSION_DISK_IMAGE 1
