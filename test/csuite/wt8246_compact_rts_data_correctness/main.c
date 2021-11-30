@@ -29,7 +29,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 
-#define TIMEOUT 4
+#define TIMEOUT 2
 
 #define NUM_RECORDS 1200000
 
