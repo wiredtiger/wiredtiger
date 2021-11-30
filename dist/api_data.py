@@ -364,7 +364,7 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         min='512B', max='512MB'),
     Config('internal_item_max', '0', r'''
         This option is no longer supported, retained for backward compatibility''',
-        min=0),
+        min=0, undoc=True),
     Config('internal_key_max', '0', r'''
         This option is no longer supported, retained for backward compatibility''',
         min='0'),
@@ -395,7 +395,7 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         min='0'),
     Config('leaf_item_max', '0', r'''
         This option is no longer supported, retained for backward compatibility''',
-        min=0),
+        min=0, undoc=True),
     Config('memory_page_image_max', '0', r'''
         the maximum in-memory page image represented by a single storage block.
         Depending on compression efficiency, compression can create storage
@@ -760,7 +760,9 @@ connection_runtime_config = [
         'error' represents the messages from the WT_EVENT_HANDLER::handle_error method.''',
         type='list', choices=[
             'error',
-            'message']),
+            'message',
+            'progress'
+            ]),
     Config('lsm_manager', '', r'''
         configure database wide options for LSM tree management. The LSM
         manager is started automatically the first time an LSM tree is opened.
@@ -862,8 +864,7 @@ connection_runtime_config = [
         type='list', undoc=True,
         choices=[
         'aggressive_sweep', 'backup_rename', 'checkpoint_reserved_txnid_delay', 'checkpoint_slow',
-        'failpoint_history_store_delete_key_from_ts', 'failpoint_history_store_insert_1',
-        'failpoint_history_store_insert_2', 'history_store_checkpoint_delay',
+        'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
         'history_store_search', 'history_store_sweep_race', 'prepare_checkpoint_delay', 'split_1',
         'split_2', 'split_3', 'split_4', 'split_5', 'split_6', 'split_7']),
     Config('verbose', '[]', r'''
@@ -886,6 +887,7 @@ connection_runtime_config = [
             'evict_stuck',
             'evictserver',
             'fileops',
+            'generation',
             'handleops',
             'history_store',
             'history_store_activity',
@@ -894,6 +896,7 @@ connection_runtime_config = [
             'lsm_manager',
             'metadata',
             'mutex',
+            'out_of_order',
             'overflow',
             'read',
             'reconcile',

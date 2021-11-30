@@ -797,17 +797,30 @@ __btree_preload(WT_SESSION_IMPL *session)
     WT_ADDR_COPY addr;
     WT_BM *bm;
     WT_BTREE *btree;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
     WT_REF *ref;
+    uint64_t block_preload;
 
     btree = S2BT(session);
     bm = btree->bm;
+    block_preload = 0;
+
+    WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     /* Pre-load the second-level internal pages. */
     WT_INTL_FOREACH_BEGIN (session, btree->root.page, ref)
-        if (__wt_ref_addr_copy(session, ref, &addr))
-            WT_RET(bm->preload(bm, session, addr.addr, addr.size));
+        if (__wt_ref_addr_copy(session, ref, &addr)) {
+            WT_ERR(bm->read(bm, session, tmp, addr.addr, addr.size));
+            ++block_preload;
+        }
     WT_INTL_FOREACH_END;
-    return (0);
+
+err:
+    __wt_scr_free(session, &tmp);
+
+    WT_STAT_CONN_INCRV(session, block_preload, block_preload);
+    return (ret);
 }
 
 /*
@@ -920,8 +933,9 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
     WT_RET(__wt_config_gets(session, cfg, "split_pct", &cval));
     if (cval.val < WT_BTREE_MIN_SPLIT_PCT) {
         btree->split_pct = WT_BTREE_MIN_SPLIT_PCT;
-        WT_RET(__wt_msg(session, "Re-setting split_pct for %s to the minimum allowed of %d%%",
-          session->dhandle->name, WT_BTREE_MIN_SPLIT_PCT));
+        __wt_verbose_notice(session, WT_VERB_SPLIT,
+          "Re-setting split_pct for %s to the minimum allowed of %d%%", session->dhandle->name,
+          WT_BTREE_MIN_SPLIT_PCT);
     } else
         btree->split_pct = (int)cval.val;
     leaf_split_size = __wt_split_page_size(btree->split_pct, btree->maxleafpage, btree->allocsize);
@@ -952,19 +966,10 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
         return (0);
     }
 
-    /*
-     * In historic versions of WiredTiger, the maximum leaf page key/value sizes were set by the
-     * leaf_item_max configuration string. Look for that string if we don't find the newer ones.
-     */
     WT_RET(__wt_config_gets(session, cfg, "leaf_key_max", &cval));
     btree->maxleafkey = (uint32_t)cval.val;
     WT_RET(__wt_config_gets(session, cfg, "leaf_value_max", &cval));
     btree->maxleafvalue = (uint32_t)cval.val;
-    if (btree->maxleafkey == 0 && btree->maxleafvalue == 0) {
-        WT_RET(__wt_config_gets(session, cfg, "leaf_item_max", &cval));
-        btree->maxleafkey = (uint32_t)cval.val;
-        btree->maxleafvalue = (uint32_t)cval.val;
-    }
 
     /*
      * Default max for leaf keys: split-page / 10. Default max for leaf values: split-page / 2.
