@@ -232,7 +232,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     if (ret != 0) {
         /* Make sure that reconciliation doesn't free the page that has been written to disk. */
         WT_ASSERT(session, addr == NULL || ref->addr != NULL);
-        WT_TRET(__rec_write_err(session, r, page));
+        WT_IGNORE_RET(__rec_write_err(session, r, page));
     } else {
         panic = true;
         /* Wrap up the page reconciliation. Panic on failure. */
@@ -268,7 +268,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     if (panic)
         WT_ERR(__rec_cleanup(session, r));
     else
-        WT_TRET(__rec_cleanup(session, r));
+        WT_IGNORE_RET(__rec_cleanup(session, r));
 
     /*
      * When threads perform eviction, don't cache block manager structures (even across calls), we
@@ -286,19 +286,19 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
             if (panic)
                 WT_ERR(session->block_manager_cleanup(session));
             else
-                WT_TRET(session->block_manager_cleanup(session));
+                WT_IGNORE_RET(session->block_manager_cleanup(session));
         }
 
         if (panic)
             WT_ERR(__rec_destroy_session(session));
         else
-            WT_TRET(__rec_destroy_session(session));
+            WT_IGNORE_RET(__rec_destroy_session(session));
     }
     /*
      * This return statement covers non-panic error scenarios, any failure beyond this point is a
      * panic.
      */
-    WT_RET(ret);
+    WT_ERR(ret);
 
     /*
      * Root pages are special, splits have to be done, we can't put it off as the parent's problem
