@@ -2749,6 +2749,7 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
     WT_WITH_HANDLE_LIST_READ_LOCK(session,
       ret = __verbose_dump_cache_apply(
         session, &total_bytes, &total_dirty_bytes, &total_updates_bytes));
+
     if (ret != 0)
         goto err;
 

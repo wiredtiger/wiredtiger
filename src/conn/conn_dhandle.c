@@ -1072,7 +1072,6 @@ __wt_verbose_dump_handles(WT_SESSION_IMPL *session)
               session, msg, "\"Sessions using handle\":%" PRId32 ",", dhandle->session_inuse));
             WT_ERR(__wt_buf_catfmt(
               session, msg, "\"Exclusive references to handle\":%" PRIu32 ",", dhandle->excl_ref));
-
         } else {
             WT_ERR(
               __wt_msg(session, "  Sessions referencing handle: %" PRIu32, dhandle->session_ref));
