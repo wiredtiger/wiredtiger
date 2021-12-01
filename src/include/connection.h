@@ -427,7 +427,9 @@ struct __wt_connection_impl {
     WT_CONDVAR *flush_cond;          /* Flush wait mutex */
     WT_CONDVAR *tiered_cond;         /* Tiered wait mutex */
     bool tiered_server_running;      /* Internal tiered server operating */
+    uint64_t flush_most_recent;      /* Clock value of most recent flush_tier */
     uint32_t flush_state;            /* State of last flush tier */
+    wt_timestamp_t flush_ts;         /* Timestamp of most recent flush_tier */
 
     WT_TIERED_MANAGER tiered_mgr;        /* Tiered manager thread information */
     WT_SESSION_IMPL *tiered_mgr_session; /* Tiered manager thread session */
@@ -555,28 +557,33 @@ struct __wt_connection_impl {
     /* Verbose settings for our various categories. */
     WT_VERBOSE_LEVEL verbose[WT_VERB_NUM_CATEGORIES];
 
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_JSON_OUTPUT_ERROR 0x1u
+#define WT_JSON_OUTPUT_MESSAGE 0x2u
+#define WT_JSON_OUTPUT_PROGRESS 0x4u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t json_output; /* Output event handler messages in JSON format */
+
 /*
  * Variable with flags for which subsystems the diagnostic stress timing delays have been requested.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_TIMING_STRESS_AGGRESSIVE_SWEEP 0x00001u
-#define WT_TIMING_STRESS_BACKUP_RENAME 0x00002u
-#define WT_TIMING_STRESS_CHECKPOINT_RESERVED_TXNID_DELAY 0x00004u
-#define WT_TIMING_STRESS_CHECKPOINT_SLOW 0x00008u
-#define WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS 0x00010u
-#define WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_INSERT_1 0x00020u
-#define WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_INSERT_2 0x00040u
-#define WT_TIMING_STRESS_HS_CHECKPOINT_DELAY 0x00080u
-#define WT_TIMING_STRESS_HS_SEARCH 0x00100u
-#define WT_TIMING_STRESS_HS_SWEEP 0x00200u
-#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x00400u
-#define WT_TIMING_STRESS_SPLIT_1 0x00800u
-#define WT_TIMING_STRESS_SPLIT_2 0x01000u
-#define WT_TIMING_STRESS_SPLIT_3 0x02000u
-#define WT_TIMING_STRESS_SPLIT_4 0x04000u
-#define WT_TIMING_STRESS_SPLIT_5 0x08000u
-#define WT_TIMING_STRESS_SPLIT_6 0x10000u
-#define WT_TIMING_STRESS_SPLIT_7 0x20000u
+#define WT_TIMING_STRESS_AGGRESSIVE_SWEEP 0x0001u
+#define WT_TIMING_STRESS_BACKUP_RENAME 0x0002u
+#define WT_TIMING_STRESS_CHECKPOINT_RESERVED_TXNID_DELAY 0x0004u
+#define WT_TIMING_STRESS_CHECKPOINT_SLOW 0x0008u
+#define WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS 0x0010u
+#define WT_TIMING_STRESS_HS_CHECKPOINT_DELAY 0x0020u
+#define WT_TIMING_STRESS_HS_SEARCH 0x0040u
+#define WT_TIMING_STRESS_HS_SWEEP 0x0080u
+#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x0100u
+#define WT_TIMING_STRESS_SPLIT_1 0x0200u
+#define WT_TIMING_STRESS_SPLIT_2 0x0400u
+#define WT_TIMING_STRESS_SPLIT_3 0x0800u
+#define WT_TIMING_STRESS_SPLIT_4 0x1000u
+#define WT_TIMING_STRESS_SPLIT_5 0x2000u
+#define WT_TIMING_STRESS_SPLIT_6 0x4000u
+#define WT_TIMING_STRESS_SPLIT_7 0x8000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t timing_stress_flags;
 

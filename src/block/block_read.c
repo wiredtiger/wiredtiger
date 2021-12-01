@@ -9,50 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __wt_bm_preload --
- *     Pre-load a page.
- */
-int
-__wt_bm_preload(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
-{
-    WT_BLOCK *block;
-    WT_DECL_ITEM(tmp);
-    WT_DECL_RET;
-    WT_FH *fh;
-    WT_FILE_HANDLE *handle;
-    wt_off_t offset;
-    uint32_t checksum, objectid, size;
-    bool mapped;
-
-    block = bm->block;
-
-    WT_STAT_CONN_INCR(session, block_preload);
-
-    /* Crack the cookie. */
-    WT_RET(__wt_block_addr_unpack(
-      session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
-
-    WT_RET(__wt_block_fh(session, block, objectid, &fh));
-    handle = fh->handle;
-    mapped = bm->map != NULL && offset + size <= (wt_off_t)bm->maplen;
-    if (mapped && handle->fh_map_preload != NULL)
-        ret = handle->fh_map_preload(
-          handle, (WT_SESSION *)session, (uint8_t *)bm->map + offset, size, bm->mapped_cookie);
-    if (!mapped && handle->fh_advise != NULL)
-        ret = handle->fh_advise(
-          handle, (WT_SESSION *)session, offset, (wt_off_t)size, WT_FILE_HANDLE_WILLNEED);
-    if (ret != EBUSY && ret != ENOTSUP)
-        return (ret);
-
-    /* If preload isn't supported, do it the slow way. */
-    WT_RET(__wt_scr_alloc(session, 0, &tmp));
-    ret = __wt_bm_read(bm, session, tmp, addr, addr_size);
-    __wt_scr_free(session, &tmp);
-
-    return (ret);
-}
-
-/*
  * __wt_bm_read --
  *     Map or read address cookie referenced block into a buffer.
  */
@@ -61,35 +17,14 @@ __wt_bm_read(
   WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
 {
     WT_BLOCK *block;
-    WT_DECL_RET;
-    WT_FH *fh;
-    WT_FILE_HANDLE *handle;
     wt_off_t offset;
     uint32_t checksum, objectid, size;
-    bool mapped;
 
     block = bm->block;
 
     /* Crack the cookie. */
     WT_RET(__wt_block_addr_unpack(
       session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
-
-    /*
-     * Map the block if it's possible.
-     */
-    WT_RET(__wt_block_fh(session, block, objectid, &fh));
-    handle = fh->handle;
-    mapped = bm->map != NULL && offset + size <= (wt_off_t)bm->maplen;
-    if (mapped && handle->fh_map_preload != NULL) {
-        buf->data = (uint8_t *)bm->map + offset;
-        buf->size = size;
-        ret = handle->fh_map_preload(
-          handle, (WT_SESSION *)session, buf->data, buf->size, bm->mapped_cookie);
-
-        WT_STAT_CONN_INCR(session, block_map_read);
-        WT_STAT_CONN_INCRV(session, block_byte_map_read, size);
-        return (ret);
-    }
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -217,10 +152,8 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
   wt_off_t offset, uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_HEADER *blk, swap;
-    WT_DECL_RET;
     WT_FH *fh;
     size_t bufsize;
-    int cret;
 
     __wt_verbose(session, WT_VERB_READ, "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32,
       (uintmax_t)offset, size, checksum);
@@ -252,22 +185,8 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
           block->name, size, block->allocsize);
 
     WT_RET(__wt_buf_init(session, buf, bufsize));
-
     WT_RET(__wt_block_fh(session, block, objectid, &fh));
-
-    /* Ask the block cache to give us the block. If it doesn't have it, read it. */
-    if (fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA)
-        WT_RET(__wt_read(session, fh, offset, size, buf->mem));
-    else {
-        if ((cret = __wt_blkcache_get_or_check(session, offset, size, checksum, buf->mem)) != 0) {
-            WT_RET(__wt_read(session, fh, offset, size, buf->mem));
-            if (cret != WT_BLKCACHE_BYPASS) {
-                WT_TRET_ERROR_OK(
-                  __wt_blkcache_put(session, offset, size, checksum, buf->mem, false, false),
-                  WT_BLKCACHE_FULL);
-            }
-        }
-    }
+    WT_RET(__wt_read(session, fh, offset, size, buf->mem));
     buf->size = size;
 
     /*

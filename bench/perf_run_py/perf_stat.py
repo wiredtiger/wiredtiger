@@ -30,6 +30,7 @@
 import glob
 import json
 import re
+from typing import List
 
 
 class PerfStat:
@@ -83,26 +84,20 @@ class PerfStat:
             as_dict['values'] = self.values
         return [as_dict]
 
-    def are_values_all_zero(self):
-        result = True
-        for value in self.values:
-            if value != 0:
-                result = False
-        return result
 
+class PerfStatMinMax(PerfStat):
+    def get_value_list(self, brief: bool):
+        avg_min_3_vals = self.average(sorted(self.values)[:3])
+        avg_max_3_vals = self.average(sorted(self.values)[-3:])
 
-class PerfStatMin(PerfStat):
-    def get_value(self):
-        """Return the averaged minimum of all gathered values"""
-        min_3_vals = sorted(self.values)[:3]
-        return self.average(min_3_vals)
+        as_list = [
+            {'name': f"Min {self.output_label}", 'value': avg_min_3_vals},
+            {'name': f"Max {self.output_label}", 'value': avg_max_3_vals},
+        ]
 
-
-class PerfStatMax(PerfStat):
-    def get_value(self):
-        """Return the averaged maximum of all gathered values"""
-        max_3_vals = sorted(self.values)[-3:]
-        return self.average(max_3_vals)
+        if not brief:
+            as_list.append({'name': f"All {self.output_label}s", 'values': sorted(self.values)})
+        return as_list
 
 
 class PerfStatCount(PerfStat):
@@ -118,18 +113,19 @@ class PerfStatCount(PerfStat):
 
 
 class PerfStatLatency(PerfStat):
-    def __init__(self, short_label: str, stat_file: str, output_label: str, num_max: int):
+    def __init__(self, short_label: str, stat_file: str, output_label: str, ops: List[str], num_max: int):
         super().__init__(short_label=short_label,
                          stat_file=stat_file,
                          output_label=output_label)
         self.num_max = num_max
+        self.ops = ops
 
     def find_stat(self, test_stat_path: str):
         values = []
         for line in open(test_stat_path):
             as_dict = json.loads(line)
-            values.append(as_dict["wtperf"]["read"]["max latency"])
-            values.append(as_dict["wtperf"]["update"]["max latency"])
+            for operation in self.ops:
+                values.append(as_dict["wtperf"][operation]["max latency"])
         return values
 
     def get_value(self, nth_max: int):
@@ -138,12 +134,38 @@ class PerfStatLatency(PerfStat):
 
     def get_value_list(self, brief: bool):
         as_list = []
-        for i in range(1, self.num_max + 1):
+        num_max = min(len(self.values), self.num_max)
+        for i in range(1, num_max + 1):
             as_dict = {
                 'name': self.output_label + str(i),
                 'value': self.get_value(i)
             }
-            if not brief:
-                as_dict['values'] = self.values
             as_list.append(as_dict)
+        if not brief:
+            as_list.append({
+                'name': "Latencies",
+                'values': sorted(self.values)
+            })
+        return as_list
+
+
+class PerfStatLatencyWorkgen(PerfStat):
+    def get_value(self, nth_max: int):
+        """Return the nth maximum number from all the gathered values"""
+        return sorted(self.values)[-nth_max]
+
+    def get_value_list(self, brief: bool):
+        as_list = []
+        num_max = min(len(self.values), 5)
+        for i in range(1, num_max + 1):
+            as_dict = {
+                'name': self.output_label + str(i),
+                'value': self.get_value(i)
+            }
+            as_list.append(as_dict)
+        if not brief:
+            as_list.append({
+                'name': "Latencies",
+                'values': sorted(self.values)
+            })
         return as_list

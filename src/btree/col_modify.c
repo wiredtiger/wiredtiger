@@ -23,7 +23,6 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
 #endif
 )
 {
-    static const WT_ITEM col_fix_remove = {"", 1, NULL, 0, 0};
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_INSERT *ins;
@@ -31,6 +30,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_SESSION_IMPL *session;
+    WT_TXN *txn;
     WT_UPDATE *last_upd, *old_upd, *upd;
     wt_timestamp_t prev_upd_ts;
     size_t ins_size, upd_size;
@@ -41,6 +41,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
     ins = NULL;
     page = cbt->ref->page;
     session = CUR2S(cbt);
+    txn = session->txn;
     last_upd = NULL;
     upd = upd_arg;
     prev_upd_ts = WT_TS_NONE;
@@ -67,12 +68,6 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
     mod = page->modify;
 
     if (upd_arg == NULL) {
-        /* Fixed-size column-store doesn't have on-page deleted values, it's a nul byte. */
-        if (modify_type == WT_UPDATE_TOMBSTONE && btree->type == BTREE_COL_FIX) {
-            modify_type = WT_UPDATE_STANDARD;
-            value = &col_fix_remove;
-        }
-
         /*
          * There's a chance the application specified a record past the last record on the page. If
          * that's the case and we're inserting a new WT_INSERT/WT_UPDATE pair, it goes on the append
@@ -88,6 +83,13 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
             cbt->ins = NULL;
             cbt->ins_head = NULL;
         }
+    } else {
+        /* Since on this path we never set append, make sure we aren't appending. */
+        WT_ASSERT(session, recno != WT_RECNO_OOB);
+        WT_ASSERT(session,
+          cbt->compare == 0 ||
+            recno <= (btree->type == BTREE_COL_VAR ? __col_var_last_recno(cbt->ref) :
+                                                     __col_fix_last_recno(cbt->ref)));
     }
 
     /*
@@ -270,6 +272,16 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
          * update corresponding to this operation.
          */
         __wt_txn_op_set_recno(session, cbt->recno);
+    }
+
+    /*
+     * This is temporary till we support more cases for resolving uncommitted updates: If we see a
+     * reserve update, we don't want to continue with resolving uncommitted updates. We also have to
+     * clear the weak hazard pointers we have already saved.
+     */
+    if (txn->resolve_weak_hazard_updates && modify_type == WT_UPDATE_RESERVE) {
+        txn->resolve_weak_hazard_updates = false;
+        WT_ERR(__wt_txn_op_list_clear_weak_hazard(session));
     }
 
     if (0) {

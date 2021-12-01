@@ -1134,6 +1134,9 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_txn_get_snapshot(session);
     }
 
+    /* Disable the feature to resolve uncommitted updates during commit/rollback. */
+    txn->resolve_weak_hazard_updates = false;
+
     F_SET(txn, WT_TXN_RUNNING);
     if (F_ISSET(S2C(session), WT_CONN_READONLY))
         F_SET(txn, WT_TXN_READONLY);
@@ -1356,7 +1359,7 @@ __wt_txn_modify_check(
      * uncommitted update or determined that it would be safe to write if we saw a committed update.
      */
     if (!rollback && upd == NULL) {
-        __wt_read_cell_time_window(cbt, &tw, &tw_found);
+        tw_found = __wt_read_cell_time_window(cbt, &tw);
         if (tw_found) {
             if (WT_TIME_WINDOW_HAS_STOP(&tw)) {
                 rollback = !__wt_txn_tw_stop_visible(session, &tw);

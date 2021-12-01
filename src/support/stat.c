@@ -32,6 +32,7 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: btree compact pages skipped",
   "btree: btree skipped by compaction as process would not reduce size",
   "btree: column-store fixed-size leaf pages",
+  "btree: column-store fixed-size time windows",
   "btree: column-store internal pages",
   "btree: column-store variable-size RLE encoded values",
   "btree: column-store variable-size deleted values",
@@ -312,6 +313,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     /* not clearing btree_compact_pages_skipped */
     /* not clearing btree_compact_skipped */
     stats->btree_column_fix = 0;
+    stats->btree_column_tws = 0;
     stats->btree_column_internal = 0;
     stats->btree_column_rle = 0;
     stats->btree_column_deleted = 0;
@@ -561,6 +563,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_compact_pages_skipped += from->btree_compact_pages_skipped;
     to->btree_compact_skipped += from->btree_compact_skipped;
     to->btree_column_fix += from->btree_column_fix;
+    to->btree_column_tws += from->btree_column_tws;
     to->btree_column_internal += from->btree_column_internal;
     to->btree_column_rle += from->btree_column_rle;
     to->btree_column_deleted += from->btree_column_deleted;
@@ -814,6 +817,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->btree_compact_pages_skipped += WT_STAT_READ(from, btree_compact_pages_skipped);
     to->btree_compact_skipped += WT_STAT_READ(from, btree_compact_skipped);
     to->btree_column_fix += WT_STAT_READ(from, btree_column_fix);
+    to->btree_column_tws += WT_STAT_READ(from, btree_column_tws);
     to->btree_column_internal += WT_STAT_READ(from, btree_column_internal);
     to->btree_column_rle += WT_STAT_READ(from, btree_column_rle);
     to->btree_column_deleted += WT_STAT_READ(from, btree_column_deleted);
@@ -1054,27 +1058,27 @@ static const char *const __stats_connection_desc[] = {
   "LSM: tree maintenance operations executed",
   "LSM: tree maintenance operations scheduled",
   "LSM: tree queue hit maximum",
-  "block-manager: block cache cached blocks updated",
-  "block-manager: block cache cached bytes updated",
-  "block-manager: block cache evicted blocks",
-  "block-manager: block cache file size causing bypass",
-  "block-manager: block cache lookups",
-  "block-manager: block cache number of blocks not evicted due to overhead",
-  "block-manager: block cache number of bypasses because no-write-allocate setting was on",
-  "block-manager: block cache number of bypasses due to overhead on put",
-  "block-manager: block cache number of bypasses on get",
-  "block-manager: block cache number of bypasses on put because file is too small",
-  "block-manager: block cache number of eviction passes",
-  "block-manager: block cache number of hits including existence checks",
-  "block-manager: block cache number of misses including existence checks",
-  "block-manager: block cache number of put bypasses on checkpoint I/O",
-  "block-manager: block cache removed blocks",
-  "block-manager: block cache total blocks",
-  "block-manager: block cache total blocks inserted on read path",
-  "block-manager: block cache total blocks inserted on write path",
-  "block-manager: block cache total bytes",
-  "block-manager: block cache total bytes inserted on read path",
-  "block-manager: block cache total bytes inserted on write path",
+  "block-cache: cached blocks updated",
+  "block-cache: cached bytes updated",
+  "block-cache: evicted blocks",
+  "block-cache: file size causing bypass",
+  "block-cache: lookups",
+  "block-cache: number of blocks not evicted due to overhead",
+  "block-cache: number of bypasses because no-write-allocate setting was on",
+  "block-cache: number of bypasses due to overhead on put",
+  "block-cache: number of bypasses on get",
+  "block-cache: number of bypasses on put because file is too small",
+  "block-cache: number of eviction passes",
+  "block-cache: number of hits",
+  "block-cache: number of misses",
+  "block-cache: number of put bypasses on checkpoint I/O",
+  "block-cache: removed blocks",
+  "block-cache: total blocks",
+  "block-cache: total blocks inserted on read path",
+  "block-cache: total blocks inserted on write path",
+  "block-cache: total bytes",
+  "block-cache: total bytes inserted on read path",
+  "block-cache: total bytes inserted on write path",
   "block-manager: blocks pre-loaded",
   "block-manager: blocks read",
   "block-manager: blocks written",
@@ -1454,6 +1458,8 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: split objects currently awaiting free",
   "session: attempts to remove a local object and the object is in use",
   "session: flush_tier operation calls",
+  "session: flush_tier tables skipped due to no checkpoint",
+  "session: flush_tier tables switched",
   "session: local objects removed",
   "session: open session count",
   "session: session query timestamp calls",
@@ -1575,7 +1581,9 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transaction rollback to stable currently running",
   "transaction: transaction walk of concurrent sessions",
   "transaction: transactions committed",
+  "transaction: transactions committed with one or more updates resolved through the slow path",
   "transaction: transactions rolled back",
+  "transaction: transactions rolled back with one or more updates resolved through the slow path",
   "transaction: update conflicts",
 };
 
@@ -1631,7 +1639,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_bytes_update = 0;
     stats->block_cache_blocks_evicted = 0;
     stats->block_cache_bypass_filesize = 0;
-    stats->block_cache_data_refs = 0;
+    stats->block_cache_lookups = 0;
     stats->block_cache_not_evicted_overhead = 0;
     stats->block_cache_bypass_writealloc = 0;
     stats->block_cache_bypass_overhead_put = 0;
@@ -2013,6 +2021,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing rec_split_stashed_objects */
     stats->local_objects_inuse = 0;
     stats->flush_tier = 0;
+    stats->flush_tier_skipped = 0;
+    stats->flush_tier_switched = 0;
     stats->local_objects_removed = 0;
     /* not clearing session_open */
     stats->session_query_ts = 0;
@@ -2131,7 +2141,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing txn_rollback_to_stable_running */
     stats->txn_walk_sessions = 0;
     stats->txn_commit = 0;
+    stats->txn_commit_slow_resolved = 0;
     stats->txn_rollback = 0;
+    stats->txn_rollback_slow_resolved = 0;
     stats->txn_update_conflict = 0;
 }
 
@@ -2163,7 +2175,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_bytes_update += WT_STAT_READ(from, block_cache_bytes_update);
     to->block_cache_blocks_evicted += WT_STAT_READ(from, block_cache_blocks_evicted);
     to->block_cache_bypass_filesize += WT_STAT_READ(from, block_cache_bypass_filesize);
-    to->block_cache_data_refs += WT_STAT_READ(from, block_cache_data_refs);
+    to->block_cache_lookups += WT_STAT_READ(from, block_cache_lookups);
     to->block_cache_not_evicted_overhead += WT_STAT_READ(from, block_cache_not_evicted_overhead);
     to->block_cache_bypass_writealloc += WT_STAT_READ(from, block_cache_bypass_writealloc);
     to->block_cache_bypass_overhead_put += WT_STAT_READ(from, block_cache_bypass_overhead_put);
@@ -2583,6 +2595,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_split_stashed_objects += WT_STAT_READ(from, rec_split_stashed_objects);
     to->local_objects_inuse += WT_STAT_READ(from, local_objects_inuse);
     to->flush_tier += WT_STAT_READ(from, flush_tier);
+    to->flush_tier_skipped += WT_STAT_READ(from, flush_tier_skipped);
+    to->flush_tier_switched += WT_STAT_READ(from, flush_tier_switched);
     to->local_objects_removed += WT_STAT_READ(from, local_objects_removed);
     to->session_open += WT_STAT_READ(from, session_open);
     to->session_query_ts += WT_STAT_READ(from, session_query_ts);
@@ -2709,7 +2723,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_rollback_to_stable_running += WT_STAT_READ(from, txn_rollback_to_stable_running);
     to->txn_walk_sessions += WT_STAT_READ(from, txn_walk_sessions);
     to->txn_commit += WT_STAT_READ(from, txn_commit);
+    to->txn_commit_slow_resolved += WT_STAT_READ(from, txn_commit_slow_resolved);
     to->txn_rollback += WT_STAT_READ(from, txn_rollback);
+    to->txn_rollback_slow_resolved += WT_STAT_READ(from, txn_rollback_slow_resolved);
     to->txn_update_conflict += WT_STAT_READ(from, txn_update_conflict);
 }
 

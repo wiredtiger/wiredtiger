@@ -206,25 +206,6 @@ __wt_rec_need_split(WT_RECONCILE *r, size_t len)
 }
 
 /*
- * __wt_rec_addr_ts_init --
- *     Initialize an address timestamp triplet.
- */
-static inline void
-__wt_rec_addr_ts_init(WT_RECONCILE *r, WT_TIME_AGGREGATE *ta)
-{
-    /*
-     * If the page is not fixed-length column-store, where we don't maintain timestamps at all, set
-     * the oldest/newest timestamps to values at the end of their expected range so they're
-     * corrected as we process key/value items. Otherwise, set the oldest/newest timestamps to
-     * simple durability.
-     */
-    if (r->page->type == WT_PAGE_COL_FIX)
-        WT_TIME_AGGREGATE_INIT(ta);
-    else
-        WT_TIME_AGGREGATE_INIT_MERGE(ta);
-}
-
-/*
  * __wt_rec_incr --
  *     Update the memory tracking structure for a set of new entries.
  */
@@ -281,6 +262,59 @@ __wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv)
 
     WT_ASSERT(session, kv->len == kv->cell_len + kv->buf.size);
     __wt_rec_incr(session, r, 1, kv->len);
+}
+
+/*
+ * __wt_rec_auxincr --
+ *     Update the memory tracking structure for a set of new entries in the auxiliary image.
+ */
+static inline void
+__wt_rec_auxincr(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t v, size_t size)
+{
+    /*
+     * The buffer code is fragile and prone to off-by-one errors -- check for overflow in diagnostic
+     * mode.
+     */
+    WT_ASSERT(session, r->aux_space_avail >= size);
+    WT_ASSERT(session,
+      WT_BLOCK_FITS(r->aux_first_free, size, r->cur_ptr->image.mem, r->cur_ptr->image.memsize));
+
+    r->aux_entries += v;
+    r->aux_space_avail -= size;
+    r->aux_first_free += size;
+}
+
+/*
+ * __wt_rec_auximage_copy --
+ *     Copy a key/value cell and buffer pair into the new auxiliary image.
+ */
+static inline void
+__wt_rec_auximage_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t count, WT_REC_KV *kv)
+{
+    size_t len;
+    uint8_t *p;
+    const uint8_t *t;
+
+    /* Make sure we didn't run out of space. */
+    WT_ASSERT(session, kv->len <= r->aux_space_avail);
+
+    /*
+     * If there's only one chunk of data to copy (because the cell and data are being copied from
+     * the original disk page), the cell length won't be set, the WT_ITEM data/length will reference
+     * the data to be copied.
+     *
+     * WT_CELLs are typically small, 1 or 2 bytes -- don't call memcpy, do the copy in-line.
+     */
+    for (p = r->aux_first_free, t = (const uint8_t *)&kv->cell, len = kv->cell_len; len > 0; --len)
+        *p++ = *t++;
+
+    /* Here the data is also small, when not entirely empty. */
+    if (kv->buf.size != 0)
+        for (t = (const uint8_t *)kv->buf.data, len = kv->buf.size; len > 0; --len)
+            *p++ = *t++;
+
+    WT_ASSERT(session, kv->len == kv->cell_len + kv->buf.size);
+    __wt_rec_auxincr(session, r, count, kv->len);
 }
 
 /*
@@ -447,8 +481,19 @@ __wt_rec_dict_replace(
  *     Where possible modify time window values to avoid writing obsolete values to the cell later.
  */
 static inline void
-__wt_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, WT_RECONCILE *r)
+__wt_rec_time_window_clear_obsolete(
+  WT_SESSION_IMPL *session, WT_UPDATE_SELECT *upd_select, WT_CELL_UNPACK_KV *vpack, WT_RECONCILE *r)
 {
+    WT_TIME_WINDOW *tw;
+
+    WT_ASSERT(
+      session, (upd_select != NULL && vpack == NULL) || (upd_select == NULL && vpack != NULL));
+    tw = upd_select != NULL ? &upd_select->tw : &vpack->tw;
+
+    /* Return if the time window is empty. */
+    if (WT_TIME_WINDOW_IS_EMPTY(tw))
+        return;
+
     /*
      * In memory database don't need to avoid writing values to the cell. If we remove this check we
      * create an extra update on the end of the chain later in reconciliation as we'll re-append the
@@ -465,6 +510,10 @@ __wt_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw
 
             tw->start_ts = tw->durable_start_ts = WT_TS_NONE;
             tw->start_txn = WT_TXN_NONE;
+
+            /* Mark the cell with time window cleared flag to let the cell to be rebuild again. */
+            if (vpack)
+                F_SET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
         }
     }
 }

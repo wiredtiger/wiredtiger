@@ -346,7 +346,7 @@ struct __wt_connection_stats {
     int64_t block_cache_bytes_update;
     int64_t block_cache_blocks_evicted;
     int64_t block_cache_bypass_filesize;
-    int64_t block_cache_data_refs;
+    int64_t block_cache_lookups;
     int64_t block_cache_not_evicted_overhead;
     int64_t block_cache_bypass_writealloc;
     int64_t block_cache_bypass_overhead_put;
@@ -728,6 +728,8 @@ struct __wt_connection_stats {
     int64_t rec_split_stashed_objects;
     int64_t local_objects_inuse;
     int64_t flush_tier;
+    int64_t flush_tier_skipped;
+    int64_t flush_tier_switched;
     int64_t local_objects_removed;
     int64_t session_open;
     int64_t session_query_ts;
@@ -846,7 +848,9 @@ struct __wt_connection_stats {
     int64_t txn_rollback_to_stable_running;
     int64_t txn_walk_sessions;
     int64_t txn_commit;
+    int64_t txn_commit_slow_resolved;
     int64_t txn_rollback;
+    int64_t txn_rollback_slow_resolved;
     int64_t txn_update_conflict;
 };
 
@@ -884,6 +888,7 @@ struct __wt_dsrc_stats {
     int64_t btree_compact_pages_skipped;
     int64_t btree_compact_skipped;
     int64_t btree_column_fix;
+    int64_t btree_column_tws;
     int64_t btree_column_internal;
     int64_t btree_column_rle;
     int64_t btree_column_deleted;

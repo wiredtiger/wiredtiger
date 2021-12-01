@@ -1,6 +1,4 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-
+#!/usr/bin/env python
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -28,33 +26,33 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os
-from perf_stat import PerfStat
-from typing import List
+import wiredtiger, wttest
+from wtdataset import SimpleDataSet
 
+# test_flcs04.py
+#
+# Make sure modify fails cleanly on FLCS tables.
 
-def create_test_stat_path(test_home_path: str, test_stats_file: str):
-    return os.path.join(test_home_path, test_stats_file)
+class test_flcs04(wttest.WiredTigerTestCase):
+    session_config = 'isolation=snapshot'
+    conn_config = 'in_memory=false'
 
+    def test_flcs(self):
+        uri = "table:test_flcs04"
+        nrows = 10
+        ds = SimpleDataSet(
+            self, uri, nrows, key_format='r', value_format='6t', config='leaf_page_max=4096')
+        ds.populate()
 
-class PerfStatCollection:
-    def __init__(self):
-        self.perf_stats = {}
+        
+        cursor = self.session.open_cursor(uri)
+        self.session.begin_transaction()
 
-    def add_stat(self, perf_stat: PerfStat):
-        self.perf_stats[perf_stat.short_label] = perf_stat
+        cursor.set_key(5)
+        mods = [wiredtiger.Modify('Q', 100, 1)]
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: cursor.modify(mods),
+            "/WT_CURSOR.modify only supported for/")
 
-    def find_stats(self, test_home: str, operations: List[str]):
-        for stat in self.perf_stats.values():
-            if not operations or stat.short_label in operations:
-                test_stat_path = create_test_stat_path(test_home, stat.stat_file)
-                values = stat.find_stat(test_stat_path=test_stat_path)
-                stat.add_values(values=values)
-
-    def to_value_list(self, brief: bool):
-        stats_list = []
-        for stat in self.perf_stats.values():
-            if not stat.are_values_all_zero():
-                stat_list = stat.get_value_list(brief = brief)
-                stats_list.extend(stat_list)
-        return stats_list
+        self.session.rollback_transaction()
+        cursor.close()

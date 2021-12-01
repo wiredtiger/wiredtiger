@@ -196,6 +196,8 @@ typedef enum {
 struct __wt_txn_op {
     WT_BTREE *btree;
     WT_TXN_TYPE type;
+    WT_HAZARD_WEAK *whp;
+
     union {
         /* WT_TXN_OP_BASIC_ROW, WT_TXN_OP_INMEM_ROW */
         struct {
@@ -286,6 +288,9 @@ struct __wt_txn {
 #ifdef HAVE_DIAGNOSTIC
     u_int prepare_count;
 #endif
+
+    /* This is a temporary feature flag to simplify resolving uncommitted updates. */
+    bool resolve_weak_hazard_updates;
 
     /* Scratch buffer for in-memory log records. */
     WT_ITEM *logrec;

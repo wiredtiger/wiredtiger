@@ -20,6 +20,7 @@ endif()
 
 find_package(SWIG 3.0 COMPONENTS python REQUIRED)
 include(${SWIG_USE_FILE})
+include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
 
 # Determine which wiredtiger target we should use to link against the
 # Python API. For linking purposes, we need to ensure the wiredtiger
@@ -40,34 +41,9 @@ endif()
 
 set(python_libs)
 set(python_version)
-
-set(required_version)
-if(PYTHON3_REQUIRED_VERSION)
-    if(NOT PYTHON3_REQUIRED_VERSION MATCHES "^([0-9]+)(\\.[0-9]+(\\.[0-9]+)?)?$")
-        message(FATAL_ERROR "Invalid value for PYTHON3_REQUIRED_VERSION: Requires a valid version string \
-            Provide a version number following the format: major[.minor[.patch]]")
-    endif()
-    if ("${PYTHON3_REQUIRED_VERSION}" VERSION_LESS 3)
-        message(FATAL_ERROR "Invalid value for PYTHON3_REQUIRED_VERSION: Requires a Python version >= 3")
-    endif()
-    set(required_version ${PYTHON3_REQUIRED_VERSION} EXACT)
-endif()
-
-if("${CMAKE_VERSION}" VERSION_LESS "3.12.0")
-    # This method of finding python libs has been deprecated since version 3.12.
-    # If we are running with a greater CMake version, opt to use the Python3 package.
-    set(Python_ADDITIONAL_VERSIONS 3.9 3.8 3.7 3.6 3.5)
-    find_package(PythonInterp ${required_version} REQUIRED)
-    find_package(PythonLibs ${required_version} REQUIRED)
-    include_directories(${PYTHON_INCLUDE_DIRS})
-    set(python_libs ${PYTHON_LIBRARIES})
-    set(python_version ${PYTHON_VERSION_STRING})
-else()
-    find_package(Python3 ${required_version} COMPONENTS Interpreter Development REQUIRED)
-    include_directories(${Python3_INCLUDE_DIRS})
-    set(python_libs ${Python3_LIBRARIES})
-    set(python_version ${Python3_VERSION})
-endif()
+set(python_executable)
+# Source the uers Python3 install, extracting the Python3 sub-version, library and interpreter install paths.
+source_python3_package(python_libs python_version python_executable)
 
 # Manually specify the interface name '_wiredtiger' over a generated name.
 # Our wiredtiger python module expects the swig interface name '_wiredtiger'
@@ -102,7 +78,7 @@ set(swig_wt_target ${SWIG_MODULE__wiredtiger_REAL_NAME})
 # Depending on the chosen compiler (cl, clang or gcc), a slightly different set of compiler flags
 # will be used.
 set(swig_c_flags)
-if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
+if("${CMAKE_C_COMPILER_ID}" MATCHES "^(Apple)?(C|c?)lang")
     set(swig_c_flags
         -Wno-pointer-sign
         -Wno-ignored-qualifiers
@@ -187,4 +163,13 @@ set_target_properties(${swig_wt_target} PROPERTIES OUTPUT_NAME "_wiredtiger")
 # doesn't work well for dynamic modules loaded by python.
 if(WT_DARWIN)
     set_target_properties(${swig_wt_target} PROPERTIES SUFFIX ".so")
+endif()
+
+# Define a simple smoke test to check the Python API can be used.
+if(WT_POSIX)
+    add_test(NAME test_ex_access
+        COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}
+            ${python_executable} -S ${CMAKE_SOURCE_DIR}/examples/python/ex_access.py
+    )
+    set_tests_properties(test_ex_access PROPERTIES LABELS "check")
 endif()

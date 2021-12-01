@@ -150,8 +150,8 @@ run_test(bool column_store, bool preserve)
     /* Fork a child to create tables and perform operations on them. */
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = sig_handler;
-    testutil_checksys(sigaction(SIGCHLD, &sa, NULL));
-    testutil_checksys((pid = fork()) < 0);
+    testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
+    testutil_assert_errno((pid = fork()) >= 0);
 
     if (pid == 0) { /* child */
 
@@ -177,12 +177,12 @@ run_test(bool column_store, bool preserve)
     /* Sleep for a while. Let the child process do some operations on the tables. */
     sleep(TIMEOUT);
     sa.sa_handler = SIG_DFL;
-    testutil_checksys(sigaction(SIGCHLD, &sa, NULL));
+    testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
 
     /* Kill the child process. */
     printf("Kill child\n");
-    testutil_checksys(kill(pid, SIGKILL) != 0);
-    testutil_checksys(waitpid(pid, &status, 0) == -1);
+    testutil_assert_errno(kill(pid, SIGKILL) == 0);
+    testutil_assert_errno(waitpid(pid, &status, 0) != -1);
 
     /* Reopen the connection and verify that the tables match each other. */
     testutil_check(wiredtiger_open(home, &event_handler, conn_config, &conn));
@@ -242,8 +242,8 @@ workload_compact(const char *home, const char *table_config)
          */
         if (!first_ckpt) {
             testutil_check(__wt_snprintf(ckpt_file, sizeof(ckpt_file), ckpt_file_fmt, home));
-            testutil_checksys((fp = fopen(ckpt_file, "w")) == NULL);
-            testutil_checksys(fclose(fp) != 0);
+            testutil_assert_errno((fp = fopen(ckpt_file, "w")) != NULL);
+            testutil_assert_errno(fclose(fp) == 0);
             first_ckpt = true;
         }
 
@@ -261,7 +261,7 @@ workload_compact(const char *home, const char *table_config)
         log_db_size(session, uri1);
 
         /* If we made progress with compact, verify that compact stats support that. */
-        get_compact_progress(session, uri1, &pages_reviewed, &pages_rewritten, &pages_skipped);
+        get_compact_progress(session, uri1, &pages_reviewed, &pages_skipped, &pages_rewritten);
         printf(" - Pages reviewed: %" PRIu64 "\n", pages_reviewed);
         printf(" - Pages selected for being rewritten: %" PRIu64 "\n", pages_rewritten);
         printf(" - Pages skipped: %" PRIu64 "\n", pages_skipped);
@@ -413,7 +413,10 @@ log_db_size(WT_SESSION *session, const char *uri)
 
     get_file_stats(session, uri, &file_sz, &avail_bytes);
 
-    /* Check if there's maximum of 10% space available after compaction. */
+    /*
+     * It is expected that up to 20% of the file is available for reuse: up to 10% in the first 90%
+     * and up to 10% in the last 10% of the file.
+     */
     available_pct = (avail_bytes * 100) / file_sz;
     printf(" - Compacted file size: %" PRIu64 "MB (%" PRIu64 "B)\n - Available for reuse: %" PRIu64
            "MB (%" PRIu64 "B)\n - %" PRIu64 "%% space available in the file.\n",
