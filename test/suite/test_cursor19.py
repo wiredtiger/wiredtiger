@@ -64,24 +64,24 @@ class test_cursor19(wttest.WiredTigerTestCase):
 
         cursor = self.session.open_cursor(self.uri, None)
         # Add a value to the update chain
-        self.session.bigin_transaction()
+        self.session.begin_transaction()
         cursor[0] = "a"
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(1))
 
         # Modify the value
-        self.session.bigin_transaction()
+        self.session.begin_transaction()
         mods = [wiredtiger.Modify("b", 0, 1)]
         self.assertEquals(cursor.modify(mods), 0)
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
 
         # Modify the value
-        self.session.bigin_transaction()
+        self.session.begin_transaction()
         mods = [wiredtiger.Modify("c", 0, 1)]
         self.assertEquals(cursor.modify(mods), 0)
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10))
 
         # Modify the value
-        self.session.bigin_transaction()
+        self.session.begin_transaction()
         mods = [wiredtiger.Modify("d", 0, 1)]
         self.assertEquals(cursor.modify(mods), 0)
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(15))
@@ -93,19 +93,19 @@ class test_cursor19(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
         # Modify the value
-        self.session.bigin_transaction()
+        self.session.begin_transaction()
         mods = [wiredtiger.Modify("e", 0, 1)]
         self.assertEquals(cursor.modify(mods), 0)
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(20))
 
         # Modify the value
-        self.session.bigin_transaction()
+        self.session.begin_transaction()
         mods = [wiredtiger.Modify("f", 0, 1)]
         self.assertEquals(cursor.modify(mods), 0)
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(25))
 
         # Open a version cursor
-        version_cursor = self.session.open_cursor(self.uri, "debug=(version_cursor=true)")
+        version_cursor = self.session.open_cursor(self.uri, "debug=(dump_version=true)")
         version_cursor.set_key(0)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.next(), 0)
