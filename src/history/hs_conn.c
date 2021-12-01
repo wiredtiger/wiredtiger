@@ -142,6 +142,10 @@ __wt_hs_open(WT_SESSION_IMPL *session, const char **cfg)
 
     conn = S2C(session);
 
+    /* This function opens the single, database-wide history store file. */
+    if (WT_HS_MULTI)
+        return (0);
+
     /* Read-only and in-memory configurations don't need the history store table. */
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);

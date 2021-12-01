@@ -431,9 +431,10 @@ typedef uint64_t wt_timestamp_t;
 #include "cursor.h"
 #include "dlh.h"
 #include "error.h"
+#include "hs.h"
 #include "log.h"
 #include "lsm.h"
-#include "meta.h" /* required by block.h */
+#include "meta.h"
 #include "optrack.h"
 #include "os.h"
 #include "reconcile.h"
