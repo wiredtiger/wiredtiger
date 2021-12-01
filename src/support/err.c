@@ -8,6 +8,9 @@
 
 #include "wt_internal.h"
 
+/* Define the string representation of each verbose category. */
+static const char *verbose_category_strings[] = WT_VERBOSE_CATEGORY_STR_INIT;
+
 /*
  * __handle_error_default --
  *     Default WT_EVENT_HANDLER->handle_error implementation: send to stderr.
@@ -255,7 +258,7 @@ __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *remain, bool is
 
     if (is_json) {
         /* Category and verbosity level. */
-        WT_ERROR_APPEND(p, *remain, "\"category\":\"%s\",", WT_VERBOSE_CATEGORY_STR(category));
+        WT_ERROR_APPEND(p, *remain, "\"category\":\"%s\",", verbose_category_strings[category]);
         WT_ERROR_APPEND(p, *remain, "\"category_id\":%" PRIu32 ",", category);
         WT_VERBOSE_LEVEL_STR(level, verbosity_level_tag);
         WT_ERROR_APPEND(p, *remain, "\"verbose_level\":\"%s\",", verbosity_level_tag);
@@ -284,7 +287,7 @@ __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *remain, bool is
         /* Category and verbosity level. */
         WT_VERBOSE_LEVEL_STR(level, verbosity_level_tag);
         WT_ERROR_APPEND(
-          p, *remain, "[%s][%s]", WT_VERBOSE_CATEGORY_STR(category), verbosity_level_tag);
+          p, *remain, "[%s][%s]", verbose_category_strings[category], verbosity_level_tag);
 
         /* Message. */
         WT_ERROR_APPEND(p, *remain, ": %s", msg);

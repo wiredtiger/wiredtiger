@@ -6,8 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
-// clang-format off
-#define WT_VERBOSE_CATEGORY_STR(category) \
+/* clang-format off */
+#define WT_VERBOSE_CATEGORY_STR_INIT \
     (const char *[]){ \
     /* AUTOMATIC VERBOSE ENUM STRING GENERATION START */ \
     "WT_VERB_API", \
@@ -57,8 +57,8 @@
     "WT_VERB_VERSION", \
     "WT_VERB_WRITE", \
     /* AUTOMATIC VERBOSE ENUM STRING GENERATION STOP */ \
-    }[category]
-// clang-format on
+    }
+/* clang-format on */
 
 /* Convert a verbose level to its string representation. */
 #define WT_VERBOSE_LEVEL_STR(level, level_str) \
