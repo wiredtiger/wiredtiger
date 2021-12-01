@@ -222,6 +222,34 @@ __wt_timing_stress(WT_SESSION_IMPL *session, u_int flag)
 }
 
 /*
+ * __wt_failpoint --
+ *     A generic failpoint function, it will return true if the failpoint triggers. Takes a double
+ *     representing the probability of the failpoint occurring. Supports percentages with two
+ *     decimal places.
+ */
+static inline bool
+__wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag, double probability)
+{
+    WT_CONNECTION_IMPL *conn;
+    uint32_t ratio;
+
+    conn = S2C(session);
+
+    if (!FLD_ISSET(conn->timing_stress_flags, conn_flag))
+        return (false);
+
+    /* Assert that the given probability is sane. */
+    WT_ASSERT(session, probability >= 0 && probability <= 100);
+
+    /* To support two decimal places we multiply the percent change of occurring by 100. */
+    ratio = (uint32_t)(probability * 100);
+
+    if (__wt_random(&session->rnd) % 10000 <= ratio)
+        return (true);
+    return (false);
+}
+
+/*
  * The hardware-accelerated checksum code that originally shipped on Windows did not correctly
  * handle memory that wasn't 8B aligned and a multiple of 8B. It's likely that calculations were
  * always 8B aligned, but there's some risk.
