@@ -185,6 +185,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
     btree = CUR2BT(cbt);
     page = cbt->ref->page;
     session = CUR2S(cbt);
+    upd = NULL;
 
     /*
      * We may be pointing to an insert object, and we may have a page with
