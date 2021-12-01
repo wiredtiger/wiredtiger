@@ -606,7 +606,7 @@ functions:
           ${virtualenv_binary} -p ${python_binary} venv
           source venv/bin/activate
           ${pip3_binary} install psutil pygit2
-          JSON_TASK_INFO='{ "evergreen_task_info": { "is_patch": "'${is_patch}'", "task_id": "'${task_id}'", "distro_id": "'${distro_id}'", "execution": "'${execution}'" } }'
+          JSON_TASK_INFO='{ "evergreen_task_info": { "is_patch": "'${is_patch}'", "task_id": "'${task_id}'", "distro_id": "'${distro_id}'", "execution": "'${execution}'", "task_info": "'${task_name}'" } }'
           echo "JSON_TASK_INFO: $JSON_TASK_INFO"
           ${test_env_vars|} ${python_binary} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
           ${test_env_vars|} ${python_binary} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -re -o test_stats/atlas_out_${perf-test-name}.json ${wtarg}
@@ -621,7 +621,7 @@ functions:
           set -o errexit
           ${virtualenv_binary} -p ${python_binary} venv
           source venv/bin/activate
-          ${pip3_binary} install pymongo[srv]
+          ${pip3_binary} install pymongo[srv]==3.12.2
           if [[ ! -d "automation-scripts" ]]; then
             git clone git@github.com:wiredtiger/automation-scripts.git
           fi
@@ -2913,7 +2913,7 @@ tasks:
             export "PATH=/opt/mongodbtoolchain/v3/bin:$PATH"
             virtualenv -p python3 venv
             source venv/bin/activate
-            pip3 install lorem pymongo
+            pip3 install lorem pymongo==3.12.2
             ./run_many_coll.sh ../../mongo/build/opt/install/bin/mongod mongodb.log config/many-collection-testing many-collection clean-and-populate
 
       - command: shell.exec
@@ -2926,7 +2926,7 @@ tasks:
             set -o verbose
             virtualenv -p python3 venv
             source venv/bin/activate
-            pip3 install "pymongo[srv]"
+            pip3 install "pymongo[srv]==3.12.2"
             res_dir=`find ./ -type d -name "many-collection-[0-9]*" -print`
             ./upload-results-atlas.py ${atlas_wt_perf_test_user} ${atlas_wt_perf_pass} wt-perf-tests many-collection-test ${branch_name} $res_dir/results/results.json
 
@@ -3514,7 +3514,7 @@ tasks:
         vars:
           perf-test-name: log.wtperf
           maxruns: 1
-          wtarg: -ops ['"update", "max_update_throughput", "min_update_throughput"']
+          wtarg: -ops ['"update", "min_max_update_throughput"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: log.wtperf
@@ -3648,7 +3648,7 @@ tasks:
           perf-test-name: 500m-btree-rdonly.wtperf
           maxruns: 1
           no_create: true
-          wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"read", "warnings", "max_latency_read_update", "min_read_throughput", "max_read_throughput"']
+          wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"read", "warnings", "max_latency_read_update", "min_max_read_throughput"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: 500m-btree-rdonly.wtperf
