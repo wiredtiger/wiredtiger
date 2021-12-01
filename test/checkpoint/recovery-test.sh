@@ -40,4 +40,5 @@ while kill -STOP $pid ; do
 	./t -t r -D -v -h $recovery || exit 1
 done
 
+rm -rf $home $home.out
 exit 0
