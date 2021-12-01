@@ -654,7 +654,7 @@ __wt_rec_row_leaf(
     uint64_t slvg_skip;
     uint32_t i;
     uint8_t key_prefix;
-    bool dictionary, hs_clear, key_onpage_ovfl, ovfl_key;
+    bool dictionary, key_onpage_ovfl, ovfl_key;
     void *copy;
     const void *key_data;
 
