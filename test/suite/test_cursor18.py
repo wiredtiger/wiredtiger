@@ -38,7 +38,6 @@ WT_TS_MAX = 18446744073709551615
 class test_cursor18(wttest.WiredTigerTestCase):
     uri = 'table:test_cursor18'
 
-    # Enable the lsm tests once it is supported.
     types = [
         ('row', dict(keyformat='i', valueformat='i')),
         ('var', dict(keyformat='r', valueformat='i')),
