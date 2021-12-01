@@ -85,8 +85,10 @@ __recovery_cursor(
             r->files[id].c = c;
         }
 #ifndef WT_STANDALONE_BUILD
-        /* In the even of a clean shutdown, there shouldn't be any other table log records other
-         * than metadata. */
+        /*
+         * In the event of a clean shutdown, there shouldn't be any other table log records other
+         * than metadata.
+         */
         if (!metadata_op)
             S2C(session)->unclean_shutdown = true;
 #endif
@@ -977,8 +979,8 @@ done:
     if (conn->unclean_shutdown && conn->recovery_major == 10 && conn->recovery_minor == 0 &&
       conn->recovery_patch == 0) {
         WT_ERR_MSG(session, WT_ERROR,
-          "Upgrading a version on an unclean shutdown database is not allowed. Perform a clean "
-          "shutdown on the older version and upgrade.");
+          "Upgrading a version on a database that was not shutdown cleanly is not allowed. Perform "
+          "a clean shutdown on the older version and upgrade.");
     }
 #endif
 
