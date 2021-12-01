@@ -149,6 +149,68 @@ __reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t fla
 }
 
 /*
+ * __reconcile_post_wrapup -- Do the last things necessary after wrapping up the reconciliation.
+ *     Called whether or not the reconciliation fails, with different error-path behavior in the
+ *     parent.
+ */
+static int
+__reconcile_post_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page, uint32_t flags,
+  bool *page_lockedp)
+{
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
+
+    /* Release the reconciliation lock. */
+    *page_lockedp = false;
+    WT_PAGE_UNLOCK(session, page);
+
+    /* Update statistics. */
+    WT_STAT_CONN_INCR(session, rec_pages);
+    WT_STAT_DATA_INCR(session, rec_pages);
+    if (LF_ISSET(WT_REC_EVICT))
+        WT_STAT_CONN_DATA_INCR(session, rec_pages_eviction);
+    if (r->cache_write_hs)
+        WT_STAT_CONN_DATA_INCR(session, cache_write_hs);
+    if (r->cache_write_restore)
+        WT_STAT_CONN_DATA_INCR(session, cache_write_restore);
+    if (!WT_IS_HS(btree->dhandle)) {
+        if (r->rec_page_cell_with_txn_id)
+            WT_STAT_CONN_INCR(session, rec_pages_with_txn);
+        if (r->rec_page_cell_with_ts)
+            WT_STAT_CONN_INCR(session, rec_pages_with_ts);
+        if (r->rec_page_cell_with_prepared_txn)
+            WT_STAT_CONN_INCR(session, rec_pages_with_prepare);
+    }
+    if (r->multi_next > btree->rec_multiblock_max)
+        btree->rec_multiblock_max = r->multi_next;
+
+    /* Clean up the reconciliation structure. */
+    WT_RET(__rec_cleanup(session, r));
+
+    /*
+     * When threads perform eviction, don't cache block manager structures (even across calls), we
+     * can have a significant number of threads doing eviction at the same time with large items.
+     * Ignore checkpoints, once the checkpoint completes, all unnecessary session resources will be
+     * discarded.
+     */
+    if (!WT_SESSION_IS_CHECKPOINT(session)) {
+        /*
+         * Clean up the underlying block manager memory too: it's not reconciliation, but threads
+         * discarding reconciliation structures want to clean up the block manager's structures as
+         * well, and there's no obvious place to do that.
+         */
+        if (session->block_manager_cleanup != NULL) {
+            WT_RET(session->block_manager_cleanup(session));
+        }
+
+        WT_RET(__rec_destroy_session(session));
+    }
+
+    return (0);
+}
+
+/*
  * __reconcile --
  *     Reconcile an in-memory page into its on-disk format, and write it.
  */
@@ -199,6 +261,10 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     }
 
     /*
+     * If we failed, don't bail out yet; we still need to update stats and tidy up.
+     */
+
+    /*
      * Update the global history store score. Only use observations during eviction, not checkpoints
      * and don't count eviction of the history store table itself.
      */
@@ -233,67 +299,15 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         /* Make sure that reconciliation doesn't free the page that has been written to disk. */
         WT_ASSERT(session, addr == NULL || ref->addr != NULL);
         WT_IGNORE_RET(__rec_write_err(session, r, page));
+        WT_IGNORE_RET(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
     } else {
         panic = true;
         /* Wrap up the page reconciliation. Panic on failure. */
         WT_ERR(__rec_write_wrapup(session, r, page));
         __rec_write_page_status(session, r);
+        WT_ERR(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
     }
 
-    /* Release the reconciliation lock. */
-    *page_lockedp = false;
-    WT_PAGE_UNLOCK(session, page);
-
-    /* Update statistics. */
-    WT_STAT_CONN_INCR(session, rec_pages);
-    WT_STAT_DATA_INCR(session, rec_pages);
-    if (LF_ISSET(WT_REC_EVICT))
-        WT_STAT_CONN_DATA_INCR(session, rec_pages_eviction);
-    if (r->cache_write_hs)
-        WT_STAT_CONN_DATA_INCR(session, cache_write_hs);
-    if (r->cache_write_restore)
-        WT_STAT_CONN_DATA_INCR(session, cache_write_restore);
-    if (!WT_IS_HS(btree->dhandle)) {
-        if (r->rec_page_cell_with_txn_id)
-            WT_STAT_CONN_INCR(session, rec_pages_with_txn);
-        if (r->rec_page_cell_with_ts)
-            WT_STAT_CONN_INCR(session, rec_pages_with_ts);
-        if (r->rec_page_cell_with_prepared_txn)
-            WT_STAT_CONN_INCR(session, rec_pages_with_prepare);
-    }
-    if (r->multi_next > btree->rec_multiblock_max)
-        btree->rec_multiblock_max = r->multi_next;
-
-    /* Clean up the reconciliation structure. */
-    if (panic)
-        WT_ERR(__rec_cleanup(session, r));
-    else
-        WT_IGNORE_RET(__rec_cleanup(session, r));
-
-    /*
-     * When threads perform eviction, don't cache block manager structures (even across calls), we
-     * can have a significant number of threads doing eviction at the same time with large items.
-     * Ignore checkpoints, once the checkpoint completes, all unnecessary session resources will be
-     * discarded.
-     */
-    if (!WT_SESSION_IS_CHECKPOINT(session)) {
-        /*
-         * Clean up the underlying block manager memory too: it's not reconciliation, but threads
-         * discarding reconciliation structures want to clean up the block manager's structures as
-         * well, and there's no obvious place to do that.
-         */
-        if (session->block_manager_cleanup != NULL) {
-            if (panic)
-                WT_ERR(session->block_manager_cleanup(session));
-            else
-                WT_IGNORE_RET(session->block_manager_cleanup(session));
-        }
-
-        if (panic)
-            WT_ERR(__rec_destroy_session(session));
-        else
-            WT_IGNORE_RET(__rec_destroy_session(session));
-    }
     /*
      * This return statement covers non-panic error scenarios, any failure beyond this point is a
      * panic.
