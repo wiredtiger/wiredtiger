@@ -250,6 +250,10 @@ struct __wt_connection_impl {
     uint32_t recovery_minor; /* Database recovery minor version */
     uint32_t recovery_patch; /* Database recovery patch version */
 
+#ifndef WT_STANDALONE_BUILD
+    bool unclean_shutdown; /* Flag to indicate the earlier shutdown status */
+#endif
+
     uint16_t compat_major; /* Compatibility major version */
     uint16_t compat_minor; /* Compatibility minor version */
 #define WT_CONN_COMPAT_NONE UINT16_MAX

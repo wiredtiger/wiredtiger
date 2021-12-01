@@ -84,6 +84,12 @@ __recovery_cursor(
             WT_RET(__wt_open_cursor(session, r->files[id].uri, NULL, cfg, &c));
             r->files[id].c = c;
         }
+#ifndef WT_STANDALONE_BUILD
+        /* In the even of a clean shutdown, there shouldn't be any other table log records other
+         * than metadata. */
+        if (!metadata_op)
+            S2C(session)->unclean_shutdown = true;
+#endif
     }
 
     if (duplicate && c != NULL)
@@ -967,6 +973,14 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
 done:
     /* Close cached cursors, rollback-to-stable asserts exclusive access. */
     WT_ERR(__recovery_close_cursors(&r));
+#ifndef WT_STANDALONE_BUILD
+    if (conn->unclean_shutdown && conn->recovery_major == 10 && conn->recovery_minor == 0 &&
+      conn->recovery_patch == 0) {
+        WT_ERR_MSG(session, WT_ERROR,
+          "Upgrading a version on an unclean shutdown database is not allowed. Perform a clean "
+          "shutdown on the older version and upgrade.");
+    }
+#endif
 
     WT_ERR(__recovery_set_checkpoint_timestamp(&r));
     WT_ERR(__recovery_set_oldest_timestamp(&r));
