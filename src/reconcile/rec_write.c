@@ -149,13 +149,13 @@ __reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t fla
 }
 
 /*
- * __reconcile_post_wrapup -- Do the last things necessary after wrapping up the reconciliation.
- *     Called whether or not the reconciliation fails, with different error-path behavior in the
- *     parent.
+ * __reconcile_post_wrapup --
+ *     Do the last things necessary after wrapping up the reconciliation. Called whether or not the
+ *     reconciliation fails, with different error-path behavior in the parent.
  */
 static int
-__reconcile_post_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page, uint32_t flags,
-  bool *page_lockedp)
+__reconcile_post_wrapup(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page, uint32_t flags, bool *page_lockedp)
 {
     WT_BTREE *btree;
 
@@ -222,14 +222,12 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_DECL_RET;
     WT_PAGE *page;
     WT_RECONCILE *r;
-    bool panic;
 #ifdef HAVE_DIAGNOSTIC
     void *addr;
 #endif
 
     btree = S2BT(session);
     page = ref->page;
-    panic = false;
 
     /* Save the eviction state. */
     __reconcile_save_evict_state(session, ref, flags);
@@ -300,19 +298,17 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_ASSERT(session, addr == NULL || ref->addr != NULL);
         WT_IGNORE_RET(__rec_write_err(session, r, page));
         WT_IGNORE_RET(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
-    } else {
-        panic = true;
-        /* Wrap up the page reconciliation. Panic on failure. */
-        WT_ERR(__rec_write_wrapup(session, r, page));
-        __rec_write_page_status(session, r);
-        WT_ERR(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
+        /*
+         * This return statement covers non-panic error scenarios; any failure beyond this point is
+         * a panic. Conversely, no return prior to this point should use the "err" label.
+         */
+        return (ret);
     }
 
-    /*
-     * This return statement covers non-panic error scenarios, any failure beyond this point is a
-     * panic.
-     */
-    WT_ERR(ret);
+    /* Wrap up the page reconciliation. Panic on failure. */
+    WT_ERR(__rec_write_wrapup(session, r, page));
+    __rec_write_page_status(session, r);
+    WT_ERR(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
 
     /*
      * Root pages are special, splits have to be done, we can't put it off as the parent's problem
@@ -333,7 +329,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_ERR(__wt_page_parent_modify_set(session, ref, true));
 
 err:
-    if (panic && ret != 0)
+    if (ret != 0)
         WT_RET_PANIC(session, ret, "reconciliation failed after building the disk image");
     return (ret);
 }
