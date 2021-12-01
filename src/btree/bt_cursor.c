@@ -559,7 +559,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
             if (leaf_found && cbt->compare == 0) {
                 if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
                     WT_RET(__wt_key_return(cbt));
-                return (0);
+                    return (0);
                 WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
             }
         } else {
@@ -567,7 +567,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
             if (leaf_found && cbt->compare == 0) {
                 if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
                     WT_RET(__wt_key_return(cbt));
-                return (0);
+                    return (0);
                 WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
             }
         }
@@ -580,7 +580,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
             if (cbt->compare == 0) {
                 if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
                     WT_RET(__wt_key_return(cbt));
-                return (0);
+                    return (0);
                 WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
             }
         } else {
@@ -588,7 +588,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
             if (cbt->compare == 0) {
                 if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
                     WT_RET(__wt_key_return(cbt));
-                return (0);
+                    return (0);
                 WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
             }
         }

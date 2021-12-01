@@ -1521,7 +1521,7 @@ methods = {
             Configure the cursor to evict the page positioned on when the
             reset API is used''',
             type='boolean'),
-        Config('version_cursor', 'false', r'''
+        Config('dump_version', 'false', r'''
             open a version cursor, which is a debug cursor on a table that
             enables iteration through all updates/versions of a key inside
             the table.''',

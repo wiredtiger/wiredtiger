@@ -67,12 +67,13 @@ __curversion_next(WT_CURSOR *cursor)
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
-    WT_TIME_WINDOW tw;
+    WT_TIME_WINDOW tw, *twp;
     WT_UPDATE *upd;
     wt_timestamp_t durable_stop_ts, stop_ts;
     uint64_t hs_counter, stop_txn;
     uint64_t recno, rle;
     uint32_t hs_btree_id, hs_upd_type;
+    uint8_t version_prepare_state;
     bool upd_found;
 
     upd_found = false;
@@ -123,13 +124,19 @@ __curversion_next(WT_CURSOR *cursor)
             if (upd == NULL)
                 F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
             else {
+                if (upd->prepare_state == WT_PREPARE_INPROGRESS ||
+                  upd->prepare_state == WT_PREPARE_LOCKED)
+                    version_prepare_state = 1;
+                else
+                    version_prepare_state = 0;
+
                 /*
                  * Set the version cursor's key, which contains all the record metadata for that
                  * particular version of the update.
                  */
                 __wt_cursor_set_key(cursor, upd->txnid, upd->start_ts, upd->durable_ts,
                   version_cursor->upd_stop_txnid, version_cursor->upd_stop_ts,
-                  version_cursor->upd_durable_stop_ts, upd->type, upd->prepare_state, upd->flags,
+                  version_cursor->upd_durable_stop_ts, upd->type, version_prepare_state, upd->flags,
                   WT_VERSION_UPDATE_CHAIN);
 
                 /*
@@ -153,9 +160,10 @@ __curversion_next(WT_CURSOR *cursor)
     }
 
     if (!upd_found && !F_ISSET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED)) {
-        /* If the key is on an insert list only, there is no ondisk value nor history store value.
+        /*
+         * If the key is on an insert list only, there is no ondisk value nor history store value.
          */
-        if (cbt->ins || WT_COL_APPEND(page) != NULL) {
+        if (page->type == WT_PAGE_ROW_LEAF && cbt->ins) {
             F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
             F_SET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED);
         } else {
@@ -168,17 +176,25 @@ __curversion_next(WT_CURSOR *cursor)
                 __wt_row_leaf_value_cell(session, cbt->ref->page, rip, vpack);
                 break;
             case WT_PAGE_COL_FIX:
-                break;
             case WT_PAGE_COL_VAR:
                 recno = cbt->ref->ref_recno;
                 cip = &page->pg_var[cbt->slot];
                 cell = WT_COL_PTR(page, cip);
                 __wt_cell_unpack_kv(session, page->dsk, cell, vpack);
+
+                if (vpack->type == WT_CELL_DEL) {
+                    F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
+                    ret = WT_NOTFOUND;
+                    goto done;
+                }
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, page->type));
                 break;
             }
+
+            if (page->type == WT_PAGE_COL_FIX)
+                __wt_col_fix_get_time_window(session, cbt->ref, cbt->ref->ref_recno, &vpack->tw);
 
             if (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw)) {
                 durable_stop_ts = version_cursor->upd_durable_stop_ts;
@@ -191,8 +207,8 @@ __curversion_next(WT_CURSOR *cursor)
             }
 
             __wt_cursor_set_key(cursor, vpack->tw.start_txn, vpack->tw.start_ts,
-              vpack->tw.durable_start_ts, stop_txn, stop_ts, durable_stop_ts, 0, 0, 0,
-              WT_VERSION_DISK_IMAGE);
+              vpack->tw.durable_start_ts, stop_txn, stop_ts, durable_stop_ts, WT_UPDATE_STANDARD,
+              tw.prepare, 0, WT_VERSION_DISK_IMAGE);
             cursor->value.data = vpack->data;
             cursor->value.size = vpack->size;
             F_SET(cursor, WT_CURSTD_VALUE_INT);
@@ -219,9 +235,9 @@ __curversion_next(WT_CURSOR *cursor)
          */
         if (ret == 0) {
             WT_TIME_WINDOW_INIT(&tw);
-            hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &tw.start_ts, &hs_counter);
-            hs_cursor->get_value(
-              hs_cursor, &tw.stop_ts, &tw.durable_start_ts, &hs_upd_type, &hs_value);
+            __wt_hs_upd_time_window(hs_cursor, &twp);
+            WT_ERR(hs_cursor->get_value(
+              hs_cursor, &tw.stop_ts, &tw.durable_start_ts, &hs_upd_type, &hs_value));
             __wt_cursor_set_key(cursor, tw.start_txn, tw.start_ts, tw.durable_start_ts, tw.stop_txn,
               tw.stop_ts, tw.durable_stop_ts, hs_upd_type, 0, 0, WT_VERSION_HISTORY_STORE);
 
@@ -333,14 +349,12 @@ __curversion_search(WT_CURSOR *cursor)
             version_cursor->next_upd = NULL;
             F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
         }
-    case WT_PAGE_COL_FIX:
         break;
+    case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_VAR:
         cip = &page->pg_var[cbt->slot];
-        if ((upd = WT_COL_APPEND(page)) != NULL)
-            version_cursor->next_upd = upd;
-        else if ((upd = WT_COL_UPDATE(page, cip)) != NULL)
-            version_cursor->next_upd = upd;
+        if ((ins = WT_SKIP_FIRST(WT_COL_UPDATE(page, cip))) != NULL)
+            version_cursor->next_upd = ins->upd;
         else {
             version_cursor->next_upd = NULL;
             F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
@@ -434,8 +448,11 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     WT_ERR(__wt_strdup(session, uri, &cursor->uri));
 
     /* Open the history store cursor for operations on the regular history store .*/
-    WT_ERR(__wt_curhs_open(session, cursor, &version_cursor->hs_cursor));
-    F_SET(version_cursor->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN)) {
+        WT_ERR(__wt_curhs_open(session, cursor, &version_cursor->hs_cursor));
+        F_SET(version_cursor->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    } else
+        F_SET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED);
 
     /* Initialize information used to track update metadata. */
     version_cursor->upd_stop_txnid = WT_TXN_MAX;
