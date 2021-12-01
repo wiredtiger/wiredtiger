@@ -13,7 +13,7 @@
  * testing easy, there's a global variable that flags the mode in which we're running, defaulting to
  * "off", that is, by default it's a single history store file per database.
  */
-#define WT_HS_MULTI(s) __wt_process.multi_hs
+#define WT_HS_MULTI __wt_process.multi_hs
 
 /*
  * History store table support: when a page is being reconciled for eviction and has updates that
