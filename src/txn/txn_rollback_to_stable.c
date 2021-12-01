@@ -1189,6 +1189,7 @@ __rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
     case WT_PAGE_ROW_INT:
         /* This function is not called for internal pages. */
         WT_ASSERT(session, false);
+        /* Fall through. */
     default:
         WT_RET(__wt_illegal_value(session, page->type));
     }
