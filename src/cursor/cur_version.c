@@ -63,16 +63,15 @@ __curversion_next(WT_CURSOR *cursor)
     WT_CURSOR_BTREE *cbt;
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
-    WT_ITEM hs_key, hs_value;
+    WT_ITEM hs_value;
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
-    WT_TIME_WINDOW tw, *twp;
+    WT_TIME_WINDOW *twp;
     WT_UPDATE *upd;
     wt_timestamp_t durable_stop_ts, stop_ts;
-    uint64_t hs_counter, stop_txn;
-    uint64_t recno, rle;
-    uint32_t hs_btree_id, hs_upd_type;
+    uint64_t stop_txn;
+    uint32_t hs_upd_type;
     uint8_t version_prepare_state;
     bool upd_found;
 
@@ -178,7 +177,6 @@ __curversion_next(WT_CURSOR *cursor)
                 break;
             case WT_PAGE_COL_FIX:
             case WT_PAGE_COL_VAR:
-                recno = cbt->ref->ref_recno;
                 cip = &page->pg_var[cbt->slot];
                 cell = WT_COL_PTR(page, cip);
                 __wt_cell_unpack_kv(session, page->dsk, cell, vpack);
@@ -210,7 +208,7 @@ __curversion_next(WT_CURSOR *cursor)
 
             __wt_cursor_set_key(cursor, vpack->tw.start_txn, vpack->tw.start_ts,
               vpack->tw.durable_start_ts, stop_txn, stop_ts, durable_stop_ts, WT_UPDATE_STANDARD,
-              tw.prepare, 0, WT_VERSION_DISK_IMAGE);
+              twp->prepare, 0, WT_VERSION_DISK_IMAGE);
             cursor->value.data = vpack->data;
             cursor->value.size = vpack->size;
             F_SET(cursor, WT_CURSTD_VALUE_INT);
@@ -236,13 +234,12 @@ __curversion_next(WT_CURSOR *cursor)
          * all the records already, we have exhausted the history store.
          */
         if (ret == 0) {
-            WT_TIME_WINDOW_INIT(&tw);
+            WT_TIME_WINDOW_INIT(twp);
             __wt_hs_upd_time_window(hs_cursor, &twp);
-            WT_TIME_WINDOW_COPY(twp, &tw);
             WT_ERR(hs_cursor->get_value(
-              hs_cursor, &tw.stop_ts, &tw.durable_start_ts, &hs_upd_type, &hs_value));
-            __wt_cursor_set_key(cursor, tw.start_txn, tw.start_ts, tw.durable_start_ts, tw.stop_txn,
-              tw.stop_ts, tw.durable_stop_ts, hs_upd_type, 0, 0, WT_VERSION_HISTORY_STORE);
+              hs_cursor, twp->stop_ts, twp->durable_start_ts, &hs_upd_type, &hs_value));
+            __wt_cursor_set_key(cursor, twp->start_txn, twp->start_ts, twp->durable_start_ts, twp->stop_txn,
+              twp->stop_ts, twp->durable_stop_ts, hs_upd_type, 0, 0, WT_VERSION_HISTORY_STORE);
 
             /*
              * Reconstruct the history store value if needed. Since we save the value inside the
