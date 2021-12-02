@@ -230,7 +230,6 @@ static inline bool
 __wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag, u_int probability)
 {
     WT_CONNECTION_IMPL *conn;
-    uint32_t ratio;
 
     conn = S2C(session);
 
