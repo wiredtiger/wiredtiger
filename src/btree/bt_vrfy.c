@@ -848,14 +848,8 @@ __verify_page_content_int(
     uint32_t cell_num;
 
     page = ref->page;
+    dsk = page->dsk;
     ta = &unpack.ta;
-
-    /*
-     * If a tree is empty (just created), it won't have a disk image; if there is no disk image,
-     * we're done.
-     */
-    if ((dsk = page->dsk) == NULL)
-        return (0);
 
     /* Walk the page, verifying overflow pages and validating timestamps. */
     cell_num = 0;
@@ -921,17 +915,11 @@ __verify_page_content_leaf(
     bool found_ovfl;
 
     page = ref->page;
+    dsk = page->dsk;
     rip = page->pg_row;
     tw = &unpack.tw;
     recno = ref->ref_recno;
     found_ovfl = false;
-
-    /*
-     * If a tree is empty (just created), it won't have a disk image; if there is no disk image,
-     * we're done.
-     */
-    if ((dsk = page->dsk) == NULL)
-        return (0);
 
     /* Walk the page, tracking timestamps and verifying overflow pages. */
     cell_num = 0;
