@@ -161,9 +161,10 @@ __curversion_next(WT_CURSOR *cursor)
 
     if (!upd_found && !F_ISSET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED)) {
         /*
-         * If the key is on an insert list only, there is no ondisk value nor history store value.
+         * For row store, if the key is on an insert list only there is no ondisk value nor history
+         * store value.
          */
-        if (page->type == WT_PAGE_ROW_LEAF && cbt->ins) {
+        if (page->type == WT_PAGE_ROW_LEAF && cbt->ins != NULL) {
             F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
             F_SET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED);
         } else {
@@ -194,7 +195,8 @@ __curversion_next(WT_CURSOR *cursor)
             }
 
             if (page->type == WT_PAGE_COL_FIX)
-                __wt_col_fix_get_time_window(session, cbt->ref, cbt->ref->ref_recno, &vpack->tw);
+                WT_IGNORE_RET(
+                  __wt_col_fix_get_time_window(session, cbt->ref, cbt->ref->ref_recno, &vpack->tw));
 
             if (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw)) {
                 durable_stop_ts = version_cursor->upd_durable_stop_ts;
@@ -236,6 +238,7 @@ __curversion_next(WT_CURSOR *cursor)
         if (ret == 0) {
             WT_TIME_WINDOW_INIT(&tw);
             __wt_hs_upd_time_window(hs_cursor, &twp);
+            WT_TIME_WINDOW_COPY(twp, &tw);
             WT_ERR(hs_cursor->get_value(
               hs_cursor, &tw.stop_ts, &tw.durable_start_ts, &hs_upd_type, &hs_value));
             __wt_cursor_set_key(cursor, tw.start_txn, tw.start_ts, tw.durable_start_ts, tw.stop_txn,
@@ -340,20 +343,17 @@ __curversion_search(WT_CURSOR *cursor)
     page = cbt->ref->page;
     switch (page->type) {
     case WT_PAGE_ROW_LEAF:
-        rip = &page->pg_row[cbt->slot];
         if (cbt->ins != NULL)
             version_cursor->next_upd = ins->upd;
-        else if ((upd = WT_ROW_UPDATE(page, rip)) != NULL)
-            version_cursor->next_upd = upd;
         else {
-            version_cursor->next_upd = NULL;
-            F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
+            rip = &page->pg_row[cbt->slot];
+            upd = WT_ROW_UPDATE(page, rip);
+            version_cursor->next_upd = upd;
         }
         break;
     case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_VAR:
-        cip = &page->pg_var[cbt->slot];
-        if ((ins = WT_SKIP_FIRST(WT_COL_UPDATE(page, cip))) != NULL)
+        if (cbt->ins != NULL)
             version_cursor->next_upd = ins->upd;
         else {
             version_cursor->next_upd = NULL;
