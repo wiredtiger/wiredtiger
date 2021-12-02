@@ -93,7 +93,7 @@ __curversion_next(WT_CURSOR *cursor)
 
     upd = version_cursor->next_upd;
 
-    if (!upd_found && !F_ISSET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED)) {
+    if (!F_ISSET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED)) {
         /*
          * If the update is an aborted update, we want to skip to the next update immediately or get
          * the ondisk value if the update is the last one in the update chain.
@@ -183,17 +183,15 @@ __curversion_next(WT_CURSOR *cursor)
 
                 if (vpack->type == WT_CELL_DEL) {
                     F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
-                    ret = WT_NOTFOUND;
-                    goto done;
+                    WT_ERR(WT_NOTFOUND);
                 }
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, page->type));
-                break;
             }
 
             if (page->type == WT_PAGE_COL_FIX)
-                WT_IGNORE_RET(
+                WT_ERR(
                   __wt_col_fix_get_time_window(session, cbt->ref, cbt->ref->ref_recno, &vpack->tw));
 
             if (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw)) {
@@ -225,9 +223,9 @@ __curversion_next(WT_CURSOR *cursor)
          */
         if (!F_ISSET(hs_cursor, WT_CURSTD_KEY_INT)) {
             hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, cursor->key, WT_TS_MAX, UINT64_MAX);
-            WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, hs_cursor), true);
+            WT_ERR(__wt_curhs_search_near_before(session, hs_cursor));
         } else
-            WT_ERR_NOTFOUND_OK(ret = hs_cursor->prev(hs_cursor), true);
+            WT_ERR(ret = hs_cursor->prev(hs_cursor));
 
         /*
          * If there are no history store records for the given key or if we have iterated through
@@ -238,8 +236,9 @@ __curversion_next(WT_CURSOR *cursor)
             __wt_hs_upd_time_window(hs_cursor, &twp);
             WT_ERR(hs_cursor->get_value(
               hs_cursor, twp->stop_ts, twp->durable_start_ts, &hs_upd_type, &hs_value));
-            __wt_cursor_set_key(cursor, twp->start_txn, twp->start_ts, twp->durable_start_ts, twp->stop_txn,
-              twp->stop_ts, twp->durable_stop_ts, hs_upd_type, 0, 0, WT_VERSION_HISTORY_STORE);
+            __wt_cursor_set_key(cursor, twp->start_txn, twp->start_ts, twp->durable_start_ts,
+              twp->stop_txn, twp->stop_ts, twp->durable_stop_ts, hs_upd_type, 0, 0,
+              WT_VERSION_HISTORY_STORE);
 
             /*
              * Reconstruct the history store value if needed. Since we save the value inside the
@@ -256,13 +255,15 @@ __curversion_next(WT_CURSOR *cursor)
             }
             F_SET(cursor, WT_CURSTD_VALUE_INT);
             upd_found = true;
-        } else
-            F_SET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED);
+        }
     }
 
+    if (!upd_found)
+        WT_ERR(WT_NOTFOUND);
+
 done:
-    if (0) {
 err:
+    if (ret != 0) {
         WT_TRET(cursor->reset(cursor));
     }
     API_END_RET(session, ret);
@@ -359,7 +360,6 @@ __curversion_search(WT_CURSOR *cursor)
         break;
     default:
         WT_ERR(__wt_illegal_value(session, page->type));
-        break;
     }
 
 err:
