@@ -78,7 +78,7 @@ __check_imported_ts(
     /* Now iterate over each checkpoint and compare the aggregate timestamps with our oldest. */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
         if (ckpt->ta.newest_start_durable_ts > ts)
-            WT_ERR_MSG(session, EINVAL,
+            WT_ERR_MSG(session, WT_ROLLBACK,
               "%s: import found aggregated newest start durable timestamp newer than the current "
               "%s timestamp, newest_start_durable_ts=%" PRIu64 ", %s_ts=%" PRIu64,
               uri, ts_name, ckpt->ta.newest_start_durable_ts, ts_name, ts);
@@ -91,7 +91,7 @@ __check_imported_ts(
          */
         if (ckpt->ta.newest_stop_durable_ts > ts) {
             WT_ASSERT(session, ckpt->ta.newest_stop_durable_ts != WT_TS_MAX);
-            WT_ERR_MSG(session, EINVAL,
+            WT_ERR_MSG(session, WT_ROLLBACK,
               "%s: import found aggregated newest stop durable timestamp newer than the current "
               "%s timestamp, newest_stop_durable_ts=%" PRIu64 ", %s_ts=%" PRIu64,
               uri, ts_name, ckpt->ta.newest_stop_durable_ts, ts_name, ts);
