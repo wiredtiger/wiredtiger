@@ -883,7 +883,8 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
 
 #ifdef HAVE_DIAGNOSTIC
     /*
-     * For fixed-length column-store, poison the rest of the buffer.
+     * For fixed-length column-store, poison the rest of the buffer. This helps verify ensure that
+     * all the bytes in the buffer are explicitly set and not left uninitialized.
      */
     if (r->page->type == WT_PAGE_COL_FIX)
         memset((uint8_t *)chunk->image.mem + WT_PAGE_HEADER_SIZE, 0xa9,
