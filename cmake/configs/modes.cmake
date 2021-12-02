@@ -181,6 +181,14 @@ define_build_mode(TSan
     DEPENDS "NOT MSVC"
 )
 
+define_build_mode(Coverage
+    C_COMPILER_FLAGS "--coverage"
+    CXX_COMPILER_FLAGS "--coverage"
+    LINK_FLAGS "--coverage"
+    # Disable Coverage on MSVC compilers (unsupported).
+    DEPENDS "NOT MSVC"
+)
+
 if(NOT CMAKE_BUILD_TYPE)
     string(REPLACE ";" " " build_modes_doc "${BUILD_MODES}")
     set(CMAKE_BUILD_TYPE "None" CACHE STRING "Choose the type of build, options are: ${build_modes_doc}." FORCE)
