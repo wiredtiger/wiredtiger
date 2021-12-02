@@ -976,12 +976,17 @@ done:
     /* Close cached cursors, rollback-to-stable asserts exclusive access. */
     WT_ERR(__recovery_close_cursors(&r));
 #ifndef WT_STANDALONE_BUILD
+    /*
+     * There is a known problem with upgrading from release 10.0.0 specifically. There are now fixes
+     * that can properly upgrade from 10.0.0 without hitting the problem but only from a clean
+     * shutdown of 10.0.0. Earlier releases are not affected by the upgrade issue.
+     */
     if (conn->unclean_shutdown && conn->recovery_major == 10 && conn->recovery_minor == 0 &&
-      conn->recovery_patch == 0) {
+      conn->recovery_patch == 0)
         WT_ERR_MSG(session, WT_ERROR,
-          "Upgrading a version on a database that was not shutdown cleanly is not allowed. Perform "
-          "a clean shutdown on the older version and upgrade.");
-    }
+          "Upgrading from a WiredTiger version 10.0.0 database that was not shutdown cleanly is "
+          "not allowed. Perform a clean shutdown on version 10.0.0 and then upgrade. WiredTiger "
+          "version 10.0.0 maps to a couple of releases of MongoDB.");
 #endif
 
     WT_ERR(__recovery_set_checkpoint_timestamp(&r));
