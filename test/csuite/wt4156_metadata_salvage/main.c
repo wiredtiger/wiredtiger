@@ -291,8 +291,7 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
             if ((ret = wt_session->open_cursor(wt_session, t->name, NULL, NULL, &cursor)) != 0) {
                 /*
                  * It is possible for the metadata file to contain a table entry and no associated
-                 * file entry as WiredTiger didn't salvage the block associated with the file
-                 * entry.
+                 * file entry as WiredTiger didn't salvage the block associated with the file entry.
                  */
                 if (ret == ENOENT)
                     continue;
