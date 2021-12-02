@@ -187,6 +187,13 @@ define_c_test(
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:ex_thread>/WT_HOME>
 )
 
+define_c_test(
+    TARGET ex_verbose
+    SOURCES ex_verbose.c
+    DIR_NAME ex_verbose
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:ex_verbose>/WT_HOME>
+)
+
 if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
     # On GCC and Clang built targets we want to pass the '-rdynamic' linker option.
     target_link_libraries(ex_encrypt "-rdynamic")

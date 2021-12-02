@@ -159,7 +159,7 @@ run(int r)
 
     testutil_make_work_dir(HOME);
 
-    testutil_checksys((res_fp = fopen(RSLT, "w")) == NULL);
+    testutil_assert_errno((res_fp = fopen(RSLT, "w")) != NULL);
 
     /*
      * Each run builds the LOAD file, and then appends the first page of the LOAD file into the SLVG
@@ -510,21 +510,21 @@ build(int ikey, int ivalue, int cnt)
     switch (page_type) {
     case WT_PAGE_COL_FIX:
         testutil_check(__wt_snprintf(config, sizeof(config),
-          "key_format=r,value_format=7t,allocation_size=%d,internal_page_max=%d,internal_item_max=%"
-          "d,leaf_page_max=%d,leaf_item_max=%d",
-          PSIZE, PSIZE, OSIZE, PSIZE, OSIZE));
+          "key_format=r,value_format=7t,allocation_size=%d,internal_page_max=%d,leaf_page_max=%d,"
+          "leaf_key_max=%d,leaf_value_max=%d",
+          PSIZE, PSIZE, PSIZE, OSIZE, OSIZE));
         break;
     case WT_PAGE_COL_VAR:
         testutil_check(__wt_snprintf(config, sizeof(config),
-          "key_format=r,allocation_size=%d,internal_page_max=%d,internal_item_max=%d,leaf_page_max="
-          "%d,leaf_item_max=%d",
-          PSIZE, PSIZE, OSIZE, PSIZE, OSIZE));
+          "key_format=r,allocation_size=%d,internal_page_max=%d,leaf_page_max=%d,leaf_key_max=%d,"
+          "leaf_value_max=%d",
+          PSIZE, PSIZE, PSIZE, OSIZE, OSIZE));
         break;
     case WT_PAGE_ROW_LEAF:
         testutil_check(__wt_snprintf(config, sizeof(config),
-          "key_format=u,allocation_size=%d,internal_page_max=%d,internal_item_max=%d,leaf_page_max="
-          "%d,leaf_item_max=%d",
-          PSIZE, PSIZE, OSIZE, PSIZE, OSIZE));
+          "key_format=u,allocation_size=%d,internal_page_max=%d,leaf_page_max=%d,leaf_key_max=%d,"
+          "leaf_value_max=%d",
+          PSIZE, PSIZE, PSIZE, OSIZE, OSIZE));
         break;
     default:
         assert(0);
@@ -587,16 +587,16 @@ copy(u_int gen, u_int recno)
     uint32_t cksum32, gen32;
     char buf[PSIZE];
 
-    testutil_checksys((ifp = fopen(LOAD, "r")) == NULL);
+    testutil_assert_errno((ifp = fopen(LOAD, "r")) != NULL);
 
     /*
      * If the salvage file doesn't exist, then we're creating it: copy the first sector (the file
      * description). Otherwise, we are appending to an existing file.
      */
     if (file_exists(SLVG))
-        testutil_checksys((ofp = fopen(SLVG, "a")) == NULL);
+        testutil_assert_errno((ofp = fopen(SLVG, "a")) != NULL);
     else {
-        testutil_checksys((ofp = fopen(SLVG, "w")) == NULL);
+        testutil_assert_errno((ofp = fopen(SLVG, "w")) != NULL);
         testutil_assert(fread(buf, 1, PSIZE, ifp) == PSIZE);
         testutil_assert(fwrite(buf, 1, PSIZE, ofp) == PSIZE);
     }
@@ -670,7 +670,7 @@ process(void)
     testutil_check(conn->close(conn, 0));
 
     /* Dump. */
-    testutil_checksys((fp = fopen(DUMP, "w")) == NULL);
+    testutil_assert_errno((fp = fopen(DUMP, "w")) != NULL);
     testutil_check(wiredtiger_open(HOME, NULL, config, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(session->open_cursor(session, SLVG_URI, NULL, "dump=print", &cursor));
