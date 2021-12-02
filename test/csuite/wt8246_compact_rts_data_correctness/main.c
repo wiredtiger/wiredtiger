@@ -29,9 +29,9 @@
 #include <sys/wait.h>
 #include <signal.h>
 
-#define TIMEOUT 2
+#define TIMEOUT 1
 
-#define NUM_RECORDS 1200000
+#define NUM_RECORDS 800000
 
 #define ENV_CONFIG_REC "log=(archive=false,recover=on)"
 /* Constants and variables declaration. */
@@ -214,10 +214,9 @@ run_test(bool column_store, const char *uri, bool preserve)
 static void
 workload_compact(const char *home, const char *table_config, const char *uri)
 {
-    FILE *fp;
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    char compact_file[2048], tscfg[64];
+    char tscfg[64];
 
     testutil_check(wiredtiger_open(home, NULL, conn_config, &conn));
 
@@ -258,13 +257,6 @@ workload_compact(const char *home, const char *table_config, const char *uri)
      * end of the file. Checkpoint the changes after the removal.
      */
     remove_records(session, uri, 60);
-
-    /*
-     * Create the compact_started file so that the parent process can start its timer.
-     */
-    testutil_check(__wt_snprintf(compact_file, sizeof(compact_file), compact_file_fmt, home));
-    testutil_checksys((fp = fopen(compact_file, "w")) == NULL);
-    testutil_checksys(fclose(fp) != 0);
 
     run_compact(session, uri);
 }
