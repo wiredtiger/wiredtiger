@@ -877,16 +877,18 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
      * Don't touch the disk image item memory, that memory is reused.
      *
      * Clear the disk page header to ensure all of it is initialized, even the unused fields.
-     *
-     * In the case of fixed-length column-store, clear the entire buffer: fixed-length column-store
-     * sets bits in bytes, where the bytes are assumed to initially be 0.
-     *
-     * FUTURE: pretty sure clearing the whole buffer is not necessary; also in any event the
-     * auxiliary space doesn't need to be cleared.
      */
     WT_RET(__wt_buf_init(session, &chunk->image, r->disk_img_buf_size));
-    memset(chunk->image.mem, 0,
-      r->page->type == WT_PAGE_COL_FIX ? r->disk_img_buf_size : WT_PAGE_HEADER_SIZE);
+    memset(chunk->image.mem, 0, WT_PAGE_HEADER_SIZE);
+
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * For fixed-length column-store, poison the rest of the buffer.
+     */
+    if (r->page->type == WT_PAGE_COL_FIX)
+        memset((uint8_t *)chunk->image.mem + WT_PAGE_HEADER_SIZE, 0xa9,
+          r->disk_img_buf_size - WT_PAGE_HEADER_SIZE);
+#endif
 
     return (0);
 }

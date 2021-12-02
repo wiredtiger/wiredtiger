@@ -370,3 +370,49 @@ __bit_setv(uint8_t *bitf, uint64_t entry, uint8_t width, uint8_t value)
 		break;
 	}
 }
+
+/*
+ * __bit_clear_end --
+ *     Clear the leftover end bits of a fixed-length column store bitstring.
+ */
+static inline void
+__bit_clear_end(uint8_t *bitf, uint64_t numentries, uint8_t width)
+{
+	uint64_t byte, firstbit;
+        uint8_t mask;
+
+	firstbit = numentries * width;
+        byte = __bit_byte(firstbit);
+        mask = __bit_mask(firstbit);
+
+        /* If mask is the first bit of the next byte, we don't need to do anything. */
+        if (mask == 0x01)
+            return;
+
+        /* Convert e.g. 0b01000000 to 0b01111111 and use the resulting mask to clear. */
+        mask = (mask << 1) - 1;
+        bitf[byte] &= ~mask;
+}
+
+/*
+ * __bit_end_is_clear --
+ *     Check the leftover end bits of a fixed-length column store bitstring.
+ */
+static inline bool
+__bit_end_is_clear(const uint8_t *bitf, uint64_t numentries, uint8_t width)
+{
+	uint64_t byte, firstbit;
+        uint8_t mask;
+
+	firstbit = numentries * width;
+        byte = __bit_byte(firstbit);
+        mask = __bit_mask(firstbit);
+
+        /* If mask is the first bit of the next byte, there's nothing to check. */
+        if (mask == 0x01)
+            return (true);
+
+        /* Convert e.g. 0b01000000 to 0b01111111 and read with the resulting mask. */
+        mask = (mask << 1) - 1;
+        return ((bitf[byte] & mask) == 0);
+}
