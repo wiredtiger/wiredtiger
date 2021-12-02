@@ -38,7 +38,7 @@ function(define_build_mode mode)
         "DEFINE_BUILD"
         ""
         "DEPENDS"
-        "C_COMPILER_FLAGS;CXX_COMPILER_FLAGS;LINK_FLAGS"
+        "C_COMPILER_FLAGS;CXX_COMPILER_FLAGS;LINK_FLAGS;LIBS"
     )
     if (NOT "${DEFINE_BUILD_UNPARSED_ARGUMENTS}" STREQUAL "")
         message(FATAL_ERROR "Unknown arguments to define_build_mode: ${DEFINE_BUILD_UNPARSED_ARGUMENTS}")
@@ -51,9 +51,15 @@ function(define_build_mode mode)
         return()
     endif()
 
+    set(linker_flags "")
     # Needs to validate linker flags to assert its a valid build mode.
     if(DEFINE_BUILD_LINK_FLAGS)
         set(CMAKE_REQUIRED_FLAGS "${DEFINE_BUILD_LINK_FLAGS}")
+        list(APPEND linker_flags "${DEFINE_BUILD_LINK_FLAGS}")
+    endif()
+    if(DEFINE_BUILD_LIBS)
+        set(CMAKE_REQUIRED_LIBRARIES "${DEFINE_BUILD_LIBS}")
+        list(APPEND linker_flags "${DEFINE_BUILD_LIBS}")
     endif()
     # Check if the compiler flags are available to ensure its a valid build mode.
     if(DEFINE_BUILD_C_COMPILER_FLAGS)
@@ -71,27 +77,28 @@ function(define_build_mode mode)
         endif()
     endif()
     unset(CMAKE_REQUIRED_FLAGS)
-    unset(HAVE_BUILD_MODE_C_FLAGS)
-    unset(HAVE_BUILD_MODE_CXX_FLAGS)
+    unset(CMAKE_REQUIRED_LIBRARIES)
+    unset(HAVE_BUILD_MODE_C_FLAGS CACHE)
+    unset(HAVE_BUILD_MODE_CXX_FLAGS CACHE)
 
-    string(REPLACE ";" " " DEFINE_BUILD_C_COMPILER_FLAGS "${DEFINE_BUILD_C_COMPILER_FLAGS}")
-    string(REPLACE ";" " " DEFINE_BUILD_CXX_COMPILER_FLAGS "${DEFINE_BUILD_CXX_COMPILER_FLAGS}")
-    string(REPLACE ";" " " DEFINE_BUILD_LINK_FLAGS "${DEFINE_BUILD_LINK_FLAGS}")
+    string(REPLACE ";" " " c_flags "${DEFINE_BUILD_C_COMPILER_FLAGS}")
+    string(REPLACE ";" " " cxx_flags "${DEFINE_BUILD_CXX_COMPILER_FLAGS}")
+    string(REPLACE ";" " " linker_flags "${linker_flags}")
     string(TOUPPER ${mode} build_mode)
     set(CMAKE_C_FLAGS_${build_mode}
-        "${DEFINE_BUILD_C_COMPILER_FLAGS}" CACHE STRING
+        "${c_flags}" CACHE STRING
         "Flags used by the C compiler for ${mode} build type or configuration." FORCE)
 
     set(CMAKE_CXX_FLAGS_${build_mode}
-        "${DEFINE_BUILD_CXX_COMPILER_FLAGS}" CACHE STRING
+        "${cxx_flags}" CACHE STRING
         "Flags used by the C++ compiler for ${mode} build type or configuration." FORCE)
 
     set(CMAKE_EXE_LINKER_FLAGS_${build_mode}
-        "${DEFINE_BUILD_LINK_FLAGS}" CACHE STRING
+        "${linker_flags}" CACHE STRING
         "Linker flags to be used to create executables for ${mode} build type." FORCE)
 
     set(CMAKE_SHARED_LINKER_FLAGS_${build_mode}
-        "${DEFINE_BUILD_LINK_FLAGS}" CACHE STRING
+        "${linker_flags}" CACHE STRING
         "Linker lags to be used to create shared libraries for ${mode} build type." FORCE)
 
     mark_as_advanced(
