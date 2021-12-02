@@ -55,7 +55,6 @@ err:
 static int
 __curversion_next(WT_CURSOR *cursor)
 {
-    WT_BTREE *btree;
     WT_CELL *cell;
     WT_CELL_UNPACK_KV *vpack, _vpack;
     WT_COL *cip;
@@ -75,12 +74,12 @@ __curversion_next(WT_CURSOR *cursor)
     uint8_t version_prepare_state;
     bool upd_found;
 
-    upd_found = false;
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     hs_cursor = version_cursor->hs_cursor;
     table_cursor = version_cursor->table_cursor;
     cbt = (WT_CURSOR_BTREE *)table_cursor;
-    btree = CUR2BT(cbt);
+    twp = NULL;
+    upd_found = false;
     vpack = &_vpack;
     CURSOR_API_CALL(cursor, session, next, NULL);
 
@@ -163,12 +162,11 @@ __curversion_next(WT_CURSOR *cursor)
          * For row store, if the key is on an insert list only there is no ondisk value nor history
          * store value.
          */
+        page = cbt->ref->page;
         if (page->type == WT_PAGE_ROW_LEAF && cbt->ins != NULL) {
             F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
             F_SET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED);
         } else {
-            page = cbt->ref->page;
-
             /* Retrieve the value for each type of underlying table structure. */
             switch (page->type) {
             case WT_PAGE_ROW_LEAF:
@@ -225,7 +223,7 @@ __curversion_next(WT_CURSOR *cursor)
             hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, cursor->key, WT_TS_MAX, UINT64_MAX);
             WT_ERR(__wt_curhs_search_near_before(session, hs_cursor));
         } else
-            WT_ERR(ret = hs_cursor->prev(hs_cursor));
+            WT_ERR(hs_cursor->prev(hs_cursor));
 
         /*
          * If there are no history store records for the given key or if we have iterated through
@@ -261,7 +259,6 @@ __curversion_next(WT_CURSOR *cursor)
     if (!upd_found)
         WT_ERR(WT_NOTFOUND);
 
-done:
 err:
     if (ret != 0) {
         WT_TRET(cursor->reset(cursor));
@@ -306,12 +303,10 @@ err:
 static int
 __curversion_search(WT_CURSOR *cursor)
 {
-    WT_COL *cip;
     WT_CURSOR *table_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
-    WT_INSERT *ins;
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
@@ -342,7 +337,7 @@ __curversion_search(WT_CURSOR *cursor)
     switch (page->type) {
     case WT_PAGE_ROW_LEAF:
         if (cbt->ins != NULL)
-            version_cursor->next_upd = ins->upd;
+            version_cursor->next_upd = cbt->ins->upd;
         else {
             rip = &page->pg_row[cbt->slot];
             upd = WT_ROW_UPDATE(page, rip);
@@ -352,7 +347,7 @@ __curversion_search(WT_CURSOR *cursor)
     case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_VAR:
         if (cbt->ins != NULL)
-            version_cursor->next_upd = ins->upd;
+            version_cursor->next_upd = cbt->ins->upd;
         else {
             version_cursor->next_upd = NULL;
             F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
