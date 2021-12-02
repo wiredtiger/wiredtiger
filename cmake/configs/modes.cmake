@@ -123,10 +123,15 @@ if(MSVC)
     set(asan_link_flags "/fsanitize=address")
     set(asan_compiler_c_flag "/fsanitize=address")
     set(asan_compiler_cxx_flag "/fsanitize=address")
+    set(asan_lib_flags "")
 else()
-    set(asan_link_flags "-fsanitize=address")
     set(asan_compiler_c_flag "-fsanitize=address")
     set(asan_compiler_cxx_flag "-fsanitize=address")
+    set(asan_link_flags "-fsanitize=address")
+    if(GNU_C_COMPILER AND GNU_CXX_COMPILER)
+        set(asan_link_flags "${asan_link_flags}")
+        set(asan_lib_flags "-static-libasan")
+    endif()
 endif()
 
 # UBSAN build variant flags.
@@ -149,6 +154,7 @@ define_build_mode(ASan
     C_COMPILER_FLAGS ${asan_compiler_c_flag}
     CXX_COMPILER_FLAGS ${asan_compiler_cxx_flag}
     LINK_FLAGS ${asan_link_flags}
+    LIBS ${asan_lib_flags}
 )
 
 define_build_mode(UBSan
