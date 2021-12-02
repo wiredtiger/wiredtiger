@@ -8,7 +8,7 @@
 
 /* clang-format off */
 #define WT_VERBOSE_CATEGORY_STR_INIT \
-    (const char *[]){ \
+    { \
     /* AUTOMATIC VERBOSE ENUM STRING GENERATION START */ \
     "WT_VERB_API", \
     "WT_VERB_BACKUP", \
