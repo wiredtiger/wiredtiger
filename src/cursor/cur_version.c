@@ -220,7 +220,7 @@ __curversion_next(WT_CURSOR *cursor)
          * store versions for the first time.
          */
         if (!F_ISSET(hs_cursor, WT_CURSTD_KEY_INT)) {
-            hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, cursor->key, WT_TS_MAX, UINT64_MAX);
+            hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, &cursor->key, WT_TS_MAX, UINT64_MAX);
             WT_ERR(__wt_curhs_search_near_before(session, hs_cursor));
         } else
             WT_ERR(hs_cursor->prev(hs_cursor));
