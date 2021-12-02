@@ -65,17 +65,17 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         cursor = self.session.open_cursor(self.uri, None)
         # Add a value to the update chain
-        self.session.bigin_transaction()
+        self.session.begin_transaction()
         cursor[0] = 0
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(1))
 
         # Update the value
-        self.session.bigin_transaction()
+        self.session.begin_transaction()
         cursor[0] = 1
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
 
         # Open a version cursor
-        version_cursor = self.session.open_cursor(self.uri, "debug=(version_cursor=true)")
+        version_cursor = self.session.open_cursor(self.uri, "debug=(dump_version=true)")
         version_cursor.set_key(0)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.next(), 0)
@@ -91,7 +91,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         cursor = self.session.open_cursor(self.uri, None)
         # Add a value to the update chain
-        self.session.bigin_transaction()
+        self.session.begin_transaction()
         cursor[0] = 0
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(1))
 
@@ -102,7 +102,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
         # Open a version cursor
-        version_cursor = self.session.open_cursor(self.uri, "debug=(version_cursor=true)")
+        version_cursor = self.session.open_cursor(self.uri, "debug=(dump_version=true)")
         version_cursor.set_key(0)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.next(), 0)
@@ -115,12 +115,12 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         cursor = self.session.open_cursor(self.uri, None)
         # Add a value to the update chain
-        self.session.bigin_transaction()
+        self.session.begin_transaction()
         cursor[0] = 0
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(1))
 
         # Delete the value
-        self.session.bigin_transaction()
+        self.session.begin_transaction()
         cursor.set_key(0)
         self.assertEquals(cursor.remove(), 0)
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
@@ -132,7 +132,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
         # Open a version cursor
-        version_cursor = self.session.open_cursor(self.uri, "debug=(version_cursor=true)")
+        version_cursor = self.session.open_cursor(self.uri, "debug=(dump_version=true)")
         version_cursor.set_key(0)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.next(), 0)
@@ -145,7 +145,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         cursor = self.session.open_cursor(self.uri, None)
         # Add a value to the update chain
-        self.session.bigin_transaction()
+        self.session.begin_transaction()
         cursor[0] = 0
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(1))
 
@@ -156,13 +156,13 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
         # Delete the value
-        self.session.bigin_transaction()
+        self.session.begin_transaction()
         cursor.set_key(0)
         self.assertEquals(cursor.remove(), 0)
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
 
         # Open a version cursor
-        version_cursor = self.session.open_cursor(self.uri, "debug=(version_cursor=true)")
+        version_cursor = self.session.open_cursor(self.uri, "debug=(dump_version=true)")
         version_cursor.set_key(0)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.next(), 0)
@@ -175,12 +175,12 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         cursor = self.session.open_cursor(self.uri, None)
         # Add a value to the update chain
-        self.session.bigin_transaction()
+        self.session.begin_transaction()
         cursor[0] = 0
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(1))
 
         # Update the value
-        self.session.bigin_transaction()
+        self.session.begin_transaction()
         cursor[0] = 1
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
 
@@ -191,7 +191,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
         # Open a version cursor
-        version_cursor = self.session.open_cursor(self.uri, "debug=(version_cursor=true)")
+        version_cursor = self.session.open_cursor(self.uri, "debug=(dump_version=true)")
         version_cursor.set_key(0)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.next(), 0)
@@ -207,12 +207,12 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         cursor = self.session.open_cursor(self.uri, None)
         # Add a value to the update chain
-        self.session.bigin_transaction()
+        self.session.begin_transaction()
         cursor[0] = 0
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(1))
 
         # Update the value
-        self.session.bigin_transaction()
+        self.session.begin_transaction()
         cursor[0] = 1
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
 
@@ -223,12 +223,12 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
         # Update the value
-        self.session.bigin_transaction()
+        self.session.begin_transaction()
         cursor[0] = 2
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10))
 
         # Open a version cursor
-        version_cursor = self.session.open_cursor(self.uri, "debug=(version_cursor=true)")
+        version_cursor = self.session.open_cursor(self.uri, "debug=(dump_version=true)")
         version_cursor.set_key(0)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.next(), 0)
@@ -248,7 +248,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
         session2 = self.conn.open_session()
         cursor = session2.open_cursor(self.uri, None)
         # Add a value to the update chain
-        session2.bigin_transaction()
+        session2.begin_transaction()
         cursor[0] = 0
         session2.prepare_transaction("prepare_timestamp=" + self.timestamp_str(1))
 
@@ -260,7 +260,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
         # Open a version cursor
-        version_cursor = self.session.open_cursor(self.uri, "debug=(version_cursor=true)")
+        version_cursor = self.session.open_cursor(self.uri, "debug=(dump_version=true)")
         version_cursor.set_key(0)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.next(), 0)
