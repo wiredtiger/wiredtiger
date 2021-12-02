@@ -1948,7 +1948,7 @@ static inline bool __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, boo
   double *pct_fullp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_eviction_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline bool __wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag, double probability)
+static inline bool __wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag, u_int probability)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_isalnum(u_char c) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_isalpha(u_char c) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
