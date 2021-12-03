@@ -59,14 +59,35 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
     # Validates the JSON schema of a given event handler message, ensuring the schema is consistent and expected.
     def validate_json_schema(self, json_msg):
         expected_schema = dict(self.expected_json_schema)
+        mismatch_id_msg = 'The category ID received in the message does not match its definition.'
+
         for field in json_msg:
+
+            # Assert the received category ID is matching their definition.
+            if(field == 'category'):
+                if(json_msg[field] == 'WT_VERB_API'):
+                    self.assertTrue(json_msg['category_id'] == wiredtiger.WT_VERB_API, \
+                        mismatch_id_msg)
+                elif(json_msg[field] == 'WT_VERB_DEFAULT'):
+                    self.assertTrue(json_msg['category_id'] == wiredtiger.WT_VERB_DEFAULT, \
+                        mismatch_id_msg)
+                elif(json_msg[field] == 'WT_VERB_VERSION'):
+                    self.assertTrue(json_msg['category_id'] == wiredtiger.WT_VERB_VERSION, \
+                        mismatch_id_msg)
+                # The current tests do not expect other verbose categories.
+                else:
+                    assert False, 'Unexpected category ' + json_msg[field]
+
             # Assert the JSON field is valid and expected.
             self.assertTrue(field in expected_schema, 'Unexpected field "%s" in JSON message: %s' % (field, str(json_msg)))
+
             # Assert the type of the JSON field is expected.
             self.assertEqual(type(json_msg[field]), expected_schema[field]['type'],
                     'Unexpected type of field "%s" in JSON message, expected "%s" but got "%s": %s' % (field,
                         str(expected_schema[field]['type']), str(type(json_msg[field])), str(json_msg)))
+
             expected_schema.pop(field, None)
+
         # Go through the remaining fields in the schema and ensure we've seen all the fields that are always expected be present
         # in the JSON message
         for field in expected_schema:
