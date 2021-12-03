@@ -232,7 +232,6 @@ __curversion_next(WT_CURSOR *cursor)
          * all the records already, we have exhausted the history store.
          */
         if (ret == 0) {
-            WT_TIME_WINDOW_INIT(twp);
             __wt_hs_upd_time_window(hs_cursor, &twp);
             WT_ERR(hs_cursor->get_value(
               hs_cursor, twp->stop_ts, twp->durable_start_ts, &hs_upd_type, &hs_value));
@@ -262,9 +261,8 @@ __curversion_next(WT_CURSOR *cursor)
         WT_ERR(WT_NOTFOUND);
 
 err:
-    if (ret != 0) {
+    if (ret != 0)
         WT_TRET(cursor->reset(cursor));
-    }
     API_END_RET(session, ret);
 }
 
@@ -350,10 +348,8 @@ __curversion_search(WT_CURSOR *cursor)
     case WT_PAGE_COL_VAR:
         if (cbt->ins != NULL)
             version_cursor->next_upd = cbt->ins->upd;
-        else {
+        else
             version_cursor->next_upd = NULL;
-            F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
-        }
         break;
     default:
         WT_ERR(__wt_illegal_value(session, page->type));
@@ -362,6 +358,8 @@ __curversion_search(WT_CURSOR *cursor)
 err:
     if (!key_only)
         F_CLR(cursor, WT_CURSTD_KEY_ONLY);
+    if (ret != 0)
+        WT_TRET(cursor->reset(cursor));
     API_END_RET(session, ret);
 }
 
