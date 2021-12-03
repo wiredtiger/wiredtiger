@@ -423,7 +423,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
     has_newer_updates = supd_restore = upd_saved = false;
-    is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
+    is_hs_page = WT_IS_HS(session->dhandle);
     session_txnid = WT_SESSION_TXN_SHARED(session)->id;
 
     /*
