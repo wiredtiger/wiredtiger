@@ -212,7 +212,15 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
         /* Record number */
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, recno));
     }
-    /* Length */
+
+    /*
+     * Pack the data length. We need a bit to tell us if a fast-truncate proxy cell is prepared,
+     * steal one from the size.
+     */
+    if (cell_type == WT_CELL_ADDR_DEL && ta->prepare) {
+        WT_ASSERT(session, size < WT_CELL_ADDR_DELL_PREPARE_SIZE);
+        size += WT_CELL_ADDR_DELL_PREPARE_SIZE;
+    }
     WT_IGNORE_RET(__wt_vpack_uint(&p, 0, (uint64_t)size));
     return (WT_PTRDIFF(p, cell));
 }
@@ -908,6 +916,11 @@ copy_cell_restart:
           (unpack->raw == WT_CELL_VALUE && unpack->v == 0 &&
             (cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0))
             v += WT_CELL_SIZE_ADJUST;
+
+        if (unpack->raw == WT_CELL_ADDR_DEL && v > WT_CELL_ADDR_DELL_PREPARE_SIZE) {
+            F_SET(unpack_addr, WT_CELL_UNPACK_ADDR_DEL_PREPARED);
+            v -= WT_CELL_ADDR_DELL_PREPARE_SIZE;
+        }
 
         unpack->data = p;
         unpack->size = (uint32_t)v;

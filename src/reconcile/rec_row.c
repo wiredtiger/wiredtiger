@@ -274,6 +274,31 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 }
 
 /*
+ * __rec_row_int_update_ft_ts --
+ *     Merge the fast-truncates timestamp information into the existing page's aggregated timestamp
+ *     information.
+ */
+static void
+__rec_row_int_update_ft_ts(
+  WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta, WT_PAGE_DELETED *page_del)
+{
+    WT_ASSERT(session, ta->newest_stop_durable_ts <= page_del->durable_timestamp);
+    ta->newest_stop_durable_ts = page_del->durable_timestamp;
+
+    WT_ASSERT(session, ta->newest_txn < page_del->txnid);
+    ta->newest_txn = page_del->txnid;
+
+    WT_ASSERT(session, ta->newest_stop_ts == WT_TS_MAX || ta->newest_stop_ts < page_del->timestamp);
+    ta->newest_stop_ts = page_del->timestamp;
+
+    WT_ASSERT(session, ta->newest_stop_txn == WT_TXN_MAX || ta->newest_stop_txn < page_del->txnid);
+    ta->newest_stop_txn = page_del->txnid;
+
+    if (page_del->prepare_state == WT_PREPARE_INPROGRESS)
+        ta->prepare = 1;
+}
+
+/*
  * __wt_rec_row_int --
  *     Reconcile a row-store internal page.
  */
@@ -388,39 +413,39 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             /* Original child. */
             break;
         case WT_CHILD_PROXY:
-            /* Deleted child where we write a proxy cell. */
+            /* Fast-delete child where we write a proxy cell. */
             break;
         }
 
         /*
          * Build the value cell, the child page's address. Addr points to an on-page cell or an
-         * off-page WT_ADDR structure. There's a special cell type in the case of page deletion
-         * requiring a proxy cell, otherwise use the information from the addr or original cell.
+         * off-page WT_ADDR structure.
          */
         if (__wt_off_page(page, addr)) {
-            __wt_rec_cell_build_addr(session, r, addr, NULL, state == WT_CHILD_PROXY, WT_RECNO_OOB);
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
+            if (state == WT_CHILD_PROXY)
+                __rec_row_int_update_ft_ts(session, &ta, ref->ft_info.del);
+            __wt_rec_cell_build_addr(
+              session, r, addr, NULL, WT_RECNO_OOB, state == WT_CHILD_PROXY ? &ta : NULL);
         } else {
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
-            if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
+            WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
+            if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED) || state == WT_CHILD_PROXY) {
                 /*
                  * The transaction ids are cleared after restart. Repack the cell with new validity
-                 * to flush the cleared transaction ids.
+                 * to flush the cleared transaction ids. The other use is proxy cells where we need
+                 * a different timestamp to be written for the address.
                  */
+                if (state == WT_CHILD_PROXY)
+                    __rec_row_int_update_ft_ts(session, &ta, ref->ft_info.del);
                 __wt_rec_cell_build_addr(
-                  session, r, NULL, vpack, state == WT_CHILD_PROXY, WT_RECNO_OOB);
-            } else if (state == WT_CHILD_PROXY) {
-                WT_ERR(__wt_buf_set(session, &val->buf, ref->addr, __wt_cell_total_len(vpack)));
-                __wt_cell_type_reset(session, val->buf.mem, 0, WT_CELL_ADDR_DEL);
-                val->cell_len = 0;
-                val->len = val->buf.size;
+                  session, r, NULL, vpack, WT_RECNO_OOB, state == WT_CHILD_PROXY ? &ta : NULL);
             } else {
                 val->buf.data = ref->addr;
                 val->buf.size = __wt_cell_total_len(vpack);
                 val->cell_len = 0;
                 val->len = val->buf.size;
             }
-            WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
         }
         WT_CHILD_RELEASE_ERR(session, hazard, ref);
 

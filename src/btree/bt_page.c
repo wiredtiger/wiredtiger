@@ -795,22 +795,22 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
             break;
         case WT_CELL_ADDR_DEL:
             /*
-             * A cell may reference a deleted leaf page: if a leaf page was deleted without being
-             * read (fast truncate), and the deletion committed, but older transactions in the
-             * system required the previous version of the page to remain available, a special
-             * deleted-address type cell is written. We'll see that cell on a page if we read from a
-             * checkpoint including a deleted cell or if we crash/recover and start off from such a
-             * checkpoint (absent running recovery, a version of the page without the deleted cell
-             * would eventually have been written). If we crash and recover to a page with a
-             * deleted-address cell, we want to discard the page from the backing store (it was
-             * never discarded), and, of course, by definition no earlier transaction will ever need
-             * it.
-             *
-             * Re-create the state of a deleted page.
+             * If a page was deleted without being read (fast truncate), and the delete committed,
+             * but older transactions in the system required the previous version of the page to
+             * remain available or the delete can still be rolled back by RTS, a deleted-address
+             * type cell is written. We'll see that cell on a page if we read from a checkpoint
+             * including a deleted cell or if we crash/recover and start off from such a checkpoint.
+             * Recreate the fast-delete state for the page.
              */
-            ref->addr = unpack.cell;
+            WT_ERR(__wt_calloc_one(session, &ref->ft_info.del));
+            ref->ft_info.del->txnid = unpack.ta.newest_stop_txn;
+            ref->ft_info.del->timestamp = unpack.ta.newest_stop_ts;
+            ref->ft_info.del->durable_timestamp = unpack.ta.newest_stop_durable_ts;
+            ref->ft_info.del->prepare_state =
+              F_ISSET(&unpack, WT_CELL_UNPACK_ADDR_DEL_PREPARED) ? WT_PREPARE_INPROGRESS : 0;
+            ref->ft_info.del->previous_state = WT_REF_DISK;
+            ref->ft_info.del->committed = 1;
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
-            ++refp;
 
             /*
              * If the tree is already dirty and so will be written, mark the page dirty. (We want to
@@ -821,6 +821,9 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
                 WT_ERR(__wt_page_modify_init(session, page));
                 __wt_page_modify_set(session, page);
             }
+
+            ref->addr = unpack.cell;
+            ++refp;
             break;
         case WT_CELL_ADDR_INT:
         case WT_CELL_ADDR_LEAF:

@@ -149,9 +149,20 @@ struct __wt_cell {
 };
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CELL_UNPACK_OVERFLOW 0x1u            /* cell is an overflow */
-#define WT_CELL_UNPACK_TIME_WINDOW_CLEARED 0x2u /* time window cleared because of restart */
+#define WT_CELL_UNPACK_ADDR_DEL_PREPARED 0x1u   /* fast-truncate prepare flag */
+#define WT_CELL_UNPACK_OVERFLOW 0x2u            /* cell is an overflow */
+#define WT_CELL_UNPACK_TIME_WINDOW_CLEARED 0x4u /* time window cleared because of restart */
 /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+
+/*
+ * A backward compatibility hack: steal a bit from address cell sizes to flag a fast-truncate in a
+ * prepare state. Historic systems didn't save fast-truncate timestamp information, so RTS couldn't
+ * handle fast-truncate, and nobody noticed until it was too late. We overloaded the internal page
+ * aggregated timestamp information to hold the fast-truncate timestamp information, but we still
+ * need a prepare flag. Steal a bit from the address size because we know the address cell size is
+ * relatively small.
+ */
+#define WT_CELL_ADDR_DELL_PREPARE_SIZE 4096
 
 /*
  * We have two "unpacked cell" structures: one holding holds unpacked cells from internal nodes
