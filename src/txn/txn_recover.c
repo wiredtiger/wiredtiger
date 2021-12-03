@@ -985,8 +985,7 @@ done:
       conn->recovery_patch == 0)
         WT_ERR_MSG(session, WT_ERROR,
           "Upgrading from a WiredTiger version 10.0.0 database that was not shutdown cleanly is "
-          "not allowed. Perform a clean shutdown on version 10.0.0 and then upgrade. WiredTiger "
-          "version 10.0.0 maps to a couple of releases of MongoDB.");
+          "not allowed. Perform a clean shutdown on version 10.0.0 and then upgrade.");
 #endif
 
     WT_ERR(__recovery_set_checkpoint_timestamp(&r));
