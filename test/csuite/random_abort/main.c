@@ -612,21 +612,22 @@ main(int argc, char *argv[])
     WT_RAND_STATE rnd;
     pid_t pid;
     uint32_t i, j, nth, timeout;
-    int ch, status;
+    int ch, status, ret;
     char buf[1024], fname[MAX_RECORD_FILES][64];
     const char *working_dir;
-    bool rand_th, rand_time, verify_only;
+    bool preserve, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
 
     compaction = compat = inmem = false;
     nth = MIN_TH;
+    preserve = false;
     rand_th = rand_time = true;
     timeout = MIN_TIME;
     verify_only = false;
     working_dir = "WT_TEST.random-abort";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "Cch:mT:t:v")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "Cch:mpT:t:v")) != EOF)
         switch (ch) {
         case 'C':
             compat = true;
@@ -639,6 +640,9 @@ main(int argc, char *argv[])
             break;
         case 'm':
             inmem = true;
+            break;
+        case 'p':
+            preserve = true;
             break;
         case 'T':
             rand_th = false;
@@ -754,5 +758,9 @@ main(int argc, char *argv[])
     /*
      * Recover the database and verify whether all the records from all threads are present or not?
      */
-    return recover_and_verify(nth);
+    ret = recover_and_verify(nth);
+    if (ret == EXIT_SUCCESS && !preserve) {
+        testutil_clean_backup_data(home);
+    }
+    return ret;
 }

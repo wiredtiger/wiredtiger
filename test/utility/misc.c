@@ -258,6 +258,22 @@ testutil_copy_data(const char *dir)
 }
 
 /*
+ * testutil_clean_backup_data --
+ *     Delete the backed up data saved in testutil_copy_data.
+ */
+void
+testutil_clean_backup_data(const char *dir)
+{
+    int status;
+    char buf[512];
+
+    testutil_check(__wt_snprintf(buf, sizeof(buf),
+      "rm -rf ../%s.SAVE", dir));
+    if ((status = system(buf)) < 0)
+        testutil_die(status, "system: %s", buf);
+}
+
+/*
  * testutil_timestamp_parse --
  *     Parse a timestamp to an integral value.
  */

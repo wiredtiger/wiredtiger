@@ -903,7 +903,7 @@ main(int argc, char *argv[])
     char buf[512], statname[1024];
     char fname[64], kname[64];
     const char *working_dir;
-    bool fatal, rand_th, rand_time, verify_only;
+    bool fatal, preserve, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
 
@@ -915,12 +915,13 @@ main(int argc, char *argv[])
      */
     use_txn = false;
     nth = MIN_TH;
+    preserve = false;
     rand_th = rand_time = true;
     timeout = MIN_TIME;
     verify_only = false;
     working_dir = "WT_TEST.schema-abort";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "Cch:mT:t:vxz")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "Cch:mpT:t:vxz")) != EOF)
         switch (ch) {
         case 'C':
             compat = true;
@@ -934,6 +935,9 @@ main(int argc, char *argv[])
             break;
         case 'm':
             inmem = true;
+            break;
+        case 'p':
+            preserve = true;
             break;
         case 'T':
             rand_th = false;
@@ -1211,5 +1215,7 @@ main(int argc, char *argv[])
     if (fatal)
         return (EXIT_FAILURE);
     printf("%" PRIu64 " records verified\n", count);
+    if (!preserve)
+        testutil_clean_backup_data(home);
     return (EXIT_SUCCESS);
 }
