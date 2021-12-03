@@ -32,6 +32,31 @@ get_prev_version()
 }
 
 #############################################################
+# get_patch_versions:
+#       arg1: branch name
+#############################################################
+get_patch_versions()
+{
+    # Query out all released patch versions for a given release branch using "git tag"
+    versions=()
+    for v in $(git tag | grep $b | grep -v rc)
+    do
+        versions+=("$v")
+    done
+}
+
+#############################################################
+# get_patch_versions:
+#       arg1: an array of patch versions
+#############################################################
+pick_a_version()
+{
+    # Randomly pick a version from the array of patch versions
+    pv=${versions[$RANDOM % ${#versions[@]} ]}
+    echo "$pv"
+}
+
+#############################################################
 # build_branch:
 #       arg1: branch name
 #############################################################
@@ -127,6 +152,7 @@ create_default_configs()
     for b in `ls`; do
         if [ -d "$b" ]; then
             (create_configs $b)
+            [ -f CONFIG_$b ] && cp -rf CONFIG_$b $b/test/format/
         fi
     done
 }
@@ -171,10 +197,10 @@ run_format()
         # branches for the upgrade/downgrade testing.
         #
         # Compatibility test for older and standalone releases will have the default config.
-        if [ "$newer" = true ]; then
-            config_file="-c CONFIG_${branch_name}"
-        else
+	if [ "${wt_standalone}" = true ] || [ $older = true ]; then
             config_file="-c CONFIG_default"
+        else
+            config_file="-c CONFIG_${branch_name}"
         fi
 
         for am in $2; do
@@ -260,6 +286,7 @@ upgrade_downgrade()
 older=false
 newer=false
 wt_standalone=false
+patch_version=false
 
 # Branches in below 2 arrays should be put in newer-to-older order.
 #
@@ -276,9 +303,14 @@ older_release_branches=(mongodb-4.2 mongodb-4.0 mongodb-3.6)
 # configuration file. 
 compatible_upgrade_downgrade_release_branches=(mongodb-4.4 mongodb-4.2)
 
+# This array is used to configure the release branches we'd like to run patch version
+# upgrade/downgrade test.
+patch_version_upgrade_downgrade_release_branches=(mongodb-4.4)
+
 declare -A scopes
 scopes[newer]="newer stable release branches"
 scopes[older]="older stable release branches"
+scopes[patch_version]="patch versions of the same release branch"
 scopes[wt_standalone]="WiredTiger standalone releases"
 
 #############################################################
@@ -289,6 +321,7 @@ usage()
     echo -e "Usage: \tcompatibility_test_for_releases [-n|-o|-w]"
     echo -e "\t-n\trun compatibility tests for ${scopes[newer]}"
     echo -e "\t-o\trun compatibility tests for ${scopes[older]}"
+    echo -e "\t-p\trun compatibility tests for ${scopes[patch_version]}"
     echo -e "\t-w\trun compatibility tests for ${scopes[wt_standalone]}"
     exit 1
 }
@@ -309,6 +342,12 @@ case $1 in
     older=true
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
     echo "Performing compatibility tests for ${scopes[older]}"
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+;;
+"-p")
+    patch_version=true
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Performing compatibility tests for ${scopes[patch_version]}"
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 ;;
 "-w")
@@ -338,6 +377,16 @@ fi
 if [ "$older" = true ]; then
     for b in ${older_release_branches[@]}; do
         (build_branch $b)
+    done
+fi
+
+if [ "$patch_version" = true ]; then
+    for b in ${patch_version_upgrade_downgrade_release_branches[@]}; do
+        (build_branch $b)
+	# Retrieve all released patch versions of the release branch, and randomly
+	# pick a patch version for compatibility test.
+	cd $b; get_patch_versions; echo $versions; pv=$(pick_a_version); cd ..
+	(build_branch "$pv")
     done
 fi
 
@@ -372,6 +421,11 @@ if [ "$older" = true ]; then
     done
 fi
 
+if [ "${patch_version}" = true ]; then
+    (run_format "$b" "row")
+    (run_format "$pv" "row")
+fi
+
 if [ "${wt_standalone}" = true ]; then
     (run_format "$wt1" "row")
     (run_format "$wt2" "row")
@@ -397,6 +451,10 @@ if [ "$older" = true ]; then
     done
 fi
 
+if [ "${patch_version}" = true ]; then
+    (verify_branches "$b" "$pv" "row" true)
+fi
+
 if [ "${wt_standalone}" = true ]; then
     (verify_branches develop "$wt1" "row" true)
     (verify_branches "$wt1" "$wt2" "row" true)
@@ -413,6 +471,10 @@ if [ "$newer" = true ]; then
         [[ $((i+1)) < ${#newer_release_branches[@]} ]] && \
         (verify_branches ${newer_release_branches[$((i+1))]} ${newer_release_branches[$i]} "row" false)
     done
+fi
+
+if [ "${patch_version}" = true ]; then
+    (verify_branches "$pv" "$b" "row" true)
 fi
 
 # Upgrade/downgrade testing for supported access methods.
