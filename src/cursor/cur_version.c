@@ -158,6 +158,7 @@ __curversion_next(WT_CURSOR *cursor)
     }
 
     if (!upd_found && !F_ISSET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED)) {
+        WT_TIME_WINDOW_INIT(&vpack->tw);
         /*
          * For row store, if the key is on an insert list only there is no ondisk value nor history
          * store value.
@@ -204,7 +205,7 @@ __curversion_next(WT_CURSOR *cursor)
 
             __wt_cursor_set_key(cursor, vpack->tw.start_txn, vpack->tw.start_ts,
               vpack->tw.durable_start_ts, stop_txn, stop_ts, durable_stop_ts, WT_UPDATE_STANDARD,
-              twp->prepare, 0, WT_VERSION_DISK_IMAGE);
+              vpack->tw.prepare, 0, WT_VERSION_DISK_IMAGE);
             cursor->value.data = vpack->data;
             cursor->value.size = vpack->size;
             F_SET(cursor, WT_CURSTD_VALUE_INT);
@@ -220,7 +221,8 @@ __curversion_next(WT_CURSOR *cursor)
          * store versions for the first time.
          */
         if (!F_ISSET(hs_cursor, WT_CURSTD_KEY_INT)) {
-            hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, &cursor->key, WT_TS_MAX, UINT64_MAX);
+            hs_cursor->set_key(
+              hs_cursor, 4, S2BT(session)->id, &cursor->key, WT_TS_MAX, UINT64_MAX);
             WT_ERR(__wt_curhs_search_near_before(session, hs_cursor));
         } else
             WT_ERR(hs_cursor->prev(hs_cursor));

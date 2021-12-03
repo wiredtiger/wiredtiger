@@ -114,3 +114,6 @@ src/txn/txn_ckpt.c:775:19: warning: Although the value stored to 'logging' is us
     full = idle = logging = tracking = use_timestamp = false;
                   ^         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 1 warning generated.
+src/cursor/cur_version.c:209:32: warning: Assigned value is garbage or undefined
+            cursor->value.data = vpack->data;
+                               ^ ~~~~~~~~~~~

@@ -558,7 +558,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
             WT_ERR(__cursor_row_search(cbt, false, cbt->ref, &leaf_found));
             if (leaf_found && cbt->compare == 0) {
                 if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY)) {
-                    WT_RET(__wt_key_return(cbt));
+                    WT_ERR(__wt_key_return(cbt));
                     return (0);
                 }
                 WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
@@ -567,7 +567,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
             WT_ERR(__cursor_col_search(cbt, cbt->ref, &leaf_found));
             if (leaf_found && cbt->compare == 0) {
                 if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY)) {
-                    WT_RET(__wt_key_return(cbt));
+                    WT_ERR(__wt_key_return(cbt));
                     return (0);
                 }
                 WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
@@ -581,7 +581,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
             WT_ERR(__cursor_row_search(cbt, false, NULL, NULL));
             if (cbt->compare == 0) {
                 if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY)) {
-                    WT_RET(__wt_key_return(cbt));
+                    WT_ERR(__wt_key_return(cbt));
                     return (0);
                 }
                 WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
@@ -590,7 +590,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
             WT_ERR(__cursor_col_search(cbt, NULL, NULL));
             if (cbt->compare == 0) {
                 if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY)) {
-                    WT_RET(__wt_key_return(cbt));
+                    WT_ERR(__wt_key_return(cbt));
                     return (0);
                 }
                 WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
