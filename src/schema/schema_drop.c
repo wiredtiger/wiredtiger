@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __drop_file --
- *     Drop a file.
+ * __drop_file_int --
+ *     Drop a single file.
  */
 static int
-__drop_file(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[])
+__drop_file_int(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
@@ -42,6 +42,33 @@ __drop_file(WT_SESSION_IMPL *session, const char *uri, bool force, const char *c
      */
     WT_TRET(__wt_meta_track_drop(session, filename));
 
+    return (ret);
+}
+
+/*
+ * __drop_file --
+ *     Drop a file and its associated history store
+ */
+static int
+__drop_file(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+    char *fileconf, *hs_uri;
+
+    fileconf = hs_uri = NULL;
+
+    /* Read config for target file so we can find id (and hence name) of its history file. */
+    WT_RET(__wt_metadata_search(session, uri, &fileconf));
+    WT_ERR(__wt_config_getones(session, fileconf, "id", &cval));
+    WT_ERR(__wt_hs_uri(session, cval.val, &hs_uri));
+
+    WT_ERR(__drop_file_int(session, uri, force, cfg));
+    WT_ERR(__drop_file_int(session, hs_uri, force, cfg));
+
+err:
+    __wt_free(session, fileconf);
+    __wt_free(session, hs_uri);
     return (ret);
 }
 

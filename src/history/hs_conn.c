@@ -72,6 +72,27 @@ __wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
 }
 
 /*
+ * __wt_hs_uri --
+ *     Given an ID value, generate a history store uri
+ */
+int
+__wt_hs_uri(WT_SESSION_IMPL *session, uint32_t id, char **retp)
+{
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+
+    *retp = NULL;
+
+    WT_RET(__wt_scr_alloc(session, 0, &tmp));
+    WT_ERR(__wt_buf_fmt(session, tmp, "file:WiredTigerHS%010" PRIu32 ".wt", id));
+    WT_ERR(__wt_strndup(session, tmp->data, tmp->size, retp));
+
+err:
+    __wt_scr_free(session, &tmp);
+    return (ret);
+}
+
+/*
  * __wt_hs_config --
  *     Configure the history store table.
  */

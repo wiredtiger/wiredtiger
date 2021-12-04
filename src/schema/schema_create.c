@@ -129,19 +129,23 @@ __create_file(
   WT_SESSION_IMPL *session, const char *uri, bool exclusive, bool import, const char *config)
 {
     WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(buf);
     WT_DECL_ITEM(val);
     WT_DECL_RET;
     const char *filename, **p,
-      *filecfg[] = {WT_CONFIG_BASE(session, file_meta), config, NULL, NULL, NULL, NULL};
-    char *fileconf, *filemeta;
-    uint32_t allocsize;
-    bool exists, import_repair, is_metadata;
+      *filecfg[] = {WT_CONFIG_BASE(session, file_meta), config, NULL, NULL, NULL, NULL},
+      *hscfg[] = {WT_CONFIG_BASE(session, file_meta), WT_HS_CONFIG, NULL, NULL};
+    char *fileconf, *filemeta, *hs_conf, *hs_filename, *hs_uri;
+    uint32_t allocsize, fileid;
+    bool exists, import_repair, is_metadata, is_old_hs;
 
-    fileconf = filemeta = NULL;
+    conn = S2C(session);
+    fileconf = filemeta = hs_conf = hs_filename = hs_uri = NULL;
 
     import_repair = false;
     is_metadata = strcmp(uri, WT_METAFILE_URI) == 0;
+    is_old_hs = strcmp(uri, WT_HS_URI) == 0;
     WT_ERR(__wt_scr_alloc(session, 1024, &buf));
 
     filename = uri;
@@ -170,6 +174,21 @@ __create_file(
         WT_IGNORE_RET(__wt_fs_exist(session, filename, &exists));
         if (exists)
             WT_IGNORE_RET(__wt_fs_remove(session, filename, true));
+    }
+
+    /* We're ready to create the file.  Grab the next file ID; we'll probably use it. */
+    fileid = ++conn->next_file_id;
+
+    if (!is_metadata && !is_old_hs) {
+        /* Set up matching history file. */
+        WT_ERR(__wt_hs_uri(session, fileid, &hs_uri));
+        hs_filename = hs_uri;
+        WT_PREFIX_SKIP(hs_filename, "file:");
+
+        if ((ret = __wt_metadata_search(session, hs_uri, &fileconf)) != WT_NOTFOUND) {
+            WT_TRET(EEXIST);
+            goto err;
+        }
     }
 
     /* Sanity check the allocation size. */
@@ -231,12 +250,11 @@ __create_file(
      * information is reconstructed inside import repair or when grabbing file metadata.
      */
     if (!is_metadata) {
+        WT_ERR(__wt_scr_alloc(session, 0, &val));
         if (!import_repair) {
-            WT_ERR(__wt_scr_alloc(session, 0, &val));
             WT_ERR(__wt_buf_fmt(session, val,
-              "id=%" PRIu32 ",version=(major=%d,minor=%d),checkpoint_lsn=",
-              ++S2C(session)->next_file_id, WT_BTREE_MAJOR_VERSION_MAX,
-              WT_BTREE_MINOR_VERSION_MAX));
+              "id=%" PRIu32 ",version=(major=%d,minor=%d),checkpoint_lsn=", fileid,
+              WT_BTREE_MAJOR_VERSION_MAX, WT_BTREE_MINOR_VERSION_MAX));
             for (p = filecfg; *p != NULL; ++p)
                 ;
             *p = val->data;
@@ -253,6 +271,25 @@ __create_file(
          */
         if (import)
             WT_ERR(__check_imported_ts(session, uri, fileconf));
+
+        /*
+         * Don't create a history file for the old-style history store. Otherwise we can run into
+         * trouble if we need to recreate the old-style history file during recovery but its own
+         * history file exists.
+         */
+        if (!is_old_hs) {
+            /* Sanity check history file's allocation size. */
+            WT_ERR(__wt_direct_io_size_check(session, hscfg, "allocation_size", &allocsize));
+
+            /* Create history file. */
+            WT_ERR(__create_file_block_manager(session, hs_uri, hs_filename, allocsize));
+            WT_ERR(__wt_buf_fmt(session, val,
+              "id=%" PRIu32 ",version=(major=%d,minor=%d),checkpoint_lsn=", ++conn->next_file_id,
+              WT_BTREE_MAJOR_VERSION_MAX, WT_BTREE_MINOR_VERSION_MAX));
+            hscfg[2] = val->data;
+            WT_ERR(__wt_config_collapse(session, hscfg, &hs_conf));
+            WT_ERR(__wt_metadata_insert(session, hs_uri, hs_conf));
+        }
     }
 
     /*
@@ -274,6 +311,7 @@ err:
     __wt_scr_free(session, &val);
     __wt_free(session, fileconf);
     __wt_free(session, filemeta);
+    __wt_free(session, hs_conf);
     return (ret);
 }
 
