@@ -56,7 +56,8 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_C
      * new page.)
      */
     if (__wt_page_del_active(session, ref, true) ||
-      page_del->timestamp >= S2C(session)->txn_global.stable_timestamp)
+      (S2C(session)->txn_global.has_stable_timestamp &&
+        page_del->timestamp >= S2C(session)->txn_global.stable_timestamp))
         *statep = WT_CHILD_PROXY;
     else {
         WT_RET(__wt_ref_block_free(session, ref));
