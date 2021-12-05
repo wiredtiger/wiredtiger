@@ -84,7 +84,7 @@ __wt_hs_uri(WT_SESSION_IMPL *session, uint32_t id, char **retp)
     *retp = NULL;
 
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
-    WT_ERR(__wt_buf_fmt(session, tmp, "file:WiredTigerHS%010" PRIu32 ".wt", id));
+    WT_ERR(__wt_buf_fmt(session, tmp, "file:" WT_HS_PREFIX "%010" PRIu32 ".wt", id));
     WT_ERR(__wt_strndup(session, tmp->data, tmp->size, retp));
 
 err:
@@ -117,6 +117,7 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
 
+#if 0
     WT_ERR(__hs_start_internal_session(session, &tmp_setup_session));
 
     /*
@@ -145,6 +146,7 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
      */
     btree->file_max = (uint64_t)cval.val;
     WT_STAT_CONN_SET(session, cache_hs_ondisk_max, btree->file_max);
+#endif
 
 err:
     if (tmp_setup_session != NULL)
@@ -177,7 +179,7 @@ __wt_hs_open(WT_SESSION_IMPL *session, const char **cfg)
     /* Create the table. */
     WT_RET(__wt_session_create(session, WT_HS_URI, WT_HS_CONFIG));
 
-    WT_RET(__wt_hs_config(session, cfg));
+    //WT_RET(__wt_hs_config(session, cfg));
 
     /* The statistics server is already running, make sure we don't race. */
     WT_WRITE_BARRIER();

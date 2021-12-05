@@ -182,6 +182,10 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
         btree->evict_disabled_open = true;
     }
 
+    /* Logging is not allowed on history store trees */
+    if (F_ISSET(dhandle, WT_DHANDLE_HS))
+        F_SET(btree, WT_BTREE_NO_LOGGING);
+
     if (0) {
 err:
         WT_TRET(__wt_btree_close(session));
@@ -489,7 +493,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     }
 
     /* Set special flags for the history store table. */
-    if (strcmp(session->dhandle->name, WT_HS_URI) == 0) {
+    if (strncmp(session->dhandle->name, WT_HS_PREFIX, strlen(WT_HS_PREFIX)) == 0) {
         F_SET(btree->dhandle, WT_DHANDLE_HS);
         F_SET(btree, WT_BTREE_NO_LOGGING);
     }

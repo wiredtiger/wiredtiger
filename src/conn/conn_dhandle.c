@@ -217,6 +217,9 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
     if (strcmp(uri, WT_METAFILE_URI) == 0)
         F_SET(dhandle, WT_DHANDLE_IS_METADATA);
 
+    if (strstr(uri, WT_HS_PREFIX) != NULL)
+        F_SET(dhandle, WT_DHANDLE_HS);
+
     WT_ERR(__wt_rwlock_init(session, &dhandle->rwlock));
     dhandle->name_hash = __wt_hash_city64(uri, strlen(uri));
     WT_ERR(__wt_strdup(session, uri, &dhandle->name));

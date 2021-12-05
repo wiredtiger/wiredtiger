@@ -1641,9 +1641,13 @@ __rollback_to_stable_btree_apply(
      */
     if ((!dhandle_allocated || !S2BT(session)->modified) && max_durable_ts == WT_TS_NONE &&
       !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
-        WT_ERR(__wt_config_getones(session, config, "id", &cval));
-        btree_id = (uint32_t)cval.val;
-        WT_ERR(__rollback_to_stable_btree_hs_truncate(session, btree_id));
+        /* Multi-history requires a valid session dhandle when opening history cursor. */
+        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
+        if (ret != 0)
+            WT_ERR_MSG(session, ret, "%s: unable to open handle%s", uri,
+              ret == EBUSY ? ", error indicates handle is unavailable due to concurrent use" : "");
+        dhandle_allocated = true;
+        WT_ERR(__rollback_to_stable_btree_hs_truncate(session, S2BT(session)->id));
     }
 
 err:

@@ -31,6 +31,7 @@
 #define WT_METAFILE_URI "file:WiredTiger.wt"  /* Metadata table URI */
 
 #define WT_HS_FILE "WiredTigerHS.wt"     /* History store table */
+#define WT_HS_PREFIX "WiredTigerHS"      /* Common prefix used for all history files */
 #define WT_HS_URI "file:WiredTigerHS.wt" /* History store table URI */
 
 #define WT_SYSTEM_PREFIX "system:"                               /* System URI prefix */
