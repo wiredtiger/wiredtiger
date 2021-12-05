@@ -77,7 +77,6 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
     WT_RET(__curhs_file_cursor_open(session, WT_HS_URI, &cursor));
     WT_RET(cursor->close(cursor));
 
-err:
     return (0);
 }
 
@@ -1116,7 +1115,7 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
     cursor->session = (WT_SESSION *)session;
     cursor->key_format = WT_HS_KEY_FORMAT;
     cursor->value_format = WT_HS_VALUE_FORMAT;
-    
+
     /* Open history cursor for the session dhandle */
     WT_ERR(__wt_hs_uri(session, S2BT(session)->id, &hs_uri));
 

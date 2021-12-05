@@ -179,7 +179,7 @@ __wt_hs_open(WT_SESSION_IMPL *session, const char **cfg)
     /* Create the table. */
     WT_RET(__wt_session_create(session, WT_HS_URI, WT_HS_CONFIG));
 
-    //WT_RET(__wt_hs_config(session, cfg));
+    // WT_RET(__wt_hs_config(session, cfg));
 
     /* The statistics server is already running, make sure we don't race. */
     WT_WRITE_BARRIER();

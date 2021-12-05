@@ -572,7 +572,9 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
 
     /* We should not open other cursors when there are open history store cursors in the session. */
     /* With multi-hs an exception is reading metadata */
-    WT_ASSERT(session, strstr(uri, WT_HS_PREFIX) != NULL || strcmp(uri, WT_METAFILE_URI) == 0 || session->hs_cursor_counter == 0);
+    WT_ASSERT(session,
+      strstr(uri, WT_HS_PREFIX) != NULL || strcmp(uri, WT_METAFILE_URI) == 0 ||
+        session->hs_cursor_counter == 0);
 
     /* We do not cache any subordinate tables/files cursors. */
     if (owner == NULL) {
