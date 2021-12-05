@@ -219,7 +219,7 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
      */
     if (cell_type == WT_CELL_ADDR_DEL && ta->prepare) {
         WT_ASSERT(session, size < WT_CELL_ADDR_DELL_PREPARE_SIZE);
-        size += WT_CELL_ADDR_DELL_PREPARE_SIZE;
+        FLD_SET(size, WT_CELL_ADDR_DELL_PREPARE_SIZE);
     }
     WT_IGNORE_RET(__wt_vpack_uint(&p, 0, (uint64_t)size));
     return (WT_PTRDIFF(p, cell));
@@ -917,9 +917,9 @@ copy_cell_restart:
             (cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0))
             v += WT_CELL_SIZE_ADJUST;
 
-        if (unpack->raw == WT_CELL_ADDR_DEL && v > WT_CELL_ADDR_DELL_PREPARE_SIZE) {
+        if (unpack->raw == WT_CELL_ADDR_DEL && FLD_ISSET(v, WT_CELL_ADDR_DELL_PREPARE_SIZE)) {
+            FLD_CLR(v, WT_CELL_ADDR_DELL_PREPARE_SIZE);
             F_SET(unpack_addr, WT_CELL_UNPACK_ADDR_DEL_PREPARED);
-            v -= WT_CELL_ADDR_DELL_PREPARE_SIZE;
         }
 
         unpack->data = p;

@@ -160,9 +160,9 @@ struct __wt_cell {
  * handle fast-truncate, and nobody noticed until it was too late. We overloaded the internal page
  * aggregated timestamp information to hold the fast-truncate timestamp information, but we still
  * need a prepare flag. Steal a bit from the address size because we know the address cell size is
- * relatively small.
+ * relatively small, it should never have been more than 4KB.
  */
-#define WT_CELL_ADDR_DELL_PREPARE_SIZE 4096
+#define WT_CELL_ADDR_DELL_PREPARE_SIZE 0x01000u
 
 /*
  * We have two "unpacked cell" structures: one holding holds unpacked cells from internal nodes
