@@ -304,15 +304,12 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_STAT_CONN_DATA_INCR(session, cache_read_deleted);
 
     /*
-     * Give the page a modify structure.
+     * Give the page a modify structure. If the tree is already dirty and so will be written, mark
+     * the page dirty. (We want to free the deleted pages, but if the handle is read-only or if the
+     * application never modifies the tree, we're not able to do so.)
      */
     WT_RET(__wt_page_modify_init(session, page));
-
-    /*
-     * We would like to free the deleted pages, but if the tree is newly created, there is nothing
-     * that needs to be freed. Furthermore, if the handle is read-only, we are not able to do so.
-     */
-    if (!btree->original)
+    if (btree->modified)
         __wt_page_modify_set(session, page);
 
     /*
@@ -337,8 +334,9 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * of the update structures we create, so the transaction can abort.
      *
      * Second, a truncate call deleted a page and the truncate committed, but an older transaction
-     * in the system forced us to keep the old version of the page around, then we crashed and
-     * recovered or we're running inside a checkpoint, and now we're being forced to read that page.
+     * or the stable timestamp forced us to keep the old version of the page around, and then we
+     * crashed and recovered or we're running inside a checkpoint, and now we're being forced to
+     * read that page.
      *
      * If there's a page-deleted structure that's not yet globally visible, get a reference and
      * migrate transaction ID and timestamp information to the updates (globally visible means the
