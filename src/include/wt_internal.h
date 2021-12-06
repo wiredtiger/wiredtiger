@@ -32,7 +32,6 @@ extern "C" {
 #endif
 #ifndef _WIN32
 #include <dlfcn.h>
-#include <liburing.h>
 #endif
 #include <errno.h>
 #include <fcntl.h>
@@ -60,6 +59,10 @@ extern "C" {
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#endif
+
+#ifdef HAVE_LIBURING
+#include <liburing.h>
 #endif
 
 /*
