@@ -389,6 +389,9 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
             __handler_failure(session, ret, "error", true);
     }
 
+#if 0
+    /* TURN OFF THIS ERROR MESSAGE, FORMAT IN TRACE MODE EASILY EXCEEDS THE BUFFER */
+
     /*
      * The buffer is fixed sized, complain if we overflow. (The test is for no more bytes remaining
      * in the buffer, so technically we might have filled it exactly.) Be cautious changing this
@@ -397,6 +400,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
     if (ret == 0 && remain == 0)
         __wt_err(
           session, ENOMEM, "error or message truncated: internal WiredTiger buffer too small");
+#endif
 
     if (ret != 0) {
 err:
