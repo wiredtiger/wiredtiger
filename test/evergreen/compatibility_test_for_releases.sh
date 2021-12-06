@@ -438,7 +438,7 @@ esac
 
 # Create a directory in which to do the work.
 top="test-compatibility-run"
-#rm -rf "$top" && mkdir "$top"
+rm -rf "$top" && mkdir "$top"
 cd "$top"
 
 
@@ -478,8 +478,8 @@ fi
 
 if [ "$newer" = true ]; then
     create_configs_for_newer_release_branches
-#else
-    #create_default_configs
+else
+    create_default_configs
 fi
 
 # Run format in each branch for supported access methods.
