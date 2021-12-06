@@ -63,7 +63,7 @@ trace_config(const char *config)
             g.trace_retain = atoi(p + strlen("retain="));
             for (; *p != '='; ++p)
                 *p = ' ';
-            while (__wt_isdigit((u_char) * ++p))
+            for (*p++ = ' '; __wt_isdigit((u_char)*p); ++p)
                 *p = ' ';
             continue;
         }
