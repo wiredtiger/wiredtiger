@@ -197,7 +197,7 @@ run_format()
         # branches for the upgrade/downgrade testing.
         #
         # Compatibility test for older and standalone releases will have the default config.
-	if [ "${wt_standalone}" = true ] || [ $older = true ]; then
+        if [ "${wt_standalone}" = true ] || [ $older = true ]; then
             config_file="-c CONFIG_default"
         else
             config_file="-c CONFIG_${branch_name}"
@@ -216,11 +216,96 @@ run_format()
         done
 }
 
+#############################################################
+# run_test_checkpoint:
+#       arg1: branch name
+#       arg2: access methods list
+#############################################################
+run_test_checkpoint()
+{
+        branch_name=$1
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+        echo "Running test checkpoint in branch: \"$branch_name\""
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
+        cd "$branch_name/test/checkpoint"
+        flags="-W 3 -D -p -x -n 100000 -k 100000 -C cache_size=100MB"
+
+        for am in $2; do
+            dir="RUNDIR.$am"
+            echo "./t running $am access method..."
+            if [ "$am" == "fix" ]; then
+                ./t -t f $flags -h $dir
+            elif [ "$am" == "col" ]; then
+                ./t -t c $flags -h $dir
+            else
+                ./t -t r $flags -h $dir
+            fi
+        done
+}
+
+#############################################################
+# run_tests:
+#       arg1: branch name
+#       arg2: access methods list
+#############################################################
+run_tests()
+{
+    run_format $1 $2
+    run_test_checkpoint $1 $2
+}
+
 EXT="extensions=["
 EXT+="ext/compressors/snappy/.libs/libwiredtiger_snappy.so,"
 EXT+="ext/collators/reverse/.libs/libwiredtiger_reverse_collator.so, "
 EXT+="ext/encryptors/rotn/.libs/libwiredtiger_rotn.so, "
 EXT+="]"
+
+#############################################################
+# verify_test_format:
+#       arg1: branch name #1
+#       arg2: branch name #2
+#       arg3: access methods list
+#       arg4: backward compatibility
+#############################################################
+verify_test_format()
+{
+        cd "$1"
+        for am in $3; do
+            echo "$1/wt verifying $2 access method $am..."
+            dir="$2/test/format/RUNDIR.$am"
+            WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" verify table:wt
+
+            if [ "$4" = true ]; then
+                echo "$1/wt dump and load $2 access method $am..."
+                WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" dump table:wt > dump_wt.txt
+                WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" load -f dump_wt.txt
+            fi
+        done
+}
+
+#############################################################
+# verify_test_checkpoint:
+#       arg1: branch name #1
+#       arg2: branch name #2
+#       arg3: access methods list
+#############################################################
+verify_test_checkpoint()
+{
+        cd "$1"
+        for am in $3; do
+            echo "$1/test/checkpoint/t verifying $2 access method $am..."
+            dir="$2/test/checkpoint/RUNDIR.$am"
+            cp -fr "../$dir" "../$dir.backup"
+            if [ "$am" = "fix" ]; then
+                ./test/checkpoint/t -t f -D -v -h "../$dir"
+            elif [ "$am" = "col" ]; then
+                ./test/checkpoint/t -t c -D -v -h "../$dir"
+            else
+                ./test/checkpoint/t -t r -D -v -h "../$dir"
+            fi
+        done
+}
 
 #############################################################
 # verify_branches:
@@ -235,18 +320,8 @@ verify_branches()
         echo "Release \"$1\" verifying \"$2\""
         echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-        cd "$1"
-        for am in $3; do
-            echo "$1/wt verifying $2 access method $am..."
-            dir="$2/test/format/RUNDIR.$am"
-            WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" verify table:wt
-
-            if [ "$4" = true ]; then
-                echo "$1/wt dump and load $2 access method $am..."
-                WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" dump table:wt > dump_wt.txt
-                WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" load -f dump_wt.txt
-            fi
-        done
+        verify_test_format $1 $2 $3 $4
+        verify_test_checkpoint $1 $2 $3
 }
 
 #############################################################
@@ -363,7 +438,7 @@ esac
 
 # Create a directory in which to do the work.
 top="test-compatibility-run"
-rm -rf "$top" && mkdir "$top"
+#rm -rf "$top" && mkdir "$top"
 cd "$top"
 
 
@@ -403,32 +478,31 @@ fi
 
 if [ "$newer" = true ]; then
     create_configs_for_newer_release_branches
-else
-    create_default_configs
+#else
+    #create_default_configs
 fi
-
 
 # Run format in each branch for supported access methods.
 if [ "$newer" = true ]; then
     for b in ${newer_release_branches[@]}; do
-        (run_format $b "row")
+        (run_tests $b "row")
     done
 fi
 
 if [ "$older" = true ]; then
     for b in ${older_release_branches[@]}; do
-        (run_format $b "fix row var")
+        (run_tests $b "fix row var")
     done
 fi
 
 if [ "${patch_version}" = true ]; then
-    (run_format "$b" "row")
-    (run_format "$pv" "row")
+   (run_tests "$b" "row")
+    (run_tests "$pv" "row")
 fi
 
 if [ "${wt_standalone}" = true ]; then
-    (run_format "$wt1" "row")
-    (run_format "$wt2" "row")
+    (run_tests "$wt1" "row")
+    (run_tests "$wt2" "row")
 fi
 
 # Verify backward compatibility for supported access methods.
