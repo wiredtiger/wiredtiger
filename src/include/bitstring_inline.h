@@ -381,16 +381,20 @@ __bit_clear_end(uint8_t *bitf, uint64_t numentries, uint8_t width)
 	uint64_t byte, firstbit;
         uint8_t mask;
 
+        /* Figure the first bit that's past the end of the data, and get its position. */
 	firstbit = numentries * width;
         byte = __bit_byte(firstbit);
         mask = (uint8_t)__bit_mask(firstbit);
 
-        /* If mask is the first bit of the next byte, we don't need to do anything. */
+        /* If mask is the first bit of the byte, we fit evenly and don't need to do anything. */
         if (mask == 0x01)
             return;
 
-        /* Convert e.g. 0b01000000 to 0b01111111 and use the resulting mask to clear. */
-        mask = (uint8_t)((uint16_t)mask << 1) - 1;
+        /*
+         * We want to clear this bit and up in the byte. Convert first to the bits below this bit,
+         * then flip to get the bits to clear. That is, 0b00000100 -> 0b00000011 -> 0b11111100.
+         */
+        mask = ~(uint8_t)(mask - 1);
         bitf[byte] &= ~mask;
 }
 
@@ -408,11 +412,9 @@ __bit_end_is_clear(const uint8_t *bitf, uint64_t numentries, uint8_t width)
         byte = __bit_byte(firstbit);
         mask = (uint8_t)__bit_mask(firstbit);
 
-        /* If mask is the first bit of the next byte, there's nothing to check. */
         if (mask == 0x01)
             return (true);
 
-        /* Convert e.g. 0b01000000 to 0b01111111 and read with the resulting mask. */
-        mask = (uint8_t)(((uint16_t)mask << 1) - 1);
+        mask = ~(uint8_t)(mask - 1);
         return ((bitf[byte] & mask) == 0);
 }
