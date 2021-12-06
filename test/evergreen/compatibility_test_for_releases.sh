@@ -236,7 +236,7 @@ run_test_checkpoint()
             echo "./t running $am access method..."
             if [ "$am" == "fix" ]; then
                 ./t -t f $flags -h $dir
-            elif [ "$am" == "col" ]; then
+            elif [ "$am" == "var" ]; then
                 ./t -t c $flags -h $dir
             else
                 ./t -t r $flags -h $dir
@@ -299,7 +299,7 @@ verify_test_checkpoint()
             cp -fr "../$dir" "../$dir.backup"
             if [ "$am" = "fix" ]; then
                 ./test/checkpoint/t -t f -D -v -h "../$dir"
-            elif [ "$am" = "col" ]; then
+            elif [ "$am" = "var" ]; then
                 ./test/checkpoint/t -t c -D -v -h "../$dir"
             else
                 ./test/checkpoint/t -t r -D -v -h "../$dir"
@@ -496,8 +496,8 @@ if [ "$older" = true ]; then
 fi
 
 if [ "${patch_version}" = true ]; then
-   (run_tests "$b" "row")
-    (run_tests "$pv" "row")
+    (run_test_checkpoint "$b" "row")
+    (run_test_checkpoint "$pv" "row")
 fi
 
 if [ "${wt_standalone}" = true ]; then
@@ -526,7 +526,7 @@ if [ "$older" = true ]; then
 fi
 
 if [ "${patch_version}" = true ]; then
-    (verify_branches "$b" "$pv" "row" true)
+    (verify_test_checkpoint "$b" "$pv" "row")
 fi
 
 if [ "${wt_standalone}" = true ]; then
@@ -548,7 +548,7 @@ if [ "$newer" = true ]; then
 fi
 
 if [ "${patch_version}" = true ]; then
-    (verify_branches "$pv" "$b" "row" true)
+    (verify_test_checkpoint "$pv" "$b" "row")
 fi
 
 # Upgrade/downgrade testing for supported access methods.
