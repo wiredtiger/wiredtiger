@@ -2007,8 +2007,8 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
       {"thread_group", WT_VERB_THREAD_GROUP}, {"timestamp", WT_VERB_TIMESTAMP},
       {"tiered", WT_VERB_TIERED}, {"transaction", WT_VERB_TRANSACTION}, {"verify", WT_VERB_VERIFY},
       {"version", WT_VERB_VERSION}, {"write", WT_VERB_WRITE}, {NULL, 0}};
-    static const WT_NAME_FLAG jsontypes[] = {{"error", WT_JSON_OUTPUT_ERROR},
-      {"message", WT_JSON_OUTPUT_MESSAGE}, {"progress", WT_JSON_OUTPUT_PROGRESS}, {NULL, 0}};
+    static const WT_NAME_FLAG jsontypes[] = {
+      {"error", WT_JSON_OUTPUT_ERROR}, {"message", WT_JSON_OUTPUT_MESSAGE}, {NULL, 0}};
 
     WT_CONFIG_ITEM cval, sval;
     WT_CONNECTION_IMPL *conn;
@@ -2846,6 +2846,11 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__wt_connection_open(conn, cfg));
     session = conn->default_session;
+
+#ifndef WT_STANDALONE_BUILD
+    /* Explicitly set the flag to indicate whether the database that was not shutdown cleanly. */
+    conn->unclean_shutdown = false;
+#endif
 
     /*
      * This function expects the cache to be created so parse this after the rest of the connection

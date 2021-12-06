@@ -20,8 +20,6 @@ extern bool __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool vi
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_evict_thread_chk(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern bool __wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag, double probability)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_fsync_background_chk(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
@@ -1212,8 +1210,8 @@ extern int __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func
   WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 6, 7)))
     WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
       WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_progress(WT_SESSION_IMPL *session, WT_VERBOSE_CATEGORY category, const char *s,
-  uint64_t v) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_range_truncate(WT_CURSOR *start, WT_CURSOR *stop)
@@ -1242,6 +1240,8 @@ extern int __wt_rec_dictionary_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, u
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_dictionary_lookup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *val,
   WT_REC_DICTIONARY **dpp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_rec_hs_clear_on_tombstone(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint64_t recno,
+  WT_ITEM *rowkey) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_row_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref,
@@ -1946,6 +1946,8 @@ static inline bool __wt_eviction_dirty_needed(WT_SESSION_IMPL *session, double *
 static inline bool __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, bool readonly,
   double *pct_fullp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_eviction_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline bool __wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag, u_int probability)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_isalnum(u_char c) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_isalpha(u_char c) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
