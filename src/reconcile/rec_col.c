@@ -35,6 +35,8 @@ __rec_col_fix_bulk_insert_split_check(WT_CURSOR_BULK *cbulk)
              */
             __wt_rec_incr(
               session, r, cbulk->entry, __bitstr_size((size_t)cbulk->entry * btree->bitcnt));
+            __bit_clear_end(
+              WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem), cbulk->entry, btree->bitcnt);
             WT_RET(__wt_rec_split(session, r, 0));
         }
         cbulk->entry = 0;
