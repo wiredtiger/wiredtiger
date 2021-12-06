@@ -953,12 +953,16 @@ __cell_addr_window_cleanup(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
     if (unpack_addr != NULL) {
         ta = &unpack_addr->ta;
         if (ta->newest_txn != WT_TXN_NONE) {
-            ta->newest_txn = WT_TXN_NONE;
-            F_SET(unpack_addr, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
+            if (!F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID)) {
+                ta->newest_txn = WT_TXN_NONE;
+                F_SET(unpack_addr, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
+            }
         }
         if (ta->newest_stop_txn != WT_TXN_MAX) {
-            ta->newest_stop_txn = WT_TXN_NONE;
-            F_SET(unpack_addr, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
+            if (!F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID)) {
+                ta->newest_stop_txn = WT_TXN_NONE;
+                F_SET(unpack_addr, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
+            }
 
             /*
              * The combination of newest stop timestamp being WT_TS_MAX while the newest stop
@@ -987,12 +991,16 @@ __cell_kv_window_cleanup(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack_kv)
     if (unpack_kv != NULL) {
         tw = &unpack_kv->tw;
         if (tw->start_txn != WT_TXN_NONE) {
-            tw->start_txn = WT_TXN_NONE;
-            F_SET(unpack_kv, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
+            if (!F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID)) {
+                tw->start_txn = WT_TXN_NONE;
+                F_SET(unpack_kv, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
+            }
         }
         if (tw->stop_txn != WT_TXN_MAX) {
-            tw->stop_txn = WT_TXN_NONE;
-            F_SET(unpack_kv, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
+            if (!F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID)) {
+                tw->stop_txn = WT_TXN_NONE;
+                F_SET(unpack_kv, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
+            }
 
             /*
              * The combination of stop timestamp being WT_TS_MAX while the stop transaction not
