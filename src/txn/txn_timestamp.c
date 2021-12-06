@@ -784,7 +784,8 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
     __wt_readlock(session, &txn_global->rwlock);
 
     if (F_ISSET(txn, WT_TXN_TS_READ_BEFORE_OLDEST)) {
-        use_pinned_ts = true;
+        WT_NOT_READ(use_pinned_ts, true); /* Standalone build doesn't use. */
+
         /* Set a flag on the transaction to prevent re-acquiring the read lock. */
         F_SET(txn, WT_TXN_TS_ALREADY_LOCKED);
         ret = __wt_txn_get_pinned_timestamp(session, &ts_oldest, txn->flags);
