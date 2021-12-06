@@ -59,7 +59,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     const WT_PAGE_HEADER *dsk;
     size_t compression_ratio, result_len;
     uint64_t time_diff, time_start, time_stop;
-    bool blkcache_found, expect_conversion, found, skip_cache, timer;
+    bool blkcache_found, expect_conversion, found, skip_cache_put, timer;
 
     blkcache = &S2C(session)->blkcache;
     blkcache_item = NULL;
@@ -68,7 +68,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     compressor = btree->compressor;
     encryptor = btree->kencryptor == NULL ? NULL : btree->kencryptor->encryptor;
     blkcache_found = found = false;
-    skip_cache = blkcache->type == BLKCACHE_UNCONFIGURED;
+    skip_cache_put = blkcache->type == BLKCACHE_UNCONFIGURED;
 
     /*
      * If anticipating a compressed or encrypted block, start with a scratch buffer and convert into
@@ -84,14 +84,14 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     /* Check for mapped blocks. */
     WT_RET(__wt_blkcache_map_read(session, ip, addr, addr_size, &found));
     if (found) {
-        skip_cache = true;
+        skip_cache_put = true;
         if (!expect_conversion)
             goto verify;
     }
 
     /* Check the block cache. */
     if (!found && blkcache->type != BLKCACHE_UNCONFIGURED) {
-        __wt_blkcache_get(session, addr, addr_size, &blkcache_item, &found, &skip_cache);
+        __wt_blkcache_get(session, addr, addr_size, &blkcache_item, &found, &skip_cache_put);
         if (found) {
             blkcache_found = true;
             ip->data = blkcache_item->data;
@@ -153,7 +153,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     }
 
     /* Store the decrypted, possibly compressed, block in the block_cache. */
-    if (!skip_cache)
+    if (!skip_cache_put)
         WT_ERR(__wt_blkcache_put(session, ip, addr, addr_size, false));
 
     dsk = ip->data;

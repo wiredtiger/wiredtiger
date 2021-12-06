@@ -319,13 +319,13 @@ __blkcache_estimate_filesize(WT_SESSION_IMPL *session)
  */
 void
 __wt_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
-  WT_BLKCACHE_ITEM **blkcache_retp, bool *foundp, bool *skip_cachep)
+  WT_BLKCACHE_ITEM **blkcache_retp, bool *foundp, bool *skip_cache_putp)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ITEM *blkcache_item;
     uint64_t bucket, hash;
 
-    *foundp = *skip_cachep = false;
+    *foundp = *skip_cache_putp = false;
     *blkcache_retp = NULL;
 
     blkcache = &S2C(session)->blkcache;
@@ -348,7 +348,7 @@ __wt_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
     if (blkcache->type == BLKCACHE_NVRAM &&
       (__blkcache_estimate_filesize(session) * blkcache->percent_file_in_os_cache) / 100 <
         blkcache->system_ram) {
-        *skip_cachep = true;
+        *skip_cache_putp = true;
         WT_STAT_CONN_INCR(session, block_cache_bypass_get);
         return;
     }
@@ -371,7 +371,7 @@ __wt_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
 
     if (blkcache_item != NULL) {
         *blkcache_retp = blkcache_item;
-        *foundp = *skip_cachep = true;
+        *foundp = *skip_cache_putp = true;
         WT_STAT_CONN_INCR(session, block_cache_hits);
         __blkcache_verbose(session, "block found in cache", hash, addr, addr_size);
     } else {
