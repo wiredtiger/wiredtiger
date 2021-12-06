@@ -757,7 +757,7 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
     WT_TXN_SHARED *txn_shared;
     wt_timestamp_t ts_oldest;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool did_roundup_to_oldest, use_pinned_ts;
+    bool did_roundup_to_oldest;
 
     txn = session->txn;
     txn_global = &S2C(session)->txn_global;
@@ -810,10 +810,10 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
              * error message because that logs a MongoDB error, use an informational message to
              * provide the context instead.
              */
-            use_pinned_ts = F_ISSET(txn, WT_TXN_TS_READ_BEFORE_OLDEST);
             __wt_verbose_notice(session, WT_VERB_TIMESTAMP,
               "read timestamp %s less than the %s timestamp %s",
-              __wt_timestamp_to_string(read_ts, ts_string[0]), use_pinned_ts ? "pinned" : "oldest",
+              __wt_timestamp_to_string(read_ts, ts_string[0]),
+              F_ISSET(txn, WT_TXN_TS_READ_BEFORE_OLDEST) ? "pinned" : "oldest",
               __wt_timestamp_to_string(ts_oldest, ts_string[1]));
 #endif
             return (EINVAL);
