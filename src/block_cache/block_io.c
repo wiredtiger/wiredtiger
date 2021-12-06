@@ -68,7 +68,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     compressor = btree->compressor;
     encryptor = btree->kencryptor == NULL ? NULL : btree->kencryptor->encryptor;
     blkcache_found = found = false;
-    skip_cache_put = blkcache->type == BLKCACHE_UNCONFIGURED;
+    skip_cache_put = (blkcache->type == BLKCACHE_UNCONFIGURED);
 
     /*
      * If anticipating a compressed or encrypted block, start with a scratch buffer and convert into
