@@ -1512,7 +1512,7 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test/csuite/test_rwlock 2>&1
 
-  # Temporarily disabled (WT-5790)
+  # FIXME-WT-8512: The test was temporarily disabled by WT-5790.
   # - name: csuite-wt2246-col-append-test
   #   tags: ["pull_request"]
   #   depends_on:
