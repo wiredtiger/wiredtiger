@@ -523,7 +523,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
             WT_STAT_CONN_INCR(session, block_cache_blocks_removed);
             (void)__wt_atomic_sub64(&blkcache->bytes_used, blkcache_item->data_size);
             blkcache->removals++;
-            WT_ASSERT(session, blkcache_item->ref_count != 0);
+            WT_ASSERT(session, blkcache_item->ref_count == 0);
             __blkcache_free(session, blkcache_item->data);
             __wt_overwrite_and_free(session, blkcache_item);
             __blkcache_verbose(session, "block removed from cache", hash, addr, addr_size);
