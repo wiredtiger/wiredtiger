@@ -640,6 +640,15 @@ functions:
           source venv/bin/activate
           ${python_binary} ../../../bench/perf_run_py/validate_expected_stats.py '${stat_file}' ${comparison_op} '${expected-stats}'
 
+  "verify wt datafiles":
+    - command: shell.exec
+      params:
+        working_dir: "wiredtiger"
+        script: |
+          set -o errexit
+          set -o verbose
+          ./test/evergreen/verify_wt_datafiles.sh 2>&1
+
 #######################################
 #               Variables             #
 #######################################
@@ -2040,13 +2049,7 @@ tasks:
       - func: "fetch artifacts from endian"
         vars:
           endian_format: little-endian
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger"
-          script: |
-            set -o errexit
-            set -o verbose
-            ./test/evergreen/verify_wt_datafiles.sh 2>&1
+      - func: "verify wt datafiles"
 
   - name: verify-datafile-from-little-endian
     depends_on:
@@ -2058,13 +2061,7 @@ tasks:
       - func: "fetch artifacts from endian"
         vars:
           endian_format: little-endian
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger"
-          script: |
-            set -o errexit
-            set -o verbose
-            ./test/evergreen/verify_wt_datafiles.sh 2>&1
+      - func: "verify wt datafiles"
 
   - name: generate-datafile-big-endian
     depends_on:
@@ -2106,13 +2103,7 @@ tasks:
       - func: "fetch artifacts from endian"
         vars:
           endian_format: big-endian
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger"
-          script: |
-            set -o errexit
-            set -o verbose
-            ./test/evergreen/verify_wt_datafiles.sh 2>&1
+      - func: "verify wt datafiles"
 
   - name: verify-datafile-from-big-endian
     depends_on:
@@ -2124,13 +2115,7 @@ tasks:
       - func: "fetch artifacts from endian"
         vars:
           endian_format: big-endian
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger"
-          script: |
-            set -o errexit
-            set -o verbose
-            ./test/evergreen/verify_wt_datafiles.sh 2>&1
+      - func: "verify wt datafiles"
 
   - name: clang-analyzer
     tags: ["pull_request"]
