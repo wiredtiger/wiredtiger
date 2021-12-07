@@ -38,29 +38,17 @@ functions:
       remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${dependent_task|compile}_${build_id}.tgz
       bucket: build_external
       extract_to: wiredtiger
-  "fetch artifacts from little-endian" :
+  "fetch artifacts from endian" :
     - command: s3.get
       params:
         aws_key: ${aws_key}
         aws_secret: ${aws_secret}
-        remote_file: wiredtiger/little-endian/${revision}/artifacts/WT_TEST.tgz
+        remote_file: wiredtiger/${endian_format}/${revision}/artifacts/WT_TEST.tgz
         bucket: build_external
-        local_file: WT_TEST-little-endian.tgz
+        local_file: WT_TEST-${endian_format}.tgz
     - command: archive.targz_extract
       params:
-        path: "WT_TEST-little-endian.tgz"
-        destination: "wiredtiger/build_posix/test/format"
-  "fetch artifacts from big-endian" :
-    - command: s3.get
-      params:
-        aws_key: ${aws_key}
-        aws_secret: ${aws_secret}
-        remote_file: wiredtiger/big-endian/${revision}/artifacts/WT_TEST.tgz
-        bucket: build_external
-        local_file: WT_TEST-big-endian.tgz
-    - command: archive.targz_extract
-      params:
-        path: "WT_TEST-big-endian.tgz"
+        path: "WT_TEST-${endian_format}.tgz"
         destination: "wiredtiger/build_posix/test/format"
   "fetch artifacts from many-coll" :
     - command: s3.get
@@ -2049,7 +2037,9 @@ tasks:
     - name: generate-datafile-little-endian
     commands:
       - func: "fetch artifacts"
-      - func: "fetch artifacts from little-endian"
+      - func: "fetch artifacts from endian"
+        vars:
+          endian_format: little-endian
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
@@ -2065,7 +2055,9 @@ tasks:
       variant: little-endian
     commands:
       - func: "fetch artifacts"
-      - func: "fetch artifacts from little-endian"
+      - func: "fetch artifacts from endian"
+        vars:
+          endian_format: little-endian
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
@@ -2111,7 +2103,9 @@ tasks:
     - name: generate-datafile-big-endian
     commands:
       - func: "fetch artifacts"
-      - func: "fetch artifacts from big-endian"
+      - func: "fetch artifacts from endian"
+        vars:
+          endian_format: big-endian
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
@@ -2127,7 +2121,9 @@ tasks:
       variant: big-endian
     commands:
       - func: "fetch artifacts"
-      - func: "fetch artifacts from big-endian"
+      - func: "fetch artifacts from endian"
+        vars:
+          endian_format: big-endian
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
