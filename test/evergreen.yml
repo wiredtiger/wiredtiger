@@ -2706,7 +2706,7 @@ tasks:
             fi
 
   - name: format-stress-sanitizer-lsm-test
-    # Temporarily disabled (WT-6255)
+    # FIXME-WT-6258: Re-enable the test once the outstanding issues with LSM are resolved.
     # tags: ["stress-test-1"]
     commands:
       - func: "get project"
