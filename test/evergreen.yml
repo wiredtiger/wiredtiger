@@ -2557,14 +2557,14 @@ tasks:
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
           format_test_script_args: -S
 
-  # Replace this test with format-asan-smoke-test after BUILD-10248 fix.
+  # FIXME-WT-8482: Replace this test with format-asan-smoke-test.
   - name: format-asan-smoke-ppc-test
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          # CC is set to the system default "clang" binary here as a workaround. Change it back
-          # to mongodbtoolchain "clang" binary after BUILD-10248 fix.
+          # FIXME-WT-8482: CC is set to the system default "clang" binary here as a workaround.
+          # Change it back to mongodbtoolchain "clang" binary.
           configure_env_vars:
             CCAS=/opt/mongodbtoolchain/v3/bin/gcc CC=/usr/bin/clang
             CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
@@ -2784,7 +2784,7 @@ tasks:
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120
 
-  # Replace this test with format-stress-sanitizer-test after BUILD-10248 fix.
+  # FIXME-WT-8482: Replace this test with format-stress-sanitizer-test.
   - name: format-stress-sanitizer-ppc-test
     tags: ["stress-test-ppc-1"]
     # Set 2.5 hours timeout (60 * 60 * 2.5)
@@ -2793,8 +2793,8 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          # CC is set to the system default "clang" binary here as a workaround. Change it back
-          # to mongodbtoolchain "clang" binary after BUILD-10248 fix.
+          # FIXME-WT-8482: CC is set to the system default "clang" binary here as a workaround.
+          # Change it back to mongodbtoolchain "clang" binary.
           configure_env_vars:
             CCAS=/opt/mongodbtoolchain/v3/bin/gcc CC=/usr/bin/clang
             CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
