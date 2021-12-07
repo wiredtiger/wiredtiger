@@ -1029,8 +1029,8 @@ tasks:
       - func: "cppsuite test"
         vars:
           test_name: base_test
-          test_config_filename: base_test_default.txt
           test_config: debug_mode=(cursor_copy=true)
+          test_config_filename: base_test_default.txt
 
   - name: cppsuite-hs-cleanup-default
     tags: ["pull_request"]
