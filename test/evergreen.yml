@@ -324,6 +324,17 @@ functions:
           cd build_posix
           ${test_env_vars|} ${make_command|make} VERBOSE=1 check ${smp_command|} 2>&1
         fi
+
+  "cppsuite test":
+   - command: shell.exec
+     params:
+       working_dir: "wiredtiger/build_posix/"
+       script: |
+         set -o errexit
+         set -o verbose
+
+         ${test_env_vars|} $(pwd)/test/cppsuite/run -t ${test_name} -C '${test_config_extra}' -f test/cppsuite/configs/${test_config} -l 2
+
   "unit test":
     command: shell.exec
     params:
@@ -1001,14 +1012,11 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t base_test -C 'debug_mode=(cursor_copy=true)' -f test/cppsuite/configs/base_test_default.txt -l 2
+      - func: "cppsuite test"
+        vars:
+          test_name: base_test
+          test_config: base_test_default.txt
+          test_config_extra: debug_mode=(cursor_copy=true)
 
   - name: cppsuite-hs-cleanup-default
     tags: ["pull_request"]
@@ -1016,14 +1024,11 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t hs_cleanup -C 'debug_mode=(cursor_copy=true)' -f test/cppsuite/configs/hs_cleanup_default.txt -l 2
+      - func: "cppsuite test"
+        vars:
+          test_name: hs_cleanup
+          test_config: hs_cleanup_default.txt
+          test_config_extra: debug_mode=(cursor_copy=true)
 
   - name: cppsuite-search-near-01-default
     tags: ["pull_request"]
@@ -1031,14 +1036,10 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_01 -f test/cppsuite/configs/search_near_01_default.txt -l 2
+      - func: "cppsuite test"
+        vars:
+          test_name: search_near_01
+          test_config: search_near_01_default.txt
 
   - name: cppsuite-search-near-02-default
     tags: ["pull_request"]
@@ -1046,99 +1047,71 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/"
-          script: |
-            set -o errexit
-            set -o verbose
+      - func: "cppsuite test"
+        vars:
+          test_name: search_near_02
+          test_config: search_near_02_default.txt
 
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_02 -f test/cppsuite/configs/search_near_02_default.txt -l 2
-  
   - name: cppsuite-search-near-03-default
     tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_03 -f test/cppsuite/configs/search_near_03_default.txt -l 2
+      - func: "cppsuite test"
+        vars:
+          test_name: search_near_03
+          test_config: search_near_03_default.txt
 
   - name: cppsuite-base-test-stress
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/test/cppsuite"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/run -t base_test -f configs/base_test_stress.txt -l 2
+      - func: "cppsuite test"
+        vars:
+          test_name: base_test
+          test_config: base_test_stress.txt
 
   - name: cppsuite-hs-cleanup-stress
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/test/cppsuite"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/run -t hs_cleanup -f configs/hs_cleanup_stress.txt -l 2
+      - func: "cppsuite test"
+        vars:
+          test_name: hs_cleanup
+          test_config: hs_cleanup_stress.txt
   
   - name: cppsuite-search-near-01-stress
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_01 -f test/cppsuite/configs/search_near_01_stress.txt -l 2
+      - func: "cppsuite test"
+        vars:
+          test_name: search_near_01
+          test_config: search_near_01_stress.txt
 
   - name: cppsuite-search-near-02-stress
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_02 -f test/cppsuite/configs/search_near_02_stress.txt -l 2
+      - func: "cppsuite test"
+        vars:
+          test_name: search_near_02
+          test_config: search_near_02_stress.txt
 
   - name: cppsuite-search-near-03-stress
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_03 -f test/cppsuite/configs/search_near_03_stress.txt -l 2
+      - func: "cppsuite test"
+        vars:
+          test_name: search_near_03
+          test_config: search_near_03_stress.txt
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
