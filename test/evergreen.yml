@@ -328,11 +328,10 @@ functions:
   "cppsuite test":
    - command: shell.exec
      params:
-       working_dir: "wiredtiger/build_posix/"
+       working_dir: "wiredtiger/build_posix"
        script: |
          set -o errexit
          set -o verbose
-
          ${test_env_vars|} $(pwd)/test/cppsuite/run -t ${test_name} -C '${test_config}' -f test/cppsuite/configs/${test_config_filename} -l 2
 
   "unit test":
@@ -417,7 +416,7 @@ functions:
   "truncated log test":
     command: shell.exec
     params:
-      working_dir: "wiredtiger/build_posix/"
+      working_dir: "wiredtiger/build_posix"
       script: |
         set -o errexit
         set -o verbose
