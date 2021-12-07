@@ -1027,9 +1027,9 @@ tasks:
       - func: "fetch artifacts"
       - func: "cppsuite test"
         vars:
-          test_name: base_test
           test_config: debug_mode=(cursor_copy=true)
           test_config_filename: test/cppsuite/configs/base_test_default.txt
+          test_name: base_test
 
   - name: cppsuite-hs-cleanup-default
     tags: ["pull_request"]
@@ -1039,9 +1039,9 @@ tasks:
       - func: "fetch artifacts"
       - func: "cppsuite test"
         vars:
-          test_name: hs_cleanup
-          test_config_filename: test/cppsuite/configs/hs_cleanup_default.txt
           test_config: debug_mode=(cursor_copy=true)
+          test_config_filename: test/cppsuite/configs/hs_cleanup_default.txt
+          test_name: hs_cleanup
 
   - name: cppsuite-search-near-default
     tags: ["pull_request"]
@@ -1051,16 +1051,16 @@ tasks:
       - func: "fetch artifacts"
       - func: "cppsuite test"
         vars:
-          test_name: search_near_01
           test_config_filename: test/cppsuite/configs/search_near_01_default.txt
+          test_name: search_near_01
       - func: "cppsuite test"
         vars:
-          test_name: search_near_02
           test_config_filename: test/cppsuite/configs/search_near_02_default.txt
+          test_name: search_near_02
       - func: "cppsuite test"
         vars:
-          test_name: search_near_03
           test_config_filename: test/cppsuite/configs/search_near_03_default.txt
+          test_name: search_near_03
 
   - name: cppsuite-base-test-stress
     depends_on:
@@ -1069,8 +1069,8 @@ tasks:
       - func: "fetch artifacts"
       - func: "cppsuite test"
         vars:
-          test_name: base_test
           test_config_filename: test/cppsuite/configs/base_test_stress.txt
+          test_name: base_test
 
   - name: cppsuite-hs-cleanup-stress
     depends_on:
@@ -1079,8 +1079,8 @@ tasks:
       - func: "fetch artifacts"
       - func: "cppsuite test"
         vars:
-          test_name: hs_cleanup
           test_config_filename: test/cppsuite/configs/hs_cleanup_stress.txt
+          test_name: hs_cleanup
   
   - name: cppsuite-search-near-stress
     depends_on:
@@ -1089,16 +1089,16 @@ tasks:
       - func: "fetch artifacts"
       - func: "cppsuite test"
         vars:
-          test_name: search_near_01
           test_config_filename: test/cppsuite/configs/search_near_01_stress.txt
+          test_name: search_near_01
       - func: "cppsuite test"
         vars:
-          test_name: search_near_02
           test_config_filename: test/cppsuite/configs/search_near_02_stress.txt
+          test_name: search_near_02
       - func: "cppsuite test"
         vars:
-          test_name: search_near_03
           test_config_filename: test/cppsuite/configs/search_near_03_stress.txt
+          test_name: search_near_03
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
