@@ -37,7 +37,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     do_not_clear_txn_id = dump_address = dump_blocks = dump_layout = dump_pages = stable_timestamp =
       false;
     config = dump_offsets = uri = NULL;
-    while ((ch = __wt_getopt(progname, argc, argv, "d:s:t")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "d:st")) != EOF)
         switch (ch) {
         case 'd':
             if (strcmp(__wt_optarg, "dump_address") == 0)
