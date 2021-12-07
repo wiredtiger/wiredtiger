@@ -434,6 +434,7 @@ void wts_reopen(void);
 void wts_salvage(TABLE *, void *);
 void wts_stats(void);
 void wts_verify(WT_CONNECTION *, bool);
+void wts_verify_checkpoint(WT_CONNECTION *, const char *);
 
 /* Backward compatibility to older versions of the WiredTiger library. */
 #if !defined(CUR2S)

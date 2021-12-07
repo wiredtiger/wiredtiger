@@ -285,13 +285,12 @@ wiredtiger_close_session(WT_SESSION *session)
     trace = NULL;
     if ((sap = session->app_private) != NULL) {
         trace = sap->trace;
+	if (trace != NULL)
+	    testutil_check(trace->close(trace, NULL));
         memset(sap, 0, sizeof(*sap));
     }
 
     testutil_check(session->close(session, NULL));
-
-    if (trace != NULL)
-        testutil_check(trace->close(trace, NULL));
 }
 
 /*

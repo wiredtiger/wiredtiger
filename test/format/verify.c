@@ -45,8 +45,8 @@ table_verify(TABLE *table, void *arg)
     testutil_assert(table != NULL);
 
     /*
-     * Verify can return EBUSY if the handle isn't available. Don't yield and retry, in the case of
-     * LSM, the handle may not be available for a long time.
+     * Verify can return EBUSY if the handle isn't available. Eventually quit trying, the handle may
+     * not be available for a long time in the case of LSM.
      */
     memset(&sap, 0, sizeof(sap));
     wiredtiger_open_session(conn, &sap, table->track_prefix, &session);
@@ -95,7 +95,7 @@ table_mirror_row_next(TABLE *table, WT_CURSOR *cursor, WT_ITEM *key, uint64_t *k
  *     Verify a mirrored pair.
  */
 static void
-table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
+table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *checkpoint)
 {
     SAP sap;
     WT_CURSOR *base_cursor, *table_cursor;
@@ -104,19 +104,26 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
     uint64_t base_keyno, table_keyno, rows;
     uint8_t base_bitv, table_bitv;
     int base_ret, table_ret;
-    char track_buf[128];
+    char buf[256];
 
     base_keyno = table_keyno = 0;             /* -Wconditional-uninitialized */
     base_bitv = table_bitv = FIX_VALUE_WRONG; /* -Wconditional-uninitialized */
     base_ret = table_ret = 0;
 
-    testutil_check(
-      __wt_snprintf(track_buf, sizeof(track_buf), "table %u mirror verify", table->id));
-
     memset(&sap, 0, sizeof(sap));
     wiredtiger_open_session(conn, &sap, NULL, &session);
-    wiredtiger_open_cursor(session, base->uri, NULL, &base_cursor);
-    wiredtiger_open_cursor(session, table->uri, NULL, &table_cursor);
+
+    /* Optionally open a checkpoint to verify. */
+    if (checkpoint != NULL)
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "checkpoint=%s", checkpoint));
+    wiredtiger_open_cursor(session, base->uri, checkpoint == NULL ? NULL : buf, &base_cursor);
+    wiredtiger_open_cursor(session, table->uri, checkpoint == NULL ? NULL : buf, &table_cursor);
+
+    testutil_check(__wt_snprintf(buf, sizeof(buf),
+      "table %u %s%s"
+      "mirror verify",
+      table->id, checkpoint == NULL ? "" : checkpoint, checkpoint == NULL ? "" : "checkpoint "));
+    trace_msg(session, "%s: start", buf);
 
     for (rows = 1; rows <= TV(RUNS_ROWS); ++rows) {
         switch (base->type) {
@@ -197,11 +204,12 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
                 memcmp(base_value.data, table_value.data, base_value.size) == 0));
         }
 
-        /* Report on progress. */
-        if ((rows < 5000 && rows % 10 == 0) || rows % 5000 == 0)
-            track(track_buf, rows);
+        /* Report progress (unless verifying checkpoints which happens during live operations). */
+        if (checkpoint == NULL && ((rows < 5000 && rows % 10 == 0) || rows % 5000 == 0))
+            track(buf, rows);
     }
 
+    trace_msg(session, "%s: stop", buf);
     wiredtiger_close_session(session);
 }
 
@@ -235,5 +243,25 @@ wts_verify(WT_CONNECTION *conn, bool mirror_check)
 
     for (i = 1; i <= ntables; ++i)
         if (tables[i]->mirror && tables[i] != g.base_mirror)
-            table_verify_mirror(conn, g.base_mirror, tables[i]);
+            table_verify_mirror(conn, g.base_mirror, tables[i], NULL);
+}
+
+/*
+ * wts_verify_checkpoint --
+ *     Verify the database tables at a checkpoint.
+ */
+void
+wts_verify_checkpoint(WT_CONNECTION *conn, const char *checkpoint)
+{
+    u_int i;
+
+    if (GV(OPS_VERIFY) == 0)
+        return;
+
+    if (g.base_mirror == NULL)
+        return;
+
+    for (i = 1; i <= ntables; ++i)
+        if (tables[i]->mirror && tables[i] != g.base_mirror)
+            table_verify_mirror(conn, g.base_mirror, tables[i], checkpoint);
 }
