@@ -361,14 +361,14 @@ functions:
 
   "cppsuite test":
     command: shell.exec
-      params:
-        # The tests need to be executed in the cppsuite directory as some required libraries have
-        # their paths defined relative to this directory.
-        working_dir: "wiredtiger/build_posix/test/cppsuite"
-        script: |
-          set -o errexit
-          set -o verbose
-          ${test_env_vars|} ./run -t ${test_name} -C '${test_config}' -f ${test_config_filename} -l 2
+    params:
+      # The tests need to be executed in the cppsuite directory as some required libraries have
+      # their paths defined relative to this directory.
+      working_dir: "wiredtiger/build_posix/test/cppsuite"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} ./run -t ${test_name} -C '${test_config}' -f ${test_config_filename} -l 2
 
   "unit test":
     command: shell.exec
