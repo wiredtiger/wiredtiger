@@ -214,6 +214,7 @@ run_format()
             (echo '/^version=/d'
              echo w) | ed -s $dir/WiredTiger.basecfg > /dev/null
         done
+        cd -
 }
 
 #############################################################
@@ -242,6 +243,7 @@ run_test_checkpoint()
                 ./t -t r $flags -h $dir
             fi
         done
+        cd -
 }
 
 #############################################################
@@ -282,6 +284,7 @@ verify_test_format()
                 WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" load -f dump_wt.txt
             fi
         done
+        cd -
 }
 
 #############################################################
@@ -305,6 +308,7 @@ verify_test_checkpoint()
                 ./test/checkpoint/t -t r -D -v -h "../$dir"
             fi
         done
+        cd -
 }
 
 #############################################################
