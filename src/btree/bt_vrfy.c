@@ -29,6 +29,7 @@ typedef struct {
     bool dump_blocks;
     bool dump_layout;
     bool dump_pages;
+    bool hide_data;
 
     /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100];
@@ -71,6 +72,9 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
 
     WT_RET(__wt_config_gets(session, cfg, "dump_pages", &cval));
     vs->dump_pages = cval.val != 0;
+
+    WT_RET(__wt_config_gets(session, cfg, "hide_data", &cval));
+    vs->hide_data = cval.val != 0;
 
     WT_RET(__wt_config_gets(session, cfg, "stable_timestamp", &cval));
     vs->stable_timestamp = WT_TS_NONE; /* Ignored unless a value has been set */
@@ -459,9 +463,9 @@ __verify_tree(
 #ifdef HAVE_DIAGNOSTIC
     /* Optionally dump the blocks or page in debugging mode. */
     if (vs->dump_blocks)
-        WT_RET(__wt_debug_disk(session, page->dsk, NULL));
+        WT_RET(__wt_debug_disk(session, page->dsk, NULL, vs->hide_data));
     if (vs->dump_pages)
-        WT_RET(__wt_debug_page(session, NULL, ref, NULL));
+        WT_RET(__wt_debug_page(session, NULL, ref, NULL, vs->hide_data));
 #endif
 
     /* Column-store key order checks: check the page's record number. */
