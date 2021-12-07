@@ -62,25 +62,6 @@ functions:
       params:
         path: "WT_TEST-big-endian.tgz"
         destination: "wiredtiger/build_posix/test/format"
-  "fetch artifacts from many-coll" :
-    - command: s3.get
-      params:
-        aws_key: ${aws_key}
-        aws_secret: ${aws_secret}
-        remote_file: dbpath_100k_500.tgz
-        bucket: build_external
-        local_file: dbpath_100k_500.tgz
-    - command: shell.exec
-      params:
-        shell: bash
-        script: |
-          set -o errexit
-          set -o verbose
-          mkdir -p mongo-tests/largescale/many-collection/dbpath
-    - command: archive.targz_extract
-      params:
-        path: "dbpath_100k_500.tgz"
-        destination: "mongo-tests/largescale/many-collection/dbpath/."
   "fetch mongo-tests repo" :
     command: shell.exec
     params:
@@ -2899,10 +2880,8 @@ tasks:
       - func: "import wiredtiger into mongo"
       - func: "compile mongodb"
       - func: "fetch mongo-tests repo"
-      # After WT-7868 we can use the following function to retrieve an existing database and remove
-      # the "clean-and-populate" option from the script arguments to skip the initial populating
-      # step.
-      # - func: "fetch artifacts from many-coll"
+      # FIXME-WT-7868: we should download a pre populated database here and remove the
+      # "clean-and-populate" argument in the step below.
       - command: shell.exec
         params:
           working_dir: mongo-tests/largescale
