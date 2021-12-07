@@ -133,6 +133,7 @@ __debug_item_key(WT_DBG *ds, const char *tag, const void *data_arg, size_t size)
     WT_SESSION_IMPL *session;
 
     session = ds->session;
+
     return (ds->f(ds, "\t%s%s{%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
       __wt_key_string(session, data_arg, size, ds->key_format, ds->t1)));
 }
@@ -1416,12 +1417,12 @@ __debug_page_row_leaf(WT_DBG *ds, WT_PAGE *page)
 
     /* Dump the page's K/V pairs. */
     WT_ROW_FOREACH (page, rip, i) {
-
-        WT_RET(__wt_row_leaf_key(session, page, rip, ds->key, false));
         if (F_ISSET(ds, WT_DEBUG_TREE_HIDE_DATA))
             WT_RET(__debug_item_key(ds, "K", "", 0));
-        else
+        else {
+        WT_RET(__wt_row_leaf_key(session, page, rip, ds->key, false));
             WT_RET(__debug_item_key(ds, "K", ds->key->data, ds->key->size));
+        }
 
         __wt_row_leaf_value_cell(session, page, rip, unpack);
         WT_RET(__debug_cell_kv(ds, page, WT_PAGE_ROW_LEAF, "V", unpack));
