@@ -272,6 +272,10 @@ EXT+="]"
 #############################################################
 verify_test_format()
 {
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+        echo "Release \"$1\" format verifying \"$2\""
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
         cd "$1"
         for am in $3; do
             echo "$1/wt verifying $2 access method $am..."
@@ -295,6 +299,10 @@ verify_test_format()
 #############################################################
 verify_test_checkpoint()
 {
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+        echo "Release \"$1\" test checkpoint verifying \"$2\""
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
         cd "$1"
         for am in $3; do
             echo "$1/test/checkpoint/t verifying $2 access method $am..."
@@ -320,12 +328,8 @@ verify_test_checkpoint()
 #############################################################
 verify_branches()
 {
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        echo "Release \"$1\" verifying \"$2\""
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-
-        verify_test_format $1 $2 $3 $4
-        verify_test_checkpoint $1 $2 $3
+    verify_test_format $1 $2 $3 $4
+    verify_test_checkpoint $1 $2 $3
 }
 
 #############################################################
@@ -374,7 +378,7 @@ patch_version=false
 #
 # The 2 arrays should be adjusted over time when newer branches are created,
 # or older branches are EOL.
-newer_release_branches=(develop mongodb-5.0 mongodb-4.4 mongodb-4.2)
+newer_release_branches=(develop mongodb-5.0 mongodb-4.4)
 older_release_branches=(mongodb-4.2 mongodb-4.0 mongodb-3.6)
 
 # This array is used to generate compatible configuration files between releases, because
@@ -495,7 +499,7 @@ fi
 
 if [ "$older" = true ]; then
     for b in ${older_release_branches[@]}; do
-        (run_tests $b "fix row var")
+        (run_format $b "fix row var")
     done
 fi
 
@@ -506,7 +510,7 @@ fi
 
 if [ "${wt_standalone}" = true ]; then
     (run_tests "$wt1" "row")
-    (run_tests "$wt2" "row")
+    (run_format "$wt2" "row")
 fi
 
 # Verify backward compatibility for supported access methods.
@@ -525,7 +529,7 @@ fi
 if [ "$older" = true ]; then
     for i in ${!older_release_branches[@]}; do
         [[ $((i+1)) < ${#older_release_branches[@]} ]] && \
-        (verify_branches ${older_release_branches[$i]} ${older_release_branches[$((i+1))]} "fix row var" true)
+        (verify_test_format ${older_release_branches[$i]} ${older_release_branches[$((i+1))]} "fix row var" true)
     done
 fi
 
@@ -535,7 +539,7 @@ fi
 
 if [ "${wt_standalone}" = true ]; then
     (verify_branches develop "$wt1" "row" true)
-    (verify_branches "$wt1" "$wt2" "row" true)
+    (verify_test_format "$wt1" "$wt2" "row" true)
 fi
 
 # Verify forward compatibility for supported access methods.
