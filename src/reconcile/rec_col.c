@@ -1011,9 +1011,6 @@ __wt_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint
     /* The auxiliary data goes wherever we have been writing it. */
     auxdataoffset = r->aux_start_offset;
 
-    /* This should be at or after the place it goes on a normal-sized page. */
-    WT_ASSERT(session, auxdataoffset >= btree->maxleafpage + WT_COL_FIX_AUXHEADER_RESERVATION);
-
     /* This should also have left sufficient room for the header. */
     WT_ASSERT(session, auxdataoffset >= auxheaderoffset + WT_COL_FIX_AUXHEADER_RESERVATION);
 
