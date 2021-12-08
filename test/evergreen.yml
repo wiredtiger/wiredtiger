@@ -875,7 +875,7 @@ tasks:
           dependent_task: compile-production-disable-shared
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --enable-silent-rules --enable-strict --disable-shared
+          posix_configure_flags: -DENABLE_STRICT=1 -DENABLE_SHARED=0 -DENABLE_STATIC=1
       - func: "make check directory"
         vars:
           directory: examples/c
@@ -890,7 +890,7 @@ tasks:
           dependent_task: compile-production-disable-static
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --enable-silent-rules --enable-strict --disable-static --enable-lz4 --enable-snappy --enable-zlib --enable-zstd --enable-python
+          posix_configure_flags: -DENABLE_SHARED=1 -DENABLE_STATIC=0 -DENABLE_STRICT=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 -DHAVE_BUILTIN_EXTENSION_ZSTD=1 -DENABLE_PYTHON=1
       - func: "make check directory"
         vars:
           directory: examples/c
