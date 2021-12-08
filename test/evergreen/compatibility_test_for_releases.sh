@@ -53,6 +53,7 @@ pick_a_version()
 {
     # Randomly pick a version from the array of patch versions
     pv=${versions[$RANDOM % ${#versions[@]} ]}
+    pversions+=("$pv")
     echo "$pv"
 }
 
@@ -388,7 +389,7 @@ compatible_upgrade_downgrade_release_branches=(mongodb-4.4 mongodb-4.2)
 
 # This array is used to configure the release branches we'd like to run patch version
 # upgrade/downgrade test.
-patch_version_upgrade_downgrade_release_branches=(mongodb-4.4)
+patch_version_upgrade_downgrade_release_branches=(mongodb-5.0 mongodb-4.4)
 
 # This array is used to configure the release branches we'd like to run test checkpoint
 # upgrade/downgrade test.
@@ -468,12 +469,15 @@ if [ "$older" = true ]; then
 fi
 
 if [ "$patch_version" = true ]; then
+    pversions=()
     for b in ${patch_version_upgrade_downgrade_release_branches[@]}; do
         (build_branch $b)
-    # Retrieve all released patch versions of the release branch, and randomly
-    # pick a patch version for compatibility test.
-    cd $b; get_patch_versions; echo $versions; pv=$(pick_a_version); cd ..
-    (build_branch "$pv")
+        # Retrieve all released patch versions of the release branch
+        cd $b; get_patch_versions; echo $versions; pick_a_version; cd ..
+    done
+    # Build picked patch version for compatibility test.
+    for pv in ${pversions[@]}; do
+        (build_branch $pv)
     done
 fi
 
@@ -511,8 +515,12 @@ if [ "$older" = true ]; then
 fi
 
 if [ "${patch_version}" = true ]; then
-    (run_test_checkpoint "$b" "row")
-    (run_test_checkpoint "$pv" "row")
+    for b in ${patch_version_upgrade_downgrade_release_branches[@]}; do
+        (run_test_checkpoint "$b" "row")
+    done
+    for pv in ${pversions[@]}; do
+        (run_test_checkpoint "$pv" "row")
+    done
 fi
 
 if [ "${wt_standalone}" = true ]; then
@@ -545,7 +553,11 @@ if [ "$older" = true ]; then
 fi
 
 if [ "${patch_version}" = true ]; then
-    (verify_test_checkpoint "$b" "$pv" "row")
+    for b in ${patch_version_upgrade_downgrade_release_branches[@]}; do
+        for pv in ${pversions[@]}; do
+            (verify_test_checkpoint "$b" "$pv" "row")
+        done
+    done
 fi
 
 if [ "${wt_standalone}" = true ]; then
@@ -571,7 +583,11 @@ if [ "$newer" = true ]; then
 fi
 
 if [ "${patch_version}" = true ]; then
-    (verify_test_checkpoint "$pv" "$b" "row")
+    for b in ${patch_version_upgrade_downgrade_release_branches[@]}; do
+        for pv in ${pversions[@]}; do
+            (verify_test_checkpoint "$pv" "$b" "row")
+        done
+    done
 fi
 
 # Upgrade/downgrade testing for supported access methods.
