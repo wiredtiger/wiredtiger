@@ -1419,21 +1419,15 @@ tasks:
         vars:
           test_binary: test_rwlock
 
-  # FIXME-WT-8512: The test was temporarily disabled by WT-5790.
-  # - name: csuite-wt2246-col-append-test
-  #   tags: ["pull_request"]
-  #   depends_on:
-  #     - name: compile
-  #   commands:
-  #     - func: "fetch artifacts"
-  #     - command: shell.exec
-  #       params:
-  #         working_dir: "wiredtiger/build_posix"
-  #         script: |
-  #           set -o errexit
-  #           set -o verbose
-
-  #           ${test_env_vars|} $(pwd)/test/csuite/test_wt2246_col_append 2>&1
+  - name: csuite-wt2246-col-append-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite test"
+        vars:
+          test_binary: test_wt2246_col_append
 
   - name: csuite-wt2323-join-visibility-test
     tags: ["pull_request"]
