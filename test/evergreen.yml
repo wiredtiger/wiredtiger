@@ -346,7 +346,7 @@ functions:
 
         if [ "Windows_NT" = "$OS" ]; then
           export "PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH"
-          export "PYTHONPATH=$(pwd)/../lang/python/wiredtiger):$(cygpath -w $(pwd)/../lang/python)"
+          export "PYTHONPATH=$(pwd)/lang/python/wiredtiger):$(cygpath -w $(pwd)/lang/python)"
         fi
         if [ ${is_cmake_build|false} = true ]; then
           cd cmake_build
