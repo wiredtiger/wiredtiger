@@ -11,11 +11,11 @@ set -e
 #############################################################
 bflag()
 {
-        # Return if the branch's format command takes the -B flag for backward compatibility.
-        test "$1" = "develop" && echo "-B "
-        test "$1" = "mongodb-5.0" && echo "-B "
-        test "$1" = "mongodb-4.4" && echo "-B "
-        return 0
+    # Return if the branch's format command takes the -B flag for backward compatibility.
+    test "$1" = "develop" && echo "-B "
+    test "$1" = "mongodb-5.0" && echo "-B "
+    test "$1" = "mongodb-4.4" && echo "-B "
+    return 0
 }
 
 #############################################################
@@ -62,19 +62,19 @@ pick_a_version()
 #############################################################
 build_branch()
 {
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        echo "Building branch: \"$1\""
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Building branch: \"$1\""
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-        git clone --quiet https://github.com/wiredtiger/wiredtiger.git "$1"
-        cd "$1"
-        git checkout --quiet "$1"
+    git clone --quiet https://github.com/wiredtiger/wiredtiger.git "$1"
+    cd "$1"
+    git checkout --quiet "$1"
 
-        config=""
-        config+="--enable-snappy "
-        config+="--disable-standalone-build "
-        (sh build_posix/reconf &&
-            ./configure $config && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
+    config=""
+    config+="--enable-snappy "
+    config+="--disable-standalone-build "
+    (sh build_posix/reconf &&
+        ./configure $config && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
 }
 
 #############################################################
@@ -183,38 +183,38 @@ create_configs_for_newer_release_branches()
 #############################################################
 run_format()
 {
-        branch_name=$1
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        echo "Running format in branch: \"$branch_name\""
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    branch_name=$1
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Running format in branch: \"$branch_name\""
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-        cd "$branch_name/test/format"
-        flags="-1q $(bflag $branch_name)"
+    cd "$branch_name/test/format"
+    flags="-1q $(bflag $branch_name)"
 
-        config_file=""
+    config_file=""
 
-        # Compatibility test for newer releases will have CONFIG file for each release
-        # branches for the upgrade/downgrade testing.
-        #
-        # Compatibility test for older and standalone releases will have the default config.
-        if [ "${wt_standalone}" = true ] || [ $older = true ]; then
-            config_file="-c CONFIG_default"
-        else
-            config_file="-c CONFIG_${branch_name}"
-        fi
+    # Compatibility test for newer releases will have CONFIG file for each release
+    # branches for the upgrade/downgrade testing.
+    #
+    # Compatibility test for older and standalone releases will have the default config.
+    if [ "${wt_standalone}" = true ] || [ $older = true ]; then
+        config_file="-c CONFIG_default"
+    else
+        config_file="-c CONFIG_${branch_name}"
+    fi
 
-        for am in $2; do
-            dir="RUNDIR.$am"
-            echo "./t running $am access method..."
-            ./t $flags ${config_file} -h $dir "file_type=$am"
+    for am in $2; do
+        dir="RUNDIR.$am"
+        echo "./t running $am access method..."
+        ./t $flags ${config_file} -h $dir "file_type=$am"
 
-            # Remove the version string from the base configuration file. (MongoDB does not create
-            # a base configuration file, but format does, so we need to remove its version string
-            # to allow backward compatibility testing.)
-            (echo '/^version=/d'
-             echo w) | ed -s $dir/WiredTiger.basecfg > /dev/null
-        done
-        cd -
+        # Remove the version string from the base configuration file. (MongoDB does not create
+        # a base configuration file, but format does, so we need to remove its version string
+        # to allow backward compatibility testing.)
+        (echo '/^version=/d'
+            echo w) | ed -s $dir/WiredTiger.basecfg > /dev/null
+    done
+    cd -
 }
 
 #############################################################
@@ -224,26 +224,26 @@ run_format()
 #############################################################
 run_test_checkpoint()
 {
-        branch_name=$1
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        echo "Running test checkpoint in branch: \"$branch_name\""
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    branch_name=$1
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Running test checkpoint in branch: \"$branch_name\""
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-        cd "$branch_name/test/checkpoint"
-        flags="-W 3 -D -p -x -n 100000 -k 100000 -C cache_size=100MB"
+    cd "$branch_name/test/checkpoint"
+    flags="-W 3 -D -p -x -n 100000 -k 100000 -C cache_size=100MB"
 
-        for am in $2; do
-            dir="RUNDIR.$am"
-            echo "./t running $am access method..."
-            if [ "$am" == "fix" ]; then
-                ./t -t f $flags -h $dir
-            elif [ "$am" == "var" ]; then
-                ./t -t c $flags -h $dir
-            else
-                ./t -t r $flags -h $dir
-            fi
-        done
-        cd -
+    for am in $2; do
+        dir="RUNDIR.$am"
+        echo "./t running $am access method..."
+        if [ "$am" == "fix" ]; then
+            ./t -t f $flags -h $dir
+        elif [ "$am" == "var" ]; then
+            ./t -t c $flags -h $dir
+        else
+            ./t -t r $flags -h $dir
+        fi
+    done
+    cd -
 }
 
 #############################################################
@@ -272,23 +272,23 @@ EXT+="]"
 #############################################################
 verify_test_format()
 {
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        echo "Release \"$1\" format verifying \"$2\""
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Release \"$1\" format verifying \"$2\""
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-        cd "$1"
-        for am in $3; do
-            echo "$1/wt verifying $2 access method $am..."
-            dir="$2/test/format/RUNDIR.$am"
-            WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" verify table:wt
+    cd "$1"
+    for am in $3; do
+        echo "$1/wt verifying $2 access method $am..."
+        dir="$2/test/format/RUNDIR.$am"
+        WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" verify table:wt
 
-            if [ "$4" = true ]; then
-                echo "$1/wt dump and load $2 access method $am..."
-                WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" dump table:wt > dump_wt.txt
-                WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" load -f dump_wt.txt
-            fi
-        done
-        cd -
+        if [ "$4" = true ]; then
+            echo "$1/wt dump and load $2 access method $am..."
+            WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" dump table:wt > dump_wt.txt
+            WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" load -f dump_wt.txt
+        fi
+    done
+    cd -
 }
 
 #############################################################
@@ -299,24 +299,24 @@ verify_test_format()
 #############################################################
 verify_test_checkpoint()
 {
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        echo "Release \"$1\" test checkpoint verifying \"$2\""
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Release \"$1\" test checkpoint verifying \"$2\""
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-        cd "$1"
-        for am in $3; do
-            echo "$1/test/checkpoint/t verifying $2 access method $am..."
-            dir="$2/test/checkpoint/RUNDIR.$am"
-            cp -fr "../$dir" "../$dir.backup"
-            if [ "$am" = "fix" ]; then
-                ./test/checkpoint/t -t f -D -v -h "../$dir"
-            elif [ "$am" = "var" ]; then
-                ./test/checkpoint/t -t c -D -v -h "../$dir"
-            else
-                ./test/checkpoint/t -t r -D -v -h "../$dir"
-            fi
-        done
-        cd -
+    cd "$1"
+    for am in $3; do
+        echo "$1/test/checkpoint/t verifying $2 access method $am..."
+        dir="$2/test/checkpoint/RUNDIR.$am"
+        cp -fr "../$dir" "../$dir.backup"
+        if [ "$am" = "fix" ]; then
+            ./test/checkpoint/t -t f -D -v -h "../$dir"
+        elif [ "$am" = "var" ]; then
+            ./test/checkpoint/t -t c -D -v -h "../$dir"
+        else
+            ./test/checkpoint/t -t r -D -v -h "../$dir"
+        fi
+    done
+    cd -
 }
 
 #############################################################
@@ -340,29 +340,29 @@ verify_branches()
 #############################################################
 upgrade_downgrade()
 {
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        echo "Upgrade/downgrade testing with \"$1\" and \"$2\""
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Upgrade/downgrade testing with \"$1\" and \"$2\""
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-        cfg_file_branch1=$(get_config_file_name $1)
-        cfg_file_branch2=$(get_config_file_name $2)
+    cfg_file_branch1=$(get_config_file_name $1)
+    cfg_file_branch2=$(get_config_file_name $2)
 
-        # Alternate running each branch format test program on the second branch's build.
-        # Loop twice, that is, run format twice using each branch.
-        top="$PWD"
-        for am in $3; do
-            for reps in {1..2}; do
-                echo "$1 format running on $2 access method $am..."
-                cd "$top/$1/test/format"
-                flags="-1Rq $(bflag $1)"
-                ./t $flags -c "$top/$2/test/format/${cfg_file_branch1}" -h "$top/$2/test/format/RUNDIR.$am" timer=2
+    # Alternate running each branch format test program on the second branch's build.
+    # Loop twice, that is, run format twice using each branch.
+    top="$PWD"
+    for am in $3; do
+        for reps in {1..2}; do
+            echo "$1 format running on $2 access method $am..."
+            cd "$top/$1/test/format"
+            flags="-1Rq $(bflag $1)"
+            ./t $flags -c "$top/$2/test/format/${cfg_file_branch1}" -h "$top/$2/test/format/RUNDIR.$am" timer=2
 
-                echo "$2 format running on $2 access method $am..."
-                cd "$top/$2/test/format"
-                flags="-1Rq $(bflag $2)"
-                ./t $flags -c $cfg_file_branch2 -h "RUNDIR.$am" timer=2
-            done
+            echo "$2 format running on $2 access method $am..."
+            cd "$top/$2/test/format"
+            flags="-1Rq $(bflag $2)"
+            ./t $flags -c $cfg_file_branch2 -h "RUNDIR.$am" timer=2
         done
+    done
 }
 
 # Only one of below flags will be set by the 1st argument of the script.
@@ -470,10 +470,10 @@ fi
 if [ "$patch_version" = true ]; then
     for b in ${patch_version_upgrade_downgrade_release_branches[@]}; do
         (build_branch $b)
-	# Retrieve all released patch versions of the release branch, and randomly
-	# pick a patch version for compatibility test.
-	cd $b; get_patch_versions; echo $versions; pv=$(pick_a_version); cd ..
-	(build_branch "$pv")
+    # Retrieve all released patch versions of the release branch, and randomly
+    # pick a patch version for compatibility test.
+    cd $b; get_patch_versions; echo $versions; pv=$(pick_a_version); cd ..
+    (build_branch "$pv")
     done
 fi
 
