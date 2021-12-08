@@ -115,7 +115,6 @@ RLE
 RedHat
 RepMgr
 Riak
-Riscv
 RocksDB
 Roelofs
 RrVv
@@ -563,6 +562,7 @@ req
 rerequests
 ret
 rf
+riscv
 rmw
 ro
 rotn
