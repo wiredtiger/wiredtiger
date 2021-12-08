@@ -1274,14 +1274,14 @@ __wt_rec_split_grow(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t add_len)
 static void
 __rec_split_fix_shrink(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
-    size_t auxsize, emptysize, primarysize, totalsize;
+    uint32_t auxsize, emptysize, primarysize, totalsize;
     uint8_t *src, *dst;
 
     /* Total size of page. */
-    totalsize = WT_PTRDIFF(r->aux_first_free, r->cur_ptr->image.mem);
+    totalsize = WT_PTRDIFF32(r->aux_first_free, r->cur_ptr->image.mem);
 
     /* Size of the entire primary data area, including headers. */
-    primarysize = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
+    primarysize = WT_PTRDIFF32(r->first_free, r->cur_ptr->image.mem);
 
     /* Size of the empty space. */
     emptysize = r->aux_start_offset - primarysize - WT_COL_FIX_AUXHEADER_RESERVATION;
