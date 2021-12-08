@@ -13,10 +13,10 @@ usage(void)
 {
     static const char *options[] = {"-d config",
       "display underlying information during verification", "-s",
-      "verify against the specified timestamp", NULL, NULL};
+      "verify against the specified timestamp", "-u", "dump the user data", NULL, NULL};
 
     util_usage(
-      "verify [-s] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# | dump_pages] "
+      "verify [-su] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# | dump_pages] "
       "[uri]",
       "options:", options);
 
@@ -30,11 +30,11 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     size_t size;
     int ch;
     char *config, *dump_offsets, *uri;
-    bool dump_address, dump_blocks, dump_layout, dump_pages, hide_data, stable_timestamp;
+    bool dump_address, dump_blocks, dump_layout, dump_pages, dump_data, stable_timestamp;
 
-    dump_address = dump_blocks = dump_layout = dump_pages = hide_data = stable_timestamp = false;
+    dump_address = dump_blocks = dump_layout = dump_pages = dump_data = stable_timestamp = false;
     config = dump_offsets = uri = NULL;
-    while ((ch = __wt_getopt(progname, argc, argv, "d:sh")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "d:su")) != EOF)
         switch (ch) {
         case 'd':
             if (strcmp(__wt_optarg, "dump_address") == 0)
@@ -55,8 +55,8 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             else
                 return (usage());
             break;
-        case 'h':
-            hide_data = true;
+        case 'u':
+            dump_data = true;
             break;
         case 's':
             stable_timestamp = true;
@@ -78,8 +78,8 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         return (1);
 
     if (dump_address || dump_blocks || dump_layout || dump_offsets != NULL || dump_pages ||
-      stable_timestamp || hide_data) {
-        size = strlen("hide_data") + strlen("dump_address,") + strlen("dump_blocks,") +
+      stable_timestamp || dump_data) {
+        size = strlen("dump_data") + strlen("dump_address,") + strlen("dump_blocks,") +
           strlen("dump_layout,") + strlen("dump_pages,") + strlen("dump_offsets[],") +
           (dump_offsets == NULL ? 0 : strlen(dump_offsets)) + strlen("history_store") +
           strlen("stable_timestamp,") + 20;
@@ -91,7 +91,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
                dump_address ? "dump_address," : "", dump_blocks ? "dump_blocks," : "",
                dump_layout ? "dump_layout," : "", dump_offsets != NULL ? "dump_offsets=[" : "",
                dump_offsets != NULL ? dump_offsets : "", dump_offsets != NULL ? "]," : "",
-               dump_pages ? "dump_pages," : "", hide_data ? "hide_data" : "",
+               dump_pages ? "dump_pages," : "", dump_data ? "dump_data," : "",
                stable_timestamp ? "stable_timestamp," : "")) != 0) {
             (void)util_err(session, ret, NULL);
             goto err;

@@ -1699,8 +1699,8 @@ methods = {
         Display the contents of in-memory pages as they are verified,
         using the application's message handler, intended for debugging''',
         type='boolean'),
-    Config('hide_data', 'false', r'''
-        Hide the logging of all the contents that are printed from in-memory pages or on-disk blocks
+    Config('dump_data', 'false', r'''
+        Display the contents of the data when walking onto in-memory pages or on-disk blocks
         as they are verified, using the application's message handler, intended for debugging.''',
         type='boolean'),
     Config('stable_timestamp', 'false', r'''
