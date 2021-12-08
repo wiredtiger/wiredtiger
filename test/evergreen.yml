@@ -2315,18 +2315,18 @@ tasks:
       # random-abort - minimum time, random number of threads
       - func: "csuite test"
         vars:
-          test_binary: test_random_abort
           test_args: -t 10
+          test_binary: test_random_abort
       # random-abort - maximum time, random number of threads
       - func: "csuite test"
         vars:
-          test_binary: test_random_abort
           test_args: -t 40
+          test_binary: test_random_abort
       # random-abort - run compaction
       - func: "csuite test"
         vars:
-          test_binary: test_random_abort
           test_args: -c -t 60
+          test_binary: test_random_abort
 
       # truncated-log
       - func: "csuite test"
