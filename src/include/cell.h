@@ -139,7 +139,7 @@ struct __wt_cell {
      * 36: 4 timestamps		(uint64_t encoding, max 9 bytes)
      * 18: 2 transaction IDs	(uint64_t encoding, max 9 bytes)
      *  9: associated 64-bit value	(uint64_t encoding, max 9 bytes)
-       28: fast-delete information (transaction ID, 2 timestamps, prepare byte)
+     * 28: fast-delete information (transaction ID, 2 timestamps, prepare byte)
      *  5: data length		(uint32_t encoding, max 5 bytes)
      *
      * This calculation is pessimistic: the prefix compression count and 64V value overlap, and the
