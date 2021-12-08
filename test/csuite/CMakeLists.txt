@@ -76,6 +76,8 @@ if (WT_POSIX)
         SOURCES tiered_abort/main.c
         FLAGS "-DWT_STORAGE_LIB=\"ext/storage_sources/local_store/libwiredtiger_local_store.so\""
         BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/tiered_abort
+        ADDITIONAL_FILES
+            ${CMAKE_CURRENT_SOURCE_DIR}/tiered_abort/smoke.sh
     )
 endif()
 
