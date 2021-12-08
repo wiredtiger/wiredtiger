@@ -766,14 +766,14 @@ __debug_dsk_col_fix(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
  */
 int
 __wt_debug_disk(
-  WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, const char *ofile, bool hide_data)
+  WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, const char *ofile, bool dump_data)
 {
     WT_DBG *ds, _ds;
     WT_DECL_RET;
     uint32_t flags;
 
     ds = &_ds;
-    flags = hide_data ? WT_DEBUG_DUMP_DATA : 0;
+    flags = dump_data ? WT_DEBUG_DUMP_DATA : 0;
     WT_RET(__debug_config(session, ds, ofile, flags));
 
     WT_ERR(ds->f(ds, "%s page", __wt_page_type_string(dsk->type)));
@@ -939,7 +939,7 @@ __wt_debug_tree_all(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char 
         btree = S2BT(session);
 
     WT_WITH_BTREE(session, btree,
-      ret = __debug_tree(session, ref, ofile, WT_DEBUG_TREE_LEAF | WT_DEBUG_TREE_WALK));
+      ret = __debug_tree(session, ref, ofile, WT_DEBUG_DUMP_DATA | WT_DEBUG_TREE_LEAF | WT_DEBUG_TREE_WALK));
     return (ret);
 }
 
@@ -960,7 +960,7 @@ __wt_debug_tree(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofi
     if (btree == NULL)
         btree = S2BT(session);
 
-    WT_WITH_BTREE(session, btree, ret = __debug_tree(session, ref, ofile, WT_DEBUG_TREE_WALK));
+    WT_WITH_BTREE(session, btree, ret = __debug_tree(session, ref, ofile, WT_DEBUG_DUMP_DATA | WT_DEBUG_TREE_WALK));
     return (ret);
 }
 
@@ -969,14 +969,14 @@ __wt_debug_tree(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofi
  *     Dump the in-memory information for a page.
  */
 int
-__wt_debug_page(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofile, bool hide_data)
+__wt_debug_page(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofile, bool dump_data)
 {
     WT_DBG *ds, _ds;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint32_t flags;
 
-    flags = hide_data ? WT_DEBUG_TREE_LEAF | WT_DEBUG_DUMP_DATA : WT_DEBUG_TREE_LEAF;
+    flags = dump_data ? WT_DEBUG_DUMP_DATA | WT_DEBUG_TREE_LEAF : WT_DEBUG_TREE_LEAF;
 
     /*
      * Allow an explicit btree as an argument, as one may not yet be set on the session.
