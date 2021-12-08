@@ -2210,7 +2210,7 @@ tasks:
           test_binary: timestamp_abort
       - func: "csuite smoke test"
         vars:
-          test_binary: test_truncated_log
+          test_binary: truncated_log
 
   - name: long-test
     commands:
