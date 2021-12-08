@@ -5,6 +5,8 @@ create_test_executable(test_checkpoint
         checkpointer.c
         workers.c
         test_checkpoint.c
+    ADDITIONAL_FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/recovery-test.sh
 )
 
 define_test_variants(test_checkpoint
