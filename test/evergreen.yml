@@ -169,41 +169,49 @@ functions:
     - *configure_wiredtiger
     - command: shell.exec
       params:
-        working_dir: "wiredtiger/build_posix"
+        working_dir: "wiredtiger/cmake_build"
         shell: bash
         script: |
           set -o errexit
           set -o verbose
-          echo '#undef HAVE_FTRUNCATE' >> wiredtiger_config.h
+          echo '#undef HAVE_FTRUNCATE' >> config/wiredtiger_config.h
     - *make_wiredtiger
   "compile wiredtiger address sanitizer":
     - command: shell.exec
       params:
-        working_dir: "wiredtiger/build_posix"
+        working_dir: "wiredtiger"
         shell: bash
         script: |
           set -o errexit
           set -o verbose
-          sh reconf
           if [ "$OS" != "Windows_NT" ]; then
-            CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer -fsanitize=address" CXXFLAGS="-fsanitize=address -fno-omit-frame-pointer -ggdb -fPIC" \
-              ../configure ${configure_python_setting|} \
-              --enable-diagnostic --with-builtins=lz4,snappy,zlib,zstd
+            . test/evergreen/find_cmake.sh
+            if [ -d cmake_build ]; then rm -r cmake_build; fi
+            mkdir -p cmake_build
+            cd cmake_build
+            $CMAKE -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_clang.cmake -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1 \
+              -DHAVE_DIAGNOSTIC=1 -DCMAKE_BUILD_TYPE=ASan \
+              -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 ${configure_python_setting|} \
+              -G "${cmake_generator|Ninja}" ../.
           fi
     - *make_wiredtiger
   "compile wiredtiger with builtins":
     - command: shell.exec
       params:
-        working_dir: "wiredtiger/build_posix"
+        working_dir: "wiredtiger"
         shell: bash
         script: |
           set -o errexit
           set -o verbose
-          sh reconf
           if [ "$OS" != "Windows_NT" ]; then
-            CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC" \
-              ../configure ${configure_python_setting|} \
-              --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
+            . test/evergreen/find_cmake.sh
+            if [ -d cmake_build ]; then rm -r cmake_build; fi
+            mkdir -p cmake_build
+            cd cmake_build
+            $CMAKE -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1 \
+              -DHAVE_DIAGNOSTIC=1 -DENABLE_STRICT=1  \
+              -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 ${configure_python_setting|} \
+              -G "${cmake_generator|Ninja}" ../.
           fi
     - *make_wiredtiger
   "compile wiredtiger docs":
@@ -751,7 +759,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --enable-silent-rules --enable-strict --disable-shared
+          posix_configure_flags: -DENABLE_STRICT=1 -DENABLE_SHARED=0 -DENABLE_STATIC=1
       - func: "upload artifact"
       - func: "cleanup"
 
@@ -762,16 +770,16 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --enable-silent-rules --enable-strict --disable-static --enable-lz4 --enable-snappy --enable-zlib --enable-zstd --enable-python
+          posix_configure_flags: -DENABLE_SHARED=1 -DENABLE_STATIC=0 -DENABLE_STRICT=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 -DHAVE_BUILTIN_EXTENSION_ZSTD=1 -DENABLE_PYTHON=1
       - func: "upload artifact"
       - func: "cleanup"
 
   - name: compile-linux-no-ftruncate
     commands:
       - func: "get project"
-      - func: "compile wiredtiger no linux ftruncate"
+      - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-python
+          posix_configure_flags: -DHAVE_DIAGNOSTIC=1 -DENABLE_STRICT=1 -DENABLE_PYTHON=1 -DHAVE_FTRUNCATE=0
       - func: "upload artifact"
       - func: "cleanup"
 
@@ -780,7 +788,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --enable-strict --enable-diagnostic
+          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1
       - func: "upload artifact"
       - func: "cleanup"
 
