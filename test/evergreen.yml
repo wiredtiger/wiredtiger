@@ -1731,13 +1731,6 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
 
-  - name: unit-test-with-compile
-    tags: ["python"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - func: "unit test"
-
   - name: unit-test-zstd
     tags: ["python"]
     depends_on:
@@ -4211,7 +4204,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
-    - name: unit-test-with-compile
+    - name: unit-test
     - name: fops
 
 - name: macos-1014-cmake
