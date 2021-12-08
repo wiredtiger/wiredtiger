@@ -579,7 +579,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${test_env_vars|} test/csuite/${test_binary}/smoke.sh ${test_args|} 2>&1
+        ${test_env_vars|} test/csuite/${test_name}/smoke.sh ${test_args|} 2>&1
 
   "run-perf-test":
     # Run a performance test
@@ -1112,7 +1112,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "csuite smoke test"
         vars:
-          test_binary: random_abort
+          test_name: random_abort
 
   - name: csuite-random-directio-test
     tags: ["pull_request"]
@@ -1122,7 +1122,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "csuite smoke test"
         vars:
-          test_binary: random_directio
+          test_name: random_directio
 
   - name: csuite-schema-abort-test
     tags: ["pull_request"]
@@ -1132,7 +1132,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "csuite smoke test"
         vars:
-          test_binary: schema_abort
+          test_name: schema_abort
 
   - name: csuite-tiered-abort-test
     tags: ["pull_request"]
@@ -1142,7 +1142,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "csuite smoke test"
         vars:
-          test_binary: tiered_abort
+          test_name: tiered_abort
 
   - name: csuite-timestamp-abort-test
     tags: ["pull_request"]
@@ -1152,7 +1152,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "csuite smoke test"
         vars:
-          test_binary: timestamp_abort
+          test_name: timestamp_abort
 
   - name: csuite-timestamp-abort-stress-test
     tags: ["pull_request"]
@@ -1163,7 +1163,7 @@ tasks:
       - func: "csuite smoke test"
         vars:
           test_args: -s
-          test_binary: timestamp_abort
+          test_name: timestamp_abort
 
   - name: csuite-scope-test
     tags: ["pull_request"]
@@ -2208,7 +2208,7 @@ tasks:
             ${test_env_vars|} $(pwd)/test/csuite/test_truncated_log 2>&1
       - func: "csuite smoke test"
         vars:
-          test_binary: timestamp_abort
+          test_name: timestamp_abort
 
   - name: long-test
     commands:
