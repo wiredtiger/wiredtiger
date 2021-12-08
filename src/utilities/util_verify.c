@@ -13,7 +13,9 @@ usage(void)
 {
     static const char *options[] = {"-d config",
       "display underlying information during verification", "-s",
-      "verify against the specified timestamp", "-u", "dump the user data", NULL, NULL};
+      "verify against the specified timestamp", "-u",
+      "display the user data when dumping with configuration dump_blocks or dump_pages", NULL,
+      NULL};
 
     util_usage(
       "verify [-su] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# | dump_pages] "

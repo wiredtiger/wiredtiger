@@ -939,7 +939,8 @@ __wt_debug_tree_all(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char 
         btree = S2BT(session);
 
     WT_WITH_BTREE(session, btree,
-      ret = __debug_tree(session, ref, ofile, WT_DEBUG_DUMP_DATA | WT_DEBUG_TREE_LEAF | WT_DEBUG_TREE_WALK));
+      ret = __debug_tree(
+        session, ref, ofile, WT_DEBUG_DUMP_DATA | WT_DEBUG_TREE_LEAF | WT_DEBUG_TREE_WALK));
     return (ret);
 }
 
@@ -960,7 +961,8 @@ __wt_debug_tree(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofi
     if (btree == NULL)
         btree = S2BT(session);
 
-    WT_WITH_BTREE(session, btree, ret = __debug_tree(session, ref, ofile, WT_DEBUG_DUMP_DATA | WT_DEBUG_TREE_WALK));
+    WT_WITH_BTREE(session, btree,
+      ret = __debug_tree(session, ref, ofile, WT_DEBUG_DUMP_DATA | WT_DEBUG_TREE_WALK));
     return (ret);
 }
 
