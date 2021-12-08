@@ -365,7 +365,7 @@ functions:
   "format test":
     command: shell.exec
     params:
-      working_dir: "wiredtiger/build_posix/test/format"
+      working_dir: "wiredtiger/cmake_build/test/format"
       script: |
         set -o errexit
         set -o verbose
@@ -375,7 +375,7 @@ functions:
   "format test script":
     command: shell.exec
     params:
-      working_dir: "wiredtiger/test/format"
+      working_dir: "wiredtiger/cmake_build/test/format"
       script: |
         set -o errexit
         set -o verbose
