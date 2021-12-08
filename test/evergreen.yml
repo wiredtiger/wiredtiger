@@ -561,14 +561,14 @@ functions:
   "checkpoint stress test":
     command: shell.exec
     params:
-      working_dir: "wiredtiger/build_posix/test/checkpoint"
+      working_dir: "wiredtiger/cmake_build/test/checkpoint"
       shell: bash
       script: |
         set -o errexit
         set -o verbose
 
         export WIREDTIGER_CONFIG='checkpoint_sync=0,transaction_sync=(method=none)'
-        CMD='./t -h WT_TEST.$i.$t -t r -r 2 -W 3 -n 1000000 -k 1000000 -C "cache_size=100MB"'
+        CMD='./test_checkpoint -h WT_TEST.$i.$t -t r -r 2 -W 3 -n 1000000 -k 1000000 -C "cache_size=100MB"'
 
         for i in $(seq ${times|1}); do
           for t in $(seq ${no_of_procs|1}); do
