@@ -584,6 +584,15 @@ functions:
           set -o verbose
           test/evergreen/compatibility_test_for_releases.sh ${compat_test_args}
 
+  "csuite smoke test":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} test/csuite/${test_name}/smoke.sh ${test_args|} 2>&1
+
   "run-perf-test":
     # Run a performance test
     # Parameterised using the 'perf-test-name' and 'maxruns' variables
@@ -1103,14 +1112,9 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/../test/csuite/random_abort/smoke.sh 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_name: random_abort
 
   - name: csuite-random-directio-test
     tags: ["pull_request"]
@@ -1118,14 +1122,9 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/../test/csuite/random_directio/smoke.sh 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_name: random_directio
 
   - name: csuite-schema-abort-test
     tags: ["pull_request"]
@@ -1133,14 +1132,9 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/../test/csuite/schema_abort/smoke.sh 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_name: schema_abort
 
   - name: csuite-tiered-abort-test
     tags: ["pull_request"]
@@ -1148,14 +1142,9 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/../test/csuite/tiered_abort/smoke.sh 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_name: tiered_abort
 
   - name: csuite-timestamp-abort-test
     tags: ["pull_request"]
@@ -1163,14 +1152,9 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_name: timestamp_abort
 
   - name: csuite-timestamp-abort-stress-test
     tags: ["pull_request"]
@@ -1178,14 +1162,10 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh -s 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_args: -s
+          test_name: timestamp_abort
 
   - name: csuite-scope-test
     tags: ["pull_request"]
@@ -2214,8 +2194,10 @@ tasks:
             set -o errexit
             set -o verbose
             # ${test_env_vars|} $(pwd)/../test/csuite/random_abort/smoke.sh 2>&1
-            ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
             ${test_env_vars|} $(pwd)/test/csuite/test_truncated_log 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_name: timestamp_abort
 
   - name: long-test
     commands:
