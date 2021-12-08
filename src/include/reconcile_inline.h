@@ -332,8 +332,9 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
     val = &r->v;
 
     /*
-     * Caller includes a timestamp window in the case of fast-delete proxy cells, which both flags
-     * the fast-delete case and provides the cell's timestamp information.
+     * Caller includes fast-delete information in the case of fast-delete proxy cells, which both
+     * flags the fast-delete case and provides the additional information written in the parent's
+     * address cell.
      */
     if (vpack == NULL) {
         switch (addr->type) {
