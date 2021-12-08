@@ -190,12 +190,38 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
 }
 
 /*
+ * __cell_pack_addr_del --
+ *     Pack the fast-delete information for an address.
+ */
+static inline void
+__cell_pack_addr_del(uint8_t **pp, WT_PAGE_DELETED *page_del, u_int cell_type)
+{
+    uint8_t v;
+
+    WT_IGNORE_RET(__wt_vpack_uint(pp, 0, page_del->txnid));
+    WT_IGNORE_RET(__wt_vpack_uint(pp, 0, page_del->timestamp));
+    WT_IGNORE_RET(__wt_vpack_uint(pp, 0, page_del->durable_timestamp));
+
+    /*
+     * There's two additional bits of information: is the fast-delete prepared, and are we replacing
+     * a leaf without overflow items or not. (There are 6 additional bits here for later.)
+     */
+    v = 0;
+    if (cell_type == WT_CELL_ADDR_LEAF_NO)
+        FLD_SET(v, WT_CELL_ADDR_DEL_LEAF_NO);
+    if (page_del->prepare_state != 0)
+        FLD_SET(v, WT_CELL_ADDR_DEL_PREPARE);
+    **pp = v;
+    ++*pp;
+}
+
+/*
  * __wt_cell_pack_addr --
  *     Pack an address cell.
  */
 static inline size_t
 __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, uint64_t recno,
-  WT_TIME_AGGREGATE *ta, size_t size)
+  WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, size_t size)
 {
     uint8_t *p;
 
@@ -205,6 +231,16 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
 
     __cell_pack_addr_validity(session, &p, ta);
 
+    /*
+     * If passed fast-delete information, override the cell type and append the fast-delete
+     * information after the aggregated timestamp information.
+     */
+    if (page_del != NULL) {
+        WT_ASSERT(session, cell_type == WT_CELL_ADDR_LEAF || cell_type == WT_CELL_ADDR_LEAF_NO);
+        __cell_pack_addr_del(&p, page_del, cell_type);
+        cell_type = WT_CELL_ADDR_DEL;
+    }
+
     if (recno == WT_RECNO_OOB)
         cell->__chunk[0] |= (uint8_t)cell_type; /* Type */
     else {
@@ -213,14 +249,7 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, recno));
     }
 
-    /*
-     * Pack the data length. We need a bit to tell us if a fast-truncate proxy cell is prepared,
-     * steal one from the size.
-     */
-    if (cell_type == WT_CELL_ADDR_DEL && ta->prepare) {
-        WT_ASSERT(session, size < WT_CELL_ADDR_DELL_PREPARE_SIZE);
-        FLD_SET(size, WT_CELL_ADDR_DELL_PREPARE_SIZE);
-    }
+    /* Length */
     WT_IGNORE_RET(__wt_vpack_uint(&p, 0, (uint64_t)size));
     return (WT_PTRDIFF(p, cell));
 }
@@ -679,6 +708,7 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
         WT_TIME_WINDOW tw;
     } copy;
     WT_CELL_UNPACK_COMMON *unpack;
+    WT_PAGE_DELETED *page_del;
     WT_TIME_AGGREGATE *ta;
     WT_TIME_WINDOW *tw;
     uint64_t v;
@@ -776,6 +806,7 @@ copy_cell_restart:
         if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
             break;
         flags = *p++; /* skip second descriptor byte */
+        WT_CELL_LEN_CHK(p, 0);
 
         if (LF_ISSET(WT_CELL_PREPARE))
             ta->prepare = 1;
@@ -819,6 +850,7 @@ copy_cell_restart:
         if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
             break;
         flags = *p++; /* skip second descriptor byte */
+        WT_CELL_LEN_CHK(p, 0);
 
         if (LF_ISSET(WT_CELL_PREPARE))
             tw->prepare = 1;
@@ -852,6 +884,21 @@ copy_cell_restart:
 
         WT_RET(__cell_check_value_validity(session, tw, end != NULL));
         break;
+    }
+
+    /* Unpack any fast-delete information. */
+    if (unpack->raw == WT_CELL_ADDR_DEL) {
+        page_del = &unpack_addr->page_del;
+        WT_RET(__wt_vunpack_uint(
+          &p, end == NULL ? 0 : WT_PTRDIFF(end, p), (uint64_t *)&page_del->txnid));
+        WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->timestamp));
+        WT_RET(__wt_vunpack_uint(
+          &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->durable_timestamp));
+        page_del->prepare_state = FLD_ISSET(*p, WT_CELL_ADDR_DEL_PREPARE) ? 1 : 0;
+        unpack_addr->page_del_cell =
+          FLD_ISSET(*p, WT_CELL_ADDR_DEL_LEAF_NO) ? WT_CELL_ADDR_LEAF_NO : WT_CELL_ADDR_LEAF;
+        ++p;
+        WT_CELL_LEN_CHK(p, 0);
     }
 
     /*
@@ -916,11 +963,6 @@ copy_cell_restart:
           (unpack->raw == WT_CELL_VALUE && unpack->v == 0 &&
             (cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0))
             v += WT_CELL_SIZE_ADJUST;
-
-        if (unpack->raw == WT_CELL_ADDR_DEL && FLD_ISSET(v, WT_CELL_ADDR_DELL_PREPARE_SIZE)) {
-            FLD_CLR(v, WT_CELL_ADDR_DELL_PREPARE_SIZE);
-            F_SET(unpack_addr, WT_CELL_UNPACK_ADDR_DEL_PREPARED);
-        }
 
         unpack->data = p;
         unpack->size = (uint32_t)v;

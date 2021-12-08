@@ -274,31 +274,6 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 }
 
 /*
- * __rec_row_int_update_ft_ts --
- *     Merge the fast-truncates timestamp information into the existing page's aggregated timestamp
- *     information.
- */
-static void
-__rec_row_int_update_ft_ts(
-  WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta, WT_PAGE_DELETED *page_del)
-{
-    WT_ASSERT(session, ta->newest_stop_durable_ts <= page_del->durable_timestamp);
-    ta->newest_stop_durable_ts = page_del->durable_timestamp;
-
-    WT_ASSERT(session, ta->newest_txn < page_del->txnid);
-    ta->newest_txn = page_del->txnid;
-
-    WT_ASSERT(session, ta->newest_stop_ts == WT_TS_MAX || ta->newest_stop_ts < page_del->timestamp);
-    ta->newest_stop_ts = page_del->timestamp;
-
-    WT_ASSERT(session, ta->newest_stop_txn == WT_TXN_MAX || ta->newest_stop_txn < page_del->txnid);
-    ta->newest_stop_txn = page_del->txnid;
-
-    if (page_del->prepare_state == WT_PREPARE_INPROGRESS)
-        ta->prepare = 1;
-}
-
-/*
  * __wt_rec_row_int --
  *     Reconcile a row-store internal page.
  */
@@ -422,30 +397,26 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * off-page WT_ADDR structure.
          */
         if (__wt_off_page(page, addr)) {
+            __wt_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB,
+              state == WT_CHILD_PROXY ? ref->ft_info.del : NULL);
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
-            if (state == WT_CHILD_PROXY)
-                __rec_row_int_update_ft_ts(session, &ta, ref->ft_info.del);
-            __wt_rec_cell_build_addr(
-              session, r, addr, NULL, WT_RECNO_OOB, state == WT_CHILD_PROXY ? &ta : NULL);
         } else {
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
-            WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
             if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED) || state == WT_CHILD_PROXY) {
                 /*
                  * The transaction ids are cleared after restart. Repack the cell with new validity
                  * to flush the cleared transaction ids. The other use is proxy cells where we need
-                 * a different timestamp to be written for the address.
+                 * to write additional information into the address cell.
                  */
-                if (state == WT_CHILD_PROXY)
-                    __rec_row_int_update_ft_ts(session, &ta, ref->ft_info.del);
-                __wt_rec_cell_build_addr(
-                  session, r, NULL, vpack, WT_RECNO_OOB, state == WT_CHILD_PROXY ? &ta : NULL);
+                __wt_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB,
+                  state == WT_CHILD_PROXY ? ref->ft_info.del : NULL);
             } else {
                 val->buf.data = ref->addr;
                 val->buf.size = __wt_cell_total_len(vpack);
                 val->cell_len = 0;
                 val->len = val->buf.size;
             }
+            WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
         }
         WT_CHILD_RELEASE_ERR(session, hazard, ref);
 

@@ -323,9 +323,10 @@ __wt_rec_auximage_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t count
  */
 static inline void
 __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *addr,
-  WT_CELL_UNPACK_ADDR *vpack, uint64_t recno, WT_TIME_AGGREGATE *ta)
+  WT_CELL_UNPACK_ADDR *vpack, uint64_t recno, WT_PAGE_DELETED *page_del)
 {
     WT_REC_KV *val;
+    WT_TIME_AGGREGATE *ta;
     u_int cell_type;
 
     val = &r->v;
@@ -334,9 +335,7 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
      * Caller includes a timestamp window in the case of fast-delete proxy cells, which both flags
      * the fast-delete case and provides the cell's timestamp information.
      */
-    if (ta != NULL)
-        cell_type = WT_CELL_ADDR_DEL;
-    else if (vpack == NULL) {
+    if (vpack == NULL) {
         switch (addr->type) {
         case WT_ADDR_INT:
             cell_type = WT_CELL_ADDR_INT;
@@ -355,7 +354,6 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
         cell_type = vpack->type;
         ta = &vpack->ta;
     }
-
     __rec_cell_addr_stats(r, ta);
 
     /*
@@ -372,7 +370,8 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
         val->buf.size = vpack->size;
     }
 
-    val->cell_len = __wt_cell_pack_addr(session, &val->cell, cell_type, recno, ta, val->buf.size);
+    val->cell_len =
+      __wt_cell_pack_addr(session, &val->cell, cell_type, recno, page_del, ta, val->buf.size);
     val->len = val->cell_len + val->buf.size;
 }
 

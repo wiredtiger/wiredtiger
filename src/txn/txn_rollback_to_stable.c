@@ -1213,11 +1213,18 @@ __wt_rts_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *s
     rollback_timestamp = *(wt_timestamp_t *)(context);
     *skipp = false; /* Default to reading */
 
-    /* If the page state is other than on disk, we want to look at it. */
-    if (ref->state != WT_REF_DISK && ref->state != WT_REF_DELETED)
+    /* We can skip fast-delete pages durable at or before the RTS timestamp. */
+    if (ref->state == WT_REF_DELETED && ref->ft_info.del != NULL &&
+      ref->ft_info.del->durable_timestamp <= rollback_timestamp) {
+        *skipp = true;
+        return (0);
+    }
+
+    /* Otherwise, if the page state is other than on disk, we want to look at it. */
+    if (ref->state != WT_REF_DISK)
         return (0);
 
-    /* Check whether this ref has any possible updates to be aborted. */
+    /* Check whether this on-disk page has any updates to be aborted. */
     if (!__rollback_page_needs_abort(session, ref, rollback_timestamp)) {
         *skipp = true;
         __wt_verbose_multi(

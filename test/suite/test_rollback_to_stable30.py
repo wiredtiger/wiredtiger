@@ -34,15 +34,6 @@ from wtscenario import make_scenarios
 
 # test_rollback_to_stable30.py
 # Test interaction between fast-delete and RTS.
-#
-# Current failure mode without any fixes applied:
-#    - all the column/column_fix scenarios work;
-#    - the "runtime" row scenario reads valueb starting at the first full
-#      page in the truncated range;
-#    - the "recovery" row scenario loses all the full pages in the truncated
-#      range and fails reading the wrong row's valuea, or if the value numbering
-#      is removed will read the wrong number of rows back.
-
 class test_rollback_to_stable30(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
     conn_config = 'cache_size=50MB,statistics=(all),log=(enabled=false)'
@@ -52,7 +43,7 @@ class test_rollback_to_stable30(test_rollback_to_stable_base):
         ('column_fix', dict(key_format='r', value_format='8t',
             extraconfig=',allocation_size=512,leaf_page_max=512')),
         ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
-        #('string_row', dict(key_format='S', value_format='S', extraconfig='')),
+        ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
     ]
 
     rollback_modes = [

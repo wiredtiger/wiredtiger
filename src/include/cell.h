@@ -132,37 +132,32 @@
  */
 struct __wt_cell {
     /*
-     * Maximum of 71 bytes:
+     * Maximum of 99 bytes:
      *  1: cell descriptor byte
      *  1: prefix compression count
      *  1: secondary descriptor byte
      * 36: 4 timestamps		(uint64_t encoding, max 9 bytes)
      * 18: 2 transaction IDs	(uint64_t encoding, max 9 bytes)
      *  9: associated 64-bit value	(uint64_t encoding, max 9 bytes)
+       28: fast-delete information (transaction ID, 2 timestamps, prepare byte)
      *  5: data length		(uint32_t encoding, max 5 bytes)
      *
-     * This calculation is extremely pessimistic: the prefix compression
-     * count and 64V value overlap, and the validity window, 64V value
-     * and data length are all optional in some cases.
+     * This calculation is pessimistic: the prefix compression count and 64V value overlap, and the
+     * validity window, 64V value, fast-delete information and data length are all optional in some
+     * or even most cases.
      */
-    uint8_t __chunk[1 + 1 + 1 + 7 * WT_INTPACK64_MAXSIZE + WT_INTPACK32_MAXSIZE];
+    uint8_t __chunk[99];
 };
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CELL_UNPACK_ADDR_DEL_PREPARED 0x1u   /* fast-truncate prepare flag */
-#define WT_CELL_UNPACK_OVERFLOW 0x2u            /* cell is an overflow */
-#define WT_CELL_UNPACK_TIME_WINDOW_CLEARED 0x4u /* time window cleared because of restart */
+#define WT_CELL_UNPACK_OVERFLOW 0x1u            /* cell is an overflow */
+#define WT_CELL_UNPACK_TIME_WINDOW_CLEARED 0x2u /* time window cleared because of restart */
 /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
 
-/*
- * A backward compatibility hack: steal a bit from address cell sizes to flag a fast-truncate in a
- * prepare state. Historic systems didn't save fast-truncate timestamp information, so RTS couldn't
- * handle fast-truncate, and nobody noticed until it was too late. We overloaded the internal page
- * aggregated timestamp information to hold the fast-truncate timestamp information, but we still
- * need a prepare flag. Steal a bit from the address size because we know the address cell size is
- * relatively small, it should never have been more than 4KB.
- */
-#define WT_CELL_ADDR_DELL_PREPARE_SIZE 0x01000u
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_CELL_ADDR_DEL_LEAF_NO 0x1u /* fast-delete replaced a leaf-no-overflow cell */
+#define WT_CELL_ADDR_DEL_PREPARE 0x2u /* fast-delete was prepared */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
 
 /*
  * We have two "unpacked cell" structures: one holding holds unpacked cells from internal nodes
@@ -208,6 +203,9 @@ struct __wt_cell_unpack_addr {
     WT_CELL_COMMON_FIELDS;
 
     WT_TIME_AGGREGATE ta; /* Address validity window */
+
+    WT_PAGE_DELETED page_del; /* Fast-delete information */
+    uint8_t page_del_cell;
 };
 
 /*
