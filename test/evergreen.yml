@@ -108,6 +108,10 @@ functions:
           else
             # Compiling with CMake.
             . test/evergreen/find_cmake.sh
+            # If we've fetched the wiredtiger artifact from a previous compilation/build, it's best to remove
+            # the previous build directory so we can create a fresh configuration. We can't use the the previous
+            # CMake Cache configuration as its likely it will have absolute paths related to the previous build machine.
+            if [ -d cmake_build ]; then rm -r cmake_build; fi
             mkdir -p cmake_build
             cd cmake_build
             $CMAKE \
