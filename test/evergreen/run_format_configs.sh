@@ -10,7 +10,7 @@ set -u
 cd $(git rev-parse --show-toplevel)
 
 # Walk into the test/format directory
-cd build_posix/test/format
+cd cmake_build/test/format
 
 # Check the existence of 't' binary
 if [ ! -x "t" ]; then
@@ -22,7 +22,7 @@ success=0
 failure=0
 
 # Cycle through format CONFIGs recorded under the "failure_configs" directory
-for config in $(find ../../../test/format/failure_configs/ -name CONFIG.* | sort)
+for config in $(find ../../../test/format/failure_configs/ -name "CONFIG.*" | sort)
 do
 	echo -e "\nTesting CONFIG $config ...\n"
 	if (./t -c $config); then
