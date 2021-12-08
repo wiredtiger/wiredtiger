@@ -4289,7 +4289,7 @@ buildvariants:
     test_env_vars:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH
-      PYTHONPATH=($WT_TOPDIR/lang/python/wiredtiger):$(cygpath -w WT_TOPDIR/lang/python)
+      PYTHONPATH=($WT_TOPDIR/lang/python/wiredtiger):$(cygpath -w $WT_TOPDIR/lang/python)
     python_binary: 'python'
     scons_smp_command: -j $(echo "$(getconf NPROCESSORS_ONLN 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1) * 2" | bc)
   tasks:
@@ -4306,8 +4306,10 @@ buildvariants:
     python_binary: 'python'
     is_cmake_build: true
     test_env_vars:
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
       PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH
-      WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
+      PYTHONPATH=($WT_TOPDIR/lang/python/wiredtiger):$(cygpath -w $WT_TOPDIR/lang/python)
     windows_configure_flags: -vcvars_bat "'C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Auxiliary\Build\vcvars64.bat'"
   tasks:
     - name: compile
