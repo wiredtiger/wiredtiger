@@ -590,6 +590,15 @@ functions:
           done
         done
 
+  "csuite smoke test":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} test/csuite/${test_binary}/smoke.sh ${test_args|} 2>&1
+
   "run-perf-test":
     # Run a performance test
     # Parameterised using the 'perf-test-name' and 'maxruns' variables
@@ -610,15 +619,6 @@ functions:
           echo "JSON_TASK_INFO: $JSON_TASK_INFO"
           ${test_env_vars|} ${python_binary} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
           ${test_env_vars|} ${python_binary} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -re -o test_stats/atlas_out_${perf-test-name}.json ${wtarg}
-
-  "csuite smoke test":
-    command: shell.exec
-    params:
-      working_dir: "wiredtiger"
-      script: |
-        set -o errexit
-        set -o verbose
-        ${test_env_vars|} test/csuite/${test_binary}/smoke.sh ${test_args|} 2>&1
 
   "upload-perf-test-stats":
     - command: shell.exec
