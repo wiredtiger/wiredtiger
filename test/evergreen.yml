@@ -434,7 +434,7 @@ functions:
   "recovery stress test script":
     command: shell.exec
     params:
-      working_dir: "wiredtiger/build_posix/test/csuite"
+      working_dir: "wiredtiger/cmake_build/test/csuite"
       script: |
         set -o errexit
         set -o verbose
@@ -449,22 +449,22 @@ functions:
           fi
 
           # Run current version with write-no-sync txns.
-          ${test_env_vars|} ./test_random_abort 2>&1
-          ${test_env_vars|} ./test_timestamp_abort $test_timestamp_abort_args 2>&1
+          ${test_env_vars|} ./random_abort/test_random_abort 2>&1
+          ${test_env_vars|} ./timestamp_abort/test_timestamp_abort $test_timestamp_abort_args 2>&1
 
           # Current version with memory-based txns (MongoDB usage).
-          ${test_env_vars|} ./test_random_abort -m 2>&1
-          ${test_env_vars|} ./test_timestamp_abort -m $test_timestamp_abort_args 2>&1
+          ${test_env_vars|} ./random_abort/test_random_abort -m 2>&1
+          ${test_env_vars|} ./timestamp_abort/test_timestamp_abort -m $test_timestamp_abort_args 2>&1
 
           # V1 log compatibility mode with write-no-sync txns.
-          ${test_env_vars|} ./test_random_abort -C 2>&1
-          ${test_env_vars|} ./test_timestamp_abort -C $test_timestamp_abort_args 2>&1
+          ${test_env_vars|} ./random_abort/test_random_abort -C 2>&1
+          ${test_env_vars|} ./timestamp_abort/test_timestamp_abort -C $test_timestamp_abort_args 2>&1
 
           # V1 log compatibility mode with memory-based txns.
-          ${test_env_vars|} ./test_random_abort -C -m 2>&1
-          ${test_env_vars|} ./test_timestamp_abort -C -m $test_timestamp_abort_args 2>&1
+          ${test_env_vars|} ./random_abort/test_random_abort -C -m 2>&1
+          ${test_env_vars|} ./timestamp_abort/test_timestamp_abort -C -m $test_timestamp_abort_args 2>&1
 
-          ${test_env_vars|} ./test_truncated_log ${truncated_log_args|} 2>&1
+          ${test_env_vars|} ./truncated_log/test_truncated_log ${truncated_log_args|} 2>&1
 
           # Just let the system take a breath
           sleep 10s
@@ -733,7 +733,7 @@ variables:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
+          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
       - func: "recovery stress test script"
         vars:
           times: 25
