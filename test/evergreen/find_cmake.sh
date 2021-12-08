@@ -40,6 +40,7 @@ find_cmake ()
         # Some images have no cmake yet, or a broken cmake (see: BUILD-8570)
         echo "-- MAKE CMAKE --"
         CMAKE_INSTALL_DIR=$(readlink -f cmake-install)
+        if [ -d  cmake-3.11.0 ]; then rm -r cmake-3.11.0; fi
         curl --retry 5 https://cmake.org/files/v3.11/cmake-3.11.0.tar.gz -sS --max-time 120 --fail --output cmake.tar.gz
         tar xzf cmake.tar.gz
         cd cmake-3.11.0
