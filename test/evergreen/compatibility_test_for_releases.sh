@@ -378,7 +378,7 @@ patch_version=false
 #
 # The 2 arrays should be adjusted over time when newer branches are created,
 # or older branches are EOL.
-newer_release_branches=(develop mongodb-5.0 mongodb-4.4)
+newer_release_branches=(develop mongodb-5.0 mongodb-4.4 mongodb-4.2)
 older_release_branches=(mongodb-4.2 mongodb-4.0 mongodb-3.6)
 
 # This array is used to generate compatible configuration files between releases, because
@@ -389,6 +389,10 @@ compatible_upgrade_downgrade_release_branches=(mongodb-4.4 mongodb-4.2)
 # This array is used to configure the release branches we'd like to run patch version
 # upgrade/downgrade test.
 patch_version_upgrade_downgrade_release_branches=(mongodb-4.4)
+
+# This array is used to configure the release branches we'd like to run test checkpoint
+# upgrade/downgrade test.
+test_checkpoint_release_branches=(develop mongodb-5.0 mongodb-4.4)
 
 declare -A scopes
 scopes[newer]="newer stable release branches"
@@ -493,7 +497,10 @@ fi
 # Run format in each branch for supported access methods.
 if [ "$newer" = true ]; then
     for b in ${newer_release_branches[@]}; do
-        (run_tests $b "row")
+        (run_format $b "row")
+    done
+    for b in ${test_checkpoint_release_branches[@]}; do
+        (run_test_checkpoint $b "row")
     done
 fi
 
@@ -522,7 +529,11 @@ fi
 if [ "$newer" = true ]; then
     for i in ${!newer_release_branches[@]}; do
         [[ $((i+1)) < ${#newer_release_branches[@]} ]] && \
-        (verify_branches ${newer_release_branches[$i]} ${newer_release_branches[$((i+1))]} "row" true)
+        (verify_test_format ${newer_release_branches[$i]} ${newer_release_branches[$((i+1))]} "row" true)
+    done
+    for i in ${!test_checkpoint_release_branches[@]}; do
+        [[ $((i+1)) < ${#test_checkpoint_release_branches[@]} ]] && \
+        (verify_test_checkpoint ${test_checkpoint_release_branches[$i]} ${test_checkpoint_release_branches[$((i+1))]} "row")
     done
 fi
 
@@ -551,7 +562,11 @@ fi
 if [ "$newer" = true ]; then
     for i in ${!newer_release_branches[@]}; do
         [[ $((i+1)) < ${#newer_release_branches[@]} ]] && \
-        (verify_branches ${newer_release_branches[$((i+1))]} ${newer_release_branches[$i]} "row" false)
+        (verify_test_format ${newer_release_branches[$((i+1))]} ${newer_release_branches[$i]} "row" false)
+    done
+    for i in ${!test_checkpoint_release_branches[@]}; do
+        [[ $((i+1)) < ${#test_checkpoint_release_branches[@]} ]] && \
+        (verify_test_checkpoint ${test_checkpoint_release_branches[$((i+1))]} ${test_checkpoint_release_branches[$i]} "row")
     done
 fi
 
