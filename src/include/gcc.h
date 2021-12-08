@@ -286,7 +286,9 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
  * There is a `pause` instruction which has been recently adopted for RISC-V but it does not appear
  * that compilers support it yet. See:
  *
- * https://riscv.org/announcements/2021/02/risc-v-international-unveils-fast-track-architecture-extension-process-and-ratifies-zihintpause-extension
+ * https://riscv.org/announcements/2021/02/
+ *    risc-v-international-unveils-fast-track-architecture-
+ *    extension-process-and-ratifies-zihintpause-extension
  *
  * Once compiler support is ready, this can and should be replaced with `pause` to enable more
  * efficient spin locks.
