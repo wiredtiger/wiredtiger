@@ -2293,6 +2293,12 @@ tasks:
       - func: "csuite test"
         vars:
           test_binary: test_random_abort
+
+      # truncated-log
+      - func: "csuite test"
+        vars:
+          test_binary: test_truncated_log
+
       # random-abort - minimum time, random number of threads
       - func: "csuite test"
         vars:
@@ -2308,11 +2314,6 @@ tasks:
         vars:
           test_args: -c -t 60
           test_binary: test_random_abort
-
-      # truncated-log
-      - func: "csuite test"
-        vars:
-          test_binary: test_truncated_log
 
       # format test
       - func: "format test"
