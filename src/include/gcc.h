@@ -283,13 +283,13 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
 #elif defined(__riscv) && (__riscv_xlen == 64)
 
 /*
- * There is a `pause` instruction which has been recently adopted for
- * RISC-V but it does not appear that compilers support it yet. See:
+ * There is a `pause` instruction which has been recently adopted for RISC-V but it does not appear
+ * that compilers support it yet. See:
  *
  * https://riscv.org/announcements/2021/02/risc-v-international-unveils-fast-track-architecture-extension-process-and-ratifies-zihintpause-extension
  *
- * Once compiler support is ready, this can and should be replaced
- * with `pause` to enable more efficient spin locks.
+ * Once compiler support is ready, this can and should be replaced with `pause` to enable more
+ * efficient spin locks.
  */
 #define WT_PAUSE() __asm__ volatile("nop" ::: "memory")
 
@@ -298,13 +298,10 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
  *
  * https://five-embeddev.com/riscv-isa-manual/latest/memory.html#sec:mm:fence
  *
- * On RISC-V, the fence instruction takes explicit flags that indicate
- * the predecessor and successor sets. Based on the file comment
- * description of WT_READ_BARRIER and WT_WRITE_BARRIER, those barriers
- * only synchronize read/read and write/write respectively. The
- * predecessor and successor sets here are selected to match that
- * description.
- *
+ * On RISC-V, the fence instruction takes explicit flags that indicate the predecessor and successor
+ * sets. Based on the file comment description of WT_READ_BARRIER and WT_WRITE_BARRIER, those
+ * barriers only synchronize read/read and write/write respectively. The predecessor and successor
+ * sets here are selected to match that description.
  */
 #define WT_FULL_BARRIER()                              \
     do {                                               \
