@@ -38,7 +38,7 @@ functions:
       remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${dependent_task|compile}_${build_id}.tgz
       bucket: build_external
       extract_to: wiredtiger
-  "fetch artifacts from endian" :
+  "fetch artifacts from endian format" :
     - command: s3.get
       params:
         aws_key: ${aws_key}
@@ -2046,7 +2046,7 @@ tasks:
     - name: generate-datafile-little-endian
     commands:
       - func: "fetch artifacts"
-      - func: "fetch artifacts from endian"
+      - func: "fetch artifacts from endian format"
         vars:
           endian_format: little-endian
       - func: "verify wt datafiles"
@@ -2058,7 +2058,7 @@ tasks:
       variant: little-endian
     commands:
       - func: "fetch artifacts"
-      - func: "fetch artifacts from endian"
+      - func: "fetch artifacts from endian format"
         vars:
           endian_format: little-endian
       - func: "verify wt datafiles"
@@ -2100,7 +2100,7 @@ tasks:
     - name: generate-datafile-big-endian
     commands:
       - func: "fetch artifacts"
-      - func: "fetch artifacts from endian"
+      - func: "fetch artifacts from endian format"
         vars:
           endian_format: big-endian
       - func: "verify wt datafiles"
@@ -2112,7 +2112,7 @@ tasks:
       variant: big-endian
     commands:
       - func: "fetch artifacts"
-      - func: "fetch artifacts from endian"
+      - func: "fetch artifacts from endian format"
         vars:
           endian_format: big-endian
       - func: "verify wt datafiles"
