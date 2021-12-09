@@ -46,25 +46,6 @@ functions:
         remote_file: wiredtiger/${endian_format}/${revision}/artifacts/WT_TEST.tgz
         bucket: build_external
         extract_to: wiredtiger/build_posix/test/format
-  "fetch artifacts from many-coll" :
-    - command: s3.get
-      params:
-        aws_key: ${aws_key}
-        aws_secret: ${aws_secret}
-        remote_file: dbpath_100k_500.tgz
-        bucket: build_external
-        local_file: dbpath_100k_500.tgz
-    - command: shell.exec
-      params:
-        shell: bash
-        script: |
-          set -o errexit
-          set -o verbose
-          mkdir -p mongo-tests/largescale/many-collection/dbpath
-    - command: archive.targz_extract
-      params:
-        path: "dbpath_100k_500.tgz"
-        destination: "mongo-tests/largescale/many-collection/dbpath/."
   "fetch mongo-tests repo" :
     command: shell.exec
     params:
