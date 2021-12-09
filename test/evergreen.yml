@@ -1921,12 +1921,12 @@ tasks:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test"
+          working_dir: "wiredtiger/cmake_build/bench/wtperf"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python3} ../../test/wtperf/test_conf_dump.py 2>&1
+            ${test_env_vars|} WTPERF_DIR=$(pwd) ${python_binary|python3} ../../../test/wtperf/test_conf_dump.py 2>&1
 
   - name: compile-windows-alt
     tags: ["pull_request", "windows_only"]
