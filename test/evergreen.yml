@@ -4334,10 +4334,12 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     test_env_vars:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      top_dir=$(git rev-parse --show-toplevel)
-      top_builddir=$top_dir/build_posix
-      LD_LIBRARY_PATH=$top_builddir/.libs
-    make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_LIBRARY_PATH=$WT_BUILDDIR
+    make_command: ninja
+    is_cmake_build: true
+    cmake_generator: Ninja
   tasks:
   - name: compile
   - name: generate-datafile-little-endian
@@ -4356,9 +4358,12 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     test_env_vars:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      top_dir=$(git rev-parse --show-toplevel)
-      top_builddir=$top_dir/build_posix
-      LD_LIBRARY_PATH=$top_builddir/.lib
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_LIBRARY_PATH=$WT_BUILDDIR
+    make_command: ninja
+    is_cmake_build: true
+    cmake_generator: Ninja
   tasks:
   - name: compile
   - name: generate-datafile-big-endian
