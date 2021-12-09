@@ -802,6 +802,65 @@ __rec_destroy_session(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __rec_write --
+ *     Write a block, with optional diagnostic checks.
+ */
+static int
+__rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_sizep,
+  size_t *compressed_sizep, bool checkpoint, bool checkpoint_io, bool compressed)
+{
+#ifdef HAVE_DIAGNOSTIC
+    WT_BTREE *btree;
+    WT_DECL_ITEM(ctmp);
+    WT_DECL_RET;
+    WT_PAGE_HEADER *dsk;
+    size_t result_len;
+
+    btree = S2BT(session);
+
+    /* Checkpoint calls are different than standard calls. */
+    WT_ASSERT(session,
+      (!checkpoint && addr != NULL && addr_sizep != NULL) ||
+        (checkpoint && addr == NULL && addr_sizep == NULL));
+
+    /* In-memory databases shouldn't write pages. */
+    WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
+
+    /*
+     * We're passed a table's disk image. Decompress if necessary and verify the image. Always check
+     * the in-memory length for accuracy.
+     */
+    dsk = buf->mem;
+    if (compressed) {
+        WT_ASSERT(session, __wt_scr_alloc(session, dsk->mem_size, &ctmp));
+
+        memcpy(ctmp->mem, buf->data, WT_BLOCK_COMPRESS_SKIP);
+        WT_ASSERT(session,
+          btree->compressor->decompress(btree->compressor, &session->iface,
+            (uint8_t *)buf->data + WT_BLOCK_COMPRESS_SKIP, buf->size - WT_BLOCK_COMPRESS_SKIP,
+            (uint8_t *)ctmp->data + WT_BLOCK_COMPRESS_SKIP, ctmp->memsize - WT_BLOCK_COMPRESS_SKIP,
+            &result_len) == 0);
+        WT_ASSERT(session, dsk->mem_size == result_len + WT_BLOCK_COMPRESS_SKIP);
+        ctmp->size = result_len + WT_BLOCK_COMPRESS_SKIP;
+
+        /* Return an error rather than assert because the test suite tests that the error hits. */
+        ret = __wt_verify_dsk(session, "[write-check]", ctmp);
+
+        __wt_scr_free(session, &ctmp);
+    } else {
+        WT_ASSERT(session, dsk->mem_size == buf->size);
+
+        /* Return an error rather than assert because the test suite tests that the error hits. */
+        ret = __wt_verify_dsk(session, "[write-check]", buf);
+    }
+    WT_RET(ret);
+#endif
+
+    return (__wt_blkcache_write(
+      session, buf, addr, addr_sizep, compressed_sizep, checkpoint, checkpoint_io, compressed));
+}
+
+/*
  * __rec_leaf_page_max_slvg --
  *     Figure out the maximum leaf page size for a salvage reconciliation.
  */
@@ -923,16 +982,19 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
      * Don't touch the disk image item memory, that memory is reused.
      *
      * Clear the disk page header to ensure all of it is initialized, even the unused fields.
-     *
-     * In the case of fixed-length column-store, clear the entire buffer: fixed-length column-store
-     * sets bits in bytes, where the bytes are assumed to initially be 0.
-     *
-     * FUTURE: pretty sure clearing the whole buffer is not necessary; also in any event the
-     * auxiliary space doesn't need to be cleared.
      */
     WT_RET(__wt_buf_init(session, &chunk->image, r->disk_img_buf_size));
-    memset(chunk->image.mem, 0,
-      r->page->type == WT_PAGE_COL_FIX ? r->disk_img_buf_size : WT_PAGE_HEADER_SIZE);
+    memset(chunk->image.mem, 0, WT_PAGE_HEADER_SIZE);
+
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * For fixed-length column-store, poison the rest of the buffer. This helps verify ensure that
+     * all the bytes in the buffer are explicitly set and not left uninitialized.
+     */
+    if (r->page->type == WT_PAGE_COL_FIX)
+        memset((uint8_t *)chunk->image.mem + WT_PAGE_HEADER_SIZE, 0xa9,
+          r->disk_img_buf_size - WT_PAGE_HEADER_SIZE);
+#endif
 
     return (0);
 }
@@ -2090,7 +2152,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         goto copy_image;
 
     /* Write the disk image and get an address. */
-    WT_RET(__wt_bt_write(session, compressed_image == NULL ? &chunk->image : compressed_image, addr,
+    WT_RET(__rec_write(session, compressed_image == NULL ? &chunk->image : compressed_image, addr,
       &addr_size, &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT),
       compressed_image != NULL));
 #ifdef HAVE_DIAGNOSTIC
@@ -2190,9 +2252,12 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 
     switch (btree->type) {
     case BTREE_COL_FIX:
-        if (cbulk->entry != 0)
+        if (cbulk->entry != 0) {
             __wt_rec_incr(
               session, r, cbulk->entry, __bitstr_size((size_t)cbulk->entry * btree->bitcnt));
+            __bit_clear_end(
+              WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem), cbulk->entry, btree->bitcnt);
+        }
         break;
     case BTREE_COL_VAR:
         if (cbulk->rle != 0)
@@ -2445,7 +2510,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             r->multi->disk_image = NULL;
         } else {
             __wt_checkpoint_tree_reconcile_update(session, &r->multi->addr.ta);
-            WT_RET(__wt_bt_write(session, r->wrapup_checkpoint, NULL, NULL, NULL, true,
+            WT_RET(__rec_write(session, r->wrapup_checkpoint, NULL, NULL, NULL, true,
               F_ISSET(r, WT_REC_CHECKPOINT), r->wrapup_checkpoint_compressed));
         }
 
@@ -2612,7 +2677,7 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
 
         /* Write the buffer. */
         addr = buf;
-        WT_ERR(__wt_bt_write(
+        WT_ERR(__rec_write(
           session, tmp, addr, &size, NULL, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
 
         /*
