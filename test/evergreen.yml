@@ -43,7 +43,7 @@ functions:
       params:
         aws_key: ${aws_key}
         aws_secret: ${aws_secret}
-        remote_file: wiredtiger/${endian_format}/${revision}/artifacts/WT_TEST.tgz
+        remote_file: wiredtiger/${endian_format}/${revision}/artifacts/WT_TEST-${endian_format}.tgz
         bucket: build_external
         extract_to: wiredtiger/build_posix/test/format
   "fetch mongo-tests repo" :
@@ -1819,7 +1819,7 @@ tasks:
         vars:
           endian_format: little-endian
           local_file: wiredtiger/build_posix/test/format/WT_TEST.tgz
-          remote_file: WT_TEST.tgz
+          remote_file: WT_TEST-little-endian.tgz
 
   - name: verify-datafile-little-endian
     depends_on:
@@ -1869,7 +1869,7 @@ tasks:
         vars:
           endian_format: big-endian
           local_file: wiredtiger/build_posix/test/format/WT_TEST.tgz
-          remote_file: WT_TEST.tgz
+          remote_file: WT_TEST-big-endian.tgz
 
   - name: verify-datafile-big-endian
     depends_on:
