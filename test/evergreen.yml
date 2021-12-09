@@ -2349,7 +2349,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --enable-python --with-spinlock=gcc --enable-strict
+          posix_configure_flags: -DENABLE_PYTHON=1 -DSPINLOCK_TYPE=gcc -DENABLE_STRICT=1
       - func: "make check all"
       - func: "format test"
         vars:
@@ -2361,7 +2361,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --enable-python --with-spinlock=pthread_adaptive --enable-strict
+          posix_configure_flags: -DENABLE_PYTHON=1 -DSPINLOCK_TYPE=pthread_adaptive -DENABLE_STRICT=1
       - func: "make check all"
       - func: "format test"
         vars:
