@@ -43,7 +43,7 @@ functions:
       params:
         aws_key: ${aws_key}
         aws_secret: ${aws_secret}
-        remote_file: wiredtiger/${endian_format}/${revision}/artifacts/WT_TEST-${endian_format}.tgz
+        remote_file: wiredtiger/${endian_format}/${revision}/artifacts/${remote_file}.tgz
         bucket: build_external
         extract_to: wiredtiger/build_posix/test/format
   "fetch mongo-tests repo" :
@@ -1830,6 +1830,7 @@ tasks:
       - func: "fetch artifacts from endian format"
         vars:
           endian_format: little-endian
+          remote_file: WT_TEST-little-endian
       - func: "verify wt datafiles"
 
   - name: verify-datafile-from-little-endian
@@ -1842,6 +1843,7 @@ tasks:
       - func: "fetch artifacts from endian format"
         vars:
           endian_format: little-endian
+          remote_file: WT_TEST-little-endian
       - func: "verify wt datafiles"
 
   - name: generate-datafile-big-endian
@@ -1880,6 +1882,7 @@ tasks:
       - func: "fetch artifacts from endian format"
         vars:
           endian_format: big-endian
+          remote_file: WT_TEST-big-endian
       - func: "verify wt datafiles"
 
   - name: verify-datafile-from-big-endian
@@ -1892,6 +1895,7 @@ tasks:
       - func: "fetch artifacts from endian format"
         vars:
           endian_format: big-endian
+          remote_file: WT_TEST-big-endian
       - func: "verify wt datafiles"
 
   - name: clang-analyzer
