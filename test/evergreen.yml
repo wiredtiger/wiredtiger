@@ -4352,6 +4352,7 @@ buildvariants:
     - name: compile
     - name: make-check-test
     - name: unit-test
+    - name: fops
 
 - name: little-endian
   display_name: "~ Little-endian (x86)"
