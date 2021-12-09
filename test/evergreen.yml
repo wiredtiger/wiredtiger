@@ -2194,7 +2194,9 @@ tasks:
             set -o errexit
             set -o verbose
             # ${test_env_vars|} $(pwd)/../test/csuite/random_abort/smoke.sh 2>&1
-            ${test_env_vars|} $(pwd)/test/csuite/test_truncated_log 2>&1
+      - func: "csuite test"
+        vars:
+          test_binary: test_truncated_log
       - func: "csuite smoke test"
         vars:
           test_name: timestamp_abort
