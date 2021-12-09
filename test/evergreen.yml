@@ -729,8 +729,6 @@ tasks:
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
-      - func: "upload artifact"
-      - func: "cleanup"
 
   # production build with --disable-shared
   - name: compile-production-disable-shared
@@ -740,8 +738,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: --enable-silent-rules --enable-strict --disable-shared
-      - func: "upload artifact"
-      - func: "cleanup"
 
   # production build with --disable-static
   - name: compile-production-disable-static
@@ -751,8 +747,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: --enable-silent-rules --enable-strict --disable-static --enable-lz4 --enable-snappy --enable-zlib --enable-zstd --enable-python
-      - func: "upload artifact"
-      - func: "cleanup"
 
   - name: compile-linux-no-ftruncate
     commands:
@@ -760,8 +754,6 @@ tasks:
       - func: "compile wiredtiger no linux ftruncate"
         vars:
           posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-python
-      - func: "upload artifact"
-      - func: "cleanup"
 
   - name: compile-wtperf
     commands:
@@ -769,8 +761,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: --enable-strict --enable-diagnostic
-      - func: "upload artifact"
-      - func: "cleanup"
 
   - name: compile-gcc
     tags: ["pull_request", "pull_request_compilers"]
