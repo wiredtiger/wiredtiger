@@ -2416,22 +2416,24 @@ tasks:
       - func: "get project"
       - func: "configure wiredtiger"
         vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-g -Werror"
-          posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
+          posix_configure_flags:
+            -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+            -DCMAKE_C_FLAGS='-g -Werror'
+            -DHAVE_DIAGNOSTIC=1
+            -DENABLE_STRICT=1
+            -DENABLE_STATIC=0
       - func: "make wiredtiger"
 
       # Run the long version of make check, that includes the full csuite tests
       - func: "make check all"
-        vars:
-          test_env_vars: ${test_env_vars} TESTUTIL_ENABLE_LONG_TESTS=1
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix"
+          working_dir: "wiredtiger/cmake_build"
           script: |
             set -o errexit
             set -o verbose
 
-            WT3363_CHECKPOINT_OP_RACES=1 test/csuite/./test_wt3363_checkpoint_op_races 2>&1
+            TESTUTIL_ENABLE_TIMING_TESTS=1 ./test/csuite/wt3363_checkpoint_op_races/test_wt3363_checkpoint_op_races 2>&1
 
       # Many dbs test - Run with:
       # 1.  The defaults
