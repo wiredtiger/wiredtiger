@@ -507,7 +507,7 @@ functions:
   "run wt hang analyzer":
     command: shell.exec
     params:
-      working_dir: "wiredtiger/build_posix"
+      working_dir: "wiredtiger/cmake_build"
       script: |
         set -o verbose
 
@@ -521,7 +521,7 @@ functions:
     - command: archive.targz_pack
       params:
         target: "wt-hang-analyzer.tgz"
-        source_dir: "wiredtiger/build_posix"
+        source_dir: "wiredtiger/cmake_build"
         include:
           - "./*core*"
           - "./debugger*.*"
