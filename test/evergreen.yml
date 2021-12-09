@@ -836,9 +836,9 @@ tasks:
       - func: "fetch artifacts"
         vars:
           dependent_task: compile-linux-no-ftruncate
-      - func: "compile wiredtiger no linux ftruncate"
+      - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-python
+          posix_configure_flags: -DHAVE_DIAGNOSTIC=1 -DENABLE_STRICT=1 -DENABLE_PYTHON=1 -DHAVE_FTRUNCATE=0
       - func: "make check all"
 
   # Start of normal make check test tasks
