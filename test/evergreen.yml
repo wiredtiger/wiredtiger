@@ -417,14 +417,6 @@ functions:
         set -o errexit
         set -o verbose
         ${test_env_vars|} ./test_tiered_abort ${tiered_abort_args|} 2>&1
-  "timestamp abort test":
-    command: shell.exec
-    params:
-      working_dir: "wiredtiger/build_posix/test/csuite"
-      script: |
-        set -o errexit
-        set -o verbose
-        ${test_env_vars|} ./test_timestamp_abort ${timestamp_abort_args|} 2>&1
   "recovery stress test script":
     command: shell.exec
     params:
@@ -1955,18 +1947,6 @@ tasks:
         vars:
           format_test_script_args: -t 110 -j 4 direct_io=1
 
-  # - name: linux-directio
-  #   depends_on:
-  #   - name: compile
-  #   commands:
-  #     - func: "fetch artifacts"
-  #     - func: "compile wiredtiger"
-  #     - func: "format test"
-  #       vars:
-  #         times: 3
-  #         config: ../../../test/format/CONFIG.stress
-  #         extra_args: -C "direct_io=[data]"
-
   - name: format-linux-no-ftruncate
     depends_on:
     - name: compile-linux-no-ftruncate
@@ -2207,15 +2187,6 @@ tasks:
       - func: "make check all"
         vars:
           test_env_vars: ${test_env_vars} TESTUTIL_ENABLE_LONG_TESTS=1
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            WT3363_CHECKPOINT_OP_RACES=1 test/csuite/./test_wt3363_checkpoint_op_races 2>&1
-
       # Many dbs test - Run with:
       # 1.  The defaults
       - func: "many dbs test"
