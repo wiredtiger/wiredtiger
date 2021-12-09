@@ -4278,23 +4278,6 @@ buildvariants:
     - name: compatibility-test-for-newer-releases
     - name: import-compatibility-test
 
-- name: windows-64
-  display_name: "! Windows 64-bit"
-  run_on:
-  - windows-64-vs2017-test
-  expansions:
-    test_env_vars:
-      WT_TOPDIR=$(git rev-parse --show-toplevel)
-      PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH
-      PYTHONPATH=($WT_TOPDIR/lang/python/wiredtiger):$(cygpath -w $WT_TOPDIR/lang/python)
-    python_binary: 'python'
-    scons_smp_command: -j $(echo "$(getconf NPROCESSORS_ONLN 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1) * 2" | bc)
-  tasks:
-    - name: compile
-    - name: ".windows_only"
-    - name: ".unit_test"
-    - name: fops
-
 - name: windows-64-cmake
   display_name: "* Windows 64-bit CMake"
   run_on:
