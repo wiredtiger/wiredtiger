@@ -13,12 +13,13 @@ By default only modifications and transactions are traced to limit how much data
 
 You can trace more operations by adding comma or white-space separated arguments to the -t option:
 
-    all		trace everything
-    bulk	trace bulk loads
-    cursor	trace cursor operations
-    read	trace read operations
-    retain=N	by default, 10 log files are retained, set N to increase that number
-    timestamp	trace timestamp operations (setting oldest, stable TS)
+    all         trace everything
+    bulk        trace bulk loads
+    cursor      trace cursor operations
+    read        trace read operations
+    retain=N    by default, 10 log files are retained, set N to increase that number
+    timestamp   trace timestamp operations (setting oldest, stable TS)
+    txn         add transactional information to the trace log on operations
 
 For example, to trace the usual operations, plus bulk load, and retain 25 log files, use:
 

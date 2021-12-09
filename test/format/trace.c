@@ -40,7 +40,7 @@ trace_config(const char *config)
     copy = dstrdup(config);
     for (;;) {
         if ((p = strstr(copy, "all")) != NULL) {
-            g.trace_bulk = g.trace_cursor = g.trace_read = g.trace_timestamp = true;
+            g.trace_bulk = g.trace_cursor = g.trace_read = g.trace_timestamp = g.trace_txn = true;
             memset(p, ' ', strlen("all"));
             continue;
         }
@@ -70,6 +70,11 @@ trace_config(const char *config)
         if ((p = strstr(copy, "timestamp")) != NULL) {
             g.trace_timestamp = true;
             memset(p, ' ', strlen("timestamp"));
+            continue;
+        }
+        if ((p = strstr(copy, "txn")) != NULL) {
+            g.trace_txn = true;
+            memset(p, ' ', strlen("txn"));
             continue;
         }
         break;

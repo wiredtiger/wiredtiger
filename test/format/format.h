@@ -195,6 +195,7 @@ typedef struct {
     bool trace_read;
     int trace_retain;
     bool trace_timestamp;
+    bool trace_txn;
 
     char *home;          /* Home directory */
     char *home_config;   /* Run CONFIG file path */
