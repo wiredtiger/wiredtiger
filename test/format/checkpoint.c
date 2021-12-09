@@ -124,10 +124,11 @@ checkpoint(void *arg)
                 break;
             }
 
-        trace_msg(session, "checkpoint %u start%s%s%s", ++counter, ckpt_config == NULL ? "" : ": (",
-          ckpt_config == NULL ? "" : ckpt_config, ckpt_config == NULL ? "" : ")");
+        trace_msg(session, "Checkpoint #%u start%s%s%s", ++counter,
+          ckpt_config == NULL ? "" : ": (", ckpt_config == NULL ? "" : ckpt_config,
+          ckpt_config == NULL ? "" : ")");
         testutil_check(session->checkpoint(session, ckpt_config));
-        trace_msg(session, "checkpoint %u stop%s%s%s", counter, ckpt_config == NULL ? "" : ": (",
+        trace_msg(session, "Checkpoint #%u stop%s%s%s", counter, ckpt_config == NULL ? "" : ": (",
           ckpt_config == NULL ? "" : ckpt_config, ckpt_config == NULL ? "" : ")");
 
         if (backup_locked)
