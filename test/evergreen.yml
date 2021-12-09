@@ -97,33 +97,22 @@ functions:
         set -o errexit
         set -o verbose
 
-        # Check if the build variant has specified a build type, always default to
-        # Autoconf/Libtool if $is_cmake_build is not declared.
-        if [ ${is_cmake_build|false} = true ]; then
-          if [ "$OS" = "Windows_NT" ]; then
-            # Use the Windows powershell script to configure the CMake build.
-            # We execute it in a powershell environment as its easier to detect and source the Visual Studio
-            # toolchain in a native Windows environment. We can't easily execute the build in a cygwin environment.
-            powershell.exe  -NonInteractive '.\test\evergreen\build_windows.ps1' -configure 1 ${windows_configure_flags|}
-          else
-            # Compiling with CMake.
-            . test/evergreen/find_cmake.sh
-            # If we've fetched the wiredtiger artifact from a previous compilation/build, it's best to remove
-            # the previous build directory so we can create a fresh configuration. We can't use the the previous
-            # CMake Cache configuration as its likely it will have absolute paths related to the previous build machine.
-            if [ -d cmake_build ]; then rm -r cmake_build; fi
-            mkdir -p cmake_build
-            cd cmake_build
-            $CMAKE \
-            ${posix_configure_flags|-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1 -DENABLE_STATIC=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL} -G "${cmake_generator|Ninja}" ./..
-          fi
-        elif [ "$OS" != "Windows_NT" ]; then
-          # Compiling with Autoconf/Libtool.
-          cd build_posix
-          sh reconf
-          ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"} PYTHON="python3" \
-            ../configure ${configure_python_setting|} \
-            ${posix_configure_flags|--enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL}
+        if [ "$OS" = "Windows_NT" ]; then
+          # Use the Windows powershell script to configure the CMake build.
+          # We execute it in a powershell environment as its easier to detect and source the Visual Studio
+          # toolchain in a native Windows environment. We can't easily execute the build in a cygwin environment.
+          powershell.exe  -NonInteractive '.\test\evergreen\build_windows.ps1' -configure 1 ${windows_configure_flags|}
+        else
+          # Compiling with CMake.
+          . test/evergreen/find_cmake.sh
+          # If we've fetched the wiredtiger artifact from a previous compilation/build, it's best to remove
+          # the previous build directory so we can create a fresh configuration. We can't use the the previous
+          # CMake Cache configuration as its likely it will have absolute paths related to the previous build machine.
+          if [ -d cmake_build ]; then rm -r cmake_build; fi
+          mkdir -p cmake_build
+          cd cmake_build
+          $CMAKE \
+          ${posix_configure_flags|-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1 -DENABLE_STATIC=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL} -G "${cmake_generator|Ninja}" ./..
         fi
   "make wiredtiger": &make_wiredtiger
     command: shell.exec
@@ -133,34 +122,13 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        if [ ${is_cmake_build|false} = true ]; then
-          if [ "$OS" = "Windows_NT" ]; then
-            # Use the Windows powershell script to execute Ninja build (can't execute directly in a cygwin environment).
-            powershell.exe '.\test\evergreen\build_windows.ps1 -build 1'
-          else
-            # Compiling with CMake generated Ninja file.
-            cd cmake_build
-            ${make_command|ninja} ${smp_command|} 2>&1
-          fi
-        elif [ "Windows_NT" == "$OS" ]; then
-          export "PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH"
-
-          python --version
-          python -m pip install scons==3.1.1
-          scons-3.1.1.bat "LIBPATH=c:\\python\\Python39\\libs" --enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic ${scons_smp_command|}
+        if [ "$OS" = "Windows_NT" ]; then
+          # Use the Windows powershell script to execute Ninja build (can't execute directly in a cygwin environment).
+          powershell.exe '.\test\evergreen\build_windows.ps1 -build 1'
         else
-          # Compiling with Autoconf/Libtool Makefiles.
-          cd build_posix
-          ${make_command|make} ${smp_command|} 2>&1
-
-          # On macOS, change the binary location with install_name_tool since DYLD_LIBRARY_PATH
-          # appears not to work for dynamic modules loaded by python. For wt, the libtool generated
-          # script has the wrong path for running on test machines.
-          if [ "$(uname -s)" == "Darwin" ]; then
-            WT_VERSION=$(m4 aclocal/version.m4)
-            install_name_tool -change /usr/local/lib/libwiredtiger-$WT_VERSION.dylib $(pwd)/.libs/libwiredtiger-$WT_VERSION.dylib lang/python/_wiredtiger*.so
-            install_name_tool -change /usr/local/lib/libwiredtiger-$WT_VERSION.dylib $(pwd)/.libs/libwiredtiger-$WT_VERSION.dylib .libs/wt
-          fi
+          # Compiling with CMake generated Ninja file.
+          cd cmake_build
+          ${make_command|ninja} ${smp_command|} 2>&1
         fi
   "compile wiredtiger":
     - *configure_wiredtiger
@@ -339,14 +307,9 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        if [ ${is_cmake_build|false} = true ]; then
-          . test/evergreen/find_cmake.sh
-          cd cmake_build
-          ${test_env_vars|} $CTEST -L check ${smp_command|} --output-on-failure ${check_args|} 2>&1
-        else
-          cd build_posix
-          ${test_env_vars|} ${make_command|make} VERBOSE=1 check ${smp_command|} 2>&1
-        fi
+        . test/evergreen/find_cmake.sh
+        cd cmake_build
+        ${test_env_vars|} $CTEST -L check ${smp_command|} --output-on-failure ${check_args|} 2>&1
 
   "cppsuite test":
     command: shell.exec
@@ -366,11 +329,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        if [ ${is_cmake_build|false} = true ]; then
-          cd cmake_build
-        else
-          cd build_posix
-        fi
+        cd cmake_build
         ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
   "format test":
     command: shell.exec
@@ -1937,43 +1896,6 @@ tasks:
             set -o verbose
 
             ${test_env_vars|} WTPERF_DIR=$(pwd) ${python_binary|python3} ../../../test/wtperf/test_conf_dump.py 2>&1
-
-  - name: compile-windows-alt
-    tags: ["pull_request", "windows_only"]
-    depends_on:
-    - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            export "PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH"
-            python --version
-            python -m pip install scons==3.1.1
-            scons-3.1.1.bat ${scons_smp_command|} "CFLAGS=/Gv /wd4090 /wd4996 /we4047 /we4024 /TC /we4100 /we4133" wiredtiger.dll libwiredtiger.lib
-
-  - name: scons-check
-    tags: ["pull_request", "windows_only"]
-    depends_on:
-    - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            export "PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH"
-            python --version
-            python -m pip install scons==3.1.1
-            # The check target is not run in parallel.
-            scons-3.1.1.bat check
 
   - name: fops
     tags: ["pull_request"]
@@ -3842,7 +3764,7 @@ buildvariants:
     is_cmake_build: true
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
   tasks:
-    - name: ".pull_request !.windows_only !.pull_request_compilers"
+    - name: ".pull_request !.pull_request_compilers"
     - name: compile
     - name: make-check-test
     - name: unit-test
@@ -3903,7 +3825,7 @@ buildvariants:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
   tasks:
-    - name: ".pull_request !.windows_only !.pull_request_compilers !.python"
+    - name: ".pull_request !.pull_request_compilers !.python"
     - name: examples-c-test
     - name: format-asan-smoke-test
 
