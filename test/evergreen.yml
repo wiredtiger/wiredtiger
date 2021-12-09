@@ -2397,17 +2397,18 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --enable-strict ac_cv_func_ftruncate=no
+          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_FTRUNCATE=0
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix"
+          working_dir: "wiredtiger/cmake_build"
           script: |
             set -o errexit
             set -o verbose
             # ${test_env_vars|} $(pwd)/../test/csuite/random_abort/smoke.sh 2>&1
-            ${test_env_vars|} $(pwd)/test/csuite/test_truncated_log 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/truncated_log/test_truncated_log 2>&1
       - func: "csuite smoke test"
         vars:
+          test_args: -b cmake_build/test/csuite/timestamp_abort/test_timestamp_abort
           test_binary: timestamp_abort
 
   - name: long-test
