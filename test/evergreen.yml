@@ -2557,14 +2557,15 @@ tasks:
         vars:
           # FIXME-WT-8482: CC is set to the system default "clang" binary here as a workaround.
           # Change it back to mongodbtoolchain "clang" binary.
-          configure_env_vars:
-            CCAS=/opt/mongodbtoolchain/v3/bin/gcc CC=/usr/bin/clang
-            CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-            CFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer
-            -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
-            CXXFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer
-            -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
-          posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib
+          posix_configure_flags:
+            -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+            -DHAVE_DIAGNOSTIC=1
+            -DWITH_PIC=1
+            -DCMAKE_BUILD_TYPE=ASan
+            -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
+            -DCMAKE_C_FLAGS="-I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.5.0/include"
+            -DCMAKE_ASM_FLAGS="-I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.5.0/include"
+            -DCMAKE_CXX_FLAGS="-I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.5.0/include"
       - func: "format test script"
         # Run smoke tests, don't stop at failed tests, use default config
         vars:
@@ -2579,7 +2580,7 @@ tasks:
       - func: "compile wiredtiger with builtins"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/bench/wtperf"
+          working_dir: "wiredtiger/cmake_build/bench/wtperf"
           script: |
             set -o errexit
             set -o verbose
@@ -2840,14 +2841,16 @@ tasks:
         vars:
           # FIXME-WT-8482: CC is set to the system default "clang" binary here as a workaround.
           # Change it back to mongodbtoolchain "clang" binary.
-          configure_env_vars:
-            CCAS=/opt/mongodbtoolchain/v3/bin/gcc CC=/usr/bin/clang
-            CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-            CFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer
-            -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
-            CXXFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer
-            -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
-          posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib
+          posix_configure_flags:
+            -DHAVE_DIAGNOSTIC=1
+            -DHAVE_BUILTIN_EXTENSION_LZ4=1
+            -DHAVE_BUILTIN_EXTENSION_SNAPPY=1
+            -DHAVE_BUILTIN_EXTENSION_ZLIB=1
+            -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+            -DCMAKE_BUILD_TYPE=ASan
+            -DCMAKE_C_FLAGS="-I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.5.0/include"
+            -DCMAKE_ASM_FLAGS="-I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.5.0/include"
+            -DCMAKE_CXX_FLAGS="-I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.5.0/include"
       - func: "format test script"
         vars:
           test_env_vars:
