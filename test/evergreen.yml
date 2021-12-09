@@ -2187,13 +2187,9 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: --enable-strict ac_cv_func_ftruncate=no
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-            # ${test_env_vars|} $(pwd)/../test/csuite/random_abort/smoke.sh 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_name: random_abort
       - func: "csuite test"
         vars:
           test_binary: test_truncated_log
