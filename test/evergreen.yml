@@ -2509,7 +2509,7 @@ tasks:
     commands:
       - func: "fetch artifacts"
         vars:
-          posix_configure_flags: --enable-strict
+          posix_configure_flags: -DENABLE_STRICT=1
       - command: shell.exec
         params:
           working_dir: "wiredtiger/test/csuite"
@@ -2517,7 +2517,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
+            RW_LOCK_FILE=$(pwd)/../../cmake_build/test/csuite/rwlock/test_rwlock ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
 
   - name: format-stress-pull-request-test
     tags: ["pull_request"]
