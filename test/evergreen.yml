@@ -4297,36 +4297,6 @@ buildvariants:
     - name: ".unit_test"
     - name: fops
 
-
-- name: macos-1014
-  display_name: OS X 10.14
-  run_on:
-  - macos-1014
-  batchtime: 120 # 2 hours
-  expansions:
-    configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"
-    posix_configure_flags:
-      --enable-silent-rules
-      --enable-diagnostic
-      --enable-python
-      --enable-zlib
-      --enable-strict
-      --enable-static
-      --prefix=$(pwd)/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
-    smp_command: -j $(sysctl -n hw.logicalcpu)
-    make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH ARCHFLAGS=-Wno-error=unused-command-line-argument-hard-error-in-future make
-    test_env_vars: 
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      top_dir=$(git rev-parse --show-toplevel)
-      top_builddir=$top_dir/build_posix
-      DYLD_LIBRARY_PATH=$top_builddir/.libs
-  tasks:
-    - name: compile
-    - name: make-check-test
-    - name: unit-test-with-compile
-    - name: fops
-
 - name: macos-1014-cmake
   display_name: "* OS X 10.14 CMake"
   run_on:
