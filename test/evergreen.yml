@@ -2035,7 +2035,7 @@ tasks:
           extra_args: -h "WT_TEST.$i"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/format"
+          working_dir: "wiredtiger/cmake_build/test/format"
           shell: bash
           script: |
             set -o errexit
@@ -2046,7 +2046,7 @@ tasks:
       - func: "upload endian format artifacts"
         vars:
           endian_format: little-endian
-          local_file: wiredtiger/build_posix/test/format/WT_TEST.tgz
+          local_file: wiredtiger/cmake_build/test/format/WT_TEST.tgz
           remote_file: WT_TEST-little-endian.tgz
 
   - name: verify-datafile-little-endian
@@ -2087,7 +2087,7 @@ tasks:
           extra_args: -h "WT_TEST.$i"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/format"
+          working_dir: "wiredtiger/cmake_build/test/format"
           shell: bash
           script: |
             set -o errexit
@@ -2098,7 +2098,7 @@ tasks:
       - func: "upload endian format artifacts"
         vars:
           endian_format: big-endian
-          local_file: wiredtiger/build_posix/test/format/WT_TEST.tgz
+          local_file: wiredtiger/cmake_build/test/format/WT_TEST.tgz
           remote_file: WT_TEST-big-endian.tgz
 
   - name: verify-datafile-big-endian
