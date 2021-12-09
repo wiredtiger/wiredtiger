@@ -484,6 +484,17 @@ functions:
         content_type: application/tar
         display_name: Artifacts
         remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
+  "upload endian format artifact":
+    - command: s3.put
+      params:
+        aws_secret: ${aws_secret}
+        aws_key: ${aws_key}
+        local_file: ${local_file}
+        bucket: build_external
+        permissions: public-read
+        content_type: application/tar
+        display_name: WT_TEST
+        remote_file: wiredtiger/${endian_format}/${revision}/artifacts/${local_file}
   "cleanup":
     command: shell.exec
     params:
@@ -2023,18 +2034,13 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            # Archive the WT_TEST directories which include the generated wt data files
+            # Archive the WT_TEST directories which include the generated wt data files. We cannot
+            # use the Evergreen archive command as we need to archive multiple WT_TEST folders.
             tar -zcvf WT_TEST.tgz WT_TEST*
-      - command: s3.put
-        params:
-          aws_secret: ${aws_secret}
-          aws_key: ${aws_key}
+      - func: "upload endian format artifact"
+        vars:
+          endian_format: little-endian
           local_file: wiredtiger/build_posix/test/format/WT_TEST.tgz
-          bucket: build_external
-          permissions: public-read
-          content_type: application/tar
-          display_name: WT_TEST
-          remote_file: wiredtiger/little-endian/${revision}/artifacts/WT_TEST.tgz
 
   - name: verify-datafile-little-endian
     depends_on:
@@ -2077,18 +2083,13 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            # Archive the WT_TEST directories which include the generated wt data files
+            # Archive the WT_TEST directories which include the generated wt data files. We cannot
+            # use the Evergreen archive command as we need to archive multiple WT_TEST folders.
             tar -zcvf WT_TEST.tgz WT_TEST*
-      - command: s3.put
-        params:
-          aws_secret: ${aws_secret}
-          aws_key: ${aws_key}
+      - func: "upload endian format artifact"
+        vars:
+          endian_format: big-endian
           local_file: wiredtiger/build_posix/test/format/WT_TEST.tgz
-          bucket: build_external
-          permissions: public-read
-          content_type: application/tar
-          display_name: WT_TEST
-          remote_file: wiredtiger/big-endian/${revision}/artifacts/WT_TEST.tgz
 
   - name: verify-datafile-big-endian
     depends_on:
