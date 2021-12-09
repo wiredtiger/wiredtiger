@@ -2746,19 +2746,15 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --enable-strict --disable-shared --with-builtins=snappy,zlib,zstd
+          posix_configure_flags: -DENABLE_STRICT=1 -DENABLE_STATIC=1 -DENABLE_SHARED=0 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix"
+          working_dir: "wiredtiger/cmake_build"
           shell: bash
           script: |
             set -o errexit
             set -o verbose
 
-            # Delete wt util
-            rm -f wt
-            # Build static wt util
-            ${make_command|make} CC='eval "g++ -static"' ${smp_command|}
             # -V option displays Wiredtiger library version
             ./wt -V
 
@@ -2767,7 +2763,8 @@ tasks:
               exit 1
             fi
 
-            ldd wt || wt_static_build=1
+            # Test if libwiredtiger is dynamically linked.
+            (ldd wt | grep "libwiredtiger.so") || wt_static_build=1
 
             if [ $wt_static_build -ne 1 ]; then
               echo "Error, WT util is not statically linked"
