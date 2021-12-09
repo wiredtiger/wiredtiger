@@ -46,7 +46,7 @@ functions:
         aws_secret: ${aws_secret}
         remote_file: wiredtiger/${endian_format}/${revision}/artifacts/${remote_file}.tgz
         bucket: build_external
-        extract_to: wiredtiger/build_posix/test/format
+        extract_to: wiredtiger/cmake_build/test/format
   "fetch mongo-tests repo" :
     command: shell.exec
     params:
