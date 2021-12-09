@@ -364,7 +364,7 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         min='512B', max='512MB'),
     Config('internal_item_max', '0', r'''
         This option is no longer supported, retained for backward compatibility''',
-        min=0),
+        min=0, undoc=True),
     Config('internal_key_max', '0', r'''
         This option is no longer supported, retained for backward compatibility''',
         min='0'),
@@ -395,7 +395,7 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         min='0'),
     Config('leaf_item_max', '0', r'''
         This option is no longer supported, retained for backward compatibility''',
-        min=0),
+        min=0, undoc=True),
     Config('memory_page_image_max', '0', r'''
         the maximum in-memory page image represented by a single storage block.
         Depending on compression efficiency, compression can create storage
@@ -760,9 +760,7 @@ connection_runtime_config = [
         'error' represents the messages from the WT_EVENT_HANDLER::handle_error method.''',
         type='list', choices=[
             'error',
-            'message',
-            'progress'
-            ]),
+            'message']),
     Config('lsm_manager', '', r'''
         configure database wide options for LSM tree management. The LSM
         manager is started automatically the first time an LSM tree is opened.
