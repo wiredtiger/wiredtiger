@@ -19,5 +19,6 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_GNU_SOURCE" CACHE STRING "" FORCE)
 # Linux requires buffers aligned to 4KB boundaries for O_DIRECT to work.
 set(WT_BUFFER_ALIGNMENT_DEFAULT "4096" CACHE STRING "")
 
-# ARMv8-A is the 64-bit ARM architecture, turn on the optional CRC instructions.
+# See https://www.sifive.com/blog/all-aboard-part-1-compiler-args
+# for background on the `rv64imafdc` and `lp64d` arguments here.
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=rv64imafdc -mabi=lp64d" CACHE STRING "" FORCE)
