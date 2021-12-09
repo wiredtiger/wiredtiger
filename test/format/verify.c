@@ -214,18 +214,18 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
                 trace_msg(session, "VERIFY_MIRROR: key %" PRIu64 " base size %d table size %d",
                   base_keyno, (int)base_value.size, (int)table_value.size);
                 trace_msg(session, "VERIFY_MIRROR: key %" PRIu64 " base: %.*s", base_keyno,
-                  (int)base_value.size, base_value.data);
+                  (int)base_value.size, (char *)base_value.data);
                 trace_msg(session, "VERIFY_MIRROR: key %" PRIu64 " table: %.*s", table_keyno,
-                  (int)table_value.size, table_value.data);
+                  (int)table_value.size, (char *)table_value.data);
             } else if (memcmp(base_value.data, table_value.data, base_value.size) != 0) {
                 fail_cmp_count++;
                 trace_msg(session,
                   "VERIFY_MIRROR: key %" PRIu64 " fail_cmp %" PRIu64 " Row %" PRIu64 " of %" PRIu32,
                   base_keyno, fail_cmp_count, rows, TV(RUNS_ROWS));
                 trace_msg(session, "VERIFY_MIRROR: key %" PRIu64 " base: %.*s", base_keyno,
-                  (int)base_value.size, base_value.data);
+                  (int)base_value.size, (char *)base_value.data);
                 trace_msg(session, "VERIFY_MIRROR: key %" PRIu64 " table: %.*s", table_keyno,
-                  (int)table_value.size, table_value.data);
+                  (int)table_value.size, (char *)table_value.data);
             }
 #endif
         }
