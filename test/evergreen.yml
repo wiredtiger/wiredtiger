@@ -38,7 +38,7 @@ functions:
       remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${dependent_task|compile}_${build_id}.tgz
       bucket: build_external
       extract_to: wiredtiger
-  "fetch artifacts from endian format" :
+  "fetch endian format artifacts" :
     - command: s3.get
       params:
         aws_key: ${aws_key}
@@ -469,7 +469,7 @@ functions:
         content_type: application/tar
         display_name: Artifacts
         remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
-  "upload endian format artifact":
+  "upload endian format artifacts":
     - command: s3.put
       params:
         aws_secret: ${aws_secret}
@@ -1815,7 +1815,7 @@ tasks:
             # Archive the WT_TEST directories which include the generated wt data files. We cannot
             # use the Evergreen archive command as we need to archive multiple WT_TEST folders.
             tar -zcvf WT_TEST.tgz WT_TEST*
-      - func: "upload endian format artifact"
+      - func: "upload endian format artifacts"
         vars:
           endian_format: little-endian
           local_file: wiredtiger/build_posix/test/format/WT_TEST.tgz
@@ -1827,7 +1827,7 @@ tasks:
     - name: generate-datafile-little-endian
     commands:
       - func: "fetch artifacts"
-      - func: "fetch artifacts from endian format"
+      - func: "fetch endian format artifacts"
         vars:
           endian_format: little-endian
           remote_file: WT_TEST-little-endian
@@ -1840,7 +1840,7 @@ tasks:
       variant: little-endian
     commands:
       - func: "fetch artifacts"
-      - func: "fetch artifacts from endian format"
+      - func: "fetch endian format artifacts"
         vars:
           endian_format: little-endian
           remote_file: WT_TEST-little-endian
@@ -1867,7 +1867,7 @@ tasks:
             # Archive the WT_TEST directories which include the generated wt data files. We cannot
             # use the Evergreen archive command as we need to archive multiple WT_TEST folders.
             tar -zcvf WT_TEST.tgz WT_TEST*
-      - func: "upload endian format artifact"
+      - func: "upload endian format artifacts"
         vars:
           endian_format: big-endian
           local_file: wiredtiger/build_posix/test/format/WT_TEST.tgz
@@ -1879,7 +1879,7 @@ tasks:
     - name: generate-datafile-big-endian
     commands:
       - func: "fetch artifacts"
-      - func: "fetch artifacts from endian format"
+      - func: "fetch endian format artifacts"
         vars:
           endian_format: big-endian
           remote_file: WT_TEST-big-endian
@@ -1892,7 +1892,7 @@ tasks:
       variant: big-endian
     commands:
       - func: "fetch artifacts"
-      - func: "fetch artifacts from endian format"
+      - func: "fetch endian format artifacts"
         vars:
           endian_format: big-endian
           remote_file: WT_TEST-big-endian
