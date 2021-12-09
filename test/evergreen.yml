@@ -1973,15 +1973,14 @@ tasks:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix"
+          working_dir: "wiredtiger/cmake_build/test/fops"
           script: |
             set -o errexit
             set -o verbose
             if [ "Windows_NT" = "$OS" ]; then
-              cd ..
-              cmd.exe /c t_fops.exe
+              cmd.exe /c test_fops.exe
             else
-              ${test_env_vars|} test/fops/t
+              ${test_env_vars|} ./test_fops
             fi
 
   - name: compatibility-test-for-newer-releases
