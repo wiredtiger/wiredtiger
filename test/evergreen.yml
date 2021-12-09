@@ -3992,18 +3992,19 @@ buildvariants:
   - ubuntu2004-wt-build
   expansions:
     posix_configure_flags: 
-      --enable-silent-rules
-      --enable-diagnostic
-      --enable-strict
-      --enable-lz4
-      --enable-snappy
-      --enable-zlib
-      --enable-zstd
-      --enable-python
-      --enable-tcmalloc
+      -DHAVE_DIAGNOSTIC=1
+      -DENABLE_STRICT=1
+      -DENABLE_LZ4=1
+      -DENABLE_SNAPPY=1
+      -DENABLE_ZLIB=1
+      -DENABLE_ZSTD=1
+      -DENABLE_PYTHON=1
+      -DENABLE_TCMALLOC=1
+      -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-    make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
+    make_command: ninja
+    is_cmake_build: true
   tasks:
     - name: ".pull_request_compilers"
 
