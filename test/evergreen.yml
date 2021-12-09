@@ -3815,8 +3815,8 @@ tasks:
 
 buildvariants:
 
-- name: ubuntu2004-cmake
-  display_name: "* Ubuntu 20.04 CMake"
+- name: ubuntu2004
+  display_name: "! Ubuntu 20.04"
   run_on:
   - ubuntu2004-test
   expansions:
@@ -4278,8 +4278,8 @@ buildvariants:
     - name: compatibility-test-for-newer-releases
     - name: import-compatibility-test
 
-- name: windows-64-cmake
-  display_name: "* Windows 64-bit CMake"
+- name: windows-64
+  display_name: "! Windows 64-bit"
   run_on:
   - windows-64-vs2017-test
   expansions:
@@ -4297,8 +4297,8 @@ buildvariants:
     - name: ".unit_test"
     - name: fops
 
-- name: macos-1014-cmake
-  display_name: "* OS X 10.14 CMake"
+- name: macos-1014
+  display_name: "OS X 10.14 CMake"
   run_on:
   - macos-1014
   batchtime: 120 # 2 hours
@@ -4370,8 +4370,8 @@ buildvariants:
   - name: verify-datafile-big-endian
   - name: verify-datafile-from-little-endian
 
-- name: ubuntu1804-ppc-cmake
-  display_name: "* Ubuntu 18.04 PPC CMake"
+- name: ubuntu1804-ppc
+  display_name: "~ Ubuntu 18.04 PPC"
   run_on:
   - ubuntu1804-power8-test
   batchtime: 10080 # 7 days
@@ -4402,8 +4402,8 @@ buildvariants:
     - name: format-wtperf-test
     - name: ".stress-test-ppc-1"
 
-- name: ubuntu1804-zseries-cmake
-  display_name: "* Ubuntu 18.04 zSeries CMake"
+- name: ubuntu1804-zseries
+  display_name: "~ Ubuntu 18.04 zSeries"
   run_on:
   - ubuntu1804-zseries-test
   batchtime: 10080 # 7 days
