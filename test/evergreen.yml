@@ -2242,7 +2242,7 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           # Don't use diagnostic - this test looks for timing problems that are more likely to occur without it
-          posix_configure_flags: --enable-strict
+          posix_configure_flags: -DENABLE_STRICT=1
       - func: "checkpoint test"
         vars:
           checkpoint_args: -t m -n 1000000 -k 5000000 -C cache_size=100MB
