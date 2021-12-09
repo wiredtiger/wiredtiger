@@ -494,7 +494,7 @@ functions:
         permissions: public-read
         content_type: application/tar
         display_name: WT_TEST
-        remote_file: wiredtiger/${endian_format}/${revision}/artifacts/${local_file}
+        remote_file: wiredtiger/${endian_format}/${revision}/artifacts/${remote_file}
   "cleanup":
     command: shell.exec
     params:
@@ -2041,6 +2041,7 @@ tasks:
         vars:
           endian_format: little-endian
           local_file: wiredtiger/build_posix/test/format/WT_TEST.tgz
+          remote_file: WT_TEST.tgz
 
   - name: verify-datafile-little-endian
     depends_on:
@@ -2090,6 +2091,7 @@ tasks:
         vars:
           endian_format: big-endian
           local_file: wiredtiger/build_posix/test/format/WT_TEST.tgz
+          remote_file: WT_TEST.tgz
 
   - name: verify-datafile-big-endian
     depends_on:
