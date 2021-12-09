@@ -4429,6 +4429,10 @@ buildvariants:
     - name: compile
     - name: make-check-test
     - name: unit-test
+    - name: format-smoke-test
+    - name: format-asan-smoke-ppc-test
+    - name: format-wtperf-test
+    - name: ".stress-test-ppc-1"
 
 - name: ubuntu1804-zseries
   display_name: "~ Ubuntu 18.04 zSeries"
@@ -4488,3 +4492,7 @@ buildvariants:
     - name: compile
     - name: make-check-test
     - name: unit-test
+    - name: format-smoke-test
+    - name: ".stress-test-zseries-1"
+    - name: ".stress-test-zseries-2"
+    - name: ".stress-test-zseries-3"
