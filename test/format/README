@@ -16,14 +16,15 @@ You can trace more operations by adding comma or white-space separated arguments
     all         trace everything
     bulk        trace bulk loads
     cursor      trace cursor operations
+    mirror_fail	trace multiple failures in mirror checks (up to a maximum of 20).
     read        trace read operations
-    retain=N    by default, 10 log files are retained, set N to increase that number
+    retain=N    log files are retained by default, retain N instead.
     timestamp   trace timestamp operations (setting oldest, stable TS)
     txn         add transactional information to the trace log on operations
 
-For example, to trace the usual operations, plus bulk load, and retain 25 log files, use:
+For example, to trace the usual operations plus bulk load, and retain 25 log files, use:
 
-    -t "bulk,retain25"
+    -t "bulk,retain=25"
 
 Additionally if tracing is configured, verbose messages written by the database itself will be
 logged as well. For example, to trace the usual operations and include verbose block manager

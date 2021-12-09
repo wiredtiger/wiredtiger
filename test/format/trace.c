@@ -28,6 +28,13 @@
 
 #include "format.h"
 
+#define TRACE_CONFIG_CMD(cmd, flag)        \
+    if ((p = strstr(copy, cmd)) != NULL) { \
+        flag = true;                       \
+        memset(p, ' ', strlen(cmd));       \
+        continue;                          \
+    }
+
 /*
  * trace_config --
  *     Configure operation tracing.
@@ -36,29 +43,18 @@ void
 trace_config(const char *config)
 {
     char *copy, *p;
+    bool all;
 
     copy = dstrdup(config);
-    for (;;) {
-        if ((p = strstr(copy, "all")) != NULL) {
-            g.trace_bulk = g.trace_cursor = g.trace_read = g.trace_timestamp = g.trace_txn = true;
-            memset(p, ' ', strlen("all"));
-            continue;
-        }
-        if ((p = strstr(copy, "bulk")) != NULL) {
-            g.trace_bulk = true;
-            memset(p, ' ', strlen("bulk"));
-            continue;
-        }
-        if ((p = strstr(copy, "cursor")) != NULL) {
-            g.trace_cursor = true;
-            memset(p, ' ', strlen("cursor"));
-            continue;
-        }
-        if ((p = strstr(copy, "read")) != NULL) {
-            g.trace_read = true;
-            memset(p, ' ', strlen("read"));
-            continue;
-        }
+    for (all = false;;) {
+        TRACE_CONFIG_CMD("all", all);
+        TRACE_CONFIG_CMD("bulk", g.trace_bulk);
+        TRACE_CONFIG_CMD("cursor", g.trace_cursor);
+        TRACE_CONFIG_CMD("mirror_fail", g.trace_mirror_fail);
+        TRACE_CONFIG_CMD("read", g.trace_read);
+        TRACE_CONFIG_CMD("timestamp", g.trace_timestamp);
+        TRACE_CONFIG_CMD("txn", g.trace_txn);
+
         if ((p = strstr(copy, "retain=")) != NULL) {
             g.trace_retain = atoi(p + strlen("retain="));
             for (; *p != '='; ++p)
@@ -67,18 +63,11 @@ trace_config(const char *config)
                 *p = ' ';
             continue;
         }
-        if ((p = strstr(copy, "timestamp")) != NULL) {
-            g.trace_timestamp = true;
-            memset(p, ' ', strlen("timestamp"));
-            continue;
-        }
-        if ((p = strstr(copy, "txn")) != NULL) {
-            g.trace_txn = true;
-            memset(p, ' ', strlen("txn"));
-            continue;
-        }
         break;
     }
+    if (all)
+        g.trace_bulk = g.trace_cursor = g.trace_mirror_fail = g.trace_read = g.trace_timestamp =
+          g.trace_txn = true;
 
     for (p = copy; *p != '\0'; ++p)
         if (*p != ',' && !__wt_isspace((u_char)*p))

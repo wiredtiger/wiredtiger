@@ -102,8 +102,8 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
     WT_ITEM base_key, base_value, table_key, table_value;
     WT_SESSION *session;
     uint64_t base_keyno, table_keyno, rows;
-    uint64_t fail_cmp_count, fail_size_count;
     uint8_t base_bitv, table_bitv;
+    u_int failures;
     int base_ret, table_ret;
     char buf[256];
 
@@ -126,8 +126,7 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
       table->id, checkpoint == NULL ? "" : checkpoint, checkpoint == NULL ? "" : "checkpoint "));
     trace_msg(session, "%s: start", buf);
 
-    fail_cmp_count = fail_size_count = 0;
-    for (rows = 1; rows <= TV(RUNS_ROWS); ++rows) {
+    for (failures = 0, rows = 1; rows <= TV(RUNS_ROWS); ++rows) {
         switch (base->type) {
         case FIX:
             testutil_assert(base->type != FIX);
@@ -201,45 +200,23 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
             testutil_assert(base_bitv == table_bitv);
         } else {
             testutil_check(table_cursor->get_value(table_cursor, &table_value));
-#if 0
-            testutil_assert(base_value.size == table_value.size &&
-              (base_value.size == 0 ||
-                memcmp(base_value.data, table_value.data, base_value.size) == 0));
-#else
-            if (base_value.size != table_value.size) {
-                fail_size_count++;
-                trace_msg(session,
-                  "VERIFY_MIRROR: fail_size %" PRIu64 " Row %" PRIu64 " of %" PRIu32 ":",
-                  fail_size_count, rows, TV(RUNS_ROWS));
-                trace_msg(session, "VERIFY_MIRROR: key %" PRIu64 " base size %d table size %d",
-                  base_keyno, (int)base_value.size, (int)table_value.size);
-                trace_msg(session, "VERIFY_MIRROR: key %" PRIu64 " base: %.*s", base_keyno,
-                  (int)base_value.size, (char *)base_value.data);
-                trace_msg(session, "VERIFY_MIRROR: key %" PRIu64 " table: %.*s", table_keyno,
+            if (base_value.size != table_value.size ||
+              memcmp(base_value.data, table_value.data, base_value.size) != 0) {
+                trace_msg(session, "mirror: %" PRIu64 " mismatch: %s: {%.*s}, %s: {%.*s}",
+                  base_keyno, base->uri, (int)base_value.size, (char *)base_value.data, table->uri,
                   (int)table_value.size, (char *)table_value.data);
-            } else if (memcmp(base_value.data, table_value.data, base_value.size) != 0) {
-                fail_cmp_count++;
-                trace_msg(session,
-                  "VERIFY_MIRROR: key %" PRIu64 " fail_cmp %" PRIu64 " Row %" PRIu64 " of %" PRIu32,
-                  base_keyno, fail_cmp_count, rows, TV(RUNS_ROWS));
-                trace_msg(session, "VERIFY_MIRROR: key %" PRIu64 " base: %.*s", base_keyno,
-                  (int)base_value.size, (char *)base_value.data);
-                trace_msg(session, "VERIFY_MIRROR: key %" PRIu64 " table: %.*s", table_keyno,
-                  (int)table_value.size, (char *)table_value.data);
+                testutil_assertfmt(g.trace_mirror_fail && ++failures < 20,
+                  "mirror: %" PRIu64 " mismatch: %s: {%.*s}, %s: {%.*s}", base_keyno, base->uri,
+                  (int)base_value.size, (char *)base_value.data, table->uri, (int)table_value.size,
+                  (char *)table_value.data);
             }
-#endif
         }
 
         /* Report progress (unless verifying checkpoints which happens during live operations). */
         if (checkpoint == NULL && ((rows < 5000 && rows % 10 == 0) || rows % 5000 == 0))
             track(buf, rows);
     }
-    if (fail_size_count != 0 || fail_cmp_count != 0)
-        trace_msg(session,
-          "VERIFY_MIRROR FAILURE: fail_cmp %" PRIu64 " fail_size %" PRIu64 " Rows %" PRIu32,
-          fail_cmp_count, fail_size_count, TV(RUNS_ROWS));
-    testutil_assert(fail_size_count == 0);
-    testutil_assert(fail_cmp_count == 0);
+    testutil_assert(failures == 0);
 
     trace_msg(session, "%s: stop", buf);
     wiredtiger_close_session(session);

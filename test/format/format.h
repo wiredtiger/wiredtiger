@@ -192,6 +192,7 @@ typedef struct {
     bool trace;
     bool trace_bulk;
     bool trace_cursor;
+    bool trace_mirror_fail;
     bool trace_read;
     int trace_retain;
     bool trace_timestamp;
