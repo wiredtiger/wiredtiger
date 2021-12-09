@@ -2143,19 +2143,18 @@ tasks:
       - func: "get project"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/test/evergreen"
+          working_dir: "wiredtiger"
           script: |
             set -o errexit
             set -o verbose
-            ./configure_combinations.sh ${smp_command|} 2>&1
+            . test/evergreen/find_cmake.sh
+            cd test/evergreen
+            CMAKE_BIN=$CMAKE ./configure_combinations.sh -g="${cmake_generator|Ninja}" -j=$(grep -c ^processor /proc/cpuinfo) 2>&1
       # Handle special build combination for running all the diagnostic tests.
       - func: "configure wiredtiger"
         vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-g -Werror"
-          posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
+          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DENABLE_STATIC=0
       - func: "make wiredtiger"
-        vars:
-          make_command: make all
       - func: "make check all"
 
   # Use format.sh to run tests in parallel (x4) for just under two hours (the
