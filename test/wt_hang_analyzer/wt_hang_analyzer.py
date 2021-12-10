@@ -633,13 +633,13 @@ def main():
         sys.exit(1)
 
 # Remove the lowest bit from the core dump mask. The lowest bit is for
-# anonymous private mappings (see: `man core`). These mappings are used by
+# anonymous private mappings (see: man core). These mappings are used by
 # ASAN, MSAN et al to allocate shadow memory. Some of these mappings are
-# correctly marked as "don't dump" via `memadvise`, but not
-# all. Unfortunately these mappings are quite large (multiple terabytes), so
+# correctly marked as "don't dump" via `memadvise`, but not all.
+# Unfortunately these mappings are quite large (multiple terabytes), so
 # don't write them to disk.
 #
-# In theory there could be WT-internal use cases for these mappings, but as
+# In theory there could be WiredTiger use cases for these mappings, but as
 # of writing there aren't any, and in any case a partial core dump is better
 # than none because of an ENOSPC.
 def avoid_asan_dump(pid):
