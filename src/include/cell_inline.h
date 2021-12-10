@@ -953,13 +953,13 @@ __cell_addr_window_cleanup(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
     if (unpack_addr != NULL) {
         ta = &unpack_addr->ta;
         if (ta->newest_txn != WT_TXN_NONE) {
-            if (!F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID)) {
+            if (!F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
                 ta->newest_txn = WT_TXN_NONE;
                 F_SET(unpack_addr, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
             }
         }
         if (ta->newest_stop_txn != WT_TXN_MAX) {
-            if (!F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID)) {
+            if (!F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
                 ta->newest_stop_txn = WT_TXN_NONE;
                 F_SET(unpack_addr, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
             }
@@ -991,13 +991,13 @@ __cell_kv_window_cleanup(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack_kv)
     if (unpack_kv != NULL) {
         tw = &unpack_kv->tw;
         if (tw->start_txn != WT_TXN_NONE) {
-            if (!F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID)) {
+            if (!F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
                 tw->start_txn = WT_TXN_NONE;
                 F_SET(unpack_kv, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
             }
         }
         if (tw->stop_txn != WT_TXN_MAX) {
-            if (!F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID)) {
+            if (!F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
                 tw->stop_txn = WT_TXN_NONE;
                 F_SET(unpack_kv, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
             }
