@@ -91,7 +91,7 @@ functions:
         # Fetch the gperftools library.
         if [[ "${posix_configure_flags|}" =~ (tcmalloc|TCMALLOC) ]]; then
           git clone git@github.com:wiredtiger/automation-scripts.git
-          . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} ${is_cmake_build|false}
+          . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} true
         fi
         
         set -o errexit
@@ -3761,7 +3761,6 @@ buildvariants:
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: Ninja
     make_command: ninja
-    is_cmake_build: true
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
   tasks:
     - name: ".pull_request !.pull_request_compilers"
@@ -3813,7 +3812,6 @@ buildvariants:
       -DCMAKE_C_FLAGS="-ggdb"
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
-    is_cmake_build: true
     test_env_vars:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
@@ -3845,7 +3843,6 @@ buildvariants:
       -DCMAKE_C_FLAGS="-ggdb"
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
-    is_cmake_build: true
     test_env_vars:
       MSAN_OPTIONS="abort_on_error=1:disable_coredump=0:print_stacktrace=1"
       MSAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
@@ -3885,7 +3882,6 @@ buildvariants:
       -DCMAKE_C_FLAGS="-ggdb"
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
-    is_cmake_build: true
     test_env_vars:
       UBSAN_OPTIONS="detect_leaks=1:disable_coredump=0:external_symbolizer_path=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer:abort_on_error=1:print_stacktrace=1"
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
@@ -3926,7 +3922,6 @@ buildvariants:
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
-    is_cmake_build: true
   tasks:
     - name: ".pull_request_compilers"
 
@@ -3937,7 +3932,6 @@ buildvariants:
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
-    is_cmake_build: true
     test_env_vars:
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
@@ -3986,7 +3980,6 @@ buildvariants:
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: Ninja
     make_command: ninja
-    is_cmake_build: true
   tasks:
     - name: compile
     - name: ".btree-perf"
@@ -4059,7 +4052,6 @@ buildvariants:
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
     cmake_generator: Ninja
     make_command: ninja
-    is_cmake_build: true
     posix_configure_flags:
       -DHAVE_DIAGNOSTIC=1
       -DENABLE_PYTHON=1
@@ -4110,7 +4102,6 @@ buildvariants:
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
-    is_cmake_build: true
     cmake_generator: Ninja
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
   tasks:
@@ -4133,7 +4124,6 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     cmake_generator: "Unix Makefiles"
     make_command: make
-    is_cmake_build: true
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
   tasks:
     - name: compile
@@ -4169,7 +4159,6 @@ buildvariants:
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
     make_command: ninja
-    is_cmake_build: true
     cmake_generator: Ninja
   tasks:
     - name: coverage-report
@@ -4206,7 +4195,6 @@ buildvariants:
   - windows-64-vs2017-test
   expansions:
     python_binary: 'python'
-    is_cmake_build: true
     test_env_vars:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
@@ -4239,7 +4227,6 @@ buildvariants:
     test_env_vars: 
       WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
       DYLD_LIBRARY_PATH=$WT_BUILDDIR
-    is_cmake_build: true
   tasks:
     - name: compile
     - name: make-check-test
@@ -4260,7 +4247,6 @@ buildvariants:
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR
     make_command: ninja
-    is_cmake_build: true
     cmake_generator: Ninja
   tasks:
   - name: compile
@@ -4284,7 +4270,6 @@ buildvariants:
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR
     make_command: ninja
-    is_cmake_build: true
     cmake_generator: Ninja
   tasks:
   - name: compile
@@ -4314,7 +4299,6 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     cmake_generator: Ninja
     make_command: ninja
-    is_cmake_build: true
   tasks:
     - name: compile
     - name: make-check-test
@@ -4346,7 +4330,6 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     cmake_generator: Ninja
     make_command: ninja
-    is_cmake_build: true
   tasks:
     - name: compile
     - name: make-check-test
