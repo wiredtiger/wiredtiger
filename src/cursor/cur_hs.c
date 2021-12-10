@@ -299,7 +299,6 @@ __curhs_reset(WT_CURSOR *cursor)
 
     ret = file_cursor->reset(file_cursor);
     WT_TIME_WINDOW_INIT(&hs_cursor->time_window);
-    hs_cursor->btree_id = 0;
     hs_cursor->datastore_key->data = NULL;
     hs_cursor->datastore_key->size = 0;
     hs_cursor->flags = 0;
@@ -342,7 +341,8 @@ __curhs_set_key(WT_CURSOR *cursor, ...)
 
     WT_ASSERT(session, arg_count >= 1 && arg_count <= 4);
 
-    hs_cursor->btree_id = va_arg(ap, uint32_t);
+    /* The btree ID in the key should match the btree the cursor was opened on. */
+    WT_ASSERT(session, hs_cursor->btree_id == va_arg(ap, uint32_t));
     F_SET(hs_cursor, WT_HS_CUR_BTREE_ID_SET);
     if (arg_count > 1) {
         datastore_key = va_arg(ap, WT_ITEM *);
@@ -1117,7 +1117,8 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
     cursor->value_format = WT_HS_VALUE_FORMAT;
 
     /* Open history cursor for the session dhandle */
-    WT_ERR(__wt_hs_uri(session, S2BT(session)->id, &hs_uri));
+    hs_cursor->btree_id = S2BT(session)->id;
+    WT_ERR(__wt_hs_uri(session, hs_cursor->btree_id, &hs_uri));
 
     WT_ERR(__wt_strdup(session, hs_uri, &cursor->uri));
 
@@ -1128,7 +1129,6 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
       ret = __wt_cursor_init(cursor, hs_uri, owner, NULL, cursorp));
     WT_ERR(ret);
     WT_TIME_WINDOW_INIT(&hs_cursor->time_window);
-    hs_cursor->btree_id = 0;
     WT_ERR(__wt_scr_alloc(session, 0, &hs_cursor->datastore_key));
     hs_cursor->flags = 0;
 
