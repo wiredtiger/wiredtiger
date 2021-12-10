@@ -2237,15 +2237,12 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-        vars:
-          posix_configure_flags: --enable-strict
       - command: shell.exec
         params:
           working_dir: "wiredtiger/test/csuite"
           script: |
             set -o errexit
             set -o verbose
-
             ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
 
   - name: format-stress-pull-request-test
