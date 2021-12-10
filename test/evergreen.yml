@@ -217,7 +217,7 @@ functions:
   "compile wiredtiger docs":
     - command: shell.exec
       params:
-        working_dir: "wiredtiger/build_posix"
+        working_dir: "wiredtiger"
         shell: bash
         script: |
           set -o errexit
@@ -238,16 +238,26 @@ functions:
 
             echo "Checking out branch $branch ..."
             git checkout $branch
-            sh reconf
 
             # Java API is removed in newer branches via WT-6675.
             if [ $branch == "mongodb-4.2" ] || [ $branch == "mongodb-4.0" ]; then
+              cd build_posix
+              sh reconf
               ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-java --enable-python --enable-strict
               (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
               (cd lang/java && make ../../../lang/java/wiredtiger_wrap.c)
-            else
+            elif [ $branch == "mongodb-5.0" ] || [ $branch == "mongodb-4.4" ]; then
+              cd build_posix
+              sh reconf
               ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-python --enable-strict
               (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
+            else
+              . test/evergreen/find_cmake.sh
+              if [ -d cmake_build ]; then rm -r cmake_build; fi
+              mkdir -p cmake_build
+              cd cmake_build
+              $CMAKE -DCMAKE_C_FLAGS="-DMIGHT_NOT_RUN -Wno-error" -DENABLE_PYTHON=1 -DENABLE_STRICT=1 -G "${cmake_generator|Ninja}" ../.
+              ninja lang/python/all
             fi
 
             (cd ../dist && sh s_docs && echo "The documentation for $branch was successfully generated.")
