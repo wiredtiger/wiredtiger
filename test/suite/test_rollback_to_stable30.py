@@ -45,13 +45,21 @@ class test_rollback_to_stable30(test_rollback_to_stable_base):
         ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
         ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
     ]
-
+    prepare_values = [
+        ('no_prepare', dict(prepare=False)),
+        ('prepare', dict(prepare=True)),
+    ]
+    second_checkpoint_values = [
+        ('second_checkpoint', dict(second_checkpoint=True)),
+        ('no_second_checkpoint', dict(second_checkpoint=False)),
+    ]
     rollback_modes = [
         ('runtime', dict(crash=False)),
         ('recovery', dict(crash=True)),
     ]
 
-    scenarios = make_scenarios(format_values, rollback_modes)
+    scenarios = make_scenarios(format_values, prepare_values, second_checkpoint_values,
+        rollback_modes)
 
     # Make all the values different so it's easier to see what happens if ranges go missing.
     def mkdata(self, basevalue, i):
@@ -142,13 +150,21 @@ class test_rollback_to_stable30(test_rollback_to_stable_base):
         self.session.checkpoint()
 
         # Now fast-delete the lot at time 35.
-        self.session.begin_transaction()
-        lo_cursor = self.session.open_cursor(uri)
+        # Use a separate session for this so that if we leave the truncate prepared it
+        # doesn't obstruct the rest of the test.
+        session2 = self.conn.open_session()
+        session2.begin_transaction()
+        lo_cursor = session2.open_cursor(uri)
         lo_cursor.set_key(ds.key(nrows // 2 + 1))
-        hi_cursor = self.session.open_cursor(uri)
+        hi_cursor = session2.open_cursor(uri)
         hi_cursor.set_key(ds.key(nrows + 1))
-        self.session.truncate(None, lo_cursor, hi_cursor, None)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(35))
+        session2.truncate(None, lo_cursor, hi_cursor, None)
+        if self.prepare:
+            session2.prepare_transaction('prepare_timestamp=' + self.timestamp_str(35))
+        else:
+            session2.commit_transaction('commit_timestamp=' + self.timestamp_str(35))
+        hi_cursor.close()
+        lo_cursor.close()
 
         # Check stats to make sure we fast-deleted at least one page.
         # Since VLCS and FLCS do not (yet) support fast-delete, instead assert we didn't.
@@ -159,8 +175,9 @@ class test_rollback_to_stable30(test_rollback_to_stable_base):
         else:
             self.assertGreater(fastdelete_pages, 0)
 
-        # Checkpoint again with the deletion.
-        self.session.checkpoint()
+        if self.second_checkpoint:
+            # Checkpoint again with the deletion.
+            self.session.checkpoint()
 
         # Roll back, either via crashing or by explicit RTS.
         if self.crash:
