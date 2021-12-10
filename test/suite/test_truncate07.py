@@ -26,15 +26,16 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wttest
+from wiredtiger import WiredTigerError, wiredtiger_strerror, WT_ROLLBACK, WT_PREPARE_CONFLICT
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_truncate06.py
+# test_truncate07.py
 #
-# Test various scenarios with timestamps and truncation.
+# Check what happens if you try to truncate prepared values.
 
-class test_truncate06(wttest.WiredTigerTestCase):
+class test_truncate07(wttest.WiredTigerTestCase):
     conn_config = ''
     session_config = 'isolation=snapshot'
 
@@ -68,14 +69,15 @@ class test_truncate06(wttest.WiredTigerTestCase):
         ('checkpoint', dict(do_checkpoint=True)),
         ('no-checkpoint', dict(do_checkpoint=False)),
     ]
-    # Try both a conflicting and nonconflicting truncate.
-    trunctime_values = [
-        ('conflicting', dict(trunctime=15)),
-        ('nonconflicting', dict(trunctime=25)),
-    ]
 
     scenarios = make_scenarios(trunc_values,
-        format_values, munge_values, eviction_values, checkpoint_values, trunctime_values)
+        format_values, munge_values, eviction_values, checkpoint_values)
+
+    # Make all the values different so it's easier to see what happens if ranges go missing.
+    def mkdata(self, basevalue, i):
+        if self.value_format == '8t':
+            return basevalue
+        return basevalue + str(i)
 
     def evict(self, uri, key, value):
         evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
@@ -93,9 +95,11 @@ class test_truncate06(wttest.WiredTigerTestCase):
                 cursor.set_key(k)
                 try:
                     err = cursor.remove()
-                except wiredtiger.WiredTigerError as e:
-                    if wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK) in str(e):
-                        err = wiredtiger.WT_ROLLBACK
+                except WiredTigerError as e:
+                    if wiredtiger_strerror(WT_ROLLBACK) in str(e):
+                        err = WT_ROLLBACK
+                    elif wiredtiger_strerror(WT_PREPARE_CONFLICT) in str(e):
+                        err = WT_PREPARE_CONFLICT
                     else:
                         raise e
                 if err != 0:
@@ -108,33 +112,34 @@ class test_truncate06(wttest.WiredTigerTestCase):
             hi_cursor.set_key(make_key(keynum2))
             try:
                 err = self.session.truncate(None, lo_cursor, hi_cursor, None)
-            except wiredtiger.WiredTigerError as e:
-                if wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK) in str(e):
-                    err = wiredtiger.WT_ROLLBACK
+            except WiredTigerError as e:
+                if wiredtiger_strerror(WT_ROLLBACK) in str(e):
+                    err = WT_ROLLBACK
+                elif wiredtiger_strerror(WT_PREPARE_CONFLICT) in str(e):
+                    err = WT_PREPARE_CONFLICT
                 else:
                     raise e
             lo_cursor.close()
             hi_cursor.close()
         return err
 
-    def test_truncate06(self):
+    def test_truncate07(self):
         nrows = 10000
 
-        table_uri = 'table:truncate06'
+        uri = "table:truncate07"
         ds = SimpleDataSet(
-            self, table_uri, 0, key_format=self.key_format, value_format=self.value_format,
+            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
             config='log=(enabled=false)' + self.extraconfig)
         ds.populate()
-        self.session.checkpoint()
 
         if self.value_format == '8t':
             value_a = 97
             value_b = 98
         else:
-            value_a = 'a' * 500
-            value_b = 'b' * 500
+            value_a = "aaaaa" * 100
+            value_b = "bbbbb" * 100
 
-        # Pin oldest and stable to timestamp 1.
+        # Pin oldest and stable timestamps to 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
             ',stable_timestamp=' + self.timestamp_str(1))
 
@@ -150,19 +155,24 @@ class test_truncate06(wttest.WiredTigerTestCase):
 
         # Munge some of it at time 20. Touch every other even-numbered key in the middle third of
         # the data. (This allows using the odd keys to evict.)
-        self.session.begin_transaction()
+        #
+        # Use a separate session because we're going to prepare the transaction and we want to
+        # be able to do other things afterward.
+        session2 = self.conn.open_session()
+        cursor2 = session2.open_cursor(ds.uri)
+        session2.begin_transaction()
         start = nrows // 3
         if start % 2 == 1:
             start += 1
         for i in range(start, 2 * nrows // 3, 2):
-            cursor.set_key(ds.key(i))
+            cursor2.set_key(ds.key(i))
             if self.munge_with_update:
-                cursor.set_value(value_b)
-                self.assertEqual(cursor.update(), 0)
+                cursor2.set_value(value_b)
+                self.assertEqual(cursor2.update(), 0)
             else:
-                self.assertEqual(cursor.remove(), 0)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
-        cursor.reset()
+                self.assertEqual(cursor2.remove(), 0)
+        session2.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20))
+        cursor2.close()
 
         # Evict the lot so that we can fast-truncate.
         # For now, evict every 4th key explicitly; FUTURE: improve this to evict each page only
@@ -174,21 +184,13 @@ class test_truncate06(wttest.WiredTigerTestCase):
         if self.do_checkpoint:
             self.session.checkpoint()
 
-        # Truncate at either time 15 or 25. Time 15 is across the deletions that are at 20
-        # and should fail with WT_ROLLBACK; time 25 should succeed.
-        ts = self.trunctime
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts - 1))
+        # Truncate the data, including what we prepared.
+        self.session.begin_transaction()
         err = self.truncate(ds.uri, ds.key, nrows // 4, nrows - nrows // 4)
-        if ts == 15:
-            self.assertEqual(err, wiredtiger.WT_ROLLBACK)
-            self.session.rollback_transaction()
-        else:
-            self.assertEqual(err, 0)
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
+        self.assertEqual(err, WT_PREPARE_CONFLICT)
+        self.session.rollback_transaction()
 
         # Move the stable timestamp forward before exiting so we don't waste time rolling
         # back the rest of the changes during shutdown.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
-        
-if __name__ == '__main__':
-    wttest.run()
+
