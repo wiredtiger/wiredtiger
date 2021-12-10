@@ -2678,9 +2678,12 @@ __wt_rec_hs_clear_on_tombstone(
         key = &hs_recno_key;
     }
 
-    /* Open a history store cursor if we don't yet have one. */
-    if (r->hs_cursor == NULL)
+    /* Make sure we have a history cursor for the right tree. */
+    if (r->hs_cursor == NULL || btree->id != ((WT_CURSOR_HS *)r->hs_cursor)->btree_id) {
+        if (r->hs_cursor != NULL) 
+            r->hs_cursor->close(r->hs_cursor);
         WT_RET(__wt_curhs_open(session, NULL, &r->hs_cursor));
+    }
 
     /*
      * From WT_TS_NONE delete all the history store content of the key. This path will never be
