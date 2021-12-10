@@ -557,7 +557,6 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
 static bool
 __evict_update_work(WT_SESSION_IMPL *session)
 {
-    WT_BTREE *hs_tree;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     double dirty_target, dirty_trigger, target, trigger, updates_target, updates_trigger;
@@ -584,18 +583,6 @@ __evict_update_work(WT_SESSION_IMPL *session)
 
     if (!__evict_queue_empty(cache->evict_urgent_queue, false))
         LF_SET(WT_CACHE_EVICT_URGENT);
-
-#if 0
-    /*
-     * TODO: We are caching the cache usage values associated with the history store because the
-     * history store dhandle isn't always available to eviction. Keeping potentially out-of-date
-     * values could lead to surprising bugs in the future.
-     */
-    if (F_ISSET(conn, WT_CONN_HS_OPEN) && __wt_hs_get_btree(session, &hs_tree) == 0) {
-        cache->bytes_hs = hs_tree->bytes_inmem;
-        cache->bytes_hs_dirty = hs_tree->bytes_dirty_intl + hs_tree->bytes_dirty_leaf;
-    }
-#endif
 
     /*
      * If we need space in the cache, try to find clean pages to evict.

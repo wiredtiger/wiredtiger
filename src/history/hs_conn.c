@@ -117,7 +117,6 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
 
-#if 0
     WT_ERR(__hs_start_internal_session(session, &tmp_setup_session));
 
     /*
@@ -146,12 +145,12 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
      */
     btree->file_max = (uint64_t)cval.val;
     WT_STAT_CONN_SET(session, cache_hs_ondisk_max, btree->file_max);
-#endif
 
 err:
     if (tmp_setup_session != NULL)
         WT_TRET(__hs_release_internal_session(tmp_setup_session));
     return (ret);
+    return (0);
 }
 
 /*
@@ -162,6 +161,8 @@ int
 __wt_hs_open(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_CONNECTION_IMPL *conn;
+
+    WT_UNUSED(cfg);
 
     conn = S2C(session);
 

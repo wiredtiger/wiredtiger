@@ -1504,6 +1504,8 @@ __rollback_to_stable_btree_apply(
     bool dhandle_allocated, durable_ts_found, has_txn_updates_gt_than_ckpt_snap, perform_rts;
     bool prepared_updates;
 
+    WT_UNUSED(btree_id);
+
     /* Ignore non-btree objects as well as the metadata and history store files. */
     if (!WT_BTREE_PREFIX(uri) || strcmp(uri, WT_HS_URI) == 0 || strcmp(uri, WT_METAFILE_URI) == 0)
         return (0);

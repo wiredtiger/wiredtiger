@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 static int __curhs_file_cursor_next(WT_SESSION_IMPL *, WT_CURSOR *);
-static int __curhs_file_cursor_open(WT_SESSION_IMPL *, char *, WT_CURSOR **);
+static int __curhs_file_cursor_open(WT_SESSION_IMPL *, const char *, WT_CURSOR **);
 static int __curhs_file_cursor_prev(WT_SESSION_IMPL *, WT_CURSOR *);
 static int __curhs_file_cursor_search_near(WT_SESSION_IMPL *, WT_CURSOR *, int *);
 static int __curhs_prev_visible(WT_SESSION_IMPL *, WT_CURSOR_HS *);
@@ -20,7 +20,7 @@ static int __curhs_search_near_helper(WT_SESSION_IMPL *, WT_CURSOR *, bool);
  *     Open a new history store table cursor, internal function.
  */
 static int
-__curhs_file_cursor_open(WT_SESSION_IMPL *session, char *hs_uri, WT_CURSOR **cursorp)
+__curhs_file_cursor_open(WT_SESSION_IMPL *session, const char *hs_uri, WT_CURSOR **cursorp)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;

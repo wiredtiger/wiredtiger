@@ -717,60 +717,12 @@ __recovery_file_scan(WT_RECOVERY *r)
 static int
 __hs_exists(WT_SESSION_IMPL *session, WT_CURSOR *metac, const char *cfg[], bool *hs_exists)
 {
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_SESSION *wt_session;
+    WT_UNUSED(session);
+    WT_UNUSED(metac);
+    WT_UNUSED(cfg);
+    WT_UNUSED(hs_exists);
 
-    conn = S2C(session);
-
-    /*
-     * We should check whether the history store file exists in the metadata or not. If it does not,
-     * then we should skip rollback to stable for each table. This might happen if we're upgrading
-     * from an older version. If it does exist in the metadata we should check that it exists on
-     * disk to confirm that it wasn't deleted between runs.
-     *
-     * This needs to happen after we apply the logs as they may contain the metadata changes which
-     * include the history store creation. As such the on disk metadata file won't contain the
-     * history store but will after log application.
-     */
-    metac->set_key(metac, WT_HS_URI);
-    WT_ERR_NOTFOUND_OK(metac->search(metac), true);
-    if (ret == WT_NOTFOUND) {
-        *hs_exists = false;
-        ret = 0;
-    } else {
-        /* Given the history store exists in the metadata validate whether it exists on disk. */
-        WT_ERR(__wt_fs_exist(session, WT_HS_FILE, hs_exists));
-        if (*hs_exists) {
-            /*
-             * Attempt to configure the history store, this will detect corruption if it fails.
-             */
-            ret = __wt_hs_config(session, cfg);
-            if (ret != 0) {
-                if (F_ISSET(conn, WT_CONN_SALVAGE)) {
-                    wt_session = &session->iface;
-                    WT_ERR(wt_session->salvage(wt_session, WT_HS_URI, NULL));
-                } else
-                    WT_ERR(ret);
-            }
-        } else {
-            /*
-             * We're attempting to salvage the database with a missing history store, remove it from
-             * the metadata and pretend it never existed. As such we won't run rollback to stable
-             * later.
-             */
-            if (F_ISSET(conn, WT_CONN_SALVAGE)) {
-                *hs_exists = false;
-                metac->remove(metac);
-            } else
-                /* The history store file has likely been deleted, we cannot recover from this. */
-                WT_ERR_MSG(session, WT_TRY_SALVAGE, "%s file is corrupted or missing", WT_HS_FILE);
-        }
-    }
-err:
-    /* Unpin the page from cache. */
-    WT_TRET(metac->reset(metac));
-    return (ret);
+    return (0);
 }
 
 /*
