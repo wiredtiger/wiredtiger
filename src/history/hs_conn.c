@@ -9,26 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __hs_start_internal_session --
- *     Create a temporary internal session to retrieve history store.
- */
-static int
-__hs_start_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
-{
-    return (__wt_open_internal_session(S2C(session), "hs_access", true, 0, 0, int_sessionp));
-}
-
-/*
- * __hs_release_internal_session --
- *     Release the temporary internal session started to retrieve history store.
- */
-static int
-__hs_release_internal_session(WT_SESSION_IMPL *int_session)
-{
-    return (__wt_session_close_internal(int_session));
-}
-
-/*
  * __hs_cleanup_las --
  *     Drop the lookaside file if it exists.
  */
@@ -93,67 +73,6 @@ err:
 }
 
 /*
- * __wt_hs_config --
- *     Configure the history store table.
- */
-int
-__wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
-{
-    WT_BTREE *btree;
-    WT_CONFIG_ITEM cval;
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_SESSION_IMPL *tmp_setup_session;
-
-    conn = S2C(session);
-    tmp_setup_session = NULL;
-
-    WT_ERR(__wt_config_gets(session, cfg, "history_store.file_max", &cval));
-    if (cval.val != 0 && cval.val < WT_HS_FILE_MIN)
-        WT_ERR_MSG(session, EINVAL, "max history store size %" PRId64 " below minimum %d", cval.val,
-          WT_HS_FILE_MIN);
-
-    /* in-memory or readonly configurations do not have a history store. */
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
-        return (0);
-
-    WT_ERR(__hs_start_internal_session(session, &tmp_setup_session));
-
-    /*
-     * Retrieve the btree from the history store cursor.
-     */
-    WT_ERR(__wt_hs_get_btree(tmp_setup_session, &btree));
-
-    /* Track the history store file ID. */
-    if (conn->cache->hs_fileid == 0)
-        conn->cache->hs_fileid = btree->id;
-
-    /*
-     * Set special flags for the history store table: the history store flag (used, for example, to
-     * avoid writing records during reconciliation), also turn off checkpoints and logging.
-     *
-     * Test flags before setting them so updates can't race in subsequent opens (the first update is
-     * safe because it's single-threaded from wiredtiger_open).
-     */
-    if (!F_ISSET(btree->dhandle, WT_DHANDLE_HS))
-        F_SET(btree->dhandle, WT_DHANDLE_HS);
-    if (!F_ISSET(btree, WT_BTREE_NO_LOGGING))
-        F_SET(btree, WT_BTREE_NO_LOGGING);
-
-    /*
-     * We need to set file_max on the btree associated with one of the history store sessions.
-     */
-    btree->file_max = (uint64_t)cval.val;
-    WT_STAT_CONN_SET(session, cache_hs_ondisk_max, btree->file_max);
-
-err:
-    if (tmp_setup_session != NULL)
-        WT_TRET(__hs_release_internal_session(tmp_setup_session));
-    return (ret);
-    return (0);
-}
-
-/*
  * __wt_hs_open --
  *     Initialize the database's history store.
  */
@@ -179,8 +98,6 @@ __wt_hs_open(WT_SESSION_IMPL *session, const char **cfg)
 
     /* Create the table. */
     WT_RET(__wt_session_create(session, WT_HS_URI, WT_HS_CONFIG));
-
-    // WT_RET(__wt_hs_config(session, cfg));
 
     /* The statistics server is already running, make sure we don't race. */
     WT_WRITE_BARRIER();
