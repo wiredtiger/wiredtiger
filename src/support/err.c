@@ -162,6 +162,28 @@ __wt_event_handler_set(WT_SESSION_IMPL *session, WT_EVENT_HANDLER *handler)
     } while (0)
 
 /*
+ * __eventv_stderr --
+ *     Report a message on stderr.
+ */
+static int
+__eventv_stderr(int error, const char *func, int line, const char *fmt, va_list ap)
+{
+    if (fprintf(stderr, "WiredTiger Error: ") < 0)
+        WT_RET(EIO);
+    if (error != 0 && fprintf(stderr, "error %d: ", error) < 0)
+        WT_RET(EIO);
+    if (func != NULL && fprintf(stderr, "%s, %d: ", func, line) < 0)
+        WT_RET(EIO);
+    if (vfprintf(stderr, fmt, ap) < 0)
+        WT_RET(EIO);
+    if (fprintf(stderr, "\n") < 0)
+        WT_RET(EIO);
+    if (fflush(stderr) != 0)
+        WT_RET(EIO);
+    return (0);
+}
+
+/*
  * __eventv_gen_msg --
  *     Generate a formatted message.
  */
@@ -293,6 +315,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
     WT_SESSION *wt_session;
     size_t len, remain;
     char *p;
+    va_list ap_copy;
 
     /*
      * We're using a stack buffer because we want error messages no matter what, and allocating a
@@ -311,7 +334,10 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
      * we can end up here without a session.)
      */
     if (session == NULL)
-        goto err;
+        return (__eventv_stderr(error, func, line, fmt, ap));
+
+    /* If we fail, we'll need a copy of the va_list for the fallback to stderr. */
+    va_copy(ap_copy, ap);
 
     /* Format the message. */
     p = msg;
@@ -364,18 +390,11 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
 
     if (ret != 0) {
 err:
-        if (fprintf(stderr, "WiredTiger Error%s%s: ", error == 0 ? "" : ": ",
-              error == 0 ? "" : __wt_strerror(session, error, NULL, 0)) < 0)
-            WT_TRET(EIO);
-        if (vfprintf(stderr, fmt, ap) < 0)
-            WT_TRET(EIO);
-        if (fprintf(stderr, "\n") < 0)
-            WT_TRET(EIO);
-        if (fflush(stderr) != 0)
-            WT_TRET(EIO);
+        __eventv_stderr(error, func, line, fmt, ap_copy);
     }
 
     __wt_scr_free(session, &json_msg);
+    va_end(ap_copy);
     return (ret);
 }
 
