@@ -162,36 +162,6 @@ __wt_event_handler_set(WT_SESSION_IMPL *session, WT_EVENT_HANDLER *handler)
     } while (0)
 
 /*
- * __eventv_unpack_json_str --
- *     Unpack a string into JSON escaped format. Can be called with null destination for sizing.
- */
-static size_t
-__eventv_unpack_json_str(u_char *dest, size_t dest_len, char *src, size_t src_len)
-  WT_GCC_FUNC_ATTRIBUTE((cold))
-{
-    size_t len, n, nchars;
-    u_char *q;
-    const char *p;
-
-    nchars = 0;
-    q = dest;
-
-    for (p = src, len = src_len; len > 0; p++, --len) {
-        n = __wt_json_unpack_char((u_char)*p, q, dest_len, false);
-        nchars += n;
-        if (q != NULL) {
-            dest_len -= n;
-            q += n;
-        }
-    }
-
-    if (q != NULL)
-        *q = '\0';
-
-    return (nchars);
-}
-
-/*
  * __eventv_gen_msg --
  *     Generate a formatted message.
  */
@@ -202,16 +172,11 @@ __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *remain, bool is
 {
     struct timespec ts;
     WT_DECL_RET;
-    size_t len, msg_len, remain_msg, unpacked_msg_len;
-    u_char *unpacked_json_str;
-    char msg_str[2 * 1024], *p, *p_msg, tid[128];
+    size_t len;
+    char *p, tid[128];
     const char *err, *prefix, *verbosity_level_tag;
 
     p = buffer;
-    p_msg = msg_str;
-    unpacked_json_str = NULL;
-
-    remain_msg = sizeof(msg_str);
 
     if (is_json)
         WT_ERROR_APPEND(p, *remain, "{");
@@ -261,20 +226,11 @@ __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *remain, bool is
         WT_ERROR_APPEND(p, *remain, "\"verbose_level\":\"%s\",", verbosity_level_tag);
         WT_ERROR_APPEND(p, *remain, "\"verbose_level_id\":%d,", level);
 
-        /* Format the content of the message into an intermediate buffer. */
-        WT_ERROR_APPEND(p_msg, remain_msg, "%s", msg);
-
-        /* Escape any characters that are special for JSON. */
-        msg_len = sizeof(msg_str) - remain_msg;
-        unpacked_msg_len = __eventv_unpack_json_str(NULL, 0, msg_str, msg_len);
-        WT_ERR(__wt_malloc(session, unpacked_msg_len + 1, &unpacked_json_str));
-        WT_UNUSED(__eventv_unpack_json_str(unpacked_json_str, unpacked_msg_len, msg_str, msg_len));
-
         /* Message. */
         WT_ERROR_APPEND(p, *remain, "\"msg\":\"");
         if (func != NULL)
             WT_ERROR_APPEND(p, *remain, "%s:%d:", func, line);
-        WT_ERROR_APPEND(p, *remain, "%s", unpacked_json_str);
+        WT_ERROR_APPEND(p, *remain, "%s", msg);
         WT_ERROR_APPEND(p, *remain, "\"");
     } else {
         WT_ERROR_APPEND(p, *remain, ": ");
@@ -317,9 +273,10 @@ __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *remain, bool is
         WT_ERROR_APPEND(p, *remain, "}");
 
 err:
-    __wt_free(session, unpacked_json_str);
     return (ret);
 }
+
+#define WT_MAX_JSON_ENCODE 6 /* Maximum length of an encoded JSON character. */
 
 /*
  * __eventv --
@@ -330,41 +287,48 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
   WT_VERBOSE_CATEGORY category, WT_VERBOSE_LEVEL level, const char *fmt, va_list ap)
   WT_GCC_FUNC_ATTRIBUTE((cold))
 {
+    WT_DECL_ITEM(json_msg);
     WT_DECL_RET;
     WT_EVENT_HANDLER *handler;
     WT_SESSION *wt_session;
-    size_t remain, remain_msg;
+    size_t len, remain;
     char *p;
 
     /*
-     * We're using a stack buffer because we want error messages no matter
-     * what, and allocating a WT_ITEM, or the memory it needs, might fail.
+     * We're using a stack buffer because we want error messages no matter what, and allocating a
+     * WT_ITEM, or the memory it needs, might fail.
      *
-     * !!!
-     * SECURITY:
-     * Buffer placed at the end of the stack in case snprintf overflows.
+     * SECURITY: Buffer placed at the end of the stack in case snprintf overflows.
      */
     char msg[4 * 1024], s[4 * 1024];
-    p = msg;
-    remain = sizeof(s);
-    remain_msg = sizeof(msg);
 
     /*
-     * !!!
      * This function MUST handle a NULL WT_SESSION_IMPL handle.
      *
-     * Without a session, we don't have event handlers or prefixes for the
-     * error message.  Write the error to stderr and call it a day.  (It's
-     * almost impossible for that to happen given how early we allocate the
-     * first session, but if the allocation of the first session fails, for
-     * example, we can end up here without a session.)
+     * Without a session, we don't have event handlers or prefixes for the error message. Write the
+     * error to stderr and call it a day. (It's almost impossible for that to happen given how early
+     * we allocate the first session, but if the allocation of the first session fails, for example,
+     * we can end up here without a session.)
      */
     if (session == NULL)
         goto err;
 
     /* Format the message. */
-    WT_ERROR_APPEND_AP(p, remain_msg, fmt, ap);
-    WT_ERR(__eventv_gen_msg(session, s, &remain, is_json, error, func, line, category, level, msg));
+    p = msg;
+    remain = sizeof(msg);
+    WT_ERROR_APPEND_AP(p, remain, fmt, ap);
+
+    /* Escape any characters that are special for JSON. */
+    p = msg;
+    if (is_json) {
+        len = sizeof(msg) - remain; /* Does not include the nul byte. */
+        WT_ERR(__wt_scr_alloc(session, (len * WT_MAX_JSON_ENCODE) + 1, &json_msg));
+        __wt_json_unpack_str(json_msg->mem, json_msg->memsize, (const u_char *)msg, len);
+        p = json_msg->mem;
+    }
+
+    remain = sizeof(s);
+    WT_ERR(__eventv_gen_msg(session, s, &remain, is_json, error, func, line, category, level, p));
 
     /*
      * If a handler fails, return the error status: if we're in the process of handling an error,
@@ -411,6 +375,7 @@ err:
             WT_TRET(EIO);
     }
 
+    __wt_scr_free(session, &json_msg);
     return (ret);
 }
 
