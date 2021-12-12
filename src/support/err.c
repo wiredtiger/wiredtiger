@@ -194,8 +194,6 @@ __eventv_append_error(const char *err, char *start, char *p, size_t *remainp)
         *remainp = 0;
 }
 
-#define WT_MAX_JSON_ENCODE 6 /* Maximum length of an encoded JSON character. */
-
 #define WT_ERROR_APPEND(p, remain, ...)                                \
     do {                                                               \
         size_t __len;                                                  \

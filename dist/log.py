@@ -13,7 +13,7 @@ field_types = {
     'WT_LSN' : ('WT_LSN *', 'II', '[%" PRIu32 ", %" PRIu32 "]',
         'arg.l.file, arg.l.offset', [ '' ]),
     'string' : ('const char *', 'S', '\\"%s\\"', 'arg', [ '' ]),
-    'item' : ('WT_ITEM *', 'u', '\\"%s\\"', 'escaped',
+    'item' : ('WT_ITEM *', 'u', '\\"%s\\"', '(char *)escaped->mem',
         [ 'WT_ERR(__logrec_make_json_str(session, &escaped, &arg));',
           'WT_ERR(__logrec_make_hex_str(session, &escaped, &arg));']),
     'recno' : ('uint64_t', 'r', '%" PRIu64 "', 'arg', [ '' ]),
@@ -44,7 +44,7 @@ def clocaltype(f):
     return type
 
 def escape_decl(fields):
-    return '\n\tchar *escaped;' if has_escape(fields) else ''
+    return '\n\tWT_DECL_ITEM(escaped);' if has_escape(fields) else ''
 
 def has_escape(fields):
     for f in fields:
@@ -93,9 +93,8 @@ def check_redact(optype):
     for f  in optype.fields:
         if f[0] == 'uint32_id':
             redact_str = '\tif (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && '
-            redact_str += '%s != WT_METAFILE_ID) {\n' % (f[1])
-            redact_str += '\t\tWT_RET(__wt_fprintf(session, args->fs, " REDACTED"));\n'
-            redact_str += '\t\treturn (0);\n\t}\n'
+            redact_str += '%s != WT_METAFILE_ID)\n' % (f[1])
+            redact_str += '\t\treturn(__wt_fprintf(session, args->fs, " REDACTED"));\n'
             return redact_str
     return ''
 
@@ -179,24 +178,32 @@ __wt_logop_read(WT_SESSION_IMPL *session,
 }
 
 static int
-__logrec_make_json_str(WT_SESSION_IMPL *session, char **destp, WT_ITEM *item)
+__logrec_make_json_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *item)
 {
 \tsize_t needed;
 
-\tneeded = __wt_json_unpack_str(NULL, 0, item->data, item->size) + 1;
-\tWT_RET(__wt_realloc(session, NULL, needed, destp));
-\t(void)__wt_json_unpack_str((u_char *)*destp, needed, item->data, item->size);
+\tneeded = (item->size * WT_MAX_JSON_ENCODE) + 1;
+
+\tif (*escapedp == NULL)
+\t\tWT_RET(__wt_scr_alloc(session, needed, escapedp));
+\telse
+\tWT_RET(__wt_buf_grow(session, *escapedp, needed));
+\t(void)__wt_json_unpack_str((*escapedp)->mem, (*escapedp)->memsize, item->data, item->size);
 \treturn (0);
 }
 
 static int
-__logrec_make_hex_str(WT_SESSION_IMPL *session, char **destp, WT_ITEM *item)
+__logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *item)
 {
 \tsize_t needed;
 
-\tneeded = item->size * 2 + 1;
-\tWT_RET(__wt_realloc(session, NULL, needed, destp));
-\t__wt_fill_hex(item->data, item->size, (uint8_t *)*destp, needed, NULL);
+\tneeded = (item->size * 2) + 1;
+
+\tif (*escapedp == NULL)
+\t\tWT_RET(__wt_scr_alloc(session, needed, escapedp));
+\telse
+\tWT_RET(__wt_buf_grow(session, *escapedp, needed));
+\t__wt_fill_hex(item->data, item->size, (*escapedp)->mem, (*escapedp)->memsize, NULL);
 \treturn (0);
 }
 ''')
@@ -272,8 +279,7 @@ __wt_logop_%(name)s_print(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {%(arg_ret)s%(arg_decls)s
 
-\t%(arg_init)sWT_RET(__wt_logop_%(name)s_unpack(
-\t    session, pp, end%(arg_addrs)s));
+\tWT_RET(__wt_logop_%(name)s_unpack(session, pp, end%(arg_addrs)s));
 
 \t%(redact)s
 \tWT_RET(__wt_fprintf(session, args->fs,
@@ -288,8 +294,7 @@ __wt_logop_%(name)s_print(WT_SESSION_IMPL *session,
         (clocaltype(f), '' if clocaltype(f)[-1] == '*' else ' ', f[1])
         for f in optype.fields)) + escape_decl(optype.fields)
         if optype.fields else ''),
-    'arg_init' : ('escaped = NULL;\n\t' if has_escape(optype.fields) else ''),
-    'arg_fini' : ('\nerr:\t__wt_free(session, escaped);\n\treturn (ret);'
+    'arg_fini' : ('\nerr:\t__wt_scr_free(session, &escaped);\n\treturn (ret);'
     if has_escape(optype.fields) else '\treturn (0);'),
     'arg_addrs' : ''.join(', &%s' % f[1] for f in optype.fields),
     'redact' : check_redact(optype),
