@@ -2004,7 +2004,6 @@ __wt_json_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
      * When reconfiguring, check if there are any configurations we care about, otherwise leave the
      * current settings in place.
      */
-    ret = 0;
     if (reconfig && (ret = __wt_config_gets(session, cfg + 1, "json_output", &cval)) == WT_NOTFOUND)
         return (0);
     WT_RET(ret);
@@ -2059,7 +2058,6 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
      * When reconfiguring, check if there are any configurations we care about, otherwise leave the
      * current settings in place.
      */
-    ret = 0;
     if (reconfig && (ret = __wt_config_gets(session, cfg + 1, "verbose", &cval)) == WT_NOTFOUND)
         return (0);
     WT_RET(ret);
