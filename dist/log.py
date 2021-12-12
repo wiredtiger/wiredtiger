@@ -188,7 +188,8 @@ __logrec_make_json_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *it
 \t\tWT_RET(__wt_scr_alloc(session, needed, escapedp));
 \telse
 \tWT_RET(__wt_buf_grow(session, *escapedp, needed));
-\t(void)__wt_json_unpack_str((*escapedp)->mem, (*escapedp)->memsize, item->data, item->size);
+\tWT_IGNORE_RET(
+\t\t__wt_json_unpack_str((*escapedp)->mem, (*escapedp)->memsize, item->data, item->size));
 \treturn (0);
 }
 

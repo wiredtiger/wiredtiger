@@ -692,7 +692,7 @@ dup_json_string(const char *str, char **result)
     q = malloc(nchars);
     if (q == NULL)
         return (1);
-    (void)__wt_json_unpack_str((u_char *)q, nchars, (const u_char *)str, strlen(str));
+    WT_IGNORE_RET(__wt_json_unpack_str((u_char *)q, nchars, (const u_char *)str, strlen(str)));
     *result = q;
     return (0);
 }

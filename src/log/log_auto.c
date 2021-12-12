@@ -51,7 +51,8 @@ __logrec_make_json_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *it
         WT_RET(__wt_scr_alloc(session, needed, escapedp));
     else
         WT_RET(__wt_buf_grow(session, *escapedp, needed));
-    (void)__wt_json_unpack_str((*escapedp)->mem, (*escapedp)->memsize, item->data, item->size);
+    WT_IGNORE_RET(
+      __wt_json_unpack_str((*escapedp)->mem, (*escapedp)->memsize, item->data, item->size));
     return (0);
 }
 
