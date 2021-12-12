@@ -40,37 +40,14 @@ __wt_logop_read(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end
     return (__wt_struct_unpack(session, *pp, WT_PTRDIFF(end, *pp), "II", optypep, opsizep));
 }
 
-static size_t
-__logrec_json_unpack_str(char *dest, size_t destlen, const u_char *src, size_t srclen)
-{
-    size_t total;
-    size_t n;
-
-    total = 0;
-    while (srclen > 0) {
-        n = __wt_json_unpack_char(*src++, (u_char *)dest, destlen, false);
-        srclen--;
-        if (n > destlen)
-            destlen = 0;
-        else {
-            destlen -= n;
-            dest += n;
-        }
-        total += n;
-    }
-    if (destlen > 0)
-        *dest = '\0';
-    return (total + 1);
-}
-
 static int
 __logrec_make_json_str(WT_SESSION_IMPL *session, char **destp, WT_ITEM *item)
 {
     size_t needed;
 
-    needed = __logrec_json_unpack_str(NULL, 0, item->data, item->size);
+    needed = __wt_json_unpack_str(NULL, 0, item->data, item->size) + 1;
     WT_RET(__wt_realloc(session, NULL, needed, destp));
-    (void)__logrec_json_unpack_str(*destp, needed, item->data, item->size);
+    (void)__wt_json_unpack_str((u_char *)*destp, needed, item->data, item->size);
     return (0);
 }
 

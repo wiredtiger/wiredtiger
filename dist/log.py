@@ -178,39 +178,14 @@ __wt_logop_read(WT_SESSION_IMPL *session,
 \t    session, *pp, WT_PTRDIFF(end, *pp), "II", optypep, opsizep));
 }
 
-static size_t
-__logrec_json_unpack_str(char *dest, size_t destlen, const u_char *src,
-    size_t srclen)
-{
-\tsize_t total;
-\tsize_t n;
-
-\ttotal = 0;
-\twhile (srclen > 0) {
-\t\tn = __wt_json_unpack_char(
-\t\t    *src++, (u_char *)dest, destlen, false);
-\t\tsrclen--;
-\t\tif (n > destlen)
-\t\t\tdestlen = 0;
-\t\telse {
-\t\t\tdestlen -= n;
-\t\t\tdest += n;
-\t\t}
-\t\ttotal += n;
-\t}
-\tif (destlen > 0)
-\t\t*dest = '\\0';
-\treturn (total + 1);
-}
-
 static int
 __logrec_make_json_str(WT_SESSION_IMPL *session, char **destp, WT_ITEM *item)
 {
 \tsize_t needed;
 
-\tneeded = __logrec_json_unpack_str(NULL, 0, item->data, item->size);
+\tneeded = __wt_json_unpack_str(NULL, 0, item->data, item->size) + 1;
 \tWT_RET(__wt_realloc(session, NULL, needed, destp));
-\t(void)__logrec_json_unpack_str(*destp, needed, item->data, item->size);
+\t(void)__wt_json_unpack_str((u_char *)*destp, needed, item->data, item->size);
 \treturn (0);
 }
 
