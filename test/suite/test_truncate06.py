@@ -32,7 +32,12 @@ from wtscenario import make_scenarios
 
 # test_truncate06.py
 #
-# Test various scenarios with timestamps and truncation.
+# Test timestamped truncate of timestamped data changes in the presence of older history.
+# Sixteen scenarios per table type cover:
+#   - whether the changes are updates or removes;
+#   - whether we evict all the pages before truncating;
+#   - whether we checkpoint before truncating;
+#   - whether the truncate notionally happens before (conflicting with) the changes.
 
 class test_truncate06(wttest.WiredTigerTestCase):
     conn_config = ''
