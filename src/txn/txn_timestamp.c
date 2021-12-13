@@ -808,7 +808,9 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
              * on WiredTiger's concurrency to detect and fail the set. In other cases it's a bug and
              * MongoDB wants error context to make it easier to find those problems. Don't output an
              * error message because that logs a MongoDB error, use an informational message to
-             * provide the context instead.
+             * provide the context instead. Don't output this message for standalone builds, it's
+             * too noisy for applications that don't track the read timestamp against the oldest
+             * timestamp and simply expect the set to fail.
              */
             __wt_verbose_notice(session, WT_VERB_TIMESTAMP,
               "read timestamp %s less than the %s timestamp %s",
