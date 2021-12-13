@@ -1346,7 +1346,7 @@ __rec_split_fix_shrink(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     primarysize = WT_PTRDIFF32(r->first_free, r->cur_ptr->image.mem);
 
     /* Size of the empty space. */
-    emptysize = r->aux_start_offset - primarysize - WT_COL_FIX_AUXHEADER_RESERVATION;
+    emptysize = r->aux_start_offset - (primarysize + WT_COL_FIX_AUXHEADER_RESERVATION);
 
     /* Size of the auxiliary data. */
     auxsize = totalsize - r->aux_start_offset;
