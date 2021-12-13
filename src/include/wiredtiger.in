@@ -1202,7 +1202,9 @@ struct __wt_session {
 	 * a multiple of the allocation size\, and is significant for applications wanting to
 	 * maximize sequential data transfer from a storage device.  The page maximum is the bytes
 	 * of uncompressed data\, that is\, the limit is applied before any block compression is
-	 * done., an integer between 512B and 512MB; default \c 32KB.}
+	 * done.  For fixed-length column store\, the size includes only the bitmap data; pages
+	 * containing timestamp information can be larger\, and the size is limited to 128KB rather
+	 * than 512MB., an integer between 512B and 512MB; default \c 32KB.}
 	 * @config{leaf_value_max, the largest value stored in a leaf node\, in bytes.  If set\,
 	 * values larger than the specified size are stored as overflow items (which may require
 	 * additional I/O to access). If the size is larger than the maximum leaf page size\, the
@@ -2204,8 +2206,7 @@ struct __wt_connection {
 	 * @config{json_output, enable JSON formatted messages on the event handler interface.
 	 * Options are given as a list\, where each option specifies an event handler category e.g.
 	 * 'error' represents the messages from the WT_EVENT_HANDLER::handle_error method., a list\,
-	 * with values chosen from the following options: \c "error"\, \c "message"\, \c "progress";
-	 * default \c [].}
+	 * with values chosen from the following options: \c "error"\, \c "message"; default \c [].}
 	 * @config{log = (, enable logging.  Enabling logging uses three sessions from the
 	 * configured session_max., a set of related configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;archive, automatically archive unneeded log files., a
@@ -2985,7 +2986,7 @@ struct __wt_connection {
  * @config{json_output, enable JSON formatted messages on the event handler interface.  Options are
  * given as a list\, where each option specifies an event handler category e.g.  'error' represents
  * the messages from the WT_EVENT_HANDLER::handle_error method., a list\, with values chosen from
- * the following options: \c "error"\, \c "message"\, \c "progress"; default \c [].}
+ * the following options: \c "error"\, \c "message"; default \c [].}
  * @config{log = (, enable logging.  Enabling logging uses three sessions from the configured
  * session_max., a set of related configuration options defined below.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;archive, automatically archive unneeded log files., a boolean

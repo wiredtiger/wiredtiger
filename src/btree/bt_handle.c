@@ -625,7 +625,7 @@ __wt_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
     WT_ERR(bm->addr_string(bm, session, tmp, addr, addr_size));
 
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
-    if ((ret = __wt_bt_read(session, &dsk, addr, addr_size)) == 0)
+    if ((ret = __wt_blkcache_read(session, &dsk, addr, addr_size)) == 0)
         ret = __wt_verify_dsk(session, tmp->data, &dsk);
     /*
      * Flag any failed read or verification: if we're in startup, it may be fatal.
@@ -795,7 +795,6 @@ static int
 __btree_preload(WT_SESSION_IMPL *session)
 {
     WT_ADDR_COPY addr;
-    WT_BM *bm;
     WT_BTREE *btree;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
@@ -803,7 +802,6 @@ __btree_preload(WT_SESSION_IMPL *session)
     uint64_t block_preload;
 
     btree = S2BT(session);
-    bm = btree->bm;
     block_preload = 0;
 
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
@@ -811,7 +809,7 @@ __btree_preload(WT_SESSION_IMPL *session)
     /* Pre-load the second-level internal pages. */
     WT_INTL_FOREACH_BEGIN (session, btree->root.page, ref)
         if (__wt_ref_addr_copy(session, ref, &addr)) {
-            WT_ERR(bm->read(bm, session, tmp, addr.addr, addr.size));
+            WT_ERR(__wt_blkcache_read(session, tmp, addr.addr, addr.size));
             ++block_preload;
         }
     WT_INTL_FOREACH_END;
@@ -884,6 +882,20 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
         WT_RET_MSG(session, EINVAL,
           "page sizes must be a multiple of the page allocation size (%" PRIu32 "B)",
           btree->allocsize);
+
+    /*
+     * FLCS leaf pages have a lower size limit than the default, because the size configures the
+     * bitmap data size and the timestamp data adds on to that. Each time window can be up to 63
+     * bytes and the total page size must not exceed 4G. Thus for an 8t table there can be 64M
+     * entries (so 64M of bitmap data and up to 63*64M == 4032M of time windows), less a bit for
+     * headers. For a 1t table there can be (64 7/8)M entries because the bitmap takes less space,
+     * but that corresponds to a configured page size of a bit over 8M. Consequently the absolute
+     * limit on the page size is 8M, but since pages this large make no sense and perform poorly
+     * even if they don't get bloated out with timestamp data, we'll cut down by a factor of 16 and
+     * set the limit to 128KB.
+     */
+    if (btree->type == BTREE_COL_FIX && btree->maxleafpage > 128 * WT_KILOBYTE)
+        WT_RET_MSG(session, EINVAL, "page size for fixed-length column store is limited to 128KB");
 
     /*
      * Default in-memory page image size for compression is 4x the maximum internal or leaf page
