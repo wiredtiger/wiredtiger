@@ -17,10 +17,14 @@ __curversion_set_key(WT_CURSOR *cursor, ...)
 {
     WT_CURSOR *table_cursor;
     WT_CURSOR_VERSION *version_cursor;
+    va_list ap;
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     table_cursor = version_cursor->table_cursor;
-    table_cursor->set_key(table_cursor);
+    va_start(ap, cursor);
+    printf("function\n");
+    WT_IGNORE_RET(__wt_cursor_set_keyv(table_cursor, table_cursor->flags, ap));
+    va_end(ap);
 }
 
 /*
@@ -433,6 +437,8 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     *cursor = iface;
     cursor->session = (WT_SESSION *)session;
 
+    WT_ERR(__wt_cursor_init(cursor, cursor->uri, NULL, cfg, cursorp));
+
     /* Open the table cursor. */
     WT_ERR(__wt_open_cursor(session, uri, cursor, table_cursor_cfg, &version_cursor->table_cursor));
     cursor->key_format = WT_UNCHECKED_STRING(QQQQQQBBBB);
@@ -450,8 +456,6 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     version_cursor->upd_stop_txnid = WT_TXN_MAX;
     version_cursor->upd_durable_stop_ts = WT_TS_MAX;
     version_cursor->upd_stop_ts = WT_TS_MAX;
-
-    WT_ERR(__wt_cursor_init(cursor, cursor->uri, owner, cfg, cursorp));
 
     if (0) {
 err:
