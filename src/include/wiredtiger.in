@@ -7147,7 +7147,7 @@ typedef enum {
     WT_VERB_TIMESTAMP,            /*!< Timestamp messages. */
     WT_VERB_TRANSACTION,          /*!< Transaction messages. */
     WT_VERB_VERIFY,               /*!< Verify messages. */
-    WT_VERB_VERSION,              /*!< Version progress messages. */
+    WT_VERB_VERSION,              /*!< Version messages. */
     WT_VERB_WRITE,
 /* VERBOSE ENUM STOP */
     WT_VERB_NUM_CATEGORIES
