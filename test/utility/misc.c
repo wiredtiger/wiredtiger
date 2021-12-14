@@ -267,8 +267,7 @@ testutil_clean_backup_data(const char *dir)
     int status;
     char buf[512];
 
-    testutil_check(__wt_snprintf(buf, sizeof(buf),
-      "rm -rf ../%s.SAVE", dir));
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "rm -rf ../%s.SAVE", dir));
     if ((status = system(buf)) < 0)
         testutil_die(status, "system: %s", buf);
 }
