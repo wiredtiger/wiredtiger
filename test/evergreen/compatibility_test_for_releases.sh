@@ -71,6 +71,9 @@ build_branch()
     cd "$1"
     git checkout --quiet "$1"
 
+    # disable docs compilation in older releases
+    sed -i '/man1\|man3/d' build_posix/Make.base
+
     config=""
     config+="--enable-snappy "
     config+="--disable-standalone-build "
