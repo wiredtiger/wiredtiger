@@ -2505,6 +2505,14 @@ __conn_version_verify(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
+    /*
+     * Initialize the recovery version variables. Later these will be updated with proper WiredTiger
+     * version if the database is being opened for recovery.
+     */
+    conn->recovery_major = 0;
+    conn->recovery_minor = 0;
+    conn->recovery_patch = 0;
+
     /* Always set the compatibility versions. */
     __wt_logmgr_compat_version(session);
     /*

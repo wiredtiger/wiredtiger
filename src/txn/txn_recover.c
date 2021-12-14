@@ -482,6 +482,11 @@ __recovery_set_checkpoint_snapshot(WT_SESSION_IMPL *session)
     conn = S2C(session);
     counter = 0;
 
+    /* Initialize the recovery checkpoint snapshot variables to default values. */
+    conn->recovery_ckpt_snap_min = WT_TXN_NONE;
+    conn->recovery_ckpt_snap_max = WT_TXN_NONE;
+    conn->recovery_ckpt_snapshot_count = 0;
+
     /*
      * WiredTiger versions 10.0.1 onward have a valid checkpoint snapshot on-disk. Ignore reading
      * the on-disk checkpoint snapshot from older versions. WiredTiger backup doesn't contain the
