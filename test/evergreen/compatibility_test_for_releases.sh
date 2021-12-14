@@ -234,6 +234,12 @@ run_test_checkpoint()
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
     cd "$branch_name/test/checkpoint"
+    # With the timestamp and prepare transactions configuration, this test
+    # can produce a scenario where the on-disk tables have more data than
+    # the checkpoint can see.
+    #
+    # During the verification stage, rollback to stable has to be performed
+    # with the checkpoint snapshot to achieve the consistency.
     flags="-W 3 -D -p -x -n 100000 -k 100000 -C cache_size=100MB"
 
     for am in $2; do
@@ -609,14 +615,6 @@ if [ "$newer" = true ]; then
     for i in ${!test_checkpoint_release_branches[@]}; do
         [[ $((i+1)) < ${#test_checkpoint_release_branches[@]} ]] && \
         (verify_test_checkpoint ${test_checkpoint_release_branches[$((i+1))]} ${test_checkpoint_release_branches[$i]} "row")
-    done
-fi
-
-if [ "${patch_version}" = true ]; then
-    for b in ${patch_version_upgrade_downgrade_release_branches[@]}; do
-        for pv in ${pversions[@]}; do
-            (verify_test_checkpoint "$pv" "$b" "row")
-        done
     done
 fi
 
