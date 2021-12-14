@@ -2507,7 +2507,9 @@ __conn_version_verify(WT_SESSION_IMPL *session)
 
     /*
      * Initialize the recovery version variables. Later these will be updated with proper WiredTiger
-     * version if the database is being opened for recovery.
+     * version if the database is being opened for recovery from the WiredTiger.turtle file.
+     * WiredTiger recovery occurs not only when the database is restarted after a clean or unclean
+     * shutdown, but also when the backup is restored.
      */
     conn->recovery_major = 0;
     conn->recovery_minor = 0;
