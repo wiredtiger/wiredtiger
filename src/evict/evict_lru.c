@@ -285,7 +285,7 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * busy and then opens a different file (in this case, the HS file), it can deadlock with a
      * thread waiting for the first file to drain from the eviction queue. See WT-5946 for details.
      */
-    WT_ERR(__wt_curhs_cache(session));
+    WT_ERR(__wt_curhs_cache(session, NULL));
     if (conn->evict_server_running && __wt_spin_trylock(session, &cache->evict_pass_lock) == 0) {
         /*
          * Cannot use WT_WITH_PASS_LOCK because this is a try lock. Fix when that is supported. We
@@ -2364,7 +2364,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
      * session will have a handle list write lock and will be waiting on eviction to drain, we'll be
      * inside eviction waiting on a handle list read lock to open a history store cursor.
      */
-    WT_ERR(__wt_curhs_cache(session));
+    WT_ERR(__wt_curhs_cache(session, NULL));
 
     /*
      * It is not safe to proceed if the eviction server threads aren't setup yet.

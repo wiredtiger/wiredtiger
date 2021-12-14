@@ -385,10 +385,14 @@ __curversion_close(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, close, NULL);
 err:
     version_cursor->next_upd = NULL;
-    if (table_cursor != NULL)
+    if (table_cursor != NULL) {
         WT_TRET(table_cursor->close(table_cursor));
-    if (hs_cursor != NULL)
+        version_cursor->table_cursor = NULL;
+    }
+    if (hs_cursor != NULL) {
         WT_TRET(hs_cursor->close(hs_cursor));
+        version_cursor->hs_cursor = NULL;
+    }
     __wt_cursor_close(cursor);
 
     API_END_RET(session, ret);
@@ -437,13 +441,13 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     *cursor = iface;
     cursor->session = (WT_SESSION *)session;
 
+    WT_ERR(__wt_strdup(session, uri, &cursor->uri));
     WT_ERR(__wt_cursor_init(cursor, cursor->uri, owner, cfg, cursorp));
 
     /* Open the table cursor. */
     WT_ERR(__wt_open_cursor(session, uri, cursor, table_cursor_cfg, &version_cursor->table_cursor));
     cursor->key_format = WT_UNCHECKED_STRING(QQQQQQBBBB);
     cursor->value_format = version_cursor->table_cursor->value_format;
-    WT_ERR(__wt_strdup(session, uri, &cursor->uri));
 
     /* Open the history store cursor for operations on the regular history store .*/
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN)) {
