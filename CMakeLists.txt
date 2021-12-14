@@ -194,11 +194,11 @@ include(cmake/install/install.cmake)
 enable_testing()
 
 if(ENABLE_PYTHON)
-   add_subdirectory(lang/python)
+    add_subdirectory(lang/python)
+    add_subdirectory(bench/workgen)
 endif()
 
 # Build the wiredtiger test suites.
-add_subdirectory(bench/workgen)
 add_subdirectory(bench/wtperf)
 add_subdirectory(examples)
 add_subdirectory(test)
