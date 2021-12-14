@@ -2519,9 +2519,9 @@ __conn_version_verify(WT_SESSION_IMPL *session)
 
     /*
      * Initialize the version variables. These aren't always populated since there are expected
-     * cases where the turtle files doesn't exist (restoring from a backup, for example). All
-     * code that deals with recovery versions must consider the case where they are default
-     * initialized to zero.
+     * cases where the turtle files doesn't exist (restoring from a backup, for example). All code
+     * that deals with recovery versions must consider the case where they are default initialized
+     * to zero.
      */
     WT_RET(__wt_fs_exist(session, WT_METADATA_TURTLE, &exist));
     if (exist)
