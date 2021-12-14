@@ -994,10 +994,7 @@ config_mirrors(void)
         return;
     }
 
-    /*
-     * Don't mirror if there is a custom collator, it would complicate the cursor traversal when
-     * comparing tables.
-     */
+    /* A custom collator would complicate the cursor traversal when comparing tables. */
     for (i = 1; i <= ntables; ++i)
         if (NTV(tables[i], BTREE_REVERSE) && config_explicit(tables[i], "btree.reverse")) {
             WARN(
