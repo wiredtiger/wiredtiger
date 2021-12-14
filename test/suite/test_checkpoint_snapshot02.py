@@ -59,7 +59,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(format_values, restart_values)
 
     def conn_config(self):
-        config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(archive=false,enabled=true),timing_stress_for_test=[checkpoint_slow]'
+        config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[checkpoint_slow]'
         return config
 
     def moresetup(self):
