@@ -1699,9 +1699,9 @@ methods = {
         Display the contents of in-memory pages as they are verified,
         using the application's message handler, intended for debugging''',
         type='boolean'),
-    Config('dump_data', 'false', r'''
-        Display the contents of the data when walking onto in-memory pages or on-disk blocks
-        as they are verified, using the application's message handler, intended for debugging.''',
+    Config('dump_app_data', 'false', r'''
+        Display application data as pages or blocks are verified,
+        using the application's message handler, intended for debugging.''',
         type='boolean'),
     Config('stable_timestamp', 'false', r'''
         Ensure that no data has a start timestamp after the stable timestamp,

@@ -32,9 +32,10 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     size_t size;
     int ch;
     char *config, *dump_offsets, *uri;
-    bool dump_address, dump_blocks, dump_layout, dump_pages, dump_data, stable_timestamp;
+    bool dump_address, dump_blocks, dump_layout, dump_pages, dump_app_data, stable_timestamp;
 
-    dump_address = dump_blocks = dump_layout = dump_pages = dump_data = stable_timestamp = false;
+    dump_address = dump_blocks = dump_layout = dump_pages = dump_app_data = stable_timestamp =
+      false;
     config = dump_offsets = uri = NULL;
     while ((ch = __wt_getopt(progname, argc, argv, "d:su")) != EOF)
         switch (ch) {
@@ -57,11 +58,11 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             else
                 return (usage());
             break;
-        case 'u':
-            dump_data = true;
-            break;
         case 's':
             stable_timestamp = true;
+            break;
+        case 'u':
+            dump_app_data = true;
             break;
         case '?':
         default:
@@ -80,8 +81,8 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         return (1);
 
     if (dump_address || dump_blocks || dump_layout || dump_offsets != NULL || dump_pages ||
-      stable_timestamp || dump_data) {
-        size = strlen("dump_data") + strlen("dump_address,") + strlen("dump_blocks,") +
+      stable_timestamp || dump_app_data) {
+        size = strlen("dump_app_data") + strlen("dump_address,") + strlen("dump_blocks,") +
           strlen("dump_layout,") + strlen("dump_pages,") + strlen("dump_offsets[],") +
           (dump_offsets == NULL ? 0 : strlen(dump_offsets)) + strlen("history_store") +
           strlen("stable_timestamp,") + 20;
@@ -93,7 +94,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
                dump_address ? "dump_address," : "", dump_blocks ? "dump_blocks," : "",
                dump_layout ? "dump_layout," : "", dump_offsets != NULL ? "dump_offsets=[" : "",
                dump_offsets != NULL ? dump_offsets : "", dump_offsets != NULL ? "]," : "",
-               dump_pages ? "dump_pages," : "", dump_data ? "dump_data," : "",
+               dump_pages ? "dump_pages," : "", dump_app_data ? "dump_app_data," : "",
                stable_timestamp ? "stable_timestamp," : "")) != 0) {
             (void)util_err(session, ret, NULL);
             goto err;
