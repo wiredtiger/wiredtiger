@@ -11,11 +11,11 @@ set -e
 #############################################################
 bflag()
 {
-        # Return if the branch's format command takes the -B flag for backward compatibility.
-        test "$1" = "develop" && echo "-B "
-        test "$1" = "mongodb-5.0" && echo "-B "
-        test "$1" = "mongodb-4.4" && echo "-B "
-        return 0
+    # Return if the branch's format command takes the -B flag for backward compatibility.
+    test "$1" = "develop" && echo "-B "
+    test "$1" = "mongodb-5.0" && echo "-B "
+    test "$1" = "mongodb-4.4" && echo "-B "
+    return 0
 }
 
 #############################################################
@@ -32,24 +32,53 @@ get_prev_version()
 }
 
 #############################################################
+# get_patch_versions:
+#       arg1: branch name
+#############################################################
+get_patch_versions()
+{
+    # Query out all released patch versions for a given release branch using "git tag"
+    versions=()
+    for v in $(git tag | grep $b | grep -v rc)
+    do
+        versions+=("$v")
+    done
+}
+
+#############################################################
+# get_patch_versions:
+#       arg1: an array of patch versions
+#############################################################
+pick_a_version()
+{
+    # Randomly pick a version from the array of patch versions
+    pv=${versions[$RANDOM % ${#versions[@]} ]}
+    pversions+=("$pv")
+    echo "$pv"
+}
+
+#############################################################
 # build_branch:
 #       arg1: branch name
 #############################################################
 build_branch()
 {
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        echo "Building branch: \"$1\""
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Building branch: \"$1\""
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-        git clone --quiet https://github.com/wiredtiger/wiredtiger.git "$1"
-        cd "$1"
-        git checkout --quiet "$1"
+    git clone --quiet https://github.com/wiredtiger/wiredtiger.git "$1"
+    cd "$1"
+    git checkout --quiet "$1"
 
-        config=""
-        config+="--enable-snappy "
-        config+="--disable-standalone-build "
-        (sh build_posix/reconf &&
-            ./configure $config && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
+    # disable docs compilation in older releases
+    sed -i '/man1\|man3/d' build_posix/Make.base
+
+    config=""
+    config+="--enable-snappy "
+    config+="--disable-standalone-build "
+    (sh build_posix/reconf &&
+        ./configure $config && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
 }
 
 #############################################################
@@ -127,6 +156,7 @@ create_default_configs()
     for b in `ls`; do
         if [ -d "$b" ]; then
             (create_configs $b)
+            [ -f CONFIG_$b ] && cp -rf CONFIG_$b $b/test/format/
         fi
     done
 }
@@ -157,37 +187,78 @@ create_configs_for_newer_release_branches()
 #############################################################
 run_format()
 {
-        branch_name=$1
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        echo "Running format in branch: \"$branch_name\""
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    branch_name=$1
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Running format in branch: \"$branch_name\""
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-        cd "$branch_name/test/format"
-        flags="-1q $(bflag $branch_name)"
+    cd "$branch_name/test/format"
+    flags="-1q $(bflag $branch_name)"
 
-        config_file=""
+    config_file=""
 
-        # Compatibility test for newer releases will have CONFIG file for each release
-        # branches for the upgrade/downgrade testing.
-        #
-        # Compatibility test for older and standalone releases will have the default config.
-        if [ "$newer" = true ]; then
-            config_file="-c CONFIG_${branch_name}"
+    # Compatibility test for newer releases will have CONFIG file for each release
+    # branches for the upgrade/downgrade testing.
+    #
+    # Compatibility test for older and standalone releases will have the default config.
+    if [ "${wt_standalone}" = true ] || [ $older = true ]; then
+        config_file="-c CONFIG_default"
+    else
+        config_file="-c CONFIG_${branch_name}"
+    fi
+
+    for am in $2; do
+        dir="RUNDIR.$am"
+        echo "./t running $am access method..."
+        ./t $flags ${config_file} -h $dir "file_type=$am"
+
+        # Remove the version string from the base configuration file. (MongoDB does not create
+        # a base configuration file, but format does, so we need to remove its version string
+        # to allow backward compatibility testing.)
+        (echo '/^version=/d'
+            echo w) | ed -s $dir/WiredTiger.basecfg > /dev/null
+    done
+    cd -
+}
+
+#############################################################
+# run_test_checkpoint:
+#       arg1: branch name
+#       arg2: access methods list
+#############################################################
+run_test_checkpoint()
+{
+    branch_name=$1
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Running test checkpoint in branch: \"$branch_name\""
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
+    cd "$branch_name/test/checkpoint"
+    flags="-W 3 -D -p -x -n 100000 -k 100000 -C cache_size=100MB"
+
+    for am in $2; do
+        dir="RUNDIR.$am"
+        echo "./t running $am access method..."
+        if [ "$am" == "fix" ]; then
+            ./t -t f $flags -h $dir
+        elif [ "$am" == "var" ]; then
+            ./t -t c $flags -h $dir
         else
-            config_file="-c CONFIG_default"
+            ./t -t r $flags -h $dir
         fi
+    done
+    cd -
+}
 
-        for am in $2; do
-            dir="RUNDIR.$am"
-            echo "./t running $am access method..."
-            ./t $flags ${config_file} -h $dir "file_type=$am"
-
-            # Remove the version string from the base configuration file. (MongoDB does not create
-            # a base configuration file, but format does, so we need to remove its version string
-            # to allow backward compatibility testing.)
-            (echo '/^version=/d'
-             echo w) | ed -s $dir/WiredTiger.basecfg > /dev/null
-        done
+#############################################################
+# run_tests:
+#       arg1: branch name
+#       arg2: access methods list
+#############################################################
+run_tests()
+{
+    run_format $1 $2
+    run_test_checkpoint $1 $2
 }
 
 EXT="extensions=["
@@ -195,6 +266,62 @@ EXT+="ext/compressors/snappy/.libs/libwiredtiger_snappy.so,"
 EXT+="ext/collators/reverse/.libs/libwiredtiger_reverse_collator.so, "
 EXT+="ext/encryptors/rotn/.libs/libwiredtiger_rotn.so, "
 EXT+="]"
+
+#############################################################
+# verify_test_format:
+#       arg1: branch name #1
+#       arg2: branch name #2
+#       arg3: access methods list
+#       arg4: backward compatibility
+#############################################################
+verify_test_format()
+{
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Release \"$1\" format verifying \"$2\""
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
+    cd "$1"
+    for am in $3; do
+        echo "$1/wt verifying $2 access method $am..."
+        dir="$2/test/format/RUNDIR.$am"
+        WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" verify table:wt
+
+        if [ "$4" = true ]; then
+            echo "$1/wt dump and load $2 access method $am..."
+            WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" dump table:wt > dump_wt.txt
+            WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" load -f dump_wt.txt
+        fi
+    done
+    cd -
+}
+
+#############################################################
+# verify_test_checkpoint:
+#       arg1: branch name #1
+#       arg2: branch name #2
+#       arg3: access methods list
+#############################################################
+verify_test_checkpoint()
+{
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Release \"$1\" test checkpoint verifying \"$2\""
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
+    cd "$1"
+    for am in $3; do
+        echo "$1/test/checkpoint/t verifying $2 access method $am..."
+        dir="$2/test/checkpoint/RUNDIR.$am"
+        cp -fr "../$dir" "../$dir.backup"
+        if [ "$am" = "fix" ]; then
+            ./test/checkpoint/t -t f -D -v -h "../$dir"
+        elif [ "$am" = "var" ]; then
+            ./test/checkpoint/t -t c -D -v -h "../$dir"
+        else
+            ./test/checkpoint/t -t r -D -v -h "../$dir"
+        fi
+    done
+    cd -
+}
 
 #############################################################
 # verify_branches:
@@ -205,22 +332,8 @@ EXT+="]"
 #############################################################
 verify_branches()
 {
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        echo "Release \"$1\" verifying \"$2\""
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-
-        cd "$1"
-        for am in $3; do
-            echo "$1/wt verifying $2 access method $am..."
-            dir="$2/test/format/RUNDIR.$am"
-            WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" verify table:wt
-
-            if [ "$4" = true ]; then
-                echo "$1/wt dump and load $2 access method $am..."
-                WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" dump table:wt > dump_wt.txt
-                WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" load -f dump_wt.txt
-            fi
-        done
+    verify_test_format $1 $2 $3 $4
+    verify_test_checkpoint $1 $2 $3
 }
 
 #############################################################
@@ -231,35 +344,36 @@ verify_branches()
 #############################################################
 upgrade_downgrade()
 {
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        echo "Upgrade/downgrade testing with \"$1\" and \"$2\""
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Upgrade/downgrade testing with \"$1\" and \"$2\""
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-        cfg_file_branch1=$(get_config_file_name $1)
-        cfg_file_branch2=$(get_config_file_name $2)
+    cfg_file_branch1=$(get_config_file_name $1)
+    cfg_file_branch2=$(get_config_file_name $2)
 
-        # Alternate running each branch format test program on the second branch's build.
-        # Loop twice, that is, run format twice using each branch.
-        top="$PWD"
-        for am in $3; do
-            for reps in {1..2}; do
-                echo "$1 format running on $2 access method $am..."
-                cd "$top/$1/test/format"
-                flags="-1Rq $(bflag $1)"
-                ./t $flags -c "$top/$2/test/format/${cfg_file_branch1}" -h "$top/$2/test/format/RUNDIR.$am" timer=2
+    # Alternate running each branch format test program on the second branch's build.
+    # Loop twice, that is, run format twice using each branch.
+    top="$PWD"
+    for am in $3; do
+        for reps in {1..2}; do
+            echo "$1 format running on $2 access method $am..."
+            cd "$top/$1/test/format"
+            flags="-1Rq $(bflag $1)"
+            ./t $flags -c "$top/$2/test/format/${cfg_file_branch1}" -h "$top/$2/test/format/RUNDIR.$am" timer=2
 
-                echo "$2 format running on $2 access method $am..."
-                cd "$top/$2/test/format"
-                flags="-1Rq $(bflag $2)"
-                ./t $flags -c $cfg_file_branch2 -h "RUNDIR.$am" timer=2
-            done
+            echo "$2 format running on $2 access method $am..."
+            cd "$top/$2/test/format"
+            flags="-1Rq $(bflag $2)"
+            ./t $flags -c $cfg_file_branch2 -h "RUNDIR.$am" timer=2
         done
+    done
 }
 
 # Only one of below flags will be set by the 1st argument of the script.
 older=false
 newer=false
 wt_standalone=false
+patch_version=false
 
 # Branches in below 2 arrays should be put in newer-to-older order.
 #
@@ -276,24 +390,36 @@ older_release_branches=(mongodb-4.2 mongodb-4.0 mongodb-3.6)
 # configuration file. 
 compatible_upgrade_downgrade_release_branches=(mongodb-4.4 mongodb-4.2)
 
+# This array is used to configure the release branches we'd like to run patch version
+# upgrade/downgrade test.
+patch_version_upgrade_downgrade_release_branches=(mongodb-5.0 mongodb-4.4)
+
+# This array is used to configure the release branches we'd like to run test checkpoint
+# upgrade/downgrade test.
+test_checkpoint_release_branches=(develop mongodb-5.0 mongodb-4.4)
+
 declare -A scopes
 scopes[newer]="newer stable release branches"
 scopes[older]="older stable release branches"
+scopes[patch_version]="patch versions of the same release branch"
 scopes[wt_standalone]="WiredTiger standalone releases"
+scopes[two_versions]="any two given versions"
 
 #############################################################
 # usage string
 #############################################################
 usage()
 {
-    echo -e "Usage: \tcompatibility_test_for_releases [-n|-o|-w]"
+    echo -e "Usage: \tcompatibility_test_for_releases [-n|-o|-p|-w|-v]"
     echo -e "\t-n\trun compatibility tests for ${scopes[newer]}"
     echo -e "\t-o\trun compatibility tests for ${scopes[older]}"
+    echo -e "\t-p\trun compatibility tests for ${scopes[patch_version]}"
     echo -e "\t-w\trun compatibility tests for ${scopes[wt_standalone]}"
+    echo -e "\t-v <v1> <v2>\trun compatibility tests for ${scopes[two_versions]}"
     exit 1
 }
 
-if [ $# -ne 1 ]; then
+if [ $# -lt 1 ]; then
     usage
 fi
 
@@ -311,10 +437,25 @@ case $1 in
     echo "Performing compatibility tests for ${scopes[older]}"
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 ;;
+"-p")
+    patch_version=true
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Performing compatibility tests for ${scopes[patch_version]}"
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+;;
 "-w")
     wt_standalone=true
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
     echo "Performing compatibility tests for ${scopes[wt_standalone]}"
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+;;
+"-v")
+    two_versions=true
+    v1=$2
+    v2=$3
+    [[ -z "$v1" || -z "$v2" ]] && usage
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Performing compatibility tests for $v1 and $v2"
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 ;;
 *)
@@ -328,6 +469,22 @@ rm -rf "$top" && mkdir "$top"
 cd "$top"
 
 
+if [ "$two_versions" = true ]; then
+    # Build the branches
+    (build_branch $v1)
+    (build_branch $v2)
+
+    # Run test for both branches to generate data files
+    (run_test_checkpoint $v1 "row")
+    (run_test_checkpoint $v2 "row")
+
+    # Use one version binary to verify data files generated by the other version
+    (verify_test_checkpoint "$v1" "$v2" "row")
+    (verify_test_checkpoint "$v2" "$v1" "row")
+
+    exit 0
+fi
+
 # Build the branches.
 if [ "$newer" = true ]; then
     for b in ${newer_release_branches[@]}; do
@@ -338,6 +495,19 @@ fi
 if [ "$older" = true ]; then
     for b in ${older_release_branches[@]}; do
         (build_branch $b)
+    done
+fi
+
+if [ "$patch_version" = true ]; then
+    pversions=()
+    for b in ${patch_version_upgrade_downgrade_release_branches[@]}; do
+        (build_branch $b)
+        # Retrieve all released patch versions of the release branch
+        cd $b; get_patch_versions; echo $versions; pick_a_version; cd ..
+    done
+    # Build picked patch version for compatibility test.
+    for pv in ${pversions[@]}; do
+        (build_branch $pv)
     done
 fi
 
@@ -358,11 +528,13 @@ else
     create_default_configs
 fi
 
-
 # Run format in each branch for supported access methods.
 if [ "$newer" = true ]; then
     for b in ${newer_release_branches[@]}; do
         (run_format $b "row")
+    done
+    for b in ${test_checkpoint_release_branches[@]}; do
+        (run_test_checkpoint $b "row")
     done
 fi
 
@@ -372,8 +544,17 @@ if [ "$older" = true ]; then
     done
 fi
 
+if [ "${patch_version}" = true ]; then
+    for b in ${patch_version_upgrade_downgrade_release_branches[@]}; do
+        (run_test_checkpoint "$b" "row")
+    done
+    for pv in ${pversions[@]}; do
+        (run_test_checkpoint "$pv" "row")
+    done
+fi
+
 if [ "${wt_standalone}" = true ]; then
-    (run_format "$wt1" "row")
+    (run_tests "$wt1" "row")
     (run_format "$wt2" "row")
 fi
 
@@ -386,20 +567,32 @@ fi
 if [ "$newer" = true ]; then
     for i in ${!newer_release_branches[@]}; do
         [[ $((i+1)) < ${#newer_release_branches[@]} ]] && \
-        (verify_branches ${newer_release_branches[$i]} ${newer_release_branches[$((i+1))]} "row" true)
+        (verify_test_format ${newer_release_branches[$i]} ${newer_release_branches[$((i+1))]} "row" true)
+    done
+    for i in ${!test_checkpoint_release_branches[@]}; do
+        [[ $((i+1)) < ${#test_checkpoint_release_branches[@]} ]] && \
+        (verify_test_checkpoint ${test_checkpoint_release_branches[$i]} ${test_checkpoint_release_branches[$((i+1))]} "row")
     done
 fi
 
 if [ "$older" = true ]; then
     for i in ${!older_release_branches[@]}; do
         [[ $((i+1)) < ${#older_release_branches[@]} ]] && \
-        (verify_branches ${older_release_branches[$i]} ${older_release_branches[$((i+1))]} "fix row var" true)
+        (verify_test_format ${older_release_branches[$i]} ${older_release_branches[$((i+1))]} "fix row var" true)
+    done
+fi
+
+if [ "${patch_version}" = true ]; then
+    for b in ${patch_version_upgrade_downgrade_release_branches[@]}; do
+        for pv in ${pversions[@]}; do
+            (verify_test_checkpoint "$b" "$pv" "row")
+        done
     done
 fi
 
 if [ "${wt_standalone}" = true ]; then
     (verify_branches develop "$wt1" "row" true)
-    (verify_branches "$wt1" "$wt2" "row" true)
+    (verify_test_format "$wt1" "$wt2" "row" true)
 fi
 
 # Verify forward compatibility for supported access methods.
@@ -411,7 +604,19 @@ fi
 if [ "$newer" = true ]; then
     for i in ${!newer_release_branches[@]}; do
         [[ $((i+1)) < ${#newer_release_branches[@]} ]] && \
-        (verify_branches ${newer_release_branches[$((i+1))]} ${newer_release_branches[$i]} "row" false)
+        (verify_test_format ${newer_release_branches[$((i+1))]} ${newer_release_branches[$i]} "row" false)
+    done
+    for i in ${!test_checkpoint_release_branches[@]}; do
+        [[ $((i+1)) < ${#test_checkpoint_release_branches[@]} ]] && \
+        (verify_test_checkpoint ${test_checkpoint_release_branches[$((i+1))]} ${test_checkpoint_release_branches[$i]} "row")
+    done
+fi
+
+if [ "${patch_version}" = true ]; then
+    for b in ${patch_version_upgrade_downgrade_release_branches[@]}; do
+        for pv in ${pversions[@]}; do
+            (verify_test_checkpoint "$pv" "$b" "row")
+        done
     done
 fi
 
