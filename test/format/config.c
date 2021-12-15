@@ -1146,37 +1146,39 @@ config_transaction(void)
 
     /*
      * Incompatible permanent configurations have been checked, now turn off any incompatible flags.
-     * The choices are inclined to prepare (it's only rarely configured), then timestamps. Note any
-     * of the options may still be set as required for the run, so we still have to check if that's
-     * the case until we run out of combinations (for example, prepare turns off logging, so by the
-     * time we check logging, logging must have been required by the run if both logging and prepare
-     * are still set, so we can just turn off prepare in that case).
+     * Honor the choice if something was set explicitly, next retain a configured prepare (it's not
+     * configured often), then match however timestamps are configured.
      */
-    if (GV(OPS_PREPARE)) {
-        if (!config_explicit(NULL, "logging"))
-            config_off(NULL, "logging");
-        if (!config_explicit(NULL, "transaction.timestamps"))
-            config_single(NULL, "transaction.timestamps=on", false);
-    }
-    if (GV(TRANSACTION_TIMESTAMPS)) {
-        if (GV(OPS_SALVAGE) && !config_explicit(NULL, "ops.salvage")) /* FIXME WT-6431 */
-            config_off(NULL, "ops.salvage");
-    } else {
-        if (GV(OPS_PREPARE))
-            config_off(NULL, "ops.prepare");
-        if (GV(TRANSACTION_IMPLICIT) && !config_explicit(NULL, "transaction.implicit"))
-            config_off(NULL, "transaction.implicit");
-    }
-    if (GV(LOGGING))
+    if (GV(OPS_PREPARE) && config_explicit(NULL, "ops.prepare")) {
+        config_off(NULL, "logging");
+        config_single(NULL, "transaction.timestamps=on", false);
+        config_off(NULL, "transaction.implicit");
+        config_off(NULL, "ops.salvage");
+    } else if (GV(TRANSACTION_TIMESTAMPS) && config_explicit(NULL, "transaction.timestamps")) {
+        config_off(NULL, "transaction.implicit");
+        config_off(NULL, "ops.salvage");
+    } else if (!GV(TRANSACTION_TIMESTAMPS) && config_explicit(NULL, "transaction.timestamps")) {
         config_off(NULL, "ops.prepare");
-    if (GV(TRANSACTION_IMPLICIT))
+    } else if (GV(TRANSACTION_IMPLICIT) && config_explicit(NULL, "transaction.implicit")) {
         config_off(NULL, "transaction.timestamps");
-    if (GV(OPS_SALVAGE)) /* FIXME WT-6431 */
+        config_off(NULL, "ops.prepare");
+    } else if (GV(LOGGING) && config_explicit(NULL, "logging")) {
+        config_off(NULL, "ops.prepare");
+    } else if (GV(OPS_SALVAGE) && config_explicit(NULL, "ops.salvage")) { /* FIXME WT-6431 */
         config_off(NULL, "transaction.timestamps");
+        config_off(NULL, "ops.prepare");
+    } else if (GV(OPS_PREPARE)) {
+        config_off(NULL, "logging");
+        config_single(NULL, "transaction.timestamps=on", false);
+        config_off(NULL, "transaction.implicit");
+        config_off(NULL, "ops.salvage");
+    } else if (GV(TRANSACTION_TIMESTAMPS)) {
+        config_off(NULL, "transaction.implicit");
+        config_off(NULL, "ops.salvage");
+    } else if (!GV(TRANSACTION_TIMESTAMPS))
+        config_off(NULL, "ops.prepare");
 
-    /* Transaction timestamps configures format behavior, flag it. */
-    if (GV(TRANSACTION_TIMESTAMPS))
-        g.transaction_timestamps_config = true;
+    g.transaction_timestamps_config = GV(TRANSACTION_TIMESTAMPS) != 0;
 }
 
 /*
