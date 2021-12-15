@@ -224,6 +224,40 @@ run_format()
 }
 
 #############################################################
+# is_test_checkpoint_recovery_supported:
+#       arg1: branch name
+#############################################################
+is_test_checkpoint_recovery_supported()
+{
+    branch_name=$1
+
+    #
+    # The test_checkpoint recovery change WT-7958 are included in mongo
+    # 4.4.9 and 5.0.3 (and newer) versions.
+    #
+    # There's no much value to run test_checkpoint for earlier versions.
+    #
+    # Exclude mongodb-4.4.10+ and mongodb-5.0.10+ versions.
+    #
+    # Exclude mongodb-4.4 and mongodb-5.0 and they represent latest code
+    # of the corresponding release branches, which have WT-7958 included.
+    #
+    if ( ([[ $branch_name == mongodb-* ]] &&
+          [[ $branch_name < "mongodb-4.4.9" ]]) ||
+         ([[ $branch_name == mongodb-5.0.[0-9] ]] &&
+          [[ $branch_name < "mongodb-5.0.3" ]]) ) &&
+       [[ $branch_name != mongodb-4.4.[1-9][0-9] ]] &&
+       [[ $branch_name != mongodb-5.0.[1-9][0-9] ]] &&
+       [[ $branch_name != "mongodb-4.4" ]] &&
+       [[ $branch_name != "mongodb-5.0" ]]
+    then
+        echo "no"
+    else
+        echo "yes"
+    fi
+}
+
+#############################################################
 # run_test_checkpoint:
 #       arg1: branch name
 #       arg2: access methods list
@@ -231,6 +265,15 @@ run_format()
 run_test_checkpoint()
 {
     branch_name=$1
+
+    rtn=$( is_test_checkpoint_recovery_supported $branch_name )
+    if [ "$rtn" == "no" ]; then
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+        echo "No need to run test checkpoint for branch \"$branch_name\""
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+        return
+    fi
+
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
     echo "Running test checkpoint in branch: \"$branch_name\""
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
@@ -311,6 +354,22 @@ verify_test_format()
 #############################################################
 verify_test_checkpoint()
 {
+    rtn=$(is_test_checkpoint_recovery_supported $1)
+    if [ $rtn == "no" ]; then
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+        echo "No need to verify test checkpoint using binary from \"$1\""
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+        return
+    fi
+
+    rtn=$(is_test_checkpoint_recovery_supported $2)
+    if [ $rtn == "no" ]; then
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+        echo "No need to verify test checkpoint for \"$2\""
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+        return
+    fi
+
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
     echo "Release \"$1\" test checkpoint verifying \"$2\""
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
