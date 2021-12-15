@@ -156,7 +156,9 @@ create_default_configs()
     for b in `ls`; do
         if [ -d "$b" ]; then
             (create_configs $b)
-            [ -f CONFIG_$b ] && cp -rf CONFIG_$b $b/test/format/
+            if [ -f CONFIG_$b ]; then
+                cp -rf CONFIG_$b $b/test/format/
+            fi
         fi
     done
 }
