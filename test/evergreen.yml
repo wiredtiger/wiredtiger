@@ -3605,8 +3605,8 @@ tasks:
     commands:
       - command: timeout.update
         params:
-          exec_timeout_secs: 21600
-          timeout_secs: 21600
+          exec_timeout_secs: 7200
+          timeout_secs: 7200
       - func: "fetch artifacts"
       - func: "run-perf-test"
         vars:
@@ -3625,13 +3625,12 @@ tasks:
   - name: perf-test-long-500m-btree-50r50u
     tags: ["long-perf"]
     depends_on:
-      - name: compile
       - name: perf-test-long-500m-btree-populate
     commands:
       - command: timeout.update
         params:
-          exec_timeout_secs: 21600
-          timeout_secs: 21600
+          exec_timeout_secs: 10800
+          timeout_secs: 10800
       # Fetch the compile artifacts.
       - func: "fetch artifacts"
       # Fetch the database created by perf-test-long-500m-btree-populate task.
@@ -3653,13 +3652,12 @@ tasks:
   - name: perf-test-long-500m-btree-50r50u-backup
     tags: ["long-perf"]
     depends_on:
-      - name: compile
       - name: perf-test-long-500m-btree-populate
     commands:
       - command: timeout.update
         params:
-          exec_timeout_secs: 21600
-          timeout_secs: 21600
+          exec_timeout_secs: 10800
+          timeout_secs: 10800
       # Fetch the compile artifacts.
       - func: "fetch artifacts"
       # Fetch the database created by perf-test-long-500m-btree-populate task.
@@ -3681,13 +3679,12 @@ tasks:
   - name: perf-test-long-500m-btree-80r20u
     tags: ["long-perf"]
     depends_on:
-      - name: compile
       - name: perf-test-long-500m-btree-populate
     commands:
       - command: timeout.update
         params:
-          exec_timeout_secs: 21600
-          timeout_secs: 21600
+          exec_timeout_secs: 10800
+          timeout_secs: 10800
       # Fetch the compile artifacts.
       - func: "fetch artifacts"
       # Fetch the database created by perf-test-long-500m-btree-populate task.
@@ -3709,13 +3706,12 @@ tasks:
   - name: perf-test-long-500m-btree-rdonly
     tags: ["long-perf"]
     depends_on:
-      - name: compile
       - name: perf-test-long-500m-btree-populate
     commands:
       - command: timeout.update
         params:
-          exec_timeout_secs: 21600
-          timeout_secs: 21600
+          exec_timeout_secs: 10800
+          timeout_secs: 10800
       # Fetch the compile artifacts.
       - func: "fetch artifacts"
       # Fetch the database created by perf-test-long-500m-btree-populate task.
