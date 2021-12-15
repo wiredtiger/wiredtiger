@@ -32,32 +32,6 @@ get_prev_version()
 }
 
 #############################################################
-# get_patch_versions:
-#       arg1: branch name
-#############################################################
-get_patch_versions()
-{
-    # Query out all released patch versions for a given release branch using "git tag"
-    versions=()
-    for v in $(git tag | grep $b | grep -v rc)
-    do
-        versions+=("$v")
-    done
-}
-
-#############################################################
-# get_patch_versions:
-#       arg1: an array of patch versions
-#############################################################
-pick_a_version()
-{
-    # Randomly pick a version from the array of patch versions
-    pv=${versions[$RANDOM % ${#versions[@]} ]}
-    pversions+=("$pv")
-    echo "$pv"
-}
-
-#############################################################
 # build_branch:
 #       arg1: branch name
 #############################################################
@@ -373,7 +347,7 @@ upgrade_downgrade()
 older=false
 newer=false
 wt_standalone=false
-patch_version=false
+upgrade_to_latest=false
 
 # Branches in below 2 arrays should be put in newer-to-older order.
 #
@@ -390,9 +364,8 @@ older_release_branches=(mongodb-4.2 mongodb-4.0 mongodb-3.6)
 # configuration file. 
 compatible_upgrade_downgrade_release_branches=(mongodb-4.4 mongodb-4.2)
 
-# This array is used to configure the release branches we'd like to run patch version
-# upgrade/downgrade test.
-patch_version_upgrade_downgrade_release_branches=(mongodb-5.0 mongodb-4.4)
+# This array is used to configure the release branches we'd like to run upgrade to latest test.
+upgrade_to_latest_upgrade_downgrade_release_branches=(mongodb-5.0 mongodb-4.4)
 
 # This array is used to configure the release branches we'd like to run test checkpoint
 # upgrade/downgrade test.
@@ -401,7 +374,7 @@ test_checkpoint_release_branches=(develop mongodb-5.0 mongodb-4.4)
 declare -A scopes
 scopes[newer]="newer stable release branches"
 scopes[older]="older stable release branches"
-scopes[patch_version]="patch versions of the same release branch"
+scopes[upgrade_to_latest]="upgrade/downgrade databases to the latest versions of the codebase"
 scopes[wt_standalone]="WiredTiger standalone releases"
 scopes[two_versions]="any two given versions"
 
@@ -410,10 +383,10 @@ scopes[two_versions]="any two given versions"
 #############################################################
 usage()
 {
-    echo -e "Usage: \tcompatibility_test_for_releases [-n|-o|-p|-w|-v]"
+    echo -e "Usage: \tcompatibility_test_for_releases [-n|-o|-u|-w|-v]"
     echo -e "\t-n\trun compatibility tests for ${scopes[newer]}"
     echo -e "\t-o\trun compatibility tests for ${scopes[older]}"
-    echo -e "\t-p\trun compatibility tests for ${scopes[patch_version]}"
+    echo -e "\t-u\trun compatibility tests for ${scopes[upgrade_to_latest]}"
     echo -e "\t-w\trun compatibility tests for ${scopes[wt_standalone]}"
     echo -e "\t-v <v1> <v2>\trun compatibility tests for ${scopes[two_versions]}"
     exit 1
@@ -438,9 +411,9 @@ case $1 in
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 ;;
 "-p")
-    patch_version=true
+    upgrade_to_latest=true
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-    echo "Performing compatibility tests for ${scopes[patch_version]}"
+    echo "Performing compatibility tests for ${scopes[upgrade_to_latest]}"
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 ;;
 "-w")
@@ -498,16 +471,38 @@ if [ "$older" = true ]; then
     done
 fi
 
-if [ "$patch_version" = true ]; then
-    pversions=()
-    for b in ${patch_version_upgrade_downgrade_release_branches[@]}; do
+if [ "$upgrade_to_latest" = true ]; then
+    # Prepare test data
+    git clone --depth 1 --filter=blob:none --no-checkout https://github.com/wiredtiger/mongo-tests.git
+    cd mongo-tests; git checkout master -- WT-8395; cd WT-8395; test_data=$(pwd)
+    
+    for FILE in $test_data/*; do tar -zxvfq $FILE; done
+    rm *.tar.gz; cd ../..
+
+    # Run the test
+    for b in ${upgrade_to_latest_upgrade_downgrade_release_branches[@]}; do
         (build_branch $b)
-        # Retrieve all released patch versions of the release branch
-        cd $b; get_patch_versions; echo $versions; pick_a_version; cd ..
-    done
-    # Build picked patch version for compatibility test.
-    for pv in ${pversions[@]}; do
-        (build_branch $pv)
+        cd $b/build_posix/test/format
+        
+        # Extract branch version from $b
+        branch_version=$(echo $b | awk -F '-' '{print $2}')
+        
+        for FILE in $test_data/*; do 
+            # Run actual test
+            echo "Upgrading $FILE to $b..."
+            test_res=$(test/checkpoint -t r -D -v -h $FILE)
+            
+            # Validate $test_res.
+            if [[ "$test_res" == 0 && "$FILE" =~ "4.4."[0-6]"_unclean"$ ]]; then 
+                echo "Error: Databases generated with unclean shutdown from versions 4.4.[0-6] must fail!"
+                exit 1
+            fi
+            if [[ "$test_res" == 1 ]]; then 
+                echo "Error: Upgrade failed!"
+                exit 1
+            fi
+        done
+        
     done
 fi
 
@@ -544,15 +539,6 @@ if [ "$older" = true ]; then
     done
 fi
 
-if [ "${patch_version}" = true ]; then
-    for b in ${patch_version_upgrade_downgrade_release_branches[@]}; do
-        (run_test_checkpoint "$b" "row")
-    done
-    for pv in ${pversions[@]}; do
-        (run_test_checkpoint "$pv" "row")
-    done
-fi
-
 if [ "${wt_standalone}" = true ]; then
     (run_tests "$wt1" "row")
     (run_format "$wt2" "row")
@@ -582,14 +568,6 @@ if [ "$older" = true ]; then
     done
 fi
 
-if [ "${patch_version}" = true ]; then
-    for b in ${patch_version_upgrade_downgrade_release_branches[@]}; do
-        for pv in ${pversions[@]}; do
-            (verify_test_checkpoint "$b" "$pv" "row")
-        done
-    done
-fi
-
 if [ "${wt_standalone}" = true ]; then
     (verify_branches develop "$wt1" "row" true)
     (verify_test_format "$wt1" "$wt2" "row" true)
@@ -609,14 +587,6 @@ if [ "$newer" = true ]; then
     for i in ${!test_checkpoint_release_branches[@]}; do
         [[ $((i+1)) < ${#test_checkpoint_release_branches[@]} ]] && \
         (verify_test_checkpoint ${test_checkpoint_release_branches[$((i+1))]} ${test_checkpoint_release_branches[$i]} "row")
-    done
-fi
-
-if [ "${patch_version}" = true ]; then
-    for b in ${patch_version_upgrade_downgrade_release_branches[@]}; do
-        for pv in ${pversions[@]}; do
-            (verify_test_checkpoint "$pv" "$b" "row")
-        done
     done
 fi
 
