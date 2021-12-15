@@ -46,7 +46,7 @@ get_patch_versions()
 }
 
 #############################################################
-# get_patch_versions:
+# pick_a_version:
 #       arg1: an array of patch versions
 #############################################################
 pick_a_version()
