@@ -410,7 +410,7 @@ case $1 in
     echo "Performing compatibility tests for ${scopes[older]}"
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 ;;
-"-p")
+"-u")
     upgrade_to_latest=true
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
     echo "Performing compatibility tests for ${scopes[upgrade_to_latest]}"
@@ -473,36 +473,38 @@ fi
 
 if [ "$upgrade_to_latest" = true ]; then
     # Prepare test data
-    git clone --depth 1 --filter=blob:none --no-checkout https://github.com/wiredtiger/mongo-tests.git
-    cd mongo-tests; git checkout master -- WT-8395; cd WT-8395; test_data=$(pwd)
-    
-    for FILE in $test_data/*; do tar -zxvfq $FILE; done
+    echo "Preparing test data..."
+    git clone --quiet --depth 1 --filter=blob:none --no-checkout https://github.com/wiredtiger/mongo-tests.git
+    cd mongo-tests; git checkout --quiet master -- WT-8395; cd WT-8395; test_data=$(pwd)
+
+    for FILE in $test_data/*; do tar -zxf $FILE; done
     rm *.tar.gz; cd ../..
 
+    test_root=$(pwd)
     # Run the test
     for b in ${upgrade_to_latest_upgrade_downgrade_release_branches[@]}; do
         (build_branch $b)
-        cd $b/build_posix/test/format
-        
+        cd $b/test/format
+
         # Extract branch version from $b
-        branch_version=$(echo $b | awk -F '-' '{print $2}')
-        
-        for FILE in $test_data/*; do 
+        #branch_version=$(echo $b | awk -F '-' '{print $2}')
+
+        for FILE in $test_data/*; do
             # Run actual test
             echo "Upgrading $FILE to $b..."
             test_res=$(test/checkpoint -t r -D -v -h $FILE)
-            
+
             # Validate $test_res.
-            if [[ "$test_res" == 0 && "$FILE" =~ "4.4."[0-6]"_unclean"$ ]]; then 
+            if [[ "$test_res" == 0 && "$FILE" =~ "4.4."[0-6]"_unclean"$ ]]; then
                 echo "Error: Databases generated with unclean shutdown from versions 4.4.[0-6] must fail!"
                 exit 1
             fi
-            if [[ "$test_res" == 1 ]]; then 
+            if [[ "$test_res" == 1 ]]; then
                 echo "Error: Upgrade failed!"
                 exit 1
             fi
         done
-        
+        cd $test_root
     done
 fi
 
