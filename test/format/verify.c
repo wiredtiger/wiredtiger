@@ -207,7 +207,8 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
                   (int)base_value.size, (char *)base_value.data, table->uri, (int)table_key.size,
                   (char *)table_key.data, (int)table_value.size, (char *)table_value.data);
                 fprintf(stderr,
-                  "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s}, %s: {%.*s}/{%.*s}",
+                  "mirror: %" PRIu64 "/%" PRIu64
+                  " mismatch: %s: {%.*s}/{%.*s}, %s: {%.*s}/{%.*s}\n",
                   base_keyno, table_keyno, base->uri, (int)base_key.size, (char *)base_key.data,
                   (int)base_value.size, (char *)base_value.data, table->uri, (int)table_key.size,
                   (char *)table_key.data, (int)table_value.size, (char *)table_value.data);
