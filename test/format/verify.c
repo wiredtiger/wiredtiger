@@ -189,7 +189,6 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
             break;
         if (base_keyno > TV(RUNS_ROWS) && table_keyno > TV(RUNS_ROWS))
             break;
-        testutil_assert(base_keyno == table_keyno);
         testutil_assert(rows <= base_keyno);
         rows = base_keyno;
 
@@ -197,18 +196,33 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
         if (table->type == FIX) {
             val_to_flcs(table, &base_value, &base_bitv);
             testutil_check(table_cursor->get_value(table_cursor, &table_bitv));
-            testutil_assert(base_bitv == table_bitv);
+            testutil_assert(base_keyno == table_keyno && base_bitv == table_bitv);
         } else {
             testutil_check(table_cursor->get_value(table_cursor, &table_value));
-            if (base_value.size != table_value.size ||
+            if (base_keyno != table_keyno || base_value.size != table_value.size ||
               memcmp(base_value.data, table_value.data, base_value.size) != 0) {
-                trace_msg(session, "mirror: %" PRIu64 " mismatch: %s: {%.*s}, %s: {%.*s}",
-                  base_keyno, base->uri, (int)base_value.size, (char *)base_value.data, table->uri,
-                  (int)table_value.size, (char *)table_value.data);
-                testutil_assertfmt(g.trace_mirror_fail && ++failures < 20,
-                  "mirror: %" PRIu64 " mismatch: %s: {%.*s}, %s: {%.*s}", base_keyno, base->uri,
-                  (int)base_value.size, (char *)base_value.data, table->uri, (int)table_value.size,
-                  (char *)table_value.data);
+                trace_msg(session,
+                  "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s}, %s: {%.*s}/{%.*s}",
+                  base_keyno, table_keyno, base->uri, (int)base_key.size, (char *)base_key.data,
+                  (int)base_value.size, (char *)base_value.data, table->uri, (int)table_key.size,
+                  (char *)table_key.data, (int)table_value.size, (char *)table_value.data);
+                fprintf(stderr,
+                  "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s}, %s: {%.*s}/{%.*s}",
+                  base_keyno, table_keyno, base->uri, (int)base_key.size, (char *)base_key.data,
+                  (int)base_value.size, (char *)base_value.data, table->uri, (int)table_key.size,
+                  (char *)table_key.data, (int)table_value.size, (char *)table_value.data);
+
+                /* Dump the cursor pages for the first failure. */
+                if (++failures == 1) {
+                    cursor_dump_page(base_cursor, "mirror error: base cursor");
+                    cursor_dump_page(table_cursor, "mirror error: table cursor");
+                }
+
+                /*
+                 * We can't continue if the keys don't match, otherwise, optionally continue showing
+                 * failures, up to 20.
+                 */
+                testutil_assert(table_keyno == base_keyno && g.trace_mirror_fail && failures < 20);
             }
         }
 

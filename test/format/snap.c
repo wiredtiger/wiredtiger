@@ -324,8 +324,7 @@ snap_verify_callback(int ret, void *arg)
      */
     set_core(true);
 
-    fprintf(stderr, "snapshot-isolation error: Dumping page to %s\n", g.home_pagedump);
-    testutil_check(__wt_debug_cursor_page(cursor, g.home_pagedump));
+    cursor_dump_page(cursor, "snapshot-isolation error");
 #if WIREDTIGER_VERSION_MAJOR >= 10
     fprintf(stderr, "snapshot-isolation error: Dumping HS to %s\n", g.home_hsdump);
     testutil_check(__wt_debug_cursor_tree_hs(CUR2S(cursor), g.home_hsdump));

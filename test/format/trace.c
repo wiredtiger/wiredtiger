@@ -66,8 +66,7 @@ trace_config(const char *config)
         break;
     }
     if (all)
-        g.trace_bulk = g.trace_cursor = g.trace_mirror_fail = g.trace_read = g.trace_timestamp =
-          g.trace_txn = true;
+        g.trace_bulk = g.trace_cursor = g.trace_read = g.trace_timestamp = g.trace_txn = true;
 
     for (p = copy; *p != '\0'; ++p)
         if (*p != ',' && !__wt_isspace((u_char)*p))

@@ -198,12 +198,6 @@ path_setup(const char *home)
     g.home_hsdump = dmalloc(len);
     testutil_check(__wt_snprintf(g.home_hsdump, len, "%s/%s", g.home, name));
 
-    /* Page dump file. */
-    name = "FAIL.pagedump";
-    len = strlen(g.home) + strlen(name) + 2;
-    g.home_pagedump = dmalloc(len);
-    testutil_check(__wt_snprintf(g.home_pagedump, len, "%s/%s", g.home, name));
-
     /* Statistics file. */
     name = "OPERATIONS.stats";
     len = strlen(g.home) + strlen(name) + 2;
@@ -296,6 +290,24 @@ lock_destroy(WT_SESSION *session, RWLOCK *lock)
         break;
     }
     lock->lock_type = LOCK_NONE;
+}
+
+/*
+ * cursor_dump_page --
+ *     Dump a cursor page to a backing file.
+ */
+void
+cursor_dump_page(WT_CURSOR *cursor, const char *tag)
+{
+    static int next;
+    char buf[MAX_FORMAT_PATH];
+
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/FAIL.pagedump.%d", g.home, ++next));
+
+    fprintf(stderr, "%s: dumping to %s\n", tag, buf);
+    trace_msg(CUR2S(cursor), "%s: dumping to %s", tag, buf);
+
+    testutil_check(__wt_debug_cursor_page(cursor, buf));
 }
 
 /*

@@ -198,12 +198,11 @@ typedef struct {
     bool trace_timestamp;
     bool trace_txn;
 
-    char *home;          /* Home directory */
-    char *home_config;   /* Run CONFIG file path */
-    char *home_hsdump;   /* HS dump filename */
-    char *home_key;      /* Key file filename */
-    char *home_pagedump; /* Page dump filename */
-    char *home_stats;    /* Statistics file path */
+    char *home;        /* Home directory */
+    char *home_config; /* Run CONFIG file path */
+    char *home_hsdump; /* HS dump filename */
+    char *home_key;    /* Key file filename */
+    char *home_stats;  /* Statistics file path */
 
     char *config_open; /* Command-line configuration */
 
@@ -389,6 +388,7 @@ void config_print(bool);
 void config_run(void);
 void config_single(TABLE *, const char *, bool);
 void create_database(const char *home, WT_CONNECTION **connp);
+void cursor_dump_page(WT_CURSOR *, const char *);
 void fclose_and_clear(FILE **);
 void key_gen_common(TABLE *, WT_ITEM *, uint64_t, const char *);
 void key_gen_init(WT_ITEM *);
