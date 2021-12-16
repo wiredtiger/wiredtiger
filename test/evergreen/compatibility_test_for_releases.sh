@@ -355,8 +355,12 @@ if [ "$upgrade_to_latest" = true ]; then
 
         for FILE in $test_data/*; do
             # Run actual test.
+            echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
             echo "Upgrading $FILE database to $b..."
-            test_res=$(./t -t r -D -v -h $FILE)
+            echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+            
+            ./t -t r -D -v -h $FILE
+            test_res=$?
 
             # Validate test result.
             if [[ "$FILE" =~ "4.4."[0-6]"_unclean"$ ]]; then
