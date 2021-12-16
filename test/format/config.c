@@ -1157,6 +1157,10 @@ config_transaction(void)
     } else if (GV(TRANSACTION_TIMESTAMPS) && config_explicit(NULL, "transaction.timestamps")) {
         config_off(NULL, "transaction.implicit");
         config_off(NULL, "ops.salvage");
+        if (GV(LOGGING) && config_explicit(NULL, "logging"))
+            config_off(NULL, "ops.prepare");
+        else if (GV(OPS_PREPARE))
+            config_off(NULL, "logging");
     } else if (!GV(TRANSACTION_TIMESTAMPS) && config_explicit(NULL, "transaction.timestamps")) {
         config_off(NULL, "ops.prepare");
     } else if (GV(TRANSACTION_IMPLICIT) && config_explicit(NULL, "transaction.implicit")) {
