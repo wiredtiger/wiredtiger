@@ -340,7 +340,7 @@ rm -rf "$top" && mkdir "$top"
 cd "$top"
 
 if [ "$upgrade_to_latest" = true ]; then
-    # Prepare test data
+    # Prepare test data.
     echo "Preparing test data..."
     git clone --quiet --depth 1 --filter=blob:none --no-checkout https://github.com/wiredtiger/mongo-tests.git
     cd mongo-tests; git checkout --quiet master -- WT-8395; cd WT-8395; test_data=$(pwd)
@@ -349,25 +349,26 @@ if [ "$upgrade_to_latest" = true ]; then
     rm *.tar.gz; cd ../..
 
     test_root=$(pwd)
-    # Run the test
     for b in ${upgrade_to_latest_upgrade_downgrade_release_branches[@]}; do
         (build_branch $b)
         cd $b/test/checkpoint
 
         for FILE in $test_data/*; do
-            # Run actual test
-            echo "Upgrading $FILE to $b..."
+            # Run actual test.
+            echo "Upgrading $FILE database to $b..."
             test_res=$(./t -t r -D -v -h $FILE)
 
-            # Validate $test_res.
-            if [[ "$test_res" == 0 && "$FILE" =~ "4.4."[0-6]"_unclean"$ ]]; then
-                echo "Error: Databases generated with unclean shutdown from versions 4.4.[0-6] must fail!"
+            # Validate test result.
+            if [[ "$FILE" =~ "4.4."[0-6]"_unclean"$ ]]; then
+                if [[ "$test_res" == 0 ]]; then
+                    echo "Error: Databases generated with unclean shutdown from versions 4.4.[0-6] must fail!"
+                    exit 1
+                fi
+            elif [[ "$test_res" != 0 ]]; then
+                echo "Error: Upgrade failed! Test result is $test_res."
                 exit 1
             fi
-            if [[ "$test_res" == 1 ]]; then
-                echo "Error: Upgrade failed!"
-                exit 1
-            fi
+
         done
         cd $test_root
     done
