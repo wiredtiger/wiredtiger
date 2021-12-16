@@ -176,6 +176,22 @@ __compact_handle_append(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __compact_timing_stress --
+ *     Optionally add a delay to the compact for debug purposes.
+ */
+static void
+__compact_timing_stress(WT_SESSION_IMPL *session, uint64_t flag, struct timespec *tsp)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    // We only want to sleep if the flag is set.
+    if (FLD_ISSET(conn->timing_stress_flags, flag))
+        __wt_sleep((uint64_t)tsp->tv_sec, (uint64_t)tsp->tv_nsec / WT_THOUSAND);
+}
+
+/*
  * __wt_session_compact_check_timeout --
  *     Check if the timeout has been exceeded.
  */
@@ -229,6 +245,7 @@ __compact_checkpoint(WT_SESSION_IMPL *session)
 static int
 __compact_worker(WT_SESSION_IMPL *session)
 {
+    struct timespec tsp;
     WT_DECL_RET;
     u_int i, loop;
     bool another_pass;
@@ -256,6 +273,11 @@ __compact_worker(WT_SESSION_IMPL *session)
             /* Skip objects where there's no more work. */
             if (session->op_handle[i]->compact_skip)
                 continue;
+
+            /* Add a 2 second wait to simulate compact slowness. */
+            tsp.tv_sec = 2;
+            tsp.tv_nsec = 0;
+            __compact_timing_stress(session, WT_TIMING_STRESS_COMPACT_SLOW, &tsp);
 
             session->compact_state = WT_COMPACT_RUNNING;
             WT_WITH_DHANDLE(session, session->op_handle[i], ret = __wt_compact(session));
