@@ -84,12 +84,15 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     btree->dhandle = dhandle;
 
     /* Checkpoint and verify files are readonly. */
-    if (dhandle->checkpoint != NULL || F_ISSET(btree, WT_BTREE_VERIFY) ||
+    if (WT_DHANDLE_IS_CHECKPOINT(dhandle) || F_ISSET(btree, WT_BTREE_VERIFY) ||
       F_ISSET(S2C(session), WT_CONN_READONLY))
         F_SET(btree, WT_BTREE_READONLY);
 
     /* Get the checkpoint information for this name/checkpoint pair. */
     WT_RET(__wt_meta_checkpoint(session, dhandle->name, dhandle->checkpoint, &ckpt));
+
+    /* Set the order number. */
+    dhandle->checkpoint_order = ckpt.order;
 
     /*
      * Bulk-load is only permitted on newly created files, not any empty file -- see the checkpoint
