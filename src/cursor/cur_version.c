@@ -281,7 +281,7 @@ __curversion_next(WT_CURSOR *cursor)
     }
 
     if (!upd_found)
-        WT_ERR(WT_NOTFOUND);
+        ret = WT_NOTFOUND;
     else
         F_SET(table_cursor, WT_CURSTD_VALUE_INT);
 
