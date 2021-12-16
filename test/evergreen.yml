@@ -37,7 +37,7 @@ functions:
       aws_secret: ${aws_secret}
       remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${dependent_task|compile}_${build_id}.tgz
       bucket: build_external
-      extract_to: wiredtiger
+      extract_to: ${destination|wiredtiger}
   "fetch artifacts from little-endian" :
     - command: s3.get
       params:
@@ -62,25 +62,6 @@ functions:
       params:
         path: "WT_TEST-big-endian.tgz"
         destination: "wiredtiger/build_posix/test/format"
-  "fetch artifacts from many-coll" :
-    - command: s3.get
-      params:
-        aws_key: ${aws_key}
-        aws_secret: ${aws_secret}
-        remote_file: dbpath_100k_500.tgz
-        bucket: build_external
-        local_file: dbpath_100k_500.tgz
-    - command: shell.exec
-      params:
-        shell: bash
-        script: |
-          set -o errexit
-          set -o verbose
-          mkdir -p mongo-tests/largescale/many-collection/dbpath
-    - command: archive.targz_extract
-      params:
-        path: "dbpath_100k_500.tgz"
-        destination: "mongo-tests/largescale/many-collection/dbpath/."
   "fetch mongo-tests repo" :
     command: shell.exec
     params:
@@ -625,7 +606,7 @@ functions:
           if [[ ! -d "automation-scripts" ]]; then
             git clone git@github.com:wiredtiger/automation-scripts.git
           fi
-          ${python_binary} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_wt_perf_test_user} -p ${atlas_wt_perf_pass} -f test_stats/atlas_out_${perf-test-name}.json -t ${created_at}
+          ${python_binary} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_perf_test_username} -p ${atlas_perf_test_password} -f test_stats/atlas_out_${perf-test-name}.json -t ${created_at}
     - command: perf.send
       params:
         file: ./wiredtiger/cmake_build/bench/wtperf/test_stats/evergreen_out_${perf-test-name}.json
@@ -1531,7 +1512,7 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test/csuite/test_rwlock 2>&1
 
-  # Temporarily disabled (WT-5790)
+  # FIXME-WT-8512: The test was temporarily disabled by WT-5790.
   # - name: csuite-wt2246-col-append-test
   #   tags: ["pull_request"]
   #   depends_on:
@@ -2509,8 +2490,6 @@ tasks:
           times: 3
           extra_args: file_type=row compaction=1 verify=1 runs.timer=3 ops.pct.delete=30
 
-      #FIXME-WT-5270: Add wtperf testing from Jenkin "wiredtiger-test-check-long" after fixing WT-5270
-
   - name: time-shift-sensitivity-test
     depends_on:
     - name: compile
@@ -2557,14 +2536,14 @@ tasks:
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
           format_test_script_args: -S
 
-  # Replace this test with format-asan-smoke-test after BUILD-10248 fix.
+  # FIXME-WT-8482: Replace this test with format-asan-smoke-test.
   - name: format-asan-smoke-ppc-test
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          # CC is set to the system default "clang" binary here as a workaround. Change it back
-          # to mongodbtoolchain "clang" binary after BUILD-10248 fix.
+          # FIXME-WT-8482: CC is set to the system default "clang" binary here as a workaround.
+          # Change it back to mongodbtoolchain "clang" binary.
           configure_env_vars:
             CCAS=/opt/mongodbtoolchain/v3/bin/gcc CC=/usr/bin/clang
             CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
@@ -2727,7 +2706,7 @@ tasks:
             fi
 
   - name: format-stress-sanitizer-lsm-test
-    # Temporarily disabled (WT-6255)
+    # FIXME-WT-6258: Re-enable the test once the outstanding issues with LSM are resolved.
     # tags: ["stress-test-1"]
     commands:
       - func: "get project"
@@ -2784,7 +2763,7 @@ tasks:
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120
 
-  # Replace this test with format-stress-sanitizer-test after BUILD-10248 fix.
+  # FIXME-WT-8482: Replace this test with format-stress-sanitizer-test.
   - name: format-stress-sanitizer-ppc-test
     tags: ["stress-test-ppc-1"]
     # Set 2.5 hours timeout (60 * 60 * 2.5)
@@ -2793,8 +2772,8 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          # CC is set to the system default "clang" binary here as a workaround. Change it back
-          # to mongodbtoolchain "clang" binary after BUILD-10248 fix.
+          # FIXME-WT-8482: CC is set to the system default "clang" binary here as a workaround.
+          # Change it back to mongodbtoolchain "clang" binary.
           configure_env_vars:
             CCAS=/opt/mongodbtoolchain/v3/bin/gcc CC=/usr/bin/clang
             CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
@@ -2899,10 +2878,8 @@ tasks:
       - func: "import wiredtiger into mongo"
       - func: "compile mongodb"
       - func: "fetch mongo-tests repo"
-      # After WT-7868 we can use the following function to retrieve an existing database and remove
-      # the "clean-and-populate" option from the script arguments to skip the initial populating
-      # step.
-      # - func: "fetch artifacts from many-coll"
+      # FIXME-WT-7868: we should download a pre populated database here and remove the
+      # "clean-and-populate" argument in the step below.
       - command: shell.exec
         params:
           working_dir: mongo-tests/largescale
@@ -3598,15 +3575,15 @@ tasks:
     #        Performance Long Tests           #
     ###########################################
 
-  - name: perf-test-long-btree
+  - name: perf-test-long-500m-btree-populate
     tags: ["long-perf"]
     depends_on:
       - name: compile
     commands:
       - command: timeout.update
         params:
-          exec_timeout_secs: 86400
-          timeout_secs: 86400
+          exec_timeout_secs: 7200
+          timeout_secs: 7200
       - func: "fetch artifacts"
       - func: "run-perf-test"
         vars:
@@ -3616,6 +3593,29 @@ tasks:
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: 500m-btree-populate.wtperf
+      - func: "upload artifact"
+        vars:
+          upload_filename: WT_TEST.tgz
+          upload_source_dir: wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0/
+      # Call cleanup function to avoid duplicated artifact upload in the post-task stage.
+      - func: "cleanup"
+
+  - name: perf-test-long-500m-btree-50r50u
+    tags: ["long-perf"]
+    depends_on:
+      - name: perf-test-long-500m-btree-populate
+    commands:
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 10800
+          timeout_secs: 10800
+      # Fetch the compile artifacts.
+      - func: "fetch artifacts"
+      # Fetch the database created by perf-test-long-500m-btree-populate task.
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: perf-test-long-500m-btree-populate
+          destination: "wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0"
       - func: "run-perf-test"
         vars:
           perf-test-name: 500m-btree-50r50u.wtperf
@@ -3625,6 +3625,24 @@ tasks:
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: 500m-btree-50r50u.wtperf
+      - func: "cleanup"
+
+  - name: perf-test-long-500m-btree-50r50u-backup
+    tags: ["long-perf"]
+    depends_on:
+      - name: perf-test-long-500m-btree-populate
+    commands:
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 10800
+          timeout_secs: 10800
+      # Fetch the compile artifacts.
+      - func: "fetch artifacts"
+      # Fetch the database created by perf-test-long-500m-btree-populate task.
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: perf-test-long-500m-btree-populate
+          destination: "wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0"
       - func: "run-perf-test"
         vars:
           perf-test-name: 500m-btree-50r50u-backup.wtperf
@@ -3634,6 +3652,24 @@ tasks:
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: 500m-btree-50r50u-backup.wtperf
+      - func: "cleanup"
+
+  - name: perf-test-long-500m-btree-80r20u
+    tags: ["long-perf"]
+    depends_on:
+      - name: perf-test-long-500m-btree-populate
+    commands:
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 10800
+          timeout_secs: 10800
+      # Fetch the compile artifacts.
+      - func: "fetch artifacts"
+      # Fetch the database created by perf-test-long-500m-btree-populate task.
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: perf-test-long-500m-btree-populate
+          destination: "wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0"
       - func: "run-perf-test"
         vars:
           perf-test-name: 500m-btree-80r20u.wtperf
@@ -3643,6 +3679,24 @@ tasks:
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: 500m-btree-80r20u.wtperf
+      - func: "cleanup"
+
+  - name: perf-test-long-500m-btree-rdonly
+    tags: ["long-perf"]
+    depends_on:
+      - name: perf-test-long-500m-btree-populate
+    commands:
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 10800
+          timeout_secs: 10800
+      # Fetch the compile artifacts.
+      - func: "fetch artifacts"
+      # Fetch the database created by perf-test-long-500m-btree-populate task.
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: perf-test-long-500m-btree-populate
+          destination: "wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0"
       - func: "run-perf-test"
         vars:
           perf-test-name: 500m-btree-rdonly.wtperf
@@ -3652,6 +3706,7 @@ tasks:
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: 500m-btree-rdonly.wtperf
+      - func: "cleanup"
 
   - name: perf-test-long-checkpoint-stress
     tags: ["long-perf"]
