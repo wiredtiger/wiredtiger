@@ -22,7 +22,6 @@ __curversion_set_key(WT_CURSOR *cursor, ...)
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     table_cursor = version_cursor->table_cursor;
     va_start(ap, cursor);
-    printf("function\n");
     WT_IGNORE_RET(__wt_cursor_set_keyv(table_cursor, table_cursor->flags, ap));
     va_end(ap);
 }
@@ -42,7 +41,7 @@ __curversion_get_key(WT_CURSOR *cursor, ...)
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     table_cursor = version_cursor->table_cursor;
     va_start(ap, cursor);
-    WT_ERR(__wt_cursor_get_keyv(cursor, cursor->flags, ap));
+    // WT_ERR(__wt_cursor_get_keyv(cursor, cursor->flags, ap));
     WT_ERR(__wt_cursor_get_keyv(table_cursor, table_cursor->flags, ap));
 
 err:
@@ -135,11 +134,11 @@ __curversion_next(WT_CURSOR *cursor)
                 /*
                  * Set the version cursor's key, which contains all the record metadata for that
                  * particular version of the update.
-                 */
                 __wt_cursor_set_key(cursor, upd->txnid, upd->start_ts, upd->durable_ts,
                   version_cursor->upd_stop_txnid, version_cursor->upd_stop_ts,
                   version_cursor->upd_durable_stop_ts, upd->type, version_prepare_state, upd->flags,
                   WT_VERSION_UPDATE_CHAIN);
+                 */
 
                 /*
                  * Copy the update value into the version cursor as we don't know the value format.
@@ -151,8 +150,16 @@ __curversion_next(WT_CURSOR *cursor)
                     WT_ERR(
                       __wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
 
-                cursor->value.data = cbt->upd_value->buf.data;
-                cursor->value.size = cbt->upd_value->buf.size;
+                /*
+                 * Set the version cursor's value, which also contains all the record metadata for
+                 * that particular version of the update.
+                 */
+                __wt_cursor_set_value(cursor, cbt->upd_value->buf.data, upd->txnid, upd->start_ts,
+                  upd->durable_ts, version_cursor->upd_stop_txnid, version_cursor->upd_stop_ts,
+                  version_cursor->upd_durable_stop_ts, upd->type, version_prepare_state, upd->flags,
+                  WT_VERSION_UPDATE_CHAIN);
+                // cursor->value.data = cbt->upd_value->buf.data;
+                // cursor->value.size = cbt->upd_value->buf.size;
                 F_SET(cursor, WT_CURSTD_VALUE_INT);
 
                 upd_found = true;
@@ -206,12 +213,16 @@ __curversion_next(WT_CURSOR *cursor)
                 stop_ts = vpack->tw.stop_ts;
                 stop_txn = vpack->tw.stop_txn;
             }
-
+            /*
             __wt_cursor_set_key(cursor, vpack->tw.start_txn, vpack->tw.start_ts,
               vpack->tw.durable_start_ts, stop_txn, stop_ts, durable_stop_ts, WT_UPDATE_STANDARD,
               vpack->tw.prepare, 0, WT_VERSION_DISK_IMAGE);
             cursor->value.data = vpack->data;
             cursor->value.size = vpack->size;
+            */
+            __wt_cursor_set_value(cursor, vpack->data, vpack->tw.start_txn, vpack->tw.start_ts,
+              vpack->tw.durable_start_ts, stop_txn, stop_ts, durable_stop_ts, WT_UPDATE_STANDARD,
+              vpack->tw.prepare, 0, WT_VERSION_DISK_IMAGE);
             F_SET(cursor, WT_CURSTD_VALUE_INT);
 
             upd_found = true;
@@ -239,9 +250,11 @@ __curversion_next(WT_CURSOR *cursor)
             __wt_hs_upd_time_window(hs_cursor, &twp);
             WT_ERR(hs_cursor->get_value(
               hs_cursor, twp->stop_ts, twp->durable_start_ts, &hs_upd_type, &hs_value));
+            /*
             __wt_cursor_set_key(cursor, twp->start_txn, twp->start_ts, twp->durable_start_ts,
               twp->stop_txn, twp->stop_ts, twp->durable_stop_ts, hs_upd_type, 0, 0,
               WT_VERSION_HISTORY_STORE);
+            */
 
             /*
              * Reconstruct the history store value if needed. Since we save the value inside the
@@ -253,8 +266,11 @@ __curversion_next(WT_CURSOR *cursor)
                   session, table_cursor->value_format, &cursor->value, hs_value.data));
             } else {
                 WT_ASSERT(session, hs_upd_type == WT_UPDATE_STANDARD);
-                cursor->value.data = hs_value.data;
-                cursor->value.size = hs_value.size;
+                __wt_cursor_set_value(cursor, hs_value.data, twp->start_txn, twp->start_ts,
+                  twp->durable_start_ts, twp->stop_txn, twp->stop_ts, twp->durable_stop_ts,
+                  hs_upd_type, 0, 0, WT_VERSION_HISTORY_STORE);
+                // cursor->value.data = hs_value.data;
+                // cursor->value.size = hs_value.size;
             }
             F_SET(cursor, WT_CURSTD_VALUE_INT);
             upd_found = true;
@@ -434,6 +450,7 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     /* The table cursor is read only. */
     const char *table_cursor_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "read_only=true", NULL};
+    char *version_cursor_value_format;
 
     *cursorp = NULL;
     WT_RET(__wt_calloc_one(session, &version_cursor));
@@ -441,13 +458,16 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     *cursor = iface;
     cursor->session = (WT_SESSION *)session;
 
-    WT_ERR(__wt_strdup(session, uri, &cursor->uri));
-    WT_ERR(__wt_cursor_init(cursor, cursor->uri, owner, cfg, cursorp));
-
     /* Open the table cursor. */
     WT_ERR(__wt_open_cursor(session, uri, cursor, table_cursor_cfg, &version_cursor->table_cursor));
-    cursor->key_format = WT_UNCHECKED_STRING(QQQQQQBBBB);
-    cursor->value_format = version_cursor->table_cursor->value_format;
+    cursor->key_format = version_cursor->table_cursor->key_format;
+    WT_ERR(__wt_malloc(NULL,
+      strlen(WT_UNCHECKED_STRING(QQQQQQBBBB)) + strlen(version_cursor->table_cursor->value_format),
+      &version_cursor_value_format));
+    cursor->value_format = version_cursor_value_format;
+
+    WT_ERR(__wt_strdup(session, uri, &cursor->uri));
+    WT_ERR(__wt_cursor_init(cursor, cursor->uri, owner, cfg, cursorp));
 
     /* Open the history store cursor for operations on the regular history store .*/
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN)) {
@@ -466,5 +486,6 @@ err:
         WT_TRET(cursor->close(cursor));
         *cursorp = NULL;
     }
+    __wt_free(session, version_cursor_value_format);
     return (ret);
 }

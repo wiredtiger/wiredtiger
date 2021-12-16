@@ -480,7 +480,7 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
              */
             if ((ret = __wt_config_gets_def(session, cfg, "debug.dump_version", 0, &cval)) == 0) {
                 if (cval.val)
-                    WT_RET(__wt_curversion_open(session, uri, owner, cfg, cursorp));
+                    WT_RET(__wt_curversion_open(session, uri, NULL, cfg, cursorp));
                 else
                     WT_RET(__wt_curtable_open(session, uri, owner, cfg, cursorp));
             }
