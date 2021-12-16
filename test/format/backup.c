@@ -64,7 +64,7 @@ check_copy(void)
 
     /* Now setup and open the path for real. */
     testutil_check(__wt_snprintf(path, len, "%s/BACKUP", g.home));
-    wts_open(path, &conn, true);
+    wts_open(path, &conn, false);
 
     /* Verify the objects. */
     wts_verify(conn, true);

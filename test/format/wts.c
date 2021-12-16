@@ -462,7 +462,7 @@ wts_create_database(void)
  *     Open a connection to a WiredTiger database.
  */
 void
-wts_open(const char *home, WT_CONNECTION **connp, bool allow_verify)
+wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 {
     WT_CONNECTION *conn;
     size_t max;
@@ -500,10 +500,10 @@ wts_open(const char *home, WT_CONNECTION **connp, bool allow_verify)
             CONFIG_APPEND(p, ",%s", g.config_open);
 
 #if WIREDTIGER_VERSION_MAJOR >= 10
-        if (GV(OPS_VERIFY) && allow_verify)
+        if (GV(OPS_VERIFY) && verify_metadata)
             CONFIG_APPEND(p, ",verify_metadata=true");
 #else
-        WT_UNUSED(allow_verify);
+        WT_UNUSED(verify_metadata);
 #endif
         testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
     }
