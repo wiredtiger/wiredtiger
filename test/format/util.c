@@ -299,6 +299,7 @@ lock_destroy(WT_SESSION *session, RWLOCK *lock)
 void
 cursor_dump_page(WT_CURSOR *cursor, const char *tag)
 {
+#ifdef HAVE_DIAGNOSTIC
     static int next;
     char buf[MAX_FORMAT_PATH];
 
@@ -308,6 +309,7 @@ cursor_dump_page(WT_CURSOR *cursor, const char *tag)
     trace_msg(CUR2S(cursor), "%s: dumping to %s", tag, buf);
 
     testutil_check(__wt_debug_cursor_page(cursor, buf));
+#endif
 }
 
 /*
