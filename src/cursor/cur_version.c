@@ -174,8 +174,6 @@ __curversion_next(WT_CURSOR *cursor)
                   WT_VERSION_UPDATE_CHAIN);
                 cursor->value.data = cbt->upd_value->buf.data;
                 cursor->value.size = cbt->upd_value->buf.size;
-                F_SET(cursor, WT_CURSTD_VALUE_INT);
-                F_SET(table_cursor, WT_CURSTD_VALUE_INT);
 
                 upd_found = true;
                 version_cursor->next_upd = upd->next;
@@ -234,8 +232,6 @@ __curversion_next(WT_CURSOR *cursor)
               vpack->tw.prepare, 0, WT_VERSION_DISK_IMAGE);
             table_cursor->value.data = vpack->data;
             table_cursor->value.size = vpack->size;
-            F_SET(cursor, WT_CURSTD_VALUE_INT);
-            F_SET(table_cursor, WT_CURSTD_VALUE_INT);
 
             upd_found = true;
             F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
@@ -281,13 +277,13 @@ __curversion_next(WT_CURSOR *cursor)
             table_cursor->value.data = hs_value.data;
             table_cursor->value.size = hs_value.size;
         }
-        F_SET(cursor, WT_CURSTD_VALUE_INT);
-        F_SET(table_cursor, WT_CURSTD_VALUE_INT);
         upd_found = true;
     }
 
     if (!upd_found)
         WT_ERR(WT_NOTFOUND);
+    else
+        F_SET(table_cursor, WT_CURSTD_VALUE_INT);
 
 err:
     if (ret != 0)
