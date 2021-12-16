@@ -352,15 +352,12 @@ if [ "$upgrade_to_latest" = true ]; then
     # Run the test
     for b in ${upgrade_to_latest_upgrade_downgrade_release_branches[@]}; do
         (build_branch $b)
-        cd $b/test/format
-
-        # Extract branch version from $b
-        #branch_version=$(echo $b | awk -F '-' '{print $2}')
+        cd $b/test/checkpoint
 
         for FILE in $test_data/*; do
             # Run actual test
             echo "Upgrading $FILE to $b..."
-            test_res=$(test/checkpoint -t r -D -v -h $FILE)
+            test_res=$(./t -t r -D -v -h $FILE)
 
             # Validate $test_res.
             if [[ "$test_res" == 0 && "$FILE" =~ "4.4."[0-6]"_unclean"$ ]]; then
