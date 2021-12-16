@@ -504,7 +504,7 @@ __wt_cursor_get_value(WT_CURSOR *cursor, ...)
     va_list ap;
 
     va_start(ap, cursor);
-    ret = __wt_cursor_get_valuev(cursor, ap);
+    ret = __wt_cursor_get_valuev(cursor, cursor->value_format, ap);
     va_end(ap);
     return (ret);
 }
@@ -514,12 +514,11 @@ __wt_cursor_get_value(WT_CURSOR *cursor, ...)
  *     WT_CURSOR->get_value worker implementation.
  */
 int
-__wt_cursor_get_valuev(WT_CURSOR *cursor, va_list ap)
+__wt_cursor_get_valuev(WT_CURSOR *cursor, const char *fmt, va_list ap)
 {
     WT_DECL_RET;
     WT_ITEM *value;
     WT_SESSION_IMPL *session;
-    const char *fmt;
 
     CURSOR_API_CALL(cursor, session, get_value, NULL);
 
@@ -531,7 +530,6 @@ __wt_cursor_get_valuev(WT_CURSOR *cursor, va_list ap)
         WT_ERR(__wt_buf_grow(session, &cursor->value, cursor->value.size));
 
     /* Fast path some common cases. */
-    fmt = cursor->value_format;
     if (F_ISSET(cursor, WT_CURSOR_RAW_OK) || WT_STREQ(fmt, "u")) {
         value = va_arg(ap, WT_ITEM *);
         value->data = cursor->value.data;

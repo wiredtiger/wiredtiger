@@ -1116,7 +1116,7 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
     WT_ERR(__wt_strdup(session, WT_HS_URI, &cursor->uri));
 
     /* Open the file cursor for operations on the regular history store .*/
-    WT_ERR(__curhs_file_cursor_open(session, owner, &hs_cursor->file_cursor));
+    WT_ERR(__curhs_file_cursor_open(session, cursor, &hs_cursor->file_cursor));
 
     WT_WITH_BTREE(session, CUR2BT(hs_cursor->file_cursor),
       ret = __wt_cursor_init(cursor, WT_HS_URI, owner, NULL, cursorp));
