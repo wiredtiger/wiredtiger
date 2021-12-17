@@ -256,6 +256,48 @@ upgrade_downgrade()
         done
 }
 
+#############################################################
+# test_upgrade_to_branch:
+#       arg1: release branch name
+#       arg2: path to test data folder
+#       arg3: path to test test root folder
+#############################################################
+test_upgrade_to_branch()
+{
+    cd $1/test/checkpoint
+
+    for FILE in $2/*; do
+        # Run actual test.
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+        echo " Upgrading $FILE database to $1..."
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
+        # Disable exit on non 0
+        set +e
+
+        output="$(./t -t r -D -v -h $FILE)"
+        test_res=$?
+
+        # Enable exit on non 0
+        set -e
+
+        # Validate test result.
+        if [[ "$FILE" =~ "4.4."[0-6]"_unclean"$ ]]; then
+            if [[ "$test_res" == 0 ]]; then
+                echo "$output"
+                echo "Error: Upgrade of $FILE database to $1 succeeded!"
+                echo "Databases generated with unclean shutdown from versions 4.4.[0-6] must fail!"
+                exit 1
+            fi
+        elif [[ "$test_res" != 0 ]]; then
+            echo "$output"
+            echo "Error: Upgrade of $FILE database to $1 failed! Test result is $test_res."
+            exit 1
+        fi
+    done
+    cd $3
+}
+
 # Only one of below flags will be set by the 1st argument of the script.
 older=false
 newer=false
@@ -351,41 +393,8 @@ if [ "$upgrade_to_latest" = true ]; then
     test_root=$(pwd)
     for b in ${upgrade_to_latest_upgrade_downgrade_release_branches[@]}; do
         (build_branch $b)
-        cd $b/test/checkpoint
-
-        for FILE in $test_data/*; do
-            # Run actual test.
-            echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-            echo " Upgrading $FILE database to $b..."
-            echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-
-            # Disable exit on non 0
-            set +e
-
-            output="$(./t -t r -D -v -h $FILE)"
-            test_res=$?
-
-            # Enable exit on non 0
-            set -e
-
-            # Validate test result.
-            if [[ "$FILE" =~ "4.4."[0-6]"_unclean"$ ]]; then
-                if [[ "$test_res" == 0 ]]; then
-                    echo "$output"
-                    echo "Error: Upgrade of $FILE database to $b succeeded!"
-                    echo "Databases generated with unclean shutdown from versions 4.4.[0-6] must fail!"
-                    exit 1
-                fi
-            elif [[ "$test_res" != 0 ]]; then
-                echo "$output"
-                echo "Error: Upgrade of $FILE database to $b failed! Test result is $test_res."
-                exit 1
-            fi
-        done
-        cd $test_root
+        (test_upgrade_to_branch $b $test_data $test_root)
     done
-
-    exit 0
 fi
 
 # Build the branches.
