@@ -268,7 +268,7 @@ test_upgrade_to_branch()
         for FILE in $2/*; do
             # Run actual test.
             echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-            echo " Upgrading $FILE database to $1..."
+            echo "Upgrading $FILE database to $1..."
 
             # Disable exit on non 0
             set +e
@@ -281,10 +281,10 @@ test_upgrade_to_branch()
 
             # Validate test result.
             if [[ "$FILE" =~ "4.4."[0-6]"_unclean"$ ]]; then
+                echo "Databases generated with unclean shutdown from versions 4.4.[0-6] must fail."
                 if [[ "$test_res" == 0 ]]; then
                     echo "$output"
-                    echo "Error: Upgrade of $FILE database to $1 succeeded!"
-                    echo "Databases generated with unclean shutdown from versions 4.4.[0-6] must fail!"
+                    echo "Error: Upgrade of $FILE database to $1 has not failed!"
                     exit 1
                 fi
             elif [[ "$test_res" != 0 ]]; then
@@ -293,7 +293,7 @@ test_upgrade_to_branch()
                 exit 1
             fi
 
-            echo " Success! (Note: databases generated with unclean shutdown from versions 4.4.[0-6] are expected to fail)"
+            echo "Success!"
             echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
         done
 }
@@ -402,12 +402,12 @@ if [ "$upgrade_to_latest" = true ]; then
     test_data="$test_root/mongo-tests/WT-8395"
 
     for b in ${upgrade_to_latest_upgrade_downgrade_release_branches[@]}; do
-        # prepare test data and test upgrade to the branch b
+        # prepare test data and test upgrade to the branch b.
         (prepare_test_data_wt_8395) && \
         (build_branch $b) && \
-        (test_upgrade_to_branch $b $test_data $test_root)
+        (test_upgrade_to_branch $b $test_data)
 
-        # cleanup
+        # cleanup.
         cd $test_root
         rm -rf $test_data_root
     done
