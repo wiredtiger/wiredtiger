@@ -260,7 +260,6 @@ upgrade_downgrade()
 # test_upgrade_to_branch:
 #       arg1: release branch name
 #       arg2: path to test data folder
-#       arg3: path to test test root folder
 #############################################################
 test_upgrade_to_branch()
 {
@@ -270,7 +269,6 @@ test_upgrade_to_branch()
             # Run actual test.
             echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
             echo " Upgrading $FILE database to $1..."
-            echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
             # Disable exit on non 0
             set +e
@@ -294,8 +292,25 @@ test_upgrade_to_branch()
                 echo "Error: Upgrade of $FILE database to $1 failed! Test result is $test_res."
                 exit 1
             fi
+
+            echo " Success! (Note: databases generated with unclean shutdown from versions 4.4.[0-6] are expected to fail)"
+            echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
         done
-        cd $3
+}
+
+#############################################################
+# prepare_test_data_wt_8395:
+#############################################################
+prepare_test_data_wt_8395()
+{
+        echo "Preparing test data..."
+        git clone --quiet --depth 1 --filter=blob:none --no-checkout https://github.com/wiredtiger/mongo-tests.git
+        cd mongo-tests
+        git checkout --quiet master -- WT-8395 &> /dev/null
+        cd WT-8395
+
+        for FILE in *; do tar -zxf $FILE; done
+        rm *.tar.gz; cd ../..
 }
 
 # Only one of below flags will be set by the 1st argument of the script.
@@ -382,18 +397,19 @@ rm -rf "$top" && mkdir "$top"
 cd "$top"
 
 if [ "$upgrade_to_latest" = true ]; then
-    # Prepare test data.
-    echo "Preparing test data..."
-    git clone --quiet --depth 1 --filter=blob:none --no-checkout https://github.com/wiredtiger/mongo-tests.git
-    cd mongo-tests; git checkout --quiet master -- WT-8395; cd WT-8395; test_data=$(pwd)
-
-    for FILE in $test_data/*; do tar -zxf $FILE; done
-    rm *.tar.gz; cd ../..
-
     test_root=$(pwd)
+    test_data_root="$test_root/mongo-tests"
+    test_data="$test_root/mongo-tests/WT-8395"
+
     for b in ${upgrade_to_latest_upgrade_downgrade_release_branches[@]}; do
-        (build_branch $b)
+        # prepare test data and test upgrade to the branch b
+        (prepare_test_data_wt_8395) && \
+        (build_branch $b) && \
         (test_upgrade_to_branch $b $test_data $test_root)
+
+        # cleanup
+        cd $test_root
+        rm -rf $test_data_root
     done
 fi
 
