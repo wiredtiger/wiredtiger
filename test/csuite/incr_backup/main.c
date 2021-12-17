@@ -841,8 +841,8 @@ main(int argc, char *argv[])
         rnd.v = seed;
 
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
-    testutil_check(__wt_snprintf(backup_dir, sizeof(backup_dir), "%s.BACKUP", home));
-    testutil_check(__wt_snprintf(backup_check, sizeof(backup_check), "%s.CHECK", home));
+    testutil_check(__wt_snprintf(backup_dir, sizeof(backup_dir), "../%s.BACKUP", home));
+    testutil_check(__wt_snprintf(backup_check, sizeof(backup_check), "../%s.CHECK", home));
     printf("Seed: %" PRIu64 "\n", seed);
 
     testutil_check(
@@ -956,7 +956,7 @@ main(int argc, char *argv[])
 
     printf("Success.\n");
     if (!preserve) {
-        testutil_clean_backup_data(home);
+        testutil_clean_test_artifacts(home);
         testutil_clean_work_dir(home);
     }
 

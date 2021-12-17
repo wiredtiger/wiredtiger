@@ -760,7 +760,7 @@ main(int argc, char *argv[])
      */
     ret = recover_and_verify(nth);
     if (ret == EXIT_SUCCESS && !preserve) {
-        testutil_clean_backup_data(home);
+        testutil_clean_test_artifacts(home);
         /* At this point $PATH is inside `home`, which we intend to delete. cd to the parent dir. */
         if (chdir("../") != 0)
             testutil_die(errno, "root chdir: %s", home);

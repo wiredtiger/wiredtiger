@@ -806,9 +806,9 @@ check_db(uint32_t nth, uint32_t datasize, pid_t pid, bool directio, uint32_t fla
         large_arr[th] = dcalloc(LARGE_WRITE_SIZE, 1);
         large_buf(large_arr[th], LARGE_WRITE_SIZE, th, true);
     }
-    testutil_check(__wt_snprintf(checkdir, sizeof(checkdir), "%s.CHECK", home));
-    testutil_check(__wt_snprintf(dbgdir, sizeof(savedir), "%s.DEBUG", home));
-    testutil_check(__wt_snprintf(savedir, sizeof(savedir), "%s.SAVE", home));
+    testutil_check(__wt_snprintf(checkdir, sizeof(checkdir), "../%s.CHECK", home));
+    testutil_check(__wt_snprintf(dbgdir, sizeof(savedir), "../%s.DEBUG", home));
+    testutil_check(__wt_snprintf(savedir, sizeof(savedir), "../%s.SAVE", home));
 
     /*
      * We make a copy of the directory (possibly using direct I/O) for recovery and checking, and an
@@ -1256,7 +1256,7 @@ main(int argc, char *argv[])
     printf("SUCCESS\n");
 
     if (!preserve) {
-        testutil_clean_backup_data(home);
+        testutil_clean_test_artifacts(home);
         testutil_clean_work_dir(home);
     }
 

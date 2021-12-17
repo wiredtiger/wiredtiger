@@ -207,7 +207,7 @@ run_test(bool column_store, const char *uri, bool preserve)
     /* Cleanup */
     if (!preserve) {
         testutil_clean_work_dir(home);
-        testutil_clean_backup_data(home);
+        testutil_clean_test_artifacts(home);
     }
 
     return (EXIT_SUCCESS);

@@ -911,7 +911,7 @@ main(int argc, char *argv[])
         return (EXIT_FAILURE);
     printf("%" PRIu64 " records verified\n", count);
     if (!preserve) {
-        testutil_clean_backup_data(home);
+        testutil_clean_test_artifacts(home);
         /* At this point $PATH is inside `home`, which we intend to delete. cd to the parent dir. */
         if (chdir("../") != 0)
             testutil_die(errno, "root chdir: %s", home);

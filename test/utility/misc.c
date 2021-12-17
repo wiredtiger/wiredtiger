@@ -258,16 +258,22 @@ testutil_copy_data(const char *dir)
 }
 
 /*
- * testutil_clean_backup_data --
- *     Delete the backed up data saved in testutil_copy_data.
+ * testutil_clean_test_artifacts --
+ *     Clean any temporary files and folders created during test execution
  */
 void
-testutil_clean_backup_data(const char *dir)
+testutil_clean_test_artifacts(const char *dir)
 {
     int status;
     char buf[512];
 
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "rm -rf ../%s.SAVE", dir));
+    testutil_check(__wt_snprintf(buf, sizeof(buf),
+      "rm -rf ../%s.SAVE; "
+      "rm -rf ../%s.CHECK; "
+      "rm -rf ../%s.DEBUG; "
+      "rm -rf ../%s.BACKUP; ",
+      dir, dir, dir, dir));
+
     if ((status = system(buf)) < 0)
         testutil_die(status, "system: %s", buf);
 }
