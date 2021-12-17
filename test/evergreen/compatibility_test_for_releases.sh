@@ -264,38 +264,38 @@ upgrade_downgrade()
 #############################################################
 test_upgrade_to_branch()
 {
-    cd $1/test/checkpoint
+        cd $1/test/checkpoint
 
-    for FILE in $2/*; do
-        # Run actual test.
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        echo " Upgrading $FILE database to $1..."
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+        for FILE in $2/*; do
+            # Run actual test.
+            echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+            echo " Upgrading $FILE database to $1..."
+            echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-        # Disable exit on non 0
-        set +e
+            # Disable exit on non 0
+            set +e
 
-        output="$(./t -t r -D -v -h $FILE)"
-        test_res=$?
+            output="$(./t -t r -D -v -h $FILE)"
+            test_res=$?
 
-        # Enable exit on non 0
-        set -e
+            # Enable exit on non 0
+            set -e
 
-        # Validate test result.
-        if [[ "$FILE" =~ "4.4."[0-6]"_unclean"$ ]]; then
-            if [[ "$test_res" == 0 ]]; then
+            # Validate test result.
+            if [[ "$FILE" =~ "4.4."[0-6]"_unclean"$ ]]; then
+                if [[ "$test_res" == 0 ]]; then
+                    echo "$output"
+                    echo "Error: Upgrade of $FILE database to $1 succeeded!"
+                    echo "Databases generated with unclean shutdown from versions 4.4.[0-6] must fail!"
+                    exit 1
+                fi
+            elif [[ "$test_res" != 0 ]]; then
                 echo "$output"
-                echo "Error: Upgrade of $FILE database to $1 succeeded!"
-                echo "Databases generated with unclean shutdown from versions 4.4.[0-6] must fail!"
+                echo "Error: Upgrade of $FILE database to $1 failed! Test result is $test_res."
                 exit 1
             fi
-        elif [[ "$test_res" != 0 ]]; then
-            echo "$output"
-            echo "Error: Upgrade of $FILE database to $1 failed! Test result is $test_res."
-            exit 1
-        fi
-    done
-    cd $3
+        done
+        cd $3
 }
 
 # Only one of below flags will be set by the 1st argument of the script.
