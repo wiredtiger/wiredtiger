@@ -1033,7 +1033,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_01 -f test/cppsuite/configs/search_near_01_default.txt -l 3
+            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_01 -f test/cppsuite/configs/search_near_01_default.txt -l 2
 
   - name: cppsuite-search-near-02-default
     tags: ["pull_request"]
@@ -1048,7 +1048,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_02 -f test/cppsuite/configs/search_near_02_default.txt -l 3
+            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_02 -f test/cppsuite/configs/search_near_02_default.txt -l 2
   
   - name: cppsuite-search-near-03-default
     tags: ["pull_request"]
@@ -1063,7 +1063,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_03 -f test/cppsuite/configs/search_near_03_default.txt -l 3
+            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_03 -f test/cppsuite/configs/search_near_03_default.txt -l 2
 
   - name: cppsuite-base-test-stress
     depends_on:
@@ -1105,7 +1105,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_01 -f test/cppsuite/configs/search_near_01_stress.txt -l 3
+            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_01 -f test/cppsuite/configs/search_near_01_stress.txt -l 2
 
   - name: cppsuite-search-near-02-stress
     depends_on:
@@ -1119,7 +1119,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_02 -f test/cppsuite/configs/search_near_02_stress.txt -l 3
+            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_02 -f test/cppsuite/configs/search_near_02_stress.txt -l 2
 
   - name: cppsuite-search-near-03-stress
     depends_on:
@@ -1133,7 +1133,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_03 -f test/cppsuite/configs/search_near_03_stress.txt -l 3
+            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_03 -f test/cppsuite/configs/search_near_03_stress.txt -l 2
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
