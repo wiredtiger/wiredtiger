@@ -359,10 +359,10 @@ if [ "$upgrade_to_latest" = true ]; then
             echo " Upgrading $FILE database to $b..."
             echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-            # Disable exit on non 0. We expect ./t to fail in certain scenarios.
+            # Disable exit on non 0
             set +e
 
-            ./t -t r -D -v -h $FILE
+            output="$(./t -t r -D -v -h $FILE)"
             test_res=$?
 
             # Enable exit on non 0
@@ -371,14 +371,16 @@ if [ "$upgrade_to_latest" = true ]; then
             # Validate test result.
             if [[ "$FILE" =~ "4.4."[0-6]"_unclean"$ ]]; then
                 if [[ "$test_res" == 0 ]]; then
-                    echo "Error: Databases generated with unclean shutdown from versions 4.4.[0-6] must fail!"
+                    echo "$output"
+                    echo "Error: Upgrade of $FILE database to $b succeeded!"
+                    echo "Databases generated with unclean shutdown from versions 4.4.[0-6] must fail!"
                     exit 1
                 fi
             elif [[ "$test_res" != 0 ]]; then
-                echo "Error: Upgrade failed! Test result is $test_res."
+                echo "$output"
+                echo "Error: Upgrade of $FILE database to $b failed! Test result is $test_res."
                 exit 1
             fi
-
         done
         cd $test_root
     done
