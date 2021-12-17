@@ -84,6 +84,14 @@ __recovery_cursor(
             WT_RET(__wt_open_cursor(session, r->files[id].uri, NULL, cfg, &c));
             r->files[id].c = c;
         }
+#ifndef WT_STANDALONE_BUILD
+        /*
+         * In the event of a clean shutdown, there shouldn't be any other table log records other
+         * than metadata.
+         */
+        if (!metadata_op)
+            S2C(session)->unclean_shutdown = true;
+#endif
     }
 
     if (duplicate && c != NULL)
@@ -473,6 +481,24 @@ __recovery_set_checkpoint_snapshot(WT_SESSION_IMPL *session)
     sys_config = NULL;
     conn = S2C(session);
     counter = 0;
+
+    /* Initialize the recovery checkpoint snapshot variables to default values. */
+    conn->recovery_ckpt_snap_min = WT_TXN_NONE;
+    conn->recovery_ckpt_snap_max = WT_TXN_NONE;
+    conn->recovery_ckpt_snapshot_count = 0;
+
+    /*
+     * WiredTiger versions 10.0.1 onward have a valid checkpoint snapshot on-disk. There was a bug
+     * in some versions of WiredTiger that are tagged with the 10.0.0 release, which saved the wrong
+     * checkpoint snapshot (see WT-8395), so we ignore the snapshot when it was created with one of
+     * those versions. Versions of WiredTiger prior to 10.0.0 never saved a checkpoint snapshot.
+     * Additionally the turtle file doesn't always exist (for example, backup doesn't include the
+     * turtle file), so there isn't always a WiredTiger version available. If there is no version
+     * available, assume that the snapshot is valid, otherwise restoring from a backup won't work.
+     */
+    if ((conn->recovery_major != 0 && conn->recovery_major < 10) ||
+      (conn->recovery_major == 10 && conn->recovery_minor == 0 && conn->recovery_patch == 0))
+        return (0);
 
     /*
      * Read the system checkpoint information from the metadata file and save the snapshot related
@@ -959,6 +985,18 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
 done:
     /* Close cached cursors, rollback-to-stable asserts exclusive access. */
     WT_ERR(__recovery_close_cursors(&r));
+#ifndef WT_STANDALONE_BUILD
+    /*
+     * There is a known problem with upgrading from release 10.0.0 specifically. There are now fixes
+     * that can properly upgrade from 10.0.0 without hitting the problem but only from a clean
+     * shutdown of 10.0.0. Earlier releases are not affected by the upgrade issue.
+     */
+    if (conn->unclean_shutdown && conn->recovery_major == 10 && conn->recovery_minor == 0 &&
+      conn->recovery_patch == 0)
+        WT_ERR_MSG(session, WT_ERROR,
+          "Upgrading from a WiredTiger version 10.0.0 database that was not shutdown cleanly is "
+          "not allowed. Perform a clean shutdown on version 10.0.0 and then upgrade.");
+#endif
 
     WT_ERR(__recovery_set_checkpoint_timestamp(&r));
     WT_ERR(__recovery_set_oldest_timestamp(&r));

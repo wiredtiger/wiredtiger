@@ -59,7 +59,8 @@ struct __wt_rec_chunk {
 
     WT_ITEM image; /* disk-image */
 
-    /* For fixed-length column store, track how many time windows we have. */
+    /* For fixed-length column store, track where the time windows start and how many we have. */
+    uint32_t aux_start_offset;
     uint32_t auxentries;
 };
 
@@ -297,6 +298,14 @@ struct __wt_reconcile {
     bool rec_page_cell_with_ts;
     bool rec_page_cell_with_txn_id;
     bool rec_page_cell_with_prepared_txn;
+
+    /*
+     * When removing a key due to a tombstone with a durable timestamp of "none", we also remove the
+     * history store contents associated with that key. Keep the pertinent state here: a flag to say
+     * whether this is appropriate, and a cached history store cursor for doing it.
+     */
+    bool hs_clear_on_tombstone;
+    WT_CURSOR *hs_cursor;
 };
 
 typedef struct {

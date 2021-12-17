@@ -246,6 +246,14 @@ struct __wt_connection_impl {
     uint64_t hash_size;       /* General hash bucket array size */
     int is_new;               /* Connection created database */
 
+    uint32_t recovery_major; /* Database recovery major version */
+    uint32_t recovery_minor; /* Database recovery minor version */
+    uint32_t recovery_patch; /* Database recovery patch version */
+
+#ifndef WT_STANDALONE_BUILD
+    bool unclean_shutdown; /* Flag to indicate the earlier shutdown status */
+#endif
+
     uint16_t compat_major; /* Compatibility major version */
     uint16_t compat_minor; /* Compatibility minor version */
 #define WT_CONN_COMPAT_NONE UINT16_MAX
@@ -560,7 +568,6 @@ struct __wt_connection_impl {
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_JSON_OUTPUT_ERROR 0x1u
 #define WT_JSON_OUTPUT_MESSAGE 0x2u
-#define WT_JSON_OUTPUT_PROGRESS 0x4u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t json_output; /* Output event handler messages in JSON format */
 

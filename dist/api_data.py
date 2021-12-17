@@ -383,7 +383,9 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         applications wanting to maximize sequential data transfer from
         a storage device.  The page maximum is the bytes of uncompressed
         data, that is, the limit is applied before any block compression
-        is done''',
+        is done.  For fixed-length column store, the size includes only the
+        bitmap data; pages containing timestamp information can be larger,
+        and the size is limited to 128KB rather than 512MB''',
         min='512B', max='512MB'),
     Config('leaf_value_max', '0', r'''
         the largest value stored in a leaf node, in bytes.  If set, values
@@ -760,9 +762,7 @@ connection_runtime_config = [
         'error' represents the messages from the WT_EVENT_HANDLER::handle_error method.''',
         type='list', choices=[
             'error',
-            'message',
-            'progress'
-            ]),
+            'message']),
     Config('lsm_manager', '', r'''
         configure database wide options for LSM tree management. The LSM
         manager is started automatically the first time an LSM tree is opened.
@@ -1409,6 +1409,12 @@ methods = {
     Config('import', '', r'''
         configure import of an existing object into the currently running database''',
         type='category', subconfig=[
+        Config('compare_timestamp', 'oldest', r'''
+            Allow importing files with timestamps smaller or equal to the configured
+            global timestamps. Note that the history of the files are not imported
+            together and thus snapshot read of historical data will not work with the
+            option "stable"''',
+            choices=['oldest', 'stable']),
         Config('enabled', 'false', r'''
             whether to import the input URI from disk''',
             type='boolean'),

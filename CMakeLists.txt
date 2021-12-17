@@ -128,6 +128,10 @@ if(WITH_PIC OR ENABLE_SHARED)
         ${CMAKE_CURRENT_BINARY_DIR}/config
         ${CMAKE_CURRENT_LIST_DIR}/src/include
     )
+    # Append any provided C flags.
+    if(COMPILER_DIAGNOSTIC_C_FLAGS)
+        target_compile_options(wt_objs PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS})
+    endif()
     if(ENABLE_TCMALLOC)
         target_include_directories(wt_objs PRIVATE ${HAVE_LIBTCMALLOC_INCLUDES})
     endif()
@@ -190,11 +194,11 @@ include(cmake/install/install.cmake)
 enable_testing()
 
 if(ENABLE_PYTHON)
-   add_subdirectory(lang/python)
+    add_subdirectory(lang/python)
+    add_subdirectory(bench/workgen)
 endif()
 
 # Build the wiredtiger test suites.
-add_subdirectory(bench/workgen)
 add_subdirectory(bench/wtperf)
 add_subdirectory(examples)
 add_subdirectory(test)
