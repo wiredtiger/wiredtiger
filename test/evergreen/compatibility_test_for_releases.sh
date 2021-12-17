@@ -356,11 +356,17 @@ if [ "$upgrade_to_latest" = true ]; then
         for FILE in $test_data/*; do
             # Run actual test.
             echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-            echo "Upgrading $FILE database to $b..."
+            echo " Upgrading $FILE database to $b..."
             echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-            
+
+            # Disable exit on non 0. We expect ./t to fail in certain scenarios.
+            set +e
+
             ./t -t r -D -v -h $FILE
             test_res=$?
+
+            # Enable exit on non 0
+            set -e
 
             # Validate test result.
             if [[ "$FILE" =~ "4.4."[0-6]"_unclean"$ ]]; then
