@@ -526,7 +526,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ./test_checkpoint ${checkpoint_args} 2>&1
+        ${test_env_vars|} ./test_checkpoint ${checkpoint_args} 2>&1
 
   "checkpoint stress test":
     command: shell.exec
