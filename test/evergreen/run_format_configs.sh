@@ -6,11 +6,12 @@
 
 set -u
 
+set -e
 # Switch to the Git repo toplevel directory
 cd $(git rev-parse --show-toplevel)
-
 # Walk into the test/format directory
 cd cmake_build/test/format
+set +e
 
 # Check the existence of 't' binary
 if [ ! -x "t" ]; then
