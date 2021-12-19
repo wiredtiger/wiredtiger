@@ -2776,11 +2776,11 @@ tasks:
           # FIXME-WT-8482: CC is set to the system default "clang" binary here as a workaround.
           # Change it back to mongodbtoolchain "clang" binary.
           posix_configure_flags:
+            -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
             -DHAVE_DIAGNOSTIC=1
             -DHAVE_BUILTIN_EXTENSION_LZ4=1
             -DHAVE_BUILTIN_EXTENSION_SNAPPY=1
             -DHAVE_BUILTIN_EXTENSION_ZLIB=1
-            -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
             -DCMAKE_BUILD_TYPE=ASan
             -DCMAKE_C_FLAGS="-I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.5.0/include"
             -DCMAKE_ASM_FLAGS="-I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.5.0/include"
