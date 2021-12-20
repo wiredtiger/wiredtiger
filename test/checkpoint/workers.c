@@ -59,9 +59,8 @@ create_table(WT_SESSION *session, COOKIE *cookie)
           "memory_page_max=64KB,log=(enabled=false),%s",
           kf, vf, lsm));
     else
-        testutil_check(
-          __wt_snprintf(config, sizeof(config), "key_format=%s,value_format=%s,log=(enabled=false),%s",
-                        kf, vf, lsm));
+        testutil_check(__wt_snprintf(config, sizeof(config),
+          "key_format=%s,value_format=%s,log=(enabled=false),%s", kf, vf, lsm));
 
     if ((ret = session->create(session, cookie->uri, config)) != 0)
         if (ret != EEXIST)
