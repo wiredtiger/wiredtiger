@@ -50,7 +50,7 @@ create_table(WT_SESSION *session, COOKIE *cookie)
     vf = cookie->type == FIX ? "8t" : "S";
 
     /*
-     * If we're using timestamps, turn off logging for the table.
+     * Turn off logging for the table. This shouldn't be necessary, see FIXME-WT-8586
      */
     if (g.use_timestamps)
         testutil_check(__wt_snprintf(config, sizeof(config),
