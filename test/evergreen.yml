@@ -92,7 +92,7 @@ functions:
         if [[ "${posix_configure_flags|}" =~ (tcmalloc|TCMALLOC) ]]; then
           is_cmake_build=true
           git clone git@github.com:wiredtiger/automation-scripts.git
-          . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} ${is_cmake_build}
+          . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
         fi
         
         set -o errexit
