@@ -30,7 +30,7 @@ import bson, codecs, pprint, subprocess, sys
 
 # Decodes a MongoDB file into a readable format.
 def util_usage():
-    print("Usage: mdb_to_wt <path_to_wt> filename")
+    print("Usage: wt_to_mdb_bson <path_to_wt> filename")
 
 # Navigate to the data section of the MongoDB file if it exists.
 def find_data_section(mdb_file_contents):
