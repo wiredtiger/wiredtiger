@@ -4217,6 +4217,7 @@ buildvariants:
   tasks:
     - name: compatibility-test-for-older-releases
     - name: compatibility-test-for-wt-standalone-releases
+    - name: compatibility-test-upgrade-to-latest
 
 - name: compatibility-tests
   display_name: Compatibility tests
@@ -4224,7 +4225,6 @@ buildvariants:
   - ubuntu2004-test
   tasks:
     - name: compatibility-test-for-newer-releases
-    - name: compatibility-test-upgrade-to-latest
     - name: import-compatibility-test
 
 - name: windows-64
