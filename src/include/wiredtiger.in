@@ -1169,13 +1169,17 @@ struct __wt_session {
 	 * by any update to a record in the table., a boolean flag; default \c false.}
 	 * @config{import = (, configure import of an existing object into the currently running
 	 * database., a set of related configuration options defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, whether to import the input URI from disk., a
-	 * boolean flag; default \c false.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_metadata, the file
-	 * configuration extracted from the metadata of the export database., a string; default
-	 * empty.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;repair, whether to reconstruct the metadata from
-	 * the raw file content., a boolean flag; default \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;compare_timestamp, Allow importing files with timestamps
+	 * smaller or equal to the configured global timestamps.  Note that the history of the files
+	 * are not imported together and thus snapshot read of historical data will not work with
+	 * the option "stable"., a string\, chosen from the following options: \c "oldest"\, \c
+	 * "stable"; default \c oldest.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, whether to import
+	 * the input URI from disk., a boolean flag; default \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_metadata, the file configuration extracted from the
+	 * metadata of the export database., a string; default empty.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;repair, whether to reconstruct the metadata from the raw
+	 * file content., a boolean flag; default \c false.}
 	 * @config{ ),,}
 	 * @config{internal_key_max, This option is no longer supported\, retained for backward
 	 * compatibility., an integer greater than or equal to 0; default \c 0.}
@@ -6350,20 +6354,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_WALK_SESSIONS			1514
 /*! transaction: transactions committed */
 #define	WT_STAT_CONN_TXN_COMMIT				1515
-/*!
- * transaction: transactions committed with one or more updates resolved
- * through the slow path
- */
-#define	WT_STAT_CONN_TXN_COMMIT_SLOW_RESOLVED		1516
 /*! transaction: transactions rolled back */
-#define	WT_STAT_CONN_TXN_ROLLBACK			1517
-/*!
- * transaction: transactions rolled back with one or more updates
- * resolved through the slow path
- */
-#define	WT_STAT_CONN_TXN_ROLLBACK_SLOW_RESOLVED		1518
+#define	WT_STAT_CONN_TXN_ROLLBACK			1516
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1519
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1517
 
 /*!
  * @}
@@ -7083,6 +7077,103 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*
  * Statistics section: END
  * DO NOT EDIT: automatically built by dist/stat.py.
+ */
+/*! @} */
+
+/*******************************************
+ * Verbose categories
+ *******************************************/
+/*!
+ * @addtogroup wt
+ * @{
+ */
+/*!
+ * @name Verbose categories
+ * @anchor verbose_categories
+ * @{
+ */
+/*!
+ * WiredTiger verbose event categories.
+ * Note that the verbose categories cover a wide set of sub-systems and operations
+ * within WiredTiger. As such, the categories are subject to change and evolve
+ * between different WiredTiger releases.
+ */
+typedef enum {
+/* VERBOSE ENUM START */
+    WT_VERB_API,                  /*!< API messages. */
+    WT_VERB_BACKUP,               /*!< Backup messages. */
+    WT_VERB_BLKCACHE,
+    WT_VERB_BLOCK,                /*!< Block manager messages. */
+    WT_VERB_CHECKPOINT,           /*!< Checkpoint messages. */
+    WT_VERB_CHECKPOINT_CLEANUP,
+    WT_VERB_CHECKPOINT_PROGRESS,  /*!< Checkpoint progress messages. */
+    WT_VERB_COMPACT,              /*!< Compact messages. */
+    WT_VERB_COMPACT_PROGRESS,     /*!< Compact progress messages. */
+    WT_VERB_DEFAULT,
+    WT_VERB_ERROR_RETURNS,
+    WT_VERB_EVICT,                /*!< Eviction messages. */
+    WT_VERB_EVICTSERVER,          /*!< Eviction server messages. */
+    WT_VERB_EVICT_STUCK,
+    WT_VERB_EXTENSION,            /*!< Extension messages. */
+    WT_VERB_FILEOPS,
+    WT_VERB_GENERATION,
+    WT_VERB_HANDLEOPS,
+    WT_VERB_HS,                   /*!< History store messages. */
+    WT_VERB_HS_ACTIVITY,          /*!< History store activity messages. */
+    WT_VERB_LOG,                  /*!< Log messages. */
+    WT_VERB_LSM,                  /*!< LSM messages. */
+    WT_VERB_LSM_MANAGER,
+    WT_VERB_MUTEX,
+    WT_VERB_METADATA,             /*!< Metadata messages. */
+    WT_VERB_OUT_OF_ORDER,
+    WT_VERB_OVERFLOW,
+    WT_VERB_READ,
+    WT_VERB_RECONCILE,            /*!< Reconcile messages. */
+    WT_VERB_RECOVERY,             /*!< Recovery messages. */
+    WT_VERB_RECOVERY_PROGRESS,    /*!< Recovery progress messages. */
+    WT_VERB_RTS,                  /*!< RTS messages. */
+    WT_VERB_SALVAGE,              /*!< Salvage messages. */
+    WT_VERB_SHARED_CACHE,
+    WT_VERB_SPLIT,
+    WT_VERB_TEMPORARY,
+    WT_VERB_THREAD_GROUP,
+    WT_VERB_TIERED,               /*!< Tiered messages. */
+    WT_VERB_TIMESTAMP,            /*!< Timestamp messages. */
+    WT_VERB_TRANSACTION,          /*!< Transaction messages. */
+    WT_VERB_VERIFY,               /*!< Verify messages. */
+    WT_VERB_VERSION,              /*!< Version messages. */
+    WT_VERB_WRITE,
+/* VERBOSE ENUM STOP */
+    WT_VERB_NUM_CATEGORIES
+} WT_VERBOSE_CATEGORY;
+/*! @} */
+
+/*******************************************
+ * Verbose levels
+ *******************************************/
+/*!
+ * @name Verbose levels
+ * @anchor verbose_levels
+ * @{
+ */
+/*!
+ * WiredTiger verbosity levels. The levels define a range of severity categories, with
+ * \c WT_VERBOSE_ERROR being the lowest, most critical level (used by messages on critical error
+ * paths) and \c WT_VERBOSE_DEBUG being the highest verbosity/informational level (mostly adopted
+ * for debugging).
+ */
+typedef enum {
+    WT_VERBOSE_ERROR = -3,  /*!< Error conditions triggered in WiredTiger. */
+    WT_VERBOSE_WARNING,     /*!< Warning conditions potentially signaling non-imminent errors and
+                            behaviors. */
+    WT_VERBOSE_NOTICE,      /*!< Messages for significant events in WiredTiger, usually worth
+                            noting. */
+    WT_VERBOSE_INFO,        /*!< Informational style messages. */
+    WT_VERBOSE_DEBUG        /*!< Low severity messages, useful for debugging purposes. */
+} WT_VERBOSE_LEVEL;
+/*! @} */
+/*
+ * Verbose section: END
  */
 /*! @} */
 
