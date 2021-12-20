@@ -4217,6 +4217,13 @@ buildvariants:
   tasks:
     - name: compatibility-test-for-older-releases
     - name: compatibility-test-for-wt-standalone-releases
+
+- name: compatibility-tests-daily
+  display_name: Compatibility tests (daily)
+  batchtime: 1440 # 1 day
+  run_on:
+  - ubuntu2004-test
+  tasks:
     - name: compatibility-test-upgrade-to-latest
 
 - name: compatibility-tests
