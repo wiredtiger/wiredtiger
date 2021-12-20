@@ -777,12 +777,6 @@ extern int __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *bus
   const char *func, int line
 #endif
   ) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_hazard_weak_clear(WT_SESSION_IMPL *session, WT_HAZARD_WEAK **whpp)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_hazard_weak_set(WT_SESSION_IMPL *session, WT_REF *ref, WT_TXN_OP *op)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_hazard_weak_upgrade(WT_SESSION_IMPL *session, WT_HAZARD_WEAK **whpp, WT_REF **refp)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hex2byte(const u_char *from, u_char *to)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hex_to_raw(WT_SESSION_IMPL *session, const char *from, WT_ITEM *to)
@@ -802,10 +796,6 @@ extern int __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_
 extern int __wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_open(WT_SESSION_IMPL *session, const char **cfg)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_hs_verify(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_hs_verify_one(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_huffman_decode(WT_SESSION_IMPL *session, void *huffman_arg, const uint8_t *from_arg,
   size_t from_len, WT_ITEM *to_buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1107,8 +1097,6 @@ extern int __wt_meta_track_on(WT_SESSION_IMPL *session)
 extern int __wt_meta_track_sub_off(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_meta_track_update(WT_SESSION_IMPL *session, const char *key)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_metadata_btree_id_to_uri(WT_SESSION_IMPL *session, uint32_t btree_id, char **uri)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_metadata_correct_base_write_gen(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1585,8 +1573,6 @@ extern int __wt_txn_log_commit(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_txn_op_list_clear_weak_hazard(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_op_printlog(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   WT_TXN_PRINTLOG_ARGS *args) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_parse_timestamp(WT_SESSION_IMPL *session, const char *name,
@@ -1797,9 +1783,6 @@ extern void __wt_gen_init(WT_SESSION_IMPL *session);
 extern void __wt_gen_next(WT_SESSION_IMPL *session, int which, uint64_t *genp);
 extern void __wt_gen_next_drain(WT_SESSION_IMPL *session, int which);
 extern void __wt_hazard_close(WT_SESSION_IMPL *session);
-extern void __wt_hazard_weak_close(WT_SESSION_IMPL *session);
-extern void __wt_hazard_weak_destroy(WT_SESSION_IMPL *session_safe, WT_SESSION_IMPL *s);
-extern void __wt_hazard_weak_invalidate(WT_SESSION_IMPL *session, WT_REF *ref);
 extern void __wt_hs_close(WT_SESSION_IMPL *session);
 extern void __wt_hs_upd_time_window(WT_CURSOR *hs_cursor, WT_TIME_WINDOW **twp);
 extern void __wt_huffman_close(WT_SESSION_IMPL *session, void *huffman_arg);
