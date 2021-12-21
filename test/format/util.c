@@ -310,6 +310,9 @@ cursor_dump_page(WT_CURSOR *cursor, const char *tag)
 
     testutil_check(__wt_debug_cursor_page(cursor, buf));
 #endif
+
+    WT_UNUSED(cursor);
+    WT_UNUSED(tag);
 }
 
 /*
