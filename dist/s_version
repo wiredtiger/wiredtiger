@@ -64,7 +64,7 @@ GenCmakeVersion(){
 		if test x${WIREDTIGER_VERSION_MAJOR} = x${WT_VERSION_MAJOR} -a \
 			x${WIREDTIGER_VERSION_MINOR} = x${WT_VERSION_MINOR} -a \
 			x${WIREDTIGER_VERSION_PATCH} = x${WT_VERSION_PATCH} ; then
-			exit 0
+			return
 		fi
 	fi
 	echo "Building $cmakedir/version.cmake"
