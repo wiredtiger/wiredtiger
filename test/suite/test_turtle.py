@@ -44,9 +44,13 @@ class test_turtle(wttest.WiredTigerTestCase):
             self.key_format = 'i'
             self.value_format = 'S'
 
+    def turtle_values(self):        
+        self.WT_METADATA_VERSION  = "WiredTiger version"
+     
     def test_turtle(self):
         self.init_values()
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+
         self.session.create(self.uri, create_params)
         cursor = self.session.open_cursor(self.uri)
 
@@ -55,9 +59,15 @@ class test_turtle(wttest.WiredTigerTestCase):
             cursor[i] = self.val
         self.session.commit_transaction()
         self.session.checkpoint()
-        self.check_turle()
 
-    def check_turle(self):
+        self.check_turtle()
+
+    def check_turtle(self):
         with open('WiredTiger.turtle', 'r') as f:
-            lines = f.readlines()
+            lines = f.read().splitlines()
+            
+            for i in range(len(lines)):
+                if lines[i] == self.WT_METADATA_VERSION:
+                    break
+
         return
