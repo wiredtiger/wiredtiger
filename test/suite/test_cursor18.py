@@ -126,7 +126,8 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         evict_cursor = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
         self.session.begin_transaction()
-        self.assertEquals(evict_cursor[1], 0)
+        evict_cursor.set_key(1)
+        self.assertEquals(evict_cursor.search(), 0)
         evict_cursor.close()
         self.session.rollback_transaction()
 
@@ -250,7 +251,10 @@ class test_cursor18(wttest.WiredTigerTestCase):
         evict_cursor = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
         self.session.begin_transaction()
         evict_cursor.set_key(1)
-        self.assertEquals(evict_cursor.search(), wiredtiger.WT_PREPARE_CONFLICT)
+        try:
+            evict_cursor.search()
+        except wiredtiger.WiredTigerError as e:
+            self.assertEquals(e, wiredtiger.WT_PREPARE_CONFLICT)
         evict_cursor.close()
         self.session.rollback_transaction()
 

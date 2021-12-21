@@ -363,8 +363,6 @@ __curversion_search(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, search, CUR2BT(cbt));
     WT_ERR(__cursor_checkkey(table_cursor));
 
-    /* Do a search and position on they key if it is found */
-    F_SET(cursor, WT_CURSTD_KEY_ONLY);
     WT_ERR(__wt_btcur_search(cbt));
     WT_ASSERT(session, F_ISSET(cbt, WT_CURSTD_KEY_SET));
 
@@ -398,8 +396,6 @@ __curversion_search(WT_CURSOR *cursor)
     WT_ERR(__curversion_next_int(session, cursor));
 
 err:
-    if (!key_only)
-        F_CLR(cursor, WT_CURSTD_KEY_ONLY);
     if (ret != 0)
         WT_TRET(cursor->reset(cursor));
     API_END_RET(session, ret);
@@ -484,6 +480,8 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
 
     /* Open the table cursor. */
     WT_ERR(__wt_open_cursor(session, uri, cursor, table_cursor_cfg, &version_cursor->table_cursor));
+    /* We only care about the key when search is called. */
+    F_SET(table_cursor, WT_CURSTD_KEY_ONLY);
     cursor->key_format = version_cursor->table_cursor->key_format;
     format_len =
       strlen(VERSION_CURSOR_METADATA_FORMAT) + strlen(version_cursor->table_cursor->value_format) + 1;
