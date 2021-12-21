@@ -350,11 +350,9 @@ __curversion_search(WT_CURSOR *cursor)
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
     WT_UPDATE *upd;
-    bool key_only;
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     table_cursor = version_cursor->table_cursor;
-    key_only = F_ISSET(cursor, WT_CURSTD_KEY_ONLY);
 
     /*
      * For now, we assume that we are using simple cursors only.
@@ -481,7 +479,7 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     /* Open the table cursor. */
     WT_ERR(__wt_open_cursor(session, uri, cursor, table_cursor_cfg, &version_cursor->table_cursor));
     /* We only care about the key when search is called. */
-    F_SET(table_cursor, WT_CURSTD_KEY_ONLY);
+    F_SET(version_cursor->table_cursor, WT_CURSTD_KEY_ONLY);
     cursor->key_format = version_cursor->table_cursor->key_format;
     format_len =
       strlen(VERSION_CURSOR_METADATA_FORMAT) + strlen(version_cursor->table_cursor->value_format) + 1;
