@@ -219,7 +219,7 @@ config_string(
 config_string(
     VERSION_STRING
     "Version string for WiredTiger"
-    DEFAULT "${WT_VERSION_STRING}"
+    DEFAULT "\"${WT_VERSION_STRING}\""
 )
 
 if(HAVE_DIAGNOSTIC AND (NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug"))
