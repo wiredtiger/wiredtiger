@@ -73,13 +73,11 @@ err:
 }
 
 /*
- * __curversion_next --
- *     WT_CURSOR->next method for version cursors. The next function will position the cursor on the
- *     next update of the key it is positioned at. We traverse through updates on the update chain,
- *     then the ondisk value, and finally from the history store.
+ * __curversion_next_int --
+ *     internal implementation for version cursor next
  */
 static int
-__curversion_next(WT_CURSOR *cursor)
+__curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
     WT_CELL *cell;
     WT_CELL_UNPACK_KV *vpack, _vpack;
@@ -91,7 +89,6 @@ __curversion_next(WT_CURSOR *cursor)
     WT_ITEM hs_value;
     WT_PAGE *page;
     WT_ROW *rip;
-    WT_SESSION_IMPL *session;
     WT_TIME_WINDOW *twp;
     WT_UPDATE *upd;
     wt_timestamp_t durable_stop_ts, stop_ts;
@@ -107,13 +104,12 @@ __curversion_next(WT_CURSOR *cursor)
     twp = NULL;
     upd_found = false;
     vpack = &_vpack;
-    CURSOR_API_CALL(cursor, session, next, NULL);
 
     /* The cursor should be positioned, otherwise the next call will fail. */
     if (!F_ISSET(cursor, WT_CURSTD_KEY_SET)) {
         WT_IGNORE_RET(__wt_msg(
           session, "WT_ROLLBACK: rolling back version_cursor->next due to no initial position"));
-        WT_ERR(WT_ROLLBACK);
+        WT_RET(WT_ROLLBACK);
     }
 
     upd = version_cursor->next_upd;
@@ -161,7 +157,7 @@ __curversion_next(WT_CURSOR *cursor)
                 if (upd->type != WT_UPDATE_MODIFY)
                     __wt_upd_value_assign(cbt->upd_value, upd);
                 else
-                    WT_ERR(
+                    WT_RET(
                       __wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
 
                 /*
@@ -206,15 +202,15 @@ __curversion_next(WT_CURSOR *cursor)
 
                 if (vpack->type == WT_CELL_DEL) {
                     F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
-                    WT_ERR(WT_NOTFOUND);
+                    return (WT_NOTFOUND);
                 }
                 break;
             default:
-                WT_ERR(__wt_illegal_value(session, page->type));
+                WT_RET(__wt_illegal_value(session, page->type));
             }
 
             if (page->type == WT_PAGE_COL_FIX)
-                WT_ERR(
+                WT_RET(
                   __wt_col_fix_get_time_window(session, cbt->ref, cbt->ref->ref_recno, &vpack->tw));
 
             if (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw)) {
@@ -246,9 +242,9 @@ __curversion_next(WT_CURSOR *cursor)
         if (!F_ISSET(hs_cursor, WT_CURSTD_KEY_INT)) {
             hs_cursor->set_key(
               hs_cursor, 4, S2BT(session)->id, &cursor->key, WT_TS_MAX, UINT64_MAX);
-            WT_ERR(__wt_curhs_search_near_before(session, hs_cursor));
+            WT_RET(__wt_curhs_search_near_before(session, hs_cursor));
         } else
-            WT_ERR(hs_cursor->prev(hs_cursor));
+            WT_RET(hs_cursor->prev(hs_cursor));
 
         /*
          * If there are no history store records for the given key or if we have iterated through
@@ -257,7 +253,7 @@ __curversion_next(WT_CURSOR *cursor)
         WT_ASSERT(session, ret == 0);
 
         __wt_hs_upd_time_window(hs_cursor, &twp);
-        WT_ERR(hs_cursor->get_value(
+        WT_RET(hs_cursor->get_value(
           hs_cursor, twp->stop_ts, twp->durable_start_ts, &hs_upd_type, &hs_value));
 
         __wt_cursor_set_value(cursor, twp->start_txn, twp->start_ts, twp->durable_start_ts,
@@ -270,7 +266,7 @@ __curversion_next(WT_CURSOR *cursor)
          * value.
          */
         if (hs_upd_type == WT_UPDATE_MODIFY) {
-            WT_ERR(__wt_modify_apply_item(
+            WT_RET(__wt_modify_apply_item(
               session, table_cursor->value_format, &cursor->value, hs_value.data));
         } else {
             WT_ASSERT(session, hs_upd_type == WT_UPDATE_STANDARD);
@@ -284,6 +280,24 @@ __curversion_next(WT_CURSOR *cursor)
         ret = WT_NOTFOUND;
     else
         F_SET(table_cursor, WT_CURSTD_VALUE_INT);
+
+    return (ret);
+}
+
+/*
+ * __curversion_next --
+ *     WT_CURSOR->next method for version cursors. The next function will position the cursor on the
+ *     next update of the key it is positioned at. We traverse through updates on the update chain,
+ *     then the ondisk value, and finally from the history store.
+ */
+static int
+__curversion_next(WT_CURSOR *cursor)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    CURSOR_API_CALL(cursor, session, next, NULL);
+    WT_ERR(__curversion_next_int(session, cursor));
 
 err:
     if (ret != 0)
@@ -379,6 +393,9 @@ __curversion_search(WT_CURSOR *cursor)
     default:
         WT_ERR(__wt_illegal_value(session, page->type));
     }
+
+    /* Point to the newest version. */
+    WT_ERR(__curversion_next_int(session, cursor));
 
 err:
     if (!key_only)
