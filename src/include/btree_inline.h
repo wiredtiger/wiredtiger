@@ -1494,7 +1494,8 @@ __wt_btree_syncing_by_other_session(WT_SESSION_IMPL *session)
     WT_BTREE *btree;
 
     btree = S2BT(session);
-    return (WT_BTREE_SYNCING(btree) && !WT_SESSION_BTREE_SYNC(session));
+
+    return (!WT_BTREE_SYNCING(btree) || WT_SESSION_BTREE_SYNC(session));
 }
 
 /*
