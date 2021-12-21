@@ -486,7 +486,7 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     WT_ERR(__wt_open_cursor(session, uri, cursor, table_cursor_cfg, &version_cursor->table_cursor));
     cursor->key_format = version_cursor->table_cursor->key_format;
     format_len =
-      strlen(VERSION_CURSOR_METADATA_FORMAT) + strlen(version_cursor->table_cursor->value_format);
+      strlen(VERSION_CURSOR_METADATA_FORMAT) + strlen(version_cursor->table_cursor->value_format) + 1;
     WT_ERR(__wt_malloc(session, format_len, &version_cursor_value_format));
     WT_ERR(__wt_snprintf(version_cursor_value_format, format_len, "%s%s",
       VERSION_CURSOR_METADATA_FORMAT, version_cursor->table_cursor->value_format));
