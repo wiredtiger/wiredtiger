@@ -279,10 +279,8 @@ snap_verify_callback(int ret, void *arg)
     switch (table->type) {
     case FIX:
         fprintf(stderr,
-          "snapshot-isolation: %" PRIu64 " search: expected {0x%02" PRIx8 "}, found {0x%02" PRIx8
-          "}\n",
-          keyno, snap->op == REMOVE ? (uint8_t)0 : snap->bitv,
-          ret == WT_NOTFOUND ? (uint8_t)0 : bitv);
+          "snapshot-isolation: %" PRIu64 " search: expected {0x%02u}, found {0x%02u}\n", keyno,
+          snap->op == REMOVE ? 0U : (u_int)snap->bitv, ret == WT_NOTFOUND ? 0U : (u_int)bitv);
         break;
     case ROW:
         fprintf(
