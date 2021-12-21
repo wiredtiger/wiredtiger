@@ -1486,7 +1486,7 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 
 /*
  * __wt_btree_syncing_by_other_session --
- * Returns true if the session's current btree is being synced by another thread.
+ *     Returns true if the session's current btree is being synced by another thread.
  */
 static inline bool
 __wt_btree_syncing_by_other_session(WT_SESSION_IMPL *session)
