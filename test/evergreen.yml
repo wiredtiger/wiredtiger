@@ -2635,9 +2635,37 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
+            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -x" WT_TEST.$t' 120
+
+  - name: data-validation-stress-test-checkpoint-no-timestamp
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test/checkpoint"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
             ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args}" WT_TEST.$t' 120
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test/checkpoint"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -x -s 1" WT_TEST.$t' 120
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-no-timestamp
     depends_on:
     - name: compile
     commands:
@@ -2663,9 +2691,23 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 2" WT_TEST.$t' 120
+            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -x -s 2" WT_TEST.$t' 120
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test/checkpoint"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -x -s 3" WT_TEST.$t' 120
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-no-timestamp
     depends_on:
     - name: compile
     commands:
@@ -2691,9 +2733,23 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 4" WT_TEST.$t' 120
+            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -x -s 4" WT_TEST.$t' 120
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test/checkpoint"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -x -s 5" WT_TEST.$t' 120
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp
     depends_on:
     - name: compile
     commands:
@@ -2898,23 +2954,6 @@ tasks:
       - func: "format test script"
         vars:
           format_test_script_args: -a -t 30
-
-  - name: many-dhandle-stress-test
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          configure_env_vars:
-            CXX=/opt/mongodbtoolchain/v3/bin/g++
-            PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/bench/workgen/runner"
-          script: |
-            set -o errexit
-            set -o verbose
-            export "PATH=/opt/mongodbtoolchain/v3/bin:$PATH"
-            ./workgen_perf_check.sh many-dhandle-stress.py output.log 50 500 500
 
   - name: many-collection-test
     commands:
@@ -3824,7 +3863,7 @@ buildvariants:
       --prefix=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
-    data_validation_stress_test_args: -t r -m -W 3 -D -p -x -n 100000 -k 100000 -C cache_size=100MB
+    data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
   tasks:
     - name: ".pull_request !.windows_only !.pull_request_compilers"
     - name: linux-directio
@@ -3847,10 +3886,14 @@ buildvariants:
     - name: format-failure-configs-test
     - name: data-validation-stress-test-checkpoint
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1
+    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-no-timestamp
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3
+    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-no-timestamp
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
+    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp
+    - name: data-validation-stress-test-checkpoint-no-timestamp
 
 - name: ubuntu2004-cmake
   display_name: "* Ubuntu 20.04 CMake"
@@ -3975,7 +4018,7 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     test_env_vars:
-      UBSAN_OPTIONS="detect_leaks=1:disable_coredump=0:external_symbolizer_path=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer:halt_on_error=1:print_stacktrace=1"
+      UBSAN_OPTIONS="detect_leaks=1:disable_coredump=0:external_symbolizer_path=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer:abort_on_error=1:print_stacktrace=1"
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       top_dir=$(git rev-parse --show-toplevel)
@@ -4127,7 +4170,6 @@ buildvariants:
     upload_source_dir: mongo-tests/largescale/many-collection/dbpath/diagnostic.data
     upload_filename: diagnostic.data.tgz
   tasks:
-    - name: many-dhandle-stress-test
     - name: many-collection-test
       distros: ubuntu2004-wt-large
 
