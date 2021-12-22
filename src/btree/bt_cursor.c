@@ -576,6 +576,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 
         if (btree->type == BTREE_ROW) {
             WT_ERR(__cursor_row_search(cbt, false, NULL, NULL));
+            WT_ASSERT(session, !F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY) || cbt->compare == 0);
             if (cbt->compare == 0) {
                 if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY)) {
                     WT_ERR(__wt_key_return(cbt));

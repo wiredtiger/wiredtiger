@@ -235,6 +235,8 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     }
 
     if (!upd_found && !F_ISSET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED)) {
+        /* Ensure we can see all the content in the history store. */
+        F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
         /*
          * If the history store cursor is not yet positioned, then we are traversing the history
          * store versions for the first time.
@@ -353,16 +355,18 @@ __curversion_search(WT_CURSOR *cursor)
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     table_cursor = version_cursor->table_cursor;
+    cbt = (WT_CURSOR_BTREE *)table_cursor;
 
     /*
      * For now, we assume that we are using simple cursors only.
      */
-    cbt = (WT_CURSOR_BTREE *)table_cursor;
     CURSOR_API_CALL(cursor, session, search, CUR2BT(cbt));
     WT_ERR(__cursor_checkkey(table_cursor));
 
+    /* Do a search and position on they key if it is found */
+    F_SET(table_cursor, WT_CURSTD_KEY_ONLY);
     WT_ERR(__wt_btcur_search(cbt));
-    WT_ASSERT(session, F_ISSET(cbt, WT_CURSTD_KEY_SET));
+    WT_ASSERT(session, F_ISSET(table_cursor, WT_CURSTD_KEY_SET));
 
     /*
      * If we position on a key, set next update of the version cursor to be the first update on the
@@ -478,8 +482,6 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
 
     /* Open the table cursor. */
     WT_ERR(__wt_open_cursor(session, uri, cursor, table_cursor_cfg, &version_cursor->table_cursor));
-    /* We only care about the key when search is called. */
-    F_SET(version_cursor->table_cursor, WT_CURSTD_KEY_ONLY);
     cursor->key_format = version_cursor->table_cursor->key_format;
     format_len =
       strlen(VERSION_CURSOR_METADATA_FORMAT) + strlen(version_cursor->table_cursor->value_format) + 1;
