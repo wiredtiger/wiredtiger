@@ -2207,6 +2207,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
       {"backup_rename", WT_TIMING_STRESS_BACKUP_RENAME},
       {"checkpoint_reserved_txnid_delay", WT_TIMING_STRESS_CHECKPOINT_RESERVED_TXNID_DELAY},
       {"checkpoint_slow", WT_TIMING_STRESS_CHECKPOINT_SLOW},
+      {"compact_slow", WT_TIMING_STRESS_COMPACT_SLOW},
       {"failpoint_history_delete_key_from_ts",
         WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS},
       {"history_store_checkpoint_delay", WT_TIMING_STRESS_HS_CHECKPOINT_DELAY},
@@ -2505,6 +2506,10 @@ __conn_version_verify(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
+    conn->recovery_major = 0;
+    conn->recovery_minor = 0;
+    conn->recovery_patch = 0;
+
     /* Always set the compatibility versions. */
     __wt_logmgr_compat_version(session);
     /*
@@ -2513,7 +2518,12 @@ __conn_version_verify(WT_SESSION_IMPL *session)
     if (F_ISSET(conn, WT_CONN_SALVAGE))
         return (0);
 
-    /* If we have a turtle file, validate versions. */
+    /*
+     * Initialize the version variables. These aren't always populated since there are expected
+     * cases where the turtle files doesn't exist (restoring from a backup, for example). All code
+     * that deals with recovery versions must consider the case where they are default initialized
+     * to zero.
+     */
     WT_RET(__wt_fs_exist(session, WT_METADATA_TURTLE, &exist));
     if (exist)
         WT_RET(__wt_turtle_validate_version(session));
@@ -2554,11 +2564,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     bool config_base_set, try_salvage, verify_meta;
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
-
-#if 0
-    /* FIXME-WT-6263: Temporarily disable history store verification. */
-    WT_SESSION_IMPL *verify_session;
-#endif
 
     /* Leave lots of space for optional additional configuration. */
     const char *cfg[] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
@@ -2948,7 +2953,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_config_gets(session, cfg, "verify_metadata", &cval));
     verify_meta = cval.val;
 
-    /* Only verify the metadata file first. We will verify the history store table later. */
+    /* Verify the metadata file. */
     if (verify_meta) {
         wt_session = &session->iface;
         ret = wt_session->verify(wt_session, WT_METAFILE_URI, NULL);
@@ -2978,21 +2983,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Start the worker threads and run recovery. */
     WT_ERR(__wt_connection_workers(session, cfg));
-
-#if 0
-    /*
-     * If the user wants to verify WiredTiger metadata, verify the history store now that the
-     * metadata table may have been salvaged and eviction has been started and recovery run.
-     *
-     * FIXME-WT-6682: temporarily disable history store verification.
-     */
-    if (verify_meta) {
-        WT_ERR(__wt_open_internal_session(conn, "verify hs", false, 0, 0, &verify_session));
-        ret = __wt_hs_verify(verify_session);
-        WT_TRET(__wt_session_close_internal(verify_session));
-        WT_ERR(ret);
-    }
-#endif
 
     /*
      * The hash array sizes needed to be set up very early. Set them in the statistics here. Setting

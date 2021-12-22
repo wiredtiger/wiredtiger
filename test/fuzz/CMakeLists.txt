@@ -28,17 +28,21 @@
 
 project(libfuzz C)
 
-# Import the LLVM package to determine if we have an llvm install
-# with the necessary libraries i.e. MacOSX clang SDK installs don't
-# provide the libraries by default (would need to use a custom LLVM
-# install).
-find_package(LLVM CONFIG)
-set(libclangfuzzer "")
-if(LLVM_PACKAGE_VERSION)
-    llvm_map_components_to_libnames(libclangfuzzer fuzzer)
-endif()
+include(CheckCSourceCompiles)
 
-if(NOT libclangfuzzer)
+set(CMAKE_REQUIRED_LIBRARIES "-fsanitize=fuzzer")
+set(CMAKE_REQUIRED_FLAGS "-fsanitize=fuzzer-no-link")
+check_c_source_compiles("
+    #include <inttypes.h>
+    #include <stddef.h>
+    int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+        return 0;
+    }
+" HAVE_LIBCLANG_FUZZER)
+unset(CMAKE_REQUIRED_LIBRARIES)
+unset(CMAKE_REQUIRED_FLAGS)
+
+if(NOT HAVE_LIBCLANG_FUZZER)
     # We require clangs libFuzzer to be available to run this test.
     # Avoid building the fuzz test in this case.
     return()
