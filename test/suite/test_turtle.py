@@ -68,14 +68,21 @@ class test_turtle(wttest.WiredTigerTestCase):
     def check_wt_version_string(self):
         version_string = self.find_kv(self.WT_METADATA_VERSION_STRING)
         version = re.search('(\d+)\.(\d+)\.(\d+)', version_string)
-        if not version:
-            raise ValueError("could not find a valid WT version in the {}".format(
-                self.WT_METADATA_VERSION_STRING))
-        else:
-            return (version.group(1), version.group(2), version.group(3))
+        self.assertTrue(version is not None)
+
+        return (version.group(1), version.group(2), version.group(3))
+
+    def check_wt_version(self):
+        version = self.find_kv(self.WT_METADATA_VERSION)
+        match = re.search('major=(\d+),minor=(\d+),patch=(\d+)',version)
+        self.assertTrue(match is not None)
+        return (match.group(1), match.group(2), match.group(3))
+
 
     def check_turtle(self):
-        self.check_wt_version_string()
+        string_version = self.check_wt_version_string()
+        v2 = self.check_wt_version()
+        self.assertEqual(string_version, v2)
 
     def find_kv(self, key: str):
         for i in range(len(self.turtle_file)):
