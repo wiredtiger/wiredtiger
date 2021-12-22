@@ -26,30 +26,31 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
-from wtscenario import make_scenarios
-from helper import simulate_crash_restart
+import wiredtiger
+import wttest
+import re
 
 # test_turtle.py
-# The following test is to validate the turtle file and to ensure it 
+# The following test is to validate the turtle file and to ensure it
 # contains the correct key-value pairs.
 
+
 class test_turtle(wttest.WiredTigerTestCase):
-    # session_config = 'isolation=snapshot'
-    uri = 'table:test_turtle'
+    uri = "table:test_turtle"
     nrows = 1000
+    WT_METADATA_VERSION = "WiredTiger version"
+    WT_METADATA_VERSION_STRING = "WiredTiger version string"
+    WT_TURTLE_FILE_NAME = "WiredTiger.turtle"
 
     def init_values(self):
-            self.val = 'aaaa'
-            self.key_format = 'i'
-            self.value_format = 'S'
+        self.val = "aaaa"
+        self.key_format = "i"
+        self.value_format = "S"
 
-    def turtle_values(self):        
-        self.WT_METADATA_VERSION  = "WiredTiger version"
-     
     def test_turtle(self):
         self.init_values()
-        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        create_params = "key_format={},value_format={}".format(
+            self.key_format, self.value_format)
 
         self.session.create(self.uri, create_params)
         cursor = self.session.open_cursor(self.uri)
@@ -60,14 +61,30 @@ class test_turtle(wttest.WiredTigerTestCase):
         self.session.commit_transaction()
         self.session.checkpoint()
 
+        self.read_turtle()
         self.check_turtle()
 
-    def check_turtle(self):
-        with open('WiredTiger.turtle', 'r') as f:
-            lines = f.read().splitlines()
-            
-            for i in range(len(lines)):
-                if lines[i] == self.WT_METADATA_VERSION:
-                    break
+# Verify the format of the 'WiredTiger version string' and return the parsed version
+    def check_wt_version_string(self):
+        version_string = self.find_kv(self.WT_METADATA_VERSION_STRING)
+        version = re.search('(\d+)\.(\d+)\.(\d+)', version_string)
+        if not version:
+            raise ValueError("could not find a valid WT version in the {}".format(
+                self.WT_METADATA_VERSION_STRING))
+        else:
+            return (version.group(1), version.group(2), version.group(3))
 
-        return
+    def check_turtle(self):
+        self.check_wt_version_string()
+
+    def find_kv(self, key: str):
+        for i in range(len(self.turtle_file)):
+            if self.turtle_file[i] == key:
+                return self.turtle_file[i+1]
+        raise KeyError(
+            "key '{}' is not present in the .turtle file".format(key))
+
+    def read_turtle(self):
+        with open(self.WT_TURTLE_FILE_NAME, 'r') as f:
+            lines = f.read().splitlines()
+            self.turtle_file = lines
