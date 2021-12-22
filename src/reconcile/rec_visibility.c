@@ -398,7 +398,6 @@ int
 __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
   WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
 {
-    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_PAGE *page;
     WT_TIME_WINDOW *select_tw;
@@ -792,6 +791,5 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
 
     __wt_rec_time_window_clear_obsolete(session, upd_select, NULL, r);
 err:
-    __wt_scr_free(session, &tmp);
     return (ret);
 }
