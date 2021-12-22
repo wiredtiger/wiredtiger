@@ -51,7 +51,7 @@ class test_turtle(wttest.WiredTigerTestCase):
 
     def test_turtle(self):
         self.init_values()
-        # Create an instance of WT and perfome some I/O
+        # Create a table and perform some I/O
         create_params = "key_format={},value_format={}".format(
             self.key_format, self.value_format)
 
@@ -81,8 +81,10 @@ class test_turtle(wttest.WiredTigerTestCase):
             self.WT_METADATA_VERSION_STRING, self.WT_METADATA_VERSION_STRING_FORMAT)
         version = self.find_and_check_wt_version(
             self.WT_METADATA_VERSION, self.WT_METADATA_VERSION_FORMAT)
+        # Check the WT versions specified are equivalent
         self.assertEqual(str_version, version)
 
+# Return the value for the associated key
     def find_kv(self, key: str):
         for i in range(len(self.turtle_file)):
             if self.turtle_file[i] == key:
