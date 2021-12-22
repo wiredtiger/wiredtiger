@@ -47,7 +47,7 @@ class test_turtle(wttest.WiredTigerTestCase):
         self.read_turtle()
         self.check_turtle()
 
-# Verify the format of the 'WiredTiger version' and return the parsed version
+    # Verify the format of the 'WiredTiger version' and return the parsed version
     def find_and_check_wt_version(self, key: str, expected_regex: str):
         result = self.find_kv(key)
         match = re.search(expected_regex, result)
@@ -63,7 +63,7 @@ class test_turtle(wttest.WiredTigerTestCase):
         # Check the WT versions specified are equivalent
         self.assertEqual(str_version, version)
 
-# Return the value for the associated key
+    # Return the value for the associated key
     def find_kv(self, key: str):
         for i in range(len(self.turtle_file)):
             if self.turtle_file[i] == key:
