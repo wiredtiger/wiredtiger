@@ -456,7 +456,6 @@ __wt_cursor_set_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
             str = va_arg(ap, const char *);
             sz = strlen(str) + 1;
             buf->data = (void *)str;
-            printf("%s\n", str);
         } else {
             va_copy(ap_copy, ap);
             ret = __wt_struct_sizev(session, &sz, cursor->key_format, ap_copy);

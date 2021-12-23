@@ -19,11 +19,15 @@ __curversion_set_key(WT_CURSOR *cursor, ...)
     WT_CURSOR *table_cursor;
     WT_CURSOR_VERSION *version_cursor;
     va_list ap;
+    uint32_t flags;
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     table_cursor = version_cursor->table_cursor;
     va_start(ap, cursor);
-    WT_IGNORE_RET(__wt_cursor_set_keyv(table_cursor, table_cursor->flags, ap));
+    flags = table_cursor->flags;
+    if (F_ISSET(cursor, WT_CURSTD_RAW))
+        flags |= WT_CURSTD_RAW;
+    WT_IGNORE_RET(__wt_cursor_set_keyv(table_cursor, flags, ap));
     va_end(ap);
 }
 

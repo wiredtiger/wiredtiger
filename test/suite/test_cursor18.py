@@ -72,20 +72,19 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Update the value
         self.session.begin_transaction()
-        cursor.set_key("1")
-        # cursor["1"] = 1
-        # self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
+        cursor["1"] = 1
+        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
 
         # Open a version cursor
-        # version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
-        # version_cursor.set_key("1")
-        # self.assertEquals(version_cursor.search(), 0)
-        # self.assertEquals(version_cursor.get_key(), 1)
-        # self.verify_value(version_cursor, 5, 5, WT_TS_MAX, WT_TS_MAX, 3, 0, 0, 0, 1)
-        # self.assertEquals(version_cursor.next(), 0)
-        # self.assertEquals(version_cursor.get_key(), 1)
-        # self.verify_value(version_cursor, 1, 1, 5, 5, 3, 0, 0, 0, 0)
-        # self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
+        version_cursor.set_key("1")
+        self.assertEquals(version_cursor.search(), 0)
+        self.assertEquals(version_cursor.get_key(), 1)
+        self.verify_value(version_cursor, 5, 5, WT_TS_MAX, WT_TS_MAX, 3, 0, 0, 0, 1)
+        self.assertEquals(version_cursor.next(), 0)
+        self.assertEquals(version_cursor.get_key(), 1)
+        self.verify_value(version_cursor, 1, 1, 5, 5, 3, 0, 0, 0, 0)
+        self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
 
     # def test_ondisk_only(self):
     #     self.create()
