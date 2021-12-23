@@ -149,7 +149,6 @@ __wt_txn_user_active(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *session_in_list;
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_SHARED *txn_shared;
     uint32_t i, session_cnt;
     bool txn_active;
 
@@ -157,20 +156,20 @@ __wt_txn_user_active(WT_SESSION_IMPL *session)
     txn_active = false;
     txn_global = &conn->txn_global;
 
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+
     /* We're going to scan the table: wait for the lock. */
     __wt_writelock(session, &txn_global->rwlock);
 
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_sessions);
-    for (i = 0, session_in_list = conn->sessions, txn_shared = txn_global->txn_shared_list;
-         i < session_cnt; i++, session_in_list++, txn_shared++) {
+    for (i = 0, session_in_list = conn->sessions; i < session_cnt; i++, session_in_list++) {
 
         /* Skip inactive or internal sessions. */
         if (!session_in_list->active || F_ISSET(session_in_list, WT_SESSION_INTERNAL))
             continue;
 
         /* Check if a user session has a running transaction. */
-        if (txn_shared->id != WT_TXN_NONE || txn_shared->pinned_id != WT_TXN_NONE) {
+        if (F_ISSET(session_in_list->txn, WT_TXN_RUNNING)) {
             txn_active = true;
             break;
         }
