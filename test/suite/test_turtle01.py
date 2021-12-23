@@ -72,6 +72,14 @@ class test_turtle01(wttest.WiredTigerTestCase):
         # Validate the .turtle file for the non-empty database.
         self.read_turtle()
         self.check_turtle()
+        self.check_metadata()
+
+    
+    def check_metadata(self):
+        # The checkpoint metadata is contained in the last line of the turtle file.
+        # Ensure that the keys are comma separated.
+        metadata = self.turtle_file[-1].split(',')
+        self.assertNotEqual(len(metadata), 1)
 
     # Verify that the format of the passed k-v pair matches what we expect.
     def find_and_check_wt_version(self, key: str, expected_regex: str):
