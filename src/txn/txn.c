@@ -148,18 +148,11 @@ __wt_txn_user_active(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *session_in_list;
-    WT_TXN_GLOBAL *txn_global;
     uint32_t i, session_cnt;
-    bool txn_active;
 
     conn = S2C(session);
-    txn_active = false;
-    txn_global = &conn->txn_global;
 
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
-
-    /* We're going to scan the table: wait for the lock. */
-    __wt_writelock(session, &txn_global->rwlock);
 
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
     for (i = 0, session_in_list = conn->sessions; i < session_cnt; i++, session_in_list++) {
@@ -169,14 +162,10 @@ __wt_txn_user_active(WT_SESSION_IMPL *session)
             continue;
 
         /* Check if a user session has a running transaction. */
-        if (F_ISSET(session_in_list->txn, WT_TXN_RUNNING)) {
-            txn_active = true;
-            break;
-        }
+        if (F_ISSET(session_in_list->txn, WT_TXN_RUNNING))
+            return (true);
     }
-
-    __wt_writeunlock(session, &txn_global->rwlock);
-    return (txn_active);
+    return (false);
 }
 
 /*
