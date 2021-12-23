@@ -91,6 +91,30 @@ table_mirror_row_next(TABLE *table, WT_CURSOR *cursor, WT_ITEM *key, uint64_t *k
 }
 
 /*
+ * table_mirror_fail_msg --
+ *     Messages on failure.
+ */
+static void
+table_mirror_fail_msg(WT_SESSION *session, TABLE *base, uint64_t base_keyno, WT_ITEM *base_key,
+  WT_ITEM *base_value, TABLE *table, uint64_t table_keyno, WT_ITEM *table_key, WT_ITEM *table_value)
+{
+    trace_msg(session,
+      "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s}, %s: {%.*s}/{%.*s}\n",
+      base_keyno, table_keyno, base->uri, base->type == ROW ? (int)base_key->size : 1,
+      base->type == ROW ? (char *)base_key->data : "#", (int)base_value->size,
+      (char *)base_value->data, table->uri, table->type == ROW ? (int)table_key->size : 1,
+      table->type == ROW ? (char *)table_key->data : "#", (int)table_value->size,
+      (char *)table_value->data);
+    fprintf(stderr,
+      "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s}, %s: {%.*s}/{%.*s}\n",
+      base_keyno, table_keyno, base->uri, base->type == ROW ? (int)base_key->size : 1,
+      base->type == ROW ? (char *)base_key->data : "#", (int)base_value->size,
+      (char *)base_value->data, table->uri, table->type == ROW ? (int)table_key->size : 1,
+      table->type == ROW ? (char *)table_key->data : "#", (int)table_value->size,
+      (char *)table_value->data);
+}
+
+/*
  * table_verify_mirror --
  *     Verify a mirrored pair.
  */
@@ -201,17 +225,8 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
             testutil_check(table_cursor->get_value(table_cursor, &table_value));
             if (base_keyno != table_keyno || base_value.size != table_value.size ||
               memcmp(base_value.data, table_value.data, base_value.size) != 0) {
-                trace_msg(session,
-                  "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s}, %s: {%.*s}/{%.*s}",
-                  base_keyno, table_keyno, base->uri, (int)base_key.size, (char *)base_key.data,
-                  (int)base_value.size, (char *)base_value.data, table->uri, (int)table_key.size,
-                  (char *)table_key.data, (int)table_value.size, (char *)table_value.data);
-                fprintf(stderr,
-                  "mirror: %" PRIu64 "/%" PRIu64
-                  " mismatch: %s: {%.*s}/{%.*s}, %s: {%.*s}/{%.*s}\n",
-                  base_keyno, table_keyno, base->uri, (int)base_key.size, (char *)base_key.data,
-                  (int)base_value.size, (char *)base_value.data, table->uri, (int)table_key.size,
-                  (char *)table_key.data, (int)table_value.size, (char *)table_value.data);
+                table_mirror_fail_msg(session, base, base_keyno, &base_key, &base_value, table,
+                  table_keyno, &table_key, &table_value);
 
                 /* Dump the cursor pages for the first failure. */
                 if (++failures == 1) {
