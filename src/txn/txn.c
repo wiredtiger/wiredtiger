@@ -139,36 +139,6 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_user_active --
- *     Check whether there are any running user transactions. Note that a new transaction may start
- *     after we return from this call and therefore caller should be aware of this limitation.
- */
-bool
-__wt_txn_user_active(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_SESSION_IMPL *session_in_list;
-    uint32_t i, session_cnt;
-
-    conn = S2C(session);
-
-    WT_STAT_CONN_INCR(session, txn_walk_sessions);
-
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (i = 0, session_in_list = conn->sessions; i < session_cnt; i++, session_in_list++) {
-
-        /* Skip inactive or internal sessions. */
-        if (!session_in_list->active || F_ISSET(session_in_list, WT_SESSION_INTERNAL))
-            continue;
-
-        /* Check if a user session has a running transaction. */
-        if (F_ISSET(session_in_list->txn, WT_TXN_RUNNING))
-            return (true);
-    }
-    return (false);
-}
-
-/*
  * __wt_txn_active --
  *     Check if a transaction is still active. If not, it is either committed, prepared, or rolled
  *     back. It is possible that we race with commit, prepare or rollback and a transaction is still
