@@ -46,7 +46,7 @@ check() {
 # List of files to spellchk.
 l=`(cd .. &&
     find bench examples ext src test -name '*.[chsy]' &&
-    find src -name '*.in' && find bench test -name '*.cxx')`
+    find src -name '*.in' && find test -name '*.cxx')`
 
 usage()
 {
@@ -59,7 +59,7 @@ while :
 		for f in $l; do
 			replace $f
 		done | sort -u > $t
-		cp $t s_string.ok
+		cp $t s_string.okgi
 		shift;;
 	*)
 		test "$#" -eq 0 || usage
