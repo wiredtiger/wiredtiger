@@ -310,28 +310,8 @@ snap_verify_callback(int ret, void *arg)
     }
     fflush(stderr);
 
-#ifdef HAVE_DIAGNOSTIC
-    /*
-     * We have a mismatch, optionally dump WiredTiger datastore pages. In doing so, we are calling
-     * into the debug code directly which does not take locks, so it's possible we will simply drop
-     * core. Turn off core dumps, those core files aren't interesting.
-     *
-     * The page dump routines dump the contents of the history store file for keys on the page, but
-     * we also dump the entire history store table including what is on disk, which can potentially
-     * be very large. If it becomes a problem, this can be modified to just dump out the page this
-     * key is on.
-     */
-    set_core(true);
-
+    /* We have a mismatch, dump WiredTiger datastore pages. */
     cursor_dump_page(cursor, "snapshot-isolation error");
-#if WIREDTIGER_VERSION_MAJOR >= 10
-    fprintf(stderr, "snapshot-isolation error: Dumping HS to %s\n", g.home_hsdump);
-    testutil_check(__wt_debug_cursor_tree_hs(CUR2S(cursor), g.home_hsdump));
-#endif
-
-    /* Turn core dumps back on. */
-    set_core(false);
-#endif
     testutil_assert(0);
 }
 

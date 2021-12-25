@@ -192,12 +192,6 @@ path_setup(const char *home)
     g.home_key = dmalloc(len);
     testutil_check(__wt_snprintf(g.home_key, len, "%s/%s", g.home, name));
 
-    /* History store dump file. */
-    name = "FAIL.HSdump";
-    len = strlen(g.home) + strlen(name) + 2;
-    g.home_hsdump = dmalloc(len);
-    testutil_check(__wt_snprintf(g.home_hsdump, len, "%s/%s", g.home, name));
-
     /* Statistics file. */
     name = "OPERATIONS.stats";
     len = strlen(g.home) + strlen(name) + 2;
@@ -308,7 +302,13 @@ cursor_dump_page(WT_CURSOR *cursor, const char *tag)
     fprintf(stderr, "%s: dumping to %s\n", tag, buf);
     trace_msg(CUR2S(cursor), "%s: dumping to %s", tag, buf);
 
+    /*
+     * We are calling into the debug code directly which does not take locks, so it's possible we
+     * will simply drop core. Turn off core dumps, those core files aren't interesting.
+     */
+    set_core(true);
     testutil_check(__wt_debug_cursor_page(cursor, buf));
+    set_core(false);
 #endif
 
     WT_UNUSED(cursor);
