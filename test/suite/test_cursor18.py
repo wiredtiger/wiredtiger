@@ -39,7 +39,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
     uri = 'table:test_cursor18'
 
     types = [
-        ('row', dict(keyformat='S', valueformat='i')),
+        ('row', dict(keyformat='i', valueformat='i')),
         #('var', dict(keyformat='r', valueformat='i')),
         #('fix', dict(keyformat='r', valueformat='8t')),
     ]
@@ -67,17 +67,17 @@ class test_cursor18(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri, None)
         # Add a value to the update chain
         self.session.begin_transaction()
-        cursor["1"] = 0
+        cursor[1] = 0
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(1))
 
         # Update the value
         self.session.begin_transaction()
-        cursor["1"] = 1
+        cursor[1] = 1
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
 
         # Open a version cursor
         version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
-        version_cursor.set_key("1")
+        version_cursor.set_key(1)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.get_key(), 1)
         self.verify_value(version_cursor, 5, 5, WT_TS_MAX, WT_TS_MAX, 3, 0, 0, 0, 1)
