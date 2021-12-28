@@ -289,12 +289,12 @@ err:
 }
 
 /*
- * __wt_tier_do_flush --
- *     Perform one iteration of copying newly flushed objects to the shared storage.
+ * __tier_do_operation --
+ *     Perform one iteration of caching or copying newly flushed objects to the shared storage.
  */
-int
-__wt_tier_do_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, const char *local_uri,
-  const char *obj_uri)
+static int
+__tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, const char *local_uri,
+  const char *obj_uri, uint32_t op)
 {
     WT_CONFIG_ITEM pfx;
     WT_DECL_RET;
@@ -304,6 +304,7 @@ __wt_tier_do_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, con
     char *tmp;
     const char *cfg[2], *local_name, *obj_name;
 
+    WT_ASSERT(session, (op == WT_TIERED_WORK_CACHE || op == WT_TIERED_WORK_FLUSH));
     tmp = NULL;
     storage_source = tiered->bstorage->storage_source;
     bucket_fs = tiered->bstorage->file_system;
@@ -320,36 +321,43 @@ __wt_tier_do_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, con
     WT_RET(__wt_calloc_def(session, len, &tmp));
     WT_ERR(__wt_snprintf(tmp, len, "%.*s%s", (int)pfx.len, pfx.str, obj_name));
 
-    /* This call make take a while, and may fail due to network timeout. */
-    WT_ERR(
-      storage_source->ss_flush(storage_source, &session->iface, bucket_fs, local_name, tmp, NULL));
+    if (op == WT_TIERED_WORK_CACHE)
+        WT_ERR(storage_source->ss_flush_finish(
+          storage_source, &session->iface, bucket_fs, local_name, tmp, NULL));
+    else {
+        /* WT_TIERED_WORK_FLUSH */
+        /* This call make take a while, and may fail due to network timeout. */
+        WT_ERR(storage_source->ss_flush(
+          storage_source, &session->iface, bucket_fs, local_name, tmp, NULL));
 
-    WT_WITH_CHECKPOINT_LOCK(session,
-      WT_WITH_SCHEMA_LOCK(session, ret = __tier_flush_meta(session, tiered, local_uri, obj_uri)));
-    WT_ERR(ret);
+        WT_WITH_CHECKPOINT_LOCK(session,
+          WT_WITH_SCHEMA_LOCK(
+            session, ret = __tier_flush_meta(session, tiered, local_uri, obj_uri)));
+        WT_ERR(ret);
 
-    /*
-     * We may need a way to cleanup flushes for those not completed (after a crash), or failed (due
-     * to previous network outage).
-     */
-    WT_ERR(storage_source->ss_flush_finish(
-      storage_source, &session->iface, bucket_fs, local_name, tmp, NULL));
-    /*
-     * After successful flushing, push a work unit to drop the local object in the future. The
-     * object will be removed locally after the local retention period expires.
-     */
-    WT_ERR(__wt_tiered_put_drop_local(session, tiered, id));
+        /*
+         * After successful flushing, push a work unit to perform whatever caching the shared
+         * storage can do for this object.
+         */
+        WT_ERR(__wt_tiered_put_cache(session, tiered, id));
+        /*
+         * After successful flushing, push a work unit to drop the local object in the future. The
+         * object will be removed locally after the local retention period expires.
+         */
+        WT_ERR(__wt_tiered_put_drop_local(session, tiered, id));
+    }
+
 err:
     __wt_free(session, tmp);
     return (ret);
 }
 
 /*
- * __wt_tier_flush --
- *     Given an ID generate the URI names and call the flush code.
+ * __tier_operation --
+ *     Given an ID generate the URI names and call the operation code to flush or cache.
  */
-int
-__wt_tier_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id)
+static int
+__tier_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, uint32_t op)
 {
     WT_DECL_RET;
     const char *local_uri, *obj_uri;
@@ -357,11 +365,46 @@ __wt_tier_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id)
     local_uri = obj_uri = NULL;
     WT_ERR(__wt_tiered_name(session, &tiered->iface, id, WT_TIERED_NAME_LOCAL, &local_uri));
     WT_ERR(__wt_tiered_name(session, &tiered->iface, id, WT_TIERED_NAME_OBJECT, &obj_uri));
-    WT_ERR(__wt_tier_do_flush(session, tiered, id, local_uri, obj_uri));
+    WT_ERR(__tier_do_operation(session, tiered, id, local_uri, obj_uri, op));
 
 err:
     __wt_free(session, local_uri);
     __wt_free(session, obj_uri);
+    return (ret);
+}
+
+/*
+ * __tier_storage_cache --
+ *     Perform one iteration of shared storage caching. This is separated from copying the objects
+ *     to shared storage to allow the flush_tier call to return after only the necessary work has
+ *     completed.
+ */
+static int
+__tier_storage_cache(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    WT_TIERED_WORK_UNIT *entry;
+
+    entry = NULL;
+    for (;;) {
+        /* Check if we're quitting or being reconfigured. */
+        if (!__tiered_server_run_chk(session))
+            break;
+
+        __wt_tiered_get_cache(session, &entry);
+        if (entry == NULL)
+            break;
+        WT_ERR(__tier_operation(session, entry->tiered, entry->id, WT_TIERED_WORK_CACHE));
+        /*
+         * We are responsible for freeing the work unit when we're done with it.
+         */
+        __wt_tiered_work_free(session, entry);
+        entry = NULL;
+    }
+
+err:
+    if (entry != NULL)
+        __wt_tiered_work_free(session, entry);
     return (ret);
 }
 
@@ -391,7 +434,7 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
         __wt_tiered_get_flush(session, &entry);
         if (entry == NULL)
             break;
-        WT_ERR(__wt_tier_flush(session, entry->tiered, entry->id));
+        WT_ERR(__tier_operation(session, entry->tiered, entry->id, WT_TIERED_WORK_FLUSH));
         /*
          * We are responsible for freeing the work unit when we're done with it.
          */
@@ -570,10 +613,12 @@ __tiered_server(void *arg)
         /*
          * Here is where we do work. Work we expect to do:
          *  - Copy any files that need moving from a flush tier call.
+         *  - Perform any shared storage caching after flushing.
          *  - Remove any cached objects that are aged out.
          */
         if (timediff >= WT_MINUTE || signalled) {
             WT_ERR(__tier_storage_copy(session));
+            WT_ERR(__tier_storage_cache(session));
             WT_ERR(__tier_storage_remove(session, false));
         }
         time_start = time_stop;

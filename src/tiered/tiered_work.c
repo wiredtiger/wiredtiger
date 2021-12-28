@@ -95,6 +95,18 @@ __wt_tiered_pop_work(
 }
 
 /*
+ * __wt_tiered_get_cache --
+ *     Get the first cache work unit from the queue. The id information cannot change between our
+ *     caller and here. The caller is responsible for freeing the work unit.
+ */
+void
+__wt_tiered_get_cache(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp)
+{
+    __wt_tiered_pop_work(session, WT_TIERED_WORK_CACHE, 0, entryp);
+    return;
+}
+
+/*
  * __wt_tiered_get_flush --
  *     Get the first flush work unit from the queue. The id information cannot change between our
  *     caller and here. The caller is responsible for freeing the work unit.
@@ -127,6 +139,23 @@ __wt_tiered_get_drop_shared(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entr
 {
     __wt_tiered_pop_work(session, WT_TIERED_WORK_DROP_SHARED, 0, entryp);
     return;
+}
+
+/*
+ * __wt_tiered_put_cache --
+ *     Add a cache work unit to the queue.
+ */
+int
+__wt_tiered_put_cache(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id)
+{
+    WT_TIERED_WORK_UNIT *entry;
+
+    WT_RET(__wt_calloc_one(session, &entry));
+    entry->type = WT_TIERED_WORK_CACHE;
+    entry->id = id;
+    entry->tiered = tiered;
+    __wt_tiered_push_work(session, entry);
+    return (0);
 }
 
 /*
