@@ -386,6 +386,13 @@ __tier_storage_cache(WT_SESSION_IMPL *session)
     WT_TIERED_WORK_UNIT *entry;
 
     entry = NULL;
+    /*
+     * Sleep a known period of time so that tests using the timing stress flag can have an idea when
+     * to check for the cache operation to complete. Sleep one second before processing the work
+     * queue of cache work units.
+     */
+    if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_TIERED_CACHE))
+        __wt_sleep(1, 0);
     for (;;) {
         /* Check if we're quitting or being reconfigured. */
         if (!__tiered_server_run_chk(session))
