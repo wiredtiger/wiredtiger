@@ -376,3 +376,11 @@ define_c_test(
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8246_compact_rts_data_correctness>/WT_HOME>
     DEPENDS "WT_POSIX"
 )
+
+define_c_test(
+    TARGET test_wt8290_rollback_reason
+    SOURCES wt8290_rollback_reason/main.c
+    DIR_NAME wt8290_rollback_reason
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8290_rollback_reason>/WT_HOME>
+    DEPENDS "WT_POSIX"
+)
