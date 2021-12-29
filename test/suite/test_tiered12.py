@@ -84,10 +84,10 @@ class test_tiered12(wttest.WiredTigerTestCase):
         self.check(c, 1)
         c.close()
         self.session.checkpoint()
-        self.session.flush_tier(None)
 
-        # Immediately after flush_tier finishes the cached object should not yet exist.
         cache_obj = self.cache + '/' + self.prefix1 + self.obj1file
+        self.session.flush_tier(None)
+        # Immediately after flush_tier finishes the cached object should not yet exist.
         self.assertFalse(os.path.exists(cache_obj))
         time.sleep(2)
         # After sleeping, the internal thread should have created the cached object.
