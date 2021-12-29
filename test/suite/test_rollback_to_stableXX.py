@@ -32,9 +32,9 @@ from wiredtiger import stat, WT_NOTFOUND
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_rollback_to_stable30.py
+# test_rollback_to_stableXX.py
 # Test interaction between fast-delete and RTS.
-class test_rollback_to_stable30(test_rollback_to_stable_base):
+class test_rollback_to_stableXX(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
     conn_config = 'cache_size=50MB,statistics=(all),log=(enabled=false)'
 
@@ -99,7 +99,7 @@ class test_rollback_to_stable30(test_rollback_to_stable_base):
         nrows = 10000
 
         # Create a table without logging.
-        uri = "table:rollback_to_stable30"
+        uri = "table:rollback_to_stableXX"
         ds = SimpleDataSet(
             self, uri, 0, key_format=self.key_format, value_format=self.value_format,
             config='log=(enabled=false)' + self.extraconfig)
@@ -183,11 +183,12 @@ class test_rollback_to_stable30(test_rollback_to_stable_base):
         if self.crash:
             simulate_crash_restart(self, ".", "RESTART")
         else:
+            if self.prepare:
+                session2.commit_transaction(\
+                    'commit_timestamp=' + self.timestamp_str(35) +
+                    ',durable_timestamp=' + self.timestamp_str(35))
             self.conn.rollback_to_stable()
 
-        # This helps distinguish the real RTS pass from the one that happens on shutdown.
-        self.session.breakpoint()
-
-        # We should see only the baseline data, but all the baseline data.
+        # We should see the original data at read-ts 20 and 30.
         self.checkx(ds, nrows, 20, valuea)
         self.checkx(ds, nrows, 30, valuea)
