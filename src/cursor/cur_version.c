@@ -114,15 +114,16 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
         if (upd == NULL)
             F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
         else {
-            /*
-             * If the update is a tombstone, we still want to record the stop information but we
-             * also need traverse to the next update to get the full value. If the tombstone was the
-             * last update in the update list, retrieve the ondisk value.
-             */
-            version_cursor->upd_stop_txnid = upd->txnid;
-            version_cursor->upd_durable_stop_ts = upd->durable_ts;
-            version_cursor->upd_stop_ts = upd->start_ts;
             if (upd->type == WT_UPDATE_TOMBSTONE) {
+                /*
+                 * If the update is a tombstone, we still want to record the stop information but we
+                 * also need traverse to the next update to get the full value. If the tombstone was
+                 * the last update in the update list, retrieve the ondisk value.
+                 */
+                version_cursor->upd_stop_txnid = upd->txnid;
+                version_cursor->upd_durable_stop_ts = upd->durable_ts;
+                version_cursor->upd_stop_ts = upd->start_ts;
+
                 upd = upd->next;
 
                 /* Make sure the next update is not an aborted update. */
@@ -157,6 +158,10 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
                   upd->txnid, upd->start_ts, upd->durable_ts, version_cursor->upd_stop_txnid,
                   version_cursor->upd_stop_ts, version_cursor->upd_durable_stop_ts, upd->type,
                   version_prepare_state, upd->flags, WT_VERSION_UPDATE_CHAIN, &cbt->upd_value->buf);
+
+                version_cursor->upd_stop_txnid = upd->txnid;
+                version_cursor->upd_durable_stop_ts = upd->durable_ts;
+                version_cursor->upd_stop_ts = upd->start_ts;
 
                 upd_found = true;
                 version_cursor->next_upd = upd->next;
