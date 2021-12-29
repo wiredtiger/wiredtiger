@@ -1337,7 +1337,7 @@ __txn_user_active(WT_SESSION_IMPL *session)
 
     /*
      * WT_TXN structures are allocated and freed as sessions are activated and closed. Lock the
-     * session open/close to insure we don't race. This call is a rarely used RTS-only function,
+     * session open/close to ensure we don't race. This call is a rarely used RTS-only function,
      * acquiring the lock shouldn't be an issue.
      */
     __wt_spin_lock(session, &conn->api_lock);
