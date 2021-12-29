@@ -76,6 +76,9 @@ class test_tiered12(wttest.WiredTigerTestCase):
         # the internal thread calling flush_finish for 1 second.
         # So after flush tier completes, check that the cached object does not
         # exist. Then sleep and check that it does exist.
+        #
+        # The idea is to make sure flush_tier is not waiting for unnecessary work
+        # to be done, but returns as soon as the copying to shared storage completes.
         self.session.create(self.uri, 'key_format=S,value_format=S,')
 
         # Add data. Checkpoint and flush.
@@ -85,10 +88,14 @@ class test_tiered12(wttest.WiredTigerTestCase):
         c.close()
         self.session.checkpoint()
 
+        bucket_obj = self.bucket + '/' + self.prefix1 + self.obj1file
         cache_obj = self.cache + '/' + self.prefix1 + self.obj1file
         self.session.flush_tier(None)
-        # Immediately after flush_tier finishes the cached object should not yet exist.
+        # Immediately after flush_tier finishes the cached object should not yet exist
+        # but the bucket object does exist.
         self.assertFalse(os.path.exists(cache_obj))
+        self.assertTrue(os.path.exists(bucket_obj))
+        # Sleep more than the one second stress timing amount and give the thread time to run.
         time.sleep(2)
         # After sleeping, the internal thread should have created the cached object.
         self.assertTrue(os.path.exists(cache_obj))
