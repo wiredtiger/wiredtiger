@@ -1940,6 +1940,7 @@ struct __wt_session {
 	 */
 	int __F(transaction_pinned_range)(WT_SESSION* session, uint64_t *range);
 
+#ifndef DOXYGEN
 	/*!
 	 * Directly returns the reason for a rollback error being returned from the API.
 	 *
@@ -1950,7 +1951,6 @@ struct __wt_session {
 	 */
 	const char * __F(get_rollback_reason)(WT_SESSION *session);
 
-#ifndef DOXYGEN
 	/*!
 	 * Call into the library.
 	 *
