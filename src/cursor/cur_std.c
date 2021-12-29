@@ -546,20 +546,6 @@ err:
 }
 
 /*
- * __wt_cursor_set_value_with_fmt --
- *     Set value with the specified format
- */
-void
-__wt_cursor_set_value_with_fmt(WT_CURSOR *cursor, const char *fmt, ...)
-{
-    va_list ap;
-
-    va_start(ap, fmt);
-    WT_IGNORE_RET(__wt_cursor_set_valuev(cursor, fmt, ap));
-    va_end(ap);
-}
-
-/*
  * __wt_cursor_set_value --
  *     WT_CURSOR->set_value default implementation.
  */
@@ -569,7 +555,7 @@ __wt_cursor_set_value(WT_CURSOR *cursor, ...)
     va_list ap;
 
     va_start(ap, cursor);
-    WT_IGNORE_RET(__wt_cursor_set_valuev(cursor, cursor->value_format, ap));
+    WT_IGNORE_RET(__wt_cursor_set_valuev(cursor, ap));
     va_end(ap);
 }
 
@@ -578,13 +564,13 @@ __wt_cursor_set_value(WT_CURSOR *cursor, ...)
  *     WT_CURSOR->set_value worker implementation.
  */
 int
-__wt_cursor_set_valuev(WT_CURSOR *cursor, const char *fmt, va_list ap)
+__wt_cursor_set_valuev(WT_CURSOR *cursor, va_list ap)
 {
     WT_DECL_RET;
     WT_ITEM *buf, *item, tmp;
     WT_SESSION_IMPL *session;
     size_t sz;
-    const char *str;
+    const char *fmt, *str;
     va_list ap_copy;
 
     buf = &cursor->value;
@@ -601,6 +587,7 @@ __wt_cursor_set_valuev(WT_CURSOR *cursor, const char *fmt, va_list ap)
     F_CLR(cursor, WT_CURSTD_VALUE_SET);
 
     /* Fast path some common cases. */
+    fmt = cursor->value_format;
     if (F_ISSET(cursor, WT_CURSOR_RAW_OK | WT_CURSTD_DUMP_JSON) || WT_STREQ(fmt, "u")) {
         item = va_arg(ap, WT_ITEM *);
         sz = item->size;
