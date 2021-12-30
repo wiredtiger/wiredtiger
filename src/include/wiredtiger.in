@@ -1942,12 +1942,13 @@ struct __wt_session {
 
 #ifndef DOXYGEN
 	/*!
-	 * Directly returns the reason for a rollback error being returned from the API.
+	 * Optionally returns the reason for the most recent rollback error returned from the API.
 	 *
 	 * There is no guarantee a rollback reason will be set and thus the caller
 	 * must check for a NULL pointer.
 	 *
 	 * @param session the session handle
+	 * @returns an optional string indicating the reason for the rollback
 	 */
 	const char * __F(get_rollback_reason)(WT_SESSION *session);
 
