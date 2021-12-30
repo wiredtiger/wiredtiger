@@ -76,8 +76,7 @@ class test_txn27(wttest.WiredTigerTestCase):
         cursor1.set_value("b"*1024)
 
         # This is the message that we expect to be raised when a thread is rolled back due to
-        # cache pressure. MongoDB expects the same so if this test breaks due to this message
-        # changing then care must be taken to ensure that MongoDB is aware.
+        # cache pressure.
         msg2 = 'oldest pinned transaction ID rolled back for eviction'
         # Expect stdout to give us the true reason for the rollback.
         with self.expectedStdoutPattern(msg2):
