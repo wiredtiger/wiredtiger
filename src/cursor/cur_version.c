@@ -72,8 +72,13 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     table_cursor = version_cursor->table_cursor;
     va_start(ap, cursor);
-    WT_ERR(__wt_cursor_get_valuev(cursor, VERSION_CURSOR_METADATA_FORMAT, ap));
-    WT_ERR(__wt_cursor_get_valuev(table_cursor, table_cursor->value_format, ap));
+    if (F_ISSET(cursor, WT_CURSTD_RAW)) {
+        WT_ERR(__wt_cursor_get_valuev(cursor, VERSION_CURSOR_METADATA_FORMAT, ap));
+        WT_ERR(__wt_cursor_get_valuev(table_cursor, table_cursor->value_format, ap));
+    } else {
+        WT_ERR(__wt_cursor_get_valuev(cursor, "u", ap));
+        WT_ERR(__wt_cursor_get_valuev(table_cursor, "u", ap));
+    }
 
 err:
     va_end(ap);
@@ -523,6 +528,9 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     version_cursor->upd_stop_txnid = WT_TXN_MAX;
     version_cursor->upd_durable_stop_ts = WT_TS_MAX;
     version_cursor->upd_stop_ts = WT_TS_MAX;
+
+    /* Mark the cursor as version cursor for python api. */
+    F_SET(cursor, WT_CURSTD_VERSION_CURSOR);
 
     if (0) {
 err:

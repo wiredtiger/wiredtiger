@@ -119,15 +119,18 @@ from packing import pack, unpack
 	    SWIGTYPE_p___wt_cursor, 0);
 	if (*$1 != NULL) {
 		PY_CALLBACK *pcb;
-		uint32_t json;
+		uint32_t json, version_cursor;
 
 		json = (*$1)->flags & WT_CURSTD_DUMP_JSON;
+		version_cursor = (*arg6)->flags & WT_CURSTD_VERSION_CURSOR;
 		if (!json)
 			(*$1)->flags |= WT_CURSTD_RAW;
 		PyObject_SetAttrString($result, "is_json",
 		    PyBool_FromLong(json != 0));
 		PyObject_SetAttrString($result, "is_column",
 		    PyBool_FromLong(strcmp((*$1)->key_format, "r") == 0));
+		PyObject_SetAttrString($result, "is_version_cursor",
+		    PyBool_FromLong(version_cursor != 0));
 		PyObject_SetAttrString($result, "key_format",
 		    PyString_InternFromString((*$1)->key_format));
 		PyObject_SetAttrString($result, "value_format",
@@ -630,10 +633,17 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 /* Handle binary data returns from get_key/value -- avoid cstring.i: it creates a list of returns. */
 %typemap(in,numinputs=0) (char **datap, int *sizep) (char *data, int size) { $1 = &data; $2 = &size; }
 %typemap(in,numinputs=0) (char **charp, int *sizep) (char *data, int size) { $1 = &data; $2 = &size; }
+%typemap(in,numinputs=0) (char **metadatap, int *metadatasizep, char **datap, int *datasizep) (char *metadata, int metadatasize, char *data, int datasize) { $1 = &metadata; $2 = &metadatasize; $3 = &data; $4 = &datasize; }
 %typemap(frearg) (char **datap, int *sizep) "";
+%typemap(frearg) (char **metadatap, int *metadatasizep, char **datap, int *datasizep) "";
 %typemap(argout) (char **charp, int *sizep) {
 	if (*$1)
 		$result = PyUnicode_FromStringAndSize(*$1, *$2);
+}
+%typemap(argout)(char **metadatap, int *metadatasizep, char **datap, int *datasizep)
+{
+    if (*$1 && *$3)
+        $result = (PyUnicode_FromStringAndSize(*$1, *$2), PyUnicode_FromStringAndSize(*$3, *$4));
 }
 
 %typemap(argout) (char **datap, int *sizep) {
@@ -766,6 +776,19 @@ typedef int int_void;
 		if (ret == 0) {
 			*charp = (char *)k;
 			*sizep = strlen(k);
+		}
+		return (ret);
+	}
+
+	int_void _get_version_cursor_value(char **metadatap, int *metadatasizep, char **datap, int *datasizep) {
+		WT_ITEM metadata;
+		WT_ITEM v;
+		int ret = $self->get_value($self, &metadata, &v);
+		if (ret == 0) {
+			*metadatap = (char *)metadata.data;
+			*metadatasizep = (int)metadata.size;
+			*datap = (char *)v.data;
+			*datasizep = (int)v.size;
 		}
 		return (ret);
 	}
