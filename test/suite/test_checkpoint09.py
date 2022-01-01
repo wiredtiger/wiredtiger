@@ -35,7 +35,7 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 class test_checkpoint09(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
+    conn_config = 'cache_size=50MB,statistics=(all)'
     session_config = 'isolation=snapshot'
 
     format_values = [
