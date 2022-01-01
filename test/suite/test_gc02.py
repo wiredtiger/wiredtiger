@@ -33,7 +33,7 @@ from wtdataset import SimpleDataSet
 # test_gc02.py
 # Test that checkpoint cleans the obsolete history store internal pages.
 class test_gc02(test_gc_base):
-    conn_config = 'cache_size=1GB,log=(enabled),statistics=(all)'
+    conn_config = 'cache_size=1GB,statistics=(all)'
     session_config = 'isolation=snapshot'
 
     def test_gc(self):
@@ -41,8 +41,7 @@ class test_gc02(test_gc_base):
 
         # Create a table without logging.
         uri = "table:gc02"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format="i", value_format="S")
         ds.populate()
 
         # Pin oldest and stable to timestamp 1.
