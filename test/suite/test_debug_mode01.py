@@ -31,7 +31,7 @@ import wiredtiger, wttest
 # test_debug_mode01.py
 #    Test the debug mode settings. Test rollback_error in this one.
 class test_debug_mode01(wttest.WiredTigerTestCase):
-    conn_config = 'log=(enabled=true),debug_mode=(rollback_error=5)'
+    conn_config = 'debug_mode=(rollback_error=5)'
     session_config = 'isolation=snapshot'
     uri = 'file:test_debug'
 
