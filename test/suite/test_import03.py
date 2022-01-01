@@ -34,7 +34,7 @@ from wtscenario import make_scenarios
 from test_import01 import test_import_base
 
 class test_import03(test_import_base):
-    conn_config = 'cache_size=50MB,log=(enabled)'
+    conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
 
     ntables = 10
@@ -70,7 +70,7 @@ class test_import03(test_import_base):
 
         original_db_table = 'original_db_table'
         uri = 'table:' + original_db_table
-        create_config = 'allocation_size=512,log=(enabled=true),' + self.config
+        create_config = 'allocation_size=512,' + self.config
         self.session.create(uri, create_config)
 
         keys = self.keys

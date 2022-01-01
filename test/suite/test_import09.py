@@ -100,8 +100,7 @@ class test_import09(test_import_base):
         extlist.extension('encryptors', self.encryptor)
 
     def conn_config(self):
-        return 'cache_size=50MB,log=(enabled),encryption=(name={})'.format(
-            self.encryptor + self.encryptor_args)
+        return 'cache_size=50MB,encryption=(name={})'.format(self.encryptor + self.encryptor_args)
 
     def test_import_table_repair(self):
         # Add some tables & data and checkpoint.
@@ -111,7 +110,7 @@ class test_import09(test_import_base):
         # Create the table targeted for import.
         original_db_table = 'original_db_table'
         uri = 'table:' + original_db_table
-        create_config = ('allocation_size={},log=(enabled=true),block_compressor={},'
+        create_config = ('allocation_size={},block_compressor={},'
             'encryption=(name={}),') + self.config
         self.session.create(uri,
             create_config.format(self.allocsize, self.compressor, self.encryptor))
