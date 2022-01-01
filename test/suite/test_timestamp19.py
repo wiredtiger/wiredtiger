@@ -33,7 +33,7 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 class test_timestamp19(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=50MB,log=(enabled)'
+    conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
 
     format_values = [
@@ -57,8 +57,7 @@ class test_timestamp19(wttest.WiredTigerTestCase):
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format="S"')
         ds.populate()
 
         nrows = 1000
