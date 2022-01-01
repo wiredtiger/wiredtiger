@@ -83,7 +83,7 @@ class test_gc_base(wttest.WiredTigerTestCase):
 class test_gc01(test_gc_base):
     # Force a small cache.
     conn_config = ('cache_size=50MB,eviction_updates_trigger=95,eviction_updates_target=80,'
-                   'log=(enabled),statistics=(all)')
+                   'statistics=(all)')
     session_config = 'isolation=snapshot'
 
     def test_gc(self):
@@ -91,8 +91,7 @@ class test_gc01(test_gc_base):
 
         # Create a table without logging.
         uri = "table:gc01"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format="i", value_format="S")
         ds.populate()
 
         # Pin oldest and stable to timestamp 1.
