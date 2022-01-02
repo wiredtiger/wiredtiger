@@ -35,11 +35,16 @@ from wtdataset import SimpleDataSet
 class test_log04(wttest.WiredTigerTestCase):
     conn_config = 'log=(enabled)'
 
-    scenarios = make_scenarios([
+    types = [
         ('col', dict(key_format='r',value_format='S')),
         ('fix', dict(key_format='r',value_format='8t')),
         ('row', dict(key_format='S',value_format='S')),
-    ])
+    ]
+    ckpt = [
+        ('ckpt', dict(ckpt=True)),
+        ('no-ckpt', dict(ckpt=False)),
+    ]
+    scenarios = make_scenarios(types, ckpt)
 
     def check(self, cursor, read_ts, key, value):
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
@@ -47,8 +52,11 @@ class test_log04(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
     def test_logts(self):
-        # Create logged and non-logged objects. Update both in a single transaction and confirm the
-        # timestamps only apply to the non-logged object.
+        # Create logged and non-logged objects. The non-logged objects are in two versions, one is
+        # updated with a commit timestamp and one is not. Update the logged and non-logged timestamp
+        # tables in a transaction with a commit timestamp and confirm the timestamps only apply to
+        # the non-logged object. Update the non-logged, non-timestamp table in a transaction without
+        # a commit timestamp, and confirm timestamps are ignored.
         uri_log = 'table:test_logts.log'
         ds_log = SimpleDataSet(self, uri_log, 100,
             key_format=self.key_format, value_format=self.value_format)
@@ -62,6 +70,13 @@ class test_log04(wttest.WiredTigerTestCase):
         ds_ts.populate()
         c_ts = self.session.open_cursor(uri_ts)
 
+        uri_nots = 'table:test_logn.nots'
+        ds_nots = SimpleDataSet(self, uri_nots, 100,
+            key_format=self.key_format, value_format=self.value_format,
+            config='log=(enabled=false)')
+        ds_nots.populate()
+        c_nots = self.session.open_cursor(uri_nots)
+
         # Set oldest and stable timestamps to 10.
         self.conn.set_timestamp(
             'oldest_timestamp=' + self.timestamp_str(10) +
@@ -70,22 +85,26 @@ class test_log04(wttest.WiredTigerTestCase):
         key = ds_ts.key(10)
         value10 = ds_ts.value(10)
 
-        # Confirm data at time 10.
+        # Confirm initial data at timestamp 10.
         self.check(c_log, 10, key, value10)
         self.check(c_ts, 10, key, value10)
+        self.check(c_nots, 10, key, value10)
 
-        # Update and then rollback data.
+        # Update and then rollback.
         value50 = ds_ts.value(50)
         self.session.begin_transaction()
         c_log[key] = value50
         c_ts[key] = value50
+        c_nots[key] = value50
         self.session.rollback_transaction()
 
         # Confirm data at time 10 and 20.
         self.check(c_log, 10, key, value10)
         self.check(c_ts, 10, key, value10)
+        self.check(c_nots, 10, key, value10)
         self.check(c_log, 20, key, value10)
         self.check(c_ts, 20, key, value10)
+        self.check(c_nots, 20, key, value10)
 
         # Update and then commit data at time 20.
         value55 = ds_ts.value(55)
@@ -93,12 +112,16 @@ class test_log04(wttest.WiredTigerTestCase):
         c_log[key] = value55
         c_ts[key] = value55
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
+        self.session.begin_transaction()
+        c_nots[key] = value55
+        self.session.commit_transaction()
 
         # Confirm data at time 10 and 20.
         self.check(c_log, 10, key, value55)
         self.check(c_ts, 10, key, value10)
+        self.check(c_nots, 10, key, value55)
         self.check(c_log, 20, key, value55)
-        self.check(c_ts, 20, key, value55)
+        self.check(c_nots, 20, key, value55)
 
         # Update and then commit data at time 30.
         value60 = ds_ts.value(60)
@@ -106,23 +129,31 @@ class test_log04(wttest.WiredTigerTestCase):
         c_log[key] = value60
         c_ts[key] = value60
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        self.session.begin_transaction()
+        c_nots[key] = value60
+        self.session.commit_transaction()
 
         # Confirm data at time 20 and 30
         self.check(c_log, 20, key, value60)
         self.check(c_ts, 20, key, value55)
+        self.check(c_nots, 20, key, value60)
         self.check(c_log, 30, key, value60)
         self.check(c_ts, 30, key, value60)
+        self.check(c_nots, 30, key, value60)
 
-        # Move the stable timestamp to 25. Checkpoint and rollback to the stable timestamp.
+        # Move the stable timestamp to 25. Checkpoint and rollback to a timestamp.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(25))
-        self.session.checkpoint()
+        if self.ckpt:
+            self.session.checkpoint()
         self.conn.rollback_to_stable()
 
         # Confirm data at time 20 and 30.
         self.check(c_log, 20, key, value60)
         self.check(c_ts, 20, key, value55)
+        self.check(c_nots, 20, key, value60)
         self.check(c_log, 30, key, value60)
         self.check(c_ts, 30, key, value55)
+        self.check(c_nots, 30, key, value60)
 
 if __name__ == '__main__':
     wttest.run()
