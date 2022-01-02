@@ -42,28 +42,14 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
     table_nots_log   = 'ts03_nots_logged'
     table_nots_nolog = 'ts03_nots_nologged'
 
-    # XXX neither the use_cg nor the use_index values are actually used.
-    # I've commented out the entries that are therefore duplicates; if/when that's fixed, put
-    # them back I guess.
     types = [
-        ('file-row', dict(uri='file:', key_format='i', value_format='S',
-                use_cg=False, use_index=False)),
-        ('file-col', dict(uri='file:', key_format='r', value_format='S',
-                use_cg=False, use_index=False)),
-        ('file-col-fix', dict(uri='file:', key_format='r', value_format='8t',
-                use_cg=False, use_index=False)),
-        ('lsm', dict(uri='lsm:', key_format='i', value_format='S',
-                use_cg=False, use_index=False)),
-        ('table-row', dict(uri='table:', key_format='i', value_format='S',
-                use_cg=False, use_index=False)),
-        #('table-row-index', dict(uri='table:', key_format='i', value_format='S',
-        #       use_cg=False, use_index=True)),
-        ('table-col', dict(uri='table:', key_format='r', value_format='S',
-                use_cg=False, use_index=False)),
-        ('table-col-fix', dict(uri='table:', key_format='r', value_format='8t',
-                use_cg=False, use_index=False)),
-        #('table-col-cg', dict(uri='table:', key_format='r', value_format='S',
-        #       use_cg=True, use_index=False)),
+        ('file-row', dict(uri='file:', key_format='i', value_format='S')),
+        ('file-col', dict(uri='file:', key_format='r', value_format='S')),
+        ('file-col-fix', dict(uri='file:', key_format='r', value_format='8t')),
+        ('lsm', dict(uri='lsm:', key_format='i', value_format='S')),
+        ('table-row', dict(uri='table:', key_format='i', value_format='S')),
+        ('table-col', dict(uri='table:', key_format='r', value_format='S')),
+        ('table-col-fix', dict(uri='table:', key_format='r', value_format='8t')),
     ]
 
     ckpt = [
