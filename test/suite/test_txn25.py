@@ -34,7 +34,7 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 class test_txn25(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=50MB,log=(enabled)'
+    conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
 
     format_values = [
