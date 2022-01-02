@@ -57,14 +57,16 @@ class test_prepare15(wttest.WiredTigerTestCase):
         config = 'cache_size=50MB'
         if self.in_memory:
             config += ',in_memory=true'
-        else:
-            config += ',in_memory=false'
         return config
 
     def test_prepare_hs_update_and_tombstone(self):
-        # Create a table without logging.
+        # Create a table without logging. Set explicitly because we're testing in-memory tables and
+        # WiredTiger selects for checkpoint durability based on whether or not logging is enabled
+        # for the table. So, even though we didn't configure logging for the database, we still turn
+        # it off for the table.
         uri = "table:prepare15"
-        create_config = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        create_config='log=(enabled=false),' +\
+            'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_config)
 
         # Pin oldest and stable timestamps to 10.
@@ -147,9 +149,13 @@ class test_prepare15(wttest.WiredTigerTestCase):
         self.session.commit_transaction()
 
     def test_prepare_hs_update(self):
-        # Create a table without logging.
+        # Create a table without logging. Set explicitly because we're testing in-memory tables and
+        # WiredTiger selects for checkpoint durability based on whether or not logging is enabled
+        # for the table. So, even though we didn't configure logging for the database, we still turn
+        # it off for the table.
         uri = "table:prepare15"
-        create_config = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        create_config='log=(enabled=false),' +\
+            'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_config)
 
         # Pin oldest and stable timestamps to 10.
@@ -250,9 +256,13 @@ class test_prepare15(wttest.WiredTigerTestCase):
         self.session.commit_transaction()
 
     def test_prepare_no_hs(self):
-        # Create a table without logging.
+        # Create a table without logging. Set explicitly because we're testing in-memory tables and
+        # WiredTiger selects for checkpoint durability based on whether or not logging is enabled
+        # for the table. So, even though we didn't configure logging for the database, we still turn
+        # it off for the table.
         uri = "table:prepare15"
-        create_config = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        create_config='log=(enabled=false),' +\
+            'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_config)
 
         # Pin oldest and stable timestamps to 10.
