@@ -133,7 +133,7 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
         # for the table. So, even though we didn't configure logging for the database, we still turn
         # it off for the table.
         create_params = 'log=(enabled=false),' +\
-            key_format={},value_format={}'.format(self.key_format, self.value_format)
+            'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 
         # Pin oldest and stable to timestamp 1.
