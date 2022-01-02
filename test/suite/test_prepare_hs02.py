@@ -74,7 +74,7 @@ class test_prepare_hs02(wttest.WiredTigerTestCase, suite_subprocess):
         if self.txn_commit == True:
             self.session.commit_transaction(
                 'commit_timestamp=' + self.timestamp_str(101) +\
-		',durable_timestamp=' + self.timestamp_str(101))
+                ',durable_timestamp=' + self.timestamp_str(101))
         else:
             self.session.rollback_transaction()
 
@@ -97,7 +97,7 @@ class test_prepare_hs02(wttest.WiredTigerTestCase, suite_subprocess):
         if self.txn_commit == True:
             self.session.commit_transaction(
                 'commit_timestamp=' + self.timestamp_str(201) +\
-		',durable_timestamp=' + self.timestamp_str(201))
+                ',durable_timestamp=' + self.timestamp_str(201))
         else:
             self.session.rollback_transaction()
 
@@ -125,7 +125,7 @@ class test_prepare_hs02(wttest.WiredTigerTestCase, suite_subprocess):
         if self.txn_commit == True:
             self.session.commit_transaction(
                 'commit_timestamp=' + self.timestamp_str(301) +\
-		',durable_timestamp=' + self.timestamp_str(301))
+                ',durable_timestamp=' + self.timestamp_str(301))
         else:
             self.session.rollback_transaction()
 
@@ -164,7 +164,7 @@ class test_prepare_hs02(wttest.WiredTigerTestCase, suite_subprocess):
         if self.txn_commit == True:
             self.session.commit_transaction(
                 'commit_timestamp=' + self.timestamp_str(401) +\
-		',durable_timestamp=' + self.timestamp_str(401))
+                ',durable_timestamp=' + self.timestamp_str(401))
         else:
             self.session.rollback_transaction()
 
