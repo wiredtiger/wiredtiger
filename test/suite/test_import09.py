@@ -164,7 +164,7 @@ class test_import09(test_import_base):
         self.copy_file(original_db_table + '.wt', '.', newdir)
 
         # Construct the config string.
-        import_config = 'log=(enabled=true),import=(enabled,repair=true)'
+        import_config = 'import=(enabled,repair=true)'
 
         # Import the file.
         self.session.create(uri, import_config)
