@@ -54,8 +54,7 @@ class test_rollback_to_stable27(test_rollback_to_stable_base):
     def conn_config(self):
         if self.in_memory:
             return 'in_memory=true'
-        else:
-            return 'in_memory=false'
+        return ''
 
     # Evict the page to force reconciliation.
     def evict(self, uri, key, check_value):
@@ -70,10 +69,13 @@ class test_rollback_to_stable27(test_rollback_to_stable_base):
     def test_rollback_to_stable(self):
         nrows = 10
 
-        # Create a table without logging.
+        # Create a table without logging. Set explicitly because we're testing in-memory tables and
+        # WiredTiger selects for checkpoint durability based on whether or not logging is enabled
+        # for the table. So, even though we didn't configure logging for the database, we still turn
+        # it off for the table.
         uri = "table:rollback_to_stable27"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format="S",
+            config='log=(enabled=false)')
         ds.populate()
 
         value_a = "aaaaa" * 10

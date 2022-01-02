@@ -71,17 +71,17 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         config = 'cache_size=100MB,statistics=(all)'
         if self.in_memory:
             config += ',in_memory=true'
-        else:
-            config += ',log=(enabled),in_memory=false'
         return config
 
     def test_rollback_to_stable(self):
         nrows = 10000
 
-        # Create a table without logging.
+        # Create a table without logging. Set explicitly because we're testing in-memory tables and
+        # WiredTiger selects for checkpoint durability based on whether or not logging is enabled
+        # for the table. So, even though we didn't configure logging for the database, we still turn
+        # it off for the table.
         uri = "table:rollback_to_stable02"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format,
             config='log=(enabled=false)' + self.extraconfig)
         ds.populate()
 
