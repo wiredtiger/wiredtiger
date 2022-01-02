@@ -57,7 +57,7 @@ class test_timestamp19(wttest.WiredTigerTestCase):
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format="S"')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format="S")
         ds.populate()
 
         nrows = 1000
