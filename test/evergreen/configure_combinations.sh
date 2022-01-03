@@ -58,7 +58,7 @@ BuildTest() {
         rm -rf ./build || return 1
         mkdir build || return 1
         cd ./build
-        eval $CMAKE_BIN $extra_config "$1" "$2" \
+        eval $CMAKE_BIN "$1" "$2" \
                  -DCMAKE_INSTALL_PREFIX="$insdir" -G $GENERATOR ../. || return 1
         eval $GENERATOR_CMD $PARALLEL || return 1
         if [ "$GENERATOR" == "Unix\ Makefiles" ]; then
