@@ -299,8 +299,8 @@ functions:
         set -o errexit
         set -o verbose
         . test/evergreen/find_cmake.sh
-        cd cmake_build
-        ${test_env_vars|} cd ${directory};$CTEST ${smp_command|} --output-on-failure 2>&1
+        cd cmake_build/${directory}
+        ${test_env_vars|} $CTEST ${smp_command|} --output-on-failure 2>&1
   "make check all":
     command: shell.exec
     params:
