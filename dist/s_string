@@ -59,7 +59,7 @@ while :
 		for f in $l; do
 			replace $f
 		done | sort -u > $t
-		cp $t s_string.okgi
+		cp $t s_string.ok
 		shift;;
 	*)
 		test "$#" -eq 0 || usage
