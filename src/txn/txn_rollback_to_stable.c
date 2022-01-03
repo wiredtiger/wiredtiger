@@ -1298,13 +1298,8 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
       FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ? "true" : "false",
       !F_ISSET(btree, WT_BTREE_NO_LOGGING) ? "true" : "false");
 
-    /*
-     * Immediately durable files don't get their commits wiped. This case mostly exists to support
-     * the semantic required for the oplog in MongoDB - updates that have been made to the oplog
-     * should not be aborted. It also wouldn't be safe to roll back updates for any table that had
-     * its records logged: those updates would be recovered after a crash, making them inconsistent.
-     */
-    if (__wt_btree_immediately_durable(session))
+    /* Immediately durable files don't get their commits wiped. */
+    if (__wt_btree_immediately_durable(session, NULL))
         return (0);
 
     /* There is never anything to do for checkpoint handles. */
