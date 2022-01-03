@@ -2034,13 +2034,9 @@ tasks:
   - name: compatibility-test-upgrade-to-latest
     commands:
       - func: "get project"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger"
-          script: |
-            set -o errexit
-            set -o verbose
-            test/evergreen/compatibility_test_for_releases.sh -u
+      - func: "compatibility test"
+        vars:
+          compat_test_args: -u
 
   - name: compatibility-test-for-wt-standalone-releases
     commands:
