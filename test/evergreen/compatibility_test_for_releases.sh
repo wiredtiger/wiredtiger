@@ -230,7 +230,7 @@ verify_branches()
 
         wt_bin="build/wt"
         for am in $3; do
-            echo "$wt_bin verifying $2 access method $am..."
+            echo "$1/$wt_bin verifying $2 access method $am..."
             dir="$2/build/test/format/RUNDIR.$am"
             WIREDTIGER_CONFIG="$EXT" ./$wt_bin $(bflag $1) -h "../$dir" verify table:wt
 
