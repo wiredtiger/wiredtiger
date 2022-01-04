@@ -129,7 +129,7 @@ out:
  * such that foward is not allowed (load-hit-store) the group must be flushed.
  * A group ending NOP prevents the flush.
  */
-#define GROUP_ENDING_NOP asm("ori 2,2,0" ::: "memory")
+#define GROUP_ENDING_NOP __asm__("ori 2,2,0" ::: "memory")
 
 #if defined(__BIG_ENDIAN__) && defined(REFLECT)
 #define BYTESWAP_DATA
