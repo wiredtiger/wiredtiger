@@ -314,7 +314,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     WT_TIME_WINDOW tw;
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size, modify_cnt;
-    uint32_t i;
+    uint32_t hs_cursor_flags, i;
     uint8_t *p;
     int nentries;
     bool enable_reverse_modify, error_on_ooo_ts, hs_inserted, squashed;
@@ -328,6 +328,10 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
 
     if (r->hs_cursor == NULL)
         WT_RET(__wt_curhs_open(session, NULL, &r->hs_cursor));
+
+    /* Store the hs cursor flags and only set those relevant to the lifecycle of the function. */
+    hs_cursor_flags = r->hs_cursor->flags;
+    r->hs_cursor->flags = 0;
     F_SET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     __wt_update_vector_init(session, &updates);
@@ -779,7 +783,9 @@ err:
     __wt_scr_free(session, &full_value);
     __wt_scr_free(session, &prev_full_value);
 
-    F_CLR(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    /* Reset the hs cursor flags to their previous state. */
+    r->hs_cursor->flags = hs_cursor_flags;
+
     return (ret);
 }
 
