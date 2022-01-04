@@ -69,10 +69,12 @@ class test_hs29(wttest.WiredTigerTestCase):
         # Perform eviction.
         cursor2.set_key('1')
         self.assertEqual(cursor2.search(), 0)
+        self.assertEqual(cursor2.get_value(), '11')
         self.assertEqual(cursor2.reset(), 0)
 
         cursor2.set_key('2')
         self.assertEqual(cursor2.search(), 0)
+        self.assertEqual(cursor2.get_value(), '22')
         self.assertEqual(cursor2.reset(), 0)
 
         # Remove the first key without giving a ts.
