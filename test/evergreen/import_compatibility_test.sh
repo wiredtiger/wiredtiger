@@ -48,7 +48,7 @@ create_file()
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
     wt_cmd="$1/build/wt"
-    test_dir="$1/WT_TEST/"
+    test_dir="$1/build/WT_TEST/"
     uri="file:$2"
 
     # Make the home directory.
@@ -70,11 +70,11 @@ import_file()
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
     wt_cmd="$1/build/wt"
-    test_dir="$1/WT_TEST/"
+    test_dir="$1/build/WT_TEST/"
     mkdir -p $test_dir
 
     # Move the file across to the destination branch's home directory.
-    import_file="$2/WT_TEST/$3"
+    import_file="$2/build/WT_TEST/$3"
     cp $import_file $test_dir
 
     # Run import via the wt tool.
@@ -92,7 +92,7 @@ verify_file()
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
     wt_cmd="$1/build/wt"
-    test_dir="$1/WT_TEST/"
+    test_dir="$1/build/WT_TEST/"
     uri="file:$2"
 
     $wt_cmd -h $test_dir verify $uri
@@ -102,7 +102,7 @@ verify_file()
 #     1: branch
 cleanup_branch()
 {
-    test_dir="$1/WT_TEST/"
+    test_dir="$1/build/WT_TEST/"
     if [ -d $test_dir ]; then
         rm -rf $test_dir
     fi
@@ -132,8 +132,8 @@ import_compatibility_test()
     #
     # Before trying this, we must remove the base configuration. The wt tool produces this file
     # however MongoDB will not so we should emulate this.
-    rm $1/WT_TEST/WiredTiger.basecfg
-    $2/build/wt -h $1/WT_TEST/ dump file:test_import
+    rm $1/build/WT_TEST/WiredTiger.basecfg
+    $2/build/wt -h $1/build/WT_TEST/ dump file:test_import
 }
 
 # The following associative array maps the 'official' build system to use for each branch.
