@@ -219,7 +219,7 @@ workload_compact(const char *home, const char *table_config, const char *uri)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    char tscfg[64];
+    char compact_file[2048], tscfg[64];
 
     testutil_check(wiredtiger_open(home, NULL, conn_config, &conn));
 
@@ -262,6 +262,13 @@ workload_compact(const char *home, const char *table_config, const char *uri)
      * end of the file. Checkpoint the changes after the removal.
      */
     remove_records(session, uri, 60);
+
+    /*
+     * Create the compact_started file so that the parent process can start its timer.
+     */
+    testutil_check(__wt_snprintf(compact_file, sizeof(compact_file), compact_file_fmt, home));
+    testutil_assert_errno((fp = fopen(compact_file, "w")) != NULL);
+    testutil_assert_errno(fclose(fp) == 0);
 
     run_compact(session, uri);
 }

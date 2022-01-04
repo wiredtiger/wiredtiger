@@ -232,10 +232,7 @@ __compact_worker(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     u_int i, loop;
     bool another_pass;
-#ifdef HAVE_DIAGNOSTIC
-    char compact_file[1024];
-    FILE *fp;
-#endif
+
     /*
      * Reset the handles' compaction skip flag (we don't bother setting or resetting it when we
      * finish compaction, it's simpler to do it once, here).
@@ -247,16 +244,6 @@ __compact_worker(WT_SESSION_IMPL *session)
      * Perform an initial checkpoint (see this file's leading comment for details).
      */
     WT_ERR(__compact_checkpoint(session));
-
-#ifdef HAVE_DIAGNOSTIC
-    /*
-     * Create the compact_started file so that the test can start its timer.
-     */
-    WT_ERR(
-      __wt_snprintf(compact_file, sizeof(compact_file), "%s/compact_started", S2C(session)->home));
-    WT_ERR((fp = fopen(compact_file, "w")) == NULL);
-    WT_ERR(fclose(fp) != 0);
-#endif
 
     /*
      * We compact 10% of a file on each pass (but the overall size of the file is decreasing each
