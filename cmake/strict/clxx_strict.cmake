@@ -1,12 +1,4 @@
-#
-# Public Domain 2014-present MongoDB, Inc.
-# Public Domain 2008-2014 WiredTiger, Inc.
-#  All rights reserved.
-#
-# See the file LICENSE for redistribution information.
-#
-
-include(cmake/strict/strict_flags_helpers.cmake)
+ include(cmake/strict/strict_flags_helpers.cmake)
 
 # Get common CL flags.
 set(clxx_flags)
