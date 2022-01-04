@@ -317,7 +317,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     uint32_t i;
     uint8_t *p;
     int nentries;
-    bool enable_reverse_modify, error_on_ooo_ts, hs_inserted, squashed;
+    bool cur_hs_read_committed, enable_reverse_modify, error_on_ooo_ts, hs_inserted, squashed;
 
     error_on_ooo_ts = F_ISSET(r, WT_REC_CHECKPOINT_RUNNING);
     r->cache_write_hs = false;
@@ -328,7 +328,11 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
 
     if (r->hs_cursor == NULL)
         WT_RET(__wt_curhs_open(session, NULL, &r->hs_cursor));
-    F_SET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+
+    cur_hs_read_committed = F_ISSET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+
+    if (!cur_hs_read_committed)
+        F_SET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     __wt_update_vector_init(session, &updates);
     /*
@@ -779,7 +783,10 @@ err:
     __wt_scr_free(session, &full_value);
     __wt_scr_free(session, &prev_full_value);
 
-    F_CLR(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    /* Unset the flag if it was not set prior to this function. */
+    if (!cur_hs_read_committed)
+        F_CLR(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+
     return (ret);
 }
 
