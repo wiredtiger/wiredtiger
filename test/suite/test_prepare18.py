@@ -25,35 +25,28 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-#
-# test_empty_value.py
-#       Smoke test empty row-store values.
 
-from wiredtiger import stat
-import wiredtiger, wttest, unittest
+import wiredtiger, wttest
+from wtdataset import SimpleDataSet
 
-# Smoke test empty row-store values.
-class test_row_store_empty_values(wttest.WiredTigerTestCase):
-    conn_config = 'statistics=(all)'
+# test_prepare18.py
+#    Test that prepare on a logged file returns an error.
+class test_prepare18(wttest.WiredTigerTestCase):
+    conn_config = 'log=(enabled)'
 
-    # Smoke test empty row-store values.
-    def test_row_store_empty_values(self):
-        nentries = 25000
-        uri = 'file:test_empty_values'          # This is a btree layer test.
-
-        # Create the object, open the cursor, insert some records with zero-length values.
-        self.session.create(uri, 'key_format=S,value_format=u')
+    def test_prepare18(self):
+        uri = "table:prepare18"
+        ds = SimpleDataSet(self, uri, 100, key_format='S', value_format='S')
+        ds.populate()
         cursor = self.session.open_cursor(uri, None)
-        for i in range(1, nentries + 1):
-            cursor[str(i)] = b''
-        cursor.close()
-
-        # Reopen to force the object to disk.
-        self.reopen_conn()
-
-        # Confirm the values weren't stored.
-        cursor = self.session.open_cursor('statistics:' + uri, None, 'statistics=(tree_walk)')
-        self.assertEqual(cursor[stat.dsrc.btree_row_empty_values][2], nentries)
+        self.session.begin_transaction()
+        cursor[ds.key(10)] = ds.value(20)
+        self.session.commit_transaction()
+        self.session.begin_transaction()
+        cursor[ds.key(10)] = ds.value(20)
+        msg='/a prepared transaction cannot include a logged table/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda:self.session.prepare_transaction('prepare_timestamp=1'), msg)
 
 if __name__ == '__main__':
     wttest.run()
