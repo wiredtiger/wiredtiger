@@ -4303,7 +4303,6 @@ buildvariants:
     make_command: ninja
   tasks:
     - name: compile
-    - name: make-check-test
     - name: unit-test
     - name: format-smoke-test
     - name: format-asan-smoke-ppc-test
@@ -4334,7 +4333,6 @@ buildvariants:
     make_command: ninja
   tasks:
     - name: compile
-    - name: make-check-test
     - name: unit-test
     - name: format-smoke-test
     - name: ".stress-test-zseries-1"
