@@ -443,39 +443,39 @@ upgrade_downgrade()
 #############################################################
 test_upgrade_to_branch()
 {
-        cd $1/test/checkpoint
+    cd $1/test/checkpoint
 
-        for FILE in $2/*; do
-            # Run actual test.
-            echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-            echo "Upgrading $FILE database to $1..."
+    for FILE in $2/*; do
+        # Run actual test.
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+        echo "Upgrading $FILE database to $1..."
 
-            # Disable exit on non 0
-            set +e
+        # Disable exit on non 0
+        set +e
 
-            output="$(./t -t r -D -v -h $FILE)"
-            test_res=$?
+        output="$(./t -t r -D -v -h $FILE)"
+        test_res=$?
 
-            # Enable exit on non 0
-            set -e
+        # Enable exit on non 0
+        set -e
 
-            # Validate test result.
-            if [[ "$FILE" =~ "4.4."[0-6]"_unclean"$ ]]; then
-                echo "Databases generated with unclean shutdown from versions 4.4.[0-6] must fail."
-                if [[ "$test_res" == 0 ]]; then
-                    echo "$output"
-                    echo "Error: Upgrade of $FILE database to $1 has not failed!"
-                    exit 1
-                fi
-            elif [[ "$test_res" != 0 ]]; then
+        # Validate test result.
+        if [[ "$FILE" =~ "4.4."[0-6]"_unclean"$ ]]; then
+            echo "Databases generated with unclean shutdown from versions 4.4.[0-6] must fail."
+            if [[ "$test_res" == 0 ]]; then
                 echo "$output"
-                echo "Error: Upgrade of $FILE database to $1 failed! Test result is $test_res."
+                echo "Error: Upgrade of $FILE database to $1 has not failed!"
                 exit 1
             fi
+        elif [[ "$test_res" != 0 ]]; then
+            echo "$output"
+            echo "Error: Upgrade of $FILE database to $1 failed! Test result is $test_res."
+            exit 1
+        fi
 
-            echo "Success!"
-            echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        done
+        echo "Success!"
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    done
 }
 
 #############################################################
@@ -483,14 +483,14 @@ test_upgrade_to_branch()
 #############################################################
 prepare_test_data_wt_8395()
 {
-        echo "Preparing test data..."
-        git clone --quiet --depth 1 --filter=blob:none --no-checkout https://github.com/wiredtiger/mongo-tests.git
-        cd mongo-tests
-        git checkout --quiet master -- WT-8395 &> /dev/null
-        cd WT-8395
+    echo "Preparing test data..."
+    git clone --quiet --depth 1 --filter=blob:none --no-checkout https://github.com/wiredtiger/mongo-tests.git
+    cd mongo-tests
+    git checkout --quiet master -- WT-8395 &> /dev/null
+    cd WT-8395
 
-        for FILE in *; do tar -zxf $FILE; done
-        rm *.tar.gz; cd ../..
+    for FILE in *; do tar -zxf $FILE; done
+    rm *.tar.gz; cd ../..
 }
 
 # Only one of below flags will be set by the 1st argument of the script.
