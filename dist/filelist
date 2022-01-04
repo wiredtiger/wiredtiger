@@ -14,6 +14,7 @@ src/block/block_tiered.c
 src/block/block_vrfy.c
 src/block/block_write.c
 src/block_cache/block_cache.c
+src/block_cache/block_io.c
 src/block_cache/block_map.c
 src/block_cache/block_mgr.c
 src/bloom/bloom.c
@@ -27,7 +28,6 @@ src/btree/bt_discard.c
 src/btree/bt_handle.c
 src/btree/bt_huffman.c
 src/btree/bt_import.c
-src/btree/bt_io.c
 src/btree/bt_misc.c
 src/btree/bt_ovfl.c
 src/btree/bt_page.c
@@ -50,6 +50,7 @@ src/btree/row_srch.c
 src/checksum/arm64/crc32-arm64.c	ARM64_HOST
 src/checksum/power8/crc32.sx		POWERPC_HOST
 src/checksum/power8/crc32_wrapper.c	POWERPC_HOST
+src/checksum/riscv64/crc32-riscv64.c	RISCV64_HOST
 src/checksum/software/checksum.c
 src/checksum/x86/crc32-x86-alt.c	X86_HOST
 src/checksum/x86/crc32-x86.c		X86_HOST
@@ -101,7 +102,6 @@ src/evict/evict_stat.c
 src/history/hs_conn.c
 src/history/hs_cursor.c
 src/history/hs_rec.c
-src/history/hs_verify.c
 src/log/log.c
 src/log/log_auto.c
 src/log/log_slot.c
@@ -200,7 +200,6 @@ src/support/global.c
 src/support/hash_city.c
 src/support/hash_fnv.c
 src/support/hazard.c
-src/support/hazard_weak.c
 src/support/hex.c
 src/support/huffman.c
 src/support/lock_ext.c

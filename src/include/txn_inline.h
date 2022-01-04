@@ -716,8 +716,9 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
     if (txn->isolation == WT_ISO_READ_UNCOMMITTED)
         return (true);
 
-    /* Otherwise, we should be called with a snapshot. */
-    WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) || session->dhandle->checkpoint != NULL);
+    /* Otherwise, we need a snapshot; if we don't have one, assume a test for global visibility. */
+    if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
+        return (__txn_visible_all_id(session, id));
 
     return (__wt_txn_visible_id_snapshot(
       id, txn->snap_min, txn->snap_max, txn->snapshot, txn->snapshot_count));
@@ -1133,9 +1134,6 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 
         __wt_txn_get_snapshot(session);
     }
-
-    /* Disable the feature to resolve uncommitted updates during commit/rollback. */
-    txn->resolve_weak_hazard_updates = false;
 
     F_SET(txn, WT_TXN_RUNNING);
     if (F_ISSET(S2C(session), WT_CONN_READONLY))

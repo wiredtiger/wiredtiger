@@ -7,6 +7,7 @@
 #
 
 include(cmake/helpers.cmake)
+include(cmake/configs/version.cmake)
 
 # WiredTiger-related configuration options.
 
@@ -18,6 +19,7 @@ config_choice(
         "aarch64;WT_AARCH64;"
         "ppc64le;WT_PPC64;"
         "s390x;WT_S390X;"
+        "riscv64;WT_RISCV64;"
 )
 
 config_choice(
@@ -199,27 +201,25 @@ config_string(
 config_string(
     VERSION_MAJOR
     "Major version number for WiredTiger"
-    DEFAULT 10
+    DEFAULT ${WT_VERSION_MAJOR}
 )
 
 config_string(
     VERSION_MINOR
     "Minor version number for WiredTiger"
-    DEFAULT 0
+    DEFAULT ${WT_VERSION_MINOR}
 )
 
 config_string(
     VERSION_PATCH
     "Path version number for WiredTiger"
-    DEFAULT 1
+    DEFAULT ${WT_VERSION_PATCH}
 )
 
-
-string(TIMESTAMP config_date "%Y-%m-%d")
 config_string(
     VERSION_STRING
     "Version string for WiredTiger"
-    DEFAULT "\"WiredTiger ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH} (${config_date})\""
+    DEFAULT "\"${WT_VERSION_STRING}\""
 )
 
 if(HAVE_DIAGNOSTIC AND (NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug"))

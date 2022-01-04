@@ -8,8 +8,9 @@
 
 #include "wt_internal.h"
 
-#define WT_CHECK_RECOVERY_FLAG_TXNID(session, txnid) \
-    (F_ISSET(S2C(session), WT_CONN_RECOVERING) && (txnid) >= S2C(session)->recovery_ckpt_snap_min)
+#define WT_CHECK_RECOVERY_FLAG_TXNID(session, txnid)                                           \
+    (F_ISSET(S2C(session), WT_CONN_RECOVERING) && S2C(session)->recovery_ckpt_snap_min != 0 && \
+      (txnid) >= S2C(session)->recovery_ckpt_snap_min)
 
 /* Enable rollback to stable verbose messaging during recovery. */
 #define WT_VERB_RECOVERY_RTS(session)                                                              \
@@ -100,7 +101,6 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
 
             upd->txnid = WT_TXN_ABORTED;
             WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
-            upd->durable_ts = upd->start_ts = WT_TS_NONE;
         } else {
             /* Valid update is found. */
             stable_upd = upd;
@@ -892,9 +892,6 @@ stop:
     if ((inshead = WT_COL_APPEND(page)) != NULL)
         WT_RET(__rollback_abort_insert_list(session, page, inshead, rollback_timestamp, NULL));
 
-    /* Mark the page as dirty to reconcile the page. */
-    if (page->modify)
-        __wt_page_modify_set(session, page);
     return (0);
 }
 
@@ -995,9 +992,6 @@ __rollback_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
     if ((inshead = WT_COL_APPEND(page)) != NULL)
         WT_RET(__rollback_abort_insert_list(session, page, inshead, rollback_timestamp, NULL));
 
-    /* Mark the page as dirty to reconcile the page. */
-    if (page->modify)
-        __wt_page_modify_set(session, page);
     return (0);
 }
 
@@ -1055,10 +1049,6 @@ __rollback_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
               session, ref, rip, 0, have_key ? key : NULL, vpack, rollback_timestamp, NULL));
         }
     }
-
-    /* Mark the page as dirty to reconcile the page. */
-    if (page->modify)
-        __wt_page_modify_set(session, page);
 
 err:
     __wt_scr_free(session, &key);
@@ -1192,21 +1182,21 @@ __rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
     case WT_PAGE_COL_VAR:
         WT_RET(__rollback_abort_col_var(session, ref, rollback_timestamp));
         break;
-    case WT_PAGE_COL_INT:
-    case WT_PAGE_ROW_INT:
-        /*
-         * There is nothing to do for internal pages, since we aren't rolling back far enough to
-         * potentially include reconciled changes - and thus won't need to roll back structure
-         * changes on internal pages.
-         */
-        break;
     case WT_PAGE_ROW_LEAF:
         WT_RET(__rollback_abort_row_leaf(session, ref, rollback_timestamp));
         break;
+    case WT_PAGE_COL_INT:
+    case WT_PAGE_ROW_INT:
+        /* This function is not called for internal pages. */
+        WT_ASSERT(session, false);
+        /* Fall through. */
     default:
         WT_RET(__wt_illegal_value(session, page->type));
     }
 
+    /* Mark the page as dirty to reconcile the page. */
+    if (page->modify)
+        __wt_page_modify_set(session, page);
     return (0);
 }
 
@@ -1329,6 +1319,52 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
 }
 
 /*
+ * __txn_user_active --
+ *     Return if there are any running user transactions.
+ */
+static bool
+__txn_user_active(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_SESSION_IMPL *session_in_list;
+    uint32_t i, session_cnt;
+    bool txn_active;
+
+    conn = S2C(session);
+    txn_active = false;
+
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+
+    /*
+     * WT_TXN structures are allocated and freed as sessions are activated and closed. Lock the
+     * session open/close to ensure we don't race. This call is a rarely used RTS-only function,
+     * acquiring the lock shouldn't be an issue.
+     */
+    __wt_spin_lock(session, &conn->api_lock);
+
+    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    for (i = 0, session_in_list = conn->sessions; i < session_cnt; i++, session_in_list++) {
+
+        /* Skip inactive or internal sessions. */
+        if (!session_in_list->active || F_ISSET(session_in_list, WT_SESSION_INTERNAL))
+            continue;
+
+        /* Check if a user session has a running transaction. */
+        if (F_ISSET(session_in_list->txn, WT_TXN_RUNNING)) {
+            txn_active = true;
+            break;
+        }
+    }
+    __wt_spin_unlock(session, &conn->api_lock);
+
+    /*
+     * A new transaction may start after we return from this call and callers should be aware of
+     * this limitation.
+     */
+    return (txn_active);
+}
+
+/*
  * __rollback_to_stable_check --
  *     Ensure the rollback request is reasonable.
  */
@@ -1342,7 +1378,7 @@ __rollback_to_stable_check(WT_SESSION_IMPL *session)
      * Help the user comply with the requirement that there are no concurrent user operations. It is
      * okay to have a transaction in prepared state.
      */
-    txn_active = __wt_txn_user_active(session);
+    txn_active = __txn_user_active(session);
 #ifdef HAVE_DIAGNOSTIC
     if (txn_active)
         WT_TRET(__wt_verbose_dump_txn(session));
@@ -1448,9 +1484,15 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
 
     /*
      * The rollback operation should be performed on the history store file when the checkpoint
-     * durable start/stop timestamp is greater than the rollback timestamp.
+     * durable start/stop timestamp is greater than the rollback timestamp. But skip if there is no
+     * stable timestamp.
+     *
+     * Note that the corresponding code in __rollback_to_stable_btree_apply also checks whether
+     * there _are_ timestamped updates by checking max_durable_ts; that check is redundant here for
+     * several reasons, the most immediate being that max_durable_ts cannot be none (zero) because
+     * it's greater than rollback_timestamp, which is itself greater than zero.
      */
-    if (max_durable_ts > rollback_timestamp) {
+    if (max_durable_ts > rollback_timestamp && rollback_timestamp != WT_TS_NONE) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           "tree rolled back with durable timestamp: %s",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]));
@@ -1504,7 +1546,6 @@ __rollback_to_stable_btree_apply(
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, value, key;
     WT_DECL_RET;
-    WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t max_durable_ts, newest_start_durable_ts, newest_stop_durable_ts;
     size_t addr_size;
     uint64_t rollback_txnid, write_gen;
@@ -1517,7 +1558,6 @@ __rollback_to_stable_btree_apply(
     if (!WT_BTREE_PREFIX(uri) || strcmp(uri, WT_HS_URI) == 0 || strcmp(uri, WT_METAFILE_URI) == 0)
         return (0);
 
-    txn_global = &S2C(session)->txn_global;
     addr_size = 0;
     rollback_txnid = 0;
     write_gen = 0;
@@ -1584,8 +1624,7 @@ __rollback_to_stable_btree_apply(
      */
     if ((F_ISSET(S2C(session), WT_CONN_RECOVERING) ||
           F_ISSET(S2C(session), WT_CONN_CLOSING_TIMESTAMP)) &&
-      (addr_size == 0 ||
-        (txn_global->stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE))) {
+      (addr_size == 0 || (rollback_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE))) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           "skip rollback to stable on file %s because %s", uri,
           addr_size == 0 ? "its checkpoint address length is 0" :

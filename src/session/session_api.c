@@ -169,7 +169,7 @@ __wt_session_release_resources(WT_SESSION_IMPL *session)
 
     /* Reconciliation cleanup */
     if (session->reconcile_cleanup != NULL)
-        session->reconcile_cleanup(session);
+        WT_TRET(session->reconcile_cleanup(session));
 
     /* Stashed memory. */
     __wt_stash_discard(session);
@@ -191,8 +191,6 @@ __wt_session_release_resources(WT_SESSION_IMPL *session)
 static void
 __session_clear(WT_SESSION_IMPL *session)
 {
-    WT_HAZARD_WEAK_ARRAY *wha;
-
     /*
      * There's no serialization support around the review of the hazard array, which means threads
      * checking for hazard pointers first check the active field (which may be 0) and then use the
@@ -207,11 +205,6 @@ __session_clear(WT_SESSION_IMPL *session)
 
     session->hazard_inuse = 0;
     session->nhazard = 0;
-
-    for (wha = session->hazard_weak; wha != NULL; wha = wha->next) {
-        wha->hazard_inuse = 0;
-        wha->nhazard = 0;
-    }
 }
 
 /*
@@ -328,9 +321,6 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     /* Discard metadata tracking. */
     __wt_meta_track_discard(session);
 
-    /* Free transaction information. */
-    __wt_txn_destroy(session);
-
     /*
      * Close the file where we tracked long operations. Do this before releasing resources, as we do
      * scratch buffer management when we flush optrack buffers to disk.
@@ -350,6 +340,12 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
 
     /* The API lock protects opening and closing of sessions. */
     __wt_spin_lock(session, &conn->api_lock);
+
+    /*
+     * Free transaction information: inside the lock because we're freeing the WT_TXN structure and
+     * RTS looks at it.
+     */
+    __wt_txn_destroy(session);
 
     /* Decrement the count of open sessions. */
     WT_STAT_CONN_DECR(session, session_open);
@@ -2071,13 +2067,6 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         session_ret->hazard_size = WT_SESSION_INITIAL_HAZARD_SLOTS;
         session_ret->hazard_inuse = 0;
         session_ret->nhazard = 0;
-
-        WT_ERR(__wt_calloc(session, 1,
-          sizeof(WT_HAZARD_WEAK_ARRAY) + WT_SESSION_INITIAL_HAZARD_SLOTS * sizeof(WT_HAZARD_WEAK),
-          &session_ret->hazard_weak));
-        session_ret->hazard_weak->hazard_size = WT_SESSION_INITIAL_HAZARD_SLOTS;
-        session_ret->hazard_weak->hazard_inuse = 0;
-        session_ret->hazard_weak->nhazard = 0;
     }
 
     /*

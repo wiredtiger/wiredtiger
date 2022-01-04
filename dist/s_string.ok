@@ -130,11 +130,13 @@ ENCRYPTOR
 ENOENT
 ENOMEM
 ENOTSUP
+ENUM
 EOF
 ERET
 ESET
 ETIME
 ETIMEDOUT
+EVICTSERVER
 EXTLIST
 EXTSUBPATH
 Encryptor
@@ -144,6 +146,7 @@ Eron
 FALLOC
 FALLTHROUGH
 FH
+FILEOPS
 FIXME
 FLCS
 FLD
@@ -184,6 +187,7 @@ GetModuleHandleExW
 GetProcAddress
 Getters
 Google
+HANDLEOPS
 HFS
 HHHH
 HHHHLL
@@ -721,6 +725,7 @@ decrementing
 decrypt
 decrypted
 decrypting
+decryptor
 decrypts
 deflateCopy
 deflateEnd
@@ -1296,6 +1301,7 @@ ret
 retp
 revint
 rf
+risc
 rle
 rmw
 rng
@@ -1308,6 +1314,7 @@ rts
 ru
 run's
 runtime
+rw
 rwlock
 sH
 sHQ
@@ -1565,6 +1572,7 @@ zSeries
 zalloc
 zf
 zfree
+zihintpause
 zlib
 zlib's
 zseries
