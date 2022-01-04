@@ -37,7 +37,7 @@ echo `pwd`
 
 curdir=`pwd`
 
-flags="-DCMAKE_TOOLCHAIN_FILE=$curdir/cmake/toolchains/gcc.cmake -DCMAKE_C_FLAGS=\"-Werror -Wall -Wextra -Waddress -Waggregate-return -Wbad-function-cast -Wno-missing-field-initializers -Wno-cast-function-type -Wcast-align -Wformat-security -Wformat-nonliteral -Wformat=2 -Wnested-externs -Wno-unused-parameter -Wpointer-arith -Wredundant-decls  -Wundef -Wunused -Wwrite-strings -O -fno-strict-aliasing -Wuninitialized -Wno-discarded-qualifiers -Wno-incompatible-pointer-types -Wno-int-conversion -Wno-sign-conversion -Wno-pointer-sign -Wno-unused-variable\"
+flags="-DCMAKE_TOOLCHAIN_FILE=$curdir/cmake/toolchains/gcc.cmake -DCMAKE_C_FLAGS=\"-Werror -Wall -Wextra -Waddress -Waggregate-return -Wbad-function-cast -Wcast-align -Wdeclaration-after-statement -Wformat-security -Wformat-nonliteral -Wformat=2 -Wmissing-declarations -Wmissing-field-initializers -Wmissing-prototypes -Wnested-externs -Wno-unused-parameter -Wpointer-arith -Wredundant-decls -Wshadow -Wundef -Wunused -Wwrite-strings -O -fno-strict-aliasing -Wuninitialized\"
 -DCMAKE_TOOLCHAIN_FILE=$curdir/cmake/toolchains/clang.cmake -DCMAKE_C_FLAGS=\"-Wall -Werror -Qunused-arguments -Wno-self-assign -Wno-parentheses-equality -Wno-array-bounds\""
 
 options="-DHAVE_DIAGNOSTIC=1
