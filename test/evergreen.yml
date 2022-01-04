@@ -210,13 +210,13 @@ functions:
 
             # Java API is removed in newer branches via WT-6675.
             if [ $branch == "mongodb-4.2" ] || [ $branch == "mongodb-4.0" ]; then
-              cd build_posix
+              pushd build_posix
               sh reconf
               ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-java --enable-python --enable-strict
               (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
               (cd lang/java && make ../../../lang/java/wiredtiger_wrap.c)
             elif [ $branch == "mongodb-5.0" ] || [ $branch == "mongodb-4.4" ]; then
-              cd build_posix
+              pushd build_posix
               sh reconf
               ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-python --enable-strict
               (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
@@ -224,14 +224,16 @@ functions:
               . test/evergreen/find_cmake.sh
               if [ -d cmake_build ]; then rm -r cmake_build; fi
               mkdir -p cmake_build
-              cd cmake_build
+              pushd cmake_build
               $CMAKE -DCMAKE_C_FLAGS="-DMIGHT_NOT_RUN -Wno-error" -DENABLE_PYTHON=1 -DENABLE_STRICT=1 ../.
               make -C lang/python ${smp_command|}
             fi
-
-            (cd ../dist && sh s_docs && echo "The documentation for $branch was successfully generated.")
+            # Pop to root project directory.
+            popd
+            # Generate WiredTiger documentation.
+            (cd dist && sh s_docs && echo "The documentation for $branch was successfully generated.")
             # Save generated documentation
-            (cd .. && mv docs docs-$branch)
+            mv docs docs-$branch
           done
 
   "update wiredtiger docs":
