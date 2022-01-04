@@ -96,6 +96,11 @@ class test_rollback_to_stableXX(test_rollback_to_stable_base):
         cursor.close()
 
     def test_rollback_to_stable(self):
+        # RTS will fail if there are uncommitted prepared transactions, so skip tests of prepare
+        # with a runtime call to RTS, that doesn't add useful testing scenarios.
+        if self.prepare and not self.crash:
+            return
+
         nrows = 10000
 
         # Create a table without logging.
@@ -183,10 +188,6 @@ class test_rollback_to_stableXX(test_rollback_to_stable_base):
         if self.crash:
             simulate_crash_restart(self, ".", "RESTART")
         else:
-            if self.prepare:
-                session2.commit_transaction(\
-                    'commit_timestamp=' + self.timestamp_str(35) +
-                    ',durable_timestamp=' + self.timestamp_str(35))
             self.conn.rollback_to_stable()
 
         # We should see the original data at read-ts 20 and 30.
