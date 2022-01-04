@@ -1,4 +1,4 @@
- if(NOT HAVE_LIBTCMALLOC)
+if(NOT HAVE_LIBTCMALLOC)
     # We don't need to construct a tcmalloc library target.
     return()
 endif()

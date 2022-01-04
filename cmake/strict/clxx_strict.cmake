@@ -1,4 +1,4 @@
- include(cmake/strict/strict_flags_helpers.cmake)
+include(cmake/strict/strict_flags_helpers.cmake)
 
 # Get common CL flags.
 set(clxx_flags)
