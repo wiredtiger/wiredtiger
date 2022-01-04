@@ -50,16 +50,16 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.session.create(self.uri, 'key_format={},value_format={}'.format(self.keyformat, self.valueformat))
     
     def verify_value(self, version_cursor, expected_start_ts, expected_start_durable_ts, expected_stop_ts, expected_stop_durable_ts, expected_type, expected_prepare_state, expected_flags, expected_location, expected_value):
-        [_, start_ts, start_durable_ts, _, stop_ts, stop_durable_ts, type, prepare_state, flags, location, value] = version_cursor.get_values()
-        self.assertEquals(start_ts, expected_start_ts)
-        self.assertEquals(start_durable_ts, expected_start_durable_ts)
-        self.assertEquals(stop_ts, expected_stop_ts)
-        self.assertEquals(stop_durable_ts, expected_stop_durable_ts)
-        self.assertEquals(type, expected_type)
-        self.assertEquals(prepare_state, expected_prepare_state)
-        self.assertEquals(flags, expected_flags)
-        self.assertEquals(location, expected_location)
-        self.assertEquals(value, expected_value)
+        values = version_cursor.get_values()
+        self.assertEquals(values[1], expected_start_ts)
+        self.assertEquals(values[2], expected_start_durable_ts)
+        self.assertEquals(values[4], expected_stop_ts)
+        self.assertEquals(values[5], expected_stop_durable_ts)
+        self.assertEquals(values[6], expected_type)
+        self.assertEquals(values[7], expected_prepare_state)
+        self.assertEquals(values[8], expected_flags)
+        self.assertEquals(values[9], expected_location)
+        self.assertEquals(values[10], expected_value)
 
     def test_update_chain_only(self):
         self.create()

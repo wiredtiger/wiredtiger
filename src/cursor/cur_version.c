@@ -73,11 +73,11 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
     table_cursor = version_cursor->table_cursor;
     va_start(ap, cursor);
     if (F_ISSET(cursor, WT_CURSTD_RAW)) {
-        WT_ERR(__wt_cursor_get_valuev(cursor, VERSION_CURSOR_METADATA_FORMAT, ap));
-        WT_ERR(__wt_cursor_get_valuev(table_cursor, table_cursor->value_format, ap));
-    } else {
         WT_ERR(__wt_cursor_get_valuev(cursor, "u", ap));
         WT_ERR(__wt_cursor_get_valuev(table_cursor, "u", ap));
+    } else {
+        WT_ERR(__wt_cursor_get_valuev(cursor, VERSION_CURSOR_METADATA_FORMAT, ap));
+        WT_ERR(__wt_cursor_get_valuev(table_cursor, table_cursor->value_format, ap));
     }
 
 err:
@@ -185,8 +185,8 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
                   version_cursor->upd_stop_txnid, version_cursor->upd_stop_ts,
                   version_cursor->upd_durable_stop_ts, upd->type, version_prepare_state, upd->flags,
                   WT_VERSION_UPDATE_CHAIN);
-                cursor->value.data = cbt->upd_value->buf.data;
-                cursor->value.size = cbt->upd_value->buf.size;
+                table_cursor->value.data = cbt->upd_value->buf.data;
+                table_cursor->value.size = cbt->upd_value->buf.size;
 
                 version_cursor->upd_stop_txnid = upd->txnid;
                 version_cursor->upd_durable_stop_ts = upd->durable_ts;
@@ -290,7 +290,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
          */
         if (hs_upd_type == WT_UPDATE_MODIFY) {
             WT_ERR(__wt_modify_apply_item(
-              session, table_cursor->value_format, &cursor->value, hs_value.data));
+              session, table_cursor->value_format, &table_cursor->value, hs_value.data));
         } else {
             WT_ASSERT(session, hs_upd_type == WT_UPDATE_STANDARD);
             table_cursor->value.data = hs_value.data;

@@ -640,16 +640,20 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 	if (*$1)
 		$result = PyUnicode_FromStringAndSize(*$1, *$2);
 }
-%typemap(argout)(char **metadatap, int *metadatasizep, char **datap, int *datasizep)
-{
-    if (*$1 && *$3)
-        $result = (PyUnicode_FromStringAndSize(*$1, *$2), PyUnicode_FromStringAndSize(*$3, *$4));
-}
 
 %typemap(argout) (char **datap, int *sizep) {
 	if (*$1)
 		$result = PyBytes_FromStringAndSize(*$1, *$2);
- }
+}
+
+%typemap(argout)(char **metadatap, int *metadatasizep, char **datap, int *datasizep) (
+    PyObject *metadata, PyObject *data)
+{
+	metadata = PyBytes_FromStringAndSize(*$1, *$2);
+    $result = SWIG_Python_AppendOutput($result, metadata);
+	data = PyBytes_FromStringAndSize(*$3, *$4);
+    $result = SWIG_Python_AppendOutput($result, data);
+}
 
 /* Handle binary data input from FILE_HANDLE->fh_write. */
 %typemap(in,numinputs=1) (size_t length, const void *buf) (Py_ssize_t length, const void *buf = NULL) {
@@ -898,6 +902,11 @@ typedef int int_void;
 		@copydoc WT_CURSOR::get_value'''
 		if self.is_json:
 			return [self._get_json_value()]
+		elif self.is_version_cursor:
+			result = self._get_version_cursor_value()
+			metadata = unpack("QQQQQQBBBB", result[0])
+			data = unpack(self.value_format[10:], result[1])
+			return metadata + data
 		else:
 			return unpack(self.value_format, self._get_value())
 
@@ -912,7 +921,7 @@ typedef int int_void;
 		elif self.is_json:
 			self._set_key_str(args[0])
 		else:
-			# Keep the Python string pinned
+# Keep the Python string pinned
 			self._key = pack(self.key_format, *args)
 			self._set_key(self._key)
 
