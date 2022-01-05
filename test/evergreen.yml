@@ -324,6 +324,18 @@ functions:
           cd build_posix
           ${test_env_vars|} ${make_command|make} VERBOSE=1 check ${smp_command|} 2>&1
         fi
+
+  "cppsuite test":
+    command: shell.exec
+    params:
+      # The tests need to be executed in the cppsuite directory as some required libraries have
+      # their paths defined relative to this directory.
+      working_dir: "wiredtiger/build_posix/test/cppsuite"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} ./run -t ${test_name} -C '${test_config}' -f ${test_config_filename} -l 2
+
   "unit test":
     command: shell.exec
     params:
@@ -406,7 +418,7 @@ functions:
   "truncated log test":
     command: shell.exec
     params:
-      working_dir: "wiredtiger/build_posix/"
+      working_dir: "wiredtiger/build_posix"
       script: |
         set -o errexit
         set -o verbose
@@ -567,6 +579,15 @@ functions:
           done
         done
 
+  "compatibility test":
+    - command: shell.exec
+      params:
+        working_dir: "wiredtiger"
+        script: |
+          set -o errexit
+          set -o verbose
+          test/evergreen/compatibility_test_for_releases.sh ${compat_test_args}
+
   "run-perf-test":
     # Run a performance test
     # Parameterised using the 'perf-test-name' and 'maxruns' variables
@@ -587,6 +608,15 @@ functions:
           echo "JSON_TASK_INFO: $JSON_TASK_INFO"
           ${test_env_vars|} ${python_binary} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
           ${test_env_vars|} ${python_binary} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -re -o test_stats/atlas_out_${perf-test-name}.json ${wtarg}
+
+  "csuite smoke test":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} test/csuite/${test_binary}/smoke.sh ${test_args|} 2>&1
 
   "upload-perf-test-stats":
     - command: shell.exec
@@ -1001,14 +1031,11 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t base_test -C 'debug_mode=(cursor_copy=true)' -f test/cppsuite/configs/base_test_default.txt -l 2
+      - func: "cppsuite test"
+        vars:
+          test_config: debug_mode=(cursor_copy=true)
+          test_config_filename: configs/base_test_default.txt
+          test_name: base_test
 
   - name: cppsuite-hs-cleanup-default
     tags: ["pull_request"]
@@ -1016,14 +1043,11 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t hs_cleanup -C 'debug_mode=(cursor_copy=true)' -f test/cppsuite/configs/hs_cleanup_default.txt -l 2
+      - func: "cppsuite test"
+        vars:
+          test_config: debug_mode=(cursor_copy=true)
+          test_config_filename: configs/hs_cleanup_default.txt
+          test_name: hs_cleanup
 
   - name: cppsuite-search-near-01-default
     tags: ["pull_request"]
@@ -1031,14 +1055,10 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_01 -f test/cppsuite/configs/search_near_01_default.txt -l 2
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/search_near_01_default.txt
+          test_name: search_near_01
 
   - name: cppsuite-search-near-02-default
     tags: ["pull_request"]
@@ -1046,99 +1066,71 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/"
-          script: |
-            set -o errexit
-            set -o verbose
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/search_near_02_default.txt
+          test_name: search_near_02
 
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_02 -f test/cppsuite/configs/search_near_02_default.txt -l 2
-  
   - name: cppsuite-search-near-03-default
     tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_03 -f test/cppsuite/configs/search_near_03_default.txt -l 2
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/search_near_03_default.txt
+          test_name: search_near_03
 
   - name: cppsuite-base-test-stress
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/test/cppsuite"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/run -t base_test -f configs/base_test_stress.txt -l 2
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/base_test_stress.txt
+          test_name: base_test
 
   - name: cppsuite-hs-cleanup-stress
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/test/cppsuite"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/run -t hs_cleanup -f configs/hs_cleanup_stress.txt -l 2
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/hs_cleanup_stress.txt
+          test_name: hs_cleanup
   
   - name: cppsuite-search-near-01-stress
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_01 -f test/cppsuite/configs/search_near_01_stress.txt -l 2
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/search_near_01_stress.txt
+          test_name: search_near_01
 
   - name: cppsuite-search-near-02-stress
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_02 -f test/cppsuite/configs/search_near_02_stress.txt -l 2
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/search_near_02_stress.txt
+          test_name: search_near_02
 
   - name: cppsuite-search-near-03-stress
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_03 -f test/cppsuite/configs/search_near_03_stress.txt -l 2
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/search_near_03_stress.txt
+          test_name: search_near_03
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
@@ -1164,14 +1156,9 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/../test/csuite/random_abort/smoke.sh 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_binary: random_abort
 
   - name: csuite-random-directio-test
     tags: ["pull_request"]
@@ -1179,14 +1166,9 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/../test/csuite/random_directio/smoke.sh 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_binary: random_directio
 
   - name: csuite-schema-abort-test
     tags: ["pull_request"]
@@ -1194,14 +1176,9 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/../test/csuite/schema_abort/smoke.sh 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_binary: schema_abort
 
   - name: csuite-tiered-abort-test
     tags: ["pull_request"]
@@ -1209,14 +1186,9 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/../test/csuite/tiered_abort/smoke.sh 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_binary: tiered_abort
 
   - name: csuite-timestamp-abort-test
     tags: ["pull_request"]
@@ -1224,14 +1196,9 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_binary: timestamp_abort
 
   - name: csuite-timestamp-abort-stress-test
     tags: ["pull_request"]
@@ -1239,14 +1206,10 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh -s 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_args: -s
+          test_binary: timestamp_abort
 
   - name: csuite-scope-test
     tags: ["pull_request"]
@@ -2011,46 +1974,30 @@ tasks:
   - name: compatibility-test-for-newer-releases
     commands:
       - func: "get project"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger"
-          script: |
-            set -o errexit
-            set -o verbose
-            test/evergreen/compatibility_test_for_releases.sh -n
+      - func: "compatibility test"
+        vars:
+          compat_test_args: -n
 
   - name: compatibility-test-for-older-releases
     commands:
       - func: "get project"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger"
-          script: |
-            set -o errexit
-            set -o verbose
-            test/evergreen/compatibility_test_for_releases.sh -o
+      - func: "compatibility test"
+        vars:
+          compat_test_args: -o
 
   - name: compatibility-test-upgrade-to-latest
     commands:
       - func: "get project"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger"
-          script: |
-            set -o errexit
-            set -o verbose
-            test/evergreen/compatibility_test_for_releases.sh -u
+      - func: "compatibility test"
+        vars:
+          compat_test_args: -u
 
   - name: compatibility-test-for-wt-standalone-releases
     commands:
       - func: "get project"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger"
-          script: |
-            set -o errexit
-            set -o verbose
-            test/evergreen/compatibility_test_for_releases.sh -w
+      - func: "compatibility test"
+        vars:
+          compat_test_args: -w
 
   - name: import-compatibility-test
     commands:
@@ -2447,8 +2394,10 @@ tasks:
             set -o errexit
             set -o verbose
             # ${test_env_vars|} $(pwd)/../test/csuite/random_abort/smoke.sh 2>&1
-            ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
             ${test_env_vars|} $(pwd)/test/csuite/test_truncated_log 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_binary: timestamp_abort
 
   - name: long-test
     commands:
