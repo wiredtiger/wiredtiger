@@ -1695,7 +1695,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     wt_off_t size;
     size_t len;
     char buf[256];
-    bool bytelock, exist, is_create, match;
+    bool bytelock, exist, is_create, is_salvage, match;
 
     conn = S2C(session);
     fh = NULL;
@@ -1830,7 +1830,8 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
      * If the turtle file exists, the WiredTiger file should exist as well, unless we are salvaging.
      */
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
-    if (is_create && !cval.val && !conn->is_new) {
+    is_salvage = cval.val;
+    if (is_create && !is_salvage && !conn->is_new) {
         WT_ERR(__wt_fs_exist(session, WT_WIREDTIGER, &exist));
         if (!exist) {
             F_SET(conn, WT_CONN_DATA_CORRUPTION);
@@ -1880,7 +1881,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
      * Populate WiredTiger file if new connection or WiredTiger file is empty and we are salvaging.
      */
     WT_ERR(__wt_filesize(session, fh, &size));
-    if (conn->is_new || (cval.val && (size_t)size == 0)) {
+    if (conn->is_new || (is_salvage && (size_t)size == 0)) {
         if (F_ISSET(conn, WT_CONN_READONLY))
             WT_ERR_MSG(session, EINVAL,
               "The database directory is empty or needs recovery, cannot continue with a read only "
