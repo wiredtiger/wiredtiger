@@ -2389,17 +2389,16 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
      */
     WT_TRET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
     ckpt_cfg = "use_timestamp=false";
-    if (cval.val != 0) {
+    if (cval.val != 0)
         ckpt_cfg = "use_timestamp=true";
-        if (conn->txn_global.has_stable_timestamp)
-            F_SET(conn, WT_CONN_CLOSING_TIMESTAMP);
-    }
+
+    F_SET(conn, WT_CONN_CLOSING_CHECKPOINT);
     if (!F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY | WT_CONN_PANIC)) {
         /*
          * Perform rollback to stable to ensure that the stable version is written to disk on a
          * clean shutdown.
          */
-        if (F_ISSET(conn, WT_CONN_CLOSING_TIMESTAMP)) {
+        if (conn->txn_global.has_stable_timestamp) {
             __wt_verbose(session, WT_VERB_RTS,
               "performing shutdown rollback to stable with stable timestamp: %s",
               __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string));
