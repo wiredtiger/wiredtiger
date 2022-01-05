@@ -1702,6 +1702,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_config_gets(session, cfg, "create", &cval));
     is_create = cval.val != 0;
+
     if (F_ISSET(conn, WT_CONN_READONLY))
         is_create = false;
 
@@ -1830,7 +1831,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
      * If the turtle file exists, the WiredTiger file should exist as well, unless we are salvaging.
      */
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
-    is_salvage = cval.val;
+    is_salvage = cval.val != 0;
     if (!is_salvage && !conn->is_new) {
         WT_ERR(__wt_fs_exist(session, WT_WIREDTIGER, &exist));
         if (!exist) {
