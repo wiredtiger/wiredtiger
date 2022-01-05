@@ -254,15 +254,17 @@ workload_compact(const char *home, const char *table_config, const char *uri)
     testutil_check(__wt_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%d", 30));
     testutil_check(conn->set_timestamp(conn, tscfg));
 
-    testutil_check(session->checkpoint(session, NULL));
-
-    testutil_check(session->checkpoint(session, "force"));
-
     /*
      * Remove 1/3 of data from the middle of the key range to let compact relocate blocks from the
      * end of the file. Checkpoint the changes after the removal.
      */
     remove_records(session, uri, 60);
+
+    /*
+     * Force checkpoint is the first step in the compact operation, we do the same thing here to
+     * save some time in the compact operation.
+     */
+    testutil_check(session->checkpoint(session, "force"));
 
     /*
      * Create the compact_started file so that the parent process can start its timer.
