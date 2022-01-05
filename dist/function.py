@@ -2,8 +2,8 @@
 
 # Check the style of WiredTiger C code.
 from __future__ import print_function
-import fnmatch, os, re, sys
-from dist import all_c_files, compare_srcfile, source_files
+import re, sys
+from dist import all_c_files, compare_srcfile
 
 # Complain if a function comment is missing.
 def missing_comment():
