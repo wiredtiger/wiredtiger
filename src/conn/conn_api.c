@@ -1851,7 +1851,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* We own the lock file, optionally create the WiredTiger file. */
     ret = __wt_open(session, WT_WIREDTIGER, WT_FS_OPEN_FILE_TYPE_REGULAR,
-      is_create || cval.val ? WT_FS_OPEN_CREATE : 0, &fh);
+      is_create || is_salvage ? WT_FS_OPEN_CREATE : 0, &fh);
 
     /*
      * If we're read-only, check for handled errors. Even if able to open the WiredTiger file
