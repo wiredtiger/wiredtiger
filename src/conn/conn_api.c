@@ -1844,8 +1844,8 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     ret = __wt_open(session, WT_WIREDTIGER, WT_FS_OPEN_FILE_TYPE_REGULAR,
       is_create || is_salvage ? WT_FS_OPEN_CREATE : 0, &fh);
 
+    WT_ERR(__wt_filesize(session, fh, &size));
     if (!is_salvage && !conn->is_new) {
-        WT_ERR(__wt_filesize(session, fh, &size));
         if ((size_t)size == 0)
             /*
              * If WiredTiger file exists but is size zero, write a message but don't fail.
@@ -1881,7 +1881,6 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * Populate WiredTiger file if new connection or WiredTiger file is empty and we are salvaging.
      */
-    WT_ERR(__wt_filesize(session, fh, &size));
     if (conn->is_new || (is_salvage && (size_t)size == 0)) {
         if (F_ISSET(conn, WT_CONN_READONLY))
             WT_ERR_MSG(session, EINVAL,
