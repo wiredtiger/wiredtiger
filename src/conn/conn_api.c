@@ -1836,13 +1836,13 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
             F_SET(conn, WT_CONN_DATA_CORRUPTION);
             WT_ERR_MSG(session, WT_TRY_SALVAGE, "WiredTiger version file cannot be found");
         } else {
-            WT_RET(__wt_open(session, WT_WIREDTIGER, WT_FS_OPEN_FILE_TYPE_REGULAR, 0, &fh));
+            WT_ERR(__wt_open(session, WT_WIREDTIGER, WT_FS_OPEN_FILE_TYPE_REGULAR, 0, &fh));
             WT_ERR(__wt_filesize(session, fh, &size));
             if ((size_t)size == 0)
                 /*
                  * If WiredTiger file exists but is size zero, write a message but don't fail.
                  */
-                WT_RET(__wt_msg(session, "WiredTiger version file is empty"));
+                WT_ERR(__wt_msg(session, "WiredTiger version file is empty"));
             WT_TRET(__wt_close(session, &fh));
         }
     }
