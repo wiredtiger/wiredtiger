@@ -29,9 +29,8 @@
 import wttest
 
 # test_hs29.py
-# Before the history store was reusing the cursor from the reconciliation structure, it was possible
-# to end up with 3 opened history store cursors at the same time while the hard limit is 2. The
-# following scenario would trigger the issue:
+# It is possible to end up with 3 opened history store cursors at the same time when the following
+# occurs:
 # - The reconciliation process opens one history store cursor.
 # - The function hs_delete_reinsert_from_pos creates a history store cursor too. This means we need
 # an update with an OOO timestamp to trigger that function.
