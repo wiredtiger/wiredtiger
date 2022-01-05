@@ -323,28 +323,6 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
 }
 
 /*
- * __wt_btree_immediately_durable --
- *     Check whether this btree is configured for immediate durability.
- */
-static inline bool
-__wt_btree_immediately_durable(WT_SESSION_IMPL *session, WT_BTREE *btree)
-{
-    /* Some paths have an open data handle, others do not. */
-    if (btree == NULL)
-        btree = S2BT(session);
-
-    /*
-     * Determine if timestamp updates apply to this table. With in-memory, the table's log setting
-     * is checked (even though the table can't be logged); an in-memory table with logging enabled
-     * is handled as commit-level durable, and with logging disabled is handled as checkpoint-level
-     * durable. In other words, in-memory tables using timestamps must have logging turned off.
-     */
-    return ((FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED) ||
-              F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) &&
-      !F_ISSET(btree, WT_BTREE_NO_LOGGING));
-}
-
-/*
  * __wt_txn_op_set_timestamp --
  *     Decide whether to copy a commit timestamp into an update. If the op structure doesn't have a
  *     populated update or ref field or is in prepared state there won't be any check for an
@@ -353,9 +331,11 @@ __wt_btree_immediately_durable(WT_SESSION_IMPL *session, WT_BTREE *btree)
 static inline void
 __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
+    WT_BTREE *btree;
     WT_TXN *txn;
     WT_UPDATE *upd;
 
+    btree = op->btree;
     txn = session->txn;
 
     /*
@@ -363,8 +343,10 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
      * have timestamps: they can't be read at a point in time, only the most recently committed data
      * matches files on disk.
      */
-    if (WT_IS_METADATA(op->btree->dhandle) || !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) ||
-      __wt_btree_immediately_durable(session, op->btree))
+    if (WT_IS_METADATA(btree->dhandle) || !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+        return;
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(btree, WT_BTREE_NO_LOGGING) &&
+      FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED))
         return;
 
     if (F_ISSET(txn, WT_TXN_PREPARE)) {

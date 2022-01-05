@@ -65,13 +65,9 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
     def test_rollback_to_stable_no_history(self):
         nrows = 1000
 
-        # Create a table without logging. Set explicitly because we're testing in-memory tables and
-        # WiredTiger selects for checkpoint durability based on whether or not logging is enabled
-        # for the table. So, even though we didn't configure logging for the database, we still turn
-        # it off for the table.
+        # Create a table.
         uri = "table:rollback_to_stable19"
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 
         if self.value_format == '8t':
@@ -159,13 +155,9 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
     def test_rollback_to_stable_with_history(self):
         nrows = 1000
 
-        # Create a table without logging. Set explicitly because we're testing in-memory tables and
-        # WiredTiger selects for checkpoint durability based on whether or not logging is enabled
-        # for the table. So, even though we didn't configure logging for the database, we still turn
-        # it off for the table.
+        # Create a table.
         uri = "table:rollback_to_stable19"
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 
         if self.value_format == '8t':

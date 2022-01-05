@@ -1990,7 +1990,7 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
      * For tables with immediate durability (indicated by having logging enabled), ignore any read
      * timestamp configured for the checkpoint.
      */
-    if (__wt_btree_immediately_durable(session, NULL))
+    if (__wt_btree_immediately_durable(session))
         F_CLR(txn, WT_TXN_SHARED_TS_READ);
 
     ret = __checkpoint_tree(session, true, cfg);
@@ -2107,7 +2107,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
      * is a stable timestamp set or the connection is configured to disallow such operation.
      * Flushing trees can lead to files that are inconsistent on disk after a crash.
      */
-    if (btree->modified && !bulk && !__wt_btree_immediately_durable(session, NULL) &&
+    if (btree->modified && !bulk && !__wt_btree_immediately_durable(session) &&
       (S2C(session)->txn_global.has_stable_timestamp ||
         (!F_ISSET(S2C(session), WT_CONN_FILE_CLOSE_SYNC) && !metadata)))
         return (__wt_set_return(session, EBUSY));

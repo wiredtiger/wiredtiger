@@ -79,12 +79,8 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         uri = "table:rollback_to_stable15"
         nrows = 2000
 
-        # Create a table without logging. Set explicitly because we're testing in-memory tables and
-        # WiredTiger selects for checkpoint durability based on whether or not logging is enabled
-        # for the table. So, even though we didn't configure logging for the database, we still turn
-        # it off for the table.
-        create_params = 'log=(enabled=false),' +\
-            'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        # Create a table.
+        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
         cursor = self.session.open_cursor(uri)
 

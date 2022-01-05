@@ -399,15 +399,6 @@ create_object(TABLE *table, void *arg)
         CONFIG_APPEND(p, ",)");
     }
 
-    /*
-     * If an in-memory test with checkpoint durability, explicitly disable logging. WiredTiger
-     * selects for checkpoint durability based on whether or not logging is enabled for the table.
-     * So, even though we didn't configure logging for the database, we still turn it off for the
-     * table.
-     */
-    if (GV(RUNS_IN_MEMORY) != 0 && g.transaction_timestamps_config)
-        CONFIG_APPEND(p, ",log=(enabled=false)");
-
     if (max == 0)
         testutil_die(ENOMEM, "WT_SESSION.create configuration buffer too small");
 

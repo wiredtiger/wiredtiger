@@ -553,7 +553,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
      * happen during the recovery due to the unavailability of history store file.
      */
     if (!F_ISSET(conn, WT_CONN_RECOVERING) || WT_IS_METADATA(btree->dhandle) ||
-      __wt_btree_immediately_durable(session, NULL) ||
+      __wt_btree_immediately_durable(session) ||
       ckpt->run_write_gen < conn->last_ckpt_base_write_gen)
         btree->base_write_gen = btree->run_write_gen;
     else
@@ -996,6 +996,25 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
         btree->maxleafvalue = leaf_split_size / 2;
 
     return (0);
+}
+
+/*
+ * __wt_btree_immediately_durable --
+ *     Check whether this btree is configured for immediate durability.
+ */
+bool
+__wt_btree_immediately_durable(WT_SESSION_IMPL *session)
+{
+    /*
+     * If timestamp updates should be rolled back for this btree in RTS as well as configuring some
+     * checkpoint and open behaviors.
+     *
+     * Historically, this function checked for in-memory configurations as well, assert that's not
+     * the case for now.
+     */
+    WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
+    return (!F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING) &&
+      FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED));
 }
 
 /*
