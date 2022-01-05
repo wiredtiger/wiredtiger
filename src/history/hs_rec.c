@@ -295,6 +295,7 @@ int
 __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *multi)
 {
     WT_BTREE *btree, *hs_btree;
+    WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(modify_value);
@@ -314,7 +315,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     WT_TIME_WINDOW tw;
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size, modify_cnt;
-    uint32_t hs_cursor_flags, i;
+    uint32_t i;
     uint8_t *p;
     int nentries;
     bool enable_reverse_modify, error_on_ooo_ts, hs_inserted, squashed;
@@ -326,13 +327,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     insert_cnt = 0;
     WT_TIME_WINDOW_INIT(&tw);
 
-    if (r->hs_cursor == NULL)
-        WT_RET(__wt_curhs_open(session, NULL, &r->hs_cursor));
-
-    /* Store the hs cursor flags and only set those relevant to the lifecycle of the function. */
-    hs_cursor_flags = r->hs_cursor->flags;
-    r->hs_cursor->flags = 0;
-    F_SET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     __wt_update_vector_init(session, &updates);
     /*
@@ -544,7 +540,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
 
             if (!F_ISSET(fix_ts_upd, WT_UPDATE_FIXED_HS)) {
                 /* Delete and reinsert any update of the key with a higher timestamp. */
-                WT_ERR(__wt_hs_delete_key_from_ts(session, r->hs_cursor, btree->id, key,
+                WT_ERR(__wt_hs_delete_key_from_ts(session, hs_cursor, btree->id, key,
                   fix_ts_upd->start_ts + 1, true, error_on_ooo_ts));
                 F_SET(fix_ts_upd, WT_UPDATE_FIXED_HS);
             }
@@ -685,7 +681,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
 #endif
 
             /* Clear out the insert success flag prior to our insert attempt. */
-            __wt_curhs_clear_insert_success(r->hs_cursor);
+            __wt_curhs_clear_insert_success(hs_cursor);
 
             /*
              * Calculate reverse modify and clear the history store records with timestamps when
@@ -705,15 +701,15 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
               modify_cnt < WT_MAX_CONSECUTIVE_REVERSE_MODIFY &&
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
                 entries, &nentries) == 0) {
-                WT_ERR(__wt_modify_pack(r->hs_cursor, entries, nentries, &modify_value));
-                ret = __hs_insert_record(session, r->hs_cursor, btree, key, WT_UPDATE_MODIFY,
+                WT_ERR(__wt_modify_pack(hs_cursor, entries, nentries, &modify_value));
+                ret = __hs_insert_record(session, hs_cursor, btree, key, WT_UPDATE_MODIFY,
                   modify_value, &tw, error_on_ooo_ts);
                 WT_STAT_CONN_DATA_INCR(session, cache_hs_insert_reverse_modify);
                 __wt_scr_free(session, &modify_value);
                 ++modify_cnt;
             } else {
                 modify_cnt = 0;
-                ret = __hs_insert_record(session, r->hs_cursor, btree, key, WT_UPDATE_STANDARD,
+                ret = __hs_insert_record(session, hs_cursor, btree, key, WT_UPDATE_STANDARD,
                   full_value, &tw, error_on_ooo_ts);
                 WT_STAT_CONN_DATA_INCR(session, cache_hs_insert_full_update);
             }
@@ -726,7 +722,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
              * to write the flag to mark the update as having been written to the history store
              * before jumping to the error handling.
              */
-            if (__wt_curhs_check_insert_success(r->hs_cursor)) {
+            if (__wt_curhs_check_insert_success(hs_cursor)) {
                 F_SET(upd, WT_UPDATE_HS);
                 if (tombstone != NULL)
                     F_SET(tombstone, WT_UPDATE_HS);
@@ -759,7 +755,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
-    hs_btree = __wt_curhs_get_btree(r->hs_cursor);
+    hs_btree = __wt_curhs_get_btree(hs_cursor);
     max_hs_size = hs_btree->file_max;
     if (max_hs_size != 0 && (uint64_t)hs_size > max_hs_size)
         WT_ERR_PANIC(session, WT_PANIC,
@@ -783,8 +779,7 @@ err:
     __wt_scr_free(session, &full_value);
     __wt_scr_free(session, &prev_full_value);
 
-    /* Reset the hs cursor flags to their previous state. */
-    r->hs_cursor->flags = hs_cursor_flags;
+    WT_TRET(hs_cursor->close(hs_cursor));
 
     return (ret);
 }
