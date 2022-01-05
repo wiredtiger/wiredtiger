@@ -98,6 +98,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     WT_CURSOR *hs_cursor, *table_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_CURSOR_VERSION *version_cursor;
+    WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_ITEM hs_value;
     WT_PAGE *page;
@@ -109,6 +110,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     uint32_t hs_upd_type;
     uint32_t raw;
     uint8_t version_prepare_state;
+    uint8_t *p;
     bool upd_found;
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
@@ -217,6 +219,11 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
                 break;
             case WT_PAGE_COL_FIX:
             case WT_PAGE_COL_VAR:
+                /* Empty page doesn't have any on page value. */
+                if (page->entries == 0) {
+                    F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
+                    return (WT_NOTFOUND);
+                }
                 cip = &page->pg_var[cbt->slot];
                 cell = WT_COL_PTR(page, cip);
                 __wt_cell_unpack_kv(session, page->dsk, cell, vpack);
@@ -258,13 +265,21 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     if (!upd_found && !F_ISSET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED)) {
         /* Ensure we can see all the content in the history store. */
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
-        /*
-         * If the history store cursor is not yet positioned, then we are traversing the history
-         * store versions for the first time.
-         */
+
         if (!F_ISSET(hs_cursor, WT_CURSTD_KEY_INT)) {
+            /* Ensure enough room for a column-store key without checking. */
+            WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+
+            if (page->type == WT_PAGE_ROW_LEAF) {
+                key->data = table_cursor->key.data;
+                key->size = table_cursor->key.size;
+            } else {
+                p = key->mem;
+                WT_ERR(__wt_vpack_uint(&p, 0, cbt->recno));
+                key->size = WT_PTRDIFF(p, key->data);
+            }
             hs_cursor->set_key(
-              hs_cursor, 4, S2BT(session)->id, &cursor->key, WT_TS_MAX, UINT64_MAX);
+              hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
             WT_ERR(__wt_curhs_search_near_before(session, hs_cursor));
         } else
             WT_ERR(hs_cursor->prev(hs_cursor));
@@ -277,7 +292,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 
         __wt_hs_upd_time_window(hs_cursor, &twp);
         WT_ERR(hs_cursor->get_value(
-          hs_cursor, twp->stop_ts, twp->durable_start_ts, &hs_upd_type, &hs_value));
+          hs_cursor, &twp->stop_ts, &twp->durable_start_ts, &hs_upd_type, &hs_value));
 
         __wt_cursor_set_value(cursor, twp->start_txn, twp->start_ts, twp->durable_start_ts,
           twp->stop_txn, twp->stop_ts, twp->durable_stop_ts, hs_upd_type, 0, 0,
@@ -305,6 +320,8 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
         F_SET(table_cursor, WT_CURSTD_VALUE_INT);
 
 err:
+    if (key != NULL)
+        __wt_scr_free(session, &key);
     F_SET(cursor, raw);
     return (ret);
 }
@@ -318,10 +335,13 @@ err:
 static int
 __curversion_next(WT_CURSOR *cursor)
 {
+    WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    CURSOR_API_CALL(cursor, session, next, NULL);
+    version_cursor = (WT_CURSOR_VERSION *)cursor;
+
+    CURSOR_API_CALL(cursor, session, next, CUR2BT(version_cursor->table_cursor));
     WT_ERR(__curversion_next_int(session, cursor));
 
 err:
