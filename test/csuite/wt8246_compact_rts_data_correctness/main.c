@@ -217,6 +217,7 @@ run_test(bool column_store, const char *uri, bool preserve)
 static void
 workload_compact(const char *home, const char *table_config, const char *uri)
 {
+    FILE *fp;
     WT_CONNECTION *conn;
     WT_SESSION *session;
     char compact_file[2048], tscfg[64];
