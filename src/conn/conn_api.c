@@ -1702,7 +1702,6 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_config_gets(session, cfg, "create", &cval));
     is_create = cval.val != 0;
-
     if (F_ISSET(conn, WT_CONN_READONLY))
         is_create = false;
 
@@ -1817,9 +1816,40 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
               WT_SINGLETHREAD_STRING));
     }
 
+    /*
+     * We own the database home, figure out if we're creating it. There are a few files created when
+     * initializing the database home and we could crash in-between any of them, so there's no
+     * simple test. The last thing we do during initialization is rename a turtle file into place,
+     * and there's never a database home after that point without a turtle file. If the turtle file
+     * doesn't exist, it's a create.
+     */
+    WT_ERR(__wt_turtle_exists(session, &exist));
+    conn->is_new = exist ? 0 : 1;
+
+    /*
+     * If the turtle file exists, the WiredTiger file should exist as well, unless we are salvaging.
+     */
+    WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
+    if (is_create && !cval.val && !conn->is_new) {
+        WT_ERR(__wt_fs_exist(session, WT_WIREDTIGER, &exist));
+        if (!exist) {
+            F_SET(conn, WT_CONN_DATA_CORRUPTION);
+            WT_ERR_MSG(session, WT_TRY_SALVAGE, "WiredTiger version file cannot be found");
+        } else {
+            WT_RET(__wt_open(session, WT_WIREDTIGER, WT_FS_OPEN_FILE_TYPE_REGULAR, 0, &fh));
+            WT_ERR(__wt_filesize(session, fh, &size));
+            if ((size_t)size == 0)
+                /*
+                 * If WiredTiger file exists but is size zero, write a message but don't fail.
+                 */
+                WT_RET(__wt_msg(session, "WiredTiger version file is empty"));
+            WT_TRET(__wt_close(session, &fh));
+        }
+    }
+
     /* We own the lock file, optionally create the WiredTiger file. */
-    ret = __wt_open(
-      session, WT_WIREDTIGER, WT_FS_OPEN_FILE_TYPE_REGULAR, is_create ? WT_FS_OPEN_CREATE : 0, &fh);
+    ret = __wt_open(session, WT_WIREDTIGER, WT_FS_OPEN_FILE_TYPE_REGULAR,
+      is_create || cval.val ? WT_FS_OPEN_CREATE : 0, &fh);
 
     /*
      * If we're read-only, check for handled errors. Even if able to open the WiredTiger file
@@ -1846,18 +1876,11 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
         }
         WT_ERR(__wt_file_lock(session, fh, false));
     }
-
     /*
-     * We own the database home, figure out if we're creating it. There are a few files created when
-     * initializing the database home and we could crash in-between any of them, so there's no
-     * simple test. The last thing we do during initialization is rename a turtle file into place,
-     * and there's never a database home after that point without a turtle file. If the turtle file
-     * doesn't exist, it's a create.
+     * Populate WiredTiger file if new connection or WiredTiger file is empty and we are salvaging.
      */
-    WT_ERR(__wt_turtle_exists(session, &exist));
-    conn->is_new = exist ? 0 : 1;
-
-    if (conn->is_new) {
+    WT_ERR(__wt_filesize(session, fh, &size));
+    if (conn->is_new || (cval.val && (size_t)size == 0)) {
         if (F_ISSET(conn, WT_CONN_READONLY))
             WT_ERR_MSG(session, EINVAL,
               "The database directory is empty or needs recovery, cannot continue with a read only "
