@@ -780,7 +780,6 @@ err:
     __wt_scr_free(session, &prev_full_value);
 
     WT_TRET(hs_cursor->close(hs_cursor));
-
     return (ret);
 }
 
