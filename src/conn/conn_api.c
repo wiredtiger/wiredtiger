@@ -1831,7 +1831,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
     is_salvage = cval.val;
-    if (is_create && !is_salvage && !conn->is_new) {
+    if (!is_salvage && !conn->is_new) {
         WT_ERR(__wt_fs_exist(session, WT_WIREDTIGER, &exist));
         if (!exist) {
             F_SET(conn, WT_CONN_DATA_CORRUPTION);
