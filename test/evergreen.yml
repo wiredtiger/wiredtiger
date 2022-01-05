@@ -1096,7 +1096,7 @@ tasks:
         vars:
           test_config_filename: configs/hs_cleanup_stress.txt
           test_name: hs_cleanup
-  
+
   - name: cppsuite-search-near-01-stress
     depends_on:
       - name: compile
