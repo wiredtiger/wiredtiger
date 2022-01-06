@@ -63,10 +63,16 @@ class test_cursor19(wttest.WiredTigerTestCase):
     def test_modify(self):
         self.create()
 
+        value1 = "a" * 100
+        value2 = "b" + "a" * 99
+        value3 = "c" + "a" * 99
+        value4 = "d" + "a" * 99
+        value5 = "e" + "a" * 99
+        value6 = "f" + "a" * 99
         cursor = self.session.open_cursor(self.uri, None)
         # Add a value to the update chain
         self.session.begin_transaction()
-        cursor[1] = "a"
+        cursor[1] = value1
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(1))
 
         # Modify the value
@@ -90,9 +96,12 @@ class test_cursor19(wttest.WiredTigerTestCase):
         self.assertEquals(cursor.modify(mods), 0)
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(15))
 
+        cursor.reset()
+
         evict_cursor = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
         self.session.begin_transaction()
-        self.assertEquals(evict_cursor[1], "d")
+        evict_cursor.set_key(1)
+        self.assertEquals(evict_cursor.search(), 0)
         evict_cursor.reset()
         self.session.rollback_transaction()
 
@@ -115,20 +124,20 @@ class test_cursor19(wttest.WiredTigerTestCase):
         version_cursor.set_key(1)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.get_key(), 1)
-        self.verify_value(version_cursor, 25, 25, WT_TS_MAX, WT_TS_MAX, 2, 0, 0, 0, "f")
+        self.verify_value(version_cursor, 25, 25, WT_TS_MAX, WT_TS_MAX, 1, 0, 0, 0, value6)
         self.assertEquals(version_cursor.next(), 0)
         self.assertEquals(version_cursor.get_key(), 1)
-        self.verify_value(version_cursor, 20, 20, 25, 25, 2, 0, 0, 0, "e")
+        self.verify_value(version_cursor, 20, 20, 25, 25, 1, 0, 0, 0, value5)
         self.assertEquals(version_cursor.next(), 0)
         self.assertEquals(version_cursor.get_key(), 1)
-        self.verify_value(version_cursor, 15, 15, 20, 20, 3, 0, 0, 1, "d")
+        self.verify_value(version_cursor, 15, 15, 20, 20, 3, 0, 0, 1, value4)
         self.assertEquals(version_cursor.next(), 0)
         self.assertEquals(version_cursor.get_key(), 1)
-        self.verify_value(version_cursor, 10, 10, 15, 15, 3, 0, 0, 2, "c")
+        self.verify_value(version_cursor, 10, 10, 15, 15, 3, 0, 0, 2, value3)
         self.assertEquals(version_cursor.next(), 0)
         self.assertEquals(version_cursor.get_key(), 1)
-        self.verify_value(version_cursor, 5, 5, 10, 10, 2, 0, 0, 3, "b")
+        self.verify_value(version_cursor, 5, 5, 10, 10, 1, 0, 0, 2, value2)
         self.assertEquals(version_cursor.next(), 0)
         self.assertEquals(version_cursor.get_key(), 1)
-        self.verify_value(version_cursor, 1, 1, 5, 5, 2, 0, 0, 3, "a")
+        self.verify_value(version_cursor, 1, 1, 5, 5, 1, 0, 0, 2, value1)
         self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
