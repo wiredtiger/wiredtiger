@@ -21,6 +21,7 @@ Ailamaki
 Alakuijala
 Alexandrescu's
 Alloc
+Alves
 Async
 AsyncOp
 Athanassoulis
@@ -89,6 +90,7 @@ Cmvxz
 Cmvz
 Collet
 Comparator
+Compressibility
 Config
 Coverity
 CreateFileMapping
@@ -121,12 +123,14 @@ EACCES
 EAGAIN
 EB
 EBUSY
+EDC
 EEXIST
 EINTR
 EINVAL
 EMSG
 EMail
 ENCRYPTOR
+ENDIAN
 ENOENT
 ENOMEM
 ENOTSUP
@@ -143,6 +147,7 @@ Encryptor
 Encryptors
 Enqueue
 Eron
+Exponentiate
 FALLOC
 FALLTHROUGH
 FH
@@ -174,6 +179,7 @@ Fsync
 Fuerst
 GBR
 GCC
+GF
 GIDs
 GLIBC
 Gcc
@@ -210,6 +216,7 @@ INMEM
 INPROGRESS
 INSN
 INTL
+INTRINSICS
 INULL
 INUSE
 ISA
@@ -225,6 +232,7 @@ JPEG
 JSON
 Jyrki
 KEYFIRST
+KEYGEN
 KV
 KVS
 Kanowski's
@@ -298,6 +306,7 @@ NOLL
 NOLOCK
 NONINFRINGEMENT
 NOOP
+NOP
 NOTFOUND
 NOTREACHED
 NOVALUE
@@ -328,6 +337,7 @@ PPC
 PREDEFINE
 PRId
 PRIu
+PRIuXX
 PRNG
 PTHREAD
 PTR
@@ -373,6 +383,7 @@ Redistributions
 Refactor
 Resize
 RocksDB
+Rogerio
 Runtime
 SIMD
 SLIST
@@ -385,6 +396,7 @@ SSHH
 SSq
 STAILQ
 STEC
+STL
 STR
 STRUCT
 Scalability
@@ -443,6 +455,7 @@ UTF
 UltraSparc
 Unbuffered
 Unencrypted
+Unhandled
 UnixLib
 UnlockFile
 Unmap
@@ -478,6 +491,7 @@ Wduplicated
 WeakHashLen
 Werror
 Wformat
+Whitespaces
 WideCharToMultiByte
 WinNT
 WiredTiger
@@ -549,6 +563,8 @@ backport
 bal
 basecfg
 basho
+bb
+bba
 bbb
 bcr
 beginthreadex
@@ -610,6 +626,7 @@ cd
 ce
 celsius
 centric
+cerr
 cfg
 cfko
 chacha
@@ -651,11 +668,13 @@ comparator
 comparep
 compat
 compressStream
+compressibility
 concat
 cond
 conf
 confchk
 config
+configs
 conn
 connectionp
 const
@@ -705,6 +724,7 @@ cv
 cval
 cx
 cxa
+cxx
 dT
 data's
 database's
@@ -834,6 +854,7 @@ fgetln
 fgets
 fh
 fhandle
+fileX
 filefrag
 filehandle
 fileid
@@ -856,6 +877,7 @@ fnv
 foc
 fopen
 formatmessage
+foward
 fp
 fprintf
 fread
@@ -925,6 +947,7 @@ ibackup
 icount
 idlems
 idx
+ie
 ifdef
 ifdef's
 iflag
@@ -965,6 +988,7 @@ intpack
 intptr
 intr
 intrin
+intrinsics
 inuse
 io
 ip
@@ -994,12 +1018,14 @@ iters
 jjj
 jprx
 json
+kB
 kb
 kbits
 keycmp
 keyid
 keyids
 keylen
+keyrange
 keyv
 kmsid
 kv
@@ -1104,6 +1130,7 @@ mkdir
 mmap
 mmrand
 mnt
+mongod
 movemask
 mrs
 msecs
@@ -1201,6 +1228,7 @@ packv
 pagedump
 pageref
 pagesize
+param
 parens
 pareto
 parserp
@@ -1257,6 +1285,7 @@ pvA
 pwrite
 py
 qdown
+qn
 qqq
 qrrSS
 qsort
@@ -1405,6 +1434,7 @@ syscrypto
 sysinfo
 sz
 t's
+tIf
 tK
 tM
 tV
@@ -1440,6 +1470,7 @@ transactionally
 trecno
 trk
 trk's
+trun
 trunc
 trylock
 tsc
@@ -1519,6 +1550,8 @@ valuev
 vanishingly
 variable's
 variadic
+vdata
+vec
 vectorized
 versa
 vfprintf
@@ -1526,6 +1559,7 @@ vh
 vm
 vpack
 vpmsum
+vpmsumd
 vprintf
 vrfy
 vsize
@@ -1566,6 +1600,7 @@ xF
 xdeadbeef
 xff
 xfff
+xxpermdi
 xxxx
 xxxxx
 xxxxxx
@@ -1581,4 +1616,5 @@ zstd
 zstd's
 zu
 zyxwvutsrqponmlkjihgfedcba
+zz
 zzz

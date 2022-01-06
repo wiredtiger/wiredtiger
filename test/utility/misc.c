@@ -239,11 +239,13 @@ testutil_cleanup(TEST_OPTS *opts)
     free(opts->uri);
     free(opts->progress_file_name);
     free(opts->home);
+    free(opts->build_dir);
 }
 
 /*
  * testutil_copy_data --
- *     Copy the data to a backup folder.
+ *     Copy the data to a backup folder. Usually, the data copy is cleaned up by a call to
+ *     testutil_clean_test_artifacts.
  */
 void
 testutil_copy_data(const char *dir)
@@ -253,6 +255,27 @@ testutil_copy_data(const char *dir)
 
     testutil_check(__wt_snprintf(buf, sizeof(buf),
       "rm -rf ../%s.SAVE && mkdir ../%s.SAVE && cp -rp * ../%s.SAVE", dir, dir, dir));
+    if ((status = system(buf)) < 0)
+        testutil_die(status, "system: %s", buf);
+}
+
+/*
+ * testutil_clean_test_artifacts --
+ *     Clean any temporary files and folders created during test execution
+ */
+void
+testutil_clean_test_artifacts(const char *dir)
+{
+    int status;
+    char buf[512];
+
+    testutil_check(__wt_snprintf(buf, sizeof(buf),
+      "rm -rf ../%s.SAVE; "
+      "rm -rf ../%s.CHECK; "
+      "rm -rf ../%s.DEBUG; "
+      "rm -rf ../%s.BACKUP; ",
+      dir, dir, dir, dir));
+
     if ((status = system(buf)) < 0)
         testutil_die(status, "system: %s", buf);
 }
