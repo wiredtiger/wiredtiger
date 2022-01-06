@@ -1695,7 +1695,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     wt_off_t size;
     size_t len;
     char buf[256];
-    bool bytelock, exist, empty, is_create, is_salvage, match;
+    bool bytelock, empty, exist, is_create, is_salvage, match;
 
     conn = S2C(session);
     fh = NULL;
