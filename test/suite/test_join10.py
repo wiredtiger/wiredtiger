@@ -77,8 +77,6 @@ class test_join10(wttest.WiredTigerTestCase):
             cursor.insert()
         cursor.close()
 
-        cursor.set_key(1)
-
         join_cursor = session.open_cursor("join:table:poptable")
         country_cursor = session.open_cursor("index:poptable:country")
         year_cursor = session.open_cursor("index:poptable:immutable_year")

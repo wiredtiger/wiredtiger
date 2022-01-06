@@ -43,7 +43,7 @@ __curhs_file_cursor_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR *
  *     saving it in the session.
  */
 int
-__wt_curhs_cache(WT_SESSION_IMPL *session, WT_CURSOR *owner)
+__wt_curhs_cache(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
@@ -74,7 +74,7 @@ __wt_curhs_cache(WT_SESSION_IMPL *session, WT_CURSOR *owner)
       (session->dhandle != NULL && WT_IS_METADATA(S2BT(session)->dhandle)) ||
       session == conn->default_session)
         return (0);
-    WT_RET(__curhs_file_cursor_open(session, owner, &cursor));
+    WT_RET(__curhs_file_cursor_open(session, NULL, &cursor));
     WT_RET(cursor->close(cursor));
     return (0);
 }
