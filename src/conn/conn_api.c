@@ -1847,9 +1847,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     empty = false;
     if (fh) {
         WT_TRET(__wt_filesize(session, fh, &size));
-        if ((size_t)size == 0) {
-            empty = true;
-        }
+        empty = (size_t)size == 0;
         if (!is_salvage && !conn->is_new && empty)
             /*
              * If WiredTiger file exists but is size zero when it is not supposed to be (the turtle
