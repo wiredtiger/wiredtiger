@@ -27,8 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_config10.py
-#   Test valid behaviour when starting WiredTiger with the with missing
-#   or empty WiredTiger version file.
+#   Test valid behaviour when starting WiredTiger with missing or empty
+#   WiredTiger version file.
 
 import wiredtiger, wttest
 from wiredtiger import stat
