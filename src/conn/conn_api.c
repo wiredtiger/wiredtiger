@@ -1843,6 +1843,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     /* We own the lock file, optionally create the WiredTiger file. */
     ret = __wt_open(session, WT_WIREDTIGER, WT_FS_OPEN_FILE_TYPE_REGULAR,
       is_create || is_salvage ? WT_FS_OPEN_CREATE : 0, &fh);
+
     empty = false;
     if (fh) {
         WT_TRET(__wt_filesize(session, fh, &size));
