@@ -922,7 +922,7 @@ typedef int int_void;
 		elif self.is_json:
 			self._set_key_str(args[0])
 		else:
-# Keep the Python string pinned
+			# Keep the Python string pinned
 			self._key = pack(self.key_format, *args)
 			self._set_key(self._key)
 
