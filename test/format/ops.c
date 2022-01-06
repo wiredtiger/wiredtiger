@@ -1125,6 +1125,7 @@ ops(void *arg)
          * we need. In that case, do the modify on the base mirror table first. Then, do the
          * operation on the selected table, then any remaining tables.
          */
+        ret = 0;
         skip1 = skip2 = NULL;
         if (op == MODIFY && table->mirror) {
             tinfo->table = g.base_mirror;
