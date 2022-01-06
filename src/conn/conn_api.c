@@ -1844,18 +1844,6 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     ret = __wt_open(session, WT_WIREDTIGER, WT_FS_OPEN_FILE_TYPE_REGULAR,
       is_create || is_salvage ? WT_FS_OPEN_CREATE : 0, &fh);
 
-    empty = false;
-    if (fh) {
-        WT_TRET(__wt_filesize(session, fh, &size));
-        empty = (size_t)size == 0;
-        if (!is_salvage && !conn->is_new && empty)
-            /*
-             * If WiredTiger file exists but is size zero when it is not supposed to be (the turtle
-             * file exists and we are not salvaging), write a message but don't fail.
-             */
-            WT_TRET(__wt_msg(session, "WiredTiger version file is empty"));
-    }
-
     /*
      * If we're read-only, check for handled errors. Even if able to open the WiredTiger file
      * successfully, we do not try to lock it. The lock file test above is the only one we do for
@@ -1881,6 +1869,19 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
         }
         WT_ERR(__wt_file_lock(session, fh, false));
     }
+
+    /*
+     * If WiredTiger file exists but is size zero when it is not supposed to be (the turtle file
+     * exists and we are not salvaging), write a message but don't fail.
+     */
+    empty = false;
+    if (fh) {
+        WT_ERR(__wt_filesize(session, fh, &size));
+        empty = (size_t)size == 0;
+        if (!is_salvage && !conn->is_new && empty)
+            WT_IGNORE_RET(__wt_msg(session, "WiredTiger version file is empty"));
+    }
+
     /*
      * Populate WiredTiger file if new connection or WiredTiger file is empty and we are salvaging.
      */
