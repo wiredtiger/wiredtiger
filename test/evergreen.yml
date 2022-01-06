@@ -400,14 +400,6 @@ functions:
         set -o errexit
         set -o verbose
         ${test_env_vars|} ./t ${thread_test_args|} 2>&1
-  "tiered abort test":
-    command: shell.exec
-    params:
-      working_dir: "wiredtiger/build_posix/test/csuite"
-      script: |
-        set -o errexit
-        set -o verbose
-        ${test_env_vars|} ./test_tiered_abort ${tiered_abort_args|} 2>&1
   "recovery stress test script":
     command: shell.exec
     params:
