@@ -2228,14 +2228,6 @@ tasks:
       - func: "make check all"
         vars:
           test_env_vars: ${test_env_vars} TESTUTIL_ENABLE_LONG_TESTS=1
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            WT3363_CHECKPOINT_OP_RACES=1 test/csuite/./test_wt3363_checkpoint_op_races 2>&1
 
       # Many dbs test - Run with:
       # 1.  The defaults
