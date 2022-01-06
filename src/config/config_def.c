@@ -261,8 +261,10 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create_encryption_subconfigs[] =
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create_import_subconfigs[] = {
-  {"compare_timestamp", "string", NULL, "choices=[\"oldest_timestamp\",\"stable_timestamp\"]", NULL,
-    0},
+  {"compare_timestamp", "string", NULL,
+    "choices=[\"oldest\",\"oldest_timestamp\",\"stable\","
+    "\"stable_timestamp\"]",
+    NULL, 0},
   {"enabled", "boolean", NULL, NULL, NULL, 0}, {"file_metadata", "string", NULL, NULL, NULL, 0},
   {"repair", "boolean", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 

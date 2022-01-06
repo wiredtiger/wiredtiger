@@ -1412,11 +1412,12 @@ methods = {
         configure import of an existing object into the currently running database''',
         type='category', subconfig=[
         Config('compare_timestamp', 'oldest_timestamp', r'''
-            Allow importing files with timestamps smaller or equal to the configured
-            global timestamps. Note that the history of the files are not imported
-            together and thus snapshot read of historical data will not work with the
-            option "stable_timestamp"''',
-            choices=['oldest_timestamp', 'stable_timestamp']),
+            Allow importing files with timestamps smaller or equal to the configured global
+            timestamps. Note the history of the files are not imported together and thus snapshot
+            read of historical data will not work with the option "stable_timestamp". (The \c
+            oldest and \c stable arguments are deprecated short-hand for \c oldest_timestamp
+            and \c stable_timestamp, respectively.)''',
+            choices=['oldest', 'oldest_timestamp', 'stable', 'stable_timestamp']),
         Config('enabled', 'false', r'''
             whether to import the input URI from disk''',
             type='boolean'),
