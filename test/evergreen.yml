@@ -2498,9 +2498,6 @@ tasks:
             -DWITH_PIC=1
             -DCMAKE_BUILD_TYPE=ASan
             -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
-            -DCMAKE_C_FLAGS="-I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.5.0/include"
-            -DCMAKE_ASM_FLAGS="-I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.5.0/include"
-            -DCMAKE_CXX_FLAGS="-I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.5.0/include"
       - func: "format test script"
         # Run smoke tests, don't stop at failed tests, use default config
         vars:
@@ -2786,9 +2783,6 @@ tasks:
             -DHAVE_BUILTIN_EXTENSION_SNAPPY=1
             -DHAVE_BUILTIN_EXTENSION_ZLIB=1
             -DCMAKE_BUILD_TYPE=ASan
-            -DCMAKE_C_FLAGS="-I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.5.0/include"
-            -DCMAKE_ASM_FLAGS="-I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.5.0/include"
-            -DCMAKE_CXX_FLAGS="-I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.5.0/include"
       - func: "format test script"
         vars:
           test_env_vars:
