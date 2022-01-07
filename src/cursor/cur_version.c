@@ -263,8 +263,8 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
                 key->size = WT_PTRDIFF(p, key->data);
             }
             hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
-            WT_ERR(__wt_curhs_search_near_before(session, hs_cursor));
             __wt_scr_free(session, &key);
+            WT_ERR(__wt_curhs_search_near_before(session, hs_cursor));
         } else
             WT_ERR(hs_cursor->prev(hs_cursor));
 
@@ -306,7 +306,6 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     }
 
 err:
-    __wt_scr_free(session, &key);
     F_SET(cursor, raw);
     return (ret);
 }
