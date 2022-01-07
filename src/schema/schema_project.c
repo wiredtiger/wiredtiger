@@ -263,8 +263,8 @@ __wt_schema_project_slice(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *
             WT_RET(__pack_init(session, &pack, c->value_format));
             buf = &c->value;
             end = p = (uint8_t *)buf->data;
-	    if (buf->size != 0)
-		end += buf->size;
+            if (end != NULL)
+                end += buf->size;
             continue;
         }
 
