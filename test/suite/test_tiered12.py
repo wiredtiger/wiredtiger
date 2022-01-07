@@ -31,7 +31,7 @@ from wiredtiger import stat
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered12.py
-#    Test tiered storage with tiered caching timing delay.
+#    Test tiered storage with tiered flush finish timing delay.
 class test_tiered12(wttest.WiredTigerTestCase):
 
     # If the 'uri' changes all the other names must change with it.

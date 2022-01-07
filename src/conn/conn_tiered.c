@@ -292,7 +292,8 @@ err:
 
 /*
  * __tier_do_operation --
- *     Perform one iteration of caching or copying newly flushed objects to the shared storage.
+ *     Perform one iteration of copying newly flushed objects to shared storage or post-flush
+ *     processing.
  */
 static int
 __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, const char *local_uri,
@@ -338,8 +339,10 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
         WT_ERR(ret);
 
         /*
-         * After successful flushing, push a work unit to perform whatever caching the shared
-         * storage can do for this object.
+         * After successful flushing, push a work unit to perform whatever post-processing the
+         * shared storage wants to do for this object. Note that this work unit is unrelated to the
+         * drop local work unit below. They do not need to be in any order and do not interfere with
+         * each other.
          */
         WT_ERR(__wt_tiered_put_flush_finish(session, tiered, id));
         /*
@@ -356,7 +359,7 @@ err:
 
 /*
  * __tier_operation --
- *     Given an ID generate the URI names and call the operation code to flush or cache.
+ *     Given an ID generate the URI names and call the operation code to flush or finish.
  */
 static int
 __tier_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, uint32_t op)
@@ -622,7 +625,7 @@ __tiered_server(void *arg)
         /*
          * Here is where we do work. Work we expect to do:
          *  - Copy any files that need moving from a flush tier call.
-         *  - Perform any shared storage caching after flushing.
+         *  - Perform any shared storage processing after flushing.
          *  - Remove any cached objects that are aged out.
          */
         if (timediff >= WT_MINUTE || signalled) {
