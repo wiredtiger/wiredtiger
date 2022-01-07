@@ -49,7 +49,7 @@ class test_tiered12(wttest.WiredTigerTestCase):
     def conn_config(self):
         os.mkdir(self.bucket)
         self.saved_conn = \
-          'statistics=(all),timing_stress_for_test=(tiered_cache),' + \
+          'statistics=(all),timing_stress_for_test=(tiered_flush_finish),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
           'bucket_prefix=%s,' % self.prefix1 + \
@@ -88,8 +88,8 @@ class test_tiered12(wttest.WiredTigerTestCase):
         c.close()
         self.session.checkpoint()
 
-        bucket_obj = self.bucket + '/' + self.prefix1 + self.obj1file
-        cache_obj = self.cache + '/' + self.prefix1 + self.obj1file
+        bucket_obj = os.path.join(self.bucket, self.prefix1 + self.obj1file)
+        cache_obj = os.path.join(self.cache, self.prefix1 + self.obj1file)
         self.session.flush_tier(None)
         # Immediately after flush_tier finishes the cached object should not yet exist
         # but the bucket object does exist.
