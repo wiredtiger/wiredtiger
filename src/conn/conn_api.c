@@ -1875,7 +1875,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
      * exists and we are not salvaging), write a message but don't fail.
      */
     empty = false;
-    if (fh) {
+    if (fh != NULL) {
         WT_ERR(__wt_filesize(session, fh, &size));
         empty = (size_t)size == 0;
         if (!is_salvage && !conn->is_new && empty)
