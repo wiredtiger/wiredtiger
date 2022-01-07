@@ -118,6 +118,9 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     raw = F_MASK(cursor, WT_CURSTD_RAW);
     F_CLR(cursor, WT_CURSTD_RAW);
 
+    /* Ensure enough room for a column-store key without checking. */
+    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+
     /* The cursor should be positioned, otherwise the next call will fail. */
     if (!F_ISSET(table_cursor, WT_CURSTD_KEY_SET)) {
         WT_IGNORE_RET(__wt_msg(
@@ -251,9 +254,6 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
         if (!F_ISSET(hs_cursor, WT_CURSTD_KEY_INT)) {
-            /* Ensure enough room for a column-store key without checking. */
-            WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
-
             if (page->type == WT_PAGE_ROW_LEAF) {
                 key->data = table_cursor->key.data;
                 key->size = table_cursor->key.size;
@@ -263,8 +263,6 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
                 key->size = WT_PTRDIFF(p, key->data);
             }
             hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
-            key->data = key->mem;
-            key->size = key->size;
             WT_ERR(__wt_curhs_search_near_before(session, hs_cursor));
         } else
             WT_ERR(hs_cursor->prev(hs_cursor));
