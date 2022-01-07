@@ -1951,7 +1951,7 @@ methods = {
         short-hand for \c oldest_timestamp and \c stable_timestamp, respectively.) See @ref
         transaction_timestamps''',
         choices=['all_durable','last_checkpoint','oldest',
-            'oldest_timestamp','oldest_reader','pinned','recovery','stable','stable_timestamp']),
+            'oldest_reader','oldest_timestamp','pinned','recovery','stable','stable_timestamp']),
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([

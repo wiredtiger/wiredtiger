@@ -34,7 +34,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_open_session[] = {
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_query_timestamp[] = {
   {"get", "string", NULL,
     "choices=[\"all_durable\",\"last_checkpoint\",\"oldest\","
-    "\"oldest_timestamp\",\"oldest_reader\",\"pinned\",\"recovery\","
+    "\"oldest_reader\",\"oldest_timestamp\",\"pinned\",\"recovery\","
     "\"stable\",\"stable_timestamp\"]",
     NULL, 0},
   {NULL, NULL, NULL, NULL, NULL, 0}};

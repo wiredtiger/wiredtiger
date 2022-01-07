@@ -2454,7 +2454,7 @@ struct __wt_connection {
 	 * oldest and \c stable arguments are deprecated short-hand for \c oldest_timestamp and \c
 	 * stable_timestamp\, respectively.) See @ref transaction_timestamps., a string\, chosen
 	 * from the following options: \c "all_durable"\, \c "last_checkpoint"\, \c "oldest"\, \c
-	 * "oldest_timestamp"\, \c "oldest_reader"\, \c "pinned"\, \c "recovery"\, \c "stable"\, \c
+	 * "oldest_reader"\, \c "oldest_timestamp"\, \c "pinned"\, \c "recovery"\, \c "stable"\, \c
 	 * "stable_timestamp"; default \c all_durable.}
 	 * @configend
 	 * @errors
