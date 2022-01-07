@@ -29,9 +29,9 @@
 #include <sys/wait.h>
 #include <signal.h>
 
-#define TIMEOUT 4
+#define TIMEOUT 1
 
-#define NUM_RECORDS 1200000
+#define NUM_RECORDS 800000
 
 #define ENV_CONFIG_REC "log=(archive=false,recover=on)"
 /* Constants and variables declaration. */
@@ -40,7 +40,8 @@
  * better view on what is happening.
  */
 static const char conn_config[] =
-  "create,cache_size=1GB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true)";
+  "create,cache_size=1GB,timing_stress_for_test=[compact_slow],statistics=(all),statistics_log=("
+  "wait=1,json=true,on_close=true)";
 static const char table_config_row[] =
   "allocation_size=4KB,leaf_page_max=4KB,key_format=Q,value_format=QQQS";
 static const char table_config_col[] =
@@ -68,6 +69,10 @@ static void check(WT_SESSION *session, const char *uri, char *value, int commit_
 /*
  * Signal handler to catch if the child died unexpectedly.
  */
+/*
+ * sig_handler --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 sig_handler(int sig)
 {
@@ -82,6 +87,10 @@ sig_handler(int sig)
 }
 
 /* Methods implementation. */
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -100,6 +109,10 @@ main(int argc, char *argv[])
     return (EXIT_SUCCESS);
 }
 
+/*
+ * run_compact --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 run_compact(WT_SESSION *session, const char *uri)
 {
@@ -109,6 +122,10 @@ run_compact(WT_SESSION *session, const char *uri)
     printf("Compact end...\n");
 }
 
+/*
+ * run_test --
+ *     TODO: Add a comment describing this function.
+ */
 static int
 run_test(bool column_store, const char *uri, bool preserve)
 {
@@ -149,9 +166,9 @@ run_test(bool column_store, const char *uri, bool preserve)
 
     /* parent */
     /*
-     * Sleep for the configured amount of time before killing the child. Start the timeout from the
-     * time we notice that child process has started compact. That allows the test to run correctly
-     * on really slow machines.
+     * This test uses timing stress in compact so sleep for the configured amount of time before
+     * killing the child. Start the timeout from the time we notice that child process has started
+     * compact. That allows the test to run correctly on really slow machines.
      */
     testutil_check(__wt_snprintf(compact_file, sizeof(compact_file), compact_file_fmt, home));
     while (stat(compact_file, &sb) != 0)
@@ -168,10 +185,6 @@ run_test(bool column_store, const char *uri, bool preserve)
     testutil_assert_errno(waitpid(pid, &status, 0) != -1);
 
     printf("Compact process interrupted and killed...\n");
-
-    /* Copy the data to a separate folder for debugging purpose. */
-    testutil_copy_data(home);
-
     printf("Open database and run recovery\n");
 
     /* Open the connection which forces recovery to be run. */
@@ -213,6 +226,10 @@ run_test(bool column_store, const char *uri, bool preserve)
     return (EXIT_SUCCESS);
 }
 
+/*
+ * workload_compact --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 workload_compact(const char *home, const char *table_config, const char *uri)
 {
@@ -253,13 +270,17 @@ workload_compact(const char *home, const char *table_config, const char *uri)
     testutil_check(__wt_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%d", 30));
     testutil_check(conn->set_timestamp(conn, tscfg));
 
-    testutil_check(session->checkpoint(session, NULL));
-
     /*
      * Remove 1/3 of data from the middle of the key range to let compact relocate blocks from the
      * end of the file. Checkpoint the changes after the removal.
      */
     remove_records(session, uri, 60);
+
+    /*
+     * Force checkpoint is the first step in the compact operation, we do the same thing here to
+     * save some time in the compact operation.
+     */
+    testutil_check(session->checkpoint(session, "force"));
 
     /*
      * Create the compact_started file so that the parent process can start its timer.
@@ -271,6 +292,10 @@ workload_compact(const char *home, const char *table_config, const char *uri)
     run_compact(session, uri);
 }
 
+/*
+ * check --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 check(WT_SESSION *session, const char *uri, char *value, int read_ts)
 {
@@ -305,6 +330,10 @@ check(WT_SESSION *session, const char *uri, char *value, int read_ts)
     cursor = NULL;
 }
 
+/*
+ * large_updates --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 large_updates(WT_SESSION *session, const char *uri, char *value, int commit_ts)
 {
@@ -331,6 +360,10 @@ large_updates(WT_SESSION *session, const char *uri, char *value, int commit_ts)
     cursor = NULL;
 }
 
+/*
+ * populate --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 populate(WT_SESSION *session, const char *uri)
 {
@@ -361,6 +394,10 @@ populate(WT_SESSION *session, const char *uri)
     cursor = NULL;
 }
 
+/*
+ * remove_records --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 remove_records(WT_SESSION *session, const char *uri, int commit_ts)
 {
