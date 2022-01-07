@@ -343,11 +343,6 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-
-        if [ "Windows_NT" = "$OS" ]; then
-          export "PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH"
-          export "PYTHONPATH=$(pwd)/../lang/python/wiredtiger):$(cygpath -w $(pwd)/../lang/python)"
-        fi
         if [ ${is_cmake_build|false} = true ]; then
           cd cmake_build
         else
@@ -608,6 +603,15 @@ functions:
           echo "JSON_TASK_INFO: $JSON_TASK_INFO"
           ${test_env_vars|} ${python_binary} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
           ${test_env_vars|} ${python_binary} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -re -o test_stats/atlas_out_${perf-test-name}.json ${wtarg}
+
+  "csuite smoke test":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} test/csuite/${test_binary}/smoke.sh ${test_args|} 2>&1
 
   "upload-perf-test-stats":
     - command: shell.exec
@@ -1147,14 +1151,9 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/../test/csuite/random_abort/smoke.sh 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_binary: random_abort
 
   - name: csuite-random-directio-test
     tags: ["pull_request"]
@@ -1162,14 +1161,9 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/../test/csuite/random_directio/smoke.sh 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_binary: random_directio
 
   - name: csuite-schema-abort-test
     tags: ["pull_request"]
@@ -1177,14 +1171,9 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/../test/csuite/schema_abort/smoke.sh 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_binary: schema_abort
 
   - name: csuite-tiered-abort-test
     tags: ["pull_request"]
@@ -1192,14 +1181,9 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/../test/csuite/tiered_abort/smoke.sh 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_binary: tiered_abort
 
   - name: csuite-timestamp-abort-test
     tags: ["pull_request"]
@@ -1207,14 +1191,9 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_binary: timestamp_abort
 
   - name: csuite-timestamp-abort-stress-test
     tags: ["pull_request"]
@@ -1222,14 +1201,10 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh -s 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_args: -s
+          test_binary: timestamp_abort
 
   - name: csuite-scope-test
     tags: ["pull_request"]
@@ -2414,8 +2389,10 @@ tasks:
             set -o errexit
             set -o verbose
             # ${test_env_vars|} $(pwd)/../test/csuite/random_abort/smoke.sh 2>&1
-            ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
             ${test_env_vars|} $(pwd)/test/csuite/test_truncated_log 2>&1
+      - func: "csuite smoke test"
+        vars:
+          test_binary: timestamp_abort
 
   - name: long-test
     commands:
@@ -4291,6 +4268,10 @@ buildvariants:
   run_on:
   - windows-64-vs2017-test
   expansions:
+    test_env_vars:
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH
+      PYTHONPATH=($WT_TOPDIR/lang/python/wiredtiger):$(cygpath -w $WT_TOPDIR/lang/python)
     python_binary: 'python'
     scons_smp_command: -j $(echo "$(getconf NPROCESSORS_ONLN 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1) * 2" | bc)
   tasks:
@@ -4306,7 +4287,11 @@ buildvariants:
   expansions:
     python_binary: 'python'
     is_cmake_build: true
-    test_env_vars: WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
+    test_env_vars:
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH
+      PYTHONPATH=($WT_TOPDIR/lang/python/wiredtiger):$(cygpath -w $WT_TOPDIR/lang/python)
     windows_configure_flags: -vcvars_bat "'C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Auxiliary\Build\vcvars64.bat'"
   tasks:
     - name: compile
