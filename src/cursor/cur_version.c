@@ -305,8 +305,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     }
 
 err:
-    if (key != NULL)
-        __wt_scr_free(session, &key);
+    __wt_scr_free(session, &key);
     F_SET(cursor, raw);
     return (ret);
 }

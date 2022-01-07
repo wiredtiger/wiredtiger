@@ -18,6 +18,3 @@ src/conn/conn_capacity.c:289:5: warning: Value stored to 'capacity' is never rea
     capacity = steal_capacity = 0;
     ^          ~~~~~~~~~~~~~~~~~~
 1 warning generated.
-src/cursor/cur_version.c:209:32: warning: Assigned value is garbage or undefined
-            cursor->value.data = vpack->data;
-                               ^ ~~~~~~~~~~~
