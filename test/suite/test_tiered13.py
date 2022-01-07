@@ -95,12 +95,15 @@ class test_tiered13(test_import_base):
         for k, v in cursor:
             if k.startswith(self.file2uri):
                 fileobj_config = cursor[k]
-                break
+            if k.startswith(self.uri):
+                table_config = cursor[k]
         cursor.close()
         self.close_conn()
         # Contruct the config strings.
         import_enabled = 'import=(enabled,repair=true)'
         import_meta = 'import=(enabled,repair=false,file_metadata=(' + \
+            fileobj_config + '))'
+        table_import_meta = table_config + ',import=(enabled,repair=false,file_metadata=(' + \
             fileobj_config + '))'
 
         # Set up the import database.
@@ -112,7 +115,8 @@ class test_tiered13(test_import_base):
         # It is tricky to work around the extension and connection bucket setup for
         # creating the new import directory that is tiered-enabled.
         ext = self.extensionsConfig()
-        conn_params = self.saved_conn + ext 
+        #conn_params = self.saved_conn + ext + ",verbose=(temporary)"
+        conn_params = self.saved_conn + ext
         self.conn = self.wiredtiger_open(newdir, conn_params)
         self.session = self.setUpSessionOpen(self.conn)
 
@@ -123,21 +127,27 @@ class test_tiered13(test_import_base):
         shutil.copy(copy_from, copy_to)
 
         msg = '/Operation not supported/'
-        # Try to import via the table:uri.
+        enoent = '/No such file/'
+        # Try to import via the table:uri. This fails with ENOENT because
+        # it is looking for the normal on-disk file name. It cannot tell it
+        # is a tiered table in this case.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.create(self.uri, import_enabled), msg)
+            lambda: self.session.create(self.uri, import_enabled), enoent)
         # Try to import via the table:uri with file metadata.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.create(self.uri, import_meta), msg)
+            lambda: self.session.create(self.uri, table_import_meta), msg)
         # Try to import via the file:uri.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.create(self.file2uri, import_enabled), msg)
         # Try to import via the file:uri with file metadata.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.create(self.file2uri, import_meta), msg)
-        # Try to import via a renamed object.
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.create(self.otheruri, import_enabled), msg)
+        # Try to import via a renamed object. If we don't send in metadata,
+        # we cannot tell it was a tiered table until we read in the root page.
+        # Only test this in diagnostic mode which has an assertion.
+        if wiredtiger.diagnostic_build():
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.create(self.otheruri, import_enabled), msg)
         # Try to import via a renamed object with metadata.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.create(self.otheruri, import_meta), msg)
