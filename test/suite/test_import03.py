@@ -98,14 +98,12 @@ class test_import03(test_import_base):
         original_db_file_config = c[original_db_file_uri]
         c.close()
 
-        self.pr('Table configuration: ' + original_db_table_config)
         self.printVerbose(3, '\nFile configuration:\n' + original_db_file_config)
         self.printVerbose(3, '\nTable configuration:\n' + original_db_table_config)
 
         # Contruct the config string.
         import_config = '{},import=(enabled,repair=false,file_metadata=({}))'.format(
             original_db_table_config, original_db_file_config)
-        self.pr('Import configuration: ' + import_config)
 
         # Close the connection.
         self.close_conn()
