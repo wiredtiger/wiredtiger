@@ -1877,7 +1877,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     empty = false;
     if (fh != NULL) {
         WT_ERR(__wt_filesize(session, fh, &size));
-        empty = (size_t)size == 0;
+        empty = size == 0;
         if (!is_salvage && !conn->is_new && empty)
             WT_IGNORE_RET(__wt_msg(session, "WiredTiger version file is empty"));
     }
