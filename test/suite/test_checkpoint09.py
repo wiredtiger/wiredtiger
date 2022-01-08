@@ -36,7 +36,6 @@ from wtscenario import make_scenarios
 
 class test_checkpoint09(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('column-fix', dict(key_format='r', value_format='8t')),

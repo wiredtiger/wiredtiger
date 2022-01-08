@@ -37,7 +37,6 @@ from wtscenario import make_scenarios
 # Additionally test that checkpoint inserts content into the history store.
 class test_hs01(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=200MB,statistics=(all)'
-    session_config = 'isolation=snapshot'
     format_values = [
         ('column', dict(key_format='r', value_format='u')),
         ('column_fix', dict(key_format='r', value_format='8t')),

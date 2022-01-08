@@ -37,7 +37,6 @@ from test_rollback_to_stable01 import test_rollback_to_stable_base
 # test_rollback_to_stable03.py
 # Test that rollback to stable clears the history store updates from reconciled pages.
 class test_rollback_to_stable01(test_rollback_to_stable_base):
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),

@@ -35,7 +35,6 @@ from wtscenario import make_scenarios
 #
 # Test mixing timestamped and non-timestamped updates on the same VLCS RLE cell.
 class test_rollback_to_stable27(test_rollback_to_stable_base):
-    session_config = 'isolation=snapshot'
 
     # Run it all on row-store as well as a control group: if something odd arises from the
     # RLE cell handling it won't happen in row-store.

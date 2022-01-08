@@ -37,7 +37,6 @@ from wtscenario import make_scenarios
 
 class test_truncate07(wttest.WiredTigerTestCase):
     conn_config = ''
-    session_config = 'isolation=snapshot'
 
     # Hook to run using remove instead of truncate for reference. This should not alter the
     # behavior... but may if things are broken. Disable the reference version by default as it's

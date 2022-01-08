@@ -41,7 +41,6 @@ from wtscenario import make_scenarios
 # Test that rollback to stable removes updates present on disk for column store.
 # (This test is now probably redundant with others, and could maybe be removed?)
 class test_rollback_to_stable16(wttest.WiredTigerTestCase):
-    session_config = 'isolation=snapshot'
 
     key_format_values = [
         ('column', dict(key_format='r')),

@@ -51,7 +51,6 @@ class test_hs24(wttest.WiredTigerTestCase):
     def conn_config(self):
         return 'timing_stress_for_test=({})'.format(self.checkpoint_stress)
 
-    session_config = 'isolation=snapshot'
     uri = 'table:test_hs24'
     numrows = 2000
 

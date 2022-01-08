@@ -33,7 +33,6 @@ from wtscenario import make_scenarios
 # Ensure updates structure is correct when processing each key.
 class test_hs25(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
-    session_config = 'isolation=snapshot'
     uri = 'table:test_hs25'
 
     format_values = [

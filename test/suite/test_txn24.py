@@ -37,7 +37,6 @@ from wtscenario import make_scenarios
 
 class test_txn24(wttest.WiredTigerTestCase):
 
-    session_config = 'isolation=snapshot'
 
     table_params_values = [
         ('integer-row', dict(key_format='i', value_format='S', extraconfig='')),

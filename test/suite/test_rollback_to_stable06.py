@@ -35,7 +35,6 @@ from test_rollback_to_stable01 import test_rollback_to_stable_base
 # Test that rollback to stable removes all keys when the stable timestamp is earlier than
 # all commit timestamps.
 class test_rollback_to_stable06(test_rollback_to_stable_base):
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),

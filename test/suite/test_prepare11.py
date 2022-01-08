@@ -33,7 +33,6 @@ from wtscenario import make_scenarios
 # Test prepare rollback with a reserved update between updates.
 class test_prepare11(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=2MB'
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('column', dict(key_format='r', key1=17, value_format='S')),

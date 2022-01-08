@@ -35,7 +35,6 @@ from wtscenario import make_scenarios
 # test_rollback_to_stable19.py
 # Test that rollback to stable aborts both insert and remove updates from a single prepared transaction
 class test_rollback_to_stable19(test_rollback_to_stable_base):
-    session_config = 'isolation=snapshot'
 
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),

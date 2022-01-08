@@ -38,7 +38,6 @@ def mod_val(value, char, location, nbytes=1):
 # Test that rollback to stable always replaces the on-disk value with a full update
 # from the history store.
 class test_rollback_to_stable04(test_rollback_to_stable_base):
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),

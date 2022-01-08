@@ -37,7 +37,6 @@ from test_rollback_to_stable01 import test_rollback_to_stable_base
 # test_rollback_to_stable02.py
 # Test that rollback to stable brings back the history value to replace on-disk value.
 class test_rollback_to_stable02(test_rollback_to_stable_base):
-    session_config = 'isolation=snapshot'
 
     # For FLCS, set the page size down. Otherwise for the in-memory scenarios we get enough
     # updates on the page that the in-memory page footprint exceeds the default maximum

@@ -36,7 +36,6 @@ from wtscenario import make_scenarios
 # that has both the start and the stop time points from the
 # same uncommitted prepared transaction.
 class test_prepare14(wttest.WiredTigerTestCase):
-    session_config = 'isolation=snapshot'
 
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),

@@ -185,7 +185,6 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
 
 # Test that rollback to stable clears the remove operation.
 class test_rollback_to_stable01(test_rollback_to_stable_base):
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),

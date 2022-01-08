@@ -60,7 +60,6 @@ from wtscenario import make_scenarios
 #
 # Don't run it on FLCS because FLCS doesn't do RLE encoding so there's no point.
 class test_rollback_to_stable24(wttest.WiredTigerTestCase):
-    session_config = 'isolation=snapshot'
     conn_config = 'in_memory=false'
 
     key_format_values = [

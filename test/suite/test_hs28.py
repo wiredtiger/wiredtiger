@@ -35,7 +35,6 @@ from wtscenario import make_scenarios
 
 class test_hs28(wttest.WiredTigerTestCase):
     conn_config = ''
-    session_config = 'isolation=snapshot'
 
     key_format_values = [
         ('column', dict(key_format='r')),

@@ -37,7 +37,6 @@ from wtscenario import make_scenarios
 class test_prepare06(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_prepare06'
     uri = 'table:' + tablename
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('column', dict(key_format='r', value_format='i')),

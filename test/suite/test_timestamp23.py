@@ -35,7 +35,6 @@ from wtscenario import make_scenarios
 # delete keys repeatedly at successive timestamps
 class test_timestamp23(wttest.WiredTigerTestCase):
     conn_config = ''
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),

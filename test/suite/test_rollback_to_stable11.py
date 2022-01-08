@@ -36,7 +36,6 @@ from wtscenario import make_scenarios
 # test_rollback_to_stable11.py
 # Test the rollback to stable is retrieving the proper history store update.
 class test_rollback_to_stable11(test_rollback_to_stable_base):
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
