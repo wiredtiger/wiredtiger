@@ -48,7 +48,7 @@ class test_checkpoint_snapshot01(wttest.WiredTigerTestCase):
     format_values = [
         ('column-fix', dict(key_format='r', value_format='8t')),
         ('column', dict(key_format='r', value_format='u')),
-        ('string_row', dict(key_format='S', value_format='u')),
+        ('row_string', dict(key_format='S', value_format='u')),
     ]
 
     scenarios = make_scenarios(format_values)

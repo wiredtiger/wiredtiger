@@ -51,7 +51,7 @@ class test_truncate07(wttest.WiredTigerTestCase):
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
         ('column_fix', dict(key_format='r', value_format='8t',
             extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
+        ('row_integer', dict(key_format='i', value_format='S', extraconfig='')),
     ]
     munge_values = [
         ('update', dict(munge_with_update=True)),

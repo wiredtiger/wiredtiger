@@ -41,7 +41,7 @@ class test_prepare06(wttest.WiredTigerTestCase, suite_subprocess):
     format_values = [
         ('column', dict(key_format='r', value_format='i')),
         ('column_fix', dict(key_format='r', value_format='8t')),
-        ('integer_row', dict(key_format='i', value_format='i')),
+        ('row_integer', dict(key_format='i', value_format='i')),
     ]
 
     scenarios = make_scenarios(format_values)

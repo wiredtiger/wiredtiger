@@ -44,7 +44,7 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
 
     key_format_values = [
         ('column', dict(key_format='r')),
-        ('integer_row', dict(key_format='i')),
+        ('row_integer', dict(key_format='i')),
     ]
 
     value_format_values = [

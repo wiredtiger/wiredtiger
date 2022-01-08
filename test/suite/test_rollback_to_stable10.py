@@ -42,7 +42,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         ('column', dict(key_format='r', value_format='S', prepare_extraconfig='')),
         ('column_fix', dict(key_format='r', value_format='8t',
             prepare_extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('integer_row', dict(key_format='i', value_format='S', prepare_extraconfig='')),
+        ('row_integer', dict(key_format='i', value_format='S', prepare_extraconfig='')),
     ]
 
     prepare_values = [

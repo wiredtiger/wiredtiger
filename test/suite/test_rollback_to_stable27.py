@@ -40,7 +40,7 @@ class test_rollback_to_stable27(test_rollback_to_stable_base):
     # RLE cell handling it won't happen in row-store.
     key_format_values = [
         ('column', dict(key_format='r')),
-        ('integer_row', dict(key_format='i')),
+        ('row_integer', dict(key_format='i')),
     ]
 
     in_memory_values = [
