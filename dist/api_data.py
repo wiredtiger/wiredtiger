@@ -1531,8 +1531,7 @@ methods = {
             type='boolean'),
         Config('dump_version', 'false', r'''
             open a version cursor, which is a debug cursor on a table that
-            enables iteration through all updates/versions of a key inside
-            the table.''',
+            enables iteration through the history of values for a given key.''',
             type='boolean'),
         ]),
     Config('dump', '', r'''

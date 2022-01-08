@@ -95,8 +95,8 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     WT_CURSOR *hs_cursor, *table_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_CURSOR_VERSION *version_cursor;
-    WT_DECL_ITEM(key);
     WT_DECL_ITEM(hs_value);
+    WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_PAGE *page;
     WT_TIME_WINDOW *twp;
@@ -197,7 +197,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
         case WT_PAGE_ROW_LEAF:
             if (cbt->ins != NULL) {
                 F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
-                F_SET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED);
+                F_SET(version_cursor, WT_VERSION_CUR_HS_EXHAUSTED);
                 WT_ERR(WT_NOTFOUND);
             }
             break;
@@ -208,7 +208,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
              */
             if (cbt->recno >= cbt->ref->ref_recno + page->entries) {
                 F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
-                F_SET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED);
+                F_SET(version_cursor, WT_VERSION_CUR_HS_EXHAUSTED);
                 WT_ERR(WT_NOTFOUND);
             }
             break;
@@ -216,7 +216,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
             /* Empty page doesn't have any on page value. */
             if (page->entries == 0) {
                 F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
-                F_SET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED);
+                F_SET(version_cursor, WT_VERSION_CUR_HS_EXHAUSTED);
                 WT_ERR(WT_NOTFOUND);
             }
             break;
@@ -245,7 +245,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
         F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
     }
 
-    if (!upd_found && !F_ISSET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED)) {
+    if (!upd_found && !F_ISSET(version_cursor, WT_VERSION_CUR_HS_EXHAUSTED)) {
         /* Ensure we can see all the content in the history store. */
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
@@ -528,7 +528,7 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
         WT_ERR(__wt_curhs_open(session, cursor, &version_cursor->hs_cursor));
         F_SET(version_cursor->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
     } else
-        F_SET(version_cursor, WT_VERSION_CUR_HS_EXAUSTED);
+        F_SET(version_cursor, WT_VERSION_CUR_HS_EXHAUSTED);
 
     /* Initialize information used to track update metadata. */
     version_cursor->upd_stop_txnid = WT_TXN_MAX;

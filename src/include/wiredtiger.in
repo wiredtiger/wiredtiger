@@ -920,8 +920,8 @@ struct __wt_session {
 	 * @config{debug = (, configure debug specific behavior on a cursor.  Generally only used
 	 * for internal testing purposes., a set of related configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;dump_version, open a version cursor\, which is a debug
-	 * cursor on a table that enables iteration through all updates/versions of a key inside the
-	 * table., a boolean flag; default \c false.}
+	 * cursor on a table that enables iteration through the history of values for a given key.,
+	 * a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;release_evict,
 	 * Configure the cursor to evict the page positioned on when the reset API is used., a
 	 * boolean flag; default \c false.}
