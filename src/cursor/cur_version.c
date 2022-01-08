@@ -96,8 +96,8 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     WT_CURSOR_BTREE *cbt;
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_ITEM(key);
+    WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
-    WT_ITEM hs_value;
     WT_PAGE *page;
     WT_TIME_WINDOW *twp;
     WT_UPDATE *upd;
@@ -262,10 +262,11 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
                 key->size = WT_PTRDIFF(p, key->data);
             }
             hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
-            __wt_scr_free(session, &key);
             WT_ERR(__wt_curhs_search_near_before(session, hs_cursor));
         } else
             WT_ERR(hs_cursor->prev(hs_cursor));
+
+        WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
         /*
          * If there are no history store records for the given key or if we have iterated through
@@ -275,7 +276,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 
         __wt_hs_upd_time_window(hs_cursor, &twp);
         WT_ERR(hs_cursor->get_value(
-          hs_cursor, &twp->stop_ts, &twp->durable_start_ts, &hs_upd_type, &hs_value));
+          hs_cursor, &twp->stop_ts, &twp->durable_start_ts, &hs_upd_type, hs_value));
 
         __wt_cursor_set_value(cursor, twp->start_txn, twp->start_ts, twp->durable_start_ts,
           twp->stop_txn, twp->stop_ts, twp->durable_stop_ts, hs_upd_type, 0, 0,
@@ -288,11 +289,11 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
          */
         if (hs_upd_type == WT_UPDATE_MODIFY) {
             WT_ERR(__wt_modify_apply_item(
-              session, table_cursor->value_format, &cbt->upd_value->buf, hs_value.data));
+              session, table_cursor->value_format, &cbt->upd_value->buf, hs_value->data));
         } else {
             WT_ASSERT(session, hs_upd_type == WT_UPDATE_STANDARD);
-            cbt->upd_value->buf.data = hs_value.data;
-            cbt->upd_value->buf.size = hs_value.size;
+            cbt->upd_value->buf.data = hs_value->data;
+            cbt->upd_value->buf.size = hs_value->size;
         }
         upd_found = true;
     }
@@ -305,6 +306,8 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     }
 
 err:
+    __wt_scr_free(session, &key);
+    __wt_scr_free(session, &hs_value);
     F_SET(cursor, raw);
     return (ret);
 }
