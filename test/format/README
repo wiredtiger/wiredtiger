@@ -35,34 +35,38 @@ operations, use:
 After the run, you can dump the trace records from the WiredTiger log files with the wt utility,
 for example:
 
-    wt -h RUNDIR/OPS.TRACE printlog -um
+    wt -h RUNDIR/OPS.TRACE printlog -um > LOG
 
-The output will look something like this:
+The first step is to determine which record failed and then look for transactions involving
+that record. For example, imagine that record number 1063233 failed, you can grep for it in
+the LOG and the output will look something like this:
 
-    [1636905807:928201][18388:0x7f91957fa700], t: begin snapshot read-ts=36417 (repeatable)
-    [1636905807:928462][18388:0x7f9195ffb700], t: begin snapshot read-ts=36417 (repeatable)
-    [1636905807:928469][18388:0x7f91957fa700], t: begin snapshot read-ts=36417 (repeatable)
-    [1636905807:928701][18388:0x7f9195ffb700], t: commit read-ts=36417, commit-ts=36436
-    [1636905807:929279][18388:0x7f91957fa700], t: commit read-ts=36417, commit-ts=36448
-    [1636905810:936417][18388:0x7f918f7fe700], t: commit read-ts=48394, commit-ts=48400
-    [1636905811:364172][18388:0x7f918f7fe700], t: table:T00005 update 82644 {0000082644.00/opqrstuvwxyzabcdefghi}, {0000082644/wMNOPQRSTUVW}
-    [1636905812:836417][18388:0x7f9194ff9700], t: table:T00002 remove 12940
-    [1636905813:736417][18388:0x7f9194ff9700], t: table:T00002 insert 7105 {0000007105.02/opqrstuvwxyza}, {0000007105/yMNOPQRS}
-    [1636905817:364173][18388:0x7f91957fa700], t: abort read-ts=75859
-    [1636905818:936417][18388:0x7f9195ffb700], t: begin snapshot read-ts=82671 (repeatable)
-    [1636905822:36417][18388:0x7f9194ff9700], t: begin snapshot read-ts=97401 (not repeatable)
-    [1636905822:364170][18388:0x7f918f7fe700], t: table:T00007 insert 130589 {0000130589.08/opqrstuvwx}, {0000021495/gMNOPQRSTU}
-    [1636905822:364177][18388:0x7f918f7fe700], t: table:T00008 insert 130589 {0000130589.13/opqrstuvwxyza}, {0000021495/gMNOPQRSTU}
-    [1636905824:936417][18388:0x7f9194ff9700], t: table:T00007 insert 134463 {0000134463.02/opqrstuvwxyzabc}, {0000072829/}
-    [1636905826:128998][18388:0x7f9194ff9700], t: table:T00004 insert 136417 {DUPLICATEV/LMNOPQRST}
-    [1636905826:936417][18388:0x7f918f7fe700], t: table:T00005 remove 1441
-    [1636905830:364176][18388:0x7f9195ffb700], t: table:T00005 insert 142810 {0000142810.08/opqrstuvwxyzabcde}, {0000065596/xMNOPQRSTUVW}
-    [1636905830:619754][18388:0x7f91957fa700], t: begin snapshot read-ts=136417 (not repeatable)
-    [1636905830:620971][18388:0x7f91957fa700], t: commit read-ts=136417, commit-ts=136421
-    [1636905831:236417][18388:0x7f918f7fe700], t: begin snapshot read-ts=139290 (not repeatable)
+    % grep 1063233 LOG
+    [1641602344:13689][3028368:0x7fa21affd700], t: [WT_VERB_TEMPORARY][INFO]: 63842 table:wt: insert 1063233 {0x7e}
+    [1641602357:730642][3028368:0x7fa21a7fc700], t: [WT_VERB_TEMPORARY][INFO]: 134675 commit read-ts=1062901, commit-ts=1063233
+    [1641602377:413530][3028368:0x7fa2197fa700], t: [WT_VERB_TEMPORARY][INFO]: 216631 table:wt: remove 1063233
+    [1641602399:300000][3028368:0x7fa221ffb700], t: [WT_VERB_TEMPORARY][INFO]: 224868 table:wt: reserve 1063233
+    [1641602399:300014][3028368:0x7fa221ffb700], t: [WT_VERB_TEMPORARY][INFO]: 224868 table:wt: update 1063233 {0x5e}
 
-The fields are a timestamp, a thread and session ID, the program name and then an operation. When
-the operation is per object (like and update or remove), there's an object name and a row number.
+The white-space separated fields are a timestamp, a thread and session ID, the program name,
+the debug message classification, the format operation ID and then the operation. When the
+operation is per record (like an update or remove), there's additionally the object name,
+an operation and a row number, and perhaps the updated value.
+
+The next step is to examine the complete format operation. For example, to find the transaction for
+the update at timestamp [1641602399:300014], you can grep for the operation ID. Note that threads
+use the same operation numbers, so you should grep for the session ID followed by the operation ID:
+
+    % egrep '0x7fa221ffb700.*: 224868' LOG
+    [1641602399:299982][3028368:0x7fa221ffb700], t: [WT_VERB_TEMPORARY][INFO]: 224868 begin snapshot read-ts=1797649 (not repeatable)
+    [1641602399:300000][3028368:0x7fa221ffb700], t: [WT_VERB_TEMPORARY][INFO]: 224868 table:wt: reserve 1063233
+    [1641602399:300014][3028368:0x7fa221ffb700], t: [WT_VERB_TEMPORARY][INFO]: 224868 table:wt: update 1063233 {0x5e}
+    [1641602399:300149][3028368:0x7fa221ffb700], t: [WT_VERB_TEMPORARY][INFO]: 224868 table:wt: remove 189864
+    [1641602399:312617][3028368:0x7fa221ffb700], t: [WT_VERB_TEMPORARY][INFO]: 224868 table:wt: remove 903917
+    [1641602399:312737][3028368:0x7fa221ffb700], t: [WT_VERB_TEMPORARY][INFO]: 224868 table:wt: update 175251 {0x7e}
+    [1641602399:312859][3028368:0x7fa221ffb700], t: [WT_VERB_TEMPORARY][INFO]: 224868 commit read-ts=1797649, commit-ts=1797672
+
+And that gives you the complete transaction.
 
 When format detects a mismatch in the row that's about to be returned and the row the read
 expected, it will dump the cursor page that was the source of the row that didn't match the

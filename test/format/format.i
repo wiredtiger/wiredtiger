@@ -444,25 +444,25 @@ lock_readunlock(WT_SESSION *session, RWLOCK *lock)
             __wt_verbose_worker(                                                             \
               (WT_SESSION_IMPL *)(s), WT_VERB_TEMPORARY, WT_VERBOSE_INFO, fmt, __VA_ARGS__); \
     } while (0)
-#define trace_uri_op(tinfo, uri, fmt, ...)                                                    \
-    do {                                                                                      \
-        WT_SESSION_IMPL *__s;                                                                 \
-        uint32_t __i;                                                                         \
-        __s = (WT_SESSION_IMPL *)(tinfo)->session;                                            \
-        if (g.trace) {                                                                        \
-            __wt_verbose_worker(__s, WT_VERB_TEMPORARY, WT_VERBOSE_INFO, "%s%s" fmt,          \
-              (uri) == NULL ? "" : (uri), (uri) == NULL ? "" : ": ", __VA_ARGS__);            \
-            if (g.trace_txn) {                                                                \
-                __wt_verbose_worker(__s, WT_VERB_TEMPORARY, WT_VERBOSE_INFO,                  \
-                  "%s%s txn id %" PRIu64 " snap_min %" PRIu64 " snap_max %" PRIu64            \
-                  " snap count %" PRIu32,                                                     \
-                  (uri) == NULL ? "" : (uri), (uri) == NULL ? "" : ": ", __s->txn->id,        \
-                  __s->txn->snap_min, __s->txn->snap_max, __s->txn->snapshot_count);          \
-                for (__i = 0; __i < __s->txn->snapshot_count; ++__i)                          \
-                    __wt_verbose_worker(__s, WT_VERB_TEMPORARY, WT_VERBOSE_INFO,              \
-                      "%s%s txn snapshot[%" PRIu32 "]: %" PRIu64, (uri) == NULL ? "" : (uri), \
-                      (uri) == NULL ? "" : ": ", __i, __s->txn->snapshot[__i]);               \
-            }                                                                                 \
-        }                                                                                     \
+#define trace_uri_op(tinfo, uri, fmt, ...)                                                        \
+    do {                                                                                          \
+        WT_SESSION_IMPL *__s;                                                                     \
+        uint32_t __i;                                                                             \
+        __s = (WT_SESSION_IMPL *)(tinfo)->session;                                                \
+        if (g.trace) {                                                                            \
+            __wt_verbose_worker(__s, WT_VERB_TEMPORARY, WT_VERBOSE_INFO, "%" PRIu64 " %s%s" fmt,  \
+              (tinfo)->opid, (uri) == NULL ? "" : (uri), (uri) == NULL ? "" : ": ", __VA_ARGS__); \
+            if (g.trace_txn) {                                                                    \
+                __wt_verbose_worker(__s, WT_VERB_TEMPORARY, WT_VERBOSE_INFO,                      \
+                  "%s%s txn id %" PRIu64 " snap_min %" PRIu64 " snap_max %" PRIu64                \
+                  " snap count %" PRIu32,                                                         \
+                  (uri) == NULL ? "" : (uri), (uri) == NULL ? "" : ": ", __s->txn->id,            \
+                  __s->txn->snap_min, __s->txn->snap_max, __s->txn->snapshot_count);              \
+                for (__i = 0; __i < __s->txn->snapshot_count; ++__i)                              \
+                    __wt_verbose_worker(__s, WT_VERB_TEMPORARY, WT_VERBOSE_INFO,                  \
+                      "%s%s txn snapshot[%" PRIu32 "]: %" PRIu64, (uri) == NULL ? "" : (uri),     \
+                      (uri) == NULL ? "" : ": ", __i, __s->txn->snapshot[__i]);                   \
+            }                                                                                     \
+        }                                                                                         \
     } while (0)
 #define trace_op(tinfo, fmt, ...) trace_uri_op(tinfo, (tinfo)->table->uri, fmt, __VA_ARGS__)

@@ -223,6 +223,7 @@ snap_verify_callback(int ret, void *arg)
     WT_ITEM *key, *value;
     uint64_t keyno;
     uint8_t bitv;
+    char ret_buf[10], snap_buf[10];
 
     /* We only handle success and not-found. */
     if (ret != 0 && ret != WT_NOTFOUND)
@@ -278,9 +279,16 @@ snap_verify_callback(int ret, void *arg)
       (u_int)((WT_BTREE *)((WT_CURSOR_BTREE *)cursor)->dhandle->handle)->id);
     switch (table->type) {
     case FIX:
-        fprintf(stderr,
-          "snapshot-isolation: %" PRIu64 " search: expected {0x%02u}, found {0x%02u}\n", keyno,
-          snap->op == REMOVE ? 0U : (u_int)snap->bitv, ret == WT_NOTFOUND ? 0U : (u_int)bitv);
+        if (snap->op == REMOVE)
+            strcpy(snap_buf, "remove");
+        else
+            testutil_check(__wt_snprintf(snap_buf, sizeof(snap_buf), "0x%02u", (u_int)snap->bitv));
+        if (ret == WT_NOTFOUND)
+            strcpy(ret_buf, "notfound");
+        else
+            testutil_check(__wt_snprintf(ret_buf, sizeof(ret_buf), "0x%02u", (u_int)bitv));
+        fprintf(stderr, "snapshot-isolation: %" PRIu64 " search: expected {%s}, found {%s}\n",
+          keyno, snap_buf, ret_buf);
         break;
     case ROW:
         fprintf(
