@@ -81,7 +81,7 @@ class test_bug004(wttest.WiredTigerTestCase):
         # Create a new session and start a transaction to force the engine
         # to access old versions of the key/value pairs.
         tmp_session = self.conn.open_session(None)
-        tmp_session.begin_transaction("isolation=snapshot")
+        tmp_session.begin_transaction()
 
         # Load the object and use truncate to delete a set of records.  (I'm
         # using truncate because it doesn't instantiate keys, all other ops

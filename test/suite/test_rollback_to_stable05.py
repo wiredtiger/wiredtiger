@@ -99,7 +99,7 @@ class test_rollback_to_stable05(test_rollback_to_stable_base):
 
         # Start a long running transaction and keep it open.
         session_2 = self.conn.open_session()
-        session_2.begin_transaction('isolation=snapshot')
+        session_2.begin_transaction()
 
         self.large_updates(uri_1, valueb, ds_1, nrows, self.prepare, 0)
         self.check(valueb, uri_1, nrows, None, 0)

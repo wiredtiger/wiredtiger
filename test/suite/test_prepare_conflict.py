@@ -63,7 +63,7 @@ class test_prepare_conflict(wttest.WiredTigerTestCase):
         self.reopen_conn()
 
         # Start a transaction.
-        self.session.begin_transaction('isolation=snapshot')
+        self.session.begin_transaction()
 
         # Truncate the middle chunk.
         c1 = self.session.open_cursor(uri, None)

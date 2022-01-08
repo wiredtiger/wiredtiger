@@ -52,7 +52,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
                     txn_session.rollback_transaction()
                 sleep(0.1)
                 if txn_session:
-                    txn_session.begin_transaction('isolation=snapshot')
+                    txn_session.begin_transaction()
                     self.pr("Began new transaction for " + name)
             try:
                 code()

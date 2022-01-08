@@ -84,7 +84,7 @@ class test_txn24(wttest.WiredTigerTestCase):
 
         # Start a transaction, make an update and keep it running.
         cursor = self.session.open_cursor(uri, None)
-        self.session.begin_transaction('isolation=snapshot')
+        self.session.begin_transaction()
         cursor[1] = new_val
 
         # Start few sessions and transactions, make updates and try committing them.

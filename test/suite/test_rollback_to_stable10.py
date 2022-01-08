@@ -285,7 +285,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
             # Perform several updates in parallel with checkpoint.
             session_p1 = self.conn.open_session()
             cursor_p1 = session_p1.open_cursor(uri_1)
-            session_p1.begin_transaction('isolation=snapshot')
+            session_p1.begin_transaction()
             self.retry_rollback('update ds1', session_p1,
                            lambda: prepare_range_updates(
                                session_p1, cursor_p1, ds_1, value_e, nrows,
@@ -295,7 +295,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
             # Perform several updates in parallel with checkpoint.
             session_p2 = self.conn.open_session()
             cursor_p2 = session_p2.open_cursor(uri_2)
-            session_p2.begin_transaction('isolation=snapshot')
+            session_p2.begin_transaction()
             self.retry_rollback('update ds2', session_p2,
                            lambda: prepare_range_updates(
                                session_p2, cursor_p2, ds_2, value_e, nrows,

@@ -59,7 +59,7 @@ class test_prepare11(wttest.WiredTigerTestCase):
             value_x = 'xxxx'
             value_y = 'yyyy'
 
-        self.session.begin_transaction("isolation=snapshot")
+        self.session.begin_transaction()
 
         # In the scenario where we have a reserved update in between two updates, the key repeated
         # flag won't get set and we'll call resolve prepared op on both prepared updates.
