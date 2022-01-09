@@ -179,6 +179,10 @@ locks_destroy(WT_CONNECTION *conn)
 
 static bool syntax_check; /* Only checking configuration syntax. */
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
