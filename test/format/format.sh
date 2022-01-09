@@ -472,6 +472,9 @@ resolve()
 			signame="SIGBUS";;
 		$((128 + 8)))
 			signame="SIGFPE";;
+		$((128 + 9)))
+			# SIGKILL is the Linux out-of-memory kill signal.
+			signame="SIGKILL (suspected Linux OOM failure)";;
 		$((128 + 11)))
 			signame="SIGSEGV";;
 		$((128 + 24)))
