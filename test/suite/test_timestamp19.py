@@ -34,7 +34,6 @@ from wtscenario import make_scenarios
 
 class test_timestamp19(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('integer-row', dict(key_format='i', value_format='S')),
@@ -101,13 +100,16 @@ class test_timestamp19(wttest.WiredTigerTestCase):
 
         # The oldest timestamp on recovery is 40. Trying to set it earlier is a no-op.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
-        self.assertTimestampsEqual(self.conn.query_timestamp('get=oldest'), self.timestamp_str(40))
+        self.assertTimestampsEqual(\
+            self.conn.query_timestamp('get=oldest_timestamp'), self.timestamp_str(40))
 
         # Move the oldest and stable timestamps to 70.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(70) +
           ', stable_timestamp=' + self.timestamp_str(70))
-        self.assertTimestampsEqual(self.conn.query_timestamp('get=oldest'), self.timestamp_str(70))
-        self.assertTimestampsEqual(self.conn.query_timestamp('get=stable'), self.timestamp_str(70))
+        self.assertTimestampsEqual(\
+            self.conn.query_timestamp('get=oldest_timestamp'), self.timestamp_str(70))
+        self.assertTimestampsEqual(\
+            self.conn.query_timestamp('get=stable_timestamp'), self.timestamp_str(70))
 
 if __name__ == '__main__':
     wttest.run()

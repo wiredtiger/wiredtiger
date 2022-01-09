@@ -57,7 +57,6 @@ class test_timestamp06(wttest.WiredTigerTestCase, suite_subprocess):
             dict(conn_config='create,log=(archive=false,enabled),compatibility=(release="2.9")')),
         ('V2', dict(conn_config='create,log=(archive=false,enabled)')),
     ]
-    session_config = 'isolation=snapshot'
 
     scenarios = make_scenarios(conncfg, types, ckpt)
 
