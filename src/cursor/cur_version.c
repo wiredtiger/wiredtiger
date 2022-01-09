@@ -253,9 +253,10 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
             /* Ensure enough room for a column-store key without checking. */
             WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
-            if (page->type == WT_PAGE_ROW_LEAF)
-                WT_ERR(__wt_buf_set(session, key, table_cursor->key.data, table_cursor->key.size));
-            else {
+            if (page->type == WT_PAGE_ROW_LEAF) {
+                key->data = table_cursor->key.data;
+                key->size = table_cursor->key.size;
+            } else {
                 p = key->mem;
                 WT_ERR(__wt_vpack_uint(&p, 0, cbt->recno));
                 key->size = WT_PTRDIFF(p, key->data);
