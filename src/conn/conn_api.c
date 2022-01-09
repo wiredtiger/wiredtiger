@@ -1828,7 +1828,8 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     conn->is_new = exist ? 0 : 1;
 
     /*
-     * If the turtle file exists, the WiredTiger file should exist as well, unless we are salvaging.
+     * Unless we are salvaging, if the turtle file exists then the WiredTiger file should exist as
+     * well.
      */
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
     is_salvage = cval.val != 0;
@@ -1883,7 +1884,8 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /*
-     * Populate WiredTiger file if new connection or WiredTiger file is empty and we are salvaging.
+     * Populate the WiredTiger file if this is a new connection or if the WiredTiger file is empty
+     * and we are salvaging.
      */
     if (conn->is_new || (is_salvage && empty)) {
         if (F_ISSET(conn, WT_CONN_READONLY))
