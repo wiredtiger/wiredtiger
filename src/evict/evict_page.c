@@ -103,7 +103,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     force_evict_hs = false;
     local_gen = false;
 
-    __wt_verbose(
+    __wt_verbose_evict(
       session, WT_VERB_EVICT, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
 
     tree_dead = F_ISSET(session->dhandle, WT_DHANDLE_DEAD);
