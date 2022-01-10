@@ -101,7 +101,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     WT_PAGE *page;
     WT_TIME_WINDOW *twp;
     WT_UPDATE *upd;
-    wt_timestamp_t durable_stop_ts, stop_ts;
+    wt_timestamp_t durable_start_ts, durable_stop_ts, stop_ts;
     uint64_t stop_txn, hs_upd_type;
     uint32_t raw;
     uint8_t *p, version_prepare_state;
@@ -134,9 +134,10 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
         while (upd != NULL && upd->txnid == WT_TXN_ABORTED)
             upd = upd->next;
 
-        if (upd == NULL)
+        if (upd == NULL) {
+            version_cursor->next_upd = NULL;
             F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
-        else {
+        } else {
             if (upd->type == WT_UPDATE_TOMBSTONE) {
                 /*
                  * If the update is a tombstone, we still want to record the stop information but we
@@ -154,9 +155,10 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
                     upd = upd->next;
             }
 
-            if (upd == NULL)
+            if (upd == NULL) {
+                version_cursor->next_upd = NULL;
                 F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
-            else {
+            } else {
                 if (upd->prepare_state == WT_PREPARE_INPROGRESS ||
                   upd->prepare_state == WT_PREPARE_LOCKED)
                     version_prepare_state = 1;
@@ -276,7 +278,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 
         __wt_hs_upd_time_window(hs_cursor, &twp);
         WT_ERR(hs_cursor->get_value(
-          hs_cursor, &twp->stop_ts, &twp->durable_start_ts, &hs_upd_type, hs_value));
+          hs_cursor, &durable_stop_ts, &durable_start_ts, &hs_upd_type, hs_value));
 
         __wt_cursor_set_value(cursor, twp->start_txn, twp->start_ts, twp->durable_start_ts,
           twp->stop_txn, twp->stop_ts, twp->durable_stop_ts, hs_upd_type, 0, 0,
