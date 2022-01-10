@@ -651,7 +651,7 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
     PyObject *metadata, PyObject *data) {
 	if (*$1 && *$3) {
 		metadata = PyBytes_FromStringAndSize(*$1, *$2);
-		$result = SWIG_Python_AppendOutput($result, metadata);
+		$result = metadata;
 		data = PyBytes_FromStringAndSize(*$3, *$4);
 		$result = SWIG_Python_AppendOutput($result, data);
 	}
