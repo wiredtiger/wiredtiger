@@ -25,45 +25,48 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# test_config10.py
+#   Test valid behaviour when starting WiredTiger with missing or empty
+#   WiredTiger version file.
 
 import wiredtiger, wttest
-from suite_subprocess import suite_subprocess
 from wiredtiger import stat
+import os
 
-# test_txn12.py
-#    test of commit following failed op in a read only transaction.
-class test_txn12(wttest.WiredTigerTestCase, suite_subprocess):
-    name = 'test_txn12'
-    uri = 'table:' + name
-    create_params = 'key_format=i,value_format=i'
-
-    # Test that read-only transactions can commit following a failure.
-    def test_txn12(self):
-
-        # Setup the session and table.
-        session = self.conn.open_session(None)
-        session.create(self.uri, self.create_params)
-        session.begin_transaction()
-
-        # Create a read only transaction.
-        c = session.open_cursor(self.uri, None)
-        c.next()
-        msg = '/next_random.*boolean/'
+class test_config10(wttest.WiredTigerTestCase):
+    uri = 'table:config10.'
+    
+    def test_missing_version_file(self):
+        self.conn.close()
+        os.remove('WiredTiger')
+        # Ensure error occurs when WiredTiger file is missing.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:session.open_cursor(self.uri, None, "next_random=bar"), msg)
-        # This commit should succeed as open cursor should not set transaction
-        # error.
-        session.commit_transaction()
+            lambda: self.setUpConnectionOpen('.'), '/WT_TRY_SALVAGE: database corruption detected/')
+    
+    def test_empty_version_file(self):
+        self.conn.close()
+        # Ensure returns message when WiredTiger file is empty.
+        open('WiredTiger','w').close()
+        expectMessage = 'WiredTiger version file is empty'
+        with self.expectedStdoutPattern(expectMessage):
+            self.setUpConnectionOpen('.')
 
-        # Create a read/write transaction.
-        session.begin_transaction()
-        c = session.open_cursor(self.uri, None)
-        c[123] = 123
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:session.open_cursor(self.uri, None, "next_random=bar"), msg)
-        # This commit should succeed as open cursor should not set transaction
-        # error.
-        session.commit_transaction()
+    def test_missing_version_file_with_salvage(self):
+        self.conn.close()
+        os.remove('WiredTiger')
+        salvage_config = 'salvage=true'
+        self.conn = self.wiredtiger_open('.', salvage_config)
+        # Check salvage creates and populates file.
+        self.assertNotEqual(os.stat('WiredTiger').st_size, 0)
+
+    def test_empty_version_file_with_salvage(self):
+        self.conn.close()
+        open('WiredTiger','w').close()
+        salvage_config = 'salvage=true'
+        self.conn = self.wiredtiger_open('.', salvage_config)
+        # Check salvage populates file.
+        self.assertNotEqual(os.stat('WiredTiger').st_size, 0)
 
 if __name__ == '__main__':
     wttest.run()
