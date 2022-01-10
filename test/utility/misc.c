@@ -239,11 +239,13 @@ testutil_cleanup(TEST_OPTS *opts)
     free(opts->uri);
     free(opts->progress_file_name);
     free(opts->home);
+    free(opts->build_dir);
 }
 
 /*
  * testutil_copy_data --
- *     Copy the data to a backup folder.
+ *     Copy the data to a backup folder. Usually, the data copy is cleaned up by a call to
+ *     testutil_clean_test_artifacts.
  */
 void
 testutil_copy_data(const char *dir)
@@ -291,6 +293,10 @@ testutil_timestamp_parse(const char *str, uint64_t *tsp)
     testutil_assert(p - str <= 16);
 }
 
+/*
+ * testutil_create_backup_directory --
+ *     TODO: Add a comment describing this function.
+ */
 void
 testutil_create_backup_directory(const char *home)
 {
@@ -307,6 +313,10 @@ testutil_create_backup_directory(const char *home)
 /*
  * copy_file --
  *     Copy a single file into the backup directories.
+ */
+/*
+ * testutil_copy_file --
+ *     TODO: Add a comment describing this function.
  */
 void
 testutil_copy_file(WT_SESSION *session, const char *name)

@@ -25,33 +25,28 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# test_timestamp25.py
+#   Timestamps: backward compatible oldest and stable names.
+#
 
 import wiredtiger, wttest
-from wtdataset import SimpleDataSet
+from suite_subprocess import suite_subprocess
 
-# test_flcs04.py
-#
-# Make sure modify fails cleanly on FLCS tables.
+class test_timestamp25(wttest.WiredTigerTestCase, suite_subprocess):
+    tablename = 'test_timestamp25'
+    uri = 'table:' + tablename
 
-class test_flcs04(wttest.WiredTigerTestCase):
-    conn_config = 'in_memory=false'
+    def test_short_names(self):
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(100))
+        self.assertTimestampsEqual(self.conn.query_timestamp("get=oldest"), self.timestamp_str(100))
+        self.assertTimestampsEqual(\
+            self.conn.query_timestamp("get=oldest_timestamp"), self.timestamp_str(100))
 
-    def test_flcs(self):
-        uri = "table:test_flcs04"
-        nrows = 10
-        ds = SimpleDataSet(
-            self, uri, nrows, key_format='r', value_format='6t', config='leaf_page_max=4096')
-        ds.populate()
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(100))
+        self.assertTimestampsEqual(self.conn.query_timestamp("get=stable"), self.timestamp_str(100))
+        self.assertTimestampsEqual(\
+            self.conn.query_timestamp("get=stable_timestamp"), self.timestamp_str(100))
 
-        
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-
-        cursor.set_key(5)
-        mods = [wiredtiger.Modify('Q', 100, 1)]
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: cursor.modify(mods),
-            "/WT_CURSOR.modify only supported for/")
-
-        self.session.rollback_transaction()
-        cursor.close()
+if __name__ == '__main__':
+    wttest.run()
