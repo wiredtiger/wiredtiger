@@ -159,9 +159,18 @@ int
 __wt_session_release_resources(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
+    bool done;
+
+    /*
+     * Called when sessions are reset and closed, and when heavy-weight session methods or functions
+     * complete (for example, checkpoint and compact). If the session has no open cursors discard it
+     * all; if there are cursors, discard what we can safely clean out.
+     */
+    done = TAILQ_FIRST(&session->cursors) == NULL;
 
     /* Transaction cleanup */
-    __wt_txn_release_resources(session);
+    if (done)
+        __wt_txn_release_resources(session);
 
     /* Block manager cleanup */
     if (session->block_manager_cleanup != NULL)
@@ -174,12 +183,11 @@ __wt_session_release_resources(WT_SESSION_IMPL *session)
     /* Stashed memory. */
     __wt_stash_discard(session);
 
-    /*
-     * Discard scratch buffers, error memory; last, just in case a cleanup routine uses scratch
-     * buffers.
-     */
-    __wt_scr_discard(session);
-    __wt_buf_free(session, &session->err);
+    /* Scratch buffers and error memory. */
+    if (done) {
+        __wt_scr_discard(session);
+        __wt_buf_free(session, &session->err);
+    }
 
     return (ret);
 }
@@ -321,9 +329,6 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     /* Discard metadata tracking. */
     __wt_meta_track_discard(session);
 
-    /* Free transaction information. */
-    __wt_txn_destroy(session);
-
     /*
      * Close the file where we tracked long operations. Do this before releasing resources, as we do
      * scratch buffer management when we flush optrack buffers to disk.
@@ -343,6 +348,12 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
 
     /* The API lock protects opening and closing of sessions. */
     __wt_spin_lock(session, &conn->api_lock);
+
+    /*
+     * Free transaction information: inside the lock because we're freeing the WT_TXN structure and
+     * RTS looks at it.
+     */
+    __wt_txn_destroy(session);
 
     /* Decrement the count of open sessions. */
     WT_STAT_CONN_DECR(session, session_open);
@@ -1855,6 +1866,20 @@ err:
 }
 
 /*
+ * __session_get_rollback_reason --
+ *     WT_SESSION->get_rollback_reason method.
+ */
+static const char *
+__session_get_rollback_reason(WT_SESSION *wt_session)
+{
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+
+    return (session->txn->rollback_reason);
+}
+
+/*
  * __session_checkpoint --
  *     WT_SESSION->checkpoint method.
  */
@@ -1973,7 +1998,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_truncate, __session_upgrade, __session_verify, __session_begin_transaction,
         __session_commit_transaction, __session_prepare_transaction, __session_reset_snapshot,
         __session_rollback_transaction, __session_timestamp_transaction, __session_query_timestamp,
-        __session_checkpoint, __session_transaction_pinned_range, __wt_session_breakpoint},
+        __session_checkpoint, __session_transaction_pinned_range, __session_get_rollback_reason,
+        __wt_session_breakpoint},
       stds_readonly = {NULL, NULL, __session_close, __session_reconfigure, __session_flush_tier,
         __wt_session_strerror, __session_open_cursor, __session_alter_readonly,
         __session_create_readonly, __wt_session_compact_readonly, __session_drop_readonly,
@@ -1983,7 +2009,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_begin_transaction, __session_commit_transaction,
         __session_prepare_transaction_readonly, __session_reset_snapshot,
         __session_rollback_transaction, __session_timestamp_transaction, __session_query_timestamp,
-        __session_checkpoint_readonly, __session_transaction_pinned_range, __wt_session_breakpoint};
+        __session_checkpoint_readonly, __session_transaction_pinned_range,
+        __session_get_rollback_reason, __wt_session_breakpoint};
     WT_DECL_RET;
     WT_SESSION_IMPL *session, *session_ret;
     uint32_t i;

@@ -1170,12 +1170,14 @@ struct __wt_session {
 	 * @config{import = (, configure import of an existing object into the currently running
 	 * database., a set of related configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;compare_timestamp, Allow importing files with timestamps
-	 * smaller or equal to the configured global timestamps.  Note that the history of the files
-	 * are not imported together and thus snapshot read of historical data will not work with
-	 * the option "stable"., a string\, chosen from the following options: \c "oldest"\, \c
-	 * "stable"; default \c oldest.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, whether to import
-	 * the input URI from disk., a boolean flag; default \c false.}
+	 * smaller or equal to the configured global timestamps.  Note the history of the files are
+	 * not imported together and thus snapshot read of historical data will not work with the
+	 * option "stable_timestamp". (The \c oldest and \c stable arguments are deprecated
+	 * short-hand for \c oldest_timestamp and \c stable_timestamp\, respectively.)., a string\,
+	 * chosen from the following options: \c "oldest"\, \c "oldest_timestamp"\, \c "stable"\, \c
+	 * "stable_timestamp"; default \c oldest_timestamp.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+	 * enabled, whether to import the input URI from disk., a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_metadata, the file configuration extracted from the
 	 * metadata of the export database., a string; default empty.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;repair, whether to reconstruct the metadata from the raw
@@ -1942,6 +1944,17 @@ struct __wt_session {
 
 #ifndef DOXYGEN
 	/*!
+	 * Optionally returns the reason for the most recent rollback error returned from the API.
+	 *
+	 * There is no guarantee a rollback reason will be set and thus the caller
+	 * must check for a NULL pointer.
+	 *
+	 * @param session the session handle
+	 * @returns an optional string indicating the reason for the rollback
+	 */
+	const char * __F(get_rollback_reason)(WT_SESSION *session);
+
+	/*!
 	 * Call into the library.
 	 *
 	 * This method is used for breakpoints and to set other configuration
@@ -2431,15 +2444,18 @@ struct __wt_connection {
 	 * @configstart{WT_CONNECTION.query_timestamp, see dist/api_data.py}
 	 * @config{get, specify which timestamp to query: \c all_durable returns the largest
 	 * timestamp such that all timestamps up to that value have been made durable\, \c
-	 * last_checkpoint returns the timestamp of the most recent stable checkpoint\, \c oldest
-	 * returns the most recent \c oldest_timestamp set with WT_CONNECTION::set_timestamp\, \c
-	 * oldest_reader returns the minimum of the read timestamps of all active readers \c pinned
-	 * returns the minimum of the \c oldest_timestamp and the read timestamps of all active
-	 * readers\, \c recovery returns the timestamp of the most recent stable checkpoint taken
-	 * prior to a shutdown and \c stable returns the most recent \c stable_timestamp set with
-	 * WT_CONNECTION::set_timestamp.  See @ref transaction_timestamps., a string\, chosen from
-	 * the following options: \c "all_durable"\, \c "last_checkpoint"\, \c "oldest"\, \c
-	 * "oldest_reader"\, \c "pinned"\, \c "recovery"\, \c "stable"; default \c all_durable.}
+	 * last_checkpoint returns the timestamp of the most recent stable checkpoint\, \c
+	 * oldest_timestamp returns the most recent \c oldest_timestamp set with
+	 * WT_CONNECTION::set_timestamp\, \c oldest_reader returns the minimum of the read
+	 * timestamps of all active readers \c pinned returns the minimum of the \c oldest_timestamp
+	 * and the read timestamps of all active readers\, \c recovery returns the timestamp of the
+	 * most recent stable checkpoint taken prior to a shutdown and \c stable_timestamp returns
+	 * the most recent \c stable_timestamp set with WT_CONNECTION::set_timestamp.  (The \c
+	 * oldest and \c stable arguments are deprecated short-hand for \c oldest_timestamp and \c
+	 * stable_timestamp\, respectively.) See @ref transaction_timestamps., a string\, chosen
+	 * from the following options: \c "all_durable"\, \c "last_checkpoint"\, \c "oldest"\, \c
+	 * "oldest_reader"\, \c "oldest_timestamp"\, \c "pinned"\, \c "recovery"\, \c "stable"\, \c
+	 * "stable_timestamp"; default \c all_durable.}
 	 * @configend
 	 * @errors
 	 * If there is no matching timestamp (e.g., if this method is called
@@ -3138,9 +3154,9 @@ struct __wt_connection {
  * "read"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c
  * "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c "tiered"\, \c "timestamp"\,
  * \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default \c [].}
- * @config{verify_metadata, open connection and verify any WiredTiger metadata.  This API allows
- * verification and detection of corruption in WiredTiger metadata., a boolean flag; default \c
- * false.}
+ * @config{verify_metadata, open connection and verify any WiredTiger metadata.  Not compatible when
+ * opening a connection from a backup.  This API allows verification and detection of corruption in
+ * WiredTiger metadata., a boolean flag; default \c false.}
  * @config{write_through, Use \c FILE_FLAG_WRITE_THROUGH on Windows to write to files.  Ignored on
  * non-Windows systems.  Options are given as a list\, such as <code>"write_through=[data]"</code>.
  * Configuring \c write_through requires care\, see @ref tuning_system_buffer_cache_direct_io for
@@ -3647,13 +3663,13 @@ struct __wt_config_parser {
 /*!
  * Return a pointer to a function that calculates a CRC32C checksum.
  *
- * The WiredTiger library CRC32C checksum function uses hardware support where
- * available, else it falls back to a software implementation.
+ * The WiredTiger library CRC32C checksum function uses hardware support where available, else it
+ * falls back to a software implementation. Selecting a CRC32C checksum function can be slow, the
+ * return value should be cached by the caller for repeated use.
  *
  * @snippet ex_all.c Checksum a buffer
  *
- * @returns a pointer to a function that takes a buffer and length and returns
- * the CRC32C checksum
+ * @returns a pointer to a function that takes a buffer and length and returns the CRC32C checksum
  */
 uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
     WT_ATTRIBUTE_LIBRARY_VISIBLE;

@@ -35,7 +35,6 @@ from wtscenario import make_scenarios
 # test_rollback_to_stable19.py
 # Test that rollback to stable aborts both insert and remove updates from a single prepared transaction
 class test_rollback_to_stable19(test_rollback_to_stable_base):
-    session_config = 'isolation=snapshot'
 
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),
@@ -45,7 +44,7 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
         ('column_fix', dict(key_format='r', value_format='8t')),
-        ('integer_row', dict(key_format='i', value_format='S')),
+        ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
     restart_options = [
@@ -134,7 +133,6 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
                 # Close and reopen the connection
                 self.reopen_conn()
         else:
-            self.conn.rollback_to_stable()
             s.rollback_transaction()
 
         # Verify data is not visible.
@@ -148,7 +146,7 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
         # After restart (not crash) the stats for the aborted updates will be 0, as the updates
         # will be aborted during shutdown, and on startup there will be no updates to be aborted.
         # This is similar case with keys removed.
-        if not self.in_memory and not self.crash:
+        if self.in_memory or not self.crash:
             self.assertEqual(upd_aborted, 0)
             self.assertEqual(keys_removed, 0)
         else:
@@ -235,7 +233,6 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
                 # Close and reopen the connection
                 self.reopen_conn()
         else:
-            self.conn.rollback_to_stable()
             s.rollback_transaction()
 
         # Verify data.
@@ -250,11 +247,12 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
         # After restart (not crash) the stats for the aborted updates and history store removed will be 0,
         # as the updates aborted and history store removed will occur during shutdown, and on startup there
         # will be no updates to be removed.
-        if not self.in_memory:
-            if self.crash:
-                self.assertGreater(hs_removed, 0)
-            else:
-                self.assertEqual(hs_removed, 0)
-                self.assertEqual(upd_aborted, 0)
+        if self.in_memory or not self.crash:
+            self.assertEqual(hs_removed, 0)
+            self.assertEqual(upd_aborted, 0)
         else:
+            self.assertGreater(hs_removed, 0)
             self.assertGreater(upd_aborted, 0)
+
+if __name__ == '__main__':
+    wttest.run()
