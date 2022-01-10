@@ -110,7 +110,7 @@ class test_tiered13(test_import_base):
         newdir = 'IMPORT_DB'
         shutil.rmtree(newdir, ignore_errors=True)
         os.mkdir(newdir)
-        newbucket = newdir + '/' + self.bucket
+        newbucket = os.path.join(newdir, self.bucket)
         os.mkdir(newbucket)
         # It is tricky to work around the extension and connection bucket setup for
         # creating the new import directory that is tiered-enabled.
@@ -123,7 +123,7 @@ class test_tiered13(test_import_base):
         # Copy the file to the file names we're going to test later.
         self.copy_file(self.file2, '.', newdir)
         copy_from = self.file2
-        copy_to = newdir+ '/' + self.otherfile
+        copy_to = os.path.join(newdir, self.otherfile)
         shutil.copy(copy_from, copy_to)
 
         msg = '/Operation not supported/'
