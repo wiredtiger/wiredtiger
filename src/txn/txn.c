@@ -139,48 +139,6 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_user_active --
- *     Check whether there are any running user transactions. Note that a new transaction may start
- *     after we return from this call and therefore caller should be aware of this limitation.
- */
-bool
-__wt_txn_user_active(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_SESSION_IMPL *session_in_list;
-    WT_TXN_GLOBAL *txn_global;
-    WT_TXN_SHARED *txn_shared;
-    uint32_t i, session_cnt;
-    bool txn_active;
-
-    conn = S2C(session);
-    txn_active = false;
-    txn_global = &conn->txn_global;
-
-    /* We're going to scan the table: wait for the lock. */
-    __wt_writelock(session, &txn_global->rwlock);
-
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_sessions);
-    for (i = 0, session_in_list = conn->sessions, txn_shared = txn_global->txn_shared_list;
-         i < session_cnt; i++, session_in_list++, txn_shared++) {
-
-        /* Skip inactive or internal sessions. */
-        if (!session_in_list->active || F_ISSET(session_in_list, WT_SESSION_INTERNAL))
-            continue;
-
-        /* Check if a user session has a running transaction. */
-        if (txn_shared->id != WT_TXN_NONE || txn_shared->pinned_id != WT_TXN_NONE) {
-            txn_active = true;
-            break;
-        }
-    }
-
-    __wt_writeunlock(session, &txn_global->rwlock);
-    return (txn_active);
-}
-
-/*
  * __wt_txn_active --
  *     Check if a transaction is still active. If not, it is either committed, prepared, or rolled
  *     back. It is possible that we race with commit, prepare or rollback and a transaction is still
@@ -709,7 +667,6 @@ __wt_txn_release(WT_SESSION_IMPL *session)
     txn_global = &S2C(session)->txn_global;
 
     WT_ASSERT(session, txn->mod_count == 0);
-    txn->notify = NULL;
 
     /* Clear the transaction's ID from the global table. */
     if (WT_SESSION_IS_CHECKPOINT(session)) {
@@ -913,15 +870,15 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
     ts_flags = op->btree->dhandle->ts_flags;
 
     if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_ALWAYS) && !txn_has_ts)
-        WT_RET(__wt_msg(session,
+        __wt_verbose_notice(session, WT_VERB_TRANSACTION, "%s",
           WT_COMMIT_TS_VERB_PREFIX
-          "commit timestamp not used on table configured to require timestamps"));
+          "commit timestamp not used on table configured to require timestamps");
 
     if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_NEVER) && txn_has_ts)
-        WT_RET(__wt_msg(session,
+        __wt_verbose_notice(session, WT_VERB_TRANSACTION,
           WT_COMMIT_TS_VERB_PREFIX
           "commit timestamp %s used on table configured to not use timestamps",
-          __wt_timestamp_to_string(op_ts, ts_string[0])));
+          __wt_timestamp_to_string(op_ts, ts_string[0]));
 
 #ifdef HAVE_DIAGNOSTIC
     prev_op_durable_ts = upd->prev_durable_ts;
@@ -932,10 +889,10 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
      */
     if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_KEY_CONSISTENT) && prev_op_durable_ts != WT_TS_NONE &&
       !txn_has_ts) {
-        WT_RET(__wt_msg(session,
+        __wt_verbose_error(session, WT_VERB_TRANSACTION, "%s",
           WT_COMMIT_TS_VERB_PREFIX
           "no timestamp provided for an update to a "
-          "table configured to always use timestamps once they are first used"));
+          "table configured to always use timestamps once they are first used");
         WT_ASSERT(session, false);
     }
 
@@ -944,13 +901,13 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
      * ordering.
      */
     if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_ORDERED) && txn_has_ts && prev_op_durable_ts > op_ts) {
-        WT_RET(__wt_msg(session,
+        __wt_verbose_error(session, WT_VERB_TRANSACTION,
           WT_COMMIT_TS_VERB_PREFIX
           "committing a transaction that updates a "
           "value with an older timestamp (%s) than is associated with the previous "
           "update (%s) on a table configured for strict ordering",
           __wt_timestamp_to_string(op_ts, ts_string[0]),
-          __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
+          __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1]));
         WT_ASSERT(session, false);
     }
 
@@ -961,24 +918,24 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
      */
     if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_ORDERED) && prev_op_durable_ts != WT_TS_NONE &&
       !txn_has_ts) {
-        WT_RET(
-          __wt_msg(session,
-            WT_COMMIT_TS_VERB_PREFIX "committing a transaction that updates a value without "
-                                     "a timestamp while the previous update (%s) is timestamped "
-                                     "on a table configured for strict ordering",
-            __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
+        __wt_verbose_error(session, WT_VERB_TRANSACTION,
+          WT_COMMIT_TS_VERB_PREFIX
+          "committing a transaction that updates a value without "
+          "a timestamp while the previous update (%s) is timestamped "
+          "on a table configured for strict ordering",
+          __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1]));
         WT_ASSERT(session, false);
     }
 
     if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_MIXED_MODE) && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
       op_ts != WT_TS_NONE && prev_op_durable_ts > op_ts) {
-        WT_RET(__wt_msg(session,
+        __wt_verbose_error(session, WT_VERB_TRANSACTION,
           WT_COMMIT_TS_VERB_PREFIX
           "committing a transaction that updates a "
           "value with an older timestamp (%s) than is associated with the previous "
           "update (%s) on a table configured for mixed mode ordering",
           __wt_timestamp_to_string(op_ts, ts_string[0]),
-          __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
+          __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1]));
         WT_ASSERT(session, false);
     }
 #else
@@ -1723,10 +1680,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
          */
     }
 
-    /* Commit notification. */
-    if (txn->notify != NULL)
-        WT_ERR(txn->notify->notify(txn->notify, (WT_SESSION *)session, txn->id, 1));
-
     /*
      * We are about to release the snapshot: copy values into any positioned cursors so they don't
      * point to updates that could be freed once we don't have a snapshot. If this transaction is
@@ -1966,10 +1919,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
      * A transaction should not have updated any of the logged tables, if debug mode logging is not
      * turned on.
      */
-    if (!FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_DEBUG_MODE))
-        WT_RET_ASSERT(session, txn->logrec == NULL, EINVAL,
-          "A transaction should not have been assigned a log record if WT_CONN_LOG_DEBUG mode is "
-          "not enabled");
+    if (txn->logrec != NULL && !FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_DEBUG_MODE))
+        WT_RET_MSG(session, EINVAL, "a prepared transaction cannot include a logged table");
 
     /* Set the prepare timestamp. */
     WT_RET(__wt_txn_set_timestamp(session, cfg));
@@ -2111,10 +2062,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     readonly = txn->mod_count == 0;
 
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
-
-    /* Rollback notification. */
-    if (txn->notify != NULL)
-        WT_TRET(txn->notify->notify(txn->notify, (WT_SESSION *)session, txn->id, 0));
 
     /* Configure the timeout for this rollback operation. */
     WT_RET(__txn_config_operation_timeout(session, cfg, true));
@@ -2502,8 +2449,7 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
      * Check if either the transaction's ID or its pinned ID is equal to the oldest transaction ID.
      */
     return (txn_shared->id == global_oldest || txn_shared->pinned_id == global_oldest ?
-        __wt_txn_rollback_required(
-          session, "oldest pinned transaction ID rolled back for eviction") :
+        __wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE) :
         0);
 }
 

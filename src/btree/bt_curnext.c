@@ -55,18 +55,18 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     if (cbt->recno < WT_INSERT_RECNO(cbt->ins)) {
         cbt->v = 0;
         cbt->iface.value.data = &cbt->v;
+        cbt->iface.value.size = 1;
     } else {
 restart_read:
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
-        if (cbt->upd_value->type == WT_UPDATE_INVALID) {
+        if (cbt->upd_value->type == WT_UPDATE_INVALID ||
+          cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
             cbt->v = 0;
             cbt->iface.value.data = &cbt->v;
-        } else if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
-            cbt->iface.value.data = cbt->upd_value->buf.data;
-        else
-            WT_RET(__wt_value_return(cbt, cbt->upd_value));
+            cbt->iface.value.size = 1;
+        } else
+            __wt_value_return(cbt, cbt->upd_value);
     }
-    cbt->iface.value.size = 1;
     return (0);
 }
 
@@ -77,12 +77,10 @@ restart_read:
 static inline int
 __cursor_fix_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
-    WT_BTREE *btree;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
 
     session = CUR2S(cbt);
-    btree = S2BT(session);
     page = cbt->ref->page;
 
     /* If restarting after a prepare conflict, jump to the right spot. */
@@ -91,6 +89,10 @@ __cursor_fix_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 
     /* Initialize for each new page. */
     if (newpage) {
+        /*
+         * Be paranoid and set the slot out of bounds when moving to a new page.
+         */
+        cbt->slot = UINT32_MAX;
         cbt->last_standard_recno = __col_fix_last_recno(cbt->ref);
         if (cbt->last_standard_recno == 0)
             return (WT_NOTFOUND);
@@ -104,27 +106,38 @@ __cursor_fix_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     __cursor_set_recno(cbt, cbt->recno + 1);
 
 new_page:
+restart_read:
+    /* We only have one slot. */
+    cbt->slot = 0;
+
     /* Check any insert list for a matching record. */
     cbt->ins_head = WT_COL_UPDATE_SINGLE(page);
     cbt->ins = __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, cbt->recno);
     if (cbt->ins != NULL && cbt->recno != WT_INSERT_RECNO(cbt->ins))
         cbt->ins = NULL;
-    /*
-     * FIXME-WT-6127: Now we only do transaction read if we have an update chain and it doesn't work
-     * in durable history. Review this when we have a plan for fixed-length column store.
-     */
     __wt_upd_value_clear(cbt->upd_value);
     if (cbt->ins != NULL)
-restart_read:
-        WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins->upd));
-    if (cbt->upd_value->type == WT_UPDATE_INVALID) {
-        cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
+        /* Check the update list. */
+        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
+    if (cbt->upd_value->type == WT_UPDATE_INVALID)
+        /* Nope. Read the on-disk value and/or history. */
+        WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins ? cbt->ins->upd : NULL));
+    if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE || cbt->upd_value->type == WT_UPDATE_INVALID) {
+        /*
+         * Deleted values read as 0.
+         *
+         * Getting an invalid update back means that there was no update, the on-disk value isn't
+         * visible, and there isn't anything in history either. This means this chunk of the tree
+         * didn't exist yet for us (given our read timestamp), so we can either return NOTFOUND or
+         * produce a zero value depending on the desired end-of-tree semantics. For now, we produce
+         * zero so as not to change the preexisting end-of-tree behavior.
+         */
+        cbt->v = 0;
         cbt->iface.value.data = &cbt->v;
-    } else if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
-        cbt->iface.value.data = cbt->upd_value->buf.data;
-    else
-        WT_RET(__wt_value_return(cbt, cbt->upd_value));
-    cbt->iface.value.size = 1;
+        cbt->iface.value.size = 1;
+    } else
+        __wt_value_return(cbt, cbt->upd_value);
+
     return (0);
 }
 
@@ -170,7 +183,8 @@ restart_read:
             ++*skippedp;
             continue;
         }
-        return (__wt_value_return(cbt, cbt->upd_value));
+        __wt_value_return(cbt, cbt->upd_value);
+        return (0);
     }
     /* NOTREACHED */
 }
@@ -242,7 +256,8 @@ restart_read:
                 ++*skippedp;
                 continue;
             }
-            return (__wt_value_return(cbt, cbt->upd_value));
+            __wt_value_return(cbt, cbt->upd_value);
+            return (0);
         }
 
         /*
@@ -300,12 +315,16 @@ restart_read:
             ++*skippedp;
             continue;
         }
-        WT_RET(__wt_value_return(cbt, cbt->upd_value));
+        __wt_value_return(cbt, cbt->upd_value);
 
         /*
          * It is only safe to cache the value for other keys in the same RLE cell if it is globally
          * visible. Otherwise, there might be some older timestamp where the value isn't uniform
          * across the cell. Always set cip_saved so it's easy to tell when we change cells.
+         *
+         * Note: it's important that we're checking the on-disk value for global visibility, and not
+         * whatever __wt_txn_read returned, which might be something else. (If it's something else,
+         * we can't cache it; but in that case the on-disk value cannot be globally visible.)
          */
         cbt->cip_saved = cip;
         if (rle > 1 &&
@@ -418,7 +437,8 @@ restart_read_insert:
                 ++*skippedp;
                 continue;
             }
-            return (__wt_value_return(cbt, cbt->upd_value));
+            __wt_value_return(cbt, cbt->upd_value);
+            return (0);
         }
 
         /* Check for the end of the page. */
@@ -465,7 +485,8 @@ restart_read_page:
             ++*skippedp;
             continue;
         }
-        return (__wt_value_return(cbt, cbt->upd_value));
+        __wt_value_return(cbt, cbt->upd_value);
+        return (0);
     }
     /* NOTREACHED */
 }
@@ -500,9 +521,10 @@ __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
 
     WT_RET(__wt_msg(session, "dumping the tree"));
     WT_WITH_BTREE(session, btree, ret = __wt_debug_tree_all(session, NULL, NULL, NULL));
-    WT_ERR_PANIC(session, EINVAL,
+    __wt_verbose_error(session, WT_VERB_OUT_OF_ORDER,
       "WT_CURSOR.%s out-of-order returns: returned key %" PRIu64 " then key %" PRIu64,
       next ? "next" : "prev", cbt->lastrecno, cbt->recno);
+    WT_ERR_PANIC(session, EINVAL, "found key out-of-order returns");
 
 err:
     return (ret);
@@ -535,12 +557,12 @@ __cursor_key_order_check_row(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
     WT_ERR(__wt_scr_alloc(session, 512, &a));
     WT_ERR(__wt_scr_alloc(session, 512, &b));
 
-    WT_ERR(
-      __wt_msg(session, "WT_CURSOR.%s out-of-order returns: returned key %.1024s then key %.1024s",
-        next ? "next" : "prev",
-        __wt_buf_set_printable_format(
-          session, cbt->lastkey->data, cbt->lastkey->size, btree->key_format, false, a),
-        __wt_buf_set_printable_format(session, key->data, key->size, btree->key_format, false, b)));
+    __wt_verbose_error(session, WT_VERB_OUT_OF_ORDER,
+      "WT_CURSOR.%s out-of-order returns: returned key %.1024s then key %.1024s",
+      next ? "next" : "prev",
+      __wt_buf_set_printable_format(
+        session, cbt->lastkey->data, cbt->lastkey->size, btree->key_format, false, a),
+      __wt_buf_set_printable_format(session, key->data, key->size, btree->key_format, false, b));
     WT_ERR(__wt_msg(session, "dumping the tree"));
     WT_WITH_BTREE(session, btree, ret = __wt_debug_tree_all(session, NULL, NULL, NULL));
     WT_ERR_PANIC(session, EINVAL, "found key out-of-order returns");

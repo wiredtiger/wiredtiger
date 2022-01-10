@@ -35,24 +35,31 @@ from helper import simulate_crash_restart
 # previous commit and durable timestamps(for a transaction, say T1), the durable timestamp of T1 changes to
 # the commit timestamp of T2.
 class test_prepare17(wttest.WiredTigerTestCase):
-    session_config = 'isolation=snapshot'
     uri = 'table:test_prepare17'
     nrows = 1000
-    value1 = 'aaaaa'
-    value2 = 'bbbbb'
 
-    key_format_values = [
-        ('integer-row', dict(key_format='i')),
-        ('column', dict(key_format='r')),
+    format_values = [
+        ('integer-row', dict(key_format='i', value_format='S')),
+        ('column', dict(key_format='r', value_format='S')),
+        ('column-fix', dict(key_format='r', value_format='8t')),
     ]
     update = [
         ('prepare', dict(prepare=True)),
         ('non-prepare', dict(prepare=False)),
     ]
-    scenarios = make_scenarios(key_format_values, update)
+    scenarios = make_scenarios(format_values, update)
+
+    def moresetup(self):
+        if self.value_format == '8t':
+            self.value1 = 97
+            self.value2 = 98
+        else:
+            self.value1 = 'aaaaa'
+            self.value2 = 'bbbbb'
 
     def test_prepare(self):
-        create_params = 'key_format={},value_format=S'.format(self.key_format)
+        self.moresetup()
+        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(self.uri, create_params)
         cursor = self.session.open_cursor(self.uri)
 
@@ -87,10 +94,11 @@ class test_prepare17(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
     def test_prepare_insert_remove(self):
+        self.moresetup()
         if not self.prepare:
             return
 
-        create_params = 'key_format={},value_format=S'.format(self.key_format)
+        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(self.uri, create_params)
         cursor = self.session.open_cursor(self.uri)
 

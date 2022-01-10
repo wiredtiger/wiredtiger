@@ -100,7 +100,7 @@ typedef struct {
 
 /*
  * testutil_assert --
- *     Complain and quit if something isn't true.
+ *     Complain and quit if something isn't true, with no error value.
  */
 #define testutil_assert(a)                                                   \
     do {                                                                     \
@@ -109,8 +109,18 @@ typedef struct {
     } while (0)
 
 /*
+ * testutil_assert_errno --
+ *     Complain and quit if something isn't true, with errno.
+ */
+#define testutil_assert_errno(a)                                                 \
+    do {                                                                         \
+        if (!(a))                                                                \
+            testutil_die(errno, "%s/%d: %s", __PRETTY_FUNCTION__, __LINE__, #a); \
+    } while (0)
+
+/*
  * testutil_assertfmt --
- *     Complain and quit if something isn't true.
+ *     Complain and quit if something isn't true, with no error value, with formatted output.
  */
 #define testutil_assertfmt(a, fmt, ...)                                                         \
     do {                                                                                        \
@@ -130,19 +140,8 @@ typedef struct {
     } while (0)
 
 /*
- * testutil_checksys --
- *     Complain and quit if a function call fails, returning errno. The error test must be
- *     specified, not just the call, because system calls fail in a variety of ways.
- */
-#define testutil_checksys(call)                                                     \
-    do {                                                                            \
-        if (call)                                                                   \
-            testutil_die(errno, "%s/%d: %s", __PRETTY_FUNCTION__, __LINE__, #call); \
-    } while (0)
-
-/*
  * testutil_checkfmt --
- *     Complain and quit if a function call fails, with additional arguments.
+ *     Complain and quit if a function call fails, with formatted output.
  */
 #define testutil_checkfmt(call, fmt, ...)                                                 \
     do {                                                                                  \
@@ -156,6 +155,8 @@ typedef struct {
  * error_sys_check --
  *     Complain and quit if a function call fails. A special name because it appears in the
  *     documentation. Allow any non-negative values.
+ *
+ * DO NOT USE THIS MACRO IN TEST CODE, IT IS ONLY FOR DOCUMENTATION.
  */
 #define error_sys_check(call)                                                     \
     do {                                                                          \
@@ -169,6 +170,8 @@ typedef struct {
  *     Complain and quit if a function call fails. A special name because it appears in the
  *     documentation. Ignore ENOTSUP to allow library calls which might not be included in any
  *     particular build.
+ *
+ * DO NOT USE THIS MACRO IN TEST CODE, IT IS ONLY FOR DOCUMENTATION.
  */
 #define error_check(call)                                                         \
     do {                                                                          \
@@ -269,6 +272,7 @@ void op_cursor(void *);
 void op_drop(void *);
 bool testutil_is_flag_set(const char *);
 void testutil_build_dir(TEST_OPTS *, char *, int);
+void testutil_clean_test_artifacts(const char *);
 void testutil_clean_work_dir(const char *);
 void testutil_cleanup(TEST_OPTS *);
 void testutil_copy_data(const char *);

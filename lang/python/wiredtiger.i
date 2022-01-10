@@ -594,6 +594,7 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %exception __wt_connection::get_home;
 %exception __wt_connection::is_new;
 %exception __wt_connection::search_near;
+%exception __wt_session::get_rollback_reason;
 %exception __wt_cursor::_set_key;
 %exception __wt_cursor::_set_key_str;
 %exception __wt_cursor::_set_value;
@@ -601,6 +602,7 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %exception wiredtiger_strerror;
 %exception wiredtiger_version;
 %exception diagnostic_build;
+%exception standalone_build;
 
 /* WT_CURSOR customization. */
 /* First, replace the varargs get / set methods with Python equivalents. */
@@ -1130,8 +1132,18 @@ int diagnostic_build() {
 #endif
 }
 %}
-
 int diagnostic_build();
+
+%{
+int standalone_build() {
+#ifdef WT_STANDALONE_BUILD
+	return 1;
+#else
+	return 0;
+#endif
+}
+%}
+int standalone_build();
 
 /* Remove / rename parts of the C API that we don't want in Python. */
 %immutable __wt_cursor::session;

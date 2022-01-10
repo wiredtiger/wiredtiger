@@ -562,6 +562,7 @@ req
 rerequests
 ret
 rf
+riscv
 rmw
 ro
 rotn
@@ -662,6 +663,7 @@ unittest
 unpositioned
 untyped
 uri
+usec
 useconds
 usr
 utf

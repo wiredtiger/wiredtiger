@@ -1,11 +1,3 @@
-#
-# Public Domain 2014-present MongoDB, Inc.
-# Public Domain 2008-2014 WiredTiger, Inc.
-#  All rights reserved.
-#
-#  See the file LICENSE for redistribution information
-#
-
 # get_gnu_base_flags(flags)
 # Helper function that generates a set of common GNU flags for a given language.
 #   flags - list of flags.
@@ -169,6 +161,7 @@ function(get_clang_base_flags flags)
         list(APPEND clang_flags "-Wno-unused-command-line-argument")
     endif()
 
+    # FIXME-WT-8052: Figure out whether we want to disable these or change the code.
     if(${cmake_compiler_version} VERSION_GREATER_EQUAL 10)
         # Clang 10+ has added additional on-by-default diagnostics that isn't
         # compatible with some of the code patterns in WiredTiger.

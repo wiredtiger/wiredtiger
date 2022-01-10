@@ -53,6 +53,10 @@ static bool use_columns = false;
  * past that record.
  */
 static void write_and_read_new(WT_SESSION *);
+/*
+ * write_and_read_new --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 write_and_read_new(WT_SESSION *session)
 {
@@ -107,6 +111,10 @@ write_and_read_new(WT_SESSION *session)
 }
 
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -119,6 +127,10 @@ usage(void)
  * switches into log file 2.
  */
 static void fill_db(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+/*
+ * fill_db --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 fill_db(void)
 {
@@ -224,6 +236,10 @@ fill_db(void)
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -236,7 +252,9 @@ main(int argc, char *argv[])
     uint32_t count, max_key;
     int ch, ret, status;
     const char *working_dir;
+    bool preserve;
 
+    preserve = false;
     (void)testutil_set_progname(argv);
 
     working_dir = "WT_TEST.truncated-log";
@@ -248,6 +266,9 @@ main(int argc, char *argv[])
             break;
         case 'h':
             working_dir = __wt_optarg;
+            break;
+        case 'p':
+            preserve = true;
             break;
         default:
             usage();
@@ -262,7 +283,7 @@ main(int argc, char *argv[])
     /*
      * Fork a child to do its work. Wait for it to exit.
      */
-    testutil_checksys((pid = fork()) < 0);
+    testutil_assert_errno((pid = fork()) >= 0);
 
     if (pid == 0) { /* child */
         fill_db();
@@ -271,7 +292,7 @@ main(int argc, char *argv[])
 
     /* parent */
     /* Wait for child to kill itself. */
-    testutil_checksys(waitpid(pid, &status, 0) == -1);
+    testutil_assert_errno(waitpid(pid, &status, 0) != -1);
 
     /*
      * !!! If we wanted to take a copy of the directory before recovery,
@@ -328,5 +349,12 @@ main(int argc, char *argv[])
      */
     write_and_read_new(session);
     testutil_check(conn->close(conn, NULL));
+    if (!preserve) {
+        /* At this point $PATH is inside `home`, which we intend to delete. cd to the parent dir. */
+        if (chdir("../") != 0)
+            testutil_die(errno, "root chdir: %s", home);
+        testutil_clean_work_dir(home);
+    }
+
     return (EXIT_SUCCESS);
 }

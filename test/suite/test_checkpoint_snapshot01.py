@@ -42,10 +42,16 @@ from wiredtiger import stat
 #
 
 class test_checkpoint_snapshot01(wttest.WiredTigerTestCase):
+    uri = "table:test_checkpoint_snapshot01"
     conn_config = 'cache_size=50MB'
 
-    # Create a table.
-    uri = "table:test_checkpoint_snapshot01"
+    format_values = [
+        ('column-fix', dict(key_format='r', value_format='8t')),
+        ('column', dict(key_format='r', value_format='u')),
+        ('row_string', dict(key_format='S', value_format='u')),
+    ]
+
+    scenarios = make_scenarios(format_values)
 
     nsessions = 5
     nkeys = 40
@@ -53,9 +59,15 @@ class test_checkpoint_snapshot01(wttest.WiredTigerTestCase):
 
     def test_checkpoint_snapshot(self):
 
-        ds = SimpleDataSet(self, self.uri, self.nrows, key_format="S", value_format='u')
+       # Create a table.
+        ds = SimpleDataSet(self, self.uri, self.nrows, \
+                key_format=self.key_format, value_format=self.value_format)
         ds.populate()
-        value = b"aaaaa" * 100
+
+        if self.value_format == '8t':
+            value = 86
+        else:
+            value = b"aaaaa" * 100
 
         sessions = [0] * self.nsessions
         cursors = [0] * self.nsessions
@@ -63,7 +75,7 @@ class test_checkpoint_snapshot01(wttest.WiredTigerTestCase):
         for j in range (0, self.nsessions):
             sessions[j] = self.conn.open_session()
             cursors[j] = sessions[j].open_cursor(self.uri)
-            sessions[j].begin_transaction('isolation=snapshot')
+            sessions[j].begin_transaction()
 
             start = (j * self.nkeys)
             end = start + self.nkeys

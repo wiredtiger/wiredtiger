@@ -35,7 +35,6 @@ from wtscenario import make_scenarios
 
 class test_timestamp22(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
-    session_config = 'isolation=snapshot'
 
     # Keep the number of rows low, as each additional row does
     # not test any new code paths.
@@ -48,11 +47,12 @@ class test_timestamp22(wttest.WiredTigerTestCase):
     SUCCESS = 'success'
     FAILURE = 'failure'
 
-    key_format_values = [
-        ('integer-row', dict(key_format='i')),
-        ('column', dict(key_format='r')),
+    format_values = [
+        ('integer-row', dict(key_format='i', value_format='S')),
+        ('column', dict(key_format='r', value_format='S')),
+        ('column-fix', dict(key_format='r', value_format='8t')),
     ]
-    scenarios = make_scenarios(key_format_values)
+    scenarios = make_scenarios(format_values)
 
     # Control execution of an operation, looking for exceptions and error messages.
     # Usage:
@@ -98,6 +98,8 @@ class test_timestamp22(wttest.WiredTigerTestCase):
 
     # Create a predictable value based on the iteration number and timestamp.
     def gen_value(self, iternum, ts):
+        if self.value_format == '8t':
+            return (iternum * 7 + ts * 13) % 255
         return str(iternum) + '_' + str(ts) + '_' + 'x' * 1000
 
     # Given a number representing an "approximate timestamp", generate a timestamp
@@ -380,8 +382,8 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         # Make sure the state of global timestamps is what we think.
         expect_query_oldest = self.timestamp_str(self.oldest_ts)
         expect_query_stable = self.timestamp_str(self.stable_ts)
-        query_oldest = self.conn.query_timestamp('get=oldest')
-        query_stable = self.conn.query_timestamp('get=stable')
+        query_oldest = self.conn.query_timestamp('get=oldest_timestamp')
+        query_stable = self.conn.query_timestamp('get=stable_timestamp')
 
         self.assertEquals(expect_query_oldest, query_oldest)
         self.assertEquals(expect_query_stable, query_stable)
@@ -404,14 +406,15 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         else:
             iterations = 1000
 
-        create_params = 'key_format={},value_format=S'.format(self.key_format)
+        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(self.uri, create_params)
 
         self.set_global_timestamps(1, 1, -1, -1)
 
         # Create tables with no entries
         ds = SimpleDataSet(
-            self, self.uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
+            self, self.uri, 0, key_format=self.key_format, value_format=self.value_format,
+            config='log=(enabled=false)')
 
         # We do a bunch of iterations, doing transactions, prepare, and global timestamp calls
         # with timestamps that are sometimes valid, sometimes not. We use the iteration number

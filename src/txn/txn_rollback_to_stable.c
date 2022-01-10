@@ -8,8 +8,9 @@
 
 #include "wt_internal.h"
 
-#define WT_CHECK_RECOVERY_FLAG_TXNID(session, txnid) \
-    (F_ISSET(S2C(session), WT_CONN_RECOVERING) && (txnid) >= S2C(session)->recovery_ckpt_snap_min)
+#define WT_CHECK_RECOVERY_FLAG_TXNID(session, txnid)                                           \
+    (F_ISSET(S2C(session), WT_CONN_RECOVERING) && S2C(session)->recovery_ckpt_snap_min != 0 && \
+      (txnid) >= S2C(session)->recovery_ckpt_snap_min)
 
 /* Enable rollback to stable verbose messaging during recovery. */
 #define WT_VERB_RECOVERY_RTS(session)                                                              \
@@ -100,7 +101,6 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
 
             upd->txnid = WT_TXN_ABORTED;
             WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
-            upd->durable_ts = upd->start_ts = WT_TS_NONE;
         } else {
             /* Valid update is found. */
             stable_upd = upd;
@@ -683,7 +683,9 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, u
         else {
             /*
              * In-memory database don't have a history store to provide a stable update, so remove
-             * the key.
+             * the key. Note that an in-memory database will have saved old values in the update
+             * chain, so we should only get here for a key/value that never existed at all as of the
+             * rollback timestamp; thus, deleting it is the correct response.
              */
             WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
             WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
@@ -890,10 +892,37 @@ stop:
     if ((inshead = WT_COL_APPEND(page)) != NULL)
         WT_RET(__rollback_abort_insert_list(session, page, inshead, rollback_timestamp, NULL));
 
-    /* Mark the page as dirty to reconcile the page. */
-    if (page->modify)
-        __wt_page_modify_set(session, page);
     return (0);
+}
+
+/*
+ * __rollback_abort_col_fix_one --
+ *     Handle one possibly unstable on-disk time window.
+ */
+static int
+__rollback_abort_col_fix_one(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t tw,
+  uint32_t recno_offset, wt_timestamp_t rollback_timestamp)
+{
+    WT_BTREE *btree;
+    WT_CELL *cell;
+    WT_CELL_UNPACK_KV unpack;
+    WT_PAGE *page;
+    uint8_t value;
+
+    btree = S2BT(session);
+    page = ref->page;
+
+    /* Unpack the cell to get the time window. */
+    cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[tw]);
+    __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
+
+    /* Fake up the value (which is not physically in the cell) in case it's wanted. */
+    value = __bit_getv(page->pg_fix_bitf, recno_offset, btree->bitcnt);
+    unpack.data = &value;
+    unpack.size = 1;
+
+    return (__rollback_abort_ondisk_kv(session, ref, NULL, page->dsk->recno + recno_offset, NULL,
+      &unpack, rollback_timestamp, NULL));
 }
 
 /*
@@ -902,21 +931,66 @@ stop:
  *     timestamp.
  */
 static int
-__rollback_abort_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
+__rollback_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
-    WT_INSERT_HEAD *ins;
+    WT_INSERT *ins;
+    WT_INSERT_HEAD *inshead;
+    WT_PAGE *page;
+    uint32_t ins_recno_offset, recno_offset, numtws, tw;
 
-    /* Review the changes to the original on-page data items */
-    if ((ins = WT_COL_UPDATE_SINGLE(page)) != NULL)
-        WT_RET(__rollback_abort_insert_list(session, page, ins, rollback_timestamp, NULL));
+    page = ref->page;
 
-    /* Review the append list */
-    if ((ins = WT_COL_APPEND(page)) != NULL)
-        WT_RET(__rollback_abort_insert_list(session, page, ins, rollback_timestamp, NULL));
+    /*
+     * Review the changes to the original on-page data items. Note that while this can report back
+     * to us whether it saw a stable update, that information doesn't do us any good -- unlike in
+     * VLCS where the uniformity of cells lets us reason about the timestamps of all of them based
+     * on the timestamp of an update to any of them, in FLCS everything is just thrown together, so
+     * we'll need to iterate over all the keys anyway.
+     */
+    if ((inshead = WT_COL_UPDATE_SINGLE(page)) != NULL)
+        WT_RET(__rollback_abort_insert_list(session, page, inshead, rollback_timestamp, NULL));
 
-    /* Mark the page as dirty to reconcile the page. */
-    if (page->modify)
-        __wt_page_modify_set(session, page);
+    /*
+     * Iterate over all the keys, stopping only on keys that (a) have a time window on disk, and
+     * also (b) do not have a stable update remaining in the update list. Keys with no on-disk time
+     * window are stable. And we must not try to adjust the on-disk value for keys with stable
+     * updates, because the downstream code assumes that has already been checked and in some cases
+     * (e.g. in-memory databases) the wrong thing will happen.
+     *
+     * Iterate over the update list and carry along the iteration over the time window list in
+     * parallel, even though the code would perhaps make more sense the other way around, because
+     * this allows using the skiplist iterator macro instead of an open-coded mess.
+     */
+    numtws = WT_COL_FIX_TWS_SET(page) ? page->pg_fix_numtws : 0;
+    WT_ASSERT(session, numtws == 0 || page->dsk != NULL);
+    tw = 0;
+    if (inshead != NULL) {
+        WT_SKIP_FOREACH (ins, inshead) {
+            /* Process all the keys before this update entry. */
+            ins_recno_offset = (uint32_t)(WT_INSERT_RECNO(ins) - ref->ref_recno);
+            while (tw < numtws &&
+              (recno_offset = page->pg_fix_tws[tw].recno_offset) < ins_recno_offset) {
+
+                WT_RET(
+                  __rollback_abort_col_fix_one(session, ref, tw, recno_offset, rollback_timestamp));
+                tw++;
+            }
+            /* If this key has a stable update, skip over it. */
+            if (tw < numtws && page->pg_fix_tws[tw].recno_offset == ins_recno_offset &&
+              ins->upd != NULL && __rollback_has_stable_update(ins->upd))
+                tw++;
+        }
+    }
+    /* Process the rest of the keys with time windows. */
+    while (tw < numtws) {
+        recno_offset = page->pg_fix_tws[tw].recno_offset;
+        WT_RET(__rollback_abort_col_fix_one(session, ref, tw, recno_offset, rollback_timestamp));
+        tw++;
+    }
+
+    /* Review the append list. */
+    if ((inshead = WT_COL_APPEND(page)) != NULL)
+        WT_RET(__rollback_abort_insert_list(session, page, inshead, rollback_timestamp, NULL));
 
     return (0);
 }
@@ -975,10 +1049,6 @@ __rollback_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
               session, ref, rip, 0, have_key ? key : NULL, vpack, rollback_timestamp, NULL));
         }
     }
-
-    /* Mark the page as dirty to reconcile the page. */
-    if (page->modify)
-        __wt_page_modify_set(session, page);
 
 err:
     __wt_scr_free(session, &key);
@@ -1107,26 +1177,26 @@ __rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:
-        WT_RET(__rollback_abort_col_fix(session, page, rollback_timestamp));
+        WT_RET(__rollback_abort_col_fix(session, ref, rollback_timestamp));
         break;
     case WT_PAGE_COL_VAR:
         WT_RET(__rollback_abort_col_var(session, ref, rollback_timestamp));
         break;
-    case WT_PAGE_COL_INT:
-    case WT_PAGE_ROW_INT:
-        /*
-         * There is nothing to do for internal pages, since we aren't rolling back far enough to
-         * potentially include reconciled changes - and thus won't need to roll back structure
-         * changes on internal pages.
-         */
-        break;
     case WT_PAGE_ROW_LEAF:
         WT_RET(__rollback_abort_row_leaf(session, ref, rollback_timestamp));
         break;
+    case WT_PAGE_COL_INT:
+    case WT_PAGE_ROW_INT:
+        /* This function is not called for internal pages. */
+        WT_ASSERT(session, false);
+        /* Fall through. */
     default:
         WT_RET(__wt_illegal_value(session, page->type));
     }
 
+    /* Mark the page as dirty to reconcile the page. */
+    if (page->modify)
+        __wt_page_modify_set(session, page);
     return (0);
 }
 
@@ -1249,6 +1319,52 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
 }
 
 /*
+ * __txn_user_active --
+ *     Return if there are any running user transactions.
+ */
+static bool
+__txn_user_active(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_SESSION_IMPL *session_in_list;
+    uint32_t i, session_cnt;
+    bool txn_active;
+
+    conn = S2C(session);
+    txn_active = false;
+
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+
+    /*
+     * WT_TXN structures are allocated and freed as sessions are activated and closed. Lock the
+     * session open/close to ensure we don't race. This call is a rarely used RTS-only function,
+     * acquiring the lock shouldn't be an issue.
+     */
+    __wt_spin_lock(session, &conn->api_lock);
+
+    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    for (i = 0, session_in_list = conn->sessions; i < session_cnt; i++, session_in_list++) {
+
+        /* Skip inactive or internal sessions. */
+        if (!session_in_list->active || F_ISSET(session_in_list, WT_SESSION_INTERNAL))
+            continue;
+
+        /* Check if a user session has a running transaction. */
+        if (F_ISSET(session_in_list->txn, WT_TXN_RUNNING)) {
+            txn_active = true;
+            break;
+        }
+    }
+    __wt_spin_unlock(session, &conn->api_lock);
+
+    /*
+     * A new transaction may start after we return from this call and callers should be aware of
+     * this limitation.
+     */
+    return (txn_active);
+}
+
+/*
  * __rollback_to_stable_check --
  *     Ensure the rollback request is reasonable.
  */
@@ -1262,7 +1378,7 @@ __rollback_to_stable_check(WT_SESSION_IMPL *session)
      * Help the user comply with the requirement that there are no concurrent user operations. It is
      * okay to have a transaction in prepared state.
      */
-    txn_active = __wt_txn_user_active(session);
+    txn_active = __txn_user_active(session);
 #ifdef HAVE_DIAGNOSTIC
     if (txn_active)
         WT_TRET(__wt_verbose_dump_txn(session));
@@ -1368,9 +1484,15 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
 
     /*
      * The rollback operation should be performed on the history store file when the checkpoint
-     * durable start/stop timestamp is greater than the rollback timestamp.
+     * durable start/stop timestamp is greater than the rollback timestamp. But skip if there is no
+     * stable timestamp.
+     *
+     * Note that the corresponding code in __rollback_to_stable_btree_apply also checks whether
+     * there _are_ timestamped updates by checking max_durable_ts; that check is redundant here for
+     * several reasons, the most immediate being that max_durable_ts cannot be none (zero) because
+     * it's greater than rollback_timestamp, which is itself greater than zero.
      */
-    if (max_durable_ts > rollback_timestamp) {
+    if (max_durable_ts > rollback_timestamp && rollback_timestamp != WT_TS_NONE) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           "tree rolled back with durable timestamp: %s",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]));
@@ -1424,7 +1546,6 @@ __rollback_to_stable_btree_apply(
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, value, key;
     WT_DECL_RET;
-    WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t max_durable_ts, newest_start_durable_ts, newest_stop_durable_ts;
     size_t addr_size;
     uint64_t rollback_txnid, write_gen;
@@ -1437,7 +1558,6 @@ __rollback_to_stable_btree_apply(
     if (!WT_BTREE_PREFIX(uri) || strcmp(uri, WT_HS_URI) == 0 || strcmp(uri, WT_METAFILE_URI) == 0)
         return (0);
 
-    txn_global = &S2C(session)->txn_global;
     addr_size = 0;
     rollback_txnid = 0;
     write_gen = 0;
@@ -1504,8 +1624,7 @@ __rollback_to_stable_btree_apply(
      */
     if ((F_ISSET(S2C(session), WT_CONN_RECOVERING) ||
           F_ISSET(S2C(session), WT_CONN_CLOSING_TIMESTAMP)) &&
-      (addr_size == 0 ||
-        (txn_global->stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE))) {
+      (addr_size == 0 || (rollback_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE))) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           "skip rollback to stable on file %s because %s", uri,
           addr_size == 0 ? "its checkpoint address length is 0" :

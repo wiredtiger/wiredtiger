@@ -41,6 +41,10 @@ static int wt_shutdown(void);
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -64,7 +68,7 @@ main(int argc, char *argv[])
     g.ntables = 3;
     g.nworkers = 1;
     g.sweep_stress = g.use_timestamps = false;
-    g.failpoint_hs_delete_key_from_ts = g.failpoint_hs_insert_1 = g.failpoint_hs_insert_2 = false;
+    g.failpoint_hs_delete_key_from_ts = false;
     g.hs_checkpoint_timing_stress = g.reserved_txnid_timing_stress = false;
     g.checkpoint_slow_timing_stress = false;
     g.mixed_mode_deletes = false;
@@ -115,18 +119,12 @@ main(int argc, char *argv[])
                 g.failpoint_hs_delete_key_from_ts = true;
                 break;
             case '3':
-                g.failpoint_hs_insert_1 = true;
-                break;
-            case '4':
-                g.failpoint_hs_insert_2 = true;
-                break;
-            case '5':
                 g.hs_checkpoint_timing_stress = true;
                 break;
-            case '6':
+            case '4':
                 g.reserved_txnid_timing_stress = true;
                 break;
-            case '7':
+            case '5':
                 g.checkpoint_slow_timing_stress = true;
                 break;
             default:
@@ -137,6 +135,9 @@ main(int argc, char *argv[])
             switch (__wt_optarg[0]) {
             case 'c':
                 ttype = COL;
+                break;
+            case 'f':
+                ttype = FIX;
                 break;
             case 'l':
                 ttype = LSM;
@@ -272,10 +273,8 @@ wt_connect(const char *config_open)
       g.checkpoint_slow_timing_stress) {
         timing_stress = true;
         testutil_check(__wt_snprintf(timing_stress_cofing, sizeof(timing_stress_cofing),
-          ",timing_stress_for_test=[%s%s%s%s%s%s%s]", g.sweep_stress ? "aggressive_sweep" : "",
+          ",timing_stress_for_test=[%s%s%s%s%s]", g.sweep_stress ? "aggressive_sweep" : "",
           g.failpoint_hs_delete_key_from_ts ? "failpoint_history_store_delete_key_from_ts" : "",
-          g.failpoint_hs_insert_1 ? "failpoint_history_store_insert_1" : "",
-          g.failpoint_hs_insert_2 ? "failpoint_history_store_insert_2" : "",
           g.hs_checkpoint_timing_stress ? "history_store_checkpoint_delay" : "",
           g.reserved_txnid_timing_stress ? "checkpoint_reserved_txnid_delay" : "",
           g.checkpoint_slow_timing_stress ? "checkpoint_slow" : ""));
@@ -293,8 +292,8 @@ wt_connect(const char *config_open)
           config_open == NULL ? "" : ",", config_open == NULL ? "" : config_open));
     else {
         testutil_check(__wt_snprintf(config, sizeof(config),
-          "create,cache_cursors=false,statistics=(fast),statistics_log=(json,wait=1),error_prefix="
-          "\"%s\"%s%s%s%s",
+          "create,cache_cursors=false,statistics=(fast),statistics_log=(json,wait=1),log=(enabled),"
+          "error_prefix=\"%s\"%s%s%s%s",
           progname, g.debug_mode ? DEBUG_MODE_CFG : "", config_open == NULL ? "" : ",",
           config_open == NULL ? "" : config_open, timing_stress ? timing_stress_cofing : ""));
     }
@@ -339,6 +338,10 @@ cleanup(bool remove_dir)
         testutil_make_work_dir(g.home);
 }
 
+/*
+ * handle_error --
+ *     TODO: Add a comment describing this function.
+ */
 static int
 handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *errmsg)
 {
@@ -349,6 +352,10 @@ handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const ch
     return (fprintf(stderr, "%s\n", errmsg) < 0 ? -1 : 0);
 }
 
+/*
+ * handle_message --
+ *     TODO: Add a comment describing this function.
+ */
 static int
 handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
 {
@@ -394,14 +401,146 @@ log_print_err(const char *m, int e, int fatal)
 }
 
 /*
- * path_setup --
- *     Build the standard paths and shell commands we use.
+ * Value encoding for FLCS tables.
+ *
+ * The string value is a large number of digits pushed around arbitrarily with modify. This is
+ * difficult to track incrementally in any useful way with just 8 bits. We try to track the offset
+ * of the first digit that's a prime (2, 3, 5, or 7), and which prime it is. We encode this as
+ * digit-number * 4 + [2 -> 0; 3 -> 1; 5 -> 2; 7 -> 3], plus 1 overall so as to never store zero.
+ * (That allows assuming any zero read back is a deleted value.) If there is no such digit, we
+ * return FLCS_NONE. If we lose track, we return FLCS_UNKNOWN. This allows remembering offsets up to
+ * 62 before we lose track.
+ */
+
+#define FLCS_OFFSET 1 /* avoid storing zero */
+
+/* The magic values are to be tested _before_ subtracting off FLCS_OFFSET. */
+#define FLCS_NONE 254
+/* FLCS_UNKNOWN lives in test_checkpoint.h so it can be used in compare_cursors(). */
+
+#define FLCS_TRACKED_DIGIT(c) ((c) == '2' || (c) == '3' || (c) == '5' || (c) == '7')
+
+/*
+ * flcs_encode_value --
+ *     Store an offset and digit in an 8-bit value.
+ */
+static uint8_t
+flcs_encode_value(size_t offset, char digit)
+{
+    uint8_t digitx;
+
+    if (offset > 62)
+        return FLCS_UNKNOWN;
+
+    if (digit == '2')
+        digitx = 0;
+    else if (digit == '3')
+        digitx = 1;
+    else if (digit == '5')
+        digitx = 2;
+    else
+        digitx = 3;
+
+    return (FLCS_OFFSET + (uint8_t)(offset * 4 + digitx));
+}
+
+/*
+ * flcs_decode_value --
+ *     Unpack flcs_encode_value results.
+ */
+static void
+flcs_decode_value(uint8_t value, size_t *offsetp, char *digitp)
+{
+    static const char digits[4] = "2357";
+
+    value -= FLCS_OFFSET;
+
+    *offsetp = value >> 2;
+    *digitp = digits[value & 3];
+}
+
+/*
+ * flcs_encode --
+ *     Extract the corresponding 8-bit FLCS value from a string value.
+ */
+uint8_t
+flcs_encode(const char *s)
+{
+    u_int i;
+
+    for (i = 0; s[i] != '\0'; i++) {
+        if (FLCS_TRACKED_DIGIT(s[i]))
+            return (flcs_encode_value(i, s[i]));
+    }
+    return (FLCS_NONE);
+}
+
+/*
+ * flcs_modify --
+ *     Update the corresponding 8-bit FLCS value given a modify applied to its string.
+ */
+uint8_t
+flcs_modify(WT_MODIFY *entries, int nentries, uint8_t oldval)
+{
+    size_t j, offset;
+    int i;
+    char digit, newdigit;
+
+    newdigit = 0; /* clang -Wconditional-uninitialized */
+
+    /* If we've lost track, we've lost track. */
+    if (oldval == FLCS_UNKNOWN)
+        return (FLCS_UNKNOWN);
+
+    if (oldval == FLCS_NONE) {
+        offset = 0;
+        digit = 0;
+    } else
+        flcs_decode_value(oldval, &offset, &digit);
+
+    for (i = 0; i < nentries; i++) {
+        /* If it starts after us, never mind. */
+        if (digit != 0 && entries[i].offset > offset)
+            continue;
+        /* Find the first appropriate digit. */
+        for (j = 0; j < entries[i].data.size; j++) {
+            newdigit = ((const char *)entries[i].data.data)[j];
+            if (FLCS_TRACKED_DIGIT(newdigit))
+                break;
+        }
+        if (j < entries[i].data.size) {
+            /* Found a suitable digit. Remember it. */
+            offset = entries[i].offset + j;
+            digit = newdigit;
+            continue;
+        }
+
+        /* If at this point we had no position before, we still don't. */
+        if (digit == 0)
+            continue;
+
+        /* If this modify overwrote us, we lost track. */
+        if (entries[i].offset + entries[i].size > offset)
+            return (FLCS_UNKNOWN);
+
+        /* Otherwise, it is fully in front of us, so update our offset and keep going. */
+        offset = offset - entries[i].size + entries[i].data.size;
+    }
+
+    return (digit == 0 ? FLCS_NONE : flcs_encode_value(offset, digit));
+}
+
+/*
+ * type_to_string --
+ *     Return the string name of a table type.
  */
 const char *
 type_to_string(table_type type)
 {
     if (type == COL)
         return ("COL");
+    if (type == FIX)
+        return ("FIX");
     if (type == LSM)
         return ("LSM");
     if (type == ROW)
@@ -420,11 +559,12 @@ usage(void)
 {
     fprintf(stderr,
       "usage: %s [-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys]\n\t[-l log] [-m] "
-      "[-n ops] [-r runs] [-s 1|2|3|4] [-T table-config] [-t f|r|v]\n\t[-W workers]\n",
+      "[-n ops] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t f|r|v]\n\t[-W workers]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-C specify wiredtiger_open configuration arguments\n"
       "\t-c checkpoint name to used named checkpoints\n"
+      "\t-D debug mode\n"
       "\t-h set a database home directory\n"
       "\t-k set number of keys to load\n"
       "\t-l specify a log file\n"
@@ -432,14 +572,12 @@ usage(void)
       "\t-n set number of operations each thread does\n"
       "\t-p use prepare\n"
       "\t-r set number of runs (0 for continuous)\n"
-      "\t-s specify which timing stress configuration to use ( 1 | 2 | 3 | 4 | 5 | 6 | 7 )\n"
+      "\t-s specify which timing stress configuration to use ( 1 | 2 | 3 | 4 | 5 )\n"
       "\t\t1: sweep_stress\n"
       "\t\t2: failpoint_hs_delete_key_from_ts\n"
-      "\t\t3: failpoint_hs_insert_1\n"
-      "\t\t4: failpoint_hs_insert_2\n"
-      "\t\t5: hs_checkpoint_timing_stress\n"
-      "\t\t6: reserved_txnid_timing_stress\n"
-      "\t\t7: checkpoint_slow_timing_stress\n"
+      "\t\t3: hs_checkpoint_timing_stress\n"
+      "\t\t4: reserved_txnid_timing_stress\n"
+      "\t\t5: checkpoint_slow_timing_stress\n"
       "\t-T specify a table configuration\n"
       "\t-t set a file type ( col | mix | row | lsm )\n"
       "\t-v verify only\n"

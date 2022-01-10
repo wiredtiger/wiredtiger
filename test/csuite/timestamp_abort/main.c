@@ -131,6 +131,10 @@ static pthread_rwlock_t ts_lock;
 
 static void handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -254,9 +258,9 @@ thread_ckpt_run(void *arg)
          * the database.
          */
         if (first_ckpt && (!use_ts || stable != WT_TS_NONE)) {
-            testutil_checksys((fp = fopen(ckpt_file, "w")) == NULL);
+            testutil_assert_errno((fp = fopen(ckpt_file, "w")) != NULL);
             first_ckpt = false;
-            testutil_checksys(fclose(fp) != 0);
+            testutil_assert_errno(fclose(fp) == 0);
         }
     }
     /* NOTREACHED */
@@ -294,7 +298,7 @@ thread_run(void *arg)
      */
     testutil_check(__wt_snprintf(cbuf, sizeof(cbuf), RECORDS_FILE, td->info));
     (void)unlink(cbuf);
-    testutil_checksys((fp = fopen(cbuf, "w")) == NULL);
+    testutil_assert_errno((fp = fopen(cbuf, "w")) != NULL);
     /*
      * Set to line buffering. But that is advisory only. We've seen cases where the result files end
      * up with partial lines.
@@ -471,6 +475,10 @@ rollback:
  * it is killed by the parent.
  */
 static void run_workload(uint32_t) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+/*
+ * run_workload --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 run_workload(uint32_t nth)
 {
@@ -584,6 +592,10 @@ extern char *__wt_optarg;
 /*
  * Initialize a report structure. Since zero is a valid key we cannot just clear it.
  */
+/*
+ * initialize_rep --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 initialize_rep(REPORT *r)
 {
@@ -594,6 +606,10 @@ initialize_rep(REPORT *r)
 /*
  * Print out information if we detect missing records in the middle of the data of a report
  * structure.
+ */
+/*
+ * print_missing --
+ *     TODO: Add a comment describing this function.
  */
 static void
 print_missing(REPORT *r, const char *fname, const char *msg)
@@ -608,6 +624,10 @@ print_missing(REPORT *r, const char *fname, const char *msg)
 /*
  * Signal handler to catch if the child died unexpectedly.
  */
+/*
+ * handler --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 handler(int sig)
 {
@@ -621,6 +641,10 @@ handler(int sig)
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -640,19 +664,20 @@ main(int argc, char *argv[])
     const char *working_dir;
     char buf[512], fname[64], kname[64], statname[1024];
     char ts_string[WT_TS_HEX_STRING_SIZE];
-    bool fatal, rand_th, rand_time, verify_only;
+    bool fatal, preserve, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
 
     columns = compat = inmem = stress = false;
     use_ts = true;
     nth = MIN_TH;
+    preserve = false;
     rand_th = rand_time = true;
     timeout = MIN_TIME;
     verify_only = false;
     working_dir = "WT_TEST.timestamp-abort";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "Cch:LmsT:t:vz")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "Cch:LmpsT:t:vz")) != EOF)
         switch (ch) {
         case 'C':
             compat = true;
@@ -669,6 +694,9 @@ main(int argc, char *argv[])
             break;
         case 'm':
             inmem = true;
+            break;
+        case 'p':
+            preserve = true;
             break;
         case 's':
             stress = true;
@@ -740,8 +768,8 @@ main(int argc, char *argv[])
          */
         memset(&sa, 0, sizeof(sa));
         sa.sa_handler = handler;
-        testutil_checksys(sigaction(SIGCHLD, &sa, NULL));
-        testutil_checksys((pid = fork()) < 0);
+        testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
+        testutil_assert_errno((pid = fork()) >= 0);
 
         if (pid == 0) { /* child */
             run_workload(nth);
@@ -759,7 +787,7 @@ main(int argc, char *argv[])
             testutil_sleep_wait(1, pid);
         sleep(timeout);
         sa.sa_handler = SIG_DFL;
-        testutil_checksys(sigaction(SIGCHLD, &sa, NULL));
+        testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
 
         /*
          * !!! It should be plenty long enough to make sure more than
@@ -767,8 +795,8 @@ main(int argc, char *argv[])
          * here.
          */
         printf("Kill child\n");
-        testutil_checksys(kill(pid, SIGKILL) != 0);
-        testutil_checksys(waitpid(pid, &status, 0) == -1);
+        testutil_assert_errno(kill(pid, SIGKILL) == 0);
+        testutil_assert_errno(waitpid(pid, &status, 0) != -1);
     }
 
     /*
@@ -967,7 +995,7 @@ main(int argc, char *argv[])
         c_rep[i].last_key = last_key;
         l_rep[i].last_key = last_key;
         o_rep[i].last_key = last_key;
-        testutil_checksys(fclose(fp) != 0);
+        testutil_assert_errno(fclose(fp) == 0);
         print_missing(&c_rep[i], fname, "COLLECTION");
         print_missing(&l_rep[i], fname, "LOCAL");
         print_missing(&o_rep[i], fname, "OPLOG");
@@ -993,5 +1021,12 @@ main(int argc, char *argv[])
     if (fatal)
         return (EXIT_FAILURE);
     printf("%" PRIu64 " records verified\n", count);
+    if (!preserve) {
+        testutil_clean_test_artifacts(home);
+        /* At this point $PATH is inside `home`, which we intend to delete. cd to the parent dir. */
+        if (chdir("../") != 0)
+            testutil_die(errno, "root chdir: %s", home);
+        testutil_clean_work_dir(home);
+    }
     return (EXIT_SUCCESS);
 }

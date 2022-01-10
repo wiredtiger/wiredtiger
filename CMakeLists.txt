@@ -1,11 +1,3 @@
-#
-# Public Domain 2014-present MongoDB, Inc.
-# Public Domain 2008-2014 WiredTiger, Inc.
-#  All rights reserved.
-#
-# See the file LICENSE for redistribution information.
-#
-
 cmake_minimum_required(VERSION 3.10.0)
 
 # Try to use CCACHE if available - speeds up build times.
@@ -66,14 +58,14 @@ endif()
 if(ENABLE_STRICT)
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
         include(cmake/strict/gcc_strict.cmake)
-    elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
+    elseif("${CMAKE_C_COMPILER_ID}" MATCHES "^(Apple)?(C|c?)lang")
         include(cmake/strict/clang_strict.cmake)
     elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
         include(cmake/strict/cl_strict.cmake)
     endif()
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
         include(cmake/strict/gxx_strict.cmake)
-    elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
+    elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "^(Apple)?(C|c?)lang")
         include(cmake/strict/clangxx_strict.cmake)
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
         include(cmake/strict/clxx_strict.cmake)
@@ -128,6 +120,10 @@ if(WITH_PIC OR ENABLE_SHARED)
         ${CMAKE_CURRENT_BINARY_DIR}/config
         ${CMAKE_CURRENT_LIST_DIR}/src/include
     )
+    # Append any provided C flags.
+    if(COMPILER_DIAGNOSTIC_C_FLAGS)
+        target_compile_options(wt_objs PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS})
+    endif()
     if(ENABLE_TCMALLOC)
         target_include_directories(wt_objs PRIVATE ${HAVE_LIBTCMALLOC_INCLUDES})
     endif()
@@ -186,12 +182,15 @@ add_subdirectory(src/utilities)
 # Establish our install target configuration.
 include(cmake/install/install.cmake)
 
+# Enable CTest. Subsequent targets may additionally define their own ctest definitions.
+enable_testing()
+
 if(ENABLE_PYTHON)
-   add_subdirectory(lang/python)
+    add_subdirectory(lang/python)
+    add_subdirectory(bench/workgen)
 endif()
 
 # Build the wiredtiger test suites.
-enable_testing()
-add_subdirectory(test)
-add_subdirectory(examples)
 add_subdirectory(bench/wtperf)
+add_subdirectory(examples)
+add_subdirectory(test)

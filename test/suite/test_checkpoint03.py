@@ -43,14 +43,14 @@ class test_checkpoint03(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_checkpoint03'
     conn_config = 'statistics=(all)'
     uri = 'table:' + tablename
-    session_config = 'isolation=snapshot, '
 
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('integer_row', dict(key_format='i')),
+    format_values = [
+        ('column-fix', dict(key_format='r', value_format='8t')),
+        ('column', dict(key_format='r', value_format='i')),
+        ('row_integer', dict(key_format='i', value_format='i')),
     ]
 
-    scenarios = make_scenarios(key_format_values)
+    scenarios = make_scenarios(format_values)
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
@@ -60,7 +60,8 @@ class test_checkpoint03(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_checkpoint_writes_to_hs(self):
         # Create a basic table.
-        self.session.create(self.uri, 'key_format={},value_format=i'.format(self.key_format))
+        config = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        self.session.create(self.uri, config)
         self.session.begin_transaction()
         self.conn.set_timestamp('oldest_timestamp=1')
 

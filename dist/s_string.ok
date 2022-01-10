@@ -21,6 +21,7 @@ Ailamaki
 Alakuijala
 Alexandrescu's
 Alloc
+Alves
 Async
 AsyncOp
 Athanassoulis
@@ -89,6 +90,7 @@ Cmvxz
 Cmvz
 Collet
 Comparator
+Compressibility
 Config
 Coverity
 CreateFileMapping
@@ -121,28 +123,35 @@ EACCES
 EAGAIN
 EB
 EBUSY
+EDC
 EEXIST
 EINTR
 EINVAL
 EMSG
 EMail
 ENCRYPTOR
+ENDIAN
 ENOENT
 ENOMEM
 ENOTSUP
+ENUM
 EOF
 ERET
 ESET
 ETIME
 ETIMEDOUT
+EVICTSERVER
 EXTLIST
+EXTSUBPATH
 Encryptor
 Encryptors
 Enqueue
 Eron
+Exponentiate
 FALLOC
 FALLTHROUGH
 FH
+FILEOPS
 FIXME
 FLCS
 FLD
@@ -170,6 +179,7 @@ Fsync
 Fuerst
 GBR
 GCC
+GF
 GIDs
 GLIBC
 Gcc
@@ -183,6 +193,7 @@ GetModuleHandleExW
 GetProcAddress
 Getters
 Google
+HANDLEOPS
 HFS
 HHHH
 HHHHLL
@@ -205,6 +216,7 @@ INMEM
 INPROGRESS
 INSN
 INTL
+INTRINSICS
 INULL
 INUSE
 ISA
@@ -220,6 +232,7 @@ JPEG
 JSON
 Jyrki
 KEYFIRST
+KEYGEN
 KV
 KVS
 Kanowski's
@@ -293,6 +306,7 @@ NOLL
 NOLOCK
 NONINFRINGEMENT
 NOOP
+NOP
 NOTFOUND
 NOTREACHED
 NOVALUE
@@ -323,6 +337,7 @@ PPC
 PREDEFINE
 PRId
 PRIu
+PRIuXX
 PRNG
 PTHREAD
 PTR
@@ -368,6 +383,7 @@ Redistributions
 Refactor
 Resize
 RocksDB
+Rogerio
 Runtime
 SIMD
 SLIST
@@ -380,6 +396,7 @@ SSHH
 SSq
 STAILQ
 STEC
+STL
 STR
 STRUCT
 Scalability
@@ -438,6 +455,7 @@ UTF
 UltraSparc
 Unbuffered
 Unencrypted
+Unhandled
 UnixLib
 UnlockFile
 Unmap
@@ -473,6 +491,7 @@ Wduplicated
 WeakHashLen
 Werror
 Wformat
+Whitespaces
 WideCharToMultiByte
 WinNT
 WiredTiger
@@ -510,6 +529,7 @@ abcdefghijklmnopqrstuvwxyz
 addl
 addr
 addrs
+addtw
 agc
 alfred
 alloc
@@ -534,12 +554,17 @@ auth
 autocommit
 autoconf
 automake
+auxheader
+auximage
+auxincr
 bInheritHandle
 backoff
 backport
 bal
 basecfg
 basho
+bb
+bba
 bbb
 bcr
 beginthreadex
@@ -601,6 +626,7 @@ cd
 ce
 celsius
 centric
+cerr
 cfg
 cfko
 chacha
@@ -642,11 +668,13 @@ comparator
 comparep
 compat
 compressStream
+compressibility
 concat
 cond
 conf
 confchk
 config
+configs
 conn
 connectionp
 const
@@ -685,6 +713,7 @@ curlog
 curmetadata
 cursoring
 cursorp
+curstartrecno
 curstat
 curtable
 curtiered
@@ -694,6 +723,7 @@ cv
 cval
 cx
 cxa
+cxx
 dT
 data's
 database's
@@ -715,6 +745,7 @@ decrementing
 decrypt
 decrypted
 decrypting
+decryptor
 decrypts
 deflateCopy
 deflateEnd
@@ -822,6 +853,7 @@ fgetln
 fgets
 fh
 fhandle
+fileX
 filefrag
 filehandle
 fileid
@@ -835,6 +867,7 @@ filesystems
 fillms
 firstfit
 fixup
+flcs
 floatcmp
 floatnum
 fmt
@@ -843,6 +876,7 @@ fnv
 foc
 fopen
 formatmessage
+foward
 fp
 fprintf
 fread
@@ -912,6 +946,7 @@ ibackup
 icount
 idlems
 idx
+ie
 ifdef
 ifdef's
 iflag
@@ -952,6 +987,7 @@ intpack
 intptr
 intr
 intrin
+intrinsics
 inuse
 io
 ip
@@ -981,12 +1017,14 @@ iters
 jjj
 jprx
 json
+kB
 kb
 kbits
 keycmp
 keyid
 keyids
 keylen
+keyrange
 keyv
 kmsid
 kv
@@ -1078,6 +1116,7 @@ memkind
 memmove
 memset
 memsize
+mergeable
 metaconf
 metadata
 metadata's
@@ -1090,6 +1129,7 @@ mkdir
 mmap
 mmrand
 mnt
+mongod
 movemask
 mrs
 msecs
@@ -1135,6 +1175,7 @@ nocrypto
 nolock
 nonces
 nonliteral
+nontransactionally
 noop
 nop
 noraw
@@ -1143,6 +1184,7 @@ notsup
 notused
 novalue
 nowait
+nrecs
 ns
 nsec
 nset
@@ -1163,6 +1205,7 @@ ondisk
 onint
 online
 onpage
+onsig
 oo
 opcode
 openat
@@ -1174,14 +1217,18 @@ optimizations
 optrack
 optype
 ori
+origstartrecno
 os
 osfhandle
 other's
+oversized
 ovfl
 ownp
 packv
 pagedump
+pageref
 pagesize
+param
 parens
 pareto
 parserp
@@ -1238,6 +1285,7 @@ pvA
 pwrite
 py
 qdown
+qn
 qqq
 qrrSS
 qsort
@@ -1252,6 +1300,7 @@ rb
 rbrace
 rbracket
 rcursor
+rdlock
 rdonly
 rdtsc
 rduppo
@@ -1283,6 +1332,7 @@ ret
 retp
 revint
 rf
+risc
 rle
 rmw
 rng
@@ -1294,7 +1344,9 @@ rpc
 rts
 ru
 run's
+runone
 runtime
+rw
 rwlock
 sH
 sHQ
@@ -1315,6 +1367,7 @@ setv
 setvbuf
 sfence
 shareability
+sig
 signalled
 sii
 sizeof
@@ -1384,6 +1437,7 @@ syscrypto
 sysinfo
 sz
 t's
+tIf
 tK
 tM
 tV
@@ -1419,8 +1473,11 @@ transactionally
 trecno
 trk
 trk's
+trun
 trunc
 trylock
+tryrdlock
+trywrlock
 tsc
 tupdate
 tv
@@ -1485,6 +1542,7 @@ usecs
 usedp
 userbad
 usercfg
+usleep
 usr
 utf
 util
@@ -1498,6 +1556,8 @@ valuev
 vanishingly
 variable's
 variadic
+vdata
+vec
 vectorized
 versa
 vfprintf
@@ -1505,10 +1565,12 @@ vh
 vm
 vpack
 vpmsum
+vpmsumd
 vprintf
 vrfy
 vsize
 vsnprintf
+vthread
 vtype
 vunpack
 vxr
@@ -1535,6 +1597,7 @@ wrlock
 wrlsn
 ws
 wtbench
+wthread
 wti
 wtobj
 wtperf
@@ -1545,6 +1608,7 @@ xF
 xdeadbeef
 xff
 xfff
+xxpermdi
 xxxx
 xxxxx
 xxxxxx
@@ -1552,6 +1616,7 @@ zSeries
 zalloc
 zf
 zfree
+zihintpause
 zlib
 zlib's
 zseries
@@ -1559,4 +1624,5 @@ zstd
 zstd's
 zu
 zyxwvutsrqponmlkjihgfedcba
+zz
 zzz

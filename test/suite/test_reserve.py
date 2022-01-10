@@ -37,10 +37,11 @@ from wtscenario import make_scenarios
 # Test WT_CURSOR.reserve.
 class test_reserve(wttest.WiredTigerTestCase):
 
-    keyfmt = [
-        ('integer', dict(keyfmt='i')),
-        ('recno', dict(keyfmt='r')),
-        ('string', dict(keyfmt='S')),
+    format_values = [
+        ('integer', dict(keyfmt='i', valfmt='S')),
+        ('recno', dict(keyfmt='r', valfmt='S')),
+        ('fix', dict(keyfmt='r', valfmt='8t')),
+        ('string', dict(keyfmt='S', valfmt='S')),
     ]
     types = [
         ('file', dict(uri='file', ds=SimpleDataSet)),
@@ -51,54 +52,56 @@ class test_reserve(wttest.WiredTigerTestCase):
         ('table-simple', dict(uri='table', ds=SimpleDataSet)),
         ('table-simple-lsm', dict(uri='table', ds=SimpleLSMDataSet)),
     ]
-    scenarios = make_scenarios(types, keyfmt)
 
-    def skip(self):
-        return self.keyfmt == 'r' and \
-            (self.ds.is_lsm() or self.uri == 'lsm')
+    def keep(name, d):
+        if d['keyfmt'] == 'r' and (d['uri'] == 'lsm' or d['ds'].is_lsm()):
+            return False
+        # The complex data sets have their own built-in value schemas that are not FLCS.
+        if d['valfmt'] == '8t' and d['ds'] == ComplexDataSet:
+            return False
+        return True
+
+    scenarios = make_scenarios(types, format_values, include=keep)
 
     def test_reserve(self):
-        if self.skip():
-            return
-
         uri = self.uri + ':test_reserve'
 
-        ds = self.ds(self, uri, 500, key_format=self.keyfmt)
+        ds = self.ds(self, uri, 500, key_format=self.keyfmt, value_format=self.valfmt)
         ds.populate()
         s = self.conn.open_session()
         c = s.open_cursor(uri, None)
 
         # Repeatedly update a record.
         for i in range(1, 5):
-            s.begin_transaction('isolation=snapshot')
+            s.begin_transaction()
             c.set_key(ds.key(100))
             c.set_value(ds.value(100))
             self.assertEquals(c.update(), 0)
             s.commit_transaction()
 
         # Confirm reserve fails if the record doesn't exist.
-        s.begin_transaction('isolation=snapshot')
+        s.begin_transaction()
         c.set_key(ds.key(600))
         self.assertRaises(wiredtiger.WiredTigerError, lambda:c.reserve())
         s.rollback_transaction()
 
         # Repeatedly reserve a record and commit.
         for i in range(1, 5):
-            s.begin_transaction('isolation=snapshot')
+            s.begin_transaction()
             c.set_key(ds.key(100))
             self.assertEquals(c.reserve(), 0)
             s.commit_transaction()
 
         # Repeatedly reserve a record and rollback.
         for i in range(1, 5):
-            s.begin_transaction('isolation=snapshot')
+            s.begin_transaction()
             c.set_key(ds.key(100))
             self.assertEquals(c.reserve(), 0)
             s.rollback_transaction()
 
         # Repeatedly reserve, then update, a record, and commit.
         for i in range(1, 5):
-            s.begin_transaction('isolation=snapshot')
+            s.begin_transaction()
             c.set_key(ds.key(100))
             self.assertEquals(c.reserve(), 0)
             c.set_value(ds.value(100))
@@ -107,7 +110,7 @@ class test_reserve(wttest.WiredTigerTestCase):
 
         # Repeatedly reserve, then update, a record, and rollback.
         for i in range(1, 5):
-            s.begin_transaction('isolation=snapshot')
+            s.begin_transaction()
             c.set_key(ds.key(100))
             self.assertEquals(c.reserve(), 0)
             c.set_value(ds.value(100))
@@ -120,11 +123,11 @@ class test_reserve(wttest.WiredTigerTestCase):
         s2 = self.conn.open_session()
         c2 = s2.open_cursor(uri, None)
         for i in range(1, 2):
-            s.begin_transaction('isolation=snapshot')
+            s.begin_transaction()
             c.set_key(ds.key(100))
             self.assertEquals(c.reserve(), 0)
 
-            s2.begin_transaction('isolation=snapshot')
+            s2.begin_transaction()
             c2.set_key(ds.key(100))
             c2.set_value(ds.value(100))
             self.assertRaises(wiredtiger.WiredTigerError, lambda:c2.update())
@@ -137,28 +140,24 @@ class test_reserve(wttest.WiredTigerTestCase):
 
     # Test cursor.reserve will fail if a key has not yet been set.
     def test_reserve_without_key(self):
-        if self.skip():
-            return
 
         uri = self.uri + ':test_reserve_without_key'
 
-        ds = self.ds(self, uri, 10, key_format=self.keyfmt)
+        ds = self.ds(self, uri, 10, key_format=self.keyfmt, value_format=self.valfmt)
         ds.populate()
         s = self.conn.open_session()
         c = s.open_cursor(uri, None)
-        s.begin_transaction('isolation=snapshot')
+        s.begin_transaction()
         msg = "/requires key be set/"
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError, lambda:c.reserve(), msg)
 
     # Test cursor.reserve will fail if there's no running transaction.
     def test_reserve_without_txn(self):
-        if self.skip():
-            return
 
         uri = self.uri + ':test_reserve_without_txn'
 
-        ds = self.ds(self, uri, 10, key_format=self.keyfmt)
+        ds = self.ds(self, uri, 10, key_format=self.keyfmt, value_format=self.valfmt)
         ds.populate()
         s = self.conn.open_session()
         c = s.open_cursor(uri, None)
@@ -169,28 +168,24 @@ class test_reserve(wttest.WiredTigerTestCase):
 
     # Test cursor.reserve returns a value on success.
     def test_reserve_returns_value(self):
-        if self.skip():
-            return
 
         uri = self.uri + ':test_reserve_returns_value'
 
-        ds = self.ds(self, uri, 10, key_format=self.keyfmt)
+        ds = self.ds(self, uri, 10, key_format=self.keyfmt, value_format=self.valfmt)
         ds.populate()
         s = self.conn.open_session()
         c = s.open_cursor(uri, None)
-        s.begin_transaction('isolation=snapshot')
+        s.begin_transaction()
         c.set_key(ds.key(5))
         self.assertEquals(c.reserve(), 0)
         self.assertEqual(c.get_value(), ds.comparable_value(5))
 
     # Test cursor.reserve fails on non-standard cursors.
     def test_reserve_not_supported(self):
-        if self.skip():
-            return
 
         uri = self.uri + ':test_reserve_not_supported'
         s = self.conn.open_session()
-        s.create(uri, 'key_format=' + self.keyfmt + ",value_format=S")
+        s.create(uri, 'key_format=' + self.keyfmt + ",value_format=" + self.valfmt)
 
         list = [ "bulk", "dump=json" ]
         for l in list:

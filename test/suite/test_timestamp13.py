@@ -41,12 +41,12 @@ class test_timestamp13(wttest.WiredTigerTestCase, suite_subprocess):
 
     scenarios = make_scenarios([
         ('col', dict(extra_config=',key_format=r')),
+        ('col-fix', dict(extra_config=',key_format=r,value_format=8t')),
         ('lsm', dict(extra_config=',type=lsm')),
         ('row', dict(extra_config='')),
     ])
 
     conn_config = 'log=(enabled)'
-    session_config = 'isolation=snapshot'
 
     def test_degenerate_timestamps(self):
         self.session.create(self.uri,
@@ -81,7 +81,7 @@ class test_timestamp13(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create(self.uri,
             'key_format=i,value_format=i' + self.extra_config)
 
-        self.session.begin_transaction('isolation=snapshot')
+        self.session.begin_transaction()
         self.session.timestamp_transaction('read_timestamp=10')
         self.assertTimestampsEqual(
             self.session.query_timestamp('get=read'), '10')
@@ -111,7 +111,7 @@ class test_timestamp13(wttest.WiredTigerTestCase, suite_subprocess):
         # Rounding to the oldest timestamp will allow the stale read_timestamp
         # to succeed. The follow-up call to get the read timestamp returns the
         # chosen read timestamp.
-        self.session.begin_transaction('isolation=snapshot,roundup_timestamps=(read=true)')
+        self.session.begin_transaction('roundup_timestamps=(read=true)')
         self.session.timestamp_transaction('read_timestamp=5')
         self.assertTimestampsEqual(
             self.session.query_timestamp('get=read'), '10')

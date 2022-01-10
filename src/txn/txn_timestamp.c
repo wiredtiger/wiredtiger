@@ -191,7 +191,8 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
         /* Read-only value forever. Make sure we don't used a cached version. */
         WT_BARRIER();
         ts = txn_global->last_ckpt_timestamp;
-    } else if (WT_STRING_MATCH("oldest", cval.str, cval.len)) {
+    } else if (WT_STRING_MATCH("oldest_timestamp", cval.str, cval.len) ||
+      WT_STRING_MATCH("oldest", cval.str, cval.len)) {
         if (!txn_global->has_oldest_timestamp)
             return (WT_NOTFOUND);
         ts = txn_global->oldest_timestamp;
@@ -203,7 +204,8 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
     else if (WT_STRING_MATCH("recovery", cval.str, cval.len))
         /* Read-only value forever. No lock needed. */
         ts = txn_global->recovery_timestamp;
-    else if (WT_STRING_MATCH("stable", cval.str, cval.len)) {
+    else if (WT_STRING_MATCH("stable_timestamp", cval.str, cval.len) ||
+      WT_STRING_MATCH("stable", cval.str, cval.len)) {
         if (!txn_global->has_stable_timestamp)
             return (WT_NOTFOUND);
         ts = txn_global->stable_timestamp;
@@ -757,12 +759,11 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
     WT_TXN_SHARED *txn_shared;
     wt_timestamp_t ts_oldest;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool did_roundup_to_oldest, use_pinned_ts;
+    bool did_roundup_to_oldest;
 
     txn = session->txn;
     txn_global = &S2C(session)->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
-    use_pinned_ts = false;
 
     WT_RET(__wt_txn_context_prepare_check(session));
 
@@ -784,7 +785,6 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
     __wt_readlock(session, &txn_global->rwlock);
 
     if (F_ISSET(txn, WT_TXN_TS_READ_BEFORE_OLDEST)) {
-        use_pinned_ts = true;
         /* Set a flag on the transaction to prevent re-acquiring the read lock. */
         F_SET(txn, WT_TXN_TS_ALREADY_LOCKED);
         ret = __wt_txn_get_pinned_timestamp(session, &ts_oldest, txn->flags);
@@ -804,16 +804,22 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
         } else {
             __wt_readunlock(session, &txn_global->rwlock);
 
+#if !defined(WT_STANDALONE_BUILD)
             /*
              * In some cases, MongoDB sets a read timestamp older than the oldest timestamp, relying
              * on WiredTiger's concurrency to detect and fail the set. In other cases it's a bug and
              * MongoDB wants error context to make it easier to find those problems. Don't output an
              * error message because that logs a MongoDB error, use an informational message to
-             * provide the context instead.
+             * provide the context instead. Don't output this message for standalone builds, it's
+             * too noisy for applications that don't track the read timestamp against the oldest
+             * timestamp and simply expect the set to fail.
              */
-            WT_RET(__wt_msg(session, "read timestamp %s less than the %s timestamp %s",
-              __wt_timestamp_to_string(read_ts, ts_string[0]), use_pinned_ts ? "pinned" : "oldest",
-              __wt_timestamp_to_string(ts_oldest, ts_string[1])));
+            __wt_verbose_notice(session, WT_VERB_TIMESTAMP,
+              "read timestamp %s less than the %s timestamp %s",
+              __wt_timestamp_to_string(read_ts, ts_string[0]),
+              F_ISSET(txn, WT_TXN_TS_READ_BEFORE_OLDEST) ? "pinned" : "oldest",
+              __wt_timestamp_to_string(ts_oldest, ts_string[1]));
+#endif
             return (EINVAL);
         }
     } else

@@ -73,6 +73,10 @@ static void get_compact_progress(
   WT_SESSION *session, const char *, uint64_t *, uint64_t *, uint64_t *);
 
 /* Methods implementation. */
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -109,6 +113,10 @@ main(int argc, char *argv[])
     return (EXIT_SUCCESS);
 }
 
+/*
+ * run_test_clean --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 run_test_clean(bool stress_test, bool column_store, bool preserve, const char *home,
   const char *suffix, const char *uri)
@@ -127,6 +135,10 @@ run_test_clean(bool stress_test, bool column_store, bool preserve, const char *h
         testutil_clean_work_dir(home_full);
 }
 
+/*
+ * run_test --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 run_test(bool stress_test, bool column_store, const char *home, const char *uri)
 {
@@ -184,7 +196,7 @@ run_test(bool stress_test, bool column_store, const char *home, const char *uri)
     (void)pthread_join(thread_compact, NULL);
 
     /* Collect compact progress stats. */
-    get_compact_progress(session, uri, &pages_reviewed, &pages_rewritten, &pages_skipped);
+    get_compact_progress(session, uri, &pages_reviewed, &pages_skipped, &pages_rewritten);
     size_check_res = check_db_size(session, uri);
 
     /* Cleanup */
@@ -211,6 +223,10 @@ run_test(bool stress_test, bool column_store, const char *home, const char *uri)
     testutil_assert(size_check_res);
 }
 
+/*
+ * thread_func_compact --
+ *     TODO: Add a comment describing this function.
+ */
 static void *
 thread_func_compact(void *arg)
 {
@@ -236,6 +252,10 @@ thread_func_compact(void *arg)
     return (NULL);
 }
 
+/*
+ * wait_run_check --
+ *     TODO: Add a comment describing this function.
+ */
 static bool
 wait_run_check(WT_SESSION_IMPL *session)
 {
@@ -248,6 +268,10 @@ wait_run_check(WT_SESSION_IMPL *session)
     return (true);
 }
 
+/*
+ * thread_func_checkpoint --
+ *     TODO: Add a comment describing this function.
+ */
 static void *
 thread_func_checkpoint(void *arg)
 {
@@ -302,6 +326,10 @@ thread_func_checkpoint(void *arg)
     return (NULL);
 }
 
+/*
+ * populate --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 populate(WT_SESSION *session, const char *uri)
 {
@@ -329,6 +357,10 @@ populate(WT_SESSION *session, const char *uri)
     cursor = NULL;
 }
 
+/*
+ * remove_records --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 remove_records(WT_SESSION *session, const char *uri)
 {
@@ -347,6 +379,10 @@ remove_records(WT_SESSION *session, const char *uri)
     cursor = NULL;
 }
 
+/*
+ * get_file_stats --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 get_file_stats(WT_SESSION *session, const char *uri, uint64_t *file_sz, uint64_t *avail_bytes)
 {
@@ -370,6 +406,10 @@ get_file_stats(WT_SESSION *session, const char *uri, uint64_t *file_sz, uint64_t
     cur_stat = NULL;
 }
 
+/*
+ * set_timing_stress_checkpoint --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 set_timing_stress_checkpoint(WT_CONNECTION *conn)
 {
@@ -379,6 +419,10 @@ set_timing_stress_checkpoint(WT_CONNECTION *conn)
     conn_impl->timing_stress_flags |= WT_TIMING_STRESS_CHECKPOINT_SLOW;
 }
 
+/*
+ * get_compact_progress --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 get_compact_progress(WT_SESSION *session, const char *uri, uint64_t *pages_reviewed,
   uint64_t *pages_skipped, uint64_t *pages_rewritten)
@@ -404,6 +448,10 @@ get_compact_progress(WT_SESSION *session, const char *uri, uint64_t *pages_revie
     testutil_check(cur_stat->close(cur_stat));
 }
 
+/*
+ * check_db_size --
+ *     TODO: Add a comment describing this function.
+ */
 static bool
 check_db_size(WT_SESSION *session, const char *uri)
 {
@@ -411,11 +459,21 @@ check_db_size(WT_SESSION *session, const char *uri)
 
     get_file_stats(session, uri, &file_sz, &avail_bytes);
 
-    /* Check if there's maximum of 10% space available after compaction. */
     available_pct = (avail_bytes * 100) / file_sz;
     printf(" - Compacted file size: %" PRIu64 "MB (%" PRIu64 "B)\n - Available for reuse: %" PRIu64
            "MB (%" PRIu64 "B)\n - %" PRIu64 "%% space available in the file.\n",
       file_sz / WT_MEGABYTE, file_sz, avail_bytes / WT_MEGABYTE, avail_bytes, available_pct);
 
-    return (available_pct <= 10);
+    /*
+     * Compaction is a best-effort algorithm. It moves blocks from the end to the beginning of the
+     * file but there is no guarantee that all empty space at the beginning will be filled. The
+     * logic in the algorithm checks if at least 20% of the file is available in the first 80% of
+     * the file, we'll try compaction on the last 20% of the file. Else if at least 10% of the total
+     * file is available in the first 90% of the file, we'll try compaction on the last 10% of the
+     * file. It may well happen that 9.9% of the space is available for reuse in the first 90% of
+     * the file. And 9.9% available in the last 10% of the file. In this case, the algorithm would
+     * give up. But total available space in the file would be 19.8%. So we need to check that there
+     * is a maximum of 20% space available for reuse after compaction.
+     */
+    return (available_pct <= 20);
 }

@@ -36,6 +36,10 @@ static const char *const uri = "table:large";
 #define NUM_DOCS 2
 
 static void on_alarm(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+/*
+ * on_alarm --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 on_alarm(int signo)
 {
@@ -48,6 +52,10 @@ on_alarm(int signo)
 
 static int ignore_errors = 0;
 
+/*
+ * handle_error --
+ *     TODO: Add a comment describing this function.
+ */
 static int
 handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
 {
@@ -67,6 +75,10 @@ handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const ch
 
 static WT_EVENT_HANDLER event_handler = {handle_error, NULL, NULL, NULL};
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -89,7 +101,8 @@ main(int argc, char *argv[])
 
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     testutil_check(__wt_snprintf(tableconf, sizeof(tableconf),
-      "key_format=%s,value_format=u,leaf_item_max=64M,leaf_page_max=32k,memory_page_max=1M",
+      "key_format=%s,value_format=u,leaf_key_max=64M,leaf_value_max=64M,leaf_page_max=32k,memory_"
+      "page_max=1M",
       opts->table_type == TABLE_ROW ? "Q" : "r"));
     testutil_check(session->create(session, uri, tableconf));
 

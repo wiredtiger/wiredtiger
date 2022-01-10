@@ -49,10 +49,10 @@ common_runtime_config = [
         enable enhanced checking. ''',
         type='category', subconfig= [
         Config('commit_timestamp', 'none', r'''
-            This option is no longer supported, retained for backward compatibility.''',
+            This option is no longer supported, retained for backward compatibility''',
             choices=['always', 'key_consistent', 'never', 'none']),
         Config('durable_timestamp', 'none', r'''
-            This option is no longer supported, retained for backward compatibility.''',
+            This option is no longer supported, retained for backward compatibility''',
             choices=['always', 'key_consistent', 'never', 'none']),
         Config('write_timestamp', 'off', r'''
             verify that commit timestamps are used per the configured
@@ -339,7 +339,7 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         the file format''',
         choices=['btree']),
     Config('huffman_key', 'none', r'''
-        This option is no longer supported, retained for backward compatibility.'''),
+        This option is no longer supported, retained for backward compatibility'''),
     Config('huffman_value', 'none', r'''
         configure Huffman encoding for values.  Permitted values are
         \c "none", \c "english", \c "utf8<file>" or \c "utf16<file>".
@@ -363,17 +363,13 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         block compression is done''',
         min='512B', max='512MB'),
     Config('internal_item_max', '0', r'''
-        This option is no longer supported, retained for backward compatibility.''',
-        min=0),
+        This option is no longer supported, retained for backward compatibility''',
+        min=0, undoc=True),
     Config('internal_key_max', '0', r'''
-        the largest key stored in an internal node, in bytes.  If set, keys
-        larger than the specified size are stored as overflow items (which
-        may require additional I/O to access).  The default and the maximum
-        allowed value are both one-tenth the size of a newly split internal
-        page''',
+        This option is no longer supported, retained for backward compatibility''',
         min='0'),
     Config('key_gap', '10', r'''
-        This option is no longer supported, retained for backward compatibility.''',
+        This option is no longer supported, retained for backward compatibility''',
         min='0'),
     Config('leaf_key_max', '0', r'''
         the largest key stored in a leaf node, in bytes.  If set, keys
@@ -387,7 +383,9 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         applications wanting to maximize sequential data transfer from
         a storage device.  The page maximum is the bytes of uncompressed
         data, that is, the limit is applied before any block compression
-        is done''',
+        is done.  For fixed-length column store, the size includes only the
+        bitmap data; pages containing timestamp information can be larger,
+        and the size is limited to 128KB rather than 512MB''',
         min='512B', max='512MB'),
     Config('leaf_value_max', '0', r'''
         the largest value stored in a leaf node, in bytes.  If set, values
@@ -398,8 +396,8 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         a newly split leaf page''',
         min='0'),
     Config('leaf_item_max', '0', r'''
-        This option is no longer supported, retained for backward compatibility.''',
-        min=0),
+        This option is no longer supported, retained for backward compatibility''',
+        min=0, undoc=True),
     Config('memory_page_image_max', '0', r'''
         the maximum in-memory page image represented by a single storage block.
         Depending on compression efficiency, compression can create storage
@@ -464,6 +462,10 @@ lsm_meta = file_config + lsm_config + [
 ]
 
 tiered_meta = file_meta + tiered_config + [
+    Config('flush_time', '0', r'''
+        indicates the time this tree was flushed to shared storage or 0 if unflushed'''),
+    Config('flush_timestamp', '0', r'''
+        timestamp at which this tree was flushed to shared storage or 0 if unflushed'''),
     Config('last', '0', r'''
         the last allocated object ID'''),
     Config('oldest', '1', r'''
@@ -476,8 +478,10 @@ tier_meta = file_meta + tiered_tree_config
 # Objects need to have the readonly setting set and bucket_prefix.
 # The file_meta already contains those pieces.
 object_meta = file_meta + [
-    Config('flush', '0', r'''
+    Config('flush_time', '0', r'''
         indicates the time this object was flushed to shared storage or 0 if unflushed'''),
+    Config('flush_timestamp', '0', r'''
+        timestamp at which this object was flushed to shared storage or 0 if unflushed'''),
 ]
 
 table_only_config = [
@@ -752,6 +756,13 @@ connection_runtime_config = [
             is 1MB.''',
             min='0', max='1TB'),
         ]),
+    Config('json_output', '[]', r'''
+        enable JSON formatted messages on the event handler interface. Options are
+        given as a list, where each option specifies an event handler category e.g.
+        'error' represents the messages from the WT_EVENT_HANDLER::handle_error method.''',
+        type='list', choices=[
+            'error',
+            'message']),
     Config('lsm_manager', '', r'''
         configure database wide options for LSM tree management. The LSM
         manager is started automatically the first time an LSM tree is opened.
@@ -853,10 +864,10 @@ connection_runtime_config = [
         type='list', undoc=True,
         choices=[
         'aggressive_sweep', 'backup_rename', 'checkpoint_reserved_txnid_delay', 'checkpoint_slow',
-        'failpoint_history_store_delete_key_from_ts', 'failpoint_history_store_insert_1',
-        'failpoint_history_store_insert_2', 'history_store_checkpoint_delay',
-        'history_store_search', 'history_store_sweep_race', 'prepare_checkpoint_delay', 'split_1',
-        'split_2', 'split_3', 'split_4', 'split_5', 'split_6', 'split_7']),
+        'compact_slow', 'failpoint_history_store_delete_key_from_ts',
+        'history_store_checkpoint_delay', 'history_store_search', 'history_store_sweep_race',
+        'prepare_checkpoint_delay', 'split_1', 'split_2', 'split_3', 'split_4', 'split_5',
+        'split_6', 'split_7']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
@@ -877,6 +888,7 @@ connection_runtime_config = [
             'evict_stuck',
             'evictserver',
             'fileops',
+            'generation',
             'handleops',
             'history_store',
             'history_store_activity',
@@ -885,6 +897,7 @@ connection_runtime_config = [
             'lsm_manager',
             'metadata',
             'mutex',
+            'out_of_order',
             'overflow',
             'read',
             'reconcile',
@@ -1094,6 +1107,21 @@ session_config = [
         closed. This value is inherited from ::wiredtiger_open
         \c cache_cursors''',
         type='boolean'),
+    Config('debug', '', r'''
+        configure debug specific behavior on a session. Generally only used
+        for internal testing purposes.''',
+        type='category', subconfig=[
+        Config('release_evict_page', 'false', r'''
+            Configure the session to evict the page when it is released and
+            no longer needed.''',
+            type='boolean'),
+        ]),
+    Config('cache_max_wait_ms', '0', r'''
+        the maximum number of milliseconds an application thread will wait
+        for space to be available in cache before giving up.
+        Default value will be the global setting of the 
+        connection config''',
+        min=0),
     Config('ignore_cache_size', 'false', r'''
         when set, operations performed by this session ignore the cache size
         and are not blocked when the cache is full.  Note that use of this
@@ -1260,7 +1288,8 @@ wiredtiger_open_common =\
             choices=['dsync', 'fsync', 'none']),
         ]),
     Config('verify_metadata', 'false', r'''
-        open connection and verify any WiredTiger metadata. This API
+        open connection and verify any WiredTiger metadata. Not compatible when
+        opening a connection from a backup. This API
         allows verification and detection of corruption in WiredTiger metadata.''',
         type='boolean'),
     Config('write_through', '', r'''
@@ -1382,6 +1411,13 @@ methods = {
     Config('import', '', r'''
         configure import of an existing object into the currently running database''',
         type='category', subconfig=[
+        Config('compare_timestamp', 'oldest_timestamp', r'''
+            Allow importing files with timestamps smaller or equal to the configured global
+            timestamps. Note the history of the files are not imported together and thus snapshot
+            read of historical data will not work with the option "stable_timestamp". (The \c
+            oldest and \c stable arguments are deprecated short-hand for \c oldest_timestamp
+            and \c stable_timestamp, respectively.)''',
+            choices=['oldest', 'oldest_timestamp', 'stable', 'stable_timestamp']),
         Config('enabled', 'false', r'''
             whether to import the input URI from disk''',
             type='boolean'),
@@ -1903,19 +1939,19 @@ methods = {
 
 'WT_CONNECTION.query_timestamp' : Method([
     Config('get', 'all_durable', r'''
-        specify which timestamp to query:
-        \c all_durable returns the largest timestamp such that all timestamps
-        up to that value have been made durable, \c last_checkpoint returns the
-        timestamp of the most recent stable checkpoint, \c oldest returns the
-        most recent \c oldest_timestamp set with WT_CONNECTION::set_timestamp,
-        \c oldest_reader returns the minimum of the read timestamps of all
-        active readers \c pinned returns the minimum of the \c oldest_timestamp
-        and the read timestamps of all active readers, \c recovery returns the
-        timestamp of the most recent stable checkpoint taken prior to a shutdown
-        and \c stable returns the most recent \c stable_timestamp set with
-        WT_CONNECTION::set_timestamp. See @ref transaction_timestamps''',
-        choices=['all_durable','last_checkpoint',
-            'oldest','oldest_reader','pinned','recovery','stable']),
+        specify which timestamp to query: \c all_durable returns the largest timestamp such that
+        all timestamps up to that value have been made durable, \c last_checkpoint returns the
+        timestamp of the most recent stable checkpoint, \c oldest_timestamp returns the most
+        recent \c oldest_timestamp set with WT_CONNECTION::set_timestamp, \c oldest_reader
+        returns the minimum of the read timestamps of all active readers \c pinned returns
+        the minimum of the \c oldest_timestamp and the read timestamps of all active readers,
+        \c recovery returns the timestamp of the most recent stable checkpoint taken prior to a
+        shutdown and \c stable_timestamp returns the most recent \c stable_timestamp set with
+        WT_CONNECTION::set_timestamp. (The \c oldest and \c stable arguments are deprecated
+        short-hand for \c oldest_timestamp and \c stable_timestamp, respectively.) See @ref
+        transaction_timestamps''',
+        choices=['all_durable','last_checkpoint','oldest',
+            'oldest_reader','oldest_timestamp','pinned','recovery','stable','stable_timestamp']),
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([

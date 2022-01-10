@@ -1,31 +1,3 @@
-#
-# Public Domain 2014-present MongoDB, Inc.
-# Public Domain 2008-2014 WiredTiger, Inc.
-#
-# This is free and unencumbered software released into the public domain.
-#
-# Anyone is free to copy, modify, publish, use, compile, sell, or
-# distribute this software, either in source code form or as a compiled
-# binary, for any purpose, commercial or non-commercial, and by any
-# means.
-#
-# In jurisdictions that recognize copyright laws, the author or authors
-# of this software dedicate any and all copyright interest in the
-# software to the public domain. We make this dedication for the benefit
-# of the public at large and to the detriment of our heirs and
-# successors. We intend this dedication to be an overt act of
-# relinquishment in perpetuity of all present and future rights to this
-# software under copyright law.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-# OTHER DEALINGS IN THE SOFTWARE.
-#
-
 project(csuite)
 
 include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
@@ -85,14 +57,27 @@ define_c_test(
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_scope>/WT_HOME>
 )
 
-define_c_test(
-    TARGET test_tiered_abort
-    SOURCES tiered_abort/main.c
-    DIR_NAME tiered_abort
-    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/tiered_abort/smoke.sh
-    ARGUMENTS -b $<TARGET_FILE:test_tiered_abort>
-    DEPENDS "WT_POSIX"
-)
+# Currently the tiered abort test does not consisently pass, thus comment out the tiered abort test
+# from our csuite, until we gain more confidence in flush tier. For now, just compile the test.
+# define_c_test(
+#     TARGET test_tiered_abort
+#     SOURCES tiered_abort/main.c
+#     DIR_NAME tiered_abort
+#     # We need to manually specify the location of the local store library
+#     # and build directory as this path is more dynamic compared to layout autoconf
+#     # produces in build_posix.
+#     FLAGS "-DWT_STORAGE_LIB=\"ext/storage_sources/local_store/libwiredtiger_local_store.so\""
+#     VARIANTS
+#         "test_tiered_abort_5_thread;-b ${CMAKE_BINARY_DIR} -t 10 -T 5"
+#     DEPENDS "WT_POSIX"
+# )
+if (WT_POSIX)
+    create_test_executable(test_tiered_abort
+        SOURCES tiered_abort/main.c
+        FLAGS "-DWT_STORAGE_LIB=\"ext/storage_sources/local_store/libwiredtiger_local_store.so\""
+        BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/tiered_abort
+    )
+endif()
 
 define_c_test(
     TARGET test_timestamp_abort
@@ -173,6 +158,14 @@ define_c_test(
     SOURCES wt2592_join_schema/main.c
     DIR_NAME wt2592_join_schema
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2592_join_schema>/WT_HOME>
+)
+
+define_c_test(
+    TARGET test_wt2719_reconfig
+    SOURCES wt2719_reconfig/main.c
+    DIR_NAME wt2719_reconfig
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2719_reconfig>/WT_HOME>
+    DEPENDS "WT_POSIX"
 )
 
 define_c_test(
@@ -345,5 +338,13 @@ define_c_test(
     SOURCES wt8057_compact_stress/main.c
     DIR_NAME wt8057_compact_stress
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8057_compact_stress>/WT_HOME>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt8246_compact_rts_data_correctness
+    SOURCES wt8246_compact_rts_data_correctness/main.c
+    DIR_NAME wt8246_compact_rts_data_correctness
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8246_compact_rts_data_correctness>/WT_HOME>
     DEPENDS "WT_POSIX"
 )

@@ -716,8 +716,9 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
     if (txn->isolation == WT_ISO_READ_UNCOMMITTED)
         return (true);
 
-    /* Otherwise, we should be called with a snapshot. */
-    WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) || session->dhandle->checkpoint != NULL);
+    /* Otherwise, we need a snapshot; if we don't have one, assume a test for global visibility. */
+    if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
+        return (__txn_visible_all_id(session, id));
 
     return (__wt_txn_visible_id_snapshot(
       id, txn->snap_min, txn->snap_max, txn->snapshot, txn->snapshot_count));
@@ -1356,7 +1357,7 @@ __wt_txn_modify_check(
      * uncommitted update or determined that it would be safe to write if we saw a committed update.
      */
     if (!rollback && upd == NULL) {
-        __wt_read_cell_time_window(cbt, &tw, &tw_found);
+        tw_found = __wt_read_cell_time_window(cbt, &tw);
         if (tw_found) {
             if (WT_TIME_WINDOW_HAS_STOP(&tw)) {
                 rollback = !__wt_txn_tw_stop_visible(session, &tw);
@@ -1392,7 +1393,7 @@ __wt_txn_modify_check(
         }
 
         WT_STAT_CONN_DATA_INCR(session, txn_update_conflict);
-        ret = __wt_txn_rollback_required(session, "conflict between concurrent operations");
+        ret = __wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CONFLICT);
     }
 
     /*

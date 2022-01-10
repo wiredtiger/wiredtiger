@@ -836,11 +836,6 @@ __conn_get_extension_api(WT_CONNECTION *wt_conn)
     conn->extension_api.spin_lock = __wt_ext_spin_lock;
     conn->extension_api.spin_unlock = __wt_ext_spin_unlock;
     conn->extension_api.spin_destroy = __wt_ext_spin_destroy;
-    conn->extension_api.transaction_id = __wt_ext_transaction_id;
-    conn->extension_api.transaction_isolation_level = __wt_ext_transaction_isolation_level;
-    conn->extension_api.transaction_notify = __wt_ext_transaction_notify;
-    conn->extension_api.transaction_oldest = __wt_ext_transaction_oldest;
-    conn->extension_api.transaction_visible = __wt_ext_transaction_visible;
     conn->extension_api.version = wiredtiger_version;
 
     /* Streaming pack/unpack API */
@@ -1700,7 +1695,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     wt_off_t size;
     size_t len;
     char buf[256];
-    bool bytelock, exist, is_create, match;
+    bool bytelock, empty, exist, is_create, is_salvage, match;
 
     conn = S2C(session);
     fh = NULL;
@@ -1822,9 +1817,33 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
               WT_SINGLETHREAD_STRING));
     }
 
+    /*
+     * We own the database home, figure out if we're creating it. There are a few files created when
+     * initializing the database home and we could crash in-between any of them, so there's no
+     * simple test. The last thing we do during initialization is rename a turtle file into place,
+     * and there's never a database home after that point without a turtle file. If the turtle file
+     * doesn't exist, it's a create.
+     */
+    WT_ERR(__wt_turtle_exists(session, &exist));
+    conn->is_new = exist ? 0 : 1;
+
+    /*
+     * Unless we are salvaging, if the turtle file exists then the WiredTiger file should exist as
+     * well.
+     */
+    WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
+    is_salvage = cval.val != 0;
+    if (!is_salvage && !conn->is_new) {
+        WT_ERR(__wt_fs_exist(session, WT_WIREDTIGER, &exist));
+        if (!exist) {
+            F_SET(conn, WT_CONN_DATA_CORRUPTION);
+            WT_ERR_MSG(session, WT_TRY_SALVAGE, "WiredTiger version file cannot be found");
+        }
+    }
+
     /* We own the lock file, optionally create the WiredTiger file. */
-    ret = __wt_open(
-      session, WT_WIREDTIGER, WT_FS_OPEN_FILE_TYPE_REGULAR, is_create ? WT_FS_OPEN_CREATE : 0, &fh);
+    ret = __wt_open(session, WT_WIREDTIGER, WT_FS_OPEN_FILE_TYPE_REGULAR,
+      is_create || is_salvage ? WT_FS_OPEN_CREATE : 0, &fh);
 
     /*
      * If we're read-only, check for handled errors. Even if able to open the WiredTiger file
@@ -1853,16 +1872,22 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /*
-     * We own the database home, figure out if we're creating it. There are a few files created when
-     * initializing the database home and we could crash in-between any of them, so there's no
-     * simple test. The last thing we do during initialization is rename a turtle file into place,
-     * and there's never a database home after that point without a turtle file. If the turtle file
-     * doesn't exist, it's a create.
+     * If WiredTiger file exists but is size zero when it is not supposed to be (the turtle file
+     * exists and we are not salvaging), write a message but don't fail.
      */
-    WT_ERR(__wt_turtle_exists(session, &exist));
-    conn->is_new = exist ? 0 : 1;
+    empty = false;
+    if (fh != NULL) {
+        WT_ERR(__wt_filesize(session, fh, &size));
+        empty = size == 0;
+        if (!is_salvage && !conn->is_new && empty)
+            WT_ERR(__wt_msg(session, "WiredTiger version file is empty"));
+    }
 
-    if (conn->is_new) {
+    /*
+     * Populate the WiredTiger file if this is a new connection or if the WiredTiger file is empty
+     * and we are salvaging.
+     */
+    if (conn->is_new || (is_salvage && empty)) {
         if (F_ISSET(conn, WT_CONN_READONLY))
             WT_ERR_MSG(session, EINVAL,
               "The database directory is empty or needs recovery, cannot continue with a read only "
@@ -1983,11 +2008,50 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __wt_json_config --
+ *     Set JSON output configuration.
+ */
+int
+__wt_json_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
+{
+    static const WT_NAME_FLAG jsontypes[] = {
+      {"error", WT_JSON_OUTPUT_ERROR}, {"message", WT_JSON_OUTPUT_MESSAGE}, {NULL, 0}};
+
+    WT_CONFIG_ITEM cval, sval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    const WT_NAME_FLAG *ft;
+    uint8_t flags;
+
+    conn = S2C(session);
+
+    /*
+     * When reconfiguring, check if there are any configurations we care about, otherwise leave the
+     * current settings in place.
+     */
+    if (reconfig && (ret = __wt_config_gets(session, cfg + 1, "json_output", &cval)) == WT_NOTFOUND)
+        return (0);
+    WT_RET(ret);
+
+    /* Check if JSON-encoded message strings are enabled, per event handler category. */
+    WT_RET(__wt_config_gets(session, cfg, "json_output", &cval));
+    flags = 0;
+    for (ft = jsontypes; ft->name != NULL; ft++) {
+        if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
+            LF_SET(ft->flag);
+        WT_RET_NOTFOUND_OK(ret);
+    }
+    conn->json_output = flags;
+
+    return (0);
+}
+
+/*
  * __wt_verbose_config --
  *     Set verbose configuration.
  */
 int
-__wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
     static const WT_NAME_FLAG verbtypes[] = {{"api", WT_VERB_API}, {"backup", WT_VERB_BACKUP},
       {"block", WT_VERB_BLOCK}, {"block_cache", WT_VERB_BLKCACHE},
@@ -1996,17 +2060,18 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
       {"compact_progress", WT_VERB_COMPACT_PROGRESS}, {"error_returns", WT_VERB_ERROR_RETURNS},
       {"evict", WT_VERB_EVICT}, {"evict_stuck", WT_VERB_EVICT_STUCK},
       {"evictserver", WT_VERB_EVICTSERVER}, {"fileops", WT_VERB_FILEOPS},
-      {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"hs", WT_VERB_HS},
-      {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
+      {"generation", WT_VERB_GENERATION}, {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG},
+      {"hs", WT_VERB_HS}, {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
       {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
-      {"mutex", WT_VERB_MUTEX}, {"overflow", WT_VERB_OVERFLOW}, {"read", WT_VERB_READ},
-      {"reconcile", WT_VERB_RECONCILE}, {"recovery", WT_VERB_RECOVERY},
-      {"recovery_progress", WT_VERB_RECOVERY_PROGRESS}, {"rts", WT_VERB_RTS},
-      {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
+      {"mutex", WT_VERB_MUTEX}, {"out_of_order", WT_VERB_OUT_OF_ORDER},
+      {"overflow", WT_VERB_OVERFLOW}, {"read", WT_VERB_READ}, {"reconcile", WT_VERB_RECONCILE},
+      {"recovery", WT_VERB_RECOVERY}, {"recovery_progress", WT_VERB_RECOVERY_PROGRESS},
+      {"rts", WT_VERB_RTS}, {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
       {"split", WT_VERB_SPLIT}, {"temporary", WT_VERB_TEMPORARY},
       {"thread_group", WT_VERB_THREAD_GROUP}, {"timestamp", WT_VERB_TIMESTAMP},
       {"tiered", WT_VERB_TIERED}, {"transaction", WT_VERB_TRANSACTION}, {"verify", WT_VERB_VERIFY},
       {"version", WT_VERB_VERSION}, {"write", WT_VERB_WRITE}, {NULL, 0}};
+
     WT_CONFIG_ITEM cval, sval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -2014,8 +2079,15 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
 
-    WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
+    /*
+     * When reconfiguring, check if there are any configurations we care about, otherwise leave the
+     * current settings in place.
+     */
+    if (reconfig && (ret = __wt_config_gets(session, cfg + 1, "verbose", &cval)) == WT_NOTFOUND)
+        return (0);
+    WT_RET(ret);
 
+    WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
     for (ft = verbtypes; ft->name != NULL; ft++) {
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
         WT_RET_NOTFOUND_OK(ret);
@@ -2023,9 +2095,10 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
         if (ret == WT_NOTFOUND)
             /*
              * If the given event isn't specified in configuration string, default it to the
-             * WT_VERBOSE_WARNING verbosity level.
+             * WT_VERBOSE_NOTICE verbosity level. WT_VERBOSE_NOTICE being an always-on informational
+             * verbosity message.
              */
-            conn->verbose[ft->flag] = WT_VERBOSE_WARNING;
+            conn->verbose[ft->flag] = WT_VERBOSE_NOTICE;
         else if (sval.type == WT_CONFIG_ITEM_BOOL && sval.len == 0)
             /*
              * If no value is associated with the event (i.e passing verbose=[checkpoint]), default
@@ -2159,10 +2232,9 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
       {"backup_rename", WT_TIMING_STRESS_BACKUP_RENAME},
       {"checkpoint_reserved_txnid_delay", WT_TIMING_STRESS_CHECKPOINT_RESERVED_TXNID_DELAY},
       {"checkpoint_slow", WT_TIMING_STRESS_CHECKPOINT_SLOW},
+      {"compact_slow", WT_TIMING_STRESS_COMPACT_SLOW},
       {"failpoint_history_delete_key_from_ts",
         WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS},
-      {"failpoint_history_store_insert_1", WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_INSERT_1},
-      {"failpoint_history_store_insert_2", WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_INSERT_2},
       {"history_store_checkpoint_delay", WT_TIMING_STRESS_HS_CHECKPOINT_DELAY},
       {"history_store_search", WT_TIMING_STRESS_HS_SEARCH},
       {"history_store_sweep_race", WT_TIMING_STRESS_HS_SWEEP},
@@ -2459,6 +2531,10 @@ __conn_version_verify(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
+    conn->recovery_major = 0;
+    conn->recovery_minor = 0;
+    conn->recovery_patch = 0;
+
     /* Always set the compatibility versions. */
     __wt_logmgr_compat_version(session);
     /*
@@ -2467,7 +2543,12 @@ __conn_version_verify(WT_SESSION_IMPL *session)
     if (F_ISSET(conn, WT_CONN_SALVAGE))
         return (0);
 
-    /* If we have a turtle file, validate versions. */
+    /*
+     * Initialize the version variables. These aren't always populated since there are expected
+     * cases where the turtle files doesn't exist (restoring from a backup, for example). All code
+     * that deals with recovery versions must consider the case where they are default initialized
+     * to zero.
+     */
     WT_RET(__wt_fs_exist(session, WT_METADATA_TURTLE, &exist));
     if (exist)
         WT_RET(__wt_turtle_validate_version(session));
@@ -2508,11 +2589,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     bool config_base_set, try_salvage, verify_meta;
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
-
-#if 0
-    /* FIXME-WT-6263: Temporarily disable history store verification. */
-    WT_SESSION_IMPL *verify_session;
-#endif
 
     /* Leave lots of space for optional additional configuration. */
     const char *cfg[] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
@@ -2711,7 +2787,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         __wt_free(session, conn->error_prefix);
         WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->error_prefix));
     }
-    WT_ERR(__wt_verbose_config(session, cfg));
+    WT_ERR(__wt_json_config(session, cfg, false));
+    WT_ERR(__wt_verbose_config(session, cfg, false));
     WT_ERR(__wt_timing_stress_config(session, cfg));
     WT_ERR(__wt_block_cache_setup(session, cfg, false));
     WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
@@ -2834,6 +2911,11 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_connection_open(conn, cfg));
     session = conn->default_session;
 
+#ifndef WT_STANDALONE_BUILD
+    /* Explicitly set the flag to indicate whether the database that was not shutdown cleanly. */
+    conn->unclean_shutdown = false;
+#endif
+
     /*
      * This function expects the cache to be created so parse this after the rest of the connection
      * is set up.
@@ -2892,11 +2974,11 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * THE TURTLE FILE MUST BE THE LAST FILE CREATED WHEN INITIALIZING THE DATABASE HOME, IT'S WHAT
      * WE USE TO DECIDE IF WE'RE CREATING OR NOT.
      */
-    WT_ERR(__wt_turtle_init(session));
     WT_ERR(__wt_config_gets(session, cfg, "verify_metadata", &cval));
     verify_meta = cval.val;
+    WT_ERR(__wt_turtle_init(session, verify_meta));
 
-    /* Only verify the metadata file first. We will verify the history store table later. */
+    /* Verify the metadata file. */
     if (verify_meta) {
         wt_session = &session->iface;
         ret = wt_session->verify(wt_session, WT_METAFILE_URI, NULL);
@@ -2926,21 +3008,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Start the worker threads and run recovery. */
     WT_ERR(__wt_connection_workers(session, cfg));
-
-#if 0
-    /*
-     * If the user wants to verify WiredTiger metadata, verify the history store now that the
-     * metadata table may have been salvaged and eviction has been started and recovery run.
-     *
-     * FIXME-WT-6682: temporarily disable history store verification.
-     */
-    if (verify_meta) {
-        WT_ERR(__wt_open_internal_session(conn, "verify hs", false, 0, 0, &verify_session));
-        ret = __wt_hs_verify(verify_session);
-        WT_TRET(__wt_session_close_internal(verify_session));
-        WT_ERR(ret);
-    }
-#endif
 
     /*
      * The hash array sizes needed to be set up very early. Set them in the statistics here. Setting

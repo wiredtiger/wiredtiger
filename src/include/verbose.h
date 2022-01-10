@@ -6,69 +6,92 @@
  * See the file LICENSE for redistribution information.
  */
 
-/* Permitted verbose event categories that can be used when defining a verbose message. */
-typedef enum {
-    WT_VERB_API = 0,
-    WT_VERB_BACKUP,
-    WT_VERB_BLKCACHE,
-    WT_VERB_BLOCK,
-    WT_VERB_CHECKPOINT,
-    WT_VERB_CHECKPOINT_CLEANUP,
-    WT_VERB_CHECKPOINT_PROGRESS,
-    WT_VERB_COMPACT,
-    WT_VERB_COMPACT_PROGRESS,
-    WT_VERB_ERROR_RETURNS,
-    WT_VERB_EVICT,
-    WT_VERB_EVICTSERVER,
-    WT_VERB_EVICT_STUCK,
-    WT_VERB_FILEOPS,
-    WT_VERB_HANDLEOPS,
-    WT_VERB_HS,
-    WT_VERB_HS_ACTIVITY,
-    WT_VERB_LOG,
-    WT_VERB_LSM,
-    WT_VERB_LSM_MANAGER,
-    WT_VERB_METADATA,
-    WT_VERB_MUTEX,
-    WT_VERB_OVERFLOW,
-    WT_VERB_READ,
-    WT_VERB_RECONCILE,
-    WT_VERB_RECOVERY,
-    WT_VERB_RECOVERY_PROGRESS,
-    WT_VERB_RTS,
-    WT_VERB_SALVAGE,
-    WT_VERB_SHARED_CACHE,
-    WT_VERB_SPLIT,
-    WT_VERB_TEMPORARY,
-    WT_VERB_THREAD_GROUP,
-    WT_VERB_TIERED,
-    WT_VERB_TIMESTAMP,
-    WT_VERB_TRANSACTION,
-    WT_VERB_VERIFY,
-    WT_VERB_VERSION,
-    WT_VERB_WRITE,
-    /* This entry needs to be the last in order to track the number of category items. */
-    WT_VERB_NUM_CATEGORIES,
-} WT_VERBOSE_CATEGORY;
+/* clang-format off */
+#define WT_VERBOSE_CATEGORY_STR_INIT \
+    { \
+    /* AUTOMATIC VERBOSE ENUM STRING GENERATION START */ \
+    "WT_VERB_API", \
+    "WT_VERB_BACKUP", \
+    "WT_VERB_BLKCACHE", \
+    "WT_VERB_BLOCK", \
+    "WT_VERB_CHECKPOINT", \
+    "WT_VERB_CHECKPOINT_CLEANUP", \
+    "WT_VERB_CHECKPOINT_PROGRESS", \
+    "WT_VERB_COMPACT", \
+    "WT_VERB_COMPACT_PROGRESS", \
+    "WT_VERB_DEFAULT", \
+    "WT_VERB_ERROR_RETURNS", \
+    "WT_VERB_EVICT", \
+    "WT_VERB_EVICTSERVER", \
+    "WT_VERB_EVICT_STUCK", \
+    "WT_VERB_EXTENSION", \
+    "WT_VERB_FILEOPS", \
+    "WT_VERB_GENERATION", \
+    "WT_VERB_HANDLEOPS", \
+    "WT_VERB_HS", \
+    "WT_VERB_HS_ACTIVITY", \
+    "WT_VERB_LOG", \
+    "WT_VERB_LSM", \
+    "WT_VERB_LSM_MANAGER", \
+    "WT_VERB_MUTEX", \
+    "WT_VERB_METADATA", \
+    "WT_VERB_OUT_OF_ORDER", \
+    "WT_VERB_OVERFLOW", \
+    "WT_VERB_READ", \
+    "WT_VERB_RECONCILE", \
+    "WT_VERB_RECOVERY", \
+    "WT_VERB_RECOVERY_PROGRESS", \
+    "WT_VERB_RTS", \
+    "WT_VERB_SALVAGE", \
+    "WT_VERB_SHARED_CACHE", \
+    "WT_VERB_SPLIT", \
+    "WT_VERB_TEMPORARY", \
+    "WT_VERB_THREAD_GROUP", \
+    "WT_VERB_TIERED", \
+    "WT_VERB_TIMESTAMP", \
+    "WT_VERB_TRANSACTION", \
+    "WT_VERB_VERIFY", \
+    "WT_VERB_VERSION", \
+    "WT_VERB_WRITE", \
+    /* AUTOMATIC VERBOSE ENUM STRING GENERATION STOP */ \
+    }
+/* clang-format on */
 
-/*
- * Permitted verbosity levels; to be used when defining verbose messages. The levels define a range
- * of severity categories, with WT_VERBOSE_ERROR being the lowest, most critical level (used by
- * messages on critical error paths) and WT_VERBOSE_DEBUG being the highest verbosity/informational
- * level (mostly adopted for debugging).
- */
-typedef enum {
-    WT_VERBOSE_ERROR = -2,
-    WT_VERBOSE_WARNING,
-    WT_VERBOSE_INFO,
-    WT_VERBOSE_DEBUG
-} WT_VERBOSE_LEVEL;
+/* Convert a verbose level to its string representation. */
+#define WT_VERBOSE_LEVEL_STR(level, level_str) \
+    do {                                       \
+        (level_str) = "";                      \
+        switch (level) {                       \
+        case WT_VERBOSE_ERROR:                 \
+            (level_str) = "ERROR";             \
+            break;                             \
+        case WT_VERBOSE_WARNING:               \
+            (level_str) = "WARNING";           \
+            break;                             \
+        case WT_VERBOSE_NOTICE:                \
+            (level_str) = "NOTICE";            \
+            break;                             \
+        case WT_VERBOSE_INFO:                  \
+            (level_str) = "INFO";              \
+            break;                             \
+        case WT_VERBOSE_DEBUG:                 \
+            (level_str) = "DEBUG";             \
+            break;                             \
+        }                                      \
+    } while (0)
 
 /*
  * Default verbosity level. WT_VERBOSE_DEBUG being the default level assigned to verbose messages
  * prior to the introduction of verbosity levels.
  */
-#define WT_VERBOSE_DEFAULT WT_VERBOSE_DEBUG
+#ifndef WT_VERBOSE_LEVEL_DEFAULT
+#define WT_VERBOSE_LEVEL_DEFAULT WT_VERBOSE_DEBUG
+#endif
+
+/* Default category for messages that don't explicitly specify a category. */
+#ifndef WT_VERBOSE_CATEGORY_DEFAULT
+#define WT_VERBOSE_CATEGORY_DEFAULT WT_VERB_DEFAULT
+#endif
 
 /*
  * WT_VERBOSE_MULTI_CATEGORY --
@@ -91,16 +114,16 @@ struct __wt_verbose_multi_category {
  * given category satisfies the default verbosity level.
  */
 #define WT_VERBOSE_ISSET(session, category) \
-    WT_VERBOSE_LEVEL_ISSET(session, category, WT_VERBOSE_DEFAULT)
+    WT_VERBOSE_LEVEL_ISSET(session, category, WT_VERBOSE_LEVEL_DEFAULT)
 
 /*
  * __wt_verbose_level --
  *     Display a verbose message considering a category and a verbosity level.
  */
-#define __wt_verbose_level(session, category, level, fmt, ...)                 \
-    do {                                                                       \
-        if (WT_VERBOSE_LEVEL_ISSET(session, category, level))                  \
-            __wt_verbose_worker(session, "[" #category "] " fmt, __VA_ARGS__); \
+#define __wt_verbose_level(session, category, level, fmt, ...)               \
+    do {                                                                     \
+        if (WT_VERBOSE_LEVEL_ISSET(session, category, level))                \
+            __wt_verbose_worker(session, category, level, fmt, __VA_ARGS__); \
     } while (0)
 
 /*
@@ -116,6 +139,13 @@ struct __wt_verbose_multi_category {
  */
 #define __wt_verbose_warning(session, category, fmt, ...) \
     __wt_verbose_level(session, category, WT_VERBOSE_WARNING, fmt, __VA_ARGS__)
+
+/*
+ * __wt_verbose_notice --
+ *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_NOTICE.
+ */
+#define __wt_verbose_notice(session, category, fmt, ...) \
+    __wt_verbose_level(session, category, WT_VERBOSE_NOTICE, fmt, __VA_ARGS__)
 
 /*
  * __wt_verbose_info --
@@ -140,7 +170,7 @@ struct __wt_verbose_multi_category {
  *     comma before an empty __VA_ARGS__ value.
  */
 #define __wt_verbose(session, category, fmt, ...) \
-    __wt_verbose_level(session, category, WT_VERBOSE_DEFAULT, fmt, __VA_ARGS__)
+    __wt_verbose_level(session, category, WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__)
 
 /*
  * __wt_verbose_level_multi --
@@ -152,7 +182,8 @@ struct __wt_verbose_multi_category {
         uint32_t __v_idx;                                                                     \
         for (__v_idx = 0; __v_idx < multi_category.cnt; __v_idx++) {                          \
             if (WT_VERBOSE_LEVEL_ISSET(session, multi_category.categories[__v_idx], level)) { \
-                __wt_verbose_worker(session, "[" #multi_category "] " fmt, __VA_ARGS__);      \
+                __wt_verbose_worker(                                                          \
+                  session, multi_category.categories[__v_idx], level, fmt, __VA_ARGS__);      \
                 break;                                                                        \
             }                                                                                 \
         }                                                                                     \
@@ -163,5 +194,14 @@ struct __wt_verbose_multi_category {
  *     Display a verbose message, given a set of multiple verbose categories using the default
  *     verbosity level.
  */
-#define __wt_verbose_multi(session, multi_category, fmt, ...) \
-    __wt_verbose_level_multi(session, multi_category, WT_VERBOSE_DEFAULT, fmt, __VA_ARGS__)
+#define __wt_verbose_multi(session, multi_category, fmt, ...)                    \
+    do {                                                                         \
+        uint32_t __v_idx;                                                        \
+        for (__v_idx = 0; __v_idx < multi_category.cnt; __v_idx++) {             \
+            if (WT_VERBOSE_ISSET(session, multi_category.categories[__v_idx])) { \
+                __wt_verbose_worker(session, multi_category.categories[__v_idx], \
+                  WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__);                   \
+                break;                                                           \
+            }                                                                    \
+        }                                                                        \
+    } while (0)

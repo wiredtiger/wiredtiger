@@ -73,6 +73,10 @@ static bool use_columns = false;
  *     Print usage message and exit.
  */
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -270,6 +274,10 @@ repeat(WT_SESSION *session, WT_CURSOR *c)
  * reset --
  *     Force eviction of the underlying page.
  */
+/*
+ * evict --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 evict(WT_CURSOR *c)
 {
@@ -307,6 +315,10 @@ trace_die(void)
         *__p = '.';                                                                     \
     } while (0)
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -317,7 +329,7 @@ main(int argc, char *argv[])
     int ch;
     char path[1024], table_config[128], value[VALUE_SIZE];
     const char *home, *v;
-    bool no_checkpoint, no_eviction;
+    bool no_checkpoint, no_eviction, preserve;
 
     (void)testutil_set_progname(argv);
     custom_die = trace_die;
@@ -325,7 +337,7 @@ main(int argc, char *argv[])
     __wt_random_init_seed(NULL, &rnd);
     modify_repl_init();
 
-    no_checkpoint = no_eviction = false;
+    no_checkpoint = no_eviction = preserve = false;
     home = "WT_TEST.wt6185_modify_ts";
     while ((ch = __wt_getopt(progname, argc, argv, "Cceh:S:")) != EOF)
         switch (ch) {
@@ -341,6 +353,9 @@ main(int argc, char *argv[])
             break;
         case 'h':
             home = __wt_optarg;
+            break;
+        case 'p':
+            preserve = true;
             break;
         case 'S':
             rnd.v = strtoul(__wt_optarg, NULL, 10);
@@ -415,5 +430,8 @@ main(int argc, char *argv[])
     testutil_check(conn->close(conn, NULL));
 
     cleanup();
+
+    if (!preserve)
+        testutil_clean_work_dir(home);
     return (EXIT_SUCCESS);
 }

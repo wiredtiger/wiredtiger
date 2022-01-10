@@ -41,8 +41,7 @@ class test_timestamp06(wttest.WiredTigerTestCase, suite_subprocess):
     table_ts_nolog   = 'table:ts06_ts_nologged'
 
     types = [
-        # FLCS does not yet work in a timestamp world.
-        #('col_fix', dict(empty=1, extra_config=',key_format=r,value_format=8t')),
+        ('col_fix', dict(empty=1, extra_config=',key_format=r,value_format=8t')),
         ('col_var', dict(empty=0, extra_config=',key_format=r')),
         ('lsm', dict(empty=0, extra_config=',type=lsm')),
         ('row', dict(empty=0, extra_config='',)),
@@ -58,7 +57,6 @@ class test_timestamp06(wttest.WiredTigerTestCase, suite_subprocess):
         ('V1', dict(conn_config='create,log=(archive=false,enabled),compatibility=(release="2.9")', using_log=True)),
         ('V2', dict(conn_config='create,log=(archive=false,enabled)', using_log=True)),
     ]
-    session_config = 'isolation=snapshot'
 
     scenarios = make_scenarios(conncfg, types, ckpt)
 

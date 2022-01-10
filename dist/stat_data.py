@@ -31,6 +31,10 @@ class Stat:
     def __cmp__(self, other):
         return cmp(self.desc.lower(), other.desc.lower())
 
+class BlockCacheStat(Stat):
+    prefix = 'block-cache'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, BlockCacheStat.prefix, desc, flags)
 class BlockStat(Stat):
     prefix = 'block-manager'
     def __init__(self, name, desc, flags=''):
@@ -129,6 +133,7 @@ class YieldStat(Stat):
 groups = {}
 groups['cursor'] = [CursorStat.prefix, SessionOpStat.prefix]
 groups['evict'] = [
+    BlockCacheStat.prefix,
     BlockStat.prefix,
     CacheStat.prefix,
     CacheWalkStat.prefix,
@@ -177,6 +182,31 @@ conn_stats = [
     ##########################################
     # Block manager statistics
     ##########################################
+    BlockCacheStat('block_cache_blocks', 'total blocks'),
+    BlockCacheStat('block_cache_blocks_evicted', 'evicted blocks'),
+    BlockCacheStat('block_cache_blocks_insert_read', 'total blocks inserted on read path'),
+    BlockCacheStat('block_cache_blocks_insert_write', 'total blocks inserted on write path'),
+    BlockCacheStat('block_cache_blocks_removed', 'removed blocks'),
+    BlockCacheStat('block_cache_blocks_update', 'cached blocks updated'),
+    BlockCacheStat('block_cache_bypass_chkpt', 'number of put bypasses on checkpoint I/O'),
+    BlockCacheStat('block_cache_bypass_filesize', 'file size causing bypass'),
+    BlockCacheStat('block_cache_bypass_get', 'number of bypasses on get'),
+    BlockCacheStat('block_cache_bypass_overhead_put', 'number of bypasses due to overhead on put'),
+    BlockCacheStat('block_cache_bypass_put', 'number of bypasses on put because file is too small'),
+    BlockCacheStat('block_cache_bypass_writealloc', 'number of bypasses because no-write-allocate setting was on'),
+    BlockCacheStat('block_cache_bytes', 'total bytes'),
+    BlockCacheStat('block_cache_bytes_insert_read', 'total bytes inserted on read path'),
+    BlockCacheStat('block_cache_bytes_insert_write', 'total bytes inserted on write path'),
+    BlockCacheStat('block_cache_bytes_update', 'cached bytes updated'),
+    BlockCacheStat('block_cache_eviction_passes', 'number of eviction passes'),
+    BlockCacheStat('block_cache_hits', 'number of hits'),
+    BlockCacheStat('block_cache_lookups', 'lookups'),
+    BlockCacheStat('block_cache_misses', 'number of misses'),
+    BlockCacheStat('block_cache_not_evicted_overhead', 'number of blocks not evicted due to overhead'),
+
+    ##########################################
+    # Block manager statistics
+    ##########################################
     BlockStat('block_byte_map_read', 'mapped bytes read', 'size'),
     BlockStat('block_byte_read', 'bytes read', 'size'),
     BlockStat('block_byte_read_mmap', 'bytes read via memory map API', 'size'),
@@ -185,27 +215,6 @@ conn_stats = [
     BlockStat('block_byte_write_checkpoint', 'bytes written for checkpoint', 'size'),
     BlockStat('block_byte_write_mmap', 'bytes written via memory map API', 'size'),
     BlockStat('block_byte_write_syscall', 'bytes written via system call API', 'size'),
-    BlockStat('block_cache_blocks', 'block cache total blocks'),
-    BlockStat('block_cache_blocks_evicted', 'block cache evicted blocks'),
-    BlockStat('block_cache_blocks_removed', 'block cache removed blocks'),
-    BlockStat('block_cache_blocks_update', 'block cache cached blocks updated'),
-    BlockStat('block_cache_blocks_insert_read', 'block cache total blocks inserted on read path'),
-    BlockStat('block_cache_blocks_insert_write', 'block cache total blocks inserted on write path'),
-    BlockStat('block_cache_bypass_chkpt', 'block cache number of put bypasses on checkpoint I/O'),
-    BlockStat('block_cache_bypass_get', 'block cache number of bypasses on get'),
-    BlockStat('block_cache_bypass_filesize', 'block cache file size causing bypass'),
-    BlockStat('block_cache_bypass_overhead_put', 'block cache number of bypasses due to overhead on put'),
-    BlockStat('block_cache_bypass_put', 'block cache number of bypasses on put because file is too small'),
-    BlockStat('block_cache_bypass_writealloc', 'block cache number of bypasses because no-write-allocate setting was on'),
-    BlockStat('block_cache_bytes', 'block cache total bytes'),
-    BlockStat('block_cache_bytes_update', 'block cache cached bytes updated'),
-    BlockStat('block_cache_bytes_insert_read', 'block cache total bytes inserted on read path'),
-    BlockStat('block_cache_bytes_insert_write', 'block cache total bytes inserted on write path'),
-    BlockStat('block_cache_data_refs', 'block cache lookups'),
-    BlockStat('block_cache_eviction_passes', 'block cache number of eviction passes'),
-    BlockStat('block_cache_hits', 'block cache number of hits including existence checks'),
-    BlockStat('block_cache_misses', 'block cache number of misses including existence checks'),
-    BlockStat('block_cache_not_evicted_overhead', 'block cache number of blocks not evicted due to overhead'),
     BlockStat('block_map_read', 'mapped blocks read'),
     BlockStat('block_preload', 'blocks pre-loaded'),
     BlockStat('block_read', 'blocks read'),
@@ -232,7 +241,6 @@ conn_stats = [
     CacheStat('cache_eviction_fail_active_children_on_an_internal_page', 'pages selected for eviction unable to be evicted because of active children on an internal page'),
     CacheStat('cache_eviction_fail_checkpoint_out_of_order_ts', 'pages selected for eviction unable to be evicted because of race between checkpoint and out of order timestamps handling'),
     CacheStat('cache_eviction_fail_in_reconciliation', 'pages selected for eviction unable to be evicted because of failure in reconciliation'),
-    CacheStat('cache_eviction_fail_parent_has_overflow_items', 'pages selected for eviction unable to be evicted as the parent page has overflow items'),
     CacheStat('cache_eviction_force', 'forced eviction - pages selected count'),
     CacheStat('cache_eviction_force_long_update_list', 'forced eviction - pages selected because of a large number of updates to a single item'),
     CacheStat('cache_eviction_force_clean', 'forced eviction - pages evicted that were clean count'),
@@ -488,7 +496,6 @@ conn_stats = [
     # Reconciliation statistics
     ##########################################
     RecStat('rec_maximum_seconds', 'maximum seconds spent in a reconciliation call', 'no_clear,no_scale,size'),
-    RecStat('rec_overflow_key_internal', 'internal-page overflow keys'),
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
     RecStat('rec_pages_with_prepare', 'page reconciliation calls that resulted in values with prepared transaction metadata'),
     RecStat('rec_pages_with_ts', 'page reconciliation calls that resulted in values with timestamps'),
@@ -531,6 +538,8 @@ conn_stats = [
     # Tiered storage statistics
     ##########################################
     StorageStat('flush_tier', 'flush_tier operation calls'),
+    StorageStat('flush_tier_skipped', 'flush_tier tables skipped due to no checkpoint'),
+    StorageStat('flush_tier_switched', 'flush_tier tables switched'),
     StorageStat('local_objects_inuse', 'attempts to remove a local object and the object is in use'),
     StorageStat('local_objects_removed', 'local objects removed'),
 
@@ -654,6 +663,7 @@ dsrc_stats = [
     BtreeStat('btree_column_fix', 'column-store fixed-size leaf pages', 'no_scale,tree_walk'),
     BtreeStat('btree_column_internal', 'column-store internal pages', 'no_scale,tree_walk'),
     BtreeStat('btree_column_rle', 'column-store variable-size RLE encoded values', 'no_scale,tree_walk'),
+    BtreeStat('btree_column_tws', 'column-store fixed-size time windows', 'no_scale,tree_walk'),
     BtreeStat('btree_column_variable', 'column-store variable-size leaf pages', 'no_scale,tree_walk'),
     BtreeStat('btree_compact_pages_reviewed', 'btree compact pages reviewed', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_skipped', 'btree compact pages skipped', 'no_clear,no_scale'),
@@ -662,7 +672,6 @@ dsrc_stats = [
     BtreeStat('btree_entries', 'number of key/value pairs', 'no_scale,tree_walk'),
     BtreeStat('btree_fixed_len', 'fixed-record size', 'max_aggregate,no_scale,size'),
     BtreeStat('btree_maximum_depth', 'maximum tree depth', 'max_aggregate,no_scale'),
-    BtreeStat('btree_maxintlkey', 'maximum internal page key size', 'max_aggregate,no_scale,size'),
     BtreeStat('btree_maxintlpage', 'maximum internal page size', 'max_aggregate,no_scale,size'),
     BtreeStat('btree_maxleafkey', 'maximum leaf page key size', 'max_aggregate,no_scale,size'),
     BtreeStat('btree_maxleafpage', 'maximum leaf page size', 'max_aggregate,no_scale,size'),
@@ -768,7 +777,6 @@ dsrc_stats = [
     RecStat('rec_multiblock_internal', 'internal page multi-block writes'),
     RecStat('rec_multiblock_leaf', 'leaf page multi-block writes'),
     RecStat('rec_multiblock_max', 'maximum blocks required for a page', 'max_aggregate,no_scale'),
-    RecStat('rec_overflow_key_internal', 'internal-page overflow keys'),
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
     RecStat('rec_overflow_value', 'overflow values written'),
     RecStat('rec_page_match', 'page checksum matches'),

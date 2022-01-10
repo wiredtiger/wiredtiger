@@ -1,11 +1,3 @@
-#
-# Public Domain 2014-present MongoDB, Inc.
-# Public Domain 2008-2014 WiredTiger, Inc.
-#  All rights reserved.
-#
-#  See the file LICENSE for redistribution information
-#
-
 include(CheckIncludeFiles)
 include(CheckSymbolExists)
 include(CheckLibraryExists)
@@ -610,6 +602,8 @@ function(parse_filelist_source filelist output_var)
         set(arch_host "POWERPC_HOST")
     elseif(WT_S390X)
         set(arch_host "ZSERIES_HOST")
+    elseif(WT_RISCV64)
+        set(arch_host "RISCV64_HOST")
     endif()
     # Determine platform host for our filelist parse.
     if(WT_POSIX)
@@ -640,6 +634,11 @@ function(parse_filelist_source filelist output_var)
                 # manually tell CMake to ASM compile these files otherwise it will ignore them during
                 # compilation process.
                 if("${file_ext}" STREQUAL ".sx")
+                    if("${CMAKE_C_COMPILER_ID}" MATCHES "[Cc]lang")
+                        # If compiling PPC and ZSERIES assembly with Clang, we need to explicitly pass the language
+                        # type onto the compiler, since the 'sx' extension is unknown.
+                        set_source_files_properties(${file_name} PROPERTIES COMPILE_FLAGS "-x assembler-with-cpp")
+                    endif()
                     set_source_files_properties(${file_name} PROPERTIES LANGUAGE ASM)
                 endif()
             endif()
@@ -649,3 +648,35 @@ function(parse_filelist_source filelist output_var)
     endforeach()
     set(${output_var} ${output_files} PARENT_SCOPE)
 endfunction()
+
+macro(source_python3_package python_libs python_version python_executable)
+    set(required_version)
+    if(PYTHON3_REQUIRED_VERSION)
+        if(NOT PYTHON3_REQUIRED_VERSION MATCHES "^([0-9]+)(\\.[0-9]+(\\.[0-9]+)?)?$")
+            message(FATAL_ERROR "Invalid value for PYTHON3_REQUIRED_VERSION: Requires a valid version string \
+                Provide a version number following the format: major[.minor[.patch]]")
+        endif()
+        if ("${PYTHON3_REQUIRED_VERSION}" VERSION_LESS 3)
+            message(FATAL_ERROR "Invalid value for PYTHON3_REQUIRED_VERSION: Requires a Python version >= 3")
+        endif()
+        set(required_version ${PYTHON3_REQUIRED_VERSION} EXACT)
+    endif()
+    if("${CMAKE_VERSION}" VERSION_LESS "3.12.0")
+        # This method of finding python libs has been deprecated since version 3.12.
+        # If we are running with a greater CMake version, opt to use the Python3 package.
+        set(Python_ADDITIONAL_VERSIONS 3.9 3.8 3.7 3.6 3.5)
+        find_package(PythonInterp ${required_version} REQUIRED)
+        find_package(PythonLibs ${required_version} REQUIRED)
+        include_directories(${PYTHON_INCLUDE_DIRS})
+        set(${python_libs} ${PYTHON_LIBRARIES})
+        set(${python_version} ${PYTHON_VERSION_STRING})
+        set(${python_executable} ${PYTHON_EXECUTABLE})
+    else()
+        find_package(Python3 ${required_version} COMPONENTS Interpreter Development REQUIRED)
+        include_directories(${Python3_INCLUDE_DIRS})
+        set(${python_libs} ${Python3_LIBRARIES})
+        set(${python_version} ${Python3_VERSION})
+        set(${python_executable} ${Python3_EXECUTABLE})
+    endif()
+
+endmacro()

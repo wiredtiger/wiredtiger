@@ -46,6 +46,10 @@
  */
 static bool expect_panic;
 
+/*
+ * handle_message --
+ *     TODO: Add a comment describing this function.
+ */
 static int
 handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
 {
@@ -74,6 +78,10 @@ handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const 
 
 static WT_EVENT_HANDLER event_handler = {handle_message, NULL, NULL, NULL};
 
+/*
+ * hs_workload --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 hs_workload(TEST_OPTS *opts, const char *hs_file_max)
 {
@@ -134,6 +142,10 @@ hs_workload(TEST_OPTS *opts, const char *hs_file_max)
     testutil_check(opts->conn->close(opts->conn, NULL));
 }
 
+/*
+ * test_hs_workload --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 test_hs_workload(TEST_OPTS *opts, const char *hs_file_max)
 {
@@ -147,7 +159,7 @@ test_hs_workload(TEST_OPTS *opts, const char *hs_file_max)
      * This way, we can safely check the exit code of the child process and confirm that it is what
      * we expected.
      */
-    testutil_checksys((pid = fork()) < 0);
+    testutil_assert_errno((pid = fork()) >= 0);
 
     if (pid == 0) {
         /* Child process from here. */
@@ -167,10 +179,14 @@ test_hs_workload(TEST_OPTS *opts, const char *hs_file_max)
     }
 
     /* Parent process from here. */
-    testutil_checksys(waitpid(pid, &status, 0) == -1);
+    testutil_assert_errno(waitpid(pid, &status, 0) != -1);
     testutil_assert(status == 0);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char **argv)
 {
