@@ -450,13 +450,14 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     __wt_epoch(session, &now);
 
 #if defined(HAVE_DIAGNOSTIC)
-    /* Enable verbose messaging a period */
-    if (WT_TIMEDIFF_SEC(now, cache->stuck_time) > WT_MINUTE * 5 - 10) {
+    /* Enable verbose messaging a period before the cache is stuck. */
+    if (WT_TIMEDIFF_SEC(now, cache->stuck_time) > (WT_MINUTE * WT_CACHE_STUCK_TIMEOUT) - WT_CACHE_STUCK_VERBOSE_BEGIN) {
+        F_SET(conn, WT_CONN_CACHE_STUCK);
     }
 #endif
 
 
-    if (WT_TIMEDIFF_SEC(now, cache->stuck_time) > WT_MINUTE * 5) {
+    if (WT_TIMEDIFF_SEC(now, cache->stuck_time) > WT_MINUTE * WT_CACHE_STUCK_TIMEOUT) {
 #if defined(HAVE_DIAGNOSTIC)
         __wt_err(session, ETIMEDOUT, "Cache stuck for too long, giving up");
         WT_RET(__wt_verbose_dump_txn(session));
