@@ -115,7 +115,6 @@ class test_tiered13(test_import_base):
         # It is tricky to work around the extension and connection bucket setup for
         # creating the new import directory that is tiered-enabled.
         ext = self.extensionsConfig()
-        #conn_params = self.saved_conn + ext + ",verbose=(temporary)"
         conn_params = self.saved_conn + ext
         self.conn = self.wiredtiger_open(newdir, conn_params)
         self.session = self.setUpSessionOpen(self.conn)
