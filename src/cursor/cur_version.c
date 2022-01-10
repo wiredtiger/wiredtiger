@@ -252,18 +252,18 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
         if (!F_ISSET(hs_cursor, WT_CURSTD_KEY_INT)) {
-            /* Ensure enough room for a column-store key without checking. */
-            WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+            if (page->type == WT_PAGE_ROW_LEAF)
+                hs_cursor->set_key(
+                  hs_cursor, 4, S2BT(session)->id, &table_cursor->key, WT_TS_MAX, UINT64_MAX);
+            else {
+                /* Ensure enough room for a column-store key without checking. */
+                WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
-            if (page->type == WT_PAGE_ROW_LEAF) {
-                key->data = table_cursor->key.data;
-                key->size = table_cursor->key.size;
-            } else {
                 p = key->mem;
                 WT_ERR(__wt_vpack_uint(&p, 0, cbt->recno));
                 key->size = WT_PTRDIFF(p, key->data);
+                hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
             }
-            hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
             WT_ERR(__wt_curhs_search_near_before(session, hs_cursor));
         } else
             WT_ERR(hs_cursor->prev(hs_cursor));

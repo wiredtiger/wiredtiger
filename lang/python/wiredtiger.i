@@ -122,7 +122,7 @@ from packing import pack, unpack
 		uint32_t json, version_cursor;
 
 		json = (*$1)->flags & WT_CURSTD_DUMP_JSON;
-		version_cursor = (*arg6)->flags & WT_CURSTD_VERSION_CURSOR;
+		version_cursor = (*$1)->flags & WT_CURSTD_VERSION_CURSOR;
 		if (!json)
 			(*$1)->flags |= WT_CURSTD_RAW;
 		PyObject_SetAttrString($result, "is_json",
