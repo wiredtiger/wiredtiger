@@ -202,7 +202,8 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
 
     /*
      * We cannot remove the objects on shared storage as other systems may be accessing them too.
-     * Remove the current local object and then remove all bucket objects from the metadata only.
+     * Remove the current local file object, the tiered entry and all bucket objects from the
+     * metadata only.
      */
     tier = tiered->tiers[WT_TIERED_INDEX_LOCAL].tier;
     if (tier != NULL) {
@@ -213,6 +214,16 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
         WT_ERR(__wt_metadata_remove(session, tier->name));
         if (remove_files)
             WT_TRET(__wt_meta_track_drop(session, tier->name));
+    }
+
+    /* Close any dhandle and remove any tier: entry from metadata. */
+    tier = tiered->tiers[WT_TIERED_INDEX_SHARED].tier;
+    if (tier != NULL) {
+        __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: drop shared object %s", tier->name);
+        WT_WITHOUT_DHANDLE(session,
+          WT_WITH_HANDLE_LIST_WRITE_LOCK(
+            session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force)));
+        WT_ERR(__wt_metadata_remove(session, tier->name));
     }
 
     /* Object ids start at 1. */
