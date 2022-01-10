@@ -79,10 +79,12 @@ class test_tiered13(test_import_base):
         self.session.checkpoint()
         # We now have the second object existing, with data in it.
 
-        # Testing import and tiered tables. All should error:
+        # Set up for the test.
         # - Create the tiered table (above).
         # - Find the metadata for the current file: object.
         # - Set up a new database for importing.
+        #
+        # Testing import and tiered tables. All should error:
         # - Try to import via the table:uri.
         # - Try to import via the table:uri with the file object's metadata.
         # - Try to import via the file:uri.
