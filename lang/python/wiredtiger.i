@@ -652,10 +652,10 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 {
 	if (*$1 && *$3) {
 		metadata = PyBytes_FromStringAndSize(*$1, *$2);
-    	$result = SWIG_Python_AppendOutput($result, metadata);
-		data = PyBytes_FromStringAndSize(*$3, *$4);
-    	$result = SWIG_Python_AppendOutput($result, data);
-	}
+        $result = SWIG_Python_AppendOutput($result, metadata);
+        data = PyBytes_FromStringAndSize(*$3, *$4);
+        $result = SWIG_Python_AppendOutput($result, data);
+    }
 }
 
 /* Handle binary data input from FILE_HANDLE->fh_write. */
