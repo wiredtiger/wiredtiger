@@ -648,8 +648,7 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 }
 
 %typemap(argout)(char **metadatap, int *metadatasizep, char **datap, int *datasizep) (
-    PyObject *metadata, PyObject *data)
-{
+    PyObject *metadata, PyObject *data) {
 	if (*$1 && *$3) {
 		metadata = PyBytes_FromStringAndSize(*$1, *$2);
 		$result = SWIG_Python_AppendOutput($result, metadata);
