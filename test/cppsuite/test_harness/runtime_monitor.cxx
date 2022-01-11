@@ -170,6 +170,7 @@ cache_limit_statistic::get_cache_value(scoped_cursor &cursor)
      * Assert that we never exceed our configured limit for cache usage. Add 0.0 to avoid floating
      * point conversion errors.
      */
+    testutil_assert(cache_bytes_max > 0);
     use_percent = ((cache_bytes_image + cache_bytes_other + 0.0) / cache_bytes_max) * 100;
     return use_percent;
 }
