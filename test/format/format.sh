@@ -9,15 +9,20 @@ name=$(basename $0)
 
 quit=0
 force_quit=0
+force_quit_reason()
+{
+    echo "$name: $1"
+    echo "$name: ending run"
+    force_quit=1
+}
 onintr()
 {
-	echo "$name: interrupted, cleaning up..."
-	force_quit=1
+	force_quit_reason "interrupted"
 }
 trap 'onintr' 2
 
 usage() {
-	echo "usage: $0 [-aEFRSv] [-b format-binary] [-c config] [-D directory]"
+	echo "usage: $0 [-aEFRS] [-b format-binary] [-c config] [-D directory]"
 	echo "    [-e env-var] [-h home] [-j parallel-jobs] [-n total-jobs] [-r live-record-binary]"
 	echo "    [-t minutes] [format-configuration]"
 	echo
@@ -35,7 +40,6 @@ usage() {
 	echo "    -r binary    record with UndoDB binary (defaults to no recording)"
 	echo "    -S           run smoke-test configurations (defaults to off)"
 	echo "    -t minutes   minutes to run (defaults to no limit)"
-	echo "    -v           verbose output (defaults to off)"
 	echo "    --           separates $name arguments from additional format arguments"
 
 	exit 1
@@ -158,7 +162,7 @@ while :; do
 		}
 		shift ; shift ;;
 	-v)
-		verbose=1
+		# Used to be the verbose flag, currently ignored.
 		shift ;;
 	--)
 		shift; break;;
@@ -172,10 +176,10 @@ format_args="$*"
 
 verbose()
 {
-	[[ $verbose -ne 0 ]] && echo "$@"
+	echo "$name: $@"
 }
 
-verbose "$name: run starting at $(date)"
+verbose "run starting at $(date)"
 
 # Home is possibly relative to our current directory and we're about to change directories.
 # Get an absolute path for home.
@@ -258,7 +262,7 @@ wt_binary="../../wt"
     }
 }
 
-verbose "$name configuration: $format_binary [-c $config]\
+verbose "configuration: $format_binary [-c $config]\
 [-h $home] [-j $parallel_jobs] [-n $total_jobs] [-t $minutes] $format_args"
 
 failure=0
@@ -356,8 +360,7 @@ report_failure()
 	# not worth the effort to try and figure one out, in all likelihood the configuration is
 	# invalid.
 	[[ -d "$dir" ]] || {
-	    echo "$name: $dir does not exist, $name unable to continue"
-	    force_quit=1
+	    force_quit_reason "$dir does not exist, $name unable to continue"
 	    return
 	}
 	echo "$name: $dir/CONFIG:"
@@ -400,12 +403,12 @@ resolve()
 			}
 
 			# Kill the process group to catch any child processes.
+			verbose "job in $dir killed"
 			kill -KILL -- -$pid
 			wait $pid
 
 			# Remove jobs we killed, they count as neither success or failure.
 			rm -rf $dir $log
-			verbose "$name: job in $dir killed"
 			continue
 		}
 		wait $pid
@@ -415,15 +418,14 @@ resolve()
 		grep 'successful run completed' $log > /dev/null && {
 			rm -rf $dir $log
 			success=$(($success + 1))
-			verbose "$name: job in $dir successfully completed"
+			verbose "job in $dir successfully completed"
 			continue
 		}
 
 		# Check for Evergreen running out of disk space, and forcibly quit.
 		grep -E -i 'no space left on device' $log > /dev/null && {
 			rm -rf $dir $log
-			force_quit=1
-			echo "$name: job in $dir ran out of disk space"
+			force_quit_reason "job in $dir ran out of disk space"
 			continue
 		}
 
@@ -462,7 +464,7 @@ resolve()
 			if [[ $verify_failed -eq 0 ]]; then
 			    rm -rf $dir $dir.RECOVER $log
 			    success=$(($success + 1))
-			    verbose "$name: job in $dir successfully completed"
+			    verbose "job in $dir successfully completed"
 			else
 			    echo "$name: job in $dir failed abort/recovery testing"
 			    report_failure $dir
@@ -579,8 +581,7 @@ format()
 	sleep 1
 	grep -E -i 'setsid: failed to execute' $log > /dev/null && {
 		failure=$(($failure + 1))
-		force_quit=1
-		echo "$name: job in $dir failed to execute"
+		force_quit_reason "job in $dir failed to execute"
 	}
 }
 
@@ -593,10 +594,8 @@ while :; do
 		elapsed=$(($now - $start_time))
 
 		# If we've run out of time, terminate all running jobs.
-		[[ $elapsed -ge $seconds ]] && {
-			verbose "$name: run timed out at $(date)"
-			force_quit=1
-		}
+		[[ $elapsed -ge $seconds ]] &&
+			force_quit_reason "run timed out at $(date), after $elapsed seconds"
 	}
 
 	# Check if we're only running the smoke-tests and we're done.
@@ -638,7 +637,7 @@ done
 
 echo "$name: $success successful jobs, $failure failed jobs"
 
-verbose "$name: run ending at $(date)"
+verbose "run ending at $(date)"
 [[ $failure -ne 0 ]] && exit 1
 [[ $success -eq 0 ]] && exit 1
 exit 0
