@@ -48,7 +48,7 @@ namespace test_harness {
 class statistics {
     public:
     statistics() = default;
-    explicit statistics(configuration *config, const std::string &stat_name, int stat_field);
+    explicit statistics(configuration &config, const std::string &stat_name, int stat_field);
     virtual ~statistics() = default;
 
     /* Check that the statistics are within bounds. */
@@ -76,7 +76,7 @@ class statistics {
 
 class cache_limit_statistic : public statistics {
     public:
-    explicit cache_limit_statistic(configuration *config, const std::string &name);
+    explicit cache_limit_statistic(configuration &config, const std::string &name);
     virtual ~cache_limit_statistic() = default;
 
     void check(scoped_cursor &cursor) override final;
@@ -88,7 +88,7 @@ class cache_limit_statistic : public statistics {
 
 class db_size_statistic : public statistics {
     public:
-    explicit db_size_statistic(configuration *config, const std::string &name, database &database);
+    explicit db_size_statistic(configuration &config, const std::string &name, database &database);
     virtual ~db_size_statistic() = default;
 
     /* Don't need the stat cursor for these. */
@@ -126,7 +126,7 @@ class runtime_monitor : public component {
     private:
     scoped_session _session;
     scoped_cursor _cursor;
-    std::vector<statistics *> _stats;
+    std::vector<std::unique_ptr<statistics>> _stats;
     database &_database;
 };
 } // namespace test_harness

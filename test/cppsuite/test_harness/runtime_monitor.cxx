@@ -68,9 +68,9 @@ get_stat_field(const std::string &name)
 }
 
 /* statistics class implementation */
-statistics::statistics(configuration *config, const std::string &stat_name, int stat_field)
-    : field(stat_field), max(config->get_int(MAX)), min(config->get_int(MIN)), name(stat_name),
-      postrun(config->get_bool(POSTRUN_STATISTICS)), runtime(config->get_bool(RUNTIME_STATISTICS))
+statistics::statistics(configuration &config, const std::string &stat_name, int stat_field)
+    : field(stat_field), max(config.get_int(MAX)), min(config.get_int(MIN)), name(stat_name),
+      postrun(config.get_bool(POSTRUN_STATISTICS)), runtime(config.get_bool(RUNTIME_STATISTICS))
 {
 }
 
@@ -133,7 +133,7 @@ statistics::get_runtime()
 }
 
 /* cache_limit_statistic class implementation */
-cache_limit_statistic::cache_limit_statistic(configuration *config, const std::string &name)
+cache_limit_statistic::cache_limit_statistic(configuration &config, const std::string &name)
     : statistics(config, name, -1)
 {
 }
@@ -177,7 +177,7 @@ cache_limit_statistic::get_cache_value(scoped_cursor &cursor)
 
 /* db_size_statistic class implementation */
 db_size_statistic::db_size_statistic(
-  configuration *config, const std::string &name, database &database)
+  configuration &config, const std::string &name, database &database)
     : statistics(config, name, -1), _database(database)
 {
 #ifdef _WIN32
@@ -259,8 +259,6 @@ runtime_monitor::runtime_monitor(configuration *config, database &database)
 
 runtime_monitor::~runtime_monitor()
 {
-    for (auto &stat : _stats)
-        delete stat;
     _stats.clear();
 }
 
@@ -273,23 +271,21 @@ runtime_monitor::load()
     /* If the component is enabled, load all the known statistics. */
     if (_enabled) {
 
-        configuration *stat_config = _config->get_subconfig(STAT_CACHE_SIZE);
-        _stats.push_back(new cache_limit_statistic(stat_config, STAT_CACHE_SIZE));
-        delete stat_config;
+        std::unique_ptr<configuration> stat_config(_config->get_subconfig(STAT_CACHE_SIZE));
+        _stats.push_back(std::unique_ptr<cache_limit_statistic>(
+          new cache_limit_statistic(*stat_config, STAT_CACHE_SIZE)));
 
-        stat_config = _config->get_subconfig(STAT_DB_SIZE);
-        _stats.push_back(new db_size_statistic(stat_config, STAT_DB_SIZE, _database));
-        delete stat_config;
+        stat_config.reset(_config->get_subconfig(STAT_DB_SIZE));
+        _stats.push_back(std::unique_ptr<db_size_statistic>(
+          new db_size_statistic(*stat_config, STAT_DB_SIZE, _database)));
 
-        stat_config = _config->get_subconfig(CACHE_HS_INSERT);
-        _stats.push_back(
-          new statistics(stat_config, CACHE_HS_INSERT, get_stat_field(CACHE_HS_INSERT)));
-        delete stat_config;
+        stat_config.reset(_config->get_subconfig(CACHE_HS_INSERT));
+        _stats.push_back(std::unique_ptr<statistics>(
+          new statistics(*stat_config, CACHE_HS_INSERT, get_stat_field(CACHE_HS_INSERT))));
 
-        stat_config = _config->get_subconfig(CC_PAGES_REMOVED);
-        _stats.push_back(
-          new statistics(stat_config, CC_PAGES_REMOVED, get_stat_field(CC_PAGES_REMOVED)));
-        delete stat_config;
+        stat_config.reset(_config->get_subconfig(CC_PAGES_REMOVED));
+        _stats.push_back(std::unique_ptr<statistics>(
+          new statistics(*stat_config, CC_PAGES_REMOVED, get_stat_field(CC_PAGES_REMOVED))));
 
         /* Open our statistic cursor. */
         _session = connection_manager::instance().create_session();
