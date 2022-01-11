@@ -1707,6 +1707,9 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     WT_REF *ref;
     uint64_t internal_pages_already_queued, internal_pages_queued, internal_pages_seen;
     uint64_t min_pages, pages_already_queued, pages_seen, pages_queued, refs_walked;
+    uint64_t cant_evict, try_evict, try_dirty_during_cp, dont_evict_dirty_during_cp,
+      try_dont_want_page, dont_want_page, evict_clean, evict_dirty, evict_updates, dirty_pages_seen,
+      dirty_pages_walked, dont_evict_internal_last_parent, dont_evict_internal, heuristic_skip;
     uint32_t read_flags, remaining_slots, target_pages, walk_flags;
     int restarts;
     bool give_up, modified, urgent_queued, want_page;
@@ -1850,10 +1853,17 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
      * case we are appending and only the last page in the file is live.
      */
     internal_pages_already_queued = internal_pages_queued = internal_pages_seen = 0;
+    cant_evict = try_evict = 0;
+    try_dirty_during_cp = dont_evict_dirty_during_cp = try_dont_want_page = dont_want_page =
+      evict_clean = evict_dirty = evict_updates = dirty_pages_seen = dirty_pages_walked =
+        dont_evict_internal_last_parent = dont_evict_internal = heuristic_skip = 0;
     for (evict = start, pages_already_queued = pages_queued = pages_seen = refs_walked = 0;
          evict < end && (ret == 0 || ret == WT_NOTFOUND);
          last_parent = ref == NULL ? NULL : ref->home,
         ret = __wt_tree_walk_count(session, &ref, &refs_walked, walk_flags)) {
+
+        if (ref != NULL && ref->page != NULL && __wt_page_is_modified(ref->page))
+            ++dirty_pages_walked;
         /*
          * Check whether we're finding a good ratio of candidates vs pages seen. Some workloads
          * create "deserts" in trees where no good eviction candidates can be found. Abandon the
@@ -1931,8 +1941,11 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         }
 
         /* Don't queue dirty pages in trees during checkpoints. */
-        if (modified && WT_BTREE_SYNCING(btree))
+        ++try_dirty_during_cp;
+        if (modified && WT_BTREE_SYNCING(btree)) {
+            ++dont_evict_dirty_during_cp;
             continue;
+        }
 
         /*
          * It's possible (but unlikely) to visit a page without a read generation, if we race with
@@ -1980,11 +1993,24 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
             continue;
 
         /* Skip pages we don't want. */
+        if (modified)
+            ++dirty_pages_seen;
+
+        ++try_dont_want_page;
+        if (F_ISSET(cache, WT_CACHE_EVICT_CLEAN) && !modified)
+            ++evict_clean;
+        if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) && modified)
+            ++evict_dirty;
+        if (F_ISSET(cache, WT_CACHE_EVICT_UPDATES) && page->modify != NULL)
+            ++evict_updates;
+
         want_page = (F_ISSET(cache, WT_CACHE_EVICT_CLEAN) && !modified) ||
           (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) && modified) ||
           (F_ISSET(cache, WT_CACHE_EVICT_UPDATES) && page->modify != NULL);
-        if (!want_page)
+        if (!want_page) {
+            ++dont_want_page;
             continue;
+        }
 
         /*
          * Don't attempt eviction of internal pages with children in cache (indicated by seeing an
@@ -1995,10 +2021,14 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * trees become completely idle, we eventually push them out of cache completely.
          */
         if (!F_ISSET(cache, WT_CACHE_EVICT_DEBUG_MODE) && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-            if (page == last_parent)
+            if (page == last_parent) {
+                ++dont_evict_internal_last_parent;
                 continue;
-            if (btree->evict_walk_period == 0 && !__wt_cache_aggressive(session))
+            }
+            if (btree->evict_walk_period == 0 && !__wt_cache_aggressive(session)) {
+                ++dont_evict_internal;
                 continue;
+            }
         }
 
         /* If eviction gets aggressive, anything else is fair game. */
@@ -2012,13 +2042,18 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * evict the same page.
          */
         if (!__wt_page_evict_retry(session, page) ||
-          (modified && page->modify->update_txn >= conn->txn_global.last_running))
+          (modified && page->modify->update_txn >= conn->txn_global.last_running)) {
+            ++heuristic_skip;
             continue;
+        }
 
 fast:
         /* If the page can't be evicted, give up. */
-        if (!__wt_page_can_evict(session, ref, NULL))
+        ++try_evict;
+        if (!__wt_page_can_evict(session, ref, NULL)) {
+            ++cant_evict;
             continue;
+        }
 
         WT_ASSERT(session, evict->ref == NULL);
         if (!__evict_push_candidate(session, queue, evict, ref))
@@ -2090,6 +2125,24 @@ fast:
     WT_STAT_CONN_INCRV(session, cache_eviction_internal_pages_seen, internal_pages_seen);
     WT_STAT_CONN_INCRV(
       session, cache_eviction_internal_pages_already_queued, internal_pages_already_queued);
+
+    WT_STAT_CONN_INCRV(session, cache_eviction_try_evict, try_evict);
+    WT_STAT_CONN_INCRV(session, cache_eviction_cant_evict, cant_evict);
+    WT_STAT_CONN_INCRV(session, cache_eviction_try_dirty_during_cp, try_dirty_during_cp);
+    WT_STAT_CONN_INCRV(
+      session, cache_eviction_dont_evict_dirty_during_cp, dont_evict_dirty_during_cp);
+    WT_STAT_CONN_INCRV(session, cache_eviction_try_dont_want_page, try_dont_want_page);
+    WT_STAT_CONN_INCRV(session, cache_eviction_dont_want_page, dont_want_page);
+    WT_STAT_CONN_INCRV(session, cache_eviction_evict_clean, evict_clean);
+    WT_STAT_CONN_INCRV(session, cache_eviction_evict_dirty, evict_dirty);
+    WT_STAT_CONN_INCRV(session, cache_eviction_evict_updates, evict_updates);
+    WT_STAT_CONN_INCRV(session, cache_eviction_dirty_pages_seen, dirty_pages_seen);
+    WT_STAT_CONN_INCRV(session, cache_eviction_dirty_pages_walked, dirty_pages_walked);
+    WT_STAT_CONN_INCRV(
+      session, cache_eviction_dont_evict_internal_last_parent, dont_evict_internal_last_parent);
+    WT_STAT_CONN_INCRV(session, cache_eviction_dont_evict_internal, dont_evict_internal);
+    WT_STAT_CONN_INCRV(session, cache_eviction_heuristic_skip, heuristic_skip);
+
     WT_STAT_CONN_INCRV(session, cache_eviction_internal_pages_queued, internal_pages_queued);
     WT_STAT_CONN_DATA_INCR(session, cache_eviction_walk_passes);
     return (0);

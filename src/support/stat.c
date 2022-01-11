@@ -1094,6 +1094,20 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: number of times the file was remapped because it changed size via fallocate or "
   "truncate",
   "block-manager: number of times the region was remapped via write",
+  "cache: AAA Dont queue dirty pages in trees during checkpoints",
+  "cache: AAA Test queue dirty pages in trees during checkpoints",
+  "cache: AAA before dont want page",
+  "cache: AAA before test evict",
+  "cache: AAA cant evict",
+  "cache: AAA dirty pages seen by eviction walk",
+  "cache: AAA dirty pages walked",
+  "cache: AAA dont evict internal",
+  "cache: AAA dont evict internal last parent",
+  "cache: AAA dont want page",
+  "cache: AAA evict clean",
+  "cache: AAA evict dirty",
+  "cache: AAA evict updates",
+  "cache: AAA heuristic skip",
   "cache: application threads page read from disk to cache count",
   "cache: application threads page read from disk to cache time (usecs)",
   "cache: application threads page write from cache to disk count",
@@ -1666,6 +1680,20 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_map_read = 0;
     stats->block_remap_file_resize = 0;
     stats->block_remap_file_write = 0;
+    stats->cache_eviction_dont_evict_dirty_during_cp = 0;
+    stats->cache_eviction_try_dirty_during_cp = 0;
+    stats->cache_eviction_try_dont_want_page = 0;
+    stats->cache_eviction_try_evict = 0;
+    stats->cache_eviction_cant_evict = 0;
+    stats->cache_eviction_dirty_pages_seen = 0;
+    stats->cache_eviction_dirty_pages_walked = 0;
+    stats->cache_eviction_dont_evict_internal = 0;
+    stats->cache_eviction_dont_evict_internal_last_parent = 0;
+    stats->cache_eviction_dont_want_page = 0;
+    stats->cache_eviction_evict_clean = 0;
+    stats->cache_eviction_evict_dirty = 0;
+    stats->cache_eviction_evict_updates = 0;
+    stats->cache_eviction_heuristic_skip = 0;
     stats->cache_read_app_count = 0;
     stats->cache_read_app_time = 0;
     stats->cache_write_app_count = 0;
@@ -2198,6 +2226,24 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_map_read += WT_STAT_READ(from, block_byte_map_read);
     to->block_remap_file_resize += WT_STAT_READ(from, block_remap_file_resize);
     to->block_remap_file_write += WT_STAT_READ(from, block_remap_file_write);
+    to->cache_eviction_dont_evict_dirty_during_cp +=
+      WT_STAT_READ(from, cache_eviction_dont_evict_dirty_during_cp);
+    to->cache_eviction_try_dirty_during_cp +=
+      WT_STAT_READ(from, cache_eviction_try_dirty_during_cp);
+    to->cache_eviction_try_dont_want_page += WT_STAT_READ(from, cache_eviction_try_dont_want_page);
+    to->cache_eviction_try_evict += WT_STAT_READ(from, cache_eviction_try_evict);
+    to->cache_eviction_cant_evict += WT_STAT_READ(from, cache_eviction_cant_evict);
+    to->cache_eviction_dirty_pages_seen += WT_STAT_READ(from, cache_eviction_dirty_pages_seen);
+    to->cache_eviction_dirty_pages_walked += WT_STAT_READ(from, cache_eviction_dirty_pages_walked);
+    to->cache_eviction_dont_evict_internal +=
+      WT_STAT_READ(from, cache_eviction_dont_evict_internal);
+    to->cache_eviction_dont_evict_internal_last_parent +=
+      WT_STAT_READ(from, cache_eviction_dont_evict_internal_last_parent);
+    to->cache_eviction_dont_want_page += WT_STAT_READ(from, cache_eviction_dont_want_page);
+    to->cache_eviction_evict_clean += WT_STAT_READ(from, cache_eviction_evict_clean);
+    to->cache_eviction_evict_dirty += WT_STAT_READ(from, cache_eviction_evict_dirty);
+    to->cache_eviction_evict_updates += WT_STAT_READ(from, cache_eviction_evict_updates);
+    to->cache_eviction_heuristic_skip += WT_STAT_READ(from, cache_eviction_heuristic_skip);
     to->cache_read_app_count += WT_STAT_READ(from, cache_read_app_count);
     to->cache_read_app_time += WT_STAT_READ(from, cache_read_app_time);
     to->cache_write_app_count += WT_STAT_READ(from, cache_write_app_count);
