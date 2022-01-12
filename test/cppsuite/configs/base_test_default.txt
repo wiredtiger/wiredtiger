@@ -1,5 +1,5 @@
 # Used as a base test for the framework.
-duration_seconds=5,
+duration_seconds=60,
 cache_size_mb=200,
 enable_logging=true,
 checkpoint_manager=
