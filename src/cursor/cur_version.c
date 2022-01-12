@@ -83,7 +83,7 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
     table_cursor = version_cursor->table_cursor;
     va_start(ap, cursor);
     if (F_ISSET(cursor, WT_CURSTD_RAW)) {
-        /* Extract metadata and data as raw value. */
+        /* Extract metadata and value separately as raw data. */
         metadata = va_arg(ap, WT_ITEM *);
         metadata->data = cursor->value.data;
         metadata->size = cursor->value.size;
