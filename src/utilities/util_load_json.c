@@ -559,3 +559,23 @@ out:
  * util_load_json --
  *     Load from the JSON format produced by 'wt dump -j'.
  */
+int
+util_load_json(WT_SESSION *session, const char *filename, uint32_t flags)
+{
+    JSON_INPUT_STATE instate;
+    WT_DECL_RET;
+
+    memset(&instate, 0, sizeof(instate));
+    instate.session = session;
+    if ((ret = util_read_line(session, &instate.line, false, &instate.ateof)) == 0) {
+        instate.p = (const char *)instate.line.mem;
+        instate.linenum = 1;
+        instate.filename = filename;
+
+        ret = json_top_level(session, &instate, flags);
+    }
+
+    free(instate.line.mem);
+    free(instate.kvraw);
+    return (ret);
+}
