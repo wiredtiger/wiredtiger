@@ -308,8 +308,8 @@ static void fill_db(uint32_t) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /*
  * fill_db --
- *      Child process creates the database and table, and then creates worker threads to add data until
- *      it is killed by the parent.
+ *     Child process creates the database and table, and then creates worker threads to add data
+ *     until it is killed by the parent.
  */
 static void
 fill_db(uint32_t nth)

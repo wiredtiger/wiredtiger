@@ -194,8 +194,8 @@ static void run_workload(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /*
  * run_workload --
- *      Child process creates the database and table, and then creates the worker thread to add data
- *      until it is killed by the parent.
+ *     Child process creates the database and table, and then creates the worker thread to add data
+ *     until it is killed by the parent.
  */
 static void
 run_workload(void)

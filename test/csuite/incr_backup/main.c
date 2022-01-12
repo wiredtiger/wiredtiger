@@ -157,7 +157,7 @@ die(void)
 
 /*
  * get_operation_type --
- *     Get operation type based on the number of changes
+ *     Get operation type based on the number of changes.
  */
 static OPERATION_TYPE
 get_operation_type(uint64_t change_count)

@@ -50,10 +50,10 @@ static void write_and_read_new(WT_SESSION *);
 
 /*
  * write_and_read_new --
- *      Write a new log record into the log via log print, then open up a log cursor and walk the log to
- *      make sure we can read it. The reason for this test is that if there is a partial log record at
- *      the end of the previous log file and truncate does not exist, this tests that we can still read
- *      past that record.
+ *     Write a new log record into the log via log print, then open up a log cursor and walk the log
+ *     to make sure we can read it. The reason for this test is that if there is a partial log
+ *     record at the end of the previous log file and truncate does not exist, this tests that we
+ *     can still read past that record.
  */
 static void
 write_and_read_new(WT_SESSION *session)
@@ -125,8 +125,8 @@ static void fill_db(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /*
  * fill_db --
- *      Child process creates the database and table, and then writes data into the table until it
- *      switches into log file 2.
+ *     Child process creates the database and table, and then writes data into the table until it
+ *     switches into log file 2.
  */
 static void
 fill_db(void)
