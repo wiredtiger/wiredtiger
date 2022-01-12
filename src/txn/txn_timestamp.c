@@ -872,8 +872,8 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
         return (0);
 
     /*
-     * We take a shortcut in parsing that is works because we're only given a base configuration and
-     * a user configuration.
+     * We take a shortcut in parsing that works because we're only given a base configuration and a
+     * user configuration.
      */
     WT_ASSERT(session, cfg[0] != NULL && cfg[1] != NULL && cfg[2] == NULL);
     __wt_config_init(session, &cparser, cfg[1]);
