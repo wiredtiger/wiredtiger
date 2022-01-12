@@ -26,6 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <fstream>
+
 #include "connection_manager.h"
 #include "core/component.h"
 #include "core/configuration.h"
@@ -311,6 +313,9 @@ runtime_monitor::finish()
 {
     component::finish();
 
+    /* Save stats. */
+    save_stats(_test_name);
+
     /* Check the post run statistics now. */
     bool success = true;
     int64_t stat_max, stat_min, stat_value;
@@ -344,6 +349,32 @@ runtime_monitor::finish()
         testutil_die(-1,
           "runtime_monitor: One or more postrun statistics were outside of their specified "
           "limits.");
+}
+
+/*
+ * This function generates a file that contains the values of the different statistics that need to
+ * be saved as indicated by the configuration file.
+ */
+void
+runtime_monitor::save_stats(const std::string &filename)
+{
+    std::string stat_info;
+    std::ofstream file(filename + ".json");
+    file << "[{\"info\":{\"test_name\": \"" << filename << "\"},\"metrics\": [";
+
+    for (const auto &stat : _stats) {
+        if (stat->get_save())
+            stat_info += "{\"name\":\"" + stat->get_name() +
+              "\",\"value\":" + stat->get_value_str(_cursor) + "},";
+    }
+
+    /* Remove last extra comma. */
+    if (!stat_info.empty()) {
+        stat_info.pop_back();
+    }
+
+    file << stat_info << "]}]";
+    file.close();
 }
 
 } // namespace test_harness
