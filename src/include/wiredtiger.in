@@ -446,7 +446,9 @@ struct __wt_cursor {
 	 *
 	 * If the cursor was not configured with "overwrite=true", both the key
 	 * and value must be set and the record must not already exist; the
-	 * record will be inserted.
+	 * record will be inserted. If the record already exists, the
+	 * ::WT_DUPLICATE_KEY error is returned and the value found in the tree
+	 * can be retrieved using WT_CURSOR::get_value.
 	 *
 	 * @snippet ex_all.c Insert a new record and fail if the record exists
 	 *
@@ -464,7 +466,8 @@ struct __wt_cursor {
 	 * with "append=true", the cursor ends with no key set and a subsequent
 	 * call to the WT_CURSOR::get_key method will fail. The cursor ends with
 	 * no value set and a subsequent call to the WT_CURSOR::get_value method
-	 * will fail.
+	 * will fail, except for the ::WT_DUPLICATE_KEY error return, in which
+	 * case the value currently stored for the key can be retrieved.
 	 *
 	 * Inserting a new record after the current maximum record in a
 	 * fixed-length bit field column-store (that is, a store with an
