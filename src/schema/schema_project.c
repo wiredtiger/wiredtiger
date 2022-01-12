@@ -140,7 +140,7 @@ __wt_schema_project_in(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *pro
  *     them to the application.
  */
 int
-__wt_schema_project_out(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *proj_arg, va_list ap)
+__wt_schema_project_out(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *proj_arg, va_list *ap)
 {
     WT_CURSOR *c;
     WT_DECL_PACK(pack);

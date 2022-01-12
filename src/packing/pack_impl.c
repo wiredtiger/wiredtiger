@@ -93,11 +93,12 @@ int
 __wt_struct_unpack(WT_SESSION_IMPL *session, const void *buffer, size_t len, const char *fmt, ...)
 {
     WT_DECL_RET;
-    va_list ap;
+    va_list *ap, _ap;
 
-    va_start(ap, fmt);
+    ap = &_ap;
+    va_start(*ap, fmt);
     ret = __wt_struct_unpackv(session, buffer, len, fmt, ap);
-    va_end(ap);
+    va_end(*ap);
 
     return (ret);
 }
