@@ -617,11 +617,11 @@ __wt_cursor_set_valuev(WT_CURSOR *cursor, const char *fmt, va_list ap)
         *(uint8_t *)buf->mem = (uint8_t)va_arg(ap, int);
     } else {
         va_copy(ap_copy, ap);
-        ret = __wt_struct_sizev(session, &sz, cursor->value_format, ap_copy);
+        ret = __wt_struct_sizev(session, &sz, fmt, ap_copy);
         va_end(ap_copy);
         WT_ERR(ret);
         WT_ERR(__wt_buf_initsize(session, buf, sz));
-        WT_ERR(__wt_struct_packv(session, buf->mem, sz, cursor->value_format, ap));
+        WT_ERR(__wt_struct_packv(session, buf->mem, sz, fmt, ap));
     }
     F_SET(cursor, WT_CURSTD_VALUE_EXT);
     buf->size = sz;
