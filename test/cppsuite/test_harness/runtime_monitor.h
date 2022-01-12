@@ -113,7 +113,7 @@ class runtime_monitor : public component {
 
     public:
     explicit runtime_monitor(configuration *config, database &database);
-    ~runtime_monitor();
+    virtual ~runtime_monitor() = default;
 
     /* Delete the copy constructor and the assignment operator. */
     runtime_monitor(const runtime_monitor &) = delete;

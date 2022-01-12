@@ -257,11 +257,6 @@ runtime_monitor::runtime_monitor(configuration *config, database &database)
 {
 }
 
-runtime_monitor::~runtime_monitor()
-{
-    _stats.clear();
-}
-
 void
 runtime_monitor::load()
 {
