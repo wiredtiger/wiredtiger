@@ -27,7 +27,7 @@ static const char *mongodb_config = "log=(enabled=true,path=journal,compressor=s
 
 /*
  * wt_explicit_zero --
- *     clear a buffer, with precautions against being optimized away.
+ *     Clear a buffer, with precautions against being optimized away.
  */
 static void
 wt_explicit_zero(void *ptr, size_t len)
