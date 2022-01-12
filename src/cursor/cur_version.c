@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#define VERSION_CURSOR_METADATA_FORMAT WT_UNCHECKED_STRING(QQQQQQBBBB)
+#define WT_VERSION_CURSOR_METADATA_FORMAT WT_UNCHECKED_STRING(QQQQQQBBBB)
 /*
  * __curversion_set_key --
  *     WT_CURSOR->set_key implementation for version cursors.
@@ -66,23 +66,50 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
 {
     WT_CURSOR *table_cursor;
     WT_CURSOR_VERSION *version_cursor;
+    WT_DECL_ITEM(data);
+    WT_DECL_ITEM(metadata);
+    WT_DECL_PACK_VALUE(pv);
     WT_DECL_RET;
+    WT_PACK pack;
+    WT_SESSION_IMPL *session;
+    const uint8_t *p, *end;
     va_list ap;
+
+    CURSOR_API_CALL(cursor, session, get_value, NULL);
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     table_cursor = version_cursor->table_cursor;
     va_start(ap, cursor);
     if (F_ISSET(cursor, WT_CURSTD_RAW)) {
-        WT_ERR(__wt_cursor_get_valuev(cursor, "u", ap));
-        WT_ERR(__wt_cursor_get_valuev(table_cursor, "u", ap));
+        metadata = va_arg(ap, WT_ITEM *);
+        metadata->data = cursor->value.data;
+        metadata->size = cursor->value.size;
+        data = va_arg(ap, WT_ITEM *);
+        data->data = table_cursor->value.data;
+        data->size = table_cursor->value.size;
     } else {
-        WT_ERR(__wt_cursor_get_valuev(cursor, VERSION_CURSOR_METADATA_FORMAT, ap));
-        WT_ERR(__wt_cursor_get_valuev(table_cursor, table_cursor->value_format, ap));
+        /*
+         * Unpack the metadata. We cannot use the standard get value function here because variable
+         * arguments cannot be partially extracted by different function calls.
+         */
+        p = (uint8_t *)cursor->value.data;
+        end = p + cursor->value.size;
+
+        WT_ERR(__pack_init(session, &pack, WT_VERSION_CURSOR_METADATA_FORMAT));
+        while ((ret = __pack_next(&pack, &pv)) == 0) {
+            WT_ERR(__unpack_read(session, &pv, &p, (size_t)(end - p)));
+            WT_UNPACK_PUT(session, pv, ap);
+        }
+        WT_ERR_NOTFOUND_OK(ret, false);
+
+        /* Be paranoid - __pack_write should never overflow. */
+        WT_ASSERT(session, p <= end);
+        WT_ERR(__wt_cursor_get_valuev(table_cursor, ap));
     }
 
 err:
     va_end(ap);
-    return (ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -514,11 +541,11 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     /* Open the table cursor. */
     WT_ERR(__wt_open_cursor(session, uri, cursor, table_cursor_cfg, &version_cursor->table_cursor));
     cursor->key_format = version_cursor->table_cursor->key_format;
-    format_len = strlen(VERSION_CURSOR_METADATA_FORMAT) +
+    format_len = strlen(WT_VERSION_CURSOR_METADATA_FORMAT) +
       strlen(version_cursor->table_cursor->value_format) + 1;
     WT_ERR(__wt_malloc(session, format_len, &version_cursor_value_format));
     WT_ERR(__wt_snprintf(version_cursor_value_format, format_len, "%s%s",
-      VERSION_CURSOR_METADATA_FORMAT, version_cursor->table_cursor->value_format));
+      WT_VERSION_CURSOR_METADATA_FORMAT, version_cursor->table_cursor->value_format));
     cursor->value_format = version_cursor_value_format;
     version_cursor_value_format = NULL;
 
