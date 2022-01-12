@@ -92,7 +92,8 @@ main(int argc, char *argv[])
 }
 
 /*
- * Acquire a rwlock, every Nth operation, acquire exclusive.
+ * thread_rwlock --
+ *     Acquire a rwlock, every Nth operation, acquire exclusive.
  */
 /*
  * thread_rwlock --

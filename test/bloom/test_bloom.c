@@ -226,8 +226,9 @@ cleanup(void)
 }
 
 /*
- * Create and keep all the strings used to populate the bloom filter, so that we can do validation
- * with the same set of entries.
+ * populate_entries --
+ *     Create and keep all the strings used to populate the bloom filter, so that we can do
+ *     validation with the same set of entries.
  */
 /*
  * populate_entries --
