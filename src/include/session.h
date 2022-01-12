@@ -52,19 +52,62 @@ typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor) WT_CURSOR_LIST;
 
 /* Maximum number of buckets to visit during cursor sweep. */
 #define WT_SESSION_CURSOR_SWEEP_MAX 32
+
+/* TODO this name sucks */
+struct __wt_session_metadata {
+    WT_SESSION iface; /* TODO move this out, or get the connection pointer out */
+
+    WT_EVENT_HANDLER *event_handler; /* Application's event handlers */
+
+    const char *name;   /* Name */
+
+    WT_DATA_HANDLE *dhandle;           /* Current data handle */
+
+    struct timespec last_epoch; /* Last epoch time returned */
+
+    WT_ITEM **scratch;     /* Temporary memory for any function */
+    u_int scratch_alloc;   /* Currently allocated */
+    size_t scratch_cached; /* Scratch bytes cached */
+
+    WT_ITEM err; /* Error buffer */
+
+    WT_SESSION_STATS stats;
+};
+
 /*
  * WT_SESSION_IMPL --
  *	Implementation of WT_SESSION.
  */
 struct __wt_session_impl {
-    WT_SESSION iface;
-    WT_EVENT_HANDLER *event_handler; /* Application's event handlers */
+
+    union {
+        struct {
+            WT_SESSION iface; /* TODO move this out, or get the connection pointer out */
+
+            WT_EVENT_HANDLER *event_handler; /* Application's event handlers */
+
+            const char *name;   /* Name */
+
+            WT_DATA_HANDLE *dhandle;           /* Current data handle */
+
+            struct timespec last_epoch; /* Last epoch time returned */
+
+            WT_ITEM **scratch;     /* Temporary memory for any function */
+            u_int scratch_alloc;   /* Currently allocated */
+            size_t scratch_cached; /* Scratch bytes cached */
+
+            WT_ITEM err; /* Error buffer */
+
+            WT_SESSION_STATS stats;
+        };
+
+        struct __wt_session_metadata metadata;
+    };
 
     void *lang_private; /* Language specific private storage */
 
     u_int active; /* Non-zero if the session is in-use */
 
-    const char *name;   /* Name */
     const char *lastop; /* Last operation */
     uint32_t id;        /* UID, offset in session array */
 
@@ -73,7 +116,6 @@ struct __wt_session_impl {
     uint64_t operation_timeout_us; /* Maximum operation period before rollback */
     u_int api_call_counter;        /* Depth of api calls */
 
-    WT_DATA_HANDLE *dhandle;           /* Current data handle */
     WT_BUCKET_STORAGE *bucket_storage; /* Current bucket storage and file system */
 
     /*
@@ -85,7 +127,6 @@ struct __wt_session_impl {
     /* Session handle reference list */
     TAILQ_HEAD(__dhandles, __wt_data_handle_cache) dhandles;
     uint64_t last_sweep;        /* Last sweep for dead handles */
-    struct timespec last_epoch; /* Last epoch time returned */
 
     WT_CURSOR_LIST cursors;          /* Cursors closed with the session */
     u_int ncursors;                  /* Count of active file cursors. */
@@ -112,9 +153,6 @@ struct __wt_session_impl {
     WT_RWLOCK *current_rwlock;
     uint8_t current_rwticket;
 
-    WT_ITEM **scratch;     /* Temporary memory for any function */
-    u_int scratch_alloc;   /* Currently allocated */
-    size_t scratch_cached; /* Scratch bytes cached */
 #ifdef HAVE_DIAGNOSTIC
     /*
      * Variables used to look for violations of the contract that a session is only used by a single
@@ -132,8 +170,6 @@ struct __wt_session_impl {
         int line;
     } * scratch_track;
 #endif
-
-    WT_ITEM err; /* Error buffer */
 
     WT_TXN_ISOLATION isolation;
     WT_TXN *txn; /* Transaction state */
@@ -286,6 +322,4 @@ struct __wt_session_impl {
     u_int optrackbuf_ptr;
     uint64_t optrack_offset;
     WT_FH *optrack_fh;
-
-    WT_SESSION_STATS stats;
 };
