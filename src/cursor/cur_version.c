@@ -25,6 +25,7 @@ __curversion_set_key(WT_CURSOR *cursor, ...)
     table_cursor = version_cursor->table_cursor;
     va_start(ap, cursor);
     flags = table_cursor->flags;
+    /* Pass on the raw flag. */
     if (F_ISSET(cursor, WT_CURSTD_RAW))
         flags |= WT_CURSTD_RAW;
     WT_IGNORE_RET(__wt_cursor_set_keyv(table_cursor, flags, ap));
@@ -48,6 +49,7 @@ __curversion_get_key(WT_CURSOR *cursor, ...)
     table_cursor = version_cursor->table_cursor;
     va_start(ap, cursor);
     flags = table_cursor->flags;
+    /* Pass on the raw flag. */
     if (F_ISSET(cursor, WT_CURSTD_RAW))
         flags |= WT_CURSTD_RAW;
     WT_ERR(__wt_cursor_get_keyv(table_cursor, flags, ap));
@@ -140,6 +142,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     page = cbt->ref->page;
     twp = NULL;
     upd_found = false;
+    /* Temporarily clear the raw flag. We need to pack the data according to the format. */
     raw = F_MASK(cursor, WT_CURSTD_RAW);
     F_CLR(cursor, WT_CURSTD_RAW);
 
