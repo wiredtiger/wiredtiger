@@ -206,16 +206,24 @@ tinfo_teardown(void)
  *     Do a rollback to stable and verify operations.
  */
 static void
-rollback_to_stable(void)
+rollback_to_stable(WT_SESSION *session)
 {
     /* Rollback-to-stable only makes sense for timestamps. */
     if (!g.transaction_timestamps_config)
         return;
 
+    /* Rollback the system. */
     testutil_check(g.wts_conn->rollback_to_stable(g.wts_conn, NULL));
 
+    /*
+     * Get the stable timestamp, and update ours. They should be the same, but there's no point in
+     * debugging the race.
+     */
+    query_ts("get=stable", &g.stable_timestamp);
+    trace_msg(session, "rollback-to-stable stable timestamp %" PRIu64, g.stable_timestamp);
+
     /* Check the saved snap operations for consistency. */
-    snap_repeat_rollback(tinfo_list, GV(RUNS_THREADS));
+    snap_repeat_rollback(session, tinfo_list, GV(RUNS_THREADS));
 }
 
 /*
@@ -405,7 +413,7 @@ operations(u_int ops_seconds, bool lastrun)
      * close/re-open pair. Note we are not advancing the oldest timestamp, otherwise we wouldn't be
      * able to replay operations from after rollback-to-stable completes.
      */
-    rollback_to_stable();
+    rollback_to_stable(session);
 
     if (lastrun) {
         tinfo_teardown();

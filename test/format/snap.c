@@ -689,27 +689,22 @@ snap_repeat_single(TINFO *tinfo)
  *     Repeat all known operations after a rollback.
  */
 void
-snap_repeat_rollback(TINFO **tinfo_array, size_t tinfo_count)
+snap_repeat_rollback(WT_SESSION *session, TINFO **tinfo_array, size_t tinfo_count)
 {
     SNAP_OPS *snap;
     SNAP_STATE *state;
     TINFO *tinfo, **tinfop;
-    WT_SESSION *push_session, *session;
     uint32_t count;
     size_t i, statenum;
     char buf[64];
 
     count = 0;
-    session = NULL;
 
     track("rollback_to_stable: checking", 0ULL);
     for (i = 0, tinfop = tinfo_array; i < tinfo_count; ++i, ++tinfop) {
         tinfo = *tinfop;
-        if ((push_session = tinfo->session) == NULL) {
-            if (session == NULL)
-                wiredtiger_open_session(g.wts_conn, &tinfo->sap, NULL, &session);
-            tinfo->session = session;
-        }
+        testutil_assert(tinfo->session == NULL);
+        tinfo->session = session;
 
         /*
          * For this thread, walk through both sets of snaps ("states"), looking for entries that are
@@ -734,14 +729,11 @@ snap_repeat_rollback(TINFO **tinfo_array, size_t tinfo_count)
             }
         }
 
-        tinfo->session = push_session;
+        tinfo->session = NULL;
     }
 
     /* Show the final result. */
     testutil_check(
       __wt_snprintf(buf, sizeof(buf), "rollback_to_stable: %" PRIu32 " ops repeated", count));
     track(buf, 0ULL);
-
-    if (session != NULL)
-        wiredtiger_close_session(session);
 }

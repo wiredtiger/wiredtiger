@@ -43,19 +43,29 @@ timestamp_parse(const char *p, uint64_t *tsp)
 }
 
 /*
+ * query_ts --
+ *     Query a timestamp.
+ */
+void
+query_ts(const char *query, uint64_t *tsp)
+{
+    WT_CONNECTION *conn;
+    char tsbuf[WT_TS_HEX_STRING_SIZE];
+
+    conn = g.wts_conn;
+
+    testutil_check(conn->query_timestamp(conn, tsbuf, query));
+    timestamp_parse(tsbuf, tsp);
+}
+
+/*
  * timestamp_init --
- *     Set the stable timestamp on open.
+ *     Set the timestamp on open to the database's recovery timestamp.
  */
 void
 timestamp_init(void)
 {
-    WT_CONNECTION *conn;
-    char timestamp_buf[2 * sizeof(uint64_t) + 1];
-
-    conn = g.wts_conn;
-
-    testutil_check(conn->query_timestamp(conn, timestamp_buf, "get=recovery"));
-    timestamp_parse(timestamp_buf, &g.timestamp);
+    query_ts("get=recovery", &g.timestamp);
 }
 
 /*
