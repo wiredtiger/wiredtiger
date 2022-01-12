@@ -116,9 +116,11 @@ snap_op_init(TINFO *tinfo, uint64_t read_ts, bool repeatable_reads)
         /*
          * If the stable timestamp has changed and we've advanced beyond it, preserve the current
          * snapshot history up to this point, we'll use it verify rollback_to_stable. Switch our
-         * tracking to the other snap list.
+         * tracking to the other snap list. Use a barrier to ensure a cached value doesn't cause us
+         * to ignore a stable timestamp transition.
          */
-        stable_ts = __wt_atomic_addv64(&g.stable_timestamp, 0);
+        WT_BARRIER();
+        stable_ts = g.stable_timestamp;
         if (stable_ts != tinfo->stable_ts && read_ts > stable_ts) {
             tinfo->stable_ts = stable_ts;
             if (tinfo->s == &tinfo->snap_states[0])
