@@ -276,7 +276,7 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
  *     Internal implementation of WT_CURSOR->get_value for index cursors
  */
 static inline int
-__wt_curindex_get_valuev(WT_CURSOR *cursor, va_list *ap)
+__wt_curindex_get_valuev(WT_CURSOR *cursor, va_list ap)
 {
     WT_CURSOR_INDEX *cindex;
     WT_ITEM *item;
@@ -289,7 +289,7 @@ __wt_curindex_get_valuev(WT_CURSOR *cursor, va_list *ap)
     if (F_ISSET(cursor, WT_CURSOR_RAW_OK)) {
         WT_RET(__wt_schema_project_merge(
           session, cindex->cg_cursors, cindex->value_plan, cursor->value_format, &cursor->value));
-        item = va_arg(*ap, WT_ITEM *);
+        item = va_arg(ap, WT_ITEM *);
         item->data = cursor->value.data;
         item->size = cursor->value.size;
     } else
@@ -302,7 +302,7 @@ __wt_curindex_get_valuev(WT_CURSOR *cursor, va_list *ap)
  *     Internal implementation of WT_CURSOR->get_value for table cursors.
  */
 static inline int
-__wt_curtable_get_valuev(WT_CURSOR *cursor, va_list *ap)
+__wt_curtable_get_valuev(WT_CURSOR *cursor, va_list ap)
 {
     WT_CURSOR *primary;
     WT_CURSOR_TABLE *ctable;
@@ -317,7 +317,7 @@ __wt_curtable_get_valuev(WT_CURSOR *cursor, va_list *ap)
     if (F_ISSET(cursor, WT_CURSOR_RAW_OK)) {
         WT_RET(__wt_schema_project_merge(
           session, ctable->cg_cursors, ctable->plan, cursor->value_format, &cursor->value));
-        item = va_arg(*ap, WT_ITEM *);
+        item = va_arg(ap, WT_ITEM *);
         item->data = cursor->value.data;
         item->size = cursor->value.size;
     } else

@@ -266,12 +266,11 @@ int
 __wt_cursor_get_key(WT_CURSOR *cursor, ...)
 {
     WT_DECL_RET;
-    va_list *ap, _ap;
+    va_list ap;
 
-    ap = &_ap;
-    va_start(*ap, cursor);
+    va_start(ap, cursor);
     ret = __wt_cursor_get_keyv(cursor, cursor->flags, ap);
-    va_end(*ap);
+    va_end(ap);
     return (ret);
 }
 
@@ -366,7 +365,7 @@ __wt_cursor_set_raw_value(WT_CURSOR *cursor, WT_ITEM *value)
  *     WT_CURSOR->get_key worker function.
  */
 int
-__wt_cursor_get_keyv(WT_CURSOR *cursor, uint32_t flags, va_list *ap)
+__wt_cursor_get_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
 {
     WT_DECL_RET;
     WT_ITEM *key;
@@ -384,23 +383,23 @@ __wt_cursor_get_keyv(WT_CURSOR *cursor, uint32_t flags, va_list *ap)
 
     if (WT_CURSOR_RECNO(cursor)) {
         if (LF_ISSET(WT_CURSTD_RAW)) {
-            key = va_arg(*ap, WT_ITEM *);
+            key = va_arg(ap, WT_ITEM *);
             key->data = cursor->raw_recno_buf;
             WT_ERR(__wt_struct_size(session, &size, "q", cursor->recno));
             key->size = size;
             ret = __wt_struct_pack(
               session, cursor->raw_recno_buf, sizeof(cursor->raw_recno_buf), "q", cursor->recno);
         } else
-            *va_arg(*ap, uint64_t *) = cursor->recno;
+            *va_arg(ap, uint64_t *) = cursor->recno;
     } else {
         /* Fast path some common cases. */
         fmt = cursor->key_format;
         if (LF_ISSET(WT_CURSOR_RAW_OK) || WT_STREQ(fmt, "u")) {
-            key = va_arg(*ap, WT_ITEM *);
+            key = va_arg(ap, WT_ITEM *);
             key->data = cursor->key.data;
             key->size = cursor->key.size;
         } else if (WT_STREQ(fmt, "S"))
-            *va_arg(*ap, const char **) = cursor->key.data;
+            *va_arg(ap, const char **) = cursor->key.data;
         else
             ret = __wt_struct_unpackv(session, cursor->key.data, cursor->key.size, fmt, ap);
     }
@@ -502,12 +501,11 @@ int
 __wt_cursor_get_value(WT_CURSOR *cursor, ...)
 {
     WT_DECL_RET;
-    va_list *ap, _ap;
+    va_list ap;
 
-    ap = &_ap;
-    va_start(*ap, cursor);
+    va_start(ap, cursor);
     ret = __wt_cursor_get_valuev(cursor, cursor->value_format, ap);
-    va_end(*ap);
+    va_end(ap);
     return (ret);
 }
 
@@ -516,7 +514,7 @@ __wt_cursor_get_value(WT_CURSOR *cursor, ...)
  *     WT_CURSOR->get_value worker implementation.
  */
 int
-__wt_cursor_get_valuev(WT_CURSOR *cursor, const char *fmt, va_list *ap)
+__wt_cursor_get_valuev(WT_CURSOR *cursor, const char *fmt, va_list ap)
 {
     WT_DECL_RET;
     WT_ITEM *value;
@@ -533,13 +531,13 @@ __wt_cursor_get_valuev(WT_CURSOR *cursor, const char *fmt, va_list *ap)
 
     /* Fast path some common cases. */
     if (F_ISSET(cursor, WT_CURSOR_RAW_OK) || WT_STREQ(fmt, "u")) {
-        value = va_arg(*ap, WT_ITEM *);
+        value = va_arg(ap, WT_ITEM *);
         value->data = cursor->value.data;
         value->size = cursor->value.size;
     } else if (WT_STREQ(fmt, "S"))
-        *va_arg(*ap, const char **) = cursor->value.data;
+        *va_arg(ap, const char **) = cursor->value.data;
     else if (WT_STREQ(fmt, "t") || (__wt_isdigit((u_char)fmt[0]) && WT_STREQ(fmt + 1, "t")))
-        *va_arg(*ap, uint8_t *) = *(uint8_t *)cursor->value.data;
+        *va_arg(ap, uint8_t *) = *(uint8_t *)cursor->value.data;
     else
         ret = __wt_struct_unpackv(session, cursor->value.data, cursor->value.size, fmt, ap);
 

@@ -561,7 +561,7 @@ extern int __wt_cursor_equals_notsup(WT_CURSOR *cursor, WT_CURSOR *other, int *e
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_get_key(WT_CURSOR *cursor, ...)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_cursor_get_keyv(WT_CURSOR *cursor, uint32_t flags, va_list *ap)
+extern int __wt_cursor_get_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_get_raw_key(WT_CURSOR *cursor, WT_ITEM *key)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -571,7 +571,7 @@ extern int __wt_cursor_get_value(WT_CURSOR *cursor, ...)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_get_value_notsup(WT_CURSOR *cursor, ...)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_cursor_get_valuev(WT_CURSOR *cursor, const char *fmt, va_list *ap)
+extern int __wt_cursor_get_valuev(WT_CURSOR *cursor, const char *fmt, va_list ap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_init(WT_CURSOR *cursor, const char *uri, WT_CURSOR *owner, const char *cfg[],
   WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1331,7 +1331,7 @@ extern int __wt_schema_project_in(WT_SESSION_IMPL *session, WT_CURSOR **cp, cons
 extern int __wt_schema_project_merge(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *proj_arg,
   const char *vformat, WT_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_project_out(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *proj_arg,
-  va_list *ap) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  va_list ap) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_project_slice(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *proj_arg,
   bool key_only, const char *vformat, WT_ITEM *value)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2024,13 +2024,13 @@ static inline int __wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
 static inline int __wt_compare_skip(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
   const WT_ITEM *user_item, const WT_ITEM *tree_item, int *cmpp, size_t *matchp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_curindex_get_valuev(WT_CURSOR *cursor, va_list *ap)
+static inline int __wt_curindex_get_valuev(WT_CURSOR *cursor, va_list ap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_cursor_localkey(WT_CURSOR *cursor)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_curtable_get_valuev(WT_CURSOR *cursor, va_list *ap)
+static inline int __wt_curtable_get_valuev(WT_CURSOR *cursor, va_list ap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_dsk_cell_data_ref(WT_SESSION_IMPL *session, int page_type, void *unpack_arg,
   WT_ITEM *store) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2139,7 +2139,7 @@ static inline int __wt_struct_packv(WT_SESSION_IMPL *session, void *buffer, size
 static inline int __wt_struct_sizev(WT_SESSION_IMPL *session, size_t *sizep, const char *fmt,
   va_list ap) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_struct_unpackv(WT_SESSION_IMPL *session, const void *buffer, size_t size,
-  const char *fmt, va_list *ap) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  const char *fmt, va_list ap) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_sync_and_rename(WT_SESSION_IMPL *session, WT_FSTREAM **fstrp,
   const char *from, const char *to) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)

@@ -58,14 +58,13 @@ wiredtiger_struct_unpack(
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    va_list *ap, _ap;
+    va_list ap;
 
-    ap = &_ap;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    va_start(*ap, format);
+    va_start(ap, format);
     ret = __wt_struct_unpackv(session, buffer, len, format, ap);
-    va_end(*ap);
+    va_end(ap);
 
     return (ret);
 }
@@ -124,15 +123,14 @@ __wt_ext_struct_unpack(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const v
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    va_list *ap, _ap;
+    va_list ap;
 
-    ap = &_ap;
     session = (wt_session != NULL) ? (WT_SESSION_IMPL *)wt_session :
                                      ((WT_CONNECTION_IMPL *)wt_api->conn)->default_session;
 
-    va_start(*ap, fmt);
+    va_start(ap, fmt);
     ret = __wt_struct_unpackv(session, buffer, len, fmt, ap);
-    va_end(*ap);
+    va_end(ap);
 
     return (ret);
 }

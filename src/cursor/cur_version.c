@@ -42,19 +42,18 @@ __curversion_get_key(WT_CURSOR *cursor, ...)
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
     uint32_t flags;
-    va_list *ap, _ap;
+    va_list ap;
 
-    ap = &_ap;
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     table_cursor = version_cursor->table_cursor;
-    va_start(*ap, cursor);
+    va_start(ap, cursor);
     flags = table_cursor->flags;
     if (F_ISSET(cursor, WT_CURSTD_RAW))
         flags |= WT_CURSTD_RAW;
     WT_ERR(__wt_cursor_get_keyv(table_cursor, flags, ap));
 
 err:
-    va_end(*ap);
+    va_end(ap);
     return (ret);
 }
 
@@ -68,12 +67,11 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
     WT_CURSOR *table_cursor;
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
-    va_list *ap, _ap;
+    va_list ap;
 
-    ap = &_ap;
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     table_cursor = version_cursor->table_cursor;
-    va_start(*ap, cursor);
+    va_start(ap, cursor);
     if (F_ISSET(cursor, WT_CURSTD_RAW)) {
         WT_ERR(__wt_cursor_get_valuev(cursor, "u", ap));
         WT_ERR(__wt_cursor_get_valuev(table_cursor, "u", ap));
@@ -83,7 +81,7 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
     }
 
 err:
-    va_end(*ap);
+    va_end(ap);
     return (ret);
 }
 

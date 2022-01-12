@@ -581,42 +581,42 @@ __unpack_read(WT_SESSION_IMPL *session, WT_PACK_VALUE *pv, const uint8_t **pp, s
             break;                                                 \
         case 's':                                                  \
         case 'S':                                                  \
-            *va_arg(*ap, const char **) = (pv).u.s;                \
+            *va_arg(ap, const char **) = (pv).u.s;                 \
             break;                                                 \
         case 'U':                                                  \
         case 'u':                                                  \
-            __item = va_arg(*ap, WT_ITEM *);                       \
+            __item = va_arg(ap, WT_ITEM *);                        \
             __item->data = (pv).u.item.data;                       \
             __item->size = (pv).u.item.size;                       \
             break;                                                 \
         case 'b':                                                  \
-            *va_arg(*ap, int8_t *) = (int8_t)(pv).u.i;             \
+            *va_arg(ap, int8_t *) = (int8_t)(pv).u.i;              \
             break;                                                 \
         case 'h':                                                  \
-            *va_arg(*ap, int16_t *) = (short)(pv).u.i;             \
+            *va_arg(ap, int16_t *) = (short)(pv).u.i;              \
             break;                                                 \
         case 'i':                                                  \
         case 'l':                                                  \
-            *va_arg(*ap, int32_t *) = (int32_t)(pv).u.i;           \
+            *va_arg(ap, int32_t *) = (int32_t)(pv).u.i;            \
             break;                                                 \
         case 'q':                                                  \
-            *va_arg(*ap, int64_t *) = (pv).u.i;                    \
+            *va_arg(ap, int64_t *) = (pv).u.i;                     \
             break;                                                 \
         case 'B':                                                  \
         case 't':                                                  \
-            *va_arg(*ap, uint8_t *) = (uint8_t)(pv).u.u;           \
+            *va_arg(ap, uint8_t *) = (uint8_t)(pv).u.u;            \
             break;                                                 \
         case 'H':                                                  \
-            *va_arg(*ap, uint16_t *) = (uint16_t)(pv).u.u;         \
+            *va_arg(ap, uint16_t *) = (uint16_t)(pv).u.u;          \
             break;                                                 \
         case 'I':                                                  \
         case 'L':                                                  \
-            *va_arg(*ap, uint32_t *) = (uint32_t)(pv).u.u;         \
+            *va_arg(ap, uint32_t *) = (uint32_t)(pv).u.u;          \
             break;                                                 \
         case 'Q':                                                  \
         case 'r':                                                  \
         case 'R':                                                  \
-            *va_arg(*ap, uint64_t *) = (pv).u.u;                   \
+            *va_arg(ap, uint64_t *) = (pv).u.u;                    \
             break;                                                 \
         default:                                                   \
             /* User format strings have already been validated. */ \
@@ -695,7 +695,7 @@ __wt_struct_sizev(WT_SESSION_IMPL *session, size_t *sizep, const char *fmt, va_l
  */
 static inline int
 __wt_struct_unpackv(
-  WT_SESSION_IMPL *session, const void *buffer, size_t size, const char *fmt, va_list *ap)
+  WT_SESSION_IMPL *session, const void *buffer, size_t size, const char *fmt, va_list ap)
 {
     WT_DECL_PACK_VALUE(pv);
     WT_DECL_RET;

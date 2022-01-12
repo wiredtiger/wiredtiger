@@ -176,15 +176,14 @@ __wt_curtable_get_key(WT_CURSOR *cursor, ...)
     WT_CURSOR *primary;
     WT_CURSOR_TABLE *ctable;
     WT_DECL_RET;
-    va_list *ap, _ap;
+    va_list ap;
 
-    ap = &_ap;
     ctable = (WT_CURSOR_TABLE *)cursor;
     primary = *ctable->cg_cursors;
 
-    va_start(*ap, cursor);
+    va_start(ap, cursor);
     ret = __wt_cursor_get_keyv(primary, cursor->flags, ap);
-    va_end(*ap);
+    va_end(ap);
 
     return (ret);
 }
@@ -198,14 +197,13 @@ __wt_curtable_get_value(WT_CURSOR *cursor, ...)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    va_list *ap, _ap;
+    va_list ap;
 
-    ap = &_ap;
     JOINABLE_CURSOR_API_CALL(cursor, session, get_value, NULL);
 
-    va_start(*ap, cursor);
+    va_start(ap, cursor);
     ret = __wt_curtable_get_valuev(cursor, ap);
-    va_end(*ap);
+    va_end(ap);
 
 err:
     API_END_RET(session, ret);
