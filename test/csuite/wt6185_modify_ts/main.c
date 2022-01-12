@@ -271,10 +271,6 @@ repeat(WT_SESSION *session, WT_CURSOR *c)
  * evict --
  *     Force eviction of the underlying page.
  */
-/*
- * evict --
- *     TODO: Add a comment describing this function.
- */
 static void
 evict(WT_CURSOR *c)
 {

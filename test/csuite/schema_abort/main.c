@@ -129,6 +129,7 @@ typedef struct {
 
 static void sig_handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
 /*
  * usage --
  *     TODO: Add a comment describing this function.
@@ -767,15 +768,12 @@ thread_run(void *arg)
     /* NOTREACHED */
 }
 
-/*
- * Child process creates the database and table, and then creates worker threads to add data until
- * it is killed by the parent.
- */
 static void run_workload(uint32_t) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /*
  * run_workload --
- *     TODO: Add a comment describing this function.
+ *     Child process creates the database and table, and then creates worker threads to add data until
+ *     it is killed by the parent.
  */
 static void
 run_workload(uint32_t nth)
