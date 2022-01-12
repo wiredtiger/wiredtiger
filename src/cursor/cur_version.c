@@ -102,7 +102,6 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
         }
         WT_ERR_NOTFOUND_OK(ret, false);
 
-        /* Be paranoid - __pack_write should never overflow. */
         WT_ASSERT(session, p <= end);
         WT_ERR(__wt_cursor_get_valuev(table_cursor, ap));
     }
@@ -127,7 +126,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_PAGE *page;
     WT_TIME_WINDOW *twp;
-    WT_UPDATE *upd;
+    WT_UPDATE *upd, *tombstone;
     wt_timestamp_t durable_start_ts, durable_stop_ts, stop_ts;
     uint64_t stop_txn, hs_upd_type;
     uint32_t raw;
@@ -152,6 +151,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     }
 
     upd = version_cursor->next_upd;
+    tombstone = NULL;
 
     if (!F_ISSET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED)) {
         /*
@@ -166,6 +166,8 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
             F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
         } else {
             if (upd->type == WT_UPDATE_TOMBSTONE) {
+                tombstone = upd;
+
                 /*
                  * If the update is a tombstone, we still want to record the stop information but we
                  * also need traverse to the next update to get the full value. If the tombstone was
@@ -206,7 +208,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
                  * Set the version cursor's value, which also contains all the record metadata for
                  * that particular version of the update.
                  */
-                __wt_cursor_set_value_with_fmt(cursor, WT_VERSION_CURSOR_METADATA_FORMAT,
+                __wt_cursor_set_value_with_format(cursor, WT_VERSION_CURSOR_METADATA_FORMAT,
                   upd->txnid, upd->start_ts, upd->durable_ts, version_cursor->upd_stop_txnid,
                   version_cursor->upd_stop_ts, version_cursor->upd_durable_stop_ts, upd->type,
                   version_prepare_state, upd->flags, WT_VERSION_UPDATE_CHAIN);
@@ -266,10 +268,17 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
             stop_txn = cbt->upd_value->tw.stop_txn;
         }
 
-        __wt_cursor_set_value_with_fmt(cursor, WT_VERSION_CURSOR_METADATA_FORMAT,
+        if (tombstone != NULL &&
+          (tombstone->prepare_state == WT_PREPARE_INPROGRESS ||
+            tombstone->prepare_state == WT_PREPARE_LOCKED))
+            version_prepare_state = 1;
+        else
+            version_prepare_state = cbt->upd_value->tw.prepare;
+
+        __wt_cursor_set_value_with_format(cursor, WT_VERSION_CURSOR_METADATA_FORMAT,
           cbt->upd_value->tw.start_txn, cbt->upd_value->tw.start_ts,
           cbt->upd_value->tw.durable_start_ts, stop_txn, stop_ts, durable_stop_ts,
-          WT_UPDATE_STANDARD, cbt->upd_value->tw.prepare, 0, WT_VERSION_DISK_IMAGE);
+          WT_UPDATE_STANDARD, version_prepare_state, 0, WT_VERSION_DISK_IMAGE);
 
         upd_found = true;
         F_SET(version_cursor, WT_VERSION_CUR_ON_DISK_EXHAUSTED);
@@ -308,7 +317,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
         WT_ERR(hs_cursor->get_value(
           hs_cursor, &durable_stop_ts, &durable_start_ts, &hs_upd_type, hs_value));
 
-        __wt_cursor_set_value_with_fmt(cursor, WT_VERSION_CURSOR_METADATA_FORMAT, twp->start_txn,
+        __wt_cursor_set_value_with_format(cursor, WT_VERSION_CURSOR_METADATA_FORMAT, twp->start_txn,
           twp->start_ts, twp->durable_start_ts, twp->stop_txn, twp->stop_ts, twp->durable_stop_ts,
           hs_upd_type, 0, 0, WT_VERSION_HISTORY_STORE);
 
