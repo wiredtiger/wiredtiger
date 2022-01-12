@@ -4206,7 +4206,7 @@ buildvariants:
     - name: fops
 
 - name: macos-1014
-  display_name: "OS X 10.14 CMake"
+  display_name: "OS X 10.14"
   run_on:
   - macos-1014
   batchtime: 120 # 2 hours
