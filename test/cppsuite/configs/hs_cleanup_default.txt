@@ -27,7 +27,7 @@ runtime_monitor=
     ),
     stat_cache_size=
     (
-        max=1000,
+        max=100,
         runtime=true,
     ),
     stat_db_size=
