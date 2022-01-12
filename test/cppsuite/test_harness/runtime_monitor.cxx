@@ -70,7 +70,8 @@ get_stat_field(const std::string &name)
 /* statistics class implementation */
 statistics::statistics(configuration &config, const std::string &stat_name, int stat_field)
     : field(stat_field), max(config.get_int(MAX)), min(config.get_int(MIN)), name(stat_name),
-      postrun(config.get_bool(POSTRUN_STATISTICS)), runtime(config.get_bool(RUNTIME_STATISTICS))
+      postrun(config.get_bool(POSTRUN_STATISTICS)), runtime(config.get_bool(RUNTIME_STATISTICS)),
+      save(config.get_bool(SAVE))
 {
 }
 
@@ -130,6 +131,12 @@ bool
 statistics::get_runtime()
 {
     return runtime;
+}
+
+bool
+statistics::get_save()
+{
+    return save;
 }
 
 /* cache_limit_statistic class implementation */

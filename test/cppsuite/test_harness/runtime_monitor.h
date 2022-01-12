@@ -62,8 +62,9 @@ class statistics {
     int64_t get_max() const;
     int64_t get_min() const;
     const std::string &get_name() const;
-    bool get_runtime();
     bool get_postrun();
+    bool get_runtime();
+    bool get_save();
 
     protected:
     int field;
@@ -72,6 +73,7 @@ class statistics {
     std::string name;
     bool postrun;
     bool runtime;
+    bool save;
 };
 
 class cache_limit_statistic : public statistics {
