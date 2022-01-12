@@ -263,13 +263,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      */
 
     /*
-     * Update the global history store score. Only use observations during eviction, not checkpoints
-     * and don't count eviction of the history store table itself.
-     */
-    if (F_ISSET(r, WT_REC_EVICT) && !WT_IS_HS(btree->dhandle))
-        __wt_cache_update_hs_score(session, r->updates_seen, r->updates_unstable);
-
-    /*
      * If eviction didn't use any updates and didn't split or delete the page, it didn't make
      * progress. Give up rather than silently succeeding in doing no work: this way threads know to
      * back off forced eviction rather than spinning.
@@ -606,7 +599,6 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->min_skipped_ts = WT_TS_MAX;
 
     /* Track if updates were used and/or uncommitted. */
-    r->updates_seen = r->updates_unstable = 0;
     r->update_used = false;
 
     /* Track if the page can be marked clean. */
