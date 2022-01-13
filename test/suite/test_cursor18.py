@@ -242,6 +242,38 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.verify_value(version_cursor, 1, 1, 5, 5, 3, 0, 0, 2, 0)
         self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
 
+        # We want to test that the version cursor is working as expected when used multiple times 
+        # on the same table on different keys.
+        self.session.begin_transaction()
+        cursor[2] = 1
+        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(11))
+
+        self.session.begin_transaction()
+        cursor[2] = 2
+        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(15))
+
+        self.session.begin_transaction()
+        self.assertEquals(evict_cursor[2], 2)
+        evict_cursor.reset()
+        self.session.rollback_transaction()
+
+        self.session.begin_transaction()
+        cursor[2] = 3
+        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(20))
+
+        # Ensure that we are able to correctly traverse all versions of this new key.
+        version_cursor.set_key(2)
+        self.assertEquals(version_cursor.search(), 0)
+        self.assertEquals(version_cursor.get_key(), 2)
+        self.verify_value(version_cursor, 20, 20, WT_TS_MAX, WT_TS_MAX, 3, 0, 0, 0, 3)
+        self.assertEquals(version_cursor.next(), 0)
+        self.assertEquals(version_cursor.get_key(), 2)
+        self.verify_value(version_cursor, 15, 15, 20, 20, 3, 0, 0, 1, 2)
+        self.assertEquals(version_cursor.next(), 0)
+        self.assertEquals(version_cursor.get_key(), 2)
+        self.verify_value(version_cursor, 11, 11, 15, 15, 3, 0, 0, 2, 1)
+        self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
+
     def test_prepare(self):
         self.create()
 

@@ -415,6 +415,11 @@ __curversion_reset(WT_CURSOR *cursor)
     F_CLR(cursor, WT_CURSTD_KEY_SET);
     F_CLR(cursor, WT_CURSTD_VALUE_SET);
 
+    /* Clear the information used to track update metadata. */
+    version_cursor->upd_stop_txnid = WT_TXN_MAX;
+    version_cursor->upd_durable_stop_ts = WT_TS_MAX;
+    version_cursor->upd_stop_ts = WT_TS_MAX;
+
 err:
     API_END_RET(session, ret);
 }
