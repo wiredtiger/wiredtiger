@@ -18,8 +18,16 @@ __curversion_set_key(WT_CURSOR *cursor, ...)
 {
     WT_CURSOR *table_cursor;
     WT_CURSOR_VERSION *version_cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
     uint32_t flags;
     va_list ap;
+
+    session = CUR2S(cursor);
+
+    /* Reset the cursor every time for a new key. */
+    if ((ret = cursor->reset(cursor)) != 0)
+        WT_IGNORE_RET(__wt_panic(session, ret, "failed to reset cursor"));
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     table_cursor = version_cursor->table_cursor;
@@ -28,7 +36,9 @@ __curversion_set_key(WT_CURSOR *cursor, ...)
     /* Pass on the raw flag. */
     if (F_ISSET(cursor, WT_CURSTD_RAW))
         flags |= WT_CURSTD_RAW;
-    WT_IGNORE_RET(__wt_cursor_set_keyv(table_cursor, flags, ap));
+    if ((ret = __wt_cursor_set_keyv(table_cursor, flags, ap)) != 0) {
+        WT_IGNORE_RET(__wt_panic(session, ret, "failed to set key"));
+    }
     va_end(ap);
 }
 
@@ -148,7 +158,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     F_CLR(cursor, WT_CURSTD_RAW);
 
     /* The cursor should be positioned, otherwise the next call will fail. */
-    if (!F_ISSET(table_cursor, WT_CURSTD_KEY_SET)) {
+    if (!F_ISSET(table_cursor, WT_CURSTD_KEY_INT)) {
         WT_IGNORE_RET(__wt_msg(
           session, "WT_ROLLBACK: rolling back version_cursor->next due to no initial position"));
         WT_ERR(WT_ROLLBACK);
@@ -434,8 +444,13 @@ __curversion_search(WT_CURSOR *cursor)
      */
     CURSOR_API_CALL(cursor, session, search, CUR2BT(cbt));
     WT_ERR(__cursor_checkkey(table_cursor));
+    if (F_ISSET(table_cursor, WT_CURSTD_KEY_INT)) {
+        WT_IGNORE_RET(
+          __wt_msg(session, "WT_ROLLBACK: version cursor cannot be called when it is positioned."));
+        WT_ERR(WT_ROLLBACK);
+    }
 
-    /* Do a search and position on they key if it is found */
+    /* Do a search and position on the key if it is found */
     F_SET(table_cursor, WT_CURSTD_KEY_ONLY);
     WT_ERR(__wt_btcur_search(cbt));
     WT_ASSERT(session, F_ISSET(table_cursor, WT_CURSTD_KEY_SET));
