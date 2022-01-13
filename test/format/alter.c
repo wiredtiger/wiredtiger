@@ -40,7 +40,7 @@ alter(void *arg)
     WT_CONNECTION *conn;
     WT_DECL_RET;
     WT_SESSION *session;
-    u_int period;
+    u_int counter, period;
     char buf[32];
     bool access_value;
 
@@ -57,6 +57,7 @@ alter(void *arg)
     /* Open a session */
     memset(&sap, 0, sizeof(sap));
     wiredtiger_open_session(conn, &sap, NULL, &session);
+    counter = 0;
 
     while (!g.workers_finished) {
         period = mmrand(NULL, 1, 10);
@@ -67,8 +68,11 @@ alter(void *arg)
 
         /* Alter can return EBUSY if concurrent with other operations. */
         table = table_select(NULL);
+        trace_msg(session, "Alter #%u URI %s start %s", ++counter, table->uri, buf);
+
         while ((ret = session->alter(session, table->uri, buf)) != 0 && ret != EBUSY)
             testutil_die(ret, "session.alter");
+        trace_msg(session, "Alter #%u URI %s stop", counter, table->uri);
         while (period > 0 && !g.workers_finished) {
             --period;
             __wt_sleep(1, 0);
