@@ -31,8 +31,8 @@ __tiered_name_check(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     WT_PREFIX_SKIP(name, "tiered:");
     /* See if this name exists in the shared storage. */
     __wt_verbose(session, WT_VERB_TIERED, "NAME_CHECK: check for %s", name);
-    WT_RET(bucket_fs->fs_directory_list(
-      bucket_fs, (WT_SESSION *)session, NULL, name, &obj_files, &obj_count));
+    WT_RET(bucket_fs->fs_directory_list(bucket_fs, (WT_SESSION *)session,
+      tiered->bstorage->bucket_prefix, name, &obj_files, &obj_count));
     __wt_verbose(session, WT_VERB_TIERED, "NAME_CHECK: Got %d files", (int)obj_count);
     if (obj_count == 0)
         goto done;
@@ -54,8 +54,11 @@ __tiered_name_check(WT_SESSION_IMPL *session, WT_TIERED *tiered)
          * number the match may contain so we cannot do a full string comparison.
          */
         len = strlen(obj_files[i]);
-        if (len == obj_len)
+        if (len == obj_len) {
+            __wt_verbose(
+              session, WT_VERB_TIERED, "EEXIST %s already exists on shared storage", obj_files[i]);
             WT_ERR_MSG(session, EEXIST, "%s already exists on shared storage", obj_files[i]);
+        }
     }
 
 err:
