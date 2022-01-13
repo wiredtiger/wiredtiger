@@ -119,12 +119,18 @@ class test_cursor19(wttest.WiredTigerTestCase):
         self.assertEquals(cursor.modify(mods), 0)
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(25))
 
+        # Delete the key
+        self.session.begin_transaction()
+        cursor.set_key(1)
+        self.assertEquals(cursor.remove(), 0)
+        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(30))
+
         # Open a version cursor
         version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
         version_cursor.set_key(1)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.get_key(), 1)
-        self.verify_value(version_cursor, 25, 25, WT_TS_MAX, WT_TS_MAX, 1, 0, 0, 0, value6)
+        self.verify_value(version_cursor, 25, 25, 30, 30, 1, 0, 0, 0, value6)
         self.assertEquals(version_cursor.next(), 0)
         self.assertEquals(version_cursor.get_key(), 1)
         self.verify_value(version_cursor, 20, 20, 25, 25, 1, 0, 0, 0, value5)
