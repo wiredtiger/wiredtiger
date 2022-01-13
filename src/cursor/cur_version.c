@@ -446,14 +446,14 @@ __curversion_search(WT_CURSOR *cursor)
     WT_ERR(__cursor_checkkey(table_cursor));
     if (F_ISSET(table_cursor, WT_CURSTD_KEY_INT)) {
         WT_IGNORE_RET(
-          __wt_msg(session, "WT_ROLLBACK: version cursor cannot be called when it is positioned."));
+          __wt_msg(session, "WT_ROLLBACK: version cursor cannot be called when it is positioned"));
         WT_ERR(WT_ROLLBACK);
     }
 
     /* Do a search and position on the key if it is found */
     F_SET(table_cursor, WT_CURSTD_KEY_ONLY);
     WT_ERR(__wt_btcur_search(cbt));
-    WT_ASSERT(session, F_ISSET(table_cursor, WT_CURSTD_KEY_SET));
+    WT_ASSERT(session, F_ISSET(table_cursor, WT_CURSTD_KEY_INT));
 
     /*
      * If we position on a key, set next update of the version cursor to be the first update on the

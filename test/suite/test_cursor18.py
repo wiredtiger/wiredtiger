@@ -340,3 +340,27 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.assertEquals(version_cursor.get_key(), 1)
         self.verify_value(version_cursor, 1, 1, 2, 0, 3, 1, 0, 1, 0)
         self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
+    
+    def test_search_when_positioned(self):
+        self.create()
+
+        cursor = self.session.open_cursor(self.uri, None)
+        # Add a value to the update chain
+        self.session.begin_transaction()
+        cursor[1] = 0
+        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(1))
+
+        # Open a version cursor
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
+        self.session.begin_transaction()
+        version_cursor.set_key(1)
+        self.assertEquals(version_cursor.search(), 0)
+        with self.expectedStdoutPattern("version cursor cannot be called when it is positioned"):
+            try:
+                version_cursor.search()
+            except wiredtiger.WiredTigerError as e:
+                gotException = True
+                self.pr('got expected exception: ' + str(e))
+                self.assertTrue(str(e).find('WT_ROLLBACK') >= 0)
+        self.assertTrue(gotException, msg = 'expected exception')
+        self.session.rollback_transaction()
