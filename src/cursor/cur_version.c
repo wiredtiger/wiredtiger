@@ -501,6 +501,7 @@ err:
         WT_TRET(hs_cursor->close(hs_cursor));
         version_cursor->hs_cursor = NULL;
     }
+    __wt_free(session, cursor->value_format);
     __wt_cursor_close(cursor);
 
     API_END_RET(session, ret);
