@@ -790,8 +790,6 @@ __conn_dhandle_close_one(
     }
     if (removed)
         F_SET(session->dhandle, WT_DHANDLE_DROPPED);
-    __wt_verbose(session, WT_VERB_TIERED, "CLOSE ONE: removed %d uri %s flags 0x %x", removed,
-      session->dhandle->name, (int)session->dhandle->flags);
 
     if (!WT_META_TRACKING(session))
         WT_TRET(__wt_session_release_dhandle(session));
