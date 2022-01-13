@@ -1266,8 +1266,8 @@ tasks:
       - func: "fetch artifacts"
       - func: "csuite test"
         vars:
-          test_name: wt3120_filesys
           test_args: -b $(pwd)
+          test_name: wt3120_filesys
 
   - name: csuite-wt3135-search-near-collator-test
     tags: ["pull_request"]
@@ -1447,8 +1447,8 @@ tasks:
       - func: "fetch artifacts"
       - func: "csuite test"
         vars:
-          test_name: wt2909_checkpoint_integrity
           test_args: -b $(pwd)
+          test_name: wt2909_checkpoint_integrity
 
   - name: csuite-wt3338-partial-update-test
     tags: ["pull_request"]
