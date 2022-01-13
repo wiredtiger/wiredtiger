@@ -919,9 +919,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_SLOW, &tsp);
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));
 
-    /* Wait prior to checkpointing the history store to simulate checkpoint slowness. */
-    __checkpoint_timing_stress(session, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY, &tsp);
-
     /*
      * Get a history store dhandle. If the history store file is opened for a special operation this
      * will return EBUSY which we treat as an error. In scenarios where the history store is not
@@ -939,7 +936,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         time_start_hs = __wt_clock(session);
         conn->txn_global.checkpoint_running_hs = true;
         WT_STAT_CONN_SET(session, txn_checkpoint_running_hs, 1);
-
+        /* Wait prior to checkpointing the history store to simulate checkpoint slowness. */
+        __checkpoint_timing_stress(session, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY, &tsp);
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint(session, cfg));
 
         WT_STAT_CONN_SET(session, txn_checkpoint_running_hs, 0);
