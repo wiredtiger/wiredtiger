@@ -57,6 +57,11 @@ static const char *const uri = "table:main";
 #define OP_WRITE 1
 
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -64,6 +69,10 @@ usage(void)
     exit(EXIT_FAILURE);
 }
 
+/*
+ * run_child --
+ *     TODO: Add a comment describing this function.
+ */
 static int
 run_child(const char *homedir, int op, int expect)
 {
@@ -109,11 +118,13 @@ run_child(const char *homedir, int op, int expect)
     return (0);
 }
 
-/*
- * Child process opens both databases readonly.
- */
 static void open_dbs(int, const char *, const char *, const char *, const char *)
   WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * open_dbs --
+ *     Child process opens both databases readonly.
+ */
 static void
 open_dbs(int op, const char *dir, const char *dir_wr, const char *dir_rd, const char *dir_rd2)
 {
@@ -146,6 +157,10 @@ open_dbs(int op, const char *dir, const char *dir_wr, const char *dir_rd, const 
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {

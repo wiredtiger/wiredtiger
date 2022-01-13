@@ -50,6 +50,10 @@ static bool test_abort = false;
 static bool test_out_of_sync = false;
 static WT_SESSION *wt_session;
 
+/*
+ * handle_message --
+ *     TODO: Add a comment describing this function.
+ */
 static int
 handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
 {
@@ -169,7 +173,7 @@ create_data(TABLE_INFO *t)
 }
 
 /*
- * corrupt_metadata --
+ * corrupt_file --
  *     Corrupt the file by scribbling on the provided URI string.
  */
 static void
@@ -372,6 +376,10 @@ open_with_corruption(const char *sfx)
         testutil_check(conn->close(conn, NULL));
 }
 
+/*
+ * open_with_salvage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 open_with_salvage(const char *sfx, TABLE_INFO *table_data)
 {
@@ -404,6 +412,10 @@ open_with_salvage(const char *sfx, TABLE_INFO *table_data)
     testutil_check(conn->close(conn, NULL));
 }
 
+/*
+ * open_normal --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 open_normal(const char *sfx, TABLE_INFO *table_data)
 {
@@ -420,6 +432,10 @@ open_normal(const char *sfx, TABLE_INFO *table_data)
     testutil_check(conn->close(conn, NULL));
 }
 
+/*
+ * run_all_verification --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 run_all_verification(const char *sfx, TABLE_INFO *t)
 {
@@ -428,6 +444,10 @@ run_all_verification(const char *sfx, TABLE_INFO *t)
     open_normal(sfx, t);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {

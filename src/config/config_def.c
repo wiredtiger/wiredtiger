@@ -34,7 +34,8 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_open_session[] = {
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_query_timestamp[] = {
   {"get", "string", NULL,
     "choices=[\"all_durable\",\"last_checkpoint\",\"oldest\","
-    "\"oldest_reader\",\"pinned\",\"recovery\",\"stable\"]",
+    "\"oldest_reader\",\"oldest_timestamp\",\"pinned\",\"recovery\","
+    "\"stable\",\"stable_timestamp\"]",
     NULL, 0},
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
@@ -159,11 +160,11 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
     "\"checkpoint_reserved_txnid_delay\",\"checkpoint_slow\","
-    "\"failpoint_history_store_delete_key_from_ts\","
+    "\"compact_slow\",\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\"]",
+    "\"split_6\",\"split_7\",\"tiered_flush_finish\"]",
     NULL, 0},
   {"verbose", "list", NULL,
     "choices=[\"api\",\"backup\",\"block\",\"block_cache\","
@@ -260,7 +261,10 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create_encryption_subconfigs[] =
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create_import_subconfigs[] = {
-  {"compare_timestamp", "string", NULL, "choices=[\"oldest\",\"stable\"]", NULL, 0},
+  {"compare_timestamp", "string", NULL,
+    "choices=[\"oldest\",\"oldest_timestamp\",\"stable\","
+    "\"stable_timestamp\"]",
+    NULL, 0},
   {"enabled", "boolean", NULL, NULL, NULL, 0}, {"file_metadata", "string", NULL, NULL, NULL, 0},
   {"repair", "boolean", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
@@ -896,11 +900,11 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
     "\"checkpoint_reserved_txnid_delay\",\"checkpoint_slow\","
-    "\"failpoint_history_store_delete_key_from_ts\","
+    "\"compact_slow\",\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\"]",
+    "\"split_6\",\"split_7\",\"tiered_flush_finish\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -979,11 +983,11 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
     "\"checkpoint_reserved_txnid_delay\",\"checkpoint_slow\","
-    "\"failpoint_history_store_delete_key_from_ts\","
+    "\"compact_slow\",\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\"]",
+    "\"split_6\",\"split_7\",\"tiered_flush_finish\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -1059,11 +1063,11 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
     "\"checkpoint_reserved_txnid_delay\",\"checkpoint_slow\","
-    "\"failpoint_history_store_delete_key_from_ts\","
+    "\"compact_slow\",\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\"]",
+    "\"split_6\",\"split_7\",\"tiered_flush_finish\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -1137,11 +1141,11 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
     "\"checkpoint_reserved_txnid_delay\",\"checkpoint_slow\","
-    "\"failpoint_history_store_delete_key_from_ts\","
+    "\"compact_slow\",\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\"]",
+    "\"split_6\",\"split_7\",\"tiered_flush_finish\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -1246,12 +1250,13 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "collator=,columns=,dictionary=0,encryption=(keyid=,name=),"
     "exclusive=false,extractor=,format=btree,huffman_key=,"
     "huffman_value=,ignore_in_memory_cache_size=false,immutable=false"
-    ",import=(compare_timestamp=oldest,enabled=false,file_metadata=,"
-    "repair=false),internal_item_max=0,internal_key_max=0,"
-    "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
-    "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
-    "leaf_value_max=0,log=(enabled=true),lsm=(auto_throttle=true,"
-    "bloom=true,bloom_bit_count=16,bloom_config=,bloom_hash_count=8,"
+    ",import=(compare_timestamp=oldest_timestamp,enabled=false,"
+    "file_metadata=,repair=false),internal_item_max=0,"
+    "internal_key_max=0,internal_key_truncate=true,"
+    "internal_page_max=4KB,key_format=u,key_gap=10,leaf_item_max=0,"
+    "leaf_key_max=0,leaf_page_max=32KB,leaf_value_max=0,"
+    "log=(enabled=true),lsm=(auto_throttle=true,bloom=true,"
+    "bloom_bit_count=16,bloom_config=,bloom_hash_count=8,"
     "bloom_oldest=false,chunk_count_limit=0,chunk_max=5GB,"
     "chunk_size=10MB,merge_custom=(prefix=,start_generation=0,"
     "suffix=),merge_max=15,merge_min=0),memory_page_image_max=0,"

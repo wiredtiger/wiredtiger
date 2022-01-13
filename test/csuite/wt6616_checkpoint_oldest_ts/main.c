@@ -72,6 +72,11 @@ static const char *const ckpt_file = "checkpoint_done";
 
 static void handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -185,11 +190,13 @@ thread_run(void *arg)
     /* NOTREACHED */
 }
 
-/*
- * Child process creates the database and table, and then creates the worker thread to add data
- * until it is killed by the parent.
- */
 static void run_workload(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * run_workload --
+ *     Child process creates the database and table, and then creates the worker thread to add data
+ *     until it is killed by the parent.
+ */
 static void
 run_workload(void)
 {
@@ -232,7 +239,8 @@ run_workload(void)
 }
 
 /*
- * Signal handler to catch if the child died unexpectedly.
+ * handler --
+ *     Signal handler to catch if the child died unexpectedly.
  */
 static void
 handler(int sig)
@@ -248,6 +256,10 @@ handler(int sig)
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -359,11 +371,11 @@ main(int argc, char *argv[])
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /* Get the stable timestamp from the stable timestamp of the last successful checkpoint. */
-    testutil_check(conn->query_timestamp(conn, ts_string, "get=stable"));
+    testutil_check(conn->query_timestamp(conn, ts_string, "get=stable_timestamp"));
     testutil_timestamp_parse(ts_string, &stable_ts);
 
     /* Get the oldest timestamp from the oldest timestamp of the last successful checkpoint. */
-    testutil_check(conn->query_timestamp(conn, ts_string, "get=oldest"));
+    testutil_check(conn->query_timestamp(conn, ts_string, "get=oldest_timestamp"));
     testutil_timestamp_parse(ts_string, &oldest_ts);
 
     printf("Verify data from oldest timestamp %" PRIu64 " to stable timestamp %" PRIu64 "\n",

@@ -556,7 +556,7 @@ out:
 }
 
 /*
- * load_json --
+ * util_load_json --
  *     Load from the JSON format produced by 'wt dump -j'.
  */
 int

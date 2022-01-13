@@ -129,6 +129,11 @@ typedef struct {
 
 static void sig_handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -171,6 +176,10 @@ static WT_EVENT_HANDLER event_handler = {
  * that we can verify the state of the schema too.
  */
 
+/*
+ * dump_ts --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 dump_ts(uint64_t nth)
 {
@@ -759,11 +768,13 @@ thread_run(void *arg)
     /* NOTREACHED */
 }
 
-/*
- * Child process creates the database and table, and then creates worker threads to add data until
- * it is killed by the parent.
- */
 static void run_workload(uint32_t) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * run_workload --
+ *     Child process creates the database and table, and then creates worker threads to add data
+ *     until it is killed by the parent.
+ */
 static void
 run_workload(uint32_t nth)
 {
@@ -844,7 +855,8 @@ extern int __wt_optind;
 extern char *__wt_optarg;
 
 /*
- * Initialize a report structure. Since zero is a valid key we cannot just clear it.
+ * initialize_rep --
+ *     Initialize a report structure. Since zero is a valid key we cannot just clear it.
  */
 static void
 initialize_rep(REPORT *r)
@@ -854,8 +866,9 @@ initialize_rep(REPORT *r)
 }
 
 /*
- * Print out information if we detect missing records in the middle of the data of a report
- * structure.
+ * print_missing --
+ *     Print out information if we detect missing records in the middle of the data of a report
+ *     structure.
  */
 static void
 print_missing(REPORT *r, const char *fname, const char *msg)
@@ -868,7 +881,8 @@ print_missing(REPORT *r, const char *fname, const char *msg)
 }
 
 /*
- * Signal handler to catch if the child died unexpectedly.
+ * sig_handler --
+ *     Signal handler to catch if the child died unexpectedly.
  */
 static void
 sig_handler(int sig)
@@ -883,6 +897,10 @@ sig_handler(int sig)
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
