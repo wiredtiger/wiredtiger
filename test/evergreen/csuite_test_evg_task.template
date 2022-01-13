@@ -7,4 +7,4 @@
       - func: "csuite test"
         vars:
           test_args: {{test_args}}
-          test_binary: test_{{test_dir}}
+          test_name: {{test_name}}
