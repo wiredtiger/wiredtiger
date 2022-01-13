@@ -227,8 +227,8 @@ main(int argc, char *argv[])
     error_check(cursor->close(cursor));
 
     /* Create a version cursor. */
-    error_check(session->create(
-      session, "table:map", "key_format=S,value_format=S,debug=(dump_version=true)"));
+    error_check(
+      session->open_cursor(session, "table:map", NULL, "debug=(dump_version=true)", &cursor));
     error_check(version_cursor_dump(cursor));
     error_check(cursor->close(cursor));
 
