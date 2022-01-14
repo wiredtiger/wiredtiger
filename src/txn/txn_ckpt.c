@@ -937,7 +937,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         conn->txn_global.checkpoint_running_hs = true;
         WT_STAT_CONN_SET(session, txn_checkpoint_running_hs, 1);
         /* Wait prior to checkpointing the history store to simulate checkpoint slowness. */
-        __checkpoint_timing_stress(session, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY, &tsp);
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint(session, cfg));
 
         WT_STAT_CONN_SET(session, txn_checkpoint_running_hs, 0);
@@ -2024,6 +2023,7 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    struct timespec tsp;
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     bool force;
@@ -2041,6 +2041,12 @@ __wt_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_SAVE_DHANDLE(session, ret = __checkpoint_lock_dirty_tree(session, true, force, true, cfg));
     if (ret != 0 || F_ISSET(S2BT(session), WT_BTREE_SKIP_CKPT))
         goto done;
+    if (WT_IS_HS(session->dhandle)) {
+        /* Add a ten second wait to simulate checkpoint slowness. */
+        tsp.tv_sec = 10;
+        tsp.tv_nsec = 0;
+        __checkpoint_timing_stress(session, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY, &tsp);
+    }
     ret = __checkpoint_tree(session, true, cfg);
 
 done:
