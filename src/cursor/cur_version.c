@@ -193,7 +193,8 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
         }
 
         /* Skip aborted updates. */
-        while (version_cursor->next_upd != NULL && version_cursor->txnid == WT_TXN_ABORTED)
+        while (
+          version_cursor->next_upd != NULL && version_cursor->next_upd->txnid == WT_TXN_ABORTED)
             version_cursor->next_upd = version_cursor->next_upd->next;
 
         /* Nothing to check. */
