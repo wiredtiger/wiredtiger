@@ -69,18 +69,22 @@ class test_debug_mode03(wttest.WiredTigerTestCase):
         c.close()
         return count
 
-    def find_ts_log_rec(self, ts):
-        # The timestamp we're looking for will be encoded as a 'packed integer' in the log file.
-        # We don't need a general purpose WT encoder here, we just need to know how to pack large
-        # integers.  This line in intpacking.py tells us how to pack a large integer:
+    def pack_large_int(self, large):
+        # This line in intpacking.py tells us how to pack a large integer:
         #
         #    First byte | Next bytes | Min Value        | Max Value
         #   [11 10llll] | l          | 2^13 + 2^6       | 2^64 - 1
         #
         # An 8 byte integer is packed as byte 0xe8, followed by 8 bytes packed for big endian.
         LARGE_INT = 2**13 + 2**6
-        self.assertGreaterEqual(ts, LARGE_INT)
-        packed_int = b'\xe8' + struct.pack('>Q', ts - LARGE_INT)   # >Q == 8 bytes big endian
+        self.assertGreaterEqual(large, LARGE_INT)
+        packed_int = b'\xe8' + struct.pack('>Q', large - LARGE_INT)   # >Q == 8 bytes big endian
+        return packed_int
+
+    def find_ts_log_rec(self, ts):
+        # The timestamp we're looking for will be encoded as a 'packed integer' in the log file.  We
+        # don't need a general purpose encoder here, we just need to know how to pack large integers.
+        packed_int = self.pack_large_int(ts)
 
         # Open a log cursor, and we look for the timestamp somewhere in the values.
         c = self.session.open_cursor("log:", None)
