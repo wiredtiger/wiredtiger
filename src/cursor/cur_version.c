@@ -164,7 +164,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
         WT_ERR(WT_ROLLBACK);
     }
 
-    tombstone = NULL;
+    upd = tombstone = NULL;
 
     if (!F_ISSET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED)) {
         /*
@@ -192,18 +192,27 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
             WT_ERR(__wt_illegal_value(session, page->type));
         }
 
+        /* Skip aborted updates. */
+        while (version_cursor->next_upd != NULL && version_cursor->txnid == WT_TXN_ABORTED)
+            version_cursor->next_upd = version_cursor->next_upd->next;
+
+        /* Nothing to check. */
+        if (version_cursor->next_upd == NULL)
+            upd = NULL;
+
         /*
-         * Walk to the reference from start each time to ensure the next upd is not obsolete or
-         * freed.
+         * Walk to the next upd from start each time to ensure the next upd is not obsolete or
+         * freed. Check aborted after checking next upd because the next upd can be aborted
+         * concurrently. In this case, we will return an extra aborted update, which should be fine.
          */
         for (; upd != NULL; upd = upd->next) {
-            if (upd->txnid == WT_TXN_ABORTED)
-                continue;
-
             /* We walk to the desired update. */
             if (upd == version_cursor->next_upd) {
                 break;
             }
+
+            if (upd->txnid == WT_TXN_ABORTED)
+                continue;
 
             /* We have traversed all the non-obsolete updates. */
             if (WT_UPDATE_DATA_VALUE(upd) && __wt_txn_upd_visible_all(session, upd)) {
