@@ -207,9 +207,8 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
          */
         for (; upd != NULL; upd = upd->next) {
             /* We walk to the desired update. */
-            if (upd == version_cursor->next_upd) {
+            if (upd == version_cursor->next_upd)
                 break;
-            }
 
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
