@@ -87,6 +87,8 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
     va_list ap;
 
     CURSOR_API_CALL(cursor, session, get_value, NULL);
+    WT_ERR(__cursor_checkvalue(cursor));
+    WT_ERR(__cursor_checkvalue(file_cursor));
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     file_cursor = version_cursor->file_cursor;
@@ -104,6 +106,7 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
          * Unpack the metadata. We cannot use the standard get value function here because variable
          * arguments cannot be partially extracted by different function calls.
          */
+        WT_ASSERT(session, cursor->value.data != NULL);
         p = (uint8_t *)cursor->value.data;
         end = p + cursor->value.size;
 
