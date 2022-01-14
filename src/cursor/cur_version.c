@@ -35,7 +35,7 @@ __curversion_set_key(WT_CURSOR *cursor, ...)
     flags = file_cursor->flags;
     /* Pass on the raw flag. */
     if (F_ISSET(cursor, WT_CURSTD_RAW))
-        flags |= WT_CURSTD_RAW;
+        LF_SET(WT_CURSTD_RAW);
     if ((ret = __wt_cursor_set_keyv(file_cursor, flags, ap)) != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "failed to set key"));
     va_end(ap);
