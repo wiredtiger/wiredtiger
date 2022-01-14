@@ -106,7 +106,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
 
     /* Read the block. */
     if (!found) {
-        timer = WT_STAT_ENABLED(session) && !F_ISSET(session, WT_SESSION_INTERNAL);
+        timer = WT_STAT_ENABLED(session->metadata) && !F_ISSET(session, WT_SESSION_INTERNAL);
         time_start = timer ? __wt_clock(session) : 0;
         WT_ERR(bm->read(bm, session, ip, addr, addr_size));
         if (timer) {
@@ -366,7 +366,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
     }
 
     /* Call the block manager to write the block. */
-    timer = WT_STAT_ENABLED(session) && !F_ISSET(session, WT_SESSION_INTERNAL);
+    timer = WT_STAT_ENABLED(session->metadata) && !F_ISSET(session, WT_SESSION_INTERNAL);
     time_start = timer ? __wt_clock(session) : 0;
     WT_ERR(checkpoint ? bm->checkpoint(bm, session, ip, btree->ckpt, data_checksum) :
                         bm->write(bm, session, ip, addr, addr_sizep, data_checksum, checkpoint_io));

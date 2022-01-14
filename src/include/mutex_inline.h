@@ -300,7 +300,7 @@ __wt_spin_lock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
     uint64_t time_diff, time_start, time_stop;
     int64_t *session_stats, **stats;
 
-    if (t->stat_count_off != -1 && WT_STAT_ENABLED(session)) {
+    if (t->stat_count_off != -1 && WT_STAT_ENABLED(session->metadata)) {
         time_start = __wt_clock(session);
         __wt_spin_lock(session, t);
         time_stop = __wt_clock(session);
@@ -327,7 +327,7 @@ __wt_spin_trylock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 {
     int64_t **stats;
 
-    if (t->stat_count_off != -1 && WT_STAT_ENABLED(session)) {
+    if (t->stat_count_off != -1 && WT_STAT_ENABLED(session->metadata)) {
         WT_RET(__wt_spin_trylock(session, t));
         stats = (int64_t **)S2C(session)->stats;
         stats[session->stat_bucket][t->stat_count_off]++;

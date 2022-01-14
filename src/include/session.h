@@ -11,6 +11,7 @@
  *	Per-session cache of handles to avoid synchronization when opening
  *	cursors.
  */
+#include "wiredtiger.h"
 struct __wt_data_handle_cache {
     WT_DATA_HANDLE *dhandle;
 
@@ -30,8 +31,9 @@ struct __wt_hazard {
 #endif
 };
 
-/* Get the connection implementation for a session */
-#define S2C(session) ((WT_CONNECTION_IMPL *)(session)->iface.connection)
+/* Get the connection implementation for a session or metadata */
+#define S2C(session) ((WT_CONNECTION_IMPL *)(session)->metadata.connection)
+#define M2C(meta) ((WT_CONNECTION_IMPL *)(meta).connection)
 
 /* Get the btree for a session */
 #define S2BT(session) ((WT_BTREE *)(session)->dhandle->handle)
@@ -55,8 +57,6 @@ typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor) WT_CURSOR_LIST;
 
 /* TODO this name sucks */
 struct __wt_session_metadata {
-    WT_SESSION iface; /* TODO move this out, or get the connection pointer out */
-
     WT_EVENT_HANDLER *event_handler; /* Application's event handlers */
 
     const char *name;   /* Name */
@@ -72,6 +72,11 @@ struct __wt_session_metadata {
     WT_ITEM err; /* Error buffer */
 
     WT_SESSION_STATS stats;
+
+    /* Sessions have an associated statistics bucket based on its ID. */
+    u_int stat_bucket;     /* Statistics bucket offset */
+
+    WT_CONNECTION *connection;
 };
 
 /*
@@ -79,16 +84,16 @@ struct __wt_session_metadata {
  *	Implementation of WT_SESSION.
  */
 struct __wt_session_impl {
+    WT_SESSION iface; /* TODO reinstate original comment */
 
     union {
         struct {
-            WT_SESSION iface; /* TODO move this out, or get the connection pointer out */
 
             WT_EVENT_HANDLER *event_handler; /* Application's event handlers */
 
-            const char *name;   /* Name */
+            const char *name;      /* Name */
 
-            WT_DATA_HANDLE *dhandle;           /* Current data handle */
+            WT_DATA_HANDLE *dhandle; /* Current data handle */
 
             struct timespec last_epoch; /* Last epoch time returned */
 
@@ -96,9 +101,12 @@ struct __wt_session_impl {
             u_int scratch_alloc;   /* Currently allocated */
             size_t scratch_cached; /* Scratch bytes cached */
 
-            WT_ITEM err; /* Error buffer */
+            WT_ITEM err;           /* Error buffer */
 
             WT_SESSION_STATS stats;
+
+            /* Sessions have an associated statistics bucket based on its ID. */
+            u_int stat_bucket;      /* Statistics bucket offset */
         };
 
         struct __wt_session_metadata metadata;
@@ -200,8 +208,6 @@ struct __wt_session_impl {
     /* Salvage support. */
     void *salvage_track;
 
-    /* Sessions have an associated statistics bucket based on its ID. */
-    u_int stat_bucket;          /* Statistics bucket offset */
     uint64_t cache_max_wait_us; /* Maximum time an operation waits for space in cache */
 
 #ifdef HAVE_DIAGNOSTIC

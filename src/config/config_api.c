@@ -116,6 +116,7 @@ __config_validate(WT_SESSION *wt_session, WT_EVENT_HANDLER *event_handler, const
         conn = &dummy_conn;
         session = conn->default_session = &conn->dummy_session;
         session->iface.connection = &conn->iface;
+        session->metadata.connection = &conn->iface;
         session->name = "wiredtiger_config_validate";
         __wt_event_handler_set(session, event_handler);
     }

@@ -126,7 +126,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
      * enable statistics gathering.
      */
     WT_RET(__wt_config_gets(session, cfg, "statistics_log.json", &cval));
-    if (cval.val != 0 && WT_STAT_ENABLED(session))
+    if (cval.val != 0 && WT_STAT_ENABLED(session->metadata))
         FLD_SET(conn->stat_flags, WT_STAT_JSON);
 
     WT_RET(__wt_config_gets(session, cfg, "statistics_log.on_close", &cval));
@@ -588,7 +588,7 @@ __statlog_server(void *arg)
         if (!__statlog_server_run_chk(session))
             break;
 
-        if (WT_STAT_ENABLED(session))
+        if (WT_STAT_ENABLED(session->metadata))
             WT_ERR(__statlog_log_one(session, &path, &tmp));
     }
 

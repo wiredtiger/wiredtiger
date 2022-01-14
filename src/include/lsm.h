@@ -277,12 +277,12 @@ struct __wt_lsm_tree {
  */
 #define WT_LSM_TREE_STAT_INCR(session, fld) \
     do {                                    \
-        if (WT_STAT_ENABLED(session))       \
+        if (WT_STAT_ENABLED(session->metadata)) \
             ++(fld);                        \
     } while (0)
 #define WT_LSM_TREE_STAT_INCRV(session, fld, v) \
     do {                                        \
-        if (WT_STAT_ENABLED(session))           \
+        if (WT_STAT_ENABLED(session->metadata)) \
             (fld) += (int64_t)(v);              \
     } while (0)
     int64_t bloom_false_positive;

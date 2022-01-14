@@ -20,6 +20,7 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
     /* Default session. */
     session = conn->default_session;
     WT_ASSERT(session, session->iface.connection == &conn->iface);
+    WT_ASSERT(session, session->metadata.connection == &conn->iface);
 
     /* WT_SESSION_IMPL array. */
     WT_RET(__wt_calloc(session, conn->session_size, sizeof(WT_SESSION_IMPL), &conn->sessions));

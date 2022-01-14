@@ -1045,7 +1045,7 @@ __session_reset(WT_SESSION *wt_session)
     WT_TRET(__wt_session_release_resources(session));
 
     /* Reset the session statistics. */
-    if (WT_STAT_ENABLED(session))
+    if (WT_STAT_ENABLED(session->metadata))
         __wt_stat_session_clear_single(&session->stats);
 
 err:
@@ -2047,6 +2047,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
 
     session_ret->iface = F_ISSET(conn, WT_CONN_READONLY) ? stds_readonly : stds;
     session_ret->iface.connection = &conn->iface;
+    session_ret->metadata.connection = &conn->iface;
 
     session_ret->name = NULL;
     session_ret->id = i;

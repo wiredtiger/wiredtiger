@@ -138,33 +138,33 @@ __wt_stats_clear(void *stats_arg, int slot)
  * different actions: reading sums the values across the array of structures, writing updates a
  * single structure's value.
  */
-#define WT_STAT_ENABLED(session) (S2C(session)->stat_flags != 0)
+#define WT_STAT_ENABLED(meta) (M2C(meta)->stat_flags != 0)
 
 #define WT_STAT_READ(stats, fld) __wt_stats_aggregate(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld))
 #define WT_STAT_WRITE(session, stats, fld, v) \
     do {                                      \
-        if (WT_STAT_ENABLED(session))         \
+        if (WT_STAT_ENABLED(session->metadata)) \
             (stats)->fld = (int64_t)(v);      \
     } while (0)
 
 #define WT_STAT_DECRV_BASE(session, stat, fld, value) \
     do {                                              \
-        if (WT_STAT_ENABLED(session))                 \
+        if (WT_STAT_ENABLED(session->metadata))       \
             (stat)->fld -= (int64_t)(value);          \
     } while (0)
 #define WT_STAT_DECRV_ATOMIC_BASE(session, stat, fld, value)          \
     do {                                                              \
-        if (WT_STAT_ENABLED(session))                                 \
+        if (WT_STAT_ENABLED(session->metadata))                       \
             (void)__wt_atomic_subi64(&(stat)->fld, (int64_t)(value)); \
     } while (0)
 #define WT_STAT_INCRV_BASE(session, stat, fld, value) \
     do {                                              \
-        if (WT_STAT_ENABLED(session))                 \
+        if (WT_STAT_ENABLED(session->metadata))       \
             (stat)->fld += (int64_t)(value);          \
     } while (0)
 #define WT_STAT_INCRV_ATOMIC_BASE(session, stat, fld, value)          \
     do {                                                              \
-        if (WT_STAT_ENABLED(session))                                 \
+        if (WT_STAT_ENABLED(session->metadata))                       \
             (void)__wt_atomic_addi64(&(stat)->fld, (int64_t)(value)); \
     } while (0)
 
@@ -189,7 +189,7 @@ __wt_stats_clear(void *stats_arg, int slot)
 #define WT_STAT_INCR(session, stats, fld) WT_STAT_INCRV(session, stats, fld, 1)
 #define WT_STAT_SET(session, stats, fld, value)                            \
     do {                                                                   \
-        if (WT_STAT_ENABLED(session)) {                                    \
+        if (WT_STAT_ENABLED(session->metadata)) {                          \
             __wt_stats_clear(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld)); \
             (stats)[0]->fld = (int64_t)(value);                            \
         }                                                                  \

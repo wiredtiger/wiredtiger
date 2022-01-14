@@ -2498,6 +2498,7 @@ wiredtiger_dummy_session_init(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_
      * we need to do better).
      */
     session->iface.connection = &conn->iface;
+    session->metadata.connection = &conn->iface;
     session->name = "wiredtiger_open";
 
     /* Standard I/O and error handling first. */

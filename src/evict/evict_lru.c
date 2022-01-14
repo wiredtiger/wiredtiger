@@ -2297,7 +2297,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
             WT_STAT_CONN_INCR(session, cache_eviction_app_dirty);
         WT_STAT_CONN_INCR(session, cache_eviction_app);
         cache->app_evicts++;
-        time_start = WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
+        time_start = WT_STAT_ENABLED(session->metadata) ? __wt_clock(session) : 0;
     }
 
     /*

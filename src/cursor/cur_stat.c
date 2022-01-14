@@ -630,7 +630,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other, c
     /*
      * Statistics cursor configuration: must match (and defaults to), the database configuration.
      */
-    if (!WT_STAT_ENABLED(session))
+    if (!WT_STAT_ENABLED(session->metadata))
         goto config_err;
     ret = __wt_config_gets(session, cfg, "statistics", &cval);
     WT_ERR_NOTFOUND_OK(ret, true);
