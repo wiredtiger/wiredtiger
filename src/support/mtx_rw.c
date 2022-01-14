@@ -229,7 +229,8 @@ stall:
     }
 
     /* Wait for our group to start. */
-    time_start = l->stat_read_count_off != -1 && WT_STAT_ENABLED(session->metadata) ? __wt_clock(session) : 0;
+    time_start =
+      l->stat_read_count_off != -1 && WT_STAT_ENABLED(session->metadata) ? __wt_clock(session) : 0;
     for (pause_cnt = 0; ticket != l->u.s.current; pause_cnt++) {
         if (pause_cnt < 1000)
             WT_PAUSE();

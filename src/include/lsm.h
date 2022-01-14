@@ -275,10 +275,10 @@ struct __wt_lsm_tree {
  * We maintain a set of statistics outside of the normal statistics area, copying them into place
  * when a statistics cursor is created.
  */
-#define WT_LSM_TREE_STAT_INCR(session, fld) \
-    do {                                    \
+#define WT_LSM_TREE_STAT_INCR(session, fld)     \
+    do {                                        \
         if (WT_STAT_ENABLED(session->metadata)) \
-            ++(fld);                        \
+            ++(fld);                            \
     } while (0)
 #define WT_LSM_TREE_STAT_INCRV(session, fld, v) \
     do {                                        \

@@ -311,6 +311,8 @@ struct __wt_scratch_track;
 typedef struct __wt_scratch_track WT_SCRATCH_TRACK;
 struct __wt_session_impl;
 typedef struct __wt_session_impl WT_SESSION_IMPL;
+struct __wt_session_metadata;
+typedef struct __wt_session_metadata WT_SESSION_METADATA;
 struct __wt_session_stash;
 typedef struct __wt_session_stash WT_SESSION_STASH;
 struct __wt_session_stats;
