@@ -866,7 +866,8 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TRET(__wt_txn_context_check(session, true));
 
     /*
-     * If the API received no configuration string, there's nothing to do.
+     * If the API received no configuration string, or we just have the base configuration, there's
+     * nothing to do.
      */
     if (cfg == NULL || cfg[0] == NULL || cfg[1] == NULL)
         return (0);
