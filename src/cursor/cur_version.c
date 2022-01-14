@@ -125,7 +125,7 @@ err:
 
 /*
  * __curversion_next_int --
- *     internal implementation for version cursor next
+ *     Internal implementation for version cursor next api.
  */
 static int
 __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
