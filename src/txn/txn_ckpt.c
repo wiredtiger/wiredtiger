@@ -816,7 +816,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     /* Avoid doing work if possible. */
     WT_RET(__txn_checkpoint_can_skip(session, cfg, &full, &use_timestamp, &can_skip));
     if (can_skip) {
-        WT_STAT_CONN_INCR(session, txn_checkpoint_skipped);
+        WT_STAT_CONN_INCR(&session->metadata, txn_checkpoint_skipped);
         return (0);
     }
 
@@ -1000,7 +1000,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     time_stop_fsync = __wt_clock(session);
     fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop_fsync, time_start_fsync);
-    WT_STAT_CONN_INCR(session, txn_checkpoint_fsync_post);
+    WT_STAT_CONN_INCR(&session->metadata, txn_checkpoint_fsync_post);
     WT_STAT_CONN_SET(session, txn_checkpoint_fsync_post_duration, fsync_duration_usecs);
 
     __checkpoint_verbose_track(session, "sync completed");

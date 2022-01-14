@@ -32,7 +32,7 @@ __wt_fsync(WT_SESSION_IMPL *session, WT_FH *fh, bool block)
      * time taken in the call for completeness.
      */
     WT_STAT_CONN_INCR_ATOMIC(session, thread_fsync_active);
-    WT_STAT_CONN_INCR(session, fsync_io);
+    WT_STAT_CONN_INCR(&session->metadata, fsync_io);
     if (block)
         ret = (handle->fh_sync == NULL ? 0 : handle->fh_sync(handle, (WT_SESSION *)session));
     else
@@ -100,7 +100,7 @@ __wt_read(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t len, void
       fh->handle->name, len, (uintmax_t)offset);
 
     WT_STAT_CONN_INCR_ATOMIC(session, thread_read_active);
-    WT_STAT_CONN_INCR(session, read_io);
+    WT_STAT_CONN_INCR(&session->metadata, read_io);
     time_start = __wt_clock(session);
 
     ret = fh->handle->fh_read(fh->handle, (WT_SESSION *)session, offset, len, buf);
@@ -175,7 +175,7 @@ __wt_write(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t len, con
      */
     WT_RET(WT_SESSION_CHECK_PANIC(session));
 
-    WT_STAT_CONN_INCR(session, write_io);
+    WT_STAT_CONN_INCR(&session->metadata, write_io);
     WT_STAT_CONN_INCR_ATOMIC(session, thread_write_active);
     time_start = __wt_clock(session);
 

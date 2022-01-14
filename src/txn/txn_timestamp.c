@@ -111,9 +111,9 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
 
     /* Walk the array of concurrent transactions. */
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+    WT_STAT_CONN_INCR(&session->metadata, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
-        WT_STAT_CONN_INCR(session, txn_sessions_walked);
+        WT_STAT_CONN_INCR(&session->metadata, txn_sessions_walked);
         __txn_get_read_timestamp(s, &tmp_read_ts);
         /*
          * A zero timestamp is possible here only when the oldest timestamp is not accounted for.
@@ -159,7 +159,7 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
     conn = S2C(session);
     txn_global = &conn->txn_global;
 
-    WT_STAT_CONN_INCR(session, txn_query_ts);
+    WT_STAT_CONN_INCR(&session->metadata, txn_query_ts);
     WT_RET(__wt_config_gets(session, cfg, "get", &cval));
     if (WT_STRING_MATCH("all_durable", cval.str, cval.len)) {
         if (!txn_global->has_durable_timestamp)
@@ -171,9 +171,9 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
 
         /* Walk the array of concurrent transactions. */
         WT_ORDERED_READ(session_cnt, conn->session_cnt);
-        WT_STAT_CONN_INCR(session, txn_walk_sessions);
+        WT_STAT_CONN_INCR(&session->metadata, txn_walk_sessions);
         for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
-            WT_STAT_CONN_INCR(session, txn_sessions_walked);
+            WT_STAT_CONN_INCR(&session->metadata, txn_sessions_walked);
             __txn_get_durable_timestamp(s, &tmpts);
             if (tmpts != WT_TS_NONE && --tmpts < ts)
                 ts = tmpts;
@@ -230,7 +230,7 @@ __txn_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, const char 
     txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
-    WT_STAT_CONN_INCR(session, session_query_ts);
+    WT_STAT_CONN_INCR(&session->metadata, session_query_ts);
     if (!F_ISSET(txn, WT_TXN_RUNNING))
         return (WT_NOTFOUND);
 
@@ -339,7 +339,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
     txn_global = &S2C(session)->txn_global;
 
-    WT_STAT_CONN_INCR(session, txn_set_ts);
+    WT_STAT_CONN_INCR(&session->metadata, txn_set_ts);
 
     /*
      * TODO: When we remove all_committed, we need to remove this too. For now, we're temporarily
@@ -348,24 +348,24 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets_def(session, cfg, "commit_timestamp", 0, &durable_cval));
     has_durable = durable_cval.len != 0;
     if (has_durable)
-        WT_STAT_CONN_INCR(session, txn_set_ts_durable);
+        WT_STAT_CONN_INCR(&session->metadata, txn_set_ts_durable);
 
     if (!has_durable) {
         WT_RET(__wt_config_gets_def(session, cfg, "durable_timestamp", 0, &durable_cval));
         has_durable = durable_cval.len != 0;
         if (has_durable)
-            WT_STAT_CONN_INCR(session, txn_set_ts_durable);
+            WT_STAT_CONN_INCR(&session->metadata, txn_set_ts_durable);
     }
 
     WT_RET(__wt_config_gets_def(session, cfg, "oldest_timestamp", 0, &oldest_cval));
     has_oldest = oldest_cval.len != 0;
     if (has_oldest)
-        WT_STAT_CONN_INCR(session, txn_set_ts_oldest);
+        WT_STAT_CONN_INCR(&session->metadata, txn_set_ts_oldest);
 
     WT_RET(__wt_config_gets_def(session, cfg, "stable_timestamp", 0, &stable_cval));
     has_stable = stable_cval.len != 0;
     if (has_stable)
-        WT_STAT_CONN_INCR(session, txn_set_ts_stable);
+        WT_STAT_CONN_INCR(&session->metadata, txn_set_ts_stable);
 
     /* If no timestamp was supplied, there's nothing to do. */
     if (!has_durable && !has_oldest && !has_stable)
@@ -459,14 +459,14 @@ set:
     if (has_durable) {
         txn_global->durable_timestamp = durable_ts;
         txn_global->has_durable_timestamp = true;
-        WT_STAT_CONN_INCR(session, txn_set_ts_durable_upd);
+        WT_STAT_CONN_INCR(&session->metadata, txn_set_ts_durable_upd);
         __wt_verbose_timestamp(session, durable_ts, "Updated global durable timestamp");
     }
 
     if (has_oldest &&
       (!txn_global->has_oldest_timestamp || force || oldest_ts > txn_global->oldest_timestamp)) {
         txn_global->oldest_timestamp = oldest_ts;
-        WT_STAT_CONN_INCR(session, txn_set_ts_oldest_upd);
+        WT_STAT_CONN_INCR(&session->metadata, txn_set_ts_oldest_upd);
         txn_global->has_oldest_timestamp = true;
         txn_global->oldest_is_pinned = false;
         __wt_verbose_timestamp(session, oldest_ts, "Updated global oldest timestamp");
@@ -475,7 +475,7 @@ set:
     if (has_stable &&
       (!txn_global->has_stable_timestamp || force || stable_ts > txn_global->stable_timestamp)) {
         txn_global->stable_timestamp = stable_ts;
-        WT_STAT_CONN_INCR(session, txn_set_ts_stable_upd);
+        WT_STAT_CONN_INCR(&session->metadata, txn_set_ts_stable_upd);
         txn_global->has_stable_timestamp = true;
         txn_global->stable_is_pinned = false;
         __wt_verbose_timestamp(session, stable_ts, "Updated global stable timestamp");
@@ -508,9 +508,9 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
     __wt_readlock(session, &txn_global->rwlock);
     /* Walk the array of concurrent transactions. */
     WT_ORDERED_READ(session_cnt, S2C(session)->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+    WT_STAT_CONN_INCR(&session->metadata, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
-        WT_STAT_CONN_INCR(session, txn_sessions_walked);
+        WT_STAT_CONN_INCR(&session->metadata, txn_sessions_walked);
         __txn_get_read_timestamp(s, &tmp_timestamp);
         if (tmp_timestamp != WT_TS_NONE && tmp_timestamp >= ts) {
             __wt_readunlock(session, &txn_global->rwlock);

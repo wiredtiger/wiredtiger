@@ -48,20 +48,20 @@ __wt_rdtsc(void)
  *     highest value seen so far.
  */
 static inline void
-__time_check_monotonic(WT_SESSION_IMPL *session, struct timespec *tsp)
+__time_check_monotonic(WT_SESSION_METADATA *meta, struct timespec *tsp)
 {
     /*
      * Detect time going backward. If so, use the last saved timestamp.
      */
-    if (session == NULL)
+    if (meta == NULL)
         return;
 
-    if (tsp->tv_sec < session->last_epoch.tv_sec ||
-      (tsp->tv_sec == session->last_epoch.tv_sec && tsp->tv_nsec < session->last_epoch.tv_nsec)) {
-        WT_STAT_CONN_INCR(session, time_travel);
-        *tsp = session->last_epoch;
+    if (tsp->tv_sec < meta->last_epoch.tv_sec ||
+      (tsp->tv_sec == meta->last_epoch.tv_sec && tsp->tv_nsec < meta->last_epoch.tv_nsec)) {
+        WT_STAT_CONN_INCR(meta, time_travel);
+        *tsp = meta->last_epoch;
     } else
-        session->last_epoch = *tsp;
+        meta->last_epoch = *tsp;
 }
 
 /*
@@ -82,7 +82,10 @@ __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp)
      * the time structure to the returned memory location implies multicycle writes to memory).
      */
     __wt_epoch_raw(session, &tmp);
-    __time_check_monotonic(session, &tmp);
+
+    if (session != NULL)
+        __time_check_monotonic(&session->metadata, &tmp);
+
     *tsp = tmp;
 }
 

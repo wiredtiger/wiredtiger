@@ -45,7 +45,7 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
             continue;
 
         dhandle->timeofdeath = now;
-        WT_STAT_CONN_INCR(session, dh_sweep_tod);
+        WT_STAT_CONN_INCR(&session->metadata, dh_sweep_tod);
     }
 }
 
@@ -162,10 +162,10 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
 
         /* We closed the btree handle. */
         if (ret == 0) {
-            WT_STAT_CONN_INCR(session, dh_sweep_close);
+            WT_STAT_CONN_INCR(&session->metadata, dh_sweep_close);
             ++*dead_handlesp;
         } else
-            WT_STAT_CONN_INCR(session, dh_sweep_ref);
+            WT_STAT_CONN_INCR(&session->metadata, dh_sweep_ref);
 
         WT_RET_BUSY_OK(ret);
     }
@@ -231,9 +231,9 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
         else
             WT_WITH_HANDLE_LIST_WRITE_LOCK(session, ret = __sweep_remove_one(session, dhandle));
         if (ret == 0)
-            WT_STAT_CONN_INCR(session, dh_sweep_remove);
+            WT_STAT_CONN_INCR(&session->metadata, dh_sweep_remove);
         else
-            WT_STAT_CONN_INCR(session, dh_sweep_ref);
+            WT_STAT_CONN_INCR(&session->metadata, dh_sweep_ref);
         WT_RET_BUSY_OK(ret);
     }
 
@@ -302,10 +302,10 @@ __sweep_server(void *arg)
         if (!cv_signalled && (now - last < sweep_interval))
             continue;
         if (F_ISSET(conn, WT_CONN_CKPT_GATHER)) {
-            WT_STAT_CONN_INCR(session, dh_sweep_skip_ckpt);
+            WT_STAT_CONN_INCR(&session->metadata, dh_sweep_skip_ckpt);
             continue;
         }
-        WT_STAT_CONN_INCR(session, dh_sweeps);
+        WT_STAT_CONN_INCR(&session->metadata, dh_sweeps);
         /*
          * Mark handles with a time of death, and report whether any handles are marked dead. If
          * sweep_idle_time is 0, handles never become idle.

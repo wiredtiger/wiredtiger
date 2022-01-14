@@ -166,7 +166,7 @@ __reconcile_post_wrapup(
     WT_PAGE_UNLOCK(session, page);
 
     /* Update statistics. */
-    WT_STAT_CONN_INCR(session, rec_pages);
+    WT_STAT_CONN_INCR(&session->metadata, rec_pages);
     WT_STAT_DATA_INCR(session, rec_pages);
     if (LF_ISSET(WT_REC_EVICT))
         WT_STAT_CONN_DATA_INCR(session, rec_pages_eviction);
@@ -176,11 +176,11 @@ __reconcile_post_wrapup(
         WT_STAT_CONN_DATA_INCR(session, cache_write_restore);
     if (!WT_IS_HS(btree->dhandle)) {
         if (r->rec_page_cell_with_txn_id)
-            WT_STAT_CONN_INCR(session, rec_pages_with_txn);
+            WT_STAT_CONN_INCR(&session->metadata, rec_pages_with_txn);
         if (r->rec_page_cell_with_ts)
-            WT_STAT_CONN_INCR(session, rec_pages_with_ts);
+            WT_STAT_CONN_INCR(&session->metadata, rec_pages_with_ts);
         if (r->rec_page_cell_with_prepared_txn)
-            WT_STAT_CONN_INCR(session, rec_pages_with_prepare);
+            WT_STAT_CONN_INCR(&session->metadata, rec_pages_with_prepare);
     }
     if (r->multi_next > btree->rec_multiblock_max)
         btree->rec_multiblock_max = r->multi_next;
@@ -2752,7 +2752,7 @@ __wt_rec_hs_clear_on_tombstone(
       __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS, 1))
         return (EBUSY);
 
-    WT_STAT_CONN_INCR(session, cache_hs_key_truncate_onpage_removal);
+    WT_STAT_CONN_INCR(&session->metadata, cache_hs_key_truncate_onpage_removal);
     WT_STAT_DATA_INCR(session, cache_hs_key_truncate_onpage_removal);
 
     return (0);

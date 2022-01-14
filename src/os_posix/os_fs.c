@@ -427,7 +427,7 @@ __posix_file_read(
               "%s: handle-read: pread: failed to read %" WT_SIZET_FMT " bytes at offset %" PRIuMAX,
               file_handle->name, chunk, (uintmax_t)offset);
     }
-    WT_STAT_CONN_INCRV(session->metadata, block_byte_read_syscall, len);
+    WT_STAT_CONN_INCRV(&session->metadata, block_byte_read_syscall, len);
     return (0);
 }
 
@@ -465,7 +465,7 @@ __posix_file_read_mmap(
     if (pfh->mmap_buf != NULL && pfh->mmap_size >= offset + (wt_off_t)len && !pfh->mmap_resizing) {
         memcpy(buf, (void *)(pfh->mmap_buf + offset), len);
         mmap_success = true;
-        WT_STAT_CONN_INCRV(session->metadata, block_byte_read_mmap, len);
+        WT_STAT_CONN_INCRV(&session->metadata, block_byte_read_mmap, len);
     }
 
     /* Signal that we are done using the mapped buffer. */
@@ -613,7 +613,7 @@ __posix_file_write(
               " bytes at offset %" PRIuMAX,
               file_handle->name, chunk, (uintmax_t)offset);
     }
-    WT_STAT_CONN_INCRV(session->metadata, block_byte_write_syscall, len);
+    WT_STAT_CONN_INCRV(&session->metadata, block_byte_write_syscall, len);
     return (0);
 }
 
@@ -652,7 +652,7 @@ __posix_file_write_mmap(
     if (pfh->mmap_buf != NULL && pfh->mmap_size >= offset + (wt_off_t)len && !pfh->mmap_resizing) {
         memcpy((void *)(pfh->mmap_buf + offset), buf, len);
         mmap_success = true;
-        WT_STAT_CONN_INCRV(session->metadata, block_byte_write_mmap, len);
+        WT_STAT_CONN_INCRV(&session->metadata, block_byte_write_mmap, len);
     }
 
     /* Signal that we are done using the mapped buffer. */
@@ -675,7 +675,7 @@ __posix_file_write_mmap(
         if ((remap_opportunities++) % WT_REMAP_SKIP == 0) {
             __wt_prepare_remap_resize_file(file_handle, wt_session);
             __wt_remap_resize_file(file_handle, wt_session);
-            WT_STAT_CONN_INCRV(session->metadata, block_remap_file_write, 1);
+            WT_STAT_CONN_INCRV(&session->metadata, block_remap_file_write, 1);
         }
     return (0);
 }
@@ -1122,7 +1122,7 @@ __wt_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
         __wt_unmap_file(file_handle, wt_session);
 
     __wt_map_file(file_handle, wt_session);
-    WT_STAT_CONN_INCRV(session->metadata, block_remap_file_resize, 1);
+    WT_STAT_CONN_INCRV(&session->metadata, block_remap_file_resize, 1);
 
     /* Signal that we are done resizing the buffer */
     (void)__wt_atomic_subv32(&pfh->mmap_resizing, 1);

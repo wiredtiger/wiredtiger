@@ -143,7 +143,7 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
 
                 /* If nothing has changed, there's nothing to do. */
                 if (ckpt_time == 0 || (uint64_t)cval.val > ckpt_time) {
-                    WT_STAT_CONN_INCR(session, flush_tier_skipped);
+                    WT_STAT_CONN_INCR(&session->metadata, flush_tier_skipped);
                     continue;
                 }
             }
@@ -154,7 +154,7 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
              * the arg is the config string that is currently in the metadata.
              */
             WT_ERR(__wt_tiered_switch(session, value));
-            WT_STAT_CONN_INCR(session, flush_tier_switched);
+            WT_STAT_CONN_INCR(&session->metadata, flush_tier_switched);
             WT_ERR(__wt_session_release_dhandle(session));
         }
     }
@@ -200,7 +200,7 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
          */
         if (__wt_handle_is_open(session, object)) {
             __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: %s in USE, queue again", object);
-            WT_STAT_CONN_INCR(session, local_objects_inuse);
+            WT_STAT_CONN_INCR(&session->metadata, local_objects_inuse);
             /*
              * FIXME-WT-7470: If the object we want to remove is in use this is the place to call
              * object sweep to clean up block->ofh file handles. Another alternative would be to try
@@ -215,7 +215,7 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
             __wt_tiered_push_work(session, entry);
         } else {
             __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: actually remove %s", object);
-            WT_STAT_CONN_INCR(session, local_objects_removed);
+            WT_STAT_CONN_INCR(&session->metadata, local_objects_removed);
             WT_ERR(__wt_fs_remove(session, object, false));
             /*
              * We are responsible for freeing the work unit when we're done with it.
@@ -493,7 +493,7 @@ __wt_flush_tier(WT_SESSION_IMPL *session, const char *config)
     bool locked, wait;
 
     conn = S2C(session);
-    WT_STAT_CONN_INCR(session, flush_tier);
+    WT_STAT_CONN_INCR(&session->metadata, flush_tier);
     if (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_TIERED_MGR))
         WT_RET_MSG(
           session, EINVAL, "Cannot call flush_tier when storage manager thread is configured");

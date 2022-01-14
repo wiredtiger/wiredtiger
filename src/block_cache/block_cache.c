@@ -173,7 +173,7 @@ __blkcache_should_evict(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_ite
      * overhead.
      */
     if (blkcache->type == BLKCACHE_NVRAM && __blkcache_high_overhead(session)) {
-        WT_STAT_CONN_INCR(session, block_cache_not_evicted_overhead);
+        WT_STAT_CONN_INCR(&session->metadata, block_cache_not_evicted_overhead);
         return (false);
     }
 
@@ -254,7 +254,7 @@ __blkcache_eviction_thread(void *arg)
                      */
                     blkcache->removals++;
 
-                    WT_STAT_CONN_INCR(session, block_cache_blocks_evicted);
+                    WT_STAT_CONN_INCR(&session->metadata, block_cache_blocks_evicted);
                     WT_STAT_CONN_DECRV(session, block_cache_bytes, blkcache_item->data_size);
                     WT_STAT_CONN_DECR(session, block_cache_blocks);
                     __wt_free(session, blkcache_item);
@@ -271,7 +271,7 @@ __blkcache_eviction_thread(void *arg)
         if (no_eviction_candidates)
             blkcache->min_num_references += BLKCACHE_MINREF_INCREMENT;
 
-        WT_STAT_CONN_INCR(session, block_cache_eviction_passes);
+        WT_STAT_CONN_INCR(&session->metadata, block_cache_eviction_passes);
     }
     return (WT_THREAD_RET_VALUE);
 }
@@ -330,7 +330,7 @@ __wt_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
 
     blkcache = &S2C(session)->blkcache;
 
-    WT_STAT_CONN_INCR(session, block_cache_lookups);
+    WT_STAT_CONN_INCR(&session->metadata, block_cache_lookups);
 
     /*
      * In an NVRAM cache, we track lookups to calculate the overhead of using the cache. We race to
@@ -349,7 +349,7 @@ __wt_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
       (__blkcache_estimate_filesize(session) * blkcache->percent_file_in_os_cache) / 100 <
         blkcache->system_ram) {
         *skip_cache_putp = true;
-        WT_STAT_CONN_INCR(session, block_cache_bypass_get);
+        WT_STAT_CONN_INCR(&session->metadata, block_cache_bypass_get);
         return;
     }
 
@@ -372,10 +372,10 @@ __wt_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
     if (blkcache_item != NULL) {
         *blkcache_retp = blkcache_item;
         *foundp = *skip_cache_putp = true;
-        WT_STAT_CONN_INCR(session, block_cache_hits);
+        WT_STAT_CONN_INCR(&session->metadata, block_cache_hits);
         __blkcache_verbose(session, "block found in cache", hash, addr, addr_size);
     } else {
-        WT_STAT_CONN_INCR(session, block_cache_misses);
+        WT_STAT_CONN_INCR(&session->metadata, block_cache_misses);
         __blkcache_verbose(session, "block not found in cache", hash, addr, addr_size);
     }
 }
@@ -409,13 +409,13 @@ __wt_blkcache_put(
     if (blkcache->type == BLKCACHE_NVRAM &&
       (__blkcache_estimate_filesize(session) * blkcache->percent_file_in_os_cache) / 100 <
         blkcache->system_ram) {
-        WT_STAT_CONN_INCR(session, block_cache_bypass_put);
+        WT_STAT_CONN_INCR(&session->metadata, block_cache_bypass_put);
         return (0);
     }
 
     /* Bypass on high overhead */
     if (blkcache->type == BLKCACHE_NVRAM && __blkcache_high_overhead(session)) {
-        WT_STAT_CONN_INCR(session, block_cache_bypass_overhead_put);
+        WT_STAT_CONN_INCR(&session->metadata, block_cache_bypass_overhead_put);
         return (0);
     }
 
@@ -458,8 +458,8 @@ __wt_blkcache_put(
                 __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
                 WT_ASSERT(session, !write);
 
-                WT_STAT_CONN_INCRV(session->metadata, block_cache_bytes_update, data->size);
-                WT_STAT_CONN_INCR(session, block_cache_blocks_update);
+                WT_STAT_CONN_INCRV(&session->metadata, block_cache_bytes_update, data->size);
+                WT_STAT_CONN_INCR(&session->metadata, block_cache_blocks_update);
                 __blkcache_verbose(session, "block already in cache", hash, addr, addr_size);
                 goto err;
             }
@@ -477,14 +477,14 @@ __wt_blkcache_put(
 
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
 
-    WT_STAT_CONN_INCRV(session->metadata, block_cache_bytes, data->size);
-    WT_STAT_CONN_INCR(session, block_cache_blocks);
+    WT_STAT_CONN_INCRV(&session->metadata, block_cache_bytes, data->size);
+    WT_STAT_CONN_INCR(&session->metadata, block_cache_blocks);
     if (write) {
-        WT_STAT_CONN_INCRV(session->metadata, block_cache_bytes_insert_write, data->size);
-        WT_STAT_CONN_INCR(session, block_cache_blocks_insert_write);
+        WT_STAT_CONN_INCRV(&session->metadata, block_cache_bytes_insert_write, data->size);
+        WT_STAT_CONN_INCR(&session->metadata, block_cache_blocks_insert_write);
     } else {
-        WT_STAT_CONN_INCRV(session->metadata, block_cache_bytes_insert_read, data->size);
-        WT_STAT_CONN_INCR(session, block_cache_blocks_insert_read);
+        WT_STAT_CONN_INCRV(&session->metadata, block_cache_bytes_insert_read, data->size);
+        WT_STAT_CONN_INCR(&session->metadata, block_cache_blocks_insert_read);
     }
 
     __blkcache_verbose(session, "block inserted in cache", hash, addr, addr_size);
@@ -520,7 +520,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
             __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
             WT_STAT_CONN_DECRV(session, block_cache_bytes, blkcache_item->data_size);
             WT_STAT_CONN_DECR(session, block_cache_blocks);
-            WT_STAT_CONN_INCR(session, block_cache_blocks_removed);
+            WT_STAT_CONN_INCR(&session->metadata, block_cache_blocks_removed);
             (void)__wt_atomic_sub64(&blkcache->bytes_used, blkcache_item->data_size);
             blkcache->removals++;
             WT_ASSERT(session, blkcache_item->ref_count == 0);

@@ -169,9 +169,9 @@ __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
 
     /* Walk the array of concurrent transactions. */
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+    WT_STAT_CONN_INCR(&session->metadata, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
-        WT_STAT_CONN_INCR(session, txn_sessions_walked);
+        WT_STAT_CONN_INCR(&session->metadata, txn_sessions_walked);
         /* If the transaction is in the list, it is uncommitted. */
         if (s->id == txnid)
             goto done;
@@ -242,9 +242,9 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
 
     /* Walk the array of concurrent transactions. */
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+    WT_STAT_CONN_INCR(&session->metadata, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
-        WT_STAT_CONN_INCR(session, txn_sessions_walked);
+        WT_STAT_CONN_INCR(&session->metadata, txn_sessions_walked);
         /*
          * Build our snapshot of any concurrent transaction IDs.
          *
@@ -344,9 +344,9 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
 
     /* Walk the array of concurrent transactions. */
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+    WT_STAT_CONN_INCR(&session->metadata, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
-        WT_STAT_CONN_INCR(session, txn_sessions_walked);
+        WT_STAT_CONN_INCR(&session->metadata, txn_sessions_walked);
         /* Update the last running transaction ID. */
         while ((id = s->id) != WT_TXN_NONE && WT_TXNID_LE(prev_oldest_id, id) &&
           WT_TXNID_LT(id, last_running)) {
@@ -1046,11 +1046,11 @@ __txn_fixup_prepared_update(
                     hs_cursor->set_value(hs_cursor, &tw, tw.durable_stop_ts, tw.durable_start_ts,
                       (uint64_t)WT_UPDATE_STANDARD, &hs_value);
                     WT_ERR(hs_cursor->update(hs_cursor));
-                    WT_STAT_CONN_INCR(
-                      session, txn_prepare_rollback_fix_hs_update_with_ckpt_reserved_txnid);
+                    WT_STAT_CONN_INCR(&session->metadata,
+                      txn_prepare_rollback_fix_hs_update_with_ckpt_reserved_txnid);
                 }
             } else
-                WT_STAT_CONN_INCR(session, txn_prepare_rollback_do_not_remove_hs_update);
+                WT_STAT_CONN_INCR(&session->metadata, txn_prepare_rollback_do_not_remove_hs_update);
         } else
             WT_ERR(hs_cursor->remove(hs_cursor));
     }
@@ -1297,7 +1297,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
         if (!commit) {
             upd->txnid = WT_TXN_ABORTED;
-            WT_STAT_CONN_INCR(session, txn_prepared_updates_rolledback);
+            WT_STAT_CONN_INCR(&session->metadata, txn_prepared_updates_rolledback);
             continue;
         }
 
@@ -1336,7 +1336,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          * Resolve the prepared update to be committed update.
          */
         __txn_resolve_prepared_update(session, upd);
-        WT_STAT_CONN_INCR(session, txn_prepared_updates_committed);
+        WT_STAT_CONN_INCR(&session->metadata, txn_prepared_updates_committed);
     }
 
     /* Mark the page dirty once the prepared updates are resolved. */
@@ -2013,9 +2013,9 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
             break;
         }
     }
-    WT_STAT_CONN_INCRV(session->metadata, txn_prepared_updates, prepared_updates);
+    WT_STAT_CONN_INCRV(&session->metadata, txn_prepared_updates, prepared_updates);
     WT_STAT_CONN_INCRV(
-      session->metadata, txn_prepared_updates_key_repeated, prepared_updates_key_repeated);
+      &session->metadata, txn_prepared_updates_key_repeated, prepared_updates_key_repeated);
 #ifdef HAVE_DIAGNOSTIC
     txn->prepare_count = prepared_updates;
 #endif
@@ -2350,7 +2350,7 @@ __wt_txn_activity_drain(WT_SESSION_IMPL *session)
         if (!txn_active)
             break;
 
-        WT_STAT_CONN_INCR(session, txn_release_blocked);
+        WT_STAT_CONN_INCR(&session->metadata, txn_release_blocked);
         __wt_yield();
     }
 
@@ -2587,9 +2587,9 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
      * handles is not thread safe, so some information may change while traversing if other threads
      * are active at the same time, which is OK since this is diagnostic code.
      */
-    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+    WT_STAT_CONN_INCR(&session->metadata, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
-        WT_STAT_CONN_INCR(session, txn_sessions_walked);
+        WT_STAT_CONN_INCR(&session->metadata, txn_sessions_walked);
         /* Skip sessions with no active transaction */
         if ((id = s->id) == WT_TXN_NONE && s->pinned_id == WT_TXN_NONE)
             continue;

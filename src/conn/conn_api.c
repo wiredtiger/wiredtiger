@@ -1333,7 +1333,7 @@ __conn_rollback_to_stable(WT_CONNECTION *wt_conn, const char *config)
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
     CONNECTION_API_CALL(conn, session, rollback_to_stable, config, cfg);
-    WT_STAT_CONN_INCR(session, txn_rts);
+    WT_STAT_CONN_INCR(&session->metadata, txn_rts);
     ret = __wt_rollback_to_stable(session, cfg, false);
 err:
     API_END_RET(session, ret);

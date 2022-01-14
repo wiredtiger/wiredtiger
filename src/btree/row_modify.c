@@ -393,7 +393,7 @@ __wt_update_obsolete_check(
      * This is why we use WT_THOUSAND here.
      */
     if (count > WT_THOUSAND) {
-        WT_STAT_CONN_INCR(session, cache_eviction_force_long_update_list);
+        WT_STAT_CONN_INCR(&session->metadata, cache_eviction_force_long_update_list);
         __wt_page_evict_soon(session, cbt->ref);
     }
 

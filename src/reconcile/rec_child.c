@@ -221,7 +221,7 @@ __wt_rec_child_modify(
         default:
             return (__wt_illegal_value(session, r->tested_ref_state));
         }
-        WT_STAT_CONN_INCR(session, child_modify_blocked_page);
+        WT_STAT_CONN_INCR(&session->metadata, child_modify_blocked_page);
     }
 
 in_memory:

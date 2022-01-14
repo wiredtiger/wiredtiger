@@ -161,8 +161,8 @@ __stat_page_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
     WT_SKIP_FOREACH (ins, WT_COL_APPEND(page))
         stat_entries++;
 
-    WT_STAT_INCRV(session->metadata, stats, btree_column_tws, stat_tws);
-    WT_STAT_INCRV(session->metadata, stats, btree_entries, stat_entries);
+    WT_STAT_INCRV(&session->metadata, stats, btree_column_tws, stat_tws);
+    WT_STAT_INCRV(&session->metadata, stats, btree_entries, stat_entries);
 }
 
 /*
@@ -244,10 +244,10 @@ __stat_page_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
             break;
         }
 
-    WT_STAT_INCRV(session->metadata, stats, btree_column_deleted, deleted_cnt);
-    WT_STAT_INCRV(session->metadata, stats, btree_column_rle, rle_cnt);
-    WT_STAT_INCRV(session->metadata, stats, btree_entries, entry_cnt);
-    WT_STAT_INCRV(session->metadata, stats, btree_overflow, ovfl_cnt);
+    WT_STAT_INCRV(&session->metadata, stats, btree_column_deleted, deleted_cnt);
+    WT_STAT_INCRV(&session->metadata, stats, btree_column_rle, rle_cnt);
+    WT_STAT_INCRV(&session->metadata, stats, btree_entries, entry_cnt);
+    WT_STAT_INCRV(&session->metadata, stats, btree_overflow, ovfl_cnt);
 }
 
 /*
@@ -276,7 +276,7 @@ __stat_page_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
         WT_CELL_FOREACH_END;
     }
 
-    WT_STAT_INCRV(session->metadata, stats, btree_overflow, ovfl_cnt);
+    WT_STAT_INCRV(&session->metadata, stats, btree_overflow, ovfl_cnt);
 }
 
 /*
@@ -353,7 +353,7 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
             ++empty_values;
     }
 
-    WT_STAT_INCRV(session->metadata, stats, btree_row_empty_values, empty_values);
-    WT_STAT_INCRV(session->metadata, stats, btree_entries, entry_cnt);
-    WT_STAT_INCRV(session->metadata, stats, btree_overflow, ovfl_cnt);
+    WT_STAT_INCRV(&session->metadata, stats, btree_row_empty_values, empty_values);
+    WT_STAT_INCRV(&session->metadata, stats, btree_entries, entry_cnt);
+    WT_STAT_INCRV(&session->metadata, stats, btree_overflow, ovfl_cnt);
 }

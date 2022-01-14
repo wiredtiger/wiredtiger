@@ -127,8 +127,8 @@ __wt_try_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
     WT_RWLOCK new, old;
     int64_t **stats;
 
-    WT_STAT_CONN_INCR(session, rwlock_read);
-    if (l->stat_read_count_off != -1 && WT_STAT_ENABLED(session->metadata)) {
+    WT_STAT_CONN_INCR(&session->metadata, rwlock_read);
+    if (l->stat_read_count_off != -1 && WT_STAT_ENABLED(&session->metadata)) {
         stats = (int64_t **)S2C(session)->stats;
         stats[session->stat_bucket][l->stat_read_count_off]++;
     }
@@ -175,7 +175,7 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
     uint8_t ticket;
     int pause_cnt;
 
-    WT_STAT_CONN_INCR(session, rwlock_read);
+    WT_STAT_CONN_INCR(&session->metadata, rwlock_read);
 
     WT_DIAGNOSTIC_YIELD;
 
@@ -230,7 +230,7 @@ stall:
 
     /* Wait for our group to start. */
     time_start =
-      l->stat_read_count_off != -1 && WT_STAT_ENABLED(session->metadata) ? __wt_clock(session) : 0;
+      l->stat_read_count_off != -1 && WT_STAT_ENABLED(&session->metadata) ? __wt_clock(session) : 0;
     for (pause_cnt = 0; ticket != l->u.s.current; pause_cnt++) {
         if (pause_cnt < 1000)
             WT_PAUSE();
@@ -303,8 +303,8 @@ __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
     WT_RWLOCK new, old;
     int64_t **stats;
 
-    WT_STAT_CONN_INCR(session, rwlock_write);
-    if (l->stat_write_count_off != -1 && WT_STAT_ENABLED(session->metadata)) {
+    WT_STAT_CONN_INCR(&session->metadata, rwlock_write);
+    if (l->stat_write_count_off != -1 && WT_STAT_ENABLED(&session->metadata)) {
         stats = (int64_t **)S2C(session)->stats;
         stats[session->stat_bucket][l->stat_write_count_off]++;
     }
@@ -360,7 +360,7 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
     uint8_t ticket;
     int pause_cnt;
 
-    WT_STAT_CONN_INCR(session, rwlock_write);
+    WT_STAT_CONN_INCR(&session->metadata, rwlock_write);
 
     for (;;) {
         old.u.v = l->u.v;
@@ -388,8 +388,9 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
      * not guaranteed to be ordered and we could see no readers active from a different batch and
      * decide that we have the lock.
      */
-    time_start =
-      l->stat_write_count_off != -1 && WT_STAT_ENABLED(session->metadata) ? __wt_clock(session) : 0;
+    time_start = l->stat_write_count_off != -1 && WT_STAT_ENABLED(&session->metadata) ?
+      __wt_clock(session) :
+      0;
     for (pause_cnt = 0, old.u.v = l->u.v; ticket != old.u.s.current || old.u.s.readers_active != 0;
          pause_cnt++, old.u.v = l->u.v) {
         if (pause_cnt < 1000)

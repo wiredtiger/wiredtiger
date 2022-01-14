@@ -292,25 +292,25 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYP
     case WT_THROTTLE_CKPT:
         capacity = cap->ckpt;
         reservation = &cap->reservation_ckpt;
-        WT_STAT_CONN_INCRV(session->metadata, capacity_bytes_ckpt, bytes);
-        WT_STAT_CONN_INCRV(session->metadata, capacity_bytes_written, bytes);
+        WT_STAT_CONN_INCRV(&session->metadata, capacity_bytes_ckpt, bytes);
+        WT_STAT_CONN_INCRV(&session->metadata, capacity_bytes_written, bytes);
         break;
     case WT_THROTTLE_EVICT:
         capacity = cap->evict;
         reservation = &cap->reservation_evict;
-        WT_STAT_CONN_INCRV(session->metadata, capacity_bytes_evict, bytes);
-        WT_STAT_CONN_INCRV(session->metadata, capacity_bytes_written, bytes);
+        WT_STAT_CONN_INCRV(&session->metadata, capacity_bytes_evict, bytes);
+        WT_STAT_CONN_INCRV(&session->metadata, capacity_bytes_written, bytes);
         break;
     case WT_THROTTLE_LOG:
         capacity = cap->log;
         reservation = &cap->reservation_log;
-        WT_STAT_CONN_INCRV(session->metadata, capacity_bytes_log, bytes);
-        WT_STAT_CONN_INCRV(session->metadata, capacity_bytes_written, bytes);
+        WT_STAT_CONN_INCRV(&session->metadata, capacity_bytes_log, bytes);
+        WT_STAT_CONN_INCRV(&session->metadata, capacity_bytes_written, bytes);
         break;
     case WT_THROTTLE_READ:
         capacity = cap->read;
         reservation = &cap->reservation_read;
-        WT_STAT_CONN_INCRV(session->metadata, capacity_bytes_read, bytes);
+        WT_STAT_CONN_INCRV(&session->metadata, capacity_bytes_read, bytes);
         break;
     }
     total_capacity = cap->total;
@@ -407,20 +407,20 @@ again:
     if (res_value > now_ns) {
         sleep_us = (res_value - now_ns) / WT_THOUSAND;
         if (res_value == res_total_value)
-            WT_STAT_CONN_INCRV(session->metadata, capacity_time_total, sleep_us);
+            WT_STAT_CONN_INCRV(&session->metadata, capacity_time_total, sleep_us);
         else
             switch (type) {
             case WT_THROTTLE_CKPT:
-                WT_STAT_CONN_INCRV(session->metadata, capacity_time_ckpt, sleep_us);
+                WT_STAT_CONN_INCRV(&session->metadata, capacity_time_ckpt, sleep_us);
                 break;
             case WT_THROTTLE_EVICT:
-                WT_STAT_CONN_INCRV(session->metadata, capacity_time_evict, sleep_us);
+                WT_STAT_CONN_INCRV(&session->metadata, capacity_time_evict, sleep_us);
                 break;
             case WT_THROTTLE_LOG:
-                WT_STAT_CONN_INCRV(session->metadata, capacity_time_log, sleep_us);
+                WT_STAT_CONN_INCRV(&session->metadata, capacity_time_log, sleep_us);
                 break;
             case WT_THROTTLE_READ:
-                WT_STAT_CONN_INCRV(session->metadata, capacity_time_read, sleep_us);
+                WT_STAT_CONN_INCRV(&session->metadata, capacity_time_read, sleep_us);
                 break;
             }
         if (sleep_us > WT_CAPACITY_SLEEP_CUTOFF_US)

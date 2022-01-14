@@ -114,10 +114,10 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
     session->cursor_sweep_position = position;
     F_SET(session, WT_SESSION_CACHE_CURSORS);
 
-    WT_STAT_CONN_INCR(session, cursor_sweep);
-    WT_STAT_CONN_INCRV(session->metadata, cursor_sweep_buckets, nbuckets);
-    WT_STAT_CONN_INCRV(session->metadata, cursor_sweep_examined, nexamined);
-    WT_STAT_CONN_INCRV(session->metadata, cursor_sweep_closed, nclosed);
+    WT_STAT_CONN_INCR(&session->metadata, cursor_sweep);
+    WT_STAT_CONN_INCRV(&session->metadata, cursor_sweep_buckets, nbuckets);
+    WT_STAT_CONN_INCRV(&session->metadata, cursor_sweep_examined, nexamined);
+    WT_STAT_CONN_INCRV(&session->metadata, cursor_sweep_closed, nclosed);
 
     WT_ASSERT(session, session->dhandle == saved_dhandle);
     return (ret);
@@ -694,9 +694,9 @@ __session_alter_internal(WT_SESSION_IMPL *session, const char *uri, const char *
 
 err:
     if (ret != 0)
-        WT_STAT_CONN_INCR(session, session_table_alter_fail);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_alter_fail);
     else
-        WT_STAT_CONN_INCR(session, session_table_alter_success);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_alter_success);
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -754,7 +754,7 @@ __session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
     ret = __session_alter_internal(session, uri, config);
     if (ret == EBUSY) {
         WT_RET(__session_blocking_checkpoint(session));
-        WT_STAT_CONN_INCR(session, session_table_alter_trigger_checkpoint);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_alter_trigger_checkpoint);
         ret = __session_alter_internal(session, uri, config);
     }
 
@@ -777,7 +777,7 @@ __session_alter_readonly(WT_SESSION *wt_session, const char *uri, const char *co
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_NOCONF(session, alter);
 
-    WT_STAT_CONN_INCR(session, session_table_alter_fail);
+    WT_STAT_CONN_INCR(&session->metadata, session_table_alter_fail);
     ret = __wt_session_notsup(session);
 err:
     API_END_RET(session, ret);
@@ -839,9 +839,9 @@ __session_create(WT_SESSION *wt_session, const char *uri, const char *config)
 
 err:
     if (ret != 0)
-        WT_STAT_CONN_INCR(session, session_table_create_fail);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_create_fail);
     else
-        WT_STAT_CONN_INCR(session, session_table_create_success);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_create_success);
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -861,7 +861,7 @@ __session_create_readonly(WT_SESSION *wt_session, const char *uri, const char *c
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_NOCONF(session, create);
 
-    WT_STAT_CONN_INCR(session, session_table_create_fail);
+    WT_STAT_CONN_INCR(&session->metadata, session_table_create_fail);
     ret = __wt_session_notsup(session);
 err:
     API_END_RET(session, ret);
@@ -882,7 +882,7 @@ __session_log_flush(WT_SESSION *wt_session, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, log_flush, config, cfg);
-    WT_STAT_CONN_INCR(session, log_flush);
+    WT_STAT_CONN_INCR(&session->metadata, log_flush);
 
     conn = S2C(session);
     flags = 0;
@@ -989,9 +989,9 @@ __session_rename(WT_SESSION *wt_session, const char *uri, const char *newuri, co
         WT_WITH_TABLE_WRITE_LOCK(session, ret = __wt_schema_rename(session, uri, newuri, cfg))));
 err:
     if (ret != 0)
-        WT_STAT_CONN_INCR(session, session_table_rename_fail);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_rename_fail);
     else
-        WT_STAT_CONN_INCR(session, session_table_rename_success);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_rename_success);
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -1013,7 +1013,7 @@ __session_rename_readonly(
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_NOCONF(session, rename);
 
-    WT_STAT_CONN_INCR(session, session_table_rename_fail);
+    WT_STAT_CONN_INCR(&session->metadata, session_table_rename_fail);
     ret = __wt_session_notsup(session);
 err:
     API_END_RET(session, ret);
@@ -1045,7 +1045,7 @@ __session_reset(WT_SESSION *wt_session)
     WT_TRET(__wt_session_release_resources(session));
 
     /* Reset the session statistics. */
-    if (WT_STAT_ENABLED(session->metadata))
+    if (WT_STAT_ENABLED(&session->metadata))
         __wt_stat_session_clear_single(&session->stats);
 
 err:
@@ -1101,9 +1101,9 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
 
 err:
     if (ret != 0)
-        WT_STAT_CONN_INCR(session, session_table_drop_fail);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_drop_fail);
     else
-        WT_STAT_CONN_INCR(session, session_table_drop_success);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_drop_success);
 
     /* Note: drop operations cannot be unrolled (yet?). */
     API_END_RET_NOTFOUND_MAP(session, ret);
@@ -1125,7 +1125,7 @@ __session_drop_readonly(WT_SESSION *wt_session, const char *uri, const char *con
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_NOCONF(session, drop);
 
-    WT_STAT_CONN_INCR(session, session_table_drop_fail);
+    WT_STAT_CONN_INCR(&session->metadata, session_table_drop_fail);
     ret = __wt_session_notsup(session);
 err:
     API_END_RET(session, ret);
@@ -1299,9 +1299,9 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
 
 err:
     if (ret != 0)
-        WT_STAT_CONN_INCR(session, session_table_salvage_fail);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_salvage_fail);
     else
-        WT_STAT_CONN_INCR(session, session_table_salvage_success);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_salvage_success);
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -1321,7 +1321,7 @@ __session_salvage_readonly(WT_SESSION *wt_session, const char *uri, const char *
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_NOCONF(session, salvage);
 
-    WT_STAT_CONN_INCR(session, session_table_salvage_fail);
+    WT_STAT_CONN_INCR(&session->metadata, session_table_salvage_fail);
     ret = __wt_session_notsup(session);
 err:
     API_END_RET(session, ret);
@@ -1460,7 +1460,7 @@ __session_truncate(
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_TXN_API_CALL(session, truncate, config, cfg);
-    WT_STAT_CONN_INCR(session, cursor_truncate);
+    WT_STAT_CONN_INCR(&session->metadata, cursor_truncate);
 
     /*
      * If the URI is specified, we don't need a start/stop, if start/stop is specified, we don't
@@ -1502,9 +1502,9 @@ err:
     TXN_API_END(session, ret, false);
 
     if (ret != 0)
-        WT_STAT_CONN_INCR(session, session_table_truncate_fail);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_truncate_fail);
     else
-        WT_STAT_CONN_INCR(session, session_table_truncate_success);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_truncate_success);
     /*
      * Only map WT_NOTFOUND to ENOENT if a URI was specified.
      */
@@ -1530,7 +1530,7 @@ __session_truncate_readonly(
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_NOCONF(session, truncate);
 
-    WT_STAT_CONN_INCR(session, session_table_truncate_fail);
+    WT_STAT_CONN_INCR(&session->metadata, session_table_truncate_fail);
     ret = __wt_session_notsup(session);
 err:
     API_END_RET(session, ret);
@@ -1605,9 +1605,9 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
     WT_ERR(ret);
 err:
     if (ret != 0)
-        WT_STAT_CONN_INCR(session, session_table_verify_fail);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_verify_fail);
     else
-        WT_STAT_CONN_INCR(session, session_table_verify_success);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_verify_success);
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -1623,7 +1623,7 @@ __session_begin_transaction(WT_SESSION *wt_session, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, begin_transaction, config, cfg);
-    WT_STAT_CONN_INCR(session, txn_begin);
+    WT_STAT_CONN_INCR(&session->metadata, txn_begin);
 
     WT_ERR(__wt_txn_context_check(session, false));
 
@@ -1647,10 +1647,10 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
     session = (WT_SESSION_IMPL *)wt_session;
     txn = session->txn;
     SESSION_API_CALL_PREPARE_ALLOWED(session, commit_transaction, config, cfg);
-    WT_STAT_CONN_INCR(session, txn_commit);
+    WT_STAT_CONN_INCR(&session->metadata, txn_commit);
 
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
-        WT_STAT_CONN_INCR(session, txn_prepare_commit);
+        WT_STAT_CONN_INCR(&session->metadata, txn_prepare_commit);
         WT_STAT_CONN_DECR(session, txn_prepare_active);
     }
 
@@ -1701,8 +1701,8 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, prepare_transaction, config, cfg);
-    WT_STAT_CONN_INCR(session, txn_prepare);
-    WT_STAT_CONN_INCR(session, txn_prepare_active);
+    WT_STAT_CONN_INCR(&session->metadata, txn_prepare);
+    WT_STAT_CONN_INCR(&session->metadata, txn_prepare_active);
 
     WT_ERR(__wt_txn_context_check(session, true));
 
@@ -1747,11 +1747,11 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_PREPARE_ALLOWED(session, rollback_transaction, config, cfg);
-    WT_STAT_CONN_INCR(session, txn_rollback);
+    WT_STAT_CONN_INCR(&session->metadata, txn_rollback);
 
     txn = session->txn;
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
-        WT_STAT_CONN_INCR(session, txn_prepare_rollback);
+        WT_STAT_CONN_INCR(&session->metadata, txn_prepare_rollback);
         WT_STAT_CONN_DECR(session, txn_prepare_active);
     }
 
@@ -1890,7 +1890,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    WT_STAT_CONN_INCR(session, txn_checkpoint);
+    WT_STAT_CONN_INCR(&session->metadata, txn_checkpoint);
     SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, checkpoint, config, cfg);
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
@@ -2132,7 +2132,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     WT_STATIC_ASSERT(offsetof(WT_SESSION_IMPL, iface) == 0);
     *sessionp = session_ret;
 
-    WT_STAT_CONN_INCR(session, session_open);
+    WT_STAT_CONN_INCR(&session->metadata, session_open);
 
 err:
     __wt_spin_unlock(session, &conn->api_lock);

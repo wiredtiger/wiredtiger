@@ -69,7 +69,7 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
          * gradual.
          */
         __wt_spin_backoff(&yield_cnt, &sleep_usecs);
-        WT_STAT_CONN_INCRV(session->metadata, log_force_archive_sleep, sleep_usecs);
+        WT_STAT_CONN_INCRV(&session->metadata, log_force_archive_sleep, sleep_usecs);
 
         WT_RET(WT_SESSION_CHECK_PANIC(tmp_session));
         WT_RET(__wt_log_truncate_files(tmp_session, NULL, true));
@@ -491,7 +491,7 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
      */
     for (i = reccount; i < (u_int)conn->log_prealloc; i++) {
         WT_ERR(__wt_log_allocfile(session, ++log->prep_fileid, WT_LOG_PREPNAME));
-        WT_STAT_CONN_INCR(session, log_prealloc_files);
+        WT_STAT_CONN_INCR(&session->metadata, log_prealloc_files);
     }
     /*
      * Reset the missed count now. If we missed during pre-allocating the log files, it means the
@@ -722,7 +722,7 @@ restart:
                  */
                 coalescing->slot_last_offset = slot->slot_last_offset;
                 WT_ASSIGN_LSN(&coalescing->slot_end_lsn, &slot->slot_end_lsn);
-                WT_STAT_CONN_INCR(session, log_slot_coalesced);
+                WT_STAT_CONN_INCR(&session->metadata, log_slot_coalesced);
                 /*
                  * Copy the flag for later closing.
                  */
@@ -753,7 +753,7 @@ restart:
                 WT_ASSIGN_LSN(&log->write_start_lsn, &slot->slot_start_lsn);
                 WT_ASSIGN_LSN(&log->write_lsn, &slot->slot_end_lsn);
                 __wt_cond_signal(session, log->log_write_cond);
-                WT_STAT_CONN_INCR(session, log_write_lsn);
+                WT_STAT_CONN_INCR(&session->metadata, log_write_lsn);
                 /*
                  * Signal the close thread if needed.
                  */
@@ -796,7 +796,7 @@ __log_wrlsn_server(void *arg)
           __wt_log_cmp(&log->write_lsn, &log->alloc_lsn) != 0)
             __wt_log_wrlsn(session, &yield);
         else
-            WT_STAT_CONN_INCR(session, log_write_lsn_skip);
+            WT_STAT_CONN_INCR(&session->metadata, log_write_lsn_skip);
         prev = log->alloc_lsn;
         did_work = yield == 0;
 

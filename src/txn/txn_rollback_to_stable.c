@@ -100,7 +100,7 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
               rollback_timestamp < upd->durable_ts ? "false" : "true");
 
             upd->txnid = WT_TXN_ABORTED;
-            WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
+            WT_STAT_CONN_INCR(&session->metadata, txn_rts_upd_aborted);
         } else {
             /* Valid update is found. */
             stable_upd = upd;
@@ -1170,7 +1170,7 @@ __rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
         return (0);
     }
 
-    WT_STAT_CONN_INCR(session, txn_rts_pages_visited);
+    WT_STAT_CONN_INCR(&session->metadata, txn_rts_pages_visited);
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
       "%p: page rolled back when page is modified: %s", (void *)ref,
       __wt_page_is_modified(page) ? "true" : "false");
@@ -1250,7 +1250,7 @@ __wt_rts_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *s
         *skipp = true;
         __wt_verbose_multi(
           session, WT_VERB_RECOVERY_RTS(session), "%p: page walk skipped", (void *)ref);
-        WT_STAT_CONN_INCR(session, txn_rts_tree_walk_skip_pages);
+        WT_STAT_CONN_INCR(&session->metadata, txn_rts_tree_walk_skip_pages);
     }
 
     return (0);
@@ -1333,7 +1333,7 @@ __txn_user_active(WT_SESSION_IMPL *session)
     conn = S2C(session);
     txn_active = false;
 
-    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+    WT_STAT_CONN_INCR(&session->metadata, txn_walk_sessions);
 
     /*
      * WT_TXN structures are allocated and freed as sessions are activated and closed. Lock the

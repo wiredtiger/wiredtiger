@@ -55,7 +55,7 @@ __wt_tiered_push_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
     conn = S2C(session);
     __wt_spin_lock(session, &conn->tiered_lock);
     TAILQ_INSERT_TAIL(&conn->tieredqh, entry, q);
-    WT_STAT_CONN_INCR(session, tiered_work_units_created);
+    WT_STAT_CONN_INCR(&session->metadata, tiered_work_units_created);
     __wt_spin_unlock(session, &conn->tiered_lock);
     __tiered_flush_state(session, entry->type, true);
     __wt_cond_signal(session, conn->tiered_cond);
@@ -85,7 +85,7 @@ __wt_tiered_pop_work(
     TAILQ_FOREACH (entry, &conn->tieredqh, q) {
         if (FLD_ISSET(type, entry->type) && (maxval == 0 || entry->op_val < maxval)) {
             TAILQ_REMOVE(&conn->tieredqh, entry, q);
-            WT_STAT_CONN_INCR(session, tiered_work_units_dequeued);
+            WT_STAT_CONN_INCR(&session->metadata, tiered_work_units_dequeued);
             *entryp = entry;
             break;
         }

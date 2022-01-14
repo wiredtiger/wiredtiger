@@ -275,7 +275,7 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
     if (manager->lsm_workers > 0) {
         /* Wait for the main LSM manager thread to finish. */
         while (!F_ISSET(manager, WT_LSM_MANAGER_SHUTDOWN)) {
-            WT_STAT_CONN_INCR(session, conn_close_blocked_lsm);
+            WT_STAT_CONN_INCR(&session->metadata, conn_close_blocked_lsm);
             __wt_yield();
         }
 
@@ -305,7 +305,7 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
         for (i = 0; i < WT_LSM_MAX_WORKERS; i++)
             WT_TRET(__wt_session_close_internal(manager->lsm_worker_cookies[i].session));
     }
-    WT_STAT_CONN_INCRV(session->metadata, lsm_work_units_discarded, removed);
+    WT_STAT_CONN_INCRV(&session->metadata, lsm_work_units_discarded, removed);
 
     return (ret);
 }
@@ -384,7 +384,7 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
              * being created add some more.
              */
             if (lsm_tree->queue_ref >= LSM_TREE_MAX_QUEUE)
-                WT_STAT_CONN_INCR(session, lsm_work_queue_max);
+                WT_STAT_CONN_INCR(&session->metadata, lsm_work_queue_max);
             else if ((!lsm_tree->modified && lsm_tree->nchunks > 1) ||
               (lsm_tree->queue_ref == 0 && lsm_tree->nchunks > 1) ||
               (lsm_tree->merge_aggressiveness > WT_LSM_AGGRESSIVE_THRESHOLD &&
@@ -495,7 +495,7 @@ __wt_lsm_manager_clear_tree(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
         __wt_lsm_manager_free_work_unit(session, current);
     }
     __wt_spin_unlock(session, &manager->manager_lock);
-    WT_STAT_CONN_INCRV(session->metadata, lsm_work_units_discarded, removed);
+    WT_STAT_CONN_INCRV(&session->metadata, lsm_work_units_discarded, removed);
 }
 
 /*
@@ -541,7 +541,7 @@ __wt_lsm_manager_pop_entry(WT_SESSION_IMPL *session, uint32_t type, WT_LSM_WORK_
     else
         LSM_POP_ENTRY(&manager->appqh, &manager->app_lock, lsm_work_queue_app);
     if (entry != NULL)
-        WT_STAT_CONN_INCR(session, lsm_work_units_done);
+        WT_STAT_CONN_INCR(&session->metadata, lsm_work_units_done);
     *entryp = entry;
     return (0);
 }
@@ -550,12 +550,12 @@ __wt_lsm_manager_pop_entry(WT_SESSION_IMPL *session, uint32_t type, WT_LSM_WORK_
  * Push a work unit onto the appropriate queue. This macro assumes we are called from
  * __wt_lsm_manager_push_entry and we have session and entry available for use.
  */
-#define LSM_PUSH_ENTRY(qh, qlock, qlen)    \
-    do {                                   \
-        __wt_spin_lock(session, qlock);    \
-        TAILQ_INSERT_TAIL((qh), entry, q); \
-        WT_STAT_CONN_INCR(session, qlen);  \
-        __wt_spin_unlock(session, qlock);  \
+#define LSM_PUSH_ENTRY(qh, qlock, qlen)              \
+    do {                                             \
+        __wt_spin_lock(session, qlock);              \
+        TAILQ_INSERT_TAIL((qh), entry, q);           \
+        WT_STAT_CONN_INCR(&session->metadata, qlen); \
+        __wt_spin_unlock(session, qlock);            \
     } while (0)
 
 /*
@@ -604,7 +604,7 @@ __wt_lsm_manager_push_entry(
     entry->type = type;
     entry->flags = flags;
     entry->lsm_tree = lsm_tree;
-    WT_STAT_CONN_INCR(session, lsm_work_units_created);
+    WT_STAT_CONN_INCR(&session->metadata, lsm_work_units_created);
 
     if (type == WT_LSM_WORK_SWITCH)
         LSM_PUSH_ENTRY(&manager->switchqh, &manager->switch_lock, lsm_work_queue_switch);

@@ -209,7 +209,7 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
         lock_busy = true;
 
         /* Give other threads a chance to make progress. */
-        WT_STAT_CONN_INCR(session, dhandle_lock_blocked);
+        WT_STAT_CONN_INCR(&session->metadata, dhandle_lock_blocked);
         __wt_yield();
     }
 }
@@ -373,7 +373,7 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
         return;
     session->last_sweep = now;
 
-    WT_STAT_CONN_INCR(session, dh_session_sweeps);
+    WT_STAT_CONN_INCR(&session->metadata, dh_session_sweeps);
 
     TAILQ_FOREACH_SAFE(dhandle_cache, &session->dhandles, q, dhandle_cache_tmp)
     {
@@ -388,7 +388,7 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
           (WT_DHANDLE_INACTIVE(dhandle) ||
             (dhandle->timeofdeath != 0 && now - dhandle->timeofdeath > conn->sweep_idle_time)) &&
           (!WT_DHANDLE_BTREE(dhandle) || F_ISSET(dhandle, WT_DHANDLE_EVICTED))) {
-            WT_STAT_CONN_INCR(session, dh_session_handles);
+            WT_STAT_CONN_INCR(&session->metadata, dh_session_handles);
             WT_ASSERT(session, !WT_IS_METADATA(dhandle));
             __session_discard_dhandle(session, dhandle_cache);
         }

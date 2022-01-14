@@ -388,7 +388,7 @@ __fsync_background(WT_SESSION_IMPL *session, WT_FH *fh)
     uint64_t now;
 
     conn = S2C(session);
-    WT_STAT_CONN_INCR(session, fsync_all_fh_total);
+    WT_STAT_CONN_INCR(&session->metadata, fsync_all_fh_total);
 
     handle = fh->handle;
     if (handle->fh_sync_nowait == NULL || fh->written < WT_CAPACITY_FILE_THRESHOLD)
@@ -409,7 +409,7 @@ __fsync_background(WT_SESSION_IMPL *session, WT_FH *fh)
          */
         ret = __wt_fsync(session, fh, false);
         if (ret == 0) {
-            WT_STAT_CONN_INCR(session, fsync_all_fh);
+            WT_STAT_CONN_INCR(&session->metadata, fsync_all_fh);
             fh->last_sync = now;
             fh->written = 0;
         }
@@ -501,7 +501,7 @@ __wt_file_zero(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t start_off, wt_off_t
      * to use this function.
      */
     type = WT_THROTTLE_LOG;
-    WT_STAT_CONN_INCR(session, log_zero_fills);
+    WT_STAT_CONN_INCR(&session->metadata, log_zero_fills);
     WT_RET(__wt_scr_alloc(session, bufsz, &zerobuf));
     memset(zerobuf->mem, 0, zerobuf->memsize);
     off = (uint64_t)start_off;

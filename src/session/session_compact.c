@@ -193,7 +193,7 @@ __wt_session_compact_check_timeout(WT_SESSION_IMPL *session)
     ret =
       session->compact->max_time > WT_TIMEDIFF_SEC(end, session->compact->begin) ? 0 : ETIMEDOUT;
     if (ret != 0) {
-        WT_STAT_CONN_INCR(session, session_table_compact_timeout);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_compact_timeout);
 
         __wt_verbose_info(session, WT_VERB_COMPACT,
           "Compact has timed out! The operation has been running for %" PRIu64
@@ -283,7 +283,8 @@ __compact_worker(WT_SESSION_IMPL *session)
              */
             if (ret == EBUSY) {
                 if (__wt_cache_stuck(session)) {
-                    WT_STAT_CONN_INCR(session, session_table_compact_fail_cache_pressure);
+                    WT_STAT_CONN_INCR(
+                      &session->metadata, session_table_compact_fail_cache_pressure);
                     WT_ERR_MSG(session, EBUSY, "compaction halted by eviction pressure");
                 }
                 ret = 0;
@@ -416,9 +417,9 @@ err:
         F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
 
     if (ret != 0)
-        WT_STAT_CONN_INCR(session, session_table_compact_fail);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_compact_fail);
     else
-        WT_STAT_CONN_INCR(session, session_table_compact_success);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_compact_success);
     WT_STAT_CONN_SET(session, session_table_compact_running, 0);
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
@@ -439,7 +440,7 @@ __wt_session_compact_readonly(WT_SESSION *wt_session, const char *uri, const cha
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_NOCONF(session, compact);
 
-    WT_STAT_CONN_INCR(session, session_table_compact_fail);
+    WT_STAT_CONN_INCR(&session->metadata, session_table_compact_fail);
     ret = __wt_session_notsup(session);
 err:
     API_END_RET(session, ret);

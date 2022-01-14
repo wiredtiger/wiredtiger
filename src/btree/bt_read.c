@@ -261,10 +261,10 @@ read:
                     return (WT_NOTFOUND);
 
                 /* Waiting on another thread's read, stall. */
-                WT_STAT_CONN_INCR(session, page_read_blocked);
+                WT_STAT_CONN_INCR(&session->metadata, page_read_blocked);
             } else
                 /* Waiting on eviction, stall. */
-                WT_STAT_CONN_INCR(session, page_locked_blocked);
+                WT_STAT_CONN_INCR(&session->metadata, page_locked_blocked);
 
             stalled = true;
             break;
@@ -290,7 +290,7 @@ read:
             WT_RET(__wt_hazard_set_func(session, ref, &busy));
 #endif
             if (busy) {
-                WT_STAT_CONN_INCR(session, page_busy_blocked);
+                WT_STAT_CONN_INCR(&session->metadata, page_busy_blocked);
                 break;
             }
 
@@ -325,7 +325,7 @@ read:
                     evict_skip = true;
                 else if (ret == EBUSY) {
                     WT_NOT_READ(ret, 0);
-                    WT_STAT_CONN_INCR(session, page_forcible_evict_blocked);
+                    WT_STAT_CONN_INCR(&session->metadata, page_forcible_evict_blocked);
                     stalled = true;
                     break;
                 }
@@ -399,6 +399,6 @@ skip_evict:
                 continue;
         }
         __wt_spin_backoff(&yield_cnt, &sleep_usecs);
-        WT_STAT_CONN_INCRV(session->metadata, page_sleep, sleep_usecs);
+        WT_STAT_CONN_INCRV(&session->metadata, page_sleep, sleep_usecs);
     }
 }

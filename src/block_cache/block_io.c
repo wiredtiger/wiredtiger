@@ -106,14 +106,14 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
 
     /* Read the block. */
     if (!found) {
-        timer = WT_STAT_ENABLED(session->metadata) && !F_ISSET(session, WT_SESSION_INTERNAL);
+        timer = WT_STAT_ENABLED(&session->metadata) && !F_ISSET(session, WT_SESSION_INTERNAL);
         time_start = timer ? __wt_clock(session) : 0;
         WT_ERR(bm->read(bm, session, ip, addr, addr_size));
         if (timer) {
             time_stop = __wt_clock(session);
             time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-            WT_STAT_CONN_INCR(session, cache_read_app_count);
-            WT_STAT_CONN_INCRV(session->metadata, cache_read_app_time, time_diff);
+            WT_STAT_CONN_INCR(&session->metadata, cache_read_app_count);
+            WT_STAT_CONN_INCRV(&session->metadata, cache_read_app_time, time_diff);
             WT_STAT_SESSION_INCRV(session, read_time, time_diff);
         }
 
@@ -366,15 +366,15 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
     }
 
     /* Call the block manager to write the block. */
-    timer = WT_STAT_ENABLED(session->metadata) && !F_ISSET(session, WT_SESSION_INTERNAL);
+    timer = WT_STAT_ENABLED(&session->metadata) && !F_ISSET(session, WT_SESSION_INTERNAL);
     time_start = timer ? __wt_clock(session) : 0;
     WT_ERR(checkpoint ? bm->checkpoint(bm, session, ip, btree->ckpt, data_checksum) :
                         bm->write(bm, session, ip, addr, addr_sizep, data_checksum, checkpoint_io));
     if (timer) {
         time_stop = __wt_clock(session);
         time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-        WT_STAT_CONN_INCR(session, cache_write_app_count);
-        WT_STAT_CONN_INCRV(session->metadata, cache_write_app_time, time_diff);
+        WT_STAT_CONN_INCR(&session->metadata, cache_write_app_count);
+        WT_STAT_CONN_INCRV(&session->metadata, cache_write_app_time, time_diff);
         WT_STAT_SESSION_INCRV(session, write_time, time_diff);
     }
 
@@ -407,9 +407,9 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
     if (blkcache->type == BLKCACHE_UNCONFIGURED)
         ;
     else if (!blkcache->cache_on_checkpoint && checkpoint_io)
-        WT_STAT_CONN_INCR(session, block_cache_bypass_chkpt);
+        WT_STAT_CONN_INCR(&session->metadata, block_cache_bypass_chkpt);
     else if (!blkcache->cache_on_writes)
-        WT_STAT_CONN_INCR(session, block_cache_bypass_writealloc);
+        WT_STAT_CONN_INCR(&session->metadata, block_cache_bypass_writealloc);
     else if (!checkpoint)
         WT_ERR(__wt_blkcache_put(session, compressed ? ctmp : buf, addr, *addr_sizep, true));
 

@@ -32,7 +32,7 @@ struct __wt_hazard {
 
 /* Get the connection implementation for a session or metadata */
 #define S2C(session) ((WT_CONNECTION_IMPL *)(session)->metadata.connection)
-#define M2C(meta) ((WT_CONNECTION_IMPL *)(meta).connection)
+#define M2C(meta) ((WT_CONNECTION_IMPL *)(meta)->connection)
 
 /* Get the btree for a session */
 #define S2BT(session) ((WT_BTREE *)(session)->dhandle->handle)

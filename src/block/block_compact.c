@@ -299,8 +299,8 @@ __wt_block_compact_page_rewrite(
     WT_ERR(__wt_block_addr_pack(block, &endp, objectid, new_offset, size, checksum));
     *addr_sizep = WT_PTRDIFF(endp, addr);
 
-    WT_STAT_CONN_INCR(session, block_write);
-    WT_STAT_CONN_INCRV(session->metadata, block_byte_write, size);
+    WT_STAT_CONN_INCR(&session->metadata, block_write);
+    WT_STAT_CONN_INCRV(&session->metadata, block_byte_write, size);
 
     discard_block = false;
 

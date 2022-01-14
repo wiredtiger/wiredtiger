@@ -303,7 +303,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
 
     conn = S2C(session);
 
-    WT_STAT_CONN_INCR(session, cache_hazard_checks);
+    WT_STAT_CONN_INCR(&session->metadata, cache_hazard_checks);
 
     /*
      * Hazard pointer arrays might grow and be freed underneath us; enter the current hazard
@@ -333,14 +333,14 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
         for (j = 0; j < hazard_inuse; ++hp, ++j) {
             ++walk_cnt;
             if (hp->ref == ref) {
-                WT_STAT_CONN_INCRV(session->metadata, cache_hazard_walks, walk_cnt);
+                WT_STAT_CONN_INCRV(&session->metadata, cache_hazard_walks, walk_cnt);
                 if (sessionp != NULL)
                     *sessionp = s;
                 goto done;
             }
         }
     }
-    WT_STAT_CONN_INCRV(session->metadata, cache_hazard_walks, walk_cnt);
+    WT_STAT_CONN_INCRV(&session->metadata, cache_hazard_walks, walk_cnt);
     hp = NULL;
 
 done:

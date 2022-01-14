@@ -43,7 +43,7 @@ __alter_apply(
     if (strcmp(config, newconfig) != 0)
         WT_ERR(__wt_metadata_update(session, uri, newconfig));
     else
-        WT_STAT_CONN_INCR(session, session_table_alter_skip);
+        WT_STAT_CONN_INCR(&session->metadata, session_table_alter_skip);
 
 err:
     __wt_free(session, config);

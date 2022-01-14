@@ -451,7 +451,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                  */
                 if (error_on_ooo_ts) {
                     ret = EBUSY;
-                    WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_out_of_order_ts);
+                    WT_STAT_CONN_INCR(
+                      &session->metadata, cache_eviction_fail_checkpoint_out_of_order_ts);
                     goto err;
                 }
 
@@ -903,7 +904,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
      */
     if (error_on_ooo_ts) {
         ret = EBUSY;
-        WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_out_of_order_ts);
+        WT_STAT_CONN_INCR(&session->metadata, cache_eviction_fail_checkpoint_out_of_order_ts);
         goto err;
     }
 
@@ -1036,13 +1037,13 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
               &hs_value);
             WT_ERR(hs_insert_cursor->insert(hs_insert_cursor));
             ++(*counter);
-            WT_STAT_CONN_INCR(session, cache_hs_order_reinsert);
+            WT_STAT_CONN_INCR(&session->metadata, cache_hs_order_reinsert);
             WT_STAT_DATA_INCR(session, cache_hs_order_reinsert);
         }
 
         /* Delete the out-of-order entry. */
         WT_ERR(hs_cursor->remove(hs_cursor));
-        WT_STAT_CONN_INCR(session, cache_hs_order_remove);
+        WT_STAT_CONN_INCR(&session->metadata, cache_hs_order_remove);
         WT_STAT_DATA_INCR(session, cache_hs_order_remove);
     }
     if (ret == WT_NOTFOUND)
