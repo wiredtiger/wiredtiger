@@ -137,6 +137,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_ROW *rip;
     WT_TIME_WINDOW *twp;
     WT_UPDATE *upd, *tombstone;
     wt_timestamp_t durable_start_ts, durable_stop_ts, stop_ts;
@@ -163,16 +164,53 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
         WT_ERR(WT_ROLLBACK);
     }
 
-    upd = version_cursor->next_upd;
     tombstone = NULL;
 
     if (!F_ISSET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED)) {
         /*
-         * If the update is an aborted update, we want to skip to the next update immediately or get
-         * the ondisk value if the update is the last one in the update chain.
+         * If we position on a key, set next update of the version cursor to be the first update on
+         * the key if any.
          */
-        while (upd != NULL && upd->txnid == WT_TXN_ABORTED)
-            upd = upd->next;
+        page = cbt->ref->page;
+        switch (page->type) {
+        case WT_PAGE_ROW_LEAF:
+            if (cbt->ins != NULL)
+                upd = cbt->ins->upd;
+            else {
+                rip = &page->pg_row[cbt->slot];
+                upd = WT_ROW_UPDATE(page, rip);
+            }
+            break;
+        case WT_PAGE_COL_FIX:
+        case WT_PAGE_COL_VAR:
+            if (cbt->ins != NULL)
+                upd = cbt->ins->upd;
+            else
+                upd = NULL;
+            break;
+        default:
+            WT_ERR(__wt_illegal_value(session, page->type));
+        }
+
+        /*
+         * Walk to the reference from start each time to ensure the next upd is not obsolete or
+         * freed.
+         */
+        for (; upd != NULL; upd = upd->next) {
+            if (upd->txnid == WT_TXN_ABORTED)
+                continue;
+
+            /* We walk to the desired update. */
+            if (upd == version_cursor->next_upd) {
+                break;
+            }
+
+            /* We have traversed all the non-obsolete updates. */
+            if (WT_UPDATE_DATA_VALUE(upd) && __wt_txn_upd_visible_all(session, upd)) {
+                upd = NULL;
+                break;
+            }
+        }
 
         if (upd == NULL) {
             version_cursor->next_upd = NULL;
@@ -190,7 +228,11 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
                 version_cursor->upd_durable_stop_ts = upd->durable_ts;
                 version_cursor->upd_stop_ts = upd->start_ts;
 
-                upd = upd->next;
+                /* No need to check the next update if the tombstone is globally visible. */
+                if (__wt_txn_upd_visible_all(session, upd))
+                    upd = NULL;
+                else
+                    upd = upd->next;
 
                 /* Make sure the next update is not an aborted update. */
                 while (upd != NULL && upd->txnid == WT_TXN_ABORTED)
@@ -437,16 +479,38 @@ __curversion_search(WT_CURSOR *cursor)
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *upd;
+    WT_TXN *txn;
+    WT_TXN_SHARED *txn_shared;
+    wt_timestamp_t oldest_ts;
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     table_cursor = version_cursor->table_cursor;
     cbt = (WT_CURSOR_BTREE *)table_cursor;
 
-    /*
-     * For now, we assume that we are using simple cursors only.
-     */
     CURSOR_API_CALL(cursor, session, search, CUR2BT(cbt));
+    txn = session->txn;
+    txn_shared = WT_SESSION_TXN_SHARED(session);
+
+    /*
+     * Check that we have the current transaction's read timestamp pinged as the oldest timestamp to
+     * ensure that the global visibility will not change during the life of this transaction.
+     */
+    WT_ERR_NOTFOUND_OK(
+      __wt_txn_get_pinned_timestamp(session, &oldest_ts, WT_TXN_TS_INCLUDE_OLDEST), true);
+    if (!F_ISSET(txn, WT_TXN_SHARED_TS_READ) ||
+      (ret == 0 && oldest_ts < txn_shared->read_timestamp)) {
+        WT_IGNORE_RET(__wt_msg(session,
+          "WT_ROLLBACK: version cursor can only be called with the read timestamp as the "
+          "oldest "
+          "timestamp."));
+        WT_ERR(WT_ROLLBACK);
+    }
+    if (ret == WT_NOTFOUND && txn_shared->read_timestamp > 1) {
+        WT_IGNORE_RET(__wt_msg(session,
+          "WT_ROLLBACK: version cursor can only be called with read timestamp 1 if there is not "
+          "oldest timestamp"));
+        WT_ERR(WT_ROLLBACK);
+    }
     WT_ERR(__cursor_checkkey(table_cursor));
     if (F_ISSET(table_cursor, WT_CURSTD_KEY_INT)) {
         WT_IGNORE_RET(
@@ -470,8 +534,7 @@ __curversion_search(WT_CURSOR *cursor)
             version_cursor->next_upd = cbt->ins->upd;
         else {
             rip = &page->pg_row[cbt->slot];
-            upd = WT_ROW_UPDATE(page, rip);
-            version_cursor->next_upd = upd;
+            version_cursor->next_upd = WT_ROW_UPDATE(page, rip);
         }
         break;
     case WT_PAGE_COL_FIX:
@@ -484,6 +547,9 @@ __curversion_search(WT_CURSOR *cursor)
     default:
         WT_ERR(__wt_illegal_value(session, page->type));
     }
+
+    if (version_cursor->next_upd == NULL)
+        F_SET(version_cursor, WT_VERSION_CUR_UPDATE_EXHAUSTED);
 
     /* Point to the newest version. */
     WT_ERR(__curversion_next_int(session, cursor));

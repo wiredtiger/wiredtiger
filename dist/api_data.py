@@ -1526,13 +1526,13 @@ methods = {
         configure debug specific behavior on a cursor. Generally only
         used for internal testing purposes''',
         type='category', subconfig=[
-        Config('release_evict', 'false', r'''
-            Configure the cursor to evict the page positioned on when the
-            reset API is used''',
-            type='boolean'),
         Config('dump_version', 'false', r'''
             open a version cursor, which is a debug cursor on a table that
             enables iteration through the history of values for a given key.''',
+            type='boolean'),
+        Config('release_evict', 'false', r'''
+            Configure the cursor to evict the page positioned on when the
+            reset API is used''',
             type='boolean'),
         ]),
     Config('dump', '', r'''

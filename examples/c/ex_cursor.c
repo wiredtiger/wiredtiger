@@ -175,8 +175,10 @@ version_cursor_dump(WT_CURSOR *cursor)
     const char *value;
     cursor->set_key(cursor, "foo");
     error_check(cursor->search(cursor));
-    return (cursor->get_value(cursor, &start_txnid, &start_ts, &start_durable_ts, &stop_txnid,
+    error_check(cursor->get_value(cursor, &start_txnid, &start_ts, &start_durable_ts, &stop_txnid,
       &stop_ts, &stop_durable_ts, &type, &prepare, &flags, &location, &value));
+
+    return (0);
 }
 /*! [version cursor dump] */
 
