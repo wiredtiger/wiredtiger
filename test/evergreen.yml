@@ -2147,7 +2147,7 @@ tasks:
           posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_FTRUNCATE=0
       - func: "csuite smoke test"
         vars:
-          test_name: random_abort
+          test_binary: random_abort
       - func: "csuite test"
         vars:
           test_name: truncated_log
