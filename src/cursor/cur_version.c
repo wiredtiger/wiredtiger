@@ -86,12 +86,13 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
     const uint8_t *p, *end;
     va_list ap;
 
+    version_cursor = (WT_CURSOR_VERSION *)cursor;
+    file_cursor = version_cursor->file_cursor;
+
     CURSOR_API_CALL(cursor, session, get_value, NULL);
     WT_ERR(__cursor_checkvalue(cursor));
     WT_ERR(__cursor_checkvalue(file_cursor));
 
-    version_cursor = (WT_CURSOR_VERSION *)cursor;
-    file_cursor = version_cursor->file_cursor;
     va_start(ap, cursor);
     if (F_ISSET(cursor, WT_CURSTD_RAW)) {
         /* Extract metadata and value separately as raw data. */
@@ -161,11 +162,9 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     F_CLR(cursor, WT_CURSTD_RAW);
 
     /* The cursor should be positioned, otherwise the next call will fail. */
-    if (!F_ISSET(file_cursor, WT_CURSTD_KEY_INT)) {
-        WT_IGNORE_RET(__wt_msg(
-          session, "WT_ROLLBACK: rolling back version_cursor->next due to no initial position"));
-        WT_ERR(WT_ROLLBACK);
-    }
+    if (!F_ISSET(file_cursor, WT_CURSTD_KEY_INT))
+        WT_ERR(__wt_txn_rollback_required(
+          session, "rolling back version_cursor->next due to no initial position"));
 
     upd = tombstone = NULL;
 
@@ -510,25 +509,18 @@ __curversion_search(WT_CURSOR *cursor)
     WT_ERR_NOTFOUND_OK(
       __wt_txn_get_pinned_timestamp(session, &oldest_ts, WT_TXN_TS_INCLUDE_OLDEST), true);
     if (!F_ISSET(txn, WT_TXN_SHARED_TS_READ) ||
-      (ret == 0 && oldest_ts < txn_shared->read_timestamp)) {
-        WT_IGNORE_RET(__wt_msg(session,
-          "WT_ROLLBACK: version cursor can only be called with the read timestamp as the "
-          "oldest "
-          "timestamp."));
-        WT_ERR(WT_ROLLBACK);
-    }
-    if (ret == WT_NOTFOUND && txn_shared->read_timestamp > 1) {
-        WT_IGNORE_RET(__wt_msg(session,
-          "WT_ROLLBACK: version cursor can only be called with read timestamp 1 if there is not "
-          "oldest timestamp"));
-        WT_ERR(WT_ROLLBACK);
-    }
+      (ret == 0 && oldest_ts < txn_shared->read_timestamp))
+        WT_ERR(__wt_txn_rollback_required(session,
+          "version cursor can only be called with the read timestamp as the oldest timestamp"));
+    if (ret == WT_NOTFOUND && txn_shared->read_timestamp > 1)
+        WT_ERR(__wt_txn_rollback_required(session,
+          "version cursor can only be called with read timestamp 1 if there is no oldest "
+          "timestamp"));
+
     WT_ERR(__cursor_checkkey(file_cursor));
-    if (F_ISSET(file_cursor, WT_CURSTD_KEY_INT)) {
-        WT_IGNORE_RET(
-          __wt_msg(session, "WT_ROLLBACK: version cursor cannot be called when it is positioned"));
-        WT_ERR(WT_ROLLBACK);
-    }
+    if (F_ISSET(file_cursor, WT_CURSTD_KEY_INT))
+        WT_ERR(__wt_txn_rollback_required(
+          session, "version cursor cannot be called when it is positioned"));
 
     /* Do a search and position on the key if it is found */
     F_SET(file_cursor, WT_CURSTD_KEY_ONLY);
