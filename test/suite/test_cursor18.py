@@ -393,11 +393,10 @@ class test_cursor18(wttest.WiredTigerTestCase):
         version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
         version_cursor.set_key(1)
         self.assertEquals(version_cursor.search(), 0)
-        with self.expectedStdoutPattern("version cursor cannot be called when it is positioned"):
-            try:
-                version_cursor.search()
-            except wiredtiger.WiredTigerError as e:
-                gotException = True
-                self.pr('got expected exception: ' + str(e))
-                self.assertTrue(str(e).find('WT_ROLLBACK') >= 0)
+        try:
+            version_cursor.search()
+        except wiredtiger.WiredTigerError as e:
+            gotException = True
+            self.pr('got expected exception: ' + str(e))
+            self.assertTrue(str(e).find('WT_ROLLBACK') >= 0)
         self.assertTrue(gotException, msg = 'expected exception')
