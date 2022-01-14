@@ -530,8 +530,8 @@ struct __wt_cursor_table {
 struct __wt_cursor_version {
     WT_CURSOR iface;
 
-    WT_CURSOR *hs_cursor;    /* Queries of history cursor. */
-    WT_CURSOR *table_cursor; /* Queries of regular table cursor. */
+    WT_CURSOR *hs_cursor;   /* Queries of history cursor. */
+    WT_CURSOR *file_cursor; /* Queries of regular file cursor. */
     WT_UPDATE *next_upd;
 
     /*

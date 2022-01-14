@@ -231,7 +231,7 @@ main(int argc, char *argv[])
     /* Create a version cursor. */
     error_check(session->begin_transaction(session, "read_timestamp=1"));
     error_check(
-      session->open_cursor(session, "table:map", NULL, "debug=(dump_version=true)", &cursor));
+      session->open_cursor(session, "file:map.wt", NULL, "debug=(dump_version=true)", &cursor));
     error_check(version_cursor_dump(cursor));
     error_check(cursor->close(cursor));
 

@@ -36,7 +36,7 @@ from wtscenario import make_scenarios
 WT_TS_MAX = 18446744073709551615
 
 class test_cursor18(wttest.WiredTigerTestCase):
-    uri = 'table:test_cursor18'
+    uri = 'file:test_cursor18.wt'
 
     types = [
         ('row', dict(keyformat='i', valueformat='i')),
