@@ -2147,6 +2147,7 @@ tasks:
           posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_FTRUNCATE=0
       - func: "csuite smoke test"
         vars:
+          test_args: cmake_build/test/csuite/random_abort/test_random_abort
           test_binary: random_abort
       - func: "csuite test"
         vars:
