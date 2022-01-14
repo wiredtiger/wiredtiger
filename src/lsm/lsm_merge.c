@@ -437,7 +437,7 @@ __wt_lsm_merge(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, u_int id)
             if (!lsm_tree->active)
                 WT_ERR(EINTR);
 
-            WT_STAT_CONN_INCRV(session, lsm_rows_merged, LSM_MERGE_CHECK_INTERVAL);
+            WT_STAT_CONN_INCRV(session->metadata, lsm_rows_merged, LSM_MERGE_CHECK_INTERVAL);
             ++lsm_tree->merge_progressing;
         }
 
@@ -451,7 +451,7 @@ __wt_lsm_merge(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, u_int id)
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
-    WT_STAT_CONN_INCRV(session, lsm_rows_merged, insert_count % LSM_MERGE_CHECK_INTERVAL);
+    WT_STAT_CONN_INCRV(session->metadata, lsm_rows_merged, insert_count % LSM_MERGE_CHECK_INTERVAL);
     ++lsm_tree->merge_progressing;
     __wt_verbose(session, WT_VERB_LSM, "Bloom size for %" PRIu64 " has %" PRIu64 " items inserted",
       record_count, insert_count);

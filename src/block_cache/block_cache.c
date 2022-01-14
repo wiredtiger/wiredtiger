@@ -458,7 +458,7 @@ __wt_blkcache_put(
                 __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
                 WT_ASSERT(session, !write);
 
-                WT_STAT_CONN_INCRV(session, block_cache_bytes_update, data->size);
+                WT_STAT_CONN_INCRV(session->metadata, block_cache_bytes_update, data->size);
                 WT_STAT_CONN_INCR(session, block_cache_blocks_update);
                 __blkcache_verbose(session, "block already in cache", hash, addr, addr_size);
                 goto err;
@@ -477,13 +477,13 @@ __wt_blkcache_put(
 
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
 
-    WT_STAT_CONN_INCRV(session, block_cache_bytes, data->size);
+    WT_STAT_CONN_INCRV(session->metadata, block_cache_bytes, data->size);
     WT_STAT_CONN_INCR(session, block_cache_blocks);
     if (write) {
-        WT_STAT_CONN_INCRV(session, block_cache_bytes_insert_write, data->size);
+        WT_STAT_CONN_INCRV(session->metadata, block_cache_bytes_insert_write, data->size);
         WT_STAT_CONN_INCR(session, block_cache_blocks_insert_write);
     } else {
-        WT_STAT_CONN_INCRV(session, block_cache_bytes_insert_read, data->size);
+        WT_STAT_CONN_INCRV(session->metadata, block_cache_bytes_insert_read, data->size);
         WT_STAT_CONN_INCR(session, block_cache_blocks_insert_read);
     }
 

@@ -307,7 +307,7 @@ __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn)
         fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop, time_start);
         WT_ASSIGN_LSN(&log->sync_dir_lsn, min_lsn);
         WT_STAT_CONN_INCR(session, log_sync_dir);
-        WT_STAT_CONN_INCRV(session, log_sync_dir_duration, fsync_duration_usecs);
+        WT_STAT_CONN_INCRV(session->metadata, log_sync_dir_duration, fsync_duration_usecs);
     }
     /*
      * Sync the log file if needed.
@@ -327,7 +327,7 @@ __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn)
         fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop, time_start);
         WT_ASSIGN_LSN(&log->sync_lsn, min_lsn);
         WT_STAT_CONN_INCR(session, log_sync);
-        WT_STAT_CONN_INCRV(session, log_sync_duration, fsync_duration_usecs);
+        WT_STAT_CONN_INCRV(session->metadata, log_sync_duration, fsync_duration_usecs);
         __wt_cond_signal(session, log->log_sync_cond);
     }
 err:
@@ -702,7 +702,7 @@ __wt_log_fill(
         WT_ERR(__log_fs_write(session, myslot->slot,
           myslot->offset + myslot->slot->slot_start_offset, record->size, record->mem));
 
-    WT_STAT_CONN_INCRV(session, log_bytes_written, record->size);
+    WT_STAT_CONN_INCRV(session->metadata, log_bytes_written, record->size);
     if (lsnp != NULL) {
         *lsnp = myslot->slot->slot_start_lsn;
         lsnp->l.offset += (uint32_t)myslot->offset;
@@ -1961,7 +1961,7 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
             fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop, time_start);
             WT_ASSIGN_LSN(&log->sync_dir_lsn, &sync_lsn);
             WT_STAT_CONN_INCR(session, log_sync_dir);
-            WT_STAT_CONN_INCRV(session, log_sync_dir_duration, fsync_duration_usecs);
+            WT_STAT_CONN_INCRV(session->metadata, log_sync_dir_duration, fsync_duration_usecs);
         }
 
         /*
@@ -1976,7 +1976,7 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
             WT_ERR(__wt_fsync(session, log->log_fh, true));
             time_stop = __wt_clock(session);
             fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop, time_start);
-            WT_STAT_CONN_INCRV(session, log_sync_duration, fsync_duration_usecs);
+            WT_STAT_CONN_INCRV(session->metadata, log_sync_duration, fsync_duration_usecs);
             WT_ASSIGN_LSN(&log->sync_lsn, &sync_lsn);
             __wt_cond_signal(session, log->log_sync_cond);
         }
@@ -2514,8 +2514,8 @@ __wt_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, uint32_t
             WT_STAT_CONN_INCR(session, log_compress_write_fails);
         else {
             WT_STAT_CONN_INCR(session, log_compress_writes);
-            WT_STAT_CONN_INCRV(session, log_compress_mem, record->size);
-            WT_STAT_CONN_INCRV(session, log_compress_len, result_len);
+            WT_STAT_CONN_INCRV(session->metadata, log_compress_mem, record->size);
+            WT_STAT_CONN_INCRV(session->metadata, log_compress_len, result_len);
 
             /*
              * Copy in the skipped header bytes, set the final data size.
@@ -2589,7 +2589,7 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
      * is big enough and zero-filled so that we can write the full amount. Do this whether or not
      * direct_io is in use because it makes the reading code cleaner.
      */
-    WT_STAT_CONN_INCRV(session, log_bytes_payload, record->size);
+    WT_STAT_CONN_INCRV(session->metadata, log_bytes_payload, record->size);
     rdup_len = __wt_rduppo2((uint32_t)record->size, log->allocsize);
     WT_ERR(__wt_buf_grow(session, record, rdup_len));
     WT_ASSERT(session, record->data == record->mem);

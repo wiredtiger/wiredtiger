@@ -179,7 +179,7 @@ retry:
 
     end_offset = WT_LOG_SLOT_JOINED_BUFFERED(old_state) + slot->slot_unbuffered;
     slot->slot_end_lsn.l.offset += (uint32_t)end_offset;
-    WT_STAT_CONN_INCRV(session, log_slot_consolidated, end_offset);
+    WT_STAT_CONN_INCRV(session->metadata, log_slot_consolidated, end_offset);
     /*
      * XXX Would like to change so one piece of code advances the LSN.
      */
@@ -604,7 +604,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize, uint32_t flags, WT
         WT_STAT_CONN_INCR(session, log_slot_yield);
         time_stop = __wt_clock(session);
         usecs = WT_CLOCKDIFF_US(time_stop, time_start);
-        WT_STAT_CONN_INCRV(session, log_slot_yield_duration, usecs);
+        WT_STAT_CONN_INCRV(session->metadata, log_slot_yield_duration, usecs);
         if (closed)
             WT_STAT_CONN_INCR(session, log_slot_yield_close);
         if (raced)

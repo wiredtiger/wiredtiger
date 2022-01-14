@@ -300,7 +300,7 @@ __wt_block_compact_page_rewrite(
     *addr_sizep = WT_PTRDIFF(endp, addr);
 
     WT_STAT_CONN_INCR(session, block_write);
-    WT_STAT_CONN_INCRV(session, block_byte_write, size);
+    WT_STAT_CONN_INCRV(session->metadata, block_byte_write, size);
 
     discard_block = false;
 

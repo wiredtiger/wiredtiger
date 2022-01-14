@@ -2013,8 +2013,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
             break;
         }
     }
-    WT_STAT_CONN_INCRV(session, txn_prepared_updates, prepared_updates);
-    WT_STAT_CONN_INCRV(session, txn_prepared_updates_key_repeated, prepared_updates_key_repeated);
+    WT_STAT_CONN_INCRV(session->metadata, txn_prepared_updates, prepared_updates);
+    WT_STAT_CONN_INCRV(session->metadata, txn_prepared_updates_key_repeated, prepared_updates_key_repeated);
 #ifdef HAVE_DIAGNOSTIC
     txn->prepare_count = prepared_updates;
 #endif

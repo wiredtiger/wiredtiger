@@ -178,15 +178,15 @@ __wt_stats_clear(void *stats_arg, int slot)
     } while (0)
 #define WT_STAT_DECR(session, stats, fld) WT_STAT_DECRV(session, stats, fld, 1)
 
-#define WT_STAT_INCRV(session, stats, fld, value)                                 \
+#define WT_STAT_INCRV(metadata, stats, fld, value)                                 \
     do {                                                                          \
-        WT_STAT_INCRV_BASE(session->metadata, (stats)[(session)->stat_bucket], fld, value); \
+        WT_STAT_INCRV_BASE(metadata, (stats)[(metadata).stat_bucket], fld, value); \
     } while (0)
 #define WT_STAT_INCRV_ATOMIC(session, stats, fld, value)                                 \
     do {                                                                                 \
         WT_STAT_INCRV_ATOMIC_BASE(session, (stats)[(session)->stat_bucket], fld, value); \
     } while (0)
-#define WT_STAT_INCR(session, stats, fld) WT_STAT_INCRV(session, stats, fld, 1)
+#define WT_STAT_INCR(session, stats, fld) WT_STAT_INCRV(session->metadata, stats, fld, 1)
 #define WT_STAT_SET(session, stats, fld, value)                            \
     do {                                                                   \
         if (WT_STAT_ENABLED(session->metadata)) {                          \
@@ -204,11 +204,11 @@ __wt_stats_clear(void *stats_arg, int slot)
     WT_STAT_DECRV_ATOMIC_BASE(session, S2C(session)->stats[(session)->stat_bucket], fld, 1)
 #define WT_STAT_CONN_DECR(session, fld) WT_STAT_CONN_DECRV(session, fld, 1)
 
-#define WT_STAT_CONN_INCRV(session, fld, value) \
-    WT_STAT_INCRV_BASE(session->metadata, S2C(session)->stats[(session)->stat_bucket], fld, value)
+#define WT_STAT_CONN_INCRV(metadata, fld, value) \
+    WT_STAT_INCRV_BASE(metadata, M2C(metadata)->stats[(metadata).stat_bucket], fld, value)
 #define WT_STAT_CONN_INCR_ATOMIC(session, fld) \
     WT_STAT_INCRV_ATOMIC_BASE(session, S2C(session)->stats[(session)->stat_bucket], fld, 1)
-#define WT_STAT_CONN_INCR(session, fld) WT_STAT_CONN_INCRV(session, fld, 1)
+#define WT_STAT_CONN_INCR(session, fld) WT_STAT_CONN_INCRV(session->metadata, fld, 1)
 
 #define WT_STAT_CONN_SET(session, fld, value) WT_STAT_SET(session, S2C(session)->stats, fld, value)
 
@@ -228,7 +228,7 @@ __wt_stats_clear(void *stats_arg, int slot)
 #define WT_STAT_DATA_INCRV(session, fld, value)                                   \
     do {                                                                          \
         if ((session)->dhandle != NULL && (session)->dhandle->stat_array != NULL) \
-            WT_STAT_INCRV(session, (session)->dhandle->stats, fld, value);        \
+            WT_STAT_INCRV(session->metadata, (session)->dhandle->stats, fld, value);        \
     } while (0)
 #define WT_STAT_DATA_INCR(session, fld) WT_STAT_DATA_INCRV(session, fld, 1)
 #define WT_STAT_DATA_SET(session, fld, value)                                     \
@@ -251,7 +251,7 @@ __wt_stats_clear(void *stats_arg, int slot)
 
 #define WT_STAT_CONN_DATA_INCRV(session, fld, value) \
     do {                                             \
-        WT_STAT_CONN_INCRV(session, fld, value);     \
+        WT_STAT_CONN_INCRV(session->metadata, fld, value); \
         WT_STAT_DATA_INCRV(session, fld, value);     \
     } while (0)
 #define WT_STAT_CONN_DATA_INCR(session, fld) WT_STAT_CONN_DATA_INCRV(session, fld, 1)

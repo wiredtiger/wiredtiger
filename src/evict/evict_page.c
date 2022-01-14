@@ -204,11 +204,11 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         if (clean_page) {
             WT_STAT_CONN_INCR(session, cache_eviction_force_clean);
             WT_STAT_CONN_INCRV(
-              session, cache_eviction_force_clean_time, WT_CLOCKDIFF_US(time_stop, time_start));
+              session->metadata, cache_eviction_force_clean_time, WT_CLOCKDIFF_US(time_stop, time_start));
         } else {
             WT_STAT_CONN_INCR(session, cache_eviction_force_dirty);
             WT_STAT_CONN_INCRV(
-              session, cache_eviction_force_dirty_time, WT_CLOCKDIFF_US(time_stop, time_start));
+              session->metadata, cache_eviction_force_dirty_time, WT_CLOCKDIFF_US(time_stop, time_start));
         }
     }
     if (clean_page)
@@ -231,7 +231,7 @@ err:
                 WT_STAT_CONN_INCR(session, cache_eviction_force_hs_fail);
             WT_STAT_CONN_INCR(session, cache_eviction_force_fail);
             WT_STAT_CONN_INCRV(
-              session, cache_eviction_force_fail_time, WT_CLOCKDIFF_US(time_stop, time_start));
+              session->metadata, cache_eviction_force_fail_time, WT_CLOCKDIFF_US(time_stop, time_start));
         }
 
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_fail);

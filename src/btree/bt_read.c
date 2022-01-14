@@ -399,6 +399,6 @@ skip_evict:
                 continue;
         }
         __wt_spin_backoff(&yield_cnt, &sleep_usecs);
-        WT_STAT_CONN_INCRV(session, page_sleep, sleep_usecs);
+        WT_STAT_CONN_INCRV(session->metadata, page_sleep, sleep_usecs);
     }
 }

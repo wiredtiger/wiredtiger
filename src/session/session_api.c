@@ -115,9 +115,9 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
     F_SET(session, WT_SESSION_CACHE_CURSORS);
 
     WT_STAT_CONN_INCR(session, cursor_sweep);
-    WT_STAT_CONN_INCRV(session, cursor_sweep_buckets, nbuckets);
-    WT_STAT_CONN_INCRV(session, cursor_sweep_examined, nexamined);
-    WT_STAT_CONN_INCRV(session, cursor_sweep_closed, nclosed);
+    WT_STAT_CONN_INCRV(session->metadata, cursor_sweep_buckets, nbuckets);
+    WT_STAT_CONN_INCRV(session->metadata, cursor_sweep_examined, nexamined);
+    WT_STAT_CONN_INCRV(session->metadata, cursor_sweep_closed, nclosed);
 
     WT_ASSERT(session, session->dhandle == saved_dhandle);
     return (ret);

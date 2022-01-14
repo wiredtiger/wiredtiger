@@ -113,7 +113,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
             time_stop = __wt_clock(session);
             time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
             WT_STAT_CONN_INCR(session, cache_read_app_count);
-            WT_STAT_CONN_INCRV(session, cache_read_app_time, time_diff);
+            WT_STAT_CONN_INCRV(session->metadata, cache_read_app_time, time_diff);
             WT_STAT_SESSION_INCRV(session, read_time, time_diff);
         }
 
@@ -374,7 +374,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
         time_stop = __wt_clock(session);
         time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
         WT_STAT_CONN_INCR(session, cache_write_app_count);
-        WT_STAT_CONN_INCRV(session, cache_write_app_time, time_diff);
+        WT_STAT_CONN_INCRV(session->metadata, cache_write_app_time, time_diff);
         WT_STAT_SESSION_INCRV(session, write_time, time_diff);
     }
 

@@ -305,7 +305,7 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
         for (i = 0; i < WT_LSM_MAX_WORKERS; i++)
             WT_TRET(__wt_session_close_internal(manager->lsm_worker_cookies[i].session));
     }
-    WT_STAT_CONN_INCRV(session, lsm_work_units_discarded, removed);
+    WT_STAT_CONN_INCRV(session->metadata, lsm_work_units_discarded, removed);
 
     return (ret);
 }
@@ -495,7 +495,7 @@ __wt_lsm_manager_clear_tree(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
         __wt_lsm_manager_free_work_unit(session, current);
     }
     __wt_spin_unlock(session, &manager->manager_lock);
-    WT_STAT_CONN_INCRV(session, lsm_work_units_discarded, removed);
+    WT_STAT_CONN_INCRV(session->metadata, lsm_work_units_discarded, removed);
 }
 
 /*

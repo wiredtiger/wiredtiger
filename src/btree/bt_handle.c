@@ -817,7 +817,7 @@ __btree_preload(WT_SESSION_IMPL *session)
 err:
     __wt_scr_free(session, &tmp);
 
-    WT_STAT_CONN_INCRV(session, block_preload, block_preload);
+    WT_STAT_CONN_INCRV(session->metadata, block_preload, block_preload);
     return (ret);
 }
 

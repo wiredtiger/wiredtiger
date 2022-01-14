@@ -354,9 +354,9 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint3
     WT_RET(__wt_block_discard(session, block, align_size));
 
     WT_STAT_CONN_INCR(session, block_write);
-    WT_STAT_CONN_INCRV(session, block_byte_write, align_size);
+    WT_STAT_CONN_INCRV(session->metadata, block_byte_write, align_size);
     if (checkpoint_io)
-        WT_STAT_CONN_INCRV(session, block_byte_write_checkpoint, align_size);
+        WT_STAT_CONN_INCRV(session->metadata, block_byte_write_checkpoint, align_size);
 
     __wt_verbose(session, WT_VERB_WRITE, "off %" PRIuMAX ", size %" PRIuMAX ", checksum %#" PRIx32,
       (uintmax_t)offset, (uintmax_t)align_size, checksum);

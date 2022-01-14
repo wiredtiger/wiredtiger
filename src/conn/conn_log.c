@@ -69,7 +69,7 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
          * gradual.
          */
         __wt_spin_backoff(&yield_cnt, &sleep_usecs);
-        WT_STAT_CONN_INCRV(session, log_force_archive_sleep, sleep_usecs);
+        WT_STAT_CONN_INCRV(session->metadata, log_force_archive_sleep, sleep_usecs);
 
         WT_RET(WT_SESSION_CHECK_PANIC(tmp_session));
         WT_RET(__wt_log_truncate_files(tmp_session, NULL, true));

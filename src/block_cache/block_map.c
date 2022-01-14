@@ -123,7 +123,7 @@ __wt_blkcache_map_read(
 
         *foundp = true;
         WT_STAT_CONN_INCR(session, block_map_read);
-        WT_STAT_CONN_INCRV(session, block_byte_map_read, size);
+        WT_STAT_CONN_INCRV(session->metadata, block_byte_map_read, size);
     }
 
     return (0);

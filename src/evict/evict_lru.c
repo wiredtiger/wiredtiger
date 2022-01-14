@@ -1287,7 +1287,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
         }
     }
 
-    WT_STAT_CONN_INCRV(session, cache_eviction_pages_queued_post_lru, queue->evict_candidates);
+    WT_STAT_CONN_INCRV(session->metadata, cache_eviction_pages_queued_post_lru, queue->evict_candidates);
     queue->evict_current = queue->evict_queue;
     __wt_spin_unlock(session, &queue->evict_lock);
 
@@ -2037,7 +2037,7 @@ fast:
     WT_RET_NOTFOUND_OK(ret);
 
     *slotp += (u_int)(evict - start);
-    WT_STAT_CONN_INCRV(session, cache_eviction_pages_queued, (u_int)(evict - start));
+    WT_STAT_CONN_INCRV(session->metadata, cache_eviction_pages_queued, (u_int)(evict - start));
 
     __wt_verbose(session, WT_VERB_EVICTSERVER, "%s walk: seen %" PRIu64 ", queued %" PRIu64,
       session->dhandle->name, pages_seen, pages_queued);
@@ -2084,13 +2084,13 @@ fast:
         btree->evict_ref = ref;
     }
 
-    WT_STAT_CONN_INCRV(session, cache_eviction_walk, refs_walked);
+    WT_STAT_CONN_INCRV(session->metadata, cache_eviction_walk, refs_walked);
     WT_STAT_CONN_DATA_INCRV(session, cache_eviction_pages_seen, pages_seen);
-    WT_STAT_CONN_INCRV(session, cache_eviction_pages_already_queued, pages_already_queued);
-    WT_STAT_CONN_INCRV(session, cache_eviction_internal_pages_seen, internal_pages_seen);
+    WT_STAT_CONN_INCRV(session->metadata, cache_eviction_pages_already_queued, pages_already_queued);
+    WT_STAT_CONN_INCRV(session->metadata, cache_eviction_internal_pages_seen, internal_pages_seen);
     WT_STAT_CONN_INCRV(
-      session, cache_eviction_internal_pages_already_queued, internal_pages_already_queued);
-    WT_STAT_CONN_INCRV(session, cache_eviction_internal_pages_queued, internal_pages_queued);
+      session->metadata, cache_eviction_internal_pages_already_queued, internal_pages_already_queued);
+    WT_STAT_CONN_INCRV(session->metadata, cache_eviction_internal_pages_queued, internal_pages_queued);
     WT_STAT_CONN_DATA_INCR(session, cache_eviction_walk_passes);
     return (0);
 }
@@ -2315,7 +2315,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 
     if (time_start != 0) {
         time_stop = __wt_clock(session);
-        WT_STAT_CONN_INCRV(session, application_evict_time, WT_CLOCKDIFF_US(time_stop, time_start));
+        WT_STAT_CONN_INCRV(session->metadata, application_evict_time, WT_CLOCKDIFF_US(time_stop, time_start));
     }
     WT_TRACK_OP_END(session);
     return (ret);
@@ -2449,7 +2449,7 @@ err:
     if (time_start != 0) {
         time_stop = __wt_clock(session);
         elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
-        WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
+        WT_STAT_CONN_INCRV(session->metadata, application_cache_time, elapsed);
         WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
         session->cache_wait_us += elapsed;
         if (cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {

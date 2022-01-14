@@ -181,7 +181,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
          * times, start sleeping so we don't burn CPU to no purpose.
          */
         __wt_spin_backoff(&yield_count, &sleep_usecs);
-        WT_STAT_CONN_INCRV(session, page_del_rollback_blocked, sleep_usecs);
+        WT_STAT_CONN_INCRV(session->metadata, page_del_rollback_blocked, sleep_usecs);
     }
 
     /*

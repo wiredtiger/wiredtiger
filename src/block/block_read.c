@@ -166,7 +166,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
       (uintmax_t)offset, size, checksum);
 
     WT_STAT_CONN_INCR(session, block_read);
-    WT_STAT_CONN_INCRV(session, block_byte_read, size);
+    WT_STAT_CONN_INCRV(session->metadata, block_byte_read, size);
 
     /*
      * Grow the buffer as necessary and read the block. Buffers should be aligned for reading, but
