@@ -613,7 +613,7 @@ prepare_transaction(TINFO *tinfo)
 
 /*
  * OP_FAILED --
- *	General error handling.
+ *	Error handling.
  */
 #define OP_FAILED(notfound_ok)                                                                \
     do {                                                                                      \
@@ -622,18 +622,6 @@ prepare_transaction(TINFO *tinfo)
             return (WT_ROLLBACK);                                                             \
         testutil_assert(                                                                      \
           (notfound_ok && ret == WT_NOTFOUND) || ret == WT_CACHE_FULL || ret == WT_ROLLBACK); \
-    } while (0)
-
-/*
- * Rollback updates returning prepare-conflict, they're unlikely to succeed unless the prepare
- * aborts. Reads wait out the error, so it's unexpected.
- */
-#define READ_OP_FAILED(notfound_ok) OP_FAILED(notfound_ok)
-#define WRITE_OP_FAILED(notfound_ok)    \
-    do {                                \
-        if (ret == WT_PREPARE_CONFLICT) \
-            ret = WT_ROLLBACK;          \
-        OP_FAILED(notfound_ok);         \
     } while (0)
 
 /* Isolation configuration. */
@@ -694,7 +682,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
                 positioned = true;
                 SNAP_TRACK(tinfo, READ);
             } else
-                READ_OP_FAILED(true);
+                OP_FAILED(true);
         }
 
         /*
@@ -717,7 +705,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
                 positioned = true;
                 __wt_yield(); /* Encourage races */
             } else
-                WRITE_OP_FAILED(true);
+                OP_FAILED(true);
         }
     }
 
@@ -738,7 +726,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         if (ret == 0) {
             SNAP_TRACK(tinfo, INSERT);
         } else
-            WRITE_OP_FAILED(false);
+            OP_FAILED(false);
         break;
     case MODIFY:
         switch (table->type) {
@@ -759,7 +747,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
             positioned = true;
             SNAP_TRACK(tinfo, MODIFY);
         } else
-            WRITE_OP_FAILED(true);
+            OP_FAILED(true);
         break;
     case READ:
         ++tinfo->search;
@@ -768,7 +756,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
             positioned = true;
             SNAP_TRACK(tinfo, READ);
         } else
-            READ_OP_FAILED(true);
+            OP_FAILED(true);
         break;
     case REMOVE:
         ++tinfo->remove;
@@ -788,7 +776,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
              */
             SNAP_TRACK(tinfo, REMOVE);
         } else
-            WRITE_OP_FAILED(true);
+            OP_FAILED(true);
         break;
     case TRUNCATE:
         ++tinfo->truncate;
@@ -805,7 +793,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         if (ret == 0) {
             SNAP_TRACK(tinfo, TRUNCATE);
         } else
-            WRITE_OP_FAILED(false);
+            OP_FAILED(false);
         break;
     case UPDATE:
         ++tinfo->update;
@@ -822,7 +810,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
             positioned = true;
             SNAP_TRACK(tinfo, UPDATE);
         } else
-            WRITE_OP_FAILED(false);
+            OP_FAILED(false);
         break;
     }
 
@@ -837,7 +825,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
             if ((ret = nextprev(tinfo, next)) == 0)
                 continue;
 
-            READ_OP_FAILED(true);
+            OP_FAILED(true);
             break;
         }
     }
