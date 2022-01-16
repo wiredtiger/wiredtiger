@@ -77,7 +77,7 @@ hs_cursor(void *arg)
          * blocking normal operations.
          */
         next = mmrand(NULL, 0, 1) == 1;
-        for (i = mmrand(NULL, 1, 100000); i > 0; ++i) {
+        for (i = mmrand(NULL, 1000, 100000); i > 0; --i) {
             if ((ret = (next ? cursor->next(cursor) : cursor->prev(cursor))) != 0) {
                 testutil_assert(ret == WT_NOTFOUND || ret == WT_ROLLBACK || ret == WT_CACHE_FULL);
                 break;
