@@ -33,7 +33,7 @@ import wttest
 import wiredtiger
 from wtscenario import make_scenarios
 
-WT_TS_MAX = 18446744073709551615
+WT_TS_MAX = 2**64-1
 
 class test_cursor18(wttest.WiredTigerTestCase):
     uri = 'file:test_cursor18.wt'
@@ -51,6 +51,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
     
     def verify_value(self, version_cursor, expected_start_ts, expected_start_durable_ts, expected_stop_ts, expected_stop_durable_ts, expected_type, expected_prepare_state, expected_flags, expected_location, expected_value):
         values = version_cursor.get_values()
+        # Ignore the transaction ids from the value in the verification
         self.assertEquals(values[1], expected_start_ts)
         self.assertEquals(values[2], expected_start_durable_ts)
         self.assertEquals(values[4], expected_stop_ts)
@@ -400,3 +401,37 @@ class test_cursor18(wttest.WiredTigerTestCase):
             self.pr('got expected exception: ' + str(e))
             self.assertTrue(str(e).find('WT_ROLLBACK') >= 0)
         self.assertTrue(gotException, msg = 'expected exception')
+    
+    def test_concurrent_insert(self):
+        self.create()
+
+        cursor = self.session.open_cursor(self.uri, None)
+        # Add a value to the update chain
+        self.session.begin_transaction()
+        cursor[1] = 0
+        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(1))
+
+        # Update the value
+        self.session.begin_transaction()
+        cursor[1] = 1
+        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
+
+        # Open a version cursor
+        self.session.begin_transaction("read_timestamp=" + self.timestamp_str(1))
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
+        version_cursor.set_key(1)
+        self.assertEquals(version_cursor.search(), 0)
+        self.assertEquals(version_cursor.get_key(), 1)
+        self.verify_value(version_cursor, 5, 5, WT_TS_MAX, WT_TS_MAX, 3, 0, 0, 0, 1)
+
+        # Update the value
+        session2 = self.conn.open_session()
+        cursor2 = session2.open_cursor(self.uri, None)
+        session2.begin_transaction()
+        cursor2[1] = 2
+        session2.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
+
+        self.assertEquals(version_cursor.next(), 0)
+        self.assertEquals(version_cursor.get_key(), 1)
+        self.verify_value(version_cursor, 1, 1, 5, 5, 3, 0, 0, 0, 0)
+        self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)

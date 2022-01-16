@@ -33,7 +33,7 @@ import wttest
 import wiredtiger
 from wtscenario import make_scenarios
 
-WT_TS_MAX = 18446744073709551615
+WT_TS_MAX = 2**64-1
 
 class test_cursor19(wttest.WiredTigerTestCase):
     uri = 'file:test_cursor19.wt'
@@ -50,6 +50,7 @@ class test_cursor19(wttest.WiredTigerTestCase):
     
     def verify_value(self, version_cursor, expected_start_ts, expected_start_durable_ts, expected_stop_ts, expected_stop_durable_ts, expected_type, expected_prepare_state, expected_flags, expected_location, expected_value):
         values = version_cursor.get_values()
+        # Ignore the transaction ids from the value in the verification
         self.assertEquals(values[1], expected_start_ts)
         self.assertEquals(values[2], expected_start_durable_ts)
         self.assertEquals(values[4], expected_stop_ts)
