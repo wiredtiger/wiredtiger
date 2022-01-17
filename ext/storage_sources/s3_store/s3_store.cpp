@@ -33,7 +33,10 @@
 #include <aws/core/Aws.h>
 #include <aws/s3-crt/S3CrtClient.h>
 #include "AwsBucketConn.h"
+
 #define UNUSED(x) (void)(x)
+
+
 
 /* s3 storage source structure. */
 typedef struct {
@@ -54,11 +57,11 @@ typedef struct {
 
 typedef struct s3_file_handle {
     WT_FILE_HANDLE iface; /* Must come first */
-    S3_STORAGE *s3; /* Enclosing storage source */
+    S3_STORAGE *s3;       /* Enclosing storage source */
     WT_FILE_HANDLE *fh;   /* File handle */
 
 } S3_FILE_HANDLE;
- 
+
 /* Configuration variables for connecting to S3CrtClient. */
 Aws::String region = Aws::Region::US_EAST_1;
 const double throughput_target_gbps = 5;
@@ -68,7 +71,7 @@ static int s3_customize_file_system(
   WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
 static int s3_add_reference(WT_STORAGE_SOURCE *);
 
-bool s3_list_buckets(const Aws::S3Crt::S3CrtClient &s3CrtClient);
+// bool s3_list_buckets(const Aws::S3Crt::S3CrtClient &s3CrtClient);
 
 /*
  * s3_customize_file_system --
@@ -89,41 +92,47 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     UNUSED(config);
     UNUSED(file_systemp);
 
-    /* Setting SDK options. */
-    Aws::SDKOptions options;    
     Aws::S3Crt::ClientConfiguration aws_config;
     aws_config.region = region;
     aws_config.throughputTargetGbps = throughput_target_gbps;
     aws_config.partSize = part_size;
-    
-    AwsBucketConn conn = AwsBucketConn(aws_config, options);
 
-    conn.initBucketConn();
+    awsBucketConn conn(aws_config);
     conn.s3_list_buckets();
+    // conn.set_test(aws_config);
+    // Aws::S3Crt::S3CrtClient m_s3_crt_client;
+
+    // Aws::S3Crt::S3CrtClient s3_crt_client(aws_config);
+
+    // s3_list_buckets(aws_config);
+
+    // conn.initBucketConn();
+    // std::cout << "List buckets" << std::endl;
+    // conn.s3_list_buckets();
 
     return 0;
 }
 
-// /* s3_list_buckets --
-//  *      List all Amazon Simple Storage Service (Amazon S3) buckets under the account.
-//  */
-// bool
-// s3_list_buckets(const Aws::S3Crt::S3CrtClient &s3CrtClient)
-// {
-//     Aws::S3Crt::Model::ListBucketsOutcome outcome = s3CrtClient.ListBuckets();
+/* s3_list_buckets --
+ *      List all Amazon Simple Storage Service (Amazon S3) buckets under the account.
+ */
+bool
+s3_list_buckets(const Aws::S3Crt::S3CrtClient &s3CrtClient)
+{
+    Aws::S3Crt::Model::ListBucketsOutcome outcome = s3CrtClient.ListBuckets();
 
-//     if (outcome.IsSuccess()) {
-//         std::cout << "All buckets under my account:" << std::endl;
-//         for (auto const &bucket : outcome.GetResult().GetBuckets()) {
-//             std::cout << "  * " << bucket.GetName() << std::endl;
-//         }
-//         std::cout << std::endl;
-//         return true;
-//     } else {
-//         std::cout << "ListBuckets error:\n" << outcome.GetError() << std::endl << std::endl;
-//         return false;
-//     }
-// }
+    if (outcome.IsSuccess()) {
+        std::cout << "All buckets under my account:" << std::endl;
+        for (auto const &bucket : outcome.GetResult().GetBuckets()) {
+            std::cout << "  * " << bucket.GetName() << std::endl;
+        }
+        std::cout << std::endl;
+        return true;
+    } else {
+        std::cout << "ListBuckets error:\n" << outcome.GetError() << std::endl << std::endl;
+        return false;
+    }
+}
 
 /*
  * s3_add_reference --
@@ -154,6 +163,11 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     }
     s3->wt_api = connection->get_extension_api(connection);
     UNUSED(config);
+
+    /* Setting SDK options. */
+    Aws::SDKOptions options;
+    Aws::InitAPI(options);
+
     /*
      * Allocate a s3 storage structure, with a WT_STORAGE structure as the first field, allowing
      * us to treat references to either type of structure as a reference to the other type.
@@ -162,8 +176,8 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     s3->storage_source.ss_add_reference = s3_add_reference;
 
     /* Load the storage */
-    if ((ret = connection->add_storage_source(
-           connection, "s3_store", &s3->storage_source, NULL)) != 0) {
+    if ((ret = connection->add_storage_source(connection, "s3_store", &s3->storage_source, NULL)) !=
+      0) {
         free(s3);
     }
     return (ret);

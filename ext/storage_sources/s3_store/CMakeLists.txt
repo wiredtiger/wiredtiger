@@ -48,8 +48,8 @@ target_include_directories(
     PRIVATE
         ${CMAKE_SOURCE_DIR}/src/include
         ${CMAKE_BINARY_DIR}/include    
-        ${CMAKE_BINARY_DIR}/config 
-        ${CMAKE_CURRENT_SOURCE_DIR}/AwsBucketConn.h 
+        ${CMAKE_BINARY_DIR}/config
+        ${CMAKE_CURRENT_SOURCE_DIR}
         ${AWSSDK_INCLUDE_DIRS}    
 )
 target_link_libraries(
