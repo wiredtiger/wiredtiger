@@ -1648,6 +1648,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 {
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
+    WT_BTREE *btree;
     bool modified;
 
     if (inmem_splitp != NULL)
@@ -1655,6 +1656,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 
     page = ref->page;
     mod = page->modify;
+    btree = S2BT(session);
 
     /* Never modified pages can always be evicted. */
     if (mod == NULL)
@@ -1692,7 +1694,11 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     }
 
     modified = __wt_page_is_modified(page);
+    if (modified)
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_modify);
 
+    if (__wt_btree_syncing_by_other_session(session))
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_sync);
     /*
      * If the file is being checkpointed, other threads can't evict dirty pages: if a page is
      * written and the previous version freed, that previous version might be referenced by an
@@ -1703,11 +1709,6 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
         return (false);
     }
 
-    if (modified)
-        WT_STAT_CONN_DATA_INCR(session, cache_eviction_modify);
-
-    if (__wt_btree_syncing_by_other_session(session))
-        WT_STAT_CONN_DATA_INCR(session, cache_eviction_sync);
 
     /*
      * Check we are not evicting an accessible internal page with an active split generation.
