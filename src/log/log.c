@@ -898,7 +898,7 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, WT_LSN *ls
      * We error if the log version is less than the required minimum or larger than the required
      * maximum.
      */
-    if (conn->req_max_major != WT_CONN_COMPAT_NONE && desc->version > conn->log_req_max)
+    if (__wt_version_ne(conn->req_max_version, WT_CONN_COMPAT_NONE_VERSION) && desc->version > conn->log_req_max)
         WT_ERR_MSG(session, WT_ERROR,
           WT_COMPAT_MSG_PREFIX
           "unsupported WiredTiger file version: this build requires a maximum version of %" PRIu16

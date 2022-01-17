@@ -44,6 +44,7 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    // FIXME WT-8673 - clean up to use WT_VERSION
     uint16_t max_major, max_minor, min_major, min_minor;
     uint16_t rel_major, rel_minor;
     char *value;
@@ -130,14 +131,16 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
      * On a reconfigure, check the new release version against any required maximum version set on
      * open.
      */
-    if (reconfig && conn->req_max_major != WT_CONN_COMPAT_NONE &&
-      (conn->req_max_major < rel_major ||
-        (conn->req_max_major == rel_major && conn->req_max_minor < rel_minor)))
+    // FIXME WT-8673 - clean up with the above
+    if (reconfig && __wt_version_ne(conn->req_max_version, WT_CONN_COMPAT_NONE_VERSION) &&
+      (conn->req_max_version.major < rel_major ||
+        (conn->req_max_version.major == rel_major && conn->req_max_version.minor < rel_minor)))
+        // FIXME - WT-8673 - add PRI_VERSION macro?
         WT_RET_MSG(session, ENOTSUP,
-          WT_COMPAT_MSG_PREFIX "required max of %" PRIu16 ".%" PRIu16
+          WT_COMPAT_MSG_PREFIX "required max of %" PRIu32 ".%" PRIu32
                                "cannot be smaller than requested compatibility release %" PRIu16
                                ".%" PRIu16,
-          conn->req_max_major, conn->req_max_minor, rel_major, rel_minor);
+          conn->req_max_version.major, conn->req_max_version.minor, rel_major, rel_minor);
 
     /*
      * On a reconfigure, check the new release version against any required minimum version set on
@@ -198,8 +201,8 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
         ret = 0;
 
 done:
-    conn->req_max_major = max_major;
-    conn->req_max_minor = max_minor;
+    // FIXME WT-8673 - handle patch version
+    conn->req_max_version = (WT_VERSION) {max_major, max_minor, 0};
     conn->req_min_major = min_major;
     conn->req_min_minor = min_minor;
 err:

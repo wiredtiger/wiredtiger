@@ -116,7 +116,8 @@ __wt_logmgr_compat_version(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
-    __logmgr_set_majmin(conn->req_max_major, conn->req_max_minor, &conn->log_req_max);
+    // FIXME WT-8673 - clean up to take WT_VERSION
+    __logmgr_set_majmin(conn->req_max_version.major, conn->req_max_version.minor, &conn->log_req_max);
     __logmgr_set_majmin(conn->req_min_major, conn->req_min_minor, &conn->log_req_min);
 }
 
