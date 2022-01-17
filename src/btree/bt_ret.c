@@ -102,7 +102,7 @@ __wt_read_row_time_window(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, 
  * __wt_col_fix_get_time_window --
  *     Look for a time window on a fixed-length column page.
  */
-bool
+static bool
 __wt_col_fix_get_time_window(
   WT_SESSION_IMPL *session, WT_REF *ref, uint64_t recno, WT_TIME_WINDOW *tw)
 {

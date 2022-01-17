@@ -563,7 +563,7 @@ __wt_cursor_set_value(WT_CURSOR *cursor, ...)
 
 /*
  * __wt_cursor_set_value_with_format --
- *     set cursor value with the given format.
+ *     Set cursor value with the given format.
  */
 void
 __wt_cursor_set_value_with_format(WT_CURSOR *cursor, const char *fmt, ...)
