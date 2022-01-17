@@ -496,7 +496,7 @@ __recovery_set_checkpoint_snapshot(WT_SESSION_IMPL *session)
      * turtle file), so there isn't always a WiredTiger version available. If there is no version
      * available, assume that the snapshot is valid, otherwise restoring from a backup won't work.
      */
-    if (__wt_version_ne(conn->recovery_version, WT_NO_VERSION) &&
+    if (__wt_version_defined(conn->recovery_version) &&
       __wt_version_lt(conn->recovery_version, (WT_VERSION){10, 0, 1}))
         return (0);
 

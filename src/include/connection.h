@@ -273,13 +273,14 @@ __wt_version_eq(WT_VERSION version, WT_VERSION other)
 }
 
 /*
- * __wt_version_ne --
- *     Return true if the two provided versions are not equal.
+ * __wt_version_defined --
+ *     Return true if the version has been properly defined with non-default values. Valid versions
+ *     do not require the patch version to be set.
  */
 static inline bool
-__wt_version_ne(WT_VERSION version, WT_VERSION other)
+__wt_version_defined(WT_VERSION version)
 {
-    return __wt_version_cmp(version, other) != 0;
+    return version.major != WT_NO_VALUE && version.minor != WT_NO_VALUE;
 }
 
 /*

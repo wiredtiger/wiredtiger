@@ -85,7 +85,7 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
 static uint16_t
 __logmgr_get_log_version(WT_VERSION version)
 {
-    if (__wt_version_ne(version, WT_NO_VERSION)) {
+    if (__wt_version_defined(version)) {
         if (__wt_version_lt(version, WT_LOG_V2_VERSION))
             return 1;
         if (__wt_version_lt(version, WT_LOG_V3_VERSION))
