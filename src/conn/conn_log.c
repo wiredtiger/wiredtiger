@@ -97,7 +97,9 @@ __logmgr_get_log_version(WT_VERSION version)
         return WT_LOG_VERSION;
     }
 
-    return WT_LOG_NO_VERSION;
+    // FIXME WT-8673 - return 1 (original log version) according to the existing 
+    // logic in __logmgr_version, but does this make sense?
+    return 1;
 }
 
 /*
@@ -141,24 +143,14 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
      * Note: downgrade in this context means the new version is not the latest possible version. It
      * does not mean the direction of change from the release we may be running currently.
      */
-    if (conn->compat_version.major == WT_LOG_V5_MAJOR) {
-        new_version = WT_LOG_VERSION;
+    new_version = __logmgr_get_log_version(conn->compat_version);
+    downgrade = new_version != WT_LOG_VERSION;
+    // FIXME WT-8673 - if WT_MIN_STARTUP_VERSION can be followed (see other FIXME) then there 
+    // is no need to check if new_version is greater than 1
+    if (new_version > 1)
         first_record = WT_LOG_END_HEADER + log->allocsize;
-        downgrade = false;
-    } else if (conn->compat_version.major == WT_LOG_V4_MAJOR) {
-        if (conn->compat_version.minor == WT_LOG_V4_MINOR)
-            new_version = 4;
-        else if (conn->compat_version.minor > WT_LOG_V2_MINOR)
-            new_version = 3;
-        else
-            new_version = 2;
-        first_record = WT_LOG_END_HEADER + log->allocsize;
-        downgrade = true;
-    } else {
-        new_version = 1;
+    else
         first_record = WT_LOG_END_HEADER;
-        downgrade = true;
-    }
 
     __wt_logmgr_compat_version(session);
 

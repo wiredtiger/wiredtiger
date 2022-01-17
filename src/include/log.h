@@ -355,7 +355,6 @@ struct __wt_log_desc {
                          * through 5.
                          */
 #define WT_LOG_VERSION 5
-#define WT_LOG_NO_VERSION UINT16_MAX
     uint16_t version;  /* 04-05: Log version */
     uint16_t unused;   /* 06-07: Unused */
     uint64_t log_size; /* 08-15: Log file size */
@@ -374,16 +373,6 @@ struct __wt_log_desc {
 #define WT_LOG_V3_VERSION ((WT_VERSION){3, 1, 0})
 #define WT_LOG_V4_VERSION ((WT_VERSION){3, 3, 0})
 #define WT_LOG_V5_VERSION ((WT_VERSION){10, 0, 0})
-
-// FIXME WT-8673 - remove these when the versions above are fully in use
-#define WT_LOG_V2_MAJOR 3
-#define WT_LOG_V2_MINOR 0
-#define WT_LOG_V3_MAJOR 3
-#define WT_LOG_V3_MINOR 1
-#define WT_LOG_V4_MAJOR 3
-#define WT_LOG_V4_MINOR 3
-#define WT_LOG_V5_MAJOR 10
-#define WT_LOG_V5_MINOR 0
 
 /*
  * __wt_log_desc_byteswap --
