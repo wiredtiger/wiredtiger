@@ -358,9 +358,7 @@ runtime_monitor::finish()
 void
 runtime_monitor::save_stats(const std::string &filename)
 {
-    std::string stat_info;
-    std::ofstream file(filename + ".json");
-    file << "[{\"info\":{\"test_name\": \"" << filename << "\"},\"metrics\": [";
+    std::string stat_info = "[{\"info\":{\"test_name\": \"" + filename + "\"},\"metrics\": [";
 
     for (const auto &stat : _stats) {
         if (stat->get_save())
@@ -373,6 +371,7 @@ runtime_monitor::save_stats(const std::string &filename)
         stat_info.pop_back();
     }
 
+    std::ofstream file(filename + ".json");
     file << stat_info << "]}]";
     file.close();
 }
