@@ -218,9 +218,9 @@ struct __wt_name_flag {
  *	Representation of WiredTiger version information.
  */
 struct __wt_version {
-    uint32_t major;
-    uint32_t minor;
-    uint32_t patch;
+    uint16_t major;
+    uint16_t minor;
+    uint16_t patch;
 };
 
 /*
@@ -237,7 +237,7 @@ struct __wt_version {
 static inline int32_t
 __wt_version_cmp(WT_VERSION version, WT_VERSION other)
 {
-    // FIXME WT-8673 - See if we can assert major/minor values as non-null after Will's __eventv fix 
+    // FIXME WT-8673 - See if we can assert major/minor values as non-null without needing to pass in session 
 
     /*
      * The patch version is not always set for both inputs. In these cases we ignore comparison of

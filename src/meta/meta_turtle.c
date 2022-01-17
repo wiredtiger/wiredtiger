@@ -164,7 +164,7 @@ __wt_turtle_validate_version(WT_SESSION_IMPL *session)
     if (ret != 0)
         WT_ERR_MSG(session, ret, "Unable to read version string from turtle file");
 
-    if ((ret = sscanf(version_string, "major=%u,minor=%u,patch=%u", &version.major, &version.minor,
+    if ((ret = sscanf(version_string, "major=%hu,minor=%hu,patch=%hu", &version.major, &version.minor,
            &version.patch)) != 3)
         WT_ERR_MSG(session, ret, "Unable to parse turtle file version string");
 
