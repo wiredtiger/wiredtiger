@@ -1480,13 +1480,6 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
 
-  - name: unit-test-with-compile
-    tags: ["python"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - func: "unit test"
-
   - name: unit-test-zstd
     tags: ["python"]
     depends_on:
