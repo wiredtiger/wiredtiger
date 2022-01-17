@@ -32,7 +32,7 @@
 #include <iostream>
 #include <aws/core/Aws.h>
 #include <aws/s3-crt/S3CrtClient.h>
-
+#include "AwsBucketConn.h"
 #define UNUSED(x) (void)(x)
 
 /* s3 storage source structure. */
@@ -90,40 +90,40 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     UNUSED(file_systemp);
 
     /* Setting SDK options. */
-    Aws::SDKOptions options;
-    Aws::InitAPI(options);
+    Aws::SDKOptions options;    
     Aws::S3Crt::ClientConfiguration aws_config;
-
     aws_config.region = region;
     aws_config.throughputTargetGbps = throughput_target_gbps;
     aws_config.partSize = part_size;
     
-    Aws::S3Crt::S3CrtClient s3_crt_client(aws_config);
-    s3_list_buckets(aws_config);
+    AwsBucketConn conn = AwsBucketConn(aws_config, options);
+
+    conn.initBucketConn();
+    conn.s3_list_buckets();
 
     return 0;
 }
 
-/* s3_list_buckets --
- *      List all Amazon Simple Storage Service (Amazon S3) buckets under the account.
- */
-bool
-s3_list_buckets(const Aws::S3Crt::S3CrtClient &s3CrtClient)
-{
-    Aws::S3Crt::Model::ListBucketsOutcome outcome = s3CrtClient.ListBuckets();
+// /* s3_list_buckets --
+//  *      List all Amazon Simple Storage Service (Amazon S3) buckets under the account.
+//  */
+// bool
+// s3_list_buckets(const Aws::S3Crt::S3CrtClient &s3CrtClient)
+// {
+//     Aws::S3Crt::Model::ListBucketsOutcome outcome = s3CrtClient.ListBuckets();
 
-    if (outcome.IsSuccess()) {
-        std::cout << "All buckets under my account:" << std::endl;
-        for (auto const &bucket : outcome.GetResult().GetBuckets()) {
-            std::cout << "  * " << bucket.GetName() << std::endl;
-        }
-        std::cout << std::endl;
-        return true;
-    } else {
-        std::cout << "ListBuckets error:\n" << outcome.GetError() << std::endl << std::endl;
-        return false;
-    }
-}
+//     if (outcome.IsSuccess()) {
+//         std::cout << "All buckets under my account:" << std::endl;
+//         for (auto const &bucket : outcome.GetResult().GetBuckets()) {
+//             std::cout << "  * " << bucket.GetName() << std::endl;
+//         }
+//         std::cout << std::endl;
+//         return true;
+//     } else {
+//         std::cout << "ListBuckets error:\n" << outcome.GetError() << std::endl << std::endl;
+//         return false;
+//     }
+// }
 
 /*
  * s3_add_reference --

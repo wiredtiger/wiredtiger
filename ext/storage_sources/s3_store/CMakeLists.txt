@@ -41,7 +41,7 @@ add_dependencies(aws-sdk::s3-crt aws-sdk)
 set(AWSSDK_INCLUDE_DIRS ${INSTALL_DIR}/include)
 set(AWSSDK_LINK_LIBRARIES aws-sdk::s3 aws-sdk::core aws-sdk::s3-crt)
 
-set(sources "s3_store.cpp")
+set(sources "s3_store.cpp" "AwsBucketConn.cpp")
 add_library(wiredtiger_s3_store MODULE ${sources})
 target_include_directories(
     wiredtiger_s3_store    
@@ -49,6 +49,7 @@ target_include_directories(
         ${CMAKE_SOURCE_DIR}/src/include
         ${CMAKE_BINARY_DIR}/include    
         ${CMAKE_BINARY_DIR}/config 
+        ${CMAKE_CURRENT_SOURCE_DIR}/AwsBucketConn.h 
         ${AWSSDK_INCLUDE_DIRS}    
 )
 target_link_libraries(
