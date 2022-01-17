@@ -41,9 +41,8 @@ __wt_version_cmp(WT_VERSION v, WT_VERSION other)
      * patch version by setting them both to the same value. The inputs are pass-by-value and will
      * not be modified by this.
      */
-    if (v.patch == WT_NO_VALUE || other.patch == WT_NO_VALUE) {
+    if (v.patch == WT_NO_VALUE || other.patch == WT_NO_VALUE)
         v.patch = other.patch = 0;
-    }
 
     if (v.major == other.major && v.minor == other.minor && v.patch == other.patch)
         return 0;
