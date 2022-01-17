@@ -237,8 +237,6 @@ struct __wt_version {
 static inline int32_t
 __wt_version_cmp(WT_VERSION version, WT_VERSION other)
 {
-    // FIXME WT-8673 - See if we can assert major/minor values as non-null without needing to pass in session 
-
     /*
      * The patch version is not always set for both inputs. In these cases we ignore comparison of
      * patch version by setting them both to the same value Structs are pass-by-value so this will

@@ -16,7 +16,6 @@ static int
 __conn_compat_parse(
   WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cvalp, uint16_t *majorp, uint16_t *minorp)
 {
-    // FIXME WT-8673 - pass in WT_VERSION* ?
     uint16_t unused_patch;
 
     /*
