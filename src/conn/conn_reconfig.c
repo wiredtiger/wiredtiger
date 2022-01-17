@@ -45,28 +45,28 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_VERSION release, min, max;
+    WT_VERSION new_compat, min_compat, max_compat;
     char *value;
     bool txn_active, unchg;
 
     conn = S2C(session);
     value = NULL;
-    release = min = max = WT_NO_VERSION;
+    new_compat = min_compat = max_compat = WT_NO_VERSION;
     unchg = false;
 
     WT_RET(__wt_config_gets(session, cfg, "compatibility.release", &cval));
     if (cval.len == 0) {
-        release.major = WIREDTIGER_VERSION_MAJOR;
-        release.minor = WIREDTIGER_VERSION_MINOR;
+        new_compat.major = WIREDTIGER_VERSION_MAJOR;
+        new_compat.minor = WIREDTIGER_VERSION_MINOR;
         F_CLR(conn, WT_CONN_COMPATIBILITY);
     } else {
-        WT_RET(__conn_compat_parse(session, &cval, &release.major, &release.minor));
+        WT_RET(__conn_compat_parse(session, &cval, &new_compat.major, &new_compat.minor));
 
         /*
          * If the user is running downgraded, then the compatibility string is part of the
          * configuration string. Determine if the user is actually changing the compatibility.
          */
-        if (reconfig && __wt_version_eq(release, conn->compat_version))
+        if (reconfig && __wt_version_eq(new_compat, conn->compat_version))
             unchg = true;
         else {
             /*
@@ -91,59 +91,63 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
      */
     WT_RET(__wt_config_gets(session, cfg, "compatibility.require_min", &cval));
     if (cval.len != 0)
-        WT_RET(__conn_compat_parse(session, &cval, &min.major, &min.minor));
+        WT_RET(__conn_compat_parse(session, &cval, &min_compat.major, &min_compat.minor));
 
     WT_RET(__wt_config_gets(session, cfg, "compatibility.require_max", &cval));
     if (cval.len != 0)
-        WT_RET(__conn_compat_parse(session, &cval, &max.major, &max.minor));
+        WT_RET(__conn_compat_parse(session, &cval, &max_compat.major, &max_compat.minor));
 
     /*
      * The maximum required must be greater than or equal to the compatibility release we're using
      * now. This is on an open and we're checking the two against each other. We'll check against
      * what was saved on a restart later.
      */
-    if (!reconfig && __wt_version_ne(max, WT_NO_VERSION) && __wt_version_lt(max, release))
+    if (!reconfig && __wt_version_ne(max_compat, WT_NO_VERSION) &&
+      __wt_version_lt(max_compat, new_compat))
         WT_RET_MSG(session, ENOTSUP,
           WT_COMPAT_MSG_PREFIX "required max of %" PRIu16 ".%" PRIu16
                                "cannot be smaller than compatibility release %" PRIu16 ".%" PRIu16,
-          max.major, max.minor, release.major, release.minor);
+          max_compat.major, max_compat.minor, new_compat.major, new_compat.minor);
 
     /*
      * The minimum required must be less than or equal to the compatibility release we're using now.
      * This is on an open and we're checking the two against each other. We'll check against what
      * was saved on a restart later.
      */
-    if (!reconfig && __wt_version_ne(min, WT_NO_VERSION) && __wt_version_gt(min, release))
+    if (!reconfig && __wt_version_ne(min_compat, WT_NO_VERSION) &&
+      __wt_version_gt(min_compat, new_compat))
         WT_RET_MSG(session, ENOTSUP,
           WT_COMPAT_MSG_PREFIX "required min of %" PRIu16 ".%" PRIu16
                                "cannot be larger than compatibility release %" PRIu16 ".%" PRIu16,
-          min.major, min.minor, release.major, release.minor);
+          min_compat.major, min_compat.minor, new_compat.major, new_compat.minor);
 
     /*
      * On a reconfigure, check the new release version against any required maximum version set on
      * open.
      */
     if (reconfig && __wt_version_ne(conn->req_max_version, WT_NO_VERSION) &&
-      __wt_version_lt(conn->req_max_version, release))
+      __wt_version_lt(conn->req_max_version, new_compat))
         WT_RET_MSG(session, ENOTSUP,
           WT_COMPAT_MSG_PREFIX "required max of %" PRIu16 ".%" PRIu16
                                "cannot be smaller than requested compatibility release %" PRIu16
                                ".%" PRIu16,
-          conn->req_max_version.major, conn->req_max_version.minor, release.major, release.minor);
+          conn->req_max_version.major, conn->req_max_version.minor, new_compat.major,
+          new_compat.minor);
 
     /*
      * On a reconfigure, check the new release version against any required minimum version set on
      * open.
      */
     if (reconfig && __wt_version_ne(conn->req_min_version, WT_NO_VERSION) &&
-      __wt_version_gt(conn->req_min_version, release))
+      __wt_version_gt(conn->req_min_version, new_compat))
         WT_RET_MSG(session, ENOTSUP,
           WT_COMPAT_MSG_PREFIX "required min of %" PRIu16 ".%" PRIu16
                                "cannot be larger than requested compatibility release %" PRIu16
                                ".%" PRIu16,
-          conn->req_min_version.major, conn->req_min_version.minor, release.major, release.minor);
+          conn->req_min_version.major, conn->req_min_version.minor, new_compat.major,
+          new_compat.minor);
 
-    conn->compat_version = release;
+    conn->compat_version = new_compat;
 
     /*
      * Only rewrite the turtle file if this is a reconfig. On startup it will get written as part of
@@ -158,36 +162,36 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
      * newly created database. We're done in those cases.
      */
     if (reconfig || conn->is_new ||
-      (__wt_version_eq(min, WT_NO_VERSION) && __wt_version_eq(min, WT_NO_VERSION)))
+      (__wt_version_eq(min_compat, WT_NO_VERSION) && __wt_version_eq(max_compat, WT_NO_VERSION)))
         goto done;
 
     /*
      * Check the minimum required against any saved compatibility version in the turtle file saved
      * from an earlier run.
      */
-    release = WT_NO_VERSION;
+    new_compat = WT_NO_VERSION;
     WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, WT_METADATA_COMPAT, &value), true);
     if (ret == 0) {
         WT_ERR(__wt_config_getones(session, value, "major", &cval));
-        release.major = (uint16_t)cval.val;
+        new_compat.major = (uint16_t)cval.val;
         WT_ERR(__wt_config_getones(session, value, "minor", &cval));
-        release.minor = (uint16_t)cval.val;
-        if (__wt_version_ne(max, WT_NO_VERSION) && __wt_version_lt(max, release))
+        new_compat.minor = (uint16_t)cval.val;
+        if (__wt_version_ne(max_compat, WT_NO_VERSION) && __wt_version_lt(max_compat, new_compat))
             WT_ERR_MSG(session, ENOTSUP,
               WT_COMPAT_MSG_PREFIX "required max of %" PRIu16 ".%" PRIu16
                                    "cannot be larger than saved release %" PRIu16 ".%" PRIu16,
-              max.major, max.minor, release.major, release.minor);
-        if (__wt_version_ne(min, WT_NO_VERSION) && __wt_version_gt(min, release))
+              max_compat.major, max_compat.minor, new_compat.major, new_compat.minor);
+        if (__wt_version_ne(min_compat, WT_NO_VERSION) && __wt_version_gt(min_compat, new_compat))
             WT_ERR_MSG(session, ENOTSUP,
               WT_COMPAT_MSG_PREFIX "required min of %" PRIu16 ".%" PRIu16
                                    "cannot be larger than saved release %" PRIu16 ".%" PRIu16,
-              min.major, min.minor, release.major, release.minor);
+              min_compat.major, min_compat.minor, new_compat.major, new_compat.minor);
     } else if (ret == WT_NOTFOUND)
         ret = 0;
 
 done:
-    conn->req_max_version = max;
-    conn->req_min_version = min;
+    conn->req_max_version = max_compat;
+    conn->req_min_version = min_compat;
 err:
     __wt_free(session, value);
 
