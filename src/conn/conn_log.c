@@ -89,7 +89,7 @@ __logmgr_set_majmin(uint16_t req_major, uint16_t req_minor, uint16_t *log_req)
     /*
      * Set up the maximum and minimum log version required if needed.
      */
-    if (req_major != WT_CONN_COMPAT_NONE) {
+    if (req_major != WT_NO_VALUE) {
         if (req_major == WT_LOG_V5_MAJOR)
             *log_req = WT_LOG_VERSION;
         else if (req_major == WT_LOG_V4_MAJOR)

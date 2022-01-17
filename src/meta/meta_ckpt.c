@@ -1369,12 +1369,13 @@ __ckpt_version_chk(WT_SESSION_IMPL *session, const char *fname, const char *conf
     WT_CONFIG_ITEM a, v;
     WT_VERSION version;
 
+    version = WT_NO_VERSION;
+
     WT_RET(__wt_config_getones(session, config, "version", &v));
     WT_RET(__wt_config_subgets(session, &v, "major", &a));
     version.major = (uint32_t)a.val;
     WT_RET(__wt_config_subgets(session, &v, "minor", &a));
     version.minor = (uint32_t)a.val;
-    version.patch = 0;
 
     if (__wt_version_gt(version, WT_BTREE_VERSION_MAX) ||
       __wt_version_lt(version, WT_BTREE_VERSION_MIN))

@@ -156,6 +156,8 @@ __wt_turtle_validate_version(WT_SESSION_IMPL *session)
     WT_VERSION version;
     char *version_string;
 
+    version = WT_NO_VERSION;
+
     WT_WITH_TURTLE_LOCK(
       session, ret = __wt_turtle_read(session, WT_METADATA_VERSION, &version_string));
 

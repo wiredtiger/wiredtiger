@@ -226,16 +226,28 @@ struct __wt_version {
 /*
  * WiredTiger version to use when none is present.
  */
-#define WT_NO_VERSION ((WT_VERSION){0, 0, 0}
+#define WT_NO_VALUE UINT16_MAX
+#define WT_NO_VERSION ((WT_VERSION){WT_NO_VALUE, WT_NO_VALUE, WT_NO_VALUE})
 
 /*
  * __wt_version_cmp --
  *     Compare two version numbers and return if the first version number is greater than, equal to,
  *     or less than the second. Return the value as an int similar to strcmp().
  */
-inline int32_t
+static inline int32_t
 __wt_version_cmp(WT_VERSION version, WT_VERSION other)
 {
+    // FIXME WT-8673 - See if we can assert major/minor values as non-null after Will's __eventv fix 
+
+    /*
+     * The patch version is not always set for both inputs. In these cases we ignore comparison of
+     * patch version by setting them both to the same value Structs are pass-by-value so this will
+     * not modify the versions being compared.
+     */
+    if (version.patch == WT_NO_VALUE || other.patch == WT_NO_VALUE) {
+        version.patch = other.patch = 0;
+    }
+
     if (version.major == other.major && version.minor == other.minor &&
       version.patch == other.patch)
         return 0;
@@ -352,10 +364,7 @@ struct __wt_connection_impl {
     bool unclean_shutdown; /* Flag to indicate the earlier shutdown status */
 #endif
 
-    WT_VERSION compat_version; /* WiredTiger version for compatibility checks */
-#define WT_CONN_COMPAT_NONE UINT16_MAX
-#define WT_CONN_COMPAT_NONE_VERSION ((WT_VERSION){UINT16_MAX, UINT16_MAX, UINT16_MAX})
-
+    WT_VERSION compat_version;  /* WiredTiger version for compatibility checks */
     WT_VERSION req_max_version; /* Maximum allowed version of WiredTiger for compatibility checks */
     WT_VERSION req_min_version; /* Minimum allowed version of WiredTiger for compatibility checks */
 
