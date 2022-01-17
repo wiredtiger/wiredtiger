@@ -26,11 +26,6 @@ for i in -d -t -w --language-force=C '-I WT_GCC_FUNC_ATTRIBUTE+'; do
 	fi
 done
 
-# Generate a tags file for the standard build directory.
-(cd ../build_posix &&
-rm -f tags &&
-ctags $flags ../src/include/*.in `find ../src -name '*.[ch]'` 2>/dev/null)
-
 # Generate a tags file for the src/include directory.
 (cd ../src/include &&
 rm -f tags &&
