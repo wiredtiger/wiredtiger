@@ -226,11 +226,7 @@ struct __wt_version {
 /*
  * WiredTiger version to use when none is present.
  */
-#define WT_NO_VERSION \
-    (WT_VERSION)      \
-    {                 \
-        0, 0, 0       \
-    }
+#define WT_NO_VERSION ((WT_VERSION){0, 0, 0}
 
 /*
  * __wt_version_cmp --
@@ -358,11 +354,8 @@ struct __wt_connection_impl {
 
     WT_VERSION compat_version; /* WiredTiger version for compatibility checks */
 #define WT_CONN_COMPAT_NONE UINT16_MAX
-#define WT_CONN_COMPAT_NONE_VERSION        \
-    (WT_VERSION)                           \
-    {                                      \
-        UINT16_MAX, UINT16_MAX, UINT16_MAX \
-    }
+#define WT_CONN_COMPAT_NONE_VERSION ((WT_VERSION){UINT16_MAX, UINT16_MAX, UINT16_MAX})
+
     WT_VERSION req_max_version; /* Maximum allowed version of WiredTiger for compatibility checks */
     WT_VERSION req_min_version; /* Minimum allowed version of WiredTiger for compatibility checks */
 
