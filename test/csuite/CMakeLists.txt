@@ -39,6 +39,8 @@ define_c_test(
     DIR_NAME rwlock
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_rwlock>/WT_HOME>
     DEPENDS "WT_POSIX"
+    ADDITIONAL_FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/time_shift_test.sh
 )
 
 define_c_test(
