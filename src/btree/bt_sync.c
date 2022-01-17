@@ -540,7 +540,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         btree->syncing = WT_BTREE_SYNC_RUNNING;
         if (is_hs)
             WT_STAT_CONN_SET(session, cache_checkpoint_state, btree->syncing);
-        
 
         /* Add in history store reconciliation for standard files. */
         rec_flags = WT_REC_CHECKPOINT;

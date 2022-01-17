@@ -453,6 +453,7 @@ struct __wt_connection_stats {
     int64_t cache_hazard_checks;
     int64_t cache_hazard_walks;
     int64_t cache_hazard_max;
+    int64_t cache_eviction_hs_pages_in_parallel_with_checkpoint;
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
     int64_t cache_hs_ondisk_max;

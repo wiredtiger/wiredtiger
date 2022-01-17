@@ -1189,6 +1189,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: hazard pointer check calls",
   "cache: hazard pointer check entries walked",
   "cache: hazard pointer maximum array length",
+  "cache: history store pages evicted in parallel with checkpoint",
   "cache: history store table insert calls",
   "cache: history store table insert calls that returned restart",
   "cache: history store table max on-disk size",
@@ -1757,6 +1758,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_hazard_checks = 0;
     stats->cache_hazard_walks = 0;
     stats->cache_hazard_max = 0;
+    stats->cache_eviction_hs_pages_in_parallel_with_checkpoint = 0;
     stats->cache_hs_insert = 0;
     stats->cache_hs_insert_restart = 0;
     /* not clearing cache_hs_ondisk_max */
@@ -2306,6 +2308,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_hazard_walks += WT_STAT_READ(from, cache_hazard_walks);
     if ((v = WT_STAT_READ(from, cache_hazard_max)) > to->cache_hazard_max)
         to->cache_hazard_max = v;
+    to->cache_eviction_hs_pages_in_parallel_with_checkpoint +=
+      WT_STAT_READ(from, cache_eviction_hs_pages_in_parallel_with_checkpoint);
     to->cache_hs_insert += WT_STAT_READ(from, cache_hs_insert);
     to->cache_hs_insert_restart += WT_STAT_READ(from, cache_hs_insert_restart);
     to->cache_hs_ondisk_max += WT_STAT_READ(from, cache_hs_ondisk_max);
