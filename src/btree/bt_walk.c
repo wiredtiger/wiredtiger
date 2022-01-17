@@ -244,6 +244,7 @@ __tree_walk_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp
     WT_DECL_RET;
     WT_PAGE_INDEX *pindex;
     WT_REF *couple, *ref, *ref_orig;
+    WT_TXN *txn;
     uint64_t restart_sleep, restart_yield;
     uint32_t slot;
     uint8_t current_state;
@@ -253,6 +254,7 @@ __tree_walk_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp
     pindex = NULL;
     restart_sleep = restart_yield = 0;
     empty_internal = false;
+    txn = session->txn;
 
     /* All current tree walks skip deleted pages. */
     LF_SET(WT_READ_SKIP_DELETED);
@@ -427,7 +429,7 @@ descend:
                 /*
                  * Try to skip deleted pages visible to us.
                  */
-                if (__wt_delete_page_skip(session, ref, false))
+                if (__wt_delete_page_skip(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)))
                     break;
             } else if (LF_ISSET(WT_READ_TRUNCATE)) {
                 /*
@@ -552,15 +554,17 @@ __wt_tree_walk_custom_skip(WT_SESSION_IMPL *session, WT_REF **refp,
 static int
 __tree_walk_skip_count_callback(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
 {
+    WT_TXN *txn;
     uint64_t *skipleafcntp;
 
     skipleafcntp = (uint64_t *)context;
+    txn = session->txn;
     WT_ASSERT(session, skipleafcntp != NULL);
 
     /*
      * Skip deleted pages visible to us.
      */
-    if (ref->state == WT_REF_DELETED && __wt_delete_page_skip(session, ref, false))
+    if (ref->state == WT_REF_DELETED && __wt_delete_page_skip(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)))
         *skipp = true;
     else if (*skipleafcntp > 0 && F_ISSET(ref, WT_REF_FLAG_LEAF)) {
         --*skipleafcntp;
