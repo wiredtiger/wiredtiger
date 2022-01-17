@@ -23,9 +23,9 @@ __metadata_config(WT_SESSION_IMPL *session, char **metaconfp)
 
     /* Create a turtle file with default values. */
     WT_RET(__wt_scr_alloc(session, 0, &buf));
-    WT_ERR(
-      __wt_buf_fmt(session, buf, "key_format=S,value_format=S,id=%d,version=(major=%u,minor=%u)",
-        WT_METAFILE_ID, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
+    WT_ERR(__wt_buf_fmt(session, buf,
+      "key_format=S,value_format=S,id=%d,version=(major=%" PRIu16 ",minor=%" PRIu16 ")",
+      WT_METAFILE_ID, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
     cfg[1] = buf->data;
     ret = __wt_config_collapse(session, cfg, metaconfp);
 
@@ -164,8 +164,8 @@ __wt_turtle_validate_version(WT_SESSION_IMPL *session)
     if (ret != 0)
         WT_ERR_MSG(session, ret, "Unable to read version string from turtle file");
 
-    if ((ret = sscanf(version_string, "major=%hu,minor=%hu,patch=%hu", &version.major, &version.minor,
-           &version.patch)) != 3)
+    if ((ret = sscanf(version_string, "major=%" SCNu16 ",minor=%" SCNu16 ",patch=%" SCNu16,
+           &version.major, &version.minor, &version.patch)) != 3)
         WT_ERR_MSG(session, ret, "Unable to parse turtle file version string");
 
     ret = 0;
@@ -432,7 +432,7 @@ __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
     if (F_ISSET(conn, WT_CONN_COMPATIBILITY))
         WT_ERR(__wt_fprintf(session, fs,
           "%s\n"
-          "major=%u,minor=%u\n",
+          "major=%" PRIu16 ",minor=%" PRIu16 "\n",
           WT_METADATA_COMPAT, conn->compat_version.major, conn->compat_version.minor));
 
     version = wiredtiger_version(&vmajor, &vminor, &vpatch);

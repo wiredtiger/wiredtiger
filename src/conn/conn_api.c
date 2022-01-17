@@ -2724,7 +2724,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_scr_alloc(session, 0, &i3));
     cfg[0] = WT_CONFIG_BASE(session, wiredtiger_open_all);
     cfg[1] = NULL;
-    WT_ERR(__wt_snprintf(version, sizeof(version), "version=(major=%u,minor=%u)",
+    WT_ERR(__wt_snprintf(version, sizeof(version), "version=(major=%" PRIu16 ",minor=%" PRIu16 ")",
       conn->compat_version.major, conn->compat_version.minor));
     __conn_config_append(cfg, version);
 

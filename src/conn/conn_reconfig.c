@@ -124,9 +124,9 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
      * open.
      */
     if (reconfig && __wt_version_ne(conn->req_max_version, WT_NO_VERSION) &&
-        __wt_version_lt(conn->req_max_version, release))
+      __wt_version_lt(conn->req_max_version, release))
         WT_RET_MSG(session, ENOTSUP,
-          WT_COMPAT_MSG_PREFIX "required max of %" PRIu32 ".%" PRIu32
+          WT_COMPAT_MSG_PREFIX "required max of %" PRIu16 ".%" PRIu16
                                "cannot be smaller than requested compatibility release %" PRIu16
                                ".%" PRIu16,
           conn->req_max_version.major, conn->req_max_version.minor, release.major, release.minor);
@@ -136,9 +136,9 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
      * open.
      */
     if (reconfig && __wt_version_ne(conn->req_min_version, WT_NO_VERSION) &&
-        __wt_version_gt(conn->req_min_version, release))
+      __wt_version_gt(conn->req_min_version, release))
         WT_RET_MSG(session, ENOTSUP,
-          WT_COMPAT_MSG_PREFIX "required min of %" PRIu32 ".%" PRIu32
+          WT_COMPAT_MSG_PREFIX "required min of %" PRIu16 ".%" PRIu16
                                "cannot be larger than requested compatibility release %" PRIu16
                                ".%" PRIu16,
           conn->req_min_version.major, conn->req_min_version.minor, release.major, release.minor);
@@ -157,7 +157,8 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
      * The required maximum and minimum cannot be set via reconfigure and they are meaningless on a
      * newly created database. We're done in those cases.
      */
-    if (reconfig || conn->is_new || (__wt_version_eq(min, WT_NO_VERSION) && __wt_version_eq(min, WT_NO_VERSION)))
+    if (reconfig || conn->is_new ||
+      (__wt_version_eq(min, WT_NO_VERSION) && __wt_version_eq(min, WT_NO_VERSION)))
         goto done;
 
     /*
@@ -171,7 +172,7 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
         release.major = (uint16_t)cval.val;
         WT_ERR(__wt_config_getones(session, value, "minor", &cval));
         release.minor = (uint16_t)cval.val;
-        if(__wt_version_ne(max, WT_NO_VERSION) && __wt_version_lt(max, release))
+        if (__wt_version_ne(max, WT_NO_VERSION) && __wt_version_lt(max, release))
             WT_ERR_MSG(session, ENOTSUP,
               WT_COMPAT_MSG_PREFIX "required max of %" PRIu16 ".%" PRIu16
                                    "cannot be larger than saved release %" PRIu16 ".%" PRIu16,
