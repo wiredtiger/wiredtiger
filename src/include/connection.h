@@ -356,8 +356,7 @@ struct __wt_connection_impl {
     bool unclean_shutdown; /* Flag to indicate the earlier shutdown status */
 #endif
 
-    uint16_t compat_major; /* Compatibility major version */
-    uint16_t compat_minor; /* Compatibility minor version */
+    WT_VERSION compat_version; /* WiredTiger version for compatibility checks */
 #define WT_CONN_COMPAT_NONE UINT16_MAX
     uint16_t req_max_major; /* Compatibility maximum major */
     uint16_t req_max_minor; /* Compatibility maximum minor */

@@ -69,7 +69,9 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
          * If the user is running downgraded, then the compatibility string is part of the
          * configuration string. Determine if the user is actually changing the compatibility.
          */
-        if (reconfig && rel_major == conn->compat_major && rel_minor == conn->compat_minor)
+        // FIXME WT-8673 - comparison function ignoring patch version
+        if (reconfig && rel_major == conn->compat_version.major &&
+          rel_minor == conn->compat_version.minor)
             unchg = true;
         else {
             /*
@@ -150,8 +152,8 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
                                ".%" PRIu16,
           conn->req_min_major, conn->req_min_minor, rel_major, rel_minor);
 
-    conn->compat_major = rel_major;
-    conn->compat_minor = rel_minor;
+    // FIXME WT-8673 - proper handling of patch version here
+    conn->compat_version = (WT_VERSION){rel_major, rel_minor, 0};
 
     /*
      * Only rewrite the turtle file if this is a reconfig. On startup it will get written as part of

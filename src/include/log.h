@@ -367,6 +367,28 @@ struct __wt_log_desc {
 /*
  * WiredTiger release version where log format version changed.
  */
+#define WT_LOG_V2_VERSION \
+    (WT_VERSION)          \
+    {                     \
+        3, 0, 0           \
+    }
+#define WT_LOG_V3_VERSION \
+    (WT_VERSION)          \
+    {                     \
+        3, 1, 0           \
+    }
+#define WT_LOG_V4_VERSION \
+    (WT_VERSION)          \
+    {                     \
+        3, 3, 0           \
+    }
+#define WT_LOG_V5_VERSION \
+    (WT_VERSION)          \
+    {                     \
+        10, 0, 0          \
+    }
+
+// FIXME WT-8673 - remove these when the versions above are fully in use
 #define WT_LOG_V2_MAJOR 3
 #define WT_LOG_V2_MINOR 0
 #define WT_LOG_V3_MAJOR 3

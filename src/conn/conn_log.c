@@ -145,14 +145,15 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
      * Note: downgrade in this context means the new version is not the latest possible version. It
      * does not mean the direction of change from the release we may be running currently.
      */
-    if (conn->compat_major == WT_LOG_V5_MAJOR) {
+    // FIXME WT-8673 - clean up this logic
+    if (conn->compat_version.major == WT_LOG_V5_MAJOR) {
         new_version = WT_LOG_VERSION;
         first_record = WT_LOG_END_HEADER + log->allocsize;
         downgrade = false;
-    } else if (conn->compat_major == WT_LOG_V4_MAJOR) {
-        if (conn->compat_minor == WT_LOG_V4_MINOR)
+    } else if (conn->compat_version.major == WT_LOG_V4_MAJOR) {
+        if (conn->compat_version.minor == WT_LOG_V4_MINOR)
             new_version = 4;
-        else if (conn->compat_minor > WT_LOG_V2_MINOR)
+        else if (conn->compat_version.minor > WT_LOG_V2_MINOR)
             new_version = 3;
         else
             new_version = 2;

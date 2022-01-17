@@ -430,8 +430,8 @@ __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
     if (F_ISSET(conn, WT_CONN_COMPATIBILITY))
         WT_ERR(__wt_fprintf(session, fs,
           "%s\n"
-          "major=%d,minor=%d\n",
-          WT_METADATA_COMPAT, conn->compat_major, conn->compat_minor));
+          "major=%u,minor=%u\n",
+          WT_METADATA_COMPAT, conn->compat_version.major, conn->compat_version.minor));
 
     version = wiredtiger_version(&vmajor, &vminor, &vpatch);
     WT_ERR(__wt_fprintf(session, fs,
