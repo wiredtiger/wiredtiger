@@ -171,9 +171,7 @@ __wt_turtle_validate_version(WT_SESSION_IMPL *session)
       (major == WT_MIN_STARTUP_VERSION_MAJOR && minor < WT_MIN_STARTUP_VERSION_MINOR))
         WT_ERR_MSG(session, WT_ERROR, "WiredTiger version incompatible with current binary");
 
-    S2C(session)->recovery_major = major;
-    S2C(session)->recovery_minor = minor;
-    S2C(session)->recovery_patch = patch;
+    S2C(session)->recovery_version = (WT_VERSION){major, minor, patch};
 
 err:
     __wt_free(session, version_string);

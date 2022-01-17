@@ -224,6 +224,15 @@ struct __wt_version {
 };
 
 /*
+ * WiredTiger version to use when none is present.
+ */
+#define WT_NO_VERSION \
+    (WT_VERSION)      \
+    {                 \
+        0, 0, 0       \
+    }
+
+/*
  * __wt_version_cmp --
  *     Compare two version numbers and return if the first version number is greater than, equal to,
  *     or less than the second. Return the value as an int similar to strcmp().
@@ -341,9 +350,7 @@ struct __wt_connection_impl {
     uint64_t hash_size;       /* General hash bucket array size */
     int is_new;               /* Connection created database */
 
-    uint32_t recovery_major; /* Database recovery major version */
-    uint32_t recovery_minor; /* Database recovery minor version */
-    uint32_t recovery_patch; /* Database recovery patch version */
+    WT_VERSION recovery_version; /* Version of the database being recovered */
 
 #ifndef WT_STANDALONE_BUILD
     bool unclean_shutdown; /* Flag to indicate the earlier shutdown status */

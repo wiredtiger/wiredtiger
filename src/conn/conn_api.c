@@ -2531,10 +2531,7 @@ __conn_version_verify(WT_SESSION_IMPL *session)
     bool exist;
 
     conn = S2C(session);
-
-    conn->recovery_major = 0;
-    conn->recovery_minor = 0;
-    conn->recovery_patch = 0;
+    conn->recovery_version = WT_NO_VERSION;
 
     /* Always set the compatibility versions. */
     __wt_logmgr_compat_version(session);
