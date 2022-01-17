@@ -210,6 +210,101 @@ struct __wt_name_flag {
         (conn)->hot_backup_list = NULL;                      \
     } while (0)
 
+// FIXME WT-8673 - Temporary location for this struct and functions until I find the proper
+// location.
+
+/*
+ * WT_VERSION --
+ *	Representation of WiredTiger version information.
+ */
+struct __wt_version {
+    uint32_t major;
+    uint32_t minor;
+    uint32_t patch;
+};
+
+/*
+ * __wt_version_cmp --
+ *     Compare two version numbers and return if the first version number is greater than, equal to,
+ *     or less than the second. Return the value as an int similar to strcmp().
+ */
+inline int32_t
+__wt_version_cmp(WT_VERSION version, WT_VERSION other)
+{
+    if (version.major == other.major && version.minor == other.minor &&
+      version.patch == other.patch)
+        return 0;
+
+    if (version.major > other.major)
+        return 1;
+    if (version.major == other.major && version.minor > other.minor)
+        return 1;
+    if (version.major == other.major && version.minor == other.minor && version.patch > other.patch)
+        return 1;
+
+    return -1;
+}
+
+/*
+ * __wt_version_eq --
+ *     Return true if the two provided versions are equal.
+ */
+static inline bool
+__wt_version_eq(WT_VERSION version, WT_VERSION other)
+{
+    return __wt_version_cmp(version, other) == 0;
+}
+
+/*
+ * __wt_version_ne --
+ *     Return true if the two provided versions are not equal.
+ */
+static inline bool
+__wt_version_ne(WT_VERSION version, WT_VERSION other)
+{
+    return __wt_version_cmp(version, other) != 0;
+}
+
+/*
+ * __wt_version_lt --
+ *     Return true if a provided version is less than the other version.
+ */
+static inline bool
+__wt_version_lt(WT_VERSION version, WT_VERSION other)
+{
+    return __wt_version_cmp(version, other) == -1;
+}
+
+/*
+ * __wt_version_lt --
+ *     Return true if a provided version is less than or equal to the other version.
+ */
+static inline bool
+__wt_version_lte(WT_VERSION version, WT_VERSION other)
+{
+    return __wt_version_cmp(version, other) != 1;
+}
+
+/*
+ * __wt_version_gt --
+ *     Return true if a provided version is greater than the other version.
+ */
+static inline bool
+__wt_version_gt(WT_VERSION version, WT_VERSION other)
+{
+    return __wt_version_cmp(version, other) == 1;
+}
+
+/*
+ * __wt_version_lt --
+ *     Return true if a provided version is greater than or equal to the other version.
+ */
+static inline bool
+__wt_version_gte(WT_VERSION version, WT_VERSION other)
+{
+    return __wt_version_cmp(version, other) != -1;
+}
+
 /*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
