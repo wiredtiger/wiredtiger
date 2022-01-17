@@ -1648,7 +1648,6 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 {
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
-    WT_BTREE *btree;
     bool modified;
 
     if (inmem_splitp != NULL)
@@ -1656,7 +1655,6 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 
     page = ref->page;
     mod = page->modify;
-    btree = S2BT(session);
 
     /* Never modified pages can always be evicted. */
     if (mod == NULL)
