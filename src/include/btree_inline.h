@@ -1694,10 +1694,11 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     }
 
     modified = __wt_page_is_modified(page);
-    if (WT_BTREE_SYNCING(btree))
+    (void) btree;
+    if (WT_IS_HS(session->dhandle) && modified)
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_modify);
 
-    if (!WT_SESSION_BTREE_SYNC(session))
+    if (WT_IS_HS(session->dhandle) && __wt_btree_syncing_by_other_session(session))
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_sync);
     /*
      * If the file is being checkpointed, other threads can't evict dirty pages: if a page is
