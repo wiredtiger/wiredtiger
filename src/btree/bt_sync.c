@@ -534,8 +534,12 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         btree->sync_session = session;
         btree->syncing = WT_BTREE_SYNC_WAIT;
+        if (is_hs)
+            WT_STAT_CONN_DATA_SET(session, cache_checkpoint_state, btree->syncing);
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         btree->syncing = WT_BTREE_SYNC_RUNNING;
+        if (is_hs)
+            WT_STAT_CONN_DATA_SET(session, cache_checkpoint_state, btree->syncing);
         is_hs = WT_IS_HS(btree->dhandle);
 
         /* Add in history store reconciliation for standard files. */

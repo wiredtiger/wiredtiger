@@ -1646,8 +1646,8 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 static inline bool
 __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 {
-    WT_PAGE *page;
     WT_BTREE *btree;
+    WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     bool modified;
 
@@ -1708,7 +1708,6 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_checkpoint);
         return (false);
     }
-
 
     /*
      * Check we are not evicting an accessible internal page with an active split generation.

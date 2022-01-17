@@ -805,6 +805,7 @@ conn_dsrc_stats = [
     CacheStat('cache_bytes_read', 'bytes read into cache', 'size'),
     CacheStat('cache_bytes_write', 'bytes written from cache', 'size'),
     CacheStat('cache_eviction_checkpoint', 'checkpoint blocked page eviction'),
+    CacheStat('cache_checkpoint_state', 'checkpoint state'),
     CacheStat('cache_eviction_modify', 'eviction btree has modify'),
     CacheStat('cache_eviction_sync', 'eviction sync tree'),
     CacheStat('cache_eviction_blocked_checkpoint_hs', 'checkpoint of history store file blocked non-history store page eviction'),
