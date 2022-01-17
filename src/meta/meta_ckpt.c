@@ -1366,8 +1366,8 @@ err:
 static int
 __ckpt_version_chk(WT_SESSION_IMPL *session, const char *fname, const char *config)
 {
+    WT_BTREE_VERSION version;
     WT_CONFIG_ITEM a, v;
-    WT_VERSION version;
 
     version = WT_NO_VERSION;
 

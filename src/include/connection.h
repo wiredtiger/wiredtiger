@@ -252,9 +252,9 @@ struct __wt_connection_impl {
     bool unclean_shutdown; /* Flag to indicate the earlier shutdown status */
 #endif
 
-    WT_VERSION compat_version;  /* WiredTiger version for compatibility checks */
-    WT_VERSION req_max_version; /* Maximum allowed version of WiredTiger for compatibility checks */
-    WT_VERSION req_min_version; /* Minimum allowed version of WiredTiger for compatibility checks */
+    WT_VERSION compat_version; /* WiredTiger version for compatibility checks */
+    WT_VERSION compat_req_max; /* Maximum allowed version of WiredTiger for compatibility checks */
+    WT_VERSION compat_req_min; /* Minimum allowed version of WiredTiger for compatibility checks */
 
     WT_EXTENSION_API extension_api; /* Extension API */
 

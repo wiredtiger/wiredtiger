@@ -114,8 +114,8 @@ __wt_logmgr_compat_version(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
-    conn->log_req_max = __logmgr_get_log_version(conn->req_max_version);
-    conn->log_req_min = __logmgr_get_log_version(conn->req_min_version);
+    conn->log_req_max = __logmgr_get_log_version(conn->compat_req_max);
+    conn->log_req_min = __logmgr_get_log_version(conn->compat_req_min);
 }
 
 /*

@@ -8,7 +8,7 @@
 
 /*
  * WT_VERSION --
- *	Representation of WiredTiger version information.
+ *	Structure to represent version information.
  */
 struct __wt_version {
     uint16_t major;
@@ -17,50 +17,45 @@ struct __wt_version {
 };
 
 /*
- * WiredTiger version to use when none is present.
+ * WT_BTREE_VERSION is an alias of WT_VERSION to avoid confusion between btree version numbers and
+ * WiredTiger version numbers.
  */
+typedef WT_VERSION WT_BTREE_VERSION;
+
 #define WT_NO_VALUE UINT16_MAX
+/*
+ * Default version to use when none is defined.
+ */
 #define WT_NO_VERSION ((WT_VERSION){WT_NO_VALUE, WT_NO_VALUE, WT_NO_VALUE})
 
 /*
  * __wt_version_cmp --
- *     Compare two version numbers and return if the first version number is greater than, equal to,
- *     or less than the second. Return the value as an int similar to strcmp().
+ *     Compare two versions to determine whether the first is greater than, equal to, or less than
+ *     the first. As in strcmp() return 1 for greater, 0 for equal, and -1 for less than.
  */
 static inline int32_t
-__wt_version_cmp(WT_VERSION version, WT_VERSION other)
+__wt_version_cmp(WT_VERSION v, WT_VERSION other)
 {
     /*
      * The patch version is not always set for both inputs. In these cases we ignore comparison of
-     * patch version by setting them both to the same value Structs are pass-by-value so this will
-     * not modify the versions being compared.
+     * patch version by setting them both to the same value. The inputs are pass-by-value and will
+     * not be modified by this.
      */
-    if (version.patch == WT_NO_VALUE || other.patch == WT_NO_VALUE) {
-        version.patch = other.patch = 0;
+    if (v.patch == WT_NO_VALUE || other.patch == WT_NO_VALUE) {
+        v.patch = other.patch = 0;
     }
 
-    if (version.major == other.major && version.minor == other.minor &&
-      version.patch == other.patch)
+    if (v.major == other.major && v.minor == other.minor && v.patch == other.patch)
         return 0;
 
-    if (version.major > other.major)
+    if (v.major > other.major)
         return 1;
-    if (version.major == other.major && version.minor > other.minor)
+    if (v.major == other.major && v.minor > other.minor)
         return 1;
-    if (version.major == other.major && version.minor == other.minor && version.patch > other.patch)
+    if (v.major == other.major && v.minor == other.minor && v.patch > other.patch)
         return 1;
 
     return -1;
-}
-
-/*
- * __wt_version_eq --
- *     Return true if the two provided versions are equal.
- */
-static inline bool
-__wt_version_eq(WT_VERSION version, WT_VERSION other)
-{
-    return __wt_version_cmp(version, other) == 0;
 }
 
 /*
@@ -69,47 +64,47 @@ __wt_version_eq(WT_VERSION version, WT_VERSION other)
  *     do not require the patch version to be set.
  */
 static inline bool
-__wt_version_defined(WT_VERSION version)
+__wt_version_defined(WT_VERSION v)
 {
-    return version.major != WT_NO_VALUE && version.minor != WT_NO_VALUE;
+    return v.major != WT_NO_VALUE && v.minor != WT_NO_VALUE;
 }
 
 /*
- * __wt_version_lt --
- *     Return true if a provided version is less than the other version.
+ * __wt_version_eq --
+ *     Return true if two versions are equal.
  */
 static inline bool
-__wt_version_lt(WT_VERSION version, WT_VERSION other)
+__wt_version_eq(WT_VERSION v, WT_VERSION other)
 {
-    return __wt_version_cmp(version, other) == -1;
-}
-
-/*
- * __wt_version_lt --
- *     Return true if a provided version is less than or equal to the other version.
- */
-static inline bool
-__wt_version_lte(WT_VERSION version, WT_VERSION other)
-{
-    return __wt_version_cmp(version, other) != 1;
+    return __wt_version_cmp(v, other) == 0;
 }
 
 /*
  * __wt_version_gt --
- *     Return true if a provided version is greater than the other version.
+ *     Return true if a version is greater than another version.
  */
 static inline bool
-__wt_version_gt(WT_VERSION version, WT_VERSION other)
+__wt_version_gt(WT_VERSION v, WT_VERSION other)
 {
-    return __wt_version_cmp(version, other) == 1;
+    return __wt_version_cmp(v, other) == 1;
+}
+
+/*
+ * __wt_version_gte --
+ *     Return true if a version is greater than or equal to another version.
+ */
+static inline bool
+__wt_version_gte(WT_VERSION v, WT_VERSION other)
+{
+    return __wt_version_cmp(v, other) != -1;
 }
 
 /*
  * __wt_version_lt --
- *     Return true if a provided version is greater than or equal to the other version.
+ *     Return true if a version is less than another version.
  */
 static inline bool
-__wt_version_gte(WT_VERSION version, WT_VERSION other)
+__wt_version_lt(WT_VERSION v, WT_VERSION other)
 {
-    return __wt_version_cmp(version, other) != -1;
+    return __wt_version_cmp(v, other) == -1;
 }

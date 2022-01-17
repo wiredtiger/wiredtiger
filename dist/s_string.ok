@@ -922,6 +922,7 @@ gostruct
 goto
 goutf
 gt
+gte
 handleops
 handlep
 hardcoded

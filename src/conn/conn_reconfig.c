@@ -122,26 +122,26 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
      * On a reconfigure, check the new release version against any required maximum version set on
      * open.
      */
-    if (reconfig && __wt_version_defined(conn->req_max_version) &&
-      __wt_version_lt(conn->req_max_version, new_compat))
+    if (reconfig && __wt_version_defined(conn->compat_req_max) &&
+      __wt_version_lt(conn->compat_req_max, new_compat))
         WT_RET_MSG(session, ENOTSUP,
           WT_COMPAT_MSG_PREFIX "required max of %" PRIu16 ".%" PRIu16
                                "cannot be smaller than requested compatibility release %" PRIu16
                                ".%" PRIu16,
-          conn->req_max_version.major, conn->req_max_version.minor, new_compat.major,
+          conn->compat_req_max.major, conn->compat_req_max.minor, new_compat.major,
           new_compat.minor);
 
     /*
      * On a reconfigure, check the new release version against any required minimum version set on
      * open.
      */
-    if (reconfig && __wt_version_defined(conn->req_min_version) &&
-      __wt_version_gt(conn->req_min_version, new_compat))
+    if (reconfig && __wt_version_defined(conn->compat_req_min) &&
+      __wt_version_gt(conn->compat_req_min, new_compat))
         WT_RET_MSG(session, ENOTSUP,
           WT_COMPAT_MSG_PREFIX "required min of %" PRIu16 ".%" PRIu16
                                "cannot be larger than requested compatibility release %" PRIu16
                                ".%" PRIu16,
-          conn->req_min_version.major, conn->req_min_version.minor, new_compat.major,
+          conn->compat_req_min.major, conn->compat_req_min.minor, new_compat.major,
           new_compat.minor);
 
     conn->compat_version = new_compat;
@@ -159,7 +159,7 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
      * newly created database. We're done in those cases.
      */
     if (reconfig || conn->is_new ||
-      (__wt_version_eq(min_compat, WT_NO_VERSION) && __wt_version_eq(max_compat, WT_NO_VERSION)))
+      (!__wt_version_defined(min_compat) && !__wt_version_defined(max_compat)))
         goto done;
 
     /*
@@ -187,8 +187,8 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
         ret = 0;
 
 done:
-    conn->req_max_version = max_compat;
-    conn->req_min_version = min_compat;
+    conn->compat_req_max = max_compat;
+    conn->compat_req_min = min_compat;
 err:
     __wt_free(session, value);
 

@@ -9,13 +9,13 @@
 /*
  * Supported btree formats: the "current" version is the maximum supported major/minor versions.
  */
-#define WT_BTREE_VERSION_MIN ((WT_VERSION){1, 1, 0}) /* Oldest version supported */
+#define WT_BTREE_VERSION_MIN ((WT_BTREE_VERSION){1, 1, 0}) /* Oldest version supported */
 
 /* Increase the version number for standalone build. */
 #ifdef WT_STANDALONE_BUILD
-#define WT_BTREE_VERSION_MAX ((WT_VERSION){2, 1, 0}) /* Newest version supported */
+#define WT_BTREE_VERSION_MAX ((WT_BTREE_VERSION){2, 1, 0}) /* Newest version supported */
 #else
-#define WT_BTREE_VERSION_MAX ((WT_VERSION){1, 1, 0}) /* Newest version supported */
+#define WT_BTREE_VERSION_MAX ((WT_BTREE_VERSION){1, 1, 0}) /* Newest version supported */
 #endif
 
 #define WT_BTREE_MIN_ALLOC_SIZE 512
