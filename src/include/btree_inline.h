@@ -1647,6 +1647,7 @@ static inline bool
 __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 {
     WT_PAGE *page;
+    WT_BTREE *btree;
     WT_PAGE_MODIFY *mod;
     bool modified;
 
@@ -1655,6 +1656,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 
     page = ref->page;
     mod = page->modify;
+    btree = S2BT(session);
 
     /* Never modified pages can always be evicted. */
     if (mod == NULL)
@@ -1692,10 +1694,10 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     }
 
     modified = __wt_page_is_modified(page);
-    if (modified)
+    if (WT_BTREE_SYNCING(btree))
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_modify);
 
-    if (__wt_btree_syncing_by_other_session(session))
+    if (!WT_SESSION_BTREE_SYNC(session))
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_sync);
     /*
      * If the file is being checkpointed, other threads can't evict dirty pages: if a page is
