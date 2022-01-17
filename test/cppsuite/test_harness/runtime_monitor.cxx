@@ -367,9 +367,8 @@ runtime_monitor::save_stats(const std::string &filename)
     }
 
     /* Remove last extra comma. */
-    if (!stat_info.empty()) {
+    if (stat_info.back() == ',')
         stat_info.pop_back();
-    }
 
     std::ofstream file(filename + ".json");
     file << stat_info << "]}]";
