@@ -358,10 +358,13 @@ struct __wt_connection_impl {
 
     WT_VERSION compat_version; /* WiredTiger version for compatibility checks */
 #define WT_CONN_COMPAT_NONE UINT16_MAX
-#define WT_CONN_COMPAT_NONE_VERSION (WT_VERSION) {UINT16_MAX, UINT16_MAX, UINT16_MAX}
+#define WT_CONN_COMPAT_NONE_VERSION        \
+    (WT_VERSION)                           \
+    {                                      \
+        UINT16_MAX, UINT16_MAX, UINT16_MAX \
+    }
     WT_VERSION req_max_version; /* Maximum allowed version of WiredTiger for compatibility checks */
-    uint16_t req_min_major; /* Compatibility minimum major */
-    uint16_t req_min_minor; /* Compatibility minimum minor */
+    WT_VERSION req_min_version; /* Minimum allowed version of WiredTiger for compatibility checks */
 
     WT_EXTENSION_API extension_api; /* Extension API */
 

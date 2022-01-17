@@ -44,7 +44,7 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    // FIXME WT-8673 - clean up to use WT_VERSION
+    // FIXME WT-8673 - clean up to use WT_VERSION, remove all uses of WT_CONN_COMPAT_NONE
     uint16_t max_major, max_minor, min_major, min_minor;
     uint16_t rel_major, rel_minor;
     char *value;
@@ -146,14 +146,14 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
      * On a reconfigure, check the new release version against any required minimum version set on
      * open.
      */
-    if (reconfig && conn->req_min_major != WT_CONN_COMPAT_NONE &&
-      (conn->req_min_major > rel_major ||
-        (conn->req_min_major == rel_major && conn->req_min_minor > rel_minor)))
+    if (reconfig && __wt_version_ne(conn->req_min_version, WT_CONN_COMPAT_NONE_VERSION) &&
+      (conn->req_min_version.major > rel_major ||
+        (conn->req_min_version.major == rel_major && conn->req_min_version.minor > rel_minor)))
         WT_RET_MSG(session, ENOTSUP,
-          WT_COMPAT_MSG_PREFIX "required min of %" PRIu16 ".%" PRIu16
+          WT_COMPAT_MSG_PREFIX "required min of %" PRIu32 ".%" PRIu32
                                "cannot be larger than requested compatibility release %" PRIu16
                                ".%" PRIu16,
-          conn->req_min_major, conn->req_min_minor, rel_major, rel_minor);
+          conn->req_min_version.major, conn->req_min_version.minor, rel_major, rel_minor);
 
     // FIXME WT-8673 - proper handling of patch version here
     conn->compat_version = (WT_VERSION){rel_major, rel_minor, 0};
@@ -202,9 +202,8 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
 
 done:
     // FIXME WT-8673 - handle patch version
-    conn->req_max_version = (WT_VERSION) {max_major, max_minor, 0};
-    conn->req_min_major = min_major;
-    conn->req_min_minor = min_minor;
+    conn->req_max_version = (WT_VERSION){max_major, max_minor, 0};
+    conn->req_min_version = (WT_VERSION){min_major, min_minor, 0};
 err:
     __wt_free(session, value);
 
