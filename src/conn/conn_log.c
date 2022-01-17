@@ -79,27 +79,24 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
 }
 
 /*
- * __logmgr_get_log_version --
- *     Return the log version required for the given WiredTiger version.
+ * __logmgr_set_log_version --
+ *     Set the log version required for the given WiredTiger version.
  */
-static uint16_t
-__logmgr_get_log_version(WT_VERSION version)
+static void
+__logmgr_set_log_version(WT_VERSION version, uint16_t *log_req)
 {
     if (__wt_version_defined(version)) {
         if (__wt_version_lt(version, WT_LOG_V2_VERSION))
-            return 1;
-        if (__wt_version_lt(version, WT_LOG_V3_VERSION))
-            return 2;
-        if (__wt_version_lt(version, WT_LOG_V4_VERSION))
-            return 3;
-        if (__wt_version_lt(version, WT_LOG_V5_VERSION))
-            return 4;
-        return WT_LOG_VERSION;
+            *log_req = 1;
+        else if (__wt_version_lt(version, WT_LOG_V3_VERSION))
+            *log_req = 2;
+        else if (__wt_version_lt(version, WT_LOG_V4_VERSION))
+            *log_req = 3;
+        else if (__wt_version_lt(version, WT_LOG_V5_VERSION))
+            *log_req = 4;
+        else
+            *log_req = WT_LOG_VERSION;
     }
-
-    // FIXME WT-8673 - return 1 (original log version) according to the existing
-    // logic in __logmgr_version, but does this make sense?
-    return 1;
 }
 
 /*
@@ -114,8 +111,8 @@ __wt_logmgr_compat_version(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
-    conn->log_req_max = __logmgr_get_log_version(conn->compat_req_max);
-    conn->log_req_min = __logmgr_get_log_version(conn->compat_req_min);
+    __logmgr_set_log_version(conn->compat_req_max, &conn->log_req_max);
+    __logmgr_set_log_version(conn->compat_req_min, &conn->log_req_min);
 }
 
 /*
@@ -137,13 +134,16 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
         return (0);
 
     /*
-     * Set the log file format versions based on compatibility versions set in the connection. We
-     * must set this before we call log_open to open or create a log file.
+     * Set the log file format versions based on compatibility versions set in the connection. The
+     * compatibility version must be set at this point. We must set this before we call log_open to
+     * open or create a log file.
      *
      * Note: downgrade in this context means the new version is not the latest possible version. It
      * does not mean the direction of change from the release we may be running currently.
      */
-    new_version = __logmgr_get_log_version(conn->compat_version);
+    WT_ASSERT(session, __wt_version_defined(conn->compat_version));
+    __logmgr_set_log_version(conn->compat_version, &new_version);
+
     downgrade = new_version != WT_LOG_VERSION;
     if (new_version > 1)
         first_record = WT_LOG_END_HEADER + log->allocsize;
