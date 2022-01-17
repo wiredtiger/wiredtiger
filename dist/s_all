@@ -36,11 +36,6 @@ done
 echo "Updating files that include the package version" &&
     sh ./s_version $force
 
-test "$reconf" -eq 0 || {
-	(echo "Rebuilding GNU tools library support" &&
-	    cd ../build_posix && 2>&1 sh ./reconf | sed -e 's/^/    /')
-}
-
 errchk()
 {
 	if ! `test -s $2`; then
