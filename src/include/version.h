@@ -30,8 +30,8 @@ typedef WT_VERSION WT_BTREE_VERSION;
 
 /*
  * __wt_version_cmp --
- *     Compare two versions to determine whether the first is greater than, equal to, or less than
- *     the first. As in strcmp() return 1 for greater, 0 for equal, and -1 for less than.
+ *     Compare two versions to determine whether the first version is greater than, equal to, or
+ *     less than the second. As in strcmp() return 1 for greater, 0 for equal, and -1 for less than.
  */
 static inline int32_t
 __wt_version_cmp(WT_VERSION v, WT_VERSION other)
