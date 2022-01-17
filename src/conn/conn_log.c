@@ -79,29 +79,25 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
 }
 
 /*
- * __logmgr_set_majmin --
- *     Set the required major or minor of the given field. Wrapper for setting the required minimum
- *     and maximum fields in the connection.
+ * __logmgr_get_log_version --
+ *     Return the log version required for the given WiredTiger version.
  */
-static void
-__logmgr_set_majmin(uint16_t req_major, uint16_t req_minor, uint16_t *log_req)
+static uint16_t
+__logmgr_get_log_version(WT_VERSION version)
 {
-    /*
-     * Set up the maximum and minimum log version required if needed.
-     */
-    if (req_major != WT_NO_VALUE) {
-        if (req_major == WT_LOG_V5_MAJOR)
-            *log_req = WT_LOG_VERSION;
-        else if (req_major == WT_LOG_V4_MAJOR)
-            if (req_minor == WT_LOG_V4_MINOR)
-                *log_req = 4;
-            else if (req_minor > WT_LOG_V2_MINOR)
-                *log_req = 3;
-            else
-                *log_req = 2;
-        else
-            *log_req = 1;
+    if (__wt_version_ne(version, WT_NO_VERSION)){
+        if(__wt_version_lt(version, WT_LOG_V2_VERSION))
+            return 1;
+        if(__wt_version_lt(version, WT_LOG_V3_VERSION))
+            return 2;
+        if(__wt_version_lt(version, WT_LOG_V4_VERSION))
+            return 3;
+        if(__wt_version_lt(version, WT_LOG_V5_VERSION))
+            return 4;
+        return WT_LOG_VERSION;
     }
+
+    return WT_LOG_NO_VERSION;
 }
 
 /*
@@ -116,11 +112,8 @@ __wt_logmgr_compat_version(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
-    // FIXME WT-8673 - clean up to take WT_VERSION
-    __logmgr_set_majmin(
-      conn->req_max_version.major, conn->req_max_version.minor, &conn->log_req_max);
-    __logmgr_set_majmin(
-      conn->req_min_version.major, conn->req_min_version.minor, &conn->log_req_min);
+    conn->log_req_max = __logmgr_get_log_version(conn->req_max_version);
+    conn->log_req_min = __logmgr_get_log_version(conn->req_min_version);
 }
 
 /*
@@ -148,7 +141,6 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
      * Note: downgrade in this context means the new version is not the latest possible version. It
      * does not mean the direction of change from the release we may be running currently.
      */
-    // FIXME WT-8673 - clean up this logic
     if (conn->compat_version.major == WT_LOG_V5_MAJOR) {
         new_version = WT_LOG_VERSION;
         first_record = WT_LOG_END_HEADER + log->allocsize;
