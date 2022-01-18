@@ -98,7 +98,7 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
         session.commit_transaction()
         self.assertEqual(count, nrows)
 
-    def evict_cursor(self, uri, ds, nrows):
+    def evict(self, uri, ds, nrows):
         s = self.conn.open_session()
         s.begin_transaction()
         # Configure debug behavior on a cursor to evict the page positioned on when the reset API is used.
@@ -150,7 +150,7 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
             # Sleep for sometime so that checkpoint starts before committing last transaction.
             time.sleep(2)
             session1.commit_transaction()
-            self.evict_cursor(self.uri, ds, self.nrows)
+            self.evict(self.uri, ds, self.nrows)
         finally:
             done.set()
             ckpt.join()
