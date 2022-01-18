@@ -3,6 +3,7 @@ ACM
 ADDR
 APIs
 ASAN
+ASan
 ActiveState
 Adler's
 Atomicity
@@ -29,6 +30,7 @@ Cyclomatic
 DB's
 DBTs
 DCC
+DCLANG
 DCMAKE
 DENABLE
 DHANDLE
