@@ -1035,6 +1035,16 @@ struct __wt_session {
 	 * "sequential"; default \c none.}
 	 * @config{app_metadata, application-owned metadata for this object., a string; default
 	 * empty.}
+	 * @config{assert = (, enable enhanced checking., a set of related configuration options
+	 * defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read_timestamp, verify that timestamps
+	 * should \c always or \c never be used on reads with this table.  Verification should be
+	 * set to \c none if mixed read use is allowed., a string\, chosen from the following
+	 * options: \c "always"\, \c "never"\, \c "none"; default \c none.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;write_timestamp, verify that commit timestamps are used
+	 * per the configured \c write_timestamp_usage option for this table., a string\, chosen
+	 * from the following options: \c "off"\, \c "on"; default \c off.}
+	 * @config{ ),,}
 	 * @config{cache_resident, do not ever evict the object's pages from cache.  Not compatible
 	 * with LSM tables; see @ref tuning_cache_resident for more information., a boolean flag;
 	 * default \c false.}
@@ -1053,8 +1063,9 @@ struct __wt_session {
 	 * 0.}
 	 * @config{readonly, the file is read-only.  All methods that may modify a file are
 	 * disabled.  See @ref readonly for more information., a boolean flag; default \c false.}
-	 * @config{verbose, enable messages for various events.  Options are given as a list\, such
-	 * as <code>"verbose=[write_timestamp]"</code>., a list\, with values chosen from the
+	 * @config{verbose, enable messages for various events.  The choices are \c write_timestamp
+	 * which adds verbose messages as described by \c write_timestamp_usage.  Options are given
+	 * as a list\, such as \c "verbose=[write_timestamp]"., a list\, with values chosen from the
 	 * following options: \c "write_timestamp"; default \c [].}
 	 * @config{write_timestamp_usage, describe how timestamps are expected to be used on
 	 * modifications to the table.  This option should be used in conjunction with the
@@ -1101,6 +1112,16 @@ struct __wt_session {
 	 * an integer between 512B and 128MB; default \c 4KB.}
 	 * @config{app_metadata, application-owned metadata for this object., a string; default
 	 * empty.}
+	 * @config{assert = (, enable enhanced checking., a set of related configuration options
+	 * defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read_timestamp, verify that timestamps
+	 * should \c always or \c never be used on reads with this table.  Verification should be
+	 * set to \c none if mixed read use is allowed., a string\, chosen from the following
+	 * options: \c "always"\, \c "never"\, \c "none"; default \c none.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;write_timestamp, verify that commit timestamps are used
+	 * per the configured \c write_timestamp_usage option for this table., a string\, chosen
+	 * from the following options: \c "off"\, \c "on"; default \c off.}
+	 * @config{ ),,}
 	 * @config{block_allocation, configure block allocation.  Permitted values are \c "best" or
 	 * \c "first"; the \c "best" configuration uses a best-fit algorithm\, the \c "first"
 	 * configuration uses a first-available algorithm during block allocation., a string\,
@@ -1328,8 +1349,9 @@ struct __wt_session {
 	 * applications use a WT_ITEM structure to manipulate raw byte arrays.  Value items of type
 	 * 't' are bitfields\, and when configured with record number type keys\, will be stored
 	 * using a fixed-length store., a format string; default \c u.}
-	 * @config{verbose, enable messages for various events.  Options are given as a list\, such
-	 * as <code>"verbose=[write_timestamp]"</code>., a list\, with values chosen from the
+	 * @config{verbose, enable messages for various events.  The choices are \c write_timestamp
+	 * which adds verbose messages as described by \c write_timestamp_usage.  Options are given
+	 * as a list\, such as \c "verbose=[write_timestamp]"., a list\, with values chosen from the
 	 * following options: \c "write_timestamp"; default \c [].}
 	 * @config{write_timestamp_usage, describe how timestamps are expected to be used on
 	 * modifications to the table.  This option should be used in conjunction with the
@@ -2249,12 +2271,12 @@ struct __wt_connection {
 	 * database.  Each worker thread uses a session handle from the configured session_max., an
 	 * integer between 3 and 20; default \c 4.}
 	 * @config{ ),,}
-	 * @config{operation_timeout_ms, when non-zero\, a requested limit on the number of elapsed
+	 * @config{operation_timeout_ms, if non-zero\, a requested limit on the number of elapsed
 	 * real time milliseconds application threads will take to complete database operations.
 	 * Time is measured from the start of each WiredTiger API call.  There is no guarantee any
 	 * operation will not take longer than this amount of time.  If WiredTiger notices the limit
-	 * has been exceeded\, an operation may return a WT_ROLLBACK error.  Default is to have no
-	 * limit., an integer greater than or equal to 1; default \c 0.}
+	 * has been exceeded\, an operation may return a WT_ROLLBACK error.  The default of 0 is to
+	 * have no limit., an integer greater than or equal to 0; default \c 0.}
 	 * @config{operation_tracking = (, enable tracking of performance-critical functions.  See
 	 * @ref operation_tracking for more information., a set of related configuration options
 	 * defined below.}
@@ -2775,7 +2797,10 @@ struct __wt_connection {
  * @config{ ),,}
  * @config{buffer_alignment, in-memory alignment (in bytes) for buffers used for I/O. The default
  * value of -1 indicates a platform-specific alignment value should be used (4KB on Linux systems
- * when direct I/O is configured\, zero elsewhere)., an integer between -1 and 1MB; default \c -1.}
+ * when direct I/O is configured\, zero elsewhere). If the configured alignment is larger than
+ * default or configured object page sizes\, file allocation and page sizes are silently increased
+ * to the buffer alignment size.  Requires the \c posix_memalign API. See @ref
+ * tuning_system_buffer_cache_direct_io., an integer between -1 and 1MB; default \c -1.}
  * @config{builtin_extension_config, A structure where the keys are the names of builtin extensions
  * and the values are passed to WT_CONNECTION::load_extension as the \c config parameter (for
  * example\, <code>builtin_extension_config={zlib={compression_level=3}}</code>)., a string; default
@@ -2872,12 +2897,12 @@ struct __wt_connection {
  * @config{direct_io, Use \c O_DIRECT on POSIX systems\, and \c FILE_FLAG_NO_BUFFERING on Windows to
  * access files.  Options are given as a list\, such as <code>"direct_io=[data]"</code>. Configuring
  * \c direct_io requires care\, see @ref tuning_system_buffer_cache_direct_io for important
- * warnings.  Including \c "data" will cause WiredTiger data files to use direct I/O\, including \c
- * "log" will cause WiredTiger log files to use direct I/O\, and including \c "checkpoint" will
- * cause WiredTiger data files opened at a checkpoint (i.e: read-only) to use direct I/O. \c
- * direct_io should be combined with \c write_through to get the equivalent of \c O_DIRECT on
- * Windows., a list\, with values chosen from the following options: \c "checkpoint"\, \c "data"\,
- * \c "log"; default empty.}
+ * warnings.  Including \c "data" will cause WiredTiger data files\, including WiredTiger internal
+ * data files\, to use direct I/O; including \c "log" will cause WiredTiger log files to use direct
+ * I/O; including \c "checkpoint" will cause WiredTiger data files opened using a (read-only)
+ * checkpoint cursor to use direct I/O. \c direct_io should be combined with \c write_through to get
+ * the equivalent of \c O_DIRECT on Windows., a list\, with values chosen from the following
+ * options: \c "checkpoint"\, \c "data"\, \c "log"; default empty.}
  * @config{encryption = (, configure an encryptor for system wide metadata and logs.  If a system
  * wide encryptor is set\, it is also used for encrypting data files and tables\, unless encryption
  * configuration is explicitly set for them when they are created with WT_SESSION::create., a set of
@@ -3051,12 +3076,12 @@ struct __wt_connection {
  * @config{multiprocess, permit sharing between processes (will automatically start an RPC server
  * for primary processes and use RPC for secondary processes). <b>Not yet supported in
  * WiredTiger</b>., a boolean flag; default \c false.}
- * @config{operation_timeout_ms, when non-zero\, a requested limit on the number of elapsed real
- * time milliseconds application threads will take to complete database operations.  Time is
- * measured from the start of each WiredTiger API call.  There is no guarantee any operation will
- * not take longer than this amount of time.  If WiredTiger notices the limit has been exceeded\, an
- * operation may return a WT_ROLLBACK error.  Default is to have no limit., an integer greater than
- * or equal to 1; default \c 0.}
+ * @config{operation_timeout_ms, if non-zero\, a requested limit on the number of elapsed real time
+ * milliseconds application threads will take to complete database operations.  Time is measured
+ * from the start of each WiredTiger API call.  There is no guarantee any operation will not take
+ * longer than this amount of time.  If WiredTiger notices the limit has been exceeded\, an
+ * operation may return a WT_ROLLBACK error.  The default of 0 is to have no limit., an integer
+ * greater than or equal to 0; default \c 0.}
  * @config{operation_tracking = (, enable tracking of performance-critical functions.  See @ref
  * operation_tracking for more information., a set of related configuration options defined below.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable operation tracking subsystem., a boolean flag;
@@ -3803,10 +3828,9 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
 #define	WT_CACHE_FULL	(-31807)
 /*!
  * Conflict with a prepared update.
- * This error is generated when the application attempts to update an already
- * updated record which is in prepared state. An updated record will be in
- * prepared state, when the transaction that performed the update is in prepared
- * state.
+ * This error is generated when the application attempts to read an updated
+ * record which is part of a transaction that has been prepared but not yet
+ * resolved.
  */
 #define	WT_PREPARE_CONFLICT	(-31808)
 /*!

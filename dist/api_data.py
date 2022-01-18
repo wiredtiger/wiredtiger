@@ -49,27 +49,26 @@ common_runtime_config = [
         enable enhanced checking. ''',
         type='category', subconfig= [
         Config('commit_timestamp', 'none', r'''
-            This option is no longer supported, retained for backward compatibility''',
-            choices=['always', 'key_consistent', 'never', 'none']),
+            this option is no longer supported, retained for backward compatibility''',
+            choices=['always', 'key_consistent', 'never', 'none'], undoc=True),
         Config('durable_timestamp', 'none', r'''
-            This option is no longer supported, retained for backward compatibility''',
-            choices=['always', 'key_consistent', 'never', 'none']),
+            this option is no longer supported, retained for backward compatibility''',
+            choices=['always', 'key_consistent', 'never', 'none'], undoc=True),
+        Config('read_timestamp', 'none', r'''
+            verify that timestamps should \c always or \c never be used on
+            reads with this table.  Verification should be set to \c none
+            if mixed read use is allowed''',
+            choices=['always', 'never', 'none']),
         Config('write_timestamp', 'off', r'''
             verify that commit timestamps are used per the configured
             \c write_timestamp_usage option for this table''',
             choices=['off', 'on']),
-        Config('read_timestamp', 'none', r'''
-            verify that timestamps should \c always or \c never be used
-            on reads with this table.  Verification is \c none
-            if mixed read use is allowed''',
-            choices=['always', 'never', 'none'])
-        ], undoc=True),
-    Config('verbose', '[]', r'''
-        enable messages for various events. Options are given as a
-        list, such as <code>"verbose=[write_timestamp]"</code>''',
-        type='list', choices=[
-            'write_timestamp',
         ]),
+    Config('verbose', '[]', r'''
+        enable messages for various events. The choices are \c write_timestamp
+        which adds verbose messages as described by \c write_timestamp_usage.
+        Options are given as a list, such as \c "verbose=[write_timestamp]"''',
+        type='list', choices=['write_timestamp']),
     Config('write_timestamp_usage', 'none', r'''
         describe how timestamps are expected to be used on modifications to
         the table. This option should be used in conjunction with the
@@ -779,12 +778,12 @@ connection_runtime_config = [
             type='boolean')
         ]),
     Config('operation_timeout_ms', '0', r'''
-        when non-zero, a requested limit on the number of elapsed real time milliseconds
+        if non-zero, a requested limit on the number of elapsed real time milliseconds
         application threads will take to complete database operations. Time is measured from the
         start of each WiredTiger API call.  There is no guarantee any operation will not take
         longer than this amount of time. If WiredTiger notices the limit has been exceeded, an
-        operation may return a WT_ROLLBACK error. Default is to have no limit''',
-        min=1),
+        operation may return a WT_ROLLBACK error. The default of 0 is to have no limit''',
+        min=0),
     Config('operation_tracking', '', r'''
         enable tracking of performance-critical functions. See
         @ref operation_tracking for more information''',
@@ -1143,7 +1142,10 @@ wiredtiger_open_common =\
         in-memory alignment (in bytes) for buffers used for I/O.  The
         default value of -1 indicates a platform-specific alignment value
         should be used (4KB on Linux systems when direct I/O is configured,
-        zero elsewhere)''',
+        zero elsewhere). If the configured alignment is larger than default
+        or configured object page sizes, file allocation and page sizes are
+        silently increased to the buffer alignment size. Requires the \c
+        posix_memalign API. See @ref tuning_system_buffer_cache_direct_io''',
         min='-1', max='1MB'),
     Config('builtin_extension_config', '', r'''
         A structure where the keys are the names of builtin extensions and the
@@ -1164,10 +1166,11 @@ wiredtiger_open_common =\
         Windows to access files.  Options are given as a list, such as
         <code>"direct_io=[data]"</code>.  Configuring \c direct_io requires
         care, see @ref tuning_system_buffer_cache_direct_io for important
-        warnings.  Including \c "data" will cause WiredTiger data files to use
-        direct I/O, including \c "log" will cause WiredTiger log files to use
-        direct I/O, and including \c "checkpoint" will cause WiredTiger data
-        files opened at a checkpoint (i.e: read-only) to use direct I/O.
+        warnings.  Including \c "data" will cause WiredTiger data files,
+        including WiredTiger internal data files, to use direct I/O;
+        including \c "log" will cause WiredTiger log files to use direct
+        I/O; including \c "checkpoint" will cause WiredTiger data files
+        opened using a (read-only) checkpoint cursor to use direct I/O.
         \c direct_io should be combined with \c write_through to get the
         equivalent of \c O_DIRECT on Windows''',
         type='list', choices=['checkpoint', 'data', 'log']),
