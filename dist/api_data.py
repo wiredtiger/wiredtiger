@@ -49,27 +49,26 @@ common_runtime_config = [
         enable enhanced checking. ''',
         type='category', subconfig= [
         Config('commit_timestamp', 'none', r'''
-            This option is no longer supported, retained for backward compatibility''',
-            choices=['always', 'key_consistent', 'never', 'none']),
+            this option is no longer supported, retained for backward compatibility''',
+            choices=['always', 'key_consistent', 'never', 'none'], undoc=True),
         Config('durable_timestamp', 'none', r'''
-            This option is no longer supported, retained for backward compatibility''',
-            choices=['always', 'key_consistent', 'never', 'none']),
+            this option is no longer supported, retained for backward compatibility''',
+            choices=['always', 'key_consistent', 'never', 'none'], undoc=True),
+        Config('read_timestamp', 'none', r'''
+            verify that timestamps should \c always or \c never be used on
+            reads with this table.  Verification should be set to \c none
+            if mixed read use is allowed''',
+            choices=['always', 'never', 'none']),
         Config('write_timestamp', 'off', r'''
             verify that commit timestamps are used per the configured
             \c write_timestamp_usage option for this table''',
             choices=['off', 'on']),
-        Config('read_timestamp', 'none', r'''
-            verify that timestamps should \c always or \c never be used
-            on reads with this table.  Verification is \c none
-            if mixed read use is allowed''',
-            choices=['always', 'never', 'none'])
-        ], undoc=True),
-    Config('verbose', '[]', r'''
-        enable messages for various events. Options are given as a
-        list, such as <code>"verbose=[write_timestamp]"</code>''',
-        type='list', choices=[
-            'write_timestamp',
         ]),
+    Config('verbose', '[]', r'''
+        enable messages for various events. The choices are \c write_timestamp
+        which adds verbose messages as described by \c write_timestamp_usage.
+        Options are given as a list, such as \c "verbose=[write_timestamp]"''',
+        type='list', choices=['write_timestamp']),
     Config('write_timestamp_usage', 'none', r'''
         describe how timestamps are expected to be used on modifications to
         the table. This option should be used in conjunction with the
@@ -779,12 +778,12 @@ connection_runtime_config = [
             type='boolean')
         ]),
     Config('operation_timeout_ms', '0', r'''
-        when non-zero, a requested limit on the number of elapsed real time milliseconds
+        if non-zero, a requested limit on the number of elapsed real time milliseconds
         application threads will take to complete database operations. Time is measured from the
         start of each WiredTiger API call.  There is no guarantee any operation will not take
         longer than this amount of time. If WiredTiger notices the limit has been exceeded, an
-        operation may return a WT_ROLLBACK error. Default is to have no limit''',
-        min=1),
+        operation may return a WT_ROLLBACK error. The default of 0 is to have no limit''',
+        min=0),
     Config('operation_tracking', '', r'''
         enable tracking of performance-critical functions. See
         @ref operation_tracking for more information''',
