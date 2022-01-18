@@ -373,11 +373,13 @@ __sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent, WT_REF
  *     Return if checkpoint requires we read this page.
  */
 static int
-__sync_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
+__sync_page_skip(
+  WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
     WT_ADDR_COPY addr;
 
     WT_UNUSED(context);
+    WT_UNUSED(visible_all);
 
     *skipp = false; /* Default to reading */
 

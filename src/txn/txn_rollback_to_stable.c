@@ -1234,12 +1234,15 @@ __rollback_abort_fast_truncate(
  *     Skip if rollback to stable doesn't requires to read this page.
  */
 int
-__wt_rts_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
+__wt_rts_page_skip(
+  WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
     wt_timestamp_t rollback_timestamp;
 
     rollback_timestamp = *(wt_timestamp_t *)(context);
     *skipp = false; /* Default to reading */
+
+    WT_UNUSED(visible_all);
 
     /* If the page state is other than on disk, we want to look at it. */
     if (ref->state != WT_REF_DISK)
