@@ -499,7 +499,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_DECL_RET;
     WT_PAGE *page;
     uint32_t flags;
-    bool closing, modified, snapshot_acquired;
+    bool closing, modified;
     bool is_eviction_thread, use_snapshot_for_app_thread;
 
     *inmem_splitp = false;
@@ -509,7 +509,6 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     page = ref->page;
     flags = WT_REC_EVICT;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
-    snapshot_acquired = false;
 
     /*
      * Fail if an internal has active children, the children must be evicted first. The test is
@@ -667,7 +666,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         LF_SET(WT_REC_CHECKPOINT_RUNNING);
 
     /* Eviction thread doing eviction. */
-    if (is_eviction_thread) {
+    if (is_eviction_thread)
         /*
          * Eviction threads do not need to pin anything in the cache. We have an exclusive lock for
          * the page being evicted so we are sure that the page will always be there while it is
@@ -675,8 +674,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
          * outside world.
          */
         __wt_txn_bump_snapshot(session);
-        snapshot_acquired = true;
-    } else if (use_snapshot_for_app_thread)
+    else if (use_snapshot_for_app_thread)
         LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
     else {
         if (!WT_SESSION_BTREE_SYNC(session))
@@ -689,7 +687,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * Reconcile the page. Force read-committed isolation level if we are using snapshots for
      * eviction workers or application threads.
      */
-    if (LF_ISSET(WT_REC_APP_EVICTION_SNAPSHOT) || snapshot_acquired)
+    if (LF_ISSET(WT_REC_APP_EVICTION_SNAPSHOT) || is_eviction_thread)
         WT_WITH_TXN_ISOLATION(
           session, WT_ISO_READ_COMMITTED, ret = __wt_reconcile(session, ref, NULL, flags));
     else
@@ -698,7 +696,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     if (ret != 0)
         WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);
 
-    if (snapshot_acquired)
+    if (is_eviction_thread)
         __wt_txn_release_snapshot(session);
 
     WT_RET(ret);
