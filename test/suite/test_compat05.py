@@ -47,7 +47,8 @@ class test_compat05(wttest.WiredTigerTestCase, suite_subprocess):
     ]
     scenarios = make_scenarios(remove_values)
 
-    log = 'WiredTigerLog.0000000001'
+    log1 = 'WiredTigerLog.0000000001'
+    log2 = 'WiredTigerLog.0000000002'
 
     # Create the database with logging configured.
     def conn_config(self):
@@ -60,7 +61,7 @@ class test_compat05(wttest.WiredTigerTestCase, suite_subprocess):
             # Sleep and then see if log removal ran. We do this in a loop
             # for slow machines. Max out at 90 seconds.
             time.sleep(1.0)
-            if not os.path.exists(self.log):
+            if not os.path.exists(self.log1):
                 removed = True
                 break
         return removed
@@ -72,8 +73,8 @@ class test_compat05(wttest.WiredTigerTestCase, suite_subprocess):
         ds = SimpleDataSet(self, uri, 10000, key_format='S', value_format='S')
         ds.populate()
 
-        # Assert there's a first log file.
-        self.assertTrue(os.path.exists(self.log))
+        # Assert there's at least two log files so we can remove the first one.
+        self.assertTrue(os.path.exists(self.log2))
 
         # Checkpoint
         self.session.checkpoint()
