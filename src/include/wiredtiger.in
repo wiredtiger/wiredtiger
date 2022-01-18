@@ -2248,20 +2248,17 @@ struct __wt_connection {
 	 * with values chosen from the following options: \c "error"\, \c "message"; default \c [].}
 	 * @config{log = (, enable logging.  Enabling logging uses three sessions from the
 	 * configured session_max., a set of related configuration options defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;archive, automatically remove unneeded log files
-	 * (deprecated)., a boolean flag; default \c true.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-	 * os_cache_dirty_pct, maximum dirty system buffer cache usage\, as a percentage of the
-	 * log's \c file_max.  If non-zero\, schedule writes for dirty blocks belonging to the log
-	 * in the system buffer cache after that percentage of the log has been written into the
-	 * buffer cache without an intervening file sync., an integer between 0 and 100; default \c
-	 * 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc, pre-allocate log files., a boolean flag;
-	 * default \c true.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;remove, automatically remove unneeded
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system buffer cache
+	 * usage\, as a percentage of the log's \c file_max.  If non-zero\, schedule writes for
+	 * dirty blocks belonging to the log in the system buffer cache after that percentage of the
+	 * log has been written into the buffer cache without an intervening file sync., an integer
+	 * between 0 and 100; default \c 0.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc, pre-allocate
 	 * log files., a boolean flag; default \c true.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill,
-	 * manually write zeroes into log files., a boolean flag; default \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;remove,
+	 * automatically remove unneeded log files., a boolean flag; default \c true.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write zeroes into log files., a
+	 * boolean flag; default \c false.}
 	 * @config{ ),,}
 	 * @config{lsm_manager = (, configure database wide options for LSM tree management.  The
 	 * LSM manager is started automatically the first time an LSM tree is opened.  The LSM
@@ -3033,35 +3030,31 @@ struct __wt_connection {
  * the following options: \c "error"\, \c "message"; default \c [].}
  * @config{log = (, enable logging.  Enabling logging uses three sessions from the configured
  * session_max., a set of related configuration options defined below.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;archive, automatically remove unneeded log files (deprecated)., a
- * boolean flag; default \c true.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;compressor, configure a
- * compressor for log records.  Permitted values are \c "none" or custom compression engine name
- * created with WT_CONNECTION::add_compressor.  If WiredTiger has builtin support for \c "lz4"\, \c
- * "snappy"\, \c "zlib" or \c "zstd" compression\, these names are also available.  See @ref
- * compression for more information., a string; default \c none.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * enabled, enable logging subsystem., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_max, the maximum size of log files., an integer between
- * 100KB and 2GB; default \c 100MB.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum
- * dirty system buffer cache usage\, as a percentage of the log's \c file_max.  If non-zero\,
- * schedule writes for dirty blocks belonging to the log in the system buffer cache after that
- * percentage of the log has been written into the buffer cache without an intervening file sync.,
- * an integer between 0 and 100; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the name of a
- * directory into which log files are written.  The directory must already exist.  If the value is
- * not an absolute path\, the path is relative to the database home (see @ref absolute_path for more
- * information)., a string; default \c ".".}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc, pre-allocate
- * log files., a boolean flag; default \c true.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;recover, run
- * recovery or error if recovery needs to run after an unclean shutdown., a string\, chosen from the
- * following options: \c "error"\, \c "on"; default \c on.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;remove,
- * automatically remove unneeded log files., a boolean flag; default \c true.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write zeroes into log files., a boolean flag;
- * default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;compressor, configure a compressor for log records.  Permitted
+ * values are \c "none" or custom compression engine name created with
+ * WT_CONNECTION::add_compressor.  If WiredTiger has builtin support for \c "lz4"\, \c "snappy"\, \c
+ * "zlib" or \c "zstd" compression\, these names are also available.  See @ref compression for more
+ * information., a string; default \c none.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable logging
+ * subsystem., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_max, the
+ * maximum size of log files., an integer between 100KB and 2GB; default \c 100MB.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system buffer cache usage\, as
+ * a percentage of the log's \c file_max.  If non-zero\, schedule writes for dirty blocks belonging
+ * to the log in the system buffer cache after that percentage of the log has been written into the
+ * buffer cache without an intervening file sync., an integer between 0 and 100; default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the name of a directory into which log files are written.
+ * The directory must already exist.  If the value is not an absolute path\, the path is relative to
+ * the database home (see @ref absolute_path for more information)., a string; default \c ".".}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc, pre-allocate log files., a boolean flag; default \c
+ * true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;recover, run recovery or error if recovery needs to run
+ * after an unclean shutdown., a string\, chosen from the following options: \c "error"\, \c "on";
+ * default \c on.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;remove, automatically remove unneeded log files.,
+ * a boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write
+ * zeroes into log files., a boolean flag; default \c false.}
  * @config{ ),,}
  * @config{lsm_manager = (, configure database wide options for LSM tree management.  The LSM
  * manager is started automatically the first time an LSM tree is opened.  The LSM manager uses a
