@@ -4,14 +4,14 @@ include(${CMAKE_SOURCE_DIR}/test/ctest_helpers.cmake)
 
 # Generate a test executable for the unit test.
 create_test_executable(unitTest 
-    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_AwsBucketConn.cpp
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_list_buckets.cpp
     LIBS aws-sdk::s3 aws-sdk::s3-crt aws-sdk::core aws_bucket_util
     INCLUDES ${CMAKE_CURRENT_SOURCE_DIR} ${AWSSDK_INCLUDE_DIRS}
     CXX)
 
 # Register the test with cmake.
-add_test(NAME listBucketTest COMMAND unitTest)
+add_test(NAME list_bucket_test COMMAND unitTest)
 
 # Add a check to ensure the unit test is passing correctly.
 set(list_bucket_pass_regex "All buckets under my account:")
-set_property(TEST listBucketTest PROPERTY PASS_REGULAR_EXPRESSION "${list_bucket_pass_regex}")
+set_property(TEST list_bucket_test PROPERTY PASS_REGULAR_EXPRESSION "${list_bucket_pass_regex}")
