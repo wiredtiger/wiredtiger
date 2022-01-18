@@ -897,7 +897,7 @@ transaction_ops(WT_SESSION *session_arg)
     }
 
     /*! [set commit timestamp] */
-    error_check(conn->set_timestamp(conn, "commit_timestamp=2a"));
+    error_check(conn->set_timestamp(conn, "durable_timestamp=2a"));
     /*! [set commit timestamp] */
 
     /*! [set oldest timestamp] */
