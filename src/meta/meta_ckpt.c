@@ -1380,8 +1380,9 @@ __ckpt_version_chk(WT_SESSION_IMPL *session, const char *fname, const char *conf
     if (__wt_version_gt(version, WT_BTREE_VERSION_MAX) ||
       __wt_version_lt(version, WT_BTREE_VERSION_MIN))
         WT_RET_MSG(session, EACCES,
-          "%s is an unsupported WiredTiger source file version %u.%u; this WiredTiger build only "
-          "supports versions from %u.%u to %u.%u",
+          "%s is an unsupported WiredTiger source file version %" PRIu16 ".%" PRIu16
+          "; this WiredTiger build only supports versions from %" PRIu16 ".%" PRIu16 " to %" PRIu16
+          ".%" PRIu16,
           fname, version.major, version.minor, WT_BTREE_VERSION_MIN.major,
           WT_BTREE_VERSION_MIN.minor, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor);
     return (0);

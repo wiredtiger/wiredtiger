@@ -497,7 +497,7 @@ __recovery_set_checkpoint_snapshot(WT_SESSION_IMPL *session)
      * available, assume that the snapshot is valid, otherwise restoring from a backup won't work.
      */
     if (__wt_version_defined(conn->recovery_version) &&
-      __wt_version_lt(conn->recovery_version, (WT_VERSION){10, 0, 1}))
+      __wt_version_lte(conn->recovery_version, (WT_VERSION){10, 0, 0}))
         return (0);
 
     /*

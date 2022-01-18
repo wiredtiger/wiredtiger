@@ -107,3 +107,13 @@ __wt_version_lt(WT_VERSION v, WT_VERSION other)
 {
     return __wt_version_cmp(v, other) == -1;
 }
+
+/*
+ * __wt_version_lte --
+ *     Return true if a version is less than or equal to another version.
+ */
+static inline bool
+__wt_version_lte(WT_VERSION v, WT_VERSION other)
+{
+    return __wt_version_cmp(v, other) != 1;
+}
