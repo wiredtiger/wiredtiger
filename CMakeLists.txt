@@ -72,6 +72,9 @@ if(ENABLE_STRICT)
     endif()
 endif()
 
+# Enable CTest. Subsequent targets may additionally define their own ctest definitions.
+enable_testing()
+
 # Include the extensions to the build.
 add_subdirectory(ext)
 
@@ -182,8 +185,6 @@ add_subdirectory(src/utilities)
 # Establish our install target configuration.
 include(cmake/install/install.cmake)
 
-# Enable CTest. Subsequent targets may additionally define their own ctest definitions.
-enable_testing()
 
 if(ENABLE_PYTHON)
     add_subdirectory(lang/python)

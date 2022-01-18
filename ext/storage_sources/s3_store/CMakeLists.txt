@@ -2,7 +2,8 @@ project(s3_store CXX)
     
 include(ExternalProject)    
 include(GNUInstallDirs)    
-    
+
+# Download and install the AWS CPP SDK into the source directory.
 ExternalProject_Add(aws-sdk    
     PREFIX aws-sdk-cpp    
     GIT_REPOSITORY    https://github.com/aws/aws-sdk-cpp.git    
@@ -41,7 +42,26 @@ add_dependencies(aws-sdk::s3-crt aws-sdk)
 set(AWSSDK_INCLUDE_DIRS ${INSTALL_DIR}/include)
 set(AWSSDK_LINK_LIBRARIES aws-sdk::s3 aws-sdk::core aws-sdk::s3-crt)
 
-set(sources "s3_store.cpp" "AwsBucketConn.cpp")
+# Create an intermediate library to build the helper library
+add_library(aws_bucket_util STATIC AwsBucketConn.cpp)
+set_property(TARGET aws_bucket_util PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+target_include_directories(
+    aws_bucket_util
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}   
+)
+
+target_link_libraries(
+    aws_bucket_util
+    PUBLIC
+        aws-sdk::s3
+        aws-sdk::s3-crt
+        aws-sdk::core   
+)
+
+# Build the S3 extension as a library.
+set(sources "s3_store.cpp")
 add_library(wiredtiger_s3_store MODULE ${sources})
 target_include_directories(
     wiredtiger_s3_store    
@@ -52,12 +72,15 @@ target_include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${AWSSDK_INCLUDE_DIRS}    
 )
+
 target_link_libraries(
     wiredtiger_s3_store
-    aws-sdk::s3
-    aws-sdk::s3-crt
+    PRIVATE
+        aws_bucket_util
+        aws-sdk::s3
+        aws-sdk::s3-crt
+        aws-sdk::core   
 )
-target_link_libraries(
-    wiredtiger_s3_store
-    aws-sdk::core
-)
+
+# Add the unit tests.
+add_subdirectory(test)
