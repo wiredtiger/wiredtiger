@@ -62,9 +62,9 @@ class statistics {
     int64_t get_max() const;
     int64_t get_min() const;
     const std::string &get_name() const;
-    bool get_postrun();
-    bool get_runtime();
-    bool get_save();
+    bool get_postrun() const;
+    bool get_runtime() const;
+    bool get_save() const;
 
     protected:
     int field;

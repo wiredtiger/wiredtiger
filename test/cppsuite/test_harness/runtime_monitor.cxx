@@ -124,19 +124,19 @@ statistics::get_name() const
 }
 
 bool
-statistics::get_postrun()
+statistics::get_postrun() const
 {
     return postrun;
 }
 
 bool
-statistics::get_runtime()
+statistics::get_runtime() const
 {
     return runtime;
 }
 
 bool
-statistics::get_save()
+statistics::get_save() const
 {
     return save;
 }
