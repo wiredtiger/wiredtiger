@@ -36,8 +36,6 @@
 
 #define UNUSED(x) (void)(x)
 
-
-
 /* s3 storage source structure. */
 typedef struct {
     WT_STORAGE_SOURCE storage_source; /* Must come first */
@@ -71,8 +69,6 @@ static int s3_customize_file_system(
   WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
 static int s3_add_reference(WT_STORAGE_SOURCE *);
 
-// bool s3_list_buckets(const Aws::S3Crt::S3CrtClient &s3CrtClient);
-
 /*
  * s3_customize_file_system --
  *      TODO: Return a customized file system to access the s3 storage source objects.
@@ -97,41 +93,12 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     aws_config.throughputTargetGbps = throughput_target_gbps;
     aws_config.partSize = part_size;
 
+    const Aws::S3Crt::S3CrtClient &s3CrtClient = aws_config;
+
     awsBucketConn conn(aws_config);
     conn.s3_list_buckets();
-    // conn.set_test(aws_config);
-    // Aws::S3Crt::S3CrtClient m_s3_crt_client;
-
-    // Aws::S3Crt::S3CrtClient s3_crt_client(aws_config);
-
-    // s3_list_buckets(aws_config);
-
-    // conn.initBucketConn();
-    // std::cout << "List buckets" << std::endl;
-    // conn.s3_list_buckets();
 
     return 0;
-}
-
-/* s3_list_buckets --
- *      List all Amazon Simple Storage Service (Amazon S3) buckets under the account.
- */
-bool
-s3_list_buckets(const Aws::S3Crt::S3CrtClient &s3CrtClient)
-{
-    Aws::S3Crt::Model::ListBucketsOutcome outcome = s3CrtClient.ListBuckets();
-
-    if (outcome.IsSuccess()) {
-        std::cout << "All buckets under my account:" << std::endl;
-        for (auto const &bucket : outcome.GetResult().GetBuckets()) {
-            std::cout << "  * " << bucket.GetName() << std::endl;
-        }
-        std::cout << std::endl;
-        return true;
-    } else {
-        std::cout << "ListBuckets error:\n" << outcome.GetError() << std::endl << std::endl;
-        return false;
-    }
 }
 
 /*
@@ -148,6 +115,19 @@ s3_add_reference(WT_STORAGE_SOURCE *storage_source)
     return (0);
 }
 
+static int s3_terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
+{
+    /* NEED A WAY to pass the options to the ShutdownAPI call */
+    S3_STORAGE *s3;
+    s3 = (S3_STORAGE *)storage;
+
+    Aws::SDKOptions options;
+    Aws::ShutdownAPI(options);
+
+    delete (s3);
+    return (0); 
+}
+
 /*
  * wiredtiger_extension_init --
  *     A S3 storage source library.
@@ -155,12 +135,9 @@ s3_add_reference(WT_STORAGE_SOURCE *storage_source)
 int
 wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
-    S3_STORAGE *s3;
+    S3_STORAGE *s3 = new S3_STORAGE;
     int ret;
 
-    if ((s3 = (S3_STORAGE *)calloc(1, sizeof(S3_STORAGE))) == NULL) {
-        return (errno);
-    }
     s3->wt_api = connection->get_extension_api(connection);
     UNUSED(config);
 
@@ -174,6 +151,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
      */
     s3->storage_source.ss_customize_file_system = s3_customize_file_system;
     s3->storage_source.ss_add_reference = s3_add_reference;
+    s3->storage_source.terminate = s3_terminate;
 
     /* Load the storage */
     if ((ret = connection->add_storage_source(connection, "s3_store", &s3->storage_source, NULL)) !=
