@@ -11,3 +11,7 @@ create_test_executable(unitTest
 
 # Register the test with cmake.
 add_test(NAME listBucketTest COMMAND unitTest)
+
+# Add a check to ensure the unit test is passing correctly.
+set(list_bucket_pass_regex "All buckets under my account:")
+set_property(TEST listBucketTest PROPERTY PASS_REGULAR_EXPRESSION "${list_bucket_pass_regex}")

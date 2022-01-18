@@ -1,5 +1,6 @@
 #include <AwsBucketConn.h>
 #include <aws/core/Aws.h>
+#include <iostream>
 
 /* Default config settings for the S3CrtClient. */
 namespace defaults 
@@ -12,7 +13,9 @@ namespace defaults
 /* Unit test for listing S3 buckets under the associated AWS account. */
 int test_list_buckets(const Aws::S3Crt::ClientConfiguration &config) {
     awsBucketConn bucket_conn(config);
+    std::cout << "Listing all S3 buckets under the AWS account:" << std::endl;
     bool outcome = bucket_conn.s3_list_buckets();
+    std::cout << "Finished listing all S3 buckets under the AWS account." << std::endl;
     return outcome;
 }
 
@@ -24,7 +27,11 @@ int main () {
     aws_config.throughputTargetGbps = defaults::throughput_target_gbps;
     aws_config.partSize = defaults::part_size;
 
-    int ret = 1;
+    /* Set the SDK options and initialize the API. */
+    Aws::SDKOptions options;
+    Aws::InitAPI(options);
+
+    int ret = 0;
 
     ret = test_list_buckets(aws_config);
 
