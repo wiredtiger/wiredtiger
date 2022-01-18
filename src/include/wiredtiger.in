@@ -2467,7 +2467,7 @@ struct __wt_connection {
 	/*!
 	 * Set a global transaction timestamp.
 	 *
-	 * @snippet ex_all.c set commit timestamp
+	 * @snippet ex_all.c set durable timestamp
 	 *
 	 * @snippet ex_all.c set oldest timestamp
 	 *
