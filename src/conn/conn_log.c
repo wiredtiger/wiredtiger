@@ -79,24 +79,25 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
 }
 
 /*
- * __logmgr_set_log_version --
- *     Set the log version required for the given WiredTiger version.
+ * __logmgr_get_log_version --
+ *     Get the log version required for the given WiredTiger version.
  */
-static void
-__logmgr_set_log_version(WT_VERSION version, uint16_t *log_req)
+static uint16_t
+__logmgr_get_log_version(WT_VERSION version)
 {
-    if (__wt_version_defined(version)) {
-        if (__wt_version_lt(version, WT_LOG_V2_VERSION))
-            *log_req = 1;
-        else if (__wt_version_lt(version, WT_LOG_V3_VERSION))
-            *log_req = 2;
-        else if (__wt_version_lt(version, WT_LOG_V4_VERSION))
-            *log_req = 3;
-        else if (__wt_version_lt(version, WT_LOG_V5_VERSION))
-            *log_req = 4;
-        else
-            *log_req = WT_LOG_VERSION;
-    }
+    if (!__wt_version_defined(version))
+        return WT_NO_VALUE;
+
+    if (__wt_version_lt(version, WT_LOG_V2_VERSION))
+        return 1;
+    else if (__wt_version_lt(version, WT_LOG_V3_VERSION))
+        return 2;
+    else if (__wt_version_lt(version, WT_LOG_V4_VERSION))
+        return 3;
+    else if (__wt_version_lt(version, WT_LOG_V5_VERSION))
+        return 4;
+    else
+        return WT_LOG_VERSION;
 }
 
 /*
@@ -111,8 +112,8 @@ __wt_logmgr_compat_version(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
-    __logmgr_set_log_version(conn->compat_req_max, &conn->log_req_max);
-    __logmgr_set_log_version(conn->compat_req_min, &conn->log_req_min);
+    conn->log_req_max = __logmgr_get_log_version(conn->compat_req_max);
+    conn->log_req_min = __logmgr_get_log_version(conn->compat_req_min);
 }
 
 /*
@@ -139,7 +140,7 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
      * open or create a log file.
      */
     WT_ASSERT(session, __wt_version_defined(conn->compat_version));
-    __logmgr_set_log_version(conn->compat_version, &new_version);
+    new_version = __logmgr_get_log_version(conn->compat_version);
 
     if (new_version > 1)
         first_record = WT_LOG_END_HEADER + log->allocsize;
