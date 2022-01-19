@@ -427,6 +427,14 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
     prev_metadata_pinned = txn_global->metadata_pinned;
     prev_oldest_id = txn_global->oldest_id;
 
+    /*
+     * Do not modify the oldest ID during recovery. Modifying the oldest ID during recovery can lead
+     * to a scenario where the current generation oldest ID leads to wrong global visibility of the
+     * data whereas it doesn't according to the recovered checkpoint snapshot.
+     */
+    if (F_ISSET(conn, WT_CONN_RECOVERING))
+        return (0);
+
     /* Try to move the pinned timestamp forward. */
     if (strict)
         WT_RET(__wt_txn_update_pinned_timestamp(session, false));
@@ -517,7 +525,7 @@ __txn_config_operation_timeout(WT_SESSION_IMPL *session, const char *cfg[], bool
         return (0);
 
     /* Retrieve the maximum operation time, defaulting to the database-wide configuration. */
-    WT_RET(__wt_config_gets(session, cfg, "operation_timeout_ms", &cval));
+    WT_RET(__wt_config_gets_def(session, cfg, "operation_timeout_ms", 0, &cval));
 
     /*
      * The default configuration value is 0, we can't tell if they're setting it back to 0 or, if

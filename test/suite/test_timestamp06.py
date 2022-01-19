@@ -54,8 +54,8 @@ class test_timestamp06(wttest.WiredTigerTestCase, suite_subprocess):
 
     conncfg = [
         ('V1',
-            dict(conn_config='create,log=(archive=false,enabled),compatibility=(release="2.9")')),
-        ('V2', dict(conn_config='create,log=(archive=false,enabled)')),
+            dict(conn_config='create,log=(enabled,remove=false),compatibility=(release="2.9")')),
+        ('V2', dict(conn_config='create,log=(enabled,remove=false)')),
     ]
 
     scenarios = make_scenarios(conncfg, types, ckpt)
