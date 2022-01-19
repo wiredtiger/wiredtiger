@@ -149,7 +149,7 @@ __curversion_set_value_with_format(WT_CURSOR *cursor, const char *fmt, ...)
  *     Internal implementation for version cursor next api.
  */
 static int
-__curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+__curversion_next_int(WT_CURSOR *cursor)
 {
     WT_CURSOR *hs_cursor, *file_cursor;
     WT_CURSOR_BTREE *cbt;
@@ -159,6 +159,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_PAGE *page;
     WT_ROW *rip;
+    WT_SESSION_IMPL *session;
     WT_TIME_WINDOW *twp;
     WT_UPDATE *upd, *tombstone;
     wt_timestamp_t durable_start_ts, durable_stop_ts, stop_ts;
@@ -167,6 +168,7 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     uint8_t *p, version_prepare_state;
     bool upd_found;
 
+    session = CUR2S(cursor);
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     hs_cursor = version_cursor->hs_cursor;
     file_cursor = version_cursor->file_cursor;
@@ -174,6 +176,8 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     page = cbt->ref->page;
     twp = NULL;
     upd_found = false;
+    upd = tombstone = NULL;
+
     /* Temporarily clear the raw flag. We need to pack the data according to the format. */
     raw = F_MASK(cursor, WT_CURSTD_RAW);
     F_CLR(cursor, WT_CURSTD_RAW);
@@ -183,14 +187,11 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
         WT_ERR(__wt_txn_rollback_required(
           session, "rolling back version_cursor->next due to no initial position"));
 
-    upd = tombstone = NULL;
-
     if (!F_ISSET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED)) {
         /*
          * If we position on a key, set next update of the version cursor to be the first update on
          * the key if any.
          */
-        page = cbt->ref->page;
         switch (page->type) {
         case WT_PAGE_ROW_LEAF:
             if (cbt->ins != NULL)
@@ -450,7 +451,7 @@ __curversion_next(WT_CURSOR *cursor)
     version_cursor = (WT_CURSOR_VERSION *)cursor;
 
     CURSOR_API_CALL(cursor, session, next, CUR2BT(version_cursor->file_cursor));
-    WT_ERR(__curversion_next_int(session, cursor));
+    WT_ERR(__curversion_next_int(cursor));
 
 err:
     if (ret != 0)
@@ -573,7 +574,7 @@ __curversion_search(WT_CURSOR *cursor)
         F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
 
     /* Point to the newest version. */
-    WT_ERR(__curversion_next_int(session, cursor));
+    WT_ERR(__curversion_next_int(cursor));
 
 err:
     if (ret != 0)
