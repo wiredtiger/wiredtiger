@@ -5,22 +5,23 @@ include(GNUInstallDirs)
 
 if (ENABLE_S3)
     # Download and install the AWS CPP SDK into the source directory.
-    ExternalProject_Add(aws-sdk    
-        PREFIX aws-sdk-cpp    
-        GIT_REPOSITORY    https://github.com/aws/aws-sdk-cpp.git    
-        GIT_TAG           1.9.175    
-        LIST_SEPARATOR    "|"    
+    ExternalProject_Add(aws-sdk
+        PREFIX aws-sdk-cpp
+        GIT_REPOSITORY    https://github.com/aws/aws-sdk-cpp.git
+        GIT_TAG           1.9.175
+        LIST_SEPARATOR    "|"
         CMAKE_ARGS       -DBUILD_SHARED_LIBS=ON
                         -DBUILD_ONLY=s3|s3-crt
                         -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp/install
                         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         BUILD_ALWAYS    FALSE
-        INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp/install
+        INSTALL_DIR     ${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp/install
         BUILD_BYPRODUCTS
         ${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp/install/${CMAKE_INSTALL_LIBDIR}/libaws-cpp-sdk-s3${CMAKE_SHARED_LIBRARY_SUFFIX}
         ${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp/install/${CMAKE_INSTALL_LIBDIR}/libaws-cpp-sdk-s3-crt${CMAKE_SHARED_LIBRARY_SUFFIX}
         ${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp/install/${CMAKE_INSTALL_LIBDIR}/libaws-cpp-sdk-core${CMAKE_SHARED_LIBRARY_SUFFIX}
         TEST_COMMAND      ""
+        UPDATE_COMMAND    ""
     )
     ExternalProject_Get_Property(aws-sdk INSTALL_DIR)
 
