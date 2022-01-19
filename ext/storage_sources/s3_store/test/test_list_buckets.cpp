@@ -33,7 +33,7 @@ int main () {
 
     int ret = 0;
 
-    ret = test_list_buckets(aws_config);
+    ret = !test_list_buckets(aws_config);
 
     return (ret);
 }
