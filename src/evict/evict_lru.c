@@ -449,10 +449,16 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 
     __wt_epoch(session, &now);
 
+
 #if defined(HAVE_DIAGNOSTIC)
     /* Enable verbose messaging a period before the cache is stuck. */
-    if (WT_TIMEDIFF_SEC(now, cache->stuck_time) > (WT_MINUTE * WT_CACHE_STUCK_TIMEOUT) - WT_CACHE_STUCK_VERBOSE_BEGIN) {
-        F_SET(conn, WT_CONN_CACHE_STUCK);
+    if ((WT_TIMEDIFF_SEC(now, cache->stuck_time) > (WT_MINUTE * WT_CACHE_STUCK_TIMEOUT) - WT_CACHE_STUCK_VERBOSE_BEGIN) && (
+        !WT_VERBOSE_EVICT_LEVEL_ISSET(session, WT_VERBOSE_ERROR)
+    )) {
+        printf("Setting the eviction verbosity level to ERROR\n");
+        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_ERROR);
+        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT_STUCK, WT_VERBOSE_ERROR);
+        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_ERROR);
     }
 #endif
 
