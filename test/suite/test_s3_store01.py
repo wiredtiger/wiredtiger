@@ -32,11 +32,9 @@ FileSystem = wiredtiger.FileSystem  # easy access to constants
 # test_s3_store01.py
 #   Test minimal S3 extension with basic interactions with AWS S3CrtClient.
 class test_s3_store01(wttest.WiredTigerTestCase):
-    # Load the s3 store extension.
+    # Load the s3 store extension, skip the test if missing.
     def conn_extensions(self, extlist):
-        # Windows doesn't support dynamically loaded extension libraries.
-        if os.name == 'nt':
-            extlist.skip_if_missing = True
+        extlist.skip_if_missing = True
         extlist.extension('storage_sources', 's3_store')
 
     def get_local_storage_source(self):
