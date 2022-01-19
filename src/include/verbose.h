@@ -162,20 +162,6 @@ struct __wt_verbose_multi_category {
     __wt_verbose_level(session, category, WT_VERBOSE_DEBUG, fmt, __VA_ARGS__)
 
 /*
- * ____wt_verbose_evict --
- *     Wrapper to __wt_verbose_level. All eviction-related messages will be printed via 
- *     this wrapper. Verbose cache eviction errors will be printed when the cache stuck 
- *     flag (WT_CONN_CACHE_STUCK) is set. 
- */
-#define __wt_verbose_evict(session, category, fmt, ...)                                \
-    do {                                                                               \
-        if (F_ISSET(session, WT_CONN_CACHE_STUCK)) {                                   \
-            __wt_verbose_level(session, category, WT_VERBOSE_NOTICE, fmt, __VA_ARGS__);\
-        } else {                                                                       \
-            __wt_verbose_level(session, category, WT_VERBOSE_DEBUG, fmt, __VA_ARGS__); \
-        }                                                                              \
-    } while (0)
-/*
  * __wt_verbose --
  *     Display a verbose message using the default verbosity level. Not an inlined function because
  *     you can't inline functions taking variadic arguments and we don't want to make a function
