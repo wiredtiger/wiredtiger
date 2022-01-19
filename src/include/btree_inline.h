@@ -1695,7 +1695,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 
     modified = __wt_page_is_modified(page);
     (void)btree;
-    if (WT_IS_HS(session->dhandle) && modified)
+    if (WT_IS_HS(session->dhandle))
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_modify);
 
     if (WT_IS_HS(session->dhandle) && __wt_btree_syncing_by_other_session(session))

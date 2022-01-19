@@ -85,6 +85,8 @@ struct __wt_cache {
      */
     uint64_t bytes_hs;       /* History store bytes inmem */
     uint64_t bytes_hs_dirty; /* History store bytes inmem dirty */
+    uint64_t bytes_hs_intl;  /* History store bytes inmem dirty */
+    uint64_t bytes_hs_leaf;  /* History store bytes inmem dirty */
 
     uint64_t pages_dirty_intl;
     uint64_t pages_dirty_leaf;

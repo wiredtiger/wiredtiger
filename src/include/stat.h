@@ -476,6 +476,8 @@ struct __wt_connection_stats {
     int64_t cache_eviction_internal_pages_seen;
     int64_t cache_eviction_internal_pages_already_queued;
     int64_t cache_eviction_split_internal;
+    int64_t cache_bytes_hs_intl;
+    int64_t cache_bytes_hs_leaf;
     int64_t cache_eviction_split_leaf;
     int64_t cache_bytes_max;
     int64_t cache_eviction_maximum_page_size;

@@ -312,6 +312,10 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
       __wt_cache_bytes_plus_overhead(cache, cache->bytes_dirty_total));
     WT_STAT_SET(
       session, stats, cache_bytes_hs, __wt_cache_bytes_plus_overhead(cache, cache->bytes_hs));
+    WT_STAT_SET(session, stats, cache_bytes_hs_intl,
+      __wt_cache_bytes_plus_overhead(cache, cache->bytes_hs_intl));
+    WT_STAT_SET(session, stats, cache_bytes_hs_leaf,
+      __wt_cache_bytes_plus_overhead(cache, cache->bytes_hs_leaf));
     WT_STAT_SET(session, stats, cache_bytes_image, __wt_cache_bytes_image(cache));
     WT_STAT_SET(session, stats, cache_pages_inuse, __wt_cache_pages_inuse(cache));
     WT_STAT_SET(session, stats, cache_bytes_internal, intl);
