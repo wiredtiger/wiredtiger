@@ -188,7 +188,6 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     remove_files = cval.val != 0;
 
     name = NULL;
-    WT_UNUSED(cfg);
     /* Get the tiered data handle. */
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
     tiered = (WT_TIERED *)session->dhandle;
