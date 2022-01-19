@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#define WT_CURVERSIONSOR_METADATA_FORMAT WT_UNCHECKED_STRING(QQQQQQBBBB)
+#define WT_CURVERSION_METADATA_FORMAT WT_UNCHECKED_STRING(QQQQQQBBBB)
 /*
  * __curversion_set_key --
  *     WT_CURSOR->set_key implementation for version cursors.
@@ -111,7 +111,7 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
         p = (uint8_t *)cursor->value.data;
         end = p + cursor->value.size;
 
-        WT_ERR(__pack_init(session, &pack, WT_CURVERSIONSOR_METADATA_FORMAT));
+        WT_ERR(__pack_init(session, &pack, WT_CURVERSION_METADATA_FORMAT));
         while ((ret = __pack_next(&pack, &pv)) == 0) {
             WT_ERR(__unpack_read(session, &pv, &p, (size_t)(end - p)));
             WT_UNPACK_PUT(session, pv, ap);
@@ -291,10 +291,10 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
                  * Set the version cursor's value, which also contains all the record metadata for
                  * that particular version of the update.
                  */
-                WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSIONSOR_METADATA_FORMAT,
+                WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
                   upd->txnid, upd->start_ts, upd->durable_ts, version_cursor->upd_stop_txnid,
                   version_cursor->upd_stop_ts, version_cursor->upd_durable_stop_ts, upd->type,
-                  version_prepare_state, upd->flags, WT_VERSION_UPDATE_CHAIN));
+                  version_prepare_state, upd->flags, WT_CURVERSION_UPDATE_CHAIN));
 
                 version_cursor->upd_stop_txnid = upd->txnid;
                 version_cursor->upd_durable_stop_ts = upd->durable_ts;
@@ -358,10 +358,10 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
         else
             version_prepare_state = cbt->upd_value->tw.prepare;
 
-        WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSIONSOR_METADATA_FORMAT,
+        WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
           cbt->upd_value->tw.start_txn, cbt->upd_value->tw.start_ts,
           cbt->upd_value->tw.durable_start_ts, stop_txn, stop_ts, durable_stop_ts,
-          WT_UPDATE_STANDARD, version_prepare_state, 0, WT_VERSION_DISK_IMAGE));
+          WT_UPDATE_STANDARD, version_prepare_state, 0, WT_CURVERSION_DISK_IMAGE));
 
         upd_found = true;
         F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
@@ -400,9 +400,9 @@ __curversion_next_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
         WT_ERR(hs_cursor->get_value(
           hs_cursor, &durable_stop_ts, &durable_start_ts, &hs_upd_type, hs_value));
 
-        WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSIONSOR_METADATA_FORMAT,
+        WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
           twp->start_txn, twp->start_ts, twp->durable_start_ts, twp->stop_txn, twp->stop_ts,
-          twp->durable_stop_ts, hs_upd_type, 0, 0, WT_VERSION_HISTORY_STORE));
+          twp->durable_stop_ts, hs_upd_type, 0, 0, WT_CURVERSION_HISTORY_STORE));
 
         /*
          * Reconstruct the history store value if needed. Since we save the value inside the version
@@ -662,11 +662,11 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     /* Open the file cursor to check the key and value format. */
     WT_ERR(__wt_open_cursor(session, uri, NULL, file_cursor_cfg, &version_cursor->file_cursor));
     cursor->key_format = version_cursor->file_cursor->key_format;
-    format_len = strlen(WT_CURVERSIONSOR_METADATA_FORMAT) +
-      strlen(version_cursor->file_cursor->value_format) + 1;
+    format_len =
+      strlen(WT_CURVERSION_METADATA_FORMAT) + strlen(version_cursor->file_cursor->value_format) + 1;
     WT_ERR(__wt_malloc(session, format_len, &version_cursor_value_format));
     WT_ERR(__wt_snprintf(version_cursor_value_format, format_len, "%s%s",
-      WT_CURVERSIONSOR_METADATA_FORMAT, version_cursor->file_cursor->value_format));
+      WT_CURVERSION_METADATA_FORMAT, version_cursor->file_cursor->value_format));
     cursor->value_format = version_cursor_value_format;
     version_cursor_value_format = NULL;
 
