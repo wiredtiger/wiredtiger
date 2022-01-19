@@ -562,23 +562,6 @@ __wt_cursor_set_value(WT_CURSOR *cursor, ...)
 }
 
 /*
- * __wt_cursor_set_value_with_format --
- *     Set cursor value with the given format.
- */
-int
-__wt_cursor_set_value_with_format(WT_CURSOR *cursor, const char *fmt, ...)
-{
-    WT_DECL_RET;
-    va_list ap;
-
-    va_start(ap, fmt);
-    ret = __wt_cursor_set_valuev(cursor, fmt, ap);
-    va_end(ap);
-
-    return (ret);
-}
-
-/*
  * __wt_cursor_set_valuev --
  *     WT_CURSOR->set_value worker implementation.
  */
