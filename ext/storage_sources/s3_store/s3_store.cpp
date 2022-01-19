@@ -61,7 +61,7 @@ typedef struct s3_file_handle {
 } S3_FILE_HANDLE;
 
 /* Configuration variables for connecting to S3CrtClient. */
-Aws::String region = Aws::Region::US_EAST_1;
+Aws::String region = Aws::Region::AP_SOUTHEAST_2;
 const double throughput_target_gbps = 5;
 const uint64_t part_size = 8 * 1024 * 1024; // 8 MB.
 
@@ -92,11 +92,17 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     aws_config.region = region;
     aws_config.throughputTargetGbps = throughput_target_gbps;
     aws_config.partSize = part_size;
-
     const Aws::S3Crt::S3CrtClient &s3CrtClient = aws_config;
 
     awsBucketConn conn(aws_config);
     conn.s3_list_buckets();
+    conn.list_bucket_objects("rubysfirstbucket");
+    conn.put_object("../../luna.json", "rubysfirstbucket", "luna.json");
+    conn.delete_object("rubysfirstbucket", "luna.json");
+    awsBucketConn conn2(aws_config);
+    conn2.list_bucket_objects("rubyssecondbucket");
+
+
 
     return 0;
 }
