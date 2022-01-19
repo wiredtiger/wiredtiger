@@ -565,6 +565,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             internal_cleanup = false;
         }
 
+        if (!F_ISSET(txn, WT_READ_VISIBLE_ALL))
+            LF_SET(WT_READ_VISIBLE_ALL);
+
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
             WT_ERR(__wt_tree_walk_custom_skip(session, &walk, __sync_page_skip, NULL, flags));
