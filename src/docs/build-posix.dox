@@ -1,7 +1,5 @@
 /*! @page build-posix Building and installing WiredTiger on POSIX (Linux, *BSD, OS X):
 
-To read instructions on using the legacy autoconf build system, see  @subpage build-autoconf.
-
 @section posix_github Building using Git and GitHub
 
 Skip this step if you are building from a WiredTiger release package,
