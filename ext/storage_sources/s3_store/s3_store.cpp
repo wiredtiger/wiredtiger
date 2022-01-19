@@ -32,7 +32,7 @@
 #include <iostream>
 #include <aws/core/Aws.h>
 #include <aws/s3-crt/S3CrtClient.h>
-#include "AwsBucketConn.h"
+#include "aws_bucket_conn.h"
 
 #define UNUSED(x) (void)(x)
 
@@ -61,7 +61,7 @@ typedef struct s3_file_handle {
 } S3_FILE_HANDLE;
 
 /* Configuration variables for connecting to S3CrtClient. */
-Aws::String region = Aws::Region::AP_SOUTHEAST_2;
+Aws::String region = Aws::Region::US_EAST_1;
 const double throughput_target_gbps = 5;
 const uint64_t part_size = 8 * 1024 * 1024; // 8 MB.
 
@@ -94,15 +94,74 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     aws_config.partSize = part_size;
     const Aws::S3Crt::S3CrtClient &s3CrtClient = aws_config;
 
-    awsBucketConn conn(aws_config);
-    conn.s3_list_buckets();
-    conn.list_bucket_objects("rubysfirstbucket");
-    conn.put_object("../../luna.json", "rubysfirstbucket", "luna.json");
-    conn.delete_object("rubysfirstbucket", "luna.json");
-    awsBucketConn conn2(aws_config);
-    conn2.list_bucket_objects("rubyssecondbucket");
+    aws_bucket_conn conn(aws_config);
 
+    /* TODO: Move these into tests. */
+    /* List S3 buckets. */
+    Aws::Vector<Aws::S3Crt::Model::Bucket> buckets;
+    if (conn.list_buckets(&buckets)) {
+        std::cout << "All buckets under my account:" << std::endl;
+        for (const Aws::S3Crt::Model::Bucket &bucket : buckets) {
+            std::cout << "  * " << bucket.GetName() << std::endl;
+        }
+        std::cout << std::endl;
+    }
 
+    /* Have at least one bucket to use. */
+    if (buckets.size() >= 1) {
+        const Aws::String first_bucket = buckets.at(0).GetName();
+
+        /* List objects. */
+        Aws::Vector<Aws::S3Crt::Model::Object> bucket_objects;
+        if (conn.list_bucket_objects(first_bucket, &bucket_objects)) {
+            std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
+            if (bucket_objects.size() >= 1) {
+                for (Aws::S3Crt::Model::Object &object : bucket_objects) {
+                    std::cout << "  * " << object.GetKey() << std::endl;
+                }
+            } else {
+                std::cout << "No objects in bucket." << std::endl;
+                ;
+            }
+            std::cout << std::endl;
+        }
+
+        /* Put object. */
+        conn.put_object(first_bucket, "test.json", "../../../test.json");
+
+        /* List objects again. */
+        if (conn.list_bucket_objects(first_bucket, &bucket_objects)) {
+            std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
+            if (bucket_objects.size() >= 1) {
+                for (Aws::S3Crt::Model::Object &object : bucket_objects) {
+                    std::cout << "  * " << object.GetKey() << std::endl;
+                }
+            } else {
+                std::cout << "No objects in bucket." << std::endl;
+                ;
+            }
+            std::cout << std::endl;
+        }
+
+        /* Delete object. */
+        conn.delete_object(first_bucket, "test.json");
+
+        /* List objects again. */
+        if (conn.list_bucket_objects(first_bucket, &bucket_objects)) {
+            std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
+            if (bucket_objects.size() >= 1) {
+                for (Aws::S3Crt::Model::Object &object : bucket_objects) {
+                    std::cout << "  * " << object.GetKey() << std::endl;
+                }
+            } else {
+                std::cout << "No objects in bucket." << std::endl;
+                ;
+            }
+            std::cout << std::endl;
+        }
+    } else {
+        std::cout << "No buckets in AWS account." << std::endl;
+    }
 
     return 0;
 }
@@ -117,11 +176,12 @@ static int
 s3_add_reference(WT_STORAGE_SOURCE *storage_source)
 {
     UNUSED(storage_source);
-    std::cout << "s3_add_reference()";
+    // std::cout << "s3_add_reference()";
     return (0);
 }
 
-static int s3_terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
+static int
+s3_terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
 {
     /* NEED A WAY to pass the options to the ShutdownAPI call */
     S3_STORAGE *s3;
@@ -131,7 +191,7 @@ static int s3_terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
     Aws::ShutdownAPI(options);
 
     delete (s3);
-    return (0); 
+    return (0);
 }
 
 /*

@@ -1,4 +1,4 @@
-#include <AwsBucketConn.h>
+#include <aws_bucket_conn.h>
 #include <aws/core/Aws.h>
 #include <iostream>
 
@@ -12,13 +12,20 @@ namespace defaults
 
 /* Unit test for listing S3 buckets under the associated AWS account. */
 int test_list_buckets(const Aws::S3Crt::ClientConfiguration &config) {
-    awsBucketConn bucket_conn(config);
-    std::cout << "Listing all S3 buckets under the AWS account:" << std::endl;
-    bool outcome = bucket_conn.s3_list_buckets();
-    std::cout << "Finished listing all S3 buckets under the AWS account." << std::endl;
-    return outcome;
-}
+    aws_bucket_conn conn(config);
+    Aws::Vector<Aws::S3Crt::Model::Bucket> buckets;
 
+    if (conn.list_buckets(&buckets)) {
+        std::cout << "All buckets under my account:" << std::endl;
+        for (const Aws::S3Crt::Model::Bucket &bucket : buckets) {
+            std::cout << "  * " << bucket.GetName() << std::endl;
+        }
+        std::cout << std::endl;
+        return true;
+    } else {
+        return false;
+    }
+}
 
 int main () {
     /* Set up the config to use the defaults specified. */

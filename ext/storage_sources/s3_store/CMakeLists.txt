@@ -45,7 +45,7 @@ if (ENABLE_S3)
     set(AWSSDK_LINK_LIBRARIES aws-sdk::s3 aws-sdk::core aws-sdk::s3-crt)
 
     # Create an intermediate library to build the helper library
-    add_library(aws_bucket_util STATIC AwsBucketConn.cpp)
+    add_library(aws_bucket_util STATIC aws_bucket_conn.cpp)
     set_property(TARGET aws_bucket_util PROPERTY POSITION_INDEPENDENT_CODE ON)
 
     target_include_directories(
