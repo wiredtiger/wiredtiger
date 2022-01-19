@@ -449,17 +449,17 @@ struct __wt_connection_impl {
     uint32_t tiered_threads_min; /* Min tiered threads */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_LOG_ARCHIVE 0x001u         /* Archive is enabled */
-#define WT_CONN_LOG_CONFIG_ENABLED 0x002u  /* Logging is configured */
-#define WT_CONN_LOG_DEBUG_MODE 0x004u      /* Debug-mode logging enabled */
-#define WT_CONN_LOG_DOWNGRADED 0x008u      /* Running older version */
-#define WT_CONN_LOG_ENABLED 0x010u         /* Logging is enabled */
-#define WT_CONN_LOG_EXISTED 0x020u         /* Log files found */
-#define WT_CONN_LOG_FORCE_DOWNGRADE 0x040u /* Force downgrade */
-#define WT_CONN_LOG_RECOVER_DIRTY 0x080u   /* Recovering unclean */
-#define WT_CONN_LOG_RECOVER_DONE 0x100u    /* Recovery completed */
-#define WT_CONN_LOG_RECOVER_ERR 0x200u     /* Error if recovery required */
-#define WT_CONN_LOG_RECOVER_FAILED 0x400u  /* Recovery failed */
+#define WT_CONN_LOG_CONFIG_ENABLED 0x001u  /* Logging is configured */
+#define WT_CONN_LOG_DEBUG_MODE 0x002u      /* Debug-mode logging enabled */
+#define WT_CONN_LOG_DOWNGRADED 0x004u      /* Running older version */
+#define WT_CONN_LOG_ENABLED 0x008u         /* Logging is enabled */
+#define WT_CONN_LOG_EXISTED 0x010u         /* Log files found */
+#define WT_CONN_LOG_FORCE_DOWNGRADE 0x020u /* Force downgrade */
+#define WT_CONN_LOG_RECOVER_DIRTY 0x040u   /* Recovering unclean */
+#define WT_CONN_LOG_RECOVER_DONE 0x080u    /* Recovery completed */
+#define WT_CONN_LOG_RECOVER_ERR 0x100u     /* Error if recovery required */
+#define WT_CONN_LOG_RECOVER_FAILED 0x200u  /* Recovery failed */
+#define WT_CONN_LOG_REMOVE 0x400u          /* Removal is enabled */
 #define WT_CONN_LOG_ZERO_FILL 0x800u       /* Manually zero files */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t log_flags;                    /* Global logging configuration */
@@ -592,6 +592,7 @@ struct __wt_connection_impl {
 #define WT_TIMING_STRESS_SPLIT_5 0x04000u
 #define WT_TIMING_STRESS_SPLIT_6 0x08000u
 #define WT_TIMING_STRESS_SPLIT_7 0x10000u
+#define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x20000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t timing_stress_flags;
 
@@ -625,24 +626,25 @@ struct __wt_connection_impl {
 #define WT_CONN_CKPT_GATHER 0x000004u
 #define WT_CONN_CKPT_SYNC 0x000008u
 #define WT_CONN_CLOSING 0x000010u
-#define WT_CONN_CLOSING_NO_MORE_OPENS 0x000020u
-#define WT_CONN_CLOSING_TIMESTAMP 0x000040u
-#define WT_CONN_COMPATIBILITY 0x000080u
-#define WT_CONN_DATA_CORRUPTION 0x000100u
-#define WT_CONN_EVICTION_RUN 0x000200u
-#define WT_CONN_FILE_CLOSE_SYNC 0x000400u
-#define WT_CONN_HS_OPEN 0x000800u
-#define WT_CONN_INCR_BACKUP 0x001000u
-#define WT_CONN_IN_MEMORY 0x002000u
-#define WT_CONN_LEAK_MEMORY 0x004000u
-#define WT_CONN_LSM_MERGE 0x008000u
-#define WT_CONN_OPTRACK 0x010000u
-#define WT_CONN_PANIC 0x020000u
-#define WT_CONN_READONLY 0x040000u
-#define WT_CONN_RECONFIGURING 0x080000u
-#define WT_CONN_RECOVERING 0x100000u
-#define WT_CONN_SALVAGE 0x200000u
-#define WT_CONN_WAS_BACKUP 0x400000u
+#define WT_CONN_CLOSING_CHECKPOINT 0x000020u
+#define WT_CONN_CLOSING_NO_MORE_OPENS 0x000040u
+#define WT_CONN_CLOSING_TIMESTAMP 0x000080u
+#define WT_CONN_COMPATIBILITY 0x000100u
+#define WT_CONN_DATA_CORRUPTION 0x000200u
+#define WT_CONN_EVICTION_RUN 0x000400u
+#define WT_CONN_FILE_CLOSE_SYNC 0x000800u
+#define WT_CONN_HS_OPEN 0x001000u
+#define WT_CONN_INCR_BACKUP 0x002000u
+#define WT_CONN_IN_MEMORY 0x004000u
+#define WT_CONN_LEAK_MEMORY 0x008000u
+#define WT_CONN_LSM_MERGE 0x010000u
+#define WT_CONN_OPTRACK 0x020000u
+#define WT_CONN_PANIC 0x040000u
+#define WT_CONN_READONLY 0x080000u
+#define WT_CONN_RECONFIGURING 0x100000u
+#define WT_CONN_RECOVERING 0x200000u
+#define WT_CONN_SALVAGE 0x400000u
+#define WT_CONN_WAS_BACKUP 0x800000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };

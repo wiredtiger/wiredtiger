@@ -246,7 +246,7 @@ struct __wt_cursor_bulk {
      * row-store compares keys during bulk load to avoid corruption.
      */
     bool first_insert; /* First insert */
-    WT_ITEM last;      /* Last key/value inserted */
+    WT_ITEM *last;     /* Last key/value inserted */
 
     /*
      * Additional column-store bulk load support.
@@ -448,8 +448,8 @@ struct __wt_cursor_log {
     uint64_t txnid;                   /* Record txnid */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CURLOG_ARCHIVE_LOCK 0x1u /* Archive lock held */
-                                    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+#define WT_CURLOG_REMOVE_LOCK 0x1u /* Remove lock held */
+                                   /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
 

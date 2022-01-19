@@ -35,7 +35,6 @@ from wtscenario import make_scenarios
 #    Checking visibility and durability of updates with durable_timestamp and
 #    with restart.
 class test_durable_ts01(wttest.WiredTigerTestCase):
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('row-string', dict(keyfmt='S', valfmt='S')),
@@ -107,7 +106,7 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
             self.assertEquals(cursor.next(), 0)
         session.commit_transaction()
 
-        # Check that latest value is same as first  update value.
+        # Check that latest value is same as first update value.
         self.assertEquals(cursor.reset(), 0)
         session.begin_transaction()
         self.assertEquals(cursor.next(), 0)

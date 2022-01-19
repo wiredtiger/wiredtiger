@@ -34,8 +34,8 @@ static char home[HOME_SIZE];    /* Base home directory */
 static char hometmp[HOME_SIZE]; /* Each conn home directory */
 static const char *const uri = "table:main";
 
-#define WTOPEN_CFG_COMMON                              \
-    "create,log=(file_max=10M,archive=false,enabled)," \
+#define WTOPEN_CFG_COMMON                             \
+    "create,log=(enabled,file_max=10M,remove=false)," \
     "statistics=(fast),statistics_log=(wait=5),"
 #define WT_CONFIG0    \
     WTOPEN_CFG_COMMON \
@@ -76,6 +76,10 @@ static const char *const uri = "table:main";
 #endif
 
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -91,6 +95,10 @@ static WT_CURSOR **cursors = NULL;
 static WT_RAND_STATE rnd;
 static WT_SESSION **sessions = NULL;
 
+/*
+ * get_stat --
+ *     TODO: Add a comment describing this function.
+ */
 static int
 get_stat(WT_SESSION *stat_session, int stat_field, uint64_t *valuep)
 {
@@ -108,6 +116,10 @@ get_stat(WT_SESSION *stat_session, int stat_field, uint64_t *valuep)
     return (ret);
 }
 
+/*
+ * run_ops --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 run_ops(int dbs)
 {
@@ -136,6 +148,10 @@ run_ops(int dbs)
     }
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {

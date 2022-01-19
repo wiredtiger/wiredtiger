@@ -33,7 +33,7 @@
 
 #define NUM_RECORDS 800000
 
-#define ENV_CONFIG_REC "log=(archive=false,recover=on)"
+#define ENV_CONFIG_REC "log=(recover=on,remove=false)"
 /* Constants and variables declaration. */
 /*
  * You may want to add "verbose=[compact,compact_progress]" to the connection config string to get
@@ -67,7 +67,8 @@ static void large_updates(WT_SESSION *session, const char *uri, char *value, int
 static void check(WT_SESSION *session, const char *uri, char *value, int commit_ts);
 
 /*
- * Signal handler to catch if the child died unexpectedly.
+ * sig_handler --
+ *     Signal handler to catch if the child died unexpectedly.
  */
 static void
 sig_handler(int sig)
@@ -82,7 +83,10 @@ sig_handler(int sig)
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
-/* Methods implementation. */
+/*
+ * main --
+ *     Methods implementation.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -101,6 +105,10 @@ main(int argc, char *argv[])
     return (EXIT_SUCCESS);
 }
 
+/*
+ * run_compact --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 run_compact(WT_SESSION *session, const char *uri)
 {
@@ -110,6 +118,10 @@ run_compact(WT_SESSION *session, const char *uri)
     printf("Compact end...\n");
 }
 
+/*
+ * run_test --
+ *     TODO: Add a comment describing this function.
+ */
 static int
 run_test(bool column_store, const char *uri, bool preserve)
 {
@@ -176,11 +188,11 @@ run_test(bool column_store, const char *uri, bool preserve)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /* Get the stable timestamp from the stable timestamp of the last successful checkpoint. */
-    testutil_check(conn->query_timestamp(conn, ts_string, "get=stable"));
+    testutil_check(conn->query_timestamp(conn, ts_string, "get=stable_timestamp"));
     testutil_timestamp_parse(ts_string, &stable_ts);
 
     /* Get the oldest timestamp from the oldest timestamp of the last successful checkpoint. */
-    testutil_check(conn->query_timestamp(conn, ts_string, "get=oldest"));
+    testutil_check(conn->query_timestamp(conn, ts_string, "get=oldest_timestamp"));
     testutil_timestamp_parse(ts_string, &oldest_ts);
 
     /*
@@ -210,6 +222,10 @@ run_test(bool column_store, const char *uri, bool preserve)
     return (EXIT_SUCCESS);
 }
 
+/*
+ * workload_compact --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 workload_compact(const char *home, const char *table_config, const char *uri)
 {
@@ -272,6 +288,10 @@ workload_compact(const char *home, const char *table_config, const char *uri)
     run_compact(session, uri);
 }
 
+/*
+ * check --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 check(WT_SESSION *session, const char *uri, char *value, int read_ts)
 {
@@ -306,6 +326,10 @@ check(WT_SESSION *session, const char *uri, char *value, int read_ts)
     cursor = NULL;
 }
 
+/*
+ * large_updates --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 large_updates(WT_SESSION *session, const char *uri, char *value, int commit_ts)
 {
@@ -332,6 +356,10 @@ large_updates(WT_SESSION *session, const char *uri, char *value, int commit_ts)
     cursor = NULL;
 }
 
+/*
+ * populate --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 populate(WT_SESSION *session, const char *uri)
 {
@@ -362,6 +390,10 @@ populate(WT_SESSION *session, const char *uri)
     cursor = NULL;
 }
 
+/*
+ * remove_records --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 remove_records(WT_SESSION *session, const char *uri, int commit_ts)
 {

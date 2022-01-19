@@ -36,7 +36,6 @@ import wiredtiger, wttest
 class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_timestamp09'
     uri = 'table:' + tablename
-    session_config = 'isolation=snapshot'
 
     def test_timestamp_api(self):
         self.session.create(self.uri, 'key_format=i,value_format=i')
@@ -44,9 +43,9 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Begin by adding some data.
         self.session.begin_transaction()
+        c[1] = 1
         self.session.commit_transaction(
             'commit_timestamp=' + self.timestamp_str(1))
-        c[1] = 1
 
         # In a single transaction it is illegal to set a commit timestamp
         # older than the first commit timestamp used for this transaction.
@@ -107,7 +106,8 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         # Oldest timestamp is 3 at the moment, trying to set it to an earlier
         # timestamp is a no-op.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
-        self.assertTimestampsEqual(self.conn.query_timestamp('get=oldest'), self.timestamp_str(3))
+        self.assertTimestampsEqual(\
+            self.conn.query_timestamp('get=oldest_timestamp'), self.timestamp_str(3))
 
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(3) +
             ',stable_timestamp=' + self.timestamp_str(3))
@@ -115,7 +115,8 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         # Stable timestamp is 5 at the moment, trying to set it to an earlier
         # timestamp is a no-op.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(4))
-        self.assertTimestampsEqual(self.conn.query_timestamp('get=stable'), self.timestamp_str(5))
+        self.assertTimestampsEqual(\
+            self.conn.query_timestamp('get=stable_timestamp'), self.timestamp_str(5))
 
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,

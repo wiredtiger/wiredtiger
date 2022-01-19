@@ -49,27 +49,26 @@ common_runtime_config = [
         enable enhanced checking. ''',
         type='category', subconfig= [
         Config('commit_timestamp', 'none', r'''
-            This option is no longer supported, retained for backward compatibility''',
-            choices=['always', 'key_consistent', 'never', 'none']),
+            this option is no longer supported, retained for backward compatibility''',
+            choices=['always', 'key_consistent', 'never', 'none'], undoc=True),
         Config('durable_timestamp', 'none', r'''
-            This option is no longer supported, retained for backward compatibility''',
-            choices=['always', 'key_consistent', 'never', 'none']),
+            this option is no longer supported, retained for backward compatibility''',
+            choices=['always', 'key_consistent', 'never', 'none'], undoc=True),
+        Config('read_timestamp', 'none', r'''
+            verify that timestamps should \c always or \c never be used on
+            reads with this table.  Verification should be set to \c none
+            if mixed read use is allowed''',
+            choices=['always', 'never', 'none']),
         Config('write_timestamp', 'off', r'''
             verify that commit timestamps are used per the configured
             \c write_timestamp_usage option for this table''',
             choices=['off', 'on']),
-        Config('read_timestamp', 'none', r'''
-            verify that timestamps should \c always or \c never be used
-            on reads with this table.  Verification is \c none
-            if mixed read use is allowed''',
-            choices=['always', 'never', 'none'])
-        ], undoc=True),
-    Config('verbose', '[]', r'''
-        enable messages for various events. Options are given as a
-        list, such as <code>"verbose=[write_timestamp]"</code>''',
-        type='list', choices=[
-            'write_timestamp',
         ]),
+    Config('verbose', '[]', r'''
+        enable messages for various events. The choices are \c write_timestamp
+        which adds verbose messages as described by \c write_timestamp_usage.
+        Options are given as a list, such as \c "verbose=[write_timestamp]"''',
+        type='list', choices=['write_timestamp']),
     Config('write_timestamp_usage', 'none', r'''
         describe how timestamps are expected to be used on modifications to
         the table. This option should be used in conjunction with the
@@ -613,8 +612,8 @@ connection_runtime_config = [
             if true, dump the core in the diagnostic mode on encountering the data corruption.''',
             type='boolean'),
         Config('checkpoint_retention', '0', r'''
-            adjust log archiving to retain the log records of this number
-            of checkpoints. Zero or one means perform normal archiving.''',
+            adjust log removal to retain the log records of this number
+            of checkpoints. Zero or one means perform normal removal.''',
             min='0', max='1024'),
         Config('cursor_copy', 'false', r'''
             if true, use the system allocator to make a copy of any data
@@ -630,7 +629,7 @@ connection_runtime_config = [
             and modifying the eviction score mechanism.''',
             type='boolean'),
         Config('log_retention', '0', r'''
-            adjust log archiving to retain at least this number of log files, ignored if set to 0.
+            adjust log removal to retain at least this number of log files, ignored if set to 0.
             (Warning: this option can remove log files required for recovery if no checkpoints
             have yet been done and the number of log files exceeds the configured value. As
             WiredTiger cannot detect the difference between a system that has not yet checkpointed
@@ -779,12 +778,12 @@ connection_runtime_config = [
             type='boolean')
         ]),
     Config('operation_timeout_ms', '0', r'''
-        when non-zero, a requested limit on the number of elapsed real time milliseconds
+        if non-zero, a requested limit on the number of elapsed real time milliseconds
         application threads will take to complete database operations. Time is measured from the
         start of each WiredTiger API call.  There is no guarantee any operation will not take
         longer than this amount of time. If WiredTiger notices the limit has been exceeded, an
-        operation may return a WT_ROLLBACK error. Default is to have no limit''',
-        min=1),
+        operation may return a WT_ROLLBACK error. The default of 0 is to have no limit''',
+        min=0),
     Config('operation_tracking', '', r'''
         enable tracking of performance-critical functions. See
         @ref operation_tracking for more information''',
@@ -867,7 +866,7 @@ connection_runtime_config = [
         'compact_slow', 'failpoint_history_store_delete_key_from_ts',
         'history_store_checkpoint_delay', 'history_store_search', 'history_store_sweep_race',
         'prepare_checkpoint_delay', 'split_1', 'split_2', 'split_3', 'split_4', 'split_5',
-        'split_6', 'split_7']),
+        'split_6', 'split_7', 'tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
@@ -952,8 +951,8 @@ wiredtiger_open_compatibility_configuration = [
 # wiredtiger_open and WT_CONNECTION.reconfigure log configurations.
 log_configuration_common = [
     Config('archive', 'true', r'''
-        automatically archive unneeded log files''',
-        type='boolean'),
+        automatically remove unneeded log files (deprecated)''',
+        type='boolean', undoc=True),
     Config('os_cache_dirty_pct', '0', r'''
         maximum dirty system buffer cache usage, as a percentage of the
         log's \c file_max.  If non-zero, schedule writes for dirty blocks
@@ -963,6 +962,9 @@ log_configuration_common = [
         min='0', max='100'),
     Config('prealloc', 'true', r'''
         pre-allocate log files''',
+        type='boolean'),
+    Config('remove', 'true', r'''
+        automatically remove unneeded log files''',
         type='boolean'),
     Config('zero_fill', 'false', r'''
         manually write zeroes into log files''',
@@ -1143,7 +1145,10 @@ wiredtiger_open_common =\
         in-memory alignment (in bytes) for buffers used for I/O.  The
         default value of -1 indicates a platform-specific alignment value
         should be used (4KB on Linux systems when direct I/O is configured,
-        zero elsewhere)''',
+        zero elsewhere). If the configured alignment is larger than default
+        or configured object page sizes, file allocation and page sizes are
+        silently increased to the buffer alignment size. Requires the \c
+        posix_memalign API. See @ref tuning_system_buffer_cache_direct_io''',
         min='-1', max='1MB'),
     Config('builtin_extension_config', '', r'''
         A structure where the keys are the names of builtin extensions and the
@@ -1164,10 +1169,11 @@ wiredtiger_open_common =\
         Windows to access files.  Options are given as a list, such as
         <code>"direct_io=[data]"</code>.  Configuring \c direct_io requires
         care, see @ref tuning_system_buffer_cache_direct_io for important
-        warnings.  Including \c "data" will cause WiredTiger data files to use
-        direct I/O, including \c "log" will cause WiredTiger log files to use
-        direct I/O, and including \c "checkpoint" will cause WiredTiger data
-        files opened at a checkpoint (i.e: read-only) to use direct I/O.
+        warnings.  Including \c "data" will cause WiredTiger data files,
+        including WiredTiger internal data files, to use direct I/O;
+        including \c "log" will cause WiredTiger log files to use direct
+        I/O; including \c "checkpoint" will cause WiredTiger data files
+        opened using a (read-only) checkpoint cursor to use direct I/O.
         \c direct_io should be combined with \c write_through to get the
         equivalent of \c O_DIRECT on Windows''',
         type='list', choices=['checkpoint', 'data', 'log']),
@@ -1411,12 +1417,13 @@ methods = {
     Config('import', '', r'''
         configure import of an existing object into the currently running database''',
         type='category', subconfig=[
-        Config('compare_timestamp', 'oldest', r'''
-            Allow importing files with timestamps smaller or equal to the configured
-            global timestamps. Note that the history of the files are not imported
-            together and thus snapshot read of historical data will not work with the
-            option "stable"''',
-            choices=['oldest', 'stable']),
+        Config('compare_timestamp', 'oldest_timestamp', r'''
+            Allow importing files with timestamps smaller or equal to the configured global
+            timestamps. Note the history of the files are not imported together and thus snapshot
+            read of historical data will not work with the option "stable_timestamp". (The \c
+            oldest and \c stable arguments are deprecated short-hand for \c oldest_timestamp
+            and \c stable_timestamp, respectively.)''',
+            choices=['oldest', 'oldest_timestamp', 'stable', 'stable_timestamp']),
         Config('enabled', 'false', r'''
             whether to import the input URI from disk''',
             type='boolean'),
@@ -1938,31 +1945,22 @@ methods = {
 
 'WT_CONNECTION.query_timestamp' : Method([
     Config('get', 'all_durable', r'''
-        specify which timestamp to query:
-        \c all_durable returns the largest timestamp such that all timestamps
-        up to that value have been made durable, \c last_checkpoint returns the
-        timestamp of the most recent stable checkpoint, \c oldest returns the
-        most recent \c oldest_timestamp set with WT_CONNECTION::set_timestamp,
-        \c oldest_reader returns the minimum of the read timestamps of all
-        active readers \c pinned returns the minimum of the \c oldest_timestamp
-        and the read timestamps of all active readers, \c recovery returns the
-        timestamp of the most recent stable checkpoint taken prior to a shutdown
-        and \c stable returns the most recent \c stable_timestamp set with
-        WT_CONNECTION::set_timestamp. See @ref transaction_timestamps''',
-        choices=['all_durable','last_checkpoint',
-            'oldest','oldest_reader','pinned','recovery','stable']),
+        specify which timestamp to query: \c all_durable returns the largest timestamp such that
+        all timestamps up to that value have been made durable, \c last_checkpoint returns the
+        timestamp of the most recent stable checkpoint, \c oldest_timestamp returns the most
+        recent \c oldest_timestamp set with WT_CONNECTION::set_timestamp, \c oldest_reader
+        returns the minimum of the read timestamps of all active readers \c pinned returns
+        the minimum of the \c oldest_timestamp and the read timestamps of all active readers,
+        \c recovery returns the timestamp of the most recent stable checkpoint taken prior to a
+        shutdown and \c stable_timestamp returns the most recent \c stable_timestamp set with
+        WT_CONNECTION::set_timestamp. (The \c oldest and \c stable arguments are deprecated
+        short-hand for \c oldest_timestamp and \c stable_timestamp, respectively.) See @ref
+        transaction_timestamps''',
+        choices=['all_durable','last_checkpoint','oldest',
+            'oldest_reader','oldest_timestamp','pinned','recovery','stable','stable_timestamp']),
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([
-    Config('commit_timestamp', '', r'''
-        (deprecated) reset the maximum commit timestamp tracked by WiredTiger.
-        This will cause future calls to WT_CONNECTION::query_timestamp to
-        ignore commit timestamps greater than the specified value until the
-        next commit moves the tracked commit timestamp forwards.  This is only
-        intended for use where the application is rolling back locally
-        committed transactions. The supplied value must not be older than the
-        current oldest and stable timestamps.
-        See @ref transaction_timestamps'''),
     Config('durable_timestamp', '', r'''
         reset the maximum durable timestamp tracked by WiredTiger.  This will
         cause future calls to WT_CONNECTION::query_timestamp to ignore durable

@@ -26,26 +26,26 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_prepare_conflict.py
-#   Evict a page while in the fast-truncate state.
+# test_truncate08.py
+#   Check for prepare-conflict return after fast-truncate committed.
 #
 
 import wiredtiger, wttest
 from wtdataset import simple_key, simple_value
 from wtscenario import make_scenarios
 
-class test_prepare_conflict(wttest.WiredTigerTestCase):
+class test_truncate08(wttest.WiredTigerTestCase):
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('integer_row', dict(key_format='i', value_format='S')),
+        ('fix', dict(key_format='r', value_format='8t')),
+        ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
     scenarios = make_scenarios(format_values)
 
-    def test_prepare(self):
+    def test_truncate08(self):
         # Create a large table with lots of pages.
-        uri = "table:test_prepare_conflict"
+        uri = "table:test_truncate08"
         format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, 'allocation_size=512,leaf_page_max=512,' + format)
 
@@ -63,7 +63,7 @@ class test_prepare_conflict(wttest.WiredTigerTestCase):
         self.reopen_conn()
 
         # Start a transaction.
-        self.session.begin_transaction('isolation=snapshot')
+        self.session.begin_transaction()
 
         # Truncate the middle chunk.
         c1 = self.session.open_cursor(uri, None)
