@@ -100,9 +100,9 @@ trace_init(void)
     testutil_check(__wt_snprintf(tracedir, sizeof(tracedir), TRACE_INIT_CMD, g.home, g.home));
     testutil_checkfmt(system(tracedir), "%s", "logging directory creation failed");
 
-    /* Configure logging with archival, and keep the last N log files. */
+    /* Configure logging with automatic removal, and keep the last N log files. */
     testutil_check(__wt_snprintf(config, sizeof(config),
-      "create,log=(enabled,archive),debug_mode=(log_retention=%d)", retain));
+      "create,log=(enabled=true,remove=true),debug_mode=(log_retention=%d)", retain));
     testutil_check(__wt_snprintf(tracedir, sizeof(tracedir), "%s/%s", g.home, TRACE_DIR));
     testutil_checkfmt(
       wiredtiger_open(tracedir, NULL, config, &g.trace_conn), "%s: %s", tracedir, config);

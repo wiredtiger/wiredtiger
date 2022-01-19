@@ -143,9 +143,6 @@ CONFIG configuration_list[] = {
   {"logging", "configure logging",
     C_BOOL, 50, 0, 0, V_GLOBAL_LOGGING},
 
-  {"logging.archive", "configure log file archival",
-    C_BOOL, 50, 0, 0, V_GLOBAL_LOGGING_ARCHIVE},
-
   {"logging.compression", "logging compression (off | lz4 | snappy | zlib | zstd)",
     C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_LOGGING_COMPRESSION},
 
@@ -154,6 +151,9 @@ CONFIG configuration_list[] = {
 
   {"logging.prealloc", "configure log file pre-allocation",
     C_BOOL, 50, 0, 0, V_GLOBAL_LOGGING_PREALLOC},
+
+  {"logging.remove", "configure log file removal",
+    C_BOOL, 50, 0, 0, V_GLOBAL_LOGGING_REMOVE},
 
   {"lsm.auto_throttle", "throttle LSM inserts",
     C_BOOL | C_TABLE | C_TYPE_LSM, 90, 0, 0, V_TABLE_LSM_AUTO_THROTTLE},
