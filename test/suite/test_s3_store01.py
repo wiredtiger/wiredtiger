@@ -37,18 +37,19 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         extlist.skip_if_missing = True
         extlist.extension('storage_sources', 's3_store')
 
-    def get_local_storage_source(self):
+    def get_s3_storage_source(self):
         return self.conn.get_storage_source('s3_store')
 
     def test_local_basic(self):
         # Test some basic functionality of the storage source API, calling
         # each supported method in the API at least once.
         session = self.session
-        local = self.get_local_storage_source()
+        s3_store = self.get_s3_storage_source()
 
-        fs = local.ss_customize_file_system(session, "./objects", "Secret", None)
+        fs = s3_store.ss_customize_file_system(session, "./objects", "Secret", None)
+        fs.terminate(session)
 
-        local.terminate(session)
+        s3_store.terminate(session)
 
 if __name__ == '__main__':
     wttest.run()

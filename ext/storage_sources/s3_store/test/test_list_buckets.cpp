@@ -5,7 +5,7 @@
 /* Default config settings for the S3CrtClient. */
 namespace defaults 
 {
-    const Aws::String region = Aws::Region::US_EAST_1;
+    const Aws::String region = Aws::Region::AP_SOUTHEAST_2;
     const double throughput_target_gbps = 5;
     const uint64_t part_size = 8 * 1024 * 1024; // 8 MB.    
 }
