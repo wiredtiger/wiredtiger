@@ -15,7 +15,7 @@ done
 
 if [ -z "$test_bin" ]
 then
-    # If $top_builddir isn't set, default to using the build directory
+    # If $binary_dir isn't set, default to using the build directory
     # this script resides under. Our CMake build will sync a copy of this
     # script to the build directory. Note this assumes we are executing a
     # copy of the script that lives under the build directory. Otherwise
