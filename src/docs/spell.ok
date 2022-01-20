@@ -109,6 +109,7 @@ NUMA
 NoSQL
 OPTYPE
 PMU
+Powershell
 PPC
 PRELOAD
 PROFDATA
@@ -458,6 +459,7 @@ mkdir
 mmap
 mpool
 mpoolfile
+msbuild
 msec
 msg
 msgs
@@ -673,6 +675,7 @@ util
 valign
 valuefmt
 valuev
+vcxproj
 vec
 versa
 viewable
