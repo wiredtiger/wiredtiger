@@ -459,9 +459,10 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 #if defined(HAVE_DIAGNOSTIC)
     /* Enable verbose messaging a short period before the cache is declared stuck
     for too long and WT crashes. */
-    if ((cache_stuck_duration > cache_stuck_timeout - WT_CACHE_STUCK_VERBOSE_BEGIN) &&
-      (!WT_VERBOSE_EVICT_LEVEL_ISSET(session, WT_VERBOSE_DEBUG)))
+    if ((cache_stuck_duration > (cache_stuck_timeout - WT_CACHE_STUCK_VERBOSE_BEGIN)) &&
+      (!WT_VERBOSE_EVICT_LEVEL_ISSET(session, WT_VERBOSE_DEBUG))) {
         WT_SET_EVICT_VERBOSE_LEVEL(session, WT_VERBOSE_DEBUG);
+    }
 #endif
 
     if (cache_stuck_duration > cache_stuck_timeout) {

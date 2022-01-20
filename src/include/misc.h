@@ -45,10 +45,10 @@
 #define WT_MINUTE (60)
 
 /* Time (in minutes) the cache is stuck before WT crashes in diagnostic mode.*/
-#define WT_CACHE_STUCK_TIMEOUT (1)
+#define WT_CACHE_STUCK_TIMEOUT (5)
 /* Time (in seconds) before WT crashes when the cache is stuck that eviction related
 verbose messages are enabled in diagnostic mode.*/
-#define WT_CACHE_STUCK_VERBOSE_BEGIN (10)
+#define WT_CACHE_STUCK_VERBOSE_BEGIN (2)
 
 #define WT_PROGRESS_MSG_PERIOD (20)
 
