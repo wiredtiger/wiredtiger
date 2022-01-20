@@ -616,6 +616,11 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                  * current update is at the head of the stack. We need to check both cases because
                  * if there is a tombstone older than the out of order timestamp, we would not pop
                  * it because we skip the tombstone. Pop it when we are inserting it instead.
+                 *
+                 * Here it is assumed that the out of order update is equal to the oldest update
+                 * among the multiple out of order consecutive updates that have same timestamps.
+                 * For instance, U1@10 -> U2@10 -> U3@10 -> U4@20, U3 which is the oldest update
+                 * will be the out of order update.
                  */
                 if (out_of_order_ts_upd != NULL &&
                   (out_of_order_ts_upd == prev_upd || out_of_order_ts_upd == upd)) {
