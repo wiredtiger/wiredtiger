@@ -72,9 +72,9 @@ compact(void *arg)
          */
         table = table_select(NULL);
         ret = session->compact(session, table->uri, NULL);
-        if (ret != 0 && ret != EBUSY && ret != ETIMEDOUT && ret != WT_ROLLBACK &&
-          ret != WT_CACHE_FULL)
-            testutil_die(ret, "session.compact");
+        testutil_assertfmt(ret == 0 || ret == EBUSY || ret == ETIMEDOUT || ret == WT_CACHE_FULL ||
+            ret == WT_ROLLBACK,
+          "WT_SESSION.compact failed: %s: %d", table->uri, ret);
     }
 
     wiredtiger_close_session(session);

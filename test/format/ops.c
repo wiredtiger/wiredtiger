@@ -615,13 +615,14 @@ prepare_transaction(TINFO *tinfo)
  * OP_FAILED --
  *	Error handling.
  */
-#define OP_FAILED(notfound_ok)                                                                \
-    do {                                                                                      \
-        positioned = false;                                                                   \
-        if (intxn && (ret == WT_CACHE_FULL || ret == WT_ROLLBACK))                            \
-            return (WT_ROLLBACK);                                                             \
-        testutil_assert(                                                                      \
-          (notfound_ok && ret == WT_NOTFOUND) || ret == WT_CACHE_FULL || ret == WT_ROLLBACK); \
+#define OP_FAILED(notfound_ok)                                                               \
+    do {                                                                                     \
+        positioned = false;                                                                  \
+        if (intxn && (ret == WT_CACHE_FULL || ret == WT_ROLLBACK))                           \
+            return (WT_ROLLBACK);                                                            \
+        testutil_assertfmt(                                                                  \
+          (notfound_ok && ret == WT_NOTFOUND) || ret == WT_CACHE_FULL || ret == WT_ROLLBACK, \
+          "operation failed: %d", ret);                                                      \
     } while (0)
 
 /* Isolation configuration. */
@@ -1158,7 +1159,8 @@ ops(void *arg)
             __wt_yield(); /* Encourage races */
 
             ret = snap_repeat_txn(tinfo);
-            testutil_assert(ret == 0 || ret == WT_ROLLBACK || ret == WT_CACHE_FULL);
+            testutil_assertfmt(
+              ret == 0 || ret == WT_ROLLBACK || ret == WT_CACHE_FULL, "operation failed: %d", ret);
             if (ret == WT_ROLLBACK || ret == WT_CACHE_FULL)
                 goto rollback;
         }
