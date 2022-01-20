@@ -390,6 +390,7 @@ struct __wt_connection_stats {
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
     int64_t cache_eviction_checkpoint;
+    int64_t cache_eviction_blocked_checkpoint_hs_application;
     int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t cache_checkpoint_state;
     int64_t cache_eviction_modify;
@@ -911,6 +912,7 @@ struct __wt_dsrc_stats {
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
     int64_t cache_eviction_checkpoint;
+    int64_t cache_eviction_blocked_checkpoint_hs_application;
     int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t cache_checkpoint_state;
     int64_t cache_eviction_fail;
