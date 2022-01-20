@@ -185,6 +185,8 @@ define_build_mode(Coverage
     DEPENDS "NOT MSVC"
 )
 
+define_build_mode(None)
+
 if(NOT CMAKE_BUILD_TYPE)
     string(REPLACE ";" " " build_modes_doc "${BUILD_MODES}")
     set(CMAKE_BUILD_TYPE "None" CACHE STRING "Choose the type of build, options are: ${build_modes_doc}." FORCE)
