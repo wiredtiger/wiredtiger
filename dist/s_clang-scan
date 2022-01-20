@@ -4,8 +4,8 @@ t_out=__wt.$$.out
 t_err=__wt.$$.err
 a=__wt.$$.a
 b=__wt.$$.b
-t_pfx=__s_clang_scan_tmp_
-trap 'rm -rf $a $b $t_out $t_err $t_pfx*' 0 1 2 3 13 15
+t_build=__s_clang_scan_tmp_build
+trap 'rm -rf $a $b $t_out $t_err $t_build' 0 1 2 3 13 15
 
 # Find the top-level WiredTiger directory and move to there.
 top=`git rev-parse --show-toplevel` && cd $top || exit 1
@@ -34,9 +34,9 @@ echo "$0: scan-build: $scan"
 
 # Remove old reports.
 rm -rf clangScanBuildReports && mkdir clangScanBuildReports
-rm -rf ${t_pfx}build && mkdir ${t_pfx}build
+rm -rf ${t_build} && mkdir ${t_build}
 
-cd ${t_pfx}build
+cd ${t_build}
 args="-o clangScanBuildReports"
 args="$args --use-cc=$compiler"
 args="$args -disable-checker core.NullDereference"
