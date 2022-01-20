@@ -379,7 +379,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
 
-    uint32_t cache_stuck_duration;
+    uint64_t cache_stuck_duration;
     uint32_t cache_stuck_timeout;
 
     /* Assume there has been no progress. */
