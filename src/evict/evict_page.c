@@ -587,7 +587,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     if (conn->txn_global.checkpoint_running_hs && !WT_IS_HS(btree->dhandle) &&
       __wt_cache_full(session) && !F_ISSET(session, WT_SESSION_EVICTION)) {
         WT_STAT_CONN_INCR(session, cache_eviction_blocked_checkpoint_hs_application);
-        return (__wt_set_return(session, EBUSY));
+        //return (__wt_set_return(session, EBUSY));
     }
 
     /*
