@@ -593,7 +593,7 @@ prepare_transaction(TINFO *tinfo)
             goto rollback;                                                                   \
         testutil_assertfmt(                                                                  \
           (notfound_ok && ret == WT_NOTFOUND) || ret == WT_CACHE_FULL || ret == WT_ROLLBACK, \
-          "operation failed with %d", ret);                                                  \
+          "operation failed: %d", ret);                                                      \
     } while (0)
 
 /*
@@ -1032,7 +1032,8 @@ update_instead_of_chosen_op:
             __wt_yield(); /* Encourage races */
 
             ret = snap_repeat_txn(tinfo);
-            testutil_assert(ret == 0 || ret == WT_ROLLBACK || ret == WT_CACHE_FULL);
+            testutil_assertfmt(
+              ret == 0 || ret == WT_ROLLBACK || ret == WT_CACHE_FULL, "operation failed: %d", ret);
             if (ret == WT_ROLLBACK || ret == WT_CACHE_FULL)
                 goto rollback;
         }

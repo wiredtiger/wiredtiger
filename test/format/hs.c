@@ -78,10 +78,10 @@ hs_cursor(void *arg)
          */
         next = mmrand(NULL, 0, 1) == 1;
         for (i = mmrand(NULL, 1000, 100000); i > 0; --i) {
-            if ((ret = (next ? cursor->next(cursor) : cursor->prev(cursor))) != 0) {
-                testutil_assert(ret == WT_NOTFOUND || ret == WT_ROLLBACK || ret == WT_CACHE_FULL);
-                break;
-            }
+            if ((ret = (next ? cursor->next(cursor) : cursor->prev(cursor))) != 0)
+                testutil_assertfmt(ret == WT_NOTFOUND || ret == WT_CACHE_FULL || ret == WT_ROLLBACK,
+                  "WT_CURSOR.%s failed: %d", next ? "next" : "prev", ret);
+
             testutil_check(
               cursor->get_key(cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
             testutil_check(cursor->get_value(
