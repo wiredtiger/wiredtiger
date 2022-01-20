@@ -158,10 +158,9 @@ __curversion_next_int(WT_CURSOR *cursor)
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_ROW *rip;
     WT_SESSION_IMPL *session;
     WT_TIME_WINDOW *twp;
-    WT_UPDATE *upd, *tombstone;
+    WT_UPDATE *first, *next_upd, *upd, *tombstone;
     wt_timestamp_t durable_start_ts, durable_stop_ts, stop_ts;
     uint64_t stop_txn, hs_upd_type;
     uint32_t raw;
@@ -176,7 +175,7 @@ __curversion_next_int(WT_CURSOR *cursor)
     page = cbt->ref->page;
     twp = NULL;
     upd_found = false;
-    upd = tombstone = NULL;
+    first = upd = tombstone = NULL;
 
     /* Temporarily clear the raw flag. We need to pack the data according to the format. */
     raw = F_MASK(cursor, WT_CURSTD_RAW);
@@ -188,58 +187,7 @@ __curversion_next_int(WT_CURSOR *cursor)
           session, "rolling back version_cursor->next due to no initial position"));
 
     if (!F_ISSET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED)) {
-        /*
-         * If we position on a key, set next update of the version cursor to be the first update on
-         * the key if any.
-         */
-        switch (page->type) {
-        case WT_PAGE_ROW_LEAF:
-            if (cbt->ins != NULL)
-                upd = cbt->ins->upd;
-            else {
-                rip = &page->pg_row[cbt->slot];
-                upd = WT_ROW_UPDATE(page, rip);
-            }
-            break;
-        case WT_PAGE_COL_FIX:
-        case WT_PAGE_COL_VAR:
-            if (cbt->ins != NULL)
-                upd = cbt->ins->upd;
-            else
-                upd = NULL;
-            break;
-        default:
-            WT_ERR(__wt_illegal_value(session, page->type));
-        }
-
-        /* Skip aborted updates. */
-        while (
-          version_cursor->next_upd != NULL && version_cursor->next_upd->txnid == WT_TXN_ABORTED)
-            version_cursor->next_upd = version_cursor->next_upd->next;
-
-        /* Nothing to check. */
-        if (version_cursor->next_upd == NULL)
-            upd = NULL;
-
-        /*
-         * Walk to the next upd from start each time to ensure the next upd is not obsolete or
-         * freed. Check aborted after checking next upd because the next upd can be aborted
-         * concurrently. In this case, we will return an extra aborted update, which should be fine.
-         */
-        for (; upd != NULL; upd = upd->next) {
-            /* We walk to the desired update. */
-            if (upd == version_cursor->next_upd)
-                break;
-
-            if (upd->txnid == WT_TXN_ABORTED)
-                continue;
-
-            /* We have traversed all the non-obsolete updates. */
-            if (WT_UPDATE_DATA_VALUE(upd) && __wt_txn_upd_visible_all(session, upd)) {
-                upd = NULL;
-                break;
-            }
-        }
+        upd = version_cursor->next_upd;
 
         if (upd == NULL) {
             version_cursor->next_upd = NULL;
@@ -302,7 +250,28 @@ __curversion_next_int(WT_CURSOR *cursor)
                 version_cursor->upd_stop_ts = upd->start_ts;
 
                 upd_found = true;
-                version_cursor->next_upd = upd->next;
+
+                /* Walk to the next non-obsolete update. */
+                for (next_upd = upd; next_upd != NULL; next_upd = next_upd->next) {
+                    if (next_upd->txnid == WT_TXN_ABORTED)
+                        continue;
+
+                    if (first != NULL) {
+                        next_upd = NULL;
+                        break;
+                    }
+
+                    /* We have traversed all the non-obsolete updates. */
+                    if (WT_UPDATE_DATA_VALUE(next_upd) &&
+                      __wt_txn_upd_visible_all(session, next_upd))
+                        first = next_upd;
+
+                    if (next_upd != upd)
+                        break;
+                }
+                version_cursor->next_upd = next_upd;
+                if (next_upd == NULL)
+                    F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
             }
         }
     }
@@ -569,6 +538,10 @@ __curversion_search(WT_CURSOR *cursor)
     default:
         WT_ERR(__wt_illegal_value(session, page->type));
     }
+
+    /* Walk to the first non aborted update. This update cannot be obsolete if exists. */
+    while (version_cursor->next_upd != NULL && version_cursor->next_upd->txnid == WT_TXN_ABORTED)
+        version_cursor->next_upd = version_cursor->next_upd->next;
 
     if (version_cursor->next_upd == NULL)
         F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
