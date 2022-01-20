@@ -586,13 +586,14 @@ prepare_transaction(TINFO *tinfo)
  * OP_FAILED --
  *	Error handling.
  */
-#define OP_FAILED(notfound_ok)                                                                \
-    do {                                                                                      \
-        positioned = false;                                                                   \
-        if (intxn && (ret == WT_CACHE_FULL || ret == WT_ROLLBACK))                            \
-            goto rollback;                                                                    \
-        testutil_assert(                                                                      \
-          (notfound_ok && ret == WT_NOTFOUND) || ret == WT_CACHE_FULL || ret == WT_ROLLBACK); \
+#define OP_FAILED(notfound_ok)                                                               \
+    do {                                                                                     \
+        positioned = false;                                                                  \
+        if (intxn && (ret == WT_CACHE_FULL || ret == WT_ROLLBACK))                           \
+            goto rollback;                                                                   \
+        testutil_assertfmt(                                                                  \
+          (notfound_ok && ret == WT_NOTFOUND) || ret == WT_CACHE_FULL || ret == WT_ROLLBACK, \
+          "operation failed with %d", ret);                                                  \
     } while (0)
 
 /*
