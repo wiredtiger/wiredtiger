@@ -1,6 +1,6 @@
 include(CheckCCompilerFlag)
 
-set(WT_ARCH "arm64" CACHE STRING "")
+set(WT_ARCH "aarch64" CACHE STRING "")
 set(WT_OS "darwin" CACHE STRING "")
 set(WT_POSIX ON CACHE BOOL "")
 
