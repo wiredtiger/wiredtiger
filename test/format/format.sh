@@ -122,10 +122,10 @@ while :; do
 	-c)
 		config="$2"
 		shift ; shift ;;
-    -d)
-        format_bin_dir="$2"
-        shift ; shift ;;
-    -D)
+	-d)
+		format_bin_dir="$2"
+		shift ; shift ;;
+	-D)
 		# Format changes directories, get absolute paths to the CONFIG files.
 		dir="$2"
 		[[ "$dir" == /* ]] || dir="$PWD/$dir"
@@ -245,7 +245,7 @@ cd $format_bin_dir || exit 1
 # binary, raise an error, as we expect the user to either execute the 'format.sh' script under the
 # build directory or by passing the format build directory as an argument.
 [[ -x ${format_binary##* } ]] || {
-    fatal_msg "format program \"${format_binary##* }\" not found"
+	fatal_msg "format program \"${format_binary##* }\" not found"
 }
 
 # Find the wt binary (required for abort/recovery testing).
