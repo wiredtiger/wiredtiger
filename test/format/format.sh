@@ -244,9 +244,9 @@ cd $format_bin_dir || exit 1
 # format.sh (being the default path value assigned to 'format_bin_dir'). If we can't detect the format
 # binary, raise an error, as we expect the user to either execute the 'format.sh' script under the
 # build directory or by passing the format build directory as an argument.
-[[ -x ${format_binary##* } ]] || {
+[[ -x ${format_binary##* } ]] ||
 	fatal_msg "format program \"${format_binary##* }\" not found"
-}
+
 
 # Find the wt binary (required for abort/recovery testing).
 wt_binary="../../wt"
