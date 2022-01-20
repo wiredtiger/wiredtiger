@@ -180,6 +180,12 @@ path_setup(const char *home)
     /* Home directory. */
     g.home = dstrdup(home == NULL ? "RUNDIR" : home);
 
+    /* Backup file. */
+    name = "WiredTiger.backup";
+    len = strlen(g.home) + strlen(name) + 2;
+    g.home_backup = dmalloc(len);
+    testutil_check(__wt_snprintf(g.home_backup, len, "%s/%s", g.home, name));
+
     /* Configuration file. */
     name = "CONFIG";
     len = strlen(g.home) + strlen(name) + 2;

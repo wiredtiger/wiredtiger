@@ -199,6 +199,7 @@ typedef struct {
     bool trace_txn;
 
     char *home;        /* Home directory */
+    char *home_backup; /* Backup file name */
     char *home_config; /* Run CONFIG file path */
     char *home_key;    /* Key file filename */
     char *home_stats;  /* Statistics file path */

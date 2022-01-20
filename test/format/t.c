@@ -190,7 +190,7 @@ main(int argc, char *argv[])
     u_int ops_seconds;
     int ch, reps;
     const char *config, *home;
-    bool quiet_flag, verify_only;
+    bool is_backup, quiet_flag, verify_only;
 
     custom_die = format_die; /* Local death handler. */
 
@@ -316,7 +316,15 @@ main(int argc, char *argv[])
     if (g.reopen) {
         if (GV(RUNS_IN_MEMORY))
             testutil_die(0, "reopen impossible after in-memory run");
-        wts_open(g.home, &g.wts_conn, true);
+        /*
+         * If we are reopening from a backup then we do not want to verify the metadata. That is, if
+         * it is a backup, send false to wts_open. If we are a normal reopen then send in true to
+         * wts_open.
+         */
+        is_backup = false;
+        if (access(g.home_backup, F_OK) == 0)
+            is_backup = true;
+        wts_open(g.home, &g.wts_conn, !is_backup);
         timestamp_init();
         set_oldest_timestamp();
     } else {
