@@ -37,9 +37,8 @@ __wt_direct_io_size_check(
      * document that setting a larger buffer alignment than the allocation size silently increases
      * the allocation size: direct I/O isn't a heavily used feature, that should be sufficient.
      */
-    if (FLD_ISSET(conn->direct_io, WT_DIRECT_IO_CHECKPOINT | WT_DIRECT_IO_DATA)) {
-        /* If direct I/O is configured, the alignment must also be set, or the default. */
-        WT_ASSERT(session, conn->buffer_alignment != 0);
+    if (conn->buffer_alignment != 0 &&
+      FLD_ISSET(conn->direct_io, WT_DIRECT_IO_CHECKPOINT | WT_DIRECT_IO_DATA)) {
 
         if (allocsize < conn->buffer_alignment)
             allocsize = (uint32_t)conn->buffer_alignment;
@@ -261,9 +260,9 @@ __create_file(
         if (!import_repair) {
             WT_ERR(__wt_scr_alloc(session, 0, &val));
             WT_ERR(__wt_buf_fmt(session, val,
-              "id=%" PRIu32 ",version=(major=%d,minor=%d),checkpoint_lsn=",
-              ++S2C(session)->next_file_id, WT_BTREE_MAJOR_VERSION_MAX,
-              WT_BTREE_MINOR_VERSION_MAX));
+              "id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=",
+              ++S2C(session)->next_file_id, WT_BTREE_VERSION_MAX.major,
+              WT_BTREE_VERSION_MAX.minor));
             for (p = filecfg; *p != NULL; ++p)
                 ;
             *p = val->data;
@@ -905,9 +904,9 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
          */
         WT_ERR(__wt_buf_fmt(session, tmp,
           ",tiered_storage=(bucket=%s,bucket_prefix=%s)"
-          ",id=%" PRIu32 ",version=(major=%d,minor=%d),checkpoint_lsn=",
+          ",id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=",
           conn->bstorage->bucket, conn->bstorage->bucket_prefix, ++conn->next_file_id,
-          WT_BTREE_MAJOR_VERSION_MAX, WT_BTREE_MINOR_VERSION_MAX));
+          WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
         cfg[1] = tmp->data;
         cfg[2] = config;
         cfg[3] = "tiers=()";
