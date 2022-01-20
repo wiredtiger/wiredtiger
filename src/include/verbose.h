@@ -106,17 +106,21 @@ struct __wt_verbose_multi_category {
 #define WT_DECL_VERBOSE_MULTI_CATEGORY(items) \
     ((WT_VERBOSE_MULTI_CATEGORY){.categories = (items), .cnt = WT_ELEMENTS(items)})
 
-/* Set the verbosity level for a given category. */
-#define WT_SET_VERBOSE_LEVEL(session, category, level) S2C(session)->verbose[category] = level
-
 /* Check if a given verbosity level satisfies the verbosity level of a category. */
 #define WT_VERBOSE_LEVEL_ISSET(session, category, level) (level <= S2C(session)->verbose[category])
 
-#define WT_VERBOSE_EVICT_LEVEL_ISSET(session, level) \
-    (S2C(session)->verbose[WT_VERB_EVICT] == level &&\
-     S2C(session)->verbose[WT_VERB_EVICT_STUCK] == level &&\
-     S2C(session)->verbose[WT_VERB_EVICTSERVER] == level\
-    )
+/* Check if a given verbosity level is met for eviction related messages. */
+#define WT_VERBOSE_EVICT_LEVEL_ISSET(session, level)         \
+    (S2C(session)->verbose[WT_VERB_EVICT] >= level &&        \
+      S2C(session)->verbose[WT_VERB_EVICT_STUCK] >= level && \
+      S2C(session)->verbose[WT_VERB_EVICTSERVER] >= level)
+
+/* Set the verbosity level for eviction related messages. */
+#define WT_SET_EVICT_VERBOSE_LEVEL(session, level)      \
+    S2C(session)->verbose[WT_VERB_EVICT] = level;       \
+    S2C(session)->verbose[WT_VERB_EVICT_STUCK] = level; \
+    S2C(session)->verbose[WT_VERB_EVICTSERVER] = level;
+
 /*
  * Given this verbosity check is without an explicit verbosity level, the macro checks whether the
  * given category satisfies the default verbosity level.

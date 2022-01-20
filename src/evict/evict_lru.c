@@ -379,6 +379,9 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
 
+    uint32_t cache_stuck_duration;
+    uint32_t cache_stuck_timeout;
+
     /* Assume there has been no progress. */
     *did_work = false;
 
@@ -449,21 +452,19 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 
     __wt_epoch(session, &now);
 
+    /* Calculate how long the cache has been stuck for and the expiry timeout.*/
+    cache_stuck_duration = WT_TIMEDIFF_SEC(now, cache->stuck_time);
+    cache_stuck_timeout = WT_MINUTE * WT_CACHE_STUCK_TIMEOUT;
 
 #if defined(HAVE_DIAGNOSTIC)
-    /* Enable verbose messaging a period before the cache is stuck. */
-    if ((WT_TIMEDIFF_SEC(now, cache->stuck_time) > (WT_MINUTE * WT_CACHE_STUCK_TIMEOUT) - WT_CACHE_STUCK_VERBOSE_BEGIN) && (
-        !WT_VERBOSE_EVICT_LEVEL_ISSET(session, WT_VERBOSE_DEBUG)
-    )) {
-        printf("Setting the eviction verbosity level to DEBUG\n");
-        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG);
-        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG);
-        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG);
-    }
+    /* Enable verbose messaging a short period before the cache is declared stuck
+    for too long and WT crashes. */
+    if ((cache_stuck_duration > cache_stuck_timeout - WT_CACHE_STUCK_VERBOSE_BEGIN) &&
+      (!WT_VERBOSE_EVICT_LEVEL_ISSET(session, WT_VERBOSE_DEBUG)))
+        WT_SET_EVICT_VERBOSE_LEVEL(session, WT_VERBOSE_DEBUG);
 #endif
 
-
-    if (WT_TIMEDIFF_SEC(now, cache->stuck_time) > WT_MINUTE * WT_CACHE_STUCK_TIMEOUT) {
+    if (cache_stuck_duration > cache_stuck_timeout) {
 #if defined(HAVE_DIAGNOSTIC)
         __wt_err(session, ETIMEDOUT, "Cache stuck for too long, giving up");
         WT_RET(__wt_verbose_dump_txn(session));
