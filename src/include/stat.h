@@ -396,6 +396,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_app_thread_exit;
     int64_t cache_eviction_pct_full_application;
     int64_t cache_eviction_modify;
+    int64_t cache_eviction_busy_exit;
     int64_t cache_eviction_get_ref;
     int64_t cache_eviction_get_ref_empty;
     int64_t cache_eviction_get_ref_empty2;
@@ -921,6 +922,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_app_thread_exit;
     int64_t cache_eviction_pct_full_application;
     int64_t cache_eviction_modify;
+    int64_t cache_eviction_busy_exit;
     int64_t cache_eviction_blocked_ooo_checkpoint_race_1;
     int64_t cache_eviction_blocked_ooo_checkpoint_race_2;
     int64_t cache_eviction_blocked_ooo_checkpoint_race_3;

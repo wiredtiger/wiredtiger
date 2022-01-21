@@ -60,6 +60,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: eviction application thread exited from eviction",
   "cache: eviction application thread pct full",
   "cache: eviction btree has modify",
+  "cache: eviction busy page error exited from eviction",
   "cache: eviction gave up due to detecting an out of order on disk value behind the last update "
   "on the chain",
   "cache: eviction gave up due to detecting an out of order tombstone ahead of the selected on "
@@ -347,6 +348,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_app_thread_exit = 0;
     stats->cache_eviction_pct_full_application = 0;
     stats->cache_eviction_modify = 0;
+    stats->cache_eviction_busy_exit = 0;
     stats->cache_eviction_blocked_ooo_checkpoint_race_1 = 0;
     stats->cache_eviction_blocked_ooo_checkpoint_race_2 = 0;
     stats->cache_eviction_blocked_ooo_checkpoint_race_3 = 0;
@@ -610,6 +612,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_app_thread_exit += from->cache_eviction_app_thread_exit;
     to->cache_eviction_pct_full_application += from->cache_eviction_pct_full_application;
     to->cache_eviction_modify += from->cache_eviction_modify;
+    to->cache_eviction_busy_exit += from->cache_eviction_busy_exit;
     to->cache_eviction_blocked_ooo_checkpoint_race_1 +=
       from->cache_eviction_blocked_ooo_checkpoint_race_1;
     to->cache_eviction_blocked_ooo_checkpoint_race_2 +=
@@ -873,6 +876,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_pct_full_application +=
       WT_STAT_READ(from, cache_eviction_pct_full_application);
     to->cache_eviction_modify += WT_STAT_READ(from, cache_eviction_modify);
+    to->cache_eviction_busy_exit += WT_STAT_READ(from, cache_eviction_busy_exit);
     to->cache_eviction_blocked_ooo_checkpoint_race_1 +=
       WT_STAT_READ(from, cache_eviction_blocked_ooo_checkpoint_race_1);
     to->cache_eviction_blocked_ooo_checkpoint_race_2 +=
@@ -1140,6 +1144,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction application thread exited from eviction",
   "cache: eviction application thread pct full",
   "cache: eviction btree has modify",
+  "cache: eviction busy page error exited from eviction",
   "cache: eviction calls to get a page",
   "cache: eviction calls to get a page found queue empty",
   "cache: eviction calls to get a page found queue empty after locking",
@@ -1721,6 +1726,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_app_thread_exit = 0;
     stats->cache_eviction_pct_full_application = 0;
     stats->cache_eviction_modify = 0;
+    stats->cache_eviction_busy_exit = 0;
     stats->cache_eviction_get_ref = 0;
     stats->cache_eviction_get_ref_empty = 0;
     stats->cache_eviction_get_ref_empty2 = 0;
@@ -2265,6 +2271,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_pct_full_application +=
       WT_STAT_READ(from, cache_eviction_pct_full_application);
     to->cache_eviction_modify += WT_STAT_READ(from, cache_eviction_modify);
+    to->cache_eviction_busy_exit += WT_STAT_READ(from, cache_eviction_busy_exit);
     to->cache_eviction_get_ref += WT_STAT_READ(from, cache_eviction_get_ref);
     to->cache_eviction_get_ref_empty += WT_STAT_READ(from, cache_eviction_get_ref_empty);
     to->cache_eviction_get_ref_empty2 += WT_STAT_READ(from, cache_eviction_get_ref_empty2);
