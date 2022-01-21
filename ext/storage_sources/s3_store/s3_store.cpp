@@ -144,7 +144,7 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
             }
 
             /* Put object. */
-            fs->conn->put_object(first_bucket, "test.json", "../../../test.json");
+            fs->conn->put_object(first_bucket, "WiredTiger.turtle", "WiredTiger.turtle");
 
             /* List objects again. */
             if (fs->conn->list_objects(first_bucket, bucket_objects)) {
@@ -161,7 +161,7 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
             }
 
             /* Delete object. */
-            fs->conn->delete_object(first_bucket, "test.json");
+            fs->conn->delete_object(first_bucket, "WiredTiger.turtle");
 
             /* List objects again. */
             if (fs->conn->list_objects(first_bucket, bucket_objects)) {
@@ -265,6 +265,6 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     if ((ret = connection->add_storage_source(connection, "s3_store", &s3->storage_source, NULL)) !=
       0)
         free(s3);
-        
+
     return (ret);
 }
