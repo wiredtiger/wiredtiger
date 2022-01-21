@@ -2348,6 +2348,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     time_start = 0;
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
+    app_thread = !F_ISSET(session, WT_SESSION_INTERNAL);
 
     if (session->cache_max_wait_us != 0)
         cache_max_wait_us = session->cache_max_wait_us;
@@ -2365,7 +2366,6 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     /*
      * It is not safe to proceed if the eviction server threads aren't setup yet.
      */
-    app_thread = !F_ISSET(session, WT_SESSION_INTERNAL);
     if (!conn->evict_server_running || (busy && pct_full < 100.0))
         goto done;
 
