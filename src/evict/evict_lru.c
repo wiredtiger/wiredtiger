@@ -2365,6 +2365,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     /*
      * It is not safe to proceed if the eviction server threads aren't setup yet.
      */
+    app_thread = !F_ISSET(session, WT_SESSION_INTERNAL);
     if (!conn->evict_server_running || (busy && pct_full < 100.0))
         goto done;
 
@@ -2372,7 +2373,6 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     __wt_evict_server_wake(session);
 
     /* Track how long application threads spend doing eviction. */
-    app_thread = !F_ISSET(session, WT_SESSION_INTERNAL);
     if (app_thread)
         time_start = __wt_clock(session);
 
@@ -2462,11 +2462,12 @@ err:
         }
     }
 
+
 done:
     WT_TRACK_OP_END(session);
+
     if (app_thread)
         WT_STAT_CONN_INCR(session, cache_eviction_app_thread_exit);
-
     return (ret);
 }
 
