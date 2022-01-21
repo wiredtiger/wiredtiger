@@ -924,6 +924,7 @@ gostruct
 goto
 goutf
 gt
+gte
 handleops
 handlep
 hardcoded
@@ -1088,6 +1089,7 @@ lsm
 lsn
 lsnappy
 lt
+lte
 lu
 lwsync
 lx

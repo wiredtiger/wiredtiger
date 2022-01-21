@@ -96,10 +96,6 @@ main(int argc, char *argv[])
     int i;
     char tableconf[128];
 
-    /* Bypass this test for valgrind */
-    if (testutil_is_flag_set("TESTUTIL_BYPASS_VALGRIND"))
-        return (EXIT_SUCCESS);
-
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
     opts->nthreads = 20;
@@ -150,12 +146,9 @@ main(int argc, char *argv[])
 }
 
 /*
- * Append to a table in a "racy" fashion - that is attempt to insert the same record another thread
- * is likely to also be inserting.
- */
-/*
  * thread_insert_race --
- *     TODO: Add a comment describing this function.
+ *     Append to a table in a "racy" fashion - that is attempt to insert the same record another
+ *     thread is likely to also be inserting.
  */
 void *
 thread_insert_race(void *arg)

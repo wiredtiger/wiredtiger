@@ -22,6 +22,8 @@ if(NOT WT_ARCH)
     # Defer to our hosts architecture as our target architecture.
     if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|i686|i386|AMD64)$")
         set(WT_ARCH "x86")
+    elseif ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(arm64|aarch64)$")
+        set(WT_ARCH "aarch64")
     else()
         set(WT_ARCH "${CMAKE_HOST_SYSTEM_PROCESSOR}")
     endif()

@@ -593,13 +593,11 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     r->flags = flags;
 
-    /* Track the page's min/maximum transaction */
+    /* Track the page's maximum transaction/timestamp. */
     r->max_txn = WT_TXN_NONE;
     r->max_ts = WT_TS_NONE;
-    r->min_skipped_ts = WT_TS_MAX;
 
     /* Track if updates were used and/or uncommitted. */
-    r->updates_seen = r->updates_unstable = 0;
     r->update_used = false;
 
     /* Track if the page can be marked clean. */

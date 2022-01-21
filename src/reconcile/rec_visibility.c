@@ -9,18 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __rec_update_stable --
- *     Return whether an update is stable or not.
- */
-static inline bool
-__rec_update_stable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
-{
-    return (F_ISSET(r, WT_REC_VISIBLE_ALL) ? __wt_txn_upd_visible_all(session, upd) :
-                                             __wt_txn_upd_visible(session, upd) &&
-          __wt_txn_visible(session, upd->txnid, upd->durable_ts));
-}
-
-/*
  * __rec_update_save --
  *     Save a WT_UPDATE list for later restoration.
  */
@@ -254,20 +242,6 @@ __timestamp_out_of_order_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw
         select_tw->start_ts = select_tw->stop_ts;
         return (true);
     }
-
-    /*
-     * As per the time window validation the durable_start_ts must not be greater than the stop_ts.
-     * Hence, if the stop_ts is less than durable_start_ts and greater than start_ts, make
-     * durable_start_ts equal to stop_ts.
-     */
-    if ((select_tw->start_ts != select_tw->stop_ts) &&
-      (select_tw->stop_ts < select_tw->durable_start_ts)) {
-        __wt_verbose(session, WT_VERB_TIMESTAMP,
-          "Warning: fixing out-of-order timestamps remove earlier than value; time window %s",
-          __wt_time_window_to_string(select_tw, time_string));
-
-        select_tw->durable_start_ts = select_tw->stop_ts;
-    }
     return (false);
 }
 
@@ -442,7 +416,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         if ((txnid = upd->txnid) == WT_TXN_ABORTED)
             continue;
 
-        ++r->updates_seen;
         upd_memsize += WT_UPDATE_MEMSIZE(upd);
 
         /*
@@ -504,13 +477,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
                 has_newer_updates = true;
                 if (upd->start_ts > max_ts)
                     max_ts = upd->start_ts;
-
-                /*
-                 * Track the oldest update not on the page, used to decide whether reads can use the
-                 * page image, hence using the start rather than the durable timestamp.
-                 */
-                if (upd->start_ts < r->min_skipped_ts)
-                    r->min_skipped_ts = upd->start_ts;
                 continue;
             } else {
                 /*
@@ -535,9 +501,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         if (upd_select->upd == NULL)
             upd_select->upd = upd;
 
-        if (F_ISSET(r, WT_REC_EVICT) && !__rec_update_stable(session, r, upd))
-            ++r->updates_unstable;
-        else if (!F_ISSET(r, WT_REC_EVICT))
+        if (!F_ISSET(r, WT_REC_EVICT))
             break;
     }
 

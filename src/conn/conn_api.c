@@ -1369,7 +1369,7 @@ __conn_config_readonly(const char *cfg[])
       "checkpoint=(wait=0),"
       "config_base=false,"
       "create=false,"
-      "log=(archive=false,prealloc=false),"
+      "log=(prealloc=false,remove=false),"
       "lsm_manager=(merge=false),";
     __conn_config_append(cfg, readonly);
 }
@@ -1938,10 +1938,10 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.checkpoint_retention", &cval));
 
     /*
-     * Checkpoint retention has some rules to avoid needing a lock to coordinate with the archive
-     * thread and avoid memory issues. You can turn it on to some value. You can turn it off. You
-     * can reconfigure to the same value again. You cannot change the non-zero value. Once it was on
-     * in the past and then turned off, you cannot turn it back on again.
+     * Checkpoint retention has some rules to avoid needing a lock to coordinate with the log
+     * removal thread and avoid memory issues. You can turn it on to some value. You can turn it
+     * off. You can reconfigure to the same value again. You cannot change the non-zero value. Once
+     * it was on in the past and then turned off, you cannot turn it back on again.
      */
     if (cval.val != 0) {
         if (conn->debug_ckpt_cnt != 0 && cval.val != conn->debug_ckpt_cnt)
@@ -1953,7 +1953,7 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
         FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN);
     /*
      * We need to make sure all writes to other fields are visible before setting the count because
-     * the archive thread may walk the array using this value.
+     * the log removal thread may walk the array using this value.
      */
     WT_PUBLISH(conn->debug_ckpt_cnt, (uint32_t)cval.val);
 
@@ -2531,10 +2531,7 @@ __conn_version_verify(WT_SESSION_IMPL *session)
     bool exist;
 
     conn = S2C(session);
-
-    conn->recovery_major = 0;
-    conn->recovery_minor = 0;
-    conn->recovery_patch = 0;
+    conn->recovery_version = WT_NO_VERSION;
 
     /* Always set the compatibility versions. */
     __wt_logmgr_compat_version(session);
@@ -2727,8 +2724,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_scr_alloc(session, 0, &i3));
     cfg[0] = WT_CONFIG_BASE(session, wiredtiger_open_all);
     cfg[1] = NULL;
-    WT_ERR(__wt_snprintf(version, sizeof(version), "version=(major=%d,minor=%d)",
-      conn->compat_major, conn->compat_minor));
+    WT_ERR(__wt_snprintf(version, sizeof(version), "version=(major=%" PRIu16 ",minor=%" PRIu16 ")",
+      conn->compat_version.major, conn->compat_version.minor));
     __conn_config_append(cfg, version);
 
     /* Ignore the base_config file if config_base_set is false. */
