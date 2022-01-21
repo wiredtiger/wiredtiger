@@ -2431,7 +2431,6 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
             if (busy) {
                 if (app_thread)
                     WT_STAT_CONN_INCR(session, cache_eviction_busy_exit);
-                goto err;
             }
         /* FALLTHROUGH */
         case EBUSY:
