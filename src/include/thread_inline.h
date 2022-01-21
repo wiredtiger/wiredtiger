@@ -16,8 +16,8 @@ __wt_thread_cleanup(WT_SESSION_IMPL *session, WT_THREAD *thread)
     /* The system thread must have joined at this point */
     WT_ASSERT(session, !thread->tid.created);
 
-    __wt_cond_destroy(session, &thread->pause_cond);
-    thread->pause_cond = NULL;
+    __wt_cond_destroy(session, &thread->cond);
+    thread->cond = NULL;
 
     if (thread->session != NULL) {
         WT_RET(__wt_session_close_internal(thread->session));
@@ -61,9 +61,9 @@ __wt_thread_start(WT_CONNECTION_IMPL *conn, const char *session_name, bool open_
       conn, session_name, open_metadata, session_flags, 0, &threadp->session));
 
     if (min != 0 && max != 0)
-        WT_RET(__wt_cond_auto_alloc(threadp->session, cond_name, min, max, &threadp->pause_cond));
+        WT_RET(__wt_cond_auto_alloc(threadp->session, cond_name, min, max, &threadp->cond));
     else
-        WT_RET(__wt_cond_alloc(threadp->session, cond_name, &threadp->pause_cond));
+        WT_RET(__wt_cond_alloc(threadp->session, cond_name, &threadp->cond));
 
     WT_RET(__wt_thread_create(threadp->session, &threadp->tid, thread_runner, threadp->session));
 
@@ -79,7 +79,7 @@ __wt_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
     if (__wt_thread_running(thread))
         if (thread->tid.created) {
-            __wt_cond_signal(session, thread->pause_cond);
+            __wt_cond_signal(session, thread->cond);
             WT_RET(__wt_thread_join(session, &thread->tid));
         }
     return (0);
