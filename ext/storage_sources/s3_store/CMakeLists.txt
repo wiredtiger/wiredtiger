@@ -45,6 +45,7 @@ if (ENABLE_S3)
     target_include_directories(
         aws_bucket_util
         PUBLIC
+            ${INSTALL_DIR}/include
             ${CMAKE_CURRENT_SOURCE_DIR}   
     )
 
