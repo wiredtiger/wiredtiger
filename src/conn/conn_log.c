@@ -804,7 +804,7 @@ __log_wrlsn_server(void *arg)
         if (yield++ < WT_THOUSAND)
             __wt_yield();
         else
-            __wt_cond_auto_wait(session, conn->log_wrlsn_cond, did_work, NULL);
+            __wt_cond_auto_wait(session, conn->log_wrlsn_thread.cond, did_work, NULL);
     }
     /*
      * On close we need to do this one more time because there could be straggling log writes that
@@ -975,7 +975,6 @@ int
 __wt_logmgr_open(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
-    uint32_t session_flags;
 
     conn = S2C(session);
 
@@ -986,23 +985,13 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
     FLD_SET(conn->server_flags, WT_CONN_SERVER_LOG);
 
     /*
-     * Start the log close thread. It is not configurable. If logging is enabled, this thread runs.
+     * Start the log file close and log write LSN threads. They are not configurable. If logging is
+     * enabled, these threads run.
      */
-    session_flags = WT_SESSION_NO_DATA_HANDLES;
     WT_RET(__wt_thread_start(conn, "log-close-server", false, WT_SESSION_NO_DATA_HANDLES,
       "log close server", 0, 0, __log_file_server, &conn->log_file_thread));
-
-    /*
-     * Start the log write LSN thread. It is not configurable. If logging is enabled, this thread
-     * runs.
-     */
-    WT_RET(__wt_open_internal_session(
-      conn, "log-wrlsn-server", false, session_flags, 0, &conn->log_wrlsn_session));
-    WT_RET(__wt_cond_auto_alloc(
-      conn->log_wrlsn_session, "log write lsn server", 10000, WT_MILLION, &conn->log_wrlsn_cond));
-    WT_RET(__wt_thread_create(
-      conn->log_wrlsn_session, &conn->log_wrlsn_tid, __log_wrlsn_server, conn->log_wrlsn_session));
-    conn->log_wrlsn_tid_set = true;
+    WT_RET(__wt_thread_start(conn, "log-wrlsn-server", false, WT_SESSION_NO_DATA_HANDLES,
+      "log write lsn server", 10000, WT_MILLION, __log_wrlsn_server, &conn->log_wrlsn_thread));
 
     /*
      * If a log server thread exists, the user may have reconfigured removal or pre-allocation.
@@ -1043,15 +1032,7 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
     }
     WT_TRET(__wt_thread_stop(session, &conn->log_server_thread));
     WT_TRET(__wt_thread_stop_and_cleanup(session, &conn->log_file_thread));
-    if (conn->log_wrlsn_tid_set) {
-        __wt_cond_signal(session, conn->log_wrlsn_cond);
-        WT_TRET(__wt_thread_join(session, &conn->log_wrlsn_tid));
-        conn->log_wrlsn_tid_set = false;
-    }
-    if (conn->log_wrlsn_session != NULL) {
-        WT_TRET(__wt_session_close_internal(conn->log_wrlsn_session));
-        conn->log_wrlsn_session = NULL;
-    }
+    WT_TRET(__wt_thread_stop_and_cleanup(session, &conn->log_wrlsn_thread));
 
     WT_TRET(__wt_log_slot_destroy(session));
     WT_TRET(__wt_log_close(session));
@@ -1059,8 +1040,6 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
     WT_TRET(__wt_thread_cleanup(session, &conn->log_server_thread));
 
     /* Destroy the condition variables now that all threads are stopped */
-    __wt_cond_destroy(session, &conn->log_wrlsn_cond);
-
     __wt_cond_destroy(session, &conn->log->log_sync_cond);
     __wt_cond_destroy(session, &conn->log->log_write_cond);
     __wt_rwlock_destroy(session, &conn->log->log_remove_lock);

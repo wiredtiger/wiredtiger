@@ -450,10 +450,7 @@ struct __wt_connection_impl {
     uint32_t log_flags;                    /* Global logging configuration */
     WT_THREAD log_server_thread;           /* Log server thread */
     WT_THREAD log_file_thread;             /* Log file thread */
-    WT_CONDVAR *log_wrlsn_cond;            /* Log write lsn thread wait mutex */
-    WT_SESSION_IMPL *log_wrlsn_session;    /* Log write lsn thread session */
-    wt_thread_t log_wrlsn_tid;             /* Log write lsn thread */
-    bool log_wrlsn_tid_set;                /* Log write lsn thread set */
+    WT_THREAD log_wrlsn_thread;            /* Log write lsn thread */
     WT_LOG *log;                           /* Logging structure */
     WT_COMPRESSOR *log_compressor;         /* Logging compressor */
     uint32_t log_cursors;                  /* Log cursor count */
