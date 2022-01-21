@@ -4,10 +4,7 @@
 
 #include <aws/core/Aws.h>
 #include <aws/s3-crt/S3CrtClient.h>
-#include <aws/s3-crt/model/ListObjectsV2Request.h>
-#include <aws/s3-crt/model/ListObjectsV2Result.h>
-#include <aws/s3/model/Object.h>
-#include <aws/s3-crt/model/ListObjectsRequest.h>
+#include <aws/s3-crt/model/Object.h>
 #include <string>
 
 class aws_bucket_conn {

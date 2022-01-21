@@ -4,11 +4,12 @@
 #include <fstream>
 
 #include "aws_bucket_conn.h"
+
+#include <aws/s3-crt/model/DeleteObjectRequest.h>
 #include <aws/s3-crt/model/ListObjectsRequest.h>
 #include <aws/s3-crt/model/PutObjectRequest.h>
-#include <aws/s3-crt/model/DeleteObjectRequest.h>
 
-#include <aws/s3/model/Object.h>
+#include <aws/s3-crt/model/Object.h>
 #include <vector>
 #include <string>
 #include <sys/stat.h>
