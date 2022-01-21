@@ -338,11 +338,8 @@ struct __wt_connection_impl {
     uint64_t hot_backup_start; /* Clock value of most recent checkpoint needed by hot backup */
     char **hot_backup_list;    /* Hot backup file list */
 
-    WT_SESSION_IMPL *ckpt_session; /* Checkpoint thread session */
-    wt_thread_t ckpt_tid;          /* Checkpoint thread */
-    bool ckpt_tid_set;             /* Checkpoint thread set */
-    WT_CONDVAR *ckpt_cond;         /* Checkpoint wait mutex */
-    uint64_t ckpt_most_recent;     /* Clock value of most recent checkpoint */
+    WT_THREAD ckpt_thread;     /* Checkpoint thread */
+    uint64_t ckpt_most_recent; /* Clock value of most recent checkpoint */
 #define WT_CKPT_LOGSIZE(conn) ((conn)->ckpt_logsize != 0)
     wt_off_t ckpt_logsize; /* Checkpoint log size period */
     bool ckpt_signalled;   /* Checkpoint signalled */

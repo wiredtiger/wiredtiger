@@ -2163,7 +2163,7 @@ __checkpoint_timing_stress(WT_SESSION_IMPL *session, uint64_t flag, struct times
      * We only want to sleep if the flag is set and the checkpoint comes from the API, so check if
      * the session used is either of the two sessions set aside for internal checkpoints.
      */
-    if (conn->ckpt_session != session && conn->meta_ckpt_session != session &&
+    if (conn->ckpt_thread.session != session && conn->meta_ckpt_session != session &&
       FLD_ISSET(conn->timing_stress_flags, flag))
         __wt_sleep((uint64_t)tsp->tv_sec, (uint64_t)tsp->tv_nsec / WT_THOUSAND);
 }

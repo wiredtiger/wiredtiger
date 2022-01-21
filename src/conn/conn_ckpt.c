@@ -88,7 +88,7 @@ __ckpt_server(void *arg)
          * Wait... NOTE: If the user only configured logsize, then usecs will be 0 and this wait
          * won't return until signalled.
          */
-        __wt_cond_wait(session, conn->ckpt_cond, conn->ckpt_usecs, __ckpt_server_run_chk);
+        __wt_cond_wait(session, conn->ckpt_thread.cond, conn->ckpt_usecs, __ckpt_server_run_chk);
 
         /* Check if we're quitting or being reconfigured. */
         if (!__ckpt_server_run_chk(session))
@@ -109,7 +109,7 @@ __ckpt_server(void *arg)
              * already signalled, do a tiny wait to clear it so we don't do another checkpoint
              * immediately.
              */
-            __wt_cond_wait(session, conn->ckpt_cond, 1, NULL);
+            __wt_cond_wait(session, conn->ckpt_thread.cond, 1, NULL);
         }
     }
 
@@ -127,11 +127,8 @@ err:
 static int
 __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 {
-    WT_SESSION_IMPL *session;
-    uint32_t session_flags;
-
     /* Nothing to do if the server is already running. */
-    if (conn->ckpt_session != NULL)
+    if (__wt_thread_running(&conn->ckpt_thread))
         return (0);
 
     FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT);
@@ -142,18 +139,8 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
      * Checkpoint does enough I/O it may be called upon to perform slow operations for the block
      * manager.
      */
-    session_flags = WT_SESSION_CAN_WAIT;
-    WT_RET(__wt_open_internal_session(
-      conn, "checkpoint-server", true, session_flags, 0, &conn->ckpt_session));
-    session = conn->ckpt_session;
-
-    WT_RET(__wt_cond_alloc(session, "checkpoint server", &conn->ckpt_cond));
-
-    /*
-     * Start the thread.
-     */
-    WT_RET(__wt_thread_create(session, &conn->ckpt_tid, __ckpt_server, session));
-    conn->ckpt_tid_set = true;
+    WT_RET(__wt_thread_start(conn, "checkpoint-server", true, WT_SESSION_CAN_WAIT,
+      "checkpoint server", 0, 0, __ckpt_server, &conn->ckpt_thread));
 
     return (0);
 }
@@ -179,7 +166,7 @@ __wt_checkpoint_server_create(WT_SESSION_IMPL *session, const char *cfg[])
      * have to worry about races where a running server is reading configuration information that
      * we're updating, and it's not expected that reconfiguration will happen a lot.
      */
-    if (conn->ckpt_session != NULL)
+    if (__wt_thread_running(&conn->ckpt_thread))
         WT_RET(__wt_checkpoint_server_destroy(session));
 
     WT_RET(__ckpt_server_config(session, cfg, &start));
@@ -202,23 +189,7 @@ __wt_checkpoint_server_destroy(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_CHECKPOINT);
-    if (conn->ckpt_tid_set) {
-        __wt_cond_signal(session, conn->ckpt_cond);
-        WT_TRET(__wt_thread_join(session, &conn->ckpt_tid));
-        conn->ckpt_tid_set = false;
-    }
-    __wt_cond_destroy(session, &conn->ckpt_cond);
-
-    /* Close the server thread's session. */
-    if (conn->ckpt_session != NULL)
-        WT_TRET(__wt_session_close_internal(conn->ckpt_session));
-
-    /*
-     * Ensure checkpoint settings are cleared - so that reconfigure doesn't get confused.
-     */
-    conn->ckpt_session = NULL;
-    conn->ckpt_tid_set = false;
-    conn->ckpt_cond = NULL;
+    WT_TRET(__wt_thread_stop_and_cleanup(session, &conn->ckpt_thread));
     conn->ckpt_usecs = 0;
 
     return (ret);
@@ -236,7 +207,7 @@ __wt_checkpoint_signal(WT_SESSION_IMPL *session, wt_off_t logsize)
     conn = S2C(session);
     WT_ASSERT(session, WT_CKPT_LOGSIZE(conn));
     if (logsize >= conn->ckpt_logsize && !conn->ckpt_signalled) {
-        __wt_cond_signal(session, conn->ckpt_cond);
+        __wt_cond_signal(session, conn->ckpt_thread.cond);
         conn->ckpt_signalled = true;
     }
 }
