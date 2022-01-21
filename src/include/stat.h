@@ -393,6 +393,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_blocked_checkpoint_hs_application;
     int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t cache_checkpoint_state;
+    int64_t cache_eviction_pct_full_application;
     int64_t cache_eviction_modify;
     int64_t cache_eviction_get_ref;
     int64_t cache_eviction_get_ref_empty;
@@ -916,6 +917,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t cache_checkpoint_state;
     int64_t cache_eviction_fail;
+    int64_t cache_eviction_pct_full_application;
     int64_t cache_eviction_modify;
     int64_t cache_eviction_blocked_ooo_checkpoint_race_1;
     int64_t cache_eviction_blocked_ooo_checkpoint_race_2;

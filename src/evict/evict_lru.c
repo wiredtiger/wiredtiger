@@ -632,7 +632,8 @@ __evict_update_work(WT_SESSION_IMPL *session)
      * Scrub dirty pages and keep them in cache if we are less than half way to the clean, dirty or
      * updates triggers.
      */
-    if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 200) {
+    if (bytes_inuse <
+      (uint../ src / evict / evict_page.c64_t)((target + trigger) * bytes_max) / 200) {
         if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200 &&
           bytes_updates < (uint64_t)((updates_target + updates_trigger) * bytes_max) / 200)
             LF_SET(WT_CACHE_EVICT_SCRUB);
@@ -2423,6 +2424,8 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
           (pct_full < 100.0 && (cache->eviction_progress > initial_progress + max_progress)))
             break;
 
+        if (app_thread)
+            WT_STAT_CONN_SET(session, cache_eviction_pct_full_application, pct_full);
         /* Evict a page. */
         switch (ret = __evict_page(session, false)) {
         case 0:
