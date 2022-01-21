@@ -57,6 +57,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: checkpoint of history store file blocked non-history store page eviction",
   "cache: checkpoint state",
   "cache: data source pages selected for eviction unable to be evicted",
+  "cache: eviction application thread exited from eviction",
   "cache: eviction application thread pct full",
   "cache: eviction btree has modify",
   "cache: eviction gave up due to detecting an out of order on disk value behind the last update "
@@ -343,6 +344,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_blocked_checkpoint_hs = 0;
     stats->cache_checkpoint_state = 0;
     stats->cache_eviction_fail = 0;
+    stats->cache_eviction_app_thread_exit = 0;
     stats->cache_eviction_pct_full_application = 0;
     stats->cache_eviction_modify = 0;
     stats->cache_eviction_blocked_ooo_checkpoint_race_1 = 0;
@@ -605,6 +607,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_blocked_checkpoint_hs += from->cache_eviction_blocked_checkpoint_hs;
     to->cache_checkpoint_state += from->cache_checkpoint_state;
     to->cache_eviction_fail += from->cache_eviction_fail;
+    to->cache_eviction_app_thread_exit += from->cache_eviction_app_thread_exit;
     to->cache_eviction_pct_full_application += from->cache_eviction_pct_full_application;
     to->cache_eviction_modify += from->cache_eviction_modify;
     to->cache_eviction_blocked_ooo_checkpoint_race_1 +=
@@ -866,6 +869,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_READ(from, cache_eviction_blocked_checkpoint_hs);
     to->cache_checkpoint_state += WT_STAT_READ(from, cache_checkpoint_state);
     to->cache_eviction_fail += WT_STAT_READ(from, cache_eviction_fail);
+    to->cache_eviction_app_thread_exit += WT_STAT_READ(from, cache_eviction_app_thread_exit);
     to->cache_eviction_pct_full_application +=
       WT_STAT_READ(from, cache_eviction_pct_full_application);
     to->cache_eviction_modify += WT_STAT_READ(from, cache_eviction_modify);
@@ -1133,6 +1137,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: checkpoint of history store and application stall",
   "cache: checkpoint of history store file blocked non-history store page eviction",
   "cache: checkpoint state",
+  "cache: eviction application thread exited from eviction",
   "cache: eviction application thread pct full",
   "cache: eviction btree has modify",
   "cache: eviction calls to get a page",
@@ -1713,6 +1718,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_blocked_checkpoint_hs_application = 0;
     stats->cache_eviction_blocked_checkpoint_hs = 0;
     stats->cache_checkpoint_state = 0;
+    stats->cache_eviction_app_thread_exit = 0;
     stats->cache_eviction_pct_full_application = 0;
     stats->cache_eviction_modify = 0;
     stats->cache_eviction_get_ref = 0;
@@ -2255,6 +2261,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_blocked_checkpoint_hs +=
       WT_STAT_READ(from, cache_eviction_blocked_checkpoint_hs);
     to->cache_checkpoint_state += WT_STAT_READ(from, cache_checkpoint_state);
+    to->cache_eviction_app_thread_exit += WT_STAT_READ(from, cache_eviction_app_thread_exit);
     to->cache_eviction_pct_full_application +=
       WT_STAT_READ(from, cache_eviction_pct_full_application);
     to->cache_eviction_modify += WT_STAT_READ(from, cache_eviction_modify);

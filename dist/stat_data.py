@@ -814,6 +814,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_blocked_checkpoint_hs', 'checkpoint of history store file blocked non-history store page eviction'),
     CacheStat('cache_eviction_blocked_checkpoint_hs_application', 'checkpoint of history store and application stall'),
     CacheStat('cache_eviction_pct_full_application', 'eviction application thread pct full'),
+    CacheStat('cache_eviction_app_thread_exit', 'eviction application thread exited from eviction'),
     CacheStat('cache_eviction_blocked_ooo_checkpoint_race_1', 'eviction gave up due to detecting an out of order on disk value behind the last update on the chain'),
     CacheStat('cache_eviction_blocked_ooo_checkpoint_race_2', 'eviction gave up due to detecting an out of order tombstone ahead of the selected on disk update'),
     CacheStat('cache_eviction_blocked_ooo_checkpoint_race_3', 'eviction gave up due to detecting an out of order tombstone ahead of the selected on disk update after validating the update chain'),
