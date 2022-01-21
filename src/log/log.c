@@ -233,8 +233,8 @@ __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckpt_lsn)
     conn = S2C(session);
     log = conn->log;
     WT_ASSIGN_LSN(&log->ckpt_lsn, ckpt_lsn);
-    if (conn->log_cond != NULL)
-        __wt_cond_signal(session, conn->log_cond);
+    if (conn->log_server_thread.cond != NULL)
+        __wt_cond_signal(session, conn->log_server_thread.cond);
     /*
      * If we are storing debugging LSNs to retain additional log files from removal, then rotate the
      * newest LSN into the array.
@@ -1149,8 +1149,8 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
                 create_log = false;
             else {
                 WT_STAT_CONN_INCR(session, log_prealloc_missed);
-                if (conn->log_cond != NULL)
-                    __wt_cond_signal(session, conn->log_cond);
+                if (conn->log_server_thread.cond != NULL)
+                    __wt_cond_signal(session, conn->log_server_thread.cond);
             }
         }
     }
@@ -2672,8 +2672,8 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
          *
          * XXX I've seen times when conditions are NULL.
          */
-        if (conn->log_cond != NULL) {
-            __wt_cond_signal(session, conn->log_cond);
+        if (__wt_thread_running(&conn->log_server_thread)) {
+            __wt_cond_signal(session, conn->log_server_thread.cond);
             __wt_yield();
         } else
             WT_ERR(__wt_log_force_write(session, 1, NULL));

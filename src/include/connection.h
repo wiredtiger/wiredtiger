@@ -448,10 +448,7 @@ struct __wt_connection_impl {
 #define WT_CONN_LOG_ZERO_FILL 0x800u       /* Manually zero files */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t log_flags;                    /* Global logging configuration */
-    WT_CONDVAR *log_cond;                  /* Log server wait mutex */
-    WT_SESSION_IMPL *log_session;          /* Log server session */
-    wt_thread_t log_tid;                   /* Log server thread */
-    bool log_tid_set;                      /* Log server thread set */
+    WT_THREAD log_server_thread;           /* Log server thread */
     WT_CONDVAR *log_file_cond;             /* Log file thread wait mutex */
     WT_SESSION_IMPL *log_file_session;     /* Log file thread session */
     wt_thread_t log_file_tid;              /* Log file thread */
