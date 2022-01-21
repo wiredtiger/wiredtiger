@@ -15,7 +15,7 @@ int test_list_buckets(const Aws::S3Crt::ClientConfiguration &config) {
     aws_bucket_conn conn(config);
     Aws::Vector<Aws::S3Crt::Model::Bucket> buckets;
 
-    if (conn.list_buckets(&buckets)) {
+    if (conn.list_buckets(buckets)) {
         std::cout << "All buckets under my account:" << std::endl;
         for (const Aws::S3Crt::Model::Bucket &bucket : buckets) {
             std::cout << "  * " << bucket.GetName() << std::endl;

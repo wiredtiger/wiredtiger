@@ -15,12 +15,12 @@
 #include <sys/stat.h>
 
 bool
-aws_bucket_conn::list_buckets(Aws::Vector<Aws::S3Crt::Model::Bucket> *buckets) const
+aws_bucket_conn::list_buckets(Aws::Vector<Aws::S3Crt::Model::Bucket> &buckets) const
 {
     Aws::S3Crt::Model::ListBucketsOutcome outcome = m_s3_crt_client.ListBuckets();
 
     if (outcome.IsSuccess()) {
-        *buckets = outcome.GetResult().GetBuckets();
+        buckets = outcome.GetResult().GetBuckets();
         return true;
     } else {
         std::cout << "Error in list_buckets: " << outcome.GetError().GetMessage() << std::endl
@@ -30,18 +30,18 @@ aws_bucket_conn::list_buckets(Aws::Vector<Aws::S3Crt::Model::Bucket> *buckets) c
 }
 
 bool
-aws_bucket_conn::list_bucket_objects(
-  const Aws::String bucket_name, Aws::Vector<Aws::S3Crt::Model::Object> *bucket_objects) const
+aws_bucket_conn::list_objects(
+  const Aws::String bucket_name, Aws::Vector<Aws::S3Crt::Model::Object> &bucket_objects) const
 {
     Aws::S3Crt::Model::ListObjectsRequest request;
     request.WithBucket(bucket_name);
     Aws::S3Crt::Model::ListObjectsOutcome outcomes = m_s3_crt_client.ListObjects(request);
 
     if (outcomes.IsSuccess()) {
-        *bucket_objects = outcomes.GetResult().GetContents();
+        bucket_objects = outcomes.GetResult().GetContents();
         return true;
     } else {
-        std::cout << "Error in list_bucket_objects: " << outcomes.GetError().GetMessage()
+        std::cout << "Error in list_buckets: " << outcomes.GetError().GetMessage()
                   << std::endl;
         return false;
     }

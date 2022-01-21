@@ -101,8 +101,6 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     aws_config.partSize = part_size;
 
     /* TODO: Move these into tests. */
-    /* List S3 buckets. */
-    Aws::Vector<Aws::S3Crt::Model::Bucket> buckets;
 
     if ((fs = (S3_FILE_SYSTEM*)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
         return (errno);
@@ -114,9 +112,11 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     fs->file_system.terminate = s3_fs_terminate; 
 
 
-    // All content will moved into testing; just testing here temporarily to show all functions work. 
+    // All content will moved into testing; just testing here temporarily to show all functions work.
     {
-        if (fs->conn->list_buckets(&buckets)) {
+            /* List S3 buckets. */
+    Aws::Vector<Aws::S3Crt::Model::Bucket> buckets; 
+        if (fs->conn->list_buckets(buckets)) {
             std::cout << "All buckets under my account:" << std::endl;
             for (const Aws::S3Crt::Model::Bucket &bucket : buckets) {
                 std::cout << "  * " << bucket.GetName() << std::endl;
@@ -130,7 +130,7 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 
             /* List objects. */
             Aws::Vector<Aws::S3Crt::Model::Object> bucket_objects;
-            if (fs->conn->list_bucket_objects(first_bucket, &bucket_objects)) {
+            if (fs->conn->list_objects(first_bucket, bucket_objects)) {
                 std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
                 if (bucket_objects.size() >= 1) {
                     for (Aws::S3Crt::Model::Object &object : bucket_objects) {
@@ -147,7 +147,7 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
             fs->conn->put_object(first_bucket, "test.json", "../../../test.json");
 
             /* List objects again. */
-            if (fs->conn->list_bucket_objects(first_bucket, &bucket_objects)) {
+            if (fs->conn->list_objects(first_bucket, bucket_objects)) {
                 std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
                 if (bucket_objects.size() >= 1) {
                     for (Aws::S3Crt::Model::Object &object : bucket_objects) {
@@ -164,7 +164,7 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
             fs->conn->delete_object(first_bucket, "test.json");
 
             /* List objects again. */
-            if (fs->conn->list_bucket_objects(first_bucket, &bucket_objects)) {
+            if (fs->conn->list_objects(first_bucket, bucket_objects)) {
                 std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
                 if (bucket_objects.size() >= 1) {
                     for (Aws::S3Crt::Model::Object &object : bucket_objects) {
