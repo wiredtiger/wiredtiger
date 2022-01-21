@@ -279,11 +279,11 @@ __sweep_server(void *arg)
     for (;;) {
         /* Wait until the next event. */
         if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_SWEEP))
-            __wt_cond_wait_signal(session, conn->sweep_cond,
+            __wt_cond_wait_signal(session, conn->sweep_thread.cond,
               conn->sweep_interval * 100 * WT_THOUSAND, __sweep_server_run_chk, &cv_signalled);
         else
-            __wt_cond_wait_signal(session, conn->sweep_cond, conn->sweep_interval * WT_MILLION,
-              __sweep_server_run_chk, &cv_signalled);
+            __wt_cond_wait_signal(session, conn->sweep_thread.cond,
+              conn->sweep_interval * WT_MILLION, __sweep_server_run_chk, &cv_signalled);
 
         /* Check if we're quitting or being reconfigured. */
         if (!__sweep_server_run_chk(session))
@@ -388,14 +388,8 @@ __wt_sweep_create(WT_SESSION_IMPL *session)
      * manager. Sweep should not block due to the cache being full.
      */
     session_flags = WT_SESSION_CAN_WAIT | WT_SESSION_IGNORE_CACHE_SIZE;
-    WT_RET(__wt_open_internal_session(
-      conn, "sweep-server", true, session_flags, 0, &conn->sweep_session));
-    session = conn->sweep_session;
-
-    WT_RET(__wt_cond_alloc(session, "handle sweep server", &conn->sweep_cond));
-
-    WT_RET(__wt_thread_create(session, &conn->sweep_tid, __sweep_server, session));
-    conn->sweep_tid_set = 1;
+    WT_RET(__wt_thread_start(conn, "sweep-server", true, session_flags, "handle sweep server", 0, 0,
+      __sweep_server, &conn->sweep_thread));
 
     return (0);
 }
@@ -413,18 +407,7 @@ __wt_sweep_destroy(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_SWEEP);
-    if (conn->sweep_tid_set) {
-        __wt_cond_signal(session, conn->sweep_cond);
-        WT_TRET(__wt_thread_join(session, &conn->sweep_tid));
-        conn->sweep_tid_set = 0;
-    }
-    __wt_cond_destroy(session, &conn->sweep_cond);
-
-    if (conn->sweep_session != NULL) {
-        WT_TRET(__wt_session_close_internal(conn->sweep_session));
-
-        conn->sweep_session = NULL;
-    }
+    WT_TRET(__wt_thread_stop_and_cleanup(session, &conn->sweep_thread));
 
     return (ret);
 }
