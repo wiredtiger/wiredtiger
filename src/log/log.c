@@ -289,7 +289,7 @@ __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn)
      * into a later log file and there should be a log file ready to close.
      */
     while (log->sync_lsn.l.file < min_lsn->l.file) {
-        __wt_cond_signal(session, S2C(session)->log_file_cond);
+        __wt_cond_signal(session, S2C(session)->log_file_thread.cond);
         __wt_cond_wait(session, log->log_sync_cond, 10000, NULL);
     }
     __wt_spin_lock(session, &log->log_sync_lock);
@@ -1109,7 +1109,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
         __wt_log_wrlsn(session, NULL);
         if (++yield_cnt % WT_THOUSAND == 0) {
             __wt_spin_unlock(session, &log->log_slot_lock);
-            __wt_cond_signal(session, conn->log_file_cond);
+            __wt_cond_signal(session, conn->log_file_thread.cond);
             __wt_spin_lock(session, &log->log_slot_lock);
         }
         if (++yield_cnt > WT_THOUSAND * 10)
@@ -1913,7 +1913,7 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
      * Signal the close thread if needed.
      */
     if (F_ISSET(slot, WT_SLOT_CLOSEFH))
-        __wt_cond_signal(session, conn->log_file_cond);
+        __wt_cond_signal(session, conn->log_file_thread.cond);
 
     if (F_ISSET(slot, WT_SLOT_SYNC_DIRTY) && !F_ISSET(slot, WT_SLOT_SYNC) &&
       (ret = __wt_fsync(session, log->log_fh, false)) != 0) {

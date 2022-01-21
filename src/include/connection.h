@@ -449,10 +449,7 @@ struct __wt_connection_impl {
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t log_flags;                    /* Global logging configuration */
     WT_THREAD log_server_thread;           /* Log server thread */
-    WT_CONDVAR *log_file_cond;             /* Log file thread wait mutex */
-    WT_SESSION_IMPL *log_file_session;     /* Log file thread session */
-    wt_thread_t log_file_tid;              /* Log file thread */
-    bool log_file_tid_set;                 /* Log file thread set */
+    WT_THREAD log_file_thread;             /* Log file thread */
     WT_CONDVAR *log_wrlsn_cond;            /* Log write lsn thread wait mutex */
     WT_SESSION_IMPL *log_wrlsn_session;    /* Log write lsn thread session */
     wt_thread_t log_wrlsn_tid;             /* Log write lsn thread */
