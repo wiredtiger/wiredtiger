@@ -424,11 +424,8 @@ struct __wt_connection_impl {
     uint32_t flush_state;            /* State of last flush tier */
     wt_timestamp_t flush_ts;         /* Timestamp of most recent flush_tier */
 
-    WT_TIERED_MANAGER tiered_mgr;        /* Tiered manager thread information */
-    WT_SESSION_IMPL *tiered_mgr_session; /* Tiered manager thread session */
-    wt_thread_t tiered_mgr_tid;          /* Tiered manager thread */
-    bool tiered_mgr_tid_set;             /* Tiered manager thread set */
-    WT_CONDVAR *tiered_mgr_cond;         /* Tiered manager wait mutex */
+    WT_TIERED_MANAGER tiered_mgr; /* Tiered manager thread information */
+    WT_THREAD tiered_mgr_thread;  /* Tiered manager thread */
 
     uint32_t tiered_threads_max; /* Max tiered threads */
     uint32_t tiered_threads_min; /* Min tiered threads */

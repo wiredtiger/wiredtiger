@@ -684,7 +684,8 @@ __tiered_mgr_server(void *arg)
 
     for (;;) {
         /* Wait until the next event. */
-        __wt_cond_wait(session, conn->tiered_mgr_cond, mgr->wait_usecs, __tiered_mgr_run_chk);
+        __wt_cond_wait(
+          session, conn->tiered_mgr_thread.cond, mgr->wait_usecs, __tiered_mgr_run_chk);
 
         /* Check if we're quitting or being reconfigured. */
         if (!__tiered_mgr_run_chk(session))
@@ -716,18 +717,9 @@ err:
 static int
 __tiered_mgr_start(WT_CONNECTION_IMPL *conn)
 {
-    WT_SESSION_IMPL *session;
-
     FLD_SET(conn->server_flags, WT_CONN_SERVER_TIERED_MGR);
-    WT_RET(__wt_open_internal_session(
-      conn, "storage-mgr-server", false, 0, 0, &conn->tiered_mgr_session));
-    session = conn->tiered_mgr_session;
-
-    WT_RET(__wt_cond_alloc(session, "storage server", &conn->tiered_mgr_cond));
-
-    /* Start the thread. */
-    WT_RET(__wt_thread_create(session, &conn->tiered_mgr_tid, __tiered_mgr_server, session));
-    conn->tiered_mgr_tid_set = true;
+    WT_RET(__wt_thread_start(conn, "storage-mgr-server", false, 0, "storage server", 0, 0,
+      __tiered_mgr_server, &conn->tiered_mgr_thread));
     return (0);
 }
 
@@ -790,12 +782,7 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
      * could be adding work for the internal thread. So stop it first and the internal thread will
      * have the opportunity to drain all work.
      */
-    if (conn->tiered_mgr_tid_set) {
-        WT_ASSERT(session, conn->tiered_mgr_cond != NULL);
-        __wt_cond_signal(session, conn->tiered_mgr_cond);
-        WT_TRET(__wt_thread_join(session, &conn->tiered_mgr_tid));
-        conn->tiered_mgr_tid_set = false;
-    }
+    WT_TRET(__wt_thread_stop(session, &conn->tiered_mgr_thread));
 
     /* Stop the internal server thread. */
     if (conn->flush_cond != NULL)
@@ -816,16 +803,12 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
         conn->tiered_session = NULL;
     }
 
+    WT_TRET(__wt_thread_cleanup(session, &conn->tiered_mgr_thread));
+
     /* Destroy all condition variables after threads have stopped. */
     __wt_cond_destroy(session, &conn->tiered_cond);
-    __wt_cond_destroy(session, &conn->tiered_mgr_cond);
     /* The flush condition variable must be last because any internal thread could be using it. */
     __wt_cond_destroy(session, &conn->flush_cond);
-
-    if (conn->tiered_mgr_session != NULL) {
-        WT_TRET(__wt_session_close_internal(conn->tiered_mgr_session));
-        conn->tiered_mgr_session = NULL;
-    }
 
     return (ret);
 }
