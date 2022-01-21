@@ -65,7 +65,7 @@ static const char *const list[] = {",cache_overhead=13", ",cache_overhead=27", "
   ",file_manager=(close_idle_time=0)", ",file_manager=(close_scan_interval=50000)",
   ",file_manager=(close_scan_interval=59000)", ",file_manager=(close_scan_interval=3)",
 
-  ",log=(archive=0)", ",log=(archive=1)", ",log=(prealloc=0)", ",log=(prealloc=1)",
+  ",log=(prealloc=0)", ",log=(prealloc=1)", ",log=(remove=0)", ",log=(remove=1)",
   ",log=(zero_fill=0)", ",log=(zero_fill=1)",
 
   ",lsm_manager=(merge=0)", ",lsm_manager=(merge=1)", ",lsm_manager=(worker_thread_max=5)",
@@ -116,6 +116,7 @@ static WT_EVENT_HANDLER event_handler = {NULL, handle_message, NULL, NULL};
 static const char *current; /* Current test configuration */
 
 static void on_alarm(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
 /*
  * on_alarm --
  *     TODO: Add a comment describing this function.

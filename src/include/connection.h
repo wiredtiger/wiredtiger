@@ -246,21 +246,15 @@ struct __wt_connection_impl {
     uint64_t hash_size;       /* General hash bucket array size */
     int is_new;               /* Connection created database */
 
-    uint32_t recovery_major; /* Database recovery major version */
-    uint32_t recovery_minor; /* Database recovery minor version */
-    uint32_t recovery_patch; /* Database recovery patch version */
+    WT_VERSION recovery_version; /* Version of the database being recovered */
 
 #ifndef WT_STANDALONE_BUILD
     bool unclean_shutdown; /* Flag to indicate the earlier shutdown status */
 #endif
 
-    uint16_t compat_major; /* Compatibility major version */
-    uint16_t compat_minor; /* Compatibility minor version */
-#define WT_CONN_COMPAT_NONE UINT16_MAX
-    uint16_t req_max_major; /* Compatibility maximum major */
-    uint16_t req_max_minor; /* Compatibility maximum minor */
-    uint16_t req_min_major; /* Compatibility minimum major */
-    uint16_t req_min_minor; /* Compatibility minimum minor */
+    WT_VERSION compat_version; /* WiredTiger version for compatibility checks */
+    WT_VERSION compat_req_max; /* Maximum allowed version of WiredTiger for compatibility checks */
+    WT_VERSION compat_req_min; /* Minimum allowed version of WiredTiger for compatibility checks */
 
     WT_EXTENSION_API extension_api; /* Extension API */
 
@@ -449,17 +443,17 @@ struct __wt_connection_impl {
     uint32_t tiered_threads_min; /* Min tiered threads */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_LOG_ARCHIVE 0x001u         /* Archive is enabled */
-#define WT_CONN_LOG_CONFIG_ENABLED 0x002u  /* Logging is configured */
-#define WT_CONN_LOG_DEBUG_MODE 0x004u      /* Debug-mode logging enabled */
-#define WT_CONN_LOG_DOWNGRADED 0x008u      /* Running older version */
-#define WT_CONN_LOG_ENABLED 0x010u         /* Logging is enabled */
-#define WT_CONN_LOG_EXISTED 0x020u         /* Log files found */
-#define WT_CONN_LOG_FORCE_DOWNGRADE 0x040u /* Force downgrade */
-#define WT_CONN_LOG_RECOVER_DIRTY 0x080u   /* Recovering unclean */
-#define WT_CONN_LOG_RECOVER_DONE 0x100u    /* Recovery completed */
-#define WT_CONN_LOG_RECOVER_ERR 0x200u     /* Error if recovery required */
-#define WT_CONN_LOG_RECOVER_FAILED 0x400u  /* Recovery failed */
+#define WT_CONN_LOG_CONFIG_ENABLED 0x001u  /* Logging is configured */
+#define WT_CONN_LOG_DEBUG_MODE 0x002u      /* Debug-mode logging enabled */
+#define WT_CONN_LOG_DOWNGRADED 0x004u      /* Running older version */
+#define WT_CONN_LOG_ENABLED 0x008u         /* Logging is enabled */
+#define WT_CONN_LOG_EXISTED 0x010u         /* Log files found */
+#define WT_CONN_LOG_FORCE_DOWNGRADE 0x020u /* Force downgrade */
+#define WT_CONN_LOG_RECOVER_DIRTY 0x040u   /* Recovering unclean */
+#define WT_CONN_LOG_RECOVER_DONE 0x080u    /* Recovery completed */
+#define WT_CONN_LOG_RECOVER_ERR 0x100u     /* Error if recovery required */
+#define WT_CONN_LOG_RECOVER_FAILED 0x200u  /* Recovery failed */
+#define WT_CONN_LOG_REMOVE 0x400u          /* Removal is enabled */
 #define WT_CONN_LOG_ZERO_FILL 0x800u       /* Manually zero files */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t log_flags;                    /* Global logging configuration */

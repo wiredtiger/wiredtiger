@@ -64,14 +64,15 @@ static const char *const ckpt_file = "checkpoint_done";
     "cache_size=50M,"                                         \
     "create,"                                                 \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
-    "log=(archive=true,file_max=10M,enabled),"                \
+    "log=(enabled,file_max=10M,remove=true),"                 \
     "statistics=(fast),statistics_log=(wait=1,json=true),"    \
     "timing_stress_for_test=[checkpoint_slow]"
 
-#define ENV_CONFIG_REC "log=(archive=false,recover=on)"
+#define ENV_CONFIG_REC "log=(recover=on,remove=false)"
 
 static void handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
 /*
  * usage --
  *     TODO: Add a comment describing this function.
@@ -189,14 +190,12 @@ thread_run(void *arg)
     /* NOTREACHED */
 }
 
-/*
- * Child process creates the database and table, and then creates the worker thread to add data
- * until it is killed by the parent.
- */
 static void run_workload(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
 /*
  * run_workload --
- *     TODO: Add a comment describing this function.
+ *     Child process creates the database and table, and then creates the worker thread to add data
+ *     until it is killed by the parent.
  */
 static void
 run_workload(void)
@@ -240,11 +239,8 @@ run_workload(void)
 }
 
 /*
- * Signal handler to catch if the child died unexpectedly.
- */
-/*
  * handler --
- *     TODO: Add a comment describing this function.
+ *     Signal handler to catch if the child died unexpectedly.
  */
 static void
 handler(int sig)

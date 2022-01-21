@@ -221,7 +221,7 @@ __log_fs_write(
 
 /*
  * __wt_log_ckpt --
- *     Record the given LSN as the checkpoint LSN and signal the archive thread as needed.
+ *     Record the given LSN as the checkpoint LSN and signal the removal thread as needed.
  */
 void
 __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckpt_lsn)
@@ -236,8 +236,8 @@ __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckpt_lsn)
     if (conn->log_cond != NULL)
         __wt_cond_signal(session, conn->log_cond);
     /*
-     * If we are storing debugging LSNs to retain additional log files from archiving, then rotate
-     * the newest LSN into the array.
+     * If we are storing debugging LSNs to retain additional log files from removal, then rotate the
+     * newest LSN into the array.
      */
     if (conn->debug_ckpt_cnt != 0) {
         for (i = (int)conn->debug_ckpt_cnt - 1; i > 0; --i)
@@ -422,7 +422,7 @@ __wt_log_written_reset(WT_SESSION_IMPL *session)
 /*
  * __wt_log_get_backup_files --
  *     Retrieve the list of log files for taking a backup, either all of them or only the active
- *     ones (those that are not candidates for archiving). The caller is responsible for freeing the
+ *     ones (those that are not candidates for removal). The caller is responsible for freeing the
  *     directory list returned.
  */
 int
@@ -898,14 +898,14 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, WT_LSN *ls
      * We error if the log version is less than the required minimum or larger than the required
      * maximum.
      */
-    if (conn->req_max_major != WT_CONN_COMPAT_NONE && desc->version > conn->log_req_max)
+    if (__wt_version_defined(conn->compat_req_max) && desc->version > conn->log_req_max)
         WT_ERR_MSG(session, WT_ERROR,
           WT_COMPAT_MSG_PREFIX
           "unsupported WiredTiger file version: this build requires a maximum version of %" PRIu16
           ", and the file is version %" PRIu16,
           conn->log_req_max, desc->version);
 
-    if (conn->req_min_major != WT_CONN_COMPAT_NONE && desc->version < conn->log_req_min)
+    if (__wt_version_defined(conn->compat_req_min) && desc->version < conn->log_req_min)
         WT_ERR_MSG(session, WT_ERROR,
           WT_COMPAT_MSG_PREFIX
           "unsupported WiredTiger file version: this build requires a minimum version of %" PRIu16
@@ -1274,8 +1274,8 @@ __wt_log_set_version(WT_SESSION_IMPL *session, uint16_t version, uint32_t first_
 
     /*
      * We need to write a record to the new version log file so that a potential checkpoint finds
-     * LSNs in that new log file and an archive correctly removes all earlier logs. Write an
-     * internal printf record.
+     * LSNs in that new log file and an remove correctly removes all earlier logs. Write an internal
+     * printf record.
      */
     WT_ERR(__wt_log_printf(session, "COMPATIBILITY: Version now %" PRIu16, log->log_version));
     if (lognump != NULL)
@@ -1657,7 +1657,7 @@ again:
         /*
          * If we're running in a downgraded mode and there are earlier logs detect if they're at a
          * higher version. If so, we need to force recovery (to write a full checkpoint) and force
-         * archiving to remove all higher version logs.
+         * removal to remove all higher version logs.
          */
         if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_DOWNGRADED)) {
             for (i = 0; i < logcount; ++i) {

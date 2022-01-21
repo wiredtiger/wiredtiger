@@ -33,7 +33,7 @@
 
 #define NUM_RECORDS 800000
 
-#define ENV_CONFIG_REC "log=(archive=false,recover=on)"
+#define ENV_CONFIG_REC "log=(recover=on,remove=false)"
 /* Constants and variables declaration. */
 /*
  * You may want to add "verbose=[compact,compact_progress]" to the connection config string to get
@@ -67,11 +67,8 @@ static void large_updates(WT_SESSION *session, const char *uri, char *value, int
 static void check(WT_SESSION *session, const char *uri, char *value, int commit_ts);
 
 /*
- * Signal handler to catch if the child died unexpectedly.
- */
-/*
  * sig_handler --
- *     TODO: Add a comment describing this function.
+ *     Signal handler to catch if the child died unexpectedly.
  */
 static void
 sig_handler(int sig)
@@ -86,10 +83,9 @@ sig_handler(int sig)
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
-/* Methods implementation. */
 /*
  * main --
- *     TODO: Add a comment describing this function.
+ *     Methods implementation.
  */
 int
 main(int argc, char *argv[])
