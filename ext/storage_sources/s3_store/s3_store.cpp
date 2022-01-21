@@ -114,7 +114,7 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 
     // All content will moved into testing; just testing here temporarily to show all functions work.
     {
-            /* List S3 buckets. */
+    /* List S3 buckets. */
     std::vector<std::string> buckets; 
         if (fs->conn->list_buckets(buckets)) {
             std::cout << "All buckets under my account:" << std::endl;
@@ -261,12 +261,10 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     s3->storage_source.terminate = s3_terminate;
     // s3->storage_source.ss_flush = s3_flush;
 
-
-
     /* Load the storage */
     if ((ret = connection->add_storage_source(connection, "s3_store", &s3->storage_source, NULL)) !=
-      0) {
+      0)
         free(s3);
-    }
+        
     return (ret);
 }
