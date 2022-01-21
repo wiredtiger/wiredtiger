@@ -13,7 +13,7 @@ class aws_bucket_conn {
     explicit aws_bucket_conn(const Aws::S3Crt::ClientConfiguration &config);
 
     bool list_buckets(Aws::Vector<Aws::S3Crt::Model::Bucket> *buckets) const;
-    
+
     bool list_bucket_objects(
       const std::string bucket_name, Aws::Vector<Aws::S3Crt::Model::Object> *bucket_objects) const;
     bool put_object(const Aws::String &bucket_name, const Aws::String &object_key,

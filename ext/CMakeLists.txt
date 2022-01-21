@@ -26,7 +26,9 @@ if(WT_POSIX)
 
     # Build the storage_sources extensions.
     add_subdirectory(storage_sources/local_store)
-    add_subdirectory(storage_sources/s3_store)
+    if(ENABLE_S3)
+        add_subdirectory(storage_sources/s3_store)
+    endif()
 
     # Build the test extensions.
     add_subdirectory(test/fail_fs)
