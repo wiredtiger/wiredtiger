@@ -633,7 +633,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
      * updates triggers.
      */
     if (bytes_inuse <
-      (uint../ src / evict / evict_page.c64_t)((target + trigger) * bytes_max) / 200) {
+      (uint64_t)((target + trigger) * bytes_max) / 200) {
         if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200 &&
           bytes_updates < (uint64_t)((updates_target + updates_trigger) * bytes_max) / 200)
             LF_SET(WT_CACHE_EVICT_SCRUB);
