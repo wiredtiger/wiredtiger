@@ -2428,9 +2428,12 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
         /* Evict a page. */
         switch (ret = __evict_page(session, false)) {
         case 0:
-            if (busy) {
+            if (app_thread && pct_full >= 100.0) {
+                
+            } else if (busy) {
                 if (app_thread)
                     WT_STAT_CONN_INCR(session, cache_eviction_busy_exit);
+                goto err;
             }
         /* FALLTHROUGH */
         case EBUSY:
