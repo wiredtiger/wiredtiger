@@ -115,21 +115,21 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     // All content will moved into testing; just testing here temporarily to show all functions work.
     {
             /* List S3 buckets. */
-    Aws::Vector<Aws::S3Crt::Model::Bucket> buckets; 
+    std::vector<std::string> buckets; 
         if (fs->conn->list_buckets(buckets)) {
             std::cout << "All buckets under my account:" << std::endl;
-            for (const Aws::S3Crt::Model::Bucket &bucket : buckets) {
-                std::cout << "  * " << bucket.GetName() << std::endl;
+            for (const std::string &bucket : buckets) {
+                std::cout << "  * " << bucket << std::endl;
             }
             std::cout << std::endl;
         }
 
         /* Have at least one bucket to use. */
         if (buckets.size() >= 1) {
-            const Aws::String first_bucket = buckets.at(0).GetName();
+            const Aws::String first_bucket = buckets.at(0);
 
             /* List objects. */
-            Aws::Vector<Aws::S3Crt::Model::Object> bucket_objects;
+            std::vector<Aws::S3Crt::Model::Object> bucket_objects;
             if (fs->conn->list_objects(first_bucket, bucket_objects)) {
                 std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
                 if (bucket_objects.size() >= 1) {
