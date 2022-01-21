@@ -26,6 +26,7 @@ Async
 AsyncOp
 Athanassoulis
 Athlon
+Aws
 Axxx
 BBBBB
 BBBBBB
@@ -385,6 +386,7 @@ Resize
 RocksDB
 Rogerio
 Runtime
+SDKOptions
 SIMD
 SLIST
 SLVG
@@ -1626,5 +1628,3 @@ zu
 zyxwvutsrqponmlkjihgfedcba
 zz
 zzz
-SDKOptions
-Aws
