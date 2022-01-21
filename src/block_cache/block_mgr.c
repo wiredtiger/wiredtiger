@@ -189,13 +189,31 @@ __bm_checkpoint_unload(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
 {
+    WT_BLOCK *block;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    uint64_t bucket, hash;
+
+    conn = S2C(session);
 
     if (bm == NULL) /* Safety check */
         return (0);
 
-    ret = __wt_block_close(session, bm->block);
+    __wt_verbose(session, WT_VERB_BLOCK, "close: %s", bm->name == NULL ? "" : bm->name);
 
+    /* Remove the WT_BLOCK from the connection's list, close if this is the last reference. */
+    if ((block = bm->block) != NULL) {
+        hash = __wt_hash_city64(bm->name, strlen(bm->name));
+        bucket = hash & (conn->hash_size - 1);
+        __wt_spin_lock(session, &conn->block_lock);
+        if (block->ref == 0 || --block->ref == 0) {
+            WT_CONN_BLOCK_REMOVE(conn, block, bucket);
+            ret = __wt_block_close(session, block);
+        }
+        __wt_spin_unlock(session, &conn->block_lock);
+    }
+
+    __wt_free(session, bm->name);
     __wt_overwrite_and_free(session, bm);
     return (ret);
 }
@@ -693,22 +711,49 @@ __wt_block_manager_open(WT_SESSION_IMPL *session, const char *filename,
   WT_BLOCK_FILE_OPENER *opener, const char *cfg[], bool forced_salvage, bool readonly,
   uint32_t allocsize, WT_BM **bmp)
 {
+    WT_BLOCK *block;
     WT_BM *bm;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    uint64_t bucket, hash;
 
     *bmp = NULL;
 
+    conn = S2C(session);
+
+    __wt_verbose(session, WT_VERB_BLOCK, "open: %s", filename);
+
+    /* Allocate and initialize block manager structures. */
     WT_RET(__wt_calloc_one(session, &bm));
+    WT_ERR(__wt_strdup(session, filename, &bm->name));
     __bm_method_set(bm, false);
 
-    WT_ERR(__wt_block_open(
-      session, filename, opener, cfg, forced_salvage, readonly, allocsize, &bm->block));
+    /* Check to see if we have already opened the object. */
+    hash = __wt_hash_city64(filename, strlen(filename));
+    bucket = hash & (conn->hash_size - 1);
+    __wt_spin_lock(session, &conn->block_lock);
+    TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq)
+        if (strcmp(filename, block->name) == 0) {
+            ++block->ref;
+            break;
+        }
 
+    /* If not found, open the object. */
+    if (block == NULL) {
+        WT_ERR(__wt_block_open(
+          session, filename, opener, cfg, forced_salvage, readonly, allocsize, &block));
+	WT_CONN_BLOCK_INSERT(conn, block, bucket);
+    }
+
+    bm->block = block;
     *bmp = bm;
-    return (0);
 
+    if (0) {
 err:
-    WT_TRET(bm->close(bm, session));
+        WT_TRET(bm->close(bm, session));
+    }
+
+    __wt_spin_unlock(session, &conn->block_lock);
     return (ret);
 }
 

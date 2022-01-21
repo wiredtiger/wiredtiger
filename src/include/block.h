@@ -205,6 +205,7 @@ struct __wt_bm {
     int (*write)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, uint8_t *, size_t *, bool, bool);
     int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
 
+    char *name;      /* Name */
     WT_BLOCK *block; /* Underlying file */
 
     void *map; /* Mapped region */
@@ -223,7 +224,6 @@ struct __wt_bm {
  */
 struct __wt_block {
     const char *name;             /* Name */
-    uint64_t name_hash;           /* Hash of name */
     WT_BLOCK_FILE_OPENER *opener; /* how to open files/objects */
 
     /* A list of block manager handles, sharing a file descriptor. */

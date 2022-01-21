@@ -82,20 +82,14 @@ err:
 }
 
 /*
- * __block_destroy --
+ * __wt_block_close --
  *     Destroy a block handle.
  */
-static int
-__block_destroy(WT_SESSION_IMPL *session, WT_BLOCK *block)
+int
+__wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    uint64_t bucket;
     u_int i;
-
-    conn = S2C(session);
-    bucket = block->name_hash & (conn->hash_size - 1);
-    WT_CONN_BLOCK_REMOVE(conn, block, bucket);
 
     __wt_free(session, block->name);
 
@@ -145,25 +139,11 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, WT_BLOCK_FILE_OP
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    uint64_t bucket, hash;
     uint32_t flags;
 
-    *blockp = block = NULL;
-
-    __wt_verbose(session, WT_VERB_BLOCK, "open: %s", filename);
+    *blockp = NULL;
 
     conn = S2C(session);
-    hash = __wt_hash_city64(filename, strlen(filename));
-    bucket = hash & (conn->hash_size - 1);
-    __wt_spin_lock(session, &conn->block_lock);
-    TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq) {
-        if (strcmp(filename, block->name) == 0) {
-            ++block->ref;
-            *blockp = block;
-            __wt_spin_unlock(session, &conn->block_lock);
-            return (0);
-        }
-    }
 
     /*
      * Basic structure allocation, initialization.
@@ -172,14 +152,12 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, WT_BLOCK_FILE_OP
      * block destroy code which uses that hash value to remove the block from the underlying linked
      * lists.
      */
-    WT_ERR(__wt_calloc_one(session, &block));
+    WT_RET(__wt_calloc_one(session, &block));
+    WT_ERR(__wt_strdup(session, filename, &block->name));
+
     block->ref = 1;
-    block->name_hash = hash;
     block->allocsize = allocsize;
     block->opener = opener;
-    WT_CONN_BLOCK_INSERT(conn, block, bucket);
-
-    WT_ERR(__wt_strdup(session, filename, &block->name));
 
     WT_ERR(__wt_config_gets(session, cfg, "block_allocation", &cval));
     block->allocfirst = WT_STRING_MATCH("first", cval.str, cval.len);
@@ -245,41 +223,11 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, WT_BLOCK_FILE_OP
         WT_ERR(__desc_read(session, allocsize, block));
 
     *blockp = block;
-    __wt_spin_unlock(session, &conn->block_lock);
     return (0);
 
 err:
     if (block != NULL)
-        WT_TRET(__block_destroy(session, block));
-    __wt_spin_unlock(session, &conn->block_lock);
-    return (ret);
-}
-
-/*
- * __wt_block_close --
- *     Close a block handle.
- */
-int
-__wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-
-    if (block == NULL) /* Safety check */
-        return (0);
-
-    conn = S2C(session);
-
-    __wt_verbose(session, WT_VERB_BLOCK, "close: %s", block->name == NULL ? "" : block->name);
-
-    __wt_spin_lock(session, &conn->block_lock);
-
-    /* Reference count is initialized to 1. */
-    if (block->ref == 0 || --block->ref == 0)
-        ret = __block_destroy(session, block);
-
-    __wt_spin_unlock(session, &conn->block_lock);
-
+        WT_TRET(__wt_block_close(session, block));
     return (ret);
 }
 
