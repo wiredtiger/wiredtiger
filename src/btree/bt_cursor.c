@@ -926,9 +926,13 @@ err:
     /* Return the found value for any duplicate key. */
     if (0) {
 duplicate:
-        __wt_value_return(cbt, cbt->upd_value);
-        if ((ret = __cursor_localvalue(cursor)) == 0)
+        if (F_ISSET(cursor, WT_CURSTD_DUP_NO_VALUE))
             ret = WT_DUPLICATE_KEY;
+        else {
+            __wt_value_return(cbt, cbt->upd_value);
+            if ((ret = __cursor_localvalue(cursor)) == 0)
+                ret = WT_DUPLICATE_KEY;
+        }
     }
 
     /* Insert doesn't maintain a position across calls, clear resources. */
