@@ -41,7 +41,9 @@ step to generate your build.
 cmake ..\.
 @endcode
 
-Lastly, in the same directory you configured your build, start the build:
+In the absence of an explicit generator, CMake will generate Visual Studio project files
+(\c .vcxproj), representing build targets within WiredTiger. To compile the entire
+WiredTiger project, in the same directory we configured the build, run \c msbuild:
 @code
 msbuild ALL_BUILD.vcxproj
 @endcode
