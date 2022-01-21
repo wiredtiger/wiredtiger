@@ -386,11 +386,8 @@ struct __wt_connection_impl {
     WT_CONNECTION_STATS *stats[WT_COUNTER_SLOTS];
     WT_CONNECTION_STATS *stat_array;
 
-    WT_CAPACITY capacity;              /* Capacity structure */
-    WT_SESSION_IMPL *capacity_session; /* Capacity thread session */
-    wt_thread_t capacity_tid;          /* Capacity thread */
-    bool capacity_tid_set;             /* Capacity thread set */
-    WT_CONDVAR *capacity_cond;         /* Capacity wait mutex */
+    WT_CAPACITY capacity;      /* Capacity structure */
+    WT_THREAD capacity_thread; /* Capacity thread */
 
     WT_LSM_MANAGER lsm_manager; /* LSM worker thread information */
 

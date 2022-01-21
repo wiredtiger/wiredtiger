@@ -95,7 +95,7 @@ __capacity_server(void *arg)
         /*
          * Wait until signalled but check once per second in case the signal was missed.
          */
-        __wt_cond_wait(session, conn->capacity_cond, WT_MILLION, __capacity_server_run_chk);
+        __wt_cond_wait(session, conn->capacity_thread.cond, WT_MILLION, __capacity_server_run_chk);
 
         /* Check if we're quitting or being reconfigured. */
         if (!__capacity_server_run_chk(session))
@@ -127,24 +127,10 @@ err:
 static int
 __capacity_server_start(WT_CONNECTION_IMPL *conn)
 {
-    WT_SESSION_IMPL *session;
-
     FLD_SET(conn->server_flags, WT_CONN_SERVER_CAPACITY);
 
-    /*
-     * The capacity server gets its own session.
-     */
-    WT_RET(
-      __wt_open_internal_session(conn, "capacity-server", false, 0, 0, &conn->capacity_session));
-    session = conn->capacity_session;
-
-    WT_RET(__wt_cond_alloc(session, "capacity server", &conn->capacity_cond));
-
-    /*
-     * Start the thread.
-     */
-    WT_RET(__wt_thread_create(session, &conn->capacity_tid, __capacity_server, session));
-    conn->capacity_tid_set = true;
+    WT_RET(__wt_thread_start(conn, "capacity-server", false, 0, "capacity server", 0, 0,
+      __capacity_server, &conn->capacity_thread));
 
     return (0);
 }
@@ -168,7 +154,7 @@ __wt_capacity_server_create(WT_SESSION_IMPL *session, const char *cfg[])
      * have to worry about races where a running server is reading configuration information that
      * we're updating, and it's not expected that reconfiguration will happen a lot.
      */
-    if (conn->capacity_session != NULL)
+    if (__wt_thread_running(&conn->capacity_thread))
         WT_RET(__wt_capacity_server_destroy(session));
     WT_RET(__capacity_config(session, cfg));
 
@@ -198,23 +184,7 @@ __wt_capacity_server_destroy(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_CAPACITY);
-    if (conn->capacity_tid_set) {
-        __wt_cond_signal(session, conn->capacity_cond);
-        WT_TRET(__wt_thread_join(session, &conn->capacity_tid));
-        conn->capacity_tid_set = false;
-    }
-    __wt_cond_destroy(session, &conn->capacity_cond);
-
-    /* Close the server thread's session. */
-    if (conn->capacity_session != NULL)
-        WT_TRET(__wt_session_close_internal(conn->capacity_session));
-
-    /*
-     * Ensure capacity settings are cleared - so that reconfigure doesn't get confused.
-     */
-    conn->capacity_session = NULL;
-    conn->capacity_tid_set = false;
-    conn->capacity_cond = NULL;
+    WT_TRET(__wt_thread_stop_and_cleanup(session, &conn->capacity_thread));
 
     return (ret);
 }
@@ -232,7 +202,7 @@ __capacity_signal(WT_SESSION_IMPL *session)
     conn = S2C(session);
     cap = &conn->capacity;
     if (cap->written >= cap->threshold && !cap->signalled) {
-        __wt_cond_signal(session, conn->capacity_cond);
+        __wt_cond_signal(session, conn->capacity_thread.cond);
         cap->signalled = true;
     }
 }
