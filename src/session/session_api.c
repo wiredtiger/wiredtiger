@@ -459,6 +459,7 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
   WT_CURSOR *other, const char *cfg[], uint64_t hash_value, WT_CURSOR **cursorp)
 {
     WT_COLGROUP *colgroup;
+    WT_CONFIG_ITEM cval;
     WT_DATA_SOURCE *dsrc;
     WT_DECL_RET;
 
@@ -510,8 +511,19 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
      * Less common cursor types.
      */
     case 'f':
-        if (WT_PREFIX_MATCH(uri, "file:"))
-            WT_RET(__wt_curfile_open(session, uri, owner, cfg, cursorp));
+        if (WT_PREFIX_MATCH(uri, "file:")) {
+            /*
+             * Open a version cursor instead of a table cursor if we are using the special debug
+             * configuration.
+             */
+            if ((ret = __wt_config_gets_def(session, cfg, "debug.dump_version", 0, &cval)) == 0 &&
+              cval.val) {
+                if (WT_STREQ(uri, WT_HS_URI))
+                    WT_RET_MSG(session, EINVAL, "cannot open version cursor on the history store");
+                WT_RET(__wt_curversion_open(session, uri, owner, cfg, cursorp));
+            } else
+                WT_RET(__wt_curfile_open(session, uri, owner, cfg, cursorp));
+        }
         break;
     case 'm':
         if (WT_PREFIX_MATCH(uri, WT_METADATA_URI))
@@ -1498,16 +1510,21 @@ __session_truncate(
         WT_ERR(__wt_session_range_truncate(session, uri, start, stop));
 
 err:
+    /* Map prepare-conflict to rollback. */
+    if (ret == WT_PREPARE_CONFLICT)
+        ret = WT_ROLLBACK;
+
     TXN_API_END(session, ret, false);
 
     if (ret != 0)
         WT_STAT_CONN_INCR(session, session_table_truncate_fail);
     else
         WT_STAT_CONN_INCR(session, session_table_truncate_success);
-    /*
-     * Only map WT_NOTFOUND to ENOENT if a URI was specified.
-     */
-    return (ret == WT_NOTFOUND && uri != NULL ? ENOENT : ret);
+
+    /* Map WT_NOTFOUND to ENOENT if a URI was specified. */
+    if (ret == WT_NOTFOUND && uri != NULL)
+        ret = ENOENT;
+    return (ret);
 }
 
 /*
