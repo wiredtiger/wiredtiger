@@ -403,12 +403,9 @@ struct __wt_connection_impl {
     uint32_t evict_threads_min; /* Min eviction threads */
 
 #define WT_STATLOG_FILENAME "WiredTigerStat.%d.%H"
-    WT_SESSION_IMPL *stat_session; /* Statistics log session */
-    wt_thread_t stat_tid;          /* Statistics log thread */
-    bool stat_tid_set;             /* Statistics log thread set */
-    WT_CONDVAR *stat_cond;         /* Statistics log wait mutex */
-    const char *stat_format;       /* Statistics log timestamp format */
-    WT_FSTREAM *stat_fs;           /* Statistics log stream */
+    WT_THREAD stat_thread;   /* Statistics log thread */
+    const char *stat_format; /* Statistics log timestamp format */
+    WT_FSTREAM *stat_fs;     /* Statistics log stream */
     /* Statistics log json table printing state flag */
     bool stat_json_tables;
     char *stat_path;        /* Statistics log path format */

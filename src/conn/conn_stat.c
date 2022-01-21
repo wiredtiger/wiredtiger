@@ -582,7 +582,7 @@ __statlog_server(void *arg)
 
     for (;;) {
         /* Wait until the next event. */
-        __wt_cond_wait(session, conn->stat_cond, conn->stat_usecs, __statlog_server_run_chk);
+        __wt_cond_wait(session, conn->stat_thread.cond, conn->stat_usecs, __statlog_server_run_chk);
 
         /* Check if we're quitting or being reconfigured. */
         if (!__statlog_server_run_chk(session))
@@ -608,31 +608,21 @@ err:
 static int
 __statlog_start(WT_CONNECTION_IMPL *conn)
 {
-    WT_SESSION_IMPL *session;
-
     /* Nothing to do if the server is already running. */
-    if (conn->stat_session != NULL)
+    if (__wt_thread_running(&conn->stat_thread))
         return (0);
 
     FLD_SET(conn->server_flags, WT_CONN_SERVER_STATISTICS);
 
-    /* The statistics log server gets its own session. */
-    WT_RET(__wt_open_internal_session(conn, "statlog-server", true, 0, 0, &conn->stat_session));
-    session = conn->stat_session;
-
-    WT_RET(__wt_cond_alloc(session, "statistics log server", &conn->stat_cond));
-
     /*
-     * Start the thread.
-     *
      * Statistics logging creates a thread per database, rather than using a single thread to do
      * logging for all of the databases. If we ever see lots of databases at a time, doing
      * statistics logging, and we want to reduce the number of threads, there's no reason we have to
      * have more than one thread, I just didn't feel like writing the code to figure out the
      * scheduling.
      */
-    WT_RET(__wt_thread_create(session, &conn->stat_tid, __statlog_server, session));
-    conn->stat_tid_set = true;
+    WT_RET(__wt_thread_start(conn, "statlog-server", true, 0, "statistics log server", 0, 0,
+      __statlog_server, &conn->stat_thread));
 
     return (0);
 }
@@ -660,7 +650,7 @@ __wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
      * If there's no server running, discard any configuration information so we don't leak memory
      * during reconfiguration.
      */
-    if (conn->stat_session == NULL)
+    if (!__wt_thread_running(&conn->stat_thread))
         WT_RET(__stat_config_discard(session));
     else
         WT_RET(__wt_statlog_destroy(session, false));
@@ -686,12 +676,8 @@ __wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
 
     /* Stop the server thread. */
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_STATISTICS);
-    if (conn->stat_tid_set) {
-        __wt_cond_signal(session, conn->stat_cond);
-        WT_TRET(__wt_thread_join(session, &conn->stat_tid));
-        conn->stat_tid_set = false;
-    }
-    __wt_cond_destroy(session, &conn->stat_cond);
+
+    WT_TRET(__wt_thread_stop_and_cleanup(session, &conn->stat_thread));
 
     /* Log a set of statistics on shutdown if configured. */
     if (is_close)
@@ -699,12 +685,6 @@ __wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
 
     /* Discard all configuration information. */
     WT_TRET(__stat_config_discard(session));
-
-    /* Close the server thread's session. */
-    if (conn->stat_session != NULL) {
-        WT_TRET(__wt_session_close_internal(conn->stat_session));
-        conn->stat_session = NULL;
-    }
 
     return (ret);
 }
