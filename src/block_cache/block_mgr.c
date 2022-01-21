@@ -742,7 +742,7 @@ __wt_block_manager_open(WT_SESSION_IMPL *session, const char *filename,
     if (block == NULL) {
         WT_ERR(__wt_block_open(
           session, filename, opener, cfg, forced_salvage, readonly, allocsize, &block));
-	WT_CONN_BLOCK_INSERT(conn, block, bucket);
+        WT_CONN_BLOCK_INSERT(conn, block, bucket);
     }
 
     bm->block = block;
