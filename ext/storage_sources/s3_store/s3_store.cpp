@@ -101,8 +101,6 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     aws_config.partSize = part_size;
 
     /* TODO: Move these into tests. */
-    /* List S3 buckets. */
-    Aws::Vector<Aws::S3Crt::Model::Bucket> buckets;
 
     if ((fs = (S3_FILE_SYSTEM*)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
         return (errno);
@@ -114,23 +112,25 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     fs->file_system.terminate = s3_fs_terminate; 
 
 
-    // All content will moved into testing; just testing here temporarily to show all functions work. 
+    // All content will moved into testing; just testing here temporarily to show all functions work.
     {
-        if (fs->conn->list_buckets(&buckets)) {
+    /* List S3 buckets. */
+    std::vector<std::string> buckets; 
+        if (fs->conn->list_buckets(buckets)) {
             std::cout << "All buckets under my account:" << std::endl;
-            for (const Aws::S3Crt::Model::Bucket &bucket : buckets) {
-                std::cout << "  * " << bucket.GetName() << std::endl;
+            for (const std::string &bucket : buckets) {
+                std::cout << "  * " << bucket << std::endl;
             }
             std::cout << std::endl;
         }
 
         /* Have at least one bucket to use. */
         if (buckets.size() >= 1) {
-            const Aws::String first_bucket = buckets.at(0).GetName();
+            const Aws::String first_bucket = buckets.at(0);
 
             /* List objects. */
-            Aws::Vector<Aws::S3Crt::Model::Object> bucket_objects;
-            if (fs->conn->list_bucket_objects(first_bucket, &bucket_objects)) {
+            std::vector<Aws::S3Crt::Model::Object> bucket_objects;
+            if (fs->conn->list_objects(first_bucket, bucket_objects)) {
                 std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
                 if (bucket_objects.size() >= 1) {
                     for (Aws::S3Crt::Model::Object &object : bucket_objects) {
@@ -144,10 +144,10 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
             }
 
             /* Put object. */
-            fs->conn->put_object(first_bucket, "test.json", "../../../test.json");
+            fs->conn->put_object(first_bucket, "WiredTiger.turtle", "WiredTiger.turtle");
 
             /* List objects again. */
-            if (fs->conn->list_bucket_objects(first_bucket, &bucket_objects)) {
+            if (fs->conn->list_objects(first_bucket, bucket_objects)) {
                 std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
                 if (bucket_objects.size() >= 1) {
                     for (Aws::S3Crt::Model::Object &object : bucket_objects) {
@@ -161,10 +161,10 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
             }
 
             /* Delete object. */
-            fs->conn->delete_object(first_bucket, "test.json");
+            fs->conn->delete_object(first_bucket, "WiredTiger.turtle");
 
             /* List objects again. */
-            if (fs->conn->list_bucket_objects(first_bucket, &bucket_objects)) {
+            if (fs->conn->list_objects(first_bucket, bucket_objects)) {
                 std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
                 if (bucket_objects.size() >= 1) {
                     for (Aws::S3Crt::Model::Object &object : bucket_objects) {
@@ -261,12 +261,10 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     s3->storage_source.terminate = s3_terminate;
     // s3->storage_source.ss_flush = s3_flush;
 
-
-
     /* Load the storage */
     if ((ret = connection->add_storage_source(connection, "s3_store", &s3->storage_source, NULL)) !=
-      0) {
+      0)
         free(s3);
-    }
+
     return (ret);
 }
