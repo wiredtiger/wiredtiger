@@ -52,6 +52,8 @@ include(cmake/third_party/zstd.cmake)
 include(cmake/third_party/snappy.cmake)
 include(cmake/third_party/zlib.cmake)
 include(cmake/third_party/sodium.cmake)
+include(cmake/third_party/aws_sdk.cmake)
+
 
 if(NOT ENABLE_SHARED AND NOT ENABLE_STATIC)
     message(FATAL_ERROR "Both ENABLE_SHARED & ENABLE_STATIC are disabled. Need to enable at least one build flavour.")
