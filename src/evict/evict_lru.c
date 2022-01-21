@@ -2449,8 +2449,6 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
         }
     }
 
-    if (app_thread)
-        WT_STAT_CONN_INCR(session, cache_eviction_app_thread_exit);
 err:
     if (time_start != 0) {
         time_stop = __wt_clock(session);
@@ -2466,6 +2464,8 @@ err:
 
 done:
     WT_TRACK_OP_END(session);
+    if (app_thread)
+        WT_STAT_CONN_INCR(session, cache_eviction_app_thread_exit);
 
     return (ret);
 }
