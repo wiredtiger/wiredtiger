@@ -703,15 +703,15 @@ __bm_method_set(WT_BM *bm, bool readonly)
 }
 
 /*
- * __wt_block_manager_open --
+ * __wt_blkcache_open --
  *     Open a file.
  */
 int
-__wt_block_manager_open(WT_SESSION_IMPL *session, const char *filename,
-  WT_BLOCK_FILE_OPENER *opener, const char *cfg[], bool forced_salvage, bool readonly,
-  uint32_t allocsize, WT_BM **bmp)
+__wt_blkcache_open(WT_SESSION_IMPL *session, const char *name, const char *cfg[],
+  bool forced_salvage, bool readonly, uint32_t allocsize, WT_BM **bmp)
 {
     WT_BLOCK *block;
+    WT_BLOCK_FILE_OPENER *opener;
     WT_BM *bm;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -721,27 +721,35 @@ __wt_block_manager_open(WT_SESSION_IMPL *session, const char *filename,
 
     conn = S2C(session);
 
-    __wt_verbose(session, WT_VERB_BLOCK, "open: %s", filename);
+    __wt_verbose(session, WT_VERB_BLOCK, "open: %s", name);
 
     /* Allocate and initialize block manager structures. */
     WT_RET(__wt_calloc_one(session, &bm));
-    WT_ERR(__wt_strdup(session, filename, &bm->name));
     __bm_method_set(bm, false);
 
+    /*
+     * Get an opener abstraction that the block manager can use to open any of the files that
+     * represent a btree. In the case of a tiered Btree, that would allow opening different files
+     * according to an object id in a reference. For a non-tiered Btree, the opener will know to
+     * always open a single file (given by the name).
+     */
+    WT_ERR(__wt_blkcache_get_name(session, session->dhandle, name, &opener, &bm->name));
+    name = bm->name;
+
     /* Check to see if we have already opened the object. */
-    hash = __wt_hash_city64(filename, strlen(filename));
+    hash = __wt_hash_city64(name, strlen(name));
     bucket = hash & (conn->hash_size - 1);
     __wt_spin_lock(session, &conn->block_lock);
     TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq)
-        if (strcmp(filename, block->name) == 0) {
+        if (strcmp(name, block->name) == 0) {
             ++block->ref;
             break;
         }
 
     /* If not found, open the object. */
     if (block == NULL) {
-        WT_ERR(__wt_block_open(
-          session, filename, opener, cfg, forced_salvage, readonly, allocsize, &block));
+        WT_ERR(
+          __wt_block_open(session, name, opener, cfg, forced_salvage, readonly, allocsize, &block));
         WT_CONN_BLOCK_INSERT(conn, block, bucket);
     }
 
@@ -758,11 +766,11 @@ err:
 }
 
 /*
- * __wt_block_set_readonly --
+ * __wt_blkcache_set_readonly --
  *     Set the block API to read-only.
  */
 void
-__wt_block_set_readonly(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((cold))
+__wt_blkcache_set_readonly(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     /* Switch the handle into read-only mode. */
     __bm_method_set(S2BT(session)->bm, true);

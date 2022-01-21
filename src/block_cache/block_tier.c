@@ -100,32 +100,29 @@ __tiered_opener_current_id(WT_BLOCK_FILE_OPENER *opener)
 }
 
 /*
- * __wt_tiered_opener --
- *     Set up an opener for a tiered handle.
+ * __wt_blkcache_get_name --
+ *     Do tiered storage mapping of the name.
  */
 int
-__wt_tiered_opener(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
-  WT_BLOCK_FILE_OPENER **openerp, const char **filenamep)
+__wt_blkcache_get_name(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, const char *name,
+  WT_BLOCK_FILE_OPENER **openerp, char **realnamep)
 {
     WT_TIERED *tiered;
-    const char *filename;
 
-    filename = dhandle->name;
     *openerp = NULL;
 
     if (dhandle->type == WT_DHANDLE_TYPE_BTREE) {
-        if (!WT_PREFIX_SKIP(filename, "file:"))
+        if (!WT_PREFIX_SKIP(name, "file:"))
             WT_RET_MSG(session, EINVAL, "expected a 'file:' URI");
-        *filenamep = filename;
-    } else if (dhandle->type == WT_DHANDLE_TYPE_TIERED) {
+        return (__wt_strdup(session, name, realnamep));
+    }
+    if (dhandle->type == WT_DHANDLE_TYPE_TIERED) {
         tiered = (WT_TIERED *)dhandle;
         tiered->opener.open = __tiered_opener_open;
         tiered->opener.current_object_id = __tiered_opener_current_id;
         tiered->opener.cookie = tiered;
         *openerp = &tiered->opener;
-        *filenamep = dhandle->name;
-    } else
-        WT_RET_MSG(session, EINVAL, "invalid URI: %s", dhandle->name);
-
-    return (0);
+        return (__wt_strdup(session, name, realnamep));
+    }
+    WT_RET_MSG(session, EINVAL, "invalid URI: %s", name);
 }
