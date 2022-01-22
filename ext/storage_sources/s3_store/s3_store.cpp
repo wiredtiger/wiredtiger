@@ -73,7 +73,6 @@ static int s3_customize_file_system(
 static int s3_add_reference(WT_STORAGE_SOURCE *);
 static int s3_fs_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 
-
 /*
  * s3_customize_file_system --
  *      TODO: Return a customized file system to access the s3 storage source objects.
@@ -100,7 +99,6 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     aws_config.partSize = part_size;
 
     /* TODO: Move these into tests. */
-
     if ((fs = (S3_FILE_SYSTEM*)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
         return (errno);
 
@@ -109,7 +107,6 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     // new can fail; will deal with this later. 
     fs->conn = new aws_bucket_conn(aws_config);
     fs->file_system.terminate = s3_fs_terminate; 
-
 
     // All content will moved into testing; just testing here temporarily to show all functions work.
     {
@@ -235,7 +232,6 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 
     if ((s3 = (S3_STORAGE*)calloc(1, sizeof(S3_STORAGE))) == NULL)
         return (errno);
-
 
     s3->wt_api = connection->get_extension_api(connection);
     UNUSED(config);
