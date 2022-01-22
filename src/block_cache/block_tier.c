@@ -32,12 +32,12 @@ __wt_blkcache_map_name(
 }
 
 /*
- * __wt_tiered_opener_open --
+ * __blkcache_tiered_open --
  *     Open an object by number.
  */
-int
-__wt_tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, uint32_t object_id,
-  WT_FS_OPEN_FILE_TYPE type, u_int flags, WT_FH **fhp)
+static int
+__blkcache_tiered_open(
+  WT_SESSION_IMPL *session, uint32_t object_id, WT_FS_OPEN_FILE_TYPE type, u_int flags, WT_FH **fhp)
 {
     WT_BUCKET_STORAGE *bstorage;
     WT_CONFIG_ITEM pfx;
@@ -48,7 +48,7 @@ __wt_tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, 
     const char *cfg[2], *object_name, *object_uri, *object_val;
     bool local_only;
 
-    tiered = opener->cookie;
+    tiered = (WT_TIERED *)session->dhandle;
     object_uri = NULL;
     object_val = NULL;
     tmp = NULL;
@@ -59,7 +59,7 @@ __wt_tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, 
      * First look for the local file. This will be the fastest access and we retain recent objects
      * in the local database for a while.
      */
-    if (object_id == tiered->current_id) {   /* KEITH: should never be true */
+    if (object_id == tiered->current_id) { /* KEITH: should never be true */
         bstorage = NULL;
         object_name = tiered->tiers[WT_TIERED_INDEX_LOCAL].name;
         WT_PREFIX_SKIP_REQUIRED(session, object_name, "file:");
@@ -119,8 +119,8 @@ __block_switch_writeable(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t obj
      * requests in flight.
      */
     old_fh = block->fh;
-    WT_RET(block->opener->open(
-      block->opener, session, object_id, WT_FS_OPEN_FILE_TYPE_DATA, block->file_flags, &new_fh));
+    WT_RET(__blkcache_tiered_open(
+      session, object_id, WT_FS_OPEN_FILE_TYPE_DATA, block->file_flags, &new_fh));
     block->fh = new_fh;
     block->objectid = object_id;
 
@@ -165,10 +165,8 @@ __wt_block_fh(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object_id, WT_
      * files it doesn't know about, or there may have been some other mismatch. Regardless, we want
      * to log a specific error message, we're missing a file.
      */
-    ret = block->opener->open == NULL ?
-      WT_NOTFOUND :
-      block->opener->open(block->opener, session, object_id, WT_FS_OPEN_FILE_TYPE_DATA,
-        WT_FS_OPEN_READONLY | block->file_flags, &block->ofh[object_id]);
+    ret = __blkcache_tiered_open(session, object_id, WT_FS_OPEN_FILE_TYPE_DATA,
+      WT_FS_OPEN_READONLY | block->file_flags, &block->ofh[object_id]);
     if (ret == 0) {
         *fhp = block->ofh[object_id];
         return (0);

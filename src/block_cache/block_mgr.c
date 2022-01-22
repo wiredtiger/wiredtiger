@@ -749,18 +749,13 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *name, const char *cfg[]
 
         /* New tiered object initialization. */
         if (dhandle->type == WT_DHANDLE_TYPE_TIERED) {
-            /* KEITH: where does this belong, maybe in the code that called __wt_btree_open()? */
-            tiered = (WT_TIERED *)dhandle;
-            tiered->opener.open = __wt_tiered_opener_open;
-            tiered->opener.cookie = tiered;
-
             /*
              * KEITH: This probably should be another structure on top of the WT_BLOCK, or, at least
              * some information hiding. Once we have WT_BLOCKS all around, fix this.
              */
+            tiered = (WT_TIERED *)dhandle;
             block->has_objects = true;
             block->objectid = tiered->current_id;
-            block->opener = &tiered->opener;
         }
     }
 

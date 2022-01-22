@@ -245,12 +245,11 @@ struct __wt_block {
     u_int block_header; /* Header length */
 
     /* Object file tracking. */
-    bool has_objects;             /* Address cookies contain object id */
-    uint32_t objectid;            /* Current writeable object id */
-    WT_BLOCK_FILE_OPENER *opener; /* how to open files/objects */
-    uint32_t file_flags;          /* Flags for opening objects */
-    uint32_t max_objectid;        /* Size of object handle array */
-    WT_FH **ofh;                  /* Object file handles */
+    bool has_objects;      /* Address cookies contain object id */
+    uint32_t objectid;     /* Current writeable object id */
+    uint32_t file_flags;   /* Flags for opening objects */
+    uint32_t max_objectid; /* Size of object handle array */
+    WT_FH **ofh;           /* Object file handles */
     size_t ofh_alloc;
 
     /*
@@ -314,17 +313,6 @@ struct __wt_block_desc {
  * of the file for this information, but it would be worth investigation, regardless).
  */
 #define WT_BLOCK_DESC_SIZE 16
-
-/*
- * WT_BLOCK_FILE_OPENER --
- *	An open callback for the block manager.  This hides details about how to access the
- * different objects that make up a tiered file.
- */
-struct __wt_block_file_opener {
-    int (*open)(
-      WT_BLOCK_FILE_OPENER *, WT_SESSION_IMPL *, uint32_t, WT_FS_OPEN_FILE_TYPE, u_int, WT_FH **);
-    void *cookie; /* Used in open call */
-};
 
 /*
  * __wt_block_desc_byteswap --
