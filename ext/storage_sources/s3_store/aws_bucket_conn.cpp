@@ -1,18 +1,15 @@
 #include <aws/core/Aws.h>
 #include <aws/s3-crt/S3CrtClient.h>
-#include <iostream>
-#include <fstream>
-
-#include "aws_bucket_conn.h"
-
 #include <aws/s3-crt/model/DeleteObjectRequest.h>
 #include <aws/s3-crt/model/ListObjectsRequest.h>
-#include <aws/s3-crt/model/PutObjectRequest.h>
-
 #include <aws/s3-crt/model/Object.h>
+#include <aws/s3-crt/model/PutObjectRequest.h>
+#include "aws_bucket_conn.h"
+
+#include <fstream>
+#include <iostream>
 #include <string>
 #include <vector>
-#include <sys/stat.h>
 
 bool
 aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
@@ -53,12 +50,6 @@ aws_bucket_conn::put_object(
 {
     std::cout << "Adding object '" << object_key << "' to bucket '" << bucket_name << "'..."
               << std::endl;
-
-    struct stat buffer;
-    if (stat(file_name.c_str(), &buffer) == -1) {
-        std::cout << "Error in put_object: File '" << file_name << "' does not exist." << std::endl;
-        return false;
-    }
 
     Aws::S3Crt::Model::PutObjectRequest request;
     request.SetBucket(bucket_name);

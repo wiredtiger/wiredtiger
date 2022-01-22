@@ -29,10 +29,11 @@
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
 
-#include <iostream>
 #include <aws/core/Aws.h>
 #include <aws/s3-crt/S3CrtClient.h>
 #include "aws_bucket_conn.h"
+
+#include <iostream>
 
 #define UNUSED(x) (void)(x)
 
@@ -88,12 +89,10 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     int ret;
 
     /* Mark parameters as unused for now, until implemented. */
-    UNUSED(storage_source);
     UNUSED(session);
-    // UNUSED(bucket_name);
+    UNUSED(bucket_name);
     UNUSED(auth_token);
     UNUSED(config);
-    UNUSED(file_systemp);
 
     Aws::S3Crt::ClientConfiguration aws_config;
     aws_config.region = region;
@@ -138,7 +137,6 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
                     }
                 } else {
                     std::cout << "No objects in bucket." << std::endl;
-                    ;
                 }
                 std::cout << std::endl;
             }
@@ -155,7 +153,6 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
                     }
                 } else {
                     std::cout << "No objects in bucket." << std::endl;
-                    ;
                 }
                 std::cout << std::endl;
             }
@@ -172,7 +169,6 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
                     }
                 } else {
                     std::cout << "No objects in bucket." << std::endl;
-                    ;
                 }
                 std::cout << std::endl;
             }
@@ -180,8 +176,6 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
             std::cout << "No buckets in AWS account." << std::endl;
         }
     }
-
-
 
     *file_systemp = &fs->file_system;
    return 0;
@@ -193,7 +187,7 @@ s3_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 {
     S3_FILE_SYSTEM *s3_fs;
 
-    (void)session; /* unused */
+    UNUSED(session); /* unused */
 
     s3_fs = (S3_FILE_SYSTEM *)file_system;
     delete(s3_fs->conn);
@@ -201,7 +195,6 @@ s3_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 
     return (0);
 }
-
 
 /*
  * s3_add_reference --
@@ -213,7 +206,6 @@ static int
 s3_add_reference(WT_STORAGE_SOURCE *storage_source)
 {
     UNUSED(storage_source);
-    // std::cout << "s3_add_reference()";
     return (0);
 }
 
@@ -259,7 +251,6 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     s3->storage_source.ss_customize_file_system = s3_customize_file_system;
     s3->storage_source.ss_add_reference = s3_add_reference;
     s3->storage_source.terminate = s3_terminate;
-    // s3->storage_source.ss_flush = s3_flush;
 
     /* Load the storage */
     if ((ret = connection->add_storage_source(connection, "s3_store", &s3->storage_source, NULL)) !=

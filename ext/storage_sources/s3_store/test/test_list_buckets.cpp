@@ -1,5 +1,6 @@
 #include <aws_bucket_conn.h>
 #include <aws/core/Aws.h>
+
 #include <iostream>
 
 /* Default config settings for the S3CrtClient. */
