@@ -325,7 +325,6 @@ struct __wt_block_file_opener {
 #define WT_TIERED_CURRENT_ID UINT32_MAX
     int (*open)(
       WT_BLOCK_FILE_OPENER *, WT_SESSION_IMPL *, uint32_t, WT_FS_OPEN_FILE_TYPE, u_int, WT_FH **);
-    uint32_t (*current_object_id)(WT_BLOCK_FILE_OPENER *);
     void *cookie; /* Used in open call */
 };
 

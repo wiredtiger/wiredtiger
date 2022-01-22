@@ -103,21 +103,3 @@ err:
     __wt_free(session, tmp);
     return (ret);
 }
-
-/*
- * __wt_tiered_opener_current_id --
- *     Get the current writeable object id.
- */
-uint32_t
-__wt_tiered_opener_current_id(WT_BLOCK_FILE_OPENER *opener)
-{
-    WT_TIERED *tiered;
-
-    tiered = opener->cookie;
-
-    /*
-     * FIXME-WT-7590 we will need some kind of locking while we're looking at the tiered structure.
-     * This can be called at any time, because we are opening the objects lazily.
-     */
-    return (tiered->current_id);
-}

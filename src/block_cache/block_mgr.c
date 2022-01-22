@@ -752,7 +752,6 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *name, const char *cfg[]
             /* KEITH: where does this belong, maybe in the code that called __wt_btree_open()? */
             tiered = (WT_TIERED *)dhandle;
             tiered->opener.open = __wt_tiered_opener_open;
-            tiered->opener.current_object_id = __wt_tiered_opener_current_id;
             tiered->opener.cookie = tiered;
 
             /*
