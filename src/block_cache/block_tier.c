@@ -9,11 +9,34 @@
 #include "wt_internal.h"
 
 /*
- * __tiered_opener_open --
+ * __wt_blkcache_map_name --
+ *     Map the name into something we'll open.
+ */
+int
+__wt_blkcache_map_name(
+  WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, const char *name, char **realnamep)
+{
+    WT_TIERED *tiered;
+
+    tiered = (WT_TIERED *)dhandle;
+
+    /* Check for a tiered storage name. */
+    if (dhandle != NULL && dhandle->type == WT_DHANDLE_TYPE_TIERED)
+        name = tiered->tiers[WT_TIERED_INDEX_LOCAL].name;
+
+    /* Skip any file: URI. */
+    if (WT_PREFIX_MATCH(name, "file:"))
+        name += strlen("file:");
+
+    return (__wt_strdup(session, name, realnamep));
+}
+
+/*
+ * __wt_tiered_opener_open --
  *     Open an object by number.
  */
-static int
-__tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, uint32_t object_id,
+int
+__wt_tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, uint32_t object_id,
   WT_FS_OPEN_FILE_TYPE type, u_int flags, WT_FH **fhp)
 {
     WT_BUCKET_STORAGE *bstorage;
@@ -82,11 +105,11 @@ err:
 }
 
 /*
- * __tiered_opener_current_id --
+ * __wt_tiered_opener_current_id --
  *     Get the current writeable object id.
  */
-static uint32_t
-__tiered_opener_current_id(WT_BLOCK_FILE_OPENER *opener)
+uint32_t
+__wt_tiered_opener_current_id(WT_BLOCK_FILE_OPENER *opener)
 {
     WT_TIERED *tiered;
 
@@ -97,32 +120,4 @@ __tiered_opener_current_id(WT_BLOCK_FILE_OPENER *opener)
      * This can be called at any time, because we are opening the objects lazily.
      */
     return (tiered->current_id);
-}
-
-/*
- * __wt_blkcache_get_name --
- *     Do tiered storage mapping of the name.
- */
-int
-__wt_blkcache_get_name(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, const char *name,
-  WT_BLOCK_FILE_OPENER **openerp, char **realnamep)
-{
-    WT_TIERED *tiered;
-
-    *openerp = NULL;
-
-    if (dhandle->type == WT_DHANDLE_TYPE_BTREE) {
-        if (!WT_PREFIX_SKIP(name, "file:"))
-            WT_RET_MSG(session, EINVAL, "expected a 'file:' URI");
-        return (__wt_strdup(session, name, realnamep));
-    }
-    if (dhandle->type == WT_DHANDLE_TYPE_TIERED) {
-        tiered = (WT_TIERED *)dhandle;
-        tiered->opener.open = __tiered_opener_open;
-        tiered->opener.current_object_id = __tiered_opener_current_id;
-        tiered->opener.cookie = tiered;
-        *openerp = &tiered->opener;
-        return (__wt_strdup(session, name, realnamep));
-    }
-    WT_RET_MSG(session, EINVAL, "invalid URI: %s", name);
 }

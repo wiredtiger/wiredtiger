@@ -220,13 +220,10 @@ struct __wt_bm {
 
 /*
  * WT_BLOCK --
- *	Block manager handle, references a single file.
+ *	Block manager handle, references a single file handle.
  */
 struct __wt_block {
-    const char *name;             /* Name */
-    WT_BLOCK_FILE_OPENER *opener; /* how to open files/objects */
-
-    /* A list of block manager handles, sharing a file descriptor. */
+    const char *name;              /* Name */
     uint32_t ref;                  /* References */
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
@@ -248,18 +245,17 @@ struct __wt_block {
     u_int block_header; /* Header length */
 
     /* Object file tracking. */
-    bool has_objects;      /* Address cookies contain object id */
-    uint32_t file_flags;   /* Flags for opening objects */
-    uint32_t objectid;     /* Current writeable object id */
-    uint32_t max_objectid; /* Size of object handle array */
-    WT_FH **ofh;           /* Object file handles */
+    bool has_objects;             /* Address cookies contain object id */
+    uint32_t objectid;            /* Current writeable object id */
+    WT_BLOCK_FILE_OPENER *opener; /* how to open files/objects */
+    uint32_t file_flags;          /* Flags for opening objects */
+    uint32_t max_objectid;        /* Size of object handle array */
+    WT_FH **ofh;                  /* Object file handles */
     size_t ofh_alloc;
 
     /*
-     * There is only a single checkpoint in a file that can be written. The information could
-     * logically live in the WT_BM structure, but then we would be re-creating it every time we
-     * opened a new checkpoint and I'd rather not do that. So, it's stored here, only accessed by
-     * one WT_BM handle.
+     * There is only a single checkpoint in a file that can be written; stored here, only accessed
+     * by one WT_BM handle.
      */
     WT_SPINLOCK live_lock; /* Live checkpoint lock */
     WT_BLOCK_CKPT live;    /* Live checkpoint */

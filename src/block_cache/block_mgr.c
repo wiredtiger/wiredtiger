@@ -711,37 +711,32 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *name, const char *cfg[]
   bool forced_salvage, bool readonly, uint32_t allocsize, WT_BM **bmp)
 {
     WT_BLOCK *block;
-    WT_BLOCK_FILE_OPENER *opener;
     WT_BM *bm;
     WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
+    WT_TIERED *tiered;
     uint64_t bucket, hash;
 
     *bmp = NULL;
 
     conn = S2C(session);
-
-    __wt_verbose(session, WT_VERB_BLOCK, "open: %s", name);
+    dhandle = session->dhandle;
 
     /* Allocate and initialize block manager structures. */
     WT_RET(__wt_calloc_one(session, &bm));
     __bm_method_set(bm, false);
 
-    /*
-     * Get an opener abstraction that the block manager can use to open any of the files that
-     * represent a btree. In the case of a tiered Btree, that would allow opening different files
-     * according to an object id in a reference. For a non-tiered Btree, the opener will know to
-     * always open a single file (given by the name).
-     */
-    WT_ERR(__wt_blkcache_get_name(session, session->dhandle, name, &opener, &bm->name));
-    name = bm->name;
+    /* Get the name of the object being opened. */
+    WT_ERR(__wt_blkcache_map_name(session, dhandle, name, &bm->name));
+    __wt_verbose(session, WT_VERB_BLOCK, "open: %s (%s)", name, bm->name);
 
     /* Check to see if we have already opened the object. */
-    hash = __wt_hash_city64(name, strlen(name));
+    hash = __wt_hash_city64(bm->name, strlen(bm->name));
     bucket = hash & (conn->hash_size - 1);
     __wt_spin_lock(session, &conn->block_lock);
     TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq)
-        if (strcmp(name, block->name) == 0) {
+        if (strcmp(bm->name, block->name) == 0) {
             ++block->ref;
             break;
         }
@@ -749,8 +744,25 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *name, const char *cfg[]
     /* If not found, open the object. */
     if (block == NULL) {
         WT_ERR(
-          __wt_block_open(session, name, opener, cfg, forced_salvage, readonly, allocsize, &block));
+          __wt_block_open(session, bm->name, cfg, forced_salvage, readonly, allocsize, &block));
         WT_CONN_BLOCK_INSERT(conn, block, bucket);
+
+        /* New tiered object initialization. */
+        if (dhandle->type == WT_DHANDLE_TYPE_TIERED) {
+            /* KEITH: where does this belong, maybe in the code that called __wt_btree_open()? */
+            tiered = (WT_TIERED *)dhandle;
+            tiered->opener.open = __wt_tiered_opener_open;
+            tiered->opener.current_object_id = __wt_tiered_opener_current_id;
+            tiered->opener.cookie = tiered;
+
+            /*
+             * KEITH: This probably should be another structure on top of the WT_BLOCK, or, at least
+             * some information hiding. Once we have WT_BLOCKS all around, fix this.
+             */
+            block->has_objects = true;
+            block->objectid = tiered->current_id;
+            block->opener = &tiered->opener;
+        }
     }
 
     bm->block = block;
