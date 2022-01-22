@@ -3,45 +3,54 @@
 
 #include <iostream>
 
-/* Default config settings for the S3CrtClient. */
-namespace defaults 
+/* 
+/ Default config settings for the S3CrtClient. 
+*/
+namespace test_defaults 
 {
     const Aws::String region = Aws::Region::AP_SOUTHEAST_2;
     const double throughput_target_gbps = 5;
     const uint64_t part_size = 8 * 1024 * 1024; // 8 MB.    
 }
 
-/* Unit test for listing S3 buckets under the associated AWS account. */
-int test_list_buckets(const Aws::S3Crt::ClientConfiguration &config) {
+/*
+/ Wrapper for unit test functions. 
+*/
+#define TEST(func, config, expected)                   \
+    do {                                               \
+        int __ret;                                     \
+        if ((__ret = (func(config))) != expected)      \
+            return (__ret);                            \
+    } while (0)
+
+/* 
+/ Unit test for listing S3 buckets under the associated AWS account. 
+*/
+int 
+test_list_buckets(const Aws::S3Crt::ClientConfiguration &config) {
     aws_bucket_conn conn(config);
     std::vector<std::string> buckets;
-
-    if (conn.list_buckets(buckets)) {
-        std::cout << "All buckets under my account:" << std::endl;
-        for (const std::string &bucket : buckets) {
-            std::cout << "  * " << bucket << std::endl;
-        }
-        std::cout << std::endl;
-        return true;
-    } else {
-        return false;
-    }
+    if (!conn.list_buckets(buckets))
+        return 1;
+             
+    std::cout << "All buckets under my account:" << std::endl;
+    for (const std::string &bucket : buckets)
+        std::cout << "  * " << bucket << std::endl;
+    return 0;
 }
 
-int main () {
+int 
+main () {
     /* Set up the config to use the defaults specified. */
     Aws::S3Crt::ClientConfiguration aws_config;
-    aws_config.region = defaults::region;
-    aws_config.throughputTargetGbps = defaults::throughput_target_gbps;
-    aws_config.partSize = defaults::part_size;
-
+    aws_config.region = test_defaults::region;
+    aws_config.throughputTargetGbps = test_defaults::throughput_target_gbps;
+    aws_config.partSize = test_defaults::part_size;
     /* Set the SDK options and initialize the API. */
     Aws::SDKOptions options;
     Aws::InitAPI(options);
 
     int ret = 0;
-
-    ret = !test_list_buckets(aws_config);
-
+    TEST(test_list_buckets, aws_config, 0);
     return (ret);
 }
