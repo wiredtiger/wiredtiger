@@ -321,8 +321,6 @@ struct __wt_block_desc {
  * different objects that make up a tiered file.
  */
 struct __wt_block_file_opener {
-    /* An id to be used with the open call to reference the current object. */
-#define WT_TIERED_CURRENT_ID UINT32_MAX
     int (*open)(
       WT_BLOCK_FILE_OPENER *, WT_SESSION_IMPL *, uint32_t, WT_FS_OPEN_FILE_TYPE, u_int, WT_FH **);
     void *cookie; /* Used in open call */
