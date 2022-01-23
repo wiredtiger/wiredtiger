@@ -7,7 +7,7 @@
 #include <aws/s3-crt/model/Object.h>
 
 #include <string>
-#include <vector> 
+#include <vector>
 
 /*
  * Singleton class owning the database connection, provides access to sessions and any other
