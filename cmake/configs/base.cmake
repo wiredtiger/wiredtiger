@@ -179,7 +179,7 @@ config_bool(
 )
 
 config_bool(
-    ENABLE_S3_STORAGE
+    ENABLE_S3
     "Build the S3 storage extension"
     DEFAULT OFF
 )
