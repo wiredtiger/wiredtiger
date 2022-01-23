@@ -61,6 +61,9 @@ Aws::String region = Aws::Region::AP_SOUTHEAST_2;
 const double throughput_target_gbps = 5;
 const uint64_t part_size = 8 * 1024 * 1024; // 8 MB.
 
+/* Setting SDK options. */
+Aws::SDKOptions options;
+
 static int s3_customize_file_system(
   WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
 static int s3_add_reference(WT_STORAGE_SOURCE *);
@@ -209,7 +212,6 @@ s3_terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
     S3_STORAGE *s3;
     s3 = (S3_STORAGE *)storage;
 
-    Aws::SDKOptions options;
     Aws::ShutdownAPI(options);
 
     free (s3);
@@ -232,8 +234,6 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     s3->wt_api = connection->get_extension_api(connection);
     UNUSED(config);
 
-    /* Setting SDK options. */
-    Aws::SDKOptions options;
     Aws::InitAPI(options);
 
     /*

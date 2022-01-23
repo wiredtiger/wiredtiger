@@ -47,11 +47,15 @@ main () {
     aws_config.region = test_defaults::region;
     aws_config.throughputTargetGbps = test_defaults::throughput_target_gbps;
     aws_config.partSize = test_defaults::part_size;
+
     /* Set the SDK options and initialize the API. */
     Aws::SDKOptions options;
     Aws::InitAPI(options);
 
     int ret = 0;
     TEST(test_list_buckets, aws_config, 0);
+
+    /* Shutdown the API at end of tests. */
+    Aws::ShutdownAPI(options);
     return (ret);
 }
