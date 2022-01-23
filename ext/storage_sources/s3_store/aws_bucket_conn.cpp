@@ -20,7 +20,7 @@ aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
             buckets.push_back(bucket.GetName());
         return true;
     } else {
-        std::cout << "Error in list_buckets: " << outcome.GetError().GetMessage() << std::endl
+        std::cerr << "Error in list_buckets: " << outcome.GetError().GetMessage() << std::endl
                   << std::endl;
         return false;
     }
@@ -38,7 +38,7 @@ aws_bucket_conn::list_objects(
         bucket_objects = outcomes.GetResult().GetContents();
         return true;
     } else {
-        std::cout << "Error in list_buckets: " << outcomes.GetError().GetMessage()
+        std::cerr << "Error in list_buckets: " << outcomes.GetError().GetMessage()
                   << std::endl;
         return false;
     }
@@ -56,7 +56,7 @@ aws_bucket_conn::put_object(
       "s3-source", file_name.c_str(), std::ios_base::in | std::ios_base::binary);
 
     if (!input_data->good()) {
-        std::cout << "Error in put_object: Failed to open file'" << file_name << "'." << std::endl;
+        std::cerr << "Error in put_object: Failed to open file'" << file_name << "'." << std::endl;
         return false;
     }
 
@@ -67,7 +67,7 @@ aws_bucket_conn::put_object(
     if (outcome.IsSuccess()) {
         return true;
     } else {
-        std::cout << "Error in put_object: " << outcome.GetError().GetMessage() << std::endl;
+        std::cerr << "Error in put_object: " << outcome.GetError().GetMessage() << std::endl;
         return false;
     }
 }
@@ -84,7 +84,7 @@ aws_bucket_conn::delete_object(const Aws::String &bucket_name, const Aws::String
     if (outcome.IsSuccess()) {
         return true;
     } else {
-        std::cout << "Error in delete_object: " << outcome.GetError().GetMessage() << std::endl;
+        std::cerr << "Error in delete_object: " << outcome.GetError().GetMessage() << std::endl;
         return false;
     }
 }
