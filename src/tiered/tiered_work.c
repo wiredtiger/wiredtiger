@@ -58,7 +58,7 @@ __wt_tiered_push_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
     WT_STAT_CONN_INCR(session, tiered_work_units_created);
     __wt_spin_unlock(session, &conn->tiered_lock);
     __tiered_flush_state(session, entry->type, true);
-    __wt_cond_signal(session, conn->tiered_cond);
+    __wt_cond_signal(session, conn->tiered_thread.cond);
     return;
 }
 

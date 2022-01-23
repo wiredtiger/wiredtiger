@@ -413,16 +413,13 @@ struct __wt_connection_impl {
     const char *stat_stamp; /* Statistics log entry timestamp */
     uint64_t stat_usecs;    /* Statistics log period */
 
-    uint64_t tiered_retention;       /* Earliest time to check to remove local overlap copies */
-    WT_SESSION_IMPL *tiered_session; /* Tiered thread session */
-    wt_thread_t tiered_tid;          /* Tiered thread */
-    bool tiered_tid_set;             /* Tiered thread set */
-    WT_CONDVAR *flush_cond;          /* Flush wait mutex */
-    WT_CONDVAR *tiered_cond;         /* Tiered wait mutex */
-    bool tiered_server_running;      /* Internal tiered server operating */
-    uint64_t flush_most_recent;      /* Clock value of most recent flush_tier */
-    uint32_t flush_state;            /* State of last flush tier */
-    wt_timestamp_t flush_ts;         /* Timestamp of most recent flush_tier */
+    uint64_t tiered_retention;  /* Earliest time to check to remove local overlap copies */
+    WT_THREAD tiered_thread;    /* Tiered thread */
+    WT_CONDVAR *flush_cond;     /* Flush wait mutex */
+    bool tiered_server_running; /* Internal tiered server operating */
+    uint64_t flush_most_recent; /* Clock value of most recent flush_tier */
+    uint32_t flush_state;       /* State of last flush tier */
+    wt_timestamp_t flush_ts;    /* Timestamp of most recent flush_tier */
 
     WT_TIERED_MANAGER tiered_mgr; /* Tiered manager thread information */
     WT_THREAD tiered_mgr_thread;  /* Tiered manager thread */
