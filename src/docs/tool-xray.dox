@@ -12,6 +12,7 @@ show how to trace \c wtperf.
 
 @code
 $ mkdir build
+$ cd build
 $ cmake -DCMAKE_C_FLAGS=-fxray-instrument -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake -DCLANG_C_VERSION="8" -DCLANG_CXX_VERSION="8"  ../.
 $ make
 @endcode
