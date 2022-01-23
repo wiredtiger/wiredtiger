@@ -68,9 +68,7 @@ static int s3_fs_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 
 /*
  * s3_customize_file_system --
- *      TODO: Return a customized file system to access the s3 storage source objects.
- *      Currently lists buckets.
- * =================== NOT IMPLEMENTED ===============
+ *      Return a customized file system to access the s3 storage source objects.
  */
 static int
 s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
@@ -190,7 +188,6 @@ s3_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
  * s3_add_reference --
  *     Add a reference to the storage source so we can reference count to know when to really
  *     terminate.
- * =================== NOT IMPLEMENTED ===============
  */
 static int
 s3_add_reference(WT_STORAGE_SOURCE *storage_source)
@@ -199,6 +196,10 @@ s3_add_reference(WT_STORAGE_SOURCE *storage_source)
     return (0);
 }
 
+/*
+ * s3_terminate --
+ *     Discard any resources on termination of the file system
+ */
 static int
 s3_terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
 {

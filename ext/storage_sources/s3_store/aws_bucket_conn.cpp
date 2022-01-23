@@ -11,6 +11,10 @@
 #include <string>
 #include <vector>
 
+/*
+ * list_buckets --
+ *     Return list of buckets from AWS account.
+ */
 bool
 aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
 {
@@ -26,6 +30,10 @@ aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
     }
 }
 
+/*
+ * list_objects --
+ *     Return list of objects from S3 bucket.
+ */
 bool
 aws_bucket_conn::list_objects(
   const Aws::String bucket_name, std::vector<Aws::S3Crt::Model::Object> &bucket_objects) const
@@ -44,6 +52,10 @@ aws_bucket_conn::list_objects(
     }
 }
 
+/*
+ * put_object --
+ *     Put an object into S3 bucket.
+ */
 bool
 aws_bucket_conn::put_object(
   const Aws::String &bucket_name, const Aws::String &object_key, const Aws::String &file_name) const
@@ -72,6 +84,10 @@ aws_bucket_conn::put_object(
     }
 }
 
+/*
+ * delete_object --
+ *     Delete an object from S3 bucket.
+ */
 bool
 aws_bucket_conn::delete_object(const Aws::String &bucket_name, const Aws::String &object_key) const
 {
@@ -89,7 +105,15 @@ aws_bucket_conn::delete_object(const Aws::String &bucket_name, const Aws::String
     }
 }
 
+/*
+ * aws_bucket_conn --
+ *     Constructor for AWS bucket connection.
+ */
 aws_bucket_conn::aws_bucket_conn(const Aws::S3Crt::ClientConfiguration &config)
     : m_s3_crt_client(config){};
 
+/*
+ * ~aws_bucket_conn --
+ *     Destructor for AWS bucket connection.
+ */
 aws_bucket_conn::~aws_bucket_conn() {}
