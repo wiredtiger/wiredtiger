@@ -37,7 +37,7 @@
 
 #define UNUSED(x) (void)(x)
 
-/* s3 storage source structure. */
+/* S3 storage source structure. */
 typedef struct {
     WT_STORAGE_SOURCE storage_source; /* Must come first */
     WT_EXTENSION_API *wt_api;         /* Extension API */
@@ -89,7 +89,6 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     aws_config.throughputTargetGbps = throughput_target_gbps;
     aws_config.partSize = part_size;
 
-    /* TODO: Move these into tests. */
     if ((fs = (S3_FILE_SYSTEM*)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
         return (errno);
 
@@ -97,9 +96,9 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 
     /* New can fail; will deal with this later. */
     fs->conn = new aws_bucket_conn(aws_config);
-    fs->file_system.terminate = s3_fs_terminate; 
+    fs->file_system.terminate = s3_fs_terminate;
 
-    /* All content will moved into testing; just testing here temporarily to show all functions work. */
+    /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
     {
     /* List S3 buckets. */
     std::vector<std::string> buckets; 
@@ -169,7 +168,10 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
    return 0;
 }
 
-
+/*
+ * s3_fs_terminate --
+ *      Discard any resources on termination of the file system.
+ */
 static int
 s3_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 {
@@ -198,7 +200,7 @@ s3_add_reference(WT_STORAGE_SOURCE *storage_source)
 
 /*
  * s3_terminate --
- *     Discard any resources on termination of the file system
+ *     Discard any resources on termination.
  */
 static int
 s3_terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
