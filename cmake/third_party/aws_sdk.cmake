@@ -24,11 +24,16 @@ ExternalProject_Get_Property(aws-sdk INSTALL_DIR)
 add_library(aws-sdk::core SHARED IMPORTED)
 add_library(aws-sdk::s3-crt SHARED IMPORTED)
 add_library(aws-sdk::crt SHARED IMPORTED)
+
+file(MAKE_DIRECTORY ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
 set_target_properties(aws-sdk::core PROPERTIES
-    IMPORTED_LOCATION ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libaws-cpp-sdk-core${CMAKE_SHARED_LIBRARY_SUFFIX}                                             
+    IMPORTED_LOCATION ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libaws-cpp-sdk-core${CMAKE_SHARED_LIBRARY_SUFFIX}
+    INTERFACE_INCLUDE_DIRECTORIES ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR}                                      
 )
 set_target_properties(aws-sdk::s3-crt PROPERTIES
-    IMPORTED_LOCATION ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libaws-cpp-sdk-s3-crt${CMAKE_SHARED_LIBRARY_SUFFIX})
+    IMPORTED_LOCATION ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libaws-cpp-sdk-s3-crt${CMAKE_SHARED_LIBRARY_SUFFIX}
+    INTERFACE_INCLUDE_DIRECTORIES ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR}
+)
 
 add_dependencies(aws-sdk::core aws-sdk)
 add_dependencies(aws-sdk::s3-crt aws-sdk)

@@ -1,6 +1,5 @@
 project(s3_store CXX)    
 
-set(AWSSDK_INCLUDE_DIRS ${INSTALL_DIR}/include)
 set(AWSSDK_LINK_LIBRARIES aws-sdk::core aws-sdk::s3-crt)
 
 # Create an intermediate library to build the helper library

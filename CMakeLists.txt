@@ -52,7 +52,9 @@ include(cmake/third_party/zstd.cmake)
 include(cmake/third_party/snappy.cmake)
 include(cmake/third_party/zlib.cmake)
 include(cmake/third_party/sodium.cmake)
-include(cmake/third_party/aws_sdk.cmake)
+if(ENABLE_S3)
+    include(cmake/third_party/aws_sdk.cmake)
+endif()
 
 
 if(NOT ENABLE_SHARED AND NOT ENABLE_STATIC)
