@@ -59,7 +59,7 @@ typedef struct s3_file_handle {
 /* Configuration variables for connecting to S3CrtClient. */
 Aws::String region = Aws::Region::AP_SOUTHEAST_2;
 const double throughput_target_gbps = 5;
-const uint64_t part_size = 8 * 1024 * 1024; // 8 MB.
+const uint64_t part_size = 8 * 1024 * 1024; /* 8 MB. */
 
 /* Setting SDK options. */
 Aws::SDKOptions options;
