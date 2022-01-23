@@ -41,26 +41,19 @@
 typedef struct {
     WT_STORAGE_SOURCE storage_source; /* Must come first */
     WT_EXTENSION_API *wt_api;         /* Extension API */
-
 } S3_STORAGE;
 
 typedef struct {
     /* Must come first - this is the interface for the file system we are implementing. */
     WT_FILE_SYSTEM file_system;
     S3_STORAGE *s3_storage;
-
     aws_bucket_conn *conn;
-
-    /* This is WiredTiger's file system, it is used in implementing the s3 file system. */
-    // WT_FILE_SYSTEM *wt_fs;
-
 } S3_FILE_SYSTEM;
 
 typedef struct s3_file_handle {
     WT_FILE_HANDLE iface; /* Must come first */
     S3_STORAGE *s3;       /* Enclosing storage source */
     WT_FILE_HANDLE *fh;   /* File handle */
-
 } S3_FILE_HANDLE;
 
 /* Configuration variables for connecting to S3CrtClient. */
@@ -104,11 +97,11 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 
     fs->s3_storage = (S3_STORAGE*)storage_source;
 
-    // new can fail; will deal with this later. 
+    /* New can fail; will deal with this later. */
     fs->conn = new aws_bucket_conn(aws_config);
     fs->file_system.terminate = s3_fs_terminate; 
 
-    // All content will moved into testing; just testing here temporarily to show all functions work.
+    /* All content will moved into testing; just testing here temporarily to show all functions work. */
     {
     /* List S3 buckets. */
     std::vector<std::string> buckets; 
