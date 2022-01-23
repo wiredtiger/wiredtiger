@@ -3,9 +3,7 @@
 
 #include <iostream>
 
-/* 
-/ Default config settings for the S3CrtClient. 
-*/
+/* Default config settings for the S3CrtClient. */
 namespace test_defaults 
 {
     const Aws::String region = Aws::Region::AP_SOUTHEAST_2;
@@ -13,9 +11,7 @@ namespace test_defaults
     const uint64_t part_size = 8 * 1024 * 1024; // 8 MB.    
 }
 
-/*
-/ Wrapper for unit test functions. 
-*/
+/* Wrapper for unit test functions. */
 #define TEST(func, config, expected)                   \
     do {                                               \
         int __ret;                                     \
@@ -23,9 +19,10 @@ namespace test_defaults
             return (__ret);                            \
     } while (0)
 
-/* 
-/ Unit test for listing S3 buckets under the associated AWS account. 
-*/
+/*
+ * test_list_buckets --
+ *     Unit test for listing S3 buckets under the associated AWS account.
+ */
 int 
 test_list_buckets(const Aws::S3Crt::ClientConfiguration &config) {
     aws_bucket_conn conn(config);
@@ -39,6 +36,10 @@ test_list_buckets(const Aws::S3Crt::ClientConfiguration &config) {
     return 0;
 }
 
+/*
+ * main --
+ *     Set up configs and call unit tests.
+ */
 int 
 main () {
     /* Set up the config to use the defaults specified. */
