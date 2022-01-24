@@ -438,6 +438,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_worker_evicting;
     int64_t cache_eviction_worker_removed;
     int64_t cache_eviction_stable_state_workers;
+    int64_t cache_write_hs_records;
     int64_t cache_eviction_walks_active;
     int64_t cache_eviction_walks_started;
     int64_t cache_eviction_force_retune;
@@ -943,6 +944,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_walk_restart;
     int64_t cache_eviction_walk_from_root;
     int64_t cache_eviction_walk_saved_pos;
+    int64_t cache_write_hs_records;
     int64_t cache_eviction_hazard;
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
