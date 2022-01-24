@@ -167,6 +167,10 @@ test_wt8246_compact_rts_data_correctness_SOURCES = wt8246_compact_rts_data_corre
 noinst_PROGRAMS += test_wt8246_compact_rts_data_correctness
 all_TESTS += test_wt8246_compact_rts_data_correctness
 
+test_wt8659_reconstruct_database_from_logs_SOURCES = wt8659_reconstruct_database_from_logs/main.c
+noinst_PROGRAMS += test_wt8659_reconstruct_database_from_logs
+all_TESTS += test_wt8659_reconstruct_database_from_logs
+
 # Run this during a "make check" smoke test.
 TESTS = $(all_TESTS)
 LOG_COMPILER = env top_builddir=$(top_builddir) top_srcdir=$(top_srcdir) $(TEST_WRAPPER)
