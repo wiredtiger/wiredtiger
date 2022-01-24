@@ -111,9 +111,3 @@ aws_bucket_conn::delete_object(const Aws::String &bucket_name, const Aws::String
  */
 aws_bucket_conn::aws_bucket_conn(const Aws::S3Crt::ClientConfiguration &config)
     : m_s3_crt_client(config){};
-
-/*
- * ~aws_bucket_conn --
- *     Destructor for AWS bucket connection.
- */
-aws_bucket_conn::~aws_bucket_conn() {}

@@ -14,16 +14,18 @@ namespace test_defaults
 int test_list_buckets(const Aws::S3Crt::ClientConfiguration &config);
 
 /* Wrapper for unit test functions. */
-#define TEST(func, config, expected)                   \
-    do {                                               \
-        int __ret;                                     \
-        if ((__ret = (func(config))) != expected)      \
-            return (__ret);                            \
+#define TEST(func, config, expected_output)                   \
+    do {                                                      \
+        int __ret;                                            \
+        if ((__ret = (func(config))) != expected_output)      \
+            return (__ret);                                   \
     } while (0)
 
 /*
  * test_list_buckets --
- *     Unit test for listing S3 buckets under the associated AWS account.
+ *      Example unit test for listing S3 buckets under the associated AWS account.
+ *      aws_bucket_conn does not require the list_buckets API functionality and it 
+ *      along with this test eventually will be removed.
  */
 int 
 test_list_buckets(const Aws::S3Crt::ClientConfiguration &config) {
@@ -33,7 +35,7 @@ test_list_buckets(const Aws::S3Crt::ClientConfiguration &config) {
         return 1;
              
     std::cout << "All buckets under my account:" << std::endl;
-    for (const std::string &bucket : buckets)
+    for (const auto &bucket : buckets)
         std::cout << "  * " << bucket << std::endl;
     return 0;
 }
@@ -54,10 +56,9 @@ main () {
     Aws::SDKOptions options;
     Aws::InitAPI(options);
 
-    int ret = 0;
     TEST(test_list_buckets, aws_config, 0);
 
     /* Shutdown the API at end of tests. */
     Aws::ShutdownAPI(options);
-    return (ret);
+    return 0;
 }
