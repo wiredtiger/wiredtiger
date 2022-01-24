@@ -489,6 +489,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_maximum_page_size;
     int64_t cache_eviction_dirty;
     int64_t cache_eviction_app_dirty;
+    int64_t cache_nothing_to_insert;
     int64_t cache_timed_out_ops;
     int64_t cache_read_overflow;
     int64_t cache_eviction_deepen;
@@ -515,6 +516,9 @@ struct __wt_connection_stats {
     int64_t cache_write;
     int64_t cache_write_restore;
     int64_t cache_overhead;
+    int64_t cache_hs_update_size;
+    int64_t hs_early_exit_squash;
+    int64_t hs_early_exit_skip_updates_already_hs;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t cache_bytes_internal;
@@ -967,6 +971,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_split_internal;
     int64_t cache_eviction_split_leaf;
     int64_t cache_eviction_dirty;
+    int64_t cache_nothing_to_insert;
     int64_t cache_read_overflow;
     int64_t cache_eviction_deepen;
     int64_t cache_write_hs;
@@ -977,6 +982,9 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_pages_seen;
     int64_t cache_write;
     int64_t cache_write_restore;
+    int64_t cache_hs_update_size;
+    int64_t hs_early_exit_squash;
+    int64_t hs_early_exit_skip_updates_already_hs;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t cache_bytes_dirty;
