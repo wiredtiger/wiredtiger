@@ -96,7 +96,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_C
      * Otherwise, we have to write a proxy record. If the delete state is not ready, then delete is
      * not visible as it is in prepared state.
      */
-    if (!__wt_page_del_active(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)))
+    if (!__wt_page_del_active(session, ref, false))
         *statep = WT_CHILD_PROXY;
 
     return (0);
