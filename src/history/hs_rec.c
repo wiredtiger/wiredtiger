@@ -356,7 +356,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
         /* If no onpage_upd is selected, we don't need to insert anything into the history store. */
         if (list->onpage_upd == NULL) {
-            WT_STAT_CONN_INCR(session, list_onpage_selected_early_continue);
+            if (!F_ISSET(session, WT_SESSION_INTERNAL))
+                WT_STAT_CONN_INCR(session, list_onpage_selected_early_continue);
             continue;
         }
         /* Skip aborted updates. */
@@ -366,13 +367,15 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
 
         /* No update to insert to history store. */
         if (upd == NULL) {
-            WT_STAT_CONN_INCR(session, no_update_to_insert_hs);
+            if (!F_ISSET(session, WT_SESSION_INTERNAL))
+                WT_STAT_CONN_INCR(session, no_update_to_insert_hs);
             continue;
         }
 
         /* Updates have already been inserted to the history store. */
         if (F_ISSET(upd, WT_UPDATE_HS)) {
-            WT_STAT_CONN_INCR(session, updates_already_inserted);
+            if (!F_ISSET(session, WT_SESSION_INTERNAL))
+                WT_STAT_CONN_INCR(session, updates_already_inserted);
             continue;
         }
 
