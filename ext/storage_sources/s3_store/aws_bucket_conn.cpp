@@ -13,7 +13,8 @@
 
 /*
  * list_buckets --
- *     Return list of buckets from AWS account.
+ *     Builds a list of buckets from AWS account into vector.
+ *     Returns true if success, otherwiese false.
  */
 bool
 aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
@@ -32,11 +33,11 @@ aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
 
 /*
  * list_objects --
- *     Return list of objects from S3 bucket.
+ *     Builds a list of objects from a S3 bucket into a vector. 
+ *     Returns true if success, otherwiese false.
  */
 bool
-aws_bucket_conn::list_objects(
-  const Aws::String bucket_name, std::vector<Aws::S3Crt::Model::Object> &bucket_objects) const
+aws_bucket_conn::list_objects(const std::string &bucket_name, std::vector<Aws::S3Crt::Model::Object> &bucket_objects) const
 {
     Aws::S3Crt::Model::ListObjectsRequest request;
     request.WithBucket(bucket_name);
@@ -45,7 +46,7 @@ aws_bucket_conn::list_objects(
     if (outcomes.IsSuccess()) {
         bucket_objects = outcomes.GetResult().GetContents();
         return true;
-    } else {
+    } else { 
         std::cerr << "Error in list_buckets: " << outcomes.GetError().GetMessage()
                   << std::endl;
         return false;
@@ -54,11 +55,12 @@ aws_bucket_conn::list_objects(
 
 /*
  * put_object --
- *     Put an object into S3 bucket.
+ *     Puts an object into an S3 bucket. 
+ *     Returns true if success, otherwiese false.
  */
 bool
 aws_bucket_conn::put_object(
-  const Aws::String &bucket_name, const Aws::String &object_key, const Aws::String &file_name) const
+  const std::string &bucket_name, const std::string &object_key, const std::string &file_name) const
 {
     Aws::S3Crt::Model::PutObjectRequest request;
     request.SetBucket(bucket_name);
@@ -86,10 +88,11 @@ aws_bucket_conn::put_object(
 
 /*
  * delete_object --
- *     Delete an object from S3 bucket.
+ *     Deletes an object from S3 bucket. 
+ *     Returns true if success, otherwiese false.
  */
 bool
-aws_bucket_conn::delete_object(const Aws::String &bucket_name, const Aws::String &object_key) const
+aws_bucket_conn::delete_object(const std::string &bucket_name, const std::string &object_key) const
 {
     Aws::S3Crt::Model::DeleteObjectRequest request;
     request.SetBucket(bucket_name);

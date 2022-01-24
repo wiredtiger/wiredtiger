@@ -50,12 +50,6 @@ typedef struct {
     aws_bucket_conn *conn;
 } S3_FILE_SYSTEM;
 
-typedef struct s3_file_handle {
-    WT_FILE_HANDLE iface; /* Must come first */
-    S3_STORAGE *s3;       /* Enclosing storage source */
-    WT_FILE_HANDLE *fh;   /* File handle */
-} S3_FILE_HANDLE;
-
 /* Configuration variables for connecting to S3CrtClient. */
 const Aws::String region = Aws::Region::AP_SOUTHEAST_2;
 const double throughput_target_gbps = 5;
@@ -103,8 +97,8 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 
     /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
     {
-    /* List S3 buckets. */
-    std::vector<std::string> buckets; 
+        /* List S3 buckets. */
+        std::vector<std::string> buckets;
         if (fs->conn->list_buckets(buckets)) {
             std::cout << "All buckets under my account:" << std::endl;
             for (const std::string &bucket : buckets) {
