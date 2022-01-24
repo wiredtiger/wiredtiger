@@ -63,11 +63,11 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
         ci = &_ci;
         WT_ERR(__wt_block_ckpt_init(session, ci, "checkpoint"));
     } else {
-/*
- * We depend on the btree level for locking: things will go bad fast if we open the live system in
- * two handles, or salvage, truncate or verify the live/running file.
- */
 #ifdef HAVE_DIAGNOSTIC
+        /*
+         * We depend on the btree level for locking: things will go bad fast if we open the live
+         * system in two handles, or salvage, truncate or verify the live/running file.
+         */
         __wt_spin_lock(session, &block->live_lock);
         WT_ASSERT(session, block->live_open == false);
         block->live_open = true;
