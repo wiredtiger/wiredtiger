@@ -46,16 +46,15 @@ include(cmake/configs/auto.cmake)
 include(cmake/configs/base.cmake)
 
 # Import our third party library definitions.
-include(cmake/third_party/gperftools.cmake)
-include(cmake/third_party/lz4.cmake)
-include(cmake/third_party/zstd.cmake)
-include(cmake/third_party/snappy.cmake)
-include(cmake/third_party/zlib.cmake)
-include(cmake/third_party/sodium.cmake)
 if(ENABLE_S3)
     include(cmake/third_party/aws_sdk.cmake)
 endif()
-
+include(cmake/third_party/gperftools.cmake)
+include(cmake/third_party/lz4.cmake)
+include(cmake/third_party/snappy.cmake)
+include(cmake/third_party/sodium.cmake)
+include(cmake/third_party/zlib.cmake)
+include(cmake/third_party/zstd.cmake)
 
 if(NOT ENABLE_SHARED AND NOT ENABLE_STATIC)
     message(FATAL_ERROR "Both ENABLE_SHARED & ENABLE_STATIC are disabled. Need to enable at least one build flavour.")

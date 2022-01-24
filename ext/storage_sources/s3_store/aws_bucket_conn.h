@@ -10,8 +10,8 @@
 #include <vector>
 
 /*
- * Singleton class owning the database connection, provides access to sessions and any other
- * required connection API calls.
+ * Class to represent an active connection to the AWS S3 endpoint. Allows for interaction with s3
+ * client.
  */
 class aws_bucket_conn {
     public:

@@ -18,9 +18,9 @@
 bool
 aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
 {
-    Aws::S3Crt::Model::ListBucketsOutcome outcome = m_s3_crt_client.ListBuckets();
+    auto outcome = m_s3_crt_client.ListBuckets();
     if (outcome.IsSuccess()) {
-        for (Aws::S3Crt::Model::Bucket bucket : outcome.GetResult().GetBuckets())
+        for (const auto& bucket : outcome.GetResult().GetBuckets())
             buckets.push_back(bucket.GetName());
         return true;
     } else {

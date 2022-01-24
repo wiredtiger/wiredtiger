@@ -11,6 +11,8 @@ namespace test_defaults
     const uint64_t part_size = 8 * 1024 * 1024; /* 8 MB. */
 }
 
+int test_list_buckets(const Aws::S3Crt::ClientConfiguration &config);
+
 /* Wrapper for unit test functions. */
 #define TEST(func, config, expected)                   \
     do {                                               \
