@@ -23,9 +23,7 @@ int test_list_buckets(const Aws::S3Crt::ClientConfiguration &config);
 
 /*
  * test_list_buckets --
- *      Example unit test for listing S3 buckets under the associated AWS account.
- *      aws_bucket_conn does not require the list_buckets API functionality and it 
- *      along with this test eventually will be removed.
+ *     Example of a unit test to list S3 buckets under the associated AWS account.
  */
 int 
 test_list_buckets(const Aws::S3Crt::ClientConfiguration &config) {
@@ -56,8 +54,9 @@ main () {
     Aws::SDKOptions options;
     Aws::InitAPI(options);
 
-    TEST(test_list_buckets, aws_config, 0);
-
+    int expected_output = 0;
+    TEST(test_list_buckets, aws_config, expected_output);
+    
     /* Shutdown the API at end of tests. */
     Aws::ShutdownAPI(options);
     return 0;

@@ -108,15 +108,15 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
         }
 
         /* Have at least one bucket to use. */
-        if (buckets.size() >= 1) {
+        if (!buckets.empty()) {
             const Aws::String first_bucket = buckets.at(0);
 
             /* List objects. */
             std::vector<Aws::S3Crt::Model::Object> bucket_objects;
             if (fs->conn->list_objects(first_bucket, bucket_objects)) {
                 std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
-                if (bucket_objects.size() >= 1) {
-                    for (Aws::S3Crt::Model::Object &object : bucket_objects) {
+                if (!bucket_objects.empty()) {
+                    for (const Aws::S3Crt::Model::Object &object : bucket_objects) {
                         std::cout << "  * " << object.GetKey() << std::endl;
                     }
                 } else {
@@ -131,8 +131,8 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
             /* List objects again. */
             if (fs->conn->list_objects(first_bucket, bucket_objects)) {
                 std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
-                if (bucket_objects.size() >= 1) {
-                    for (Aws::S3Crt::Model::Object &object : bucket_objects) {
+                if (!bucket_objects.empty()) {
+                    for (const Aws::S3Crt::Model::Object &object : bucket_objects) {
                         std::cout << "  * " << object.GetKey() << std::endl;
                     }
                 } else {
@@ -147,8 +147,8 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
             /* List objects again. */
             if (fs->conn->list_objects(first_bucket, bucket_objects)) {
                 std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
-                if (bucket_objects.size() >= 1) {
-                    for (Aws::S3Crt::Model::Object &object : bucket_objects) {
+                if (!bucket_objects.empty()) {
+                    for (const Aws::S3Crt::Model::Object &object : bucket_objects) {
                         std::cout << "  * " << object.GetKey() << std::endl;
                     }
                 } else {
@@ -162,7 +162,7 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     }
 
     *file_systemp = &fs->file_system;
-   return 0;
+    return 0;
 }
 
 /*
@@ -202,7 +202,6 @@ s3_add_reference(WT_STORAGE_SOURCE *storage_source)
 static int
 s3_terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
 {
-    /* NEED A WAY to pass the options to the ShutdownAPI call */
     S3_STORAGE *s3;
     s3 = (S3_STORAGE *)storage;
 

@@ -22,6 +22,7 @@ class aws_bucket_conn {
     bool put_object(const std::string &bucket_name, const std::string &object_key,
       const std::string &file_name) const;
     bool delete_object(const std::string &bucket_name, const std::string &object_key) const;
+    ~aws_bucket_conn() = default;
 
     private:
     const Aws::S3Crt::S3CrtClient m_s3_crt_client;
