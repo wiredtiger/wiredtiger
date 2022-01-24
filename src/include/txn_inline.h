@@ -724,7 +724,7 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
     if (txn->isolation == WT_ISO_READ_UNCOMMITTED)
         return (true);
 
-    /* Otherwise, we should be called with a snapshot. */
+    /* Otherwise, we should be called with a snapshot or we are in a checkpoint cursor. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) || session->dhandle->checkpoint != NULL);
 
     return (__wt_txn_visible_id_snapshot(
