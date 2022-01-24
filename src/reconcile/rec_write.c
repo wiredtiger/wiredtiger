@@ -2630,7 +2630,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
             if (!F_ISSET(session, WT_SESSION_INTERNAL) && r->cache_write_hs == false)
                 WT_STAT_CONN_INCR(session, cache_write_hs_records_failure);
             if (!F_ISSET(session, WT_SESSION_INTERNAL) && r->cache_write_hs == true)
-                WT_STAT_CONN_INCR(session, cache_write_hs_records_sucess);
+                WT_STAT_CONN_INCR(session, cache_write_hs_records_success);
             if (!multi->supd_restore) {
                 __wt_free(session, multi->supd);
                 multi->supd_entries = 0;
