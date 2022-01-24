@@ -13,8 +13,8 @@
 
 /*
  * list_buckets --
- *     Builds a list of buckets from AWS account into vector.
- *     Returns true if success, otherwiese false.
+ *     Builds a list of buckets from AWS account into a vector.
+ *     Returns true if success, otherwise false.
  */
 bool
 aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
@@ -34,7 +34,7 @@ aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
 /*
  * list_objects --
  *     Builds a list of objects from a S3 bucket into a vector. 
- *     Returns true if success, otherwiese false.
+ *     Returns true if success, otherwise false.
  */
 bool
 aws_bucket_conn::list_objects(const std::string &bucket_name, std::vector<Aws::S3Crt::Model::Object> &bucket_objects) const
@@ -56,7 +56,7 @@ aws_bucket_conn::list_objects(const std::string &bucket_name, std::vector<Aws::S
 /*
  * put_object --
  *     Puts an object into an S3 bucket. 
- *     Returns true if success, otherwiese false.
+ *     Returns true if success, otherwise false.
  */
 bool
 aws_bucket_conn::put_object(
@@ -89,7 +89,7 @@ aws_bucket_conn::put_object(
 /*
  * delete_object --
  *     Deletes an object from S3 bucket. 
- *     Returns true if success, otherwiese false.
+ *     Returns true if success, otherwise false.
  */
 bool
 aws_bucket_conn::delete_object(const std::string &bucket_name, const std::string &object_key) const

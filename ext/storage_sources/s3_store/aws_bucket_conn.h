@@ -19,9 +19,9 @@ class aws_bucket_conn {
     bool list_buckets(std::vector<std::string> &buckets) const;
     bool list_objects(
       const std::string &bucket_name, std::vector<Aws::S3Crt::Model::Object> &bucket_objects) const;
-    bool put_object(const Aws::String &bucket_name, const Aws::String &object_key,
-      const Aws::String &file_name) const;
-    bool delete_object(const Aws::String &bucket_name, const Aws::String &object_key) const;
+    bool put_object(const std::string &bucket_name, const std::string &object_key,
+      const std::string &file_name) const;
+    bool delete_object(const std::string &bucket_name, const std::string &object_key) const;
 
     private:
     const Aws::S3Crt::S3CrtClient m_s3_crt_client;
