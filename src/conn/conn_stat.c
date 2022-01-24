@@ -676,8 +676,7 @@ __wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
 
     /* Stop the server thread. */
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_STATISTICS);
-
-    WT_TRET(__wt_thread_stop_and_cleanup(session, &conn->stat_thread));
+    WT_TRET(__wt_thread_stop(session, &conn->stat_thread));
 
     /* Log a set of statistics on shutdown if configured. */
     if (is_close)
@@ -686,5 +685,6 @@ __wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
     /* Discard all configuration information. */
     WT_TRET(__stat_config_discard(session));
 
+    WT_TRET(__wt_thread_cleanup(session, &conn->stat_thread));
     return (ret);
 }

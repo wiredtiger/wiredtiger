@@ -87,13 +87,14 @@ __wt_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
 /*
  * __wt_thread_stop_and_cleanup --
- *     Stop and cleanup up a thread.
+ *     Stop and cleanup up a thread. This frees up resources in reverse order to their creation in
+ *     __wt_thread_start.
  */
 static inline int
 __wt_thread_stop_and_cleanup(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
     WT_DECL_RET;
-    WT_TRET(__wt_thread_stop(session, thread));
-    WT_TRET(__wt_thread_cleanup(session, thread));
+    WT_RET(__wt_thread_stop(session, thread));
+    WT_RET(__wt_thread_cleanup(session, thread));
     return ret;
 }
