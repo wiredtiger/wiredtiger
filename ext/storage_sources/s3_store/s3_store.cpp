@@ -230,7 +230,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     Aws::InitAPI(options);
 
     /*
-     * Allocate a s3 storage structure, with a WT_STORAGE structure as the first field, allowing
+     * Allocate a S3 storage structure, with a WT_STORAGE structure as the first field, allowing
      * us to treat references to either type of structure as a reference to the other type.
      */
     s3->storage_source.ss_customize_file_system = s3_customize_file_system;

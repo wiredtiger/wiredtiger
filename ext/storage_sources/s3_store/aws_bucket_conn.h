@@ -10,7 +10,7 @@
 #include <vector>
 
 /*
- * Class to represent an active connection to the AWS S3 endpoint. Allows for interaction with s3
+ * Class to represent an active connection to the AWS S3 endpoint. Allows for interaction with S3
  * client.
  */
 class aws_bucket_conn {
