@@ -13,15 +13,15 @@
 
 /*
  * list_buckets --
- *     Builds a list of buckets from AWS account into a vector.
- *     Returns true if success, otherwise false.
+ *     Builds a list of buckets from AWS account into a vector. Returns true if success, otherwise
+ *     false.
  */
 bool
 aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
 {
     auto outcome = m_s3_crt_client.ListBuckets();
     if (outcome.IsSuccess()) {
-        for (const auto& bucket : outcome.GetResult().GetBuckets())
+        for (const auto &bucket : outcome.GetResult().GetBuckets())
             buckets.push_back(bucket.GetName());
         return true;
     } else {
@@ -33,11 +33,12 @@ aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
 
 /*
  * list_objects --
- *     Builds a list of objects from a S3 bucket into a vector. 
- *     Returns true if success, otherwise false.
+ *     Builds a list of objects from a S3 bucket into a vector. Returns true if success, otherwise
+ *     false.
  */
 bool
-aws_bucket_conn::list_objects(const std::string &bucket_name, std::vector<Aws::S3Crt::Model::Object> &bucket_objects) const
+aws_bucket_conn::list_objects(
+  const std::string &bucket_name, std::vector<Aws::S3Crt::Model::Object> &bucket_objects) const
 {
     Aws::S3Crt::Model::ListObjectsRequest request;
     request.WithBucket(bucket_name);
@@ -46,17 +47,15 @@ aws_bucket_conn::list_objects(const std::string &bucket_name, std::vector<Aws::S
     if (outcomes.IsSuccess()) {
         bucket_objects = outcomes.GetResult().GetContents();
         return true;
-    } else { 
-        std::cerr << "Error in list_buckets: " << outcomes.GetError().GetMessage()
-                  << std::endl;
+    } else {
+        std::cerr << "Error in list_buckets: " << outcomes.GetError().GetMessage() << std::endl;
         return false;
     }
 }
 
 /*
  * put_object --
- *     Puts an object into an S3 bucket. 
- *     Returns true if success, otherwise false.
+ *     Puts an object into an S3 bucket. Returns true if success, otherwise false.
  */
 bool
 aws_bucket_conn::put_object(
@@ -88,8 +87,7 @@ aws_bucket_conn::put_object(
 
 /*
  * delete_object --
- *     Deletes an object from S3 bucket. 
- *     Returns true if success, otherwise false.
+ *     Deletes an object from S3 bucket. Returns true if success, otherwise false.
  */
 bool
 aws_bucket_conn::delete_object(const std::string &bucket_name, const std::string &object_key) const

@@ -65,7 +65,7 @@ static int s3_fs_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 
 /*
  * s3_customize_file_system --
- *      Return a customized file system to access the s3 storage source objects.
+ *     Return a customized file system to access the s3 storage source objects.
  */
 static int
 s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
@@ -86,10 +86,10 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     aws_config.throughputTargetGbps = throughput_target_gbps;
     aws_config.partSize = part_size;
 
-    if ((fs = (S3_FILE_SYSTEM*)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
+    if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
         return (errno);
 
-    fs->s3_storage = (S3_STORAGE*)storage_source;
+    fs->s3_storage = (S3_STORAGE *)storage_source;
 
     /* New can fail; will deal with this later. */
     fs->conn = new aws_bucket_conn(aws_config);
@@ -167,7 +167,7 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 
 /*
  * s3_fs_terminate --
- *      Discard any resources on termination of the file system.
+ *     Discard any resources on termination of the file system.
  */
 static int
 s3_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
@@ -177,7 +177,7 @@ s3_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
     UNUSED(session); /* unused */
 
     s3_fs = (S3_FILE_SYSTEM *)file_system;
-    delete(s3_fs->conn);
+    delete (s3_fs->conn);
     free(s3_fs);
 
     return (0);
@@ -207,7 +207,7 @@ s3_terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
 
     Aws::ShutdownAPI(options);
 
-    free (s3);
+    free(s3);
     return (0);
 }
 
@@ -221,7 +221,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     S3_STORAGE *s3;
     int ret;
 
-    if ((s3 = (S3_STORAGE*)calloc(1, sizeof(S3_STORAGE))) == NULL)
+    if ((s3 = (S3_STORAGE *)calloc(1, sizeof(S3_STORAGE))) == NULL)
         return (errno);
 
     s3->wt_api = connection->get_extension_api(connection);
@@ -230,8 +230,8 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     Aws::InitAPI(options);
 
     /*
-     * Allocate a S3 storage structure, with a WT_STORAGE structure as the first field, allowing
-     * us to treat references to either type of structure as a reference to the other type.
+     * Allocate a S3 storage structure, with a WT_STORAGE structure as the first field, allowing us
+     * to treat references to either type of structure as a reference to the other type.
      */
     s3->storage_source.ss_customize_file_system = s3_customize_file_system;
     s3->storage_source.ss_add_reference = s3_add_reference;
