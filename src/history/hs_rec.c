@@ -521,7 +521,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
 
         WT_ASSERT(session, updates.size > 0);
         if (!F_ISSET(session, WT_SESSION_INTERNAL))
-            WT_CONN_STAT_SET(session, cache_hs_update_size, updates.size);
+            WT_STAT_CONN_SET(session, cache_hs_update_size, updates.size);
 
         __wt_update_vector_peek(&updates, &oldest_upd);
 
@@ -551,7 +551,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
         /* Skip if we have nothing to insert to the history store. */
         if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_HS)) {
             if (!F_ISSET(session, WT_SESSION_INTERNAL))
-                WT_CONN_STAT_INCR(session, cache_nothing_to_insert);
+                WT_STAT_CONN_DATA_INCR(session, cache_nothing_to_insert);
             /* The onpage value is squashed. */
             if (newest_hs == NULL && squashed)
                 WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
@@ -648,14 +648,14 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             if (upd->start_ts == prev_upd->start_ts && upd->txnid == prev_upd->txnid) {
                 squashed = true;
                 if (!F_ISSET(session, WT_SESSION_INTERNAL))
-                    WT_CONN_STAT_INCR(session, hs_early_exit_squash);
+                    WT_STAT_CONN_DATA_INCR(session, hs_early_exit_squash);
                 continue;
             }
 
             /* Skip updates that are already in the history store. */
             if (F_ISSET(upd, WT_UPDATE_HS)) {
                 if (!F_ISSET(session, WT_SESSION_INTERNAL))
-                    WT_CONN_STAT_INCR(session, hs_early_exit_skip_updates_already_hs);
+                    WT_STAT_CONN_DATA_INCR(session, hs_early_exit_skip_updates_already_hs);
                 if (hs_inserted)
                     WT_ERR_PANIC(session, WT_PANIC,
                       "Reinserting updates to the history store may corrupt the data as it may "
