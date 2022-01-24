@@ -1,6 +1,11 @@
 include(ExternalProject)
 include(GNUInstallDirs)
 
+# Don't add external project if extension is not enabled.
+if(NOT ENABLE_S3)
+    return()
+endif()
+
 # Download and install the AWS CPP SDK into the build directory.
 ExternalProject_Add(aws-sdk
     PREFIX aws-sdk-cpp

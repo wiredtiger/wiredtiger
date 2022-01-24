@@ -1,7 +1,5 @@
 project(s3_store CXX)    
 
-set(AWSSDK_LINK_LIBRARIES aws-sdk::core aws-sdk::s3-crt)
-
 # Create an intermediate library to build the helper library
 add_library(aws_bucket_util STATIC aws_bucket_conn.cpp)
 set_property(TARGET aws_bucket_util PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -9,7 +7,6 @@ set_property(TARGET aws_bucket_util PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(
     aws_bucket_util
     PUBLIC
-        AWSSDK_INCLUDE_DIRS
         ${CMAKE_CURRENT_SOURCE_DIR}   
 )
 
@@ -29,8 +26,7 @@ target_include_directories(
         ${CMAKE_SOURCE_DIR}/src/include
         ${CMAKE_BINARY_DIR}/include    
         ${CMAKE_BINARY_DIR}/config
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${AWSSDK_INCLUDE_DIRS}    
+        ${CMAKE_CURRENT_SOURCE_DIR}   
 )
 
 target_link_libraries(
