@@ -393,6 +393,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_blocked_checkpoint_hs_application;
     int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t cache_checkpoint_state;
+    int64_t hs_early_exit_squash;
     int64_t cache_eviction_app_thread_exit;
     int64_t cache_eviction_pct_full_application;
     int64_t cache_eviction_modify;
@@ -485,10 +486,12 @@ struct __wt_connection_stats {
     int64_t cache_bytes_hs_intl;
     int64_t cache_bytes_hs_leaf;
     int64_t cache_eviction_split_leaf;
+    int64_t list_onpage_selected_early_continue;
     int64_t cache_bytes_max;
     int64_t cache_eviction_maximum_page_size;
     int64_t cache_eviction_dirty;
     int64_t cache_eviction_app_dirty;
+    int64_t no_update_to_insert_hs;
     int64_t cache_nothing_to_insert;
     int64_t cache_timed_out_ops;
     int64_t cache_read_overflow;
@@ -517,8 +520,6 @@ struct __wt_connection_stats {
     int64_t cache_write_restore;
     int64_t cache_overhead;
     int64_t cache_hs_update_size;
-    int64_t hs_early_exit_squash;
-    int64_t hs_early_exit_skip_updates_already_hs;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t cache_bytes_internal;
@@ -526,6 +527,8 @@ struct __wt_connection_stats {
     int64_t cache_bytes_dirty;
     int64_t cache_pages_dirty;
     int64_t cache_eviction_clean;
+    int64_t hs_early_exit_skip_updates_already_hs;
+    int64_t updates_already_inserted;
     int64_t fsync_all_fh_total;
     int64_t fsync_all_fh;
     int64_t fsync_all_time;
@@ -925,6 +928,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t cache_checkpoint_state;
     int64_t cache_eviction_fail;
+    int64_t hs_early_exit_squash;
     int64_t cache_eviction_app_thread_exit;
     int64_t cache_eviction_pct_full_application;
     int64_t cache_eviction_modify;
@@ -970,7 +974,9 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_internal;
     int64_t cache_eviction_split_internal;
     int64_t cache_eviction_split_leaf;
+    int64_t list_onpage_selected_early_continue;
     int64_t cache_eviction_dirty;
+    int64_t no_update_to_insert_hs;
     int64_t cache_nothing_to_insert;
     int64_t cache_read_overflow;
     int64_t cache_eviction_deepen;
@@ -983,12 +989,12 @@ struct __wt_dsrc_stats {
     int64_t cache_write;
     int64_t cache_write_restore;
     int64_t cache_hs_update_size;
-    int64_t hs_early_exit_squash;
-    int64_t hs_early_exit_skip_updates_already_hs;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t cache_bytes_dirty;
     int64_t cache_eviction_clean;
+    int64_t hs_early_exit_skip_updates_already_hs;
+    int64_t updates_already_inserted;
     int64_t cache_state_gen_avg_gap;
     int64_t cache_state_avg_written_size;
     int64_t cache_state_avg_visited_age;
