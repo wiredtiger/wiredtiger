@@ -44,7 +44,7 @@ __wt_thread_running(WT_THREAD *thread)
 static inline int
 __wt_thread_start(WT_CONNECTION_IMPL *conn, const char *session_name, bool open_metadata,
   uint32_t session_flags, const char *cond_name, uint32_t min, uint32_t max,
-  WT_THREAD_RET (*thread_runner)(void *arg), WT_THREAD *threadp)
+  WT_THREAD_CALLBACK (*thread_runner)(void *), WT_THREAD *threadp)
 {
     if (__wt_thread_running(threadp))
         return (0);
@@ -93,8 +93,7 @@ __wt_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
 static inline int
 __wt_thread_stop_and_cleanup(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
-    WT_DECL_RET;
     WT_RET(__wt_thread_stop(session, thread));
     WT_RET(__wt_thread_cleanup(session, thread));
-    return ret;
+    return (0);
 }

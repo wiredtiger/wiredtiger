@@ -2143,7 +2143,7 @@ static inline int __wt_thread_cleanup(WT_SESSION_IMPL *session, WT_THREAD *threa
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_thread_start(WT_CONNECTION_IMPL *conn, const char *session_name,
   bool open_metadata, uint32_t session_flags, const char *cond_name, uint32_t min, uint32_t max,
-  WT_THREAD_RET (*thread_runner)(void *arg), WT_THREAD *threadp)
+  WT_THREAD_CALLBACK (*thread_runner)(void *), WT_THREAD *threadp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
