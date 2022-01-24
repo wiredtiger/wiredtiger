@@ -86,7 +86,6 @@ __wt_blkcache_map_read(
 {
     WT_BLOCK *block;
     WT_BM *bm;
-    WT_FH *fh;
     WT_FILE_HANDLE *handle;
     wt_off_t offset;
     uint32_t checksum, objectid, size;
@@ -110,9 +109,12 @@ __wt_blkcache_map_read(
     WT_RET(__wt_block_addr_unpack(
       session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
 
+    /* Swap file handles if reading from a different object. */
+    if (block->objectid != objectid)
+        WT_RET(__wt_blkcache_get_handle(session, block, objectid, &block));
+
     /* Map the block if it's possible. */
-    WT_RET(__wt_block_fh(session, block, objectid, &fh));
-    handle = fh->handle;
+    handle = block->fh->handle;
     if (handle->fh_map_preload != NULL && offset + size <= (wt_off_t)bm->maplen &&
       handle->fh_map_preload(
         handle, (WT_SESSION *)session, (uint8_t *)bm->map + offset, size, bm->mapped_cookie) == 0) {

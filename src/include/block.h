@@ -205,7 +205,6 @@ struct __wt_bm {
     int (*write)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, uint8_t *, size_t *, bool, bool);
     int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
 
-    char *name;      /* Name */
     WT_BLOCK *block; /* Underlying file */
 
     void *map; /* Mapped region */
@@ -220,9 +219,10 @@ struct __wt_bm {
 
 /*
  * WT_BLOCK --
- *	Block manager handle, references a single file handle.
+ *	Block manager handle, references a single file.
  */
 struct __wt_block {
+    /* A list of block manager handles, sharing a file descriptor. */
     const char *name;              /* Name */
     uint32_t ref;                  /* References */
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
@@ -245,12 +245,11 @@ struct __wt_block {
     u_int block_header; /* Header length */
 
     /* Object file tracking. */
-    bool has_objects;      /* Address cookies contain object id */
-    uint32_t objectid;     /* Current writeable object id */
-    uint32_t file_flags;   /* Flags for opening objects */
-    uint32_t max_objectid; /* Size of object handle array */
-    WT_FH **ofh;           /* Object file handles */
-    size_t ofh_alloc;
+    bool has_objects;         /* Address cookies contain object id */
+    uint32_t objectid;        /* Object id */
+    WT_BLOCK **related;       /* Related objects */
+    size_t related_allocated; /* Size of related object array */
+    u_int related_next;       /* Next open slot */
 
     /*
      * There is only a single checkpoint in a file that can be written; stored here, only accessed

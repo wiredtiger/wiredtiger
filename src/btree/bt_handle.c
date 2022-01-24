@@ -110,8 +110,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     WT_ERR(__btree_conf(session, &ckpt));
 
     /* Connect to the underlying block manager. */
-    WT_ERR(__wt_blkcache_open(session, dhandle->name, dhandle->cfg, forced_salvage,
-      F_ISSET(btree, WT_BTREE_READONLY), btree->allocsize, &btree->bm));
+    WT_ERR(__wt_blkcache_open(
+      session, dhandle->name, dhandle->cfg, forced_salvage, false, btree->allocsize, &btree->bm));
 
     bm = btree->bm;
 

@@ -88,21 +88,25 @@ err:
 int
 __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    u_int i;
+    uint64_t bucket, hash;
+
+    conn = S2C(session);
+
+    __wt_verbose(session, WT_VERB_BLOCK, "remove: %s", block->name == NULL ? "" : block->name);
+
+    hash = __wt_hash_city64(block->name, strlen(block->name));
+    bucket = hash & (conn->hash_size - 1);
+    WT_CONN_BLOCK_REMOVE(conn, block, bucket);
 
     __wt_free(session, block->name);
+    __wt_free(session, block->related);
 
-    if (block->has_objects && block->ofh != NULL) {
-        for (i = 0; i < block->max_objectid; i++)
-            WT_TRET(__wt_close(session, &block->ofh[i]));
-        __wt_free(session, block->ofh);
-    }
-
-    if (block->fh != NULL)
-        WT_TRET(__wt_close(session, &block->fh));
+    WT_TRET(__wt_close(session, &block->fh));
 
     __wt_spin_destroy(session, &block->live_lock);
+    __wt_block_ckpt_destroy(session, &block->live);
 
     __wt_overwrite_and_free(session, block);
 
@@ -133,17 +137,31 @@ __wt_block_configure_first_fit(WT_BLOCK *block, bool on)
  */
 int
 __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[],
-  bool forced_salvage, bool readonly, uint32_t allocsize, WT_BLOCK **blockp)
+  bool forced_salvage, bool readonly, bool fixed, uint32_t allocsize, WT_BLOCK **blockp)
 {
     WT_BLOCK *block;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    uint32_t flags;
+    uint32_t bucket, flags, hash;
 
     *blockp = NULL;
 
     conn = S2C(session);
+    if (filename[0] != 'W')
+        fprintf(stderr, "open %s (%s)\n", filename, fixed ? "fixed" : "");
+
+    /* Block objects can be shared (although there can be only one writer). */
+    hash = __wt_hash_city64(filename, strlen(filename));
+    bucket = hash & (conn->hash_size - 1);
+    __wt_spin_lock(session, &conn->block_lock);
+    TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq)
+        if (strcmp(filename, block->name) == 0) {
+            ++block->ref;
+            *blockp = block;
+            __wt_spin_unlock(session, &conn->block_lock);
+            return (0);
+        }
 
     /*
      * Basic structure allocation, initialization.
@@ -153,8 +171,8 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[
      * lists.
      */
     WT_RET(__wt_calloc_one(session, &block));
+    WT_CONN_BLOCK_INSERT(conn, block, bucket);
     WT_ERR(__wt_strdup(session, filename, &block->name));
-
     block->ref = 1;
     block->allocsize = allocsize;
 
@@ -184,12 +202,19 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[
     else if (WT_STRING_MATCH("sequential", cval.str, cval.len))
         LF_SET(WT_FS_OPEN_ACCESS_SEQ);
 
+    if (fixed)
+        LF_SET(WT_FS_OPEN_FIXED);
     if (readonly && FLD_ISSET(conn->direct_io, WT_DIRECT_IO_CHECKPOINT))
         LF_SET(WT_FS_OPEN_DIRECTIO);
     if (!readonly && FLD_ISSET(conn->direct_io, WT_DIRECT_IO_DATA))
         LF_SET(WT_FS_OPEN_DIRECTIO);
-    block->file_flags = flags;
-    WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, block->file_flags, &block->fh));
+    /*
+     * KEITH: XXX tiered storage sets file permissions to readonly, but nobody else does. This flag
+     * means the underlying file is read-only, NOT the handle access pattern is read-only.
+     */
+    if (readonly)
+        LF_SET(WT_FS_OPEN_READONLY);
+    WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, &block->fh));
 
     /* Set the file's size. */
     WT_ERR(__wt_filesize(session, block->fh, &block->size));
@@ -213,12 +238,15 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[
     if (!forced_salvage)
         WT_ERR(__desc_read(session, allocsize, block));
 
+    __wt_spin_unlock(session, &conn->block_lock);
+
     *blockp = block;
     return (0);
 
 err:
-    if (block != NULL)
-        WT_TRET(__wt_block_close(session, block));
+    __wt_spin_unlock(session, &conn->block_lock);
+    WT_TRET(__wt_block_close(session, block));
+
     return (ret);
 }
 

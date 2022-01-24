@@ -159,7 +159,6 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
   wt_off_t offset, uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_HEADER *blk, swap;
-    WT_FH *fh;
     size_t bufsize;
 
     __wt_verbose(session, WT_VERB_READ, "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32,
@@ -167,6 +166,10 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
 
     WT_STAT_CONN_INCR(session, block_read);
     WT_STAT_CONN_INCRV(session, block_byte_read, size);
+
+    /* Swap file handles if reading from a different object. */
+    if (block->objectid != objectid)
+        WT_RET(__wt_blkcache_get_handle(session, block, objectid, &block));
 
     /*
      * Grow the buffer as necessary and read the block. Buffers should be aligned for reading, but
@@ -192,9 +195,9 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
           block->name, size, block->allocsize);
 
     WT_RET(__wt_buf_init(session, buf, bufsize));
-    WT_RET(__wt_block_fh(session, block, objectid, &fh));
-    WT_RET(__wt_read(session, fh, offset, size, buf->mem));
     buf->size = size;
+
+    WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
 
     /*
      * We incrementally read through the structure before doing a checksum, do little- to big-endian
