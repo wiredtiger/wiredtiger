@@ -85,7 +85,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: eviction walks restarted",
   "cache: eviction walks started from root of tree",
   "cache: eviction walks started from saved location in tree",
-  "cache: eviction worker thread writing history store records",
+  "cache: eviction worker thread writing history store records failure",
+  "cache: eviction worker thread writing history store records success",
   "cache: hazard pointer blocked page eviction",
   "cache: history store table insert calls",
   "cache: history store table insert calls that returned restart",
@@ -370,7 +371,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_walk_restart = 0;
     stats->cache_eviction_walk_from_root = 0;
     stats->cache_eviction_walk_saved_pos = 0;
-    stats->cache_write_hs_records = 0;
+    stats->cache_write_hs_records_failure = 0;
+    stats->cache_write_hs_records_success = 0;
     stats->cache_eviction_hazard = 0;
     stats->cache_hs_insert = 0;
     stats->cache_hs_insert_restart = 0;
@@ -639,7 +641,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_walk_restart += from->cache_eviction_walk_restart;
     to->cache_eviction_walk_from_root += from->cache_eviction_walk_from_root;
     to->cache_eviction_walk_saved_pos += from->cache_eviction_walk_saved_pos;
-    to->cache_write_hs_records += from->cache_write_hs_records;
+    to->cache_write_hs_records_failure += from->cache_write_hs_records_failure;
+    to->cache_write_hs_records_success += from->cache_write_hs_records_success;
     to->cache_eviction_hazard += from->cache_eviction_hazard;
     to->cache_hs_insert += from->cache_hs_insert;
     to->cache_hs_insert_restart += from->cache_hs_insert_restart;
@@ -907,7 +910,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_walk_restart += WT_STAT_READ(from, cache_eviction_walk_restart);
     to->cache_eviction_walk_from_root += WT_STAT_READ(from, cache_eviction_walk_from_root);
     to->cache_eviction_walk_saved_pos += WT_STAT_READ(from, cache_eviction_walk_saved_pos);
-    to->cache_write_hs_records += WT_STAT_READ(from, cache_write_hs_records);
+    to->cache_write_hs_records_failure += WT_STAT_READ(from, cache_write_hs_records_failure);
+    to->cache_write_hs_records_success += WT_STAT_READ(from, cache_write_hs_records_success);
     to->cache_eviction_hazard += WT_STAT_READ(from, cache_eviction_hazard);
     to->cache_hs_insert += WT_STAT_READ(from, cache_hs_insert);
     to->cache_hs_insert_restart += WT_STAT_READ(from, cache_hs_insert_restart);
@@ -1194,7 +1198,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction worker thread evicting pages",
   "cache: eviction worker thread removed",
   "cache: eviction worker thread stable number",
-  "cache: eviction worker thread writing history store records",
+  "cache: eviction worker thread writing history store records failure",
+  "cache: eviction worker thread writing history store records success",
   "cache: files with active eviction walks",
   "cache: files with new eviction walks started",
   "cache: force re-tuning of eviction workers once in a while",
@@ -1773,7 +1778,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_worker_evicting = 0;
     stats->cache_eviction_worker_removed = 0;
     /* not clearing cache_eviction_stable_state_workers */
-    stats->cache_write_hs_records = 0;
+    stats->cache_write_hs_records_failure = 0;
+    stats->cache_write_hs_records_success = 0;
     /* not clearing cache_eviction_walks_active */
     stats->cache_eviction_walks_started = 0;
     stats->cache_eviction_force_retune = 0;
@@ -2330,7 +2336,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_worker_removed += WT_STAT_READ(from, cache_eviction_worker_removed);
     to->cache_eviction_stable_state_workers +=
       WT_STAT_READ(from, cache_eviction_stable_state_workers);
-    to->cache_write_hs_records += WT_STAT_READ(from, cache_write_hs_records);
+    to->cache_write_hs_records_failure += WT_STAT_READ(from, cache_write_hs_records_failure);
+    to->cache_write_hs_records_success += WT_STAT_READ(from, cache_write_hs_records_success);
     to->cache_eviction_walks_active += WT_STAT_READ(from, cache_eviction_walks_active);
     to->cache_eviction_walks_started += WT_STAT_READ(from, cache_eviction_walks_started);
     to->cache_eviction_force_retune += WT_STAT_READ(from, cache_eviction_force_retune);

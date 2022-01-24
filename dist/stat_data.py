@@ -866,7 +866,8 @@ conn_dsrc_stats = [
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
     CacheStat('cache_write', 'pages written from cache'),
     CacheStat('cache_write_hs', 'page written requiring history store records'),
-    CacheStat('cache_write_hs_records', 'eviction worker thread writing history store records'),
+    CacheStat('cache_write_hs_records_success', 'eviction worker thread writing history store records success'),
+    CacheStat('cache_write_hs_records_failure', 'eviction worker thread writing history store records failure'),
     CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
     ##########################################
     # Cursor operations
