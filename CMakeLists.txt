@@ -46,9 +46,7 @@ include(cmake/configs/auto.cmake)
 include(cmake/configs/base.cmake)
 
 # Import our third party library definitions.
-if(ENABLE_S3)
-    include(cmake/third_party/aws_sdk.cmake)
-endif()
+include(cmake/third_party/aws_sdk.cmake)
 include(cmake/third_party/gperftools.cmake)
 include(cmake/third_party/lz4.cmake)
 include(cmake/third_party/snappy.cmake)
