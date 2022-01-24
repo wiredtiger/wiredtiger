@@ -1,7 +1,7 @@
 project(s3_store CXX)    
 
 # Create an intermediate library to build the helper library.
-add_library(aws_bucket_util STATIC aws_bucket_conn.cpp)
+add_library(aws_bucket_util STATIC aws_bucket_conn.cxx)
 set_property(TARGET aws_bucket_util PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(
@@ -18,7 +18,7 @@ target_link_libraries(
 )
 
 # Build the S3 extension as a library.
-set(sources "s3_store.cpp")
+set(sources "s3_store.cxx")
 add_library(wiredtiger_s3_store MODULE ${sources})
 target_include_directories(
     wiredtiger_s3_store    
