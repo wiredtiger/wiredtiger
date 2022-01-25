@@ -21,8 +21,8 @@ ExternalProject_Add(aws-sdk
     BUILD_BYPRODUCTS
         ${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp/install/${CMAKE_INSTALL_LIBDIR}/libaws-cpp-sdk-s3-crt${CMAKE_SHARED_LIBRARY_SUFFIX}
         ${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp/install/${CMAKE_INSTALL_LIBDIR}/libaws-cpp-sdk-core${CMAKE_SHARED_LIBRARY_SUFFIX}
-    TEST_COMMAND      ""
-    UPDATE_COMMAND    ""
+    TEST_COMMAND ""
+    UPDATE_COMMAND ""
 )
 ExternalProject_Get_Property(aws-sdk INSTALL_DIR)
 

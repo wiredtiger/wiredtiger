@@ -4135,6 +4135,5 @@ buildvariants:
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: Ninja
     make_command: ninja
-    is_cmake_build: true
   tasks:
     - name: compile
