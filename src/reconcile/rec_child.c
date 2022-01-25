@@ -16,8 +16,11 @@ static int
 __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_CHILD_STATE *statep)
 {
     WT_PAGE_DELETED *page_del;
+    WT_TXN *txn;
 
     *statep = WT_CHILD_IGNORE;
+
+    txn = session->txn;
 
     /*
      * The complicated case is a fast-delete which may not be visible or stable. Otherwise, discard
@@ -35,7 +38,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_C
      * We expect the page to be clean after reconciliation. If there are invisible updates, abort
      * eviction.
      */
-    if (__wt_page_del_active(session, ref, false)) {
+    if (__wt_page_del_active(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))) {
         if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
             WT_RET_PANIC(session, EINVAL, "reconciliation illegally skipped an update");
         if (F_ISSET(r, WT_REC_CLEAN_AFTER_REC))
