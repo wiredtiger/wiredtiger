@@ -31,8 +31,8 @@ aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
 
 /*
  * list_objects --
- *     Builds a list of object names from a S3 bucket into a vector. Returns true if success, otherwise
- *     false.
+ *     Builds a list of object names from a S3 bucket into a vector. Returns true if success,
+ *     otherwise false.
  */
 bool
 aws_bucket_conn::list_objects(
