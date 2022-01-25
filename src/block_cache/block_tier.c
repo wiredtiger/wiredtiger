@@ -45,7 +45,7 @@ __blkcache_tiered_match(
  */
 int
 __wt_blkcache_tiered_open(
-  WT_SESSION_IMPL *session, const char *uri, uint32_t object_id, WT_BLOCK **blockp)
+  WT_SESSION_IMPL *session, const char *uri, uint32_t objectid, WT_BLOCK **blockp)
 {
     WT_BLOCK *block;
     WT_BUCKET_STORAGE *bstorage;
@@ -62,9 +62,9 @@ __wt_blkcache_tiered_open(
     tiered = (WT_TIERED *)session->dhandle;
     object_uri = object_val = NULL;
 
-    WT_ASSERT(session, object_id <= tiered->current_id);
+    WT_ASSERT(session, objectid <= tiered->current_id);
     WT_ASSERT(session, uri == NULL || WT_PREFIX_MATCH(uri, "tiered:"));
-    WT_ASSERT(session, (uri == NULL && object_id != 0) || (uri != NULL && object_id == 0));
+    WT_ASSERT(session, (uri == NULL && objectid != 0) || (uri != NULL && objectid == 0));
 
     /*
      * First look for the local file. This will be the fastest access and we retain recent objects
@@ -75,8 +75,8 @@ __wt_blkcache_tiered_open(
      * This can be called at any time, because we are opening the objects lazily.
      */
     if (uri != NULL)
-        object_id = tiered->current_id;
-    if (object_id == tiered->current_id) {
+        objectid = tiered->current_id;
+    if (objectid == tiered->current_id) {
         object_uri = tiered->tiers[WT_TIERED_INDEX_LOCAL].name;
         object_name = object_uri;
         WT_PREFIX_SKIP_REQUIRED(session, object_name, "file:");
@@ -84,7 +84,7 @@ __wt_blkcache_tiered_open(
         readonly = false;
     } else {
         WT_ERR(
-          __wt_tiered_name(session, &tiered->iface, object_id, WT_TIERED_NAME_OBJECT, &object_uri));
+          __wt_tiered_name(session, &tiered->iface, objectid, WT_TIERED_NAME_OBJECT, &object_uri));
         object_name = object_uri;
         WT_PREFIX_SKIP_REQUIRED(session, object_name, "object:");
         local_only = false;
@@ -94,7 +94,7 @@ __wt_blkcache_tiered_open(
     }
 
     /* Check for an already opened block structure. */
-    if (__blkcache_tiered_match(session, object_name, object_id, blockp))
+    if (__blkcache_tiered_match(session, object_name, objectid, blockp))
         return (0);
 
     /*
@@ -120,7 +120,7 @@ __wt_blkcache_tiered_open(
         WT_ERR(__wt_buf_fmt(session, tmp, "%.*s%s", (int)pfx.len, pfx.str, object_name));
 
         /* Check for an already opened block structure. */
-        if (__blkcache_tiered_match(session, tmp->mem, object_id, blockp))
+        if (__blkcache_tiered_match(session, tmp->mem, objectid, blockp))
             return (0);
 
         bstorage = tiered->bstorage;
@@ -130,7 +130,7 @@ __wt_blkcache_tiered_open(
     WT_ERR(ret);
 
     block->has_objects = true;
-    block->objectid = object_id;
+    block->objectid = objectid;
     *blockp = block;
 
 err:

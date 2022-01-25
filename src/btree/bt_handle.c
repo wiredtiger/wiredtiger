@@ -1014,7 +1014,7 @@ __wt_btree_immediately_durable(WT_SESSION_IMPL *session)
  *     Switch to a writeable object for a tiered btree.
  */
 int
-__wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t object_id, uint32_t flags)
+__wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t objectid, uint32_t flags)
 {
     WT_BM *bm;
     WT_DECL_RET;
@@ -1027,7 +1027,7 @@ __wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t object_id, uint32_t 
      * number.
      */
     if (bm != NULL)
-        ret = bm->switch_object(bm, session, object_id, flags);
+        ret = bm->switch_object(bm, session, objectid, flags);
 
     return (ret);
 }
