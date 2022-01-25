@@ -5,7 +5,6 @@ include(${CMAKE_SOURCE_DIR}/test/ctest_helpers.cmake)
 create_test_executable(run_s3_unit_tests 
     SOURCES test_aws_bucket_conn.cxx
     LIBS aws-sdk::s3-crt aws-sdk::core aws_bucket_util
-    INCLUDES ${CMAKE_CURRENT_SOURCE_DIR} ${AWSSDK_INCLUDE_DIRS}
     CXX
 )
 # Register the test with CTest.
