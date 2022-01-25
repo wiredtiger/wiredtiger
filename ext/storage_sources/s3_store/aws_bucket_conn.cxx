@@ -67,11 +67,6 @@ aws_bucket_conn::put_object(
     std::shared_ptr<Aws::IOStream> input_data = Aws::MakeShared<Aws::FStream>(
       "s3-source", file_name.c_str(), std::ios_base::in | std::ios_base::binary);
 
-    if (!input_data->good()) {
-        std::cerr << "Error in put_object: Failed to open file'" << file_name << "'." << std::endl;
-        return false;
-    }
-
     request.SetBody(input_data);
 
     Aws::S3Crt::Model::PutObjectOutcome outcome = m_s3_crt_client.PutObject(request);
