@@ -109,6 +109,7 @@ __wt_blkcache_get_handle(
     WT_BLOCK *block;
     WT_CONNECTION_IMPL *conn;
     u_int i;
+    const char *name;
 
     *blockp = NULL;
 
@@ -130,10 +131,16 @@ __wt_blkcache_get_handle(
           session, &orig->related_allocated, orig->related_next + 1, &orig->related));
     }
 
-    /* Lock and search for the object. */
+    /*
+     * Lock and search for the object.
+     *
+     * KEITH XXX: Assume the name and object ID pair is unique, and used consistently. I'm not sure
+     * that's the case, and taking the name from the session dhandle isn't right.
+     */
+    name = orig == NULL ? session->dhandle->name : orig->name;
     __wt_spin_lock(session, &conn->block_lock);
     TAILQ_FOREACH (block, &conn->blockqh, q)
-        if (block->objectid == objectid) {
+        if (block->objectid == objectid && strcmp(block->name, name) == 0) {
             ++block->ref;
             *blockp = block;
             break;
