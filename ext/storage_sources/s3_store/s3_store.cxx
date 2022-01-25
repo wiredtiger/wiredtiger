@@ -105,7 +105,7 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
         }
 
         /* Have at least one bucket to use. */
-        if (!buckets.empty()) {
+        if (!buckets.empty()) { 
             const Aws::String first_bucket = buckets.at(0);
 
             /* List objects. */

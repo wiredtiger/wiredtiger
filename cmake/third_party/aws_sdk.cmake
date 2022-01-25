@@ -30,6 +30,7 @@ add_library(aws-sdk::core SHARED IMPORTED)
 add_library(aws-sdk::s3-crt SHARED IMPORTED)
 add_library(aws-sdk::crt SHARED IMPORTED)
 
+# Small workaround to declare the include directory under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase.
 file(MAKE_DIRECTORY ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
 set_target_properties(aws-sdk::core PROPERTIES
     IMPORTED_LOCATION ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libaws-cpp-sdk-core${CMAKE_SHARED_LIBRARY_SUFFIX}
