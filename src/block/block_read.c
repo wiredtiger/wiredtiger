@@ -28,19 +28,13 @@ __wt_bm_read(
 
 #ifdef HAVE_DIAGNOSTIC
     /*
-     * In diagnostic mode, verify the user isn't trying to import a tiered object as a regular table
-     * file.
-     */
-    if (objectid != 0 && !WT_PREFIX_MATCH(block->name, "tiered:") &&
-      !WT_SUFFIX_MATCH(block->name, ".wtobj"))
-        WT_RET_MSG(session, ENOTSUP, "%s: is a tiered object", block->name);
-    /*
      * In diagnostic mode, verify the block we're about to read isn't on the available list, or for
      * live systems, the discard list.
      */
     WT_RET(__wt_block_misplaced(
       session, block, "read", offset, size, bm->is_live, __PRETTY_FUNCTION__, __LINE__));
 #endif
+
     /* Read the block. */
     __wt_capacity_throttle(session, size, WT_THROTTLE_READ);
     WT_RET(__wt_block_read_off(session, block, buf, objectid, offset, size, checksum));
