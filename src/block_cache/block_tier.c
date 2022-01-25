@@ -18,11 +18,10 @@ __wt_blkcache_tiered_open(
 {
     WT_BLOCK *block;
     WT_BUCKET_STORAGE *bstorage;
-    WT_CONFIG_ITEM pfx, v;
+    WT_CONFIG_ITEM pfx;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_TIERED *tiered;
-    uint32_t allocsize;
     const char *cfg[2], *object_name, *object_uri, *object_val;
     bool local_only, readonly;
 
@@ -62,19 +61,11 @@ __wt_blkcache_tiered_open(
         F_SET(session, WT_SESSION_QUIET_TIERED); /* KEITH XXX: use exists call instead */
     }
 
-    /*
-     * KEITH XXX: We're doing a ton of work to get the allocation size; the block code can do that
-     * work, we don't need to do it here. Fix the btree code to pass any changed alloc size in the
-     * cfg[] and get rid of the argument and this code.
-     */
+    /* Get the object's configuration. */
     WT_ERR(__wt_metadata_search(session, object_uri, (char **)&object_val));
     cfg[0] = object_val;
     cfg[1] = NULL;
-    WT_ERR(__wt_config_gets(session, cfg, "allocation_size", &v));
-    allocsize = (uint32_t)v.val;
-
-    ret = __wt_block_open(
-      session, object_name, objectid, cfg, false, readonly, false, allocsize, &block);
+    ret = __wt_block_open(session, object_name, objectid, cfg, false, readonly, false, 0, &block);
     F_CLR(session, WT_SESSION_QUIET_TIERED);
 
     if (!local_only && ret != 0) {
@@ -87,8 +78,7 @@ __wt_blkcache_tiered_open(
 
         bstorage = tiered->bstorage;
         WT_WITH_BUCKET_STORAGE(bstorage, session,
-          ret = __wt_block_open(
-            session, tmp->mem, objectid, cfg, false, true, true, allocsize, &block));
+          ret = __wt_block_open(session, tmp->mem, objectid, cfg, false, true, true, 0, &block));
     }
     WT_ERR(ret);
 
