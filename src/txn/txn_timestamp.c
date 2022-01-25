@@ -303,8 +303,8 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
      * Scan the global pinned timestamp again, it's possible that it got changed after the previous
      * scan.
      */
-    if ((ret = __wt_txn_get_pinned_timestamp(
-           session, &pinned_timestamp, WT_TXN_TS_ALREADY_LOCKED | WT_TXN_TS_INCLUDE_OLDEST)) != 0) {
+    if ((ret = __wt_txn_get_pinned_timestamp(session, &pinned_timestamp,
+           WT_TXN_TS_ALREADY_LOCKED | WT_TXN_TS_INCLUDE_OLDEST | WT_TXN_TS_INCLUDE_CKPT)) != 0) {
         __wt_writeunlock(session, &txn_global->rwlock);
         return (ret == WT_NOTFOUND ? 0 : ret);
     }
