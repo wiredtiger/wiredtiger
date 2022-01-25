@@ -113,7 +113,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
      * the end of the file, that was done when the checkpoint was first written (re-writing the
      * checkpoint might possibly make it relevant here, but it's unlikely enough I don't bother).
      */
-    if (!checkpoint && !block->has_objects)
+    if (!checkpoint && WT_BLOCK_ISLOCAL(block))
         WT_ERR(__wt_block_truncate(session, block, ci->file_size));
 
     if (0) {
@@ -610,7 +610,8 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
      * lists, and the freed blocks will then be included when writing the live extent lists.
      */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
-        if (F_ISSET(ckpt, WT_CKPT_FAKE) || !F_ISSET(ckpt, WT_CKPT_DELETE) || block->has_objects)
+        if (F_ISSET(ckpt, WT_CKPT_FAKE) || !F_ISSET(ckpt, WT_CKPT_DELETE) ||
+          !WT_BLOCK_ISLOCAL(block))
             continue;
 
         if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))

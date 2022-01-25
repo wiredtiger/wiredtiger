@@ -16,6 +16,9 @@
  */
 #define WT_BLOCK_INVALID_OFFSET 0
 
+#define WT_BLOCK_OBJECTID_NONE 0 /* Local objects */
+#define WT_BLOCK_ISLOCAL(block) ((block)->objectid == WT_BLOCK_OBJECTID_NONE)
+
 /*
  * The block manager maintains three per-checkpoint extent lists:
  *	alloc:	 the extents allocated in this checkpoint
@@ -222,11 +225,16 @@ struct __wt_bm {
  *	Block manager handle, references a single file.
  */
 struct __wt_block {
-    /* A list of block manager handles, sharing a file descriptor. */
-    const char *name;              /* Name */
-    uint32_t ref;                  /* References */
+    const char *name;  /* Name */
+    uint32_t objectid; /* Object id */
+    uint32_t ref;      /* References */
+
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
+
+    WT_BLOCK **related;       /* Related objects */
+    size_t related_allocated; /* Size of related object array */
+    u_int related_next;       /* Next open slot */
 
     WT_FH *fh;            /* Backing file handle */
     wt_off_t size;        /* File size */
@@ -243,14 +251,6 @@ struct __wt_block {
     size_t os_cache_dirty_max;
 
     u_int block_header; /* Header length */
-
-    /* Object file tracking. */
-    bool has_objects; /* Address cookies contain object id */
-#define WT_BLOCK_OBJECTID_NONE 0
-    uint32_t objectid;        /* Object id */
-    WT_BLOCK **related;       /* Related objects */
-    size_t related_allocated; /* Size of related object array */
-    u_int related_next;       /* Next open slot */
 
     /*
      * There is only a single checkpoint in a file that can be written; stored here, only accessed

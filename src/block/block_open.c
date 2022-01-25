@@ -172,6 +172,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     WT_RET(__wt_calloc_one(session, &block));
     WT_CONN_BLOCK_INSERT(conn, block, bucket);
     WT_ERR(__wt_strdup(session, filename, &block->name));
+    block->objectid = objectid;
     block->ref = 1;
     block->allocsize = allocsize;
 

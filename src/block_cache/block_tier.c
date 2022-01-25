@@ -92,8 +92,6 @@ __wt_blkcache_tiered_open(
     }
     WT_ERR(ret);
 
-    block->has_objects = true;
-    block->objectid = objectid;
     *blockp = block;
 
 err:
