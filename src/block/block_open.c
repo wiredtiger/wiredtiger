@@ -148,8 +148,6 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[
     *blockp = NULL;
 
     conn = S2C(session);
-    if (filename[0] != 'W')
-        fprintf(stderr, "open %s (%s)\n", filename, fixed ? "fixed" : "");
 
     /* Block objects can be shared (although there can be only one writer). */
     hash = __wt_hash_city64(filename, strlen(filename));
