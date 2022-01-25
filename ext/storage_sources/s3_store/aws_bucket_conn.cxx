@@ -1,8 +1,6 @@
 #include <aws/core/Aws.h>
-#include <aws/s3-crt/S3CrtClient.h>
 #include <aws/s3-crt/model/DeleteObjectRequest.h>
 #include <aws/s3-crt/model/ListObjectsRequest.h>
-#include <aws/s3-crt/model/Object.h>
 #include <aws/s3-crt/model/PutObjectRequest.h>
 #include "aws_bucket_conn.h"
 
@@ -33,19 +31,20 @@ aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
 
 /*
  * list_objects --
- *     Builds a list of objects from a S3 bucket into a vector. Returns true if success, otherwise
+ *     Builds a list of object names from a S3 bucket into a vector. Returns true if success, otherwise
  *     false.
  */
 bool
 aws_bucket_conn::list_objects(
-  const std::string &bucket_name, std::vector<Aws::S3Crt::Model::Object> &bucket_objects) const
+  const std::string &bucket_name, std::vector<std::string> &objects) const
 {
     Aws::S3Crt::Model::ListObjectsRequest request;
     request.WithBucket(bucket_name);
     Aws::S3Crt::Model::ListObjectsOutcome outcomes = m_s3_crt_client.ListObjects(request);
 
     if (outcomes.IsSuccess()) {
-        bucket_objects = outcomes.GetResult().GetContents();
+        for (const auto &object : outcomes.GetResult().GetContents())
+            objects.push_back(object.GetKey());
         return true;
     } else {
         std::cerr << "Error in list_buckets: " << outcomes.GetError().GetMessage() << std::endl;

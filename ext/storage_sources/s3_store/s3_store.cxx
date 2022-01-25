@@ -30,10 +30,7 @@
 #include <wiredtiger_ext.h>
 
 #include <aws/core/Aws.h>
-#include <aws/s3-crt/S3CrtClient.h>
 #include "aws_bucket_conn.h"
-
-#include <iostream>
 
 #define UNUSED(x) (void)(x)
 
@@ -51,7 +48,7 @@ typedef struct {
 } S3_FILE_SYSTEM;
 
 /* Configuration variables for connecting to S3CrtClient. */
-const Aws::String region = Aws::Region::AP_SOUTHEAST_2;
+const Aws::String region = Aws::Region::US_EAST_1;
 const double throughput_target_gbps = 5;
 const uint64_t part_size = 8 * 1024 * 1024; /* 8 MB. */
 
@@ -112,12 +109,12 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
             const Aws::String first_bucket = buckets.at(0);
 
             /* List objects. */
-            std::vector<Aws::S3Crt::Model::Object> bucket_objects;
+            std::vector<std::string> bucket_objects;
             if (fs->conn->list_objects(first_bucket, bucket_objects)) {
                 std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
                 if (!bucket_objects.empty()) {
-                    for (const Aws::S3Crt::Model::Object &object : bucket_objects) {
-                        std::cout << "  * " << object.GetKey() << std::endl;
+                    for (const auto &object : bucket_objects) {
+                        std::cout << "  * " << object << std::endl;
                     }
                 } else {
                     std::cout << "No objects in bucket." << std::endl;
@@ -129,11 +126,12 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
             fs->conn->put_object(first_bucket, "WiredTiger.turtle", "WiredTiger.turtle");
 
             /* List objects again. */
+            bucket_objects.clear();
             if (fs->conn->list_objects(first_bucket, bucket_objects)) {
                 std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
                 if (!bucket_objects.empty()) {
-                    for (const Aws::S3Crt::Model::Object &object : bucket_objects) {
-                        std::cout << "  * " << object.GetKey() << std::endl;
+                    for (const auto &object : bucket_objects) {
+                        std::cout << "  * " << object << std::endl;
                     }
                 } else {
                     std::cout << "No objects in bucket." << std::endl;
@@ -145,11 +143,12 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
             fs->conn->delete_object(first_bucket, "WiredTiger.turtle");
 
             /* List objects again. */
+            bucket_objects.clear();
             if (fs->conn->list_objects(first_bucket, bucket_objects)) {
                 std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
                 if (!bucket_objects.empty()) {
-                    for (const Aws::S3Crt::Model::Object &object : bucket_objects) {
-                        std::cout << "  * " << object.GetKey() << std::endl;
+                    for (const auto &object : bucket_objects) {
+                        std::cout << "  * " << object << std::endl;
                     }
                 } else {
                     std::cout << "No objects in bucket." << std::endl;

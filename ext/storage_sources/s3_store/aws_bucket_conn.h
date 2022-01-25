@@ -4,7 +4,6 @@
 
 #include <aws/core/Aws.h>
 #include <aws/s3-crt/S3CrtClient.h>
-#include <aws/s3-crt/model/Object.h>
 
 #include <string>
 #include <vector>
@@ -18,7 +17,7 @@ class aws_bucket_conn {
     explicit aws_bucket_conn(const Aws::S3Crt::ClientConfiguration &config);
     bool list_buckets(std::vector<std::string> &buckets) const;
     bool list_objects(
-      const std::string &bucket_name, std::vector<Aws::S3Crt::Model::Object> &bucket_objects) const;
+      const std::string &bucket_name, std::vector<std::string> &objects) const;
     bool put_object(const std::string &bucket_name, const std::string &object_key,
       const std::string &file_name) const;
     bool delete_object(const std::string &bucket_name, const std::string &object_key) const;
