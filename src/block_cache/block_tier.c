@@ -9,37 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __blkcache_tiered_match --
- *     Check for an already open block matching the tiered name.
- */
-static bool
-__blkcache_tiered_match(
-  WT_SESSION_IMPL *session, const char *name, uint32_t objectid, WT_BLOCK **blockp)
-{
-    WT_BLOCK *block;
-    WT_CONNECTION_IMPL *conn;
-
-    *blockp = NULL;
-
-    conn = S2C(session);
-
-    /*
-     * KEITH XXX: Assume the name and object ID pair is unique, and used consistently.
-     *
-     * Lock and search for the object.
-     */
-    __wt_spin_lock(session, &conn->block_lock);
-    TAILQ_FOREACH (block, &conn->blockqh, q)
-        if (block->objectid == objectid && strcmp(block->name, name) == 0) {
-            ++block->ref;
-            *blockp = block;
-            break;
-        }
-    __wt_spin_unlock(session, &conn->block_lock);
-    return (*blockp != NULL);
-}
-
-/*
  * __wt_blkcache_tiered_open --
  *     Open a tiered object.
  */
@@ -93,10 +62,6 @@ __wt_blkcache_tiered_open(
         F_SET(session, WT_SESSION_QUIET_TIERED); /* KEITH XXX: use exists call instead */
     }
 
-    /* Check for an already opened block structure. */
-    if (__blkcache_tiered_match(session, object_name, objectid, blockp))
-        return (0);
-
     /*
      * KEITH XXX: We're doing a ton of work to get the allocation size; the block code can do that
      * work, we don't need to do it here. Fix the btree code to pass any changed alloc size in the
@@ -108,7 +73,8 @@ __wt_blkcache_tiered_open(
     WT_ERR(__wt_config_gets(session, cfg, "allocation_size", &v));
     allocsize = (uint32_t)v.val;
 
-    ret = __wt_block_open(session, object_name, cfg, false, readonly, false, allocsize, &block);
+    ret = __wt_block_open(
+      session, object_name, objectid, cfg, false, readonly, false, allocsize, &block);
     F_CLR(session, WT_SESSION_QUIET_TIERED);
 
     if (!local_only && ret != 0) {
@@ -119,13 +85,10 @@ __wt_blkcache_tiered_open(
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         WT_ERR(__wt_buf_fmt(session, tmp, "%.*s%s", (int)pfx.len, pfx.str, object_name));
 
-        /* Check for an already opened block structure. */
-        if (__blkcache_tiered_match(session, tmp->mem, objectid, blockp))
-            return (0);
-
         bstorage = tiered->bstorage;
         WT_WITH_BUCKET_STORAGE(bstorage, session,
-          ret = __wt_block_open(session, tmp->mem, cfg, false, true, true, allocsize, &block));
+          ret = __wt_block_open(
+            session, tmp->mem, objectid, cfg, false, true, true, allocsize, &block));
     }
     WT_ERR(ret);
 

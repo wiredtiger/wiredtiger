@@ -136,8 +136,9 @@ __wt_block_configure_first_fit(WT_BLOCK *block, bool on)
  *     Open a block handle.
  */
 int
-__wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[],
-  bool forced_salvage, bool readonly, bool fixed, uint32_t allocsize, WT_BLOCK **blockp)
+__wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objectid,
+  const char *cfg[], bool forced_salvage, bool readonly, bool fixed, uint32_t allocsize,
+  WT_BLOCK **blockp)
 {
     WT_BLOCK *block;
     WT_CONFIG_ITEM cval;
@@ -154,7 +155,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[
     bucket = hash & (conn->hash_size - 1);
     __wt_spin_lock(session, &conn->block_lock);
     TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq)
-        if (strcmp(filename, block->name) == 0) {
+        if (block->objectid == objectid && strcmp(filename, block->name) == 0) {
             ++block->ref;
             *blockp = block;
             __wt_spin_unlock(session, &conn->block_lock);

@@ -245,7 +245,8 @@ struct __wt_block {
     u_int block_header; /* Header length */
 
     /* Object file tracking. */
-    bool has_objects;         /* Address cookies contain object id */
+    bool has_objects; /* Address cookies contain object id */
+#define WT_BLOCK_OBJECTID_NONE 0
     uint32_t objectid;        /* Object id */
     WT_BLOCK **related;       /* Related objects */
     size_t related_allocated; /* Size of related object array */
