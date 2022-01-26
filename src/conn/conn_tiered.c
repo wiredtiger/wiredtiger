@@ -742,9 +742,9 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[])
     /* Start the internal thread. */
     WT_ERR(__wt_cond_alloc(session, "flush tier", &conn->flush_cond));
 
+    FLD_SET(conn->server_flags, WT_CONN_SERVER_TIERED);
     WT_ERR(__wt_thread_start(conn, "storage-server", true, 0, "storage server", 0, 0,
       __tiered_server, &conn->tiered_thread));
-    FLD_SET(conn->server_flags, WT_CONN_SERVER_TIERED);
 
     /* After starting non-configurable threads, start the tiered manager if needed. */
     if (start)
