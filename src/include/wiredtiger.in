@@ -446,7 +446,9 @@ struct __wt_cursor {
 	 *
 	 * If the cursor was not configured with "overwrite=true", both the key
 	 * and value must be set and the record must not already exist; the
-	 * record will be inserted.
+	 * record will be inserted. If the record already exists, the
+	 * ::WT_DUPLICATE_KEY error is returned and the value found in the tree
+	 * can be retrieved using WT_CURSOR::get_value.
 	 *
 	 * @snippet ex_all.c Insert a new record and fail if the record exists
 	 *
@@ -464,7 +466,8 @@ struct __wt_cursor {
 	 * with "append=true", the cursor ends with no key set and a subsequent
 	 * call to the WT_CURSOR::get_key method will fail. The cursor ends with
 	 * no value set and a subsequent call to the WT_CURSOR::get_value method
-	 * will fail.
+	 * will fail, except for the ::WT_DUPLICATE_KEY error return, in which
+	 * case the value currently stored for the key can be retrieved.
 	 *
 	 * Inserting a new record after the current maximum record in a
 	 * fixed-length bit field column-store (that is, a store with an
@@ -709,33 +712,35 @@ struct __wt_cursor {
 	const char *internal_uri;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define	WT_CURSTD_APPEND		0x0000001u
-#define	WT_CURSTD_BULK			0x0000002u
-#define	WT_CURSTD_CACHEABLE		0x0000004u
-#define	WT_CURSTD_CACHED		0x0000008u
-#define	WT_CURSTD_DEAD			0x0000010u
-#define	WT_CURSTD_DEBUG_COPY_KEY	0x0000020u
-#define	WT_CURSTD_DEBUG_COPY_VALUE	0x0000040u
-#define	WT_CURSTD_DEBUG_RESET_EVICT	0x0000080u
-#define	WT_CURSTD_DUMP_HEX		0x0000100u
-#define	WT_CURSTD_DUMP_JSON		0x0000200u
-#define	WT_CURSTD_DUMP_PRETTY		0x0000400u
-#define	WT_CURSTD_DUMP_PRINT		0x0000800u
-#define	WT_CURSTD_HS_READ_ALL	0x0001000u
-#define	WT_CURSTD_HS_READ_COMMITTED	0x0002000u
-#define	WT_CURSTD_IGNORE_TOMBSTONE	0x0004000u
-#define	WT_CURSTD_JOINED		0x0008000u
-#define	WT_CURSTD_KEY_EXT		0x0010000u	/* Key points out of tree. */
-#define	WT_CURSTD_KEY_INT		0x0020000u	/* Key points into tree. */
-#define	WT_CURSTD_KEY_ONLY		0x0040000u
-#define	WT_CURSTD_META_INUSE		0x0080000u
-#define	WT_CURSTD_OPEN			0x0100000u
-#define	WT_CURSTD_OVERWRITE		0x0200000u
-#define	WT_CURSTD_PREFIX_SEARCH		0x0400000u
-#define	WT_CURSTD_RAW			0x0800000u
-#define	WT_CURSTD_RAW_SEARCH		0x1000000u
-#define	WT_CURSTD_VALUE_EXT		0x2000000u	/* Value points out of tree. */
-#define	WT_CURSTD_VALUE_INT		0x4000000u	/* Value points into tree. */
+#define	WT_CURSTD_APPEND		0x00000001u
+#define	WT_CURSTD_BULK			0x00000002u
+#define	WT_CURSTD_CACHEABLE		0x00000004u
+#define	WT_CURSTD_CACHED		0x00000008u
+#define	WT_CURSTD_DEAD			0x00000010u
+#define	WT_CURSTD_DEBUG_COPY_KEY	0x00000020u
+#define	WT_CURSTD_DEBUG_COPY_VALUE	0x00000040u
+#define	WT_CURSTD_DEBUG_RESET_EVICT	0x00000080u
+#define	WT_CURSTD_DUMP_HEX		0x00000100u
+#define	WT_CURSTD_DUMP_JSON		0x00000200u
+#define	WT_CURSTD_DUMP_PRETTY		0x00000400u
+#define	WT_CURSTD_DUMP_PRINT		0x00000800u
+#define	WT_CURSTD_DUP_NO_VALUE          0x00001000u
+#define	WT_CURSTD_HS_READ_ALL		0x00002000u
+#define	WT_CURSTD_HS_READ_COMMITTED	0x00004000u
+#define	WT_CURSTD_IGNORE_TOMBSTONE	0x00008000u
+#define	WT_CURSTD_JOINED		0x00010000u
+#define	WT_CURSTD_KEY_EXT		0x00020000u /* Key points out of tree. */
+#define	WT_CURSTD_KEY_INT		0x00040000u /* Key points into tree. */
+#define	WT_CURSTD_KEY_ONLY		0x00080000u
+#define	WT_CURSTD_META_INUSE		0x00100000u
+#define	WT_CURSTD_OPEN			0x00200000u
+#define	WT_CURSTD_OVERWRITE		0x00400000u
+#define	WT_CURSTD_PREFIX_SEARCH		0x00800000u
+#define	WT_CURSTD_RAW			0x01000000u
+#define	WT_CURSTD_RAW_SEARCH		0x02000000u
+#define	WT_CURSTD_VALUE_EXT		0x04000000u /* Value points out of tree. */
+#define	WT_CURSTD_VALUE_INT		0x08000000u /* Value points into tree. */
+#define WT_CURSTD_VERSION_CURSOR	0x10000000u /* Version cursor. */
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 #define	WT_CURSTD_KEY_SET	(WT_CURSTD_KEY_EXT | WT_CURSTD_KEY_INT)
 #define	WT_CURSTD_VALUE_SET	(WT_CURSTD_VALUE_EXT | WT_CURSTD_VALUE_INT)
@@ -918,10 +923,13 @@ struct __wt_session {
 	 * The cursor does not support data modification., a string; default empty.}
 	 * @config{debug = (, configure debug specific behavior on a cursor.  Generally only used
 	 * for internal testing purposes., a set of related configuration options defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;release_evict, Configure the cursor to evict the page
-	 * positioned on when the reset API is used., a boolean flag; default \c false.}
-	 * @config{
-	 * ),,}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;dump_version, open a version cursor\, which is a debug
+	 * cursor on a table that enables iteration through the history of values for a given key.,
+	 * a boolean flag; default \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;release_evict,
+	 * Configure the cursor to evict the page positioned on when the reset API is used., a
+	 * boolean flag; default \c false.}
+	 * @config{ ),,}
 	 * @config{dump, configure the cursor for dump format inputs and outputs: "hex" selects a
 	 * simple hexadecimal format\, "json" selects a JSON format with each record formatted as
 	 * fields named by column names if available\, "pretty" selects a human-readable format
@@ -1035,6 +1043,16 @@ struct __wt_session {
 	 * "sequential"; default \c none.}
 	 * @config{app_metadata, application-owned metadata for this object., a string; default
 	 * empty.}
+	 * @config{assert = (, enable enhanced checking., a set of related configuration options
+	 * defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read_timestamp, verify that timestamps
+	 * should \c always or \c never be used on reads with this table.  Verification should be
+	 * set to \c none if mixed read use is allowed., a string\, chosen from the following
+	 * options: \c "always"\, \c "never"\, \c "none"; default \c none.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;write_timestamp, verify that commit timestamps are used
+	 * per the configured \c write_timestamp_usage option for this table., a string\, chosen
+	 * from the following options: \c "off"\, \c "on"; default \c off.}
+	 * @config{ ),,}
 	 * @config{cache_resident, do not ever evict the object's pages from cache.  Not compatible
 	 * with LSM tables; see @ref tuning_cache_resident for more information., a boolean flag;
 	 * default \c false.}
@@ -1053,8 +1071,9 @@ struct __wt_session {
 	 * 0.}
 	 * @config{readonly, the file is read-only.  All methods that may modify a file are
 	 * disabled.  See @ref readonly for more information., a boolean flag; default \c false.}
-	 * @config{verbose, enable messages for various events.  Options are given as a list\, such
-	 * as <code>"verbose=[write_timestamp]"</code>., a list\, with values chosen from the
+	 * @config{verbose, enable messages for various events.  The choices are \c write_timestamp
+	 * which adds verbose messages as described by \c write_timestamp_usage.  Options are given
+	 * as a list\, such as \c "verbose=[write_timestamp]"., a list\, with values chosen from the
 	 * following options: \c "write_timestamp"; default \c [].}
 	 * @config{write_timestamp_usage, describe how timestamps are expected to be used on
 	 * modifications to the table.  This option should be used in conjunction with the
@@ -1101,6 +1120,16 @@ struct __wt_session {
 	 * an integer between 512B and 128MB; default \c 4KB.}
 	 * @config{app_metadata, application-owned metadata for this object., a string; default
 	 * empty.}
+	 * @config{assert = (, enable enhanced checking., a set of related configuration options
+	 * defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read_timestamp, verify that timestamps
+	 * should \c always or \c never be used on reads with this table.  Verification should be
+	 * set to \c none if mixed read use is allowed., a string\, chosen from the following
+	 * options: \c "always"\, \c "never"\, \c "none"; default \c none.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;write_timestamp, verify that commit timestamps are used
+	 * per the configured \c write_timestamp_usage option for this table., a string\, chosen
+	 * from the following options: \c "off"\, \c "on"; default \c off.}
+	 * @config{ ),,}
 	 * @config{block_allocation, configure block allocation.  Permitted values are \c "best" or
 	 * \c "first"; the \c "best" configuration uses a best-fit algorithm\, the \c "first"
 	 * configuration uses a first-available algorithm during block allocation., a string\,
@@ -1328,8 +1357,9 @@ struct __wt_session {
 	 * applications use a WT_ITEM structure to manipulate raw byte arrays.  Value items of type
 	 * 't' are bitfields\, and when configured with record number type keys\, will be stored
 	 * using a fixed-length store., a format string; default \c u.}
-	 * @config{verbose, enable messages for various events.  Options are given as a list\, such
-	 * as <code>"verbose=[write_timestamp]"</code>., a list\, with values chosen from the
+	 * @config{verbose, enable messages for various events.  The choices are \c write_timestamp
+	 * which adds verbose messages as described by \c write_timestamp_usage.  Options are given
+	 * as a list\, such as \c "verbose=[write_timestamp]"., a list\, with values chosen from the
 	 * following options: \c "write_timestamp"; default \c [].}
 	 * @config{write_timestamp_usage, describe how timestamps are expected to be used on
 	 * modifications to the table.  This option should be used in conjunction with the
@@ -2101,8 +2131,8 @@ struct __wt_connection {
 	 * @config{debug_mode = (, control the settings of various extended debugging features., a
 	 * set of related configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-	 * checkpoint_retention, adjust log archiving to retain the log records of this number of
-	 * checkpoints.  Zero or one means perform normal archiving., an integer between 0 and 1024;
+	 * checkpoint_retention, adjust log removal to retain the log records of this number of
+	 * checkpoints.  Zero or one means perform normal removal., an integer between 0 and 1024;
 	 * default \c 0.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true\, dump the core
 	 * in the diagnostic mode on encountering the data corruption., a boolean flag; default \c
@@ -2116,7 +2146,7 @@ struct __wt_connection {
 	 * not limited to not skewing newest\, not favoring leaf pages\, and modifying the eviction
 	 * score mechanism., a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-	 * log_retention, adjust log archiving to retain at least this number of log files\, ignored
+	 * log_retention, adjust log removal to retain at least this number of log files\, ignored
 	 * if set to 0. (Warning: this option can remove log files required for recovery if no
 	 * checkpoints have yet been done and the number of log files exceeds the configured value.
 	 * As WiredTiger cannot detect the difference between a system that has not yet checkpointed
@@ -2226,17 +2256,17 @@ struct __wt_connection {
 	 * with values chosen from the following options: \c "error"\, \c "message"; default \c [].}
 	 * @config{log = (, enable logging.  Enabling logging uses three sessions from the
 	 * configured session_max., a set of related configuration options defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;archive, automatically archive unneeded log files., a
-	 * boolean flag; default \c true.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct,
-	 * maximum dirty system buffer cache usage\, as a percentage of the log's \c file_max.  If
-	 * non-zero\, schedule writes for dirty blocks belonging to the log in the system buffer
-	 * cache after that percentage of the log has been written into the buffer cache without an
-	 * intervening file sync., an integer between 0 and 100; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc, pre-allocate log files., a boolean flag;
-	 * default \c true.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write zeroes into
-	 * log files., a boolean flag; default \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system buffer cache
+	 * usage\, as a percentage of the log's \c file_max.  If non-zero\, schedule writes for
+	 * dirty blocks belonging to the log in the system buffer cache after that percentage of the
+	 * log has been written into the buffer cache without an intervening file sync., an integer
+	 * between 0 and 100; default \c 0.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc, pre-allocate
+	 * log files., a boolean flag; default \c true.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;remove,
+	 * automatically remove unneeded log files., a boolean flag; default \c true.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write zeroes into log files., a
+	 * boolean flag; default \c false.}
 	 * @config{ ),,}
 	 * @config{lsm_manager = (, configure database wide options for LSM tree management.  The
 	 * LSM manager is started automatically the first time an LSM tree is opened.  The LSM
@@ -2249,12 +2279,12 @@ struct __wt_connection {
 	 * database.  Each worker thread uses a session handle from the configured session_max., an
 	 * integer between 3 and 20; default \c 4.}
 	 * @config{ ),,}
-	 * @config{operation_timeout_ms, when non-zero\, a requested limit on the number of elapsed
+	 * @config{operation_timeout_ms, if non-zero\, a requested limit on the number of elapsed
 	 * real time milliseconds application threads will take to complete database operations.
 	 * Time is measured from the start of each WiredTiger API call.  There is no guarantee any
 	 * operation will not take longer than this amount of time.  If WiredTiger notices the limit
-	 * has been exceeded\, an operation may return a WT_ROLLBACK error.  Default is to have no
-	 * limit., an integer greater than or equal to 1; default \c 0.}
+	 * has been exceeded\, an operation may return a WT_ROLLBACK error.  The default of 0 is to
+	 * have no limit., an integer greater than or equal to 0; default \c 0.}
 	 * @config{operation_tracking = (, enable tracking of performance-critical functions.  See
 	 * @ref operation_tracking for more information., a set of related configuration options
 	 * defined below.}
@@ -2467,7 +2497,7 @@ struct __wt_connection {
 	/*!
 	 * Set a global transaction timestamp.
 	 *
-	 * @snippet ex_all.c set commit timestamp
+	 * @snippet ex_all.c set durable timestamp
 	 *
 	 * @snippet ex_all.c set oldest timestamp
 	 *
@@ -2475,13 +2505,6 @@ struct __wt_connection {
 	 *
 	 * @param connection the connection handle
 	 * @configstart{WT_CONNECTION.set_timestamp, see dist/api_data.py}
-	 * @config{commit_timestamp, (deprecated) reset the maximum commit timestamp tracked by
-	 * WiredTiger.  This will cause future calls to WT_CONNECTION::query_timestamp to ignore
-	 * commit timestamps greater than the specified value until the next commit moves the
-	 * tracked commit timestamp forwards.  This is only intended for use where the application
-	 * is rolling back locally committed transactions.  The supplied value must not be older
-	 * than the current oldest and stable timestamps.  See @ref transaction_timestamps., a
-	 * string; default empty.}
 	 * @config{durable_timestamp, reset the maximum durable timestamp tracked by WiredTiger.
 	 * This will cause future calls to WT_CONNECTION::query_timestamp to ignore durable
 	 * timestamps greater than the specified value until the next durable timestamp moves the
@@ -2775,7 +2798,10 @@ struct __wt_connection {
  * @config{ ),,}
  * @config{buffer_alignment, in-memory alignment (in bytes) for buffers used for I/O. The default
  * value of -1 indicates a platform-specific alignment value should be used (4KB on Linux systems
- * when direct I/O is configured\, zero elsewhere)., an integer between -1 and 1MB; default \c -1.}
+ * when direct I/O is configured\, zero elsewhere). If the configured alignment is larger than
+ * default or configured object page sizes\, file allocation and page sizes are silently increased
+ * to the buffer alignment size.  Requires the \c posix_memalign API. See @ref
+ * tuning_system_buffer_cache_direct_io., an integer between -1 and 1MB; default \c -1.}
  * @config{builtin_extension_config, A structure where the keys are the names of builtin extensions
  * and the values are passed to WT_CONNECTION::load_extension as the \c config parameter (for
  * example\, <code>builtin_extension_config={zlib={compression_level=3}}</code>)., a string; default
@@ -2832,11 +2858,10 @@ struct __wt_connection {
  * @config{debug_mode = (, control the settings of various extended debugging features., a set of
  * related configuration options defined below.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * checkpoint_retention, adjust log archiving to retain the log records of this number of
- * checkpoints.  Zero or one means perform normal archiving., an integer between 0 and 1024; default
- * \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true\, dump the core in the
- * diagnostic mode on encountering the data corruption., a boolean flag; default \c true.}
+ * checkpoint_retention, adjust log removal to retain the log records of this number of checkpoints.
+ * Zero or one means perform normal removal., an integer between 0 and 1024; default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true\, dump the core in the diagnostic mode
+ * on encountering the data corruption., a boolean flag; default \c true.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;cursor_copy, if true\, use the system allocator to make a copy of
  * any data returned by a cursor operation and return the copy instead.  The copy is freed on the
  * next cursor operation.  This allows memory sanitizers to detect inappropriate references to
@@ -2845,39 +2870,36 @@ struct __wt_connection {
  * eviction, if true\, modify internal algorithms to change skew to force history store eviction to
  * happen more aggressively.  This includes but is not limited to not skewing newest\, not favoring
  * leaf pages\, and modifying the eviction score mechanism., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;log_retention, adjust log archiving to retain at least this
- * number of log files\, ignored if set to 0. (Warning: this option can remove log files required
- * for recovery if no checkpoints have yet been done and the number of log files exceeds the
- * configured value.  As WiredTiger cannot detect the difference between a system that has not yet
- * checkpointed and one that will never checkpoint\, it might discard log files before any
- * checkpoint is done.)., an integer between 0 and 1024; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;realloc_exact, if true\, reallocation of memory will only provide
- * the exact amount requested.  This will help with spotting memory allocation issues more easily.,
- * a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;rollback_error, return a
- * WT_ROLLBACK error from a transaction operation about every Nth operation to simulate a
- * collision., an integer between 0 and 10M; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * slow_checkpoint, if true\, slow down checkpoint creation by slowing down internal page
- * processing., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;table_logging, if
- * true\, write transaction related information to the log for all operations\, even operations for
- * tables with logging turned off.  This setting introduces a log format change that may break older
- * versions of WiredTiger.  These operations are informational and skipped in recovery., a boolean
- * flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;update_restore_evict, if true\, control
- * all dirty page evictions through forcing update restore eviction., a boolean flag; default \c
- * false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;log_retention, adjust log removal to retain at least this number
+ * of log files\, ignored if set to 0. (Warning: this option can remove log files required for
+ * recovery if no checkpoints have yet been done and the number of log files exceeds the configured
+ * value.  As WiredTiger cannot detect the difference between a system that has not yet checkpointed
+ * and one that will never checkpoint\, it might discard log files before any checkpoint is done.).,
+ * an integer between 0 and 1024; default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;realloc_exact, if
+ * true\, reallocation of memory will only provide the exact amount requested.  This will help with
+ * spotting memory allocation issues more easily., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;rollback_error, return a WT_ROLLBACK error from a transaction
+ * operation about every Nth operation to simulate a collision., an integer between 0 and 10M;
+ * default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;slow_checkpoint, if true\, slow down checkpoint
+ * creation by slowing down internal page processing., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;table_logging, if true\, write transaction related information to
+ * the log for all operations\, even operations for tables with logging turned off.  This setting
+ * introduces a log format change that may break older versions of WiredTiger.  These operations are
+ * informational and skipped in recovery., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;update_restore_evict, if true\, control all dirty page evictions
+ * through forcing update restore eviction., a boolean flag; default \c false.}
  * @config{ ),,}
  * @config{direct_io, Use \c O_DIRECT on POSIX systems\, and \c FILE_FLAG_NO_BUFFERING on Windows to
  * access files.  Options are given as a list\, such as <code>"direct_io=[data]"</code>. Configuring
  * \c direct_io requires care\, see @ref tuning_system_buffer_cache_direct_io for important
- * warnings.  Including \c "data" will cause WiredTiger data files to use direct I/O\, including \c
- * "log" will cause WiredTiger log files to use direct I/O\, and including \c "checkpoint" will
- * cause WiredTiger data files opened at a checkpoint (i.e: read-only) to use direct I/O. \c
- * direct_io should be combined with \c write_through to get the equivalent of \c O_DIRECT on
- * Windows., a list\, with values chosen from the following options: \c "checkpoint"\, \c "data"\,
- * \c "log"; default empty.}
+ * warnings.  Including \c "data" will cause WiredTiger data files\, including WiredTiger internal
+ * data files\, to use direct I/O; including \c "log" will cause WiredTiger log files to use direct
+ * I/O; including \c "checkpoint" will cause WiredTiger data files opened using a (read-only)
+ * checkpoint cursor to use direct I/O. \c direct_io should be combined with \c write_through to get
+ * the equivalent of \c O_DIRECT on Windows., a list\, with values chosen from the following
+ * options: \c "checkpoint"\, \c "data"\, \c "log"; default empty.}
  * @config{encryption = (, configure an encryptor for system wide metadata and logs.  If a system
  * wide encryptor is set\, it is also used for encrypting data files and tables\, unless encryption
  * configuration is explicitly set for them when they are created with WT_SESSION::create., a set of
@@ -3009,10 +3031,8 @@ struct __wt_connection {
  * the following options: \c "error"\, \c "message"; default \c [].}
  * @config{log = (, enable logging.  Enabling logging uses three sessions from the configured
  * session_max., a set of related configuration options defined below.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;archive, automatically archive unneeded log files., a boolean
- * flag; default \c true.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;compressor, configure a compressor for
- * log records.  Permitted values are \c "none" or custom compression engine name created with
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;compressor, configure a compressor for log records.  Permitted
+ * values are \c "none" or custom compression engine name created with
  * WT_CONNECTION::add_compressor.  If WiredTiger has builtin support for \c "lz4"\, \c "snappy"\, \c
  * "zlib" or \c "zstd" compression\, these names are also available.  See @ref compression for more
  * information., a string; default \c none.}
@@ -3032,8 +3052,10 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;recover, run recovery or error if recovery needs to run
  * after an unclean shutdown., a string\, chosen from the following options: \c "error"\, \c "on";
  * default \c on.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write zeroes into log files.,
- * a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;remove, automatically remove unneeded log files.,
+ * a boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write
+ * zeroes into log files., a boolean flag; default \c false.}
  * @config{ ),,}
  * @config{lsm_manager = (, configure database wide options for LSM tree management.  The LSM
  * manager is started automatically the first time an LSM tree is opened.  The LSM manager uses a
@@ -3051,12 +3073,12 @@ struct __wt_connection {
  * @config{multiprocess, permit sharing between processes (will automatically start an RPC server
  * for primary processes and use RPC for secondary processes). <b>Not yet supported in
  * WiredTiger</b>., a boolean flag; default \c false.}
- * @config{operation_timeout_ms, when non-zero\, a requested limit on the number of elapsed real
- * time milliseconds application threads will take to complete database operations.  Time is
- * measured from the start of each WiredTiger API call.  There is no guarantee any operation will
- * not take longer than this amount of time.  If WiredTiger notices the limit has been exceeded\, an
- * operation may return a WT_ROLLBACK error.  Default is to have no limit., an integer greater than
- * or equal to 1; default \c 0.}
+ * @config{operation_timeout_ms, if non-zero\, a requested limit on the number of elapsed real time
+ * milliseconds application threads will take to complete database operations.  Time is measured
+ * from the start of each WiredTiger API call.  There is no guarantee any operation will not take
+ * longer than this amount of time.  If WiredTiger notices the limit has been exceeded\, an
+ * operation may return a WT_ROLLBACK error.  The default of 0 is to have no limit., an integer
+ * greater than or equal to 0; default \c 0.}
  * @config{operation_tracking = (, enable tracking of performance-critical functions.  See @ref
  * operation_tracking for more information., a set of related configuration options defined below.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable operation tracking subsystem., a boolean flag;
@@ -3803,10 +3825,9 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
 #define	WT_CACHE_FULL	(-31807)
 /*!
  * Conflict with a prepared update.
- * This error is generated when the application attempts to update an already
- * updated record which is in prepared state. An updated record will be in
- * prepared state, when the transaction that performed the update is in prepared
- * state.
+ * This error is generated when the application attempts to read an updated
+ * record which is part of a transaction that has been prepared but not yet
+ * resolved.
  */
 #define	WT_PREPARE_CONFLICT	(-31808)
 /*!
@@ -5830,8 +5851,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_LOCK_TXN_GLOBAL_WRITE_COUNT	1289
 /*! log: busy returns attempting to switch slots */
 #define	WT_STAT_CONN_LOG_SLOT_SWITCH_BUSY		1290
-/*! log: force archive time sleeping (usecs) */
-#define	WT_STAT_CONN_LOG_FORCE_ARCHIVE_SLEEP		1291
+/*! log: force log remove time sleeping (usecs) */
+#define	WT_STAT_CONN_LOG_FORCE_REMOVE_SLEEP		1291
 /*! log: log bytes of payload data */
 #define	WT_STAT_CONN_LOG_BYTES_PAYLOAD			1292
 /*! log: log bytes written */

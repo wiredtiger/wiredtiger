@@ -476,7 +476,7 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
     case WT_TXN_LOG_CKPT_PREPARE:
         txn->full_ckpt = true;
 
-        if (conn->compat_major >= WT_LOG_V2_MAJOR) {
+        if (__wt_version_gte(conn->compat_version, WT_LOG_V2_VERSION)) {
             /*
              * Write the system log record containing a checkpoint start operation.
              */
@@ -551,9 +551,9 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
         /*
          * If this full checkpoint completed successfully and there is no hot backup in progress and
          * this is not an unclean recovery, tell the logging subsystem the checkpoint LSN so that it
-         * can archive. Do not update the logging checkpoint LSN if this is during a clean
+         * can remove log files. Do not update the logging checkpoint LSN if this is during a clean
          * connection close, only during a full checkpoint. A clean close may not update any
-         * metadata LSN and we do not want to archive in that case.
+         * metadata LSN and we do not want to remove log files in that case.
          */
         if (conn->hot_backup_start == 0 &&
           (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY) ||

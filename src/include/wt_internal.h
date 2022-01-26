@@ -179,6 +179,8 @@ struct __wt_cursor_stat;
 typedef struct __wt_cursor_stat WT_CURSOR_STAT;
 struct __wt_cursor_table;
 typedef struct __wt_cursor_table WT_CURSOR_TABLE;
+struct __wt_cursor_version;
+typedef struct __wt_cursor_version WT_CURSOR_VERSION;
 struct __wt_data_handle;
 typedef struct __wt_data_handle WT_DATA_HANDLE;
 struct __wt_data_handle_cache;
@@ -361,6 +363,8 @@ struct __wt_update_vector;
 typedef struct __wt_update_vector WT_UPDATE_VECTOR;
 struct __wt_verbose_multi_category;
 typedef struct __wt_verbose_multi_category WT_VERBOSE_MULTI_CATEGORY;
+struct __wt_version;
+typedef struct __wt_version WT_VERSION;
 union __wt_lsn;
 typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
@@ -438,6 +442,7 @@ typedef uint64_t wt_timestamp_t;
 #include "verbose.h"
 
 #include "session.h" /* required by connection.h */
+#include "version.h" /* required by connection.h */
 #include "connection.h"
 
 #include "extern.h"

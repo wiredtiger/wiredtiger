@@ -42,8 +42,8 @@ static char home_rd2[HOME_SIZE + sizeof(HOME_RD2_SUFFIX)];
 static const char *saved_argv0; /* Program command */
 static const char *const uri = "table:main";
 
-#define ENV_CONFIG                                     \
-    "create,log=(file_max=10M,archive=false,enabled)," \
+#define ENV_CONFIG                                    \
+    "create,log=(enabled,file_max=10M,remove=false)," \
     "operation_tracking=(enabled=false),transaction_sync=(enabled,method=none)"
 #define ENV_CONFIG_RD "operation_tracking=(enabled=false),readonly=true"
 #define ENV_CONFIG_WR "operation_tracking=(enabled=false),readonly=false"
@@ -57,6 +57,7 @@ static const char *const uri = "table:main";
 #define OP_WRITE 1
 
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
 /*
  * usage --
  *     TODO: Add a comment describing this function.
@@ -117,14 +118,12 @@ run_child(const char *homedir, int op, int expect)
     return (0);
 }
 
-/*
- * Child process opens both databases readonly.
- */
 static void open_dbs(int, const char *, const char *, const char *, const char *)
   WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
 /*
  * open_dbs --
- *     TODO: Add a comment describing this function.
+ *     Child process opens both databases readonly.
  */
 static void
 open_dbs(int op, const char *dir, const char *dir_wr, const char *dir_rd, const char *dir_rd2)

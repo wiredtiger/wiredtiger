@@ -107,7 +107,17 @@ else()
         -Wno-incompatible-pointer-types
         -Wno-int-conversion
         -Wno-sign-conversion
+        -Wno-missing-prototypes
+        -Wno-missing-declarations
+        -Wno-shadow
+        -Wno-pointer-sign
+        -Wno-declaration-after-statement
+        -Wno-unused-variable
+        -Wno-missing-field-initializers
     )
+    if(${CMAKE_C_COMPILER_VERSION} VERSION_GREATER_EQUAL 8)
+        list(APPEND swig_c_flags -Wno-cast-function-type)
+    endif()
 endif()
 list(APPEND swig_c_flags -I${CMAKE_SOURCE_DIR})
 list(APPEND swig_c_flags -I${CMAKE_BINARY_DIR}/config)
