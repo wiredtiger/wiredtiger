@@ -83,7 +83,7 @@ err:
 
 /*
  * __wt_block_close --
- *     Destroy a block handle.
+ *     Close a block handle.
  */
 int
 __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
