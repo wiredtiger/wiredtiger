@@ -46,12 +46,13 @@ include(cmake/configs/auto.cmake)
 include(cmake/configs/base.cmake)
 
 # Import our third party library definitions.
+include(cmake/third_party/aws_sdk.cmake)
 include(cmake/third_party/gperftools.cmake)
 include(cmake/third_party/lz4.cmake)
-include(cmake/third_party/zstd.cmake)
 include(cmake/third_party/snappy.cmake)
-include(cmake/third_party/zlib.cmake)
 include(cmake/third_party/sodium.cmake)
+include(cmake/third_party/zlib.cmake)
+include(cmake/third_party/zstd.cmake)
 
 if(NOT ENABLE_SHARED AND NOT ENABLE_STATIC)
     message(FATAL_ERROR "Both ENABLE_SHARED & ENABLE_STATIC are disabled. Need to enable at least one build flavour.")
@@ -73,6 +74,9 @@ if(ENABLE_STRICT)
         include(cmake/strict/clxx_strict.cmake)
     endif()
 endif()
+
+# Enable CTest. Subsequent targets may additionally define their own ctest definitions.
+enable_testing()
 
 # Include the extensions to the build.
 add_subdirectory(ext)
@@ -184,8 +188,6 @@ add_subdirectory(src/utilities)
 # Establish our install target configuration.
 include(cmake/install/install.cmake)
 
-# Enable CTest. Subsequent targets may additionally define their own ctest definitions.
-enable_testing()
 
 if(ENABLE_PYTHON)
     add_subdirectory(lang/python)
