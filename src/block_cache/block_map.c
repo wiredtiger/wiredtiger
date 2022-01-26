@@ -94,13 +94,7 @@ __wt_blkcache_map_read(
 
     bm = S2BT(session)->bm;
 
-    /*
-     * FIXME WT-7872: The WT_BLOCK.map test is wrong; tiered storage assumes object IDs translate to
-     * WT_FH structures, not WT_BLOCK structures. When we check if the WT_BLOCK handle references a
-     * mapped object, that's not going to work as we might be about to switch to a different WT_FH
-     * handle which may or may not reference a mapped object.
-     */
-    if (!bm->map)
+    if (!bm->map) /* FIXME WT-8728. */
         return (0);
 
     block = bm->block;
