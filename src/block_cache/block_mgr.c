@@ -184,7 +184,7 @@ __bm_checkpoint_unload(WT_BM *bm, WT_SESSION_IMPL *session)
 
 /*
  * __bm_close_block_remove --
- *     Remove a single block.
+ *     Remove a single block handle.
  */
 static int
 __bm_close_block_remove(WT_SESSION_IMPL *session, WT_BLOCK *block)
@@ -205,7 +205,7 @@ __bm_close_block_remove(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
 /*
  * __bm_close_block --
- *     Close a single block, removing the block if it's no longer useful.
+ *     Close a single block handle, removing the handle if it's no longer useful.
  */
 static int
 __bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
