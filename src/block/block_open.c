@@ -144,7 +144,8 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    uint32_t bucket, flags, hash;
+    uint64_t bucket, hash;
+    uint32_t flags;
 
     *blockp = NULL;
 
