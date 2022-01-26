@@ -103,6 +103,8 @@ struct __wt_tiered_tiers {
     uint32_t flags; /* Flags including operations */
 };
 
+#define WT_TIERED_OBJECTID_NONE 0
+
 /*
  * WT_TIERED --
  *	Handle for a tiered data source. This data structure is used as the basis for metadata

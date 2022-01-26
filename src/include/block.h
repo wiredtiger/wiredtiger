@@ -16,8 +16,7 @@
  */
 #define WT_BLOCK_INVALID_OFFSET 0
 
-#define WT_BLOCK_OBJECTID_NONE 0 /* Local objects */
-#define WT_BLOCK_ISLOCAL(block) ((block)->objectid == WT_BLOCK_OBJECTID_NONE)
+#define WT_BLOCK_ISLOCAL(block) ((block)->objectid == WT_TIERED_OBJECTID_NONE)
 
 /*
  * The block manager maintains three per-checkpoint extent lists:

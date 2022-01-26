@@ -800,7 +800,7 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
 
     if (WT_PREFIX_MATCH(uri, "file:")) {
         uri += strlen("file:");
-        WT_ERR(__wt_block_open(session, uri, WT_BLOCK_OBJECTID_NONE, cfg, forced_salvage, readonly,
+        WT_ERR(__wt_block_open(session, uri, WT_TIERED_OBJECTID_NONE, cfg, forced_salvage, readonly,
           false, allocsize, &bm->block));
     } else
         WT_ERR(__wt_blkcache_tiered_open(session, uri, 0, &bm->block));
