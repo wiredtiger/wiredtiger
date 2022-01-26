@@ -564,10 +564,7 @@ __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid, uint3
 {
     WT_BLOCK *block;
 
-    /* KEITH: This isn't right, what if the new block item has different methods? */
     block = bm->block;
-    if (block->objectid == objectid) /* KEITH: Why are we here and not switching object IDs? */
-        return (0);
 
     /* Close out our current handle. */
     WT_RET(__bm_close_block(session, block));
@@ -592,6 +589,11 @@ __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid, uint3
      */
     WT_RET(__wt_block_ckpt_init(session, &block->live, "live"));
 
+    /*
+     * This isn't right: the new block handle will reasonably have different methods for objects in
+     * different backing sources. That's not the case today, but the current architecture lacks the
+     * ability to support multiple sources cleanly.
+     */
     bm->block = block;
     return (0);
 }

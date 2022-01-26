@@ -127,13 +127,7 @@ __wt_blkcache_get_handle(
           session, &orig->related_allocated, orig->related_next + 1, &orig->related));
     }
 
-    /*
-     * Get a reference to the object, opening it as necessary.
-     *
-     * KEITH XXX: could we search the list of block structures without doing the name mapping the
-     * tiered-open function implies? If so, that would be faster. I'm pretty sure the answer is
-     * "no", but I don't know that for a fact.
-     */
+    /* Get a reference to the object, opening it as necessary. */
     WT_RET(__wt_blkcache_tiered_open(session, NULL, objectid, blockp));
 
     /* Save a reference in the block in which we started for fast subsequent access. */
