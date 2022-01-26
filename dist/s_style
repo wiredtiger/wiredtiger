@@ -17,7 +17,7 @@ if [ $# -ne 1 ]; then
 	cd ..
 
 	find bench examples ext src test \
-	    -name '*.[chsy]' -o -name '*.in' -o -name '*.dox' |
+	    -name '*.[chsy]' -o -name '*.in' -o -name '*.dox' -o -name '*.cxx' -o -name '*.py' -o -name '*.cmake' -o -name '*.i' |
 	sed -e '/Makefile.in/d' \
 	    -e '/build_win\/wiredtiger_config.h/d' \
 	    -e '/checksum\/power8/d' \
@@ -46,6 +46,19 @@ else
 		if egrep -r -n '\b[a-z]+[A-Z]' $f | egrep -v ':[     ]+\*|"|UNCHECKED_STRING'; then
 			echo "$f: Styling requires variables that use underscores to separate parts of a name instead of camel casing.";
 		fi
+	fi
+
+	tr -cd '[:alnum:][:space:][:punct:]' < $f |
+	sed -e '/for /!s/;;$/;/' \
+	    -e 's/(EOPNOTSUPP)/(ENOTSUP)/' \
+	    -e 's/(unsigned)/(u_int)/' \
+	    -e 's/hazard reference/hazard pointer/' >$t
+
+	cmp $t $f > /dev/null 2>&1 || (echo "modifying $f" && cp $t $f)
+
+	extension="${fname##*.}"
+	if [ "x$extension" = "xcxx" ] || [ "x$extension" = "xpy" ] || [ "x$extension" = "xcmake" ] || [ "x$extension" = "xi" ]; then
+		exit 0;
 	fi
 
 	egrep -w 'a a|an an|and and|are are|be be|by by|for for|from from|if if|in in[^-]|is is|it it|of of|the the|this this|to to|was was|were were|when when|with with|a an|an a|a the|the a' $f > $t
@@ -198,14 +211,6 @@ else
 			}
 		fi
 	fi
-
-	tr -cd '[:alnum:][:space:][:punct:]' < $f |
-	sed -e '/for /!s/;;$/;/' \
-	    -e 's/(EOPNOTSUPP)/(ENOTSUP)/' \
-	    -e 's/(unsigned)/(u_int)/' \
-	    -e 's/hazard reference/hazard pointer/' >$t
-
-	cmp $t $f > /dev/null 2>&1 || (echo "modifying $f" && cp $t $f)
 fi
 
 exit 0
