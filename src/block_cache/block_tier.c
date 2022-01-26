@@ -45,17 +45,17 @@ __wt_blkcache_tiered_open(
     if (uri != NULL)
         objectid = tiered->current_id;
     if (objectid == tiered->current_id) {
+        local_only = true;
         object_uri = tiered->tiers[WT_TIERED_INDEX_LOCAL].name;
         object_name = object_uri;
         WT_PREFIX_SKIP_REQUIRED(session, object_name, "file:");
-        local_only = true;
         readonly = false;
     } else {
+        local_only = false;
         WT_ERR(
           __wt_tiered_name(session, &tiered->iface, objectid, WT_TIERED_NAME_OBJECT, &object_uri));
         object_name = object_uri;
         WT_PREFIX_SKIP_REQUIRED(session, object_name, "object:");
-        local_only = false;
         readonly = true;
     }
 
