@@ -216,7 +216,7 @@ __bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     conn = S2C(session);
 
-    /* You can't close  files during a checkpoint. */
+    /* You can't close files during a checkpoint. */
     WT_ASSERT(
       session, block->ckpt_state == WT_CKPT_NONE || block->ckpt_state == WT_CKPT_PANIC_ON_FAILURE);
 
