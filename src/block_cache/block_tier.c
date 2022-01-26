@@ -23,7 +23,7 @@ __wt_blkcache_tiered_open(
     WT_DECL_RET;
     WT_TIERED *tiered;
     const char *cfg[2], *object_name, *object_uri, *object_val;
-    bool local_only, readonly;
+    bool exist, local_only, readonly;
 
     *blockp = NULL;
 
@@ -57,18 +57,21 @@ __wt_blkcache_tiered_open(
         WT_PREFIX_SKIP_REQUIRED(session, object_name, "object:");
         local_only = false;
         readonly = true;
-
-        F_SET(session, WT_SESSION_QUIET_TIERED); /* KEITH XXX: use exists call instead */
     }
 
     /* Get the object's configuration. */
     WT_ERR(__wt_metadata_search(session, object_uri, (char **)&object_val));
     cfg[0] = object_val;
     cfg[1] = NULL;
-    ret = __wt_block_open(session, object_name, objectid, cfg, false, readonly, false, 0, &block);
-    F_CLR(session, WT_SESSION_QUIET_TIERED);
 
-    if (!local_only && ret != 0) {
+    /* Check if the object exists. */
+    exist = true;
+    if (!local_only)
+        WT_ERR(__wt_fs_exist(session, object_name, &exist));
+    if (exist)
+        WT_ERR(
+          __wt_block_open(session, object_name, objectid, cfg, false, readonly, false, 0, &block));
+    else {
         /* We expect a prefix. */
         WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.bucket_prefix", &pfx));
         WT_ASSERT(session, pfx.len != 0);
@@ -79,8 +82,8 @@ __wt_blkcache_tiered_open(
         bstorage = tiered->bstorage;
         WT_WITH_BUCKET_STORAGE(bstorage, session,
           ret = __wt_block_open(session, tmp->mem, objectid, cfg, false, true, true, 0, &block));
+        WT_ERR(ret);
     }
-    WT_ERR(ret);
 
     *blockp = block;
 
