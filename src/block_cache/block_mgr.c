@@ -191,8 +191,6 @@ __bm_close_block_remove(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
     u_int i;
 
-    __wt_verbose(session, WT_VERB_BLOCK, "close: %s", block->name);
-
     /* Discard any references we're holding. */
     for (i = 0; i < block->related_next; ++i) {
         --block->related[i]->ref;
@@ -213,6 +211,8 @@ __bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     bool found;
+
+    __wt_verbose(session, WT_VERB_BLKCACHE, "close: %s", block->name);
 
     conn = S2C(session);
 

@@ -94,7 +94,7 @@ __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     conn = S2C(session);
 
-    __wt_verbose(session, WT_VERB_BLOCK, "remove: %s", block->name == NULL ? "" : block->name);
+    __wt_verbose(session, WT_VERB_BLOCK, "close: %s", block->name == NULL ? "" : block->name);
 
     hash = __wt_hash_city64(block->name, strlen(block->name));
     bucket = hash & (conn->hash_size - 1);
@@ -148,6 +148,8 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     uint32_t flags;
 
     *blockp = NULL;
+
+    __wt_verbose(session, WT_VERB_BLOCK, "open: %s", filename);
 
     conn = S2C(session);
 
