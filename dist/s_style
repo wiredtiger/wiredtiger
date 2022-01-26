@@ -19,6 +19,7 @@ if [ $# -ne 1 ]; then
 	find bench examples ext src test \
 	    -name '*.[chsy]' -o -name '*.in' -o -name '*.dox' -o -name '*.cxx' -o -name '*.py' -o -name '*.cmake' -o -name '*.i' |
 	sed -e '/Makefile.in/d' \
+		-e '/test\/3rdparty/d' \
 	    -e '/build_win\/wiredtiger_config.h/d' \
 	    -e '/checksum\/power8/d' \
 	    -e '/checksum\/zseries/d' |
@@ -56,12 +57,7 @@ else
 
 	cmp $t $f > /dev/null 2>&1 || (echo "modifying $f" && cp $t $f)
 
-	extension="${fname##*.}"
-	if [ "x$extension" = "xcxx" ] || [ "x$extension" = "xpy" ] || [ "x$extension" = "xcmake" ] || [ "x$extension" = "xi" ]; then
-		exit 0;
-	fi
-
-	egrep -w 'a a|an an|and and|are are|be be|by by|for for|from from|if if|in in[^-]|is is|it it|of of|the the|this this|to to|was was|were were|when when|with with|a an|an a|a the|the a' $f > $t
+	egrep -w 'a a|an an|and and|are are|be be|by by|for for|from from|if if|in in[[:space:]]|is is|it it|of of|the the|this this|to to|was was|were were|when when|with with|a an|an a|a the|the a' $f > $t
 	test -s $t && {
 		echo "paired typo"
 		echo "============================"
@@ -140,6 +136,7 @@ else
 	fi
 
 	if ! expr "$f" : 'examples/c/*' > /dev/null &&
+	   ! expr "$f" : '.*cxx' > /dev/null &&
 	   ! expr "$f" : 'ext/*' > /dev/null &&
 	   ! expr "$f" : 'src/os_posix/os_snprintf.c' > /dev/null &&
 	    egrep '[^a-z_]snprintf\(|[^a-z_]vsnprintf\(' $f > $t; then
@@ -203,6 +200,7 @@ else
 	   ! expr "$f" : 'test/csuite/.*' > /dev/null &&
 	   ! expr "$f" : 'examples/.*' > /dev/null &&
 	   ! expr "$f" : 'ext/.*' > /dev/null &&
+	   ! expr "$f" : '.*py' > /dev/null &&
 	   ! expr "$f" : 'src/include/ctype.i' > /dev/null; then
 		if egrep '(#include.*["</]ctype.h[">]|\b(is(alnum|alpha|cntrl|digit|graph|lower|print|punct|space|upper|xdigit)|to(lower|toupper))\()' $f > $t; then
 			test -s $t && {
