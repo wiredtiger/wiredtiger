@@ -1,27 +1,44 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <vector>
 
 #define CATCH_CONFIG_RUNNER
 #include <catch2/catch.hpp>
 
-uint32_t factorial(uint32_t num) {
-    return num > 1 ? factorial(num - 1) * num : 1;
-}
+TEST_CASE("vectors can be sized and resized", "[vector]") {
+    std::vector<int> v(5);
 
-TEST_CASE("Factorials are computed", "[factorial]") {
-    REQUIRE(factorial(0) == 1);
-    REQUIRE(factorial(1) == 1);
-    REQUIRE(factorial(2) == 2);
-    REQUIRE(factorial(3) == 6);
-    REQUIRE(factorial(10) == 3628800);
+    REQUIRE(v.size() == 5);
+    REQUIRE(v.capacity() >= 5);
+
+    SECTION("resizing bigger changes size and capacity") {
+        v.resize(10);
+
+        REQUIRE(v.size() == 10);
+        REQUIRE(v.capacity() >= 10);
+    }
+    SECTION("resizing smaller changes size but not capacity") {
+        v.resize(0);
+
+        REQUIRE(v.size() == 0);
+        REQUIRE(v.capacity() >= 5);
+    }
+    SECTION( "reserving bigger changes capacity but not size") {
+        v.reserve(10);
+
+        REQUIRE(v.size() == 5);
+        REQUIRE(v.capacity() >= 10);
+    }
+    SECTION("reserving smaller does not change size or capacity") {
+        v.reserve(0);
+
+        REQUIRE(v.size() == 5);
+        REQUIRE(v.capacity() >= 5);
+    }
 }
 
 int main(int argc, char** argv) {
-    std::cout << "Hello, world!" << std::endl;
-
-    std::cout << "factorial(2)=" << factorial(2) << std::endl;
-
     int result = Catch::Session().run(argc, argv);
 
     return EXIT_SUCCESS;
