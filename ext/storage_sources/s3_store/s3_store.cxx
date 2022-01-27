@@ -122,6 +122,9 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
                 std::cout << std::endl;
             }
 
+            fs->conn->object_exists(first_bucket, "permanent_object.txt");
+            fs->conn->object_exists(first_bucket, "fake_object.txt");
+
             /* Put object. */
             fs->conn->put_object(first_bucket, "WiredTiger.turtle", "WiredTiger.turtle");
 

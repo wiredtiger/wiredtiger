@@ -2,6 +2,7 @@
 #include <aws/s3-crt/model/DeleteObjectRequest.h>
 #include <aws/s3-crt/model/ListObjectsRequest.h>
 #include <aws/s3-crt/model/PutObjectRequest.h>
+#include <aws/s3-crt/model/HeadObjectRequest.h>
 #include "aws_bucket_conn.h"
 
 #include <fstream>
@@ -99,6 +100,36 @@ aws_bucket_conn::delete_object(const std::string &bucket_name, const std::string
         return false;
     }
 }
+
+/*
+ * object_exists --
+ *     Checks to see whether an object with the given key exists in the S3 bucket.
+ *     Returns:
+ *     0 - The object exists in the bucket.
+ *     1 - The object does not exist in the bucket.
+ *     2 - An error has occurred. 
+ */
+int
+aws_bucket_conn::object_exists(const std:: string &bucket_name, const std::string &object_key) const
+{
+    Aws::S3Crt::Model::HeadObjectRequest request;
+    request.SetBucket(bucket_name);
+    request.SetKey(object_key);
+    
+    Aws::S3Crt::Model::HeadObjectOutcome outcome = m_s3_crt_client.HeadObject(request);
+    
+    if (outcome.IsSuccess()) {
+        return 0;
+    } else {
+        // std::cout << "Error in object_exists: " << outcome.GetError().GetMessage() << std::endl;
+        if (outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND){
+           // std::cout << "The object does not exist." << std::endl;
+            return 1;
+        }
+        return 2;
+    }
+}
+
 
 /*
  * aws_bucket_conn --

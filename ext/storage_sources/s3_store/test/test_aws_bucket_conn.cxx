@@ -1,4 +1,5 @@
 #include <aws_bucket_conn.h>
+#include <fstream>
 
 /* Default config settings for the S3CrtClient. */
 namespace test_defaults {
@@ -8,6 +9,7 @@ const uint64_t part_size = 8 * 1024 * 1024; /* 8 MB. */
 } // namespace test_defaults
 
 int test_list_buckets(const Aws::S3Crt::ClientConfiguration &config);
+int test_object_exists(const Aws::S3Crt::ClientConfiguration &config);
 
 /* Wrapper for unit test functions. */
 #define TEST(func, config, expected_output)              \
@@ -36,6 +38,52 @@ test_list_buckets(const Aws::S3Crt::ClientConfiguration &config)
 }
 
 /*
+ * test_object_exists --
+ *      Unit test to check if an object exists in an AWS bucket.
+ */
+int 
+test_object_exists(const Aws::S3Crt::ClientConfiguration &config)
+{
+    aws_bucket_conn conn(config);
+    std::vector<std::string> buckets;
+    if (!conn.list_buckets(buckets))
+        return 1;
+
+    const std::string bucket_name = buckets.at(0);
+    const std::string object_name = "test_object";
+    const std::string file_name = "test_object.txt";
+
+    std::ofstream File(file_name);
+    File << "Test payload";
+    File.close();
+
+    std::cout << "\n1. Checking if " << object_name << " exists in bucket " << bucket_name << std::endl;
+    int result = conn.object_exists(bucket_name, object_name);
+    
+    if (result != 1){
+        std::cout << "Failure: test_object already exists in the bucket" << std::endl;
+        return 1;
+    }
+
+    std::cout << "Success: " << object_name << " does not exist before put_object." << std::endl; 
+    std::cout << "2. Putting the test_object in the bucket" << std::endl;
+    conn.put_object(bucket_name, object_name, file_name);
+    result = conn.object_exists(bucket_name, object_name);
+
+    if (result != 0){
+        std::cout << "Failure: Test object does not exist after put_object." << std::endl;
+        return 1;
+    }
+    std::cout << "Success: " << object_name << " now exists in the bucket." << std::endl; 
+    std::cout << "Cleaning up test artefacts. Deleting test_object." << std::endl;
+    
+    conn.delete_object(bucket_name, object_name);
+
+    std::cout << "test_object_exists succeeded.\n" << std::endl;
+    return 0;
+}
+
+/*
  * main --
  *     Set up configs and call unit tests.
  */
@@ -54,6 +102,9 @@ main()
 
     int expected_output = 0;
     TEST(test_list_buckets, aws_config, expected_output);
+
+    int object_exists_expected_output = 0;
+    TEST(test_object_exists, aws_config, object_exists_expected_output);
 
     /* Shutdown the API at end of tests. */
     Aws::ShutdownAPI(options);
