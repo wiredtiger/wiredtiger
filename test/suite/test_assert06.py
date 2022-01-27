@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_assert06.py
-#   Timestamps: verify ordred setting for durable timestamps
+#   Timestamps: verify ordered setting for durable timestamps
 #
 
 from suite_subprocess import suite_subprocess
