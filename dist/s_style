@@ -19,7 +19,7 @@ if [ $# -ne 1 ]; then
 	find bench examples ext src test \
 	    -name '*.[chsy]' -o -name '*.in' -o -name '*.dox' -o -name '*.cxx' -o -name '*.py' -o -name '*.cmake' -o -name '*.i' |
 	sed -e '/Makefile.in/d' \
-		-e '/test\/3rdparty/d' \
+	    -e '/test\/3rdparty/d' \
 	    -e '/build_win\/wiredtiger_config.h/d' \
 	    -e '/checksum\/power8/d' \
 	    -e '/checksum\/zseries/d' |
@@ -49,6 +49,7 @@ else
 		fi
 	fi
 
+	# Remove non-ascii characters and substitute some expressions with accepted version.
 	tr -cd '[:alnum:][:space:][:punct:]' < $f |
 	sed -e '/for /!s/;;$/;/' \
 	    -e 's/(EOPNOTSUPP)/(ENOTSUP)/' \
