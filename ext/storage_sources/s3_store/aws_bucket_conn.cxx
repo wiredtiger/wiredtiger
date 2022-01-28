@@ -103,36 +103,29 @@ aws_bucket_conn::delete_object(const std::string &bucket_name, const std::string
 
 /*
  * object_exists --
- *     Checks to see whether an object with the given key exists in the S3 bucket.
- *     Returns:
- *     0 - The object exists in the bucket.
- *     ENOENT - The object does not exist in the bucket.
- *     1 - An error has occurred. 
+ *     Checks to see whether an object with the given key exists in the S3 bucket. Returns: 0 - The
+ *     object exists in the bucket. ENOENT - The object does not exist in the bucket. 1 - An error
+ *     has occurred.
  */
 int
-aws_bucket_conn::object_exists(const std:: string &bucket_name, const std::string &object_key) const
+aws_bucket_conn::object_exists(const std::string &bucket_name, const std::string &object_key) const
 {
     Aws::S3Crt::Model::HeadObjectRequest request;
     request.SetBucket(bucket_name);
     request.SetKey(object_key);
-    
     Aws::S3Crt::Model::HeadObjectOutcome outcome = m_s3_crt_client.HeadObject(request);
-    
-    if (outcome.IsSuccess()) {
+
+    if (outcome.IsSuccess())
         return 0;
-    } 
-    /* 
-     * If an object with the given key does not exist the request will return a 404.
+    /*
+     * If an object with the given key does not exist the HEAD request will return a 404.
      * https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html
      */
-    else if (outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND) {
+    else if (outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND)
         return ENOENT;
-    } 
-    else {
+    else
         return 1;
-    }
 }
-
 
 /*
  * aws_bucket_conn --

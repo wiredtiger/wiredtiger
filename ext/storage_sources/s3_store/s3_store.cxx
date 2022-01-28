@@ -39,14 +39,14 @@
 /* S3 storage source structure. */
 typedef struct {
     WT_STORAGE_SOURCE storage_source; /* Must come first */
-    WT_EXTENSION_API *wt_api;         /* Extension API */   
+    WT_EXTENSION_API *wt_api;         /* Extension API */
     uint64_t op_count;
 } S3_STORAGE;
 
 typedef struct {
     /* Must come first - this is the interface for the file system we are implementing. */
     WT_FILE_SYSTEM file_system;
-    char *cache_dir;      /* Directory for cached objects */
+    char *cache_dir; /* Directory for cached objects */
     S3_STORAGE *s3_storage;
     aws_bucket_conn *conn;
     const char *home_dir; /* Owned by the connection */
@@ -66,10 +66,12 @@ static int s3_customize_file_system(
 static int s3_add_reference(WT_STORAGE_SOURCE *);
 static int s3_fs_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 static int s3_get_directory(const char *home, const char *s, ssize_t len, bool create, char **copy);
-static int s3_stat(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, const char *caller, bool must_exist, struct stat *statp);
+static int s3_stat(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
+  const char *caller, bool must_exist, struct stat *statp);
 static int s3_cache_path(WT_FILE_SYSTEM *file_system, const char *name, char **pathp);
 static int s3_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, char **pathp);
-static int s3_exist(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, bool *existp);
+static int s3_exist(
+  WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, bool *existp);
 
 /*
  * s3_exist --
@@ -88,7 +90,7 @@ s3_exist(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, boo
 
     if ((ret = s3_stat(file_system, session, name, "ss_exist", false, &sb)) == 0)
         *existp = true;
-    else if (ret == ENOENT){
+    else if (ret == ENOENT) {
         ret = 0;
     }
     return (ret);
@@ -96,7 +98,7 @@ s3_exist(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, boo
 
 /*
  * s3_path --
- *     Construct a pathname from the file system and local name.
+ *     Construct a pathname from the file system and the object name.
  */
 static int
 s3_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, char **pathp)
@@ -117,17 +119,17 @@ s3_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, char **p
     len = strlen(dir) + strlen(name) + 2;
     if ((p = (char *)malloc(len)) == NULL)
         /* Out of memory */
-        return (ENOMEM); 
+        return (ENOMEM);
     if (snprintf(p, len, "%s/%s", dir, name) >= (int)len)
         /* Overflow sprintf */
-        return (EINVAL); 
+        return (EINVAL);
     *pathp = p;
     return (ret);
 }
 
 /*
  * s3_cache_path --
- *     Construct the cache pathname from the file system and s3 name.
+ *     Construct the path to the object in the cache from the file system and the object name.
  */
 static int
 s3_cache_path(WT_FILE_SYSTEM *file_system, const char *name, char **pathp)
@@ -137,7 +139,8 @@ s3_cache_path(WT_FILE_SYSTEM *file_system, const char *name, char **pathp)
 
 /*
  * s3_stat --
- *     Perform the stat system call for a name in the file system.
+ *     Perform the stat system call for a name in the file system. If the file is not present in the
+ *     local cache, the S3 Bucket is checked.
  */
 static int
 s3_stat(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, const char *caller,
@@ -145,21 +148,20 @@ s3_stat(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, cons
 {
     int ret;
     char *path;
-    S3_FILE_SYSTEM *s3_fs = (S3_FILE_SYSTEM*)file_system;
+    S3_FILE_SYSTEM *s3_fs = (S3_FILE_SYSTEM *)file_system;
     path = NULL;
-
     /*
-     * We check to see if the file exists in the cache first, and if not the bucket directory.
+     * We check to see if the file exists in the cache first, and if not, the s3 bucket.
      */
     if ((ret = s3_cache_path(file_system, name, &path)) != 0)
         goto err;
-    
+
     ret = stat(path, statp);
-    
+
     if (ret != 0 && errno == ENOENT) {
         /* It's not in the cache, try the s3 bucket. */
         ret = s3_fs->conn->object_exists(s3_fs->bucket_name, name);
-    }   
+    }
 err:
     free(path);
     return (ret);
@@ -221,7 +223,7 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     S3_STORAGE *s3;
     S3_FILE_SYSTEM *fs;
     int ret;
-    WT_CONFIG_ITEM cachedir;    
+    WT_CONFIG_ITEM cachedir;
     WT_FILE_SYSTEM *wt_fs;
     const char *p;
     char buf[1024];
@@ -246,13 +248,10 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
         }
     }
 
-    if ((ret = s3->wt_api->file_system_get(s3->wt_api, session, &wt_fs)) != 0) {
-        std::cout << "Cannot get WT File system." << std::endl;
-    }
-    
     if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
         return (errno);
-   /*
+    fs->s3_storage = s3;
+    /*
      * The home directory owned by the connection will not change, and will be valid memory, for as
      * long as the connection is open. That is longer than this file system will be open, so we can
      * use the string without copying.
@@ -278,15 +277,14 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     }
     if ((ret = s3_get_directory(
            fs->home_dir, cachedir.str, (ssize_t)cachedir.len, true, &fs->cache_dir)) != 0) {
-        std::cout << "Error occurred while making the cache directory" << std::endl;
+        std::cout << "Error occurred while creating the cache directory." << std::endl;
     }
- 
-    fs->s3_storage = s3;
+
     /* New can fail; will deal with this later. */
     fs->conn = new aws_bucket_conn(aws_config);
     fs->file_system.terminate = s3_fs_terminate;
     fs->file_system.fs_exist = s3_exist;
-    
+
     /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
     {
         /* List S3 buckets. */
@@ -316,9 +314,6 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
                 }
                 std::cout << std::endl;
             }
-
-            fs->conn->object_exists(first_bucket, "permanent_object.txt");
-            fs->conn->object_exists(first_bucket, "fake_object.txt");
 
             /* Put object. */
             fs->conn->put_object(first_bucket, "WiredTiger.turtle", "WiredTiger.turtle");

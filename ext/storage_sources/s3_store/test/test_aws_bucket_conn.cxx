@@ -39,9 +39,9 @@ test_list_buckets(const Aws::S3Crt::ClientConfiguration &config)
 
 /*
  * test_object_exists --
- *      Unit test to check if an object exists in an AWS bucket.
+ *     Unit test to check if an object exists in an AWS bucket.
  */
-int 
+int
 test_object_exists(const Aws::S3Crt::ClientConfiguration &config)
 {
     aws_bucket_conn conn(config);
@@ -57,28 +57,22 @@ test_object_exists(const Aws::S3Crt::ClientConfiguration &config)
     File << "Test payload";
     File.close();
 
-    std::cout << "test_object_exists(): checking if " << object_name << " exists in bucket " << bucket_name << std::endl;
     int result = conn.object_exists(bucket_name, object_name);
-    
-    if (result != ENOENT){
-        std::cout << "test_object_exists(): FAILURE - test_object already exists in the bucket" << std::endl;
+    if (result != ENOENT) {
+        std::cout << "test_object_exists(): FAILURE - test_object already exists in the bucket"
+                  << std::endl;
         return 1;
     }
 
-    std::cout << "test_object_exists(): " << object_name << " does not exist before put_object." << std::endl; 
-    std::cout << "test_object_exists(): putting the test_object in the bucket" << std::endl;
     conn.put_object(bucket_name, object_name, file_name);
     result = conn.object_exists(bucket_name, object_name);
-
-    if (result != 0){
-        std::cout << "test_object_exists(): FAILURE - test object does not exist after put_object." << std::endl;
+    if (result != 0) {
+        std::cout << "test_object_exists(): FAILURE - test object does not exist after put_object."
+                  << std::endl;
         return 1;
     }
-    std::cout << "test_object_exists(): " << object_name << " now exists in the bucket." << std::endl; 
-    std::cout << "test_object_exists(): cleaning up test artefacts. deleting test_object." << std::endl;
-    
-    conn.delete_object(bucket_name, object_name);
 
+    conn.delete_object(bucket_name, object_name);
     std::cout << "test_object_exists(): succeeded.\n" << std::endl;
     return 0;
 }

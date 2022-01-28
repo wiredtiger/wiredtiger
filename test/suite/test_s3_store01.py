@@ -51,27 +51,25 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         self.assertFalse(fs.fs_exist(session, 'foobar'))
 
         # Create an object in the cache directory.
+        # The file system will automatically create a cache directory named
+        # '/cache-wt-bucket' as we have not specified a name in the config.
         # We cannot use the file system to create files, it is readonly.
         # So use python I/O to build up the file.
         f = open('./cache-wt-bucket/foobar', 'wb')
-
-
         outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
         f.write(outbytes)
         f.close()
 
         # The object now exists.
         self.assertTrue(fs.fs_exist(session, 'foobar'))
-
-        # Check if an object in S3 exists.
-        self.assertTrue(fs.fs_exist(session, 'permanent_object.txt'))
         
-        # Make sure an object that is not in S3 or the cache does not exist.
+        # Check if an object in S3 but not the cache exists.
+        self.assertTrue(fs.fs_exist(session, 'permanent_object.txt'))
+
+        # This object is not in the cache or S3. It should not exist.
         self.assertFalse(fs.fs_exist(session, 'fake_object'))       
 
         fs.terminate(session)
-
-
         s3_store.terminate(session)
 
 if __name__ == '__main__':
