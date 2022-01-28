@@ -120,12 +120,15 @@ aws_bucket_conn::object_exists(const std:: string &bucket_name, const std::strin
     
     if (outcome.IsSuccess()) {
         return 0;
-    } else {
-        // std::cout << "Error in object_exists: " << outcome.GetError().GetMessage() << std::endl;
-        if (outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND){
-           // std::cout << "The object does not exist." << std::endl;
-            return 1;
-        }
+    } 
+    /* 
+     * If an object with the given key does not exist the request will return a 404.
+     * https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html
+     */
+    else if (outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND) {
+        return 1;
+    } 
+    else {
         return 2;
     }
 }

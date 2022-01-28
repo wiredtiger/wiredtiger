@@ -28,6 +28,8 @@
 
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
+#include <sys/stat.h>
+#include <errno.h>
 
 #include <aws/core/Aws.h>
 #include "aws_bucket_conn.h"
@@ -43,8 +45,10 @@ typedef struct {
 typedef struct {
     /* Must come first - this is the interface for the file system we are implementing. */
     WT_FILE_SYSTEM file_system;
+    char *cache_dir;      /* Directory for cached objects */
     S3_STORAGE *s3_storage;
     aws_bucket_conn *conn;
+    const char *home_dir; /* Owned by the connection */
 } S3_FILE_SYSTEM;
 
 /* Configuration variables for connecting to S3CrtClient. */
@@ -59,6 +63,52 @@ static int s3_customize_file_system(
   WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
 static int s3_add_reference(WT_STORAGE_SOURCE *);
 static int s3_fs_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
+static int s3_get_directory(const char *home, const char *s, ssize_t len, bool create, char **copy);
+
+/*
+ * s3_get_directory --
+ *     Return a copy of a directory name after verifying that it is a directory.
+ */
+static int
+s3_get_directory(const char *home, const char *s, ssize_t len, bool create, char **copy)
+{
+    struct stat sb;
+    size_t buflen;
+    int ret;
+    char *dirname;
+
+    *copy = NULL;
+
+    if (len == -1)
+        len = (ssize_t)strlen(s);
+
+    /* For relative pathnames, the path is considered to be relative to the home directory. */
+    if (*s == '/')
+        dirname = strndup(s, (size_t)len + 1); /* Room for null */
+    else {
+        buflen = (size_t)len + strlen(home) + 2; /* Room for slash, null */
+        if ((dirname = (char *)malloc(buflen)) != NULL)
+            if (snprintf(dirname, buflen, "%s/%.*s", home, (int)len, s) >= (int)buflen)
+                return (EINVAL);
+    }
+    if (dirname == NULL)
+        return (ENOMEM);
+
+    ret = stat(dirname, &sb);
+    if (ret != 0 && errno == ENOENT && create) {
+        (void)mkdir(dirname, 0777);
+        ret = stat(dirname, &sb);
+    }
+    if (ret != 0)
+        ret = errno;
+    else if ((sb.st_mode & S_IFMT) != S_IFDIR)
+        ret = EINVAL;
+    if (ret != 0)
+        free(dirname);
+    else
+        *copy = dirname;
+    return (ret);
+}
 
 /*
  * s3_customize_file_system --
@@ -69,29 +119,79 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
   const char *bucket_name, const char *auth_token, const char *config,
   WT_FILE_SYSTEM **file_systemp)
 {
+    S3_STORAGE *s3;
     S3_FILE_SYSTEM *fs;
     int ret;
+    WT_CONFIG_ITEM cachedir;    
+    WT_FILE_SYSTEM *wt_fs;
+    const char *p;
+    char buf[1024];
+
+    s3 = (S3_STORAGE *)storage_source;
 
     /* Mark parameters as unused for now, until implemented. */
-    UNUSED(session);
     UNUSED(bucket_name);
     UNUSED(auth_token);
-    UNUSED(config);
 
     Aws::S3Crt::ClientConfiguration aws_config;
     aws_config.region = region;
     aws_config.throughputTargetGbps = throughput_target_gbps;
     aws_config.partSize = part_size;
 
+    /* Parse configuration string. */
+    if ((ret = s3->wt_api->config_get_string(
+           s3->wt_api, session, config, "cache_directory", &cachedir)) != 0) {
+        if (ret == WT_NOTFOUND) {
+            std::cout << "Cache directory not specified. Will default." << std::endl;
+            ret = 0;
+            cachedir.len = 0;
+        } else {
+            std::cout << "Error parsing the config string:" << std::endl;
+        }
+    }
+
+    if ((ret = s3->wt_api->file_system_get(s3->wt_api, session, &wt_fs)) != 0) {
+        std::cout << "Cannot get WT File system." << std::endl;
+    }
+    
     if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
         return (errno);
+   /*
+     * The home directory owned by the connection will not change, and will be valid memory, for as
+     * long as the connection is open. That is longer than this file system will be open, so we can
+     * use the string without copying.
+     */
+    fs->home_dir = session->connection->get_home(session->connection);
 
-    fs->s3_storage = (S3_STORAGE *)storage_source;
 
+    /*
+     * The default cache directory is named "cache-<name>", where name is the last component of the
+     * bucket name's path. We'll create it if it doesn't exist.
+     */
+    if (cachedir.len == 0) {
+        if ((p = strrchr(bucket_name, '/')) != NULL)
+            p++;
+        else
+            p = bucket_name;
+        if (snprintf(buf, sizeof(buf), "cache-%s", p) >= (int)sizeof(buf)) {
+        }
+        cachedir.str = buf;
+        cachedir.len = strlen(buf);
+    }
+
+    if ((ret = s3_get_directory(
+           fs->home_dir, cachedir.str, (ssize_t)cachedir.len, true, &fs->cache_dir)) != 0) {
+        std::cout << "Error occurred while making the cache directory" << std::endl;
+    }
+ 
+    printf("Cache directory: %s\n", cachedir.str); 
+
+    fs->s3_storage = s3;
     /* New can fail; will deal with this later. */
     fs->conn = new aws_bucket_conn(aws_config);
     fs->file_system.terminate = s3_fs_terminate;
 
+    
     /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
     {
         /* List S3 buckets. */
