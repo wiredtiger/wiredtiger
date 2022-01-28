@@ -89,10 +89,8 @@ s3_exist(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, boo
     if ((ret = s3_stat(file_system, session, name, "ss_exist", false, &sb)) == 0)
         *existp = true;
     else if (ret == ENOENT){
-        // std::cout << "s3_exist(): ENOENT - ret:" << ret << std::endl;
         ret = 0;
     }
-    // std::cout << "s3_exist() - ret:" << ret << std::endl;
     return (ret);
 }
 
@@ -106,7 +104,6 @@ s3_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, char **p
     size_t len;
     int ret;
     char *p;
-
     ret = 0;
 
     /* Skip over "./" and variations (".//", ".///./././//") at the beginning of the name. */
@@ -163,7 +160,6 @@ s3_stat(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, cons
         /* It's not in the cache, try the s3 bucket. */
         ret = s3_fs->conn->object_exists(s3_fs->bucket_name, name);
     }   
-
 err:
     free(path);
     return (ret);
@@ -180,7 +176,6 @@ s3_get_directory(const char *home, const char *s, ssize_t len, bool create, char
     size_t buflen;
     int ret;
     char *dirname;
-
     *copy = NULL;
 
     if (len == -1)
@@ -230,11 +225,9 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     WT_FILE_SYSTEM *wt_fs;
     const char *p;
     char buf[1024];
-
     s3 = (S3_STORAGE *)storage_source;
 
     /* Mark parameters as unused for now, until implemented. */
-    UNUSED(bucket_name);
     UNUSED(auth_token);
 
     Aws::S3Crt::ClientConfiguration aws_config;
@@ -246,7 +239,6 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     if ((ret = s3->wt_api->config_get_string(
            s3->wt_api, session, config, "cache_directory", &cachedir)) != 0) {
         if (ret == WT_NOTFOUND) {
-            std::cout << "Cache directory not specified. Will default to cache-${BUCKET_NAME}." << std::endl;
             ret = 0;
             cachedir.len = 0;
         } else {
@@ -267,6 +259,7 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
      */
     fs->home_dir = session->connection->get_home(session->connection);
 
+    /* Store a copy of the bucket name in the file system. */
     fs->bucket_name = strdup(bucket_name);
 
     /*
@@ -283,14 +276,11 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
         cachedir.str = buf;
         cachedir.len = strlen(buf);
     }
-
     if ((ret = s3_get_directory(
            fs->home_dir, cachedir.str, (ssize_t)cachedir.len, true, &fs->cache_dir)) != 0) {
         std::cout << "Error occurred while making the cache directory" << std::endl;
     }
  
-    printf("Cache directory: %s\n", cachedir.str); 
-
     fs->s3_storage = s3;
     /* New can fail; will deal with this later. */
     fs->conn = new aws_bucket_conn(aws_config);
