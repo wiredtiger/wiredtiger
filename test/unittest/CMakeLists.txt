@@ -10,8 +10,13 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(Catch2)
 
+set(unittest_sources
+    tests/main.cxx
+    tests/extent_list.cxx
+)
+
 create_test_executable(unittests
-    SOURCES tests/main.cxx tests/extent_list.cxx
+    SOURCES ${unittest_sources}
     CXX
 )
 
