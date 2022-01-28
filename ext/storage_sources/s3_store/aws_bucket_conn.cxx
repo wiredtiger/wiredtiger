@@ -106,7 +106,7 @@ aws_bucket_conn::delete_object(const std::string &bucket_name, const std::string
  *     Checks to see whether an object with the given key exists in the S3 bucket.
  *     Returns:
  *     0 - The object exists in the bucket.
- *     2 - The object does not exist in the bucket.
+ *     ENOENT - The object does not exist in the bucket.
  *     1 - An error has occurred. 
  */
 int
@@ -126,7 +126,7 @@ aws_bucket_conn::object_exists(const std:: string &bucket_name, const std::strin
      * https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html
      */
     else if (outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND) {
-        return 2;
+        return ENOENT;
     } 
     else {
         return 1;
