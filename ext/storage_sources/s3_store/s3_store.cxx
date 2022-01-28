@@ -35,7 +35,7 @@
 #include "aws_bucket_conn.h"
 
 #define UNUSED(x) (void)(x)
-
+#define FS2S3(fs) (((S3_FILE_SYSTEM *)(fs))->s3_storage)
 /* S3 storage source structure. */
 typedef struct {
     WT_STORAGE_SOURCE storage_source; /* Must come first */
@@ -64,6 +64,118 @@ static int s3_customize_file_system(
 static int s3_add_reference(WT_STORAGE_SOURCE *);
 static int s3_fs_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 static int s3_get_directory(const char *home, const char *s, ssize_t len, bool create, char **copy);
+static int s3_stat(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, const char *caller, bool must_exist, struct stat *statp);
+static int s3_cache_path(WT_FILE_SYSTEM *file_system, const char *name, char **pathp);
+static int s3_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, char **pathp);
+static int s3_exist(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, bool *existp);
+
+/*
+ * s3_exist --
+ *     Return if the file exists.
+ */
+static int
+s3_exist(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, bool *existp)
+{
+    struct stat sb;
+    S3_STORAGE *s3;
+    int ret;
+
+    s3 = FS2S3(file_system);
+
+    *existp = false;
+
+    if ((ret = s3_stat(file_system, session, name, "ss_exist", false, &sb)) == 0)
+        *existp = true;
+    else if (ret == ENOENT){
+        // std::cout << "s3_exist(): ENOENT - ret:" << ret << std::endl;
+        ret = 0;
+    }
+    // std::cout << "s3_exist() - ret:" << ret << std::endl;
+    return (ret);
+}
+
+/*
+ * s3_path --
+ *     Construct a pathname from the file system and local name.
+ */
+static int
+s3_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, char **pathp)
+{
+    size_t len;
+    int ret;
+    char *p;
+
+    ret = 0;
+
+    /* Skip over "./" and variations (".//", ".///./././//") at the beginning of the name. */
+    while (*name == '.') {
+        if (name[1] != '/')
+            break;
+        name += 2;
+        while (*name == '/')
+            name++;
+    }
+    len = strlen(dir) + strlen(name) + 2;
+    if ((p = (char *)malloc(len)) == NULL)
+        /* Out of memory */
+        return (ENOMEM); 
+    if (snprintf(p, len, "%s/%s", dir, name) >= (int)len)
+        /* Overflow sprintf */
+        return (EINVAL); 
+    *pathp = p;
+    return (ret);
+}
+
+/*
+ * s3_cache_path --
+ *     Construct the cache pathname from the file system and s3 name.
+ */
+static int
+s3_cache_path(WT_FILE_SYSTEM *file_system, const char *name, char **pathp)
+{
+    return (s3_path(file_system, ((S3_FILE_SYSTEM *)file_system)->cache_dir, name, pathp));
+}
+
+/*
+ * s3_stat --
+ *     Perform the stat system call for a name in the file system.
+ */
+static int
+s3_stat(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, const char *caller,
+  bool must_exist, struct stat *statp)
+{
+    int ret;
+    char *path;
+    S3_FILE_SYSTEM *s3_fs = (S3_FILE_SYSTEM*)file_system;
+    path = NULL;
+
+    printf("s3_stat(): performing stat() for %s\n",name);
+    /*
+     * We check to see if the file exists in the cache first, and if not the bucket directory.
+     */
+    if ((ret = s3_cache_path(file_system, name, &path)) != 0)
+        goto err;
+
+    if ((ret = stat(path, statp))== 0){
+        printf("Succesfully found %s at %s in the cache.\n", name, path);
+        goto err;
+    }
+
+    if (ret != 0 && errno == ENOENT) {
+        printf("File %s does not exist at %s. Trying the s3 bucket.\n", name, path);
+        /* It's not in the cache, try the s3 bucket. */
+        ret = s3_fs->conn->object_exists("wt-bucket", name);
+    }   
+
+     if (ret != 0){
+         printf("Checked cache and s3. File %s does not exist at %s or on s3.\n", name, path);
+    } else {
+        printf("Succesfully found %s in the s3 bucket.\n", name);
+    }
+err:
+    free(path);
+    return (ret);
+}
 
 /*
  * s3_get_directory --
@@ -190,7 +302,7 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     /* New can fail; will deal with this later. */
     fs->conn = new aws_bucket_conn(aws_config);
     fs->file_system.terminate = s3_fs_terminate;
-
+    fs->file_system.fs_exist = s3_exist;
     
     /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
     {

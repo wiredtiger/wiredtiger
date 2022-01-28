@@ -47,7 +47,30 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         s3_store = self.get_s3_storage_source()
 
         fs = s3_store.ss_customize_file_system(session, "./objects", "Secret", None)
+        # The object doesn't exist yet.
+        self.assertFalse(fs.fs_exist(session, 'foobar'))
+
+        # Create an object in the cache directory.
+        # We cannot use the file system to create files, it is readonly.
+        # So use python I/O to build up the file.
+        f = open('./cache-objects/foobar', 'wb')
+
+
+        outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
+        f.write(outbytes)
+        f.close()
+
+        # The object now exists.
+        self.assertTrue(fs.fs_exist(session, 'foobar'))
+
+        # Check if an object in S3 exists.
+        self.assertTrue(fs.fs_exist(session, 'permanent_object.txt'))
+        
+        # Make sure an object that is not in S3 or the cache does not exist.
+        self.assertFalse(fs.fs_exist(session, 'fake_object'))       
+
         fs.terminate(session)
+
 
         s3_store.terminate(session)
 
