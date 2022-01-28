@@ -49,6 +49,7 @@ typedef struct {
     S3_STORAGE *s3_storage;
     aws_bucket_conn *conn;
     const char *home_dir; /* Owned by the connection */
+    const char *bucket_name;
 } S3_FILE_SYSTEM;
 
 /* Configuration variables for connecting to S3CrtClient. */
@@ -149,29 +150,19 @@ s3_stat(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, cons
     S3_FILE_SYSTEM *s3_fs = (S3_FILE_SYSTEM*)file_system;
     path = NULL;
 
-    printf("s3_stat(): performing stat() for %s\n",name);
     /*
      * We check to see if the file exists in the cache first, and if not the bucket directory.
      */
     if ((ret = s3_cache_path(file_system, name, &path)) != 0)
         goto err;
-
-    if ((ret = stat(path, statp))== 0){
-        printf("Succesfully found %s at %s in the cache.\n", name, path);
-        goto err;
-    }
-
+    
+    ret = stat(path, statp);
+    
     if (ret != 0 && errno == ENOENT) {
-        printf("File %s does not exist at %s. Trying the s3 bucket.\n", name, path);
         /* It's not in the cache, try the s3 bucket. */
-        ret = s3_fs->conn->object_exists("wt-bucket", name);
+        ret = s3_fs->conn->object_exists(s3_fs->bucket_name, name);
     }   
 
-     if (ret != 0){
-         printf("Checked cache and s3. File %s does not exist at %s or on s3.\n", name, path);
-    } else {
-        printf("Succesfully found %s in the s3 bucket.\n", name);
-    }
 err:
     free(path);
     return (ret);
@@ -254,7 +245,7 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     if ((ret = s3->wt_api->config_get_string(
            s3->wt_api, session, config, "cache_directory", &cachedir)) != 0) {
         if (ret == WT_NOTFOUND) {
-            std::cout << "Cache directory not specified. Will default." << std::endl;
+            std::cout << "Cache directory not specified. Will default to cache-${BUCKET_NAME}." << std::endl;
             ret = 0;
             cachedir.len = 0;
         } else {
@@ -275,6 +266,7 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
      */
     fs->home_dir = session->connection->get_home(session->connection);
 
+    fs->bucket_name = strdup(bucket_name);
 
     /*
      * The default cache directory is named "cache-<name>", where name is the last component of the
@@ -392,6 +384,7 @@ s3_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 
     s3_fs = (S3_FILE_SYSTEM *)file_system;
     delete (s3_fs->conn);
+    free((void *)s3_fs->bucket_name);
     free(s3_fs);
 
     return (0);

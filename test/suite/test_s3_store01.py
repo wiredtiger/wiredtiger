@@ -46,14 +46,14 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         session = self.session
         s3_store = self.get_s3_storage_source()
 
-        fs = s3_store.ss_customize_file_system(session, "./objects", "Secret", None)
+        fs = s3_store.ss_customize_file_system(session, "wt-bucket", "Secret", None)
         # The object doesn't exist yet.
         self.assertFalse(fs.fs_exist(session, 'foobar'))
 
         # Create an object in the cache directory.
         # We cannot use the file system to create files, it is readonly.
         # So use python I/O to build up the file.
-        f = open('./cache-objects/foobar', 'wb')
+        f = open('./cache-wt-bucket/foobar', 'wb')
 
 
         outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
