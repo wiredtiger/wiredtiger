@@ -39,7 +39,8 @@
 /* S3 storage source structure. */
 typedef struct {
     WT_STORAGE_SOURCE storage_source; /* Must come first */
-    WT_EXTENSION_API *wt_api;         /* Extension API */
+    WT_EXTENSION_API *wt_api;         /* Extension API */   
+    uint64_t op_count;
 } S3_STORAGE;
 
 typedef struct {
@@ -82,7 +83,7 @@ s3_exist(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, boo
     int ret;
 
     s3 = FS2S3(file_system);
-
+    s3->op_count++;
     *existp = false;
 
     if ((ret = s3_stat(file_system, session, name, "ss_exist", false, &sb)) == 0)
