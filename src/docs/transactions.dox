@@ -48,4 +48,3 @@ any application thread of control exits unexpectedly while holding any database
 resources of any kind, the application should close and re-open the database.
 
 */
-
