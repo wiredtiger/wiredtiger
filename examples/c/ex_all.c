@@ -890,7 +890,7 @@ transaction_ops(WT_SESSION *session_arg)
         /* 2 bytes for each byte converted to hexadecimal, plus a trailing nul byte */
         char timestamp_buf[strlen("commit_timestamp=") + 2 * sizeof(uint64_t) + 1];
 
-        (void)snprintf(timestamp_buf, sizeof(timestamp_buf), "commit_timestamp=%x", 100u);
+        (void)snprintf(timestamp_buf, sizeof(timestamp_buf), "commit_timestamp=%x", 20u);
         error_check(session->timestamp_transaction(session, timestamp_buf));
 
         error_check(conn->query_timestamp(conn, timestamp_buf, "get=all_durable"));
