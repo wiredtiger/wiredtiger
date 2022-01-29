@@ -691,7 +691,7 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
 {
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t oldest_ts;
+    wt_timestamp_t stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     txn = session->txn;
@@ -709,25 +709,25 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
     WT_RET(__txn_assert_after_reads(session, "prepare", prepare_ts));
 
     /*
-     * Check whether the prepare timestamp is less than the oldest timestamp.
+     * Check whether the prepare timestamp is less than the stable timestamp.
      */
-    oldest_ts = txn_global->oldest_timestamp;
-    if (prepare_ts < oldest_ts) {
+    stable_ts = txn_global->stable_timestamp;
+    if (prepare_ts < stable_ts) {
         /*
-         * Check whether the prepare timestamp needs to be rounded up to the oldest timestamp.
+         * Check whether the prepare timestamp needs to be rounded up to the stable timestamp.
          */
         if (F_ISSET(txn, WT_TXN_TS_ROUND_PREPARED)) {
             __wt_verbose(session, WT_VERB_TIMESTAMP,
-              "prepare timestamp %s rounded to oldest timestamp %s",
+              "prepare timestamp %s rounded to stable timestamp %s",
               __wt_timestamp_to_string(prepare_ts, ts_string[0]),
-              __wt_timestamp_to_string(oldest_ts, ts_string[1]));
+              __wt_timestamp_to_string(stable_ts, ts_string[1]));
 
-            prepare_ts = oldest_ts;
+            prepare_ts = stable_ts;
         } else
             WT_RET_MSG(session, EINVAL,
-              "prepare timestamp %s is older than the oldest timestamp %s",
+              "prepare timestamp %s is older than the stable timestamp %s",
               __wt_timestamp_to_string(prepare_ts, ts_string[0]),
-              __wt_timestamp_to_string(oldest_ts, ts_string[1]));
+              __wt_timestamp_to_string(stable_ts, ts_string[1]));
     }
     txn->prepare_timestamp = prepare_ts;
     F_SET(txn, WT_TXN_HAS_TS_PREPARE);
