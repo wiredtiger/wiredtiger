@@ -778,6 +778,11 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
             return (WT_VISIBLE_TRUE);
 
         upd_visible = __wt_txn_visible(session, upd->txnid, upd->start_ts);
+        if (upd_visible && upd->durable_ts > upd->start_ts) {
+            upd_visible = __wt_txn_visible(session, upd->txnid, upd->durable_ts);
+            if (!upd_visible)
+                return (WT_VISIBLE_NONDURABLE);
+        }
 
         /*
          * The visibility check is only valid if the update does not change state. If the state does
@@ -911,6 +916,9 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
 
         if (upd_visible == WT_VISIBLE_TRUE)
             break;
+
+        if (upd_visible == WT_VISIBLE_NONDURABLE)
+            return (__wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_NONDURABLE));
 
         /*
          * Save the prepared update to help us detect if we race with prepared commit or rollback

@@ -21,6 +21,7 @@
  */
 #define WT_TXN_ROLLBACK_REASON_CACHE "oldest pinned transaction ID rolled back for eviction"
 #define WT_TXN_ROLLBACK_REASON_CONFLICT "conflict between concurrent operations"
+#define WT_TXN_ROLLBACK_REASON_NONDURABLE "read conflict with committed but non-durable value"
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_LOG_CKPT_CLEANUP 0x01u
@@ -42,9 +43,10 @@
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 typedef enum {
-    WT_VISIBLE_FALSE = 0,   /* Not a visible update */
-    WT_VISIBLE_PREPARE = 1, /* Prepared update */
-    WT_VISIBLE_TRUE = 2     /* A visible update */
+    WT_VISIBLE_FALSE = 0,      /* Not a visible update */
+    WT_VISIBLE_PREPARE = 1,    /* Prepared update */
+    WT_VISIBLE_NONDURABLE = 2, /* Committed but not durable update */
+    WT_VISIBLE_TRUE = 3        /* A visible update */
 } WT_VISIBLE_TYPE;
 
 /*
