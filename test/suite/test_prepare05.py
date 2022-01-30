@@ -51,16 +51,16 @@ class test_prepare05(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create(self.uri, format)
         c = self.session.open_cursor(self.uri)
 
-        # It is illegal to set a prepare timestamp older than oldest timestamp.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(2))
+        # It is illegal to set a prepare timestamp older than the stable timestamp.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(2))
         self.session.begin_transaction()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.prepare_transaction(
             'prepare_timestamp=' + self.timestamp_str(1)),
-            "/older than the oldest timestamp/")
+            "/older than the stable timestamp/")
         self.session.rollback_transaction()
 
-        # Check setting the prepare timestamp same as oldest timestamp is valid.
+        # Check setting the prepare timestamp same as stable timestamp is valid.
         self.session.begin_transaction()
         self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(2))
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(3))
