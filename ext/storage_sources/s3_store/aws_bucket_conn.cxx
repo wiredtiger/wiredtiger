@@ -21,11 +21,10 @@ aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
     if (outcome.IsSuccess()) {
         for (const auto &bucket : outcome.GetResult().GetBuckets())
             buckets.push_back(bucket.GetName());
-        return true;
+        return (true);
     } else {
-        std::cerr << "Error in list_buckets: " << outcome.GetError().GetMessage() << std::endl
-                  << std::endl;
-        return false;
+        std::cerr << "Error in list_buckets: " << outcome.GetError().GetMessage() << std::endl;
+        return (false);
     }
 }
 
@@ -58,10 +57,10 @@ aws_bucket_conn::list_objects(const std::string &bucket_name, const std::string 
 
         /* Continuation token will be an empty string if we have returned all possible objects. */
         while (continuation_token != "" && (max_objects == 0 || (max_objects - countp) > 0)) {
-            if (max_objects != 0 && (max_objects - countp) < 1000) {
+            if (max_objects != 0 && (max_objects - countp) < 1000)
                 request.SetMaxKeys(max_objects - countp);
-            }
             request.SetContinuationToken(continuation_token);
+
             outcomes = m_s3_crt_client.ListObjectsV2(request);
             if (outcomes.IsSuccess()) {
                 result = outcomes.GetResult();
@@ -71,7 +70,7 @@ aws_bucket_conn::list_objects(const std::string &bucket_name, const std::string 
                 countp += result.GetContents().size();
             }
         }
-        return objects;
+        return (objects);
     } else {
         throw std::runtime_error("Error in list_buckets: " + outcomes.GetError().GetMessage());
     }
@@ -96,15 +95,15 @@ aws_bucket_conn::put_object(
     /* This check is required to fail on missing file. */
     if (!input_data->good()) {
         std::cout << "Failed to open file: \"" << file_name << "\"." << std::endl;
-        return false;
+        return (false);
     }
 
     Aws::S3Crt::Model::PutObjectOutcome outcome = m_s3_crt_client.PutObject(request);
-    if (outcome.IsSuccess()) {
-        return true;
-    } else {
+    if (outcome.IsSuccess())
+        return (true);
+    else {
         std::cerr << "Error in put_object: " << outcome.GetError().GetMessage() << std::endl;
-        return false;
+        return (false);
     }
 }
 
@@ -121,11 +120,11 @@ aws_bucket_conn::delete_object(const std::string &bucket_name, const std::string
 
     Aws::S3Crt::Model::DeleteObjectOutcome outcome = m_s3_crt_client.DeleteObject(request);
 
-    if (outcome.IsSuccess()) {
-        return true;
-    } else {
+    if (outcome.IsSuccess())
+        return (true);
+    else {
         std::cerr << "Error in delete_object: " << outcome.GetError().GetMessage() << std::endl;
-        return false;
+        return (false);
     }
 }
 

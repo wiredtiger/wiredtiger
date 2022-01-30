@@ -134,13 +134,12 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
             /* Delete object. */
             fs->conn->delete_object(first_bucket, "WiredTiger.turtle");
 
-        } else {
+        } else
             std::cout << "No buckets in AWS account." << std::endl;
-        }
     }
 
     *file_systemp = &fs->file_system;
-    return 0;
+    return (0);
 }
 
 /*
@@ -177,9 +176,8 @@ s3_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *
     if (!objects.empty()) {
         for (const auto &object : objects)
             std::cout << "  * " << object << std::endl;
-    } else {
+    } else
         std::cout << "No objects in bucket." << std::endl;
-    }
 
     /* TODO: Put objects into dirlistp. */
 
@@ -202,9 +200,8 @@ s3_directory_list_single(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const
     if (!objects.empty()) {
         for (const auto &object : objects)
             std::cout << "  * " << object << std::endl;
-    } else {
+    } else
         std::cout << "No objects in bucket." << std::endl;
-    }
 
     /* TODO: Put objects into dirlistp. */
 

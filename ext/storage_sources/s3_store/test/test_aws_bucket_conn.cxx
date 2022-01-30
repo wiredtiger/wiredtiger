@@ -30,12 +30,12 @@ test_list_buckets(const Aws::S3Crt::ClientConfiguration &config)
     aws_bucket_conn conn(config);
     std::vector<std::string> buckets;
     if (!conn.list_buckets(buckets))
-        return 1;
+        return (1);
 
     std::cout << "All buckets under my account:" << std::endl;
     for (const auto &bucket : buckets)
         std::cout << "  * " << bucket << std::endl;
-    return 0;
+    return (0);
 }
 
 /*
@@ -61,14 +61,13 @@ test_list_objects(const Aws::S3Crt::ClientConfiguration &config)
 
             /* No matching objects. */
             objects = conn.list_objects(first_bucket, "test_list_objects_", countp);
-            if (objects.size() != countp || countp != 0) {
-                return 1;
-            }
+            if (objects.size() != countp || countp != 0)
+                return (1);
 
             /* Create file to prepare for test. */
             if (!static_cast<bool>(std::ofstream("test_list_objects.txt").put('.'))) {
                 std::cerr << "Error creating file." << std::endl;
-                return 1;
+                return (1);
             }
 
             /* Put objects to prepare for test. */
@@ -86,7 +85,7 @@ test_list_objects(const Aws::S3Crt::ClientConfiguration &config)
                       first_bucket, "test_list_objects_" + std::to_string(i) + ".txt");
                 }
                 std::remove("test_list_objects.txt");
-                return 1;
+                return (1);
             }
             std::cout << "Objects with test_list_objects_ prefix:" << std::endl;
             for (const auto &object : objects)
@@ -100,7 +99,7 @@ test_list_objects(const Aws::S3Crt::ClientConfiguration &config)
                       first_bucket, "test_list_objects_" + std::to_string(i) + ".txt");
                 }
                 std::remove("test_list_objects.txt");
-                return 1;
+                return (1);
             }
             std::cout << "Objects with test_list_objects_1 prefix:" << std::endl;
             for (const auto &object : objects)
@@ -115,7 +114,7 @@ test_list_objects(const Aws::S3Crt::ClientConfiguration &config)
                       first_bucket, "test_list_objects_" + std::to_string(i) + ".txt");
                 }
                 std::remove("test_list_objects.txt");
-                return 1;
+                return (1);
             }
             std::cout << "List 5 objects:" << std::endl;
             for (const auto &object : objects)
@@ -125,30 +124,28 @@ test_list_objects(const Aws::S3Crt::ClientConfiguration &config)
             objects = conn.list_objects(first_bucket, "test_list_objects_", countp, 30);
             if (objects.size() != countp || countp != 20) {
                 /* Delete objects and file at end of test. */
-                for (int i = 0; i < 20; i++) {
+                for (int i = 0; i < 20; i++)
                     conn.delete_object(
                       first_bucket, "test_list_objects_" + std::to_string(i) + ".txt");
-                }
                 std::remove("test_list_objects.txt");
-                return 1;
+                return (1);
             }
-            std::cout << "List all objects:" << std::endl;
+            std::cout << "List all:" << std::endl;
             for (const auto &object : objects)
                 std::cout << "  * " << object << std::endl;
 
             /* Delete objects and file at end of test. */
-            for (int i = 0; i < 20; i++) {
+            for (int i = 0; i < 20; i++)
                 conn.delete_object(first_bucket, "test_list_objects_" + std::to_string(i) + ".txt");
-            }
             std::remove("test_list_objects.txt");
-            return 0;
+            return (0);
         } else {
             std::cout << "No buckets in AWS account." << std::endl;
-            return 0;
+            return (0);
         }
     } else {
         std::cerr << "Error listing buckets." << std::endl;
-        return 1;
+        return (1);
     }
 }
 
@@ -175,5 +172,5 @@ main()
 
     /* Shutdown the API at end of tests. */
     Aws::ShutdownAPI(options);
-    return 0;
+    return (0);
 }
