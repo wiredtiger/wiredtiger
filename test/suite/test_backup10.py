@@ -79,8 +79,6 @@ class test_backup10(backup_base):
         orig_logs = [file for file in all_files if "WiredTigerLog" in file]
 
         # Now open a duplicate backup cursor.
-        config = 'target=("log:")'
-        dupc = self.session.open_cursor(None, bkup_c, config)
         dup_logs = self.take_log_backup(bkup_c, self.dir, orig_logs, dupc)
 
         # We expect that the duplicate logs are a superset of the

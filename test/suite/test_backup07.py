@@ -79,7 +79,12 @@ class test_backup07(backup_base):
 
         # Now copy the files using full backup. This should not include the newly
         # created table.
-        self.take_full_backup(self.dir, bkup_c)
+        all_files = self.take_full_backup(self.dir, bkup_c)
+        orig_logs = [file for file in all_files if "WiredTigerLog" in file]
+        self.assertFalse(self.newuri in all_files)
+
+        # Now open a duplicate backup cursor and copy all the logs into the backup directory.
+        dup_logs = self.take_log_backup(bkup_c, self.dir, orig_logs)
         bkup_c.close()
 
         # After the full backup, open and recover the backup database.
