@@ -651,10 +651,16 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, u
     if (row_key != NULL)
         key = row_key;
     else {
-        WT_ERR(__wt_scr_alloc(session, 0, &key));
-        WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
+        /*
+         * WRONG WRONG WRONG: BAD ERROR HANDLING, DO NOT MERGE THIS INTO DEVELOP
+         */
+        WT_RET(__wt_scr_alloc(session, 0, &key));
+        WT_RET(__wt_row_leaf_key(session, page, rip, key, false));
     }
-    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+    /*
+     * WRONG WRONG WRONG: BAD ERROR HANDLING, DO NOT MERGE THIS INTO DEVELOP
+     */
+    WT_RET(__wt_scr_alloc(session, 0, &tmp));
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "Key: %s",
       __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, tmp));
     __wt_scr_free(session, &tmp);
