@@ -71,10 +71,9 @@ test_list_objects(const Aws::S3Crt::ClientConfiguration &config)
             }
 
             /* Put objects to prepare for test. */
-            for (int i = 0; i < 20; i++) {
+            for (int i = 0; i < 20; i++)
                 conn.put_object(first_bucket, "test_list_objects_" + std::to_string(i) + ".txt",
                   "test_list_objects.txt");
-            }
 
             /* List all objects with prefix. */
             objects = conn.list_objects(first_bucket, "test_list_objects_", countp);
