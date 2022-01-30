@@ -65,8 +65,6 @@ static int s3_directory_list(
 static int s3_directory_list_single(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
 
-#define FS2S3(fs) (((S3_FILE_SYSTEM *)(fs))->s3_storage)
-
 /*
  * s3_customize_file_system --
  *     Return a customized file system to access the s3 storage source objects.

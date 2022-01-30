@@ -28,7 +28,7 @@ class aws_bucket_conn {
      * @param[out] objects the vector of object names returned.
      */
     std::vector<std::string> list_objects(const std::string &bucket_name, const std::string &prefix,
-      uint32_t &countp, u_int max_objects = 0) const;
+      uint32_t &countp, uint32_t max_objects = 0) const;
 
     bool put_object(const std::string &bucket_name, const std::string &object_key,
       const std::string &file_name) const;

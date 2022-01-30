@@ -35,7 +35,7 @@ aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
  */
 std::vector<std::string>
 aws_bucket_conn::list_objects(const std::string &bucket_name, const std::string &prefix,
-  uint32_t &countp, u_int max_objects) const
+  uint32_t &countp, uint32_t max_objects) const
 {
     std::vector<std::string> objects;
     Aws::S3Crt::Model::ListObjectsV2Request request;
@@ -54,8 +54,8 @@ aws_bucket_conn::list_objects(const std::string &bucket_name, const std::string 
         std::string continuation_token = result.GetNextContinuationToken();
         for (const auto &object : result.GetContents()) {
             objects.push_back(object.GetKey());
-            countp++;
         }
+        countp += result.GetContents().size();
 
         /* Continuation token will be an empty string if we have returned all possible objects. */
         while (continuation_token != "" && (max_objects == 0 || (max_objects - countp) > 0)) {
@@ -66,11 +66,11 @@ aws_bucket_conn::list_objects(const std::string &bucket_name, const std::string 
             outcomes = m_s3_crt_client.ListObjectsV2(request);
             if (outcomes.IsSuccess()) {
                 result = outcomes.GetResult();
-                continuation_token = outcomes.GetResult().GetNextContinuationToken();
-                for (const auto &object : outcomes.GetResult().GetContents()) {
+                continuation_token = result.GetNextContinuationToken();
+                for (const auto &object : result.GetContents()) {
                     objects.push_back(object.GetKey());
-                    countp++;
                 }
+                countp += result.GetContents().size();
             }
         }
         return objects;
