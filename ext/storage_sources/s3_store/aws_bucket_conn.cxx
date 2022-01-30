@@ -71,9 +71,8 @@ aws_bucket_conn::list_objects(const std::string &bucket_name, const std::string 
             }
         }
         return (objects);
-    } else {
+    } else
         throw std::runtime_error("Error in list_buckets: " + outcomes.GetError().GetMessage());
-    }
 }
 
 /*
