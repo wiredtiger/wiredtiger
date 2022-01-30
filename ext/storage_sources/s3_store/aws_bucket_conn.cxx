@@ -52,9 +52,8 @@ aws_bucket_conn::list_objects(const std::string &bucket_name, const std::string 
     if (outcomes.IsSuccess()) {
         auto result = outcomes.GetResult();
         std::string continuation_token = result.GetNextContinuationToken();
-        for (const auto &object : result.GetContents()) {
+        for (const auto &object : result.GetContents())
             objects.push_back(object.GetKey());
-        }
         countp += result.GetContents().size();
 
         /* Continuation token will be an empty string if we have returned all possible objects. */
@@ -67,9 +66,8 @@ aws_bucket_conn::list_objects(const std::string &bucket_name, const std::string 
             if (outcomes.IsSuccess()) {
                 result = outcomes.GetResult();
                 continuation_token = result.GetNextContinuationToken();
-                for (const auto &object : result.GetContents()) {
+                for (const auto &object : result.GetContents())
                     objects.push_back(object.GetKey());
-                }
                 countp += result.GetContents().size();
             }
         }

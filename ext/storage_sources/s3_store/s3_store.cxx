@@ -104,9 +104,8 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
         std::vector<std::string> buckets;
         if (fs->conn->list_buckets(buckets)) {
             std::cout << "All buckets under my account:" << std::endl;
-            for (const std::string &bucket : buckets) {
+            for (const std::string &bucket : buckets)
                 std::cout << "  * " << bucket << std::endl;
-            }
             std::cout << std::endl;
         }
 
@@ -176,9 +175,8 @@ s3_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *
       s3_fs->conn->list_objects(std::string(directory), std::string(prefix), *countp);
     std::cout << "Objects in bucket '" << directory << "':" << std::endl;
     if (!objects.empty()) {
-        for (const auto &object : objects) {
+        for (const auto &object : objects)
             std::cout << "  * " << object << std::endl;
-        }
     } else {
         std::cout << "No objects in bucket." << std::endl;
     }
@@ -202,9 +200,8 @@ s3_directory_list_single(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const
       s3_fs->conn->list_objects(std::string(directory), std::string(prefix), *countp, 1);
     std::cout << "Object in bucket '" << directory << "':" << std::endl;
     if (!objects.empty()) {
-        for (const auto &object : objects) {
+        for (const auto &object : objects)
             std::cout << "  * " << object << std::endl;
-        }
     } else {
         std::cout << "No objects in bucket." << std::endl;
     }
