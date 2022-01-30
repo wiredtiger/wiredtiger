@@ -60,7 +60,7 @@ aws_bucket_conn::list_objects(const std::string &bucket_name, const std::string 
         /* Continuation token will be an empty string if we have returned all possible objects. */
         while (continuation_token != "" && (max_objects == 0 || (max_objects - countp) > 0)) {
             if (max_objects != 0 && (max_objects - countp) < 1000) {
-                request.SetMaxKeys(max_objects-countp);
+                request.SetMaxKeys(max_objects - countp);
             }
             request.SetContinuationToken(continuation_token);
             outcomes = m_s3_crt_client.ListObjectsV2(request);
