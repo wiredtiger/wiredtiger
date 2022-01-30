@@ -1,6 +1,6 @@
 #include <aws/core/Aws.h>
 #include <aws/s3-crt/model/DeleteObjectRequest.h>
-#include <aws/s3-crt/model/ListObjectsRequest.h>
+#include <aws/s3-crt/model/ListObjectsV2Request.h>
 #include <aws/s3-crt/model/PutObjectRequest.h>
 #include "aws_bucket_conn.h"
 
@@ -31,24 +31,51 @@ aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
 
 /*
  * list_objects --
- *     Builds a list of object names from a S3 bucket into a vector. Returns true if success,
- *     otherwise false.
+ *     Return a list of object names from a S3 bucket into a vector.
  */
-bool
-aws_bucket_conn::list_objects(
-  const std::string &bucket_name, std::vector<std::string> &objects) const
+std::vector<std::string>
+aws_bucket_conn::list_objects(const std::string &bucket_name, const std::string &prefix,
+  uint32_t &countp, u_int max_objects) const
 {
-    Aws::S3Crt::Model::ListObjectsRequest request;
-    request.WithBucket(bucket_name);
-    Aws::S3Crt::Model::ListObjectsOutcome outcomes = m_s3_crt_client.ListObjects(request);
+    std::vector<std::string> objects;
+    Aws::S3Crt::Model::ListObjectsV2Request request;
+
+    request.SetBucket(bucket_name);
+    request.SetPrefix(prefix);
+    /* AWS list objects request can return up to 1000 entries at a time. */
+    if (max_objects != 0 && max_objects < 1000)
+        request.SetMaxKeys(max_objects);
+
+    countp = 0;
+    Aws::S3Crt::Model::ListObjectsV2Outcome outcomes = m_s3_crt_client.ListObjectsV2(request);
 
     if (outcomes.IsSuccess()) {
-        for (const auto &object : outcomes.GetResult().GetContents())
+        auto result = outcomes.GetResult();
+        std::string continuation_token = result.GetNextContinuationToken();
+        for (const auto &object : result.GetContents()) {
             objects.push_back(object.GetKey());
-        return true;
+            countp++;
+        }
+
+        /* Continuation token will be an empty string if we have returned all possible objects. */
+        while (continuation_token != "" && (max_objects == 0 || (max_objects - countp) > 0)) {
+            if (max_objects != 0 && (max_objects - countp) < 1000) {
+                request.SetMaxKeys(max_objects-countp);
+            }
+            request.SetContinuationToken(continuation_token);
+            outcomes = m_s3_crt_client.ListObjectsV2(request);
+            if (outcomes.IsSuccess()) {
+                result = outcomes.GetResult();
+                continuation_token = outcomes.GetResult().GetNextContinuationToken();
+                for (const auto &object : outcomes.GetResult().GetContents()) {
+                    objects.push_back(object.GetKey());
+                    countp++;
+                }
+            }
+        }
+        return objects;
     } else {
-        std::cerr << "Error in list_buckets: " << outcomes.GetError().GetMessage() << std::endl;
-        return false;
+        throw std::runtime_error("Error in list_buckets: " + outcomes.GetError().GetMessage());
     }
 }
 
@@ -66,11 +93,15 @@ aws_bucket_conn::put_object(
 
     std::shared_ptr<Aws::IOStream> input_data = Aws::MakeShared<Aws::FStream>(
       "s3-source", file_name.c_str(), std::ios_base::in | std::ios_base::binary);
-
     request.SetBody(input_data);
 
-    Aws::S3Crt::Model::PutObjectOutcome outcome = m_s3_crt_client.PutObject(request);
+    /* This check is required to fail on missing file. */
+    if (!input_data->good()) {
+        std::cout << "Failed to open file: \"" << file_name << "\"." << std::endl;
+        return false;
+    }
 
+    Aws::S3Crt::Model::PutObjectOutcome outcome = m_s3_crt_client.PutObject(request);
     if (outcome.IsSuccess()) {
         return true;
     } else {

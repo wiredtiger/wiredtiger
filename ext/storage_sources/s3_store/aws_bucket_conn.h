@@ -16,7 +16,20 @@ class aws_bucket_conn {
     public:
     explicit aws_bucket_conn(const Aws::S3Crt::ClientConfiguration &config);
     bool list_buckets(std::vector<std::string> &buckets) const;
-    bool list_objects(const std::string &bucket_name, std::vector<std::string> &objects) const;
+
+    /*!
+     * Return a vector of object names from an S3 bucket.
+     *
+     * @param bucket_name the name of the bucket.
+     * @param prefix only objects with names matching the prefix are returned.
+     * @param countp the number of entries returned.
+     * @param max_objects the maximum number of objects to return. Defaults to 0, which returns all
+     * objects.
+     * @param[out] objects the vector of object names returned.
+     */
+    std::vector<std::string> list_objects(const std::string &bucket_name, const std::string &prefix,
+      uint32_t &countp, u_int max_objects=0) const;
+
     bool put_object(const std::string &bucket_name, const std::string &object_key,
       const std::string &file_name) const;
     bool delete_object(const std::string &bucket_name, const std::string &object_key) const;

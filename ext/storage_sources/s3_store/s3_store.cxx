@@ -60,6 +60,13 @@ static int s3_customize_file_system(
 static int s3_add_reference(WT_STORAGE_SOURCE *);
 static int s3_fs_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 
+static int s3_directory_list(
+  WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
+static int s3_directory_list_single(
+  WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
+
+#define FS2S3(fs) (((S3_FILE_SYSTEM *)(fs))->s3_storage)
+
 /*
  * s3_customize_file_system --
  *     Return a customized file system to access the s3 storage source objects.
@@ -90,11 +97,12 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 
     /* New can fail; will deal with this later. */
     fs->conn = new aws_bucket_conn(aws_config);
+    fs->file_system.fs_directory_list = s3_directory_list;
+    fs->file_system.fs_directory_list_single = s3_directory_list_single;
     fs->file_system.terminate = s3_fs_terminate;
 
     /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
     {
-        /* List S3 buckets. */
         std::vector<std::string> buckets;
         if (fs->conn->list_buckets(buckets)) {
             std::cout << "All buckets under my account:" << std::endl;
@@ -106,55 +114,29 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 
         /* Have at least one bucket to use. */
         if (!buckets.empty()) {
-            const Aws::String first_bucket = buckets.at(0);
-
-            /* List objects. */
-            std::vector<std::string> bucket_objects;
-            if (fs->conn->list_objects(first_bucket, bucket_objects)) {
-                std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
-                if (!bucket_objects.empty()) {
-                    for (const auto &object : bucket_objects) {
-                        std::cout << "  * " << object << std::endl;
-                    }
-                } else {
-                    std::cout << "No objects in bucket." << std::endl;
-                }
-                std::cout << std::endl;
-            }
+            const std::string first_bucket = buckets.at(0);
 
             /* Put object. */
             fs->conn->put_object(first_bucket, "WiredTiger.turtle", "WiredTiger.turtle");
 
-            /* List objects again. */
-            bucket_objects.clear();
-            if (fs->conn->list_objects(first_bucket, bucket_objects)) {
-                std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
-                if (!bucket_objects.empty()) {
-                    for (const auto &object : bucket_objects) {
-                        std::cout << "  * " << object << std::endl;
-                    }
-                } else {
-                    std::cout << "No objects in bucket." << std::endl;
-                }
-                std::cout << std::endl;
-            }
+            /* Testing directory list. */
+            WT_SESSION *session = NULL;
+            const char *directory = first_bucket.c_str();
+            const char *prefix = "WiredTiger";
+            char ***dirlist = NULL;
+            uint32_t countp;
+
+            fs->file_system.fs_directory_list(
+              &fs->file_system, session, directory, prefix, dirlist, &countp);
+            std::cout << "Number of objects retrieved: " << countp << std::endl;
+
+            fs->file_system.fs_directory_list_single(
+              &fs->file_system, session, directory, prefix, dirlist, &countp);
+            std::cout << "Number of objects retrieved: " << countp << std::endl;
 
             /* Delete object. */
             fs->conn->delete_object(first_bucket, "WiredTiger.turtle");
 
-            /* List objects again. */
-            bucket_objects.clear();
-            if (fs->conn->list_objects(first_bucket, bucket_objects)) {
-                std::cout << "Objects in bucket '" << first_bucket << "':" << std::endl;
-                if (!bucket_objects.empty()) {
-                    for (const auto &object : bucket_objects) {
-                        std::cout << "  * " << object << std::endl;
-                    }
-                } else {
-                    std::cout << "No objects in bucket." << std::endl;
-                }
-                std::cout << std::endl;
-            }
         } else {
             std::cout << "No buckets in AWS account." << std::endl;
         }
@@ -178,6 +160,58 @@ s3_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
     s3_fs = (S3_FILE_SYSTEM *)file_system;
     delete (s3_fs->conn);
     free(s3_fs);
+
+    return (0);
+}
+
+/*
+ * s3_directory_list --
+ *     Return a list of object names for the given location.
+ */
+static int
+s3_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *directory,
+  const char *prefix, char ***dirlistp, uint32_t *countp)
+{
+    S3_FILE_SYSTEM *s3_fs;
+    s3_fs = (S3_FILE_SYSTEM *)file_system;
+    std::vector<std::string> objects = s3_fs->conn->list_objects(
+      std::string(directory), std::string(prefix), *countp);
+    std::cout << "Objects in bucket '" << directory << "':" << std::endl;
+    if (!objects.empty()) {
+        for (const auto &object : objects) {
+            std::cout << "  * " << object << std::endl;
+        }
+    } else {
+        std::cout << "No objects in bucket." << std::endl;
+    }
+
+    /* TODO: Put objects into dirlistp. */
+
+    return (0);
+}
+
+/*
+ * s3_directory_list_single --
+ *     Return a single file name for the given location.
+ */
+static int
+s3_directory_list_single(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *directory,
+  const char *prefix, char ***dirlistp, uint32_t *countp)
+{
+    S3_FILE_SYSTEM *s3_fs;
+    s3_fs = (S3_FILE_SYSTEM *)file_system;
+    std::vector<std::string> objects = s3_fs->conn->list_objects(
+      std::string(directory), std::string(prefix), *countp, 1);
+    std::cout << "Object in bucket '" << directory << "':" << std::endl;
+    if (!objects.empty()) {
+        for (const auto &object : objects) {
+            std::cout << "  * " << object << std::endl;
+        }
+    } else {
+        std::cout << "No objects in bucket." << std::endl;
+    }
+
+    /* TODO: Put objects into dirlistp. */
 
     return (0);
 }
