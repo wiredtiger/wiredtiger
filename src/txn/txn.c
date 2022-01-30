@@ -1503,6 +1503,10 @@ __txn_commit_timestamps_assert_standalone(WT_SESSION_IMPL *session, WT_TXN *txn)
             WT_ERR_MSG(session, EINVAL, "out of order commit timestamps");
     }
 
+#ifndef HAVE_DIAGNOSTIC
+    WT_UNUSED(prev_op_ts);
+#endif
+
 err:
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
