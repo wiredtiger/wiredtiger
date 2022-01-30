@@ -79,10 +79,9 @@ test_list_objects(const Aws::S3Crt::ClientConfiguration &config)
             objects = conn.list_objects(first_bucket, "test_list_objects_", countp);
             if (objects.size() != countp || countp != 20) {
                 /* Delete objects and file at end of test. */
-                for (int i = 0; i < 20; i++) {
+                for (int i = 0; i < 20; i++)
                     conn.delete_object(
                       first_bucket, "test_list_objects_" + std::to_string(i) + ".txt");
-                }
                 std::remove("test_list_objects.txt");
                 return (1);
             }
@@ -93,10 +92,9 @@ test_list_objects(const Aws::S3Crt::ClientConfiguration &config)
             objects = conn.list_objects(first_bucket, "test_list_objects_1", countp);
             if (objects.size() != countp || countp != 11) {
                 /* Delete objects and file at end of test. */
-                for (int i = 0; i < 20; i++) {
+                for (int i = 0; i < 20; i++)
                     conn.delete_object(
                       first_bucket, "test_list_objects_" + std::to_string(i) + ".txt");
-                }
                 std::remove("test_list_objects.txt");
                 return (1);
             }
@@ -108,10 +106,9 @@ test_list_objects(const Aws::S3Crt::ClientConfiguration &config)
             objects = conn.list_objects(first_bucket, "test_list_objects_", countp, 5);
             if (objects.size() != countp || countp != 5) {
                 /* Delete objects and file at end of test. */
-                for (int i = 0; i < 20; i++) {
+                for (int i = 0; i < 20; i++)
                     conn.delete_object(
                       first_bucket, "test_list_objects_" + std::to_string(i) + ".txt");
-                }
                 std::remove("test_list_objects.txt");
                 return (1);
             }
