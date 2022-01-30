@@ -32,7 +32,8 @@ make_check_subdir_skips = [
     "test/csuite",  # csuite has its own set of Evergreen tasks, skip the checking here
     "test/cppsuite",
     "test/fuzz",
-    "test/syscall"
+    "test/syscall",
+    "ext/storage_sources/s3_store/test"
 ]
 
 prog=sys.argv[0]
