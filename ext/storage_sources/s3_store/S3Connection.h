@@ -12,17 +12,17 @@
  * Class to represent an active connection to the AWS S3 endpoint. Allows for interaction with S3
  * client.
  */
-class aws_bucket_conn {
+class S3Connection {
     public:
-    explicit aws_bucket_conn(const Aws::S3Crt::ClientConfiguration &config);
-    bool list_buckets(std::vector<std::string> &buckets) const;
-    bool list_objects(const std::string &bucket_name, std::vector<std::string> &objects) const;
-    bool put_object(const std::string &bucket_name, const std::string &object_key,
-      const std::string &file_name) const;
-    bool delete_object(const std::string &bucket_name, const std::string &object_key) const;
-    ~aws_bucket_conn() = default;
+    explicit S3Connection(const Aws::S3Crt::ClientConfiguration &config);
+    bool ListBuckets(std::vector<std::string> &buckets) const;
+    bool ListObjects(const std::string &bucketName, std::vector<std::string> &objects) const;
+    bool PutObject(const std::string &bucketName, const std::string &objectKey,
+      const std::string &fileName) const;
+    bool DeleteObject(const std::string &bucketName, const std::string &objectKey) const;
+    ~S3Connection() = default;
 
     private:
-    const Aws::S3Crt::S3CrtClient m_s3_crt_client;
+    const Aws::S3Crt::S3CrtClient m_S3CrtClient;
 };
 #endif

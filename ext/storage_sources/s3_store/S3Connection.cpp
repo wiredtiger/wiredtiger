@@ -10,99 +10,99 @@
 #include <vector>
 
 /*
- * list_buckets --
+ * ListBuckets --
  *     Builds a list of buckets from AWS account into a vector. Returns true if success, otherwise
  *     false.
  */
 bool
-aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
+S3Connection::ListBuckets(std::vector<std::string> &buckets) const
 {
-    auto outcome = m_s3_crt_client.ListBuckets();
+    auto outcome = m_S3CrtClient.ListBuckets();
     if (outcome.IsSuccess()) {
         for (const auto &bucket : outcome.GetResult().GetBuckets())
             buckets.push_back(bucket.GetName());
         return true;
     } else {
-        std::cerr << "Error in list_buckets: " << outcome.GetError().GetMessage() << std::endl
+        std::cerr << "Error in ListBuckets: " << outcome.GetError().GetMessage() << std::endl
                   << std::endl;
         return false;
     }
 }
 
 /*
- * list_objects --
+ * ListObjects --
  *     Builds a list of object names from a S3 bucket into a vector. Returns true if success,
  *     otherwise false.
  */
 bool
-aws_bucket_conn::list_objects(
-  const std::string &bucket_name, std::vector<std::string> &objects) const
+S3Connection::ListObjects(
+  const std::string &bucketName, std::vector<std::string> &objects) const
 {
     Aws::S3Crt::Model::ListObjectsRequest request;
-    request.WithBucket(bucket_name);
-    Aws::S3Crt::Model::ListObjectsOutcome outcomes = m_s3_crt_client.ListObjects(request);
+    request.WithBucket(bucketName);
+    Aws::S3Crt::Model::ListObjectsOutcome outcomes = m_S3CrtClient.ListObjects(request);
 
     if (outcomes.IsSuccess()) {
         for (const auto &object : outcomes.GetResult().GetContents())
             objects.push_back(object.GetKey());
         return true;
     } else {
-        std::cerr << "Error in list_buckets: " << outcomes.GetError().GetMessage() << std::endl;
+        std::cerr << "Error in ListObjects: " << outcomes.GetError().GetMessage() << std::endl;
         return false;
     }
 }
 
 /*
- * put_object --
+ * PutObject --
  *     Puts an object into an S3 bucket. Returns true if success, otherwise false.
  */
 bool
-aws_bucket_conn::put_object(
-  const std::string &bucket_name, const std::string &object_key, const std::string &file_name) const
+S3Connection::PutObject(
+  const std::string &bucketName, const std::string &objectKey, const std::string &fileName) const
 {
     Aws::S3Crt::Model::PutObjectRequest request;
-    request.SetBucket(bucket_name);
-    request.SetKey(object_key);
+    request.SetBucket(bucketName);
+    request.SetKey(objectKey);
 
-    std::shared_ptr<Aws::IOStream> input_data = Aws::MakeShared<Aws::FStream>(
-      "s3-source", file_name.c_str(), std::ios_base::in | std::ios_base::binary);
+    std::shared_ptr<Aws::IOStream> inputData = Aws::MakeShared<Aws::FStream>(
+      "s3-source", fileName.c_str(), std::ios_base::in | std::ios_base::binary);
 
-    request.SetBody(input_data);
+    request.SetBody(inputData);
 
-    Aws::S3Crt::Model::PutObjectOutcome outcome = m_s3_crt_client.PutObject(request);
+    Aws::S3Crt::Model::PutObjectOutcome outcome = m_S3CrtClient.PutObject(request);
 
     if (outcome.IsSuccess()) {
         return true;
     } else {
-        std::cerr << "Error in put_object: " << outcome.GetError().GetMessage() << std::endl;
+        std::cerr << "Error in PutObject: " << outcome.GetError().GetMessage() << std::endl;
         return false;
     }
 }
 
 /*
- * delete_object --
+ * DeleteObject --
  *     Deletes an object from S3 bucket. Returns true if success, otherwise false.
  */
 bool
-aws_bucket_conn::delete_object(const std::string &bucket_name, const std::string &object_key) const
+S3Connection::DeleteObject(const std::string &bucketName, const std::string &objectKey) const
 {
     Aws::S3Crt::Model::DeleteObjectRequest request;
-    request.SetBucket(bucket_name);
-    request.SetKey(object_key);
+    request.SetBucket(bucketName);
+    request.SetKey(objectKey);
 
-    Aws::S3Crt::Model::DeleteObjectOutcome outcome = m_s3_crt_client.DeleteObject(request);
+    Aws::S3Crt::Model::DeleteObjectOutcome outcome = m_S3CrtClient.DeleteObject(request);
 
     if (outcome.IsSuccess()) {
         return true;
     } else {
-        std::cerr << "Error in delete_object: " << outcome.GetError().GetMessage() << std::endl;
+        std::cerr << "Error in DeleteObject: " << outcome.GetError().GetMessage() << std::endl;
         return false;
     }
 }
 
 /*
- * aws_bucket_conn --
- *     Constructor for AWS bucket connection.
+ * S3Connection --
+ *     Constructor for AWS S3 bucket connection.
  */
-aws_bucket_conn::aws_bucket_conn(const Aws::S3Crt::ClientConfiguration &config)
-    : m_s3_crt_client(config){};
+S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config)
+    : m_S3CrtClient(config){};
