@@ -430,6 +430,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
          * Special handling for application threads evicting their own updates.
          */
         if (!is_hs_page && F_ISSET(r, WT_REC_APP_EVICTION_SNAPSHOT) && txnid == session_txnid) {
+            WT_STAT_CONN_DATA_INCR(session, cache_rec_upd_select_app);
             has_newer_updates = true;
             continue;
         }
@@ -465,6 +466,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
             if (upd_select->upd != NULL)
                 return (__wt_set_return(session, EBUSY));
 
+            WT_STAT_CONN_DATA_INCR(session, cache_rec_upd_select_visibility);
             has_newer_updates = true;
             continue;
         }

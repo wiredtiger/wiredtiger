@@ -446,6 +446,8 @@ struct __wt_connection_stats {
     int64_t cache_eviction_force;
     int64_t cache_eviction_force_fail;
     int64_t cache_eviction_force_fail_time;
+    int64_t cache_rec_upd_select_app;
+    int64_t cache_rec_upd_select_visibility;
     int64_t cache_eviction_hazard;
     int64_t cache_hazard_checks;
     int64_t cache_hazard_walks;
@@ -926,6 +928,8 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_walk_restart;
     int64_t cache_eviction_walk_from_root;
     int64_t cache_eviction_walk_saved_pos;
+    int64_t cache_rec_upd_select_app;
+    int64_t cache_rec_upd_select_visibility;
     int64_t cache_eviction_hazard;
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;

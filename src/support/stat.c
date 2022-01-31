@@ -78,6 +78,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: eviction walks restarted",
   "cache: eviction walks started from root of tree",
   "cache: eviction walks started from saved location in tree",
+  "cache: has newer updates with application thread",
+  "cache: has newer updates with visibility check",
   "cache: hazard pointer blocked page eviction",
   "cache: history store table insert calls",
   "cache: history store table insert calls that returned restart",
@@ -355,6 +357,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_walk_restart = 0;
     stats->cache_eviction_walk_from_root = 0;
     stats->cache_eviction_walk_saved_pos = 0;
+    stats->cache_rec_upd_select_app = 0;
+    stats->cache_rec_upd_select_visibility = 0;
     stats->cache_eviction_hazard = 0;
     stats->cache_hs_insert = 0;
     stats->cache_hs_insert_restart = 0;
@@ -615,6 +619,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_walk_restart += from->cache_eviction_walk_restart;
     to->cache_eviction_walk_from_root += from->cache_eviction_walk_from_root;
     to->cache_eviction_walk_saved_pos += from->cache_eviction_walk_saved_pos;
+    to->cache_rec_upd_select_app += from->cache_rec_upd_select_app;
+    to->cache_rec_upd_select_visibility += from->cache_rec_upd_select_visibility;
     to->cache_eviction_hazard += from->cache_eviction_hazard;
     to->cache_hs_insert += from->cache_hs_insert;
     to->cache_hs_insert_restart += from->cache_hs_insert_restart;
@@ -873,6 +879,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_walk_restart += WT_STAT_READ(from, cache_eviction_walk_restart);
     to->cache_eviction_walk_from_root += WT_STAT_READ(from, cache_eviction_walk_from_root);
     to->cache_eviction_walk_saved_pos += WT_STAT_READ(from, cache_eviction_walk_saved_pos);
+    to->cache_rec_upd_select_app += WT_STAT_READ(from, cache_rec_upd_select_app);
+    to->cache_rec_upd_select_visibility += WT_STAT_READ(from, cache_rec_upd_select_visibility);
     to->cache_eviction_hazard += WT_STAT_READ(from, cache_eviction_hazard);
     to->cache_hs_insert += WT_STAT_READ(from, cache_hs_insert);
     to->cache_hs_insert_restart += WT_STAT_READ(from, cache_hs_insert_restart);
@@ -1170,6 +1178,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: forced eviction - pages selected count",
   "cache: forced eviction - pages selected unable to be evicted count",
   "cache: forced eviction - pages selected unable to be evicted time",
+  "cache: has newer updates with application thread",
+  "cache: has newer updates with visibility check",
   "cache: hazard pointer blocked page eviction",
   "cache: hazard pointer check calls",
   "cache: hazard pointer check entries walked",
@@ -1735,6 +1745,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_force = 0;
     stats->cache_eviction_force_fail = 0;
     stats->cache_eviction_force_fail_time = 0;
+    stats->cache_rec_upd_select_app = 0;
+    stats->cache_rec_upd_select_visibility = 0;
     stats->cache_eviction_hazard = 0;
     stats->cache_hazard_checks = 0;
     stats->cache_hazard_walks = 0;
@@ -2280,6 +2292,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_force += WT_STAT_READ(from, cache_eviction_force);
     to->cache_eviction_force_fail += WT_STAT_READ(from, cache_eviction_force_fail);
     to->cache_eviction_force_fail_time += WT_STAT_READ(from, cache_eviction_force_fail_time);
+    to->cache_rec_upd_select_app += WT_STAT_READ(from, cache_rec_upd_select_app);
+    to->cache_rec_upd_select_visibility += WT_STAT_READ(from, cache_rec_upd_select_visibility);
     to->cache_eviction_hazard += WT_STAT_READ(from, cache_eviction_hazard);
     to->cache_hazard_checks += WT_STAT_READ(from, cache_hazard_checks);
     to->cache_hazard_walks += WT_STAT_READ(from, cache_hazard_walks);
