@@ -127,14 +127,6 @@ __block_size_srch(WT_SIZE **head, wt_off_t size, WT_SIZE ***stack)
             stack[i--] = szp--;
 }
 
-#ifdef HAVE_UNITTEST
-void
-__ut_block_size_srch(WT_SIZE ** head, wt_off_t size, WT_SIZE ***stack)
-{
-    __block_size_srch(head, size, stack);
-}
-#endif
-
 /*
  * __block_off_srch_pair --
  *     Search a by-offset skiplist for before/after records of the specified offset.
@@ -1384,3 +1376,11 @@ err:
     __wt_scr_free(session, &t2);
     return (ret);
 }
+
+#ifdef HAVE_UNITTEST
+WT_EXT *
+__ut_block_off_srch_last(WT_EXT **head, WT_EXT ***stack)
+{
+    return __block_off_srch_last(head, stack);
+}
+#endif

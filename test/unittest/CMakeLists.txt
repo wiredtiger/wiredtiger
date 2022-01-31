@@ -20,9 +20,9 @@ create_test_executable(unittests
     CXX
 )
 
+set_target_properties(unittests PROPERTIES CXX_STANDARD 17)
 target_compile_options(
     unittests
-    PUBLIC -std=c++17
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 

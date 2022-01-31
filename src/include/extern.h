@@ -2359,5 +2359,5 @@ static inline void __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *
 static inline void __wt_upd_value_clear(WT_UPDATE_VALUE *upd_value);
 
 #ifdef HAVE_UNITTEST
-extern void __ut_block_size_srch(WT_SIZE **, wt_off_t, WT_SIZE ***);
+extern WT_EXT *__ut_block_off_srch_last(WT_EXT **, WT_EXT ***);
 #endif
