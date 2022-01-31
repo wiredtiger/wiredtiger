@@ -44,7 +44,7 @@ typedef struct {
     /* Must come first - this is the interface for the file system we are implementing. */
     WT_FILE_SYSTEM fileSystem;
     S3_STORAGE *s3Storage;
-    S3Connection  *conn;
+    S3Connection *conn;
 } S3_FILE_SYSTEM;
 
 /* Configuration variables for connecting to S3CrtClient. */
@@ -65,9 +65,8 @@ static int S3FsTerminate(WT_FILE_SYSTEM *, WT_SESSION *);
  *     Return a customized file system to access the s3 storage source objects.
  */
 static int
-S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session,
-  const char *bucketName, const char *authToken, const char *config,
-  WT_FILE_SYSTEM **fileSystemp)
+S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, const char *bucketName,
+  const char *authToken, const char *config, WT_FILE_SYSTEM **fileSystemp)
 {
     S3_FILE_SYSTEM *fs;
     int ret;

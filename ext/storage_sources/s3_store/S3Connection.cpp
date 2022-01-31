@@ -35,8 +35,7 @@ S3Connection::ListBuckets(std::vector<std::string> &buckets) const
  *     otherwise false.
  */
 bool
-S3Connection::ListObjects(
-  const std::string &bucketName, std::vector<std::string> &objects) const
+S3Connection::ListObjects(const std::string &bucketName, std::vector<std::string> &objects) const
 {
     Aws::S3Crt::Model::ListObjectsRequest request;
     request.WithBucket(bucketName);
@@ -104,5 +103,4 @@ S3Connection::DeleteObject(const std::string &bucketName, const std::string &obj
  * S3Connection --
  *     Constructor for AWS S3 bucket connection.
  */
-S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config)
-    : m_S3CrtClient(config){};
+S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config) : m_S3CrtClient(config){};

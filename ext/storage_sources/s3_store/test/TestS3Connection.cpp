@@ -5,16 +5,16 @@ namespace TestDefaults {
 const Aws::String region = Aws::Region::AP_SOUTHEAST_2;
 const double throughputTargetGbps = 5;
 const uint64_t partSize = 8 * 1024 * 1024; /* 8 MB. */
-}
+} // namespace TestDefaults
 
 int TestListBuckets(const Aws::S3Crt::ClientConfiguration &config);
 
 /* Wrapper for unit test functions. */
 #define TEST(func, config, expectedOutput)              \
-    do {                                                 \
-        int __ret;                                       \
+    do {                                                \
+        int __ret;                                      \
         if ((__ret = (func(config))) != expectedOutput) \
-            return (__ret);                              \
+            return (__ret);                             \
     } while (0)
 
 /*
