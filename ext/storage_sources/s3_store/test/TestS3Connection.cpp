@@ -1,4 +1,4 @@
-#include <aws_bucket_conn.h>
+#include <S3Connection.h>
 
 /* Default config settings for the S3CrtClient. */
 namespace test_defaults {

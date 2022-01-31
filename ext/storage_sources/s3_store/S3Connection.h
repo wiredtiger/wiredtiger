@@ -1,6 +1,6 @@
 
-#ifndef AWS_BUCKET_CONN
-#define AWS_BUCKET_CONN
+#ifndef S3CONNECTION
+#define S3CONNECTION
 
 #include <aws/core/Aws.h>
 #include <aws/s3-crt/S3CrtClient.h>
