@@ -116,15 +116,15 @@ aws_bucket_conn::object_exists(const std::string &bucket_name, const std::string
     Aws::S3Crt::Model::HeadObjectOutcome outcome = m_s3_crt_client.HeadObject(request);
 
     if (outcome.IsSuccess())
-        return 0;
+        return (0);
     /*
      * If an object with the given key does not exist the HEAD request will return a 404.
      * https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html
      */
     else if (outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND)
-        return ENOENT;
+        return (ENOENT);
     else
-        return 1;
+        return (1);
 }
 
 /*
