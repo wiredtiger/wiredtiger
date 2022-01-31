@@ -59,83 +59,82 @@ TEST_CASE("Bitstring macros: __bitstr_size", "") {
 }
 
 TEST_CASE("Bitstring functions: __bit_nset", "") {
-    const int bit_vector_size = 8;
-    std::vector<uint8_t> bits(bit_vector_size, 0);
+    const int bitVectorSize = 8;
+    std::vector<uint8_t> bitVector(bitVectorSize, 0);
 
-    for (int i = 0; i < bit_vector_size; i++) {
-        REQUIRE(bits[i] == 0x00);
-    }
+    for (int i = 0; i < bitVectorSize; i++)
+        REQUIRE(bitVector[i] == 0x00);
 
     SECTION("Simple test: set first two bytes") {
-        __bit_nset(bits.data(), 0, 15);
-        REQUIRE(bits[0] == 0xff);
-        REQUIRE(bits[1] == 0xff);
-        REQUIRE(bits[2] == 0x00);
-        REQUIRE(bits[3] == 0x00);
-        REQUIRE(bits[4] == 0x00);
-        REQUIRE(bits[5] == 0x00);
-        REQUIRE(bits[6] == 0x00);
-        REQUIRE(bits[7] == 0x00);
+        __bit_nset(bitVector.data(), 0, 15);
+        REQUIRE(bitVector[0] == 0xff);
+        REQUIRE(bitVector[1] == 0xff);
+        REQUIRE(bitVector[2] == 0x00);
+        REQUIRE(bitVector[3] == 0x00);
+        REQUIRE(bitVector[4] == 0x00);
+        REQUIRE(bitVector[5] == 0x00);
+        REQUIRE(bitVector[6] == 0x00);
+        REQUIRE(bitVector[7] == 0x00);
     }
 
     SECTION("Simple test: set bytes 1 and 2 bytes") {
-        __bit_nset(bits.data(), 8, 23);
-        REQUIRE(bits[0] == 0x00);
-        REQUIRE(bits[1] == 0xff);
-        REQUIRE(bits[2] == 0xff);
-        REQUIRE(bits[3] == 0x00);
-        REQUIRE(bits[4] == 0x00);
-        REQUIRE(bits[5] == 0x00);
-        REQUIRE(bits[6] == 0x00);
-        REQUIRE(bits[7] == 0x00);
+        __bit_nset(bitVector.data(), 8, 23);
+        REQUIRE(bitVector[0] == 0x00);
+        REQUIRE(bitVector[1] == 0xff);
+        REQUIRE(bitVector[2] == 0xff);
+        REQUIRE(bitVector[3] == 0x00);
+        REQUIRE(bitVector[4] == 0x00);
+        REQUIRE(bitVector[5] == 0x00);
+        REQUIRE(bitVector[6] == 0x00);
+        REQUIRE(bitVector[7] == 0x00);
     }
 
-    SECTION("Simple test: set non byte-aligned bits") {
-        __bit_nset(bits.data(), 9, 20);
-        REQUIRE(bits[0] == 0x00);
-        REQUIRE(bits[1] == 0xfe);
-        REQUIRE(bits[2] == 0x1f);
-        REQUIRE(bits[3] == 0x00);
-        REQUIRE(bits[4] == 0x00);
-        REQUIRE(bits[5] == 0x00);
-        REQUIRE(bits[6] == 0x00);
-        REQUIRE(bits[7] == 0x00);
+    SECTION("Simple test: set non byte-aligned bitVector") {
+        __bit_nset(bitVector.data(), 9, 20);
+        REQUIRE(bitVector[0] == 0x00);
+        REQUIRE(bitVector[1] == 0xfe);
+        REQUIRE(bitVector[2] == 0x1f);
+        REQUIRE(bitVector[3] == 0x00);
+        REQUIRE(bitVector[4] == 0x00);
+        REQUIRE(bitVector[5] == 0x00);
+        REQUIRE(bitVector[6] == 0x00);
+        REQUIRE(bitVector[7] == 0x00);
     }
 
-    SECTION("Simple test: first non byte-aligned bits") {
-        __bit_nset(bits.data(), 0, 20);
-        REQUIRE(bits[0] == 0xff);
-        REQUIRE(bits[1] == 0xff);
-        REQUIRE(bits[2] == 0x1f);
-        REQUIRE(bits[3] == 0x00);
-        REQUIRE(bits[4] == 0x00);
-        REQUIRE(bits[5] == 0x00);
-        REQUIRE(bits[6] == 0x00);
-        REQUIRE(bits[7] == 0x00);
+    SECTION("Simple test: first non byte-aligned bitVector") {
+        __bit_nset(bitVector.data(), 0, 20);
+        REQUIRE(bitVector[0] == 0xff);
+        REQUIRE(bitVector[1] == 0xff);
+        REQUIRE(bitVector[2] == 0x1f);
+        REQUIRE(bitVector[3] == 0x00);
+        REQUIRE(bitVector[4] == 0x00);
+        REQUIRE(bitVector[5] == 0x00);
+        REQUIRE(bitVector[6] == 0x00);
+        REQUIRE(bitVector[7] == 0x00);
     }
 
-    SECTION("Simple test: last non-aligned bits") {
-        __bit_nset(bits.data(), 36, 63);
-        REQUIRE(bits[0] == 0x00);
-        REQUIRE(bits[1] == 0x00);
-        REQUIRE(bits[2] == 0x00);
-        REQUIRE(bits[3] == 0x00);
-        REQUIRE(bits[4] == 0xf0);
-        REQUIRE(bits[5] == 0xff);
-        REQUIRE(bits[6] == 0xff);
-        REQUIRE(bits[7] == 0xff);
+    SECTION("Simple test: last non-aligned bitVector") {
+        __bit_nset(bitVector.data(), 36, 63);
+        REQUIRE(bitVector[0] == 0x00);
+        REQUIRE(bitVector[1] == 0x00);
+        REQUIRE(bitVector[2] == 0x00);
+        REQUIRE(bitVector[3] == 0x00);
+        REQUIRE(bitVector[4] == 0xf0);
+        REQUIRE(bitVector[5] == 0xff);
+        REQUIRE(bitVector[6] == 0xff);
+        REQUIRE(bitVector[7] == 0xff);
     }
 }
 
 
 TEST_CASE("Block helper: __wt_rduppo2", "") {
-    // Expected valid calls
+    // Expected valid calls, where the 2nd param is a power of two
     REQUIRE(__wt_rduppo2(1, 32) == 32);
     REQUIRE(__wt_rduppo2(24, 32) == 32);
     REQUIRE(__wt_rduppo2(42, 32) == 64);
     REQUIRE(__wt_rduppo2(42, 128) == 128);
 
-    // Expected invalid calls
+    // Expected invalid calls, where the 2nd param is NOT a power of two
     REQUIRE(__wt_rduppo2(1, 42) == 0);
     REQUIRE(__wt_rduppo2(102, 42) == 0);
 }
