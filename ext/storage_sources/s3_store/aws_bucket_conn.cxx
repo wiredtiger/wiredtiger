@@ -44,6 +44,9 @@ aws_bucket_conn::list_objects(const std::string &bucket_name, const std::string 
     request.SetMaxKeys(n_per_iter);
 
     countp = 0;
+    if (max_objects != 0 && (max_objects - countp) < n_per_iter)
+        request.SetMaxKeys(max_objects - countp);
+
     Aws::S3Crt::Model::ListObjectsV2Outcome outcomes = m_s3_crt_client.ListObjectsV2(request);
 
     if (outcomes.IsSuccess()) {
