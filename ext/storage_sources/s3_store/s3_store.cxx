@@ -67,11 +67,10 @@ static int s3_customize_file_system(
 static int s3_add_reference(WT_STORAGE_SOURCE *);
 static int s3_fs_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 static int s3_get_directory(const char *home, const char *s, ssize_t len, bool create, char **copy);
-static int s3_stat(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
-  const char *caller, bool must_exist, struct stat *statp);
-static std::string s3_cache_path(WT_FILE_SYSTEM *file_system, const char *name, char **pathp);
-static std::string
- s3_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, char **pathp);
+static int s3_stat(WT_FILE_SYSTEM *file_system, const char *name, struct stat *statp);
+static int s3_cache_path(WT_FILE_SYSTEM *file_system, const char *name, char **path);
+static int
+  s3_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, char **path);
 static int s3_exist(
   WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, bool *existp);
 
@@ -90,7 +89,10 @@ s3_exist(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, boo
     s3->op_count++;
     *existp = false;
 
-    if ((ret = s3_stat(file_system, session, name, "ss_exist", false, &sb)) == 0)
+    // S3_FILE_SYSTEM *s3_fs = (S3_FILE_SYSTEM *)file_system;    
+    // ret = s3_fs->conn->object_exists(s3_fs->bucket_name, name);
+
+    if ((ret = s3_stat(file_system, name, &sb)) == 0)
         *existp = true;
     else if (ret == ENOENT) {
         ret = 0;
@@ -102,8 +104,8 @@ s3_exist(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, boo
  * s3_path --
  *     Construct a pathname from the file system and the object name.
  */
-static std::string
-s3_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name)
+static int
+s3_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, char **path)
 {
     /* Skip over "./" and variations (".//", ".///./././//") at the beginning of the name. */
     while (*name == '.') {
@@ -115,22 +117,24 @@ s3_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name)
     }
     int size_s = std::snprintf( nullptr, 0, "%s/%s", dir, name) + 1; // Extra space for '\0'
     /* Add error handling eventually. */
-    // if( size_s <= 0 )
+    if (size_s <= 0 )
+        return (1);
 
     auto size = static_cast<size_t>( size_s );
-    auto buf = std::make_unique<char[]>( size );
-    std::snprintf( buf.get(), size, "%s/%s", dir, name);
-    return std::string( buf.get(), buf.get() + size - 1 );
+    char *buf = new char[size];
+    std::snprintf(buf, size, "%s/%s", dir, name);
+    *path = buf;
+    return (0);
 }
 
 /*
  * s3_cache_path --
  *     Construct the path to the object in the cache from the file system and the object name.
  */
-static std::string
-s3_cache_path(WT_FILE_SYSTEM *file_system, const char *name)
+static int
+s3_cache_path(WT_FILE_SYSTEM *file_system, const char *name, char **path)
 {
-    return (s3_path(file_system, ((S3_FILE_SYSTEM *)file_system)->cache_dir, name));
+    return (s3_path(file_system, ((S3_FILE_SYSTEM *)file_system)->cache_dir, name, path));
 }
 
 /*
@@ -139,29 +143,26 @@ s3_cache_path(WT_FILE_SYSTEM *file_system, const char *name)
  *     local cache, the S3 Bucket is checked.
  */
 static int
-s3_stat(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, const char *caller,
-  bool must_exist, struct stat *statp)
+s3_stat(WT_FILE_SYSTEM *file_system, const char *name, struct stat *statp)
 {
     int ret;
+    char *path;
     S3_FILE_SYSTEM *s3_fs = (S3_FILE_SYSTEM *)file_system;    
     /*
      * We check to see if the file exists in the cache first, and if not, the s3 bucket.
      */
-    // if ((ret = s3_cache_path(file_system, name, &path)) != 0)
-    //     goto err;
+    if ((ret = s3_cache_path(file_system, name, &path)) != 0)
+        return ret;
     
-    std::string path = s3_cache_path(file_system, name);
     std::cout << path << std::endl;
-    std::ifstream f(name);
-
-    ret = stat(path.c_str(), statp);
-
-    if (ret != 0 && errno == ENOENT) {
-        /* It's not in the cache, try the s3 bucket. */
+    std::ifstream f(path);
+    
+    /* It's not in the cache, try the s3 bucket. */
+    if (!f.good()) 
         ret = s3_fs->conn->object_exists(s3_fs->bucket_name, name);
-    }
-err:
-    return (ret);
+    delete path;
+    return ret;
+
 }
 
 /*
