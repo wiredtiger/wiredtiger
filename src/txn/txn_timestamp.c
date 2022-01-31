@@ -299,13 +299,6 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
     }
 
     __wt_writelock(session, &txn_global->rwlock);
-
-    /* If there is a version cursor open, don't change the pinned timestamp. */
-    if (txn_global->version_cursor_count > 0) {
-        __wt_writeunlock(session, &txn_global->rwlock);
-        return (0);
-    }
-
     /*
      * Scan the global pinned timestamp again, it's possible that it got changed after the previous
      * scan.

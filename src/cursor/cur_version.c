@@ -88,12 +88,12 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     file_cursor = version_cursor->file_cursor;
+    va_start(ap, cursor);
 
     CURSOR_API_CALL(cursor, session, get_value, NULL);
     WT_ERR(__cursor_checkvalue(cursor));
     WT_ERR(__cursor_checkvalue(file_cursor));
 
-    va_start(ap, cursor);
     if (F_ISSET(cursor, WT_CURSTD_RAW)) {
         /* Extract metadata and value separately as raw data. */
         metadata = va_arg(ap, WT_ITEM *);
@@ -555,7 +555,6 @@ __curversion_close(WT_CURSOR *cursor)
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    WT_TXN_GLOBAL *txn_global;
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     hs_cursor = version_cursor->hs_cursor;
@@ -563,12 +562,6 @@ __curversion_close(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, close, NULL);
 
 err:
-    txn_global = &S2C(session)->txn_global;
-    /* Decrease the version cursor counter. */
-    __wt_writelock(session, &txn_global->rwlock);
-    --txn_global->version_cursor_count;
-    __wt_writeunlock(session, &txn_global->rwlock);
-
     version_cursor->next_upd = NULL;
     if (file_cursor != NULL) {
         WT_TRET(file_cursor->close(file_cursor));
@@ -580,6 +573,7 @@ err:
     }
     __wt_free(session, cursor->value_format);
     __wt_cursor_close(cursor);
+    __wt_atomic_sub32(&S2C(session)->version_cursor_count, 1);
 
     API_END_RET(session, ret);
 }
@@ -618,12 +612,14 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
+    wt_timestamp_t pinned_ts;
     /* The file cursor is read only. */
     const char *file_cursor_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "read_only=true", NULL};
     char *version_cursor_value_format;
     size_t format_len;
 
+    txn_global = &S2C(session)->txn_global;
     *cursorp = NULL;
     WT_RET(__wt_calloc_one(session, &version_cursor));
     cursor = (WT_CURSOR *)version_cursor;
@@ -631,6 +627,14 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     cursor->session = (WT_SESSION *)session;
     version_cursor_value_format = NULL;
     txn_global = &S2C(session)->txn_global;
+
+    /* Freeze pinned timestamp when we open the first version cursor. */
+    if (__wt_atomic_add32(&S2C(session)->version_cursor_count, 1) == 1) {
+        __wt_writelock(session, &txn_global->rwlock);
+        __wt_txn_pinned_timestamp(session, &pinned_ts);
+        txn_global->version_cursor_pinned_timestamp = pinned_ts;
+        __wt_writeunlock(session, &txn_global->rwlock);
+    }
 
     /* Open the file cursor to check the key and value format. */
     WT_ERR(__wt_open_cursor(session, uri, NULL, file_cursor_cfg, &version_cursor->file_cursor));
@@ -664,11 +668,6 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
 
     /* Mark the cursor as version cursor for python api. */
     F_SET(cursor, WT_CURSTD_VERSION_CURSOR);
-
-    /* Increase the version cursor counter. */
-    __wt_writelock(session, &txn_global->rwlock);
-    ++txn_global->version_cursor_count;
-    __wt_writeunlock(session, &txn_global->rwlock);
 
     if (0) {
 err:

@@ -25,18 +25,31 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-#
-# __init__.py
-#      initialization for workgen module
-#
-import os, sys
 
-# After importing the SWIG-generated file, copy all symbols from it
-# to this module so they will appear in the workgen namespace.
-me = sys.modules[__name__]
-sys.path.append(os.path.dirname(__file__))  # needed for Python3
-import workgen, workgen_util
-for module in workgen:
-    for name in dir(module):
-        value = getattr(module, name)
-        setattr(me, name, value)
+import os, wiredtiger, wttest
+FileSystem = wiredtiger.FileSystem  # easy access to constants
+
+# test_s3_store01.py
+#   Test minimal S3 extension with basic interactions with AWS S3CrtClient.
+class test_s3_store01(wttest.WiredTigerTestCase):
+    # Load the s3 store extension, skip the test if missing.
+    def conn_extensions(self, extlist):
+        extlist.skip_if_missing = True
+        extlist.extension('storage_sources', 's3_store')
+
+    def get_s3_storage_source(self):
+        return self.conn.get_storage_source('s3_store')
+
+    def test_local_basic(self):
+        # Test some basic functionality of the storage source API, calling
+        # each supported method in the API at least once.
+        session = self.session
+        s3_store = self.get_s3_storage_source()
+
+        fs = s3_store.ss_customize_file_system(session, "./objects", "Secret", None)
+        fs.terminate(session)
+
+        s3_store.terminate(session)
+
+if __name__ == '__main__':
+    wttest.run()
