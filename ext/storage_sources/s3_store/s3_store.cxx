@@ -29,6 +29,7 @@
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
 #include <sys/stat.h>
+#include <fstream>
 #include <errno.h>
 
 #include <aws/core/Aws.h>
@@ -68,8 +69,9 @@ static int s3_fs_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 static int s3_get_directory(const char *home, const char *s, ssize_t len, bool create, char **copy);
 static int s3_stat(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
   const char *caller, bool must_exist, struct stat *statp);
-static int s3_cache_path(WT_FILE_SYSTEM *file_system, const char *name, char **pathp);
-static int s3_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, char **pathp);
+static std::string s3_cache_path(WT_FILE_SYSTEM *file_system, const char *name, char **pathp);
+static std::string
+ s3_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, char **pathp);
 static int s3_exist(
   WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, bool *existp);
 
@@ -100,14 +102,9 @@ s3_exist(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, boo
  * s3_path --
  *     Construct a pathname from the file system and the object name.
  */
-static int
-s3_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, char **pathp)
+static std::string
+s3_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name)
 {
-    size_t len;
-    int ret;
-    char *p;
-    ret = 0;
-
     /* Skip over "./" and variations (".//", ".///./././//") at the beginning of the name. */
     while (*name == '.') {
         if (name[1] != '/')
@@ -116,25 +113,24 @@ s3_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, char **p
         while (*name == '/')
             name++;
     }
-    len = strlen(dir) + strlen(name) + 2;
-    if ((p = (char *)malloc(len)) == NULL)
-        /* Out of memory */
-        return (ENOMEM);
-    if (snprintf(p, len, "%s/%s", dir, name) >= (int)len)
-        /* Overflow sprintf */
-        return (EINVAL);
-    *pathp = p;
-    return (ret);
+    int size_s = std::snprintf( nullptr, 0, "%s/%s", dir, name) + 1; // Extra space for '\0'
+    /* Add error handling eventually. */
+    // if( size_s <= 0 )
+
+    auto size = static_cast<size_t>( size_s );
+    auto buf = std::make_unique<char[]>( size );
+    std::snprintf( buf.get(), size, "%s/%s", dir, name);
+    return std::string( buf.get(), buf.get() + size - 1 );
 }
 
 /*
  * s3_cache_path --
  *     Construct the path to the object in the cache from the file system and the object name.
  */
-static int
-s3_cache_path(WT_FILE_SYSTEM *file_system, const char *name, char **pathp)
+static std::string
+s3_cache_path(WT_FILE_SYSTEM *file_system, const char *name)
 {
-    return (s3_path(file_system, ((S3_FILE_SYSTEM *)file_system)->cache_dir, name, pathp));
+    return (s3_path(file_system, ((S3_FILE_SYSTEM *)file_system)->cache_dir, name));
 }
 
 /*
@@ -147,23 +143,24 @@ s3_stat(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, cons
   bool must_exist, struct stat *statp)
 {
     int ret;
-    char *path;
-    S3_FILE_SYSTEM *s3_fs = (S3_FILE_SYSTEM *)file_system;
-    path = NULL;
+    S3_FILE_SYSTEM *s3_fs = (S3_FILE_SYSTEM *)file_system;    
     /*
      * We check to see if the file exists in the cache first, and if not, the s3 bucket.
      */
-    if ((ret = s3_cache_path(file_system, name, &path)) != 0)
-        goto err;
+    // if ((ret = s3_cache_path(file_system, name, &path)) != 0)
+    //     goto err;
+    
+    std::string path = s3_cache_path(file_system, name);
+    std::cout << path << std::endl;
+    std::ifstream f(name);
 
-    ret = stat(path, statp);
+    ret = stat(path.c_str(), statp);
 
     if (ret != 0 && errno == ENOENT) {
         /* It's not in the cache, try the s3 bucket. */
         ret = s3_fs->conn->object_exists(s3_fs->bucket_name, name);
     }
 err:
-    free(path);
     return (ret);
 }
 
