@@ -34,7 +34,7 @@ aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
  */
 std::vector<std::string>
 aws_bucket_conn::list_objects(const std::string &bucket_name, const std::string &prefix,
-  uint32_t &countp, uint32_t max_objects, uint32_t n_per_iter) const
+  uint32_t &countp, uint32_t n_per_iter, uint32_t max_objects) const
 {
     std::vector<std::string> objects;
     Aws::S3Crt::Model::ListObjectsV2Request request;
