@@ -362,7 +362,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     WT_ERR(__wt_buf_set(session, full_value, full_value->data, full_value->size));
     newer_hs_durable_ts = unpack->tw.durable_start_ts;
 
-    __wt_txn_pinned_timestamp(session, &pinned_ts);
+    __wt_txn_pinned_timestamp(session, &pinned_ts, true);
 
     /* Open a history store table cursor. */
     WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));

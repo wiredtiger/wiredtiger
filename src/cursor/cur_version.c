@@ -628,12 +628,12 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     version_cursor_value_format = NULL;
 
     /* Freeze pinned timestamp when we open the first version cursor. */
+    __wt_writelock(session, &txn_global->rwlock);
     if (__wt_atomic_add32(&S2C(session)->version_cursor_count, 1) == 1) {
-        __wt_writelock(session, &txn_global->rwlock);
-        __wt_txn_pinned_timestamp(session, &pinned_ts);
+        __wt_txn_pinned_timestamp(session, &pinned_ts, false);
         txn_global->version_cursor_pinned_timestamp = pinned_ts;
-        __wt_writeunlock(session, &txn_global->rwlock);
     }
+    __wt_writeunlock(session, &txn_global->rwlock);
 
     /* Open the file cursor to check the key and value format. */
     WT_ERR(__wt_open_cursor(session, uri, NULL, file_cursor_cfg, &version_cursor->file_cursor));

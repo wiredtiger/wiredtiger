@@ -134,7 +134,7 @@ __reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t fla
      */
     if (LF_ISSET(WT_REC_EVICT)) {
         mod->last_eviction_id = oldest_id;
-        __wt_txn_pinned_timestamp(session, &mod->last_eviction_timestamp);
+        __wt_txn_pinned_timestamp(session, &mod->last_eviction_timestamp, true);
         mod->last_evict_pass_gen = S2C(session)->cache->evict_pass_gen;
     }
 
@@ -570,7 +570,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * Cache the pinned timestamp and oldest id, these are used to when we clear obsolete timestamps
      * and ids from time windows later in reconciliation.
      */
-    __wt_txn_pinned_timestamp(session, &r->rec_start_pinned_ts);
+    __wt_txn_pinned_timestamp(session, &r->rec_start_pinned_ts, true);
     r->rec_start_oldest_id = __wt_txn_oldest_id(session);
 
     /*
