@@ -30,7 +30,10 @@ if(WT_POSIX)
     add_subdirectory(syscall)
     add_subdirectory(thread)
     add_subdirectory(cppsuite)
-    add_subdirectory(unittest)
+
+    if(HAVE_UNITTEST)
+        add_subdirectory(unittest)
+    endif()
 
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
         # The fuzz test only works with llvm compilers. Restrict compilation of this test to only

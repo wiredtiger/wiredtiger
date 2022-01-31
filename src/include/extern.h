@@ -2357,3 +2357,7 @@ static inline void __wt_txn_timestamp_flags(WT_SESSION_IMPL *session);
 static inline void __wt_txn_unmodify(WT_SESSION_IMPL *session);
 static inline void __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd);
 static inline void __wt_upd_value_clear(WT_UPDATE_VALUE *upd_value);
+
+#ifdef HAVE_UNITTEST
+extern void __ut_block_size_srch(WT_SIZE **, wt_off_t, WT_SIZE ***);
+#endif
