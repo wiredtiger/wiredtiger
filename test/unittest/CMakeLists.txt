@@ -12,6 +12,7 @@ FetchContent_MakeAvailable(Catch2)
 
 create_test_executable(unittests
     SOURCES tests/main.cxx tests/extent_list.cxx
+        tests/block/test_block_ckpt.cpp
     CXX
 )
 
