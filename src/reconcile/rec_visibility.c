@@ -467,6 +467,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
                 return (__wt_set_return(session, EBUSY));
 
             WT_STAT_CONN_DATA_INCR(session, cache_rec_upd_select_visibility);
+            if (F_ISSET(r, WT_REC_VISIBLE_ALL))
+                WT_STAT_CONN_DATA_INCR(session, cache_rec_upd_select_visibility_all);
+            else
+                WT_STAT_CONN_DATA_INCR(session, cache_rec_upd_select_visibility_snapshot);
             has_newer_updates = true;
             continue;
         }

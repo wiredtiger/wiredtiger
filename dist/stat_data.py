@@ -835,6 +835,8 @@ conn_dsrc_stats = [
     CacheStat('cache_hs_insert', 'history store table insert calls'),
     CacheStat('cache_rec_upd_select_app', 'has newer updates with application thread'),
     CacheStat('cache_rec_upd_select_visibility', 'has newer updates with visibility check'),
+    CacheStat('cache_rec_upd_select_visibility_all', 'has newer updates with visibility check all'),
+    CacheStat('cache_rec_upd_select_visibility_snapshot', 'has newer updates with visibility check snapshot'),
     CacheStat('cache_hs_insert_full_update', 'the number of times full update inserted to history store'),
     CacheStat('cache_hs_insert_restart', 'history store table insert calls that returned restart'),
     CacheStat('cache_hs_insert_reverse_modify', 'the number of times reverse modify inserted to history store'),
