@@ -195,7 +195,7 @@ s3_directory_list_single(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const
     S3_FILE_SYSTEM *s3_fs;
     s3_fs = (S3_FILE_SYSTEM *)file_system;
     std::vector<std::string> objects =
-      s3_fs->conn->list_objects(std::string(directory), std::string(prefix), *countp, 1);
+      s3_fs->conn->list_objects(std::string(directory), std::string(prefix), *countp, 1, 1);
     std::cout << "Object in bucket '" << directory << "':" << std::endl;
     if (!objects.empty()) {
         for (const auto &object : objects)

@@ -34,16 +34,14 @@ aws_bucket_conn::list_buckets(std::vector<std::string> &buckets) const
  */
 std::vector<std::string>
 aws_bucket_conn::list_objects(const std::string &bucket_name, const std::string &prefix,
-  uint32_t &countp, uint32_t max_objects) const
+  uint32_t &countp, uint32_t max_objects, uint32_t n_per_iter) const
 {
     std::vector<std::string> objects;
     Aws::S3Crt::Model::ListObjectsV2Request request;
 
     request.SetBucket(bucket_name);
     request.SetPrefix(prefix);
-    /* AWS list objects request can return up to 1000 entries at a time. */
-    if (max_objects != 0 && max_objects < 1000)
-        request.SetMaxKeys(max_objects);
+    request.SetMaxKeys(n_per_iter);
 
     countp = 0;
     Aws::S3Crt::Model::ListObjectsV2Outcome outcomes = m_s3_crt_client.ListObjectsV2(request);
@@ -57,7 +55,7 @@ aws_bucket_conn::list_objects(const std::string &bucket_name, const std::string 
 
         /* Continuation token will be an empty string if we have returned all possible objects. */
         while (continuation_token != "" && (max_objects == 0 || (max_objects - countp) > 0)) {
-            if (max_objects != 0 && (max_objects - countp) < 1000)
+            if (max_objects != 0 && (max_objects - countp) < n_per_iter)
                 request.SetMaxKeys(max_objects - countp);
             request.SetContinuationToken(continuation_token);
 

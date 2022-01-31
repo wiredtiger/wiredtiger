@@ -25,10 +25,12 @@ class aws_bucket_conn {
      * @param countp the number of entries returned.
      * @param max_objects the maximum number of objects to return. Defaults to 0, which returns all
      * objects.
+     * @param n_per_iter the number of objects to access per iteration of the AWS request, from 1 to
+     * 1000. Defaults to 1000.
      * @param[out] objects the vector of object names returned.
      */
     std::vector<std::string> list_objects(const std::string &bucket_name, const std::string &prefix,
-      uint32_t &countp, uint32_t max_objects = 0) const;
+      uint32_t &countp, uint32_t max_objects = 0, uint32_t n_per_iter = 1000) const;
 
     bool put_object(const std::string &bucket_name, const std::string &object_key,
       const std::string &file_name) const;
