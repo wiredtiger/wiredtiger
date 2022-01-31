@@ -132,7 +132,8 @@ test_list_objects(const Aws::S3Crt::ClientConfiguration &config)
                 std::cout << "  * " << object << std::endl;
 
             /* List with total_objects < max_per_iter. */
-            objects = conn.list_objects(first_bucket, "test_list_objects_", countp, max_per_iter, 4);
+            objects =
+              conn.list_objects(first_bucket, "test_list_objects_", countp, max_per_iter, 4);
             if (objects.size() != countp || countp != 4) {
                 /* Delete objects and file at end of test. */
                 for (int i = 0; i < 20; i++)
@@ -146,7 +147,8 @@ test_list_objects(const Aws::S3Crt::ClientConfiguration &config)
                 std::cout << "  * " << object << std::endl;
 
             /* List with total_objects non-divisable by max_per_iter. */
-            objects = conn.list_objects(first_bucket, "test_list_objects_", countp, max_per_iter, 8);
+            objects =
+              conn.list_objects(first_bucket, "test_list_objects_", countp, max_per_iter, 8);
             if (objects.size() != countp || countp != 8) {
                 /* Delete objects and file at end of test. */
                 for (int i = 0; i < 20; i++)
