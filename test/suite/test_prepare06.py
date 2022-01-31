@@ -59,7 +59,7 @@ class test_prepare06(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.prepare_transaction(
             'prepare_timestamp=' + self.timestamp_str(10)),
-            "/older than the stable timestamp/")
+            "/not newer than the stable timestamp/")
         self.session.rollback_transaction()
 
         # Check setting a prepared transaction timestamps earlier than the

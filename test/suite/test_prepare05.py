@@ -57,12 +57,21 @@ class test_prepare05(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.prepare_transaction(
             'prepare_timestamp=' + self.timestamp_str(1)),
-            "/older than the stable timestamp/")
+            "/not newer than the stable timestamp/")
         self.session.rollback_transaction()
 
-        # Check setting the prepare timestamp same as stable timestamp is valid.
+        # It is also illegal to set a prepare timestamp the same as the stable timestamp.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(2))
         self.session.begin_transaction()
-        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(2))
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.prepare_transaction(
+            'prepare_timestamp=' + self.timestamp_str(2)),
+            "/not newer than the stable timestamp/")
+        self.session.rollback_transaction()
+
+        # Check setting the prepare timestamp immediately after the stable timestamp is valid.
+        self.session.begin_transaction()
+        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(3))
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(3))
         self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(3))
         self.session.commit_transaction()

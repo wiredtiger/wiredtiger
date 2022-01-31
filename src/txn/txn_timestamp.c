@@ -712,20 +712,20 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
      * Check whether the prepare timestamp is less than the stable timestamp.
      */
     stable_ts = txn_global->stable_timestamp;
-    if (prepare_ts < stable_ts) {
+    if (prepare_ts <= stable_ts) {
         /*
          * Check whether the prepare timestamp needs to be rounded up to the stable timestamp.
          */
         if (F_ISSET(txn, WT_TXN_TS_ROUND_PREPARED)) {
             __wt_verbose(session, WT_VERB_TIMESTAMP,
-              "prepare timestamp %s rounded to stable timestamp %s",
+              "prepare timestamp %s rounded to %s (stable timestamp + 1)",
               __wt_timestamp_to_string(prepare_ts, ts_string[0]),
-              __wt_timestamp_to_string(stable_ts, ts_string[1]));
+              __wt_timestamp_to_string(stable_ts + 1, ts_string[1]));
 
-            prepare_ts = stable_ts;
+            prepare_ts = stable_ts + 1;
         } else
             WT_RET_MSG(session, EINVAL,
-              "prepare timestamp %s is older than the stable timestamp %s",
+              "prepare timestamp %s is not newer than the stable timestamp %s",
               __wt_timestamp_to_string(prepare_ts, ts_string[0]),
               __wt_timestamp_to_string(stable_ts, ts_string[1]));
     }
