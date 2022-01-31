@@ -29,8 +29,12 @@
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
 
-#include <aws/core/Aws.h>
 #include "aws_bucket_conn.h"
+#include "S3StoreLogSystem.h"
+#include <aws/core/Aws.h>
+#include <aws/core/utils/memory/stl/AWSString.h>
+#include <aws/core/utils/logging/DefaultLogSystem.h>
+#include <aws/core/utils/logging/AWSLogging.h>
 
 #define UNUSED(x) (void)(x)
 
@@ -45,6 +49,7 @@ typedef struct {
     WT_FILE_SYSTEM file_system;
     S3_STORAGE *s3_storage;
     aws_bucket_conn *conn;
+    S3StoreLogSystem *s3_log;
 } S3_FILE_SYSTEM;
 
 /* Configuration variables for connecting to S3CrtClient. */
@@ -83,6 +88,9 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     aws_config.throughputTargetGbps = throughput_target_gbps;
     aws_config.partSize = part_size;
 
+    Aws::Utils::Logging::InitializeAWSLogging(Aws::MakeShared<S3StoreLogSystem>("S3Storage"));
+
+
     if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
         return (errno);
 
@@ -90,6 +98,7 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 
     /* New can fail; will deal with this later. */
     fs->conn = new aws_bucket_conn(aws_config);
+    // fs->s3_log = new S3StoreLogSystem();
     fs->file_system.terminate = s3_fs_terminate;
 
     /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
