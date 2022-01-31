@@ -62,14 +62,9 @@ TEST_CASE("Bitstring functions: __bit_nset", "") {
     const int bit_vector_size = 8;
     std::vector<uint8_t> bits(bit_vector_size, 0);
 
-    REQUIRE(bits[0] == 0x00);
-    REQUIRE(bits[1] == 0x00);
-    REQUIRE(bits[2] == 0x00);
-    REQUIRE(bits[3] == 0x00);
-    REQUIRE(bits[4] == 0x00);
-    REQUIRE(bits[5] == 0x00);
-    REQUIRE(bits[6] == 0x00);
-    REQUIRE(bits[7] == 0x00);
+    for (int i = 0; i < bit_vector_size; i++) {
+        REQUIRE(bits[i] == 0x00);
+    }
 
     SECTION("Simple test: set first two bytes") {
         __bit_nset(bits.data(), 0, 15);
