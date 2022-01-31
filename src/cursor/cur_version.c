@@ -626,7 +626,6 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     *cursor = iface;
     cursor->session = (WT_SESSION *)session;
     version_cursor_value_format = NULL;
-    txn_global = &S2C(session)->txn_global;
 
     /* Freeze pinned timestamp when we open the first version cursor. */
     if (__wt_atomic_add32(&S2C(session)->version_cursor_count, 1) == 1) {
