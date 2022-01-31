@@ -1,9 +1,22 @@
 include(ExternalProject)
 include(GNUInstallDirs)
+include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
 
+config_choice(
+    IMPORT_S3_SDK
+    "Specify how to import the S3 SDK"
+    OPTIONS
+        "none;IMPORT_S3_SDK_NONE;NOT ENABLE_S3"
+        "package;IMPORT_S3_SDK_PACKAGE;ENABLE_S3"
+        "external;IMPORT_S3_SDK_EXTERNAL;ENABLE_S3"
+)
 # Don't add external project if extension is not enabled.
 if(NOT ENABLE_S3)
     return()
+endif()
+
+if(IMPORT_S3_SDK_PACKAGE)
+    find_package(AWSSDK REQUIRED COMPONENTS s3-crt)
 endif()
 
 # Download and install the AWS CPP SDK into the build directory.
