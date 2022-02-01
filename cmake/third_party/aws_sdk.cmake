@@ -17,8 +17,14 @@ if(NOT ENABLE_S3 AND NOT IMPORT_S3_SDK_NONE)
     message(FATAL_ERROR "Cannot specify how to import the AWS SDK without setting -DENABLE_S3=1.")
 endif()
 
+# Raise an error if attempt to build with ENABLE_S3=1 without specifying
+# how the SDK should be built.
+if(ENABLE_S3 AND IMPORT_S3_SDK_NONE)
+    message(FATAL_ERROR "Must specify how the AWS SDK should be built. Set the DIMPORT_S3_SDK flag.")
+endif()
+
 # Don't build the AWS SDK if the extension is not enabled.
-if(NOT ENABLE_S3 OR IMPORT_S3_SDK_NONE)
+if(NOT ENABLE_S3)
     return()
 endif()
 
