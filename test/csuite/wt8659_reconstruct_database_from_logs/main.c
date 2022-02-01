@@ -27,39 +27,45 @@
  */
 #include <test_util.h>
 
-#define MAX_ITERATIONS 5
 #define MAX_KEYS 100000
 
 static const char *const conn_config =
   "create,cache_size=100MB,log=(archive=false,enabled=true,file_max=100K)";
-static const char *const home_live = "WT_HOME_LOG";
+static const char *const table_config = "key_format=S,value_format=S";
+
+static const char *const full_out = "./backup_full";
 static const char *const home_full = "WT_HOME_LOG_FULL";
 static const char *const home_incr = "WT_HOME_LOG_INCR";
 static const char *const home_incr_copy = "WT_HOME_LOG_INCR_COPY";
-static const char *const uri = "table:logtest";
-static const char *const full_out = "./backup_full";
+static const char *const home_live = "WT_HOME_LOG";
 static const char *const incr_out = "./backup_incr";
+static const char *const uri = "table:logtest";
 
+static const char *wt_tool_path = "./wt";
+
+static int iterations_num = 5;
 static WT_CONNECTION *conn = NULL;
 static WT_SESSION *session = NULL;
 
+extern char *__wt_optarg;
+
 /*
  * dump_table --
- *     Dumps the table content in to the file in human-readable format.
+ *     Dump the table content in to the file in human-readable format.
  */
 static void
 dump_table(const char *home, const char *table, const char *out_file)
 {
     char buf[1024];
 
-    testutil_check(
-      __wt_snprintf(buf, sizeof(buf), "./wt -R -h %s dump %s > %s", home, table, out_file));
+    testutil_check(__wt_snprintf(
+      buf, sizeof(buf), "%s -R -h %s dump %s > %s", wt_tool_path, home, table, out_file));
     testutil_check(system(buf));
 }
 
 /*
  * reset_dir --
- *     Recreates the directory.
+ *     Recreate the directory.
  */
 static void
 reset_dir(const char *dir)
@@ -72,7 +78,7 @@ reset_dir(const char *dir)
 
 /*
  * remove_dir --
- *     Removes the directory.
+ *     Remove the directory.
  */
 static void
 remove_dir(const char *dir)
@@ -85,7 +91,7 @@ remove_dir(const char *dir)
 
 /*
  * compare_backups --
- *     Compares the full and the incremental backups.
+ *     Compare the full and the incremental backups.
  */
 static int
 compare_backups(void)
@@ -125,7 +131,7 @@ compare_backups(void)
 
 /*
  * add_work --
- *     Inserts some data into the database.
+ *     Insert some data into the database.
  */
 static void
 add_work(int iter)
@@ -149,7 +155,7 @@ add_work(int iter)
 
 /*
  * take_full_backup --
- *     Takes full backup of the database.
+ *     Take full backup of the database.
  */
 static void
 take_full_backup(const char *home, const char *backup_home)
@@ -174,7 +180,7 @@ take_full_backup(const char *home, const char *backup_home)
 
 /*
  * take_incr_backup --
- *     Takes incremental log-based backup of the database.
+ *     Take incremental log-based backup of the database.
  */
 static void
 take_incr_backup(const char *backup_home, bool truncate_logs)
@@ -208,7 +214,7 @@ take_incr_backup(const char *backup_home, bool truncate_logs)
 
 /*
  * prepare_folders --
- *     Prepares all working folders required for the test.
+ *     Prepare all working folders required for the test.
  */
 static void
 prepare_folders(void)
@@ -285,27 +291,70 @@ validate(bool after_reconnect)
 }
 
 /*
+ * usage --
+ *     Print out the command usage message.
+ */
+static void
+usage(void)
+{
+    fprintf(stderr, "Usage: %s [-w path] [-i number]\n", progname);
+    fprintf(stderr, "\t-w <path> optional path to the wt tool. Default is \"./wt\".\n");
+    fprintf(stderr, "\t-i <number> optional number of iterations to run. Default is 5.\n");
+
+    exit(EXIT_FAILURE);
+}
+
+/*
+ * parse_args --
+ *     Parse command line arguments.
+ */
+static void
+parse_args(int argc, char *argv[])
+{
+    int ch;
+
+    while ((ch = __wt_getopt(progname, argc, argv, "w:i:")) != EOF)
+        switch (ch) {
+        case 'w':
+            wt_tool_path = __wt_optarg;
+            if (access(wt_tool_path, F_OK) != 0) {
+                printf("Invalid path to WT tool: %s\n", __wt_optarg);
+                usage();
+            }
+            break;
+        case 'i':
+            iterations_num = atoi(__wt_optarg);
+            if (iterations_num <= 0) {
+                printf("Invalid iterations number: %s\n", __wt_optarg);
+                usage();
+            }
+            break;
+        default:
+            break;
+        }
+}
+
+/*
  * main --
  *     Test's entry point.
  */
 int
 main(int argc, char *argv[])
 {
-    /* Original code was taken from examples/c/ex_backup.c */
     int i;
 
-    (void)argc; /* Unused variable */
     (void)testutil_set_progname(argv);
+    parse_args(argc, argv);
 
     prepare_folders();
 
     reopen_conn();
-    testutil_check(session->create(session, uri, "key_format=S,value_format=S"));
+    testutil_check(session->create(session, uri, table_config));
 
     printf("Taking initial backup into incremental backup folder\n");
     take_full_backup(home_live, home_incr);
 
-    for (i = 1; i <= MAX_ITERATIONS; i++) {
+    for (i = 1; i <= iterations_num; i++) {
         printf("==================================\n");
         printf("Iteration %d:\n", i);
         printf("==================================\n");
