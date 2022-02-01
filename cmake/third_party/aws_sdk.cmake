@@ -7,11 +7,17 @@ config_choice(
     "Specify how to import the S3 SDK"
     OPTIONS
         "none;IMPORT_S3_SDK_NONE;"
-        "package;IMPORT_S3_SDK_PACKAGE;ENABLE_S3"
-        "external;IMPORT_S3_SDK_EXTERNAL;ENABLE_S3"
+        "package;IMPORT_S3_SDK_PACKAGE;"
+        "external;IMPORT_S3_SDK_EXTERNAL;"
 )
 
-# Don't add external project if extension is not enabled.
+# Raise a fatal error if attempting to build with IMPORT_S3_SDK without 
+# having set ENABLE_S3=1.
+if(NOT ENABLE_S3 AND NOT IMPORT_S3_SDK_NONE)
+    message(FATAL_ERROR "Cannot specify how to import the AWS SDK without setting -DENABLE_S3=1.")
+endif()
+
+# Don't build the AWS SDK if the extension is not enabled.
 if(NOT ENABLE_S3 OR IMPORT_S3_SDK_NONE)
     return()
 endif()
@@ -20,13 +26,13 @@ set(s3_crt_lib_location)
 set(aws_core_lib_location)
 set(aws_sdk_include_location)
 
-if(IMPORT_S3_SDK_PACKAGE AND ENABLE_S3)
+if(IMPORT_S3_SDK_PACKAGE)
     find_package(AWSSDK REQUIRED COMPONENTS s3-crt)
     # Use the AWS provided variables to set the paths for the aws targets.
     set(s3_crt_lib_location ${AWSSDK_LIB_DIR}/libaws-cpp-sdk-s3-crt${CMAKE_SHARED_LIBRARY_SUFFIX})
     set(aws_core_lib_location ${AWSSDK_LIB_DIR}/libaws-cpp-sdk-core${CMAKE_SHARED_LIBRARY_SUFFIX})
     set(aws_sdk_include_location ${AWSSDK_INCLUDE_DIR})
-elseif(IMPORT_S3_SDK_EXTERNAL AND ENABLE_S3)
+elseif(IMPORT_S3_SDK_EXTERNAL)
     # Download and install the AWS CPP SDK into the build directory.
     ExternalProject_Add(aws-sdk
         PREFIX aws-sdk-cpp
