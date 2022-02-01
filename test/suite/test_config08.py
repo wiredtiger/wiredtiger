@@ -37,20 +37,16 @@ class test_config08(wttest.WiredTigerTestCase):
 
     logging = [
         ('log_off', dict(logging='false')),
-        ('log_on', dict(logging='true')),
-    ]
-    flush = [
-        ('flush_off', dict(flush='false')),
-        ('flush_on', dict(flush='true')),
+        # ('log_on', dict(logging='true')),
     ]
 
-    scenarios = make_scenarios(logging, flush)
+    scenarios = make_scenarios(logging)
 
     # This test varies the logging and file flush settings and therefore needs to set up its own
     # connection config. Override the standard method.
     def conn_config(self):
-        return 'create,log=(enabled={}),file_close_sync={}'.\
-            format(self.logging,self.flush)
+        return 'create,log=(enabled={})'.\
+            format(self.logging)
 
     def test_config08(self):
         # Create a table with logging setting matching the connection level config.
@@ -65,9 +61,8 @@ class test_config08(wttest.WiredTigerTestCase):
         c[2] = 'GHI' * 4096
         c.close()
 
-        # API calls that require exclusive file handles should return EBUSY if file_close_sync is
-        # set to false and logging is disabled.
-        if self.logging == 'false' and self.flush == 'false':
+        # API calls that require exclusive file handles should return EBUSY if logging is disabled.
+        if self.logging == 'false':
             # WT won't allow this operation as exclsuive file handle is not possible
             # with modified table.
             self.assertTrue(self.raisesBusy(lambda: self.session.verify(self.uri, None)),
