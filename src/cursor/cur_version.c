@@ -629,10 +629,11 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
 
     /* Freeze pinned timestamp when we open the first version cursor. */
     __wt_writelock(session, &txn_global->rwlock);
-    if (__wt_atomic_add32(&S2C(session)->version_cursor_count, 1) == 1) {
-        __wt_txn_pinned_timestamp(session, &pinned_ts, false);
+    if (&S2C(session)->version_cursor_count == 0) {
+        __wt_txn_pinned_timestamp(session, &pinned_ts);
         txn_global->version_cursor_pinned_timestamp = pinned_ts;
     }
+    (void)__wt_atomic_add32(&S2C(session)->version_cursor_count, 1);
     __wt_writeunlock(session, &txn_global->rwlock);
 
     /* Open the file cursor to check the key and value format. */

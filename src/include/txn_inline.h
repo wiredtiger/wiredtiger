@@ -500,8 +500,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
  *     Get the first timestamp that has to be kept for the current tree.
  */
 static inline void
-__wt_txn_pinned_timestamp(
-  WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp, bool include_version_cursor)
+__wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 {
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t checkpoint_ts, pinned_ts;
@@ -517,7 +516,7 @@ __wt_txn_pinned_timestamp(
         return;
 
     /* If we have a version cursor open, use the pinned timestamp when it is opened. */
-    if (include_version_cursor && S2C(session)->version_cursor_count > 0) {
+    if (S2C(session)->version_cursor_count > 0) {
         *pinned_tsp = txn_global->version_cursor_pinned_timestamp;
         return;
     }
@@ -578,7 +577,7 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
         return (true);
 
     /* If no oldest timestamp has been supplied, updates have to stay in cache. */
-    __wt_txn_pinned_timestamp(session, &pinned_ts, true);
+    __wt_txn_pinned_timestamp(session, &pinned_ts);
 
     return (pinned_ts != WT_TS_NONE && timestamp <= pinned_ts);
 }
