@@ -4,6 +4,7 @@
 # Build directories
 .deps/
 .libs/
+build/
 
 # Build files
 *.dll
@@ -62,6 +63,7 @@ tags
 # Tests
 WT_HOME/
 WT_TEST/
+test-compatibility-run/
 
 # Bench/workgen
 /bench/workgen/_workgen.so
