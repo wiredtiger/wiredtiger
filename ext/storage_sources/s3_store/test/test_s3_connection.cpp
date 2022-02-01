@@ -37,7 +37,7 @@ TestListBuckets(const Aws::S3Crt::ClientConfiguration &config)
     for (const auto &bucket : buckets)
         std::cout << "  * " << bucket << std::endl;
 
-    err:
+err:
     return ret;
 }
 

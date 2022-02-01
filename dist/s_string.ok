@@ -596,6 +596,7 @@ btcur
 btmem
 btree
 btrees
+bucketName
 buf
 bufsz
 bugfix
@@ -1105,6 +1106,7 @@ mappable
 marshall
 marshalled
 maxCLevel
+maxObjects
 maxcpu
 maxdbs
 maxdiff
@@ -1154,6 +1156,7 @@ mutexes
 mux
 mytable
 mytxn
+nPerIter
 nTemp
 namespace
 namespaces
