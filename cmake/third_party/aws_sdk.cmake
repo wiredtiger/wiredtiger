@@ -10,8 +10,6 @@ config_choice(
         "package;IMPORT_S3_SDK_PACKAGE;ENABLE_S3"
         "external;IMPORT_S3_SDK_EXTERNAL;ENABLE_S3"
 )
-message(STATUS "IMPORT_S3_SDK_EXTERNAL ${IMPORT_S3_SDK_EXTERNAL}")
-message(STATUS "IMPORT_S3_SDK_PACKAGE ${IMPORT_S3_SDK_PACKAGE}")
 
 # Don't add external project if extension is not enabled.
 if(NOT ENABLE_S3 OR IMPORT_S3_SDK_NONE)
