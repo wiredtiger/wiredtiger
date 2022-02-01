@@ -6,26 +6,17 @@ config_choice(
     IMPORT_S3_SDK
     "Specify how to import the S3 SDK"
     OPTIONS
-        "none;IMPORT_S3_SDK_NONE;"
-        "package;IMPORT_S3_SDK_PACKAGE;"
-        "external;IMPORT_S3_SDK_EXTERNAL;"
+        "none;IMPORT_S3_SDK_NONE;NOT ENABLE_S3"
+        "package;IMPORT_S3_SDK_PACKAGE;ENABLE_S3"
+        "external;IMPORT_S3_SDK_EXTERNAL;ENABLE_S3"
 )
-
-# Raise a fatal error if attempting to build with IMPORT_S3_SDK without 
-# having set the ENABLE_S3 flag.
-if(NOT ENABLE_S3 AND NOT IMPORT_S3_SDK_NONE)
-    message(FATAL_ERROR "Cannot specify how to import the AWS SDK without setting -DENABLE_S3=1.")
-endif()
-
-# Raise a fatal error if attempting to build with the ENABLE_S3 flag without specifying
-# how the SDK should be built - i.e. IMPORT_S3_SDK has not been set.
-if(ENABLE_S3 AND IMPORT_S3_SDK_NONE)
-    message(FATAL_ERROR "Must specify how the AWS SDK should be built. Set the DIMPORT_S3_SDK flag.")
-endif()
-
-# Skip the AWS SDK build step if the extension is not enabled.
-if(NOT ENABLE_S3)
-    return()
+ # Skip the AWS SDK build step if the extension is not enabled.
+ if(NOT ENABLE_S3)
+     return()
+ endif()
+ 
+if(IMPORT_S3_SDK_NONE)
+    message(FATAL_ERROR "Cannot enable S3 extension without specifying an IMPORT_S3_SDK method (package, none).")
 endif()
 
 set(s3_crt_lib_location)
@@ -44,7 +35,7 @@ elseif(IMPORT_S3_SDK_EXTERNAL)
         PREFIX aws-sdk-cpp
         GIT_REPOSITORY https://github.com/aws/aws-sdk-cpp.git
         GIT_TAG 1.9.175
-        CMAKE_ARGS       
+        CMAKE_ARGS
             -DBUILD_SHARED_LIBS=ON
             -DBUILD_ONLY=s3-crt
             -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp/install
@@ -72,7 +63,7 @@ add_library(aws-sdk::crt SHARED IMPORTED)
 # Small workaround to declare the include directory under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase.
 set_target_properties(aws-sdk::core PROPERTIES
     IMPORTED_LOCATION ${aws_core_lib_location}
-    INTERFACE_INCLUDE_DIRECTORIES ${aws_sdk_include_location}                                      
+    INTERFACE_INCLUDE_DIRECTORIES ${aws_sdk_include_location}
 )
 set_target_properties(aws-sdk::s3-crt PROPERTIES
     IMPORTED_LOCATION ${s3_crt_lib_location}
