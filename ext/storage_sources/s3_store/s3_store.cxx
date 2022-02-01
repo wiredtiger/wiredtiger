@@ -187,12 +187,14 @@ s3_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *
     /* TODO: Put objects into dirlistp. */
     s3_directory_list_add(s3_fs->s3_storage, &entries, &objects, count);
 
-    // *dirlistp = entries;
+    dirlistp = (char***)malloc(sizeof(char **));
+    *dirlistp = entries;
+
     *countp = count;
 
     std::cout << "printing here" << std::endl;
     for (int i = 0; i < *countp; i++) {
-        std::cout << entries[i] << std::endl;
+        std::cout << (*dirlistp)[i] << std::endl;
     }
     return (0);
 }
