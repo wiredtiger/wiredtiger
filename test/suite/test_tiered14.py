@@ -142,8 +142,8 @@ class test_tiered14(wttest.WiredTigerTestCase):
             s = ''.join(random.choices('aaaaauuuuufcr.', k=100))
             self.playback(testnum, s)
 
-        # Disabled for now.
-        for i in range(0, 0):
+        # FIXME-WT-8758: test disabled for now.
+        for i in range(0, 10):
             testnum += 1
             # Generate a set of 100 operations that is has a greater mix of 'operational' functions
             s = ''.join(random.choices('aufcr.', k=100))
