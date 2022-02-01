@@ -17,6 +17,7 @@ set(unittest_sources
 
 create_test_executable(unittests
     SOURCES ${unittest_sources}
+    FLAGS -Wno-missing-declarations
     CXX
 )
 
