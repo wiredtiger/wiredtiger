@@ -1447,7 +1447,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_OP *op;
     WT_UPDATE *upd;
     wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp;
-    uint32_t ft_resolution;
 #ifdef HAVE_DIAGNOSTIC
     uint32_t prepare_count;
 #endif
