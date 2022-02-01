@@ -101,12 +101,11 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
     {
         std::vector<std::string> buckets;
-        if (fs->conn->ListBuckets(buckets)) {
-            std::cout << "All buckets under my account:" << std::endl;
-            for (const std::string &bucket : buckets)
-                std::cout << "  * " << bucket << std::endl;
-            std::cout << std::endl;
-        }
+        fs->conn->ListBuckets(buckets);
+        std::cout << "All buckets under my account:" << std::endl;
+        for (const std::string &bucket : buckets)
+            std::cout << "  * " << bucket << std::endl;
+        std::cout << std::endl;
 
         /* Have at least one bucket to use. */
         if (!buckets.empty()) {
