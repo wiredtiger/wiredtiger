@@ -552,6 +552,7 @@ case $1 in
     patch_version=true
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
     echo "Performing compatibility tests for ${scopes[patch_version]}"
+;;
 "-u")
     upgrade_to_latest=true
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
