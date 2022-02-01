@@ -231,7 +231,7 @@ functions:
             # Pop to root project directory.
             popd
             # Generate WiredTiger documentation.
-            (cd dist && bash s_docs && echo "The documentation for $branch was successfully generated.")
+            (cd dist && sh s_docs && echo "The documentation for $branch was successfully generated.")
             # Save generated documentation
             mv docs docs-$branch
           done

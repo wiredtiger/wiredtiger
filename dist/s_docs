@@ -201,14 +201,13 @@ EOF
 
 # Do not build the documentation if doxygen version is not compatible.
 v=$(doxygen --version)
-if [ "$v" == "1.8.17" ]; then
-    doxyfile="Doxyfile"
-elif [[ "$v" =~ 1.9.* ]]; then
-    doxyfile="Doxyfile.9"
-else
-    echo "$0 skipped: unsupported version of doxygen: $v, not 1.8.17 or 1.9.XX"
-    exit 0
-fi
+case "$v" in
+    1.8.17) doxyfile="Doxyfile";;
+    1.9.*) doxyfile="Doxyfile.9";;
+    *)
+        echo "$0 skipped: unsupported version of doxygen: $v, not 1.8.17 or 1.9.XX"
+        exit 0
+esac
 
 clean=0
 additional_languages=1
