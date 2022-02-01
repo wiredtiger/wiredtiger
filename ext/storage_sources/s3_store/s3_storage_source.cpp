@@ -58,7 +58,7 @@ Aws::SDKOptions options;
 static int S3CustomizeFileSystem(
   WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
 static int S3AddReference(WT_STORAGE_SOURCE *);
-static int S3FsTerminate(WT_FILE_SYSTEM *, WT_SESSION *);
+static int S3FileSystemTerminate(WT_FILE_SYSTEM *, WT_SESSION *);
 
 /*
  * S3CustomizeFileSystem --
@@ -66,7 +66,7 @@ static int S3FsTerminate(WT_FILE_SYSTEM *, WT_SESSION *);
  */
 static int
 S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, const char *bucketName,
-  const char *authToken, const char *config, WT_FILE_SYSTEM **fileSystemp)
+  const char *authToken, const char *config, WT_FILE_SYSTEM **fileSystem)
 {
     S3_FILE_SYSTEM *fs;
     int ret;
@@ -90,7 +90,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     /* New can fail; will deal with this later. */
     fs->conn = new S3Connection(aws_config);
 
-    fs->fileSystem.terminate = S3FsTerminate;
+    fs->fileSystem.terminate = S3FileSystemTerminate;
 
     /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
     {
@@ -160,16 +160,16 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
         }
     }
 
-    *fileSystemp = &fs->fileSystem;
+    *fileSystem = &fs->fileSystem;
     return 0;
 }
 
 /*
- * S3FsTerminate --
+ * S3FileSystemTerminate --
  *     Discard any resources on termination of the file system.
  */
 static int
-S3FsTerminate(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session)
+S3FileSystemTerminate(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session)
 {
     S3_FILE_SYSTEM *s3Fs;
 
