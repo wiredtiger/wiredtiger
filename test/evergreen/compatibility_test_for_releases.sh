@@ -37,12 +37,16 @@ get_prev_version()
 #############################################################
 get_patch_versions()
 {
+    branch=$1
+
     # Query out all released patch versions for a given release branch using "git tag"
     versions=()
-    for v in $(git tag | grep $b | grep -v rc)
+    for v in $(git tag | grep $branch | grep -v rc | grep -v alpha)
     do
         versions+=("$v")
     done
+
+    echo "$versions"
 }
 
 #############################################################
@@ -51,9 +55,10 @@ get_patch_versions()
 #############################################################
 pick_a_version()
 {
+    versions=$1
+
     # Randomly pick a version from the array of patch versions
     pv=${versions[$RANDOM % ${#versions[@]} ]}
-    pversions+=("$pv")
     echo "$pv"
 }
 
@@ -651,12 +656,10 @@ fi
 if [ "$patch_version" = true ]; then
     pversions=()
     for b in ${patch_version_upgrade_downgrade_release_branches[@]}; do
+        # Build the latest code of the release branch
         (build_branch $b)
-        # Retrieve all released patch versions of the release branch
-        cd $b; get_patch_versions; echo $versions; pick_a_version; cd ..
-    done
-    # Build picked patch version for compatibility test.
-    for pv in ${pversions[@]}; do
+        # Pick a patch version from the list of patch versions for the release branch
+        cd $b; pversions=$(get_patch_versions $b); pv=$(pick_a_version $pversions); cd ..
         (build_branch $pv)
     done
 fi
