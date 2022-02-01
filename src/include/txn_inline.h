@@ -636,6 +636,40 @@ __wt_txn_tw_start_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 }
 
 /*
+ * __wt_txn_tw_start_nondurable --
+ *     Is the given start time window not yet durable? It is durable unless we are reading between
+ *     its start time and its durable start time *and* the global stable timestamp has not yet
+ *     advanced past the durable start time. (Note that it is not sufficient to just check that the
+ *     global stable timestamp has advanced past the start time; prepared transactions are allowed
+ *     to commit earlier than stable if they were prepared after stable and stable has since moved
+ *     up.) Assumes caller has already checked that the start time is visible.
+ */
+static inline bool
+__wt_txn_tw_start_nondurable(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+{
+    WT_TXN_GLOBAL *txn_global;
+
+    txn_global = &S2C(session)->txn_global;
+
+    /* If there is no gap between start time and durable start time, we can't read between them. */
+    if (tw->durable_start_ts == tw->start_ts)
+        return (false);
+
+    /*
+     * If the durable start time is stable, the value might or might not actually be durable
+     * (depending on whether a checkpoint has been completed) but we cannot become durable *before*
+     * it, so for us it counts as durable. The purpose of this check is to make sure we can't read a
+     * nondurable value, then commit and become durable before it, because that violates consistency
+     * expectations.
+     */
+    if (tw->durable_start_ts <= txn_global->stable_timestamp)
+        return (false);
+
+    /* Otherwise, if the durable start time is not visible, we are reading before it. */
+    return (!__wt_txn_visible(session, tw->start_txn, tw->durable_start_ts));
+}
+
+/*
  * __wt_txn_tw_start_visible_all --
  *     Is the given start time window visible to all (possible) readers?
  */
@@ -763,8 +797,11 @@ __wt_txn_visible(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp
 static inline WT_VISIBLE_TYPE
 __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
+    WT_TXN_GLOBAL *txn_global;
     uint8_t prepare_state, previous_state;
     bool upd_visible;
+
+    txn_global = &S2C(session)->txn_global;
 
     for (;; __wt_yield()) {
         /* Prepare state change is in progress, yield and try again. */
@@ -778,7 +815,8 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
             return (WT_VISIBLE_TRUE);
 
         upd_visible = __wt_txn_visible(session, upd->txnid, upd->start_ts);
-        if (upd_visible && upd->durable_ts > upd->start_ts) {
+        if (upd_visible && upd->durable_ts > upd->start_ts &&
+          upd->durable_ts > txn_global->stable_timestamp) {
             upd_visible = __wt_txn_visible(session, upd->txnid, upd->durable_ts);
             if (!upd_visible)
                 return (WT_VISIBLE_NONDURABLE);
@@ -989,10 +1027,11 @@ __wt_txn_read(
 {
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd, *restored_upd;
-    bool have_stop_tw, retry;
+    bool have_stop_tw, retry, return_onpage_value;
 
     prepare_upd = restored_upd = NULL;
     retry = true;
+    return_onpage_value = false;
 
 retry:
     WT_RET(__wt_txn_read_upd_list_internal(session, cbt, upd, &prepare_upd, &restored_upd));
@@ -1057,7 +1096,16 @@ retry:
          * 1. The record is from the history store.
          * 2. It is visible to the reader.
          */
-        if (WT_IS_HS(session->dhandle) || __wt_txn_tw_start_visible(session, &tw)) {
+        if (WT_IS_HS(session->dhandle))
+            return_onpage_value = true;
+        else if (__wt_txn_tw_start_visible(session, &tw)) {
+            if (__wt_txn_tw_start_nondurable(session, &tw))
+                /* Disallow reading if we can see it but it isn't durable yet. */
+                return (__wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_NONDURABLE));
+            return_onpage_value = true;
+        }
+
+        if (return_onpage_value) {
             if (cbt->upd_value->skip_buf) {
                 cbt->upd_value->buf.data = NULL;
                 cbt->upd_value->buf.size = 0;

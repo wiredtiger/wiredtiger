@@ -1180,6 +1180,7 @@ noclear
 nocrypto
 nolock
 nonces
+nondurable
 nonliteral
 nontransactionally
 noop
