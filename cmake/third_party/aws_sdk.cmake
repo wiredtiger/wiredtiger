@@ -18,8 +18,16 @@ if(NOT ENABLE_S3 OR IMPORT_S3_SDK_NONE)
     return()
 endif()
 
+set(s3_crt_lib_location)
+set(aws_core_lib_location)
+set(aws_sdk_include_location)
+
 if(IMPORT_S3_SDK_PACKAGE AND ENABLE_S3)
     find_package(AWSSDK REQUIRED COMPONENTS s3-crt)
+    # Use the AWS provided variables to set the paths for the aws targets.
+    set(s3_crt_lib_location ${AWSSDK_LIB_DIR}/libaws-cpp-sdk-s3-crt${CMAKE_SHARED_LIBRARY_SUFFIX})
+    set(aws_core_lib_location ${AWSSDK_LIB_DIR}/libaws-cpp-sdk-core${CMAKE_SHARED_LIBRARY_SUFFIX})
+    set(aws_sdk_include_location ${AWSSDK_INCLUDE_DIR})
 elseif(IMPORT_S3_SDK_EXTERNAL AND ENABLE_S3)
     # Download and install the AWS CPP SDK into the build directory.
     ExternalProject_Add(aws-sdk
@@ -40,22 +48,26 @@ elseif(IMPORT_S3_SDK_EXTERNAL AND ENABLE_S3)
         UPDATE_COMMAND ""
     )
     ExternalProject_Get_Property(aws-sdk INSTALL_DIR)
-
-    add_library(aws-sdk::core SHARED IMPORTED)
-    add_library(aws-sdk::s3-crt SHARED IMPORTED)
-    add_library(aws-sdk::crt SHARED IMPORTED)
-
-    # Small workaround to declare the include directory under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase.
     file(MAKE_DIRECTORY ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
-    set_target_properties(aws-sdk::core PROPERTIES
-        IMPORTED_LOCATION ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libaws-cpp-sdk-core${CMAKE_SHARED_LIBRARY_SUFFIX}
-        INTERFACE_INCLUDE_DIRECTORIES ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR}                                      
-    )
-    set_target_properties(aws-sdk::s3-crt PROPERTIES
-        IMPORTED_LOCATION ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libaws-cpp-sdk-s3-crt${CMAKE_SHARED_LIBRARY_SUFFIX}
-        INTERFACE_INCLUDE_DIRECTORIES ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR}
-    )
-
-    add_dependencies(aws-sdk::core aws-sdk)
-    add_dependencies(aws-sdk::s3-crt aws-sdk)
+    # Set the path variables to be used for the aws targets.
+    set(s3_crt_lib_location ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libaws-cpp-sdk-s3-crt${CMAKE_SHARED_LIBRARY_SUFFIX})
+    set(aws_core_lib_location ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libaws-cpp-sdk-core${CMAKE_SHARED_LIBRARY_SUFFIX})
+    set(aws_sdk_include_location ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
 endif()
+
+add_library(aws-sdk::core SHARED IMPORTED)
+add_library(aws-sdk::s3-crt SHARED IMPORTED)
+add_library(aws-sdk::crt SHARED IMPORTED)
+
+# Small workaround to declare the include directory under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase.
+set_target_properties(aws-sdk::core PROPERTIES
+    IMPORTED_LOCATION ${aws_core_lib_location}
+    INTERFACE_INCLUDE_DIRECTORIES ${aws_sdk_include_location}                                      
+)
+set_target_properties(aws-sdk::s3-crt PROPERTIES
+    IMPORTED_LOCATION ${s3_crt_lib_location}
+    INTERFACE_INCLUDE_DIRECTORIES ${aws_sdk_include_location}
+)
+
+add_dependencies(aws-sdk::core aws-sdk)
+add_dependencies(aws-sdk::s3-crt aws-sdk)
