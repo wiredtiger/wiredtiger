@@ -35,7 +35,6 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
-
     key_format_values = [
         ('column', dict(key_format='r', usestrings=False)),
         ('string-row', dict(key_format='S', usestrings=True))
@@ -56,7 +55,7 @@ class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
         cfg_on = 'write_timestamp_usage=ordered,assert=(write_timestamp=on)'
         cfg_off = 'write_timestamp_usage=never,assert=(write_timestamp=off)'
         msg_ooo='/out of order/'
-        msg_usage='/used inconsistently/'
+        msg_usage='/use timestamps once they are first used/'
 
         key_nots = 'key_nots' if self.usestrings else 5
         key_ts1 = 'key_ts1' if self.usestrings else 16
@@ -189,7 +188,7 @@ class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
         base = 'assert06'
         uri = 'file:' + base
         msg_ooo='/out of order/'
-        msg_usage='/used inconsistently/'
+        msg_usage='/use timestamps once they are first used/'
 
         key_nots = 'key_nots' if self.usestrings else 5
         key_ts1 = 'key_ts1' if self.usestrings else 16
@@ -203,7 +202,7 @@ class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
         # That checking will verify any individual key is always or never
         # used with a timestamp. And if it is used with a timestamp that
         # the timestamps are in increasing order for that key.
-        self.session.create(uri, 'key_format={},value_format=S,verbose=(write_timestamp),write_timestamp_usage=ordered,assert=(write_timestamp=on)'.format(self.key_format))
+        self.session.create(uri, 'key_format={},value_format=S,verbose=(write_timestamp=on),write_timestamp_usage=ordered,assert=(write_timestamp=on)'.format(self.key_format))
 
         # Insert a data item at timestamp 2.
         c = self.session.open_cursor(uri)

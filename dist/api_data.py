@@ -46,7 +46,7 @@ common_runtime_config = [
     Config('app_metadata', '', r'''
         application-owned metadata for this object'''),
     Config('assert', '', r'''
-        enable enhanced checking. ''',
+        enable enhanced timestamp checking with error return''',
         type='category', subconfig= [
         Config('commit_timestamp', 'none', r'''
             this option is no longer supported, retained for backward compatibility''',
@@ -55,20 +55,30 @@ common_runtime_config = [
             this option is no longer supported, retained for backward compatibility''',
             choices=['always', 'never', 'none'], undoc=True),
         Config('read_timestamp', 'none', r'''
-            verify that timestamps should \c always or \c never be used on
-            reads with this table.  Verification should be set to \c none
-            if mixed read use is allowed''',
+            check that timestamps are \c always or \c never used on reads
+            with this table, failing on error;  should be set to \c none if
+            mixed read use is allowed''',
             choices=['always', 'never', 'none']),
         Config('write_timestamp', 'off', r'''
-            verify that commit timestamps are used per the configured
-            \c write_timestamp_usage option for this table''',
+            check that timestamps are used per the configured
+            \c write_timestamp_usage option for this table, failing on
+            error''',
             choices=['off', 'on']),
         ]),
-    Config('verbose', '[]', r'''
-        enable messages for various events. The choices are \c write_timestamp
-        which adds verbose messages as described by \c write_timestamp_usage.
-        Options are given as a list, such as \c "verbose=[write_timestamp]"''',
-        type='list', choices=['write_timestamp']),
+    Config('verbose', '', r'''
+        enable enhanced timestamp checking with messages''',
+        type='category', subconfig= [
+        Config('read_timestamp', 'none', r'''
+            check that timestamps are \c always or \c never used on reads
+            with this table, calling the message handler on error; should
+            be set to \c none if mixed read use is allowed''',
+            choices=['always', 'never', 'none']),
+        Config('write_timestamp', 'off', r'''
+            check that timestamps are used per the configured
+            \c write_timestamp_usage option for this table, calling the
+            message handler on error''',
+            choices=['off', 'on']),
+        ]),
     Config('write_timestamp_usage', 'none', r'''
         describe how timestamps are expected to be used on modifications to
         the table. This option should be used in conjunction with the
