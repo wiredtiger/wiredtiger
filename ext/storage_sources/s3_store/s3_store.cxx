@@ -64,12 +64,11 @@ Aws::SDKOptions options;
 
 static int s3_add_reference(WT_STORAGE_SOURCE *);
 static int s3_fs_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
-static int s3_get_directory(const char *home, const char *s, ssize_t len, bool create, char **copy);
-static int s3_cache_exists(WT_FILE_SYSTEM *file_system, const char *name, bool *existp);
-static int s3_cache_path(WT_FILE_SYSTEM *file_system, const char *name, char **path);
-static int s3_path(const char *dir, const char *name, char **path);
-static int s3_exist(
-  WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, bool *existp);
+static int s3_get_directory(const char *, const char *, ssize_t, bool, char **);
+static int s3_cache_exists(WT_FILE_SYSTEM *, const char *, bool *);
+static int s3_cache_path(WT_FILE_SYSTEM *, const char *, char **);
+static int s3_path(const char *, const char *, char **);
+static int s3_exist(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
 static int s3_customize_file_system(
   WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
 
@@ -91,15 +90,16 @@ s3_exist(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, boo
         return (ret);
 
     /* It's not in the cache, try the s3 bucket. */
-    if (!*existp) {
-        ret = s3_fs->conn->object_exists(s3_fs->bucket_name, name);
-        if (ret == 0)
-            *existp = true;
-        /* File not found. */
-        else if (ret == ENOENT)
-            ret = 0;
-    }
-    return (0);
+    if (!*existp)
+        ret = s3_fs->conn->object_exists(s3_fs->bucket_name, name, *existp);
+    /*
+     * If an object with the given key does not exist the HEAD request will return a 404.
+     * https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html Do not fail in this case.
+     */
+    if (ret == 404 || ret == 0)
+        return (0);
+    else
+        return (ret);
 }
 
 /*

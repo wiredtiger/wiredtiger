@@ -57,15 +57,17 @@ test_object_exists(const Aws::S3Crt::ClientConfiguration &config)
     File << "Test payload";
     File.close();
 
-    int result = conn.object_exists(bucket_name, object_name);
-    if (result != ENOENT) {
+    bool exists = false;
+
+    int result = conn.object_exists(bucket_name, object_name, exists);
+    if (result == 0) {
         std::cout << "test_object_exists(): FAILURE - test_object already exists in the bucket"
                   << std::endl;
         return 1;
     }
 
     conn.put_object(bucket_name, object_name, file_name);
-    result = conn.object_exists(bucket_name, object_name);
+    result = conn.object_exists(bucket_name, object_name, exists);
     if (result != 0) {
         std::cout << "test_object_exists(): FAILURE - test object does not exist after put_object."
                   << std::endl;
