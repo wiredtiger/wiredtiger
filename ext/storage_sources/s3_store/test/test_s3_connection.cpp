@@ -149,6 +149,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
         if (ret =
               conn.ListObjects(firstBucket, "test_list_objects_", objects, countp, maxPerIter) != 0)
             goto err;
+
         if (objects.size() != countp || countp != 20) {
             /* Delete objects and file at end of test. */
             for (int i = 0; i < 20; i++) {

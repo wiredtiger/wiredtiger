@@ -42,22 +42,22 @@ S3Connection::ListObjects(const std::string &bucketName, const std::string &pref
 
     request.SetBucket(bucketName);
     request.SetPrefix(prefix);
-    request.SetMaxKeys(nPerIter);
+    if (maxObjects != 0 && maxObjects < nPerIter)
+        request.SetMaxKeys(maxObjects);
+    else
+        request.SetMaxKeys(nPerIter);
 
     countp = 0;
-    if (maxObjects != 0 && (maxObjects - countp) < nPerIter)
-        request.SetMaxKeys(maxObjects - countp);
-
     Aws::S3Crt::Model::ListObjectsV2Outcome outcomes = m_S3CrtClient.ListObjectsV2(request);
 
     if (outcomes.IsSuccess()) {
         auto result = outcomes.GetResult();
-        std::string continuationToken = result.GetNextContinuationToken();
         for (const auto &object : result.GetContents())
             objects.push_back(object.GetKey());
-        countp += result.GetContents().size();
+        countp = result.GetContents().size();
 
         /* Continuation token will be an empty string if we have returned all possible objects. */
+        std::string continuationToken = result.GetNextContinuationToken();
         while (continuationToken != "" && (maxObjects == 0 || (maxObjects - countp) > 0)) {
             if (maxObjects != 0 && (maxObjects - countp) < nPerIter)
                 request.SetMaxKeys(maxObjects - countp);
@@ -66,11 +66,13 @@ S3Connection::ListObjects(const std::string &bucketName, const std::string &pref
             outcomes = m_S3CrtClient.ListObjectsV2(request);
             if (outcomes.IsSuccess()) {
                 result = outcomes.GetResult();
-                continuationToken = result.GetNextContinuationToken();
                 for (const auto &object : result.GetContents())
                     objects.push_back(object.GetKey());
                 countp += result.GetContents().size();
-            }
+                continuationToken = result.GetNextContinuationToken();
+
+            } else
+                return (1);
         }
         return (0);
     } else

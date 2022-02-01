@@ -116,17 +116,16 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 
             /* Testing directory list. */
             WT_SESSION *session = NULL;
-            const char *directory = firstBucket.c_str();
             const char *prefix = "WiredTiger";
             char ***dirlist = NULL;
             uint32_t countp;
 
             fs->fileSystem.fs_directory_list(
-              &fs->fileSystem, session, directory, prefix, dirlist, &countp);
+              &fs->fileSystem, session, firstBucket.c_str(), prefix, dirlist, &countp);
             std::cout << "Number of objects retrieved: " << countp << std::endl;
 
             fs->fileSystem.fs_directory_list_single(
-              &fs->fileSystem, session, directory, prefix, dirlist, &countp);
+              &fs->fileSystem, session, firstBucket.c_str(), prefix, dirlist, &countp);
             std::cout << "Number of objects retrieved: " << countp << std::endl;
 
             /* Delete object. */
@@ -147,11 +146,10 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 static int
 S3FileSystemTerminate(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session)
 {
-    S3_FILE_SYSTEM *fs;
+    S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
 
     UNUSED(session); /* unused */
 
-    fs = (S3_FILE_SYSTEM *)fileSystem;
     delete (fs->conn);
     free(fs);
 
@@ -166,10 +164,9 @@ static int
 S3DirectoryList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
   const char *prefix, char ***dirlistp, uint32_t *countp)
 {
-    S3_FILE_SYSTEM *fs;
-    fs = (S3_FILE_SYSTEM *)fileSystem;
+    S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
     std::vector<std::string> objects;
-    int ret = 0;
+    int ret;
     if (ret =
           fs->conn->ListObjects(std::string(directory), std::string(prefix), objects, *countp) != 0)
         goto err;
@@ -194,10 +191,9 @@ static int
 S3DirectoryListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
   const char *prefix, char ***dirlistp, uint32_t *countp)
 {
-    S3_FILE_SYSTEM *fs;
-    fs = (S3_FILE_SYSTEM *)fileSystem;
+    S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
     std::vector<std::string> objects;
-    int ret = 0;
+    int ret;
     if (ret = fs->conn->ListObjects(
                 std::string(directory), std::string(prefix), objects, *countp, 1, 1) != 0)
         goto err;
