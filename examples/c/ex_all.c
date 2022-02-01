@@ -887,8 +887,8 @@ transaction_ops(WT_SESSION *session_arg)
     {
         /*! [hexadecimal timestamp] */
         uint64_t ts;
-        /* 2 bytes for each byte converted to hexadecimal, plus a trailing nul byte */
-        char timestamp_buf[strlen("commit_timestamp=") + 2 * sizeof(uint64_t) + 1];
+        /* 2 bytes for each byte converted to hexadecimal; sizeof includes the trailing nul byte */
+        char timestamp_buf[sizeof("commit_timestamp=") + 2 * sizeof(uint64_t)];
 
         (void)snprintf(timestamp_buf, sizeof(timestamp_buf), "commit_timestamp=%x", 20u);
         error_check(session->timestamp_transaction(session, timestamp_buf));
