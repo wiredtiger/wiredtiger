@@ -12,18 +12,18 @@ config_choice(
 )
 
 # Raise a fatal error if attempting to build with IMPORT_S3_SDK without 
-# having set ENABLE_S3=1.
+# having set the ENABLE_S3 flag.
 if(NOT ENABLE_S3 AND NOT IMPORT_S3_SDK_NONE)
     message(FATAL_ERROR "Cannot specify how to import the AWS SDK without setting -DENABLE_S3=1.")
 endif()
 
-# Raise an error if attempt to build with ENABLE_S3=1 without specifying
-# how the SDK should be built.
+# Raise a fatal error if attempting to build with the ENABLE_S3 flag without specifying
+# how the SDK should be built - i.e. IMPORT_S3_SDK has not been set.
 if(ENABLE_S3 AND IMPORT_S3_SDK_NONE)
     message(FATAL_ERROR "Must specify how the AWS SDK should be built. Set the DIMPORT_S3_SDK flag.")
 endif()
 
-# Don't build the AWS SDK if the extension is not enabled.
+# Skip the AWS SDK build step if the extension is not enabled.
 if(NOT ENABLE_S3)
     return()
 endif()
@@ -34,7 +34,7 @@ set(aws_sdk_include_location)
 
 if(IMPORT_S3_SDK_PACKAGE)
     find_package(AWSSDK REQUIRED COMPONENTS s3-crt)
-    # Use the AWS provided variables to set the paths for the aws targets.
+    # Use the AWS provided variables to set the paths for the AWS targets.
     set(s3_crt_lib_location ${AWSSDK_LIB_DIR}/libaws-cpp-sdk-s3-crt${CMAKE_SHARED_LIBRARY_SUFFIX})
     set(aws_core_lib_location ${AWSSDK_LIB_DIR}/libaws-cpp-sdk-core${CMAKE_SHARED_LIBRARY_SUFFIX})
     set(aws_sdk_include_location ${AWSSDK_INCLUDE_DIR})
@@ -59,7 +59,7 @@ elseif(IMPORT_S3_SDK_EXTERNAL)
     )
     ExternalProject_Get_Property(aws-sdk INSTALL_DIR)
     file(MAKE_DIRECTORY ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
-    # Set the path variables to be used for the aws targets.
+    # Set the path variables to be used for the AWS targets.
     set(s3_crt_lib_location ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libaws-cpp-sdk-s3-crt${CMAKE_SHARED_LIBRARY_SUFFIX})
     set(aws_core_lib_location ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libaws-cpp-sdk-core${CMAKE_SHARED_LIBRARY_SUFFIX})
     set(aws_sdk_include_location ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
