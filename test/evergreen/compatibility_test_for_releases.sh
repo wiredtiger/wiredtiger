@@ -271,14 +271,6 @@ run_test_checkpoint()
 {
     branch_name=$1
 
-    rtn=$( is_test_checkpoint_recovery_supported $branch_name )
-    if [ "$rtn" == "no" ]; then
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        echo "No need to run test checkpoint for branch \"$branch_name\""
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        return
-    fi
-
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
     echo "Running test checkpoint in branch: \"$branch_name\""
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
@@ -359,22 +351,6 @@ verify_test_format()
 #############################################################
 verify_test_checkpoint()
 {
-    rtn=$(is_test_checkpoint_recovery_supported $1)
-    if [ $rtn == "no" ]; then
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        echo "No need to verify test checkpoint using binary from \"$1\""
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        return
-    fi
-
-    rtn=$(is_test_checkpoint_recovery_supported $2)
-    if [ $rtn == "no" ]; then
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        echo "No need to verify test checkpoint for \"$2\""
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        return
-    fi
-
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
     echo "Release \"$1\" test checkpoint verifying \"$2\""
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
@@ -625,6 +601,19 @@ if [ "$upgrade_to_latest" = true ]; then
 fi
 
 if [ "$two_versions" = true ]; then
+    # Check if the 2 given versions support test checkpoint with recovery
+    rtn=$(is_test_checkpoint_recovery_supported $v1)
+    if [ $rtn == "no" ]; then
+        echo -e "\n\"$v1\" does not support test checkpoint with recovery, exiting ...\n"
+        exit 1
+    fi
+
+    rtn=$(is_test_checkpoint_recovery_supported $v2)
+    if [ $rtn == "no" ]; then
+        echo -e "\n\"$v2\" does not support test checkpoint with recovery, exiting ...\n"
+        exit 1
+    fi
+
     # Build the branches
     (build_branch $v1)
     (build_branch $v2)
