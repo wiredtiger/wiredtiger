@@ -171,13 +171,13 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 static int
 S3FileSystemTerminate(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session)
 {
-    S3_FILE_SYSTEM *s3Fs;
+    S3_FILE_SYSTEM *fs;
 
     UNUSED(session); /* unused */
 
-    s3Fs = (S3_FILE_SYSTEM *)fileSystem;
-    delete (s3Fs->conn);
-    free(s3Fs);
+    fs = (S3_FILE_SYSTEM *)fileSystem;
+    delete (fs->conn);
+    free(fs);
 
     return (0);
 }
