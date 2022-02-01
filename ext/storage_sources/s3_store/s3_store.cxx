@@ -62,8 +62,10 @@ static int s3_fs_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 
 static int s3_directory_list(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
+static int s3_directory_list_add(S3_STORAGE *, char ***, const std::vector<std::string> *, const uint32_t);
 static int s3_directory_list_single(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
+static int s3_directory_list_free(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
 
 /*
  * s3_customize_file_system --
@@ -97,6 +99,7 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     fs->conn = new aws_bucket_conn(aws_config);
     fs->file_system.fs_directory_list = s3_directory_list;
     fs->file_system.fs_directory_list_single = s3_directory_list_single;
+    fs->file_system.fs_directory_list_free = s3_directory_list_free;
     fs->file_system.terminate = s3_fs_terminate;
 
     /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
@@ -127,9 +130,9 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
               &fs->file_system, session, directory, prefix, dirlist, &countp);
             std::cout << "Number of objects retrieved: " << countp << std::endl;
 
-            fs->file_system.fs_directory_list_single(
-              &fs->file_system, session, directory, prefix, dirlist, &countp);
-            std::cout << "Number of objects retrieved: " << countp << std::endl;
+            // fs->file_system.fs_directory_list_single(
+            //   &fs->file_system, session, directory, prefix, dirlist, &countp);
+            // std::cout << "Number of objects retrieved: " << countp << std::endl;
 
             /* Delete object. */
             fs->conn->delete_object(first_bucket, "WiredTiger.turtle");
@@ -170,8 +173,9 @@ s3_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *
 {
     S3_FILE_SYSTEM *s3_fs;
     s3_fs = (S3_FILE_SYSTEM *)file_system;
+    uint32_t count = 0;
     std::vector<std::string> objects =
-      s3_fs->conn->list_objects(std::string(directory), std::string(prefix), *countp);
+      s3_fs->conn->list_objects(std::string(directory), std::string(prefix), count, 5, 5);
     std::cout << "Objects in bucket '" << directory << "':" << std::endl;
     if (!objects.empty()) {
         for (const auto &object : objects)
@@ -179,8 +183,17 @@ s3_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *
     } else
         std::cout << "No objects in bucket." << std::endl;
 
+    char **entries = NULL;
     /* TODO: Put objects into dirlistp. */
+    s3_directory_list_add(s3_fs->s3_storage, &entries, &objects, count);
 
+    // *dirlistp = entries;
+    *countp = count;
+
+    std::cout << "printing here" << std::endl;
+    for (int i = 0; i < *countp; i++) {
+        std::cout << entries[i] << std::endl;
+    }
     return (0);
 }
 
@@ -203,7 +216,44 @@ s3_directory_list_single(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const
     } else
         std::cout << "No objects in bucket." << std::endl;
 
-    /* TODO: Put objects into dirlistp. */
+    // std::cout << "s3_directory_list_add" << std::endl;
+    // s3_directory_list_add(s3_fs->s3_storage, dirlistp, &objects, *countp);
+
+    return (0);
+}
+
+/*
+ * s3_directory_list_free --
+ *     Free memory allocated by s3_directory_list.
+ */
+static int
+s3_directory_list_free(
+  WT_FILE_SYSTEM *file_system, WT_SESSION *session, char **dirlist, uint32_t count)
+{
+    (void)session;
+
+    if (dirlist != NULL) {
+        while (count > 0)
+            free(dirlist[--count]);
+        free(dirlist);
+    }
+    return (0);
+}
+
+/*
+ * s3_directory_list_add --
+ *     Add an entry to the directory list, growing as needed.
+ */
+static int
+s3_directory_list_add(
+  S3_STORAGE *s3, char ***entriesp, const std::vector<std::string> *objects, const uint32_t count)
+{
+    char **entries = (char **)malloc(sizeof(char *) * count);
+    for (int i = 0; i < count; i++) {
+        entries[i] = strdup((*objects).at(i).c_str());
+    }
+
+    *entriesp = entries;
 
     return (0);
 }
