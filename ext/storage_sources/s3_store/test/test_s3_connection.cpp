@@ -88,6 +88,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
         }
 
         /* List all objects with prefix. */
+        objects.clear();
         if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, countp) != 0)
             goto err;
         if (objects.size() != countp || countp != 20) {
@@ -105,6 +106,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
         for (const auto &object : objects)
             std::cout << "  * " << object << std::endl;
 
+        objects.clear();
         if (ret = conn.ListObjects(firstBucket, "test_list_objects_1", objects, countp) != 0)
             goto err;
         if (objects.size() != countp || countp != 11) {
@@ -122,6 +124,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
         for (const auto &object : objects)
             std::cout << "  * " << object << std::endl;
 
+        objects.clear();
         /* List with max objects of 1. */
         if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, countp, 1, 1) != 0)
             goto err;
@@ -142,6 +145,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
 
         /* List with 5 objects per AWS request. */
         const int32_t maxPerIter = 5;
+        objects.clear();
         if (ret =
               conn.ListObjects(firstBucket, "test_list_objects_", objects, countp, maxPerIter) != 0)
             goto err;
@@ -161,6 +165,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
             std::cout << "  * " << object << std::endl;
 
         /* List with total_objects < max_per_iter. */
+        objects.clear();
         if (ret = conn.ListObjects(
                     firstBucket, "test_list_objects_", objects, countp, maxPerIter, 4) != 0)
             goto err;
@@ -180,6 +185,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
             std::cout << "  * " << object << std::endl;
 
         /* List with total objects non-divisable by max per iter. */
+        objects.clear();
         if (ret = conn.ListObjects(
                     firstBucket, "test_list_objects_", objects, countp, maxPerIter, 8) != 0)
             goto err;
@@ -199,6 +205,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
             std::cout << "  * " << object << std::endl;
 
         /* List with max objects greater than total objects. */
+        objects.clear();
         if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, countp, 5, 30) != 0)
             goto err;
         if (objects.size() != countp || countp != 20) {

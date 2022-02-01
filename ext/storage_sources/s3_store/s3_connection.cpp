@@ -38,7 +38,6 @@ int
 S3Connection::ListObjects(const std::string &bucketName, const std::string &prefix,
   std::vector<std::string> &objects, uint32_t &countp, uint32_t nPerIter, uint32_t maxObjects) const
 {
-    objects.clear();
     Aws::S3Crt::Model::ListObjectsV2Request request;
 
     request.SetBucket(bucketName);
