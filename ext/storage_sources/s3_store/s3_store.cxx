@@ -123,20 +123,32 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
             WT_SESSION *session = NULL;
             const char *directory = first_bucket.c_str();
             const char *prefix = "WiredTiger";
-            char ***dirlist = NULL;
+            char ***dirlistp = (char ***)malloc(sizeof(char **));;
             uint32_t countp;
 
             fs->file_system.fs_directory_list(
-              &fs->file_system, session, directory, prefix, dirlist, &countp);
+              &fs->file_system, session, directory, prefix, dirlistp, &countp);
+
             std::cout << "Number of objects retrieved: " << countp << std::endl;
 
-            // fs->file_system.fs_directory_list_single(
-            //   &fs->file_system, session, directory, prefix, dirlist, &countp);
-            // std::cout << "Number of objects retrieved: " << countp << std::endl;
+            std::cout << "Objects in bucket '" << directory << "':" << std::endl;
+            for (int i = 0; i < countp; i++) {
+                std::cout << (*dirlistp)[i] << std::endl;
+            }
+
+            fs->file_system.fs_directory_list_single(
+              &fs->file_system, session, directory, prefix, dirlistp, &countp);
+            std::cout << "Number of objects retrieved: " << countp << std::endl;
+
+            std::cout << "Objects in bucket '" << directory << "':" << std::endl;
+            for (int i = 0; i < countp; i++) {
+                std::cout << (*dirlistp)[i] << std::endl;
+            }
 
             /* Delete object. */
             fs->conn->delete_object(first_bucket, "WiredTiger.turtle");
 
+            fs->file_system.fs_directory_list_free(&fs->file_system, session, *dirlistp, countp);
         } else
             std::cout << "No buckets in AWS account." << std::endl;
     }
@@ -173,29 +185,11 @@ s3_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *
 {
     S3_FILE_SYSTEM *s3_fs;
     s3_fs = (S3_FILE_SYSTEM *)file_system;
-    uint32_t count = 0;
     std::vector<std::string> objects =
-      s3_fs->conn->list_objects(std::string(directory), std::string(prefix), count, 5, 5);
-    std::cout << "Objects in bucket '" << directory << "':" << std::endl;
-    if (!objects.empty()) {
-        for (const auto &object : objects)
-            std::cout << "  * " << object << std::endl;
-    } else
-        std::cout << "No objects in bucket." << std::endl;
+      s3_fs->conn->list_objects(std::string(directory), std::string(prefix), *countp, 5, 5);
 
-    char **entries = NULL;
-    /* TODO: Put objects into dirlistp. */
-    s3_directory_list_add(s3_fs->s3_storage, &entries, &objects, count);
+    s3_directory_list_add(s3_fs->s3_storage, dirlistp, &objects, *countp);
 
-    dirlistp = (char***)malloc(sizeof(char **));
-    *dirlistp = entries;
-
-    *countp = count;
-
-    std::cout << "printing here" << std::endl;
-    for (int i = 0; i < *countp; i++) {
-        std::cout << (*dirlistp)[i] << std::endl;
-    }
     return (0);
 }
 
@@ -211,15 +205,8 @@ s3_directory_list_single(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const
     s3_fs = (S3_FILE_SYSTEM *)file_system;
     std::vector<std::string> objects =
       s3_fs->conn->list_objects(std::string(directory), std::string(prefix), *countp, 1, 1);
-    std::cout << "Object in bucket '" << directory << "':" << std::endl;
-    if (!objects.empty()) {
-        for (const auto &object : objects)
-            std::cout << "  * " << object << std::endl;
-    } else
-        std::cout << "No objects in bucket." << std::endl;
 
-    // std::cout << "s3_directory_list_add" << std::endl;
-    // s3_directory_list_add(s3_fs->s3_storage, dirlistp, &objects, *countp);
+    s3_directory_list_add(s3_fs->s3_storage, dirlistp, &objects, *countp);
 
     return (0);
 }
@@ -239,6 +226,7 @@ s3_directory_list_free(
             free(dirlist[--count]);
         free(dirlist);
     }
+
     return (0);
 }
 
@@ -248,14 +236,13 @@ s3_directory_list_free(
  */
 static int
 s3_directory_list_add(
-  S3_STORAGE *s3, char ***entriesp, const std::vector<std::string> *objects, const uint32_t count)
+  S3_STORAGE *s3, char ***dirlistp, const std::vector<std::string> *objects, const uint32_t count)
 {
     char **entries = (char **)malloc(sizeof(char *) * count);
     for (int i = 0; i < count; i++) {
         entries[i] = strdup((*objects).at(i).c_str());
     }
-
-    *entriesp = entries;
+    *dirlistp = entries;
 
     return (0);
 }
