@@ -35,14 +35,14 @@ class test_s3_store01(wttest.WiredTigerTestCase):
     # Load the s3 store extension, skip the test if missing.
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
-        extlist.extension('storage_sources', 's3_store')
+        extlist.extension('storage_sources', 's3_store=(config=\"(aws_verbose=-3)\")')
 
     def get_s3_storage_source(self):
         return self.conn.get_storage_source('s3_store')
      
-     # Turn on logging for this test.
-    def conn_config(self):
-        return "log=(enabled=true), verbose=[transaction]"
+    #  # Turn on logging for this test.
+    # def conn_config(self):
+    #     return "log=(enabled=true)"
 
     def test_local_basic(self):
         # Test some basic functionality of the storage source API, calling

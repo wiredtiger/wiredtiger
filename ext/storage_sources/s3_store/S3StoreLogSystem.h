@@ -10,7 +10,7 @@
 class S3StoreLogSystem : public Aws::Utils::Logging::LogSystemInterface {
 
     public:
-    explicit S3StoreLogSystem(WT_EXTENSION_API* wtApi);
+    explicit S3StoreLogSystem(WT_EXTENSION_API* wtApi, uint32_t awsVerbose);
     ~S3StoreLogSystem() = default;
     Aws::Utils::Logging::LogLevel GetLogLevel(void) const override {return log_level; }
     void Log(Aws::Utils::Logging::LogLevel logLevel, const char* tag, const char* format, ...) override;

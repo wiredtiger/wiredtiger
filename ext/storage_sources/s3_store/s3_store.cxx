@@ -41,8 +41,9 @@
 /* S3 storage source structure. */
 typedef struct {
     WT_STORAGE_SOURCE storage_source; /* Must come first */
-    WT_EXTENSION_API *wt_api;         /* Extension API */ 
-    WT_CONFIG_ARG *wt_config;  
+    WT_EXTENSION_API *wt_api;         /* Extension API */
+    uint32_t awsVerboseLevel;
+
 } S3_STORAGE;
 
 typedef struct {
@@ -61,8 +62,8 @@ const uint64_t part_size = 8 * 1024 * 1024; /* 8 MB. */
 /* Setting SDK options. */
 Aws::SDKOptions options;
 
-static int s3_customize_file_system(
-  WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **, WT_CONFIG_ARG *);
+static int s3_customize_file_system(WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *,
+  const char *, WT_FILE_SYSTEM **, WT_CONFIG_ARG *);
 static int s3_add_reference(WT_STORAGE_SOURCE *);
 static int s3_fs_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 
@@ -81,14 +82,7 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     s3 = (S3_STORAGE *)storage_source;
 
     int ret;
-    // std::cout << "\n RUBYRUBYRUBYRUBY: ret " << ret << std::endl;
-    // std::cout << "\n RUBYRUBYRUBYRUBY: config " << s3->config << std::endl;
-
-    // getting the config args
-    ret = s3->wt_api->config_get(s3->wt_api, NULL, NULL, "verbose", &v);
-
-    std::cout << "\n RUBYRUBYRUBYRUBY: after get " << ret << std::endl;
-
+    // std::cout << "\n RUBYRUBYRUBYRUBY: after get " << ret << std::endl;
     /* Mark parameters as unused for now, until implemented. */
     UNUSED(bucket_name);
     UNUSED(auth_token);
@@ -98,8 +92,8 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     aws_config.throughputTargetGbps = throughput_target_gbps;
     aws_config.partSize = part_size;
 
-    Aws::Utils::Logging::InitializeAWSLogging(Aws::MakeShared<S3StoreLogSystem>("S3Storage", s3->wt_api));
-    // Aws::Utils::Logging::LogLevel obj = S3StoreLogSystem().GetLogLevel();
+    Aws::Utils::Logging::InitializeAWSLogging(
+      Aws::MakeShared<S3StoreLogSystem>("S3Storage", s3->wt_api, s3->awsVerboseLevel));
 
     if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
         return (errno);
@@ -245,10 +239,15 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         return (errno);
 
     s3->wt_api = connection->get_extension_api(connection);
-    s3->wt_config = config;
 
-    // std::cout << "\n RUBYRUBYRUBYRUBY: ret first " << ret << std::endl;
- 
+    ret = s3->wt_api->config_get(s3->wt_api, NULL, config, "aws_verbose", &v);
+
+    if (ret == WT_NOTFOUND) {
+        s3->awsVerboseLevel = 0;
+    } else {
+        s3->awsVerboseLevel = v.val;
+    }
+
     Aws::InitAPI(options);
 
     /*
