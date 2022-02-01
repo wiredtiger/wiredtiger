@@ -1383,4 +1383,10 @@ __ut_block_off_srch_last(WT_EXT **head, WT_EXT ***stack)
 {
     return __block_off_srch_last(head, stack);
 }
+
+void
+__ut_block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
+{
+    __block_off_srch(head, off, stack, skip_off);
+}
 #endif

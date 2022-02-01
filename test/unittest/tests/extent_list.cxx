@@ -101,3 +101,7 @@ TEST_CASE("block_off_srch_last", "[extent_list]") {
         REQUIRE(__ut_block_off_srch_last(&head[0], &stack[0]) == second);
     }
 }
+
+TEST_CASE("block_off_srch", "[extent_list]") {
+    __ut_block_off_srch(nullptr, 0, nullptr, false);
+}
