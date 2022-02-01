@@ -2,7 +2,7 @@
 #include <aws/s3-crt/model/DeleteObjectRequest.h>
 #include <aws/s3-crt/model/ListObjectsRequest.h>
 #include <aws/s3-crt/model/PutObjectRequest.h>
-#include "S3Connection.h"
+#include "s3_connection.h"
 
 #include <fstream>
 #include <iostream>

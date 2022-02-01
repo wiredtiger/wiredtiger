@@ -30,7 +30,7 @@
 #include <wiredtiger_ext.h>
 
 #include <aws/core/Aws.h>
-#include "S3Connection.h"
+#include "s3_connection.h"
 
 #define UNUSED(x) (void)(x)
 

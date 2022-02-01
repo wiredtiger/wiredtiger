@@ -1,4 +1,4 @@
-#include <S3Connection.h>
+#include <s3_connection.h>
 
 /* Default config settings for the S3CrtClient. */
 namespace TestDefaults {
