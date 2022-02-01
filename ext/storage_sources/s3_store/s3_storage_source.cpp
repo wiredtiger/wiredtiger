@@ -169,8 +169,11 @@ S3DirectoryList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *dir
 {
     S3_FILE_SYSTEM *fs;
     fs = (S3_FILE_SYSTEM *)fileSystem;
-    std::vector<std::string> objects =
-      fs->conn->ListObjects(std::string(directory), std::string(prefix), *countp);
+    std::vector<std::string> objects;
+    int ret = 0;
+    if (ret =
+          fs->conn->ListObjects(std::string(directory), std::string(prefix), objects, *countp) != 0)
+        goto err;
     std::cout << "Objects in bucket '" << directory << "':" << std::endl;
     if (!objects.empty()) {
         for (const auto &object : objects)
@@ -180,7 +183,8 @@ S3DirectoryList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *dir
 
     /* TODO: Put objects into dirlistp. */
 
-    return (0);
+err:
+    return (ret);
 }
 
 /*
@@ -193,8 +197,11 @@ S3DirectoryListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const cha
 {
     S3_FILE_SYSTEM *fs;
     fs = (S3_FILE_SYSTEM *)fileSystem;
-    std::vector<std::string> objects =
-      fs->conn->ListObjects(std::string(directory), std::string(prefix), *countp, 1, 1);
+    std::vector<std::string> objects;
+    int ret = 0;
+    if (ret = fs->conn->ListObjects(
+                std::string(directory), std::string(prefix), objects, *countp, 1, 1) != 0)
+        goto err;
     std::cout << "Object in bucket '" << directory << "':" << std::endl;
     if (!objects.empty()) {
         for (const auto &object : objects)
@@ -204,7 +211,8 @@ S3DirectoryListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const cha
 
     /* TODO: Put objects into dirlistp. */
 
-    return (0);
+err:
+    return (ret);
 }
 
 /*

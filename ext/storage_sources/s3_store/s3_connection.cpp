@@ -11,33 +11,34 @@
 
 /*
  * ListBuckets --
- *     Builds a list of buckets from AWS account into a vector. Returns true if success, otherwise
- *     false.
+ *     Builds a list of buckets from AWS account into a vector. Returns 0 if success, otherwise
+ *     1.
  */
-bool
+int
 S3Connection::ListBuckets(std::vector<std::string> &buckets) const
 {
     auto outcome = m_S3CrtClient.ListBuckets();
     if (outcome.IsSuccess()) {
         for (const auto &bucket : outcome.GetResult().GetBuckets())
             buckets.push_back(bucket.GetName());
-        return true;
+        return (0);
     } else {
         std::cerr << "Error in ListBuckets: " << outcome.GetError().GetMessage() << std::endl
                   << std::endl;
-        return false;
+        return (1);
     }
 }
 
 /*
  * ListObjects --
- *     Return a list of object names from a S3 bucket into a vector.
+ *     Builds a list of object names from an S3 bucket into a vector. Returns 0 if success,
+ * otherwise 1.
  */
-std::vector<std::string>
+int
 S3Connection::ListObjects(const std::string &bucketName, const std::string &prefix,
-  uint32_t &countp, uint32_t nPerIter, uint32_t maxObjects) const
+  std::vector<std::string> &objects, uint32_t &countp, uint32_t nPerIter, uint32_t maxObjects) const
 {
-    std::vector<std::string> objects;
+    objects.clear();
     Aws::S3Crt::Model::ListObjectsV2Request request;
 
     request.SetBucket(bucketName);
@@ -72,16 +73,16 @@ S3Connection::ListObjects(const std::string &bucketName, const std::string &pref
                 countp += result.GetContents().size();
             }
         }
-        return (objects);
+        return (0);
     } else
-        throw std::runtime_error("Error in ListBuckets: " + outcomes.GetError().GetMessage());
+        return (1);
 }
 
 /*
  * PutObject --
- *     Puts an object into an S3 bucket. Returns true if success, otherwise false.
+ *     Puts an object into an S3 bucket. Returns 0 if success, otherwise 1.
  */
-bool
+int
 S3Connection::PutObject(
   const std::string &bucketName, const std::string &objectKey, const std::string &fileName) const
 {
@@ -97,18 +98,18 @@ S3Connection::PutObject(
     Aws::S3Crt::Model::PutObjectOutcome outcome = m_S3CrtClient.PutObject(request);
 
     if (outcome.IsSuccess()) {
-        return true;
+        return (0);
     } else {
         std::cerr << "Error in PutObject: " << outcome.GetError().GetMessage() << std::endl;
-        return false;
+        return (1);
     }
 }
 
 /*
  * DeleteObject --
- *     Deletes an object from S3 bucket. Returns true if success, otherwise false.
+ *     Deletes an object from S3 bucket. Returns 0 if success, otherwise 1.
  */
-bool
+int
 S3Connection::DeleteObject(const std::string &bucketName, const std::string &objectKey) const
 {
     Aws::S3Crt::Model::DeleteObjectRequest request;
@@ -118,10 +119,10 @@ S3Connection::DeleteObject(const std::string &bucketName, const std::string &obj
     Aws::S3Crt::Model::DeleteObjectOutcome outcome = m_S3CrtClient.DeleteObject(request);
 
     if (outcome.IsSuccess()) {
-        return true;
+        return (0);
     } else {
         std::cerr << "Error in DeleteObject: " << outcome.GetError().GetMessage() << std::endl;
-        return false;
+        return (1);
     }
 }
 
