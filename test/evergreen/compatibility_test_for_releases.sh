@@ -290,7 +290,7 @@ run_test_checkpoint()
     #
     # During the verification stage, rollback to stable has to be performed
     # with the checkpoint snapshot to achieve the consistency.
-    flags="-W 3 -D -p -x -n 100000 -k 100000 -C cache_size=100MB"
+    flags="-W 3 -D -x -n 100000 -k 100000 -C cache_size=100MB"
 
     for am in $2; do
         dir="RUNDIR.$am"
