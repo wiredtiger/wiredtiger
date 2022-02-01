@@ -68,16 +68,24 @@ TEST_CASE("block_off_srch_last", "[extent_list]") {
     SECTION("list with differing skip entries returns differing stack entries", "[extent_list]") {
         WT_EXT* first = create_new_extent_list();
         WT_EXT* second = create_new_extent_list();
+        WT_EXT* third = create_new_extent_list();
         first->next[0] = second;
+        first->next[1] = third;
+        second->next[0] = third;
 
         head[0] = first;
-        for (int i = 1; i < WT_SKIP_MAXDEPTH; i++)
-            head[i] = second;
+        head[1] = second;
+        head[2] = third;
+        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
+            head[i] = nullptr;
 
         __ut_block_off_srch_last(&head[0], &stack[0]);
 
-        for (int i = 0; i < WT_SKIP_MAXDEPTH; i++) {
-            REQUIRE(stack[i] == &second->next[i]);
+        REQUIRE(stack[0] == &third->next[0]);
+        REQUIRE(stack[1] == &third->next[1]);
+        REQUIRE(stack[2] == &third->next[2]);
+        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++) {
+            REQUIRE(stack[i] == &head[i]);
         }
     }
 
