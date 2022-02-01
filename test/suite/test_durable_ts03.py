@@ -97,9 +97,17 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
             self.assertEqual(value, valueA)
         session.commit_transaction()
 
-        # Read the updated data to confirm that it is visible.
+        # Check that the updated data cannot be read while it is not yet durable.
         self.assertEquals(cursor.reset(), 0)
         session.begin_transaction('read_timestamp=' + self.timestamp_str(210))
+        cursor.set_key(1)
+        self.assertRaisesException(wiredtiger.WiredTigerError,
+            lambda: cursor.search(), '/WT_ROLLBACK/', False)
+        session.rollback_transaction()
+
+        # Read the updated data to confirm that it is visible.
+        self.assertEquals(cursor.reset(), 0)
+        session.begin_transaction('read_timestamp=' + self.timestamp_str(220))
         for key, value in cursor:
             self.assertEqual(value, valueB)
         session.commit_transaction()
