@@ -9,8 +9,9 @@
 using namespace Aws::Utils;
 using namespace Aws::Utils::Logging;
 
-S3StoreLogSystem::S3StoreLogSystem(){
+S3StoreLogSystem::S3StoreLogSystem(WT_EXTENSION_API* wtApi){
     log_level = Aws::Utils::Logging::LogLevel::Info;
+    wt_api = wtApi;
 }
 
 void S3StoreLogSystem::Log(Aws::Utils::Logging::LogLevel log_level, const char* tag, const char* format, ...)
@@ -42,11 +43,10 @@ void S3StoreLogSystem::Log(Aws::Utils::Logging::LogLevel log_level, const char* 
 
 void S3StoreLogSystem::LogStream(Aws::Utils::Logging::LogLevel log_level, const char* tag, const Aws::OStringStream& message_stream) {
     LogVerboseMessage(tag, log_level, message_stream.rdbuf()->str().c_str());
-    }
-
+}
 
 void S3StoreLogSystem::LogVerboseMessage(const char* tag, Aws::Utils::Logging::LogLevel log_level, const std::string& message) {
-    std::cout << "  * " << tag << ": " << message << std::endl;
+    wt_api->err_printf(wt_api, NULL, "%s : %s", tag, message.c_str());
 }
 
 void S3StoreLogSystem::Flush() { return; }

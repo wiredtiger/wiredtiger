@@ -41,7 +41,8 @@
 /* S3 storage source structure. */
 typedef struct {
     WT_STORAGE_SOURCE storage_source; /* Must come first */
-    WT_EXTENSION_API *wt_api;         /* Extension API */
+    WT_EXTENSION_API *wt_api;         /* Extension API */ 
+    WT_CONFIG_ARG *wt_config;  
 } S3_STORAGE;
 
 typedef struct {
@@ -61,7 +62,7 @@ const uint64_t part_size = 8 * 1024 * 1024; /* 8 MB. */
 Aws::SDKOptions options;
 
 static int s3_customize_file_system(
-  WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
+  WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **, WT_CONFIG_ARG *);
 static int s3_add_reference(WT_STORAGE_SOURCE *);
 static int s3_fs_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 
@@ -75,21 +76,30 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
   WT_FILE_SYSTEM **file_systemp)
 {
     S3_FILE_SYSTEM *fs;
+    S3_STORAGE *s3;
+    WT_CONFIG_ITEM v;
+    s3 = (S3_STORAGE *)storage_source;
+
     int ret;
+    // std::cout << "\n RUBYRUBYRUBYRUBY: ret " << ret << std::endl;
+    // std::cout << "\n RUBYRUBYRUBYRUBY: config " << s3->config << std::endl;
+
+    // getting the config args
+    ret = s3->wt_api->config_get(s3->wt_api, NULL, NULL, "verbose", &v);
+
+    std::cout << "\n RUBYRUBYRUBYRUBY: after get " << ret << std::endl;
 
     /* Mark parameters as unused for now, until implemented. */
-    UNUSED(session);
     UNUSED(bucket_name);
     UNUSED(auth_token);
-    UNUSED(config);
 
     Aws::S3Crt::ClientConfiguration aws_config;
     aws_config.region = region;
     aws_config.throughputTargetGbps = throughput_target_gbps;
     aws_config.partSize = part_size;
 
-    Aws::Utils::Logging::InitializeAWSLogging(Aws::MakeShared<S3StoreLogSystem>("S3Storage"));
-
+    Aws::Utils::Logging::InitializeAWSLogging(Aws::MakeShared<S3StoreLogSystem>("S3Storage", s3->wt_api));
+    // Aws::Utils::Logging::LogLevel obj = S3StoreLogSystem().GetLogLevel();
 
     if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
         return (errno);
@@ -98,7 +108,6 @@ s3_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 
     /* New can fail; will deal with this later. */
     fs->conn = new aws_bucket_conn(aws_config);
-    // fs->s3_log = new S3StoreLogSystem();
     fs->file_system.terminate = s3_fs_terminate;
 
     /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
@@ -227,14 +236,19 @@ int
 wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
     S3_STORAGE *s3;
+    S3_FILE_SYSTEM *fs;
+    WT_CONFIG_ITEM v;
+
     int ret;
 
     if ((s3 = (S3_STORAGE *)calloc(1, sizeof(S3_STORAGE))) == NULL)
         return (errno);
 
     s3->wt_api = connection->get_extension_api(connection);
-    UNUSED(config);
+    s3->wt_config = config;
 
+    // std::cout << "\n RUBYRUBYRUBYRUBY: ret first " << ret << std::endl;
+ 
     Aws::InitAPI(options);
 
     /*

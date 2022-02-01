@@ -39,6 +39,10 @@ class test_s3_store01(wttest.WiredTigerTestCase):
 
     def get_s3_storage_source(self):
         return self.conn.get_storage_source('s3_store')
+     
+     # Turn on logging for this test.
+    def conn_config(self):
+        return "log=(enabled=true), verbose=[transaction]"
 
     def test_local_basic(self):
         # Test some basic functionality of the storage source API, calling
