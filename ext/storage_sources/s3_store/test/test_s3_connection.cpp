@@ -10,7 +10,8 @@ const uint64_t partSize = 8 * 1024 * 1024; /* 8 MB. */
 
 int TestListBuckets(const Aws::S3Crt::ClientConfiguration &config);
 
-#define TEST_BUCKET "s3testext"
+/* Default bucket to use, can be overridden by environment variable. */
+static std::string g_testBucket("s3testext");
 
 /* Wrapper for unit test functions. */
 #define TEST(func, config, expectedOutput)              \
@@ -37,7 +38,7 @@ generate_unique_prefix(std::string &prefix)
     prefix = "s3test_artefacts/unit_";
     prefix += time_str;
 
-    // Create a random device and use it to generate a random seed to initialize the generator.
+    /* Create a random device and use it to generate a random seed to initialize the generator. */
     std::random_device myRandomDevice;
     unsigned seed = myRandomDevice();
     std::default_random_engine myRandomEngine(seed);
@@ -55,7 +56,7 @@ generate_unique_prefix(std::string &prefix)
 int
 TestListBuckets(const Aws::S3Crt::ClientConfiguration &config)
 {
-    S3Connection conn(config, TEST_BUCKET);
+    S3Connection conn(config, g_testBucket);
     std::vector<std::string> buckets;
     if (!conn.ListBuckets(buckets))
         return 1;
@@ -73,6 +74,12 @@ TestListBuckets(const Aws::S3Crt::ClientConfiguration &config)
 int
 main()
 {
+    /* Prefer to use the bucket provided through the environment variable. */
+    const char* envBucket = std::getenv("WT_S3_EXT_BUCKET");
+    if (envBucket != NULL)
+        g_testBucket = envBucket;
+    std::cout << "Using Bucket:" << g_testBucket << std::endl;
+
     /* Set up the config to use the defaults specified. */
     Aws::S3Crt::ClientConfiguration awsConfig;
     awsConfig.region = TestDefaults::region;

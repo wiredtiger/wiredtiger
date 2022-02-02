@@ -41,6 +41,11 @@ class test_s3_store01(wttest.WiredTigerTestCase):
     fs_config += '_' + str(random.randrange(1,2147483646))
     fs_config += "/"
 
+    # Bucket name can be overridden by an environment variable.
+    bucket_name = os.getenv('WT_S3_EXT_BUCKET')
+    if bucket_name is None:
+        bucket_name = "s3testext"
+
     # Load the s3 store extension, skip the test if missing.
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
@@ -55,7 +60,7 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         session = self.session
         s3_store = self.get_s3_storage_source()
 
-        fs = s3_store.ss_customize_file_system(session, "testwtbuck102", "Secret", self.fs_config)
+        fs = s3_store.ss_customize_file_system(session, self.bucket_name, "Secret", self.fs_config)
         fs.terminate(session)
 
         #s3_store.terminate(session)
