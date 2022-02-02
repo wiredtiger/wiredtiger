@@ -55,10 +55,10 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         session = self.session
         s3_store = self.get_s3_storage_source()
 
-        fs = s3_store.ss_customize_file_system(session, "./objects", "Secret", self.fs_config)
+        fs = s3_store.ss_customize_file_system(session, "testwtbuck102", "Secret", self.fs_config)
         fs.terminate(session)
 
-        s3_store.terminate(session)
+        #s3_store.terminate(session)
 
 if __name__ == '__main__':
     wttest.run()

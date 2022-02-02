@@ -70,109 +70,90 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 {
     S3_FILE_SYSTEM *fs;
     S3_STORAGE *s3;
-    WT_CONFIG_ITEM objPrefix;
     int ret;
 
     /* Mark parameters as unused for now, until implemented. */
-    UNUSED(session);
-    UNUSED(bucketName);
     UNUSED(authToken);
-    UNUSED(config);
+
+    /* We need to have a bucket to setup the file system. */
+    if (bucketName == NULL || strlen(bucketName) == 0) {
+        std::cerr << "Error: Bucket not specified";
+        return (EINVAL);
+    }
+
+    if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
+        return (errno);
+    fs->s3Storage = s3 = (S3_STORAGE *)storageSource;
+
+    /* Parse configuration string. */
+    WT_CONFIG_ITEM objPrefixConf;
+    std::string objPrefix;
+    if ((ret = s3->wtApi->config_get_string(
+        s3->wtApi, session, config, "prefix", &objPrefixConf)) == 0)
+        objPrefix = objPrefixConf.str;
+    else if (ret != WT_NOTFOUND) {
+        std::cerr << "Error: customize_file_system: config parsing for object prefix";
+        return 1;
+    }
 
     Aws::S3Crt::ClientConfiguration aws_config;
     aws_config.region = region;
     aws_config.throughputTargetGbps = throughputTargetGbps;
     aws_config.partSize = partSize;
 
-    if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
-        return (errno);
-
-    fs->s3Storage = s3 = (S3_STORAGE *)storageSource;
-
-    /* Parse configuration string. */
-    if ((ret = s3->wtApi->config_get_string(
-        s3->wtApi, session, config, "prefix", &objPrefix)) != 0) {
-        if (ret == WT_NOTFOUND) {
-            ret = 0;
-            objPrefix.len = 0;
-        } else {
-            std::cerr << "Error: customize_file_system: config parsing for object prefix";
-            return 1;
-        }
-    }
-
     /* New can fail; will deal with this later. */
-    fs->conn = new S3Connection(aws_config);
+    fs->conn = new S3Connection(aws_config, bucketName, objPrefix);
 
     fs->fileSystem.terminate = S3FileSystemTerminate;
 
     /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
     {
-        /* List S3 buckets. */
-        std::vector<std::string> buckets;
-        if (fs->conn->ListBuckets(buckets)) {
-            std::cout << "All buckets under my account:" << std::endl;
-            for (const std::string &bucket : buckets) {
-                std::cout << "  * " << bucket << std::endl;
+        /* List objects. */
+        std::vector<std::string> bucketObjects;
+        if (fs->conn->ListObjects(bucketObjects)) {
+            std::cout << "Objects in bucket:" << std::endl;
+            if (!bucketObjects.empty()) {
+                for (const auto &object : bucketObjects) {
+                    std::cout << "  * " << object << std::endl;
+                }
+            } else {
+                std::cout << "No objects in bucket." << std::endl;
             }
             std::cout << std::endl;
         }
 
-        /* Have at least one bucket to use. */
-        if (!buckets.empty()) {
-            const Aws::String firstBucket = buckets.at(0);
+        /* Put object. */
+        fs->conn->PutObject("WiredTiger.turtle", "WiredTiger.turtle");
 
-            /* List objects. */
-            std::vector<std::string> bucketObjects;
-            if (fs->conn->ListObjects(firstBucket, bucketObjects)) {
-                std::cout << "Objects in bucket '" << firstBucket << "':" << std::endl;
-                if (!bucketObjects.empty()) {
-                    for (const auto &object : bucketObjects) {
-                        std::cout << "  * " << object << std::endl;
-                    }
-                } else {
-                    std::cout << "No objects in bucket." << std::endl;
+        /* List objects again. */
+        bucketObjects.clear();
+        if (fs->conn->ListObjects(bucketObjects)) {
+            std::cout << "Objects in bucket:" << std::endl;
+            if (!bucketObjects.empty()) {
+                for (const auto &object : bucketObjects) {
+                    std::cout << "  * " << object << std::endl;
                 }
-                std::cout << std::endl;
+            } else {
+                std::cout << "No objects in bucket." << std::endl;
             }
+            std::cout << std::endl;
+        }
 
-            /* Put object. */
-            std::string objKey = objPrefix.len == 0 ? "WiredTiger.turtle" : 
-                std::string(objPrefix.str) + "WiredTiger.turtle";
-            fs->conn->PutObject(firstBucket, objKey, "WiredTiger.turtle");
+        /* Delete object. */
+        fs->conn->DeleteObject("WiredTiger.turtle");
 
-            /* List objects again. */
-            bucketObjects.clear();
-            if (fs->conn->ListObjects(firstBucket, bucketObjects)) {
-                std::cout << "Objects in bucket '" << firstBucket << "':" << std::endl;
-                if (!bucketObjects.empty()) {
-                    for (const auto &object : bucketObjects) {
-                        std::cout << "  * " << object << std::endl;
-                    }
-                } else {
-                    std::cout << "No objects in bucket." << std::endl;
+        /* List objects again. */
+        bucketObjects.clear();
+        if (fs->conn->ListObjects(bucketObjects)) {
+            std::cout << "Objects in bucket:" << std::endl;
+            if (!bucketObjects.empty()) {
+                for (const auto &object : bucketObjects) {
+                    std::cout << "  * " << object << std::endl;
                 }
-                std::cout << std::endl;
+            } else {
+                std::cout << "No objects in bucket." << std::endl;
             }
-
-            /* Delete object. */
-            fs->conn->DeleteObject(firstBucket, objKey);
-
-            /* List objects again. */
-            bucketObjects.clear();
-            if (fs->conn->ListObjects(firstBucket, bucketObjects)) {
-                std::cout << "Objects in bucket '" << firstBucket << "':" << std::endl;
-                if (!bucketObjects.empty()) {
-                    for (const auto &object : bucketObjects) {
-                        std::cout << "  * " << object << std::endl;
-                    }
-                } else {
-                    std::cout << "No objects in bucket." << std::endl;
-                }
-                std::cout << std::endl;
-            }
-        } else {
-            std::cout << "No buckets in AWS account." << std::endl;
+            std::cout << std::endl;
         }
     }
 

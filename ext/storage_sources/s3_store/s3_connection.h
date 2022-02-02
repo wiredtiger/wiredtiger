@@ -14,15 +14,17 @@
  */
 class S3Connection {
     public:
-    explicit S3Connection(const Aws::S3Crt::ClientConfiguration &config);
+    explicit S3Connection(const Aws::S3Crt::ClientConfiguration &config,
+      const std::string &bucketName, const std::string &objPrefix = "");
     bool ListBuckets(std::vector<std::string> &buckets) const;
-    bool ListObjects(const std::string &bucketName, std::vector<std::string> &objects) const;
-    bool PutObject(const std::string &bucketName, const std::string &objectKey,
-      const std::string &fileName) const;
-    bool DeleteObject(const std::string &bucketName, const std::string &objectKey) const;
+    bool ListObjects(std::vector<std::string> &objects) const;
+    bool PutObject(const std::string &objectKey, const std::string &fileName) const;
+    bool DeleteObject(const std::string &objectKey) const;
     ~S3Connection() = default;
 
     private:
     const Aws::S3Crt::S3CrtClient m_S3CrtClient;
+    const std::string m_bucketName;
+    const std::string m_objectPrefix;
 };
 #endif

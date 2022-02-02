@@ -35,10 +35,10 @@ S3Connection::ListBuckets(std::vector<std::string> &buckets) const
  *     otherwise false.
  */
 bool
-S3Connection::ListObjects(const std::string &bucketName, std::vector<std::string> &objects) const
+S3Connection::ListObjects(std::vector<std::string> &objects) const
 {
     Aws::S3Crt::Model::ListObjectsRequest request;
-    request.WithBucket(bucketName);
+    request.WithBucket(m_bucketName);
     Aws::S3Crt::Model::ListObjectsOutcome outcomes = m_S3CrtClient.ListObjects(request);
 
     if (outcomes.IsSuccess()) {
@@ -56,12 +56,11 @@ S3Connection::ListObjects(const std::string &bucketName, std::vector<std::string
  *     Puts an object into an S3 bucket. Returns true if success, otherwise false.
  */
 bool
-S3Connection::PutObject(
-  const std::string &bucketName, const std::string &objectKey, const std::string &fileName) const
+S3Connection::PutObject(const std::string &objectKey, const std::string &fileName) const
 {
     Aws::S3Crt::Model::PutObjectRequest request;
-    request.SetBucket(bucketName);
-    request.SetKey(objectKey);
+    request.SetBucket(m_bucketName);
+    request.SetKey(m_objectPrefix + objectKey);
 
     std::shared_ptr<Aws::IOStream> inputData = Aws::MakeShared<Aws::FStream>(
       "s3-source", fileName.c_str(), std::ios_base::in | std::ios_base::binary);
@@ -83,11 +82,11 @@ S3Connection::PutObject(
  *     Deletes an object from S3 bucket. Returns true if success, otherwise false.
  */
 bool
-S3Connection::DeleteObject(const std::string &bucketName, const std::string &objectKey) const
+S3Connection::DeleteObject(const std::string &objectKey) const
 {
     Aws::S3Crt::Model::DeleteObjectRequest request;
-    request.SetBucket(bucketName);
-    request.SetKey(objectKey);
+    request.SetBucket(m_bucketName);
+    request.SetKey(m_objectPrefix + objectKey);
 
     Aws::S3Crt::Model::DeleteObjectOutcome outcome = m_S3CrtClient.DeleteObject(request);
 
@@ -103,4 +102,6 @@ S3Connection::DeleteObject(const std::string &bucketName, const std::string &obj
  * S3Connection --
  *     Constructor for AWS S3 bucket connection.
  */
-S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config) : m_S3CrtClient(config){};
+S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config,
+  const std::string &bucketName, const std::string &objPrefix)
+    : m_S3CrtClient(config), m_bucketName(bucketName), m_objectPrefix(objPrefix) {}

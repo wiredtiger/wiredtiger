@@ -10,6 +10,8 @@ const uint64_t partSize = 8 * 1024 * 1024; /* 8 MB. */
 
 int TestListBuckets(const Aws::S3Crt::ClientConfiguration &config);
 
+#define TEST_BUCKET "s3testext"
+
 /* Wrapper for unit test functions. */
 #define TEST(func, config, expectedOutput)              \
     do {                                                \
@@ -53,7 +55,7 @@ generate_unique_prefix(std::string &prefix)
 int
 TestListBuckets(const Aws::S3Crt::ClientConfiguration &config)
 {
-    S3Connection conn(config);
+    S3Connection conn(config, TEST_BUCKET);
     std::vector<std::string> buckets;
     if (!conn.ListBuckets(buckets))
         return 1;
