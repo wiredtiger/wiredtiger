@@ -3,6 +3,7 @@
 #include <aws/s3-crt/model/ListObjectsRequest.h>
 #include <aws/s3-crt/model/PutObjectRequest.h>
 #include <aws/s3-crt/model/HeadObjectRequest.h>
+
 #include "s3_connection.h"
 
 #include <fstream>
