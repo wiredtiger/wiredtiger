@@ -18,8 +18,7 @@ target_link_libraries(
 )
 
 # Build the S3 extension as a library.
-set(sources "s3_store.cxx")
-add_library(wiredtiger_s3_store MODULE ${sources})
+add_library(wiredtiger_s3_store MODULE s3_storage_source.cpp)
 target_include_directories(
     wiredtiger_s3_store
     PRIVATE
