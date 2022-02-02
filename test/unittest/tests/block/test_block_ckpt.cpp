@@ -34,8 +34,14 @@ static void test_ckpt_add_blkmod_entry(wt_off_t offset,
     BlockMods blockMods;
     blockMods.getWTBlockMods()->granularity = 1;
 
+    REQUIRE(blockMods.getWTBlockMods()->nbits == 0);
+    REQUIRE(blockMods.getWTBlockMods()->bitstring.memsize == 0);
+    REQUIRE(blockMods.getWTBlockMods()->bitstring.mem == nullptr);
+    REQUIRE(blockMods.getWTBlockMods()->bitstring.data == nullptr);
+
     int result = __ckpt_add_blkmod_entry(session->getWtSessionImpl(), blockMods.getWTBlockMods(), offset, len);
     REQUIRE(result == 0);
+    
     REQUIRE(blockMods.getWTBlockMods()->nbits == expectedBits);
     REQUIRE(blockMods.getWTBlockMods()->bitstring.memsize == (expectedBits / 8));
     REQUIRE(blockMods.getWTBlockMods()->bitstring.mem != nullptr);
