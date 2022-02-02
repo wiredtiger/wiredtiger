@@ -26,12 +26,21 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest
+import datetime, os, wiredtiger, wttest, random
 FileSystem = wiredtiger.FileSystem  # easy access to constants
 
 # test_s3_store01.py
 #   Test minimal S3 extension with basic interactions with AWS S3CrtClient.
 class test_s3_store01(wttest.WiredTigerTestCase):
+    # Generates a unique prefix to be used with the object keys, eg:
+    # "s3test_artefacts/python_2022-31-01-16-34-10_623843294/"
+    fs_config = 'prefix='
+    fs_config += 's3test_artefacts/python_'
+    fs_config += datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+    # Range upto int32_max, matches that of C++'s std::default_random_engine
+    fs_config += '_' + str(random.randrange(1,2147483646))
+    fs_config += "/"
+
     # Load the s3 store extension, skip the test if missing.
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
@@ -46,7 +55,7 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         session = self.session
         s3_store = self.get_s3_storage_source()
 
-        fs = s3_store.ss_customize_file_system(session, "./objects", "Secret", None)
+        fs = s3_store.ss_customize_file_system(session, "./objects", "Secret", self.fs_config)
         fs.terminate(session)
 
         s3_store.terminate(session)

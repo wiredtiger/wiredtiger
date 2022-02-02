@@ -69,6 +69,8 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
   const char *authToken, const char *config, WT_FILE_SYSTEM **fileSystem)
 {
     S3_FILE_SYSTEM *fs;
+    S3_STORAGE *s3;
+    WT_CONFIG_ITEM objPrefix;
     int ret;
 
     /* Mark parameters as unused for now, until implemented. */
@@ -85,7 +87,19 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
         return (errno);
 
-    fs->s3Storage = (S3_STORAGE *)storageSource;
+    fs->s3Storage = s3 = (S3_STORAGE *)storageSource;
+
+    /* Parse configuration string. */
+    if ((ret = s3->wtApi->config_get_string(
+        s3->wtApi, session, config, "prefix", &objPrefix)) != 0) {
+        if (ret == WT_NOTFOUND) {
+            ret = 0;
+            objPrefix.len = 0;
+        } else {
+            std::cerr << "Error: customize_file_system: config parsing for object prefix";
+            return 1;
+        }
+    }
 
     /* New can fail; will deal with this later. */
     fs->conn = new S3Connection(aws_config);
@@ -123,7 +137,9 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
             }
 
             /* Put object. */
-            fs->conn->PutObject(firstBucket, "WiredTiger.turtle", "WiredTiger.turtle");
+            std::string objKey = objPrefix.len == 0 ? "WiredTiger.turtle" : 
+                std::string(objPrefix.str) + "WiredTiger.turtle";
+            fs->conn->PutObject(firstBucket, objKey, "WiredTiger.turtle");
 
             /* List objects again. */
             bucketObjects.clear();
@@ -140,7 +156,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
             }
 
             /* Delete object. */
-            fs->conn->DeleteObject(firstBucket, "WiredTiger.turtle");
+            fs->conn->DeleteObject(firstBucket, objKey);
 
             /* List objects again. */
             bucketObjects.clear();

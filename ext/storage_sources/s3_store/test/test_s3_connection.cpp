@@ -1,4 +1,5 @@
 #include <s3_connection.h>
+#include <random>
 
 /* Default config settings for the S3CrtClient. */
 namespace TestDefaults {
@@ -16,6 +17,34 @@ int TestListBuckets(const Aws::S3Crt::ClientConfiguration &config);
         if ((__ret = (func(config))) != expectedOutput) \
             return (__ret);                             \
     } while (0)
+
+/*
+ * generate_unique_prefix --
+ *     Generates a unique prefix to be used with the object keys, eg:
+ *     "s3test_artefacts/unit_2022-31-01-16-34-10_623843294/"
+ */
+static int
+generate_unique_prefix(std::string &prefix)
+{
+    char time_str[100];
+    std::time_t t = std::time(nullptr);
+
+    if (std::strftime(time_str, sizeof(time_str), "%F-%H-%M-%S", std::localtime(&t)) == 0)
+        return 1;
+
+    prefix = "s3test_artefacts/unit_";
+    prefix += time_str;
+
+    // Create a random device and use it to generate a random seed to initialize the generator.
+    std::random_device myRandomDevice;
+    unsigned seed = myRandomDevice();
+    std::default_random_engine myRandomEngine(seed);
+
+    prefix += '_' + std::to_string(myRandomEngine());
+    prefix += '/';
+
+    return 0;
+}
 
 /*
  * TestListBuckets --
@@ -54,6 +83,12 @@ main()
 
     int expectedOutput = 0;
     TEST(TestListBuckets, awsConfig, expectedOutput);
+
+    /* Silence the compiler for now. */
+    std::string prefix;
+    if (generate_unique_prefix(prefix) != 0)
+        return 1;
+    std::cout << "Generated prefix: " << prefix << std::endl;
 
     /* Shutdown the API at end of tests. */
     Aws::ShutdownAPI(options);
