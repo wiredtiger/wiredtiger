@@ -85,9 +85,9 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
 
         # Verify data is visible and correct.
         # (In FLCS, the removed rows should read back as zero.)
-        self.check(value_a, uri, nrows, None, 20)
-        self.check(None, uri, 0, nrows, 30)
-        self.check(value_b, uri, nrows, None, 60)
+        self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
+        self.check(None, uri, 0, nrows, 31 if self.prepare else 30)
+        self.check(value_b, uri, nrows, None, 61 if self.prepare else 60)
 
         # Pin stable to timestamp 50 if prepare otherwise 40.
         if self.prepare:
@@ -161,9 +161,9 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
 
         # Verify data is visible and correct.
         # (In FLCS, the removed rows should read back as zero.)
-        self.check(value_a, uri, nrows, None, 20)
-        self.check(None, uri, 0, nrows, 30)
-        self.check(value_d, uri, nrows, None, 60)
+        self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
+        self.check(None, uri, 0, nrows, 31 if self.prepare else 30)
+        self.check(value_d, uri, nrows, None, 61 if self.prepare else 60)
 
         # Pin stable to timestamp 50 if prepare otherwise 40.
         if self.prepare:
@@ -238,9 +238,9 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
 
         # Verify data is visible and correct.
         # (In FLCS, the removed rows should read back as zero.)
-        self.check(value_a, uri, nrows, None, 20)
-        self.check(None, uri, 0, nrows, 40)
-        self.check(value_c, uri, nrows, None, 60)
+        self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
+        self.check(None, uri, 0, nrows, 41 if self.prepare else 40)
+        self.check(value_c, uri, nrows, None, 61 if self.prepare else 60)
 
         # Simulate a server crash and restart.
         simulate_crash_restart(self, ".", "RESTART")
@@ -294,9 +294,9 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
 
         # Verify data is visible and correct.
         # (In FLCS, the removed rows should read back as zero.)
-        self.check(value_a, uri, nrows, None, 20)
-        self.check(None, uri, 0, nrows, 40)
-        self.check(value_c, uri, nrows, None, 60)
+        self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
+        self.check(None, uri, 0, nrows, 41 if self.prepare else 40)
+        self.check(value_c, uri, nrows, None, 61 if self.prepare else 60)
 
         self.conn.rollback_to_stable()
         # Perform several updates and checkpoint.

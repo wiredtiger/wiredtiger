@@ -85,7 +85,7 @@ class test_rollback_to_stable12(test_rollback_to_stable_base):
         self.large_updates(uri, value_a, ds, nrows, self.prepare, 20)
 
         # Verify data is visible and correct.
-        self.check(value_a, uri, nrows, None, 20)
+        self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
 
         # Pin stable to timestamp 30 if prepare otherwise 20.
         if self.prepare:
