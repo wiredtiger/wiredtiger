@@ -6,10 +6,7 @@
 
 #include <cstdarg>
 
-using namespace Aws::Utils;
-using namespace Aws::Utils::Logging;
-
-s3_log_system::s3_log_system(WT_EXTENSION_API *wtApi, uint32_t awsVerbose)
+S3LogSystem::S3LogSystem(WT_EXTENSION_API *wtApi, uint32_t awsVerbose)
 {
     static const std::map<int32_t, Aws::Utils::Logging::LogLevel> verbosityMapping = {
       {-3, Aws::Utils::Logging::LogLevel::Error}, {-2, Aws::Utils::Logging::LogLevel::Warn},
@@ -20,17 +17,17 @@ s3_log_system::s3_log_system(WT_EXTENSION_API *wtApi, uint32_t awsVerbose)
     } else {
         logLevel = Aws::Utils::Logging::LogLevel::Error;
     }
-    wt_api = wtApi;
+    this->wtApi = wtApi;
 }
 
 void
-s3_log_system::Log(
+S3LogSystem::Log(
   Aws::Utils::Logging::LogLevel logLevel, const char *tag, const char *format, ...)
 {
     Aws::StringStream ss;
     std::va_list args;
-    va_start(args, format);
     va_list tmpArgs; // unfortunately you cannot consume a va_list twice
+    va_start(args, format);
 
 #ifdef _WIN32
     const int requiredLength = _vscprintf(formatStr, tmp_args) + 1;
@@ -39,7 +36,7 @@ s3_log_system::Log(
 #endif
     va_end(tmpArgs);
 
-    Array<char> outputBuff(requiredLength);
+    Aws::Utils::Array<char> outputBuff(requiredLength);
 #ifdef _WIN32
     vsnprintf_s(outputBuff.GetUnderlyingData(), requiredLength, _TRUNCATE, formatStr, args);
 #else
@@ -53,21 +50,21 @@ s3_log_system::Log(
 }
 
 void
-s3_log_system::LogStream(
+S3LogSystem::LogStream(
   Aws::Utils::Logging::LogLevel logLevel, const char *tag, const Aws::OStringStream &messageStream)
 {
     LogVerboseMessage(tag, logLevel, messageStream.rdbuf()->str().c_str());
 }
 
 void
-s3_log_system::LogVerboseMessage(
+S3LogSystem::LogVerboseMessage(
   const char *tag, Aws::Utils::Logging::LogLevel logLevel, const std::string &message)
 {
-    wt_api->err_printf(wt_api, NULL, "%s : %s", tag, message.c_str());
+    wtApi->err_printf(wtApi, NULL, "%s : %s", tag, message.c_str());
 }
 
 void
-s3_log_system::Flush()
+S3LogSystem::Flush()
 {
     return;
 }

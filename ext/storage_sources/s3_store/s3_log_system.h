@@ -7,11 +7,10 @@
 
 #include <atomic>
 
-class s3_log_system: public Aws::Utils::Logging::LogSystemInterface {
+class S3LogSystem: public Aws::Utils::Logging::LogSystemInterface {
 
     public:
-    explicit s3_log_system(WT_EXTENSION_API *wtApi, uint32_t awsVerbose);
-    ~s3_log_system() = default;
+    explicit S3LogSystem(WT_EXTENSION_API *wtApi, uint32_t awsVerbose);
     Aws::Utils::Logging::LogLevel
     GetLogLevel(void) const override
     {
@@ -27,5 +26,5 @@ class s3_log_system: public Aws::Utils::Logging::LogSystemInterface {
     void LogVerboseMessage(
       const char *tag, Aws::Utils::Logging::LogLevel logLevel, const std::string &message);
     std::atomic<Aws::Utils::Logging::LogLevel> logLevel;
-    WT_EXTENSION_API *wt_api;
+    WT_EXTENSION_API *wtApi;
 };
