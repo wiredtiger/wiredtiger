@@ -81,8 +81,9 @@ class test_tiered14(wttest.WiredTigerTestCase):
         extlist.extension('storage_sources', self.extension_name)
 
     def progress(self, s):
-        self.verbose(3, s)
-        self.pr(s)
+        outstr = "testnum {}, position {}: {}".format(self.testnum, self.position, s)
+        self.verbose(3, outstr)
+        self.pr(outstr)
 
     # Run a sequence of operations, indicated by a string.
     #  a = add some number of keys
@@ -96,6 +97,9 @@ class test_tiered14(wttest.WiredTigerTestCase):
     # previous runs.  A different approach is to drop the uri, but then we need to
     # remove the bucket and cache, which is specific to the storage source extension.
     def playback(self, testnum, ops):
+        self.testnum = testnum
+        self.position = -1
+
         uri = self.uri.format(testnum)
         self.progress('Running ops: {} using uri {}'.format(ops, uri))
         if self.dataset == 'simple':
@@ -108,11 +112,10 @@ class test_tiered14(wttest.WiredTigerTestCase):
         # Populate for a tracked data set is needed to create the uri.
         ds.populate()
         inserted = 0
-        idx = -1
 
         # At the end of the sequence of operations, do a final check ('.').
         for op in ops + '.':
-            idx += 1
+            self.position += 1
             try:
                 if op == 'f':
                     self.progress('flush_tier')
