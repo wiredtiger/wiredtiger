@@ -865,7 +865,7 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
     if (!LF_ISSET(WT_DHANDLE_TS_ALWAYS | WT_DHANDLE_TS_MIXED_MODE | WT_DHANDLE_TS_NEVER |
           WT_DHANDLE_TS_ORDERED))
         return (0);
-    if (!LF_ISSET(WT_DHANDLE_VERBOSE_TS_WRITE | WT_DHANDLE_ASSERT_TS_WRITE))
+    if (!LF_ISSET(WT_DHANDLE_TS_VERBOSE_WRITE | WT_DHANDLE_TS_ASSERT_WRITE))
         return (0);
 
     /*
@@ -877,11 +877,11 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 
     /* Check for required timestamps. */
     if (LF_ISSET(WT_DHANDLE_TS_ALWAYS) && !txn_has_ts && txn->mod_count != 0) {
-        if (LF_ISSET(WT_DHANDLE_VERBOSE_TS_WRITE))
+        if (LF_ISSET(WT_DHANDLE_TS_VERBOSE_WRITE))
             __wt_verbose_error(session, WT_VERB_TRANSACTION,
               "%s: " WT_TS_VERBOSE_PREFIX "timestamp required by table configuration and none set",
               name);
-        if (LF_ISSET(WT_DHANDLE_ASSERT_TS_WRITE))
+        if (LF_ISSET(WT_DHANDLE_TS_ASSERT_WRITE))
             WT_RET_MSG(session, EINVAL,
               "%s: " WT_TS_VERBOSE_PREFIX "timestamp required by table configuration and none set",
               name);
@@ -891,11 +891,11 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 
     /* Check for disallowed timestamps. */
     if (LF_ISSET(WT_DHANDLE_TS_NEVER) && txn_has_ts) {
-        if (LF_ISSET(WT_DHANDLE_VERBOSE_TS_WRITE))
+        if (LF_ISSET(WT_DHANDLE_TS_VERBOSE_WRITE))
             __wt_verbose_error(session, WT_VERB_TRANSACTION,
               "%s: " WT_TS_VERBOSE_PREFIX "timestamp %s set when disallowed by table configuration",
               name, __wt_timestamp_to_string(op_ts, ts_string[0]));
-        if (LF_ISSET(WT_DHANDLE_ASSERT_TS_WRITE))
+        if (LF_ISSET(WT_DHANDLE_TS_ASSERT_WRITE))
             WT_RET_MSG(session, EINVAL,
               "%s: " WT_TS_VERBOSE_PREFIX "timestamp %s set when disallowed by table configuration",
               name, __wt_timestamp_to_string(op_ts, ts_string[0]));
@@ -905,13 +905,13 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 
     /* Ordered key consistency requires all updates use timestamps, once they are first used. */
     if (LF_ISSET(WT_DHANDLE_TS_ORDERED) && !txn_has_ts && prev_op_durable_ts != WT_TS_NONE) {
-        if (LF_ISSET(WT_DHANDLE_VERBOSE_TS_WRITE))
+        if (LF_ISSET(WT_DHANDLE_TS_VERBOSE_WRITE))
             __wt_verbose_error(session, WT_VERB_TRANSACTION,
               "%s: " WT_TS_VERBOSE_PREFIX
               "no timestamp provided for an update to a table configured to always use timestamps "
               "once they are first used",
               name);
-        if (LF_ISSET(WT_DHANDLE_ASSERT_TS_WRITE))
+        if (LF_ISSET(WT_DHANDLE_TS_ASSERT_WRITE))
             WT_RET_MSG(session, EINVAL,
               "%s: " WT_TS_VERBOSE_PREFIX
               "no timestamp provided for an update to a table configured to always use timestamps "
@@ -921,14 +921,14 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 
     /* Ordered key consistency requires all updates be in timestamp order. */
     if (LF_ISSET(WT_DHANDLE_TS_ORDERED) && txn_has_ts && prev_op_durable_ts > op_ts) {
-        if (LF_ISSET(WT_DHANDLE_VERBOSE_TS_WRITE))
+        if (LF_ISSET(WT_DHANDLE_TS_VERBOSE_WRITE))
             __wt_verbose_error(session, WT_VERB_TRANSACTION,
               "%s: " WT_TS_VERBOSE_PREFIX
               "committing a transaction that updates a value with an older timestamp %s than is "
               "associated with the previous update %s on a table configured for strict ordering",
               name, __wt_timestamp_to_string(op_ts, ts_string[0]),
               __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1]));
-        if (LF_ISSET(WT_DHANDLE_ASSERT_TS_WRITE))
+        if (LF_ISSET(WT_DHANDLE_TS_ASSERT_WRITE))
             WT_RET_MSG(session, EINVAL,
               "%s: " WT_TS_VERBOSE_PREFIX
               "committing a transaction that updates a value with an older timestamp %s than is "
@@ -940,14 +940,14 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 #ifdef WT_STANDALONE_BUILD
     /* Mixed mode key consistency requires all updates be in timestamp order. */
     if (LF_ISSET(WT_DHANDLE_TS_MIXED_MODE) && txn_has_ts && prev_op_durable_ts > op_ts) {
-        if (LF_ISSET(WT_DHANDLE_VERBOSE_TS_WRITE))
+        if (LF_ISSET(WT_DHANDLE_TS_VERBOSE_WRITE))
             __wt_verbose_error(session, WT_VERB_TRANSACTION,
               "%s: " WT_TS_VERBOSE_PREFIX
               "committing a transaction that updates a value with an older timestamp %s than is "
               "associated with the previous update %s on a table configured for mixed mode",
               name, __wt_timestamp_to_string(op_ts, ts_string[0]),
               __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1]));
-        if (LF_ISSET(WT_DHANDLE_ASSERT_TS_WRITE))
+        if (LF_ISSET(WT_DHANDLE_TS_ASSERT_WRITE))
             WT_RET_MSG(session, EINVAL,
               "%s: " WT_TS_VERBOSE_PREFIX
               "committing a transaction that updates a value with an older timestamp %s than is "
