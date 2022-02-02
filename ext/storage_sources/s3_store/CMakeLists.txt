@@ -1,7 +1,7 @@
 project(s3_store CXX)
 
 # Create an intermediate library to build the helper library.
-add_library(aws_bucket_util STATIC aws_bucket_conn.cxx)
+add_library(aws_bucket_util STATIC s3_connection.cpp)
 set_property(TARGET aws_bucket_util PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(
