@@ -202,3 +202,10 @@ TEST_CASE("block_off_srch", "[extent_list]") {
         REQUIRE((*stack[2])->off == 3);
     }
 }
+
+TEST_CASE("block_first_srch", "[extent_list]") {
+    std::vector<WT_EXT*> head(WT_SKIP_MAXDEPTH, nullptr);
+    std::vector<WT_EXT**> stack(WT_SKIP_MAXDEPTH, nullptr);
+
+    REQUIRE(__ut_block_first_srch(&head[0], 0, &stack[0]) == false);
+}

@@ -2361,4 +2361,5 @@ static inline void __wt_upd_value_clear(WT_UPDATE_VALUE *upd_value);
 #ifdef HAVE_UNITTEST
 extern WT_EXT *__ut_block_off_srch_last(WT_EXT**, WT_EXT***);
 extern void __ut_block_off_srch(WT_EXT**, wt_off_t, WT_EXT***, bool);
+extern bool __ut_block_first_srch(WT_EXT**, wt_off_t, WT_EXT***);
 #endif

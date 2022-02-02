@@ -1389,4 +1389,10 @@ __ut_block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
 {
     __block_off_srch(head, off, stack, skip_off);
 }
+
+bool
+__ut_block_first_srch(WT_EXT **head, wt_off_t size, WT_EXT ***stack)
+{
+    return __block_first_srch(head, size, stack);
+}
 #endif
