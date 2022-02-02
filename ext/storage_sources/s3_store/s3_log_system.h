@@ -7,10 +7,10 @@
 
 #include <atomic>
 
-class S3LogSystem: public Aws::Utils::Logging::LogSystemInterface {
+class S3LogSystem : public Aws::Utils::Logging::LogSystemInterface {
 
     public:
-    explicit S3LogSystem(WT_EXTENSION_API *wtApi, uint32_t awsVerbose);
+    S3LogSystem(WT_EXTENSION_API *wtApi, uint32_t awsVerbose);
     Aws::Utils::Logging::LogLevel
     GetLogLevel(void) const override
     {

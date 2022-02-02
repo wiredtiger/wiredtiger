@@ -6,14 +6,16 @@
 
 #include <cstdarg>
 
-S3LogSystem::S3LogSystem(WT_EXTENSION_API *wtApi, uint32_t awsVerbose)
+S3LogSystem::S3LogSystem(WT_EXTENSION_API *wtApi, uint32_t wtVerbosityLevel)
 {
+    // Mapping the desired WiredTiger extension verbosity level to a rough equivalent AWS SDK
+    // verbosity level.
     static const std::map<int32_t, Aws::Utils::Logging::LogLevel> verbosityMapping = {
       {-3, Aws::Utils::Logging::LogLevel::Error}, {-2, Aws::Utils::Logging::LogLevel::Warn},
       {-1, Aws::Utils::Logging::LogLevel::Info}, {0, Aws::Utils::Logging::LogLevel::Info},
       {1, Aws::Utils::Logging::LogLevel::Debug}};
-    if (verbosityMapping.find(awsVerbose) != verbosityMapping.end()) {
-        logLevel = verbosityMapping.at(awsVerbose);
+    if (verbosityMapping.find(wtVerbosityLevel) != verbosityMapping.end()) {
+        logLevel = verbosityMapping.at(wtVerbosityLevel);
     } else {
         logLevel = Aws::Utils::Logging::LogLevel::Error;
     }
@@ -21,8 +23,7 @@ S3LogSystem::S3LogSystem(WT_EXTENSION_API *wtApi, uint32_t awsVerbose)
 }
 
 void
-S3LogSystem::Log(
-  Aws::Utils::Logging::LogLevel logLevel, const char *tag, const char *format, ...)
+S3LogSystem::Log(Aws::Utils::Logging::LogLevel logLevel, const char *tag, const char *format, ...)
 {
     Aws::StringStream ss;
     std::va_list args;
