@@ -140,42 +140,21 @@ testutil_clean_work_dir(const char *dir)
 
 /*
  * testutil_build_dir --
- *     Get the git top level directory and concatenate the build directory.
+ *     Get the build directory.
  */
 void
 testutil_build_dir(TEST_OPTS *opts, char *buf, int size)
 {
-    FILE *fp;
-    char *p;
+    /* To keep it simple, in order to get the build directory we require the user to set the build
+     * directory from the command line options.
+     * We unfortunately can't depend on a known/constant build directory (the user could have
+     * multiple out-of-source build directories). There's also not really any OS-agnostic mechanisms
+     * we can here use to discover the build directory the calling test binary exists in.
+     */
+    if (opts->build_dir == NULL)
+        testutil_die(ENOENT, "No build directory given");
 
-    /* If a build directory was manually given as an option we can directly return this instead. */
-    if (opts->build_dir != NULL) {
-        strncpy(buf, opts->build_dir, (size_t)size);
-        return;
-    }
-
-    /* Get the git top level directory. */
-#ifdef _WIN32
-    fp = _popen("git rev-parse --show-toplevel", "r");
-#else
-    fp = popen("git rev-parse --show-toplevel", "r");
-#endif
-
-    if (fp == NULL)
-        testutil_die(errno, "popen");
-    p = fgets(buf, size, fp);
-    if (p == NULL)
-        testutil_die(errno, "fgets");
-
-#ifdef _WIN32
-    _pclose(fp);
-#else
-    pclose(fp);
-#endif
-
-    /* Remove the trailing newline character added by fgets. */
-    buf[strlen(buf) - 1] = '\0';
-    strcat(buf, "/build_posix");
+    strncpy(buf, opts->build_dir, (size_t)size);
 }
 
 /*
@@ -239,11 +218,13 @@ testutil_cleanup(TEST_OPTS *opts)
     free(opts->uri);
     free(opts->progress_file_name);
     free(opts->home);
+    free(opts->build_dir);
 }
 
 /*
  * testutil_copy_data --
- *     Copy the data to a backup folder.
+ *     Copy the data to a backup folder. Usually, the data copy is cleaned up by a call to
+ *     testutil_clean_test_artifacts.
  */
 void
 testutil_copy_data(const char *dir)
@@ -291,6 +272,10 @@ testutil_timestamp_parse(const char *str, uint64_t *tsp)
     testutil_assert(p - str <= 16);
 }
 
+/*
+ * testutil_create_backup_directory --
+ *     TODO: Add a comment describing this function.
+ */
 void
 testutil_create_backup_directory(const char *home)
 {
@@ -305,7 +290,7 @@ testutil_create_backup_directory(const char *home)
 }
 
 /*
- * copy_file --
+ * testutil_copy_file --
  *     Copy a single file into the backup directories.
  */
 void

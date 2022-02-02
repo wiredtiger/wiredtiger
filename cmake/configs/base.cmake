@@ -1,11 +1,3 @@
-#
-# Public Domain 2014-present MongoDB, Inc.
-# Public Domain 2008-2014 WiredTiger, Inc.
-#  All rights reserved.
-#
-#  See the file LICENSE for redistribution information
-#
-
 include(cmake/helpers.cmake)
 include(cmake/configs/version.cmake)
 
@@ -184,6 +176,18 @@ config_bool(
     # Specifically throw a fatal error if a user tries to enable the tcmalloc allocator without
     # actually having the library available (as opposed to silently defaulting to OFF).
     DEPENDS_ERROR ON "Failed to find tcmalloc library"
+)
+
+config_bool(
+    ENABLE_S3
+    "Build the S3 storage extension"
+    DEFAULT OFF
+)
+
+config_bool(
+    ENABLE_LLVM
+    "Enable compilation of LLVM-based tools and executables i.e. xray & fuzzer."
+    DEFAULT OFF
 )
 
 set(default_optimize_level)

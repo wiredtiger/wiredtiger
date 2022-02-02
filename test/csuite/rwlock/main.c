@@ -46,6 +46,10 @@ static uint64_t shared_counter;
 void *thread_rwlock(void *);
 void *thread_dump(void *);
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -88,7 +92,8 @@ main(int argc, char *argv[])
 }
 
 /*
- * Acquire a rwlock, every Nth operation, acquire exclusive.
+ * thread_rwlock --
+ *     Acquire a rwlock, every Nth operation, acquire exclusive.
  */
 void *
 thread_rwlock(void *arg)
@@ -156,6 +161,10 @@ thread_rwlock(void *arg)
     return (NULL);
 }
 
+/*
+ * thread_dump --
+ *     TODO: Add a comment describing this function.
+ */
 void *
 thread_dump(void *arg)
 {

@@ -14,6 +14,14 @@
 #define WT_TS_NONE 0         /* Beginning of time */
 #define WT_TS_MAX UINT64_MAX /* End of time */
 
+/*
+ * A list of reasons for returning a rollback error from the API. These reasons can be queried via
+ * the session get rollback reason API call. Users of the API could have a dependency on the format
+ * of these messages so changing them must be done with care.
+ */
+#define WT_TXN_ROLLBACK_REASON_CACHE "oldest pinned transaction ID rolled back for eviction"
+#define WT_TXN_ROLLBACK_REASON_CONFLICT "conflict between concurrent operations"
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_LOG_CKPT_CLEANUP 0x01u
 #define WT_TXN_LOG_CKPT_PREPARE 0x02u
@@ -126,6 +134,7 @@ struct __wt_txn_global {
     wt_timestamp_t pinned_timestamp;
     wt_timestamp_t recovery_timestamp;
     wt_timestamp_t stable_timestamp;
+    wt_timestamp_t version_cursor_pinned_timestamp;
     bool has_durable_timestamp;
     bool has_oldest_timestamp;
     bool has_pinned_timestamp;
@@ -290,9 +299,6 @@ struct __wt_txn {
     /* Scratch buffer for in-memory log records. */
     WT_ITEM *logrec;
 
-    /* Requested notification when transactions are resolved. */
-    WT_TXN_NOTIFY *notify;
-
     /* Checkpoint status. */
     WT_LSN ckpt_lsn;
     uint32_t ckpt_nsnapshot;
@@ -317,31 +323,30 @@ struct __wt_txn {
  */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_TXN_AUTOCOMMIT 0x0000001u
-#define WT_TXN_ERROR 0x0000002u
-#define WT_TXN_HAS_ID 0x0000004u
-#define WT_TXN_HAS_SNAPSHOT 0x0000008u
-#define WT_TXN_HAS_TS_COMMIT 0x0000010u
-#define WT_TXN_HAS_TS_DURABLE 0x0000020u
-#define WT_TXN_HAS_TS_PREPARE 0x0000040u
-#define WT_TXN_IGNORE_PREPARE 0x0000080u
-#define WT_TXN_PREPARE 0x0000100u
-#define WT_TXN_PREPARE_IGNORE_API_CHECK 0x0000200u
-#define WT_TXN_READONLY 0x0000400u
-#define WT_TXN_RUNNING 0x0000800u
-#define WT_TXN_SHARED_TS_DURABLE 0x0001000u
-#define WT_TXN_SHARED_TS_READ 0x0002000u
-#define WT_TXN_SYNC_SET 0x0004000u
-#define WT_TXN_TS_READ_BEFORE_OLDEST 0x0008000u
-#define WT_TXN_TS_ROUND_PREPARED 0x0010000u
-#define WT_TXN_TS_ROUND_READ 0x0020000u
-#define WT_TXN_TS_WRITE_ALWAYS 0x0040000u
-#define WT_TXN_TS_WRITE_KEY_CONSISTENT 0x0080000u
-#define WT_TXN_TS_WRITE_MIXED_MODE 0x0100000u
-#define WT_TXN_TS_WRITE_NEVER 0x0200000u
-#define WT_TXN_TS_WRITE_ORDERED 0x0400000u
-#define WT_TXN_UPDATE 0x0800000u
-#define WT_TXN_VERB_TS_WRITE 0x1000000u
+#define WT_TXN_AUTOCOMMIT 0x000001u
+#define WT_TXN_ERROR 0x000002u
+#define WT_TXN_HAS_ID 0x000004u
+#define WT_TXN_HAS_SNAPSHOT 0x000008u
+#define WT_TXN_HAS_TS_COMMIT 0x000010u
+#define WT_TXN_HAS_TS_DURABLE 0x000020u
+#define WT_TXN_HAS_TS_PREPARE 0x000040u
+#define WT_TXN_IGNORE_PREPARE 0x000080u
+#define WT_TXN_PREPARE 0x000100u
+#define WT_TXN_PREPARE_IGNORE_API_CHECK 0x000200u
+#define WT_TXN_READONLY 0x000400u
+#define WT_TXN_RUNNING 0x000800u
+#define WT_TXN_SHARED_TS_DURABLE 0x001000u
+#define WT_TXN_SHARED_TS_READ 0x002000u
+#define WT_TXN_SYNC_SET 0x004000u
+#define WT_TXN_TS_READ_BEFORE_OLDEST 0x008000u
+#define WT_TXN_TS_ROUND_PREPARED 0x010000u
+#define WT_TXN_TS_ROUND_READ 0x020000u
+#define WT_TXN_TS_WRITE_ALWAYS 0x040000u
+#define WT_TXN_TS_WRITE_MIXED_MODE 0x080000u
+#define WT_TXN_TS_WRITE_NEVER 0x100000u
+#define WT_TXN_TS_WRITE_ORDERED 0x200000u
+#define WT_TXN_UPDATE 0x400000u
+#define WT_TXN_VERB_TS_WRITE 0x800000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 

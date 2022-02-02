@@ -113,7 +113,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
     WT_TRET(__wt_meta_track_destroy(session));
 
     /* Shut down the block cache */
-    __wt_block_cache_destroy(session);
+    __wt_blkcache_destroy(session);
 
     /*
      * Now that all data handles are closed, tell logging that a checkpoint has completed then shut
@@ -232,7 +232,7 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_hs_open(session, cfg));
 
     /*
-     * Start the optional logging/archive threads. NOTE: The log manager must be started before
+     * Start the optional logging/removal threads. NOTE: The log manager must be started before
      * checkpoints so that the checkpoint server knows if logging is enabled. It must also be
      * started before any operation that can commit, or the commit can block.
      */

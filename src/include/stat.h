@@ -389,7 +389,6 @@ struct __wt_connection_stats {
     int64_t cache_bytes_other;
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
-    int64_t cache_lookaside_score;
     int64_t cache_eviction_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t cache_eviction_get_ref;
@@ -451,7 +450,6 @@ struct __wt_connection_stats {
     int64_t cache_hazard_checks;
     int64_t cache_hazard_walks;
     int64_t cache_hazard_max;
-    int64_t cache_hs_score;
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
     int64_t cache_hs_ondisk_max;
@@ -625,7 +623,7 @@ struct __wt_connection_stats {
     int64_t lock_txn_global_read_count;
     int64_t lock_txn_global_write_count;
     int64_t log_slot_switch_busy;
-    int64_t log_force_archive_sleep;
+    int64_t log_force_remove_sleep;
     int64_t log_bytes_payload;
     int64_t log_bytes_written;
     int64_t log_zero_fills;

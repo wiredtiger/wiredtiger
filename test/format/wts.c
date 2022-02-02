@@ -236,8 +236,9 @@ create_database(const char *home, WT_CONNECTION **connp)
     if (GV(LOGGING)) {
         s = GVS(LOGGING_COMPRESSION);
         CONFIG_APPEND(p,
-          ",log=(enabled=true,archive=%d,prealloc=%d,file_max=%" PRIu32 ",compressor=\"%s\")",
-          GV(LOGGING_ARCHIVE) ? 1 : 0, GV(LOGGING_PREALLOC) ? 1 : 0, KILOBYTE(GV(LOGGING_FILE_MAX)),
+          ",log=(enabled=true,%s=%d,prealloc=%d,file_max=%" PRIu32 ",compressor=\"%s\")",
+          g.backward_compatible ? "archive" : "remove", GV(LOGGING_REMOVE) ? 1 : 0,
+          GV(LOGGING_PREALLOC) ? 1 : 0, KILOBYTE(GV(LOGGING_FILE_MAX)),
           strcmp(s, "off") == 0 ? "none" : s);
     }
 
@@ -378,7 +379,7 @@ create_object(TABLE *table, void *arg)
           p, ",assert=(read_timestamp=%s)", g.transaction_timestamps_config ? "always" : "never");
     if (GV(ASSERT_WRITE_TIMESTAMP))
         CONFIG_APPEND(p, ",assert=(write_timestamp=on),write_timestamp_usage=%s",
-          g.transaction_timestamps_config ? "key_consistent" : "never");
+          g.transaction_timestamps_config ? "always" : "never");
 
     /* Configure LSM. */
     if (DATASOURCE(table, "lsm")) {

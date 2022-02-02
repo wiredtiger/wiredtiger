@@ -321,6 +321,10 @@ restart_read:
          * It is only safe to cache the value for other keys in the same RLE cell if it is globally
          * visible. Otherwise, there might be some older timestamp where the value isn't uniform
          * across the cell. Always set cip_saved so it's easy to tell when we change cells.
+         *
+         * Note: it's important that we're checking the on-disk value for global visibility, and not
+         * whatever __wt_txn_read returned, which might be something else. (If it's something else,
+         * we can't cache it; but in that case the on-disk value cannot be globally visible.)
          */
         cbt->cip_saved = cip;
         if (rle > 1 &&
@@ -821,6 +825,9 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
 
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
             LF_SET(WT_READ_WONT_NEED);
+
+        if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
+            LF_SET(WT_READ_VISIBLE_ALL);
 
         /*
          * If we are running with snapshot isolation, and not interested in returning tombstones, we

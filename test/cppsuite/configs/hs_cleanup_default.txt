@@ -14,18 +14,32 @@ checkpoint_manager=
 ),
 runtime_monitor=
 (
+    cache_hs_insert=
+    (
+        max=10,
+        max=100000000,
+        postrun=true,
+        save=true,
+    ),
+    cc_pages_removed=
+    (
+        max=10000000,
+        postrun=true,
+        save=true,
+    ),
     stat_cache_size=
     (
-        enabled=true,
-        limit=1000
+        # FIXME-WT-8743: Re-enable cache usage check once cache exceed problem is fixed.
+        max=100,
+        runtime=false,
     ),
     stat_db_size=
     (
-        enabled=true,
         #10GB
-        limit=10000000000
+        max=10000000000,
+        runtime=true,
+        save=true,
     ),
-    postrun_statistics=[cache_hs_insert:10:100000000, cc_pages_removed:0:10000000],
 ),
 timestamp_manager=
 (

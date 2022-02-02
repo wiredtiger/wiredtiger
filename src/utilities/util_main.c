@@ -26,7 +26,8 @@ static const char *mongodb_config = "log=(enabled=true,path=journal,compressor=s
 #define SALVAGE "salvage=true"
 
 /*
- * wt_explicit_zero: clear a buffer, with precautions against being optimized away.
+ * wt_explicit_zero --
+ *     Clear a buffer, with precautions against being optimized away.
  */
 static void
 wt_explicit_zero(void *ptr, size_t len)
@@ -36,6 +37,10 @@ wt_explicit_zero(void *ptr, size_t len)
     (void)memsetptr(ptr, '\0', len);
 }
 
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -63,6 +68,10 @@ usage(void)
     util_usage(NULL, "commands:", commands);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {

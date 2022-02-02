@@ -159,9 +159,18 @@ int
 __wt_session_release_resources(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
+    bool done;
+
+    /*
+     * Called when sessions are reset and closed, and when heavy-weight session methods or functions
+     * complete (for example, checkpoint and compact). If the session has no open cursors discard it
+     * all; if there are cursors, discard what we can safely clean out.
+     */
+    done = TAILQ_FIRST(&session->cursors) == NULL;
 
     /* Transaction cleanup */
-    __wt_txn_release_resources(session);
+    if (done)
+        __wt_txn_release_resources(session);
 
     /* Block manager cleanup */
     if (session->block_manager_cleanup != NULL)
@@ -174,12 +183,11 @@ __wt_session_release_resources(WT_SESSION_IMPL *session)
     /* Stashed memory. */
     __wt_stash_discard(session);
 
-    /*
-     * Discard scratch buffers, error memory; last, just in case a cleanup routine uses scratch
-     * buffers.
-     */
-    __wt_scr_discard(session);
-    __wt_buf_free(session, &session->err);
+    /* Scratch buffers and error memory. */
+    if (done) {
+        __wt_scr_discard(session);
+        __wt_buf_free(session, &session->err);
+    }
 
     return (ret);
 }
@@ -451,6 +459,7 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
   WT_CURSOR *other, const char *cfg[], uint64_t hash_value, WT_CURSOR **cursorp)
 {
     WT_COLGROUP *colgroup;
+    WT_CONFIG_ITEM cval;
     WT_DATA_SOURCE *dsrc;
     WT_DECL_RET;
 
@@ -502,8 +511,19 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
      * Less common cursor types.
      */
     case 'f':
-        if (WT_PREFIX_MATCH(uri, "file:"))
-            WT_RET(__wt_curfile_open(session, uri, owner, cfg, cursorp));
+        if (WT_PREFIX_MATCH(uri, "file:")) {
+            /*
+             * Open a version cursor instead of a table cursor if we are using the special debug
+             * configuration.
+             */
+            if ((ret = __wt_config_gets_def(session, cfg, "debug.dump_version", 0, &cval)) == 0 &&
+              cval.val) {
+                if (WT_STREQ(uri, WT_HS_URI))
+                    WT_RET_MSG(session, EINVAL, "cannot open version cursor on the history store");
+                WT_RET(__wt_curversion_open(session, uri, owner, cfg, cursorp));
+            } else
+                WT_RET(__wt_curfile_open(session, uri, owner, cfg, cursorp));
+        }
         break;
     case 'm':
         if (WT_PREFIX_MATCH(uri, WT_METADATA_URI))
@@ -1456,8 +1476,7 @@ __session_truncate(
 
     /*
      * If the URI is specified, we don't need a start/stop, if start/stop is specified, we don't
-     * need a URI. One exception is the log URI which may truncate (archive) log files for a backup
-     * cursor.
+     * need a URI. One exception is the log URI which may remove log files for a backup cursor.
      *
      * If no URI is specified, and both cursors are specified, start/stop must reference the same
      * object.
@@ -1491,16 +1510,21 @@ __session_truncate(
         WT_ERR(__wt_session_range_truncate(session, uri, start, stop));
 
 err:
+    /* Map prepare-conflict to rollback. */
+    if (ret == WT_PREPARE_CONFLICT)
+        ret = WT_ROLLBACK;
+
     TXN_API_END(session, ret, false);
 
     if (ret != 0)
         WT_STAT_CONN_INCR(session, session_table_truncate_fail);
     else
         WT_STAT_CONN_INCR(session, session_table_truncate_success);
-    /*
-     * Only map WT_NOTFOUND to ENOENT if a URI was specified.
-     */
-    return (ret == WT_NOTFOUND && uri != NULL ? ENOENT : ret);
+
+    /* Map WT_NOTFOUND to ENOENT if a URI was specified. */
+    if (ret == WT_NOTFOUND && uri != NULL)
+        ret = ENOENT;
+    return (ret);
 }
 
 /*
@@ -1858,6 +1882,20 @@ err:
 }
 
 /*
+ * __session_get_rollback_reason --
+ *     WT_SESSION->get_rollback_reason method.
+ */
+static const char *
+__session_get_rollback_reason(WT_SESSION *wt_session)
+{
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+
+    return (session->txn->rollback_reason);
+}
+
+/*
  * __session_checkpoint --
  *     WT_SESSION->checkpoint method.
  */
@@ -1976,7 +2014,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_truncate, __session_upgrade, __session_verify, __session_begin_transaction,
         __session_commit_transaction, __session_prepare_transaction, __session_reset_snapshot,
         __session_rollback_transaction, __session_timestamp_transaction, __session_query_timestamp,
-        __session_checkpoint, __session_transaction_pinned_range, __wt_session_breakpoint},
+        __session_checkpoint, __session_transaction_pinned_range, __session_get_rollback_reason,
+        __wt_session_breakpoint},
       stds_readonly = {NULL, NULL, __session_close, __session_reconfigure, __session_flush_tier,
         __wt_session_strerror, __session_open_cursor, __session_alter_readonly,
         __session_create_readonly, __wt_session_compact_readonly, __session_drop_readonly,
@@ -1986,7 +2025,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_begin_transaction, __session_commit_transaction,
         __session_prepare_transaction_readonly, __session_reset_snapshot,
         __session_rollback_transaction, __session_timestamp_transaction, __session_query_timestamp,
-        __session_checkpoint_readonly, __session_transaction_pinned_range, __wt_session_breakpoint};
+        __session_checkpoint_readonly, __session_transaction_pinned_range,
+        __session_get_rollback_reason, __wt_session_breakpoint};
     WT_DECL_RET;
     WT_SESSION_IMPL *session, *session_ret;
     uint32_t i;

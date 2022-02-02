@@ -246,7 +246,7 @@ struct __wt_cursor_bulk {
      * row-store compares keys during bulk load to avoid corruption.
      */
     bool first_insert; /* First insert */
-    WT_ITEM last;      /* Last key/value inserted */
+    WT_ITEM *last;     /* Last key/value inserted */
 
     /*
      * Additional column-store bulk load support.
@@ -293,8 +293,6 @@ struct __wt_cursor_hs {
     WT_TIME_WINDOW time_window;
     uint32_t btree_id;
     WT_ITEM *datastore_key;
-
-    bool insert_success;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_HS_CUR_BTREE_ID_SET 0x1u
@@ -448,8 +446,8 @@ struct __wt_cursor_log {
     uint64_t txnid;                   /* Record txnid */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CURLOG_ARCHIVE_LOCK 0x1u /* Archive lock held */
-                                    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+#define WT_CURLOG_REMOVE_LOCK 0x1u /* Remove lock held */
+                                   /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
 
@@ -525,6 +523,36 @@ struct __wt_cursor_table {
                           * overlapping set_value calls.
                           */
     WT_CURSOR **idx_cursors;
+};
+
+struct __wt_cursor_version {
+    WT_CURSOR iface;
+
+    WT_CURSOR *hs_cursor;   /* Queries of history cursor. */
+    WT_CURSOR *file_cursor; /* Queries of regular file cursor. */
+    WT_UPDATE *next_upd;
+
+    /*
+     * While we are iterating through updates on the update list, we need to remember information
+     * about the previous update we have just traversed so that we can record this as part of the
+     * debug metadata in the version cursor's key.
+     */
+    uint64_t upd_stop_txnid;
+    /* The previous traversed update's durable_ts will become the durable_stop_ts. */
+    wt_timestamp_t upd_durable_stop_ts;
+    /* The previous traversed update's start_ts will become the stop_ts. */
+    wt_timestamp_t upd_stop_ts;
+
+#define WT_CURVERSION_UPDATE_CHAIN 0
+#define WT_CURVERSION_DISK_IMAGE 1
+#define WT_CURVERSION_HISTORY_STORE 2
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_CURVERSION_HS_EXHAUSTED 0x1u
+#define WT_CURVERSION_ON_DISK_EXHAUSTED 0x2u
+#define WT_CURVERSION_UPDATE_EXHAUSTED 0x4u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t flags;
 };
 
 #define WT_CURSOR_PRIMARY(cursor) (((WT_CURSOR_TABLE *)(cursor))->cg_cursors[0])

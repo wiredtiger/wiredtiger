@@ -38,7 +38,6 @@ from wtscenario import make_scenarios
 class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_timestamp14'
     uri = 'table:' + tablename
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('integer-row', dict(key_format='i', value_format='i')),
@@ -203,7 +202,7 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         session1.create(pinned_oldest_uri, format)
         # Confirm no oldest timestamp exists.
         self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.conn.query_timestamp('get=oldest'))
+            lambda: self.conn.query_timestamp('get=oldest_timestamp'))
 
         # Confirm no pinned timestamp exists.
         self.assertRaisesException(wiredtiger.WiredTigerError,
@@ -217,7 +216,7 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Confirm no oldest timestamp exists.
         self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.conn.query_timestamp('get=oldest'))
+            lambda: self.conn.query_timestamp('get=oldest_timestamp'))
 
         # Confirm no pinned timestamp exists.
         self.assertRaisesException(wiredtiger.WiredTigerError,
@@ -362,7 +361,7 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Create a read session.
         session1.begin_transaction('read_timestamp=2')
-        # Confirm oldest reader is 2 and the the value we read is 1.
+        # Confirm oldest reader is 2 and the value we read is 1.
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=oldest_reader'), "2")
 
@@ -393,7 +392,7 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         # Confirm all_durable is now equal to oldest.
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=all_durable'),
-            self.conn.query_timestamp('get=oldest'))
+            self.conn.query_timestamp('get=oldest_timestamp'))
 
         session2.commit_transaction()
         self.assertTimestampsEqual(
@@ -404,7 +403,7 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         # Pinned will now match oldest.
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=pinned'),
-            self.conn.query_timestamp('get=oldest'))
+            self.conn.query_timestamp('get=oldest_timestamp'))
 
 if __name__ == '__main__':
     wttest.run()

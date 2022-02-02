@@ -35,7 +35,6 @@ from wtscenario import make_scenarios
 
 class test_timestamp22(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
-    session_config = 'isolation=snapshot'
 
     # Keep the number of rows low, as each additional row does
     # not test any new code paths.
@@ -135,15 +134,11 @@ class test_timestamp22(wttest.WiredTigerTestCase):
                 config += ',durable_timestamp=' + self.timestamp_str(self.gen_ts(commit_ts))
                 ok = False
 
-            # ODDITY: if we set the durable timestamp (which is illegal at this point), and set a
-            # valid commit timestamp, the timestamp_transaction() call will fail, but apparently,
-            # only the durable part fails.  The evidence is that the commit timestamp is set,
-            # as we get a complaint to that effect at the prepare call.  The issue is described
-            # in WT-6995.  This seems wrong, and it's hard to work around the problem, so we'll just
-            # avoid testing that situation for now.  Hence the check for a blank configuration.
-            # When WT-6995 is fixed, remove the "and config = ''" part of the clause immediately
-            # below, and this entire comment.
-            if self.rand.rand32() % 2 == 0 and config == '':
+            # We don't do the next part if we set an illegal durable timestamp.  It turns out
+            # if we do set the durable timestamp illegally, with a valid commit timestamp,
+            # the timestamp_transaction() call will fail, but may set the commit timestamp.
+            # It makes testing more complex, so we just don't do it.
+            elif self.rand.rand32() % 2 == 0:
                 if self.do_illegal():
                     this_commit_ts = self.oldest_ts - 1
                 elif self.do_illegal():
@@ -216,20 +211,12 @@ class test_timestamp22(wttest.WiredTigerTestCase):
             if first_commit_ts < 0:
                 first_commit_ts = running_commit_ts
 
-        # WT-7011:
-        # ODDITY: If any setting of the timestamp fails, then an ASSERT will be hit in prepare.
-        # Avoid this, it will crash the test suite when diagnostic mode is enabled, and without
-        # diagnostic mode, the prepare appears to succeed!  Comment out the statement marked
-        # "AVOID ASSERT" below to see it happen. We should fix this to not assert in prepare,
-        # and either return an error in prepare, or fully succeed (forgiving the previous
-        # bad timestamp_transaction and allowing subsequent commit).  If the former,
-        # then just remove the "AVOID ASSERT" line below.  If the latter, then remove
-        # the entire if statement enclosing the "AVOID ASSERT".
+        # If a call to set a timestamp fails, a subsequent prepare may assert in diagnostic mode.
+        # We consider that acceptable, but we don't test it as it will crash the test suite.
         if not ok_tstxn1 or not ok_tstxn2:
-            # If a setting of the timestamp fails, the prepare and commit both fail.
+            do_prepare = False      # AVOID ASSERT
             ok_prepare = False
             ok_commit = False
-            do_prepare = False      # AVOID ASSERT
 
         if running_commit_ts >= 0 and do_prepare:
             # Cannot set prepare timestamp after commit timestamp is successfully set.
@@ -312,17 +299,17 @@ class test_timestamp22(wttest.WiredTigerTestCase):
             raise e
         cursor.close()
 
-    def make_timestamp_config(self, oldest, stable, commit, durable):
+    def make_timestamp_config(self, oldest, stable, durable):
         configs = []
         # Get list of 'oldest_timestamp=value' etc. that have non-negative values.
-        for ts_name in ['oldest', 'stable', 'commit', 'durable']:
+        for ts_name in ['oldest', 'stable', 'durable']:
             val = eval(ts_name)
             if val >= 0:
                 configs.append(ts_name + '_timestamp=' + self.timestamp_str(val))
         return ','.join(configs)
 
     # Determine whether we expect the set_timestamp to succeed.
-    def expected_result_set_timestamp(self, oldest, stable, commit, durable):
+    def expected_result_set_timestamp(self, oldest, stable, durable):
 
         # Update the current expected value.  ts is the timestamp being set.
         # If "ts" is negative, ignore it, it's not being set in this call.
@@ -351,20 +338,14 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         if oldest >= 0 and stable < 0:
             expected = expected_newer(expected, self.stable_ts, oldest, self.oldest_ts)
         expected = expected_newer(expected, stable, oldest, self.oldest_ts)
-        expected = expected_newer(expected, commit, oldest, self.oldest_ts)
-        expected = expected_newer(expected, commit, stable, self.stable_ts)
-
-        # If commit timestamp is set, durable timestamp is ignored.  This seems to be
-        # a temporary situation, see TODO in txn_timestamp.c.
-        if commit < 0:
-            expected = expected_newer(expected, durable, oldest, self.oldest_ts)
-            expected = expected_newer(expected, durable, stable, self.stable_ts)
+        expected = expected_newer(expected, durable, oldest, self.oldest_ts)
+        expected = expected_newer(expected, durable, stable, self.stable_ts)
 
         return expected
 
-    def set_global_timestamps(self, oldest, stable, commit, durable):
-        config = self.make_timestamp_config(oldest, stable, commit, durable)
-        expected = self.expected_result_set_timestamp(oldest, stable, commit, durable)
+    def set_global_timestamps(self, oldest, stable, durable):
+        config = self.make_timestamp_config(oldest, stable, durable)
+        expected = self.expected_result_set_timestamp(oldest, stable, durable)
 
         with self.expect(expected, 'set_timestamp(' + config + ')'):
             self.conn.set_timestamp(config)
@@ -383,8 +364,8 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         # Make sure the state of global timestamps is what we think.
         expect_query_oldest = self.timestamp_str(self.oldest_ts)
         expect_query_stable = self.timestamp_str(self.stable_ts)
-        query_oldest = self.conn.query_timestamp('get=oldest')
-        query_stable = self.conn.query_timestamp('get=stable')
+        query_oldest = self.conn.query_timestamp('get=oldest_timestamp')
+        query_stable = self.conn.query_timestamp('get=stable_timestamp')
 
         self.assertEquals(expect_query_oldest, query_oldest)
         self.assertEquals(expect_query_stable, query_stable)
@@ -410,7 +391,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(self.uri, create_params)
 
-        self.set_global_timestamps(1, 1, -1, -1)
+        self.set_global_timestamps(1, 1, -1)
 
         # Create tables with no entries
         ds = SimpleDataSet(
@@ -460,7 +441,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
                 stable = maybe_ts((r & 0x2) != 0, iternum)
                 commit = maybe_ts((r & 0x4) != 0, iternum)
                 durable = maybe_ts((r & 0x8) != 0, iternum)
-                self.set_global_timestamps(oldest, stable, commit, durable)
+                self.set_global_timestamps(oldest, stable, durable)
 
         # Make sure the resulting rows are what we expect.
         cursor = self.session.open_cursor(self.uri)

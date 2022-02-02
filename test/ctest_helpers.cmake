@@ -1,31 +1,3 @@
-#
-# Public Domain 2014-present MongoDB, Inc.
-# Public Domain 2008-2014 WiredTiger, Inc.
-#
-# This is free and unencumbered software released into the public domain.
-#
-# Anyone is free to copy, modify, publish, use, compile, sell, or
-# distribute this software, either in source code form or as a compiled
-# binary, for any purpose, commercial or non-commercial, and by any
-# means.
-#
-# In jurisdictions that recognize copyright laws, the author or authors
-# of this software dedicate any and all copyright interest in the
-# software to the public domain. We make this dedication for the benefit
-# of the public at large and to the detriment of our heirs and
-# successors. We intend this dedication to be an overt act of
-# relinquishment in perpetuity of all present and future rights to this
-# software under copyright law.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-# OTHER DEALINGS IN THE SOFTWARE.
-#
-
 # create_test_executable(target SOURCES <source files> [EXECUTABLE_NAME <name>] [BINARY_DIR <dir>] [INCLUDES <includes>]
 #    [ADDITIONAL_FILES <files>] [ADDITIONAL_DIRECTORIES <dirs>] [LIBS <libs>] [FLAGS <flags>])
 # Defines a C/CXX test executable binary. This helper does the necessary initialisation to ensure the correct flags and libraries
@@ -218,7 +190,7 @@ function(define_c_test)
         "C_TEST"
         ""
         "TARGET;DIR_NAME;DEPENDS;EXEC_SCRIPT"
-        "SOURCES;FLAGS;ARGUMENTS;VARIANTS"
+        "SOURCES;FLAGS;ARGUMENTS;VARIANTS;ADDITIONAL_FILES"
     )
     if (NOT "${C_TEST_UNPARSED_ARGUMENTS}" STREQUAL "")
         message(FATAL_ERROR "Unknown arguments to define_c_test: ${C_TEST_UNPARSED_ARGUMENTS}")
@@ -241,8 +213,12 @@ function(define_c_test)
     eval_dependency("${C_TEST_DEPENDS}" enabled)
     if(enabled)
         set(additional_executable_args)
+        set(additional_file_args)
         if(NOT "${C_TEST_FLAGS}" STREQUAL "")
             list(APPEND additional_executable_args FLAGS ${C_TEST_FLAGS})
+        endif()
+        if(NOT "${C_TEST_ADDITIONAL_FILES}" STREQUAL "")
+            list(APPEND additional_file_args ${C_TEST_ADDITIONAL_FILES})
         endif()
         set(exec_wrapper)
         if(WT_WIN)
@@ -253,10 +229,11 @@ function(define_c_test)
         endif()
         set(test_cmd)
         if (C_TEST_EXEC_SCRIPT)
+            list(APPEND additional_file_args ${C_TEST_EXEC_SCRIPT})
             # Define the c test to be executed with a script, rather than invoking the binary directly.
             create_test_executable(${C_TEST_TARGET}
                 SOURCES ${C_TEST_SOURCES}
-                ADDITIONAL_FILES ${C_TEST_EXEC_SCRIPT}
+                ADDITIONAL_FILES ${additional_file_args}
                 BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME}
                 ${additional_executable_args}
             )
@@ -265,6 +242,7 @@ function(define_c_test)
         else()
             create_test_executable(${C_TEST_TARGET}
                 SOURCES ${C_TEST_SOURCES}
+                ADDITIONAL_FILES ${additional_file_args}
                 BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME}
                 ${additional_executable_args}
             )

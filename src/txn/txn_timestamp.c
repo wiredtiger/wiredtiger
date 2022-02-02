@@ -191,7 +191,8 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
         /* Read-only value forever. Make sure we don't used a cached version. */
         WT_BARRIER();
         ts = txn_global->last_ckpt_timestamp;
-    } else if (WT_STRING_MATCH("oldest", cval.str, cval.len)) {
+    } else if (WT_STRING_MATCH("oldest_timestamp", cval.str, cval.len) ||
+      WT_STRING_MATCH("oldest", cval.str, cval.len)) {
         if (!txn_global->has_oldest_timestamp)
             return (WT_NOTFOUND);
         ts = txn_global->oldest_timestamp;
@@ -203,7 +204,8 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
     else if (WT_STRING_MATCH("recovery", cval.str, cval.len))
         /* Read-only value forever. No lock needed. */
         ts = txn_global->recovery_timestamp;
-    else if (WT_STRING_MATCH("stable", cval.str, cval.len)) {
+    else if (WT_STRING_MATCH("stable_timestamp", cval.str, cval.len) ||
+      WT_STRING_MATCH("stable", cval.str, cval.len)) {
         if (!txn_global->has_stable_timestamp)
             return (WT_NOTFOUND);
         ts = txn_global->stable_timestamp;
@@ -339,21 +341,10 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_STAT_CONN_INCR(session, txn_set_ts);
 
-    /*
-     * TODO: When we remove all_committed, we need to remove this too. For now, we're temporarily
-     * aliasing the global commit timestamp to the global durable timestamp.
-     */
-    WT_RET(__wt_config_gets_def(session, cfg, "commit_timestamp", 0, &durable_cval));
+    WT_RET(__wt_config_gets_def(session, cfg, "durable_timestamp", 0, &durable_cval));
     has_durable = durable_cval.len != 0;
     if (has_durable)
         WT_STAT_CONN_INCR(session, txn_set_ts_durable);
-
-    if (!has_durable) {
-        WT_RET(__wt_config_gets_def(session, cfg, "durable_timestamp", 0, &durable_cval));
-        has_durable = durable_cval.len != 0;
-        if (has_durable)
-            WT_STAT_CONN_INCR(session, txn_set_ts_durable);
-    }
 
     WT_RET(__wt_config_gets_def(session, cfg, "oldest_timestamp", 0, &oldest_cval));
     has_oldest = oldest_cval.len != 0;
@@ -852,50 +843,68 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
 int
 __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    WT_CONFIG_ITEM cval;
+    WT_CONFIG cparser;
+    WT_CONFIG_ITEM ckey, cval;
     WT_DECL_RET;
-    wt_timestamp_t ts;
+    wt_timestamp_t commit_ts, durable_ts, prepare_ts, read_ts;
     bool set_ts;
 
     set_ts = false;
+    commit_ts = durable_ts = prepare_ts = read_ts = 0;
+
     WT_TRET(__wt_txn_context_check(session, true));
 
-    /* Look for a commit timestamp. */
-    ret = __wt_config_gets_def(session, cfg, "commit_timestamp", 0, &cval);
-    WT_RET_NOTFOUND_OK(ret);
-    if (ret == 0 && cval.len != 0) {
-        WT_RET(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
-        WT_RET(__wt_txn_set_commit_timestamp(session, ts));
-        set_ts = true;
+    /*
+     * If the API received no configuration string, or we just have the base configuration, there's
+     * nothing to do.
+     */
+    if (cfg == NULL || cfg[0] == NULL || cfg[1] == NULL)
+        return (0);
+
+    /*
+     * We take a shortcut in parsing that works because we're only given a base configuration and a
+     * user configuration.
+     */
+    WT_ASSERT(session, cfg[0] != NULL && cfg[1] != NULL && cfg[2] == NULL);
+    __wt_config_init(session, &cparser, cfg[1]);
+    while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0) {
+        WT_ASSERT(session, ckey.str != NULL);
+        if (WT_STRING_MATCH("commit_timestamp", ckey.str, ckey.len)) {
+            WT_RET(__wt_txn_parse_timestamp(session, "commit", &commit_ts, &cval));
+            set_ts = true;
+        } else if (WT_STRING_MATCH("durable_timestamp", ckey.str, ckey.len)) {
+            WT_RET(__wt_txn_parse_timestamp(session, "durable", &durable_ts, &cval));
+            set_ts = true;
+        } else if (WT_STRING_MATCH("prepare_timestamp", ckey.str, ckey.len)) {
+            WT_RET(__wt_txn_parse_timestamp(session, "prepare", &prepare_ts, &cval));
+            set_ts = true;
+        } else if (WT_STRING_MATCH("read_timestamp", ckey.str, ckey.len)) {
+            WT_RET(__wt_txn_parse_timestamp(session, "durable", &read_ts, &cval));
+            set_ts = true;
+        }
     }
+    WT_RET_NOTFOUND_OK(ret);
+
+    /* Look for a commit timestamp. */
+    if (commit_ts != 0)
+        WT_RET(__wt_txn_set_commit_timestamp(session, commit_ts));
 
     /*
      * Look for a durable timestamp. Durable timestamp should be set only after setting the commit
      * timestamp.
      */
-    ret = __wt_config_gets_def(session, cfg, "durable_timestamp", 0, &cval);
-    WT_RET_NOTFOUND_OK(ret);
-    if (ret == 0 && cval.len != 0) {
-        WT_RET(__wt_txn_parse_timestamp(session, "durable", &ts, &cval));
-        WT_RET(__wt_txn_set_durable_timestamp(session, ts));
-    }
-
+    if (durable_ts != 0)
+        WT_RET(__wt_txn_set_durable_timestamp(session, durable_ts));
     __wt_txn_publish_durable_timestamp(session);
 
     /* Look for a read timestamp. */
-    WT_RET(__wt_config_gets_def(session, cfg, "read_timestamp", 0, &cval));
-    if (ret == 0 && cval.len != 0) {
-        WT_RET(__wt_txn_parse_timestamp(session, "read", &ts, &cval));
-        set_ts = true;
-        WT_RET(__wt_txn_set_read_timestamp(session, ts));
-    }
+    if (read_ts != 0)
+        WT_RET(__wt_txn_set_read_timestamp(session, read_ts));
 
     /* Look for a prepare timestamp. */
-    WT_RET(__wt_config_gets_def(session, cfg, "prepare_timestamp", 0, &cval));
-    if (ret == 0 && cval.len != 0) {
-        WT_RET(__wt_txn_parse_timestamp(session, "prepare", &ts, &cval));
-        WT_RET(__wt_txn_set_prepare_timestamp(session, ts));
-    }
+    if (prepare_ts != 0)
+        WT_RET(__wt_txn_set_prepare_timestamp(session, prepare_ts));
+
     if (set_ts)
         WT_RET(__wt_txn_ts_log(session));
 

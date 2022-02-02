@@ -836,11 +836,6 @@ __conn_get_extension_api(WT_CONNECTION *wt_conn)
     conn->extension_api.spin_lock = __wt_ext_spin_lock;
     conn->extension_api.spin_unlock = __wt_ext_spin_unlock;
     conn->extension_api.spin_destroy = __wt_ext_spin_destroy;
-    conn->extension_api.transaction_id = __wt_ext_transaction_id;
-    conn->extension_api.transaction_isolation_level = __wt_ext_transaction_isolation_level;
-    conn->extension_api.transaction_notify = __wt_ext_transaction_notify;
-    conn->extension_api.transaction_oldest = __wt_ext_transaction_oldest;
-    conn->extension_api.transaction_visible = __wt_ext_transaction_visible;
     conn->extension_api.version = wiredtiger_version;
 
     /* Streaming pack/unpack API */
@@ -1374,7 +1369,7 @@ __conn_config_readonly(const char *cfg[])
       "checkpoint=(wait=0),"
       "config_base=false,"
       "create=false,"
-      "log=(archive=false,prealloc=false),"
+      "log=(prealloc=false,remove=false),"
       "lsm_manager=(merge=false),";
     __conn_config_append(cfg, readonly);
 }
@@ -1700,7 +1695,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     wt_off_t size;
     size_t len;
     char buf[256];
-    bool bytelock, exist, is_create, match;
+    bool bytelock, empty, exist, is_create, is_salvage, match;
 
     conn = S2C(session);
     fh = NULL;
@@ -1822,9 +1817,33 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
               WT_SINGLETHREAD_STRING));
     }
 
+    /*
+     * We own the database home, figure out if we're creating it. There are a few files created when
+     * initializing the database home and we could crash in-between any of them, so there's no
+     * simple test. The last thing we do during initialization is rename a turtle file into place,
+     * and there's never a database home after that point without a turtle file. If the turtle file
+     * doesn't exist, it's a create.
+     */
+    WT_ERR(__wt_turtle_exists(session, &exist));
+    conn->is_new = exist ? 0 : 1;
+
+    /*
+     * Unless we are salvaging, if the turtle file exists then the WiredTiger file should exist as
+     * well.
+     */
+    WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
+    is_salvage = cval.val != 0;
+    if (!is_salvage && !conn->is_new) {
+        WT_ERR(__wt_fs_exist(session, WT_WIREDTIGER, &exist));
+        if (!exist) {
+            F_SET(conn, WT_CONN_DATA_CORRUPTION);
+            WT_ERR_MSG(session, WT_TRY_SALVAGE, "WiredTiger version file cannot be found");
+        }
+    }
+
     /* We own the lock file, optionally create the WiredTiger file. */
-    ret = __wt_open(
-      session, WT_WIREDTIGER, WT_FS_OPEN_FILE_TYPE_REGULAR, is_create ? WT_FS_OPEN_CREATE : 0, &fh);
+    ret = __wt_open(session, WT_WIREDTIGER, WT_FS_OPEN_FILE_TYPE_REGULAR,
+      is_create || is_salvage ? WT_FS_OPEN_CREATE : 0, &fh);
 
     /*
      * If we're read-only, check for handled errors. Even if able to open the WiredTiger file
@@ -1853,16 +1872,22 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /*
-     * We own the database home, figure out if we're creating it. There are a few files created when
-     * initializing the database home and we could crash in-between any of them, so there's no
-     * simple test. The last thing we do during initialization is rename a turtle file into place,
-     * and there's never a database home after that point without a turtle file. If the turtle file
-     * doesn't exist, it's a create.
+     * If WiredTiger file exists but is size zero when it is not supposed to be (the turtle file
+     * exists and we are not salvaging), write a message but don't fail.
      */
-    WT_ERR(__wt_turtle_exists(session, &exist));
-    conn->is_new = exist ? 0 : 1;
+    empty = false;
+    if (fh != NULL) {
+        WT_ERR(__wt_filesize(session, fh, &size));
+        empty = size == 0;
+        if (!is_salvage && !conn->is_new && empty)
+            WT_ERR(__wt_msg(session, "WiredTiger version file is empty"));
+    }
 
-    if (conn->is_new) {
+    /*
+     * Populate the WiredTiger file if this is a new connection or if the WiredTiger file is empty
+     * and we are salvaging.
+     */
+    if (conn->is_new || (is_salvage && empty)) {
         if (F_ISSET(conn, WT_CONN_READONLY))
             WT_ERR_MSG(session, EINVAL,
               "The database directory is empty or needs recovery, cannot continue with a read only "
@@ -1913,10 +1938,10 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.checkpoint_retention", &cval));
 
     /*
-     * Checkpoint retention has some rules to avoid needing a lock to coordinate with the archive
-     * thread and avoid memory issues. You can turn it on to some value. You can turn it off. You
-     * can reconfigure to the same value again. You cannot change the non-zero value. Once it was on
-     * in the past and then turned off, you cannot turn it back on again.
+     * Checkpoint retention has some rules to avoid needing a lock to coordinate with the log
+     * removal thread and avoid memory issues. You can turn it on to some value. You can turn it
+     * off. You can reconfigure to the same value again. You cannot change the non-zero value. Once
+     * it was on in the past and then turned off, you cannot turn it back on again.
      */
     if (cval.val != 0) {
         if (conn->debug_ckpt_cnt != 0 && cval.val != conn->debug_ckpt_cnt)
@@ -1928,7 +1953,7 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
         FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN);
     /*
      * We need to make sure all writes to other fields are visible before setting the count because
-     * the archive thread may walk the array using this value.
+     * the log removal thread may walk the array using this value.
      */
     WT_PUBLISH(conn->debug_ckpt_cnt, (uint32_t)cval.val);
 
@@ -2217,7 +2242,8 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
       {"split_1", WT_TIMING_STRESS_SPLIT_1}, {"split_2", WT_TIMING_STRESS_SPLIT_2},
       {"split_3", WT_TIMING_STRESS_SPLIT_3}, {"split_4", WT_TIMING_STRESS_SPLIT_4},
       {"split_5", WT_TIMING_STRESS_SPLIT_5}, {"split_6", WT_TIMING_STRESS_SPLIT_6},
-      {"split_7", WT_TIMING_STRESS_SPLIT_7}, {NULL, 0}};
+      {"split_7", WT_TIMING_STRESS_SPLIT_7},
+      {"tiered_flush_finish", WT_TIMING_STRESS_TIERED_FLUSH_FINISH}, {NULL, 0}};
     WT_CONFIG_ITEM cval, sval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -2505,10 +2531,7 @@ __conn_version_verify(WT_SESSION_IMPL *session)
     bool exist;
 
     conn = S2C(session);
-
-    conn->recovery_major = 0;
-    conn->recovery_minor = 0;
-    conn->recovery_patch = 0;
+    conn->recovery_version = WT_NO_VERSION;
 
     /* Always set the compatibility versions. */
     __wt_logmgr_compat_version(session);
@@ -2701,8 +2724,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_scr_alloc(session, 0, &i3));
     cfg[0] = WT_CONFIG_BASE(session, wiredtiger_open_all);
     cfg[1] = NULL;
-    WT_ERR(__wt_snprintf(version, sizeof(version), "version=(major=%d,minor=%d)",
-      conn->compat_major, conn->compat_minor));
+    WT_ERR(__wt_snprintf(version, sizeof(version), "version=(major=%" PRIu16 ",minor=%" PRIu16 ")",
+      conn->compat_version.major, conn->compat_version.minor));
     __conn_config_append(cfg, version);
 
     /* Ignore the base_config file if config_base_set is false. */
@@ -2765,7 +2788,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_json_config(session, cfg, false));
     WT_ERR(__wt_verbose_config(session, cfg, false));
     WT_ERR(__wt_timing_stress_config(session, cfg));
-    WT_ERR(__wt_block_cache_setup(session, cfg, false));
+    WT_ERR(__wt_blkcache_setup(session, cfg, false));
     WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
     WT_ERR(__conn_session_size(session, cfg, &conn->session_size));
     WT_ERR(__wt_config_gets(session, cfg, "session_scratch_max", &cval));

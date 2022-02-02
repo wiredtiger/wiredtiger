@@ -36,8 +36,8 @@ static bool use_columns = false;
 
 #define RECORDS_FILE "records"
 
-#define ENV_CONFIG                                      \
-    "create,log=(file_max=100K,archive=false,enabled)," \
+#define ENV_CONFIG                                     \
+    "create,log=(enabled,file_max=100K,remove=false)," \
     "transaction_sync=(enabled,method=none)"
 #define ENV_CONFIG_REC "log=(recover=on)"
 
@@ -46,13 +46,15 @@ static bool use_columns = false;
 #define K_SIZE 16
 #define V_SIZE 256
 
-/*
- * Write a new log record into the log via log print, then open up a log cursor and walk the log to
- * make sure we can read it. The reason for this test is that if there is a partial log record at
- * the end of the previous log file and truncate does not exist, this tests that we can still read
- * past that record.
- */
 static void write_and_read_new(WT_SESSION *);
+
+/*
+ * write_and_read_new --
+ *     Write a new log record into the log via log print, then open up a log cursor and walk the log
+ *     to make sure we can read it. The reason for this test is that if there is a partial log
+ *     record at the end of the previous log file and truncate does not exist, this tests that we
+ *     can still read past that record.
+ */
 static void
 write_and_read_new(WT_SESSION *session)
 {
@@ -107,6 +109,11 @@ write_and_read_new(WT_SESSION *session)
 }
 
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -114,11 +121,13 @@ usage(void)
     exit(EXIT_FAILURE);
 }
 
-/*
- * Child process creates the database and table, and then writes data into the table until it
- * switches into log file 2.
- */
 static void fill_db(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * fill_db --
+ *     Child process creates the database and table, and then writes data into the table until it
+ *     switches into log file 2.
+ */
 static void
 fill_db(void)
 {
@@ -224,6 +233,10 @@ fill_db(void)
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {

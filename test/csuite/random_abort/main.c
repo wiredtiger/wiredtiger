@@ -87,6 +87,11 @@ static bool inmem;
 
 static void handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -100,6 +105,10 @@ typedef struct {
     uint32_t id;
 } WT_THREAD_DATA;
 
+/*
+ * thread_run --
+ *     TODO: Add a comment describing this function.
+ */
 static WT_THREAD_RET
 thread_run(void *arg)
 {
@@ -181,8 +190,7 @@ thread_run(void *arg)
         if (i == 0)
             i++;
 
-        /* FIXME-WT-6035: temporarily turn off tests for lower isolation levels. */
-        testutil_check(session->begin_transaction(session, "isolation=snapshot"));
+        testutil_check(session->begin_transaction(session, NULL));
 
         /*
          * The value is the insert- with key appended.
@@ -209,7 +217,6 @@ thread_run(void *arg)
         cursor->set_value(cursor, &data);
         testutil_check(cursor->insert(cursor));
 
-        /* FIXME-WT-6035: temporarily turn off tests for lower isolation levels. */
         testutil_check(session->commit_transaction(session, NULL));
 
         /*
@@ -233,8 +240,7 @@ thread_run(void *arg)
          * Decide what kind of operation can be performed on the already inserted data.
          */
         if (i % MAX_NUM_OPS == OP_TYPE_DELETE) {
-            /* FIXME-WT-6035: temporarily turn off tests for lower isolation levels. */
-            testutil_check(session->begin_transaction(session, "isolation=snapshot"));
+            testutil_check(session->begin_transaction(session, NULL));
 
             if (columnar_table)
                 cursor->set_key(cursor, i);
@@ -243,7 +249,6 @@ thread_run(void *arg)
 
             testutil_check(cursor->remove(cursor));
 
-            /* FIXME-WT-6035: temporarily turn off tests for lower isolation levels. */
             testutil_check(session->commit_transaction(session, NULL));
 
             /* Save the key separately for checking later.*/
@@ -261,7 +266,7 @@ thread_run(void *arg)
              * Make sure the modify operation is carried out in an snapshot isolation level with
              * explicit transaction.
              */
-            testutil_check(session->begin_transaction(session, "isolation=snapshot"));
+            testutil_check(session->begin_transaction(session, NULL));
 
             ret = wiredtiger_calc_modify(session, &data, &newv, maxdiff, entries, &nentries);
 
@@ -295,11 +300,13 @@ thread_run(void *arg)
     /* NOTREACHED */
 }
 
-/*
- * Child process creates the database and table, and then creates worker threads to add data until
- * it is killed by the parent.
- */
 static void fill_db(uint32_t) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * fill_db --
+ *     Child process creates the database and table, and then creates worker threads to add data
+ *     until it is killed by the parent.
+ */
 static void
 fill_db(uint32_t nth)
 {
@@ -352,6 +359,10 @@ fill_db(uint32_t nth)
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+/*
+ * handler --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 handler(int sig)
 {
@@ -365,6 +376,10 @@ handler(int sig)
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
+/*
+ * recover_and_verify --
+ *     TODO: Add a comment describing this function.
+ */
 static int
 recover_and_verify(uint32_t nthreads)
 {
@@ -604,6 +619,10 @@ recover_and_verify(uint32_t nthreads)
     return (EXIT_SUCCESS);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
