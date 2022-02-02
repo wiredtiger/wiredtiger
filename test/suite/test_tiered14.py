@@ -43,7 +43,8 @@ class test_tiered14(wttest.WiredTigerTestCase):
 
     # FIXME-WT-8758: enable these scenarios
     multiplier = [
-        ('S', dict(multiplier=1)),
+        ('0', dict(multiplier=0)),
+#        ('S', dict(multiplier=1)),
 #        ('M', dict(multiplier=10)),
 #        ('L', dict(multiplier=100)),
 #        ('XL', dict(multiplier=1000)),
@@ -95,10 +96,12 @@ class test_tiered14(wttest.WiredTigerTestCase):
         self.progress('Running ops: {} using uri {}'.format(ops, uri))
         if self.dataset == 'simple':
             ds = TrackedSimpleDataSet(self, uri, self.multiplier,
-                                      config='key_format=' + self.keyfmt)
+                                      key_format = self.keyfmt)
         elif self.dataset == 'complex':
             ds = TrackedComplexDataSet(self, uri, self.multiplier,
-                                      config='key_format=' + self.keyfmt)
+                                      key_format = self.keyfmt)
+
+        # Populate for a tracked data set is needed to create the uri.
         ds.populate()
         inserted = 0
         idx = -1
