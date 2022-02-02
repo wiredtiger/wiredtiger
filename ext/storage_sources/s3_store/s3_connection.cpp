@@ -112,11 +112,18 @@ S3Connection::ObjectExists(
     request.SetBucket(bucketName);
     request.SetKey(objectKey);
     Aws::S3Crt::Model::HeadObjectOutcome outcome = m_S3CrtClient.HeadObject(request);
+    exists = false;
 
     if (outcome.IsSuccess()) {
         exists = true;
         return (0);
-    } else
+    /*
+     * If an object with the given key does not exist the HEAD request will return a 404.
+     * https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html Do not fail in this case.
+     */
+    } else if(outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND)
+        return (0);
+    else
         return (static_cast<int>(outcome.GetError().GetResponseCode()));
 }
 

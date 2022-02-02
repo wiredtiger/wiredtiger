@@ -85,20 +85,15 @@ S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool 
     S3_FILE_SYSTEM *s3Fs = (S3_FILE_SYSTEM *)fileSystem;
     *existp = false;
 
+    /* First check to see if the file exists in the cache. */
     if ((ret = S3CacheExists(fileSystem, name, existp)) != 0)
         return (ret);
 
     /* It's not in the cache, try the s3 bucket. */
     if (!*existp)
         ret = s3Fs->conn->ObjectExists(s3Fs->bucketName, name, *existp);
-    /*
-     * If an object with the given key does not exist the HEAD request will return a 404.
-     * https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html Do not fail in this case.
-     */
-    if (ret == 404 || ret == 0)
-        return (0);
-    else
-        return (ret);
+
+    return (ret);
 }
 
 /*
