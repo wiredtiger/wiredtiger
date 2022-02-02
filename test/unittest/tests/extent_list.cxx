@@ -5,8 +5,8 @@
 #include "wt_internal.h"
 
 WT_EXT* create_new_extent_list() {
-    // manually alloc enough extra space for the zero-length array at the end
-    auto sz = sizeof(WT_EXT) + WT_SKIP_MAXDEPTH * sizeof(WT_EXT*);
+    // manually alloc enough extra space for the zero-length array to encode two skip lists
+    auto sz = sizeof(WT_EXT) + 2 * WT_SKIP_MAXDEPTH * sizeof(WT_EXT*);
 
     WT_EXT* ret = (WT_EXT*)malloc(sz);
     memset(ret, 0, sz);
@@ -103,5 +103,41 @@ TEST_CASE("block_off_srch_last", "[extent_list]") {
 }
 
 TEST_CASE("block_off_srch", "[extent_list]") {
-    __ut_block_off_srch(nullptr, 0, nullptr, false);
+    std::vector<WT_EXT*> head(WT_SKIP_MAXDEPTH, nullptr);
+    std::vector<WT_EXT**> stack(WT_SKIP_MAXDEPTH, nullptr);
+
+    SECTION("can't find offset in empty list", "[extent_list]") {
+        __ut_block_off_srch(&head[0], 0, &stack[0], false);
+
+        for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
+            REQUIRE(stack[i] == &head[i]);
+    }
+
+    SECTION("exact offset match returns matching list element") {
+        WT_EXT* first = create_new_extent_list();
+        WT_EXT* second = create_new_extent_list();
+        WT_EXT* third = create_new_extent_list();
+        first->next[0] = second;
+        first->next[1] = third;
+        second->next[0] = third;
+
+        head[0] = first;
+        head[1] = second;
+        head[2] = third;
+        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
+            head[i] = nullptr;
+
+        first->off = 1;
+        second->off = 2;
+        third->off = 3;
+
+        __ut_block_off_srch(&head[0], 2, &stack[0], false);
+
+        // for each level of the extent list, if the searched-for element was
+        // visible, we should point to it. otherwise, we should point to the
+        // next-largest item.
+        REQUIRE((*stack[0])->off == 2);
+        REQUIRE((*stack[1])->off == 2);
+        REQUIRE((*stack[2])->off == 3);
+    }
 }
