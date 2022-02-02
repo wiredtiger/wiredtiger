@@ -65,14 +65,28 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
     }
 
     std::string firstBucket = buckets.at(0);
-
     std::vector<std::string> objects;
-    uint32_t countp;
+
+    /* Total objects to insert in the test. */
+    const int32_t totalObjects = 20;
+    /* Parameter for getting single object. */
+    const bool listSingle = true;
+    /* Number of objects to access per iteration of AWS. */
+    int32_t batchSize = 1;
+    /* Expected number of matches. */
+    int32_t expectedResult = 0;
 
     /* No matching objects. */
-    if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, countp) != 0)
+    if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects) != 0)
         return (ret);
-    if (objects.size() != countp || countp != 0) {
+    if (objects.size() != expectedResult) {
+        return (1);
+    }
+
+    /* No matching objects with listSingle. */
+    if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, batchSize, listSingle) != 0)
+        return (ret);
+    if (objects.size() != expectedResult) {
         return (1);
     }
 
@@ -82,15 +96,6 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
         return (1);
     }
 
-    /*
-     * totalObjects: Number of test objects added to bucket. expectedResult: Expected number of
-     * matches from ListObjects. nPerIter: Number of objects to access per iteration of the AWS
-     * request, in ListObjects. maxObjects: Maximum objects to return from ListObjects.
-     */
-    const int32_t totalObjects = 20;
-    int32_t expectedResult, nPerIter, maxObjects;
-
-    expectedResult = totalObjects;
     /* Put objects to prepare for test. */
     for (int i = 0; i < totalObjects; i++) {
         if (ret = conn.PutObject(firstBucket, "test_list_objects_" + std::to_string(i) + ".txt",
@@ -98,75 +103,76 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
             return (ret);
     }
 
-    /* List all objects with prefix. */
-    objects.clear();
-    if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, countp) != 0)
+    /* List all objects. */
+    expectedResult = totalObjects;
+    if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects) != 0)
         return (ret);
-    if (objects.size() != countp || countp != expectedResult) {
+    if (objects.size() != expectedResult) {
         CleanupTestListObjects(config, firstBucket, totalObjects);
         return (1);
     }
 
+    /* List single. */
     objects.clear();
+    expectedResult = 1;
+    if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, batchSize, listSingle) != 0)
+        return (ret);
+    if (objects.size() != expectedResult) {
+        CleanupTestListObjects(config, firstBucket, totalObjects);
+        return (1);
+    }
+
     /* Expected number of matches with test_list_objects_1 prefix. */
-    expectedResult = 11;
-    if (ret = conn.ListObjects(firstBucket, "test_list_objects_1", objects, countp) != 0)
-        return (ret);
-    if (objects.size() != countp || countp != expectedResult) {
-        CleanupTestListObjects(config, firstBucket, totalObjects);
-        return (1);
-    }
-
     objects.clear();
-    expectedResult = nPerIter = maxObjects = 1;
-    if (ret = conn.ListObjects(
-                firstBucket, "test_list_objects_", objects, countp, nPerIter, maxObjects) != 0)
+    expectedResult = 11;
+    if (ret = conn.ListObjects(firstBucket, "test_list_objects_1", objects) != 0)
         return (ret);
-    if (objects.size() != countp || countp != expectedResult) {
+    if (objects.size() != expectedResult) {
         CleanupTestListObjects(config, firstBucket, totalObjects);
         return (1);
     }
 
     /* List with 5 objects per AWS request. */
     objects.clear();
-    expectedResult = maxObjects;
-    if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, countp, nPerIter) != 0)
-        return (ret);
-    if (objects.size() != countp || countp != totalObjects) {
-        CleanupTestListObjects(config, firstBucket, totalObjects);
-        return (1);
-    }
-
-    /* List with total_objects < max_per_iter. */
-    objects.clear();
-    expectedResult = maxObjects = 4;
-    if (ret = conn.ListObjects(
-                firstBucket, "test_list_objects_", objects, countp, nPerIter, maxObjects) != 0)
-        return (ret);
-    if (objects.size() != countp || countp != expectedResult) {
-        CleanupTestListObjects(config, firstBucket, totalObjects);
-        return (1);
-    }
-
-    /* List with total objects non-divisable by max per iter. */
-    objects.clear();
-    expectedResult = maxObjects = 8;
-    if (ret = conn.ListObjects(
-                firstBucket, "test_list_objects_", objects, countp, nPerIter, maxObjects) != 0)
-        return (ret);
-    if (objects.size() != countp || countp != expectedResult) {
-        CleanupTestListObjects(config, firstBucket, totalObjects);
-        return (1);
-    }
-
-    /* List with max objects greater than total objects. */
-    objects.clear();
+    batchSize = 5;
     expectedResult = totalObjects;
-    maxObjects = 30;
-    if (ret = conn.ListObjects(
-                firstBucket, "test_list_objects_", objects, countp, nPerIter, maxObjects) != 0)
+    if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, batchSize) != 0)
         return (ret);
-    if (objects.size() != countp || countp != expectedResult) {
+    if (objects.size() != expectedResult) {
+        CleanupTestListObjects(config, firstBucket, totalObjects);
+        return (1);
+    }
+
+    /* ListSingle with 8 objects per AWS request. */
+    objects.clear();
+    expectedResult = 1;
+    if (ret = conn.ListObjects(
+                firstBucket, "test_list_objects_", objects, batchSize, listSingle) != 0)
+        return (ret);
+    if (objects.size() != expectedResult) {
+        CleanupTestListObjects(config, firstBucket, totalObjects);
+        return (1);
+    }
+
+    /* List with 8 objects per AWS request. */
+    objects.clear();
+    batchSize = 8;
+    expectedResult = totalObjects;
+    if (ret = conn.ListObjects(
+                firstBucket, "test_list_objects_", objects, batchSize) != 0)
+        return (ret);
+    if (objects.size() != expectedResult) {
+        CleanupTestListObjects(config, firstBucket, totalObjects);
+        return (1);
+    }
+
+    /* ListSingle with 8 objects per AWS request. */
+    objects.clear();
+    expectedResult = 1;
+    if (ret = conn.ListObjects(
+                firstBucket, "test_list_objects_", objects, batchSize, listSingle) != 0)
+        return (ret);
+    if (objects.size() != expectedResult) {
         CleanupTestListObjects(config, firstBucket, totalObjects);
         return (1);
     }

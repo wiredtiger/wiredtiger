@@ -566,6 +566,7 @@ backport
 bal
 basecfg
 basho
+batchSize
 bb
 bba
 bbb
@@ -1156,7 +1157,6 @@ mutexes
 mux
 mytable
 mytxn
-nPerIter
 nTemp
 namespace
 namespaces

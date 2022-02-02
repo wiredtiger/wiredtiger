@@ -168,13 +168,15 @@ S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *direct
     std::vector<std::string> objects;
     int ret;
     if (ret =
-          fs->conn->ListObjects(std::string(directory), std::string(prefix), objects, *countp) != 0)
+          fs->conn->ListObjects(std::string(directory), std::string(prefix), objects) != 0)
         return (ret);
     std::cout << "Objects in bucket '" << directory << "':" << std::endl;
     for (const auto &object : objects)
         std::cout << "  * " << object << std::endl;
     if (objects.empty())
         std::cout << "No objects in bucket." << std::endl;
+    
+    *countp = objects.size();
 
     /* TODO: Put objects into dirlistp. */
 
@@ -193,13 +195,15 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
     std::vector<std::string> objects;
     int ret;
     if (ret = fs->conn->ListObjects(
-                std::string(directory), std::string(prefix), objects, *countp, 1, 1) != 0)
+                std::string(directory), std::string(prefix), objects, 1, true) != 0)
         return (ret);
     std::cout << "Object in bucket '" << directory << "':" << std::endl;
     for (const auto &object : objects)
         std::cout << "  * " << object << std::endl;
     if (objects.empty())
         std::cout << "No objects in bucket." << std::endl;
+
+    *countp = objects.size();
 
     /* TODO: Put objects into dirlistp. */
 

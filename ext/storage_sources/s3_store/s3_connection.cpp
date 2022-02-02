@@ -31,49 +31,43 @@ S3Connection::ListBuckets(std::vector<std::string> &buckets) const
 
 /*
  * ListObjects --
- *     Builds a list of object names from an S3 bucket into a vector. Returns 0 if success,
- * otherwise 1.
+ *     Builds a list of object names, with prefix matching, from an S3 bucket into a vector. Takes
+ *     in batchSize parameter for the number of objects to access per iteration of the AWS request.
+ *     Returns 0 if success, otherwise 1.
  */
 int
 S3Connection::ListObjects(const std::string &bucketName, const std::string &prefix,
-  std::vector<std::string> &objects, uint32_t &countp, uint32_t nPerIter, uint32_t maxObjects) const
+  std::vector<std::string> &objects, uint32_t batchSize, bool listSingle) const
 {
     Aws::S3Crt::Model::ListObjectsV2Request request;
     request.SetBucket(bucketName);
     request.SetPrefix(prefix);
 
-    /* AWS can access 1-1000 objects per request. */
-    if (nPerIter == 0 || nPerIter > 1000)
-        return (1);
-    else if (maxObjects != 0 && maxObjects < nPerIter)
-        request.SetMaxKeys(maxObjects);
+    if (listSingle)
+        request.SetMaxKeys(1);
     else
-        request.SetMaxKeys(nPerIter);
+        request.SetMaxKeys(batchSize);
 
-    countp = 0;
     Aws::S3Crt::Model::ListObjectsV2Outcome outcomes = m_s3CrtClient.ListObjectsV2(request);
 
     if (outcomes.IsSuccess()) {
         auto result = outcomes.GetResult();
         for (const auto &object : result.GetContents())
             objects.push_back(object.GetKey());
-        countp = result.GetContents().size();
+
+        if (listSingle)
+            return (0);
 
         /* Continuation token will be an empty string if we have returned all possible objects. */
         std::string continuationToken = result.GetNextContinuationToken();
-        while (continuationToken != "" && (maxObjects == 0 || (maxObjects - countp) > 0)) {
-            if (maxObjects != 0 && (maxObjects - countp) < nPerIter)
-                request.SetMaxKeys(maxObjects - countp);
+        while (continuationToken != "") {
             request.SetContinuationToken(continuationToken);
-
             outcomes = m_s3CrtClient.ListObjectsV2(request);
             if (outcomes.IsSuccess()) {
                 result = outcomes.GetResult();
                 for (const auto &object : result.GetContents())
                     objects.push_back(object.GetKey());
-                countp += result.GetContents().size();
                 continuationToken = result.GetNextContinuationToken();
-
             } else
                 return (1);
         }
