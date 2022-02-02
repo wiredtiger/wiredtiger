@@ -887,7 +887,7 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
      * Exit abnormally as the key consistency mode dictates all updates must use timestamps once
      * they have been used.
      */
-    if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_ORDERED) && prev_op_durable_ts != WT_TS_NONE &&
+    if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_KEY_CONSISTENT) && prev_op_durable_ts != WT_TS_NONE &&
       !txn_has_ts) {
         __wt_verbose_error(session, WT_VERB_TRANSACTION, "%s",
           WT_COMMIT_TS_VERB_PREFIX
@@ -1388,16 +1388,16 @@ err:
     return (ret);
 }
 
-#ifdef WT_STANDALONE_BUILD
 /*
- * __txn_commit_timestamps_assert_standalone --
+ * __txn_commit_timestamps_assert --
  *     Validate that timestamps provided to commit are legal.
  */
 static inline int
-__txn_commit_timestamps_assert_standalone(WT_SESSION_IMPL *session, WT_TXN *txn)
+__txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *upd;
 #ifdef HAVE_DIAGNOSTIC
@@ -1405,9 +1405,33 @@ __txn_commit_timestamps_assert_standalone(WT_SESSION_IMPL *session, WT_TXN *txn)
 #endif
     wt_timestamp_t prev_op_durable_ts, prev_op_ts;
     u_int i;
-    bool op_zero_ts, upd_zero_ts;
+    bool op_zero_ts, upd_zero_ts, used_ts;
 
+    txn = session->txn;
     cursor = NULL;
+
+    used_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) || F_ISSET(txn, WT_TXN_HAS_TS_DURABLE);
+    /*
+     * Debugging checks on timestamps, if user requested them. We additionally don't expect recovery
+     * to be using timestamps when applying commits. If recovery is running, skip this assert to
+     * avoid failing the recovery process.
+     */
+    if (F_ISSET(txn, WT_TXN_TS_WRITE_ALWAYS) && !used_ts && txn->mod_count != 0 &&
+      !F_ISSET(S2C(session), WT_CONN_RECOVERING))
+        WT_RET_MSG(session, EINVAL, "commit_timestamp required and none set on this transaction");
+    if (F_ISSET(txn, WT_TXN_TS_WRITE_NEVER) && used_ts && txn->mod_count != 0)
+        WT_RET_MSG(
+          session, EINVAL, "no commit_timestamp expected and timestamp set on this transaction");
+
+    if (txn->commit_timestamp > txn->durable_timestamp)
+        WT_RET_MSG(
+          session, EINVAL, "transaction with commit timestamp greater than durable timestamp");
+
+    /*
+     * If we're not doing any key consistency checking, we're done.
+     */
+    if (!F_ISSET(txn, WT_TXN_TS_WRITE_KEY_CONSISTENT))
+        return (0);
 
     /*
      * Error on any valid update structures for the same key that are at a later timestamp or use
@@ -1499,7 +1523,8 @@ __txn_commit_timestamps_assert_standalone(WT_SESSION_IMPL *session, WT_TXN *txn)
          * comparing commit timestamps would be.
          */
         WT_ASSERT(session, txn->durable_timestamp >= op_ts && prev_op_durable_ts >= prev_op_ts);
-        if (txn->durable_timestamp < prev_op_durable_ts)
+        if (F_ISSET(txn, WT_TXN_TS_WRITE_KEY_CONSISTENT) &&
+          txn->durable_timestamp < prev_op_durable_ts)
             WT_ERR_MSG(session, EINVAL, "out of order commit timestamps");
     }
 
@@ -1511,44 +1536,6 @@ err:
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
     return (ret);
-}
-#endif
-
-/*
- * __txn_commit_timestamps_assert --
- *     Validate that timestamps provided to commit are legal.
- */
-static inline int
-__txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
-{
-    WT_TXN *txn;
-    bool used_ts;
-
-    txn = session->txn;
-    used_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) || F_ISSET(txn, WT_TXN_HAS_TS_DURABLE);
-
-    /*
-     * Debugging checks on timestamps, if user requested them. We additionally don't expect recovery
-     * to be using timestamps when applying commits. If recovery is running, skip this assert to
-     * avoid failing the recovery process.
-     */
-    if (F_ISSET(txn, WT_TXN_TS_WRITE_ALWAYS) && !used_ts && txn->mod_count != 0 &&
-      !F_ISSET(S2C(session), WT_CONN_RECOVERING))
-        WT_RET_MSG(session, EINVAL, "commit_timestamp required and none set on this transaction");
-    if (F_ISSET(txn, WT_TXN_TS_WRITE_NEVER) && used_ts && txn->mod_count != 0)
-        WT_RET_MSG(
-          session, EINVAL, "no commit_timestamp expected and timestamp set on this transaction");
-
-    if (txn->commit_timestamp > txn->durable_timestamp)
-        WT_RET_MSG(
-          session, EINVAL, "transaction with commit timestamp greater than durable timestamp");
-
-#ifdef WT_STANDALONE_BUILD
-    /* If we're not doing any key consistency checking, we're done. */
-    if (F_ISSET(txn, WT_TXN_TS_WRITE_ORDERED))
-        WT_RET(__txn_commit_timestamps_assert_standalone(session, txn));
-#endif
-    return (0);
 }
 
 /*

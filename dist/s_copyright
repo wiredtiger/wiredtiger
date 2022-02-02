@@ -108,12 +108,11 @@ fi
 # Search for files, skipping some well-known 3rd party directories.
 (cd .. && find [a-z]* -name '*.[ch]' \
 	-o -name '*.cxx' \
-	-o -name '*.cpp' \
 	-o -name '*.in' \
 	-o -name '*.py' \
 	-o -name '*.swig' |
     sed	-e '/Makefile.in/d' \
-	-e '/^cmake\//d' \
+	-e '/^build_posix\//d' \
 	-e '/checksum\/power8\//d' \
 	-e '/checksum\/zseries\//d' \
 	-e '/\/3rdparty\//d' \

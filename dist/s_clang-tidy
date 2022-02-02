@@ -1,8 +1,7 @@
 #! /bin/sh
 
 t=__wt.$$
-t_pfx=__s_clang_tidy_tmp_
-trap 'rm -rf $t $t_pfx*' 0 1 2 3 13 15
+trap 'rm -rf $t' 0 1 2 3 13 15
 
 # Find the top-level WiredTiger directory and move to there.
 top=`git rev-parse --show-toplevel` && cd $top || exit 1
@@ -24,14 +23,13 @@ if test -z "$tidy"; then
 fi
 echo "$0: clang-tidy: $tidy"
 
-rm -rf ${t_pfx}build && mkdir ${t_pfx}build
-(cd ${t_pfx}build &&
-    cmake -DHAVE_DIAGNOSTIC=1 -DENABLE_STRICT=1 ../.) > /dev/null || exit 1
+(sh autogen.sh &&
+    ./configure --enable-diagnostic --enable-strict) > /dev/null || exit 1
 
 # We need a custom wiredtiger_config.h, clang-tidy doesn't know where to
 # find the x86intrin.h include file.
-cp ${t_pfx}build/config/wiredtiger_config.h $t
-sed '/HAVE_X86INTRIN_H/d' < $t > ${t_pfx}build/config/wiredtiger_config.h
+cp wiredtiger_config.h $t
+sed '/HAVE_X86INTRIN_H/d' < $t > wiredtiger_config.h
 
 # We need a custom verify_build.h, clang-tidy doesn't like the magic.
 f=src/include/verify_build.h
@@ -39,7 +37,7 @@ cat $f > $f.save
 echo '#define WT_STATIC_ASSERT(a)' > $f
 
 def="-D_GNU_SOURCE"
-inc="-I${t_pfx}build/config -I${t_pfx}build/include -Isrc/include"
+inc="-I. -Isrc/include"
 
 args="-checks=*"
 args="$args,-android-cloexec-fopen"

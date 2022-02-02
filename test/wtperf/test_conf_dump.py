@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# Usage: python test_conf_dump.py -d wtperf_directory [-c optional_wtperf_config]
+# Usage: python test_conf_dump.py <optional-wtperf-config>
 #
 # This script tests if the config file dumped in the test directory corresponds
 # correctly to the wtperf config file used. Command line options to wtperf are
@@ -46,19 +46,18 @@
 # fails if the value for the option is not replaced/appended in the correct
 # order of precedence as stated above.
 
-import os, re, subprocess
-import argparse
+import os, re, subprocess, sys
 
 OP_FILE = "WT_TEST/CONFIG.wtperf"
 TMP_CONF = "__tmp.wtperf"
 WTPERF_BIN = "./wtperf"
 
-ap = argparse.ArgumentParser('Validates a WiredTiger test config files matches the wtperf config file being used')
-ap.add_argument('-d', '--wtperf_dir', type=str, required=True, help="Specify the wtperf binary directory")
-ap.add_argument('-c', '--config', help="Optional wtperf config file")
-args = ap.parse_args()
+env_wtperfdir = os.getenv('WTPERF_DIR')
+if env_wtperfdir:
+    WTPERF_DIR = env_wtperfdir
+else:
+    WTPERF_DIR = "../../build_posix/bench/wtperf/"
 
-WTPERF_DIR = args.wtperf_dir
 CONF_NOT_PROVIDED = -2
 
 # Generate a wtperf conf file to use
@@ -305,8 +304,8 @@ def run_test(conf_file, option_C = "", option_T = "", option_o = ""):
 # ----------------- Execute Test --------------
 # If a wtperf conf file is provided use it, else generate a temp conf file
 os.chdir(WTPERF_DIR)
-if args.config:
-    conf_file = args.config
+if len(sys.argv) == 2:
+    conf_file = sys.argv[1]
 else:
     conf_file = TMP_CONF
     generate_conf_file(conf_file)
@@ -324,7 +323,7 @@ if not run_test(conf_file, option_C, option_T, option_o):
 
 # Cleanup generated temp files
 subprocess.check_call("rm -rf WT_TEST/", shell=True)
-if not args.config and conf_file == TMP_CONF:
+if len(sys.argv) == 1 and conf_file == TMP_CONF:
     subprocess.check_call("rm " + TMP_CONF, shell=True)
 
 print("All tests succeeded")

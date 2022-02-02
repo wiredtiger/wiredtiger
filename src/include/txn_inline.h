@@ -87,6 +87,8 @@ __wt_txn_timestamp_flags(WT_SESSION_IMPL *session)
 
     if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_ALWAYS))
         F_SET(session->txn, WT_TXN_TS_WRITE_ALWAYS);
+    if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_KEY_CONSISTENT))
+        F_SET(session->txn, WT_TXN_TS_WRITE_KEY_CONSISTENT);
     if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_MIXED_MODE))
         F_SET(session->txn, WT_TXN_TS_WRITE_MIXED_MODE);
     if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_NEVER))
@@ -514,12 +516,6 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
      */
     if (!txn_global->has_pinned_timestamp)
         return;
-
-    /* If we have a version cursor open, use the pinned timestamp when it is opened. */
-    if (S2C(session)->version_cursor_count > 0) {
-        *pinned_tsp = txn_global->version_cursor_pinned_timestamp;
-        return;
-    }
 
     *pinned_tsp = pinned_ts = txn_global->pinned_timestamp;
 
