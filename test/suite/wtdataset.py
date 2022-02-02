@@ -433,6 +433,8 @@ class TrackedComplexDataSet(ComplexDataSet):
     # Redefine the value stored to get bigger depending on the multiplier,
     # and to mix up the value depending on how many times it has been updated.
     def comparable_value(self, i):
+        if self.multiplier == 0:
+            return ComplexDataSet.comparable_value(self, i)
         nstores = self.store_count(i)
         m = self.multiplier
         bigi = i * m + nstores
