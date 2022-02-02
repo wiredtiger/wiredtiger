@@ -901,7 +901,6 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
               name, __wt_timestamp_to_string(op_ts, ts_string[0]));
     }
 
-#ifdef HAVE_DIAGNOSTIC
     prev_op_durable_ts = upd->prev_durable_ts;
 
     /* Ordered key consistency requires all updates use timestamps, once they are first used. */
@@ -937,7 +936,6 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
               name, __wt_timestamp_to_string(op_ts, ts_string[0]),
               __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1]));
     }
-#endif
 
 #ifdef WT_STANDALONE_BUILD
     /* Mixed mode key consistency requires all updates be in timestamp order. */

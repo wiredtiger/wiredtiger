@@ -133,9 +133,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
 
             /* Allocate a WT_UPDATE structure and transaction ID. */
             WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
-#ifdef HAVE_DIAGNOSTIC
             upd->prev_durable_ts = prev_upd_ts;
-#endif
             WT_ERR(__wt_txn_modify(session, upd));
             logged = true;
 
@@ -216,9 +214,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
 
         if (upd_arg == NULL) {
             WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
-#ifdef HAVE_DIAGNOSTIC
             upd->prev_durable_ts = prev_upd_ts;
-#endif
             WT_ERR(__wt_txn_modify(session, upd));
             logged = true;
 
