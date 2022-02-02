@@ -140,4 +140,31 @@ TEST_CASE("block_off_srch", "[extent_list]") {
         REQUIRE((*stack[1])->off == 2);
         REQUIRE((*stack[2])->off == 3);
     }
+
+    SECTION("search for item larger than maximum in list returns end of list") {
+        WT_EXT* first = create_new_extent_list();
+        WT_EXT* second = create_new_extent_list();
+        WT_EXT* third = create_new_extent_list();
+        first->next[0] = second;
+        first->next[1] = third;
+        second->next[0] = third;
+
+        head[0] = first;
+        head[1] = second;
+        head[2] = third;
+        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
+            head[i] = nullptr;
+
+        first->off = 1;
+        second->off = 2;
+        third->off = 3;
+
+        __ut_block_off_srch(&head[0], 4, &stack[0], false);
+
+        REQUIRE(stack[0] == &head[2]->next[0]);
+        REQUIRE(stack[1] == &head[2]->next[1]);
+        REQUIRE(stack[2] == &head[2]->next[2]);
+        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
+            REQUIRE(stack[i] == &head[i]);
+    }
 }
