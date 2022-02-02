@@ -2418,6 +2418,9 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
             busy = true;
         max_progress = busy ? 5 : 20;
 
+        if (pct_full < 100.0 && (cache->eviction_progress > initial_progress + max_progress)) {
+            WT_STAT_CONN_INCR(session, cache_eviction_early_busy_exit);
+        }
         /* See if eviction is still needed. */
         if (!__wt_eviction_needed(session, busy, readonly, &pct_full) ||
           (pct_full < 100.0 && (cache->eviction_progress > initial_progress + max_progress)))
@@ -2426,8 +2429,10 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
         /* Evict a page. */
         switch (ret = __evict_page(session, false)) {
         case 0:
-            if (busy)
+            if (busy) {
+                WT_STAT_CONN_INCR(session, cache_eviction_busy_exit);
                 goto err;
+            }
         /* FALLTHROUGH */
         case EBUSY:
             break;

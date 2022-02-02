@@ -804,6 +804,8 @@ conn_dsrc_stats = [
     CacheStat('cache_bytes_inuse', 'bytes currently in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_read', 'bytes read into cache', 'size'),
     CacheStat('cache_bytes_write', 'bytes written from cache', 'size'),
+    CacheStat('cache_eviction_early_busy_exit', 'eviction early exit because of busy check'),
+    CacheStat('cache_eviction_busy_exit', 'eviction busy exit'),
     CacheStat('cache_eviction_checkpoint', 'checkpoint blocked page eviction'),
     CacheStat('cache_eviction_blocked_checkpoint_hs', 'checkpoint of history store file blocked non-history store page eviction'),
     CacheStat('cache_eviction_blocked_ooo_checkpoint_race_1', 'eviction gave up due to detecting an out of order on disk value behind the last update on the chain'),
