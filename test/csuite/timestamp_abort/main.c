@@ -284,6 +284,7 @@ thread_run(void *arg)
     uint64_t i, active_ts;
     char cbuf[MAX_VAL], lbuf[MAX_VAL], obuf[MAX_VAL];
     char kname[64], tscfg[64], uri[128];
+    char private[128];
     bool durable_ahead_commit, use_prep;
 
     __wt_random_init(&rnd);
@@ -353,6 +354,8 @@ thread_run(void *arg)
      */
     printf("Thread %" PRIu32 " starts at %" PRIu64 "\n", td->info, td->start);
     active_ts = 0;
+    if (stress)
+        session->app_private = private;
     for (i = td->start;; ++i) {
         testutil_check(session->begin_transaction(session, NULL));
         if (use_prep)
@@ -379,6 +382,9 @@ thread_run(void *arg)
             cur_shadow->set_key(cur_shadow, i + 1);
         } else {
             testutil_check(__wt_snprintf(kname, sizeof(kname), KEY_STRINGFORMAT, i));
+            if (stress)
+                testutil_check(
+                  __wt_snprintf(private, sizeof(private), "TID %" PRIu32 ":%s", td->info, kname));
             cur_coll->set_key(cur_coll, kname);
             cur_local->set_key(cur_local, kname);
             cur_oplog->set_key(cur_oplog, kname);
