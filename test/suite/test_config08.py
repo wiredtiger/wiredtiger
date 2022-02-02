@@ -37,7 +37,7 @@ class test_config08(wttest.WiredTigerTestCase):
 
     logging = [
         ('log_off', dict(logging='false')),
-        # ('log_on', dict(logging='true')),
+        ('log_on', dict(logging='true')),
     ]
 
     scenarios = make_scenarios(logging)
