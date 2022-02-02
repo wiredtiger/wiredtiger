@@ -736,6 +736,15 @@ tasks:
       - func: "upload artifact"
       - func: "cleanup"
 
+  - name: compile-s3-ext
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: -DENABLE_STRICT=0 -DHAVE_DIAGNOSTIC=1 -DENABLE_S3=1
+      - func: "upload artifact"
+      - func: "cleanup"
+
   - name: compile-wtperf
     commands:
       - func: "get project"
@@ -2049,6 +2058,22 @@ tasks:
           display_name: " 1 Coverage report main page"
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/1_coverage_report_main.html
 
+  - name: s3-ext-test
+    depends_on:
+      - name: compile-s3-ext
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-s3-ext
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          silent: false
+          script: |
+            set -o errexit
+            aws_access_key_id=${aws_sdk_s3_ext_access_key} aws_secret_access_key=${aws_sdk_s3_ext_secret_key} ext/storage_sources/s3_store/test/run_s3_unit_tests 2>&1
+            aws_access_key_id=${aws_sdk_s3_ext_access_key} aws_secret_access_key=${aws_sdk_s3_ext_secret_key} ${python_binary|python3} ../test/suite/run.py s3_store01.py 2>&1
 
   - name: spinlock-gcc-test
     commands:
@@ -4107,8 +4132,8 @@ buildvariants:
     - name: ".stress-test-zseries-2"
     - name: ".stress-test-zseries-3"
 
-- name: ubuntu2004-tmp-s3-cmake
-  display_name: "* (Temporary) Ubuntu 20.04 S3 Extension CMake"
+- name: ubuntu2004-tmp-s3
+  display_name: "* (Temporary) Ubuntu 20.04 S3 Extension"
   run_on:
   - ubuntu2004-test
   expansions:
@@ -4116,20 +4141,10 @@ buildvariants:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
-    posix_configure_flags:
-      -DCMAKE_C_FLAGS="-ggdb"
-      -DHAVE_DIAGNOSTIC=1
-      -DENABLE_PYTHON=1
-      -DENABLE_ZLIB=1
-      -DENABLE_SNAPPY=1
-      -DENABLE_STRICT=0
-      -DENABLE_TCMALLOC=1
-      -DENABLE_S3=1
-      -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
-      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: Ninja
     make_command: ninja
   tasks:
-    - name: compile
+    - name: compile-s3-ext 
+    - name: s3-ext-test
