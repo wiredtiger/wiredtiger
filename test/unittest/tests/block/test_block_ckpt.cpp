@@ -38,6 +38,8 @@ static void test_ckpt_add_blkmod_entry(wt_off_t offset,
     REQUIRE(result == 0);
     REQUIRE(blockMods.getWTBlockMods()->nbits == expectedBits);
     REQUIRE(blockMods.getWTBlockMods()->bitstring.memsize == (expectedBits / 8));
+    REQUIRE(blockMods.getWTBlockMods()->bitstring.mem != nullptr);
+    REQUIRE(blockMods.getWTBlockMods()->bitstring.data != nullptr);
 }
 
 
