@@ -167,4 +167,38 @@ TEST_CASE("block_off_srch", "[extent_list]") {
         for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
             REQUIRE(stack[i] == &head[i]);
     }
+
+    SECTION("respect skip offset") {
+        const int depth = 10;
+
+        WT_EXT* first = create_new_extent_list();
+        WT_EXT* second = create_new_extent_list();
+        WT_EXT* third = create_new_extent_list();
+
+        first->next[0 + depth] = second;
+        first->next[1 + depth] = third;
+        second->next[0 + depth] = third;
+
+        head[0] = first;
+        head[1] = second;
+        head[2] = third;
+        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
+            head[i] = nullptr;
+
+        first->off = 1;
+        first->depth = depth;
+        second->off = 2;
+        second->depth = depth;
+        third->off = 3;
+        third->depth = depth;
+
+        __ut_block_off_srch(&head[0], 2, &stack[0], true);
+
+        // for each level of the extent list, if the searched-for element was
+        // visible, we should point to it. otherwise, we should point to the
+        // next-largest item.
+        REQUIRE((*stack[0])->off == 2);
+        REQUIRE((*stack[1])->off == 2);
+        REQUIRE((*stack[2])->off == 3);
+    }
 }
