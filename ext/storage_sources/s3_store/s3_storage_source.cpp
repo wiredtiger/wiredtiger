@@ -50,7 +50,7 @@ typedef struct {
     WT_FILE_SYSTEM fileSystem;
     S3_STORAGE *s3Storage;
     S3Connection *conn;
-    S3StoreLogSystem *s3_log;
+    S3StoreLogSystem *s3Log;
 } S3_FILE_SYSTEM;
 
 /* Configuration variables for connecting to S3CrtClient. */
@@ -80,7 +80,6 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     s3 = (S3_STORAGE *)storageSource;
 
     int ret;
-    // std::cout << "\n RUBYRUBYRUBYRUBY: after get " << ret << std::endl;
     /* Mark parameters as unused for now, until implemented. */
     UNUSED(session);
     UNUSED(bucketName);
@@ -244,7 +243,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     ret = s3->wtApi->config_get(s3->wtApi, NULL, config, "aws_verbose", &v);
 
     if (ret == WT_NOTFOUND) {
-        s3->awsVerboseLevel = 0;
+        s3->awsVerboseLevel = -3;
     } else {
         s3->awsVerboseLevel = v.val;
     }
