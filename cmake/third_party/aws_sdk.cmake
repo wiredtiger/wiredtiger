@@ -16,7 +16,7 @@ config_choice(
  endif()
  
 if(IMPORT_S3_SDK_NONE)
-    message(FATAL_ERROR "Cannot enable S3 extension without specifying an IMPORT_S3_SDK method (package, none).")
+    message(FATAL_ERROR "Cannot enable S3 extension without specifying an IMPORT_S3_SDK method (package, external).")
 endif()
 
 set(s3_crt_lib_location)
@@ -70,5 +70,7 @@ set_target_properties(aws-sdk::s3-crt PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES ${aws_sdk_include_location}
 )
 
-add_dependencies(aws-sdk::core aws-sdk)
-add_dependencies(aws-sdk::s3-crt aws-sdk)
+if (IMPORT_S3_SDK_EXTERNAL)
+    add_dependencies(aws-sdk::core aws-sdk)
+    add_dependencies(aws-sdk::s3-crt aws-sdk)
+endif()
