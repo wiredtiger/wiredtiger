@@ -2,14 +2,14 @@
 #include <aws/core/utils/logging/AWSLogging.h>
 #include <aws/core/utils/logging/LogSystemInterface.h>
 
-#include "S3StoreLogSystem.h"
+#include "s3_log_system.h"
 
 #include <cstdarg>
 
 using namespace Aws::Utils;
 using namespace Aws::Utils::Logging;
 
-S3StoreLogSystem::S3StoreLogSystem(WT_EXTENSION_API *wtApi, uint32_t awsVerbose)
+s3_log_system::s3_log_system(WT_EXTENSION_API *wtApi, uint32_t awsVerbose)
 {
     static const std::map<int32_t, Aws::Utils::Logging::LogLevel> verbosityMapping = {
       {-3, Aws::Utils::Logging::LogLevel::Error}, {-2, Aws::Utils::Logging::LogLevel::Warn},
@@ -24,7 +24,7 @@ S3StoreLogSystem::S3StoreLogSystem(WT_EXTENSION_API *wtApi, uint32_t awsVerbose)
 }
 
 void
-S3StoreLogSystem::Log(
+s3_log_system::Log(
   Aws::Utils::Logging::LogLevel logLevel, const char *tag, const char *format, ...)
 {
     Aws::StringStream ss;
@@ -53,21 +53,21 @@ S3StoreLogSystem::Log(
 }
 
 void
-S3StoreLogSystem::LogStream(
+s3_log_system::LogStream(
   Aws::Utils::Logging::LogLevel logLevel, const char *tag, const Aws::OStringStream &messageStream)
 {
     LogVerboseMessage(tag, logLevel, messageStream.rdbuf()->str().c_str());
 }
 
 void
-S3StoreLogSystem::LogVerboseMessage(
+s3_log_system::LogVerboseMessage(
   const char *tag, Aws::Utils::Logging::LogLevel logLevel, const std::string &message)
 {
     wt_api->err_printf(wt_api, NULL, "%s : %s", tag, message.c_str());
 }
 
 void
-S3StoreLogSystem::Flush()
+s3_log_system::Flush()
 {
     return;
 }

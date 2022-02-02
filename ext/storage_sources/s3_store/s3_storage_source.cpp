@@ -30,7 +30,7 @@
 #include <wiredtiger_ext.h>
 
 #include "s3_connection.h"
-#include "S3StoreLogSystem.h"
+#include "s3_log_system.h"
 #include <aws/core/Aws.h>
 #include <aws/core/utils/memory/stl/AWSString.h>
 #include <aws/core/utils/logging/DefaultLogSystem.h>
@@ -51,7 +51,7 @@ typedef struct {
     WT_FILE_SYSTEM fileSystem;
     S3_STORAGE *s3Storage;
     S3Connection *conn;
-    S3StoreLogSystem *s3Log;
+    s3_log_system *s3Log;
 } S3_FILE_SYSTEM;
 
 /* Configuration variables for connecting to S3CrtClient. */
@@ -93,7 +93,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     aws_config.partSize = partSize;
 
     Aws::Utils::Logging::InitializeAWSLogging(
-      Aws::MakeShared<S3StoreLogSystem>("S3Storage", s3->wtApi, s3->awsVerboseLevel));
+      Aws::MakeShared<s3_log_system>("S3Storage", s3->wtApi, s3->awsVerboseLevel));
 
     if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
         return (errno);
