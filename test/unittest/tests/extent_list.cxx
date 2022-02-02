@@ -4,6 +4,7 @@
 
 #include "wt_internal.h"
 
+// can't use a unique_ptr here because of the zero-length array business
 WT_EXT* create_new_extent_list() {
     // manually alloc enough extra space for the zero-length array to encode two
     // skip lists.
@@ -11,6 +12,13 @@ WT_EXT* create_new_extent_list() {
 
     WT_EXT* ret = (WT_EXT*)malloc(sz);
     memset(ret, 0, sz);
+
+    return ret;
+}
+
+std::unique_ptr<WT_SIZE> create_new_size_list() {
+    auto ret = std::unique_ptr<WT_SIZE>(new WT_SIZE{0 ,0, {}, {}});
+    memset(ret.get(), 0, sizeof(WT_SIZE));
 
     return ret;
 }
@@ -256,4 +264,71 @@ TEST_CASE("block_first_srch", "[extent_list]") {
         REQUIRE(__ut_block_first_srch(&head[0], 4, &stack[0]) == true);
     }
 
+}
+
+TEST_CASE("block_size_srch", "[extent_list]") {
+    std::vector<WT_SIZE*> head(WT_SKIP_MAXDEPTH, nullptr);
+    std::vector<WT_SIZE**> stack(WT_SKIP_MAXDEPTH, nullptr);
+
+    SECTION("empty size list yields first elements") {
+        __ut_block_size_srch(&head[0], 0, &stack[0]);
+
+        for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
+            REQUIRE(stack[i] == &head[i]);
+    }
+
+    SECTION("exact size match returns matching list element") {
+        auto first = create_new_size_list();
+        auto second = create_new_size_list();
+        auto third = create_new_size_list();
+        first->next[0] = second.get();
+        first->next[1] = third.get();
+        second->next[0] = third.get();
+
+        head[0] = first.get();
+        head[1] = second.get();
+        head[2] = third.get();
+        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
+            head[i] = nullptr;
+
+        first->size = 1;
+        second->size = 2;
+        third->size = 3;
+
+        __ut_block_size_srch(&head[0], 2, &stack[0]);
+
+        // for each level of the extent list, if the searched-for element was
+        // visible, we should point to it. otherwise, we should point to the
+        // next-largest item.
+        REQUIRE((*stack[0])->size == 2);
+        REQUIRE((*stack[1])->size == 2);
+        REQUIRE((*stack[2])->size == 3);
+    }
+
+    SECTION("search for item larger than maximum in list returns end of list") {
+        auto first = create_new_size_list();
+        auto second = create_new_size_list();
+        auto third = create_new_size_list();
+        first->next[0] = second.get();
+        first->next[1] = third.get();
+        second->next[0] = third.get();
+
+        head[0] = first.get();
+        head[1] = second.get();
+        head[2] = third.get();
+        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
+            head[i] = nullptr;
+
+        first->size = 1;
+        second->size = 2;
+        third->size = 3;
+
+        __ut_block_size_srch(&head[0], 4, &stack[0]);
+
+        REQUIRE(stack[0] == &head[2]->next[0]);
+        REQUIRE(stack[1] == &head[2]->next[1]);
+        REQUIRE(stack[2] == &head[2]->next[2]);
+        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
+            REQUIRE(stack[i] == &head[i]);
+    }
 }
