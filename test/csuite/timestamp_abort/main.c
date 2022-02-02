@@ -459,6 +459,9 @@ thread_run(void *arg)
          */
         data.size = __wt_random(&rnd) % MAX_VAL;
         data.data = lbuf;
+        if (stress)
+            testutil_check(
+              __wt_snprintf(private, sizeof(private), "TID LOCAL %" PRIu32 ":%s", td->info, kname));
         cur_local->set_value(cur_local, &data);
         testutil_check(cur_local->insert(cur_local));
 
