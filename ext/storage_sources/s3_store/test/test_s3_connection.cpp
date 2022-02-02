@@ -64,11 +64,13 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
         return (1);
     }
 
-    std::string firstBucket = buckets.at(0);
+    const std::string firstBucket = buckets.at(0);
     std::vector<std::string> objects;
 
     /* Total objects to insert in the test. */
     const int32_t totalObjects = 20;
+    /* Prefix for objects in this test. */
+    const std::string prefix = "test_list_objects_";
     /* Parameter for getting single object. */
     const bool listSingle = true;
     /* Number of objects to access per iteration of AWS. */
@@ -77,19 +79,16 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
     int32_t expectedResult = 0;
 
     /* No matching objects. */
-    if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects) != 0)
+    if (ret = conn.ListObjects(firstBucket, prefix, objects) != 0)
         return (ret);
-    if (objects.size() != expectedResult) {
+    if (objects.size() != expectedResult)
         return (1);
-    }
 
     /* No matching objects with listSingle. */
-    if (ret =
-          conn.ListObjects(firstBucket, "test_list_objects_", objects, batchSize, listSingle) != 0)
+    if (ret = conn.ListObjects(firstBucket, prefix, objects, batchSize, listSingle) != 0)
         return (ret);
-    if (objects.size() != expectedResult) {
+    if (objects.size() != expectedResult)
         return (1);
-    }
 
     /* Create file to prepare for test. */
     if (!static_cast<bool>(std::ofstream("test_list_objects.txt").put('.'))) {
@@ -99,38 +98,37 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
 
     /* Put objects to prepare for test. */
     for (int i = 0; i < totalObjects; i++) {
-        if (ret = conn.PutObject(firstBucket, "test_list_objects_" + std::to_string(i) + ".txt",
-                    "test_list_objects.txt") != 0)
+        if (ret = conn.PutObject(
+                    firstBucket, prefix + std::to_string(i) + ".txt", "test_list_objects.txt") != 0)
             return (ret);
     }
 
     /* List all objects. */
     expectedResult = totalObjects;
-    if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects) != 0)
+    if (ret = conn.ListObjects(firstBucket, prefix, objects) != 0)
         return (ret);
     if (objects.size() != expectedResult) {
-        CleanupTestListObjects(config, firstBucket, totalObjects);
+        CleanupTestListObjects(config, firstBucket, totalObjects, prefix);
         return (1);
     }
 
     /* List single. */
     objects.clear();
     expectedResult = 1;
-    if (ret =
-          conn.ListObjects(firstBucket, "test_list_objects_", objects, batchSize, listSingle) != 0)
+    if (ret = conn.ListObjects(firstBucket, prefix, objects, batchSize, listSingle) != 0)
         return (ret);
     if (objects.size() != expectedResult) {
-        CleanupTestListObjects(config, firstBucket, totalObjects);
+        CleanupTestListObjects(config, firstBucket, totalObjects, prefix);
         return (1);
     }
 
     /* Expected number of matches with test_list_objects_1 prefix. */
     objects.clear();
     expectedResult = 11;
-    if (ret = conn.ListObjects(firstBucket, "test_list_objects_1", objects) != 0)
+    if (ret = conn.ListObjects(firstBucket, prefix + "1", objects) != 0)
         return (ret);
     if (objects.size() != expectedResult) {
-        CleanupTestListObjects(config, firstBucket, totalObjects);
+        CleanupTestListObjects(config, firstBucket, totalObjects, prefix);
         return (1);
     }
 
@@ -138,21 +136,20 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
     objects.clear();
     batchSize = 5;
     expectedResult = totalObjects;
-    if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, batchSize) != 0)
+    if (ret = conn.ListObjects(firstBucket, prefix, objects, batchSize) != 0)
         return (ret);
     if (objects.size() != expectedResult) {
-        CleanupTestListObjects(config, firstBucket, totalObjects);
+        CleanupTestListObjects(config, firstBucket, totalObjects, prefix);
         return (1);
     }
 
     /* ListSingle with 8 objects per AWS request. */
     objects.clear();
     expectedResult = 1;
-    if (ret =
-          conn.ListObjects(firstBucket, "test_list_objects_", objects, batchSize, listSingle) != 0)
+    if (ret = conn.ListObjects(firstBucket, prefix, objects, batchSize, listSingle) != 0)
         return (ret);
     if (objects.size() != expectedResult) {
-        CleanupTestListObjects(config, firstBucket, totalObjects);
+        CleanupTestListObjects(config, firstBucket, totalObjects, prefix);
         return (1);
     }
 
@@ -160,39 +157,38 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
     objects.clear();
     batchSize = 8;
     expectedResult = totalObjects;
-    if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, batchSize) != 0)
+    if (ret = conn.ListObjects(firstBucket, prefix, objects, batchSize) != 0)
         return (ret);
     if (objects.size() != expectedResult) {
-        CleanupTestListObjects(config, firstBucket, totalObjects);
+        CleanupTestListObjects(config, firstBucket, totalObjects, prefix);
         return (1);
     }
 
     /* ListSingle with 8 objects per AWS request. */
     objects.clear();
     expectedResult = 1;
-    if (ret =
-          conn.ListObjects(firstBucket, "test_list_objects_", objects, batchSize, listSingle) != 0)
+    if (ret = conn.ListObjects(firstBucket, prefix, objects, batchSize, listSingle) != 0)
         return (ret);
     if (objects.size() != expectedResult) {
-        CleanupTestListObjects(config, firstBucket, totalObjects);
+        CleanupTestListObjects(config, firstBucket, totalObjects, prefix);
         return (1);
     }
 
-    CleanupTestListObjects(config, firstBucket, totalObjects);
+    CleanupTestListObjects(config, firstBucket, totalObjects, prefix);
     return (0);
 }
 
 int
-CleanupTestListObjects(
-  const Aws::S3Crt::ClientConfiguration &config, std::string bucketName, int totalObjects)
+CleanupTestListObjects(const Aws::S3Crt::ClientConfiguration &config, std::string bucketName,
+  int totalObjects, std::string prefix)
 {
     /* Delete objects and file at end of test. */
     S3Connection conn(config);
     int ret = 0;
     for (int i = 0; i < totalObjects; i++) {
-        if (ret =
-              conn.DeleteObject(bucketName, "test_list_objects_" + std::to_string(i) + ".txt") != 0)
-            std::cerr << "TestListObjects cleanup failed." << std::endl;
+        if (ret = conn.DeleteObject(bucketName, prefix + std::to_string(i) + ".txt") != 0)
+            std::cerr << "Error in CleanupTestListBuckets: failed to remove " << prefix
+                      << std::to_string(i) << ".txt from " << bucketName << std::endl;
     }
     std::remove("test_list_objects.txt");
 
