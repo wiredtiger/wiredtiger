@@ -12,6 +12,9 @@ const uint64_t partSize = 8 * 1024 * 1024; /* 8 MB. */
 int TestListBuckets(const Aws::S3Crt::ClientConfiguration &config);
 int TestListObjects(const Aws::S3Crt::ClientConfiguration &config);
 
+int CleanupTestListObjects(
+  const Aws::S3Crt::ClientConfiguration &config, std::string bucketName, int totalObjects);
+
 /* Wrapper for unit test functions. */
 #define TEST(func, config, expectedOutput)              \
     do {                                                \
@@ -31,13 +34,12 @@ TestListBuckets(const Aws::S3Crt::ClientConfiguration &config)
     S3Connection conn(config);
     std::vector<std::string> buckets;
     if (ret = conn.ListBuckets(buckets) != 0)
-        goto err;
+        return ret;
 
     std::cout << "All buckets under my account:" << std::endl;
     for (const auto &bucket : buckets)
         std::cout << "  * " << bucket << std::endl;
 
-err:
     return ret;
 }
 
@@ -50,192 +52,144 @@ err:
 int
 TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
 {
-    int ret = 0;
     S3Connection conn(config);
 
     /* Temporary workaround to get a bucket to use. */
-    std::string firstBucket;
     std::vector<std::string> buckets;
-
+    int ret;
     if (ret = conn.ListBuckets(buckets) != 0)
-        goto err;
-    if (!buckets.empty()) {
-        firstBucket = buckets.at(0);
-
-        std::vector<std::string> objects;
-        uint32_t countp;
-
-        /* No matching objects. */
-        if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, countp) != 0)
-            goto err;
-        if (objects.size() != countp || countp != 0) {
-            ret = 1;
-            goto err;
-        }
-
-        /* Create file to prepare for test. */
-        if (!static_cast<bool>(std::ofstream("test_list_objects.txt").put('.'))) {
-            std::cerr << "Error creating file." << std::endl;
-            ret = 1;
-            goto err;
-        }
-
-        /* Put objects to prepare for test. */
-        for (int i = 0; i < 20; i++) {
-            if (ret = conn.PutObject(firstBucket, "test_list_objects_" + std::to_string(i) + ".txt",
-                        "test_list_objects.txt") != 0)
-                goto err;
-        }
-
-        /* List all objects with prefix. */
-        objects.clear();
-        if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, countp) != 0)
-            goto err;
-        if (objects.size() != countp || countp != 20) {
-            /* Delete objects and file at end of test. */
-            for (int i = 0; i < 20; i++) {
-                if (ret = conn.DeleteObject(
-                            firstBucket, "test_list_objects_" + std::to_string(i) + ".txt") != 0)
-                    goto err;
-            }
-            std::remove("test_list_objects.txt");
-            ret = 1;
-            goto err;
-        }
-        std::cout << "Objects with test_list_objects_ prefix:" << std::endl;
-        for (const auto &object : objects)
-            std::cout << "  * " << object << std::endl;
-
-        objects.clear();
-        if (ret = conn.ListObjects(firstBucket, "test_list_objects_1", objects, countp) != 0)
-            goto err;
-        if (objects.size() != countp || countp != 11) {
-            /* Delete objects and file at end of test. */
-            for (int i = 0; i < 20; i++) {
-                if (ret = conn.DeleteObject(
-                            firstBucket, "test_list_objects_" + std::to_string(i) + ".txt") != 0)
-                    goto err;
-            }
-            std::remove("test_list_objects.txt");
-            ret = 1;
-            goto err;
-        }
-        std::cout << "Objects with test_list_objects_1 prefix:" << std::endl;
-        for (const auto &object : objects)
-            std::cout << "  * " << object << std::endl;
-
-        objects.clear();
-        /* List with max objects of 1. */
-        if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, countp, 1, 1) != 0)
-            goto err;
-        if (objects.size() != countp || countp != 1) {
-            /* Delete objects and file at end of test. */
-            for (int i = 0; i < 20; i++) {
-                if (ret = conn.DeleteObject(
-                            firstBucket, "test_list_objects_" + std::to_string(i) + ".txt") != 0)
-                    goto err;
-            }
-            std::remove("test_list_objects.txt");
-            ret = 1;
-            goto err;
-        }
-        std::cout << "List 1 object:" << std::endl;
-        for (const auto &object : objects)
-            std::cout << "  * " << object << std::endl;
-
-        /* List with 5 objects per AWS request. */
-        const int32_t maxPerIter = 5;
-        objects.clear();
-        if (ret =
-              conn.ListObjects(firstBucket, "test_list_objects_", objects, countp, maxPerIter) != 0)
-            goto err;
-
-        if (objects.size() != countp || countp != 20) {
-            /* Delete objects and file at end of test. */
-            for (int i = 0; i < 20; i++) {
-                if (ret = conn.DeleteObject(
-                            firstBucket, "test_list_objects_" + std::to_string(i) + ".txt") != 0)
-                    goto err;
-            }
-            std::remove("test_list_objects.txt");
-            ret = 1;
-            goto err;
-        }
-        std::cout << "List all:" << std::endl;
-        for (const auto &object : objects)
-            std::cout << "  * " << object << std::endl;
-
-        /* List with total_objects < max_per_iter. */
-        objects.clear();
-        if (ret = conn.ListObjects(
-                    firstBucket, "test_list_objects_", objects, countp, maxPerIter, 4) != 0)
-            goto err;
-        if (objects.size() != countp || countp != 4) {
-            /* Delete objects and file at end of test. */
-            for (int i = 0; i < 20; i++) {
-                if (ret = conn.DeleteObject(
-                            firstBucket, "test_list_objects_" + std::to_string(i) + ".txt") != 0)
-                    goto err;
-            }
-            std::remove("test_list_objects.txt");
-            ret = 1;
-            goto err;
-        }
-        std::cout << "List with total objects < max per iter:" << std::endl;
-        for (const auto &object : objects)
-            std::cout << "  * " << object << std::endl;
-
-        /* List with total objects non-divisable by max per iter. */
-        objects.clear();
-        if (ret = conn.ListObjects(
-                    firstBucket, "test_list_objects_", objects, countp, maxPerIter, 8) != 0)
-            goto err;
-        if (objects.size() != countp || countp != 8) {
-            /* Delete objects and file at end of test. */
-            for (int i = 0; i < 20; i++) {
-                if (ret = conn.DeleteObject(
-                            firstBucket, "test_list_objects_" + std::to_string(i) + ".txt") != 0)
-                    goto err;
-            }
-            std::remove("test_list_objects.txt");
-            ret = 1;
-            goto err;
-        }
-        std::cout << "List with total objects non-divisable by max per iter:" << std::endl;
-        for (const auto &object : objects)
-            std::cout << "  * " << object << std::endl;
-
-        /* List with max objects greater than total objects. */
-        objects.clear();
-        if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, countp, 5, 30) != 0)
-            goto err;
-        if (objects.size() != countp || countp != 20) {
-            /* Delete objects and file at end of test. */
-            for (int i = 0; i < 20; i++) {
-                if (ret = conn.DeleteObject(
-                            firstBucket, "test_list_objects_" + std::to_string(i) + ".txt") != 0)
-                    goto err;
-            }
-            std::remove("test_list_objects.txt");
-            ret = 1;
-            goto err;
-        }
-        std::cout << "List all:" << std::endl;
-        for (const auto &object : objects)
-            std::cout << "  * " << object << std::endl;
-
-        /* Delete objects and file at end of test. */
-        for (int i = 0; i < 20; i++) {
-            if (ret = conn.DeleteObject(
-                        firstBucket, "test_list_objects_" + std::to_string(i) + ".txt") != 0)
-                goto err;
-        }
-        std::remove("test_list_objects.txt");
-    } else {
-        std::cout << "No buckets in AWS account." << std::endl;
+        return (0);
+    if (buckets.empty()) {
+        std::cout << "No buckets found in AWS account." << std::endl;
+        return (1);
     }
-err:
-    return (ret);
+
+    std::string firstBucket = buckets.at(0);
+
+    std::vector<std::string> objects;
+    uint32_t countp;
+
+    /* No matching objects. */
+    if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, countp) != 0)
+        return (ret);
+    if (objects.size() != countp || countp != 0) {
+        return (1);
+    }
+
+    /* Create file to prepare for test. */
+    if (!static_cast<bool>(std::ofstream("test_list_objects.txt").put('.'))) {
+        std::cerr << "Error creating file." << std::endl;
+        return (1);
+    }
+
+    /*
+     * totalObjects: Number of test objects added to bucket. expectedResult: Expected number of
+     * matches from ListObjects. nPerIter: Number of objects to access per iteration of the AWS
+     * request, in ListObjects. maxObjects: Maximum objects to return from ListObjects.
+     */
+    const int32_t totalObjects = 20;
+    int32_t expectedResult, nPerIter, maxObjects;
+
+    expectedResult = totalObjects;
+    /* Put objects to prepare for test. */
+    for (int i = 0; i < totalObjects; i++) {
+        if (ret = conn.PutObject(firstBucket, "test_list_objects_" + std::to_string(i) + ".txt",
+                    "test_list_objects.txt") != 0)
+            return (ret);
+    }
+
+    /* List all objects with prefix. */
+    objects.clear();
+    if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, countp) != 0)
+        return (ret);
+    if (objects.size() != countp || countp != expectedResult) {
+        CleanupTestListObjects(config, firstBucket, totalObjects);
+        return (1);
+    }
+
+    objects.clear();
+    /* Expected number of matches with test_list_objects_1 prefix. */
+    expectedResult = 11;
+    if (ret = conn.ListObjects(firstBucket, "test_list_objects_1", objects, countp) != 0)
+        return (ret);
+    if (objects.size() != countp || countp != expectedResult) {
+        CleanupTestListObjects(config, firstBucket, totalObjects);
+        return (1);
+    }
+
+    objects.clear();
+    expectedResult = nPerIter = maxObjects = 1;
+    if (ret = conn.ListObjects(
+                firstBucket, "test_list_objects_", objects, countp, nPerIter, maxObjects) != 0)
+        return (ret);
+    if (objects.size() != countp || countp != expectedResult) {
+        CleanupTestListObjects(config, firstBucket, totalObjects);
+        return (1);
+    }
+
+    /* List with 5 objects per AWS request. */
+    objects.clear();
+    expectedResult = maxObjects;
+    if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, countp, nPerIter) != 0)
+        return (ret);
+    if (objects.size() != countp || countp != totalObjects) {
+        CleanupTestListObjects(config, firstBucket, totalObjects);
+        return (1);
+    }
+
+    /* List with total_objects < max_per_iter. */
+    objects.clear();
+    expectedResult = maxObjects = 4;
+    if (ret = conn.ListObjects(
+                firstBucket, "test_list_objects_", objects, countp, nPerIter, maxObjects) != 0)
+        return (ret);
+    if (objects.size() != countp || countp != expectedResult) {
+        CleanupTestListObjects(config, firstBucket, totalObjects);
+        return (1);
+    }
+
+    /* List with total objects non-divisable by max per iter. */
+    objects.clear();
+    expectedResult = maxObjects = 8;
+    if (ret = conn.ListObjects(
+                firstBucket, "test_list_objects_", objects, countp, nPerIter, maxObjects) != 0)
+        return (ret);
+    if (objects.size() != countp || countp != expectedResult) {
+        CleanupTestListObjects(config, firstBucket, totalObjects);
+        return (1);
+    }
+
+    /* List with max objects greater than total objects. */
+    objects.clear();
+    expectedResult = totalObjects;
+    maxObjects = 30;
+    if (ret = conn.ListObjects(
+                firstBucket, "test_list_objects_", objects, countp, nPerIter, maxObjects) != 0)
+        return (ret);
+    if (objects.size() != countp || countp != expectedResult) {
+        CleanupTestListObjects(config, firstBucket, totalObjects);
+        return (1);
+    }
+
+    CleanupTestListObjects(config, firstBucket, totalObjects);
+    return (0);
+}
+
+int
+CleanupTestListObjects(
+  const Aws::S3Crt::ClientConfiguration &config, std::string bucketName, int totalObjects)
+{
+    /* Delete objects and file at end of test. */
+    S3Connection conn(config);
+    int ret = 0;
+    for (int i = 0; i < totalObjects; i++) {
+        if (ret =
+              conn.DeleteObject(bucketName, "test_list_objects_" + std::to_string(i) + ".txt") != 0)
+            std::cerr << "TestListObjects cleanup failed." << std::endl;
+    }
+    std::remove("test_list_objects.txt");
+
+    return ret;
 }
 
 /*
