@@ -12,6 +12,11 @@ FetchContent_MakeAvailable(Catch2)
 
 create_test_executable(unittests
     SOURCES tests/main.cxx tests/extent_list.cxx
+        tests/wrappers/block_mods.cpp
+        tests/wrappers/connection_wrapper.cpp
+        tests/wrappers/error_handler.cpp
+        tests/wrappers/session_wrapper.cpp
+        tests/block/test_bitstring.cpp
         tests/block/test_block_ckpt.cpp
     CXX
 )
