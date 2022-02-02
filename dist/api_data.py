@@ -46,7 +46,7 @@ common_runtime_config = [
     Config('app_metadata', '', r'''
         application-owned metadata for this object'''),
     Config('assert', '', r'''
-        enable enhanced timestamp checking with error return''',
+        enable enhanced timestamp checking with messages and error return''',
         type='category', subconfig= [
         Config('commit_timestamp', 'none', r'''
             this option is no longer supported, retained for backward compatibility''',
@@ -56,13 +56,13 @@ common_runtime_config = [
             choices=['always', 'never', 'none'], undoc=True),
         Config('read_timestamp', 'none', r'''
             check that timestamps are \c always or \c never used on reads
-            with this table, failing on error;  should be set to \c none if
-            mixed read use is allowed''',
+            with this table, calling the message hander and failing on error;
+            should be set to \c none if mixed read use is allowed''',
             choices=['always', 'never', 'none']),
         Config('write_timestamp', 'off', r'''
-            check that timestamps are used per the configured
-            \c write_timestamp_usage option for this table, failing on
-            error''',
+            check that timestamps are used per the configured \c
+            write_timestamp_usage option for this table, calling the message
+            handler and failing on error''',
             choices=['off', 'on']),
         ]),
     Config('verbose', '', r'''

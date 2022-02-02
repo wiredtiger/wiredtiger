@@ -1276,22 +1276,20 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
     /* Verify if the table should always or never use a read timestamp. */
     if (LF_ISSET(WT_DHANDLE_TS_ASSERT_READ_ALWAYS | WT_DHANDLE_TS_VERBOSE_READ_ALWAYS) &&
       !F_ISSET(txn, WT_TXN_SHARED_TS_READ)) {
-        if (LF_ISSET(WT_DHANDLE_TS_VERBOSE_READ_ALWAYS))
-            __wt_verbose_error(session, WT_VERB_TRANSACTION,
+        if (LF_ISSET(WT_DHANDLE_TS_ASSERT_READ_ALWAYS | WT_DHANDLE_TS_VERBOSE_READ_ALWAYS))
+            __wt_err(session, EINVAL,
               "%s: " WT_TS_VERBOSE_PREFIX "read timestamps required and none set", name);
         if (LF_ISSET(WT_DHANDLE_TS_ASSERT_READ_ALWAYS))
-            WT_RET_MSG(session, EINVAL,
-              "%s: " WT_TS_VERBOSE_PREFIX "read timestamps required and none set", name);
+            return (EINVAL);
     }
 
     if (LF_ISSET(WT_DHANDLE_TS_ASSERT_READ_NEVER | WT_DHANDLE_TS_VERBOSE_READ_NEVER) &&
       F_ISSET(txn, WT_TXN_SHARED_TS_READ)) {
-        if (LF_ISSET(WT_DHANDLE_TS_VERBOSE_READ_NEVER))
-            __wt_verbose_error(session, WT_VERB_TRANSACTION,
+        if (LF_ISSET(WT_DHANDLE_TS_ASSERT_READ_NEVER | WT_DHANDLE_TS_VERBOSE_READ_NEVER))
+            __wt_err(session, EINVAL,
               "%s: " WT_TS_VERBOSE_PREFIX "read timestamps disallowed and one set", name);
         if (LF_ISSET(WT_DHANDLE_TS_ASSERT_READ_NEVER))
-            WT_RET_MSG(session, EINVAL,
-              "%s: " WT_TS_VERBOSE_PREFIX "read timestamps disallowed and one set", name);
+            return (EINVAL);
     }
     return (0);
 }

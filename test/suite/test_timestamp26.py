@@ -156,32 +156,32 @@ class test_timestamp26_read_timestamp(wttest.WiredTigerTestCase):
         # Try reading without a timestamp.
         self.session.begin_transaction()
         c.set_key(key)
+        msg = 'read timestamps required and none set'
         if not self.result.startswith('always'):
             self.assertEquals(c.search(), 0)
             self.assertEqual(c.get_value(), value)
         elif self.result == 'always-verbose':
-            msg = 'read timestamp required and none set'
             with self.expectedStderrPattern(msg):
                 self.assertEquals(c.search(), 0)
         else:
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda:self.assertEquals(c.search(), EINVAL), '/Invalid argument/')
+                lambda:self.assertEquals(c.search(), EINVAL), '/' + msg + '/')
         self.session.rollback_transaction()
 
         # Try reading with a timestamp.
         self.session.begin_transaction()
         self.session.timestamp_transaction('read_timestamp=20')
         c.set_key(key)
+        msg = 'read timestamps disallowed'
         if self.result.startswith('always'):
             self.assertEquals(c.search(), 0)
             self.assertEqual(c.get_value(), value)
         elif self.result == 'never-verbose':
-            msg = 'read timestamp disallowed'
             with self.expectedStderrPattern(msg):
                 self.assertEquals(c.search(), 0)
         elif self.result == 'never-assert':
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda:self.assertEquals(c.search(), EINVAL), '/Invalid argument/')
+                lambda:self.assertEquals(c.search(), EINVAL), '/' + msg + '/')
         else:
             self.assertEquals(c.search(), 0)
         self.session.rollback_transaction()
