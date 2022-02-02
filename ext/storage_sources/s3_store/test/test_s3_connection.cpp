@@ -13,7 +13,7 @@ int TestListBuckets(const Aws::S3Crt::ClientConfiguration &config);
 int TestListObjects(const Aws::S3Crt::ClientConfiguration &config);
 
 int CleanupTestListObjects(
-  const Aws::S3Crt::ClientConfiguration &config, std::string bucketName, int totalObjects);
+  const Aws::S3Crt::ClientConfiguration &config, const std::string bucketName, const int totalObjects, const std::string prefix);
 
 /* Wrapper for unit test functions. */
 #define TEST(func, config, expectedOutput)              \
@@ -179,8 +179,8 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
 }
 
 int
-CleanupTestListObjects(const Aws::S3Crt::ClientConfiguration &config, std::string bucketName,
-  int totalObjects, std::string prefix)
+CleanupTestListObjects(const Aws::S3Crt::ClientConfiguration &config, const std::string bucketName,
+  const int totalObjects, const std::string prefix)
 {
     /* Delete objects and file at end of test. */
     S3Connection conn(config);
