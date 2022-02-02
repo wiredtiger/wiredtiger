@@ -84,7 +84,8 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
     }
 
     /* No matching objects with listSingle. */
-    if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, batchSize, listSingle) != 0)
+    if (ret =
+          conn.ListObjects(firstBucket, "test_list_objects_", objects, batchSize, listSingle) != 0)
         return (ret);
     if (objects.size() != expectedResult) {
         return (1);
@@ -115,7 +116,8 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
     /* List single. */
     objects.clear();
     expectedResult = 1;
-    if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, batchSize, listSingle) != 0)
+    if (ret =
+          conn.ListObjects(firstBucket, "test_list_objects_", objects, batchSize, listSingle) != 0)
         return (ret);
     if (objects.size() != expectedResult) {
         CleanupTestListObjects(config, firstBucket, totalObjects);
@@ -146,8 +148,8 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
     /* ListSingle with 8 objects per AWS request. */
     objects.clear();
     expectedResult = 1;
-    if (ret = conn.ListObjects(
-                firstBucket, "test_list_objects_", objects, batchSize, listSingle) != 0)
+    if (ret =
+          conn.ListObjects(firstBucket, "test_list_objects_", objects, batchSize, listSingle) != 0)
         return (ret);
     if (objects.size() != expectedResult) {
         CleanupTestListObjects(config, firstBucket, totalObjects);
@@ -158,8 +160,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
     objects.clear();
     batchSize = 8;
     expectedResult = totalObjects;
-    if (ret = conn.ListObjects(
-                firstBucket, "test_list_objects_", objects, batchSize) != 0)
+    if (ret = conn.ListObjects(firstBucket, "test_list_objects_", objects, batchSize) != 0)
         return (ret);
     if (objects.size() != expectedResult) {
         CleanupTestListObjects(config, firstBucket, totalObjects);
@@ -169,8 +170,8 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
     /* ListSingle with 8 objects per AWS request. */
     objects.clear();
     expectedResult = 1;
-    if (ret = conn.ListObjects(
-                firstBucket, "test_list_objects_", objects, batchSize, listSingle) != 0)
+    if (ret =
+          conn.ListObjects(firstBucket, "test_list_objects_", objects, batchSize, listSingle) != 0)
         return (ret);
     if (objects.size() != expectedResult) {
         CleanupTestListObjects(config, firstBucket, totalObjects);
