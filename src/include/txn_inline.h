@@ -1269,11 +1269,6 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
     flags = session->dhandle->ts_flags;
     name = session->dhandle->name;
 
-    /* Skip for any file not configured for checking. */
-    if (!LF_ISSET(WT_DHANDLE_ASSERT_TS_READ_ALWAYS | WT_DHANDLE_ASSERT_TS_READ_NEVER |
-          WT_DHANDLE_VERBOSE_TS_READ_ALWAYS | WT_DHANDLE_VERBOSE_TS_READ_NEVER))
-        return (0);
-
     /* Skip during recovery. */
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
         return (0);
