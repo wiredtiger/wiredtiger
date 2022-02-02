@@ -41,6 +41,7 @@ class test_tiered14(wttest.WiredTigerTestCase):
     bucket_prefix = "pfx_"
     extension_name = "local_store"
 
+    # FIXME-WT-8758: enable these scenarios
     multiplier = [
         ('S', dict(multiplier=1)),
 #        ('M', dict(multiplier=10)),
@@ -51,7 +52,11 @@ class test_tiered14(wttest.WiredTigerTestCase):
 #        ('integer', dict(keyfmt='i')),
         ('string', dict(keyfmt='S')),
     ]
-    scenarios = wtscenario.make_scenarios(multiplier, keyfmt)
+    dataset = [
+        ('simple', dict(dataset='simple')),
+#        ('complex', dict(dataset='complex')),
+    ]
+    scenarios = wtscenario.make_scenarios(multiplier, keyfmt, dataset)
 
     def conn_config(self):
         if not os.path.exists(self.bucket):
@@ -88,10 +93,12 @@ class test_tiered14(wttest.WiredTigerTestCase):
     def playback(self, testnum, ops):
         uri = self.uri.format(testnum)
         self.progress('Running ops: {} using uri {}'.format(ops, uri))
-        ds = TrackedSimpleDataSet(self, uri, self.multiplier,
-                                  config='key_format=' + self.keyfmt)
-        #ds = TrackedComplexDataSet(self, self.uri, self.multiplier,
-        #                           config='key_format=' + self.keyfmt)
+        if self.dataset == 'simple':
+            ds = TrackedSimpleDataSet(self, uri, self.multiplier,
+                                      config='key_format=' + self.keyfmt)
+        elif self.dataset == 'complex':
+            ds = TrackedComplexDataSet(self, uri, self.multiplier,
+                                      config='key_format=' + self.keyfmt)
         ds.populate()
         inserted = 0
         idx = -1
@@ -143,7 +150,8 @@ class test_tiered14(wttest.WiredTigerTestCase):
             self.playback(testnum, s)
 
         # FIXME-WT-8758: test disabled for now.
-        for i in range(0, 10):
+        if False:
+         for i in range(0, 10):
             testnum += 1
             # Generate a set of 100 operations that is has a greater mix of 'operational' functions
             s = ''.join(random.choices('aufcr.', k=100))
