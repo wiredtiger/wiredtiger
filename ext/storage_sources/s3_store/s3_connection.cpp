@@ -17,7 +17,7 @@
 int
 S3Connection::ListBuckets(std::vector<std::string> &buckets) const
 {
-    auto outcome = m_S3CrtClient.ListBuckets();
+    auto outcome = m_s3CrtClient.ListBuckets();
     if (outcome.IsSuccess()) {
         for (const auto &bucket : outcome.GetResult().GetBuckets())
             buckets.push_back(bucket.GetName());
@@ -39,16 +39,19 @@ S3Connection::ListObjects(const std::string &bucketName, const std::string &pref
   std::vector<std::string> &objects, uint32_t &countp, uint32_t nPerIter, uint32_t maxObjects) const
 {
     Aws::S3Crt::Model::ListObjectsV2Request request;
-
     request.SetBucket(bucketName);
     request.SetPrefix(prefix);
-    if (maxObjects != 0 && maxObjects < nPerIter)
+
+    /* AWS can access 1-1000 objects per request. */
+    if (nPerIter == 0 || nPerIter > 1000)
+        return (1);
+    else if (maxObjects != 0 && maxObjects < nPerIter)
         request.SetMaxKeys(maxObjects);
     else
         request.SetMaxKeys(nPerIter);
 
     countp = 0;
-    Aws::S3Crt::Model::ListObjectsV2Outcome outcomes = m_S3CrtClient.ListObjectsV2(request);
+    Aws::S3Crt::Model::ListObjectsV2Outcome outcomes = m_s3CrtClient.ListObjectsV2(request);
 
     if (outcomes.IsSuccess()) {
         auto result = outcomes.GetResult();
@@ -63,7 +66,7 @@ S3Connection::ListObjects(const std::string &bucketName, const std::string &pref
                 request.SetMaxKeys(maxObjects - countp);
             request.SetContinuationToken(continuationToken);
 
-            outcomes = m_S3CrtClient.ListObjectsV2(request);
+            outcomes = m_s3CrtClient.ListObjectsV2(request);
             if (outcomes.IsSuccess()) {
                 result = outcomes.GetResult();
                 for (const auto &object : result.GetContents())
@@ -96,7 +99,7 @@ S3Connection::PutObject(
 
     request.SetBody(inputData);
 
-    Aws::S3Crt::Model::PutObjectOutcome outcome = m_S3CrtClient.PutObject(request);
+    Aws::S3Crt::Model::PutObjectOutcome outcome = m_s3CrtClient.PutObject(request);
 
     if (outcome.IsSuccess()) {
         return (0);
@@ -117,7 +120,7 @@ S3Connection::DeleteObject(const std::string &bucketName, const std::string &obj
     request.SetBucket(bucketName);
     request.SetKey(objectKey);
 
-    Aws::S3Crt::Model::DeleteObjectOutcome outcome = m_S3CrtClient.DeleteObject(request);
+    Aws::S3Crt::Model::DeleteObjectOutcome outcome = m_s3CrtClient.DeleteObject(request);
 
     if (outcome.IsSuccess()) {
         return (0);
@@ -131,4 +134,4 @@ S3Connection::DeleteObject(const std::string &bucketName, const std::string &obj
  * S3Connection --
  *     Constructor for AWS S3 bucket connection.
  */
-S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config) : m_S3CrtClient(config){};
+S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config) : m_s3CrtClient(config){};

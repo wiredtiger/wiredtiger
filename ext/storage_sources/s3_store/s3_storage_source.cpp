@@ -60,9 +60,9 @@ static int S3CustomizeFileSystem(
 static int S3AddReference(WT_STORAGE_SOURCE *);
 static int S3FileSystemTerminate(WT_FILE_SYSTEM *, WT_SESSION *);
 
-static int S3DirectoryList(
+static int S3ObjectList(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
-static int S3DirectoryListSingle(
+static int S3ObjectListSingle(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
 
 /*
@@ -94,8 +94,8 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 
     /* New can fail; will deal with this later. */
     fs->conn = new S3Connection(awsConfig);
-    fs->fileSystem.fs_directory_list = S3DirectoryList;
-    fs->fileSystem.fs_directory_list_single = S3DirectoryListSingle;
+    fs->fileSystem.fs_directory_list = S3ObjectList;
+    fs->fileSystem.fs_directory_list_single = S3ObjectListSingle;
     fs->fileSystem.terminate = S3FileSystemTerminate;
 
     /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
@@ -157,11 +157,11 @@ S3FileSystemTerminate(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session)
 }
 
 /*
- * S3DirectoryList --
+ * S3ObjectList --
  *     Return a list of object names for the given location.
  */
 static int
-S3DirectoryList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
+S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
   const char *prefix, char ***dirlistp, uint32_t *countp)
 {
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
@@ -171,10 +171,9 @@ S3DirectoryList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *dir
           fs->conn->ListObjects(std::string(directory), std::string(prefix), objects, *countp) != 0)
         return (ret);
     std::cout << "Objects in bucket '" << directory << "':" << std::endl;
-    if (!objects.empty()) {
-        for (const auto &object : objects)
-            std::cout << "  * " << object << std::endl;
-    } else
+    for (const auto &object : objects)
+        std::cout << "  * " << object << std::endl;
+    if (objects.empty())
         std::cout << "No objects in bucket." << std::endl;
 
     /* TODO: Put objects into dirlistp. */
@@ -183,11 +182,11 @@ S3DirectoryList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *dir
 }
 
 /*
- * S3DirectoryListSingle --
- *     Return a single file name for the given location.
+ * S3ObjectListSingle --
+ *     Return a single object name for the given location.
  */
 static int
-S3DirectoryListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
+S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
   const char *prefix, char ***dirlistp, uint32_t *countp)
 {
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
@@ -197,10 +196,9 @@ S3DirectoryListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const cha
                 std::string(directory), std::string(prefix), objects, *countp, 1, 1) != 0)
         return (ret);
     std::cout << "Object in bucket '" << directory << "':" << std::endl;
-    if (!objects.empty()) {
-        for (const auto &object : objects)
-            std::cout << "  * " << object << std::endl;
-    } else
+    for (const auto &object : objects)
+        std::cout << "  * " << object << std::endl;
+    if (objects.empty())
         std::cout << "No objects in bucket." << std::endl;
 
     /* TODO: Put objects into dirlistp. */

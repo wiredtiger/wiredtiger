@@ -40,6 +40,6 @@ class S3Connection {
     ~S3Connection() = default;
 
     private:
-    const Aws::S3Crt::S3CrtClient m_S3CrtClient;
+    const Aws::S3Crt::S3CrtClient m_s3CrtClient;
 };
 #endif
