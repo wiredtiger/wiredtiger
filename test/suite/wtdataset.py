@@ -435,7 +435,7 @@ class TrackedComplexDataSet(ComplexDataSet):
     def comparable_value(self, i):
         nstores = self.store_count(i)
         m = self.multiplier
-        bigi = m + nstores
+        bigi = i * m + nstores
         return [str(i) + self.refstr[0 : bigi % (26*m)],
                 i,
                 str(i) + self.refstr[0 : bigi % (23*m)],
@@ -481,17 +481,29 @@ class TrackedSimpleDataSet(SimpleDataSet):
 
     # Redefine the value stored to get bigger depending on the multiplier,
     # and to mix up the value depending on how many times it has been updated.
+    #
+    # If multiplier is 0, use the basic value used by SimpleDataSet.
+    # In this case, since it doesn't rely on the number of stores, updates
+    # of the same key will store the same value each time.
     def comparable_value(self, i):
+        if self.multiplier == 0:
+            return BaseDataSet.value_by_format(i, self.value_format)
         nstores = self.store_count(i)
         m = self.multiplier
-        bigi = m + nstores
+        bigi = i * m + nstores
         return str(i) + self.refstr[0 : bigi % (26*m)]
+
+    def value(self, i):
+        return self.comparable_value(i)
 
     def check_cursor(self, cursor):
         expect = dict(self.track_values)
         for key, s in cursor:
             i = BaseDataSet.reverse_key_by_format(key, self.key_format)
             v = self.value(i)
+            #self.testcase.tty('KEY: {} -> {}'.format(key, i))
+            #self.testcase.tty('GOT: {}'.format(s))
+            #self.testcase.tty('EXPECT: {}'.format(v))
             self.testcase.assertEqual(s, v)
             del expect[i]
         self.testcase.assertEqual(len(expect), 0)
