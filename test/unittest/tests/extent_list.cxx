@@ -5,7 +5,8 @@
 #include "wt_internal.h"
 
 WT_EXT* create_new_extent_list() {
-    // manually alloc enough extra space for the zero-length array to encode two skip lists
+    // manually alloc enough extra space for the zero-length array to encode two
+    // skip lists.
     auto sz = sizeof(WT_EXT) + 2 * WT_SKIP_MAXDEPTH * sizeof(WT_EXT*);
 
     WT_EXT* ret = (WT_EXT*)malloc(sz);
@@ -207,5 +208,52 @@ TEST_CASE("block_first_srch", "[extent_list]") {
     std::vector<WT_EXT*> head(WT_SKIP_MAXDEPTH, nullptr);
     std::vector<WT_EXT**> stack(WT_SKIP_MAXDEPTH, nullptr);
 
-    REQUIRE(__ut_block_first_srch(&head[0], 0, &stack[0]) == false);
+    // Note that we're not checking stack here, since __block_first_srch
+    // delegates most of its work to __block_off_srch, which we're testing
+    // elsewhere.
+
+    SECTION("empty list doesn't yield a chunk") {
+        REQUIRE(__ut_block_first_srch(&head[0], 0, &stack[0]) == false);
+    }
+
+    SECTION("list with too-small chunks doesn't yield a larger chunk") {
+        WT_EXT* first = create_new_extent_list();
+        WT_EXT* second = create_new_extent_list();
+        WT_EXT* third = create_new_extent_list();
+        first->next[0] = second;
+        second->next[0] = third;
+
+        head[0] = first;
+        head[1] = second;
+        head[2] = third;
+        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
+            head[i] = nullptr;
+
+        first->size = 1;
+        second->size = 2;
+        third->size = 3;
+
+        REQUIRE(__ut_block_first_srch(&head[0], 4, &stack[0]) == false);
+    }
+
+    SECTION("find an appropriate chunk") {
+        WT_EXT* first = create_new_extent_list();
+        WT_EXT* second = create_new_extent_list();
+        WT_EXT* third = create_new_extent_list();
+        first->next[0] = second;
+        second->next[0] = third;
+
+        head[0] = first;
+        head[1] = second;
+        head[2] = third;
+        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
+            head[i] = nullptr;
+
+        first->size = 10;
+        second->size = 20;
+        third->size = 30;
+
+        REQUIRE(__ut_block_first_srch(&head[0], 4, &stack[0]) == true);
+    }
+
 }
