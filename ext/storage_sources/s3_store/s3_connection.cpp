@@ -2,6 +2,7 @@
 #include <aws/s3-crt/model/DeleteObjectRequest.h>
 #include <aws/s3-crt/model/ListObjectsRequest.h>
 #include <aws/s3-crt/model/PutObjectRequest.h>
+#include <aws/s3-crt/model/GetObjectRequest.h>
 #include "s3_connection.h"
 
 #include <fstream>
@@ -97,6 +98,28 @@ S3Connection::DeleteObject(const std::string &bucketName, const std::string &obj
         std::cerr << "Error in DeleteObject: " << outcome.GetError().GetMessage() << std::endl;
         return false;
     }
+}
+
+/*
+ * GetObject --
+ *     Retrieves an object from S3 bucket.
+ */
+int
+S3Connection::GetObject(const std::string &bucketName, const std::string &objectKey) const
+{
+    Aws::S3Crt::Model::GetObjectRequest request;
+    request.SetBucket(bucketName);
+    request.SetKey(objectKey);
+    // request.SetResponseStreamFactory
+
+    Aws::S3Crt::Model::GetObjectOutcome outcome = m_S3CrtClient.GetObject(request);
+
+    outcome.GetResult().GetBody().rdbuf();
+
+    if (outcome.IsSuccess()) {
+        return (0);
+    } else 
+        return (static_cast<int>(outcome.GetError().GetResponseCode()));
 }
 
 /*
