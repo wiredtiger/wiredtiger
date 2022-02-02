@@ -13,8 +13,9 @@ TEST_CASE("Block helper: __wt_rduppo2", "[block]") {
     REQUIRE(__wt_rduppo2(0, 8) == 0);
     REQUIRE(__wt_rduppo2(1, 8) == 8);
     REQUIRE(__wt_rduppo2(9, 8) == 16);
+    REQUIRE(__wt_rduppo2(24, 8) == 24);
     REQUIRE(__wt_rduppo2(42, 8) == 48);
-    
+
     REQUIRE(__wt_rduppo2(0, 32) == 0);
     REQUIRE(__wt_rduppo2(1, 32) == 32);
     REQUIRE(__wt_rduppo2(24, 32) == 32);
