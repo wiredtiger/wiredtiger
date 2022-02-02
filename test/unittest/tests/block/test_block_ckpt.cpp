@@ -13,6 +13,8 @@ TEST_CASE("Block helper: __wt_rduppo2", "[block]") {
     REQUIRE(__wt_rduppo2(0, 8) == 0);
     REQUIRE(__wt_rduppo2(1, 8) == 8);
     REQUIRE(__wt_rduppo2(9, 8) == 16);
+    REQUIRE(__wt_rduppo2(42, 8) == 48);
+    
     REQUIRE(__wt_rduppo2(0, 32) == 0);
     REQUIRE(__wt_rduppo2(1, 32) == 32);
     REQUIRE(__wt_rduppo2(24, 32) == 32);
@@ -41,7 +43,7 @@ static void test_ckpt_add_blkmod_entry(wt_off_t offset,
 
     int result = __ckpt_add_blkmod_entry(session->getWtSessionImpl(), blockMods.getWTBlockMods(), offset, len);
     REQUIRE(result == 0);
-    
+
     REQUIRE(blockMods.getWTBlockMods()->nbits == expectedBits);
     REQUIRE(blockMods.getWTBlockMods()->bitstring.memsize == (expectedBits / 8));
     REQUIRE(blockMods.getWTBlockMods()->bitstring.mem != nullptr);
