@@ -31,7 +31,7 @@ from wtdataset import TrackedSimpleDataSet, TrackedComplexDataSet
 
 # test_tiered14.py
 #    Test somewhat arbitrary combinations of flush_tier, checkpoint, restarts,
-#    data additions and updates
+#    data additions and updates.
 class test_tiered14(wttest.WiredTigerTestCase):
     uri = "table:test_tiered14-{}"   # format for subtests
 
@@ -41,7 +41,11 @@ class test_tiered14(wttest.WiredTigerTestCase):
     bucket_prefix = "pfx_"
     extension_name = "local_store"
 
-    # FIXME-WT-8758: enable these scenarios
+    # FIXME-WT-8758: enable the commented scenarios, they all seem to
+    # hit the same WT assertion.
+
+    # The multiplier makes the size of keys and values progressively larger.
+    # A multipler of 0 makes the keys and values a single length.
     multiplier = [
         ('0', dict(multiplier=0)),
 #        ('S', dict(multiplier=1)),
@@ -80,7 +84,7 @@ class test_tiered14(wttest.WiredTigerTestCase):
         self.verbose(3, s)
         self.pr(s)
 
-    # Run a set of operations, indicated by a string.
+    # Run a sequence of operations, indicated by a string.
     #  a = add some number of keys
     #  u = update some number of keys
     #  c = checkpoint
@@ -106,7 +110,7 @@ class test_tiered14(wttest.WiredTigerTestCase):
         inserted = 0
         idx = -1
 
-        # At the end of the set of operations, do a final check ('.')
+        # At the end of the sequence of operations, do a final check ('.').
         for op in ops + '.':
             idx += 1
             try:
@@ -142,13 +146,14 @@ class test_tiered14(wttest.WiredTigerTestCase):
     def test_tiered(self):
         random.seed(0)
 
-        # Get started with a fixed set of basic operations.
+        # Get started with a fixed sequence of basic operations.
+        # There's no particular reason to start with this sequence.
         testnum = 0
         self.playback(testnum, "aaaaacaaa.uucrauaf.aauaac.auu.aacrauafa.uruua.")
 
         for i in range(0, 10):
             testnum += 1
-            # Generate a set of 100 operations that is heavy on additions and updates.
+            # Generate a sequence of 100 operations that is heavy on additions and updates.
             s = ''.join(random.choices('aaaaauuuuufcr.', k=100))
             self.playback(testnum, s)
 
@@ -156,7 +161,7 @@ class test_tiered14(wttest.WiredTigerTestCase):
         if False:
          for i in range(0, 10):
             testnum += 1
-            # Generate a set of 100 operations that is has a greater mix of 'operational' functions
+            # Generate a sequence of 100 operations that is has a greater mix of 'operational' functions.
             s = ''.join(random.choices('aufcr.', k=100))
             self.playback(testnum, s)
 
