@@ -310,6 +310,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(hs_value);
     WT_DECL_ITEM(key);
+    WT_DECL_ITEM(key_string);
     WT_DECL_RET;
     WT_PAGE *page;
     WT_TIME_WINDOW *hs_tw;
@@ -356,6 +357,10 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
         WT_ERR(__wt_vpack_uint(&memp, 0, recno));
         key->size = WT_PTRDIFF(memp, key->data);
     }
+
+    WT_ERR(__wt_scr_alloc(session, 0, &key_string));
+    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "rolling back the on-disk key: %s",
+      __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
 
     WT_ERR(__wt_scr_alloc(session, 0, &full_value));
     WT_ERR(__wt_page_cell_data_ref(session, page, unpack, full_value));
@@ -615,6 +620,7 @@ err:
         __wt_free_update_list(session, &upd);
     }
     __wt_scr_free(session, &full_value);
+    __wt_scr_free(session, &key_string);
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &hs_value);
     if (rip == NULL || row_key == NULL)
@@ -634,10 +640,12 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, u
   bool *is_ondisk_stable)
 {
     WT_DECL_ITEM(key);
+    WT_DECL_ITEM(key_string);
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_PAGE *page;
     WT_UPDATE *upd;
+    uint8_t *memp;
     char ts_string[5][WT_TS_INT_STRING_SIZE];
     bool prepared;
 
@@ -766,15 +774,32 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, u
             WT_ERR(__wt_scr_alloc(session, 0, &key));
             WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
         }
+    } else {
+        /* Manufacture a column key. */
+        WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+        memp = key->mem;
+        WT_ERR(__wt_vpack_uint(&memp, 0, recno));
+        key->size = WT_PTRDIFF(memp, key->data);
+    }
+
+    WT_ERR(__wt_scr_alloc(session, 0, &key_string));
+    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "rolling back the on-disk key: %s",
+      __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
+
+    if (rip != NULL)
         WT_ERR(__rollback_row_modify(session, ref, upd, key));
-    } else
+    else
         WT_ERR(__rollback_col_modify(session, ref, upd, recno));
 
     if (0) {
 err:
         __wt_free(session, upd);
     }
-    if (rip != NULL && row_key == NULL)
+    __wt_scr_free(session, &key_string);
+    if (rip != NULL) {
+        if (row_key == NULL)
+            __wt_scr_free(session, &key);
+    } else
         __wt_scr_free(session, &key);
     return (ret);
 }
