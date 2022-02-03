@@ -48,6 +48,8 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: row-store empty values",
   "btree: row-store internal pages",
   "btree: row-store leaf pages",
+  "cache: Ignore cache size",
+  "cache: Performing eviction check with busy true",
   "cache: bytes currently in the cache",
   "cache: bytes dirty in the cache cumulative",
   "cache: bytes read into cache",
@@ -335,6 +337,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->btree_row_empty_values = 0;
     stats->btree_row_internal = 0;
     stats->btree_row_leaf = 0;
+    stats->cache_eviction_ignore_cache_size = 0;
+    stats->cache_eviction_check_busy = 0;
     /* not clearing cache_bytes_inuse */
     /* not clearing cache_bytes_dirty_total */
     stats->cache_bytes_read = 0;
@@ -597,6 +601,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_row_empty_values += from->btree_row_empty_values;
     to->btree_row_internal += from->btree_row_internal;
     to->btree_row_leaf += from->btree_row_leaf;
+    to->cache_eviction_ignore_cache_size += from->cache_eviction_ignore_cache_size;
+    to->cache_eviction_check_busy += from->cache_eviction_check_busy;
     to->cache_bytes_inuse += from->cache_bytes_inuse;
     to->cache_bytes_dirty_total += from->cache_bytes_dirty_total;
     to->cache_bytes_read += from->cache_bytes_read;
@@ -857,6 +863,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->btree_row_empty_values += WT_STAT_READ(from, btree_row_empty_values);
     to->btree_row_internal += WT_STAT_READ(from, btree_row_internal);
     to->btree_row_leaf += WT_STAT_READ(from, btree_row_leaf);
+    to->cache_eviction_ignore_cache_size += WT_STAT_READ(from, cache_eviction_ignore_cache_size);
+    to->cache_eviction_check_busy += WT_STAT_READ(from, cache_eviction_check_busy);
     to->cache_bytes_inuse += WT_STAT_READ(from, cache_bytes_inuse);
     to->cache_bytes_dirty_total += WT_STAT_READ(from, cache_bytes_dirty_total);
     to->cache_bytes_read += WT_STAT_READ(from, cache_bytes_read);
@@ -1120,6 +1128,8 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: number of times the file was remapped because it changed size via fallocate or "
   "truncate",
   "block-manager: number of times the region was remapped via write",
+  "cache: Ignore cache size",
+  "cache: Performing eviction check with busy true",
   "cache: application threads page read from disk to cache count",
   "cache: application threads page read from disk to cache time (usecs)",
   "cache: application threads page write from cache to disk count",
@@ -1698,6 +1708,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_map_read = 0;
     stats->block_remap_file_resize = 0;
     stats->block_remap_file_write = 0;
+    stats->cache_eviction_ignore_cache_size = 0;
+    stats->cache_eviction_check_busy = 0;
     stats->cache_read_app_count = 0;
     stats->cache_read_app_time = 0;
     stats->cache_write_app_count = 0;
@@ -2236,6 +2248,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_map_read += WT_STAT_READ(from, block_byte_map_read);
     to->block_remap_file_resize += WT_STAT_READ(from, block_remap_file_resize);
     to->block_remap_file_write += WT_STAT_READ(from, block_remap_file_write);
+    to->cache_eviction_ignore_cache_size += WT_STAT_READ(from, cache_eviction_ignore_cache_size);
+    to->cache_eviction_check_busy += WT_STAT_READ(from, cache_eviction_check_busy);
     to->cache_read_app_count += WT_STAT_READ(from, cache_read_app_count);
     to->cache_read_app_time += WT_STAT_READ(from, cache_read_app_time);
     to->cache_write_app_count += WT_STAT_READ(from, cache_write_app_count);

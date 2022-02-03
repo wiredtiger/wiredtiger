@@ -207,6 +207,9 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE))
         LF_SET(WT_READ_IGNORE_CACHE_SIZE);
 
+    if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE))
+        WT_STAT_CONN_INCR(session, cache_eviction_ignore_cache_size);
+
     /*
      * Ignore reads of pages already known to be in cache, otherwise the eviction server can
      * dominate these statistics.
@@ -233,9 +236,11 @@ read:
              * The page isn't in memory, read it. If this thread respects the cache size, check for
              * space in the cache.
              */
-            if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
+            if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE)) {
+                WT_STAT_CONN_INCR(session, cache_eviction_check_busy);
                 WT_RET(__wt_cache_eviction_check(
                   session, true, !F_ISSET(session->txn, WT_TXN_HAS_ID), NULL));
+            }
             WT_RET(__page_read(session, ref, flags));
 
             /* We just read a page, don't evict it before we have a chance to use it. */
@@ -395,6 +400,7 @@ skip_evict:
          */
         if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE)) {
             WT_RET(__wt_cache_eviction_check(session, true, true, &cache_work));
+            WT_STAT_CONN_INCR(session, cache_eviction_check_busy);
             if (cache_work)
                 continue;
         }
