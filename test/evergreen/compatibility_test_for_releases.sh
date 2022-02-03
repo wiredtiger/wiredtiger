@@ -276,6 +276,13 @@ run_test_checkpoint()
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
     cd "$branch_name/build/test/checkpoint"
+
+    if [ "${build_sys[$branch_name]}" == "cmake" ]; then
+        test_bin="test_checkpoint"
+    else
+        test_bin="t"
+    fi
+
     # With the timestamp and prepare transactions configuration, this test
     # can produce a scenario where the on-disk tables have more data than
     # the checkpoint can see.
@@ -288,11 +295,11 @@ run_test_checkpoint()
         dir="RUNDIR.$am"
         echo "./t running $am access method..."
         if [ "$am" == "fix" ]; then
-            ./t -t f $flags -h $dir
+            ./$test_bin f $flags -h $dir
         elif [ "$am" == "var" ]; then
-            ./t -t c $flags -h $dir
+            ./$test_bin -t c $flags -h $dir
         else
-            ./t -t r $flags -h $dir
+            ./$test_bin -t r $flags -h $dir
         fi
     done
     cd -
@@ -358,9 +365,14 @@ verify_test_checkpoint()
     echo "Version \"$1\" test_checkpoint verifying \"$2\""
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-    cd "$1"
+    cd "$1/build/test/checkpoint"
 
-    test_bin="build/test/checkpoint/t"
+    if [ "${build_sys[$1]}" == "cmake" ]; then
+        test_bin="test_checkpoint"
+    else
+        test_bin="t"
+    fi
+
     for am in $3; do
         echo "$1/$test_bin verifying $2 access method $am..."
         dir="$2/build/test/checkpoint/RUNDIR.$am"
