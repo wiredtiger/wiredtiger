@@ -1,4 +1,5 @@
 #include <s3_connection.h>
+#include <fstream>
 
 /* Default config settings for the S3CrtClient. */
 namespace TestDefaults {
@@ -8,6 +9,7 @@ const uint64_t partSize = 8 * 1024 * 1024; /* 8 MB. */
 } // namespace TestDefaults
 
 int TestListBuckets(const Aws::S3Crt::ClientConfiguration &config);
+int TestGetObject(const Aws::S3Crt::ClientConfiguration &config);
 
 /* Wrapper for unit test functions. */
 #define TEST(func, config, expectedOutput)              \
@@ -36,6 +38,42 @@ TestListBuckets(const Aws::S3Crt::ClientConfiguration &config)
 }
 
 /*
+ * TestGetObject --
+ *     Unit test to get an object from an S3 Bucket.
+ */
+int
+TestGetObject(const Aws::S3Crt::ClientConfiguration &config) {
+    S3Connection conn(config);
+    std::vector<std::string> buckets;
+
+    if (!conn.ListBuckets(buckets))
+        return (1);
+    const std::string bucketName = buckets.at(0);
+    const std::string objectName = "permanent_object.txt";
+    const std::string path = "./" + objectName;
+
+    int ret = conn.GetObject(bucketName, objectName, path);
+
+    if (ret != 0){
+        std::cout << "TestGetObject: call to S3Connection:GetObject has failed." << std::endl;
+        return (1);
+    }
+
+    /* The file should now be in the current directory. */
+    std::ifstream f(path);
+    if (!f.good()) {
+        std::cout << "TestGetObject: target " << objectName << " has not been succesfully downloaded." << std::endl;
+        return (1);
+    }
+    /* Clean up test artefacts. */
+    if (std::remove(path.c_str()) != 0)
+        return (1);
+
+    std::cout << "TestGetObject succeded." << std::endl;
+    return (0);
+}
+
+/*
  * main --
  *     Set up configs and call unit tests.
  */
@@ -55,6 +93,8 @@ main()
     int expectedOutput = 0;
     TEST(TestListBuckets, awsConfig, expectedOutput);
 
+    int getObjectExpectedOutput = 0;
+    TEST(TestGetObject, awsConfig, getObjectExpectedOutput);
     /* Shutdown the API at end of tests. */
     Aws::ShutdownAPI(options);
     return 0;
