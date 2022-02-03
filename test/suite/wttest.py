@@ -662,6 +662,24 @@ class WiredTigerTestCase(unittest.TestCase):
     def timestamp_str(self, t):
         return '%x' % t
 
+    def dropUntilSuccess(self, session, uri, config):
+        while True:
+            session.checkpoint()
+            try:
+                session.drop(uri, config)
+                return
+            except wiredtiger.WiredTigerError:
+                pass
+
+    def verifyUntilSuccess(self, session, uri, config):
+        while True:
+            session.checkpoint()
+            try:
+                session.verify(uri, config)
+                return
+            except wiredtiger.WiredTigerError:
+                pass
+
     def exceptionToStderr(self, expr):
         """
         Used by assertRaisesHavingMessage to convert an expression

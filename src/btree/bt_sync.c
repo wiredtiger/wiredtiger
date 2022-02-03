@@ -152,7 +152,8 @@ __sync_ref_list_pop(WT_SESSION_IMPL *session, WT_REF_LIST *rlp, uint32_t flags)
          * let them clean during reconciliation.
          */
         WT_RET(__wt_page_modify_init(session, rlp->list[i]->page));
-        __wt_page_modify_set(session, rlp->list[i]->page);
+        if (rlp->list[i]->page->modify->rec_result != WT_PM_REC_EMPTY)
+            __wt_page_modify_set(session, rlp->list[i]->page);
 
         /*
          * Ignore the failure from urgent eviction. The failed refs are taken care in the next
