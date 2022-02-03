@@ -331,7 +331,7 @@ usage(void)
 /*
  * find_wt_path --
  *     Find wt tool in the current or parent folders. Returns relative path to the tool or NULL in
- *     the case there was no tool found.
+ *     the case the tool has not been found.
  */
 static const char *
 find_wt_path(void)
@@ -431,13 +431,13 @@ main(int argc, char *argv[])
         add_work(i);
         testutil_check(session->checkpoint(session, NULL));
 
-        /* Validate database against incremental backup. */
+        /* Validate database against incremental backup. Do not truncate logs. */
         validate(false);
 
         /* Reopen connection. */
         reopen_conn();
 
-        /* Validate database again. */
+        /* Validate database again. Truncate logs. */
         validate(true);
     }
 
