@@ -46,12 +46,13 @@ include(cmake/configs/auto.cmake)
 include(cmake/configs/base.cmake)
 
 # Import our third party library definitions.
+include(cmake/third_party/aws_sdk.cmake)
 include(cmake/third_party/gperftools.cmake)
 include(cmake/third_party/lz4.cmake)
-include(cmake/third_party/zstd.cmake)
 include(cmake/third_party/snappy.cmake)
-include(cmake/third_party/zlib.cmake)
 include(cmake/third_party/sodium.cmake)
+include(cmake/third_party/zlib.cmake)
+include(cmake/third_party/zstd.cmake)
 
 if(NOT ENABLE_SHARED AND NOT ENABLE_STATIC)
     message(FATAL_ERROR "Both ENABLE_SHARED & ENABLE_STATIC are disabled. Need to enable at least one build flavour.")
@@ -74,14 +75,17 @@ if(ENABLE_STRICT)
     endif()
 endif()
 
+# Enable CTest. Subsequent targets may additionally define their own ctest definitions.
+enable_testing()
+
 # Include the extensions to the build.
 add_subdirectory(ext)
 
 # Collect all the library sources we need to compile from the source filelist.
 parse_filelist_source(${CMAKE_CURRENT_LIST_DIR}/dist/filelist wt_sources)
 if(WT_WIN)
-    list(APPEND wt_source ${CMAKE_SOURCE_DIR}/build_win/wiredtiger.def)
-    set_source_files_properties(${CMAKE_SOURCE_DIR}/build_win/wiredtiger.def PROPERTIES HEADER_FILE_ONLY TRUE)
+    list(APPEND wt_source ${CMAKE_SOURCE_DIR}/cmake/configs/wiredtiger.def)
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/cmake/configs/wiredtiger.def PROPERTIES HEADER_FILE_ONLY TRUE)
 endif()
 
 set(builtin_objs)
@@ -184,8 +188,6 @@ add_subdirectory(src/utilities)
 # Establish our install target configuration.
 include(cmake/install/install.cmake)
 
-# Enable CTest. Subsequent targets may additionally define their own ctest definitions.
-enable_testing()
 
 if(ENABLE_PYTHON)
     add_subdirectory(lang/python)
@@ -196,3 +198,6 @@ endif()
 add_subdirectory(bench/wtperf)
 add_subdirectory(examples)
 add_subdirectory(test)
+if(ENABLE_LLVM)
+    add_subdirectory(tools/xray_to_optrack)
+endif()
