@@ -118,11 +118,12 @@ S3Connection::ObjectExists(
     if (outcome.IsSuccess()) {
         exists = true;
         return (0);
-    /*
-     * If an object with the given key does not exist the HEAD request will return a 404.
-     * https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html Do not fail in this case.
-     */
-    } else if(outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND)
+        /*
+         * If an object with the given key does not exist the HEAD request will return a 404.
+         * https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html Do not fail in this
+         * case.
+         */
+    } else if (outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND)
         return (0);
     else
         return (static_cast<int>(outcome.GetError().GetResponseCode()));
