@@ -28,8 +28,8 @@ class S3LogSystem : public Aws::Utils::Logging::LogSystemInterface {
     WT_EXTENSION_API *wtApi;
     int32_t wtVerbosityLevel;
 };
-// Mapping the desired WiredTiger extension verbosity level to a rough equivalent AWS SDK
-// verbosity level.
+// Mapping the desired WiredTiger extension verbosity level to a rough equivalent AWS
+// SDK verbosity level.
 static const std::map<int32_t, Aws::Utils::Logging::LogLevel> verbosityMapping = {
   {-3, Aws::Utils::Logging::LogLevel::Error}, {-2, Aws::Utils::Logging::LogLevel::Warn},
   {-1, Aws::Utils::Logging::LogLevel::Info}, {0, Aws::Utils::Logging::LogLevel::Info},
