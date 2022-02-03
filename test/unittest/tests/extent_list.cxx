@@ -4,7 +4,7 @@
 
 #include "wt_internal.h"
 
-std::unique_ptr<WT_EXT> create_new_extent_list() {
+std::unique_ptr<WT_EXT> create_new_ext() {
     // manually alloc enough extra space for the zero-length array to encode two
     // skip lists.
     auto sz = sizeof(WT_EXT) + 2 * WT_SKIP_MAXDEPTH * sizeof(WT_EXT*);
@@ -42,6 +42,30 @@ void print_list(WT_EXT **head) {
     }
 }
 
+/*
+ * Creates a sane-looking "default" extent list suitable for testing:
+ * L0: 1 -> 2 -> 3 -> X
+ * L1: 2 -> 3 -> X
+ * L2: 3 -> X
+ * L3: X
+ * ...
+ * L9: X
+ */
+void create_default_test_extent_list(std::vector<WT_EXT*>& head) {
+    auto first = create_new_ext();
+    auto second = create_new_ext();
+    auto third = create_new_ext();
+    first->next[0] = second.get();
+    first->next[1] = third.get();
+    second->next[0] = third.get();
+
+    head[0] = first.get();
+    head[1] = second.get();
+    head[2] = third.get();
+    for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
+        head[i] = nullptr;
+}
+
 TEST_CASE("block_off_srch_last", "[extent_list]") {
     std::vector<WT_EXT*> head(WT_SKIP_MAXDEPTH, nullptr);
     std::vector<WT_EXT**> stack(WT_SKIP_MAXDEPTH, nullptr);
@@ -55,14 +79,14 @@ TEST_CASE("block_off_srch_last", "[extent_list]") {
     }
 
     SECTION("list with one element has non-empty final element") {
-        auto first = create_new_extent_list();
+        auto first = create_new_ext();
         head[0] = first.get();
 
         REQUIRE(__ut_block_off_srch_last(&head[0], &stack[0]) == head[0]);
     }
 
     SECTION("list with identical skip entries returns identical stack entries") {
-        auto first = create_new_extent_list();
+        auto first = create_new_ext();
         for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
             head[i] = first.get();
 
@@ -74,32 +98,21 @@ TEST_CASE("block_off_srch_last", "[extent_list]") {
     }
 
     SECTION("list with differing skip entries returns differing stack entries") {
-        auto first = create_new_extent_list();
-        auto second = create_new_extent_list();
-        auto third = create_new_extent_list();
-        first->next[0] = second.get();
-        first->next[1] = third.get();
-        second->next[0] = third.get();
-
-        head[0] = first.get();
-        head[1] = second.get();
-        head[2] = third.get();
-        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
-            head[i] = nullptr;
+        create_default_test_extent_list(head);
 
         __ut_block_off_srch_last(&head[0], &stack[0]);
 
-        REQUIRE(stack[0] == &third->next[0]);
-        REQUIRE(stack[1] == &third->next[1]);
-        REQUIRE(stack[2] == &third->next[2]);
+        REQUIRE(stack[0] == &head[2]->next[0]);
+        REQUIRE(stack[1] == &head[2]->next[1]);
+        REQUIRE(stack[2] == &head[2]->next[2]);
         for (int i = 3; i < WT_SKIP_MAXDEPTH; i++) {
             REQUIRE(stack[i] == &head[i]);
         }
     }
 
     SECTION("list with differing skip entries returns final entry") {
-        auto first = create_new_extent_list();
-        auto second = create_new_extent_list();
+        auto first = create_new_ext();
+        auto second = create_new_ext();
         first->next[0] = second.get();
 
         head[0] = first.get();
@@ -122,22 +135,14 @@ TEST_CASE("block_off_srch", "[extent_list]") {
     }
 
     SECTION("exact offset match returns matching list element") {
-        auto first = create_new_extent_list();
-        auto second = create_new_extent_list();
-        auto third = create_new_extent_list();
+        create_default_test_extent_list(head);
+        auto first = create_new_ext();
+        auto second = create_new_ext();
         first->next[0] = second.get();
-        first->next[1] = third.get();
-        second->next[0] = third.get();
 
-        head[0] = first.get();
-        head[1] = second.get();
-        head[2] = third.get();
-        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
-            head[i] = nullptr;
-
-        first->off = 1;
-        second->off = 2;
-        third->off = 3;
+        head[0]->off = 1;
+        head[1]->off = 2;
+        head[2]->off = 3;
 
         __ut_block_off_srch(&head[0], 2, &stack[0], false);
 
@@ -150,22 +155,13 @@ TEST_CASE("block_off_srch", "[extent_list]") {
     }
 
     SECTION("search for item larger than maximum in list returns end of list") {
-        auto first = create_new_extent_list();
-        auto second = create_new_extent_list();
-        auto third = create_new_extent_list();
-        first->next[0] = second.get();
-        first->next[1] = third.get();
-        second->next[0] = third.get();
+        create_default_test_extent_list(head);
+        auto first = create_new_ext();
+        auto second = create_new_ext();
 
-        head[0] = first.get();
-        head[1] = second.get();
-        head[2] = third.get();
-        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
-            head[i] = nullptr;
-
-        first->off = 1;
-        second->off = 2;
-        third->off = 3;
+        head[0]->off = 1;
+        head[1]->off = 2;
+        head[2]->off = 3;
 
         __ut_block_off_srch(&head[0], 4, &stack[0], false);
 
@@ -179,9 +175,11 @@ TEST_CASE("block_off_srch", "[extent_list]") {
     SECTION("respect skip offset") {
         const int depth = 10;
 
-        auto first = create_new_extent_list();
-        auto second = create_new_extent_list();
-        auto third = create_new_extent_list();
+        // create_default_test_extent_list(head);
+
+        auto first = create_new_ext();
+        auto second = create_new_ext();
+        auto third = create_new_ext();
 
         first->next[0 + depth] = second.get();
         first->next[1 + depth] = third.get();
@@ -224,9 +222,9 @@ TEST_CASE("block_first_srch", "[extent_list]") {
     }
 
     SECTION("list with too-small chunks doesn't yield a larger chunk") {
-        auto first = create_new_extent_list();
-        auto second = create_new_extent_list();
-        auto third = create_new_extent_list();
+        auto first = create_new_ext();
+        auto second = create_new_ext();
+        auto third = create_new_ext();
         first->next[0] = second.get();
         second->next[0] = third.get();
 
@@ -244,9 +242,9 @@ TEST_CASE("block_first_srch", "[extent_list]") {
     }
 
     SECTION("find an appropriate chunk") {
-        auto first = create_new_extent_list();
-        auto second = create_new_extent_list();
-        auto third = create_new_extent_list();
+        auto first = create_new_ext();
+        auto second = create_new_ext();
+        auto third = create_new_ext();
         first->next[0] = second.get();
         second->next[0] = third.get();
 
