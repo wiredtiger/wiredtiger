@@ -1,0 +1,29 @@
+
+#ifndef S3CONNECTION
+#define S3CONNECTION
+
+#include <aws/core/Aws.h>
+#include <aws/s3-crt/S3CrtClient.h>
+
+#include <string>
+#include <vector>
+
+/*
+ * Class to represent an active connection to the AWS S3 endpoint. Allows for interaction with S3
+ * client.
+ */
+class S3Connection {
+    public:
+    explicit S3Connection(const Aws::S3Crt::ClientConfiguration &config);
+    int ListBuckets(std::vector<std::string> &buckets) const;
+    int ListObjects(const std::string &bucketName, const std::string &prefix,
+      std::vector<std::string> &objects, uint32_t batchSize = 1000, bool listSingle = false) const;
+    int PutObject(const std::string &bucketName, const std::string &objectKey,
+      const std::string &fileName) const;
+    int DeleteObject(const std::string &bucketName, const std::string &objectKey) const;
+    ~S3Connection() = default;
+
+    private:
+    const Aws::S3Crt::S3CrtClient s3CrtClient;
+};
+#endif
