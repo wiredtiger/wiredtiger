@@ -472,8 +472,8 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
     /*
      * The read of the transaction ID pinned by a checkpoint needs to be carefully ordered: if a
      * checkpoint is starting and we have to start checking the pinned ID, we take the minimum of it
-     * with the oldest ID, which is what we want. The logged tables are not rollbacked by RTS, so no
-     * need to hold their oldest_id.
+     * with the oldest ID, which is what we want. The logged tables are excluded as part of RTS, so
+     * there is no need of holding their oldest_id
      */
     WT_READ_BARRIER();
 
