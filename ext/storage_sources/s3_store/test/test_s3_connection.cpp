@@ -47,6 +47,7 @@ TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
     S3Connection conn(config);
     std::vector<std::string> buckets;
     bool exists = false;
+    int ret = 1;
 
     if (!conn.ListBuckets(buckets))
         return 1;
@@ -59,22 +60,17 @@ TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
     File << "Test payload";
     File.close();
 
-    conn.ObjectExists(bucketName, objectName, exists);
-    if (exists) {
-        std::cout << "TestObjectExists(): FAILURE - test_object already exists in the bucket"
-                  << std::endl;
-        return 1;
-    }
+    if ((ret = conn.ObjectExists(bucketName, objectName, exists)) != 0 || exists)
+        return (ret);
 
-    conn.PutObject(bucketName, objectName, fileName);
-    conn.ObjectExists(bucketName, objectName, exists);
-    if (!exists) {
-        std::cout << "TestObjectExists(): FAILURE - test object does not exist after put_object."
-                  << std::endl;
-        return 1;
-    }
+    if (!(conn.PutObject(bucketName, objectName, fileName)))
+        return (1);
 
-    conn.DeleteObject(bucketName, objectName);
+    if ((ret = conn.ObjectExists(bucketName, objectName, exists)) != 0 || !exists)
+        return (ret);
+
+    if (!(conn.DeleteObject(bucketName, objectName)))
+        return (1);
     std::cout << "TestObjectExists(): succeeded.\n" << std::endl;
     return 0;
 }

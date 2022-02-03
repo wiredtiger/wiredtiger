@@ -49,9 +49,9 @@ typedef struct {
     WT_FILE_SYSTEM fileSystem;
     S3Connection *conn;
     S3_STORAGE *s3Storage;
-    const char *bucketName;
-    char *cacheDir;      /* Directory for cached objects */
-    const char *homeDir; /* Owned by the connection */
+    std::string bucketName;
+    std::string cacheDir; /* Directory for cached objects */
+    std::string homeDir;  /* Owned by the connection */
 } S3_FILE_SYSTEM;
 
 /* Configuration variables for connecting to S3CrtClient. */
@@ -62,7 +62,7 @@ const uint64_t partSize = 8 * 1024 * 1024; /* 8 MB. */
 /* Setting SDK options. */
 Aws::SDKOptions options;
 
-static int S3GetDirectory(const char *, const char *, ssize_t, bool, char **);
+static int S3GetDirectory(const std::string &, const std::string &, bool, std::string &);
 static int S3CacheExists(WT_FILE_SYSTEM *, const std::string &, bool &);
 static int S3CachePath(WT_FILE_SYSTEM *, const std::string &, std::string &);
 static int S3Path(const std::string &, const std::string &, std::string &);
@@ -81,9 +81,10 @@ S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool 
 {
     S3_STORAGE *s3;
     int ret;
+    *existp = false;
     s3 = FS2S3(fileSystem);
-    S3_FILE_SYSTEM *s3Fs = (S3_FILE_SYSTEM *)fileSystem;
-    bool exists = false;
+    S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
+    bool exists;
 
     /* First check to see if the file exists in the cache. */
     if ((ret = S3CacheExists(fileSystem, name, exists)) != 0)
@@ -91,10 +92,9 @@ S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool 
 
     /* It's not in the cache, try the s3 bucket. */
     if (!exists)
-        ret = s3Fs->conn->ObjectExists(s3Fs->bucketName, name, exists);
+        ret = fs->conn->ObjectExists(fs->bucketName, name, exists);
 
     *existp = exists;
-
     return (ret);
 }
 
@@ -115,9 +115,7 @@ S3Path(const std::string &dir, const std::string &name, std::string &path)
             i++;
     }
     std::string strippedName = name.substr(i, name.length() - i);
-    std::string pathName = dir + "/" + strippedName;
-
-    path = pathName;
+    path = dir + "/" + strippedName;
     return (0);
 }
 
@@ -138,10 +136,11 @@ S3CachePath(WT_FILE_SYSTEM *fileSystem, const std::string &name, std::string &pa
 static int
 S3CacheExists(WT_FILE_SYSTEM *fileSystem, const std::string &name, bool &exists)
 {
+    exists = false;
+
     int ret;
     std::string path;
-    if ((ret = S3CachePath(fileSystem, name, path)) != 0)
-        return (ret);
+    S3CachePath(fileSystem, name, path);
 
     std::ifstream f(path);
     if (f.good())
@@ -154,42 +153,32 @@ S3CacheExists(WT_FILE_SYSTEM *fileSystem, const std::string &name, bool &exists)
  *     Return a copy of a directory name after verifying that it is a directory.
  */
 static int
-S3GetDirectory(const char *home, const char *s, ssize_t len, bool create, char **copy)
+S3GetDirectory(const std::string &home, const std::string &name, bool create, std::string &copy)
 {
-    struct stat sb;
-    size_t buflen;
-    int ret;
-    char *dirname;
-    *copy = NULL;
+    copy = "";
 
-    if (len == -1)
-        len = (ssize_t)strlen(s);
+    struct stat sb;
+    int ret;
+    std::string dirName;
 
     /* For relative pathnames, the path is considered to be relative to the home directory. */
-    if (*s == '/')
-        dirname = strndup(s, (size_t)len + 1); /* Room for null */
-    else {
-        buflen = (size_t)len + strlen(home) + 2; /* Room for slash, null */
-        if ((dirname = (char *)malloc(buflen)) != NULL)
-            if (snprintf(dirname, buflen, "%s/%.*s", home, (int)len, s) >= (int)buflen)
-                return (EINVAL);
-    }
-    if (dirname == NULL)
-        return (ENOMEM);
+    if (name[0] == '/')
+        dirName = name;
+    else
+        dirName = home + "/" + name;
 
-    ret = stat(dirname, &sb);
+    ret = stat(dirName.c_str(), &sb);
     if (ret != 0 && errno == ENOENT && create) {
-        (void)mkdir(dirname, 0777);
-        ret = stat(dirname, &sb);
+        (void)mkdir(dirName.c_str(), 0777);
+        ret = stat(dirName.c_str(), &sb);
     }
+
     if (ret != 0)
         ret = errno;
     else if ((sb.st_mode & S_IFMT) != S_IFDIR)
         ret = EINVAL;
-    if (ret != 0)
-        free(dirname);
-    else
-        *copy = dirname;
+
+    copy = dirName;
     return (ret);
 }
 
@@ -205,8 +194,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     S3_FILE_SYSTEM *fs;
     int ret;
     WT_CONFIG_ITEM cacheDir;
-    const char *p;
-    char buf[1024];
+    std::string cacheStr;
     s3 = (S3_STORAGE *)storageSource;
 
     /* Mark parameters as unused for now, until implemented. */
@@ -218,46 +206,33 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     awsConfig.partSize = partSize;
 
     /* Parse configuration string. */
-    if ((ret = s3->wtApi->config_get_string(
-           s3->wtApi, session, config, "cache_directory", &cacheDir)) != 0) {
-        if (ret == WT_NOTFOUND) {
-            ret = 0;
-            cacheDir.len = 0;
-        } else
-            std::cout << "Error parsing the config string:" << std::endl;
-    }
+    ret = s3->wtApi->config_get_string(s3->wtApi, session, config, "cache_directory", &cacheDir);
+    if (ret == 0)
+        cacheStr = cacheDir.str;
+    else if (ret == WT_NOTFOUND) {
+        ret = 0;
+        cacheDir.len = 0;
+    } else
+        return (ret);
 
     if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
         return (errno);
     fs->s3Storage = s3;
-    /*
-     * The home directory owned by the connection will not change, and will be valid memory, for as
-     * long as the connection is open. That is longer than this file system will be open, so we can
-     * use the string without copying.
-     */
-    fs->homeDir = session->connection->get_home(session->connection);
 
-    /* Store a copy of the bucket name in the file system. */
-    fs->bucketName = strdup(bucketName);
+    /* Store a copy of the home directory and bucket name in the file system. */
+    fs->homeDir = session->connection->get_home(session->connection);
+    fs->bucketName = bucketName;
 
     /*
      * The default cache directory is named "cache-<name>", where name is the last component of the
      * bucket name's path. We'll create it if it doesn't exist.
      */
     if (cacheDir.len == 0) {
-        if ((p = strrchr(bucketName, '/')) != NULL)
-            p++;
-        else
-            p = bucketName;
-        if (snprintf(buf, sizeof(buf), "cache-%s", p) >= (int)sizeof(buf)) {
-        }
-        cacheDir.str = buf;
-        cacheDir.len = strlen(buf);
+        cacheStr = "cache-" + fs->bucketName;
+        fs->cacheDir = cacheStr;
     }
-    if ((ret = S3GetDirectory(
-           fs->homeDir, cacheDir.str, (ssize_t)cacheDir.len, true, &fs->cacheDir)) != 0) {
-        std::cout << "Error occurred while creating the cache directory." << std::endl;
-    }
+    if ((ret = S3GetDirectory(fs->homeDir, cacheStr, true, fs->cacheDir)) != 0)
+        return (ret);
 
     /* New can fail; will deal with this later. */
     fs->conn = new S3Connection(awsConfig);
@@ -349,7 +324,7 @@ S3FileSystemTerminate(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session)
 
     fs = (S3_FILE_SYSTEM *)fileSystem;
     delete (fs->conn);
-    free((void *)fs->bucketName);
+    // free((void *)fs->bucketName);
     free(fs);
 
     return (0);
