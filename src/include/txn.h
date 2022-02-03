@@ -44,8 +44,8 @@
 
 typedef enum {
     WT_VISIBLE_FALSE = 0,      /* Not a visible update */
-    WT_VISIBLE_PREPARE = 1,    /* Prepared update */
-    WT_VISIBLE_NONDURABLE = 2, /* Committed but not durable update */
+    WT_VISIBLE_NONDURABLE = 1, /* Committed but not durable update */
+    WT_VISIBLE_PREPARE = 2,    /* Prepared update */
     WT_VISIBLE_TRUE = 3        /* A visible update */
 } WT_VISIBLE_TYPE;
 

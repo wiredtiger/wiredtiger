@@ -613,7 +613,7 @@ __wt_txn_upd_value_visible_all(WT_SESSION_IMPL *session, WT_UPDATE_VALUE *upd_va
  *     durable time. (Note that it is not sufficient to just check that the global stable timestamp
  *     has advanced past the commit time; prepared transactions are allowed to commit earlier than
  *     stable if they were prepared after stable and stable has since moved up.) Assumes caller has
- *     already checked that the commit time is visible and skips checks that makes redundant.
+ *     already checked that the commit time is visible, so does not repeat checks in that code.
  */
 static inline bool
 __wt_txn_ts_nondurable(
