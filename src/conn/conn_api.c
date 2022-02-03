@@ -2584,7 +2584,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     const WT_NAME_FLAG *ft;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
-    bool config_base_set, try_salvage, verify_meta;
+    bool config_base_set, exist_backup, try_salvage, verify_meta;
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
 
@@ -2970,6 +2970,19 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__wt_config_gets(session, cfg, "verify_metadata", &cval));
     verify_meta = cval.val;
+    WT_ERR(__wt_config_gets(session, cfg, "backup_load", &cval));
+    WT_RET(__wt_fs_exist(session, WT_METADATA_BACKUP, &exist_backup));
+    if (cval.len != 0) {
+        if (!exist_backup)
+            WT_ERR_MSG(session, EINVAL, "A backup must be done for backup_load configuration.");
+
+        if (WT_STRING_MATCH("all", cval.str, cval.len))
+            F_SET(S2C(session), WT_CONN_BACKUP_ALL);
+        else if (WT_STRING_MATCH("partial", cval.str, cval.len))
+            F_SET(S2C(session), WT_CONN_BACKUP_PARTIAL);
+        else
+            WT_ERR_MSG(session, EINVAL, "Invalid backup configuration option.");
+    }
     WT_ERR(__wt_turtle_init(session, verify_meta));
 
     /* Verify the metadata file. */
