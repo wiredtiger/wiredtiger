@@ -17,7 +17,7 @@
 int
 S3Connection::ListBuckets(std::vector<std::string> &buckets) const
 {
-    auto outcome = m_s3CrtClient.ListBuckets();
+    auto outcome = s3CrtClient.ListBuckets();
     if (outcome.IsSuccess()) {
         for (const auto &bucket : outcome.GetResult().GetBuckets())
             buckets.push_back(bucket.GetName());
@@ -31,9 +31,9 @@ S3Connection::ListBuckets(std::vector<std::string> &buckets) const
 
 /*
  * ListObjects --
- *     Builds a list of object names, with prefix matching, from an S3 bucket into a vector. Takes
- *     in batchSize parameter for the number of objects to access per iteration of the AWS request.
- *     Returns 0 if success, otherwise 1.
+ *     Builds a list of object names, with prefix matching, from an S3 bucket into a vector. The
+ *     batchSize parameter specifies the maximum number of objects returned in each AWS response, up
+ *     to 1000. Returns 0 if success, otherwise 1.
  */
 int
 S3Connection::ListObjects(const std::string &bucketName, const std::string &prefix,
@@ -48,32 +48,30 @@ S3Connection::ListObjects(const std::string &bucketName, const std::string &pref
     else
         request.SetMaxKeys(batchSize);
 
-    Aws::S3Crt::Model::ListObjectsV2Outcome outcomes = m_s3CrtClient.ListObjectsV2(request);
+    Aws::S3Crt::Model::ListObjectsV2Outcome outcomes = s3CrtClient.ListObjectsV2(request);
 
-    if (outcomes.IsSuccess()) {
-        auto result = outcomes.GetResult();
+    if (!outcomes.IsSuccess())
+        return (1);
+    auto result = outcomes.GetResult();
+    for (const auto &object : result.GetContents())
+        objects.push_back(object.GetKey());
+
+    if (listSingle)
+        return (0);
+
+    /* Continuation token will be an empty string if we have returned all possible objects. */
+    std::string continuationToken = result.GetNextContinuationToken();
+    while (continuationToken != "") {
+        request.SetContinuationToken(continuationToken);
+        outcomes = s3CrtClient.ListObjectsV2(request);
+        if (!outcomes.IsSuccess())
+            return (1);
+        result = outcomes.GetResult();
         for (const auto &object : result.GetContents())
             objects.push_back(object.GetKey());
-
-        if (listSingle)
-            return (0);
-
-        /* Continuation token will be an empty string if we have returned all possible objects. */
-        std::string continuationToken = result.GetNextContinuationToken();
-        while (continuationToken != "") {
-            request.SetContinuationToken(continuationToken);
-            outcomes = m_s3CrtClient.ListObjectsV2(request);
-            if (outcomes.IsSuccess()) {
-                result = outcomes.GetResult();
-                for (const auto &object : result.GetContents())
-                    objects.push_back(object.GetKey());
-                continuationToken = result.GetNextContinuationToken();
-            } else
-                return (1);
-        }
-        return (0);
-    } else
-        return (1);
+        continuationToken = result.GetNextContinuationToken();
+    }
+    return (0);
 }
 
 /*
@@ -93,7 +91,7 @@ S3Connection::PutObject(
 
     request.SetBody(inputData);
 
-    Aws::S3Crt::Model::PutObjectOutcome outcome = m_s3CrtClient.PutObject(request);
+    Aws::S3Crt::Model::PutObjectOutcome outcome = s3CrtClient.PutObject(request);
 
     if (outcome.IsSuccess()) {
         return (0);
@@ -114,7 +112,7 @@ S3Connection::DeleteObject(const std::string &bucketName, const std::string &obj
     request.SetBucket(bucketName);
     request.SetKey(objectKey);
 
-    Aws::S3Crt::Model::DeleteObjectOutcome outcome = m_s3CrtClient.DeleteObject(request);
+    Aws::S3Crt::Model::DeleteObjectOutcome outcome = s3CrtClient.DeleteObject(request);
 
     if (outcome.IsSuccess()) {
         return (0);
@@ -128,4 +126,4 @@ S3Connection::DeleteObject(const std::string &bucketName, const std::string &obj
  * S3Connection --
  *     Constructor for AWS S3 bucket connection.
  */
-S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config) : m_s3CrtClient(config){};
+S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config) : s3CrtClient(config){};
