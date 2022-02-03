@@ -217,7 +217,7 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
  */
 static int
 S3ObjectListFree(
-  WT_FILE_SYSTEM *file_system, WT_SESSION *session, char **objectList, uint32_t count)
+  WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, char **objectList, uint32_t count)
 {
     (void)session;
 
