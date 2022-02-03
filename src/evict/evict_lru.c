@@ -2300,7 +2300,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
         WT_STAT_CONN_INCR(session, cache_eviction_app);
         cache->app_evicts++;
         time_start = WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
-    }
+}
 
     /*
      * In case something goes wrong, don't pick the same set of pages every time.
@@ -2430,7 +2430,8 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
         switch (ret = __evict_page(session, false)) {
         case 0:
             if (busy) {
-                WT_STAT_CONN_INCR(session, cache_eviction_busy_exit);
+                if (app_thread)
+                    WT_STAT_CONN_INCR(session, cache_eviction_busy_exit);
                 goto err;
             }
         /* FALLTHROUGH */
