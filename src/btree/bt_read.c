@@ -238,6 +238,8 @@ read:
              */
             if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE)) {
                 WT_STAT_CONN_INCR(session, cache_eviction_check_busy);
+                if (!F_ISSET(session, WT_SESSION_INTERNAL))
+                    WT_STAT_CONN_INCR(session, cache_eviction_check_busy_app);
                 WT_RET(__wt_cache_eviction_check(
                   session, true, !F_ISSET(session->txn, WT_TXN_HAS_ID), NULL));
             }
@@ -401,6 +403,8 @@ skip_evict:
         if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE)) {
             WT_RET(__wt_cache_eviction_check(session, true, true, &cache_work));
             WT_STAT_CONN_INCR(session, cache_eviction_check_busy);
+            if (!F_ISSET(session, WT_SESSION_INTERNAL))
+                WT_STAT_CONN_INCR(session, cache_eviction_check_busy_app);
             if (cache_work)
                 continue;
         }

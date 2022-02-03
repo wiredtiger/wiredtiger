@@ -379,6 +379,7 @@ struct __wt_connection_stats {
     int64_t block_remap_file_write;
     int64_t cache_eviction_ignore_cache_size;
     int64_t cache_eviction_check_busy;
+    int64_t cache_eviction_check_busy_app;
     int64_t cache_read_app_count;
     int64_t cache_read_app_time;
     int64_t cache_write_app_count;
@@ -910,6 +911,7 @@ struct __wt_dsrc_stats {
     int64_t btree_row_leaf;
     int64_t cache_eviction_ignore_cache_size;
     int64_t cache_eviction_check_busy;
+    int64_t cache_eviction_check_busy_app;
     int64_t cache_bytes_inuse;
     int64_t cache_bytes_dirty_total;
     int64_t cache_bytes_read;

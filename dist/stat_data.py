@@ -840,6 +840,7 @@ conn_dsrc_stats = [
     CacheStat('cache_rec_upd_select_visibility_all', 'has newer updates with visibility check all'),
     CacheStat('cache_rec_upd_select_visibility_snapshot', 'has newer updates with visibility check snapshot'),
     CacheStat('cache_eviction_check_busy', 'Performing eviction check with busy true'),
+    CacheStat('cache_eviction_check_busy_app', 'Performing eviction check with busy, application thread true'),
     CacheStat('cache_eviction_ignore_cache_size', 'Ignore cache size'),
     CacheStat('cache_hs_insert_full_update', 'the number of times full update inserted to history store'),
     CacheStat('cache_hs_insert_restart', 'history store table insert calls that returned restart'),
