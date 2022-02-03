@@ -126,21 +126,20 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
             fs->fileSystem.fs_directory_list(
               &fs->fileSystem, session, firstBucket.c_str(), prefix, dirlistp, &countp);
 
-            std::cout << "Number of objects retrieved: " << countp << std::endl;
-
             std::cout << "Objects in bucket '" << firstBucket << "':" << std::endl;
             for (int i = 0; i < countp; i++) {
                 std::cout << (*dirlistp)[i] << std::endl;
             }
+            std::cout << "Number of objects retrieved: " << countp << std::endl;
 
             fs->fileSystem.fs_directory_list_single(
               &fs->fileSystem, session, firstBucket.c_str(), prefix, dirlistp, &countp);
-            std::cout << "Number of objects retrieved: " << countp << std::endl;
 
             std::cout << "Objects in bucket '" << firstBucket << "':" << std::endl;
             for (int i = 0; i < countp; i++) {
                 std::cout << (*dirlistp)[i] << std::endl;
             }
+            std::cout << "Number of objects retrieved: " << countp << std::endl;
 
             /* Delete object. */
             fs->conn->DeleteObject(firstBucket, "WiredTiger.turtle");
@@ -184,12 +183,6 @@ S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *direct
     int ret;
     if (ret = fs->conn->ListObjects(std::string(directory), std::string(prefix), objects) != 0)
         return (ret);
-    std::cout << "Objects in bucket '" << directory << "':" << std::endl;
-    for (const auto &object : objects)
-        std::cout << "  * " << object << std::endl;
-    if (objects.empty())
-        std::cout << "No objects in bucket." << std::endl;
-
     *countp = objects.size();
 
     S3ObjectListAdd(fs->s3Storage, dirlistp, &objects, *countp);
@@ -212,8 +205,8 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
     if (ret =
           fs->conn->ListObjects(std::string(directory), std::string(prefix), objects, 1, true) != 0)
         return (ret);
-
     *countp = objects.size();
+
     S3ObjectListAdd(fs->s3Storage, dirlistp, &objects, *countp);
 
     return (ret);
