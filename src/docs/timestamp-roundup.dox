@@ -18,7 +18,8 @@ greater than the oldest timestamp no change will be made.
 Configuring <code>roundup_timestamps=(prepared=true)</code> is only meaningful
 for transactions that will be prepared.
 It indicates that the prepare timestamp should be
-rounded up to the stable timestamp, if the prepare timestamp is less than the
+rounded up to the stable timestamp plus one, if the prepare timestamp is less
+than or equal to the
 stable timestamp. This setting also indicates that the commit timestamp of the
 transaction should be rounded up to the prepare timestamp, if the commit
 timestamp is less than the prepare timestamp.
@@ -27,22 +28,22 @@ It does not affect the durable timestamp.
 Based on the timestamp values and
 constraints, enabling this configuration could result in only one of the timestamps
 being rounded up. For example, for the timestamp values
-<code>prepare_timestamp=100, commit_timestamp=300, oldest_timestamp=200</code>
+<code>prepare_timestamp=100, commit_timestamp=300, stable_timestamp=200</code>
 with configuration <code>roundup_timestamps=(prepared=true)</code> only the
-prepare timestamp will be rounded up to the oldest timestamp. The commit
+prepare timestamp will be rounded up past the stable timestamp. The commit
 timestamp will not be adjusted, and the result will be
-<code>prepare_timestamp=200, commit_timestamp=300, oldest_timestamp=200</code>.
+<code>prepare_timestamp=201, commit_timestamp=300, stable_timestamp=200</code>.
 
 For cases where both the prepare timestamp and the commit timestamp need to be
-rounded up, first the prepare timestamp will be rounded to the oldest timestamp
+rounded up, first the prepare timestamp will be rounded to the stable timestamp
 and then the commit timestamp will be rounded up to the new prepare timestamp.
 
 For example, for the timestamp values <code>prepare_timestamp=100,
-commit_timestamp=150, oldest_timestamp=200</code> with configuration
+commit_timestamp=150, stable_timestamp=200</code> with configuration
 <code>roundup_timestamps=(prepared=true)</code>, the prepare timestamp is
-rounded up to the oldest timestamp as <code>prepare_timestamp=200</code>
+rounded up past the stable timestamp as <code>prepare_timestamp=201</code>
 when calling WT_SESSION::prepare_transaction.
 Subsequently as part of WT_SESSION::commit_transaction, the commit timestamp is
-rounded up to the new prepare timestamp as <code>commit_timestamp=200</code>.
+rounded up to the new prepare timestamp as <code>commit_timestamp=201</code>.
 
 */

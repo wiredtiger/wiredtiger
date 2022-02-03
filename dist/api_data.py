@@ -1771,9 +1771,9 @@ methods = {
         Config('prepared', 'false', r'''
             applicable only for prepared transactions. Indicates if the prepare
             timestamp and the commit timestamp of this transaction can be
-            rounded up. If the prepare timestamp is less than the stable
+            rounded up. If the prepare timestamp is less than or equal to the stable
             timestamp, the prepare timestamp will be rounded to the stable
-            timestamp. If the commit timestamp is less than the prepare
+            timestamp plus one. If the commit timestamp is less than the prepare
             timestamp, the commit timestamp will be rounded up to the prepare
             timestamp''', type='boolean'),
         Config('read', 'false', r'''
@@ -1803,7 +1803,7 @@ methods = {
         set the durable timestamp for the current transaction. Required for the
         commit of a prepared transaction, and otherwise not permitted. The
         supplied value must not be older than the commit timestamp set for the
-        current transaction. The value must also not be older than the current
+        current transaction. The value must also be newer than the current
         oldest and stable timestamps. See @ref timestamp_prepare'''),
     Config('operation_timeout_ms', '0', r'''
         when non-zero, a requested limit on the time taken to complete operations in this
@@ -1827,7 +1827,7 @@ methods = {
     Config('prepare_timestamp', '', r'''
         set the prepare timestamp for the updates of the current transaction.
         The supplied value must not be older than any active read timestamps, must
-        not be older than the current stable timestamp, and must not be newer than
+        be newer than the current stable timestamp, and must not be newer than
         any commit timestamps already set. See @ref timestamp_prepare'''),
 ]),
 
@@ -1849,7 +1849,7 @@ methods = {
         commit of a prepared transaction, and otherwise not permitted. Can only
         be set once the current transaction has been prepared, and a commit
         timestamp has been set. The supplied value must not be older than the
-        commit timestamp. The value must also not be older than the current
+        commit timestamp. The value must also be newer than the current
         oldest and stable timestamps. See @ref timestamp_prepare'''),
     # FIXME-WT-8630: needs to be updated with the resolution of WT-8630. (XXX)
     # (One possible resolution is to prohibit setting the prepare timestamp before
@@ -1857,7 +1857,7 @@ methods = {
     Config('prepare_timestamp', '', r'''
         set the prepare timestamp for the updates of the current transaction.
         The supplied value must not be older than any active read timestamps,
-        and must not be older than the current stable timestamp.
+        and must be newer than the current stable timestamp.
         May be set only once per transaction, and must be set before setting the
         commit timestamp. Setting the prepare timestamp does not by itself
         prepare the transaction, but does oblige the application to eventually
