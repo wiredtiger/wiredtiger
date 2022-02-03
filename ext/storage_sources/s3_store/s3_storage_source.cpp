@@ -62,7 +62,8 @@ static int S3FileSystemTerminate(WT_FILE_SYSTEM *, WT_SESSION *);
 
 static int S3ObjectList(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
-static int S3ObjectListAdd(S3_STORAGE *, char ***, const std::vector<std::string> *, const uint32_t);
+static int S3ObjectListAdd(
+  S3_STORAGE *, char ***, const std::vector<std::string> *, const uint32_t);
 static int S3ObjectListSingle(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
 static int S3ObjectListFree(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
@@ -120,7 +121,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
             /* Testing directory list. */
             WT_SESSION *session = NULL;
             const char *prefix = "WiredTiger";
-            char ***objectList = (char ***)malloc(sizeof(char **));;
+            char ***objectList = (char ***)malloc(sizeof(char **));
             uint32_t count;
 
             fs->fileSystem.fs_directory_list(
@@ -216,8 +217,7 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
  *     Free memory allocated by s3_directory_list.
  */
 static int
-S3ObjectListFree(
-  WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, char **objectList, uint32_t count)
+S3ObjectListFree(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, char **objectList, uint32_t count)
 {
     (void)session;
 

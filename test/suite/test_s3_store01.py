@@ -32,6 +32,9 @@ FileSystem = wiredtiger.FileSystem  # easy access to constants
 # test_s3_store01.py
 #   Test minimal S3 extension with basic interactions with AWS S3CrtClient.
 class test_s3_store01(wttest.WiredTigerTestCase):
+    # Temporarily hardcode the bucket name.
+    bucket_name = ""
+
     # Load the s3 store extension, skip the test if missing.
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
@@ -47,6 +50,8 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         s3_store = self.get_s3_storage_source()
 
         fs = s3_store.ss_customize_file_system(session, "./objects", "Secret", None)
+        objlist = fs.fs_directory_list(session, self.bucket_name, '')
+
         fs.terminate(session)
 
 if __name__ == '__main__':
