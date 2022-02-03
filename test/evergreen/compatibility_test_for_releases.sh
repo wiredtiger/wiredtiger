@@ -365,6 +365,7 @@ verify_test_checkpoint()
     echo "Version \"$1\" test_checkpoint verifying \"$2\""
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
+    top_dir=$PWD
     cd "$1/build/test/checkpoint"
 
     if [ "${build_sys[$1]}" == "cmake" ]; then
@@ -375,14 +376,14 @@ verify_test_checkpoint()
 
     for am in $3; do
         echo "$1/$test_bin verifying $2 access method $am..."
-        dir="$2/build/test/checkpoint/RUNDIR.$am"
-        cp -fr "../$dir" "../$dir.backup"
+        dir="$top_dir/$2/build/test/checkpoint/RUNDIR.$am"
+        cp -fr "$dir" "$dir.backup"
         if [ "$am" = "fix" ]; then
-            ./$test_bin -t f -D -v -h "../$dir"
+            ./$test_bin -t f -D -v -h "$dir"
         elif [ "$am" = "var" ]; then
-            ./$test_bin -t c -D -v -h "../$dir"
+            ./$test_bin -t c -D -v -h "$dir"
         else
-            ./$test_bin -t r -D -v -h "../$dir"
+            ./$test_bin -t r -D -v -h "$dir"
         fi
     done
 
