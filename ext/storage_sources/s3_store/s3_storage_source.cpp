@@ -41,7 +41,7 @@
 typedef struct {
     WT_STORAGE_SOURCE storageSource; /* Must come first */
     WT_EXTENSION_API *wtApi;         /* Extension API */
-    uint32_t verbose;
+    int32_t verbose;
 } S3_STORAGE;
 
 typedef struct {
