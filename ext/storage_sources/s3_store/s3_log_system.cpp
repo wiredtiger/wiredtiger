@@ -1,6 +1,5 @@
 #include <aws/core/Aws.h>
 #include "s3_log_system.h"
-
 #include <cstdarg>
 
 S3LogSystem::S3LogSystem(WT_EXTENSION_API *wtApi, uint32_t wtVerbosityLevel)

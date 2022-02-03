@@ -239,15 +239,14 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     int ret = s3->wtApi->config_get(s3->wtApi, NULL, config, "verbose", &v);
 
     // If a verbose level is not found, it will set the level to -3 (Error).
-    if (ret == 0) {
-        if (v.val >= -3 && v.val <= 1)
-            s3->verbose = v.val;
-        else
-            return (EINVAL);
-    } else if (ret == WT_NOTFOUND)
+    if (ret == 0 && v.val >= -3 && v.val <= 1)
+        s3->verbose = v.val;
+    else if (ret == WT_NOTFOUND)
         s3->verbose = -3;
-    else
-        return ret;
+    else {
+        free(s3);
+        return (ret != 0 ? ret : EINVAL);
+    }
 
     Aws::InitAPI(options);
 
