@@ -13,7 +13,7 @@ class S3LogSystem : public Aws::Utils::Logging::LogSystemInterface {
     Aws::Utils::Logging::LogLevel
     GetLogLevel(void) const override
     {
-        return logLevel;
+        return awsLogLevel;
     }
     void Log(
       Aws::Utils::Logging::LogLevel logLevel, const char *tag, const char *format, ...) override;
@@ -22,8 +22,15 @@ class S3LogSystem : public Aws::Utils::Logging::LogSystemInterface {
     void Flush() override;
 
     private:
-    void LogVerboseMessage(
-      const char *tag, Aws::Utils::Logging::LogLevel logLevel, const std::string &message) const;
-    std::atomic<Aws::Utils::Logging::LogLevel> logLevel;
+    void LogAwsMessage(const char *tag, const std::string &message) const;
+    void LogVerboseMessage(int32_t verbosityLevel, const std::string &message);
+    std::atomic<Aws::Utils::Logging::LogLevel> awsLogLevel;
     WT_EXTENSION_API *wtApi;
+    int32_t wtVerbosityLevel;
 };
+// Mapping the desired WiredTiger extension verbosity level to a rough equivalent AWS SDK
+// verbosity level.
+static const std::map<int32_t, Aws::Utils::Logging::LogLevel> verbosityMapping = {
+  {-3, Aws::Utils::Logging::LogLevel::Error}, {-2, Aws::Utils::Logging::LogLevel::Warn},
+  {-1, Aws::Utils::Logging::LogLevel::Info}, {0, Aws::Utils::Logging::LogLevel::Info},
+  {1, Aws::Utils::Logging::LogLevel::Debug}};
