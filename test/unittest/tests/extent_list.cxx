@@ -4,19 +4,19 @@
 
 #include "wt_internal.h"
 
-std::unique_ptr<WT_EXT> create_new_ext() {
+WT_EXT* create_new_ext() {
     // manually alloc enough extra space for the zero-length array to encode two
     // skip lists.
     auto sz = sizeof(WT_EXT) + 2 * WT_SKIP_MAXDEPTH * sizeof(WT_EXT*);
 
-    auto ret = std::unique_ptr<WT_EXT>((WT_EXT*)malloc(sz));
-    memset(ret.get(), 0, sz);
+    auto ret = (WT_EXT*)malloc(sz);
+    memset(ret, 0, sz);
 
     return ret;
 }
 
-std::unique_ptr<WT_SIZE> create_new_size_list() {
-    auto ret = std::unique_ptr<WT_SIZE>(new WT_SIZE{0 ,0, {}, {}});
+std::unique_ptr<WT_SIZE> create_new_sz() {
+    auto ret = std::unique_ptr<WT_SIZE>((WT_SIZE*)malloc(sizeof(WT_SIZE)));
     memset(ret.get(), 0, sizeof(WT_SIZE));
 
     return ret;
@@ -55,6 +55,21 @@ void create_default_test_extent_list(std::vector<WT_EXT*>& head) {
     auto first = create_new_ext();
     auto second = create_new_ext();
     auto third = create_new_ext();
+    first->next[0] = second;
+    first->next[1] = third;
+    second->next[0] = third;
+
+    head[0] = first;
+    head[1] = second;
+    head[2] = third;
+    for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
+        head[i] = nullptr;
+}
+
+void create_default_test_size_list(std::vector<WT_SIZE*>& head) {
+    auto first = create_new_sz();
+    auto second = create_new_sz();
+    auto third = create_new_sz();
     first->next[0] = second.get();
     first->next[1] = third.get();
     second->next[0] = third.get();
@@ -80,7 +95,7 @@ TEST_CASE("block_off_srch_last", "[extent_list]") {
 
     SECTION("list with one element has non-empty final element") {
         auto first = create_new_ext();
-        head[0] = first.get();
+        head[0] = first;
 
         REQUIRE(__ut_block_off_srch_last(&head[0], &stack[0]) == head[0]);
     }
@@ -88,7 +103,7 @@ TEST_CASE("block_off_srch_last", "[extent_list]") {
     SECTION("list with identical skip entries returns identical stack entries") {
         auto first = create_new_ext();
         for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
-            head[i] = first.get();
+            head[i] = first;
 
         __ut_block_off_srch_last(&head[0], &stack[0]);
 
@@ -113,13 +128,13 @@ TEST_CASE("block_off_srch_last", "[extent_list]") {
     SECTION("list with differing skip entries returns final entry") {
         auto first = create_new_ext();
         auto second = create_new_ext();
-        first->next[0] = second.get();
+        first->next[0] = second;
 
-        head[0] = first.get();
+        head[0] = first;
         for (int i = 1; i < WT_SKIP_MAXDEPTH; i++)
-            head[i] = second.get();
+            head[i] = second;
 
-        REQUIRE(__ut_block_off_srch_last(&head[0], &stack[0]) == second.get());
+        REQUIRE(__ut_block_off_srch_last(&head[0], &stack[0]) == second);
     }
 }
 
@@ -136,9 +151,6 @@ TEST_CASE("block_off_srch", "[extent_list]") {
 
     SECTION("exact offset match returns matching list element") {
         create_default_test_extent_list(head);
-        auto first = create_new_ext();
-        auto second = create_new_ext();
-        first->next[0] = second.get();
 
         head[0]->off = 1;
         head[1]->off = 2;
@@ -156,8 +168,6 @@ TEST_CASE("block_off_srch", "[extent_list]") {
 
     SECTION("search for item larger than maximum in list returns end of list") {
         create_default_test_extent_list(head);
-        auto first = create_new_ext();
-        auto second = create_new_ext();
 
         head[0]->off = 1;
         head[1]->off = 2;
@@ -175,28 +185,22 @@ TEST_CASE("block_off_srch", "[extent_list]") {
     SECTION("respect skip offset") {
         const int depth = 10;
 
-        // create_default_test_extent_list(head);
+        create_default_test_extent_list(head);
 
-        auto first = create_new_ext();
-        auto second = create_new_ext();
-        auto third = create_new_ext();
+        head[0]->next[0] = nullptr;
+        head[1]->next[1] = nullptr;
+        head[2]->next[0] = nullptr;
 
-        first->next[0 + depth] = second.get();
-        first->next[1 + depth] = third.get();
-        second->next[0 + depth] = third.get();
+        head[0]->next[0 + depth] = head[1];
+        head[1]->next[1 + depth] = head[2];
+        head[2]->next[0 + depth] = head[2];
 
-        head[0] = first.get();
-        head[1] = second.get();
-        head[2] = third.get();
-        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
-            head[i] = nullptr;
-
-        first->off = 1;
-        first->depth = depth;
-        second->off = 2;
-        second->depth = depth;
-        third->off = 3;
-        third->depth = depth;
+        head[0]->off = 1;
+        head[0]->depth = depth;
+        head[1]->off = 2;
+        head[1]->depth = depth;
+        head[2]->off = 3;
+        head[2]->depth = depth;
 
         __ut_block_off_srch(&head[0], 2, &stack[0], true);
 
@@ -222,45 +226,24 @@ TEST_CASE("block_first_srch", "[extent_list]") {
     }
 
     SECTION("list with too-small chunks doesn't yield a larger chunk") {
-        auto first = create_new_ext();
-        auto second = create_new_ext();
-        auto third = create_new_ext();
-        first->next[0] = second.get();
-        second->next[0] = third.get();
+        create_default_test_extent_list(head);
 
-        head[0] = first.get();
-        head[1] = second.get();
-        head[2] = third.get();
-        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
-            head[i] = nullptr;
-
-        first->size = 1;
-        second->size = 2;
-        third->size = 3;
+        head[0]->size = 1;
+        head[1]->size = 2;
+        head[2]->size = 3;
 
         REQUIRE(__ut_block_first_srch(&head[0], 4, &stack[0]) == false);
     }
 
     SECTION("find an appropriate chunk") {
-        auto first = create_new_ext();
-        auto second = create_new_ext();
-        auto third = create_new_ext();
-        first->next[0] = second.get();
-        second->next[0] = third.get();
+        create_default_test_extent_list(head);
 
-        head[0] = first.get();
-        head[1] = second.get();
-        head[2] = third.get();
-        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
-            head[i] = nullptr;
-
-        first->size = 10;
-        second->size = 20;
-        third->size = 30;
+        head[0]->size = 10;
+        head[1]->size = 20;
+        head[2]->size = 30;
 
         REQUIRE(__ut_block_first_srch(&head[0], 4, &stack[0]) == true);
     }
-
 }
 
 TEST_CASE("block_size_srch", "[extent_list]") {
@@ -275,22 +258,11 @@ TEST_CASE("block_size_srch", "[extent_list]") {
     }
 
     SECTION("exact size match returns matching list element") {
-        auto first = create_new_size_list();
-        auto second = create_new_size_list();
-        auto third = create_new_size_list();
-        first->next[0] = second.get();
-        first->next[1] = third.get();
-        second->next[0] = third.get();
+        create_default_test_size_list(head);
 
-        head[0] = first.get();
-        head[1] = second.get();
-        head[2] = third.get();
-        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
-            head[i] = nullptr;
-
-        first->size = 1;
-        second->size = 2;
-        third->size = 3;
+        head[0]->size = 1;
+        head[1]->size = 2;
+        head[2]->size = 3;
 
         __ut_block_size_srch(&head[0], 2, &stack[0]);
 
@@ -303,22 +275,11 @@ TEST_CASE("block_size_srch", "[extent_list]") {
     }
 
     SECTION("search for item larger than maximum in list returns end of list") {
-        auto first = create_new_size_list();
-        auto second = create_new_size_list();
-        auto third = create_new_size_list();
-        first->next[0] = second.get();
-        first->next[1] = third.get();
-        second->next[0] = third.get();
+        create_default_test_size_list(head);
 
-        head[0] = first.get();
-        head[1] = second.get();
-        head[2] = third.get();
-        for (int i = 3; i < WT_SKIP_MAXDEPTH; i++)
-            head[i] = nullptr;
-
-        first->size = 1;
-        second->size = 2;
-        third->size = 3;
+        head[0]->size = 1;
+        head[1]->size = 2;
+        head[2]->size = 3;
 
         __ut_block_size_srch(&head[0], 4, &stack[0]);
 
