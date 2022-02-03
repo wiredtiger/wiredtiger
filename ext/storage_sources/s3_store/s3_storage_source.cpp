@@ -33,7 +33,6 @@
 #include "s3_log_system.h"
 #include <aws/core/Aws.h>
 #include <aws/core/utils/memory/stl/AWSString.h>
-#include <aws/core/utils/logging/DefaultLogSystem.h>
 #include <aws/core/utils/logging/AWSLogging.h>
 
 #define UNUSED(x) (void)(x)
@@ -48,9 +47,9 @@ typedef struct {
 typedef struct {
     /* Must come first - this is the interface for the file system we are implementing. */
     WT_FILE_SYSTEM fileSystem;
-    S3_STORAGE *s3Storage;
-    S3Connection *conn;
-    S3LogSystem *s3Log;
+    S3_STORAGE *storage;
+    S3Connection *connection;
+    S3LogSystem *log;
 } S3_FILE_SYSTEM;
 
 /* Configuration variables for connecting to S3CrtClient. */
@@ -91,15 +90,15 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     aws_config.partSize = partSize;
 
     Aws::Utils::Logging::InitializeAWSLogging(
-      Aws::MakeShared<S3LogSystem>("S3Storage", s3->wtApi, s3->awsVerboseLevel));
+      Aws::MakeShared<S3LogSystem>("storage", s3->wtApi, s3->awsVerboseLevel));
 
     if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
         return (errno);
 
-    fs->s3Storage = (S3_STORAGE *)storageSource;
+    fs->storage = (S3_STORAGE *)storageSource;
 
     /* New can fail; will deal with this later. */
-    fs->conn = new S3Connection(aws_config);
+    fs->connection = new S3Connection(aws_config);
 
     fs->fileSystem.terminate = S3FileSystemTerminate;
 
@@ -107,7 +106,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     {
         /* List S3 buckets. */
         std::vector<std::string> buckets;
-        if (fs->conn->ListBuckets(buckets)) {
+        if (fs->connection->ListBuckets(buckets)) {
             std::cout << "All buckets under my account:" << std::endl;
             for (const std::string &bucket : buckets) {
                 std::cout << "  * " << bucket << std::endl;
@@ -121,7 +120,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 
             /* List objects. */
             std::vector<std::string> bucketObjects;
-            if (fs->conn->ListObjects(firstBucket, bucketObjects)) {
+            if (fs->connection->ListObjects(firstBucket, bucketObjects)) {
                 std::cout << "Objects in bucket '" << firstBucket << "':" << std::endl;
                 if (!bucketObjects.empty()) {
                     for (const auto &object : bucketObjects) {
@@ -134,11 +133,11 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
             }
 
             /* Put object. */
-            fs->conn->PutObject(firstBucket, "WiredTiger.turtle", "WiredTiger.turtle");
+            fs->connection->PutObject(firstBucket, "WiredTiger.turtle", "WiredTiger.turtle");
 
             /* List objects again. */
             bucketObjects.clear();
-            if (fs->conn->ListObjects(firstBucket, bucketObjects)) {
+            if (fs->connection->ListObjects(firstBucket, bucketObjects)) {
                 std::cout << "Objects in bucket '" << firstBucket << "':" << std::endl;
                 if (!bucketObjects.empty()) {
                     for (const auto &object : bucketObjects) {
@@ -151,11 +150,11 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
             }
 
             /* Delete object. */
-            fs->conn->DeleteObject(firstBucket, "WiredTiger.turtle");
+            fs->connection->DeleteObject(firstBucket, "WiredTiger.turtle");
 
             /* List objects again. */
             bucketObjects.clear();
-            if (fs->conn->ListObjects(firstBucket, bucketObjects)) {
+            if (fs->connection->ListObjects(firstBucket, bucketObjects)) {
                 std::cout << "Objects in bucket '" << firstBucket << "':" << std::endl;
                 if (!bucketObjects.empty()) {
                     for (const auto &object : bucketObjects) {
@@ -187,7 +186,7 @@ S3FileSystemTerminate(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session)
     UNUSED(session); /* unused */
 
     fs = (S3_FILE_SYSTEM *)fileSystem;
-    delete (fs->conn);
+    delete (fs->connection);
     free(fs);
 
     return (0);

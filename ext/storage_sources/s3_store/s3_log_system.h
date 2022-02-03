@@ -1,7 +1,6 @@
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
 
-#include <aws/core/Core_EXPORTS.h>
 #include <aws/core/utils/logging/LogSystemInterface.h>
 #include <aws/core/utils/logging/LogLevel.h>
 
@@ -24,7 +23,7 @@ class S3LogSystem : public Aws::Utils::Logging::LogSystemInterface {
 
     private:
     void LogVerboseMessage(
-      const char *tag, Aws::Utils::Logging::LogLevel logLevel, const std::string &message);
+      const char *tag, Aws::Utils::Logging::LogLevel logLevel, const std::string &message) const;
     std::atomic<Aws::Utils::Logging::LogLevel> logLevel;
     WT_EXTENSION_API *wtApi;
 };

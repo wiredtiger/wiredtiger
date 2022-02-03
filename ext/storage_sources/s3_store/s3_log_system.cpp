@@ -1,7 +1,4 @@
 #include <aws/core/Aws.h>
-#include <aws/core/utils/logging/AWSLogging.h>
-#include <aws/core/utils/logging/LogSystemInterface.h>
-
 #include "s3_log_system.h"
 
 #include <cstdarg>
@@ -59,7 +56,7 @@ S3LogSystem::LogStream(
 
 void
 S3LogSystem::LogVerboseMessage(
-  const char *tag, Aws::Utils::Logging::LogLevel logLevel, const std::string &message)
+  const char *tag, Aws::Utils::Logging::LogLevel logLevel, const std::string &message) const
 {
     wtApi->err_printf(wtApi, NULL, "%s : %s", tag, message.c_str());
 }
