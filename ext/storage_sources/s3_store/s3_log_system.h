@@ -9,7 +9,7 @@
 class S3LogSystem : public Aws::Utils::Logging::LogSystemInterface {
 
     public:
-    S3LogSystem(WT_EXTENSION_API *wtApi, uint32_t awsVerbose);
+    S3LogSystem(WT_EXTENSION_API *wtApi, uint32_t wtVerbosityLevel);
     Aws::Utils::Logging::LogLevel
     GetLogLevel(void) const override
     {

@@ -41,7 +41,7 @@
 typedef struct {
     WT_STORAGE_SOURCE storageSource; /* Must come first */
     WT_EXTENSION_API *wtApi;         /* Extension API */
-    uint32_t awsVerboseLevel;
+    uint32_t verbose;
 } S3_STORAGE;
 
 typedef struct {
@@ -84,13 +84,13 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     UNUSED(authToken);
     UNUSED(config);
 
-    Aws::S3Crt::ClientConfiguration aws_config;
-    aws_config.region = region;
-    aws_config.throughputTargetGbps = throughputTargetGbps;
-    aws_config.partSize = partSize;
+    Aws::S3Crt::ClientConfiguration awsConfig;
+    awsConfig.region = region;
+    awsConfig.throughputTargetGbps = throughputTargetGbps;
+    awsConfig.partSize = partSize;
 
     Aws::Utils::Logging::InitializeAWSLogging(
-      Aws::MakeShared<S3LogSystem>("storage", s3->wtApi, s3->awsVerboseLevel));
+      Aws::MakeShared<S3LogSystem>("storage", s3->wtApi, s3->verbose));
 
     if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
         return (errno);
@@ -98,7 +98,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     fs->storage = (S3_STORAGE *)storageSource;
 
     /* New can fail; will deal with this later. */
-    fs->connection = new S3Connection(aws_config);
+    fs->connection = new S3Connection(awsConfig);
 
     fs->fileSystem.terminate = S3FileSystemTerminate;
 
@@ -236,12 +236,12 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 
     s3->wtApi = connection->get_extension_api(connection);
 
-    int ret = s3->wtApi->config_get(s3->wtApi, NULL, config, "aws_verbose", &v);
+    int ret = s3->wtApi->config_get(s3->wtApi, NULL, config, "verbose", &v);
 
     if (ret == WT_NOTFOUND) {
-        s3->awsVerboseLevel = -3;
+        s3->verbose = -3;
     } else {
-        s3->awsVerboseLevel = v.val;
+        s3->verbose = v.val;
     }
 
     Aws::InitAPI(options);
