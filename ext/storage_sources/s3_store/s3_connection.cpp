@@ -105,17 +105,19 @@ S3Connection::DeleteObject(const std::string &bucketName, const std::string &obj
  *     Retrieves an object from S3 bucket.
  */
 int
-S3Connection::GetObject(const std::string &bucketName, const std::string &objectKey) const
+S3Connection::GetObject(const std::string &bucketName, const std::string &objectKey, const std::string &path) const
 {
     Aws::S3Crt::Model::GetObjectRequest request;
     request.SetBucket(bucketName);
     request.SetKey(objectKey);
-    // request.SetResponseStreamFactory
+    request.SetResponseStreamFactory(
+        [=](){
+            return (Aws::New<Aws::FStream>("S3DOWNLOAD", path, std::ios_base::out | std::ios_base::binary));
+        }
+    );
 
     Aws::S3Crt::Model::GetObjectOutcome outcome = m_S3CrtClient.GetObject(request);
-
-    outcome.GetResult().GetBody().rdbuf();
-
+    
     if (outcome.IsSuccess()) {
         return (0);
     } else 

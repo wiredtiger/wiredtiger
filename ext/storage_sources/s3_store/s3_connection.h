@@ -20,7 +20,7 @@ class S3Connection {
     bool PutObject(const std::string &bucketName, const std::string &objectKey,
       const std::string &fileName) const;
     bool DeleteObject(const std::string &bucketName, const std::string &objectKey) const;
-    int GetObject(const std::string &bucketName, const std::string &objectKey) const;
+    int GetObject(const std::string &bucketName, const std::string &objectKey, const std::string &path) const;
     ~S3Connection() = default;
 
     private:
