@@ -117,16 +117,16 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
             /* Testing directory list. */
             WT_SESSION *session = NULL;
             const char *prefix = "WiredTiger";
-            char ***dirlist = NULL;
-            uint32_t countp;
+            char ***objectList = NULL;
+            uint32_t count;
 
             fs->fileSystem.fs_directory_list(
-              &fs->fileSystem, session, firstBucket.c_str(), prefix, dirlist, &countp);
-            std::cout << "Number of objects retrieved: " << countp << std::endl;
+              &fs->fileSystem, session, firstBucket.c_str(), prefix, objectList, &count);
+            std::cout << "Number of objects retrieved: " << count << std::endl;
 
             fs->fileSystem.fs_directory_list_single(
-              &fs->fileSystem, session, firstBucket.c_str(), prefix, dirlist, &countp);
-            std::cout << "Number of objects retrieved: " << countp << std::endl;
+              &fs->fileSystem, session, firstBucket.c_str(), prefix, objectList, &count);
+            std::cout << "Number of objects retrieved: " << count << std::endl;
 
             /* Delete object. */
             fs->conn->DeleteObject(firstBucket, "WiredTiger.turtle");
@@ -161,23 +161,23 @@ S3FileSystemTerminate(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session)
  *     Return a list of object names for the given location.
  */
 static int
-S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
-  const char *prefix, char ***dirlistp, uint32_t *countp)
+S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *bucket,
+  const char *prefix, char ***objectList, uint32_t *count)
 {
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
     std::vector<std::string> objects;
     int ret;
-    if (ret = fs->conn->ListObjects(std::string(directory), std::string(prefix), objects) != 0)
+    if (ret = fs->conn->ListObjects(std::string(bucket), std::string(prefix), objects) != 0)
         return (ret);
-    std::cout << "Objects in bucket '" << directory << "':" << std::endl;
+    std::cout << "Objects in bucket '" << objectList << "':" << std::endl;
     for (const auto &object : objects)
         std::cout << "  * " << object << std::endl;
     if (objects.empty())
         std::cout << "No objects in bucket." << std::endl;
 
-    *countp = objects.size();
+    *count = objects.size();
 
-    /* TODO: Put objects into dirlistp. */
+    /* TODO: Put objects into objectList. */
 
     return (ret);
 }
@@ -187,24 +187,24 @@ S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *direct
  *     Return a single object name for the given location.
  */
 static int
-S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
-  const char *prefix, char ***dirlistp, uint32_t *countp)
+S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *bucket,
+  const char *prefix, char ***objectList, uint32_t *count)
 {
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
     std::vector<std::string> objects;
     int ret;
     if (ret =
-          fs->conn->ListObjects(std::string(directory), std::string(prefix), objects, 1, true) != 0)
+          fs->conn->ListObjects(std::string(bucket), std::string(prefix), objects, 1, true) != 0)
         return (ret);
-    std::cout << "Object in bucket '" << directory << "':" << std::endl;
+    std::cout << "Object in bucket '" << bucket << "':" << std::endl;
     for (const auto &object : objects)
         std::cout << "  * " << object << std::endl;
     if (objects.empty())
         std::cout << "No objects in bucket." << std::endl;
 
-    *countp = objects.size();
+    *count = objects.size();
 
-    /* TODO: Put objects into dirlistp. */
+    /* TODO: Put objects into objectList. */
 
     return (ret);
 }
