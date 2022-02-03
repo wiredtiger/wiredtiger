@@ -607,6 +607,41 @@ __wt_txn_upd_value_visible_all(WT_SESSION_IMPL *session, WT_UPDATE_VALUE *upd_va
 }
 
 /*
+ * __wt_txn_ts_nondurable --
+ *     Is the given timestamp not yet durable? It is durable unless we are reading between the
+ *     commit time the durable time *and* the global stable timestamp has not yet advanced past the
+ *     durable time. (Note that it is not sufficient to just check that the global stable timestamp
+ *     has advanced past the commit time; prepared transactions are allowed to commit earlier than
+ *     stable if they were prepared after stable and stable has since moved up.) Assumes caller has
+ *     already checked that the commit time is visible and skips checks that makes redundant.
+ */
+static inline bool
+__wt_txn_ts_nondurable(
+  WT_SESSION_IMPL *session, uint64_t txnid, uint64_t commit_ts, uint64_t durable_ts)
+{
+    WT_TXN_GLOBAL *txn_global;
+
+    txn_global = &S2C(session)->txn_global;
+
+    /* If there is no gap between commit time and durable time, we can't read between them. */
+    if (durable_ts == commit_ts)
+        return (false);
+
+    /*
+     * If the durable time is stable, the value might or might not actually be durable (depending on
+     * whether a checkpoint has been completed) but we (the caller) cannot become durable before it,
+     * so for us it counts as durable. The purpose of this check is to make sure we can't read a
+     * nondurable value, then commit and become durable before it, because that violates consistency
+     * expectations.
+     */
+    if (durable_ts <= txn_global->stable_timestamp)
+        return (false);
+
+    /* Otherwise, if the durable time is not visible, we are reading before it. */
+    return (!__wt_txn_visible(session, txnid, durable_ts));
+}
+
+/*
  * __wt_txn_tw_stop_visible --
  *     Is the given stop time window visible?
  */
@@ -615,6 +650,18 @@ __wt_txn_tw_stop_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
     return (WT_TIME_WINDOW_HAS_STOP(tw) && !tw->prepare &&
       __wt_txn_visible(session, tw->stop_txn, tw->stop_ts));
+}
+
+/*
+ * __wt_txn_tw_stop_nondurable --
+ *     Is the given stop time window not yet durable? See notes about the start time below. Assumes
+ *     the caller has already checked that the stop time is visible, so among other things we know
+ *     that the time window *does* have a stop time.
+ */
+static inline bool
+__wt_txn_tw_stop_nondurable(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+{
+    return (__wt_txn_ts_nondurable(session, tw->stop_txn, tw->stop_ts, tw->durable_stop_ts));
 }
 
 /*
@@ -637,36 +684,13 @@ __wt_txn_tw_start_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 
 /*
  * __wt_txn_tw_start_nondurable --
- *     Is the given start time window not yet durable? It is durable unless we are reading between
- *     its start time and its durable start time *and* the global stable timestamp has not yet
- *     advanced past the durable start time. (Note that it is not sufficient to just check that the
- *     global stable timestamp has advanced past the start time; prepared transactions are allowed
- *     to commit earlier than stable if they were prepared after stable and stable has since moved
- *     up.) Assumes caller has already checked that the start time is visible.
+ *     Is the given start time window not yet durable? Assumes caller has already checked that the
+ *     start time is visible.
  */
 static inline bool
 __wt_txn_tw_start_nondurable(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    WT_TXN_GLOBAL *txn_global;
-
-    txn_global = &S2C(session)->txn_global;
-
-    /* If there is no gap between start time and durable start time, we can't read between them. */
-    if (tw->durable_start_ts == tw->start_ts)
-        return (false);
-
-    /*
-     * If the durable start time is stable, the value might or might not actually be durable
-     * (depending on whether a checkpoint has been completed) but we cannot become durable *before*
-     * it, so for us it counts as durable. The purpose of this check is to make sure we can't read a
-     * nondurable value, then commit and become durable before it, because that violates consistency
-     * expectations.
-     */
-    if (tw->durable_start_ts <= txn_global->stable_timestamp)
-        return (false);
-
-    /* Otherwise, if the durable start time is not visible, we are reading before it. */
-    return (!__wt_txn_visible(session, tw->start_txn, tw->durable_start_ts));
+    return (__wt_txn_ts_nondurable(session, tw->start_txn, tw->start_ts, tw->durable_start_ts));
 }
 
 /*
@@ -1073,6 +1097,9 @@ retry:
          */
         if (!have_stop_tw && __wt_txn_tw_stop_visible(session, &tw) &&
           !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE)) {
+            if (__wt_txn_tw_stop_nondurable(session, &tw))
+                /* Disallow reading if we can see it but it isn't durable yet. */
+                return (__wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_NONDURABLE));
             cbt->upd_value->buf.data = NULL;
             cbt->upd_value->buf.size = 0;
             cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;
