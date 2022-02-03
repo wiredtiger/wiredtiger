@@ -33,15 +33,23 @@ static const char *const conn_config =
   "create,cache_size=100MB,log=(archive=false,enabled=true,file_max=100K)";
 static const char *const table_config = "key_format=S,value_format=S";
 
-static const char *const full_out = "./backup_full";
+static const char *const full_out = "backup_full";
 static const char *const home_full = "WT_HOME_LOG_FULL";
 static const char *const home_incr = "WT_HOME_LOG_INCR";
 static const char *const home_incr_copy = "WT_HOME_LOG_INCR_COPY";
 static const char *const home_live = "WT_HOME_LOG";
-static const char *const incr_out = "./backup_incr";
+static const char *const incr_out = "backup_incr";
 static const char *const uri = "table:logtest";
+static const char *const wt_tool_paths[] = {
+  "./wt",        /* Test is launched from "<build>" folder. */
+  "../wt",       /* Test is launched from "<build>/test" folder. */
+  "../../wt",    /* Test is launched from "<build>/test/csuite" folder.*/
+  "../../../wt", /* Test is launched from "<build>/test/csuite/<test_name>" folder.*/
+};
 
-static const char *wt_tool_path = "./wt";
+static const char *wt_tool_path = NULL;
+static const char *test_root = "./WT_TEST";
+static bool preserve_db = false;
 
 static int iterations_num = 5;
 static WT_CONNECTION *conn = NULL;
@@ -58,8 +66,8 @@ dump_table(const char *home, const char *table, const char *out_file)
 {
     char buf[1024];
 
-    testutil_check(__wt_snprintf(
-      buf, sizeof(buf), "%s -R -h %s dump %s > %s", wt_tool_path, home, table, out_file));
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s -R -h %s/%s dump %s > %s/%s", wt_tool_path,
+      test_root, home, table, test_root, out_file));
     testutil_check(system(buf));
 }
 
@@ -72,7 +80,8 @@ reset_dir(const char *dir)
 {
     char buf[1024];
 
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "rm -rf %s && mkdir %s", dir, dir));
+    testutil_check(__wt_snprintf(
+      buf, sizeof(buf), "rm -rf %s/%s && mkdir -p %s/%s", test_root, dir, test_root, dir));
     testutil_check(system(buf));
 }
 
@@ -85,7 +94,7 @@ remove_dir(const char *dir)
 {
     char buf[1024];
 
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "rm -rf %s", dir));
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "rm -rf %s/%s", test_root, dir));
     testutil_check(system(buf));
 }
 
@@ -103,7 +112,8 @@ compare_backups(void)
      * We have to copy incremental backup to keep the original database intact. Otherwise we'll get
      * "Incremental backup after running recovery is not allowed".
      */
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "cp %s/* %s", home_incr, home_incr_copy));
+    testutil_check(__wt_snprintf(
+      buf, sizeof(buf), "cp %s/%s/* %s/%s", test_root, home_incr, test_root, home_incr_copy));
     testutil_check(system(buf));
 
     /* Dump both backups. */
@@ -113,7 +123,8 @@ compare_backups(void)
     reset_dir(home_incr_copy);
 
     /* Compare the files. */
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "cmp %s %s", full_out, incr_out));
+    testutil_check(
+      __wt_snprintf(buf, sizeof(buf), "cmp %s/%s %s/%s", test_root, full_out, test_root, incr_out));
     if ((ret = system(buf)) != 0) {
         printf(
           "Tables \"%s\" don't match in \"%s\" and \"%s\"!\n See \"%s\" and \"%s\" for details.\n",
@@ -121,7 +132,8 @@ compare_backups(void)
         exit(1);
     } else {
         /* If they compare successfully, clean up. */
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "rm %s %s", full_out, incr_out));
+        testutil_check(__wt_snprintf(
+          buf, sizeof(buf), "rm %s/%s %s/%s", test_root, full_out, test_root, incr_out));
         testutil_check(system(buf));
         printf("\t Table \"%s\": OK\n", uri);
     }
@@ -169,12 +181,12 @@ take_full_backup(const char *home, const char *backup_home)
 
     while ((ret = cursor->next(cursor)) == 0) {
         testutil_check(cursor->get_key(cursor, &filename));
-        testutil_check(
-          __wt_snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, backup_home, filename));
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "cp %s/%s/%s %s/%s/%s", test_root, home,
+          filename, test_root, backup_home, filename));
         testutil_check(system(buf));
     }
 
-    scan_end_check(ret == WT_NOTFOUND);
+    testutil_assert(ret == WT_NOTFOUND);
     testutil_check(cursor->close(cursor));
 }
 
@@ -195,11 +207,11 @@ take_incr_backup(const char *backup_home, bool truncate_logs)
     while ((ret = cursor->next(cursor)) == 0) {
         testutil_check(cursor->get_key(cursor, &filename));
 
-        testutil_check(__wt_snprintf(
-          buf, sizeof(buf), "cp %s/%s %s/%s", home_live, filename, backup_home, filename));
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "cp %s/%s/%s %s/%s/%s", test_root, home_live,
+          filename, test_root, backup_home, filename));
         testutil_check(system(buf));
     }
-    scan_end_check(ret == WT_NOTFOUND);
+    testutil_assert(ret == WT_NOTFOUND);
 
     if (truncate_logs) {
         /*
@@ -230,14 +242,19 @@ prepare_folders(void)
  *     Test's cleanup.
  */
 static void
-cleanup(void)
+cleanup(bool remove_test_root)
 {
     testutil_check(conn->close(conn, NULL));
 
-    remove_dir(home_full);
-    remove_dir(home_incr);
-    remove_dir(home_live);
-    remove_dir(home_incr_copy);
+    if (remove_test_root) {
+        /* Remove the test data root directory with all the contents. */
+        remove_dir("");
+    } else {
+        remove_dir(home_full);
+        remove_dir(home_incr);
+        remove_dir(home_live);
+        remove_dir(home_incr_copy);
+    }
 }
 
 /*
@@ -247,6 +264,8 @@ cleanup(void)
 static void
 reopen_conn(void)
 {
+    char full_home[1024];
+
     if (conn != NULL) {
         printf("Reopening connection\n");
         testutil_check(conn->close(conn, NULL));
@@ -254,7 +273,8 @@ reopen_conn(void)
         session = NULL;
     }
 
-    testutil_check(wiredtiger_open(home_live, NULL, conn_config, &conn));
+    testutil_check(__wt_snprintf(full_home, sizeof(full_home), "%s/%s", test_root, home_live));
+    testutil_check(wiredtiger_open(full_home, NULL, conn_config, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 }
 
@@ -297,11 +317,38 @@ validate(bool after_reconnect)
 static void
 usage(void)
 {
-    fprintf(stderr, "Usage: %s [-w path] [-i number]\n", progname);
-    fprintf(stderr, "\t-w <path> optional path to the wt tool. Default is \"./wt\".\n");
+    fprintf(stderr, "Usage: %s [-h home] [-i number] [-p] [-w path]\n", progname);
+    fprintf(stderr,
+      "\t-h <home> optional path to the home directory for the test data. Default is "
+      "\"./WT_HOME\".\n");
     fprintf(stderr, "\t-i <number> optional number of iterations to run. Default is 5.\n");
+    fprintf(stderr, "\t-p optional preserve the database.\n");
+    fprintf(stderr, "\t-w <path> optional path to the wt tool. Default is \"./wt\".\n");
 
     exit(EXIT_FAILURE);
+}
+
+/*
+ * find_wt_path --
+ *     Find wt tool in the current or parent folders. Returns relative path to the tool or NULL in
+ *     the case there was no tool found.
+ */
+static const char *
+find_wt_path(void)
+{
+    uint32_t i;
+    const char *p;
+
+    p = NULL;
+
+    for (i = 0; i < sizeof(wt_tool_paths) / sizeof(wt_tool_paths[0]); i++) {
+        if (access(wt_tool_paths[i], F_OK) == 0) {
+            p = wt_tool_paths[i];
+            break;
+        }
+    }
+
+    return (p);
 }
 
 /*
@@ -313,14 +360,10 @@ parse_args(int argc, char *argv[])
 {
     int ch;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "w:i:")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "h:i:pw:")) != EOF)
         switch (ch) {
-        case 'w':
-            wt_tool_path = __wt_optarg;
-            if (access(wt_tool_path, F_OK) != 0) {
-                printf("Invalid path to WT tool: %s\n", __wt_optarg);
-                usage();
-            }
+        case 'h':
+            test_root = __wt_optarg;
             break;
         case 'i':
             iterations_num = atoi(__wt_optarg);
@@ -329,9 +372,32 @@ parse_args(int argc, char *argv[])
                 usage();
             }
             break;
+        case 'p':
+            preserve_db = true;
+            break;
+        case 'w':
+            wt_tool_path = __wt_optarg;
+            if (access(wt_tool_path, F_OK) != 0) {
+                printf("Invalid path to WT tool: %s\n", __wt_optarg);
+                usage();
+            }
+            break;
         default:
             break;
         }
+
+    /* If there's no -w parameter, try to find wt tool in the current and the parent folders. */
+    if (wt_tool_path == NULL)
+        wt_tool_path = find_wt_path();
+
+    if (wt_tool_path == NULL) {
+        /*
+         * Give up, the path to wt was not provided in the test arguments list and we failed to find
+         * it in the current and the parent folders.
+         */
+        printf("Can't find WT tool.\n");
+        usage();
+    }
 }
 
 /*
@@ -342,10 +408,12 @@ int
 main(int argc, char *argv[])
 {
     int i;
+    bool root_dir_exist;
 
     (void)testutil_set_progname(argv);
     parse_args(argc, argv);
 
+    root_dir_exist = (access(test_root, F_OK) == 0);
     prepare_folders();
 
     reopen_conn();
@@ -373,7 +441,8 @@ main(int argc, char *argv[])
         validate(true);
     }
 
-    cleanup();
+    if (!preserve_db)
+        cleanup(!root_dir_exist);
 
     return (EXIT_SUCCESS);
 }
