@@ -61,7 +61,7 @@ TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
 
     conn.ObjectExists(bucketName, objectName, exists);
     if (exists) {
-        std::cout << "test_object_exists(): FAILURE - test_object already exists in the bucket"
+        std::cout << "TestObjectExists(): FAILURE - test_object already exists in the bucket"
                   << std::endl;
         return 1;
     }
@@ -69,13 +69,13 @@ TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
     conn.PutObject(bucketName, objectName, fileName);
     conn.ObjectExists(bucketName, objectName, exists);
     if (!exists) {
-        std::cout << "test_object_exists(): FAILURE - test object does not exist after put_object."
+        std::cout << "TestObjectExists(): FAILURE - test object does not exist after put_object."
                   << std::endl;
         return 1;
     }
 
     conn.DeleteObject(bucketName, objectName);
-    std::cout << "test_object_exists(): succeeded.\n" << std::endl;
+    std::cout << "TestObjectExists(): succeeded.\n" << std::endl;
     return 0;
 }
 

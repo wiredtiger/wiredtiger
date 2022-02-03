@@ -102,7 +102,7 @@ S3Connection::DeleteObject(const std::string &bucketName, const std::string &obj
 }
 
 /*
- * object_exists --
+ * ObjectExists --
  *     Checks whether an object with the given key exists in the S3 bucket.
  */
 int

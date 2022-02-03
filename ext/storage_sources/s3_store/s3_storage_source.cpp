@@ -47,11 +47,11 @@ typedef struct {
 typedef struct {
     /* Must come first - this is the interface for the file system we are implementing. */
     WT_FILE_SYSTEM fileSystem;
-    char *cacheDir; /* Directory for cached objects */
-    S3_STORAGE *s3Storage;
     S3Connection *conn;
-    const char *homeDir; /* Owned by the connection */
+    S3_STORAGE *s3Storage;
     const char *bucketName;
+    char *cacheDir;      /* Directory for cached objects */
+    const char *homeDir; /* Owned by the connection */
 } S3_FILE_SYSTEM;
 
 /* Configuration variables for connecting to S3CrtClient. */
@@ -63,9 +63,9 @@ const uint64_t partSize = 8 * 1024 * 1024; /* 8 MB. */
 Aws::SDKOptions options;
 
 static int S3GetDirectory(const char *, const char *, ssize_t, bool, char **);
-static int S3CacheExists(WT_FILE_SYSTEM *, const char *, bool *);
-static int S3CachePath(WT_FILE_SYSTEM *, const char *, char **);
-static int S3Path(const char *, const char *, char **);
+static int S3CacheExists(WT_FILE_SYSTEM *, const std::string &, bool &);
+static int S3CachePath(WT_FILE_SYSTEM *, const std::string &, std::string &);
+static int S3Path(const std::string &, const std::string &, std::string &);
 static int S3Exist(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
 static int S3CustomizeFileSystem(
   WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
@@ -83,15 +83,17 @@ S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool 
     int ret;
     s3 = FS2S3(fileSystem);
     S3_FILE_SYSTEM *s3Fs = (S3_FILE_SYSTEM *)fileSystem;
-    *existp = false;
+    bool exists = false;
 
     /* First check to see if the file exists in the cache. */
-    if ((ret = S3CacheExists(fileSystem, name, existp)) != 0)
+    if ((ret = S3CacheExists(fileSystem, name, exists)) != 0)
         return (ret);
 
     /* It's not in the cache, try the s3 bucket. */
-    if (!*existp)
-        ret = s3Fs->conn->ObjectExists(s3Fs->bucketName, name, *existp);
+    if (!exists)
+        ret = s3Fs->conn->ObjectExists(s3Fs->bucketName, name, exists);
+
+    *existp = exists;
 
     return (ret);
 }
@@ -101,24 +103,21 @@ S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool 
  *     Construct a pathname from the directory and the object name.
  */
 static int
-S3Path(const char *dir, const char *name, char **path)
+S3Path(const std::string &dir, const std::string &name, std::string &path)
 {
     /* Skip over "./" and variations (".//", ".///./././//") at the beginning of the name. */
-    while (*name == '.') {
+    int i = 0;
+    while (name[i] == '.') {
         if (name[1] != '/')
             break;
-        name += 2;
-        while (*name == '/')
-            name++;
+        i += 2;
+        while (name[i] == '/')
+            i++;
     }
-    int strSize = std::snprintf(nullptr, 0, "%s/%s", dir, name) + 1; // Extra space for '\0'
-    if (strSize <= 0)
-        return (1);
+    std::string strippedName = name.substr(i, name.length() - i);
+    std::string pathName = dir + "/" + strippedName;
 
-    auto size = static_cast<size_t>(strSize);
-    char *buf = new char[size];
-    std::snprintf(buf, size, "%s/%s", dir, name);
-    *path = buf;
+    path = pathName;
     return (0);
 }
 
@@ -127,7 +126,7 @@ S3Path(const char *dir, const char *name, char **path)
  *     Construct the path to the file in the cache.
  */
 static int
-S3CachePath(WT_FILE_SYSTEM *fileSystem, const char *name, char **path)
+S3CachePath(WT_FILE_SYSTEM *fileSystem, const std::string &name, std::string &path)
 {
     return (S3Path(((S3_FILE_SYSTEM *)fileSystem)->cacheDir, name, path));
 }
@@ -137,17 +136,16 @@ S3CachePath(WT_FILE_SYSTEM *fileSystem, const char *name, char **path)
  *     Checks whether the given file exists in the cache.
  */
 static int
-S3CacheExists(WT_FILE_SYSTEM *fileSystem, const char *name, bool *existp)
+S3CacheExists(WT_FILE_SYSTEM *fileSystem, const std::string &name, bool &exists)
 {
     int ret;
-    char *path;
-    if ((ret = S3CachePath(fileSystem, name, &path)) != 0)
+    std::string path;
+    if ((ret = S3CachePath(fileSystem, name, path)) != 0)
         return (ret);
 
     std::ifstream f(path);
     if (f.good())
-        *existp = true;
-    delete path;
+        exists = true;
     return (0);
 }
 
