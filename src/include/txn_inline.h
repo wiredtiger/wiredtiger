@@ -1269,6 +1269,11 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
     flags = session->dhandle->ts_flags;
     name = session->dhandle->name;
 
+#if defined(WT_STANDALONE_BUILD)
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING))
+        return (0);
+#endif
+
     /* Skip during recovery. */
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
         return (0);

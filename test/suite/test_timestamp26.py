@@ -36,9 +36,6 @@ from wtscenario import make_scenarios
 
 # Test assert/verbose always/never settings when associated with write_timestamp_usage.
 class test_timestamp26_always_never(wttest.WiredTigerTestCase):
-    # Turn off logging, otherwise timestamps are ignored.
-    conn_config = 'log=(enabled=false)'
-
     results = [
         ('always-assert', dict(result='always-assert',
             config='write_timestamp_usage=always,assert=(write_timestamp=on)')),
@@ -113,9 +110,6 @@ class test_timestamp26_always_never(wttest.WiredTigerTestCase):
 
 # Test assert/verbose read timestamp settings.
 class test_timestamp26_read_timestamp(wttest.WiredTigerTestCase):
-    # Turn off logging, otherwise timestamps are ignored.
-    conn_config = 'log=(enabled=false)'
-
     results = [
         ('always-assert', dict(result='always-assert', config='assert=(read_timestamp=always)')),
         ('always-verbose', dict(result='always-verbose', config='verbose=(read_timestamp=always)')),
@@ -188,9 +182,6 @@ class test_timestamp26_read_timestamp(wttest.WiredTigerTestCase):
 
 # Test alter of timestamp settings.
 class test_timestamp26_alter(wttest.WiredTigerTestCase):
-    # Turn off logging, otherwise timestamps are ignored.
-    conn_config = 'log=(enabled=false)'
-
     start = [
         ('always', dict(init_always=True)),
         ('never', dict(init_always=False)),
@@ -353,9 +344,6 @@ class test_timestamp26_inconsistent(wttest.WiredTigerTestCase):
 
 # Test timestamp settings with inconsistent updates.
 class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
-    # Turn off logging, otherwise timestamps are ignored.
-    conn_config = 'log=(enabled=false)'
-
     types = [
         ('fix', dict(key_format='r', value_format='8t')),
         ('row', dict(key_format='S', value_format='S')),
@@ -558,6 +546,49 @@ class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(33))
         self.assertEquals(c[key1], ds.value(20))
         self.assertEquals(c[key2], ds.value(21))
+
+# Test that timestamps are ignored in logged files.
+class test_timestamp26_log_ts(wttest.WiredTigerTestCase):
+    # Turn on logging to cause timestamps to be ignored.
+    conn_config = 'log=(enabled=true)'
+
+    types = [
+        ('fix', dict(key_format='r', value_format='8t')),
+        ('row', dict(key_format='S', value_format='S')),
+        ('var', dict(key_format='r', value_format='S')),
+    ]
+    always = [
+        ('always', dict(always=True)),
+        ('never', dict(always=False)),
+    ]
+    scenarios = make_scenarios(types, always)
+
+    # Smoke test that logged files don't complain about timestamps.
+    def test_log_ts(self):
+        # Create an object that's never written, it's just used to generate valid k/v pairs.
+        ds = SimpleDataSet(
+            self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
+
+        # Open the object, configuring write_timestamp usage.
+        uri = 'table:ts'
+        config = ',write_timestamp_usage='
+        config += 'always' if self.always else 'never'
+        self.session.create(uri,
+            'key_format={},value_format={}'.format(self.key_format, self.value_format) +
+            config + ',assert=(write_timestamp=on),verbose=(write_timestamp=on)')
+
+        c = self.session.open_cursor(uri)
+
+        # Commit with a timestamp.
+        self.session.begin_transaction()
+        c[ds.key(1)] = ds.value(1)
+        self.session.breakpoint()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+
+        # Commit without a timestamp.
+        self.session.begin_transaction()
+        c[ds.key(2)] = ds.value(2)
+        self.session.commit_transaction()
 
 if __name__ == '__main__':
     wttest.run()

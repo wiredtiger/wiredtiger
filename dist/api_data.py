@@ -56,7 +56,7 @@ common_runtime_config = [
             choices=['always', 'never', 'none'], undoc=True),
         Config('read_timestamp', 'none', r'''
             check that timestamps are \c always or \c never used on reads
-            with this table, calling the message hander and failing on error;
+            with this table, calling the message handler and failing on error;
             should be set to \c none if mixed read use is allowed''',
             choices=['always', 'never', 'none']),
         Config('write_timestamp', 'off', r'''

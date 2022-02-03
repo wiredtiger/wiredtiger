@@ -1047,7 +1047,7 @@ struct __wt_session {
 	 * set of related configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
 	 * read_timestamp, check that timestamps are \c always or \c never used on reads with this
-	 * table\, calling the message hander and failing on error; should be set to \c none if
+	 * table\, calling the message handler and failing on error; should be set to \c none if
 	 * mixed read use is allowed., a string\, chosen from the following options: \c "always"\,
 	 * \c "never"\, \c "none"; default \c none.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
@@ -1134,7 +1134,7 @@ struct __wt_session {
 	 * set of related configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
 	 * read_timestamp, check that timestamps are \c always or \c never used on reads with this
-	 * table\, calling the message hander and failing on error; should be set to \c none if
+	 * table\, calling the message handler and failing on error; should be set to \c none if
 	 * mixed read use is allowed., a string\, chosen from the following options: \c "always"\,
 	 * \c "never"\, \c "none"; default \c none.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;

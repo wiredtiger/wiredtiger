@@ -869,6 +869,12 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
     if (!LF_ISSET(WT_DHANDLE_TS_VERBOSE_WRITE | WT_DHANDLE_TS_ASSERT_WRITE))
         return (0);
 
+#if defined(WT_STANDALONE_BUILD)
+    /* Timestamps are ignored on logged files. */
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(btree, WT_BTREE_NO_LOGGING))
+        return (0);
+#endif
+
     /*
      * Do not check for timestamp usage in recovery. We don't expect recovery to be using timestamps
      * when applying commits, and it is possible that timestamps may be out of order in log replay.
