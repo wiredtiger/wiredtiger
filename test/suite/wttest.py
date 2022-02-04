@@ -662,7 +662,7 @@ class WiredTigerTestCase(unittest.TestCase):
     def timestamp_str(self, t):
         return '%x' % t
 
-    def dropUntilSuccess(self, session, uri, config):
+    def dropUntilSuccess(self, session, uri, config=None):
         while True:
             session.checkpoint()
             try:
@@ -671,7 +671,7 @@ class WiredTigerTestCase(unittest.TestCase):
             except wiredtiger.WiredTigerError:
                 pass
 
-    def verifyUntilSuccess(self, session, uri, config):
+    def verifyUntilSuccess(self, session, uri, config=None):
         while True:
             session.checkpoint()
             try:
@@ -680,7 +680,7 @@ class WiredTigerTestCase(unittest.TestCase):
             except wiredtiger.WiredTigerError:
                 pass
     
-    def renameUntilSuccess(self, session, uri, newUri, config):
+    def renameUntilSuccess(self, session, uri, newUri, config=None):
         while True:
             session.checkpoint()
             try:
@@ -689,7 +689,7 @@ class WiredTigerTestCase(unittest.TestCase):
             except wiredtiger.WiredTigerError:
                 pass
 
-    def upgradeUntilSuccess(self, session, uri, config):
+    def upgradeUntilSuccess(self, session, uri, config=None):
         while True:
             session.checkpoint()
             try:
@@ -698,7 +698,7 @@ class WiredTigerTestCase(unittest.TestCase):
             except wiredtiger.WiredTigerError:
                 pass
 
-    def salvageUntilSuccess(self, session, uri, config):
+    def salvageUntilSuccess(self, session, uri, config=None):
         while True:
             session.checkpoint()
             try:

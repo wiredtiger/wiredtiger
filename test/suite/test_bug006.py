@@ -65,14 +65,14 @@ class test_bug006(wttest.WiredTigerTestCase):
         cursor.close()
 
         # Table operations should succeed, the cursor is closed.
-        self.renameUntilSuccess(self.session, uri, self.uri + "new", None)
-        self.renameUntilSuccess(self.session, self.uri + "new", uri, None)
+        self.renameUntilSuccess(self.session, uri, self.uri + "new")
+        self.renameUntilSuccess(self.session, self.uri + "new", uri)
         self.session.salvage(uri, None)
         self.session.truncate(uri, None, None, None)
-        self.upgradeUntilSuccess(self.session, uri, None)
-        self.verifyUntilSuccess(self.session, uri, None)
+        self.upgradeUntilSuccess(self.session, uri)
+        self.verifyUntilSuccess(self.session, uri)
 
-        self.dropUntilSuccess(self.session, uri, None)
+        self.dropUntilSuccess(self.session, uri)
 
 if __name__ == '__main__':
     wttest.run()
