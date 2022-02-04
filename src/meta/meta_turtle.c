@@ -81,7 +81,15 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
         WT_ERR(__wt_getline(session, fs, value));
         if (value->size == 0)
             WT_ERR_PANIC(session, EINVAL, "%s: zero-length value", WT_METADATA_BACKUP);
-        WT_ERR(__wt_metadata_update(session, key->data, value->data));
+
+        if (F_ISSET(S2C(session), WT_CONN_BACKUP_ALL))
+            WT_ERR(__wt_metadata_update(session, key->data, value->data));
+        else if (F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL)) {
+            WT_RET(__wt_fs_exist(session, (char *)key->data, &exist));
+            if (exist)
+                WT_ERR(__wt_metadata_update(session, key->data, value->data));
+        } else
+            WT_ERR_PANIC(session, EINVAL, "Weird");
     }
 
     F_SET(S2C(session), WT_CONN_WAS_BACKUP);
