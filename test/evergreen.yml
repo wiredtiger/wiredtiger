@@ -736,15 +736,6 @@ tasks:
       - func: "upload artifact"
       - func: "cleanup"
 
-  - name: compile-s3-ext
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          posix_configure_flags: -DENABLE_STRICT=0 -DHAVE_DIAGNOSTIC=1 -DENABLE_S3=1 -DIMPORT_S3_SDK=external
-      - func: "upload artifact"
-      - func: "cleanup"
-
   - name: compile-wtperf
     commands:
       - func: "get project"
@@ -2059,12 +2050,11 @@ tasks:
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/1_coverage_report_main.html
 
   - name: s3-ext-test
-    depends_on:
-      - name: compile-s3-ext
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      - func: "compile wiredtiger"
         vars:
-          dependent_task: compile-s3-ext
+            posix_configure_flags: -DENABLE_STRICT=0 -DHAVE_DIAGNOSTIC=1 -DENABLE_S3=1 -DIMPORT_S3_SDK=external -DENABLE_PYTHON=1
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
@@ -4146,5 +4136,4 @@ buildvariants:
     cmake_generator: Ninja
     make_command: ninja
   tasks:
-    - name: compile-s3-ext 
     - name: s3-ext-test
