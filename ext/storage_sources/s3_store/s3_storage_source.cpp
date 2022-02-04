@@ -89,11 +89,11 @@ static int S3ObjectListFree(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
  *     Return if the file exists. First checks the cache, and then the S3 Bucket.
  */
 static int
-S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool *existp)
+S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool *exist)
 {
     S3_STORAGE *s3;
     int ret;
-    *existp = false;
+    *exist = false;
     s3 = FS2S3(fileSystem);
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
     bool exists;
@@ -105,7 +105,7 @@ S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool 
     if (!exists)
         ret = fs->connection->ObjectExists(fs->bucketName, name, exists);
 
-    *existp = exists;
+    *exist = exists;
     return (ret);
 }
 
@@ -317,7 +317,7 @@ S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *bucket
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
     std::vector<std::string> objects;
     int ret;
-    if (ret = fs->connection->ListObjects(std::string(bucket), std::string(prefix), objects) != 0)
+    if (ret = fs->connection->ListObjects(bucket, prefix, objects) != 0)
         return (ret);
     *count = objects.size();
 
@@ -338,7 +338,7 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
     std::vector<std::string> objects;
     int ret;
     if (ret = fs->connection->ListObjects(
-                std::string(bucket), std::string(prefix), objects, 1, true) != 0)
+                bucket, prefix, objects, 1, true) != 0)
         return (ret);
     *count = objects.size();
 
@@ -349,7 +349,7 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
 
 /*
  * S3ObjectListFree --
- *     Free memory allocated by s3_directory_list.
+ *     Free memory allocated by S3ObjectList.
  */
 static int
 S3ObjectListFree(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, char **objectList, uint32_t count)
@@ -368,7 +368,7 @@ S3ObjectListFree(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, char **objectL
 
 /*
  * S3ObjectListAdd --
- *     Add an entry to the directory list, growing as needed.
+ *     Add objects retrieved from S3 bucket into the object list, and allocate the memory needed.
  */
 static int
 S3ObjectListAdd(
