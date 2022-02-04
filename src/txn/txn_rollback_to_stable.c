@@ -1512,6 +1512,10 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
      * there _are_ timestamped updates by checking max_durable_ts; that check is redundant here for
      * several reasons, the most immediate being that max_durable_ts cannot be none (zero) because
      * it's greater than rollback_timestamp, which is itself greater than zero.
+     *
+     * TODO: It is possible that rollback timestmap is greater than max durable. This will in turn
+     * mean history store updates are obsolete, but if a table with same key is created it can still
+     * create problems if we don't clear out the updates.
      */
     if (max_durable_ts > rollback_timestamp && rollback_timestamp != WT_TS_NONE) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
