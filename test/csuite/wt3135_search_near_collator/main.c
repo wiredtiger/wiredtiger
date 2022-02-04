@@ -260,6 +260,7 @@ static void
 test_one_set(WT_SESSION *session, TEST_SET set)
 {
     WT_CURSOR *cursor;
+    WT_DECL_RET;
     WT_ITEM item;
     int32_t i;
 
@@ -327,8 +328,15 @@ test_one_set(WT_SESSION *session, TEST_SET set)
         search_using_item(cursor, set, i);
     testutil_check(cursor->close(cursor));
 
-    testutil_check(session->drop(session, "table:main", NULL));
-    testutil_check(session->drop(session, "table:main2", NULL));
+    while ((ret = session->drop(session, "table:main", NULL)) == EBUSY)
+        testutil_check(session->checkpoint(session, NULL));
+
+    testutil_check(ret);
+
+    while ((ret = session->drop(session, "table:main2", NULL)) == EBUSY)
+        testutil_check(session->checkpoint(session, NULL));
+
+    testutil_check(ret);
 }
 
 /*

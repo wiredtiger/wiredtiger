@@ -125,9 +125,8 @@ verify(SHARED_CONFIG *cfg, const char *name)
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    while ((ret = session->verify(session, name, NULL)) == EBUSY) {
+    while ((ret = session->verify(session, name, NULL)) == EBUSY)
         testutil_check(session->checkpoint(session, NULL));
-    }
 
     testutil_check(ret);
 

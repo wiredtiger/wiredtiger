@@ -137,6 +137,7 @@ test_join(TEST_OPTS *opts, SHARED_OPTS *sharedopts, bool bloom, bool sometimes_r
 {
     THREAD_ARGS insert_args[N_INSERT_THREAD], join_args[N_JOIN_THREAD];
     WT_CURSOR *maincur;
+    WT_DECL_RET;
     WT_SESSION *session;
     pthread_t insert_tid[N_INSERT_THREAD], join_tid[N_JOIN_THREAD];
     int i;
@@ -210,10 +211,26 @@ test_join(TEST_OPTS *opts, SHARED_OPTS *sharedopts, bool bloom, bool sometimes_r
           insert_args[i].inserts, insert_args[i].removes, insert_args[i].notfounds,
           insert_args[i].rollbacks);
 
-    testutil_check(session->drop(session, sharedopts->posturi, NULL));
-    testutil_check(session->drop(session, sharedopts->baluri, NULL));
-    testutil_check(session->drop(session, sharedopts->flaguri, NULL));
-    testutil_check(session->drop(session, opts->uri, NULL));
+    while ((ret = session->drop(session, sharedopts->posturi, NULL)) == EBUSY)
+        testutil_check(session->checkpoint(session, NULL));
+
+    testutil_check(ret);
+
+    while ((ret = session->drop(session, sharedopts->baluri, NULL)) == EBUSY)
+        testutil_check(session->checkpoint(session, NULL));
+
+    testutil_check(ret);
+
+    while ((ret = session->drop(session, sharedopts->flaguri, NULL)) == EBUSY)
+        testutil_check(session->checkpoint(session, NULL));
+
+    testutil_check(ret);
+
+    while ((ret = session->drop(session, opts->uri, NULL)) == EBUSY)
+        testutil_check(session->checkpoint(session, NULL));
+
+    testutil_check(ret);
+
     testutil_check(session->close(session, NULL));
 }
 
