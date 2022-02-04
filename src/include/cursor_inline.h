@@ -184,9 +184,10 @@ static inline int
 __cursor_enter(WT_SESSION_IMPL *session)
 {
     /*
-     * If there are no other cursors positioned in the session, check whether the cache is full.
+     * If there are no other cursors positioned in the session, check whether the cache is full. If
+     * the transaction is prepared skip eviction check.
      */
-    if (session->ncursors == 0)
+    if (session->ncursors == 0 && !F_ISSET(session->txn, WT_TXN_PREPARE))
         WT_RET(__wt_cache_eviction_check(session, false, false, NULL));
     ++session->ncursors;
     return (0);
