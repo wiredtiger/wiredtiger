@@ -679,6 +679,33 @@ class WiredTigerTestCase(unittest.TestCase):
                 return
             except wiredtiger.WiredTigerError:
                 pass
+    
+    def renameUntilSuccess(self, session, uri, newUri, config):
+        while True:
+            session.checkpoint()
+            try:
+                session.rename(uri, newUri, config)
+                return
+            except wiredtiger.WiredTigerError:
+                pass
+
+    def upgradeUntilSuccess(self, session, uri, config):
+        while True:
+            session.checkpoint()
+            try:
+                session.upgrade(uri, config)
+                return
+            except wiredtiger.WiredTigerError:
+                pass
+
+    def salvageUntilSuccess(self, session, uri, config):
+        while True:
+            session.checkpoint()
+            try:
+                session.salvage(uri, config)
+                return
+            except wiredtiger.WiredTigerError:
+                pass
 
     def exceptionToStderr(self, expr):
         """
