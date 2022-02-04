@@ -68,7 +68,7 @@ static int S3FileSystemTerminate(WT_FILE_SYSTEM *, WT_SESSION *);
 static int S3ObjectList(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
 static int S3ObjectListAdd(
-  S3_STORAGE *, char ***, const std::vector<std::string> *, const uint32_t);
+  S3_STORAGE *, char ***, const std::vector<std::string> &, const uint32_t);
 static int S3ObjectListSingle(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
 static int S3ObjectListFree(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
@@ -136,12 +136,12 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 
             fs->fileSystem.fs_directory_list(
               &fs->fileSystem, session, firstBucket.c_str(), prefix, objectList, &count);
-
             std::cout << "Objects in bucket '" << firstBucket << "':" << std::endl;
             for (int i = 0; i < count; i++) {
                 std::cout << (*objectList)[i] << std::endl;
             }
             std::cout << "Number of objects retrieved: " << count << std::endl;
+            fs->fileSystem.fs_directory_list_free(&fs->fileSystem, session, *objectList, count);
 
             fs->fileSystem.fs_directory_list_single(
               &fs->fileSystem, session, firstBucket.c_str(), prefix, objectList, &count);
@@ -151,11 +151,10 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
                 std::cout << (*objectList)[i] << std::endl;
             }
             std::cout << "Number of objects retrieved: " << count << std::endl;
+            fs->fileSystem.fs_directory_list_free(&fs->fileSystem, session, *objectList, count);
 
             /* Delete object. */
             fs->connection->DeleteObject(firstBucket, "WiredTiger.turtle");
-
-            fs->fileSystem.fs_directory_list_free(&fs->fileSystem, session, *objectList, count);
         } else
             std::cout << "No buckets in AWS account." << std::endl;
     }
@@ -196,7 +195,7 @@ S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *bucket
         return (ret);
     *count = objects.size();
 
-    S3ObjectListAdd(fs->storage, objectList, &objects, *count);
+    S3ObjectListAdd(fs->storage, objectList, objects, *count);
 
     return (ret);
 }
@@ -217,7 +216,7 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
         return (ret);
     *count = objects.size();
 
-    S3ObjectListAdd(fs->storage, objectList, &objects, *count);
+    S3ObjectListAdd(fs->storage, objectList, objects, *count);
 
     return (ret);
 }
@@ -229,6 +228,7 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
 static int
 S3ObjectListFree(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, char **objectList, uint32_t count)
 {
+    (void)fileSystem;
     (void)session;
 
     if (objectList != NULL) {
@@ -246,11 +246,11 @@ S3ObjectListFree(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, char **objectL
  */
 static int
 S3ObjectListAdd(
-  S3_STORAGE *s3, char ***objectList, const std::vector<std::string> *objects, const uint32_t count)
+  S3_STORAGE *s3, char ***objectList, const std::vector<std::string> &objects, const uint32_t count)
 {
     char **entries = (char **)malloc(sizeof(char *) * count);
     for (int i = 0; i < count; i++) {
-        entries[i] = strdup((*objects).at(i).c_str());
+        entries[i] = strdup(objects[i].c_str());
     }
     *objectList = entries;
 
