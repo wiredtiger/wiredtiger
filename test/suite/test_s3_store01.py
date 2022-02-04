@@ -38,7 +38,7 @@ class test_s3_store01(wttest.WiredTigerTestCase):
     # Load the s3 store extension, skip the test if missing.
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
-        extlist.extension('storage_sources', 's3_store')
+        extlist.extension('storage_sources', 's3_store=(config=\"(verbose=-3)\")')
 
     def get_s3_storage_source(self):
         return self.conn.get_storage_source('s3_store')
