@@ -1,4 +1,5 @@
 #include <s3_connection.h>
+#include <fstream>
 
 #include <fstream>
 
@@ -11,6 +12,7 @@ const uint64_t partSize = 8 * 1024 * 1024; /* 8 MB. */
 
 int TestListBuckets(const Aws::S3Crt::ClientConfiguration &config);
 int TestListObjects(const Aws::S3Crt::ClientConfiguration &config);
+int TestObjectExists(const Aws::S3Crt::ClientConfiguration &config);
 
 int CleanupTestListObjects(const Aws::S3Crt::ClientConfiguration &config,
   const std::string &bucketName, const int totalObjects, const std::string &prefix,
@@ -214,6 +216,44 @@ CleanupTestListObjects(const Aws::S3Crt::ClientConfiguration &config, const std:
 }
 
 /*
+ * TestObjectExists --
+ *     Unit test to check if an object exists in an AWS bucket.
+ */
+int
+TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
+{
+    S3Connection conn(config);
+    std::vector<std::string> buckets;
+    bool exists = false;
+    int ret = 1;
+
+    if (ret = conn.ListBuckets(buckets) != 0)
+        return (1);
+    const std::string bucketName = buckets.at(0);
+    const std::string objectName = "test_object";
+    const std::string fileName = "test_object.txt";
+
+    /* Create a file to upload to the bucket.*/
+    std::ofstream File(fileName);
+    File << "Test payload";
+    File.close();
+
+    if (ret = conn.ObjectExists(bucketName, objectName, exists) != 0 || exists)
+        return (ret);
+
+    if (ret = conn.PutObject(bucketName, objectName, fileName) != 0)
+        return (ret);
+
+    if (ret = conn.ObjectExists(bucketName, objectName, exists) != 0 || !exists)
+        return (ret);
+
+    if (ret = conn.DeleteObject(bucketName, objectName) != 0)
+        return (ret);
+    std::cout << "TestObjectExists(): succeeded.\n" << std::endl;
+    return (0);
+}
+
+/*
  * main --
  *     Set up configs and call unit tests.
  */
@@ -233,6 +273,9 @@ main()
     int expectedOutput = 0;
     TEST(TestListBuckets, awsConfig, expectedOutput);
     TEST(TestListObjects, awsConfig, expectedOutput);
+
+    int objectExistsExpectedOutput = 0;
+    TEST(TestObjectExists, awsConfig, objectExistsExpectedOutput);
 
     /* Shutdown the API at end of tests. */
     Aws::ShutdownAPI(options);

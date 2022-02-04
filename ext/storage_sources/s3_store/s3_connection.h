@@ -21,6 +21,8 @@ class S3Connection {
     int PutObject(const std::string &bucketName, const std::string &objectKey,
       const std::string &fileName) const;
     int DeleteObject(const std::string &bucketName, const std::string &objectKey) const;
+    int ObjectExists(
+      const std::string &bucketName, const std::string &objectKey, bool &exists) const;
     ~S3Connection() = default;
 
     private:
