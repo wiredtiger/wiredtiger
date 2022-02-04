@@ -19,17 +19,17 @@ method.
 @section timestamp_misc_diagnostic Using diagnostic configurations to enforce timestamp usage
 
 The WT_SESSION::create method supports additional checking of timestamp usage on
-a per-key or per-table basis.  These performance checks can significantly
-decrease application performance, but are useful development tools. Setting the
-\c write_timestamp_usage configuration specifies how timestamps are expected to
-be used by the table:
+a per-key or per-table basis.  These performance checks can affect application
+performance and so may require thought before configuring in production systems,
+but are useful development tools. Setting the \c write_timestamp_usage
+configuration specifies how timestamps are expected to be used by the table:
 
 | Configuration | Description |
 |---------------|-------------|
-| always | Require a commit timestamp every time a key in the table is updated. |
-| ordered | As soon as a commit timestamp is used for updating a key in the table, all future updates to the key will require a commit timestamp as well, and each update must have a later commit timestamp than any previous update. |
-| mixed_mode | Allow updates both with and without timestamps, and further allow updates in any timestamp order. (This is WiredTiger's default behavior, although future releases are expected to disallow updates with out-of-order timestamps.) |
-| never | Require that no updates to the table have a timestamp. |
+| always | Require all updates to the table have a commit timestamp. |
+| ordered | Once a commit timestamp is used when updating a key in the table, all future updates to the key will require a commit timestamp as well, and each update must have a later commit timestamp than any previous update. |
+| mixed_mode | Allow updates both with and without timestamps, and further allow updates in any timestamp order. (This is WiredTiger's default behavior. Future releases are expected to continue to allow updates with and without timestamps, but disallow updates with out-of-order timestamps.) |
+| never | Require no updates to the table have a commit timestamp. |
 
 The \c write_timestamp_usage configuration is expected to be used with the
 \c assert and \c verbose configurations to the WT_SESSION::create method. The
