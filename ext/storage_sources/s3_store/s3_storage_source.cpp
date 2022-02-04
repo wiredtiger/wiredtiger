@@ -68,9 +68,8 @@ const uint64_t partSize = 8 * 1024 * 1024; /* 8 MB. */
 Aws::SDKOptions options;
 
 static int S3GetDirectory(const std::string &, const std::string &, bool, std::string &);
-static int S3CacheExists(WT_FILE_SYSTEM *, const std::string &, bool &);
-static int S3CachePath(WT_FILE_SYSTEM *, const std::string &, std::string &);
-static int S3Path(const std::string &, const std::string &, std::string &);
+static bool S3CacheExists(WT_FILE_SYSTEM *, const std::string &);
+static std::string S3Path(const std::string &, const std::string &);
 static int S3Exist(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
 static int S3CustomizeFileSystem(
   WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
@@ -92,12 +91,11 @@ S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool 
     bool exists;
 
     /* First check to see if the file exists in the cache. */
-    if ((ret = S3CacheExists(fileSystem, name, exists)) != 0)
-        return (ret);
+    exists = S3CacheExists(fileSystem, name);
 
     /* It's not in the cache, try the s3 bucket. */
     if (!exists)
-        ret = fs->conn->ObjectExists(fs->bucketName, name, exists);
+        ret = fs->connection->ObjectExists(fs->bucketName, name, exists);
 
     *existp = exists;
     return (ret);
@@ -107,8 +105,8 @@ S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool 
  * S3Path --
  *     Construct a pathname from the directory and the object name.
  */
-static int
-S3Path(const std::string &dir, const std::string &name, std::string &path)
+static std::string
+S3Path(const std::string &dir, const std::string &name)
 {
     /* Skip over "./" and variations (".//", ".///./././//") at the beginning of the name. */
     int i = 0;
@@ -120,37 +118,19 @@ S3Path(const std::string &dir, const std::string &name, std::string &path)
             i++;
     }
     std::string strippedName = name.substr(i, name.length() - i);
-    path = dir + "/" + strippedName;
-    return (0);
-}
-
-/*
- * S3CachePath --
- *     Construct the path to the file in the cache.
- */
-static int
-S3CachePath(WT_FILE_SYSTEM *fileSystem, const std::string &name, std::string &path)
-{
-    return (S3Path(((S3_FILE_SYSTEM *)fileSystem)->cacheDir, name, path));
+    return (dir + "/" + strippedName);
 }
 
 /*
  * S3CacheExists --
  *     Checks whether the given file exists in the cache.
  */
-static int
-S3CacheExists(WT_FILE_SYSTEM *fileSystem, const std::string &name, bool &exists)
+static bool
+S3CacheExists(WT_FILE_SYSTEM *fileSystem, const std::string &name)
 {
-    exists = false;
-
-    int ret;
-    std::string path;
-    S3CachePath(fileSystem, name, path);
-
+    std::string path = S3Path(((S3_FILE_SYSTEM *)fileSystem)->cacheDir, name);
     std::ifstream f(path);
-    if (f.good())
-        exists = true;
-    return (0);
+    return (f.good());
 }
 
 /*
@@ -215,12 +195,11 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     ret = s3->wtApi->config_get_string(s3->wtApi, session, config, "cache_directory", &cacheDir);
     if (ret == 0)
         cacheStr = cacheDir.str;
-    else if (ret == WT_NOTFOUND) {
+    else if (ret == WT_NOTFOUND)
         ret = 0;
-        cacheDir.len = 0;
-    } else
+    else
         return (ret);
-  
+
     Aws::Utils::Logging::InitializeAWSLogging(
       Aws::MakeShared<S3LogSystem>("storage", s3->wtApi, s3->verbose));
 
@@ -236,7 +215,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
      * The default cache directory is named "cache-<name>", where name is the last component of the
      * bucket name's path. We'll create it if it doesn't exist.
      */
-    if (cacheDir.len == 0) {
+    if (cacheStr.empty()) {
         cacheStr = "cache-" + fs->bucketName;
         fs->cacheDir = cacheStr;
     }

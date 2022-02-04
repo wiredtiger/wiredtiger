@@ -126,8 +126,7 @@ S3Connection::ObjectExists(
     } else if (outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND)
         return (0);
     else
-        /* There are other reasons ObjectExists might fail. This can be changed in the future. */
-        return (static_cast<int>(outcome.GetError().GetResponseCode()));
+        return (-1);
 }
 
 /*
