@@ -132,6 +132,8 @@ the WT_CONNECTION::set_timestamp method, including constraints.
 | recovery | <= stable | The stable timestamp used in the most recent checkpoint prior to the last shutdown (or 0 if none available). |
 | stable_timestamp | None | The current application-set \c stable_timestamp value. |
 
+In all cases, ::WT_NOTFOUND is returned if there is no matching timestamp.
+
 @subsection timestamp_global_query_api_all_durable Reading the "all_durable" timestamp
 
 <!--
@@ -176,8 +178,7 @@ The \c last_checkpoint timestamp is read-only.
 @subsection timestamp_global_query_api_oldest_reader Reading the "oldest_reader" timestamp
 
 The \c oldest_reader timestamp is the oldest transaction read timestamp active,
-including the read timestamp of any running checkpoint. ::WT_NOTFOUND is returned
-if there are no active readers.
+including the read timestamp of any running checkpoint.
 
 The \c oldest_reader timestamp is read-only.
 

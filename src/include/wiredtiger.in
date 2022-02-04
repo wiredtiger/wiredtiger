@@ -1904,15 +1904,15 @@ struct __wt_session {
 	 * enough to hold a NUL terminated, hex-encoded 8B timestamp (17 bytes).
 	 * @configstart{WT_SESSION.query_timestamp, see dist/api_data.py}
 	 * @config{get, specify which timestamp to query: \c commit returns the most recently set
-	 * commit_timestamp.  \c first_commit returns the first set commit_timestamp.  \c prepare
-	 * returns the timestamp used in preparing a transaction.  \c read returns the timestamp at
+	 * commit_timestamp; \c first_commit returns the first set commit_timestamp; \c prepare
+	 * returns the timestamp used in preparing a transaction; \c read returns the timestamp at
 	 * which the transaction is reading at.  See @ref timestamp_txn_api., a string\, chosen from
 	 * the following options: \c "commit"\, \c "first_commit"\, \c "prepare"\, \c "read";
 	 * default \c read.}
 	 * @configend
 	 * @errors
-	 * If the session is not in a transaction ::WT_NOTFOUND will be
-	 * returned.
+	 * ::WT_NOTFOUND is returned if the session is not in a transaction or there is no matching
+	 * timestamp.
 	 */
 	int __F(query_timestamp)(
 	    WT_SESSION *session, char *hex_timestamp, const char *config);
@@ -2481,23 +2481,22 @@ struct __wt_connection {
 	 * enough to hold a NUL terminated, hex-encoded 8B timestamp (17 bytes).
 	 * @configstart{WT_CONNECTION.query_timestamp, see dist/api_data.py}
 	 * @config{get, specify which timestamp to query: \c all_durable returns the largest
-	 * timestamp such that all timestamps up to that value have been made durable\, \c
-	 * last_checkpoint returns the timestamp of the most recent stable checkpoint\, \c
+	 * timestamp such that all timestamps up to that value have been made durable; \c
+	 * last_checkpoint returns the timestamp of the most recent stable checkpoint; \c
 	 * oldest_timestamp returns the most recent \c oldest_timestamp set with
-	 * WT_CONNECTION::set_timestamp\, \c oldest_reader returns the minimum of the read
-	 * timestamps of all active readers \c pinned returns the minimum of the \c oldest_timestamp
-	 * and the read timestamps of all active readers\, \c recovery returns the timestamp of the
-	 * most recent stable checkpoint taken prior to a shutdown and \c stable_timestamp returns
-	 * the most recent \c stable_timestamp set with WT_CONNECTION::set_timestamp.  (The \c
-	 * oldest and \c stable arguments are deprecated short-hand for \c oldest_timestamp and \c
+	 * WT_CONNECTION::set_timestamp; \c oldest_reader returns the minimum of the read timestamps
+	 * of all active readers; \c pinned returns the minimum of the \c oldest_timestamp and the
+	 * read timestamps of all active readers; \c recovery returns the timestamp of the most
+	 * recent stable checkpoint taken prior to a shutdown\, and \c stable_timestamp returns the
+	 * most recent \c stable_timestamp set with WT_CONNECTION::set_timestamp.  (The \c oldest
+	 * and \c stable arguments are deprecated short-hand for \c oldest_timestamp and \c
 	 * stable_timestamp\, respectively.) See @ref timestamp_global_api., a string\, chosen from
 	 * the following options: \c "all_durable"\, \c "last_checkpoint"\, \c "oldest"\, \c
 	 * "oldest_reader"\, \c "oldest_timestamp"\, \c "pinned"\, \c "recovery"\, \c "stable"\, \c
 	 * "stable_timestamp"; default \c all_durable.}
 	 * @configend
 	 * @errors
-	 * If there is no matching timestamp (e.g., if this method is called
-	 * before timestamps are used) ::WT_NOTFOUND will be returned.
+	 * ::WT_NOTFOUND is returned if there is no matching timestamp.
 	 */
 	int __F(query_timestamp)(
 	    WT_CONNECTION *connection, char *hex_timestamp, const char *config);
