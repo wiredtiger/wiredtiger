@@ -118,13 +118,18 @@ void
 verify(SHARED_CONFIG *cfg, const char *name)
 {
     WT_CONNECTION *conn;
+    WT_DECL_RET;
     WT_SESSION *session;
 
     conn = cfg->conn;
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    testutil_check(session->verify(session, name, NULL));
+    while ((ret = session->verify(session, name, NULL)) == EBUSY) {
+        testutil_check(session->checkpoint(session, NULL));
+    }
+
+    testutil_check(ret);
 
     testutil_check(session->close(session, NULL));
 }
