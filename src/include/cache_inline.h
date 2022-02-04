@@ -449,7 +449,7 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
 
     /* If the transaction is prepared don't evict. */
     if (F_ISSET(session->txn, WT_TXN_PREPARE))
-        return(0);
+        return (0);
 
     /*
      * If the current transaction is keeping the oldest ID pinned, it is in the middle of an
