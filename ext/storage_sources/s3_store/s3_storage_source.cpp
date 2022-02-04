@@ -337,8 +337,7 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
     std::vector<std::string> objects;
     int ret;
-    if (ret = fs->connection->ListObjects(
-                bucket, prefix, objects, 1, true) != 0)
+    if (ret = fs->connection->ListObjects(bucket, prefix, objects, 1, true) != 0)
         return (ret);
     *count = objects.size();
 
