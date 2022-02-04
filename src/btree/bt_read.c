@@ -232,10 +232,8 @@ read:
             /*
              * The page isn't in memory, read it. If this thread respects the cache size, check for
              * space in the cache.
-             *
-             * If the transaction is prepared skip eviction check.
              */
-            if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE) && !F_ISSET(session->txn, WT_TXN_PREPARE))
+            if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
                 WT_RET(__wt_cache_eviction_check(
                   session, true, !F_ISSET(session->txn, WT_TXN_HAS_ID), NULL));
             WT_RET(__page_read(session, ref, flags));
@@ -394,10 +392,8 @@ skip_evict:
          * If stalling and this thread is allowed to do eviction work, check if the cache needs help
          * evicting clean pages (don't force a read to do dirty eviction). If we do work for the
          * cache, substitute that for a sleep.
-         *
-         * If the transaction is prepared skip eviction check.
          */
-        if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE) && !F_ISSET(session->txn, WT_TXN_PREPARE)) {
+        if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE)) {
             WT_RET(__wt_cache_eviction_check(session, true, true, &cache_work));
             if (cache_work)
                 continue;
