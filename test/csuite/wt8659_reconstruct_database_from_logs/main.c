@@ -57,6 +57,8 @@ static WT_SESSION *session = NULL;
 
 extern char *__wt_optarg;
 
+static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
 /*
  * dump_table --
  *     Dump the table content in to the file in human-readable format.
