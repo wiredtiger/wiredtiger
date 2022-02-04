@@ -3,6 +3,7 @@ ACM
 ADDR
 APIs
 ASAN
+ASan
 ActiveState
 Adler's
 Atomicity
@@ -29,6 +30,7 @@ Cyclomatic
 DB's
 DBTs
 DCC
+DCLANG
 DCMAKE
 DENABLE
 DHANDLE
@@ -54,6 +56,7 @@ Encryptors
 FSTREAM
 Facebook
 Facebook's
+FIXME
 FlameGraph
 FlameGraphs
 FlexeLint
@@ -107,6 +110,7 @@ NUMA
 NoSQL
 OPTYPE
 PMU
+Powershell
 PPC
 PRELOAD
 PROFDATA
@@ -124,6 +128,7 @@ SYSV
 Sanitizer
 Seward's
 SiH
+Timestamping
 TSC
 TXID
 TXT
@@ -456,6 +461,7 @@ mkdir
 mmap
 mpool
 mpoolfile
+msbuild
 msec
 msg
 msgs
@@ -631,7 +637,9 @@ thang
 tid
 timeline
 timelines
+timespan
 timestamp
+timestamping
 timestamps
 toc
 todo
@@ -671,6 +679,7 @@ util
 valign
 valuefmt
 valuev
+vcxproj
 vec
 versa
 viewable
