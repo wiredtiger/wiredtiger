@@ -4111,6 +4111,7 @@ buildvariants:
   display_name: "~ Ubuntu 20.04 ARM64"
   run_on:
   - ubuntu2004-arm64-small
+  batchtime: 1440 # 24 hours
   expansions:
     test_env_vars:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
