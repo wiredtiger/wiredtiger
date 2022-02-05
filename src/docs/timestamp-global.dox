@@ -57,7 +57,7 @@ take a checkpoint.
 WT_CONNECTION::rollback_to_stable method, and should be reset by the application
 in that case.
 
-@subsection timestamp_global_set_api_oldest_timestamp Setting the \c "oldest_timestamp" timestamp
+@subsection timestamp_global_set_api_oldest_timestamp Setting the "oldest_timestamp" timestamp
 
 Setting \c oldest_timestamp indicates future read timestamps will be at
 least as recent as the timestamp, allowing WiredTiger to discard history before
