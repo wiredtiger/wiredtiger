@@ -31,10 +31,11 @@ WiredTiger is production quality, supported software, engineered for the most
 demanding application environments. WiredTiger is the primary storage engine
 under the MongoDB Database and the MongoDB  Atlas product line.
 
-As a no-overwrite data engine, torn writes can never corrupt a WiredTiger data
-store. Additionally, WiredTiger includes verification support so you can verify
-data sets, and salvage support as a last-ditch protection: data can be retrieved
-even if it somehow becomes corrupted.
+As a no-overwrite data engine, WiredTiger is safe from operating system and
+hardware-level torn writes. Additionally, WiredTiger includes end-to-end
+checksums and verification support so you can verify data sets, and salvage
+support as a last-ditch protection: data can be retrieved even if it somehow
+becomes corrupted.
 
 @section nosql NoSQL and Open Source
 
