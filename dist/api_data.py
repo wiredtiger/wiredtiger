@@ -59,11 +59,11 @@ common_runtime_config = [
             with this table, calling the message handler and failing on error;
             should be set to \c none if mixed read use is allowed''',
             choices=['always', 'never', 'none']),
-        Config('write_timestamp', 'off', r'''
+        Config('write_timestamp', 'false', r'''
             check that timestamps are used per the configured \c
             write_timestamp_usage option for this table, calling the message
             handler and failing on error''',
-            choices=['off', 'on']),
+            type='boolean'),
         ]),
     Config('verbose', '', r'''
         enable enhanced timestamp checking with messages''',
@@ -73,11 +73,11 @@ common_runtime_config = [
             with this table, calling the message handler on error; should
             be set to \c none if mixed read use is allowed''',
             choices=['always', 'never', 'none']),
-        Config('write_timestamp', 'off', r'''
+        Config('write_timestamp', 'false', r'''
             check that timestamps are used per the configured
             \c write_timestamp_usage option for this table, calling the
             message handler on error''',
-            choices=['off', 'on']),
+            type='boolean'),
         ]),
     Config('write_timestamp_usage', 'none', r'''
         describe how timestamps are expected to be used on modifications to

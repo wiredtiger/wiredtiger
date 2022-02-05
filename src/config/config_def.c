@@ -194,16 +194,14 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create_assert_subconfigs[] = {
   {"commit_timestamp", "string", NULL, "choices=[\"always\",\"never\",\"none\"]", NULL, 0},
   {"durable_timestamp", "string", NULL, "choices=[\"always\",\"never\",\"none\"]", NULL, 0},
   {"read_timestamp", "string", NULL, "choices=[\"always\",\"never\",\"none\"]", NULL, 0},
-  {"write_timestamp", "string", NULL, "choices=[\"off\",\"on\"]", NULL, 0},
-  {NULL, NULL, NULL, NULL, NULL, 0}};
+  {"write_timestamp", "boolean", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create_log_subconfigs[] = {
   {"enabled", "boolean", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create_verbose_subconfigs[] = {
   {"read_timestamp", "string", NULL, "choices=[\"always\",\"never\",\"none\"]", NULL, 0},
-  {"write_timestamp", "string", NULL, "choices=[\"off\",\"on\"]", NULL, 0},
-  {NULL, NULL, NULL, NULL, NULL, 0}};
+  {"write_timestamp", "boolean", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_alter[] = {
   {"access_pattern_hint", "string", NULL, "choices=[\"none\",\"random\",\"sequential\"]", NULL, 0},
@@ -1224,11 +1222,11 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_SESSION.alter",
     "access_pattern_hint=none,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
-    "read_timestamp=none,write_timestamp=off),cache_resident=false,"
+    "read_timestamp=none,write_timestamp=false),cache_resident=false,"
     "checkpoint=,exclusive_refreshed=true,log=(enabled=true),"
     "os_cache_dirty_max=0,os_cache_max=0,readonly=false,"
     "tiered_object=false,verbose=(read_timestamp=none,"
-    "write_timestamp=off),write_timestamp_usage=none",
+    "write_timestamp=false),write_timestamp_usage=none",
     confchk_WT_SESSION_alter, 13},
   {"WT_SESSION.begin_transaction",
     "ignore_prepare=false,isolation=,name=,operation_timeout_ms=0,"
@@ -1246,8 +1244,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_SESSION.create",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
-    "read_timestamp=none,write_timestamp=off),block_allocation=best,"
-    "block_compressor=,cache_resident=false,checksum=on,colgroups=,"
+    "read_timestamp=none,write_timestamp=false),block_allocation=best"
+    ",block_compressor=,cache_resident=false,checksum=on,colgroups=,"
     "collator=,columns=,dictionary=0,encryption=(keyid=,name=),"
     "exclusive=false,extractor=,format=btree,huffman_key=,"
     "huffman_value=,ignore_in_memory_cache_size=false,immutable=false"
@@ -1267,7 +1265,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "split_pct=90,tiered_object=false,tiered_storage=(auth_token=,"
     "bucket=,bucket_prefix=,cache_directory=,local_retention=300,"
     "name=,object_target_size=10M),type=file,value_format=u,"
-    "verbose=(read_timestamp=none,write_timestamp=off),"
+    "verbose=(read_timestamp=none,write_timestamp=false),"
     "write_timestamp_usage=none",
     confchk_WT_SESSION_create, 50},
   {"WT_SESSION.drop",
@@ -1318,16 +1316,16 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     confchk_WT_SESSION_verify, 7},
   {"colgroup.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
-    "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
-    "collator=,columns=,source=,type=file,"
-    "verbose=(read_timestamp=none,write_timestamp=off),"
+    "durable_timestamp=none,read_timestamp=none,"
+    "write_timestamp=false),collator=,columns=,source=,type=file,"
+    "verbose=(read_timestamp=none,write_timestamp=false),"
     "write_timestamp_usage=none",
     confchk_colgroup_meta, 8},
   {"file.config",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
-    "read_timestamp=none,write_timestamp=off),block_allocation=best,"
-    "block_compressor=,cache_resident=false,checksum=on,collator=,"
+    "read_timestamp=none,write_timestamp=false),block_allocation=best"
+    ",block_compressor=,cache_resident=false,checksum=on,collator=,"
     "columns=,dictionary=0,encryption=(keyid=,name=),format=btree,"
     "huffman_key=,huffman_value=,ignore_in_memory_cache_size=false,"
     "internal_item_max=0,internal_key_max=0,"
@@ -1340,14 +1338,14 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "tiered_object=false,tiered_storage=(auth_token=,bucket=,"
     "bucket_prefix=,cache_directory=,local_retention=300,name=,"
     "object_target_size=10M),value_format=u,"
-    "verbose=(read_timestamp=none,write_timestamp=off),"
+    "verbose=(read_timestamp=none,write_timestamp=false),"
     "write_timestamp_usage=none",
     confchk_file_config, 42},
   {"file.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
-    "read_timestamp=none,write_timestamp=off),block_allocation=best,"
-    "block_compressor=,cache_resident=false,checkpoint=,"
+    "read_timestamp=none,write_timestamp=false),block_allocation=best"
+    ",block_compressor=,cache_resident=false,checkpoint=,"
     "checkpoint_backup_info=,checkpoint_lsn=,checksum=on,collator=,"
     "columns=,dictionary=0,encryption=(keyid=,name=),format=btree,"
     "huffman_key=,huffman_value=,id=,"
@@ -1362,22 +1360,22 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
     "cache_directory=,local_retention=300,name=,"
     "object_target_size=10M),value_format=u,"
-    "verbose=(read_timestamp=none,write_timestamp=off),"
+    "verbose=(read_timestamp=none,write_timestamp=false),"
     "version=(major=0,minor=0),write_timestamp_usage=none",
     confchk_file_meta, 47},
   {"index.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
-    "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
-    "collator=,columns=,extractor=,immutable=false,index_key_columns="
-    ",key_format=u,source=,type=file,value_format=u,"
-    "verbose=(read_timestamp=none,write_timestamp=off),"
-    "write_timestamp_usage=none",
+    "durable_timestamp=none,read_timestamp=none,"
+    "write_timestamp=false),collator=,columns=,extractor=,"
+    "immutable=false,index_key_columns=,key_format=u,source=,"
+    "type=file,value_format=u,verbose=(read_timestamp=none,"
+    "write_timestamp=false),write_timestamp_usage=none",
     confchk_index_meta, 13},
   {"lsm.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
-    "read_timestamp=none,write_timestamp=off),block_allocation=best,"
-    "block_compressor=,cache_resident=false,checksum=on,chunks=,"
+    "read_timestamp=none,write_timestamp=false),block_allocation=best"
+    ",block_compressor=,cache_resident=false,checksum=on,chunks=,"
     "collator=,columns=,dictionary=0,encryption=(keyid=,name=),"
     "format=btree,huffman_key=,huffman_value=,"
     "ignore_in_memory_cache_size=false,internal_item_max=0,"
@@ -1396,14 +1394,14 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
     "cache_directory=,local_retention=300,name=,"
     "object_target_size=10M),value_format=u,"
-    "verbose=(read_timestamp=none,write_timestamp=off),"
+    "verbose=(read_timestamp=none,write_timestamp=false),"
     "write_timestamp_usage=none",
     confchk_lsm_meta, 46},
   {"object.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
-    "read_timestamp=none,write_timestamp=off),block_allocation=best,"
-    "block_compressor=,cache_resident=false,checkpoint=,"
+    "read_timestamp=none,write_timestamp=false),block_allocation=best"
+    ",block_compressor=,cache_resident=false,checkpoint=,"
     "checkpoint_backup_info=,checkpoint_lsn=,checksum=on,collator=,"
     "columns=,dictionary=0,encryption=(keyid=,name=),flush_time=0,"
     "flush_timestamp=0,format=btree,huffman_key=,huffman_value=,id=,"
@@ -1418,21 +1416,21 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
     "cache_directory=,local_retention=300,name=,"
     "object_target_size=10M),value_format=u,"
-    "verbose=(read_timestamp=none,write_timestamp=off),"
+    "verbose=(read_timestamp=none,write_timestamp=false),"
     "version=(major=0,minor=0),write_timestamp_usage=none",
     confchk_object_meta, 49},
   {"table.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
-    "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
-    "colgroups=,collator=,columns=,key_format=u,value_format=u,"
-    "verbose=(read_timestamp=none,write_timestamp=off),"
-    "write_timestamp_usage=none",
+    "durable_timestamp=none,read_timestamp=none,"
+    "write_timestamp=false),colgroups=,collator=,columns=,"
+    "key_format=u,value_format=u,verbose=(read_timestamp=none,"
+    "write_timestamp=false),write_timestamp_usage=none",
     confchk_table_meta, 9},
   {"tier.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
-    "read_timestamp=none,write_timestamp=off),block_allocation=best,"
-    "block_compressor=,bucket=,bucket_prefix=,cache_directory=,"
+    "read_timestamp=none,write_timestamp=false),block_allocation=best"
+    ",block_compressor=,bucket=,bucket_prefix=,cache_directory=,"
     "cache_resident=false,checkpoint=,checkpoint_backup_info=,"
     "checkpoint_lsn=,checksum=on,collator=,columns=,dictionary=0,"
     "encryption=(keyid=,name=),format=btree,huffman_key=,"
@@ -1447,14 +1445,14 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "tiered_object=false,tiered_storage=(auth_token=,bucket=,"
     "bucket_prefix=,cache_directory=,local_retention=300,name=,"
     "object_target_size=10M),value_format=u,"
-    "verbose=(read_timestamp=none,write_timestamp=off),"
+    "verbose=(read_timestamp=none,write_timestamp=false),"
     "version=(major=0,minor=0),write_timestamp_usage=none",
     confchk_tier_meta, 50},
   {"tiered.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
-    "read_timestamp=none,write_timestamp=off),block_allocation=best,"
-    "block_compressor=,cache_resident=false,checkpoint=,"
+    "read_timestamp=none,write_timestamp=false),block_allocation=best"
+    ",block_compressor=,cache_resident=false,checkpoint=,"
     "checkpoint_backup_info=,checkpoint_lsn=,checksum=on,collator=,"
     "columns=,dictionary=0,encryption=(keyid=,name=),flush_time=0,"
     "flush_timestamp=0,format=btree,huffman_key=,huffman_value=,id=,"
@@ -1469,7 +1467,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     ",split_pct=90,tiered_object=false,tiered_storage=(auth_token=,"
     "bucket=,bucket_prefix=,cache_directory=,local_retention=300,"
     "name=,object_target_size=10M),tiers=,value_format=u,"
-    "verbose=(read_timestamp=none,write_timestamp=off),"
+    "verbose=(read_timestamp=none,write_timestamp=false),"
     "version=(major=0,minor=0),write_timestamp_usage=none",
     confchk_tiered_meta, 52},
   {"wiredtiger_open",

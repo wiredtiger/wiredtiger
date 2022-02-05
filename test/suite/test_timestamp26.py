@@ -38,15 +38,15 @@ from wtscenario import make_scenarios
 class test_timestamp26_always_never(wttest.WiredTigerTestCase):
     results = [
         ('always-assert', dict(result='always-assert',
-            config='write_timestamp_usage=always,assert=(write_timestamp=on)')),
+            config='write_timestamp_usage=always,assert=(write_timestamp)')),
         ('always-verbose', dict(result='always-verbose',
-            config='write_timestamp_usage=always,verbose=(write_timestamp=on)')),
-        ('default-usage-off', dict(result='none', config='assert=(write_timestamp=off)')),
-        ('default-usage-on', dict(result='none', config='assert=(write_timestamp=on)')),
+            config='write_timestamp_usage=always,verbose=(write_timestamp)')),
+        ('default-usage-off', dict(result='none', config='')),
+        ('default-usage-on', dict(result='none', config='assert=(write_timestamp)')),
         ('never-assert', dict(result='never-assert',
-            config='write_timestamp_usage=never,assert=(write_timestamp=on)')),
+            config='write_timestamp_usage=never,assert=(write_timestamp)')),
         ('never-verbose', dict(result='never-verbose',
-            config='write_timestamp_usage=never,verbose=(write_timestamp=on)')),
+            config='write_timestamp_usage=never,verbose=(write_timestamp)')),
     ]
     commit_ts = [
         ('yes', dict(commit_ts=True)),
@@ -225,7 +225,7 @@ class test_timestamp26_alter(wttest.WiredTigerTestCase):
         uri = 'table:ts'
         self.session.create(uri,
             'key_format={},value_format={}'.format(self.key_format, self.value_format) +
-            ',' + 'write_timestamp_usage={}'.format(start) + ',assert=(write_timestamp=on)')
+            ',' + 'write_timestamp_usage={}'.format(start) + ',assert=(write_timestamp)')
         self.check(ds, uri, self.init_always)
         self.session.alter(uri, 'write_timestamp_usage={}'.format(switch))
         self.check(ds, uri, not self.init_always)
@@ -290,8 +290,8 @@ class test_timestamp26_inconsistent(wttest.WiredTigerTestCase):
         # timestamp forward in order to alter, otherwise alter will fail with EBUSY.
         c.close()
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
-        config = 'assert=(write_timestamp=on)' if self.set_assert \
-            else 'verbose=(write_timestamp=on)'
+        config = 'assert=(write_timestamp)' if self.set_assert \
+            else 'verbose=(write_timestamp)'
         self.session.alter(uri, 'write_timestamp_usage=ordered,' + config)
 
         c = self.session.open_cursor(uri)
@@ -327,7 +327,7 @@ class test_timestamp26_inconsistent(wttest.WiredTigerTestCase):
         # Now alter the setting again and detection is off.
         c.close()
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(20))
-        self.session.alter(uri, 'assert=(write_timestamp=off),verbose=(write_timestamp=off)')
+        self.session.alter(uri, 'assert=(write_timestamp=false),verbose=(write_timestamp=false)')
 
         c = self.session.open_cursor(uri)
         key = ds.key(18)
@@ -367,7 +367,7 @@ class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
         config = 'assert' if self.set_assert else 'verbose'
         self.session.create(uri,
             'key_format={},value_format={}'.format(self.key_format, self.value_format) +
-            ',write_timestamp_usage=ordered,' + config + '=(write_timestamp=on)')
+            ',write_timestamp_usage=ordered,' + config + '=(write_timestamp)')
 
         c = self.session.open_cursor(uri)
         key = ds.key(1)
@@ -466,7 +466,7 @@ class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
         config = 'assert' if self.set_assert else 'verbose'
         self.session.create(uri,
             'key_format={},value_format={}'.format(self.key_format, self.value_format) +
-            ',write_timestamp_usage=ordered,' + config + '=(write_timestamp=on)')
+            ',write_timestamp_usage=ordered,' + config + '=(write_timestamp)')
 
         c = self.session.open_cursor(uri)
         key = ds.key(5)
@@ -510,7 +510,7 @@ class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
         config = 'assert' if self.set_assert else 'verbose'
         self.session.create(uri,
             'key_format={},value_format={}'.format(self.key_format, self.value_format) +
-            ',write_timestamp_usage=ordered,' + config + '=(write_timestamp=on)')
+            ',write_timestamp_usage=ordered,' + config + '=(write_timestamp)')
 
         c = self.session.open_cursor(uri)
         key1 = ds.key(6)
@@ -575,7 +575,7 @@ class test_timestamp26_log_ts(wttest.WiredTigerTestCase):
         config += 'always' if self.always else 'never'
         self.session.create(uri,
             'key_format={},value_format={}'.format(self.key_format, self.value_format) +
-            config + ',assert=(write_timestamp=on),verbose=(write_timestamp=on)')
+            config + ',assert=(write_timestamp),verbose=(write_timestamp)')
 
         c = self.session.open_cursor(uri)
 

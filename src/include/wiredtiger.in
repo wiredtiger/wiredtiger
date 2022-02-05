@@ -1053,8 +1053,7 @@ struct __wt_session {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
 	 * write_timestamp, check that timestamps are used per the configured \c
 	 * write_timestamp_usage option for this table\, calling the message handler and failing on
-	 * error., a string\, chosen from the following options: \c "off"\, \c "on"; default \c
-	 * off.}
+	 * error., a boolean flag; default \c false.}
 	 * @config{ ),,}
 	 * @config{cache_resident, do not ever evict the object's pages from cache.  Not compatible
 	 * with LSM tables; see @ref tuning_cache_resident for more information., a boolean flag;
@@ -1083,8 +1082,7 @@ struct __wt_session {
 	 * \c none.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;write_timestamp, check that timestamps are used
 	 * per the configured \c write_timestamp_usage option for this table\, calling the message
-	 * handler on error., a string\, chosen from the following options: \c "off"\, \c "on";
-	 * default \c off.}
+	 * handler on error., a boolean flag; default \c false.}
 	 * @config{ ),,}
 	 * @config{write_timestamp_usage, describe how timestamps are expected to be used on
 	 * modifications to the table.  This option should be used in conjunction with the
@@ -1140,8 +1138,7 @@ struct __wt_session {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
 	 * write_timestamp, check that timestamps are used per the configured \c
 	 * write_timestamp_usage option for this table\, calling the message handler and failing on
-	 * error., a string\, chosen from the following options: \c "off"\, \c "on"; default \c
-	 * off.}
+	 * error., a boolean flag; default \c false.}
 	 * @config{ ),,}
 	 * @config{block_allocation, configure block allocation.  Permitted values are \c "best" or
 	 * \c "first"; the \c "best" configuration uses a best-fit algorithm\, the \c "first"
@@ -1379,8 +1376,7 @@ struct __wt_session {
 	 * \c none.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;write_timestamp, check that timestamps are used
 	 * per the configured \c write_timestamp_usage option for this table\, calling the message
-	 * handler on error., a string\, chosen from the following options: \c "off"\, \c "on";
-	 * default \c off.}
+	 * handler on error., a boolean flag; default \c false.}
 	 * @config{ ),,}
 	 * @config{write_timestamp_usage, describe how timestamps are expected to be used on
 	 * modifications to the table.  This option should be used in conjunction with the
