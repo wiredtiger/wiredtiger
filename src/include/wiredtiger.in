@@ -652,7 +652,6 @@ struct __wt_cursor {
 	 *
 	 * @param cursor the cursor handle
 	 * @errors
-	 * EINVAL is returned if the read timestamp is set.
 	 */
 	int __F(largest_key)(WT_CURSOR *cursor);
 
