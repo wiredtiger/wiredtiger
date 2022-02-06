@@ -252,27 +252,27 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
             /* Testing directory list. */
             WT_SESSION *session = NULL;
             const char *prefix = "WiredTiger";
-            char ***objectList = (char ***)malloc(sizeof(char **));
+            char **objectList;
             uint32_t count;
 
             fs->fileSystem.fs_directory_list(
-              &fs->fileSystem, session, firstBucket.c_str(), prefix, objectList, &count);
+              &fs->fileSystem, session, firstBucket.c_str(), prefix, &objectList, &count);
             std::cout << "Objects in bucket '" << firstBucket << "':" << std::endl;
             for (int i = 0; i < count; i++)
-                std::cout << (*objectList)[i] << std::endl;
+                std::cout << (objectList)[i] << std::endl;
 
             std::cout << "Number of objects retrieved: " << count << std::endl;
-            fs->fileSystem.fs_directory_list_free(&fs->fileSystem, session, *objectList, count);
+            fs->fileSystem.fs_directory_list_free(&fs->fileSystem, session, objectList, count);
 
             fs->fileSystem.fs_directory_list_single(
-              &fs->fileSystem, session, firstBucket.c_str(), prefix, objectList, &count);
+              &fs->fileSystem, session, firstBucket.c_str(), prefix, &objectList, &count);
 
             std::cout << "Objects in bucket '" << firstBucket << "':" << std::endl;
             for (int i = 0; i < count; i++)
-                std::cout << (*objectList)[i] << std::endl;
+                std::cout << (objectList)[i] << std::endl;
 
             std::cout << "Number of objects retrieved: " << count << std::endl;
-            fs->fileSystem.fs_directory_list_free(&fs->fileSystem, session, *objectList, count);
+            fs->fileSystem.fs_directory_list_free(&fs->fileSystem, session, objectList, count);
 
             /* Delete object. */
             fs->connection->DeleteObject(firstBucket, "WiredTiger.turtle");
