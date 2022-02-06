@@ -225,10 +225,10 @@ TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
     S3Connection conn(config);
     std::vector<std::string> buckets;
     bool exists = false;
-    int ret = 1;
+    int ret;
 
     if (ret = conn.ListBuckets(buckets) != 0)
-        return (1);
+        return (ret);
     const std::string bucketName = buckets.at(0);
     const std::string objectName = "test_object";
     const std::string fileName = "test_object.txt";

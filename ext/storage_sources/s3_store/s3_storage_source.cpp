@@ -96,16 +96,11 @@ S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool 
     *exist = false;
     s3 = FS2S3(fileSystem);
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
-    bool exists;
 
-    /* First check to see if the file exists in the cache. */
-    exists = S3CacheExists(fileSystem, name);
+    /* It's not in the cache, try the S3 bucket. */
+    if(*exist = S3CacheExists(fileSystem, name) != true)
+        ret = fs->connection->ObjectExists(fs->bucketName, name, *exist);
 
-    /* It's not in the cache, try the s3 bucket. */
-    if (!exists)
-        ret = fs->connection->ObjectExists(fs->bucketName, name, exists);
-
-    *exist = exists;
     return (ret);
 }
 

@@ -49,7 +49,7 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         s3_store = self.get_s3_storage_source()
 
         fs = s3_store.ss_customize_file_system(session, "wt-bucket", "Secret", None)
-        objlist = fs.fs_directory_list(session, self.bucket_name, '')
+        _ = fs.fs_directory_list(session, self.bucket_name, '')
 
         fs.terminate(session)
 
