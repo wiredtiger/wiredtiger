@@ -904,6 +904,7 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 
     prev_op_durable_ts = upd->prev_durable_ts;
 
+#if defined(WT_STANDALONE_BUILD)
     /* Ordered key consistency requires all updates use timestamps, once they are first used. */
     if (LF_ISSET(WT_DHANDLE_TS_ORDERED) && !txn_has_ts && prev_op_durable_ts != WT_TS_NONE) {
         __wt_err(session, EINVAL,
@@ -914,6 +915,7 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
         if (LF_ISSET(WT_DHANDLE_TS_ASSERT_WRITE))
             ret = EINVAL;
     }
+#endif
 
     /* Ordered key consistency requires all updates be in timestamp order. */
     if (LF_ISSET(WT_DHANDLE_TS_ORDERED) && txn_has_ts && prev_op_durable_ts > op_ts) {
