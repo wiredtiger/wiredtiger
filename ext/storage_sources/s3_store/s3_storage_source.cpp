@@ -98,7 +98,7 @@ S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool 
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
 
     /* It's not in the cache, try the S3 bucket. */
-    if(*exist = S3CacheExists(fileSystem, name) != true)
+    if (*exist = !S3CacheExists(fileSystem, name))
         ret = fs->connection->ObjectExists(fs->bucketName, name, *exist);
 
     return (ret);
@@ -258,9 +258,9 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
             fs->fileSystem.fs_directory_list(
               &fs->fileSystem, session, firstBucket.c_str(), prefix, objectList, &count);
             std::cout << "Objects in bucket '" << firstBucket << "':" << std::endl;
-            for (int i = 0; i < count; i++) {
+            for (int i = 0; i < count; i++)
                 std::cout << (*objectList)[i] << std::endl;
-            }
+
             std::cout << "Number of objects retrieved: " << count << std::endl;
             fs->fileSystem.fs_directory_list_free(&fs->fileSystem, session, *objectList, count);
 
@@ -268,9 +268,9 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
               &fs->fileSystem, session, firstBucket.c_str(), prefix, objectList, &count);
 
             std::cout << "Objects in bucket '" << firstBucket << "':" << std::endl;
-            for (int i = 0; i < count; i++) {
+            for (int i = 0; i < count; i++)
                 std::cout << (*objectList)[i] << std::endl;
-            }
+
             std::cout << "Number of objects retrieved: " << count << std::endl;
             fs->fileSystem.fs_directory_list_free(&fs->fileSystem, session, *objectList, count);
 

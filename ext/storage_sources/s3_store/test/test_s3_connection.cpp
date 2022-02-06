@@ -37,13 +37,13 @@ TestListBuckets(const Aws::S3Crt::ClientConfiguration &config)
     S3Connection conn(config);
     std::vector<std::string> buckets;
     if (ret = conn.ListBuckets(buckets) != 0)
-        return ret;
+        return (ret);
 
     std::cout << "All buckets under my account:" << std::endl;
     for (const auto &bucket : buckets)
         std::cout << "  * " << bucket << std::endl;
 
-    return ret;
+    return (ret);
 }
 
 /*
@@ -212,7 +212,7 @@ CleanupTestListObjects(const Aws::S3Crt::ClientConfiguration &config, const std:
     }
     std::remove(fileName.c_str());
 
-    return ret;
+    return (ret);
 }
 
 /*
