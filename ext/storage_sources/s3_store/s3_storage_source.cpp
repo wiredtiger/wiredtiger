@@ -88,7 +88,7 @@ static int S3ObjectListSingle(
 static int S3ObjectListFree(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
 
 /*
- *   --
+ *   S3Exist--
  *     Return if the file exists. First checks the cache, and then the S3 Bucket.
  */
 static int
@@ -410,7 +410,7 @@ S3Terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
 
 /*
  * S3Flush --
- *     Flush file to S3 Store using AWS PutObject.
+ *     Flush file to S3 Store using AWS SDK C++ PutObject.
  */
 static int
 S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *fileSystem,
@@ -429,13 +429,15 @@ static int
 S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *fileSystem,
   const char *source, const char *object, const char *config)
 {
-    S3_STORAGE *s3 = (S3_STORAGE *)storage;
     std::string srcPath = S3HomePath(fileSystem, source);
     std::string destPath = S3CachePath(fileSystem, source);
-    std::cout << srcPath << destPath << std::endl;
     int ret;
+
+    /* Linking file with the local file. */
     if ((ret = link(srcPath.c_str(), destPath.c_str())) != 0)
         return ret;
+    
+    /* Set the file to readonly in the cache. */
     if ((ret = chmod(destPath.c_str(), 0444)) != 0)
         return ret;
     return ret;

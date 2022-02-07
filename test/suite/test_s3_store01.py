@@ -51,7 +51,7 @@ class test_s3_store01(wttest.WiredTigerTestCase):
        
         # Test flush functionality and flushing to cache and checking if file exists.
         f = open('foobar', 'wb')
-        outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
+        outbytes = ('Ruby\n'*100).encode()
         f.write(outbytes)
         f.close()
         s3_store.ss_flush(session, fs, "foobar", "foobar")
