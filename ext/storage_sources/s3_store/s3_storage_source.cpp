@@ -73,6 +73,8 @@ Aws::SDKOptions options;
 static int S3GetDirectory(const std::string &, const std::string &, bool, std::string &);
 static bool S3CacheExists(WT_FILE_SYSTEM *, const std::string &);
 static std::string S3Path(const std::string &, const std::string &);
+static std::string S3HomePath(WT_FILE_SYSTEM *,  const char *);
+static std::string S3CachePath(WT_FILE_SYSTEM *,  const char *);
 static int S3Exist(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
 static int S3CustomizeFileSystem(
   WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
@@ -419,6 +421,46 @@ S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *f
         int ret = fs->connection->PutObject(fs->bucketName, object, source);
         return (ret);
   }
+
+/*
+ * S3FlushFinish --
+ *     Flush local file to cache.
+ */
+static int
+S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session,
+  WT_FILE_SYSTEM *fileSystem, const char *source, const char *object, const char *config)
+{
+    S3_STORAGE *s3 = (S3_STORAGE *)storage;
+    std::string srcPath = S3HomePath(fileSystem, source);
+    std::string destPath = S3CachePath(fileSystem, source);
+    std::cout << srcPath << destPath << std::endl;
+    int ret;
+    if ((ret = link(srcPath.c_str(), destPath.c_str()))!=0)
+        return ret; 
+    if ((ret = chmod(destPath.c_str(), 0444)) !=0)
+        return ret;
+    return ret; 
+}    
+
+/*
+ * S3CachePath --
+ *     Construct the cache pathname from the file system and local name.
+ */
+std::string
+S3CachePath(WT_FILE_SYSTEM *fileSystem, const char *name)
+{
+    return S3Path(((S3_FILE_SYSTEM *)fileSystem)->cacheDir, name);
+}
+
+/*
+ * S3HomePath --
+ *     Construct the source pathname from the file system and local name.
+ */
+std::string
+S3HomePath(WT_FILE_SYSTEM *fileSystem, const char *name)
+{
+    return S3Path(((S3_FILE_SYSTEM *)fileSystem)->homeDir, name);
+}
 
 /*
  * wiredtiger_extension_init --
