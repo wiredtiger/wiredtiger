@@ -19,10 +19,12 @@ method.
 @section timestamp_misc_diagnostic Using diagnostic configurations to enforce timestamp usage
 
 The WT_SESSION::create method supports additional checking of timestamp usage on
-a per-key or per-table basis.  These performance checks can affect application
-performance and so may require thought before configuring in production systems,
-but are useful development tools. Setting the \c write_timestamp_usage
-configuration specifies how timestamps are expected to be used by the table:
+a per-key or per-table basis. While these usage checks can decrease application
+performance and applications may not choose to configure them in production
+settings, they are strongly recommended during development.
+
+Setting the \c write_timestamp_usage configuration specifies how timestamps are
+expected to be used by the table:
 
 | Configuration | Description |
 |---------------|-------------|
