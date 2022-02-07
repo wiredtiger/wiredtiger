@@ -10,14 +10,20 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(Catch2)
 
+set(unittest_sources
+    tests/main.cxx
+    tests/extent_list.cxx
+)
+
 create_test_executable(unittests
-    SOURCES tests/main.cxx tests/extent_list.cxx
+    SOURCES ${unittest_sources}
+    FLAGS -Wno-missing-declarations
     CXX
 )
 
+set_target_properties(unittests PROPERTIES CXX_STANDARD 17)
 target_compile_options(
     unittests
-    PUBLIC -std=c++17
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 
