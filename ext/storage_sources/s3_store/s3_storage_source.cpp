@@ -233,10 +233,6 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     if ((ret = S3GetDirectory(homeDir, cacheStr, true, cacheDir)) != 0)
         return (ret);
 
-    /* Create a logger for this file system. */
-    Aws::Utils::Logging::InitializeAWSLogging(
-      Aws::MakeShared<S3LogSystem>("storage", s3->wtApi, s3->verbose));
-
     /* Create the file system. */
     if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
         return (errno);
@@ -244,18 +240,22 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     fs->homeDir = homeDir;
     fs->cacheDir = cacheDir;
 
-    Aws::S3Crt::ClientConfiguration aws_config;
-    aws_config.region = region;
-    aws_config.throughputTargetGbps = throughputTargetGbps;
-    aws_config.partSize = partSize;
+    Aws::S3Crt::ClientConfiguration awsConfig;
+    awsConfig.region = region;
+    awsConfig.throughputTargetGbps = throughputTargetGbps;
+    awsConfig.partSize = partSize;
 
     /* New can fail; will deal with this later. */
-    fs->connection = new S3Connection(aws_config, bucketName, objPrefix);
+    fs->connection = new S3Connection(awsConfig, bucketName, objPrefix);
     fs->fileSystem.fs_directory_list = S3ObjectList;
     fs->fileSystem.fs_directory_list_single = S3ObjectListSingle;
     fs->fileSystem.fs_directory_list_free = S3ObjectListFree;
     fs->fileSystem.terminate = S3FileSystemTerminate;
     fs->fileSystem.fs_exist = S3Exist;
+
+    /* Create a logger for this file system. */
+    Aws::Utils::Logging::InitializeAWSLogging(
+      Aws::MakeShared<S3LogSystem>("storage", s3->wtApi, s3->verbose));
 
     /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
     {
