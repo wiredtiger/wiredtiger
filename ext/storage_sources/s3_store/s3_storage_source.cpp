@@ -196,7 +196,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
         return (EINVAL);
     }
 
-    /* 
+    /*
      * Parse configuration string.
      */
 
@@ -204,7 +204,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     WT_CONFIG_ITEM objPrefixConf;
     std::string objPrefix;
     if ((ret = s3->wtApi->config_get_string(
-        s3->wtApi, session, config, "prefix", &objPrefixConf)) == 0)
+           s3->wtApi, session, config, "prefix", &objPrefixConf)) == 0)
         objPrefix = objPrefixConf.str;
     else if (ret != WT_NOTFOUND) {
         std::cerr << "Error: customize_file_system: config parsing for object prefix";
@@ -213,13 +213,13 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 
     /*
      * Get the directory to setup the cache, or use the default one. The default cache directory is
-     * named "cache-<name>", where name is the last component of the bucket name's path.
-     * We'll create it if it doesn't exist.
+     * named "cache-<name>", where name is the last component of the bucket name's path. We'll
+     * create it if it doesn't exist.
      */
     WT_CONFIG_ITEM cacheDirConf;
     std::string cacheStr;
     if ((ret = s3->wtApi->config_get_string(
-        s3->wtApi, session, config, "cache_directory", &cacheDirConf)) == 0)
+           s3->wtApi, session, config, "cache_directory", &cacheDirConf)) == 0)
         cacheStr = cacheDirConf.str;
     else if (ret == WT_NOTFOUND) {
         cacheStr = "cache-" + std::string(bucketName);
@@ -259,36 +259,36 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 
     /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
     {
-		/* Put object. */
-		fs->connection->PutObject("WiredTiger.turtle", "WiredTiger.turtle");
+        /* Put object. */
+        fs->connection->PutObject("WiredTiger.turtle", "WiredTiger.turtle");
 
-		/* Testing directory list. */
-		WT_SESSION *session = NULL;
-		const char *prefix = "WiredTiger";
-		char **objectList;
-		uint32_t count;
+        /* Testing directory list. */
+        WT_SESSION *session = NULL;
+        const char *prefix = "WiredTiger";
+        char **objectList;
+        uint32_t count;
 
-		fs->fileSystem.fs_directory_list(
-		  &fs->fileSystem, session, NULL, prefix, &objectList, &count);
-		std::cout << "Objects in bucket: " << std::endl;
-		for (int i = 0; i < count; i++)
-			std::cout << (objectList)[i] << std::endl;
+        fs->fileSystem.fs_directory_list(
+          &fs->fileSystem, session, NULL, prefix, &objectList, &count);
+        std::cout << "Objects in bucket: " << std::endl;
+        for (int i = 0; i < count; i++)
+            std::cout << (objectList)[i] << std::endl;
 
-		std::cout << "Number of objects retrieved: " << count << std::endl;
-		fs->fileSystem.fs_directory_list_free(&fs->fileSystem, session, objectList, count);
+        std::cout << "Number of objects retrieved: " << count << std::endl;
+        fs->fileSystem.fs_directory_list_free(&fs->fileSystem, session, objectList, count);
 
-		fs->fileSystem.fs_directory_list_single(
-		  &fs->fileSystem, session, NULL, prefix, &objectList, &count);
+        fs->fileSystem.fs_directory_list_single(
+          &fs->fileSystem, session, NULL, prefix, &objectList, &count);
 
-		std::cout << "Objects in bucket: " << std::endl;
-		for (int i = 0; i < count; i++)
-			std::cout << (objectList)[i] << std::endl;
+        std::cout << "Objects in bucket: " << std::endl;
+        for (int i = 0; i < count; i++)
+            std::cout << (objectList)[i] << std::endl;
 
-		std::cout << "Number of objects retrieved: " << count << std::endl;
-		fs->fileSystem.fs_directory_list_free(&fs->fileSystem, session, objectList, count);
+        std::cout << "Number of objects retrieved: " << count << std::endl;
+        fs->fileSystem.fs_directory_list_free(&fs->fileSystem, session, objectList, count);
 
-		/* Delete object. */
-		fs->connection->DeleteObject("WiredTiger.turtle");
+        /* Delete object. */
+        fs->connection->DeleteObject("WiredTiger.turtle");
     }
 
     *fileSystem = &fs->fileSystem;
@@ -439,9 +439,10 @@ static int
 S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *fileSystem,
   const char *source, const char *object, const char *config)
 {
+    S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
     /* Constructing the pathname for source and cache from file system and local.  */
-    std::string srcPath = S3Path(((S3_FILE_SYSTEM *)fileSystem)->homeDir, source);
-    std::string destPath = S3Path(((S3_FILE_SYSTEM *)fileSystem)->cacheDir, source);
+    std::string srcPath = S3Path(fs->homeDir, source);
+    std::string destPath = S3Path(fs->cacheDir, source);
 
     /* Linking file with the local file. */
     int ret = link(srcPath.c_str(), destPath.c_str());

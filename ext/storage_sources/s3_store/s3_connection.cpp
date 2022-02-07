@@ -17,7 +17,9 @@
  */
 S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config,
   const std::string &bucketName, const std::string &objPrefix)
-    : _s3CrtClient(config), _bucketName(bucketName), _objectPrefix(objPrefix) {}
+    : _s3CrtClient(config), _bucketName(bucketName), _objectPrefix(objPrefix)
+{
+}
 
 /*
  * ListObjects --
@@ -27,7 +29,7 @@ S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config,
  */
 int
 S3Connection::ListObjects(const std::string &prefix, std::vector<std::string> &objects,
-    uint32_t batchSize, bool listSingle) const
+  uint32_t batchSize, bool listSingle) const
 {
     Aws::S3Crt::Model::ListObjectsV2Request request;
     request.SetBucket(_bucketName);
@@ -78,7 +80,7 @@ S3Connection::PutObject(const std::string &objectKey, const std::string &fileNam
     if (outcome.IsSuccess()) {
         return (0);
     }
-   
+
     std::cerr << "Error in PutObject: " << outcome.GetError().GetMessage() << std::endl;
     return (1);
 }

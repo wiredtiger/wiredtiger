@@ -6,7 +6,7 @@
 namespace TestDefaults {
 const Aws::String region = Aws::Region::AP_SOUTHEAST_2;
 const double throughputTargetGbps = 5;
-const uint64_t partSize = 8 * 1024 * 1024; /* 8 MB. */
+const uint64_t partSize = 8 * 1024 * 1024;  /* 8 MB. */
 static std::string bucketName("s3testext"); // Can be overridden with environment variables.
 static std::string objPrefix("s3test_artefacts/unit_"); // To be concatenated with a random string.
 } // namespace TestDefaults
@@ -18,18 +18,17 @@ int TestListObjects(const Aws::S3Crt::ClientConfiguration &config);
 int TestObjectExists(const Aws::S3Crt::ClientConfiguration &config);
 
 /* Wrapper for unit test functions. */
-#define TEST(func, config)                              \
-    do {                                                \
-        int __ret;                                      \
-        if ((__ret = (func(config))) != TEST_SUCCESS)   \
-            return (__ret);                             \
+#define TEST(func, config)                            \
+    do {                                              \
+        int __ret;                                    \
+        if ((__ret = (func(config))) != TEST_SUCCESS) \
+            return (__ret);                           \
     } while (0)
 
 /*
  * randomizeTestPrefix --
- *     Concatenates a random suffix to the prefix being used for the test object keys.
- *     Example of generated test prefix:
- *     "s3test_artefacts/unit_" 2022-31-01-16-34-10_623843294/"
+ *     Concatenates a random suffix to the prefix being used for the test object keys. Example of
+ *     generated test prefix: "s3test_artefacts/unit_" 2022-31-01-16-34-10_623843294/"
  */
 static int
 randomizeTestPrefix()
@@ -61,7 +60,7 @@ static int
 setupTestDefaults()
 {
     /* Prefer to use the bucket provided through the environment variable. */
-    const char* envBucket = std::getenv("WT_S3_EXT_BUCKET");
+    const char *envBucket = std::getenv("WT_S3_EXT_BUCKET");
     if (envBucket != NULL)
         TestDefaults::bucketName = envBucket;
     std::cout << "Bucket to be used for testing: " << TestDefaults::bucketName << std::endl;
@@ -76,7 +75,7 @@ setupTestDefaults()
 
 static int
 CleanupTestListObjects(S3Connection &conn, const int totalObjects, const std::string &prefix,
-    const std::string &fileName)
+  const std::string &fileName)
 {
     /* Delete objects and file at end of test. */
     int ret = 0;
@@ -227,7 +226,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
         return (TEST_FAILURE);
     }
 
-    //CleanupTestListObjects(conn, totalObjects, prefix, fileName);
+    // CleanupTestListObjects(conn, totalObjects, prefix, fileName);
     std::cout << "TestListObjects(): succeeded." << std::endl;
     return (TEST_SUCCESS);
 }

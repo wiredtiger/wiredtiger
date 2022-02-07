@@ -3,8 +3,7 @@
 #include <cstdarg>
 
 S3LogSystem::S3LogSystem(WT_EXTENSION_API *wtApi, uint32_t wtVerbosityLevel)
-    : _wtApi (wtApi),
-      _wtVerbosityLevel(wtVerbosityLevel)
+    : _wtApi(wtApi), _wtVerbosityLevel(wtVerbosityLevel)
 {
     // If the verbosity level is out of range it will default to AWS SDK Error level.
     if (verbosityMapping.find(wtVerbosityLevel) != verbosityMapping.end()) {
