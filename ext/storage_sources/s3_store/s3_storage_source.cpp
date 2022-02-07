@@ -28,23 +28,34 @@
 
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
+#include <sys/stat.h>
+#include <fstream>
+#include <errno.h>
 
-#include <aws/core/Aws.h>
 #include "s3_connection.h"
+#include "s3_log_system.h"
+#include <aws/core/Aws.h>
+#include <aws/core/utils/memory/stl/AWSString.h>
+#include <aws/core/utils/logging/AWSLogging.h>
 
 #define UNUSED(x) (void)(x)
+#define FS2S3(fs) (((S3_FILE_SYSTEM *)(fs))->storage)
 
 /* S3 storage source structure. */
 typedef struct {
     WT_STORAGE_SOURCE storageSource; /* Must come first */
     WT_EXTENSION_API *wtApi;         /* Extension API */
+    int32_t verbose;
 } S3_STORAGE;
 
 typedef struct {
     /* Must come first - this is the interface for the file system we are implementing. */
     WT_FILE_SYSTEM fileSystem;
-    S3_STORAGE *s3Storage;
-    S3Connection *conn;
+    S3Connection *connection;
+    S3LogSystem *log;
+    S3_STORAGE *storage;
+    std::string cacheDir; /* Directory for cached objects */
+    std::string homeDir;  /* Owned by the connection */
 } S3_FILE_SYSTEM;
 
 /* Configuration variables for connecting to S3CrtClient. */
@@ -55,10 +66,105 @@ const uint64_t partSize = 8 * 1024 * 1024; /* 8 MB. */
 /* Setting SDK options. */
 Aws::SDKOptions options;
 
+static int S3GetDirectory(const std::string &, const std::string &, bool, std::string &);
+static bool S3CacheExists(WT_FILE_SYSTEM *, const std::string &);
+static std::string S3Path(const std::string &, const std::string &);
+static int S3Exist(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
 static int S3CustomizeFileSystem(
   WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
 static int S3AddReference(WT_STORAGE_SOURCE *);
 static int S3FileSystemTerminate(WT_FILE_SYSTEM *, WT_SESSION *);
+
+/*
+ * S3Exist --
+ *     Return if the file exists. First checks the cache, and then the S3 Bucket.
+ */
+static int
+S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool *existp)
+{
+    S3_STORAGE *s3;
+    int ret;
+    *existp = false;
+    s3 = FS2S3(fileSystem);
+    S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
+    bool exists;
+
+    /* First check to see if the file exists in the cache. */
+    exists = S3CacheExists(fileSystem, name);
+
+    /* It's not in the cache, try the s3 bucket. */
+    if (!exists)
+        ret = fs->connection->ObjectExists(name, exists);
+
+    *existp = exists;
+    return (ret);
+}
+
+/*
+ * S3Path --
+ *     Construct a pathname from the directory and the object name.
+ */
+static std::string
+S3Path(const std::string &dir, const std::string &name)
+{
+    /* Skip over "./" and variations (".//", ".///./././//") at the beginning of the name. */
+    int i = 0;
+    while (name[i] == '.') {
+        if (name[1] != '/')
+            break;
+        i += 2;
+        while (name[i] == '/')
+            i++;
+    }
+    std::string strippedName = name.substr(i, name.length() - i);
+    return (dir + "/" + strippedName);
+}
+
+/*
+ * S3CacheExists --
+ *     Checks whether the given file exists in the cache.
+ */
+static bool
+S3CacheExists(WT_FILE_SYSTEM *fileSystem, const std::string &name)
+{
+    std::string path = S3Path(((S3_FILE_SYSTEM *)fileSystem)->cacheDir, name);
+    std::ifstream f(path);
+    return (f.good());
+}
+
+/*
+ * S3GetDirectory --
+ *     Return a copy of a directory name after verifying that it is a directory.
+ */
+static int
+S3GetDirectory(const std::string &home, const std::string &name, bool create, std::string &copy)
+{
+    copy = "";
+
+    struct stat sb;
+    int ret;
+    std::string dirName;
+
+    /* For relative pathnames, the path is considered to be relative to the home directory. */
+    if (name[0] == '/')
+        dirName = name;
+    else
+        dirName = home + "/" + name;
+
+    ret = stat(dirName.c_str(), &sb);
+    if (ret != 0 && errno == ENOENT && create) {
+        (void)mkdir(dirName.c_str(), 0777);
+        ret = stat(dirName.c_str(), &sb);
+    }
+
+    if (ret != 0)
+        ret = errno;
+    else if ((sb.st_mode & S_IFMT) != S_IFDIR)
+        ret = EINVAL;
+
+    copy = dirName;
+    return (ret);
+}
 
 /*
  * S3CustomizeFileSystem --
@@ -71,6 +177,9 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     S3_FILE_SYSTEM *fs;
     S3_STORAGE *s3;
     int ret;
+    std::string cacheDir, homeDir;
+
+    s3 = (S3_STORAGE *)storageSource;
 
     /* Mark parameters as unused for now, until implemented. */
     UNUSED(authToken);
@@ -81,11 +190,11 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
         return (EINVAL);
     }
 
-    if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
-        return (errno);
-    fs->s3Storage = s3 = (S3_STORAGE *)storageSource;
+    /* 
+     * Parse configuration string.
+     */
 
-    /* Parse configuration string. */
+    /* Get any prefix to be used for the object keys. */
     WT_CONFIG_ITEM objPrefixConf;
     std::string objPrefix;
     if ((ret = s3->wtApi->config_get_string(
@@ -96,21 +205,55 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
         return 1;
     }
 
+    /*
+     * Get the directory to setup the cache, or use the default one. The default cache directory is
+     * named "cache-<name>", where name is the last component of the bucket name's path.
+     * We'll create it if it doesn't exist.
+     */
+    WT_CONFIG_ITEM cacheDirConf;
+    std::string cacheStr;
+    if ((ret = s3->wtApi->config_get_string(
+        s3->wtApi, session, config, "cache_directory", &cacheDirConf)) == 0)
+        cacheStr = cacheDirConf.str;
+    else if (ret == WT_NOTFOUND) {
+        cacheStr = "cache-" + std::string(bucketName);
+        ret = 0;
+    } else
+        return (ret);
+
+    /* Store a copy of the home directory in the file system. */
+    homeDir = session->connection->get_home(session->connection);
+
+    if ((ret = S3GetDirectory(homeDir, cacheStr, true, cacheDir)) != 0)
+        return (ret);
+
+    /* Create a logger for this file system. */
+    Aws::Utils::Logging::InitializeAWSLogging(
+      Aws::MakeShared<S3LogSystem>("storage", s3->wtApi, s3->verbose));
+
+    /* Create the file system. */
+    if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
+        return (errno);
+    fs->storage = s3;
+    fs->homeDir = homeDir;
+    fs->cacheDir = cacheDir;
+
     Aws::S3Crt::ClientConfiguration aws_config;
     aws_config.region = region;
     aws_config.throughputTargetGbps = throughputTargetGbps;
     aws_config.partSize = partSize;
 
     /* New can fail; will deal with this later. */
-    fs->conn = new S3Connection(aws_config, bucketName, objPrefix);
+    fs->connection = new S3Connection(aws_config, bucketName, objPrefix);
 
     fs->fileSystem.terminate = S3FileSystemTerminate;
+    fs->fileSystem.fs_exist = S3Exist;
 
     /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
     {
         /* List objects. */
         std::vector<std::string> bucketObjects;
-        if (fs->conn->ListObjects(bucketObjects)) {
+        if (fs->connection->ListObjects(bucketObjects)) {
             std::cout << "Objects in bucket:" << std::endl;
             if (!bucketObjects.empty()) {
                 for (const auto &object : bucketObjects) {
@@ -123,11 +266,11 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
         }
 
         /* Put object. */
-        fs->conn->PutObject("WiredTiger.turtle", "WiredTiger.turtle");
+        fs->connection->PutObject("WiredTiger.turtle", "WiredTiger.turtle");
 
         /* List objects again. */
         bucketObjects.clear();
-        if (fs->conn->ListObjects(bucketObjects)) {
+        if (fs->connection->ListObjects(bucketObjects)) {
             std::cout << "Objects in bucket:" << std::endl;
             if (!bucketObjects.empty()) {
                 for (const auto &object : bucketObjects) {
@@ -140,11 +283,11 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
         }
 
         /* Delete object. */
-        fs->conn->DeleteObject("WiredTiger.turtle");
+        fs->connection->DeleteObject("WiredTiger.turtle");
 
         /* List objects again. */
         bucketObjects.clear();
-        if (fs->conn->ListObjects(bucketObjects)) {
+        if (fs->connection->ListObjects(bucketObjects)) {
             std::cout << "Objects in bucket:" << std::endl;
             if (!bucketObjects.empty()) {
                 for (const auto &object : bucketObjects) {
@@ -173,7 +316,7 @@ S3FileSystemTerminate(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session)
     UNUSED(session); /* unused */
 
     fs = (S3_FILE_SYSTEM *)fileSystem;
-    delete (fs->conn);
+    delete (fs->connection);
     free(fs);
 
     return (0);
@@ -215,13 +358,25 @@ int
 wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
     S3_STORAGE *s3;
-    int ret;
+    S3_FILE_SYSTEM *fs;
+    WT_CONFIG_ITEM v;
 
     if ((s3 = (S3_STORAGE *)calloc(1, sizeof(S3_STORAGE))) == NULL)
         return (errno);
 
     s3->wtApi = connection->get_extension_api(connection);
-    UNUSED(config);
+
+    int ret = s3->wtApi->config_get(s3->wtApi, NULL, config, "verbose", &v);
+
+    // If a verbose level is not found, it will set the level to -3 (Error).
+    if (ret == 0 && v.val >= -3 && v.val <= 1)
+        s3->verbose = v.val;
+    else if (ret == WT_NOTFOUND)
+        s3->verbose = -3;
+    else {
+        free(s3);
+        return (ret != 0 ? ret : EINVAL);
+    }
 
     Aws::InitAPI(options);
 

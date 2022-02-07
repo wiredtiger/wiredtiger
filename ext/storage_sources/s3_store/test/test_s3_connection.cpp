@@ -1,17 +1,21 @@
 #include <s3_connection.h>
+#include <fstream>
 #include <random>
 
-/* Default config settings for the S3CrtClient. */
+/* Default config settings for the Test environment. */
 namespace TestDefaults {
 const Aws::String region = Aws::Region::AP_SOUTHEAST_2;
 const double throughputTargetGbps = 5;
 const uint64_t partSize = 8 * 1024 * 1024; /* 8 MB. */
+static std::string testBucket("s3testext"); // Can be overridden with environment variables.
+static std::string testPrefix("s3test_artefacts/unit_"); // To be concatenated with a random string.
 } // namespace TestDefaults
 
-int TestListBuckets(const Aws::S3Crt::ClientConfiguration &config);
+#define TEST_SUCCESS 0
+#define TEST_FAILURE 1
 
-/* Default bucket to use, can be overridden by environment variable. */
-static std::string g_testBucket("s3testext");
+int TestListBuckets(const Aws::S3Crt::ClientConfiguration &config);
+int TestObjectExists(const Aws::S3Crt::ClientConfiguration &config);
 
 /* Wrapper for unit test functions. */
 #define TEST(func, config, expectedOutput)              \
@@ -22,49 +26,88 @@ static std::string g_testBucket("s3testext");
     } while (0)
 
 /*
- * generate_unique_prefix --
- *     Generates a unique prefix to be used with the object keys, eg:
- *     "s3test_artefacts/unit_2022-31-01-16-34-10_623843294/"
+ * randomizeTestPrefix --
+ *     Concatenates a random suffix to the prefix being used for the test object keys.
+ *     Example of generated test prefix:
+ *     "s3test_artefacts/unit_" 2022-31-01-16-34-10_623843294/"
  */
 static int
-generate_unique_prefix(std::string &prefix)
+randomizeTestPrefix()
 {
-    char time_str[100];
+    char timeStr[100];
     std::time_t t = std::time(nullptr);
 
-    if (std::strftime(time_str, sizeof(time_str), "%F-%H-%M-%S", std::localtime(&t)) == 0)
-        return 1;
+    if (std::strftime(timeStr, sizeof(timeStr), "%F-%H-%M-%S", std::localtime(&t)) == 0)
+        return (TEST_FAILURE);
 
-    prefix = "s3test_artefacts/unit_";
-    prefix += time_str;
+    TestDefaults::testPrefix += timeStr;
 
     /* Create a random device and use it to generate a random seed to initialize the generator. */
     std::random_device myRandomDevice;
     unsigned seed = myRandomDevice();
     std::default_random_engine myRandomEngine(seed);
 
-    prefix += '_' + std::to_string(myRandomEngine());
-    prefix += '/';
+    TestDefaults::testPrefix += '_' + std::to_string(myRandomEngine());
+    TestDefaults::testPrefix += '/';
 
-    return 0;
+    return (TEST_SUCCESS);
 }
 
 /*
- * TestListBuckets --
- *     Example of a unit test to list S3 buckets under the associated AWS account.
+ * setupTestDefaults --
+ *     Override the defaults with the ones specific for this test instance.
+ */
+static int
+setupTestDefaults()
+{
+    /* Prefer to use the bucket provided through the environment variable. */
+    const char* envBucket = std::getenv("WT_S3_EXT_BUCKET");
+    if (envBucket != NULL)
+        TestDefaults::testBucket = envBucket;
+    std::cout << "Bucket to be used for testing: " << TestDefaults::testBucket << std::endl;
+
+    /* Append the prefix to be used for object names by a unique string. */
+    if (randomizeTestPrefix() != 0)
+        return (TEST_FAILURE);
+    std::cout << "Generated prefix: " << TestDefaults::testPrefix << std::endl;
+
+    return (TEST_SUCCESS);
+}
+
+/*
+ * TestObjectExists --
+ *     Unit test to check if an object exists in an AWS bucket.
  */
 int
-TestListBuckets(const Aws::S3Crt::ClientConfiguration &config)
+TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
 {
-    S3Connection conn(config, g_testBucket);
-    std::vector<std::string> buckets;
-    if (!conn.ListBuckets(buckets))
-        return 1;
+    S3Connection conn(config, TestDefaults::testBucket, TestDefaults::testPrefix);
+    bool exists = false;
+    int ret = TEST_FAILURE;
 
-    std::cout << "All buckets under my account:" << std::endl;
-    for (const auto &bucket : buckets)
-        std::cout << "  * " << bucket << std::endl;
-    return 0;
+    const std::string objectName = "test_object";
+    const std::string fileName = "test_object.txt";
+
+    /* Create a file to upload to the bucket.*/
+    std::ofstream File(fileName);
+    File << "Test payload";
+    File.close();
+
+    if ((ret = conn.ObjectExists(objectName, exists)) != 0 || exists)
+        return (ret);
+
+    if ((ret = conn.PutObject(objectName, fileName)) != 0)
+        return (ret);
+
+    if ((ret = conn.ObjectExists(objectName, exists)) != 0 || !exists)
+        return (ret);
+
+    if ((ret = conn.DeleteObject(objectName)) != 0)
+        return (ret);
+
+    std::cout << "TestObjectExists(): succeeded.\n" << std::endl;
+
+    return (ret);
 }
 
 /*
@@ -74,11 +117,9 @@ TestListBuckets(const Aws::S3Crt::ClientConfiguration &config)
 int
 main()
 {
-    /* Prefer to use the bucket provided through the environment variable. */
-    const char* envBucket = std::getenv("WT_S3_EXT_BUCKET");
-    if (envBucket != NULL)
-        g_testBucket = envBucket;
-    std::cout << "Using Bucket:" << g_testBucket << std::endl;
+    /* Setup the test environment. */
+    if (setupTestDefaults() != 0)
+        return (TEST_FAILURE);
 
     /* Set up the config to use the defaults specified. */
     Aws::S3Crt::ClientConfiguration awsConfig;
@@ -90,16 +131,10 @@ main()
     Aws::SDKOptions options;
     Aws::InitAPI(options);
 
-    int expectedOutput = 0;
-    TEST(TestListBuckets, awsConfig, expectedOutput);
-
-    /* Silence the compiler for now. */
-    std::string prefix;
-    if (generate_unique_prefix(prefix) != 0)
-        return 1;
-    std::cout << "Generated prefix: " << prefix << std::endl;
+    int objectExistsExpectedOutput = TEST_SUCCESS;
+    TEST(TestObjectExists, awsConfig, objectExistsExpectedOutput);
 
     /* Shutdown the API at end of tests. */
     Aws::ShutdownAPI(options);
-    return 0;
+    return (TEST_SUCCESS);
 }
