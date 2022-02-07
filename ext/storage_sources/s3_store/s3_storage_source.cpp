@@ -31,6 +31,7 @@
 #include <sys/stat.h>
 #include <fstream>
 #include <errno.h>
+#include <unistd.h>
 
 #include "s3_connection.h"
 #include "s3_log_system.h"
@@ -69,34 +70,39 @@ Aws::SDKOptions options;
 static int S3GetDirectory(const std::string &, const std::string &, bool, std::string &);
 static bool S3CacheExists(WT_FILE_SYSTEM *, const std::string &);
 static std::string S3Path(const std::string &, const std::string &);
+static std::string S3HomePath(WT_FILE_SYSTEM *, const char *);
+static std::string S3CachePath(WT_FILE_SYSTEM *, const char *);
 static int S3Exist(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
 static int S3CustomizeFileSystem(
   WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
 static int S3AddReference(WT_STORAGE_SOURCE *);
 static int S3FileSystemTerminate(WT_FILE_SYSTEM *, WT_SESSION *);
 
+static int S3ObjectList(
+  WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
+static int S3ObjectListAdd(
+  S3_STORAGE *, char ***, const std::vector<std::string> &, const uint32_t);
+static int S3ObjectListSingle(
+  WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
+static int S3ObjectListFree(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
+
 /*
- * S3Exist --
+ *   S3Exist--
  *     Return if the file exists. First checks the cache, and then the S3 Bucket.
  */
 static int
-S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool *existp)
+S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool *exist)
 {
     S3_STORAGE *s3;
     int ret;
-    *existp = false;
     s3 = FS2S3(fileSystem);
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
-    bool exists;
 
-    /* First check to see if the file exists in the cache. */
-    exists = S3CacheExists(fileSystem, name);
+    /* It's not in the cache, try the S3 bucket. */
+    *exist = S3CacheExists(fileSystem, name);
+    if (!*exist)
+        ret = fs->connection->ObjectExists(name, *exist);
 
-    /* It's not in the cache, try the s3 bucket. */
-    if (!exists)
-        ret = fs->connection->ObjectExists(name, exists);
-
-    *existp = exists;
     return (ret);
 }
 
@@ -245,63 +251,48 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 
     /* New can fail; will deal with this later. */
     fs->connection = new S3Connection(aws_config, bucketName, objPrefix);
-
+    fs->fileSystem.fs_directory_list = S3ObjectList;
+    fs->fileSystem.fs_directory_list_single = S3ObjectListSingle;
+    fs->fileSystem.fs_directory_list_free = S3ObjectListFree;
     fs->fileSystem.terminate = S3FileSystemTerminate;
     fs->fileSystem.fs_exist = S3Exist;
 
     /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
     {
-        /* List objects. */
-        std::vector<std::string> bucketObjects;
-        if (fs->connection->ListObjects(bucketObjects)) {
-            std::cout << "Objects in bucket:" << std::endl;
-            if (!bucketObjects.empty()) {
-                for (const auto &object : bucketObjects) {
-                    std::cout << "  * " << object << std::endl;
-                }
-            } else {
-                std::cout << "No objects in bucket." << std::endl;
-            }
-            std::cout << std::endl;
-        }
+		/* Put object. */
+		fs->connection->PutObject("WiredTiger.turtle", "WiredTiger.turtle");
 
-        /* Put object. */
-        fs->connection->PutObject("WiredTiger.turtle", "WiredTiger.turtle");
+		/* Testing directory list. */
+		WT_SESSION *session = NULL;
+		const char *prefix = "WiredTiger";
+		char **objectList;
+		uint32_t count;
 
-        /* List objects again. */
-        bucketObjects.clear();
-        if (fs->connection->ListObjects(bucketObjects)) {
-            std::cout << "Objects in bucket:" << std::endl;
-            if (!bucketObjects.empty()) {
-                for (const auto &object : bucketObjects) {
-                    std::cout << "  * " << object << std::endl;
-                }
-            } else {
-                std::cout << "No objects in bucket." << std::endl;
-            }
-            std::cout << std::endl;
-        }
+		fs->fileSystem.fs_directory_list(
+		  &fs->fileSystem, session, NULL, prefix, &objectList, &count);
+		std::cout << "Objects in bucket: " << std::endl;
+		for (int i = 0; i < count; i++)
+			std::cout << (objectList)[i] << std::endl;
 
-        /* Delete object. */
-        fs->connection->DeleteObject("WiredTiger.turtle");
+		std::cout << "Number of objects retrieved: " << count << std::endl;
+		fs->fileSystem.fs_directory_list_free(&fs->fileSystem, session, objectList, count);
 
-        /* List objects again. */
-        bucketObjects.clear();
-        if (fs->connection->ListObjects(bucketObjects)) {
-            std::cout << "Objects in bucket:" << std::endl;
-            if (!bucketObjects.empty()) {
-                for (const auto &object : bucketObjects) {
-                    std::cout << "  * " << object << std::endl;
-                }
-            } else {
-                std::cout << "No objects in bucket." << std::endl;
-            }
-            std::cout << std::endl;
-        }
+		fs->fileSystem.fs_directory_list_single(
+		  &fs->fileSystem, session, NULL, prefix, &objectList, &count);
+
+		std::cout << "Objects in bucket: " << std::endl;
+		for (int i = 0; i < count; i++)
+			std::cout << (objectList)[i] << std::endl;
+
+		std::cout << "Number of objects retrieved: " << count << std::endl;
+		fs->fileSystem.fs_directory_list_free(&fs->fileSystem, session, objectList, count);
+
+		/* Delete object. */
+		fs->connection->DeleteObject("WiredTiger.turtle");
     }
 
     *fileSystem = &fs->fileSystem;
-    return 0;
+    return (0);
 }
 
 /*
@@ -311,13 +302,90 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 static int
 S3FileSystemTerminate(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session)
 {
-    S3_FILE_SYSTEM *fs;
+    S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
 
     UNUSED(session); /* unused */
 
-    fs = (S3_FILE_SYSTEM *)fileSystem;
     delete (fs->connection);
     free(fs);
+
+    return (0);
+}
+
+/*
+ * S3ObjectList --
+ *     Return a list of object names for the given location.
+ */
+static int
+S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
+  const char *prefix, char ***objectList, uint32_t *count)
+{
+    S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
+    std::vector<std::string> objects;
+    std::string completePrefix = directory == NULL ? prefix : std::string(directory) + prefix;
+    int ret;
+    if (ret = fs->connection->ListObjects(completePrefix, objects) != 0)
+        return (ret);
+    *count = objects.size();
+
+    S3ObjectListAdd(fs->storage, objectList, objects, *count);
+
+    return (ret);
+}
+
+/*
+ * S3ObjectListSingle --
+ *     Return a single object name for the given location.
+ */
+static int
+S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
+  const char *prefix, char ***objectList, uint32_t *count)
+{
+    S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
+    std::vector<std::string> objects;
+    std::string completePrefix = directory == NULL ? prefix : std::string(directory) + prefix;
+    int ret;
+    if (ret = fs->connection->ListObjects(completePrefix, objects, 1, true) != 0)
+        return (ret);
+    *count = objects.size();
+
+    S3ObjectListAdd(fs->storage, objectList, objects, *count);
+
+    return (ret);
+}
+
+/*
+ * S3ObjectListFree --
+ *     Free memory allocated by S3ObjectList.
+ */
+static int
+S3ObjectListFree(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, char **objectList, uint32_t count)
+{
+    (void)fileSystem;
+    (void)session;
+
+    if (objectList != NULL) {
+        while (count > 0)
+            free(objectList[--count]);
+        free(objectList);
+    }
+
+    return (0);
+}
+
+/*
+ * S3ObjectListAdd --
+ *     Add objects retrieved from S3 bucket into the object list, and allocate the memory needed.
+ */
+static int
+S3ObjectListAdd(
+  S3_STORAGE *s3, char ***objectList, const std::vector<std::string> &objects, const uint32_t count)
+{
+    char **entries = (char **)malloc(sizeof(char *) * count);
+    for (int i = 0; i < count; i++) {
+        entries[i] = strdup(objects[i].c_str());
+    }
+    *objectList = entries;
 
     return (0);
 }
@@ -344,10 +412,44 @@ S3Terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
     S3_STORAGE *s3;
     s3 = (S3_STORAGE *)storage;
 
+    Aws::Utils::Logging::ShutdownAWSLogging();
     Aws::ShutdownAPI(options);
 
     free(s3);
     return (0);
+}
+
+/*
+ * S3Flush --
+ *     Flush file to S3 Store using AWS SDK C++ PutObject.
+ */
+static int
+S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *fileSystem,
+  const char *source, const char *object, const char *config)
+{
+    S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
+    return (fs->connection->PutObject(object, source));
+}
+
+/*
+ * S3FlushFinish --
+ *     Flush local file to cache.
+ */
+static int
+S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *fileSystem,
+  const char *source, const char *object, const char *config)
+{
+    /* Constructing the pathname for source and cache from file system and local.  */
+    std::string srcPath = S3Path(((S3_FILE_SYSTEM *)fileSystem)->homeDir, source);
+    std::string destPath = S3Path(((S3_FILE_SYSTEM *)fileSystem)->cacheDir, source);
+
+    /* Linking file with the local file. */
+    int ret = link(srcPath.c_str(), destPath.c_str());
+
+    /* Linking file with the local file. */
+    if (ret == 0)
+        ret = chmod(destPath.c_str(), 0444);
+    return ret;
 }
 
 /*
@@ -387,6 +489,8 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     s3->storageSource.ss_customize_file_system = S3CustomizeFileSystem;
     s3->storageSource.ss_add_reference = S3AddReference;
     s3->storageSource.terminate = S3Terminate;
+    s3->storageSource.ss_flush = S3Flush;
+    s3->storageSource.ss_flush_finish = S3FlushFinish;
 
     /* Load the storage */
     if ((ret = connection->add_storage_source(connection, "s3_store", &s3->storageSource, NULL)) !=
