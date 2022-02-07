@@ -131,14 +131,12 @@ main()
     int expectedOutput = 0;
     TEST(TestListBuckets, awsConfig, expectedOutput);
 
-<<<<<<< HEAD
     int getObjectExpectedOutput = 0;
     TEST(TestGetObject, awsConfig, getObjectExpectedOutput);
-=======
+    
     int objectExistsExpectedOutput = 0;
     TEST(TestObjectExists, awsConfig, objectExistsExpectedOutput);
 
->>>>>>> develop
     /* Shutdown the API at end of tests. */
     Aws::ShutdownAPI(options);
     return 0;

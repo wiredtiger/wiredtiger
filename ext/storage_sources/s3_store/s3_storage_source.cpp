@@ -31,6 +31,7 @@
 #include <sys/stat.h>
 #include <fstream>
 #include <errno.h>
+#include <list>
 
 #include "s3_connection.h"
 #include "s3_log_system.h"
@@ -41,23 +42,34 @@
 #define UNUSED(x) (void)(x)
 #define FS2S3(fs) (((S3_FILE_SYSTEM *)(fs))->storage)
 
+struct S3_FILE_HANDLE;
+
 /* S3 storage source structure. */
-typedef struct {
+struct S3_STORAGE {
     WT_STORAGE_SOURCE storageSource; /* Must come first */
     WT_EXTENSION_API *wtApi;         /* Extension API */
     int32_t verbose;
-} S3_STORAGE;
+    std::list<S3_FILE_HANDLE *> fhList;
+};
 
-typedef struct {
+struct S3_FILE_SYSTEM{
     /* Must come first - this is the interface for the file system we are implementing. */
     WT_FILE_SYSTEM fileSystem;
+    S3_STORAGE *storage;
+    WT_FILE_SYSTEM *wtFs;
+
     S3Connection *connection;
     S3LogSystem *log;
-    S3_STORAGE *storage;
     std::string bucketName;
     std::string cacheDir; /* Directory for cached objects */
     std::string homeDir;  /* Owned by the connection */
-} S3_FILE_SYSTEM;
+};
+
+struct S3_FILE_HANDLE {
+    WT_FILE_HANDLE iface; /* Must come first */
+    S3_STORAGE *storage; /* Enclosing storage source */
+    WT_FILE_HANDLE *fileHandle; /* File handle */
+};
 
 /* Configuration variables for connecting to S3CrtClient. */
 const Aws::String region = Aws::Region::AP_SOUTHEAST_2;
@@ -75,6 +87,12 @@ static int S3CustomizeFileSystem(
   WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
 static int S3AddReference(WT_STORAGE_SOURCE *);
 static int S3FileSystemTerminate(WT_FILE_SYSTEM *, WT_SESSION *);
+static int S3Open(WT_FILE_SYSTEM *, WT_SESSION *, const char *,
+  WT_FS_OPEN_FILE_TYPE , uint32_t , WT_FILE_HANDLE **);
+static bool FileExists(std::string);
+static int
+local_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
+  WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep);
 
 /*
  * S3Exist --
@@ -108,6 +126,7 @@ S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool 
 static std::string
 S3Path(const std::string &dir, const std::string &name)
 {
+    std::cout << "Concatenating " << dir << " and " << name << std::endl;
     /* Skip over "./" and variations (".//", ".///./././//") at the beginning of the name. */
     int i = 0;
     while (name[i] == '.') {
@@ -129,6 +148,15 @@ static bool
 S3CacheExists(WT_FILE_SYSTEM *fileSystem, const std::string &name)
 {
     std::string path = S3Path(((S3_FILE_SYSTEM *)fileSystem)->cacheDir, name);
+    return (FileExists(path));
+}
+
+/*
+ * FileExists --
+ *     Checks whether the given file exists.
+ */
+static bool
+FileExists(std::string path) {
     std::ifstream f(path);
     return (f.good());
 }
@@ -168,6 +196,94 @@ S3GetDirectory(const std::string &home, const std::string &name, bool create, st
 }
 
 /*
+ * S3Open --
+ *    Open for the s3 storage source
+ */ 
+static int
+S3Open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
+  WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep)
+{
+    std::cout << "S3Open() - Start" << std::endl;
+    S3_FILE_HANDLE *s3FileHandle;
+    S3_FILE_SYSTEM *s3Fs = (S3_FILE_SYSTEM *)file_system;
+    S3_STORAGE *s3 = s3Fs->storage;
+    WT_FILE_SYSTEM *wtFs = s3Fs->wtFs;
+    WT_FILE_HANDLE *wtFh, *fileHandle;
+
+    std::string bucketPath;
+    bool exists = false;
+    int ret = 0;
+
+    *file_handlep = NULL;
+
+    if ((flags & WT_FS_OPEN_READONLY) == 0 || (flags & WT_FS_OPEN_CREATE) != 0)
+        std::cout << "ss_open_object: readonly access required: " <<  name << std::endl;
+
+    if (file_type != WT_FS_OPEN_FILE_TYPE_DATA && file_type != WT_FS_OPEN_FILE_TYPE_REGULAR)
+        std::cout << name << ": open: only data file and regular types supported" << std::endl;
+
+
+    if ((s3FileHandle = (S3_FILE_HANDLE *)calloc(1, sizeof(S3_FILE_HANDLE))) == NULL)
+        return ENOMEM;
+
+    std::string cachePath = S3Path(s3Fs->cacheDir, name);
+
+    std::cout << "S3Open: cachePath=" << cachePath << std::endl;
+    
+    /* File doesn't exist locally. Make a copy from S3. */
+    if (!FileExists(cachePath)) {
+        std::cout << "S3Open: " << name << " doesn't exist at " << cachePath << std::endl;
+        if ((ret = s3Fs->connection->GetObject(s3Fs->bucketName, name, cachePath)) != 0){
+            std::cout << "S3Open: ObjectExists() failure" << std::endl;
+            return (ret);
+        }
+    } else 
+        std::cout << "S3Open: Found " << name << "in cache. File exists locally." << std::endl;
+
+    std::cout << "S3Open: Opening WiredTiger's native file handle: " << cachePath << std::endl;
+    if ((ret = wtFs->fs_open_file(wtFs, session, cachePath.c_str(), file_type, flags, &wtFh)) != 0)
+        return (ret);
+    std::cout << "S3Open: after fs_open_file() ret=" << ret << std::endl;
+    std::cout << "S3Open: Opened WiredTiger's native file handle: " << cachePath << std::endl;
+
+    s3FileHandle->fileHandle = wtFh;
+    s3FileHandle->storage = s3;
+
+    fileHandle = (WT_FILE_HANDLE *)s3FileHandle;
+
+    fileHandle->close = NULL;
+    fileHandle->fh_advise = NULL;
+    fileHandle->fh_extend = NULL;
+    fileHandle->fh_extend_nolock = NULL;
+    fileHandle->fh_lock = NULL;
+    fileHandle->fh_map = NULL;
+    fileHandle->fh_map_discard = NULL;
+    fileHandle->fh_map_preload = NULL;
+    fileHandle->fh_unmap = NULL;
+    fileHandle->fh_read = NULL;
+    fileHandle->fh_size = NULL;
+    fileHandle->fh_sync = NULL;
+    fileHandle->fh_sync_nowait = NULL;
+    fileHandle->fh_truncate = NULL;
+    fileHandle->fh_write = NULL;
+
+    std::cout << "S3Open: FH Interface assigned." << std::endl;
+    if ((fileHandle->name = strdup(name)) == NULL){
+        std::cout << "error in strdup()" << std::endl;
+        return ENOMEM;
+    }
+
+    s3FileHandle->storage->fhList.push_front(s3FileHandle);
+    *file_handlep = fileHandle;
+
+    std::cout << "S3Open: File opened - " << name << " - final path: " << fileHandle->name << std::endl;
+
+    wtFh->close(wtFh, session);
+
+    return (0);
+}
+
+/*
  * S3CustomizeFileSystem --
  *     Return a customized file system to access the s3 storage source objects.
  */
@@ -175,8 +291,10 @@ static int
 S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, const char *bucketName,
   const char *authToken, const char *config, WT_FILE_SYSTEM **fileSystem)
 {
+    std::cout << "S3CustomizeFileSystem()" << std::endl;
     S3_STORAGE *s3;
     S3_FILE_SYSTEM *fs;
+    WT_FILE_SYSTEM *wt_fs;
     int ret;
     WT_CONFIG_ITEM cacheDir;
     std::string cacheStr;
@@ -202,10 +320,14 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 
     Aws::Utils::Logging::InitializeAWSLogging(
       Aws::MakeShared<S3LogSystem>("storage", s3->wtApi, s3->verbose));
+    
+    if ((ret = s3->wtApi->file_system_get(s3->wtApi, session, &wt_fs)) != 0) 
+        return (ret);
 
     if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
         return (errno);
     fs->storage = s3;
+    fs->wtFs = wt_fs;
 
     /* Store a copy of the home directory and bucket name in the file system. */
     fs->homeDir = session->connection->get_home(session->connection);
@@ -226,6 +348,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     fs->connection = new S3Connection(awsConfig);
     fs->fileSystem.terminate = S3FileSystemTerminate;
     fs->fileSystem.fs_exist = S3Exist;
+    fs->fileSystem.fs_open_file = S3Open;
 
     /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
     {
@@ -355,7 +478,6 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     S3_STORAGE *s3;
     S3_FILE_SYSTEM *fs;
     WT_CONFIG_ITEM v;
-
     if ((s3 = (S3_STORAGE *)calloc(1, sizeof(S3_STORAGE))) == NULL)
         return (errno);
 
