@@ -48,7 +48,6 @@ class test_config11(wttest.WiredTigerTestCase):
 
     def test_config11(self):
         uri = 'table:test_config11'
-        nrows = 10000
 
         ds = SimpleDataSet(
             self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
@@ -58,37 +57,50 @@ class test_config11(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
             ',stable_timestamp=' + self.timestamp_str(10))
 
+        # Retrieve the maximum cache size.
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        max_cache_size = stat_cursor[stat.conn.cache_bytes_max][2]
+        stat_cursor.reset()
+
+        # Insert some values to fill up the cache, but not exceeding 80% of it (we set a margin of
+        # 10% to be sure).
         value = 'abcd' * 1000
+        current_cache_usage_perc = 0
+        threshold_cache_perc = 70
+        i = 1
 
         s = self.conn.open_session()
         cursor = s.open_cursor(uri)
-
-        # Insert some values to fill up the cache, but not exceeding 80% of it.
-        # Then, do a checkpoint. Here, we don't expect eviction to trigger.
-        for i in range(1, nrows):
-            s.begin_transaction()
+        while(current_cache_usage_perc < threshold_cache_perc):
             cursor[i] = value + str(i)
-            s.commit_transaction()
+            i = i + 1
 
-        s.checkpoint()
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        prev_cache_usage = stat_cursor[stat.conn.cache_bytes_inuse][2]
-        stat_cursor.close()
+            # Retrieve the current cache usage.
+            current_cache_usage_perc = stat_cursor[stat.conn.cache_bytes_inuse][2] * 100 / max_cache_size
+            stat_cursor.reset()
 
         cursor.close()
 
-        # Reconfigure the session to use the new debug configuration that evicts
-        # pages as released.
+        # Checkpoint should not trigger eviction, it still might reduce the cache usage by a small
+        # amount.
+        s.checkpoint()
+
+        # Check the cache usage is still more than 50%.
+        prev_cache_usage = stat_cursor[stat.conn.cache_bytes_inuse][2]
+        stat_cursor.reset()
+        self.assertGreater(prev_cache_usage, max_cache_size / 2)
+
+        # Reconfigure the session to use the new debug configuration that evicts pages as released.
         s.reconfigure("debug=(release_evict_page=true)")
         cursor = s.open_cursor(uri)
 
-        # We walk through and read all the content, but this time we expect pages
-        # to be evicted, and hence cache usage to at least halve.
-        for i in range(1, nrows):
+        # We walk through and read all the content, but this time we expect pages to be evicted..
+        for j in range(1, i):
             s.begin_transaction()
-            self.assertEqual(cursor[i], value + str(i))
+            self.assertEqual(cursor[j], value + str(j))
             s.rollback_transaction()
 
+        # Check the cache has at least halve.
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         cache_usage = stat_cursor[stat.conn.cache_bytes_inuse][2]
         self.assertGreater(prev_cache_usage, cache_usage * 2)
