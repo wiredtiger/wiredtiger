@@ -31,6 +31,9 @@
 #include <sys/stat.h>
 #include <fstream>
 #include <errno.h>
+#include <unistd.h>
+
+
 
 #include "s3_connection.h"
 #include "s3_log_system.h"
@@ -85,7 +88,7 @@ static int S3ObjectListSingle(
 static int S3ObjectListFree(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
 
 /*
- * S3Exist --
+ *   --
  *     Return if the file exists. First checks the cache, and then the S3 Bucket.
  */
 static int
@@ -232,7 +235,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     fs->fileSystem.fs_directory_list_free = S3ObjectListFree;
     fs->fileSystem.terminate = S3FileSystemTerminate;
     fs->fileSystem.fs_exist = S3Exist;
-
+    
     /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
     {
         std::vector<std::string> buckets;
@@ -406,6 +409,18 @@ S3Terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
 }
 
 /*
+ * S3Flush --
+ *     Flush file to S3 Store.
+ */
+static int 
+S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *fileSystem,
+  const char *source, const char *object, const char *config){
+        S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
+        int ret = fs->connection->PutObject(fs->bucketName, object, source);
+        return (ret);
+  }
+
+/*
  * wiredtiger_extension_init --
  *     A S3 storage source library.
  */
@@ -442,6 +457,8 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     s3->storageSource.ss_customize_file_system = S3CustomizeFileSystem;
     s3->storageSource.ss_add_reference = S3AddReference;
     s3->storageSource.terminate = S3Terminate;
+    s3->storageSource.ss_flush = S3Flush;
+    s3->storageSource.ss_flush_finish = S3FlushFinish;
 
     /* Load the storage */
     if ((ret = connection->add_storage_source(connection, "s3_store", &s3->storageSource, NULL)) !=
