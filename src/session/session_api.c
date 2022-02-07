@@ -1844,7 +1844,7 @@ __session_reset_snapshot(WT_SESSION *wt_session)
 
     /* Return error if the session has performed any write operations. */
     if (txn->mod_count != 0)
-        WT_RET_MSG(session, ENOTSUP, "only supported in read-only transactions");
+        WT_RET_MSG(session, ENOTSUP, "only supported before a transaction makes modifications");
 
     __wt_txn_release_snapshot(session);
     __wt_txn_get_snapshot(session);
