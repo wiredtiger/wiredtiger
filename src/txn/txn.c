@@ -1465,12 +1465,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Set the commit and the durable timestamps. */
     WT_ERR(__wt_txn_set_timestamp(session, cfg));
-    WT_ASSERT(session,
-      !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) || txn->commit_timestamp <= txn->durable_timestamp);
-
-    if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) && txn->commit_timestamp > txn->durable_timestamp)
-        WT_ERR_MSG(
-          session, EINVAL, "transaction commit timestamp must not be after the durable timestamp");
 
     if (prepare) {
         if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
