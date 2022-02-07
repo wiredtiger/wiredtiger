@@ -53,10 +53,6 @@ class test_config11(wttest.WiredTigerTestCase):
             self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
         ds.populate()
 
-        # Pin oldest and stable timestamps to 10.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
-            ',stable_timestamp=' + self.timestamp_str(10))
-
         # Retrieve the maximum cache size.
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         max_cache_size = stat_cursor[stat.conn.cache_bytes_max][2]
