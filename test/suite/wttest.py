@@ -664,48 +664,53 @@ class WiredTigerTestCase(unittest.TestCase):
 
     def dropUntilSuccess(self, session, uri, config=None):
         while True:
-            session.checkpoint()
             try:
                 session.drop(uri, config)
                 return
-            except wiredtiger.WiredTigerError:
-                pass
+            except wiredtiger.WiredTigerError as err:
+                if str(err) != os.strerror(errno.EBUSY):
+                    raise err
+                session.checkpoint()
 
     def verifyUntilSuccess(self, session, uri, config=None):
         while True:
-            session.checkpoint()
             try:
                 session.verify(uri, config)
                 return
-            except wiredtiger.WiredTigerError:
-                pass
+            except wiredtiger.WiredTigerError as err:
+                if str(err) != os.strerror(errno.EBUSY):
+                    raise err
+                session.checkpoint()
     
     def renameUntilSuccess(self, session, uri, newUri, config=None):
         while True:
-            session.checkpoint()
             try:
                 session.rename(uri, newUri, config)
                 return
-            except wiredtiger.WiredTigerError:
-                pass
+            except wiredtiger.WiredTigerError as err:
+                if str(err) != os.strerror(errno.EBUSY):
+                    raise err
+                session.checkpoint()
 
     def upgradeUntilSuccess(self, session, uri, config=None):
         while True:
-            session.checkpoint()
             try:
                 session.upgrade(uri, config)
                 return
-            except wiredtiger.WiredTigerError:
-                pass
+            except wiredtiger.WiredTigerError as err:
+                if str(err) != os.strerror(errno.EBUSY):
+                    raise err
+                session.checkpoint()
 
     def salvageUntilSuccess(self, session, uri, config=None):
         while True:
-            session.checkpoint()
             try:
                 session.salvage(uri, config)
                 return
-            except wiredtiger.WiredTigerError:
-                pass
+            except wiredtiger.WiredTigerError as err:
+                if str(err) != os.strerror(errno.EBUSY):
+                    raise err
+                session.checkpoint()
 
     def exceptionToStderr(self, expr):
         """
