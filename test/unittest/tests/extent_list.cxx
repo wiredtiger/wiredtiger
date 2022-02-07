@@ -51,7 +51,8 @@ struct SizeListWrapper {
 
     // unfortunately, some functions need raw 2D pointers, but that's not
     // compatible with automatic memory management. _list is only for allocation
-    // bookkeeping - _raw_list can be rearranged however.
+    // bookkeeping - _raw_list can be rearranged however since it doesn't own
+    // any data.
     std::vector<std::unique_ptr<SizeWrapper>> _list;
     std::vector<WT_SIZE*> _raw_list;
 };
@@ -163,7 +164,7 @@ TEST_CASE("block_off_srch_last", "[extent_list]") {
 
         auto first = create_new_ext();
         head.push_back(first->_raw);
-        for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
+        for (int i = 1; i < WT_SKIP_MAXDEPTH; i++)
             head.push_back(nullptr);
 
         REQUIRE(__ut_block_off_srch_last(&head[0], &stack[0]) == head[0]);
@@ -209,7 +210,7 @@ TEST_CASE("block_off_srch_last", "[extent_list]") {
         first->_raw->next[0] = second->_raw;
 
         head.push_back(first->_raw);
-        for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
+        for (int i = 1; i < WT_SKIP_MAXDEPTH; i++)
             head.push_back(second->_raw);
 
         REQUIRE(__ut_block_off_srch_last(&head[0], &stack[0]) == second->_raw);
