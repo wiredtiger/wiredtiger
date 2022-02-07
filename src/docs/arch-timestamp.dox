@@ -191,10 +191,12 @@ The on-disk representation of the time windows of older values are
 stored differently because those times are used for lookup purposes.
 See @ref arch-hs.
 
-Internal btree pages store aggregated time window information for the
-pages or sub-trees they reference.
-This is represented in memory with the \c WT_TIME_AGGREGATE structure,
-which contains the following elements:
+Internal btree pages store aggregated time window information for the pages
+or sub-trees they reference. This represents, roughly, the union of the time
+intervals of the data items on the page. It is used to check if a particular
+timestamp interacts with any on-page items so the page can be skipped over
+if not. Aggregates are represented in memory by the \c WT_TIME_AGGREGATE
+structure, which contains the following elements:
 
 - \c newest_start_durable_ts (\c WT_TS_NONE if none)
 - \c newest_stop_durable_ts (\c WT_TS_NONE if none, excludes any \c WT_TS_MAX)
