@@ -87,7 +87,6 @@ S3Connection::PutObject(
     Aws::S3Crt::Model::PutObjectRequest request;
     request.SetBucket(bucketName);
     request.SetKey(objectKey);
-
     std::shared_ptr<Aws::IOStream> inputData = Aws::MakeShared<Aws::FStream>(
       "s3-source", fileName.c_str(), std::ios_base::in | std::ios_base::binary);
 
