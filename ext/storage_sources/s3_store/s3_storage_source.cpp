@@ -417,8 +417,7 @@ S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *f
   const char *source, const char *object, const char *config)
 {
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
-    int ret = fs->connection->PutObject(fs->bucketName, object, source);
-    return (ret);
+    return (fs->connection->PutObject(fs->bucketName, object, source));
 }
 
 /*
@@ -429,38 +428,17 @@ static int
 S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *fileSystem,
   const char *source, const char *object, const char *config)
 {
-    std::string srcPath = S3HomePath(fileSystem, source);
-    std::string destPath = S3CachePath(fileSystem, source);
-    int ret;
+    /* Constructing the pathname for source and cache from file system and local.  */
+    std::string srcPath = S3Path(((S3_FILE_SYSTEM *)fileSystem)->homeDir, source);
+    std::string destPath = S3Path(((S3_FILE_SYSTEM *)fileSystem)->cacheDir, source);
 
     /* Linking file with the local file. */
-    if ((ret = link(srcPath.c_str(), destPath.c_str())) != 0)
-        return ret;
-    
-    /* Set the file to readonly in the cache. */
-    if ((ret = chmod(destPath.c_str(), 0444)) != 0)
-        return ret;
+    int ret = link(srcPath.c_str(), destPath.c_str());
+
+    /* Linking file with the local file. */
+    if (ret == 0)
+        ret = chmod(destPath.c_str(), 0444);
     return ret;
-}
-
-/*
- * S3CachePath --
- *     Construct the cache pathname from the file system and local name.
- */
-std::string
-S3CachePath(WT_FILE_SYSTEM *fileSystem, const char *name)
-{
-    return S3Path(((S3_FILE_SYSTEM *)fileSystem)->cacheDir, name);
-}
-
-/*
- * S3HomePath --
- *     Construct the source pathname from the file system and local name.
- */
-std::string
-S3HomePath(WT_FILE_SYSTEM *fileSystem, const char *name)
-{
-    return S3Path(((S3_FILE_SYSTEM *)fileSystem)->homeDir, name);
 }
 
 /*
