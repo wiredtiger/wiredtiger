@@ -211,26 +211,10 @@ test_join(TEST_OPTS *opts, SHARED_OPTS *sharedopts, bool bloom, bool sometimes_r
           insert_args[i].inserts, insert_args[i].removes, insert_args[i].notfounds,
           insert_args[i].rollbacks);
 
-    while ((ret = session->drop(session, sharedopts->posturi, NULL)) == EBUSY)
-        testutil_check(session->checkpoint(session, NULL));
-
-    testutil_check(ret);
-
-    while ((ret = session->drop(session, sharedopts->baluri, NULL)) == EBUSY)
-        testutil_check(session->checkpoint(session, NULL));
-
-    testutil_check(ret);
-
-    while ((ret = session->drop(session, sharedopts->flaguri, NULL)) == EBUSY)
-        testutil_check(session->checkpoint(session, NULL));
-
-    testutil_check(ret);
-
-    while ((ret = session->drop(session, opts->uri, NULL)) == EBUSY)
-        testutil_check(session->checkpoint(session, NULL));
-
-    testutil_check(ret);
-
+    testutil_drop(session, sharedopts->posturi, NULL);
+    testutil_drop(session, sharedopts->baluri, NULL);
+    testutil_drop(session, sharedopts->flaguri, NULL);
+    testutil_drop(session, opts->uri, NULL);
     testutil_check(session->close(session, NULL));
 }
 

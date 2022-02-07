@@ -328,15 +328,8 @@ test_one_set(WT_SESSION *session, TEST_SET set)
         search_using_item(cursor, set, i);
     testutil_check(cursor->close(cursor));
 
-    while ((ret = session->drop(session, "table:main", NULL)) == EBUSY)
-        testutil_check(session->checkpoint(session, NULL));
-
-    testutil_check(ret);
-
-    while ((ret = session->drop(session, "table:main2", NULL)) == EBUSY)
-        testutil_check(session->checkpoint(session, NULL));
-
-    testutil_check(ret);
+    testutil_drop(session, "table:main", NULL);
+    testutil_drop(session, "table:main2", NULL);
 }
 
 /*
