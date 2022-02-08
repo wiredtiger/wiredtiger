@@ -295,14 +295,6 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
     }
 
     wt_session = (WT_SESSION *)session;
-    /* Session verbose private. */
-    if ((prefix = wt_session->verbose_private) != NULL) {
-        if (is_json)
-            WT_ERROR_APPEND(p, remain, "\"private\":\"%s\",", prefix);
-        else
-            WT_ERROR_APPEND(p, remain, ", %s", prefix);
-    }
-
     WT_VERBOSE_LEVEL_STR(level, verbosity_level_tag);
     err = error == 0 ? NULL : __wt_strerror(session, error, NULL, 0);
     if (is_json) {
@@ -311,6 +303,9 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
         WT_ERROR_APPEND(p, remain, "\"category_id\":%" PRIu32 ",", category);
         WT_ERROR_APPEND(p, remain, "\"verbose_level\":\"%s\",", verbosity_level_tag);
         WT_ERROR_APPEND(p, remain, "\"verbose_level_id\":%d,", level);
+
+        if ((prefix = wt_session->verbose_private) != NULL)
+            WT_ERROR_APPEND(p, remain, "\"private\":\"%s\",", prefix);
 
         /* Message. */
         WT_ERROR_APPEND(p, remain, "\"msg\":\"");
@@ -374,6 +369,9 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
         /* Category and verbosity level. */
         WT_ERROR_APPEND(
           p, remain, ": [%s][%s]", verbose_category_strings[category], verbosity_level_tag);
+
+        if ((prefix = wt_session->verbose_private) != NULL)
+            WT_ERROR_APPEND(p, remain, ", %s", prefix);
 
         if (func != NULL)
             WT_ERROR_APPEND(p, remain, ": %s, %d", func, line);
