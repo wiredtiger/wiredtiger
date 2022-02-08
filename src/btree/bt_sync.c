@@ -133,15 +133,27 @@ __sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF *
 
 /*
  * __sync_ref_list_add --
- *     Add an obsolete history store ref to the list.
+ *     Add an obsolete ref to the list.
  */
 static int
 __sync_ref_list_add(WT_SESSION_IMPL *session, WT_REF_LIST *rlp, WT_REF *ref, bool ovfl_items)
 {
-    WT_RET(__wt_realloc_def(session, &rlp->max_entry, rlp->entry + 1, &rlp->list));
-    rlp->list[rlp->entry++]->ref = ref;
-    rlp->list[rlp->entry++]->ovfl_items = ovfl_items;
-    return (0);
+    WT_DECL_RET;
+    WT_OBSOLETE_REF *oref;
+
+    WT_RET(__wt_malloc(session, sizeof(WT_OBSOLETE_REF), &oref));
+    oref->ref = ref;
+    oref->ovfl_items = ovfl_items;
+
+    WT_ERR(__wt_realloc_def(session, &rlp->max_entry, rlp->entry + 1, &rlp->list));
+    rlp->list[rlp->entry++] = oref;
+
+    if (0) {
+err:
+        __wt_free(session, oref);
+    }
+
+    return (ret);
 }
 
 /*
@@ -176,6 +188,7 @@ __sync_ref_list_pop(WT_SESSION_IMPL *session, WT_REF_LIST *rlp, uint32_t flags)
         __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: is an in-memory obsolete page, added to urgent eviction queue.",
           (void *)rlp->list[i]->ref);
+        __wt_free(session, rlp->list[i]);
     }
 
     __wt_free(session, rlp->list);
