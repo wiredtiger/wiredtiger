@@ -56,6 +56,6 @@ WT_SESSION::reset_snapshot, but it will have no effect.
 
 @section timestamps_misc_in_memory In-memory configurations and timestamps
 
-Timestamps are supported for in-memory databasees.
+Timestamps are supported for in-memory databases.
 
 */
