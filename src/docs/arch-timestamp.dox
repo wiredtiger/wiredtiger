@@ -1,4 +1,4 @@
-/*! @arch_page arch-timestamp Timestamps and timestamping
+/*! @arch_page arch-timestamp Timestamps
 
 <!--
    XXX: I can't get the-documentation-tool to let me link to
@@ -61,8 +61,8 @@ aged out.
 This ensures that the application can update the oldest timestamp
 without compromising operations already in progress.
 
-Within the active time window, each read or write operation is
-performed at some given application time.
+Within the active time window, each read or write operation (removes
+count as writes) is performed at some given application time.
 As always, operations are grouped into transactions, and in keeping
 with the principle that transactions are atomic, times are attached to
 transactions, both conceptually and in the API.
@@ -85,7 +85,10 @@ For any key present in the database there exists some sequence of
 values, each ranging from some start time to some stop time.
 This sequence is not necessarily contiguous (we do not treat "deleted"
 as a first class value; it is the absence of any other value) but
-values are not permitted to overlap.
+the ranges are not permitted to overlap.
+Stop times are not inclusive; that is, when a value is overwritten its
+stop time is the same as the next value's start time, and reads at that
+time will yield the new value.
 
 Because the portion of the active time window beyond the stable
 timestamp is considered provisional, it is discarded at key points:
@@ -111,8 +114,8 @@ values, and is therefore particularly susceptible to the inconsistency
 described in the preceding paragraph.
 
 Non-timestamped writes in timestamped tables are also permitted.
-These create new values that have always existed, retroactively (in
-application time) replacing the entire value sequence once committed.
+These create new values that begin at the beginning of time, retroactively (in
+execution time) replacing the entire prior value sequence once committed.
 (Snapshot isolation still applies, however: readers whose snapshots
 predate the non-timestamped write will continue to see the prior
 database state until they commit or get a new snapshot.)
@@ -188,10 +191,12 @@ The on-disk representation of the time windows of older values are
 stored differently because those times are used for lookup purposes.
 See @ref arch-hs.
 
-Internal btree pages store aggregated time window information for the
-pages or sub-trees they reference.
-This is represented in memory with the \c WT_TIME_AGGREGATE structure,
-which contains the following elements:
+Internal btree pages store aggregated time window information for the pages
+or sub-trees they reference. This represents, roughly, the union of the time
+intervals of the data items on the page. It is used to check if a particular
+timestamp interacts with any on-page items so the page can be skipped over
+if not. Aggregates are represented in memory by the \c WT_TIME_AGGREGATE
+structure, which contains the following elements:
 
 - \c newest_start_durable_ts (\c WT_TS_NONE if none)
 - \c newest_stop_durable_ts (\c WT_TS_NONE if none, excludes any \c WT_TS_MAX)
@@ -209,9 +214,17 @@ for aggregating time windows and merging with other time aggregates;
 this is used during reconciliation to accumulate the aggregate value
 to be stored in the parent.
 (Otherwise, it was not, and those operations are prohibited.)
+
+Aggregation proceeds one time window at a time by taking maxima or
+minima of the various fields of the aggregate and their corresponding
+time window fields.
+
 Note that a time aggregate that has been initialized for aggregation
-without having any time windows aggregated into it is not valid, and
-such time aggregates will fail verification.
+without having any time windows aggregated into it is not valid:
+\c oldest_start_ts starts at \c WT_TS_MAX, which is newer than the
+starting \c newest_stop_ts of \c WT_TS_NONE. Consequently, such time
+aggregates will fail verification. The proper aggregate for an empty
+page can be produced by aggregating in a single empty time window.
 
 The on-disk representation of a time aggregate is packed into an
 address cell much as the on-disk representation of a time window is
@@ -230,8 +243,10 @@ enables that feature.
 
 In general the commit time of uncommitted updates in the cache may not
 be known yet and consequently is not used to detect conflicts.
-(Conflicts are generated when updates invisible to the updater appear
-on the update chain, which is computed by first using the transaction ID
+(A transaction attempting a write generates a conflict when updates
+invisible to it appear on the update chain.
+This causes the write operation to return ::WT_ROLLBACK.
+Visibility is computed by first using the transaction ID
 to detect uncommitted changes, and then by checking the read timestamp
 of the updater against the update's commit timestamp.)
 
@@ -265,9 +280,9 @@ can be greater than the commit timestamp.
 These times are permitted to diverge is so that distributed two-phase
 commit can reach consensus, which can be slow, without holding up
 advancement of the stable timestamp.
-The prepare timestamp must be less than the stable timestamp as of
+The prepare timestamp must be greater than the stable timestamp as of
 when the prepare begins, and the durable timestamp must be greater
-than or equal to the stable timestamp as of when the transaction
+than the stable timestamp as of when the transaction
 commits.
 
 Reads between the prepare timestamp and commit timestamp of a
