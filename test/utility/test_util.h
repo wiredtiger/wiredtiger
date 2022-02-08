@@ -164,7 +164,7 @@ typedef struct {
  * testutil_verify --
  *     Verify a table
  */
-#define testutil_verify(session, uri, config)                        \
+#define testutil_verify(session, uri, config)                      \
     while ((ret = session->verify(session, uri, config)) == EBUSY) \
         testutil_check(session->checkpoint(session, NULL));        \
     testutil_check(ret);
