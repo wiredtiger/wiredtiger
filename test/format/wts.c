@@ -544,7 +544,8 @@ wts_verify(TABLE *table, void *arg)
      * Do a full checkpoint to reduce the possibility of returning EBUSY from the following verify
      * call.
      */
-    testutil_assert(session->checkpoint(session, NULL));
+    ret = session->checkpoint(session, NULL);
+    testutil_assert(ret == 0 || ret == EBUSY);
     session->app_private = table->track_prefix;
     ret = session->verify(session, table->uri, "strict");
     testutil_assert(ret == 0 || ret == EBUSY);
