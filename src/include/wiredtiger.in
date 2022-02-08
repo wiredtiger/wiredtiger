@@ -770,6 +770,11 @@ struct __wt_session {
 	 */
 	void *app_private;
 #endif
+        /*!
+	 * A location for applications to attach a string that will be printed with verbose
+	 * messages.
+	 */
+        const char *verbose_private;
 
 	/*!
 	 * Close the session handle.

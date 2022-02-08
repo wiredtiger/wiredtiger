@@ -294,6 +294,15 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
             WT_ERROR_APPEND(p, remain, ", %s", prefix);
     }
 
+    wt_session = (WT_SESSION *)session;
+    /* Session verbose private. */
+    if ((prefix = wt_session->verbose_private) != NULL) {
+        if (is_json)
+            WT_ERROR_APPEND(p, remain, "\"private\":\"%s\",", prefix);
+        else
+            WT_ERROR_APPEND(p, remain, ", %s", prefix);
+    }
+
     WT_VERBOSE_LEVEL_STR(level, verbosity_level_tag);
     err = error == 0 ? NULL : __wt_strerror(session, error, NULL, 0);
     if (is_json) {
@@ -423,7 +432,6 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
      * If an application-specified error message handler fails, complain using the default error
      * handler. If the default error handler fails, fallback to stderr.
      */
-    wt_session = (WT_SESSION *)session;
     handler = session->event_handler;
     if (level != WT_VERBOSE_ERROR) {
         ret = handler->handle_message(handler, wt_session, final);
