@@ -137,7 +137,6 @@ test_join(TEST_OPTS *opts, SHARED_OPTS *sharedopts, bool bloom, bool sometimes_r
 {
     THREAD_ARGS insert_args[N_INSERT_THREAD], join_args[N_JOIN_THREAD];
     WT_CURSOR *maincur;
-    WT_DECL_RET;
     WT_SESSION *session;
     pthread_t insert_tid[N_INSERT_THREAD], join_tid[N_JOIN_THREAD];
     int i;

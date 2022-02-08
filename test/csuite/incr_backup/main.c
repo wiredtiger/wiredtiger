@@ -486,7 +486,6 @@ rename_table(WT_SESSION *session, TABLE_INFO *tinfo, uint32_t slot)
 static void
 drop_table(WT_SESSION *session, TABLE_INFO *tinfo, uint32_t slot)
 {
-    WT_DECL_RET;
     char *uri;
 
     testutil_assert(TABLE_VALID(&tinfo->table[slot]));

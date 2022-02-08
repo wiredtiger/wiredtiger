@@ -118,7 +118,6 @@ void
 verify(SHARED_CONFIG *cfg, const char *name)
 {
     WT_CONNECTION *conn;
-    WT_DECL_RET;
     WT_SESSION *session;
 
     conn = cfg->conn;

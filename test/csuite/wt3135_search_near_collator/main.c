@@ -260,7 +260,6 @@ static void
 test_one_set(WT_SESSION *session, TEST_SET set)
 {
     WT_CURSOR *cursor;
-    WT_DECL_RET;
     WT_ITEM item;
     int32_t i;
 

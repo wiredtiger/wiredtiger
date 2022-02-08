@@ -155,19 +155,26 @@ typedef struct {
  * testutil_drop --
  *     Drop a table
  */
-#define testutil_drop(session, uri, config)                      \
-    while ((ret = session->drop(session, uri, config)) == EBUSY) \
-        testutil_check(session->checkpoint(session, NULL));      \
-    testutil_check(ret);
+#define testutil_drop(session, uri, config)                            \
+    do {                                                               \
+        int __ret;                                                     \
+        while ((__ret = session->drop(session, uri, config)) == EBUSY) \
+            testutil_check(session->checkpoint(session, NULL));        \
+        testutil_check(__ret);                                         \
+    } while (0)
 
 /*
  * testutil_verify --
  *     Verify a table
  */
-#define testutil_verify(session, uri, config)                      \
-    while ((ret = session->verify(session, uri, config)) == EBUSY) \
-        testutil_check(session->checkpoint(session, NULL));        \
-    testutil_check(ret);
+#define testutil_verify(session, uri, config)                            \
+    do {                                                                 \
+        int __ret;                                                       \
+        while ((__ret = session->verify(session, uri, config)) == EBUSY) \
+            testutil_check(session->checkpoint(session, NULL));          \
+        testutil_check(__ret);                                           \
+    }                                                                    \
+    while(0)
 
 /*
  * error_sys_check --
