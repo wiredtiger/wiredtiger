@@ -585,7 +585,7 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts
     } else {
         /*
          * For a prepared transaction, the commit timestamp should not be less than the prepare
-         * timestamp. Also, the commit timestamp may not be set before the transaction has actually
+         * timestamp. Also, the commit timestamp cannot be set before the transaction has actually
          * been prepared.
          */
         if (txn->prepare_timestamp > commit_ts) {
@@ -598,7 +598,7 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts
         }
         if (!F_ISSET(txn, WT_TXN_PREPARE))
             WT_RET_MSG(
-              session, EINVAL, "commit timestamp may not be set before transaction is prepared");
+              session, EINVAL, "commit timestamp must not be set before transaction is prepared");
     }
 
     WT_ASSERT(session,

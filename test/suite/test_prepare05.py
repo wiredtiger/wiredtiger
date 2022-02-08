@@ -86,7 +86,7 @@ class test_prepare05(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:
                 self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(3)),
-            "/commit timestamp may not be set/")
+            "/commit timestamp must not be set/")
         self.session.rollback_transaction()
 
         # It is illegal to set a prepare timestamp same as or earlier than an

@@ -32,7 +32,7 @@ updates rather than the commit timestamp.
 
 @snippet ex_all.c transaction prepare
 
-Prepared transactions are limited to a single commit timestamp, which may only
+Prepared transactions are limited to a single commit timestamp, which can only
 be set after the transaction has successfully prepared. The prepare timestamp
 can be set at any point in the transaction's lifecycle prior to preparing it;
 doing so does not itself prepare the transaction

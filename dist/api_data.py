@@ -1830,7 +1830,7 @@ methods = {
         current transaction, if any. The value must also not be older than the
         current oldest and stable timestamps. For prepared transactions, a commit
         timestamp is required for commit, must not be older than the prepare
-        timestamp, may be set only once, and may not be set until after the
+        timestamp, can be set only once, and must not be set until after the
         transaction has successfully prepared. See @ref timestamp_txn_api'''),
     Config('durable_timestamp', '', r'''
         set the durable timestamp for the current transaction. Required for the
@@ -1842,7 +1842,7 @@ methods = {
     Config('prepare_timestamp', '', r'''
         set the prepare timestamp for the updates of the current transaction.
         The supplied value must not be older than any active read timestamps,
-        and must not be older than the current stable timestamp. May be set only
+        and must not be older than the current stable timestamp. Can be set only
         once per transaction. Setting the prepare timestamp does not by itself
         prepare the transaction, but does oblige the application to eventually
         prepare the transaction before committing it. See @ref timestamp_prepare'''),
