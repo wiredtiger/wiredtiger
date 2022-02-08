@@ -297,18 +297,16 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
         return ENOMEM;
     }
 
-    // std::cout << "Grabbing lock." << std::endl;
-    // std::unique_lock<std::mutex> lock(s3->fhMutex);
-    // std::cout << "Acquired lock." << std::endl;
-    // s3FileHandle->storage->fhList.push_back(s3FileHandle);
-    // lock.unlock();
-    // std::cout << "Released lock." << std::endl;
+    std::cout << "Grabbing lock." << std::endl;
+    std::unique_lock<std::mutex> lock(s3->fhMutex);
+    std::cout << "Acquired lock." << std::endl;
+    s3FileHandle->storage->fhList.push_back(s3FileHandle);
+    lock.unlock();
+    std::cout << "Released lock." << std::endl;
 
     *fileHandlePtr = fileHandle;
 
     std::cout << "S3Open: File opened - " << name << " - final path: " << fileHandle->name << std::endl;
-
-    // wtFh->close(wtFh, session);
 
     return (0);
 }
@@ -563,7 +561,7 @@ S3Terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
 
     Aws::ShutdownAPI(options);
 
-    free(s3);
+    delete s3;
     return (0);
 }
 
@@ -610,9 +608,10 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     S3_STORAGE *s3;
     S3_FILE_SYSTEM *fs;
     WT_CONFIG_ITEM v;
-    if ((s3 = (S3_STORAGE *)calloc(1, sizeof(S3_STORAGE))) == NULL)
-        return (errno);
+    // if ((s3 = (S3_STORAGE *)calloc(1, sizeof(S3_STORAGE))) == NULL)
+    //     return (errno);
 
+    s3 = new S3_STORAGE;
     s3->wtApi = connection->get_extension_api(connection);
 
     int ret = s3->wtApi->config_get(s3->wtApi, NULL, config, "verbose", &v);
