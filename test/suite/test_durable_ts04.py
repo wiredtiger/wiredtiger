@@ -43,7 +43,7 @@ from wtscenario import make_scenarios
 # time, until the global timestamp reaches the durable time.
 #
 # This test makes sure that mechanism works as intended.
-#    1. Reading nondurable data produces WT_ROLLBACK.
+#    1. Reading nondurable data produces WT_PREPARE_CONFLICT.
 #    2. Advancing stable to the durable timestamp eliminates this behavior.
 #    3. The behavior applies to both updates and removes.
 #    4. The behavior applies to pages that have been evicted as well as to in-memory updates.
@@ -92,8 +92,8 @@ class test_durable_ts04(wttest.WiredTigerTestCase):
         if value is None:
             for i in range(lo, hi):
                 self.session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
-                self.assertRaisesException(wiredtiger.WiredTigerError,
-                    lambda: cursor[i], '/WT_ROLLBACK/', False)
+                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                    lambda: cursor[i], '/committed but non-durable value/')
                 self.session.rollback_transaction()
         else:
             self.session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))

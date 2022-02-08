@@ -21,7 +21,6 @@
  */
 #define WT_TXN_ROLLBACK_REASON_CACHE "oldest pinned transaction ID rolled back for eviction"
 #define WT_TXN_ROLLBACK_REASON_CONFLICT "conflict between concurrent operations"
-#define WT_TXN_ROLLBACK_REASON_NONDURABLE "read conflict with committed but non-durable value"
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_LOG_CKPT_CLEANUP 0x01u

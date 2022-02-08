@@ -269,8 +269,8 @@ class test_hs06(wttest.WiredTigerTestCase):
         # Cannot read between commit and durable.
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(5))
         for i in range(1, 11):
-            self.assertRaisesException(wiredtiger.WiredTigerError,
-                lambda: cursor[self.create_key(i)], '/WT_ROLLBACK/', False)
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: cursor[self.create_key(i)], '/committed but non-durable value/')
         self.session.rollback_transaction()
 
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(6))

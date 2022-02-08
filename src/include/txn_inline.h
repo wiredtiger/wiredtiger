@@ -988,7 +988,8 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
             break;
 
         if (upd_visible == WT_VISIBLE_NONDURABLE)
-            return (__wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_NONDURABLE));
+            WT_RET_MSG(
+              session, WT_PREPARE_CONFLICT, "read conflict with committed but non-durable value");
 
         /*
          * Save the prepared update to help us detect if we race with prepared commit or rollback
@@ -1107,7 +1108,8 @@ retry:
           !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE)) {
             if (__wt_txn_tw_stop_nondurable(session, &tw))
                 /* Disallow reading if we can see it but it isn't durable yet. */
-                return (__wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_NONDURABLE));
+                WT_RET_MSG(session, WT_PREPARE_CONFLICT,
+                  "read conflict with committed but non-durable value");
             cbt->upd_value->buf.data = NULL;
             cbt->upd_value->buf.size = 0;
             cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;
@@ -1136,7 +1138,8 @@ retry:
         else if (__wt_txn_tw_start_visible(session, &tw)) {
             if (__wt_txn_tw_start_nondurable(session, &tw))
                 /* Disallow reading if we can see it but it isn't durable yet. */
-                return (__wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_NONDURABLE));
+                WT_RET_MSG(session, WT_PREPARE_CONFLICT,
+                  "read conflict with committed but non-durable value");
             return_onpage_value = true;
         }
 

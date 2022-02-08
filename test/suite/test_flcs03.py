@@ -207,8 +207,9 @@ class test_flcs03(wttest.WiredTigerTestCase):
             self.check_end(cursor, None, 19, append_key)
             if self.prepare and self.op == 'deleted':
                 # Cannot read between commit and durable timestamps.
-                self.assertRaisesException(wiredtiger.WiredTigerError,
-                    lambda: self.check_end(cursor, None, 20, append_key), '/WT_ROLLBACK/', False)
+                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                    lambda: self.check_end(cursor, None, 20, append_key),
+                    '/committed but non-durable value/')
                 self.session.rollback_transaction()
             else:
                 self.check_end(cursor, None, 20, append_key)

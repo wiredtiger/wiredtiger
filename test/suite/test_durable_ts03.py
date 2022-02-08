@@ -101,8 +101,8 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
         self.assertEquals(cursor.reset(), 0)
         session.begin_transaction('read_timestamp=' + self.timestamp_str(210))
         cursor.set_key(1)
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: cursor.search(), '/WT_ROLLBACK/', False)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: cursor.search(), '/committed but non-durable value/')
         session.rollback_transaction()
 
         # Read the updated data to confirm that it is visible.
