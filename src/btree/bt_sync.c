@@ -156,10 +156,8 @@ __sync_ref_list_pop(WT_SESSION_IMPL *session, WT_REF_LIST *rlp, uint32_t flags)
 
     for (i = 0; i < rlp->entry; i++) {
         /*
-         * Mark the obsolete page dirty to let the reconciliation to remove the updates from page,
-         * except if the page is already marked as empty by previous reconciliation. The obsolete
-         * pages with overflow keys cannot be fast deleted, so marking them dirty will let them
-         * clean during reconciliation.
+         * Dirty the obsolete page with overflow items to let the page reconciliation remove all the
+         * overflow items.
          */
         if (rlp->list[i]->ovfl_items) {
             WT_RET(__wt_page_modify_init(session, rlp->list[i]->ref->page));
