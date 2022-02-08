@@ -74,7 +74,7 @@ class test_config11(wttest.WiredTigerTestCase):
             current_cache_usage_perc = stat_cursor[stat.conn.cache_bytes_inuse][2] * 100 / max_cache_size
             stat_cursor.reset()
 
-        # Make the cache content clean with with a checkpoint.
+        # Make the cache content clean with a checkpoint.
         s.checkpoint()
 
         # Check the cache usage is still more than 50%. Some content may have been freed by the
