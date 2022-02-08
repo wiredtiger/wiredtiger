@@ -116,6 +116,7 @@ class test_txn09(wttest.WiredTigerTestCase, suite_subprocess):
         # Set up the table with entries for 1, 2, 10 and 11.
         # We use the overwrite config so insert can update as needed.
         c = self.session.open_cursor(self.uri, None, 'overwrite')
+        #c = {1:1, 2:1, 10:1, 11:1}
         c[1] = c[2] = c[10] = c[11] = 1
         current = {1:1, 2:1, 10:1, 11:1}
         committed = current.copy()
@@ -144,8 +145,13 @@ class test_txn09(wttest.WiredTigerTestCase, suite_subprocess):
                 c[k] = c[k1] = i + 2
                 current[k] = current[k1] = i + 2
             elif op == 'remove':
-                del c[k]
-                del c[k1]
+                # Ensure that the key k exists so that the delete oepration doesn't return an error.
+                c.set_key(k)
+                if c.search() == 0:
+                    del c[k]
+                c.set_key(k1)
+                if c.search() == 0:
+                    del c[k1]
                 if k in current:
                     del current[k]
                 if k1 in current:
