@@ -5,11 +5,10 @@
 #include "wt_internal.h"
 
 struct ExtentWrapper {
-    ExtentWrapper(WT_EXT* raw)
-        : _raw(raw) {
-    }
+    ExtentWrapper(WT_EXT *raw) : _raw(raw) {}
 
-    ~ExtentWrapper() {
+    ~ExtentWrapper()
+    {
         free(_raw);
     }
 
@@ -17,25 +16,22 @@ struct ExtentWrapper {
 };
 
 struct ExtentListWrapper {
-    ExtentListWrapper() {
-    }
+    ExtentListWrapper() {}
 
-    ~ExtentListWrapper() {
-    }
+    ~ExtentListWrapper() {}
 
     // unfortunately, some functions need raw 2D pointers, but that's not
     // compatible with automatic memory management. _list is only for allocation
     // bookkeeping - _raw_list can be rearranged however.
     std::vector<std::unique_ptr<ExtentWrapper>> _list;
-    std::vector<WT_EXT*> _raw_list;
+    std::vector<WT_EXT *> _raw_list;
 };
 
 struct SizeWrapper {
-    SizeWrapper(WT_SIZE* raw)
-        : _raw(raw) {
-    }
+    SizeWrapper(WT_SIZE *raw) : _raw(raw) {}
 
-    ~SizeWrapper() {
+    ~SizeWrapper()
+    {
         free(_raw);
     }
 
@@ -43,40 +39,44 @@ struct SizeWrapper {
 };
 
 struct SizeListWrapper {
-    SizeListWrapper() {
-    }
+    SizeListWrapper() {}
 
-    ~SizeListWrapper() {
-    }
+    ~SizeListWrapper() {}
 
     // unfortunately, some functions need raw 2D pointers, but that's not
     // compatible with automatic memory management. _list is only for allocation
     // bookkeeping - _raw_list can be rearranged however since it doesn't own
     // any data.
     std::vector<std::unique_ptr<SizeWrapper>> _list;
-    std::vector<WT_SIZE*> _raw_list;
+    std::vector<WT_SIZE *> _raw_list;
 };
 
-std::unique_ptr<ExtentWrapper> create_new_ext() {
+std::unique_ptr<ExtentWrapper>
+create_new_ext()
+{
     // manually alloc enough extra space for the zero-length array to encode two
     // skip lists.
-    auto sz = sizeof(WT_EXT) + 2 * WT_SKIP_MAXDEPTH * sizeof(WT_EXT*);
+    auto sz = sizeof(WT_EXT) + 2 * WT_SKIP_MAXDEPTH * sizeof(WT_EXT *);
 
-    auto raw = (WT_EXT*)malloc(sz);
+    auto raw = (WT_EXT *)malloc(sz);
     memset(raw, 0, sz);
 
     return std::make_unique<ExtentWrapper>(raw);
 }
 
-std::unique_ptr<SizeWrapper> create_new_sz() {
-    auto raw = (WT_SIZE*)malloc(sizeof(WT_SIZE));
+std::unique_ptr<SizeWrapper>
+create_new_sz()
+{
+    auto raw = (WT_SIZE *)malloc(sizeof(WT_SIZE));
     memset(raw, 0, sizeof(WT_SIZE));
 
     return std::make_unique<SizeWrapper>(raw);
 }
 
-void print_list(WT_EXT **head) {
-    WT_EXT* extp;
+void
+print_list(WT_EXT **head)
+{
+    WT_EXT *extp;
     int i;
 
     if (head == nullptr)
@@ -104,8 +104,10 @@ void print_list(WT_EXT **head) {
  * ...
  * L9: X
  */
-void create_default_test_extent_list(ExtentListWrapper& wrapper) {
-    auto& head = wrapper._list;
+void
+create_default_test_extent_list(ExtentListWrapper &wrapper)
+{
+    auto &head = wrapper._list;
     for (int i = 0; i < 3; i++)
         head.push_back(create_new_ext());
 
@@ -116,7 +118,7 @@ void create_default_test_extent_list(ExtentListWrapper& wrapper) {
     first->next[1] = third;
     second->next[0] = third;
 
-    auto& raw = wrapper._raw_list;
+    auto &raw = wrapper._raw_list;
     raw.push_back(first);
     raw.push_back(second);
     raw.push_back(third);
@@ -125,8 +127,10 @@ void create_default_test_extent_list(ExtentListWrapper& wrapper) {
 }
 
 // as above, but for a size list.
-void create_default_test_size_list(SizeListWrapper& wrapper) {
-    auto& head = wrapper._list;
+void
+create_default_test_size_list(SizeListWrapper &wrapper)
+{
+    auto &head = wrapper._list;
     for (int i = 0; i < 3; i++)
         head.push_back(create_new_sz());
 
@@ -137,7 +141,7 @@ void create_default_test_size_list(SizeListWrapper& wrapper) {
     first->next[1] = third;
     second->next[0] = third;
 
-    auto& raw = wrapper._raw_list;
+    auto &raw = wrapper._raw_list;
     raw.push_back(first);
     raw.push_back(second);
     raw.push_back(third);
@@ -145,11 +149,13 @@ void create_default_test_size_list(SizeListWrapper& wrapper) {
         raw.push_back(nullptr);
 }
 
-TEST_CASE("block_off_srch_last", "[extent_list]") {
-    std::vector<WT_EXT**> stack(WT_SKIP_MAXDEPTH, nullptr);
+TEST_CASE("block_off_srch_last", "[extent_list]")
+{
+    std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
 
-    SECTION("empty list has empty final element") {
-        std::vector<WT_EXT*> head(WT_SKIP_MAXDEPTH, nullptr);
+    SECTION("empty list has empty final element")
+    {
+        std::vector<WT_EXT *> head(WT_SKIP_MAXDEPTH, nullptr);
 
         REQUIRE(__ut_block_off_srch_last(&head[0], &stack[0]) == nullptr);
 
@@ -158,9 +164,10 @@ TEST_CASE("block_off_srch_last", "[extent_list]") {
         }
     }
 
-    SECTION("list with one element has non-empty final element") {
+    SECTION("list with one element has non-empty final element")
+    {
         auto wrapper = ExtentListWrapper();
-        auto& head = wrapper._raw_list;
+        auto &head = wrapper._raw_list;
 
         auto first = create_new_ext();
         head.push_back(first->_raw);
@@ -170,9 +177,10 @@ TEST_CASE("block_off_srch_last", "[extent_list]") {
         REQUIRE(__ut_block_off_srch_last(&head[0], &stack[0]) == head[0]);
     }
 
-    SECTION("list with identical skip entries returns identical stack entries") {
+    SECTION("list with identical skip entries returns identical stack entries")
+    {
         auto wrapper = ExtentListWrapper();
-        auto& head = wrapper._raw_list;
+        auto &head = wrapper._raw_list;
 
         auto first = create_new_ext();
         for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
@@ -185,9 +193,10 @@ TEST_CASE("block_off_srch_last", "[extent_list]") {
         }
     }
 
-    SECTION("list with differing skip entries returns differing stack entries") {
+    SECTION("list with differing skip entries returns differing stack entries")
+    {
         auto wrapper = ExtentListWrapper();
-        auto& head = wrapper._raw_list;
+        auto &head = wrapper._raw_list;
 
         create_default_test_extent_list(wrapper);
 
@@ -201,9 +210,10 @@ TEST_CASE("block_off_srch_last", "[extent_list]") {
         }
     }
 
-    SECTION("list with differing skip entries returns final entry") {
+    SECTION("list with differing skip entries returns final entry")
+    {
         auto wrapper = ExtentListWrapper();
-        auto& head = wrapper._raw_list;
+        auto &head = wrapper._raw_list;
 
         auto first = create_new_ext();
         auto second = create_new_ext();
@@ -217,11 +227,13 @@ TEST_CASE("block_off_srch_last", "[extent_list]") {
     }
 }
 
-TEST_CASE("block_off_srch", "[extent_list]") {
-    std::vector<WT_EXT**> stack(WT_SKIP_MAXDEPTH, nullptr);
+TEST_CASE("block_off_srch", "[extent_list]")
+{
+    std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
 
-    SECTION("can't find offset in empty list") {
-        std::vector<WT_EXT*> head(WT_SKIP_MAXDEPTH, nullptr);
+    SECTION("can't find offset in empty list")
+    {
+        std::vector<WT_EXT *> head(WT_SKIP_MAXDEPTH, nullptr);
 
         __ut_block_off_srch(&head[0], 0, &stack[0], false);
 
@@ -229,9 +241,10 @@ TEST_CASE("block_off_srch", "[extent_list]") {
             REQUIRE(stack[i] == &head[i]);
     }
 
-    SECTION("exact offset match returns matching list element") {
+    SECTION("exact offset match returns matching list element")
+    {
         auto wrapper = ExtentListWrapper();
-        auto& head = wrapper._raw_list;
+        auto &head = wrapper._raw_list;
 
         create_default_test_extent_list(wrapper);
 
@@ -249,9 +262,10 @@ TEST_CASE("block_off_srch", "[extent_list]") {
         REQUIRE((*stack[2])->off == 3);
     }
 
-    SECTION("search for item larger than maximum in list returns end of list") {
+    SECTION("search for item larger than maximum in list returns end of list")
+    {
         auto wrapper = ExtentListWrapper();
-        auto& head = wrapper._raw_list;
+        auto &head = wrapper._raw_list;
 
         create_default_test_extent_list(wrapper);
 
@@ -268,9 +282,10 @@ TEST_CASE("block_off_srch", "[extent_list]") {
             REQUIRE(stack[i] == &head[i]);
     }
 
-    SECTION("respect skip offset") {
+    SECTION("respect skip offset")
+    {
         auto wrapper = ExtentListWrapper();
-        auto& head = wrapper._raw_list;
+        auto &head = wrapper._raw_list;
 
         create_default_test_extent_list(wrapper);
 
@@ -301,22 +316,25 @@ TEST_CASE("block_off_srch", "[extent_list]") {
     }
 }
 
-TEST_CASE("block_first_srch", "[extent_list]") {
-    std::vector<WT_EXT**> stack(WT_SKIP_MAXDEPTH, nullptr);
+TEST_CASE("block_first_srch", "[extent_list]")
+{
+    std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
 
     // Note that we're not checking stack here, since __block_first_srch
     // delegates most of its work to __block_off_srch, which we're testing
     // elsewhere.
 
-    SECTION("empty list doesn't yield a chunk") {
-        std::vector<WT_EXT*> head(WT_SKIP_MAXDEPTH, nullptr);
+    SECTION("empty list doesn't yield a chunk")
+    {
+        std::vector<WT_EXT *> head(WT_SKIP_MAXDEPTH, nullptr);
 
         REQUIRE(__ut_block_first_srch(&head[0], 0, &stack[0]) == false);
     }
 
-    SECTION("list with too-small chunks doesn't yield a larger chunk") {
+    SECTION("list with too-small chunks doesn't yield a larger chunk")
+    {
         auto wrapper = ExtentListWrapper();
-        auto& head = wrapper._raw_list;
+        auto &head = wrapper._raw_list;
 
         create_default_test_extent_list(wrapper);
 
@@ -327,9 +345,10 @@ TEST_CASE("block_first_srch", "[extent_list]") {
         REQUIRE(__ut_block_first_srch(&head[0], 4, &stack[0]) == false);
     }
 
-    SECTION("find an appropriate chunk") {
+    SECTION("find an appropriate chunk")
+    {
         auto wrapper = ExtentListWrapper();
-        auto& head = wrapper._raw_list;
+        auto &head = wrapper._raw_list;
 
         create_default_test_extent_list(wrapper);
 
@@ -341,11 +360,13 @@ TEST_CASE("block_first_srch", "[extent_list]") {
     }
 }
 
-TEST_CASE("block_size_srch", "[extent_list]") {
-    std::vector<WT_SIZE**> stack(WT_SKIP_MAXDEPTH, nullptr);
+TEST_CASE("block_size_srch", "[extent_list]")
+{
+    std::vector<WT_SIZE **> stack(WT_SKIP_MAXDEPTH, nullptr);
 
-    SECTION("empty size list yields first elements") {
-        std::vector<WT_SIZE*> head(WT_SKIP_MAXDEPTH, nullptr);
+    SECTION("empty size list yields first elements")
+    {
+        std::vector<WT_SIZE *> head(WT_SKIP_MAXDEPTH, nullptr);
 
         __ut_block_size_srch(&head[0], 0, &stack[0]);
 
@@ -353,9 +374,10 @@ TEST_CASE("block_size_srch", "[extent_list]") {
             REQUIRE(stack[i] == &head[i]);
     }
 
-    SECTION("exact size match returns matching list element") {
+    SECTION("exact size match returns matching list element")
+    {
         auto wrapper = SizeListWrapper();
-        auto& head = wrapper._raw_list;
+        auto &head = wrapper._raw_list;
 
         create_default_test_size_list(wrapper);
 
@@ -373,9 +395,10 @@ TEST_CASE("block_size_srch", "[extent_list]") {
         REQUIRE((*stack[2])->size == 3);
     }
 
-    SECTION("search for item larger than maximum in list returns end of list") {
+    SECTION("search for item larger than maximum in list returns end of list")
+    {
         auto wrapper = SizeListWrapper();
-        auto& head = wrapper._raw_list;
+        auto &head = wrapper._raw_list;
 
         create_default_test_size_list(wrapper);
 

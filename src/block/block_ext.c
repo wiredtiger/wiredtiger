@@ -1396,7 +1396,6 @@ __ut_block_first_srch(WT_EXT **head, wt_off_t size, WT_EXT ***stack)
     return __block_first_srch(head, size, stack);
 }
 
-
 void
 __ut_block_size_srch(WT_SIZE **head, wt_off_t size, WT_SIZE ***stack)
 {
