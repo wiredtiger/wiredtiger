@@ -20,7 +20,7 @@ typedef struct {
  * A list of obsolete WT_REF's.
  */
 typedef struct {
-    WT_OBSOLETE_REF **list;
+    WT_OBSOLETE_REF *list;
     size_t entry;     /* next entry available in list */
     size_t max_entry; /* how many allocated in list */
 } WT_REF_LIST;
@@ -138,22 +138,14 @@ __sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF *
 static int
 __sync_ref_list_add(WT_SESSION_IMPL *session, WT_REF_LIST *rlp, WT_REF *ref, bool ovfl_items)
 {
-    WT_DECL_RET;
     WT_OBSOLETE_REF *oref;
 
-    WT_RET(__wt_malloc(session, sizeof(WT_OBSOLETE_REF), &oref));
+    WT_RET(__wt_realloc_def(session, &rlp->max_entry, rlp->entry + 1, &rlp->list));
+    oref = &rlp->list[rlp->entry];
     oref->ref = ref;
     oref->ovfl_items = ovfl_items;
-
-    WT_ERR(__wt_realloc_def(session, &rlp->max_entry, rlp->entry + 1, &rlp->list));
-    rlp->list[rlp->entry++] = oref;
-
-    if (0) {
-err:
-        __wt_free(session, oref);
-    }
-
-    return (ret);
+    rlp->entry++;
+    return (0);
 }
 
 /*
@@ -171,24 +163,23 @@ __sync_ref_list_pop(WT_SESSION_IMPL *session, WT_REF_LIST *rlp, uint32_t flags)
          * Dirty the obsolete page with overflow items to let the page reconciliation remove all the
          * overflow items.
          */
-        if (rlp->list[i]->ovfl_items) {
-            WT_RET(__wt_page_modify_init(session, rlp->list[i]->ref->page));
-            __wt_page_modify_set(session, rlp->list[i]->ref->page);
+        if (rlp->list[i].ovfl_items) {
+            WT_RET(__wt_page_modify_init(session, rlp->list[i].ref->page));
+            __wt_page_modify_set(session, rlp->list[i].ref->page);
         }
 
         /*
          * Ignore the failure from urgent eviction. The failed refs are taken care in the next
          * checkpoint.
          */
-        WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, rlp->list[i]->ref));
+        WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, rlp->list[i].ref));
 
         /* Accumulate errors but continue till all the refs are processed. */
-        WT_TRET(__wt_page_release(session, rlp->list[i]->ref, flags));
+        WT_TRET(__wt_page_release(session, rlp->list[i].ref, flags));
         WT_STAT_CONN_DATA_INCR(session, cc_pages_evict);
         __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: is an in-memory obsolete page, added to urgent eviction queue.",
-          (void *)rlp->list[i]->ref);
-        __wt_free(session, rlp->list[i]);
+          (void *)rlp->list[i].ref);
     }
 
     __wt_free(session, rlp->list);
