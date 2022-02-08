@@ -116,7 +116,6 @@ class test_txn09(wttest.WiredTigerTestCase, suite_subprocess):
         # Set up the table with entries for 1, 2, 10 and 11.
         # We use the overwrite config so insert can update as needed.
         c = self.session.open_cursor(self.uri, None, 'overwrite')
-        #c = {1:1, 2:1, 10:1, 11:1}
         c[1] = c[2] = c[10] = c[11] = 1
         current = {1:1, 2:1, 10:1, 11:1}
         committed = current.copy()

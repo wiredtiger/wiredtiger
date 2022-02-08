@@ -115,10 +115,10 @@ class test_overwrite(wttest.WiredTigerTestCase):
         cursor.set_key(ds.key(200))
         self.assertEquals(cursor.remove(), wiredtiger.WT_NOTFOUND)
 
-        # Remove of a non-existent record with overwrite on succeeds.
+        # Remove of a non-existent record with overwrite on fails.
         cursor = self.session.open_cursor(uri, None)
         cursor.set_key(ds.key(201))
-        self.assertEquals(cursor.remove(), 0)
+        self.assertEquals(cursor.remove(), wiredtiger.WT_NOTFOUND)
 
     def test_overwrite_update(self):
         uri = self.uri + self.name

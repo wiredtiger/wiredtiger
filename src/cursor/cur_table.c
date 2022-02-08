@@ -652,13 +652,6 @@ __curtable_remove(WT_CURSOR *cursor)
 
 notfound:
     /*
-     * If the cursor is configured to overwrite and the record is not found, that is exactly what we
-     * want.
-     */
-    if (ret == WT_NOTFOUND && F_ISSET(primary, WT_CURSTD_OVERWRITE))
-        ret = 0;
-
-    /*
      * If the cursor was positioned, it stays positioned with a key but no no value, otherwise,
      * there's no position, key or value. This isn't just cosmetic, without a reset, iteration on
      * this cursor won't start at the beginning/end of the table.
