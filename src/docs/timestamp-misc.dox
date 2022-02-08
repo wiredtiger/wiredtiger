@@ -29,20 +29,19 @@ expected to be used by the table:
 | Configuration | Description |
 |---------------|-------------|
 | always | Require all updates to the table have a commit timestamp. |
-| ordered | Once a commit timestamp is used when updating a key in the table, all future updates to the key will require a commit timestamp as well, and each update must have a later commit timestamp than any previous update. |
-| mixed_mode | Allow updates both with and without timestamps, and further allow updates in any timestamp order. (This is WiredTiger's default behavior. Future releases are expected to continue to allow updates with and without timestamps, but disallow updates with out-of-order timestamps.) |
 | never | Require no updates to the table have a commit timestamp. |
+| ordered | Allow updates both with and without a commit timestamp, but once a commit timestamp is used when updating a key in the table, all future updates to the key require a commit timestamp as well; each update must have a later commit timestamp than the previous update. |
+| mixed_mode | Allow updates both with and without a commit timestamp; each update must have a later commit timestamp than the previous update, or no timestamp at all. |
 
 The \c write_timestamp_usage configuration is expected to be used with the
 \c assert and \c verbose configurations to the WT_SESSION::create method. The
-\c "assert(read_timestamp)" configuration can require that  timestamps always
-or never be used on reads with the table. The \c "assert(write_timestamp)"
-configuration maps to the \c write_timestamp_usage setting.  In both cases,
-setting the \c assert configuration will result in a core dump if WiredTiger
-detects a violation of the configured policy. Alternatively, setting the
-\c verbose configuration results in a diagnostic message to the application's
-WT_EVENT_HANDLER::handle_error method and an error return from of the called
-WiredTiger API where the error was detected.
+\c "assert(read_timestamp)" configuration requires timestamps always or never
+be used on reads in the table. The \c "assert(write_timestamp)" configuration
+maps to the \c write_timestamp_usage setting. In both cases, setting the
+\c assert configuration will result in an error message and transaction
+commit failure if WiredTiger detects a violation of the configured policy.
+Alternatively, setting the \c verbose configuration results in an error
+message but no failure.
 
 Note this is a best-effort check by WiredTiger, and there are cases where
 application misbehavior will not be detected.

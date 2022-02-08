@@ -917,26 +917,16 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
     }
 #endif
 
-    /* Ordered key consistency requires all updates be in timestamp order. */
-    if (LF_ISSET(WT_DHANDLE_TS_ORDERED) && txn_has_ts && prev_op_durable_ts > op_ts) {
+    /* Ordered and mixed-mode consistency requires all updates be in timestamp order. */
+    if (LF_ISSET(WT_DHANDLE_TS_MIXED_MODE | WT_DHANDLE_TS_ORDERED) && txn_has_ts &&
+      prev_op_durable_ts > op_ts) {
         __wt_err(session, EINVAL,
           "%s: " WT_TS_VERBOSE_PREFIX
           "committing a transaction that updates a value with an older timestamp %s than is "
-          "associated with the previous update %s on a table configured for strict ordering",
+          "associated with the previous update %s on a table configured for %s",
           name, __wt_timestamp_to_string(op_ts, ts_string[0]),
-          __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1]));
-        if (LF_ISSET(WT_DHANDLE_TS_ASSERT_WRITE))
-            ret = EINVAL;
-    }
-
-    /* Mixed mode key consistency requires all updates be in timestamp order. */
-    if (LF_ISSET(WT_DHANDLE_TS_MIXED_MODE) && txn_has_ts && prev_op_durable_ts > op_ts) {
-        __wt_err(session, EINVAL,
-          "%s: " WT_TS_VERBOSE_PREFIX
-          "committing a transaction that updates a value with an older timestamp %s than is "
-          "associated with the previous update %s on a table configured for mixed mode",
-          name, __wt_timestamp_to_string(op_ts, ts_string[0]),
-          __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1]));
+          __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1]),
+          LF_ISSET(WT_DHANDLE_TS_MIXED_MODE) ? "mixed mode" : "strict ordering");
         if (LF_ISSET(WT_DHANDLE_TS_ASSERT_WRITE))
             ret = EINVAL;
     }
