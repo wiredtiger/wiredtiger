@@ -77,7 +77,7 @@ database requires caution. Configuring logging for the database will
 automatically configure logging for each object in the database unless logging
 is explicitly turned off when the object is created.
 
-@section timestamps_durability_checkpoint Checkpoint durability and timestamps
+@subsection timestamps_durability_checkpoint Checkpoint durability and timestamps
 
 Checkpoint durability is the expected choice for most objects when
 timestamps are configured. The change from checkpoint durability without
