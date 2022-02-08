@@ -617,7 +617,7 @@ connection_runtime_config = [
         control the settings of various extended debugging features''',
         type='category', subconfig=[
         Config('corruption_abort', 'true', r'''
-            if true, dump the core in the diagnostic mode on encountering the data corruption.''',
+            if true and built in diagnostic mode, dump core in the case of data corruption''',
             type='boolean'),
         Config('checkpoint_retention', '0', r'''
             adjust log removal to retain the log records of this number

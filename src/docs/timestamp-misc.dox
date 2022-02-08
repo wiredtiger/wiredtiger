@@ -38,12 +38,16 @@ The \c write_timestamp_usage configuration is expected to be used with the
 \c "assert(read_timestamp)" configuration requires timestamps always or never
 be used on reads in the table. The \c "assert(write_timestamp)" configuration
 maps to the \c write_timestamp_usage setting. In both cases, setting the
-\c assert configuration will result in an error message and transaction
-commit failure if WiredTiger detects a violation of the configured policy.
-Alternatively, setting the \c verbose configuration results in an error
-message but no failure.
+\c verbose configuration results in an error message if WiredTiger detects a
+violation of the configured policy. Setting the \c assert configuration will
+result in an error message as well as transaction commit failure if WiredTiger
+detects a violation of policy. Finally, if \c "debug_mode=(corruption_abort)"
+is configured to ::wiredtiger_open and the library has been built in diagnostic
+mode, setting the \c assert configuration will result in a core dump from
+inside the commit check if WiredTiger detects a violation of policy.
 
-Note this is a best-effort check by WiredTiger, and there are cases where
+\warning
+This is a best-effort check by WiredTiger, and there are cases where
 application misbehavior will not be detected.
 
 @section timestamp_misc_reset_snapshot Resetting the snapshot

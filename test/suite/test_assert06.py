@@ -35,6 +35,7 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
+    conn_config = 'debug_mode=(corruption_abort=false)'
     key_format_values = [
         ('column', dict(key_format='r', usestrings=False)),
         ('string-row', dict(key_format='S', usestrings=True))

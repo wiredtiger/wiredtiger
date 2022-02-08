@@ -2155,8 +2155,8 @@ struct __wt_connection {
 	 * checkpoint_retention, adjust log removal to retain the log records of this number of
 	 * checkpoints.  Zero or one means perform normal removal., an integer between 0 and 1024;
 	 * default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true\, dump the core
-	 * in the diagnostic mode on encountering the data corruption., a boolean flag; default \c
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true and built in
+	 * diagnostic mode\, dump core in the case of data corruption., a boolean flag; default \c
 	 * true.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;cursor_copy, if true\, use the system allocator to
 	 * make a copy of any data returned by a cursor operation and return the copy instead.  The
@@ -2876,8 +2876,8 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
  * checkpoint_retention, adjust log removal to retain the log records of this number of checkpoints.
  * Zero or one means perform normal removal., an integer between 0 and 1024; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true\, dump the core in the diagnostic mode
- * on encountering the data corruption., a boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true and built in diagnostic mode\, dump
+ * core in the case of data corruption., a boolean flag; default \c true.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;cursor_copy, if true\, use the system allocator to make a copy of
  * any data returned by a cursor operation and return the copy instead.  The copy is freed on the
  * next cursor operation.  This allows memory sanitizers to detect inappropriate references to

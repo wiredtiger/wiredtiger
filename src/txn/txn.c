@@ -931,6 +931,12 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
             ret = EINVAL;
     }
 
+#if defined(HAVE_DIAGNOSTIC)
+    /* In diagnostic mode with connection abort set, panic the system and get a core dump. */
+    if (ret != 0 && FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT))
+        __wt_abort(session);
+#endif
+
     return (ret);
 }
 

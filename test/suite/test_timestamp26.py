@@ -36,6 +36,7 @@ from wtscenario import make_scenarios
 
 # Test assert/verbose always/never settings when associated with write_timestamp_usage.
 class test_timestamp26_always_never(wttest.WiredTigerTestCase):
+    conn_config = 'debug_mode=(corruption_abort=false)'
     results = [
         ('always-assert', dict(result='always-assert',
             config='write_timestamp_usage=always,assert=(write_timestamp)')),
@@ -110,6 +111,7 @@ class test_timestamp26_always_never(wttest.WiredTigerTestCase):
 
 # Test assert/verbose read timestamp settings.
 class test_timestamp26_read_timestamp(wttest.WiredTigerTestCase):
+    conn_config = 'debug_mode=(corruption_abort=false)'
     results = [
         ('always-assert', dict(result='always-assert', config='assert=(read_timestamp=always)')),
         ('always-verbose', dict(result='always-verbose', config='verbose=(read_timestamp=always)')),
@@ -182,6 +184,7 @@ class test_timestamp26_read_timestamp(wttest.WiredTigerTestCase):
 
 # Test alter of timestamp settings.
 class test_timestamp26_alter(wttest.WiredTigerTestCase):
+    conn_config = 'debug_mode=(corruption_abort=false)'
     start = [
         ('always', dict(init_always=True)),
         ('never', dict(init_always=False)),
@@ -232,6 +235,7 @@ class test_timestamp26_alter(wttest.WiredTigerTestCase):
 
 # Test timestamp settings with inconsistent updates.
 class test_timestamp26_inconsistent(wttest.WiredTigerTestCase):
+    conn_config = 'debug_mode=(corruption_abort=false)'
     types = [
         ('fix', dict(key_format='r', value_format='8t')),
         ('row', dict(key_format='S', value_format='S')),
@@ -344,6 +348,7 @@ class test_timestamp26_inconsistent(wttest.WiredTigerTestCase):
 
 # Test timestamp settings with inconsistent updates.
 class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
+    conn_config = 'debug_mode=(corruption_abort=false)'
     types = [
         ('fix', dict(key_format='r', value_format='8t')),
         ('row', dict(key_format='S', value_format='S')),
@@ -549,6 +554,7 @@ class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
 
 # Test that timestamps are ignored in logged files.
 class test_timestamp26_log_ts(wttest.WiredTigerTestCase):
+    conn_config = 'debug_mode=(corruption_abort=false)'
     # Turn on logging to cause timestamps to be ignored.
     conn_config = 'log=(enabled=true)'
 
