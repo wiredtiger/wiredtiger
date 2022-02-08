@@ -33,6 +33,7 @@
 #include <errno.h>
 #include <list>
 #include <unistd.h>
+#include <mutex>
 
 #include "s3_connection.h"
 #include "s3_log_system.h"
@@ -51,6 +52,7 @@ struct S3_STORAGE {
     WT_EXTENSION_API *wtApi;         /* Extension API */
     int32_t verbose;
     std::list<S3_FILE_HANDLE *> fhList;
+    std::mutex fhMutex;
 };
 
 struct S3_FILE_SYSTEM{
@@ -93,10 +95,7 @@ static int S3FileSystemTerminate(WT_FILE_SYSTEM *, WT_SESSION *);
 static int S3Open(WT_FILE_SYSTEM *, WT_SESSION *, const char *,
   WT_FS_OPEN_FILE_TYPE , uint32_t , WT_FILE_HANDLE **);
 static bool FileExists(std::string);
-static int
-local_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
-  WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep);
-
+static int S3FileRead(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, void *);
 static int S3ObjectList(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
 static int S3ObjectListAdd(
@@ -202,16 +201,37 @@ S3GetDirectory(const std::string &home, const std::string &name, bool create, st
 }
 
 /*
+ * S3FileClose --
+ *     Internal file handle close.
+ */
+static int
+S3FileClose(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
+{
+    int ret;
+    S3_FILE_HANDLE *s3FileHandle = (S3_FILE_HANDLE *)file_handle;
+    S3_STORAGE *storage = s3FileHandle->storage;
+    WT_FILE_HANDLE *wt_fh = s3FileHandle->fileHandle;
+
+    if (wt_fh != NULL && (ret = wt_fh->close(wt_fh, session)) != 0)
+        return (ret);
+
+    free(s3FileHandle->iface.name);
+    free(s3FileHandle);
+
+    return (ret);
+}
+
+/*
  * S3Open --
  *    Open for the s3 storage source
  */ 
 static int
-S3Open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
-  WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep)
+S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
+  WT_FS_OPEN_FILE_TYPE fileType, uint32_t flags, WT_FILE_HANDLE **fileHandlePtr)
 {
     std::cout << "S3Open() - Start" << std::endl;
     S3_FILE_HANDLE *s3FileHandle;
-    S3_FILE_SYSTEM *s3Fs = (S3_FILE_SYSTEM *)file_system;
+    S3_FILE_SYSTEM *s3Fs = (S3_FILE_SYSTEM *)fileSystem;
     S3_STORAGE *s3 = s3Fs->storage;
     WT_FILE_SYSTEM *wtFs = s3Fs->wtFs;
     WT_FILE_HANDLE *wtFh, *fileHandle;
@@ -220,14 +240,13 @@ S3Open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
     bool exists = false;
     int ret = 0;
 
-    *file_handlep = NULL;
+    *fileHandlePtr = NULL;
 
     if ((flags & WT_FS_OPEN_READONLY) == 0 || (flags & WT_FS_OPEN_CREATE) != 0)
         std::cout << "ss_open_object: readonly access required: " <<  name << std::endl;
 
-    if (file_type != WT_FS_OPEN_FILE_TYPE_DATA && file_type != WT_FS_OPEN_FILE_TYPE_REGULAR)
+    if (fileType != WT_FS_OPEN_FILE_TYPE_DATA && fileType != WT_FS_OPEN_FILE_TYPE_REGULAR)
         std::cout << name << ": open: only data file and regular types supported" << std::endl;
-
 
     if ((s3FileHandle = (S3_FILE_HANDLE *)calloc(1, sizeof(S3_FILE_HANDLE))) == NULL)
         return ENOMEM;
@@ -247,9 +266,8 @@ S3Open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
         std::cout << "S3Open: Found " << name << "in cache. File exists locally." << std::endl;
 
     std::cout << "S3Open: Opening WiredTiger's native file handle: " << cachePath << std::endl;
-    if ((ret = wtFs->fs_open_file(wtFs, session, cachePath.c_str(), file_type, flags, &wtFh)) != 0)
+    if ((ret = wtFs->fs_open_file(wtFs, session, cachePath.c_str(), fileType, flags, &wtFh)) != 0)
         return (ret);
-    std::cout << "S3Open: after fs_open_file() ret=" << ret << std::endl;
     std::cout << "S3Open: Opened WiredTiger's native file handle: " << cachePath << std::endl;
 
     s3FileHandle->fileHandle = wtFh;
@@ -257,7 +275,7 @@ S3Open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
 
     fileHandle = (WT_FILE_HANDLE *)s3FileHandle;
 
-    fileHandle->close = NULL;
+    fileHandle->close = S3FileClose;
     fileHandle->fh_advise = NULL;
     fileHandle->fh_extend = NULL;
     fileHandle->fh_extend_nolock = NULL;
@@ -266,7 +284,7 @@ S3Open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
     fileHandle->fh_map_discard = NULL;
     fileHandle->fh_map_preload = NULL;
     fileHandle->fh_unmap = NULL;
-    fileHandle->fh_read = NULL;
+    fileHandle->fh_read = S3FileRead;
     fileHandle->fh_size = NULL;
     fileHandle->fh_sync = NULL;
     fileHandle->fh_sync_nowait = NULL;
@@ -279,14 +297,32 @@ S3Open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
         return ENOMEM;
     }
 
-    s3FileHandle->storage->fhList.push_front(s3FileHandle);
-    *file_handlep = fileHandle;
+    // std::cout << "Grabbing lock." << std::endl;
+    // std::unique_lock<std::mutex> lock(s3->fhMutex);
+    // std::cout << "Acquired lock." << std::endl;
+    // s3FileHandle->storage->fhList.push_back(s3FileHandle);
+    // lock.unlock();
+    // std::cout << "Released lock." << std::endl;
+
+    *fileHandlePtr = fileHandle;
 
     std::cout << "S3Open: File opened - " << name << " - final path: " << fileHandle->name << std::endl;
 
-    wtFh->close(wtFh, session);
+    // wtFh->close(wtFh, session);
 
     return (0);
+}
+
+/*
+ * S3FileRead --
+ *     Read a file using WiredTiger's native file handle read.
+ */
+static int
+S3FileRead(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t offset, size_t len, void *buf)
+{
+    S3_FILE_HANDLE *s3FileHandle = (S3_FILE_HANDLE *)file_handle;
+    WT_FILE_HANDLE *wtFileHandle = s3FileHandle->fileHandle;
+    return (wtFileHandle->fh_read(wtFileHandle, session, offset, len, buf));
 }
 
 /*
