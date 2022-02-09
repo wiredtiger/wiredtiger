@@ -20,7 +20,7 @@ class S3LogSystem : public Aws::Utils::Logging::LogSystemInterface {
     Aws::Utils::Logging::LogLevel
     GetLogLevel(void) const override
     {
-        return _awsLogLevel;
+        return (_awsLogLevel);
     }
     void Log(
       Aws::Utils::Logging::LogLevel logLevel, const char *tag, const char *format, ...) override;

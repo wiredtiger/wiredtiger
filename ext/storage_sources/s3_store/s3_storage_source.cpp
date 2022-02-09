@@ -307,7 +307,7 @@ S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *direct
     if (directory != NULL) {
         completePrefix += directory;
         /* Add a terminating '/' if one doesn't exist. */
-        if (completePrefix[completePrefix.length() - 1] != '/')
+        if (completePrefix.length() > 1 && completePrefix[completePrefix.length() - 1] != '/')
             completePrefix += '/';
     }
     if (prefix != NULL)
@@ -338,7 +338,7 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
     if (directory != NULL) {
         completePrefix += directory;
         /* Add a terminating '/' if one doesn't exist. */
-        if (completePrefix[completePrefix.length() - 1] != '/')
+        if (completePrefix.length() > 1 && completePrefix[completePrefix.length() - 1] != '/')
             completePrefix += '/';
     }
     if (prefix != NULL)
