@@ -224,17 +224,30 @@ int
 TestGetObject(const Aws::S3Crt::ClientConfiguration &config)
 {
     S3Connection conn(config);
+    int ret;
     std::vector<std::string> buckets;
 
-    if (!conn.ListBuckets(buckets))
+    if (conn.ListBuckets(buckets) != 0) {
+        std::cout << "List buckets failed." << std::endl;
         return (1);
+    }
     const std::string bucketName = buckets.at(0);
-    const std::string objectName = "permanent_object.txt";
+    const std::string objectName = "permanent_object";
     const std::string path = "./" + objectName;
 
-    int ret = conn.GetObject(bucketName, objectName, path);
+    /* Create a file and upload to the bucket. */
+    std::ofstream File(objectName);
+    File << "Test payload";
+    File.close();
+    if ((ret = conn.PutObject(bucketName, objectName, objectName)) != 0)
+        return (ret);
 
-    if (ret != 0) {
+    /* Delete the local copy of the file. */
+    if (std::remove(path.c_str()) != 0)
+        return (1);
+
+    /* Download the file from S3 */
+    if ((ret = conn.GetObject(bucketName, objectName, path)) != 0) {
         std::cout << "TestGetObject: call to S3Connection:GetObject has failed." << std::endl;
         return (1);
     }
@@ -246,11 +259,15 @@ TestGetObject(const Aws::S3Crt::ClientConfiguration &config)
                   << " has not been succesfully downloaded." << std::endl;
         return (1);
     }
+
     /* Clean up test artefacts. */
     if (std::remove(path.c_str()) != 0)
         return (1);
 
-    std::cout << "TestGetObject succeded." << std::endl;
+    if ((ret = conn.DeleteObject(bucketName, objectName)) != 0)
+        return (ret);
+
+    std::cout << "TestGetObject() succeded." << std::endl;
     return (0);
 }
 /*
@@ -276,18 +293,20 @@ TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
     File << "Test payload";
     File.close();
 
-    if (ret = conn.ObjectExists(bucketName, objectName, exists) != 0 || exists)
+    ret = conn.ObjectExists(bucketName, objectName, exists);
+    if (ret != 0 || exists)
         return (ret);
 
-    if (ret = conn.PutObject(bucketName, objectName, fileName) != 0)
+    if ((ret = conn.PutObject(bucketName, objectName, fileName)) != 0)
         return (ret);
 
-    if (ret = conn.ObjectExists(bucketName, objectName, exists) != 0 || !exists)
+    ret = conn.ObjectExists(bucketName, objectName, exists);
+    if (ret != 0 || !exists)
         return (ret);
 
-    if (ret = conn.DeleteObject(bucketName, objectName) != 0)
+    if ((ret = conn.DeleteObject(bucketName, objectName)) != 0)
         return (ret);
-    std::cout << "TestObjectExists(): succeeded.\n" << std::endl;
+    std::cout << "TestObjectExists() succeeded.\n" << std::endl;
     return (0);
 }
 
@@ -312,11 +331,11 @@ main()
     TEST(TestListBuckets, awsConfig, expectedOutput);
     TEST(TestListObjects, awsConfig, expectedOutput);
 
-    int getObjectExpectedOutput = 0;
-    TEST(TestGetObject, awsConfig, getObjectExpectedOutput);
-
     int objectExistsExpectedOutput = 0;
     TEST(TestObjectExists, awsConfig, objectExistsExpectedOutput);
+
+    int getObjectExpectedOutput = 0;
+    TEST(TestGetObject, awsConfig, getObjectExpectedOutput);
 
     /* Shutdown the API at end of tests. */
     Aws::ShutdownAPI(options);
