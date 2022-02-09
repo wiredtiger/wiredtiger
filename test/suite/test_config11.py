@@ -77,12 +77,6 @@ class test_config11(wttest.WiredTigerTestCase):
         # Make the cache content clean with a checkpoint.
         s.checkpoint()
 
-        # Check the cache usage is still more than 50%. Some content may have been freed by the
-        # checkpoint.
-        current_cache_usage = stat_cursor[stat.conn.cache_bytes_inuse][2]
-        stat_cursor.reset()
-        self.assertGreater(current_cache_usage, max_cache_size / 2)
-
         # We walk through and read all the content, we don't expect pages to be evicted.
         for j in range(1, i):
             s.begin_transaction()
