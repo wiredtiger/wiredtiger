@@ -949,7 +949,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ./unittest/unittests
+            test/unittest/unittests
   # End of normal make check test tasks
 
   # Start of cppsuite test tasks.
