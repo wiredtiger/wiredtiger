@@ -139,12 +139,10 @@ S3Connection::GetObject(
           Aws::New<Aws::FStream>("S3DOWNLOAD", path, std::ios_base::out | std::ios_base::binary));
     });
 
-    Aws::S3Crt::Model::GetObjectOutcome outcome = s3CrtClient.GetObject(request);
-
-    if (outcome.IsSuccess())
-        return (0);
-    else
+    if (!s3CrtClient.GetObject(request).IsSuccess())
         return (-1);
+
+    return (0);
 }
 
 /*

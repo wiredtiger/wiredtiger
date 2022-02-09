@@ -94,7 +94,7 @@ static int S3AddReference(WT_STORAGE_SOURCE *);
 static int S3FileSystemTerminate(WT_FILE_SYSTEM *, WT_SESSION *);
 static int S3Open(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, WT_FS_OPEN_FILE_TYPE, uint32_t, WT_FILE_HANDLE **);
-static bool FileExists(std::string);
+static bool FileExists(const std::string &);
 static int S3FileRead(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, void *);
 static int S3ObjectList(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
@@ -152,7 +152,7 @@ S3Path(const std::string &dir, const std::string &name)
 static bool
 S3CacheExists(WT_FILE_SYSTEM *fileSystem, const std::string &name)
 {
-    std::string path = S3Path(((S3_FILE_SYSTEM *)fileSystem)->cacheDir, name);
+    const std::string path = S3Path(((S3_FILE_SYSTEM *)fileSystem)->cacheDir, name);
     return (FileExists(path));
 }
 
@@ -161,7 +161,7 @@ S3CacheExists(WT_FILE_SYSTEM *fileSystem, const std::string &name)
  *     Checks whether a file corresponding to the provided path exists.
  */
 static bool
-FileExists(std::string path)
+FileExists(const std::string &path)
 {
     std::ifstream f(path);
     return (f.good());
@@ -208,7 +208,6 @@ S3GetDirectory(const std::string &home, const std::string &name, bool create, st
 static int
 S3FileClose(WT_FILE_HANDLE *fileHandle, WT_SESSION *session)
 {
-    int ret;
     S3_FILE_HANDLE *s3FileHandle = (S3_FILE_HANDLE *)fileHandle;
     S3_STORAGE *storage = s3FileHandle->storage;
 
@@ -218,10 +217,7 @@ S3FileClose(WT_FILE_HANDLE *fileHandle, WT_SESSION *session)
         storage->fhList.remove(s3FileHandle);
     }
 
-    if ((ret = S3FileCloseInternal(s3FileHandle, session)) != 0)
-        return (ret);
-
-    return (ret);
+    return (S3FileCloseInternal(s3FileHandle, session));
 }
 
 /*
@@ -234,8 +230,11 @@ S3FileCloseInternal(S3_FILE_HANDLE *s3FileHandle, WT_SESSION *session)
     int ret = 0;
     WT_FILE_HANDLE *wtFileHandle = s3FileHandle->fileHandle;
 
-    if (wtFileHandle != NULL && (ret = wtFileHandle->close(wtFileHandle, session)) != 0)
-        return (ret);
+    if (wtFileHandle != NULL) {
+        ret = wtFileHandle->close(wtFileHandle, session);
+        if (ret != 0)
+            return (ret);
+    }
 
     free(s3FileHandle->iface.name);
     free(s3FileHandle);
@@ -255,9 +254,7 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     S3_STORAGE *s3 = s3Fs->storage;
     WT_FILE_SYSTEM *wtFileSystem = s3Fs->wtFs;
     WT_FILE_HANDLE *wtFileHandle;
-
-    bool exists = false;
-    int ret = 0;
+    int ret;
 
     *fileHandlePtr = NULL;
 
@@ -280,7 +277,7 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
         return (ENOMEM);
 
     /* Make a copy from S3 if the file is not in the cache. */
-    std::string cachePath = S3Path(s3Fs->cacheDir, name);
+    const std::string cachePath = S3Path(s3Fs->cacheDir, name);
     if (!FileExists(cachePath)) {
         if ((ret = s3Fs->connection->GetObject(s3Fs->bucketName, name, cachePath)) != 0)
             return (ret);
@@ -311,7 +308,8 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     fileHandle->fh_truncate = NULL;
     fileHandle->fh_write = NULL;
 
-    if ((fileHandle->name = strdup(name)) == NULL)
+    fileHandle->name = strdup(name);
+    if (fileHandle->name == NULL)
         return (ENOMEM);
 
     {
@@ -531,8 +529,8 @@ S3Terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
      * We should be single-threaded here. It should be safe to access the file handle list without a
      * lock.
      */
-    for (auto it = s3->fhList.begin(); it != s3->fhList.end(); it++)
-        S3FileCloseInternal(*it, session);
+    for (auto fh : s3->fhList)
+        S3FileCloseInternal(fh, session);
 
     delete s3;
     return (0);
