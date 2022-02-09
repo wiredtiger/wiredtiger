@@ -36,21 +36,29 @@ def clean_function_name(filename, fn):
 
     return ret + ';\n'
 
+# Find function prototypes in a file matching a given regex. Cleans the
+# function names to the point being immediately usable.
+def extract_prototypes(filename, regexp):
+    ret = []
+    s = open(filename, 'r').read()
+    for p in re.findall(regexp, s):
+        clean = clean_function_name(filename, p)
+        if clean is not None:
+            ret.append(clean)
+
+    return ret
+
 # Build function prototypes from a list of files.
 def fn_prototypes(fns, tests, name):
-    s = open(name, 'r').read()
-    for p in re.findall(r'\n[A-Za-z_].*\n__wt_[^{]*', s):
-        clean = clean_function_name(name, p)
-        if clean is not None:
-            fns.append(clean)
+    for sig in extract_prototypes(name, r'\n[A-Za-z_].*\n__wt_[^{]*'):
+        fns.append(sig)
 
-    s = open(name, 'r').read()
-    for p in re.findall(r'\n[A-Za-z_].*\n__ut_[^{]*', s):
-        clean = clean_function_name(name, p)
-        if clean is not None:
-            tests.append(clean)
+    for sig in extract_prototypes(name, r'\n[A-Za-z_].*\n__ut_[^{]*'):
+        tests.append(sig)
 
 # Write results and compare to the current file.
+# Unit-testing functions are exposed separately in their own section to
+# allow them to be ifdef'd out.
 def output(fns, tests, f):
     tmp_file = '__tmp'
     tfile = open(tmp_file, 'w')
