@@ -42,11 +42,20 @@
 #define UNUSED(x) (void)(x)
 #define FS2S3(fs) (((S3_FILE_SYSTEM *)(fs))->storage)
 
+/* Statistics to be collected for the S3 storage. */
+typedef struct {
+    uint64_t listObjectsCount;      /* Number of S3 list objects requests */
+    uint64_t putObjectCount;        /* Number of S3 put object requests */
+    uint64_t objectExistsCount;     /* Number of S3 object exists requests */
+} S3_STATISTICS;
+
 /* S3 storage source structure. */
 typedef struct {
     WT_STORAGE_SOURCE storageSource; /* Must come first */
     WT_EXTENSION_API *wtApi;         /* Extension API */
     int32_t verbose;
+
+    S3_STATISTICS *statistics;
 } S3_STORAGE;
 
 typedef struct {
@@ -86,6 +95,7 @@ static int S3ObjectListAdd(
 static int S3ObjectListSingle(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
 static int S3ObjectListFree(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
+static int S3ShowStatistics(S3_STORAGE *);
 
 /*
  *   S3Exist--
@@ -94,15 +104,18 @@ static int S3ObjectListFree(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
 static int
 S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool *exist)
 {
-    S3_STORAGE *s3;
-    int ret;
-    s3 = FS2S3(fileSystem);
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
+    int ret = 0;
+
+    /* Check if file in cache. */
+    *exist = S3CacheExists(fileSystem, name);
+    if (*exist)
+        return (ret);
 
     /* It's not in the cache, try the S3 bucket. */
-    *exist = S3CacheExists(fileSystem, name);
-    if (!*exist)
-        ret = fs->connection->ObjectExists(fs->bucketName, name, *exist);
+    if (ret = fs->connection->ObjectExists(fs->bucketName, name, *exist) != 0)
+        return (ret);
+    FS2S3(fileSystem)->statistics->objectExistsCount++;
 
     return (ret);
 }
@@ -313,13 +326,17 @@ S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *bucket
   const char *prefix, char ***objectList, uint32_t *count)
 {
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
-    std::vector<std::string> objects;
+    S3_STORAGE *s3 = FS2S3(fileSystem);
     int ret;
+    std::vector<std::string> objects;
+
     if (ret = fs->connection->ListObjects(bucket, prefix, objects) != 0)
         return (ret);
+    s3->statistics->listObjectsCount++;
+
     *count = objects.size();
 
-    S3ObjectListAdd(fs->storage, objectList, objects, *count);
+    S3ObjectListAdd(s3, objectList, objects, *count);
 
     return (ret);
 }
@@ -333,13 +350,17 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
   const char *prefix, char ***objectList, uint32_t *count)
 {
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
-    std::vector<std::string> objects;
+    S3_STORAGE *s3 = FS2S3(fileSystem);
     int ret;
+    std::vector<std::string> objects;
+
     if (ret = fs->connection->ListObjects(bucket, prefix, objects, 1, true) != 0)
         return (ret);
+    s3->statistics->listObjectsCount++;
+
     *count = objects.size();
 
-    S3ObjectListAdd(fs->storage, objectList, objects, *count);
+    S3ObjectListAdd(s3, objectList, objects, *count);
 
     return (ret);
 }
@@ -402,6 +423,9 @@ S3Terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
     S3_STORAGE *s3;
     s3 = (S3_STORAGE *)storage;
 
+    /* Log collected statistics on termination. */
+    S3ShowStatistics(s3);
+
     Aws::ShutdownAPI(options);
 
     free(s3);
@@ -417,7 +441,13 @@ S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *f
   const char *source, const char *object, const char *config)
 {
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
-    return (fs->connection->PutObject(fs->bucketName, object, source));
+    int ret;
+    
+    if (ret = fs->connection->PutObject(fs->bucketName, object, source) != 0)
+        return (ret);
+    FS2S3(fileSystem)->statistics->putObjectCount++;
+
+    return (ret);
 }
 
 /*
@@ -439,6 +469,20 @@ S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *f
     if (ret == 0)
         ret = chmod(destPath.c_str(), 0444);
     return ret;
+}
+
+/*
+ * S3ShowStatistics --
+ *     Log collected statistics.
+ */
+static int
+S3ShowStatistics(S3_STORAGE *s3)
+{
+    std::cout << "S3 list objects count: " << s3->statistics->listObjectsCount << std::endl;
+    std::cout << "S3 put object count: " << s3->statistics->putObjectCount << std::endl;
+    std::cout << "S3 object exists count: " << s3->statistics->objectExistsCount << std::endl;
+
+    return (0);
 }
 
 /*
@@ -468,6 +512,10 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         free(s3);
         return (ret != 0 ? ret : EINVAL);
     }
+
+    /* Set up statistics. */
+    if ((s3->statistics = (S3_STATISTICS *)calloc(1, sizeof(S3_STATISTICS))) == NULL)
+        return (errno);
 
     Aws::InitAPI(options);
 
