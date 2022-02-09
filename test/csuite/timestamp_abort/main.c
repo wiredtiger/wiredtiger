@@ -293,6 +293,7 @@ thread_run(void *arg)
     memset(lbuf, 0, sizeof(lbuf));
     memset(obuf, 0, sizeof(obuf));
     memset(kname, 0, sizeof(kname));
+    memset(private, 0, sizeof(private));
 
     prepared_session = NULL;
     td = (THREAD_DATA *)arg;
