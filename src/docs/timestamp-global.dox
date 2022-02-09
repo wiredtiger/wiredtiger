@@ -14,7 +14,7 @@ allowed to read. The historic values of data modified before this time can no
 longer be read by new transactions. (Transactions already in progress
 are not affected when the \c oldest_timestamp changes.)
 
-The stable timestamp is the newest time at which data is considered
+The stable timestamp is the earliest time at which data is considered
 fully stable. It is saved along with every checkpoint, and that saved
 time is the point to which the database is recovered after a crash.
 It is also the earliest point to which the database can be returned via an
@@ -54,8 +54,8 @@ To force data to disk, advance the stable timestamp as desired and
 take a checkpoint.
 
 \warning The \c durable_timestamp is not changed when the application calls the
-WT_CONNECTION::rollback_to_stable method, and likely should be reset by the
-application in that case.
+WT_CONNECTION::rollback_to_stable method, and should be reset by the application
+in that case.
 
 @subsection timestamp_global_set_api_oldest_timestamp Setting the "oldest_timestamp" timestamp
 
@@ -104,14 +104,12 @@ value will be silently ignored.
 @subsection timestamp_global_forcing Forcing global timestamps
 
 \warning
-The
-WT_CONNECTION::set_timestamp method includes a \c force flag which allows
-applications to violate the usual constraints.
-For example, this can be used to move \c stable_timestamp backward.
-Violating these constraints can lead to adverse behavior.
-For example, while moving \c oldest_timestamp backward with this
-mechanism may make some historical data accessible again, other
-obsolete historical data may have already been discarded, and no
+The WT_CONNECTION::set_timestamp method includes a \c force flag which allows
+applications to violate the usual constraints.  For example, this can be used to
+move \c stable_timestamp backward.  Violating these constraints can lead to
+undefined or incorrect behavior.  For example, while moving \c oldest_timestamp
+backward with this mechanism may make some historical data accessible again,
+other obsolete historical data may have already been discarded, and no
 guarantees of consistency are made.
 
 <!-- XXX
@@ -124,13 +122,15 @@ the WT_CONNECTION::set_timestamp method, including constraints.
 
 | Timestamp | Constraints | Description |
 |-----------|-------------|-------------|
-| all_durable | None | The largest timestamp such that all timestamps up to that value have been made durable, that is, committed locally. |
+| all_durable | None | The largest timestamp such that all timestamps up to that value have been made durable. |
 | last_checkpoint | <= stable | The stable timestamp at which the last checkpoint ran (or 0 if no checkpoints have run). |
 | oldest_reader | None | The timestamp of the oldest currently active read transaction. |
 | oldest_timestamp | <= stable | The current application-set \c oldest_timestamp value. |
 | pinned | <= oldest | The minimum of the \c oldest_timestamp and the read timestamps of all active readers. |
 | recovery | <= stable | The stable timestamp used in the most recent checkpoint prior to the last shutdown (or 0 if none available). |
 | stable_timestamp | None | The current application-set \c stable_timestamp value. |
+
+In all cases, ::WT_NOTFOUND is returned if there is no matching timestamp.
 
 @subsection timestamp_global_query_api_all_durable Reading the "all_durable" timestamp
 
@@ -176,8 +176,7 @@ The \c last_checkpoint timestamp is read-only.
 @subsection timestamp_global_query_api_oldest_reader Reading the "oldest_reader" timestamp
 
 The \c oldest_reader timestamp is the oldest transaction read timestamp active,
-including the read timestamp of any running checkpoint. ::WT_NOTFOUND is returned
-if there are no active readers.
+including the read timestamp of any running checkpoint.
 
 The \c oldest_reader timestamp is read-only.
 
