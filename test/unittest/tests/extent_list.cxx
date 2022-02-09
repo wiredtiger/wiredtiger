@@ -186,7 +186,7 @@ TEST_CASE("block_off_srch_last", "[extent_list]")
         for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
             head.push_back(first->_raw);
 
-        __ut_block_off_srch_last(&head[0], &stack[0]);
+        WT_IGNORE_RET(__ut_block_off_srch_last(&head[0], &stack[0]));
 
         for (int i = 0; i < WT_SKIP_MAXDEPTH; i++) {
             REQUIRE(stack[i] == &head[i]->next[i]);
@@ -200,7 +200,7 @@ TEST_CASE("block_off_srch_last", "[extent_list]")
 
         create_default_test_extent_list(wrapper);
 
-        __ut_block_off_srch_last(&head[0], &stack[0]);
+        WT_IGNORE_RET(__ut_block_off_srch_last(&head[0], &stack[0]));
 
         REQUIRE(stack[0] == &head[2]->next[0]);
         REQUIRE(stack[1] == &head[2]->next[1]);
