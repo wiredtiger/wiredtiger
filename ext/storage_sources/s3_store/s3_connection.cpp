@@ -132,6 +132,6 @@ S3Connection::ObjectExists(const std::string &objectKey, bool &exists) const
      * Fix later, return a proper error code. Not sure if we always have
      * outcome.GetError().GetResponseCode()
      */
-    std::cerr << "Error in DeleteObject." << std::endl;
-    return (static_cast<int>(outcome.GetError().GetResponseCode()));
+    std::cerr << "Error in ObjectExists." << std::endl;
+    return (1);
 }

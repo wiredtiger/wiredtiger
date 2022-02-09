@@ -33,12 +33,13 @@ import datetime, os, wttest, random
 class test_s3_store01(wttest.WiredTigerTestCase):
     # Generates a unique prefix to be used with the object keys, eg:
     # "s3test_artefacts/python_2022-31-01-16-34-10_623843294/"
-    fs_config = 'prefix='
-    fs_config += 's3test_artefacts/python_'
-    fs_config += datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+    prefix = 's3test_artefacts/python_'
+    prefix += datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     # Range upto int32_max, matches that of C++'s std::default_random_engine
-    fs_config += '_' + str(random.randrange(1,2147483646))
-    fs_config += "/"
+    prefix += '_' + str(random.randrange(1,2147483646))
+    prefix += "/"
+
+    fs_config = 'prefix=' + prefix
 
     # Bucket name can be overridden by an environment variable.
     bucket_name = os.getenv('WT_S3_EXT_BUCKET')
@@ -75,14 +76,16 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         self.assertTrue(fs.fs_exist(session, filename))
 
         # Checking that the file still exists in S3 after removing it from the cache.
-        os.remove(cache_prefix + bucket_name + '/' + filename)
+        os.remove(cache_prefix + self.bucket_name + '/' + filename)
         self.assertTrue(fs.fs_exist(session, filename))
 
-        fs2 = s3_store.ss_customize_file_system(session, self.bucket_name, "Secret", self.fs_config)
-        self.assertEquals(fs2.fs_directory_list(session, self.bucket_name, ''), [object_name, "blah"])
+        file_list = [self.prefix + object_name]
+        self.assertEquals(fs.fs_directory_list(session, None, None), file_list)
 
-        fs.terminate(session)
-        fs2.terminate(session)
+        fs2 = s3_store.ss_customize_file_system(session, self.bucket_name, "Secret", self.fs_config)
+        self.assertEquals(fs.fs_directory_list(session, None, None), file_list)
+
+        s3_store.terminate(session)
 
 if __name__ == '__main__':
     wttest.run()
