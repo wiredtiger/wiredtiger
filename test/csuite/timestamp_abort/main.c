@@ -91,8 +91,7 @@ static volatile uint64_t global_ts = 1;
  */
 #define ENV_CONFIG_ADD_COMPAT ",compatibility=(release=\"2.9\")"
 #define ENV_CONFIG_ADD_EVICT_DIRTY ",eviction_dirty_target=20,eviction_dirty_trigger=90"
-#define ENV_CONFIG_ADD_STRESS \
-    ",timing_stress_for_test=[prepare_checkpoint_delay],verbose=(temporary)"
+#define ENV_CONFIG_ADD_STRESS ",timing_stress_for_test=[prepare_checkpoint_delay]"
 
 #define ENV_CONFIG_DEF                                        \
     "cache_size=%" PRIu32                                     \
@@ -357,7 +356,7 @@ thread_run(void *arg)
     printf("Thread %" PRIu32 " starts at %" PRIu64 "\n", td->info, td->start);
     active_ts = 0;
     if (stress)
-        session->verbose_private = private;
+        session->debug_8392 = private;
     for (i = td->start;; ++i) {
         testutil_check(session->begin_transaction(session, NULL));
         if (use_prep)

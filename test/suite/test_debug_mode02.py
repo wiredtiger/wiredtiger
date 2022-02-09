@@ -93,6 +93,7 @@ class test_debug_mode02(wttest.WiredTigerTestCase, suite_subprocess):
         self.advance_log_checkpoint()
         self.check_remove(self.log1)
         self.conn.reconfigure("debug_mode=(table_logging=true)")
+        self.conn.reconfigure("verbose=(temporary)")
 
     # Test that both zero and one remove as usual. And test reconfigure.
     def test_checkpoint_retain_reconfig(self):

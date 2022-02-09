@@ -769,12 +769,11 @@ struct __wt_session {
 	 * available in callbacks taking a WT_SESSION handle.
 	 */
 	void *app_private;
-#endif
         /*!
-	 * A location for applications to attach a string that will be printed with verbose
-	 * messages.
+	 * A string location to debug a rare failure.
 	 */
-        const char *verbose_private;
+        const char *debug_8392;
+#endif
 
 	/*!
 	 * Close the session handle.
