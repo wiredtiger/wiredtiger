@@ -44,7 +44,7 @@ T1, but the data they update does not overlap, both may commit.
 But because each read the data from before they both started, not the
 other's output, the execution is not equivalent to either running
 strictly before the other and the resulting state may be one that no
-such execution could produce.
+serial execution could produce.
 This behavior is called <i>write skew</i>.
 
 */

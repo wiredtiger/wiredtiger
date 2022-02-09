@@ -15,8 +15,7 @@ by the application. In this manual we use the following terminology:
 
 - A transaction is <i>committed</i> when
 WT_SESSION::commit_transaction has been called and has returned successfully.
-- A transaction is <i>durable</i> (also <i>locally durable</i>) when
-all changes in it have been written to
+- A transaction is <i>durable</i> when all changes in it have been written to
 stable storage such that failures will not cause it to be lost.
 - A transaction is <i>stable</i> when it is durable, and furthermore cannot
 be rolled back by application-level transaction management activity.
