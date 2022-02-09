@@ -267,10 +267,6 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref)
     } else
         tag = "unexpected page state";
 
-    /*
-     * If the page is obsolete, set the page read generation number to a lower value to evict it
-     * sooner.
-     */
     if (obsolete) {
         /*
          * Dirty the obsolete page with overflow items to let the page reconciliation remove all the
@@ -281,6 +277,10 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref)
             __wt_page_modify_set(session, ref->page);
         }
 
+        /*
+         * Set the obsolete page read generation number to a lower value indicating as it is no
+         * longer needed for any read operations to let the eviction to evict it sooner.
+         */
         ref->page->read_gen = WT_READGEN_WONT_NEED;
         WT_STAT_CONN_DATA_INCR(session, cc_pages_evict);
     }
