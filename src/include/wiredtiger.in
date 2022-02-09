@@ -769,10 +769,6 @@ struct __wt_session {
 	 * available in callbacks taking a WT_SESSION handle.
 	 */
 	void *app_private;
-        /*!
-	 * A string location to debug a rare failure.
-	 */
-        const char *debug_8392;
 #endif
 
 	/*!

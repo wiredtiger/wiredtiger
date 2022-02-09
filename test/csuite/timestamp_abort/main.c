@@ -356,7 +356,7 @@ thread_run(void *arg)
     printf("Thread %" PRIu32 " starts at %" PRIu64 "\n", td->info, td->start);
     active_ts = 0;
     if (stress)
-        session->debug_8392 = private;
+        ((WT_SESSION_IMPL *)session)->debug_8392 = private;
     for (i = td->start;; ++i) {
         testutil_check(session->begin_transaction(session, NULL));
         if (use_prep)
