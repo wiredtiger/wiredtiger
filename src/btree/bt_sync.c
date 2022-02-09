@@ -277,7 +277,7 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref)
          * overflow items.
          */
         if (ovfl_items) {
-            WT_RET(__wt_page_modify_init(session, ref->page));
+            WT_ERR(__wt_page_modify_init(session, ref->page));
             __wt_page_modify_set(session, ref->page);
         }
 
