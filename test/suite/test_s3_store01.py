@@ -71,15 +71,16 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         fh.fh_read(session, 0, inbytes)  # Read into the buffer.
         self.assertEquals(outbytes[0:1000000], inbytes)
         fh.close(session)
-        # Checking that the file still exists in S3 after removing it from the cache.
-        # os.remove(cache_prefix + bucket_name + '/' + filename)
-        # self.assertTrue(fs.fs_exist(session, filename))
 
-        # fs2 = s3_store.ss_customize_file_system(session, "wt-bucket", "Secret", None)
-        # _ = fs2.fs_directory_list(session, self.bucket_name, '')
+        # Checking that the file still exists in S3 after removing it from the cache.
+        os.remove(cache_prefix + bucket_name + '/' + filename)
+        self.assertTrue(fs.fs_exist(session, filename))
+
+        fs2 = s3_store.ss_customize_file_system(session, "wt-bucket", "Secret", None)
+        _ = fs2.fs_directory_list(session, self.bucket_name, '')
 
         fs.terminate(session)
-        # fs2.terminate(session)
+        fs2.terminate(session)
 
 if __name__ == '__main__':
     wttest.run()
