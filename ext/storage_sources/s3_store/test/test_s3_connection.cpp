@@ -221,7 +221,8 @@ CleanupTestListObjects(const Aws::S3Crt::ClientConfiguration &config, const std:
  *     Unit test to get an object from an S3 Bucket.
  */
 int
-TestGetObject(const Aws::S3Crt::ClientConfiguration &config) {
+TestGetObject(const Aws::S3Crt::ClientConfiguration &config)
+{
     S3Connection conn(config);
     std::vector<std::string> buckets;
 
@@ -233,7 +234,7 @@ TestGetObject(const Aws::S3Crt::ClientConfiguration &config) {
 
     int ret = conn.GetObject(bucketName, objectName, path);
 
-    if (ret != 0){
+    if (ret != 0) {
         std::cout << "TestGetObject: call to S3Connection:GetObject has failed." << std::endl;
         return (1);
     }
@@ -241,7 +242,8 @@ TestGetObject(const Aws::S3Crt::ClientConfiguration &config) {
     /* The file should now be in the current directory. */
     std::ifstream f(path);
     if (!f.good()) {
-        std::cout << "TestGetObject: target " << objectName << " has not been succesfully downloaded." << std::endl;
+        std::cout << "TestGetObject: target " << objectName
+                  << " has not been succesfully downloaded." << std::endl;
         return (1);
     }
     /* Clean up test artefacts. */
@@ -312,7 +314,7 @@ main()
 
     int getObjectExpectedOutput = 0;
     TEST(TestGetObject, awsConfig, getObjectExpectedOutput);
-    
+
     int objectExistsExpectedOutput = 0;
     TEST(TestObjectExists, awsConfig, objectExistsExpectedOutput);
 

@@ -125,26 +125,26 @@ S3Connection::DeleteObject(const std::string &bucketName, const std::string &obj
 
 /*
  * GetObject --
- *     Retrieves an object from S3 bucket.
+ *     Retrieves an object from S3. The object is downloaded to disk at the specified location.
  */
 int
-S3Connection::GetObject(const std::string &bucketName, const std::string &objectKey, const std::string &path) const
+S3Connection::GetObject(
+  const std::string &bucketName, const std::string &objectKey, const std::string &path) const
 {
     Aws::S3Crt::Model::GetObjectRequest request;
     request.SetBucket(bucketName);
     request.SetKey(objectKey);
-    request.SetResponseStreamFactory(
-        [=](){
-            return (Aws::New<Aws::FStream>("S3DOWNLOAD", path, std::ios_base::out | std::ios_base::binary));
-        }
-    );
+    request.SetResponseStreamFactory([=]() {
+        return (
+          Aws::New<Aws::FStream>("S3DOWNLOAD", path, std::ios_base::out | std::ios_base::binary));
+    });
 
     Aws::S3Crt::Model::GetObjectOutcome outcome = s3CrtClient.GetObject(request);
-    
-    if (outcome.IsSuccess()) {
+
+    if (outcome.IsSuccess())
         return (0);
-    } else 
-        return (static_cast<int>(outcome.GetError().GetResponseCode()));
+    else
+        return (-1);
 }
 
 /*

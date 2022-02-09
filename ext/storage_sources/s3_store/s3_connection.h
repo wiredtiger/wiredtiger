@@ -20,7 +20,8 @@ class S3Connection {
       std::vector<std::string> &objects, uint32_t batchSize = 1000, bool listSingle = false) const;
     int PutObject(const std::string &bucketName, const std::string &objectKey,
       const std::string &fileName) const;
-    int GetObject(const std::string &bucketName, const std::string &objectKey, const std::string &path) const;
+    int GetObject(
+      const std::string &bucketName, const std::string &objectKey, const std::string &path) const;
     int DeleteObject(const std::string &bucketName, const std::string &objectKey) const;
     int ObjectExists(
       const std::string &bucketName, const std::string &objectKey, bool &exists) const;

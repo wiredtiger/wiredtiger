@@ -55,7 +55,7 @@ struct S3_STORAGE {
     std::mutex fhMutex;
 };
 
-struct S3_FILE_SYSTEM{
+struct S3_FILE_SYSTEM {
     /* Must come first - this is the interface for the file system we are implementing. */
     WT_FILE_SYSTEM fileSystem;
     S3_STORAGE *storage;
@@ -70,8 +70,8 @@ struct S3_FILE_SYSTEM{
 
 struct S3_FILE_HANDLE {
     WT_FILE_HANDLE iface; /* Must come first */
-    S3_STORAGE *storage; /* Enclosing storage source */
-    WT_FILE_HANDLE *fileHandle; /* File handle */
+    S3_STORAGE *storage;  /* Enclosing storage source */
+    WT_FILE_HANDLE *fileHandle;
 };
 
 /* Configuration variables for connecting to S3CrtClient. */
@@ -92,8 +92,8 @@ static int S3CustomizeFileSystem(
   WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
 static int S3AddReference(WT_STORAGE_SOURCE *);
 static int S3FileSystemTerminate(WT_FILE_SYSTEM *, WT_SESSION *);
-static int S3Open(WT_FILE_SYSTEM *, WT_SESSION *, const char *,
-  WT_FS_OPEN_FILE_TYPE , uint32_t , WT_FILE_HANDLE **);
+static int S3Open(
+  WT_FILE_SYSTEM *, WT_SESSION *, const char *, WT_FS_OPEN_FILE_TYPE, uint32_t, WT_FILE_HANDLE **);
 static bool FileExists(std::string);
 static int S3FileRead(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, void *);
 static int S3ObjectList(
@@ -132,7 +132,6 @@ S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool 
 static std::string
 S3Path(const std::string &dir, const std::string &name)
 {
-    std::cout << "Concatenating " << dir << " and " << name << std::endl;
     /* Skip over "./" and variations (".//", ".///./././//") at the beginning of the name. */
     int i = 0;
     while (name[i] == '.') {
@@ -159,10 +158,11 @@ S3CacheExists(WT_FILE_SYSTEM *fileSystem, const std::string &name)
 
 /*
  * FileExists --
- *     Checks whether the given file exists.
+ *     Checks whether a file corresponding to the provided path exists.
  */
 static bool
-FileExists(std::string path) {
+FileExists(std::string path)
+{
     std::ifstream f(path);
     return (f.good());
 }
@@ -203,7 +203,7 @@ S3GetDirectory(const std::string &home, const std::string &name, bool create, st
 
 /*
  * S3FileClose --
- *     Internal file handle close.
+ *    File handle close.
  */
 static int
 S3FileClose(WT_FILE_HANDLE *fileHandle, WT_SESSION *session)
@@ -224,9 +224,13 @@ S3FileClose(WT_FILE_HANDLE *fileHandle, WT_SESSION *session)
     return (ret);
 }
 
+/*
+ * S3FileCloseInternal --
+ *      Internal file handle close.
+ */
 static int
 S3FileCloseInternal(S3_FILE_HANDLE *s3FileHandle, WT_SESSION *session)
-{    
+{
     int ret = 0;
     WT_FILE_HANDLE *wtFileHandle = s3FileHandle->fileHandle;
 
@@ -235,36 +239,38 @@ S3FileCloseInternal(S3_FILE_HANDLE *s3FileHandle, WT_SESSION *session)
 
     free(s3FileHandle->iface.name);
     free(s3FileHandle);
-    return(ret);
+    return (ret);
 }
 
 /*
  * S3Open --
- *    Open for the s3 storage source
- */ 
+ *    File open for the s3 storage source.
+ */
 static int
 S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
   WT_FS_OPEN_FILE_TYPE fileType, uint32_t flags, WT_FILE_HANDLE **fileHandlePtr)
 {
-    std::cout << "S3Open() - Start" << std::endl;
     S3_FILE_HANDLE *s3FileHandle;
     S3_FILE_SYSTEM *s3Fs = (S3_FILE_SYSTEM *)fileSystem;
     S3_STORAGE *s3 = s3Fs->storage;
-    WT_FILE_SYSTEM *wtFs = s3Fs->wtFs;
-    WT_FILE_HANDLE *wtFh, *fileHandle;
+    WT_FILE_SYSTEM *wtFileSystem = s3Fs->wtFs;
+    WT_FILE_HANDLE *wtFileHandle;
 
     bool exists = false;
     int ret = 0;
 
     *fileHandlePtr = NULL;
-    
+
     /* We only support opening the file in read only mode. */
     if ((flags & WT_FS_OPEN_READONLY) == 0 || (flags & WT_FS_OPEN_CREATE) != 0) {
-        std::cout << "ss_open_object: readonly access required: " <<  name << std::endl;
+        std::cout << "ss_open_object: readonly access required: " << name << std::endl;
         return (EINVAL);
     }
 
-    /* Currently, only data files should be being opened; although this constraint can be relaxed in the future. */
+    /*
+     * Currently, only data files should be being opened; although this constraint can be relaxed in
+     * the future.
+     */
     if (fileType != WT_FS_OPEN_FILE_TYPE_DATA && fileType != WT_FS_OPEN_FILE_TYPE_REGULAR) {
         std::cout << name << ": open: only data file and regular types supported" << std::endl;
         return (EINVAL);
@@ -273,6 +279,7 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     if ((s3FileHandle = (S3_FILE_HANDLE *)calloc(1, sizeof(S3_FILE_HANDLE))) == NULL)
         return (ENOMEM);
 
+    /* Make a copy from S3 if the file is not in the cache. */
     std::string cachePath = S3Path(s3Fs->cacheDir, name);
     if (!FileExists(cachePath)) {
         if ((ret = s3Fs->connection->GetObject(s3Fs->bucketName, name, cachePath)) != 0)
@@ -280,13 +287,14 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     }
 
     /* Use WiredTiger's native file handle open. */
-    if ((ret = wtFs->fs_open_file(wtFs, session, cachePath.c_str(), fileType, flags, &wtFh)) != 0)
+    if ((ret = wtFileSystem->fs_open_file(
+           wtFileSystem, session, cachePath.c_str(), fileType, flags, &wtFileHandle)) != 0)
         return (ret);
 
-    s3FileHandle->fileHandle = wtFh;
+    s3FileHandle->fileHandle = wtFileHandle;
     s3FileHandle->storage = s3;
 
-    fileHandle = (WT_FILE_HANDLE *)s3FileHandle;
+    WT_FILE_HANDLE *fileHandle = (WT_FILE_HANDLE *)s3FileHandle;
     fileHandle->close = S3FileClose;
     fileHandle->fh_advise = NULL;
     fileHandle->fh_extend = NULL;
@@ -306,15 +314,14 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     if ((fileHandle->name = strdup(name)) == NULL)
         return (ENOMEM);
 
-    /* Ensure that the file handle list is not accessed by other threads during insert. */
     {
         std::lock_guard<std::mutex> lock(s3->fhMutex);
         s3FileHandle->storage->fhList.push_back(s3FileHandle);
     }
-    
-    *fileHandlePtr = fileHandle;
 
-    std::cout << "S3Open: File opened - " << name << " - final path: " << fileHandle->name << std::endl;
+    *fileHandlePtr = fileHandle;
+    std::cout << "S3Open: File opened - " << name << " - final path: " << fileHandle->name
+              << std::endl;
 
     return (0);
 }
@@ -339,10 +346,9 @@ static int
 S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, const char *bucketName,
   const char *authToken, const char *config, WT_FILE_SYSTEM **fileSystem)
 {
-    std::cout << "S3CustomizeFileSystem()" << std::endl;
     S3_STORAGE *s3;
     S3_FILE_SYSTEM *fs;
-    WT_FILE_SYSTEM *wt_fs;
+    WT_FILE_SYSTEM *wtFileSystem;
     int ret;
     WT_CONFIG_ITEM cacheDir;
     std::string cacheStr;
@@ -368,14 +374,14 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 
     Aws::Utils::Logging::InitializeAWSLogging(
       Aws::MakeShared<S3LogSystem>("storage", s3->wtApi, s3->verbose));
-    
-    if ((ret = s3->wtApi->file_system_get(s3->wtApi, session, &wt_fs)) != 0) 
+
+    if ((ret = s3->wtApi->file_system_get(s3->wtApi, session, &wtFileSystem)) != 0)
         return (ret);
 
     if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL)
         return (errno);
     fs->storage = s3;
-    fs->wtFs = wt_fs;
+    fs->wtFs = wtFileSystem;
 
     /* Store a copy of the home directory and bucket name in the file system. */
     fs->homeDir = session->connection->get_home(session->connection);
@@ -521,9 +527,9 @@ S3Terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
 
     Aws::ShutdownAPI(options);
 
-    /* 
-     * We should be single-threaded here. It should be safe to access the file handle 
-     * list without a lock. 
+    /*
+     * We should be single-threaded here. It should be safe to access the file handle list without a
+     * lock.
      */
     for (auto it = s3->fhList.begin(); it != s3->fhList.end(); it++)
         S3FileCloseInternal(*it, session);
