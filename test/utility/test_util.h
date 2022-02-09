@@ -173,8 +173,7 @@ typedef struct {
         while ((__ret = session->verify(session, uri, config)) == EBUSY) \
             testutil_check(session->checkpoint(session, NULL));          \
         testutil_check(__ret);                                           \
-    }                                                                    \
-    while(0)
+    } while (0)
 
 /*
  * error_sys_check --
