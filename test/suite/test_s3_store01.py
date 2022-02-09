@@ -69,6 +69,7 @@ class test_s3_store01(wttest.WiredTigerTestCase):
 
         inbytes = bytes(1000000)         # An empty buffer with a million zero bytes.
         fh.fh_read(session, 0, inbytes)  # Read into the buffer.
+        self.assertEquals(outbytes[0:1000000], inbytes)
         fh.close(session)
         # Checking that the file still exists in S3 after removing it from the cache.
         # os.remove(cache_prefix + bucket_name + '/' + filename)

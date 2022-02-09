@@ -236,45 +236,40 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     WT_FILE_SYSTEM *wtFs = s3Fs->wtFs;
     WT_FILE_HANDLE *wtFh, *fileHandle;
 
-    std::string bucketPath;
     bool exists = false;
     int ret = 0;
 
     *fileHandlePtr = NULL;
-
-    if ((flags & WT_FS_OPEN_READONLY) == 0 || (flags & WT_FS_OPEN_CREATE) != 0)
+    
+    /* We only support opening the file in read only mode. */
+    if ((flags & WT_FS_OPEN_READONLY) == 0 || (flags & WT_FS_OPEN_CREATE) != 0) {
         std::cout << "ss_open_object: readonly access required: " <<  name << std::endl;
+        return (EINVAL);
+    }
 
-    if (fileType != WT_FS_OPEN_FILE_TYPE_DATA && fileType != WT_FS_OPEN_FILE_TYPE_REGULAR)
+    /* Currently, only data files should be being opened; although this constraint can be relaxed in the future. */
+    if (fileType != WT_FS_OPEN_FILE_TYPE_DATA && fileType != WT_FS_OPEN_FILE_TYPE_REGULAR) {
         std::cout << name << ": open: only data file and regular types supported" << std::endl;
+        return (EINVAL);
+    }
 
     if ((s3FileHandle = (S3_FILE_HANDLE *)calloc(1, sizeof(S3_FILE_HANDLE))) == NULL)
-        return ENOMEM;
+        return (ENOMEM);
 
     std::string cachePath = S3Path(s3Fs->cacheDir, name);
-
-    std::cout << "S3Open: cachePath=" << cachePath << std::endl;
-    
-    /* File doesn't exist locally. Make a copy from S3. */
     if (!FileExists(cachePath)) {
-        std::cout << "S3Open: " << name << " doesn't exist at " << cachePath << std::endl;
-        if ((ret = s3Fs->connection->GetObject(s3Fs->bucketName, name, cachePath)) != 0){
-            std::cout << "S3Open: ObjectExists() failure" << std::endl;
+        if ((ret = s3Fs->connection->GetObject(s3Fs->bucketName, name, cachePath)) != 0)
             return (ret);
-        }
-    } else 
-        std::cout << "S3Open: Found " << name << "in cache. File exists locally." << std::endl;
+    }
 
-    std::cout << "S3Open: Opening WiredTiger's native file handle: " << cachePath << std::endl;
+    /* Use WiredTiger's native file handle open. */
     if ((ret = wtFs->fs_open_file(wtFs, session, cachePath.c_str(), fileType, flags, &wtFh)) != 0)
         return (ret);
-    std::cout << "S3Open: Opened WiredTiger's native file handle: " << cachePath << std::endl;
 
     s3FileHandle->fileHandle = wtFh;
     s3FileHandle->storage = s3;
 
     fileHandle = (WT_FILE_HANDLE *)s3FileHandle;
-
     fileHandle->close = S3FileClose;
     fileHandle->fh_advise = NULL;
     fileHandle->fh_extend = NULL;
@@ -292,17 +287,13 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     fileHandle->fh_write = NULL;
 
     std::cout << "S3Open: FH Interface assigned." << std::endl;
-    if ((fileHandle->name = strdup(name)) == NULL){
-        std::cout << "error in strdup()" << std::endl;
-        return ENOMEM;
-    }
+    if ((fileHandle->name = strdup(name)) == NULL)
+        return (ENOMEM);
 
-    std::cout << "Grabbing lock." << std::endl;
+    /* Ensure that the file handle list is not accessed by other threads during insert. */
     std::unique_lock<std::mutex> lock(s3->fhMutex);
-    std::cout << "Acquired lock." << std::endl;
     s3FileHandle->storage->fhList.push_back(s3FileHandle);
     lock.unlock();
-    std::cout << "Released lock." << std::endl;
 
     *fileHandlePtr = fileHandle;
 
