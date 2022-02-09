@@ -966,7 +966,8 @@ struct __wt_session {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;this_id, a string that identifies the
 	 * current system state as a future backup source for an incremental backup via 'src_id'.
 	 * This identifier is required when opening an incremental backup cursor and an error will
-	 * be returned if one is not provided., a string; default empty.}
+	 * be returned if one is not provided.  The identifiers can be any text string\, but should
+	 * be unique., a string; default empty.}
 	 * @config{ ),,}
 	 * @config{next_random, configure the cursor to return a pseudo-random record from the
 	 * object when the WT_CURSOR::next method is called; valid only for row-store cursors.  See
@@ -1811,14 +1812,14 @@ struct __wt_session {
 	/*!
 	 * Reset the snapshot.
 	 *
-	 * This method resets snapshots for snapshot isolation transactions to
-	 * update their existing snapshot. It raises an error when this API
-	 * is used for isolation other than snapshot isolation mode or when the session
-	 * has performed any write operations.
-	 * This API internally releases the current snapshot and gets the new running
-	 * transactions snapshot to avoid pinning the content in the database that is no
-	 * longer needed. Applications that don't use read_timestamp for the search may
-	 * see different results compared to earlier with the updated snapshot.
+	 * This method resets snapshots for snapshot isolation transactions to update their existing
+	 * snapshot. It raises an error when this API is used in an isolation other than snapshot,
+	 * or when the transaction has performed any write operations.
+	 *
+	 * This API internally releases the current snapshot and gets the new running transactions
+	 * snapshot to avoid pinning the content in the database that is no longer needed.
+	 * Applications not using read timestamps for search may see different results after the
+	 * snapshot is updated.
 	 *
 	 * @requires_transaction
 	 *
