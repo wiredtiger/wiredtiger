@@ -1,12 +1,8 @@
-#include "wt_internal.h"
 #include <catch2/catch.hpp>
+#include "wt_internal.h"
 #include "../wrappers/session_wrapper.h"
 #include "../wrappers/block_mods.h"
 
-extern "C" {
-extern int __ckpt_add_blkmod_entry(
-  WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off_t offset, wt_off_t len);
-}
 
 TEST_CASE("Block helper: __wt_rduppo2", "[block]") {
     // Expected valid calls, where the 2nd param is a power of two
@@ -42,7 +38,7 @@ static void test_ckpt_add_blkmod_entry(wt_off_t offset,
     REQUIRE(blockMods.getWTBlockMods()->bitstring.mem == nullptr);
     REQUIRE(blockMods.getWTBlockMods()->bitstring.data == nullptr);
 
-    int result = __ckpt_add_blkmod_entry(session->getWtSessionImpl(), blockMods.getWTBlockMods(), offset, len);
+    int result = __ut_ckpt_add_blkmod_entry(session->getWtSessionImpl(), blockMods.getWTBlockMods(), offset, len);
     REQUIRE(result == 0);
 
     REQUIRE(blockMods.getWTBlockMods()->nbits == expectedBits);

@@ -8,22 +8,42 @@ FetchContent_Declare(
     GIT_TAG        v2.13.8
 )
 
-FetchContent_MakeAvailable(Catch2)
+
+# Note, the preferred solution of using FetchContent_MakeAvailable()
+# is not available in 3.11.0 (it arrived in 3.11.4), so we do some extra steps to achieve the same result.
+#
+# See https://cmake.org/cmake/help/v3.23/module/FetchContent.html
+#
+# Once we can rely on having 3.11.4 or greater, then the following call can be restored, and the
+# code between the Start and End comments below can be removed.
+
+# FetchContent_MakeAvailable(Catch2)
+
+# Start of code that achieves what FetchContent_MakeAvailable(Catch2) would do.
+FetchContent_Populate(Catch2)
+add_subdirectory(${catch2_SOURCE_DIR} ${catch2_BINARY_DIR})
+# End of code that achieves what FetchContent_MakeAvailable(Catch2) would do.
+
+set(unittest_sources
+    tests/main.cxx
+    tests/extent_list.cxx
+    tests/wrappers/block_mods.cpp
+    tests/wrappers/connection_wrapper.cpp
+    tests/wrappers/error_handler.cpp
+    tests/wrappers/session_wrapper.cpp
+    tests/block/test_bitstring.cpp
+    tests/block/test_block_ckpt.cpp
+)
 
 create_test_executable(unittests
-    SOURCES tests/main.cxx tests/extent_list.cxx
-        tests/wrappers/block_mods.cpp
-        tests/wrappers/connection_wrapper.cpp
-        tests/wrappers/error_handler.cpp
-        tests/wrappers/session_wrapper.cpp
-        tests/block/test_bitstring.cpp
-        tests/block/test_block_ckpt.cpp
+    SOURCES ${unittest_sources}
+    FLAGS -Wno-missing-declarations
     CXX
 )
 
+set_target_properties(unittests PROPERTIES CXX_STANDARD 17)
 target_compile_options(
     unittests
-    PUBLIC -std=c++17
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 

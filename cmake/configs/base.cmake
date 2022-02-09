@@ -43,6 +43,12 @@ config_bool(
 )
 
 config_bool(
+    HAVE_UNITTEST
+    "Enable WiredTiger unit tests"
+    DEFAULT OFF
+)
+
+config_bool(
     HAVE_ATTACH
     "Enable to pause for debugger attach on failure"
     DEFAULT OFF
@@ -181,6 +187,12 @@ config_bool(
 config_bool(
     ENABLE_S3
     "Build the S3 storage extension"
+    DEFAULT OFF
+)
+
+config_bool(
+    ENABLE_LLVM
+    "Enable compilation of LLVM-based tools and executables i.e. xray & fuzzer."
     DEFAULT OFF
 )
 
