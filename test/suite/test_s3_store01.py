@@ -65,8 +65,8 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         s3_store.ss_flush_finish(session, fs, filename, object_name)
         self.assertTrue(fs.fs_exist(session, filename))
 
+        # fh = fs.fs_open_file(session, filename, FileSystem.open_file_type_data, FileSystem.open_create)
         fh = fs.fs_open_file(session, filename, FileSystem.open_file_type_data, FileSystem.open_readonly)
-
         inbytes = bytes(1000000)         # An empty buffer with a million zero bytes.
         fh.fh_read(session, 0, inbytes)  # Read into the buffer.
         self.assertEquals(outbytes[0:1000000], inbytes)

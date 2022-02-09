@@ -103,7 +103,8 @@ static int S3ObjectListAdd(
 static int S3ObjectListSingle(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
 static int S3ObjectListFree(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
-
+static int S3FileClose(WT_FILE_HANDLE *, WT_SESSION *);
+static int S3FileCloseInternal(S3_FILE_HANDLE *, WT_SESSION *);
 /*
  *   S3Exist--
  *     Return if the file exists. First checks the cache, and then the S3 Bucket.
@@ -205,20 +206,36 @@ S3GetDirectory(const std::string &home, const std::string &name, bool create, st
  *     Internal file handle close.
  */
 static int
-S3FileClose(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
+S3FileClose(WT_FILE_HANDLE *fileHandle, WT_SESSION *session)
 {
     int ret;
-    S3_FILE_HANDLE *s3FileHandle = (S3_FILE_HANDLE *)file_handle;
+    S3_FILE_HANDLE *s3FileHandle = (S3_FILE_HANDLE *)fileHandle;
     S3_STORAGE *storage = s3FileHandle->storage;
-    WT_FILE_HANDLE *wt_fh = s3FileHandle->fileHandle;
 
-    if (wt_fh != NULL && (ret = wt_fh->close(wt_fh, session)) != 0)
+    /* Remove the file handle from the list. */
+    {
+        std::lock_guard<std::mutex> lock(storage->fhMutex);
+        storage->fhList.remove(s3FileHandle);
+    }
+
+    if ((ret = S3FileCloseInternal(s3FileHandle, session)) != 0)
+        return (ret);
+
+    return (ret);
+}
+
+static int
+S3FileCloseInternal(S3_FILE_HANDLE *s3FileHandle, WT_SESSION *session)
+{    
+    int ret = 0;
+    WT_FILE_HANDLE *wtFileHandle = s3FileHandle->fileHandle;
+
+    if (wtFileHandle != NULL && (ret = wtFileHandle->close(wtFileHandle, session)) != 0)
         return (ret);
 
     free(s3FileHandle->iface.name);
     free(s3FileHandle);
-
-    return (ret);
+    return(ret);
 }
 
 /*
@@ -286,15 +303,15 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     fileHandle->fh_truncate = NULL;
     fileHandle->fh_write = NULL;
 
-    std::cout << "S3Open: FH Interface assigned." << std::endl;
     if ((fileHandle->name = strdup(name)) == NULL)
         return (ENOMEM);
 
     /* Ensure that the file handle list is not accessed by other threads during insert. */
-    std::unique_lock<std::mutex> lock(s3->fhMutex);
-    s3FileHandle->storage->fhList.push_back(s3FileHandle);
-    lock.unlock();
-
+    {
+        std::lock_guard<std::mutex> lock(s3->fhMutex);
+        s3FileHandle->storage->fhList.push_back(s3FileHandle);
+    }
+    
     *fileHandlePtr = fileHandle;
 
     std::cout << "S3Open: File opened - " << name << " - final path: " << fileHandle->name << std::endl;
@@ -383,53 +400,6 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     fs->fileSystem.terminate = S3FileSystemTerminate;
     fs->fileSystem.fs_exist = S3Exist;
     fs->fileSystem.fs_open_file = S3Open;
-
-    /* TODO: Move these into tests. Just testing here temporarily to show all functions work. */
-    {
-        std::vector<std::string> buckets;
-        fs->connection->ListBuckets(buckets);
-        std::cout << "All buckets under my account:" << std::endl;
-        for (const std::string &bucket : buckets)
-            std::cout << "  * " << bucket << std::endl;
-        std::cout << std::endl;
-
-        /* Have at least one bucket to use. */
-        if (!buckets.empty()) {
-            const std::string firstBucket = buckets.at(0);
-
-            /* Put object. */
-            fs->connection->PutObject(firstBucket, "WiredTiger.turtle", "WiredTiger.turtle");
-
-            /* Testing directory list. */
-            WT_SESSION *session = NULL;
-            const char *prefix = "WiredTiger";
-            char **objectList;
-            uint32_t count;
-
-            fs->fileSystem.fs_directory_list(
-              &fs->fileSystem, session, firstBucket.c_str(), prefix, &objectList, &count);
-            std::cout << "Objects in bucket '" << firstBucket << "':" << std::endl;
-            for (int i = 0; i < count; i++)
-                std::cout << (objectList)[i] << std::endl;
-
-            std::cout << "Number of objects retrieved: " << count << std::endl;
-            fs->fileSystem.fs_directory_list_free(&fs->fileSystem, session, objectList, count);
-
-            fs->fileSystem.fs_directory_list_single(
-              &fs->fileSystem, session, firstBucket.c_str(), prefix, &objectList, &count);
-
-            std::cout << "Objects in bucket '" << firstBucket << "':" << std::endl;
-            for (int i = 0; i < count; i++)
-                std::cout << (objectList)[i] << std::endl;
-
-            std::cout << "Number of objects retrieved: " << count << std::endl;
-            fs->fileSystem.fs_directory_list_free(&fs->fileSystem, session, objectList, count);
-
-            /* Delete object. */
-            fs->connection->DeleteObject(firstBucket, "WiredTiger.turtle");
-        } else
-            std::cout << "No buckets in AWS account." << std::endl;
-    }
 
     *fileSystem = &fs->fileSystem;
     return (0);
@@ -547,10 +517,16 @@ S3AddReference(WT_STORAGE_SOURCE *storageSource)
 static int
 S3Terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
 {
-    S3_STORAGE *s3;
-    s3 = (S3_STORAGE *)storage;
+    S3_STORAGE *s3 = (S3_STORAGE *)storage;
 
     Aws::ShutdownAPI(options);
+
+    /* 
+     * We should be single-threaded here. It should be safe to access the file handle 
+     * list without a lock. 
+     */
+    for (auto it = s3->fhList.begin(); it != s3->fhList.end(); it++)
+        S3FileCloseInternal(*it, session);
 
     delete s3;
     return (0);
@@ -599,8 +575,6 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     S3_STORAGE *s3;
     S3_FILE_SYSTEM *fs;
     WT_CONFIG_ITEM v;
-    // if ((s3 = (S3_STORAGE *)calloc(1, sizeof(S3_STORAGE))) == NULL)
-    //     return (errno);
 
     s3 = new S3_STORAGE;
     s3->wtApi = connection->get_extension_api(connection);
