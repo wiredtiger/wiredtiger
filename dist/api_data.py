@@ -1575,7 +1575,8 @@ methods = {
         Config('this_id', '', r'''
             a string that identifies the current system state  as a future backup source
             for an incremental backup via 'src_id'. This identifier is required when opening
-            an incremental backup cursor and an error will be returned if one is not provided'''),
+            an incremental backup cursor and an error will be returned if one is not provided.
+            The identifiers can be any text string, but should be unique'''),
         ]),
     Config('next_random', 'false', r'''
         configure the cursor to return a pseudo-random record from the
@@ -1637,10 +1638,10 @@ methods = {
 'WT_SESSION.query_timestamp' : Method([
     Config('get', 'read', r'''
         specify which timestamp to query: \c commit returns the most recently
-        set commit_timestamp.  \c first_commit returns the first set
-        commit_timestamp.  \c prepare returns the timestamp used in preparing a
-        transaction.  \c read returns the timestamp at which the transaction is
-        reading at.  See @ref timestamp_txn_api''',
+        set commit_timestamp; \c first_commit returns the first set
+        commit_timestamp; \c prepare returns the timestamp used in preparing a
+        transaction; \c read returns the timestamp at which the transaction is
+        reading at. See @ref timestamp_txn_api''',
         choices=['commit', 'first_commit', 'prepare', 'read']),
 ]),
 
@@ -1778,17 +1779,13 @@ methods = {
 ]),
 
 'WT_SESSION.commit_transaction' : Method([
-    # FIXME-WT-8630: needs to be updated with the resolution of WT-8630. (XXX)
-    # (Maybe will need to be updated to say that for a prepared transaction only one
-    # commit timestamp may be set; otherwise likely unchanged.)
     Config('commit_timestamp', '', r'''
         set the commit timestamp for the current transaction. The supplied value
         must not be older than the first commit timestamp already set for the
         current transaction, if any. The value must also not be older than the
-        current oldest and stable timestamps. A commit timestamp is required for
-        the commit of a prepared transaction. If the prepare timestamp has been
-        set (because the transaction has been prepared), the commit timestamp must
-        not be older than it. See @ref timestamp_txn_api'''),
+        current oldest and stable timestamps. For prepared transactions, exactly one
+        commit timestamp is required; it must not be older than the prepare timestamp.
+        See @ref timestamp_txn_api'''),
     Config('durable_timestamp', '', r'''
         set the durable timestamp for the current transaction. Required for the
         commit of a prepared transaction, and otherwise not permitted. The
@@ -1811,29 +1808,21 @@ methods = {
 ]),
 
 'WT_SESSION.prepare_transaction' : Method([
-    # FIXME-WT-8630: needs to be updated with the resolution of WT-8630. (XXX)
-    # (Looks like: either at most one commit timestamp may be set, or the commit
-    # timestamp may not be set before prepare, which of these TBD.)
     Config('prepare_timestamp', '', r'''
         set the prepare timestamp for the updates of the current transaction.
-        The supplied value must not be older than any active read timestamps, must
-        not be older than the current stable timestamp, and must not be newer than
-        any commit timestamps already set. See @ref timestamp_prepare'''),
+        The supplied value must not be older than any active read timestamps, and must
+        not be older than the current stable timestamp. See @ref timestamp_prepare'''),
 ]),
 
 'WT_SESSION.timestamp_transaction' : Method([
-    # FIXME-WT-8630: needs to be updated with the resolution of WT-8630. (XXX)
-    # (Looks like: for a prepared transaction, either at most one commit timestamp
-    # may be set, or the commit timestamp may not be set before prepare, which of
-    # these TBD.)
     Config('commit_timestamp', '', r'''
         set the commit timestamp for the current transaction. The supplied value
         must not be older than the first commit timestamp already set for the
         current transaction, if any. The value must also not be older than the
-        current oldest and stable timestamps. A commit timestamp is required for
-        the commit of a prepared transaction.  If the prepare timestamp has
-        already been set, the commit timestamp must not be older than it. See
-        @ref timestamp_txn_api'''),
+        current oldest and stable timestamps. For prepared transactions, a commit
+        timestamp is required for commit, must not be older than the prepare
+        timestamp, can be set only once, and must not be set until after the
+        transaction has successfully prepared. See @ref timestamp_txn_api'''),
     Config('durable_timestamp', '', r'''
         set the durable timestamp for the current transaction. Required for the
         commit of a prepared transaction, and otherwise not permitted. Can only
@@ -1841,15 +1830,11 @@ methods = {
         timestamp has been set. The supplied value must not be older than the
         commit timestamp. The value must also not be older than the current
         oldest and stable timestamps. See @ref timestamp_prepare'''),
-    # FIXME-WT-8630: needs to be updated with the resolution of WT-8630. (XXX)
-    # (One possible resolution is to prohibit setting the prepare timestamp before
-    # actually committing the transaction.)
     Config('prepare_timestamp', '', r'''
         set the prepare timestamp for the updates of the current transaction.
         The supplied value must not be older than any active read timestamps,
-        and must not be older than the current stable timestamp.
-        May be set only once per transaction, and must be set before setting the
-        commit timestamp. Setting the prepare timestamp does not by itself
+        and must not be older than the current stable timestamp. Can be set only
+        once per transaction. Setting the prepare timestamp does not by itself
         prepare the transaction, but does oblige the application to eventually
         prepare the transaction before committing it. See @ref timestamp_prepare'''),
     Config('read_timestamp', '', r'''
@@ -1961,13 +1946,13 @@ methods = {
 'WT_CONNECTION.query_timestamp' : Method([
     Config('get', 'all_durable', r'''
         specify which timestamp to query: \c all_durable returns the largest timestamp such that
-        all timestamps up to that value have been made durable, \c last_checkpoint returns the
-        timestamp of the most recent stable checkpoint, \c oldest_timestamp returns the most
-        recent \c oldest_timestamp set with WT_CONNECTION::set_timestamp, \c oldest_reader
-        returns the minimum of the read timestamps of all active readers \c pinned returns
-        the minimum of the \c oldest_timestamp and the read timestamps of all active readers,
+        all timestamps up to that value have been made durable; \c last_checkpoint returns the
+        timestamp of the most recent stable checkpoint; \c oldest_timestamp returns the most
+        recent \c oldest_timestamp set with WT_CONNECTION::set_timestamp; \c oldest_reader
+        returns the minimum of the read timestamps of all active readers; \c pinned returns
+        the minimum of the \c oldest_timestamp and the read timestamps of all active readers;
         \c recovery returns the timestamp of the most recent stable checkpoint taken prior to a
-        shutdown and \c stable_timestamp returns the most recent \c stable_timestamp set with
+        shutdown; \c stable_timestamp returns the most recent \c stable_timestamp set with
         WT_CONNECTION::set_timestamp. (The \c oldest and \c stable arguments are deprecated
         short-hand for \c oldest_timestamp and \c stable_timestamp, respectively.) See @ref
         timestamp_global_api''',
