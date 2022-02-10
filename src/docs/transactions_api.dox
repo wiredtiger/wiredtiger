@@ -9,8 +9,10 @@ transactional and its data durable only requires:
 
 @section transactions_grouping Explicit transactions
 
-Any operation consisting of multiple related updates should be enclosed in an
-explicit transaction to ensure that the updates are applied atomically.
+An explicit transaction is a transaction that starts with a begin transaction
+operation and ends with either a commit transaction or rollback transaction
+operation. Any operation having multiple related updates should be enclosed in
+an explicit transaction to ensure the updates are applied atomically.
 
 In WiredTiger, transaction operations are methods of the WT_SESSION class.
 
