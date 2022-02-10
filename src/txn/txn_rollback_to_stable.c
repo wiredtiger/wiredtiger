@@ -1324,8 +1324,11 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
       FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ? "true" : "false",
       !F_ISSET(btree, WT_BTREE_NO_LOGGING) ? "true" : "false");
 
-    /* Files with commit-level durability don't get their commits wiped. */
-    if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && __wt_btree_immediately_durable(session))
+    /*
+     * Files with commit-level durability don't get their commits wiped. Check in-memory first,
+     * in-memory files won't have logging turned on.
+     */
+    if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !F_ISSET(btree, WT_BTREE_NO_LOGGING))
         return (0);
 
     /* There is never anything to do for checkpoint handles. */

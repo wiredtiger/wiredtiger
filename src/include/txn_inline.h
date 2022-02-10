@@ -337,14 +337,13 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
     txn = session->txn;
 
     /*
-     * Metadata updates, updates with no commit time, and immediately durable (logged) objects don't
-     * have timestamps: they can't be read at a point in time, only the most recently committed data
-     * matches files on disk.
+     * Metadata updates, updates with no commit time, and logged objects don't have timestamps, and
+     * only the most recently committed data matches files on disk. The check for in-memory files
+     * comes first: in-memory files do have timestamps, but aren't logged.
      */
     if (WT_IS_METADATA(btree->dhandle) || !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
         return;
-    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(btree, WT_BTREE_NO_LOGGING) &&
-      FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED))
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(btree, WT_BTREE_NO_LOGGING))
         return;
 
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
@@ -482,7 +481,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
     WT_READ_BARRIER();
 
     if (!F_ISSET(conn, WT_CONN_RECOVERING) || session->dhandle == NULL ||
-      __wt_btree_immediately_durable(session)) {
+      !F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING)) {
         /*
          * Checkpoint transactions often fall behind ordinary application threads. If there is an
          * active checkpoint, keep changes until checkpoint is finished.
