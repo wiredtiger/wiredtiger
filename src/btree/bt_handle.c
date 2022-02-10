@@ -999,8 +999,8 @@ __wt_btree_immediately_durable(WT_SESSION_IMPL *session)
      * Check if the current btree is logged. This determines if timestamp updates should be rolled
      * back for this btree in RTS as well as configuring some checkpoint and open behaviors.
      *
-     * Historically, this function checked for in-memory configurations as well, assert that's not
-     * the case for now.
+     * Historically, this function checked for in-memory configurations, assert no callers depend on
+     * that.
      */
     WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
     return (!F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING) &&
