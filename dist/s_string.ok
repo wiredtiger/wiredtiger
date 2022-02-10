@@ -388,6 +388,7 @@ Resize
 RocksDB
 Rogerio
 Runtime
+SDK
 SDKOptions
 SIMD
 SLIST
@@ -567,6 +568,7 @@ backport
 bal
 basecfg
 basho
+batchSize
 bb
 bba
 bbb
@@ -598,6 +600,7 @@ btcur
 btmem
 btree
 btrees
+bucketName
 buf
 bufsz
 bugfix
@@ -1108,6 +1111,7 @@ mappable
 marshall
 marshalled
 maxCLevel
+maxObjects
 maxcpu
 maxdbs
 maxdiff

@@ -215,6 +215,14 @@ cursor_ops(WT_SESSION *session)
     /*! [Return the previous record] */
 
     {
+        /*! [Get the table's largest key] */
+        const char *largest_key;
+        error_check(cursor->largest_key(cursor));
+        error_check(cursor->get_key(cursor, &largest_key));
+        /*! [Get the table's largest key] */
+    }
+
+    {
         WT_CURSOR *other = NULL;
         error_check(session->open_cursor(session, NULL, cursor, NULL, &other));
 
@@ -736,6 +744,8 @@ session_ops(WT_SESSION *session)
                 error_check(start->close(start));
             }
         }
+
+        error_check(session->checkpoint(session, NULL));
 
         /*! [Upgrade a table] */
         error_check(session->upgrade(session, "table:mytable", NULL));
