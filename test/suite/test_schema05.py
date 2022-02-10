@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os
-import wiredtiger, wttest, run
+import wttest
 from wtscenario import make_scenarios
 
 # test_schema05.py
@@ -72,7 +71,7 @@ class test_schema05(wttest.WiredTigerTestCase):
 
     def drop_indices(self):
         for i in range(0, self.nindices):
-            self.session.drop("index:schema05:x" + str(i))
+            self.dropUntilSuccess(self.session, "index:schema05:x" + str(i))
 
     def csv(self, s, i):
         return s.split(',')[i]

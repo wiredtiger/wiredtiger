@@ -1217,16 +1217,6 @@ wiredtiger_open_common =\
         size and the default config would extend log files in allocations of
         the maximum log file size.''',
         type='list', choices=['data', 'log']),
-    Config('file_close_sync', 'true', r'''
-        control whether to flush modified files to storage independent
-        of a global checkpoint when closing file handles to acquire exclusive
-        access to a table. If set to false, and logging is disabled, API calls that
-        require exclusive access to tables will return EBUSY if there have been
-        changes made to the table since the last global checkpoint. When logging
-        is enabled, the value for <code>file_close_sync</code> has no effect, and,
-        modified file is always flushed to storage when closing file handles to
-        acquire exclusive access to the table''',
-        type='boolean'),
     Config('hash', '', r'''
         manage resources around hash bucket arrays. All values must be a power of two.
         Note that setting large values can significantly increase memory usage inside
@@ -1883,7 +1873,10 @@ methods = {
         if set, specify a name for the checkpoint (note that checkpoints
         including LSM trees may not be named)'''),
     Config('target', '', r'''
-        if non-empty, checkpoint the list of objects''', type='list'),
+        if non-empty, checkpoint the list of objects.  Checkpointing a list of objects separately
+        from a database-wide checkpoint can lead to data inconsistencies, see @ref checkpoint_target
+        for more information''',
+        type='list'),
     Config('use_timestamp', 'true', r'''
         if true (the default), create the checkpoint as of the last stable timestamp if timestamps
         are in use, or all current updates if there is no stable timestamp set. If false, this
