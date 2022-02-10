@@ -70,7 +70,7 @@ class test_log04(wttest.WiredTigerTestCase):
         ds_ts.populate()
         c_ts = self.session.open_cursor(uri_ts)
 
-        uri_nots = 'table:test_logn.nots'
+        uri_nots = 'table:test_log04.nots'
         ds_nots = SimpleDataSet(self, uri_nots, 100,
             key_format=self.key_format, value_format=self.value_format,
             config='log=(enabled=false)')
