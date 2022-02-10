@@ -438,7 +438,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     }
 
     *fileSystem = &fs->fileSystem;
-    return (0);
+    return (ret);
 }
 
 /*
@@ -613,7 +613,7 @@ S3Terminate(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session)
     Aws::Utils::Logging::ShutdownAWSLogging();
     Aws::ShutdownAPI(options);
 
-    delete s3;
+    delete (s3);
     return (0);
 }
 
@@ -645,10 +645,10 @@ S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *f
     /* Linking file with the local file. */
     int ret = link(srcPath.c_str(), destPath.c_str());
 
-    /* Linking file with the local file. */
+    /* The file should be read-only. */
     if (ret == 0)
         ret = chmod(destPath.c_str(), 0444);
-    return ret;
+    return (ret);
 }
 
 /*

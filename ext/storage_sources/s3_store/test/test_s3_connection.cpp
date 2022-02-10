@@ -266,19 +266,19 @@ TestGetObject(const Aws::S3Crt::ClientConfiguration &config)
     std::ifstream f(path);
     if (!f.good()) {
         std::cout << "TestGetObject: target " << objectName
-                  << " has not been succesfully downloaded." << std::endl;
+                  << " has not been successfully downloaded." << std::endl;
         return (TEST_FAILURE);
     }
 
-    /* Clean up test artefacts. */
+    /* Clean up test artifacts. */
     if (std::remove(path.c_str()) != 0)
         return (TEST_FAILURE);
 
     if ((ret = conn.DeleteObject(objectName)) != 0)
         return (ret);
 
-    std::cout << "TestGetObject() succeded." << std::endl;
-    return (0);
+    std::cout << "TestGetObject() succeeded." << std::endl;
+    return (TEST_SUCCESS);
 }
 /*
  * TestObjectExists --

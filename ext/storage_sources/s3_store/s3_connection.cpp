@@ -123,7 +123,7 @@ S3Connection::GetObject(const std::string &objectKey, const std::string &path) c
     });
 
     if (!_s3CrtClient.GetObject(request).IsSuccess())
-        return (-1);
+        return (1);
 
     return (0);
 }
