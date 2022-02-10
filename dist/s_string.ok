@@ -47,6 +47,7 @@ BZ
 Barack
 BerkeleyDB
 Bitfield
+Bitstring
 Bitwise
 BlqR
 BqRt
@@ -577,6 +578,7 @@ bitcnt
 bitfield
 bitfields
 bitpos
+bitstr
 bitstring
 bitwise
 blk
@@ -690,6 +692,7 @@ copyout
 countp
 cp
 cplusplus
+cpp
 cpuid
 crc
 create's
