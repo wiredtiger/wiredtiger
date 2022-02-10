@@ -101,8 +101,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
         c2 = session.open_cursor(self.uri + self.tablename2, None)
 
         # In FLCS the values are bytes, which are numbers, but the tests below are via string
-        # inclusion rather than just equality of values. Not sure why that is, but I'm going
-        # to assume there's a reason for it and not change things. Compensate.
+        # inclusion rather than just equality of values.
         if self.value_format == '8t':
             check_value = str(check_value)
 
@@ -133,8 +132,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
         c2 = session.open_cursor(self.uri + self.tablename2, None)
 
         # In FLCS the values are bytes, which are numbers, but the tests below are via string
-        # inclusion rather than just equality of values. Not sure why that is, but I'm going
-        # to assume there's a reason for it and not change things. Compensate.
+        # inclusion rather than just equality of values.
         if self.value_format == '8t':
             check_value = str(check_value)
 
