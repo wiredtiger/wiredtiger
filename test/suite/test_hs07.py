@@ -33,7 +33,7 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 # test_hs07.py
-# Test the history store sweep cleans the obsolete history store entries and gives expected results.
+# Test history store sweep cleans the obsolete history store entries and gives expected results.
 class test_hs07(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = ('cache_size=50MB,eviction_updates_trigger=95,eviction_updates_target=80')
