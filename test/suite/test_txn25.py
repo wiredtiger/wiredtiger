@@ -34,35 +34,22 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 class test_txn25(wttest.WiredTigerTestCase):
+    base_config = 'create,cache_size=50MB'
     format_values = [
         ('fix', dict(key_format='r', usestrings=False, value_format='8t')),
         ('row', dict(key_format='S', usestrings=True, value_format='S')),
         ('var', dict(key_format='r', usestrings=False, value_format='S')),
     ]
     log_config = [
-        ('logging', dict(uselog='enabled')),
-        ('no-logging', dict(uselog='')),
+        ('logging', dict(conn_config=base_config + ',log=(enabled)')),
+        ('no-logging', dict(conn_config=base_config)),
     ]
     scenarios = make_scenarios(format_values, log_config)
-
-    # This test varies the log settings, override the standard methods.
-    def setUpConnectionOpen(self, dir):
-        return None
-    def setUpSessionOpen(self, conn):
-        return None
-    def ConnectionOpen(self):
-        self.home = '.'
-        config = 'create,cache_size=50MB,log=(%s)' % self.uselog
-        self.conn = wiredtiger.wiredtiger_open(self.home, config)
-        self.session = self.conn.open_session()
 
     def getkey(self, i):
         return str(i) if self.usestrings else i
 
     def test_txn25(self):
-        # Open the connection.
-        self.ConnectionOpen()
-
         uri = 'file:test_txn25'
         create_config = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, 'allocation_size=512,' + create_config)
@@ -107,8 +94,7 @@ class test_txn25(wttest.WiredTigerTestCase):
         session2.rollback_transaction()
 
         # Reopen the connection.
-        self.conn.close()
-        self.ConnectionOpen()
+        self.reopen_conn()
 
         # Now that we've reopened, check that we can view the latest data from the previous run.
         #
