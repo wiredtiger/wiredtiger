@@ -1705,6 +1705,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* If we are logging, write a commit log record. */
     if (txn->logrec != NULL) {
+        /* Assert environment and tree are logging compatible, the fast-check is short-hand. */
+        WT_ASSERT(session,
+          FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) &&
+            !F_ISSET(session, WT_SESSION_NO_LOGGING));
+
         /*
          * We are about to block on I/O writing the log. Release our snapshot in case it is keeping
          * data pinned. This is particularly important for checkpoints.
