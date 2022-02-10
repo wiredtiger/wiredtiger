@@ -101,6 +101,9 @@ class test_txn25(wttest.WiredTigerTestCase):
             cursor[self.getkey(i)] = value3
             self.session.commit_transaction()
 
+        # Force pages to be written with transaction IDs.
+        self.session.checkpoint()
+
         session2.rollback_transaction()
 
         # Reopen the connection.
