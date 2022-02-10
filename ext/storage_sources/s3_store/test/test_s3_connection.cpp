@@ -64,12 +64,12 @@ setupTestDefaults()
     const char *envBucket = std::getenv("WT_S3_EXT_BUCKET");
     if (envBucket != NULL)
         TestDefaults::bucketName = envBucket;
-    std::cout << "Bucket to be used for testing: " << TestDefaults::bucketName << std::endl;
+    std::cerr << "Bucket to be used for testing: " << TestDefaults::bucketName << std::endl;
 
     /* Append the prefix to be used for object names by a unique string. */
     if (randomizeTestPrefix() != 0)
         return (TEST_FAILURE);
-    std::cout << "Generated prefix: " << TestDefaults::objPrefix << std::endl;
+    std::cerr << "Generated prefix: " << TestDefaults::objPrefix << std::endl;
 
     return (TEST_SUCCESS);
 }
@@ -258,14 +258,14 @@ TestGetObject(const Aws::S3Crt::ClientConfiguration &config)
 
     /* Download the file from S3 */
     if ((ret = conn.GetObject(objectName, path)) != 0) {
-        std::cout << "TestGetObject: call to S3Connection:GetObject has failed." << std::endl;
+        std::cerr << "TestGetObject: call to S3Connection:GetObject has failed." << std::endl;
         return (ret);
     }
 
     /* The file should now be in the current directory. */
     std::ifstream f(path);
     if (!f.good()) {
-        std::cout << "TestGetObject: target " << objectName
+        std::cerr << "TestGetObject: target " << objectName
                   << " has not been successfully downloaded." << std::endl;
         return (TEST_FAILURE);
     }
@@ -301,14 +301,14 @@ TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
 
     ret = conn.ObjectExists(objectName, exists);
     if (ret != 0 || exists)
-        return (ret);
+        return (TEST_FAILURE);
 
     if ((ret = conn.PutObject(objectName, fileName)) != 0)
         return (ret);
 
     ret = conn.ObjectExists(objectName, exists);
     if (ret != 0 || !exists)
-        return (ret);
+        return (TEST_FAILURE);
 
     if ((ret = conn.DeleteObject(objectName)) != 0)
         return (ret);

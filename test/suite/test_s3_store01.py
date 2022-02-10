@@ -45,7 +45,7 @@ class test_s3_store01(wttest.WiredTigerTestCase):
     # Bucket name can be overridden by an environment variable.
     bucket_name = os.getenv('WT_S3_EXT_BUCKET')
     if bucket_name is None:
-        bucket_name = "wt-bucket"
+        bucket_name = "s3testext"
 
     # Load the s3 store extension, skip the test if missing.
     def conn_extensions(self, extlist):
