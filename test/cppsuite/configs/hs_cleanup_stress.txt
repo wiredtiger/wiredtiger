@@ -1,4 +1,4 @@
-# Run the test for half an hour.
+# Run for half an hour.
 duration_seconds=1800,
 # The configuration can produce a large number of updates at once, therefore use 500MB cache size 
 # to hold these values.
