@@ -459,7 +459,8 @@ descend:
                 /*
                  * Try to skip deleted pages visible to us.
                  */
-                if (current_state == WT_REF_DELETED && __wt_delete_page_skip(session, ref, false))
+                if (current_state == WT_REF_DELETED &&
+                  __wt_delete_page_skip(session, ref, LF_ISSET(WT_READ_VISIBLE_ALL)))
                     break;
             }
 
