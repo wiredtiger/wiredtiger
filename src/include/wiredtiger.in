@@ -966,7 +966,8 @@ struct __wt_session {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;this_id, a string that identifies the
 	 * current system state as a future backup source for an incremental backup via 'src_id'.
 	 * This identifier is required when opening an incremental backup cursor and an error will
-	 * be returned if one is not provided., a string; default empty.}
+	 * be returned if one is not provided.  The identifiers can be any text string\, but should
+	 * be unique., a string; default empty.}
 	 * @config{ ),,}
 	 * @config{next_random, configure the cursor to return a pseudo-random record from the
 	 * object when the WT_CURSOR::next method is called; valid only for row-store cursors.  See
@@ -1757,9 +1758,8 @@ struct __wt_session {
 	 * @config{commit_timestamp, set the commit timestamp for the current transaction.  The
 	 * supplied value must not be older than the first commit timestamp already set for the
 	 * current transaction\, if any.  The value must also not be older than the current oldest
-	 * and stable timestamps.  A commit timestamp is required for the commit of a prepared
-	 * transaction.  If the prepare timestamp has been set (because the transaction has been
-	 * prepared)\, the commit timestamp must not be older than it.  See @ref timestamp_txn_api.,
+	 * and stable timestamps.  For prepared transactions\, exactly one commit timestamp is
+	 * required; it must not be older than the prepare timestamp.  See @ref timestamp_txn_api.,
 	 * a string; default empty.}
 	 * @config{durable_timestamp, set the durable timestamp for the current transaction.
 	 * Required for the commit of a prepared transaction\, and otherwise not permitted.  The
@@ -1800,9 +1800,9 @@ struct __wt_session {
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.prepare_transaction, see dist/api_data.py}
 	 * @config{prepare_timestamp, set the prepare timestamp for the updates of the current
-	 * transaction.  The supplied value must not be older than any active read timestamps\, must
-	 * not be older than the current stable timestamp\, and must not be newer than any commit
-	 * timestamps already set.  See @ref timestamp_prepare., a string; default empty.}
+	 * transaction.  The supplied value must not be older than any active read timestamps\, and
+	 * must not be older than the current stable timestamp.  See @ref timestamp_prepare., a
+	 * string; default empty.}
 	 * @configend
 	 * @errors
 	 */
@@ -1811,14 +1811,14 @@ struct __wt_session {
 	/*!
 	 * Reset the snapshot.
 	 *
-	 * This method resets snapshots for snapshot isolation transactions to
-	 * update their existing snapshot. It raises an error when this API
-	 * is used for isolation other than snapshot isolation mode or when the session
-	 * has performed any write operations.
-	 * This API internally releases the current snapshot and gets the new running
-	 * transactions snapshot to avoid pinning the content in the database that is no
-	 * longer needed. Applications that don't use read_timestamp for the search may
-	 * see different results compared to earlier with the updated snapshot.
+	 * This method resets snapshots for snapshot isolation transactions to update their existing
+	 * snapshot. It raises an error when this API is used in an isolation other than snapshot,
+	 * or when the transaction has performed any write operations.
+	 *
+	 * This API internally releases the current snapshot and gets the new running transactions
+	 * snapshot to avoid pinning the content in the database that is no longer needed.
+	 * Applications not using read timestamps for search may see different results after the
+	 * snapshot is updated.
 	 *
 	 * @requires_transaction
 	 *
@@ -1867,9 +1867,10 @@ struct __wt_session {
 	 * @config{commit_timestamp, set the commit timestamp for the current transaction.  The
 	 * supplied value must not be older than the first commit timestamp already set for the
 	 * current transaction\, if any.  The value must also not be older than the current oldest
-	 * and stable timestamps.  A commit timestamp is required for the commit of a prepared
-	 * transaction.  If the prepare timestamp has already been set\, the commit timestamp must
-	 * not be older than it.  See @ref timestamp_txn_api., a string; default empty.}
+	 * and stable timestamps.  For prepared transactions\, a commit timestamp is required for
+	 * commit\, must not be older than the prepare timestamp\, can be set only once\, and must
+	 * not be set until after the transaction has successfully prepared.  See @ref
+	 * timestamp_txn_api., a string; default empty.}
 	 * @config{durable_timestamp, set the durable timestamp for the current transaction.
 	 * Required for the commit of a prepared transaction\, and otherwise not permitted.  Can
 	 * only be set once the current transaction has been prepared\, and a commit timestamp has
@@ -1878,11 +1879,10 @@ struct __wt_session {
 	 * timestamp_prepare., a string; default empty.}
 	 * @config{prepare_timestamp, set the prepare timestamp for the updates of the current
 	 * transaction.  The supplied value must not be older than any active read timestamps\, and
-	 * must not be older than the current stable timestamp.  May be set only once per
-	 * transaction\, and must be set before setting the commit timestamp.  Setting the prepare
-	 * timestamp does not by itself prepare the transaction\, but does oblige the application to
-	 * eventually prepare the transaction before committing it.  See @ref timestamp_prepare., a
-	 * string; default empty.}
+	 * must not be older than the current stable timestamp.  Can be set only once per
+	 * transaction.  Setting the prepare timestamp does not by itself prepare the transaction\,
+	 * but does oblige the application to eventually prepare the transaction before committing
+	 * it.  See @ref timestamp_prepare., a string; default empty.}
 	 * @config{read_timestamp, read using the specified timestamp.  The supplied value must not
 	 * be older than the current oldest timestamp.  This can only be set once for a transaction.
 	 * See @ref timestamp_txn_api., a string; default empty.}
