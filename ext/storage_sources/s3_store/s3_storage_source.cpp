@@ -31,9 +31,7 @@
 #include <fstream>
 #include <list>
 #include <errno.h>
-#include <list>
 #include <unistd.h>
-#include <mutex>
 
 #include "s3_connection.h"
 #include "s3_log_system.h"
@@ -54,12 +52,11 @@ struct S3_STORAGE {
 
     std::mutex fsListMutex;             /* Protect the file system list */
     std::list<S3_FILE_SYSTEM *> fsList; /* List of initiated file systems */
+    std::mutex fhMutex;                 /* Protect the file handle list*/
+    std::list<S3_FILE_HANDLE *> fhList; /* List of open file handles */
 
     uint32_t referenceCount; /* Number of references to this storge source */
     int32_t verbose;
-
-    std::list<S3_FILE_HANDLE *> fhList;
-    std::mutex fhMutex;
 };
 
 struct S3_FILE_SYSTEM {

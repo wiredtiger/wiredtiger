@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#define S3_ALLOCATION_TAG ""
 /*
  * S3Connection --
  *     Constructor for AWS S3 bucket connection.
@@ -112,14 +113,17 @@ S3Connection::DeleteObject(const std::string &objectKey) const
 int
 S3Connection::GetObject(const std::string &objectKey, const std::string &path) const
 {
-    std::cout << "S3Connection::GetObject - Downloading " << objectKey << " to " << path
-              << std::endl;
     Aws::S3Crt::Model::GetObjectRequest request;
     request.SetBucket(_bucketName);
     request.SetKey(_objectPrefix + objectKey);
+    /*
+     * The S3 Object should be downloaded to disk rather than into an in-memory buffer. Use a custom
+     * response stream factory to specify how the response should be downloaded.
+     * https://sdk.amazonaws.com/cpp/api/0.14.3/class_aws_1_1_utils_1_1_stream_1_1_response_stream.html
+     */
     request.SetResponseStreamFactory([=]() {
-        return (
-          Aws::New<Aws::FStream>("S3DOWNLOAD", path, std::ios_base::out | std::ios_base::binary));
+        return (Aws::New<Aws::FStream>(
+          S3_ALLOCATION_TAG, path, std::ios_base::out | std::ios_base::binary));
     });
 
     if (!_s3CrtClient.GetObject(request).IsSuccess())
