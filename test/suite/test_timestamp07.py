@@ -179,7 +179,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
     def test_timestamp07(self):
         self.moreinit()
 
-        # Open three tables:
+        # Open two tables:
         # 1. Table is not logged and uses timestamps.
         # 2. Table is logged and so timestamps are ignored.
         #
