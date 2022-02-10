@@ -996,8 +996,8 @@ bool
 __wt_btree_immediately_durable(WT_SESSION_IMPL *session)
 {
     /*
-     * If timestamp updates should be rolled back for this btree in RTS as well as configuring some
-     * checkpoint and open behaviors.
+     * Check if the current btree is logged. This determines if timestamp updates should be rolled
+     * back for this btree in RTS as well as configuring some checkpoint and open behaviors.
      *
      * Historically, this function checked for in-memory configurations as well, assert that's not
      * the case for now.
