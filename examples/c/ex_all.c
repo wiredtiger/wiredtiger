@@ -377,7 +377,7 @@ cursor_ops(WT_SESSION *session)
           session->open_cursor(session, "table:mytable", NULL, "overwrite=false", &cursor));
         cursor->set_key(cursor, key);
         if (cursor->search(cursor) == 0)
-          error_check(cursor->remove(cursor));
+            error_check(cursor->remove(cursor));
         /*! [Remove a record and fail if DNE] */
     }
 
@@ -387,7 +387,7 @@ cursor_ops(WT_SESSION *session)
         error_check(session->open_cursor(session, "table:mytable", NULL, NULL, &cursor));
         cursor->set_key(cursor, key);
         if (cursor->search(cursor) == 0)
-          error_check(cursor->remove(cursor));
+            error_check(cursor->remove(cursor));
         /*! [Remove a record and fail if we cannot remove a record that exists] */
     }
 
