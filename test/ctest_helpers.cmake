@@ -90,6 +90,7 @@ function(create_test_executable target)
         file(RELATIVE_PATH relative_rpath ${test_binary_dir} ${CMAKE_BINARY_DIR})
         set_target_properties(${target}
             PROPERTIES
+                # Setting this variable to false adds the relative path to the list of RPATH.
                 BUILD_WITH_INSTALL_RPATH FALSE
                 LINK_FLAGS "-Wl,-rpath,${origin_linker_variable}/${relative_rpath}"
         )
