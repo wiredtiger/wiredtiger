@@ -1,6 +1,6 @@
 # Run for half an hour.
 duration_seconds=1800,
-cache_size_mb=2000,
+cache_size_mb=500,
 compression_enabled=true,
 statistics_config=
 (
