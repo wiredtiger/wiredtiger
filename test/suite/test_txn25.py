@@ -30,7 +30,7 @@
 #   Test the write generation mechanism to ensure that transaction ids get wiped between runs.
 #
 
-import wiredtiger, wttest
+import wttest
 from wtscenario import make_scenarios
 
 class test_txn25(wttest.WiredTigerTestCase):
