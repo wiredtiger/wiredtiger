@@ -5,13 +5,17 @@
 
 class BlockMods {
     public:
-        BlockMods();
-        ~BlockMods();
-        WT_BLOCK_MODS* getWTBlockMods() { return &_block_mods; };
+    BlockMods();
+    ~BlockMods();
+    WT_BLOCK_MODS *
+    getWTBlockMods()
+    {
+        return &_block_mods;
+    };
 
     private:
-        void initBlockMods();
-        WT_BLOCK_MODS _block_mods;
+    void initBlockMods();
+    WT_BLOCK_MODS _block_mods;
 };
 
 #endif // WT_BLOCKMODS_H

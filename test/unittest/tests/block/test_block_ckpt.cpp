@@ -3,8 +3,8 @@
 #include "../wrappers/session_wrapper.h"
 #include "../wrappers/block_mods.h"
 
-
-TEST_CASE("Block helper: __wt_rduppo2", "[block]") {
+TEST_CASE("Block helper: __wt_rduppo2", "[block]")
+{
     // Expected valid calls, where the 2nd param is a power of two
     REQUIRE(__wt_rduppo2(0, 8) == 0);
     REQUIRE(__wt_rduppo2(1, 8) == 8);
@@ -25,9 +25,8 @@ TEST_CASE("Block helper: __wt_rduppo2", "[block]") {
     REQUIRE(__wt_rduppo2(102, 42) == 0);
 }
 
-static void test_ckpt_add_blkmod_entry(wt_off_t offset,
-                                       wt_off_t len,
-                                       uint64_t expectedBits)
+static void
+test_ckpt_add_blkmod_entry(wt_off_t offset, wt_off_t len, uint64_t expectedBits)
 {
     std::shared_ptr<SessionWrapper> session = SessionWrapper::buildTestSessionWrapper();
     BlockMods blockMods;
@@ -38,7 +37,8 @@ static void test_ckpt_add_blkmod_entry(wt_off_t offset,
     REQUIRE(blockMods.getWTBlockMods()->bitstring.mem == nullptr);
     REQUIRE(blockMods.getWTBlockMods()->bitstring.data == nullptr);
 
-    int result = __ut_ckpt_add_blkmod_entry(session->getWtSessionImpl(), blockMods.getWTBlockMods(), offset, len);
+    int result = __ut_ckpt_add_blkmod_entry(
+      session->getWtSessionImpl(), blockMods.getWTBlockMods(), offset, len);
     REQUIRE(result == 0);
 
     REQUIRE(blockMods.getWTBlockMods()->nbits == expectedBits);
@@ -47,9 +47,10 @@ static void test_ckpt_add_blkmod_entry(wt_off_t offset,
     REQUIRE(blockMods.getWTBlockMods()->bitstring.data != nullptr);
 }
 
-
-TEST_CASE("Block manager: __ckpt_add_blkmod_entry", "[block]") {
-    // Use an offset greater than 128 so that we go beyond the minimum value defined by WT_BLOCK_MODS_LIST_MIN
+TEST_CASE("Block manager: __ckpt_add_blkmod_entry", "[block]")
+{
+    // Use an offset greater than 128 so that we go beyond the minimum value defined by
+    // WT_BLOCK_MODS_LIST_MIN
     test_ckpt_add_blkmod_entry(132, 9, 192);
 
     // Edge case, this should just fit in 256 bits

@@ -3,9 +3,10 @@
 
 class ErrorHandler {
     public:
-        static void throwIfNonZero(int result);
+    static void throwIfNonZero(int result);
+
     private:
-        ErrorHandler() = delete;
+    ErrorHandler() = delete;
 };
 
 #endif // WT_ERRORHANDLER_H

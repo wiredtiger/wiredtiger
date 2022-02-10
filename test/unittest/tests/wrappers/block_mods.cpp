@@ -4,17 +4,20 @@
 
 #include "block_mods.h"
 
-BlockMods::BlockMods() {
+BlockMods::BlockMods()
+{
     initBlockMods();
 }
 
-BlockMods::~BlockMods() {
+BlockMods::~BlockMods()
+{
     __wt_buf_free(nullptr, &_block_mods.bitstring);
     __wt_free(nullptr, _block_mods.id_str);
 }
 
 void
-BlockMods::initBlockMods() {
+BlockMods::initBlockMods()
+{
     _block_mods.id_str = nullptr;
     _block_mods.bitstring.data = nullptr;
     _block_mods.bitstring.size = 0;
@@ -26,5 +29,3 @@ BlockMods::initBlockMods() {
     _block_mods.granularity = 0;
     _block_mods.flags = 0;
 }
-
-
