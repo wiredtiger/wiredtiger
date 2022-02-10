@@ -607,7 +607,7 @@ S3Terminate(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session)
      * We should be single-threaded here. It should be safe to access the file handle list without a
      * lock.
      */
-    for (auto fh : s3->fhList)
+    for (auto &fh : s3->fhList)
         S3FileCloseInternal(fh, session);
 
     Aws::Utils::Logging::ShutdownAWSLogging();
