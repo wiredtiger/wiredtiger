@@ -217,8 +217,8 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         # Scenario: 2
         # Check that we see the inserted values as per the timestamp.
         for i, t in enumerate(orig_keys):
-            # Tables using the timestamps should see the values as per the
-            # given read_timestamp
+            # Tables using the timestamps should see the values as per the given read_timestamp.
+            # Logged tables don't use timestamps, so will always see the most recent value.
             self.check(self.session, 'read_timestamp=' + self.timestamp_str(t),
                 self.table_ts_log, dict((k, self.value) for k in orig_keys))
             self.check(self.session, 'read_timestamp=' + self.timestamp_str(t),
