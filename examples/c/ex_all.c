@@ -376,39 +376,41 @@ cursor_ops(WT_SESSION *session)
         error_check(
           session->open_cursor(session, "table:mytable", NULL, "overwrite=false", &cursor));
         cursor->set_key(cursor, key);
-        error_check(cursor->remove(cursor));
+        if (cursor->search(cursor) == 0)
+          error_check(cursor->remove(cursor));
         /*! [Remove a record and fail if DNE] */
     }
 
     {
-        /*! [Remove a record] */
+        /*! [Remove a record and fail if we cannot remove a record that exists] */
         const char *key = "some key";
         error_check(session->open_cursor(session, "table:mytable", NULL, NULL, &cursor));
         cursor->set_key(cursor, key);
-        error_check(cursor->remove(cursor));
-        /*! [Remove a record] */
+        if (cursor->search(cursor) == 0)
+          error_check(cursor->remove(cursor));
+        /*! [Remove a record and fail if we cannot remove a record that exists] */
     }
 
     {
-        /*! [Display an error] */
+        /*! [Removing a record that does not exist should give a not found error] */
         const char *key = "non-existent key";
         cursor->set_key(cursor, key);
-        if ((ret = cursor->remove(cursor)) != 0) {
+        if ((ret = cursor->remove(cursor)) != WT_NOTFOUND) {
             fprintf(stderr, "cursor.remove: %s\n", wiredtiger_strerror(ret));
             return (ret);
         }
-        /*! [Display an error] */
+        /*! [Removing a record that does not exist should give a not found error] */
     }
 
     {
-        /*! [Display an error thread safe] */
+        /*! [Removing a record that does not exist should give a not found error - thread safe] */
         const char *key = "non-existent key";
         cursor->set_key(cursor, key);
-        if ((ret = cursor->remove(cursor)) != 0) {
+        if ((ret = cursor->remove(cursor)) != WT_NOTFOUND) {
             fprintf(stderr, "cursor.remove: %s\n", cursor->session->strerror(cursor->session, ret));
             return (ret);
         }
-        /*! [Display an error thread safe] */
+        /*! [Removing a record that does not exist should give a not found error - thread safe] */
     }
 
     /*! [Close the cursor] */
