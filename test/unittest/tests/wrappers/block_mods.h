@@ -1,5 +1,13 @@
-#ifndef WT_BLOCKMODS_H
-#define WT_BLOCKMODS_H
+/*-
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
+
+#ifndef WT_BLOCK_MODS_H
+#define WT_BLOCK_MODS_H
 
 #include "wt_internal.h"
 
@@ -18,4 +26,4 @@ class BlockMods {
     WT_BLOCK_MODS _block_mods;
 };
 
-#endif // WT_BLOCKMODS_H
+#endif // WT_BLOCK_MODS_H

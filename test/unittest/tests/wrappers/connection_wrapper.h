@@ -1,3 +1,11 @@
+/*-
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
+
 #ifndef WT_CONNECTION_WRAPPER_H
 #define WT_CONNECTION_WRAPPER_H
 
@@ -23,8 +31,8 @@ class ConnectionWrapper {
     private:
     explicit ConnectionWrapper(WT_CONNECTION_IMPL *connectionImpl);
 
-    // ConnectionWrapper is implemented such that it owns, and is responsible for freeing,
-    // _connectionImpl
+    // This class is implemented such that it owns, and is responsible for freeing,
+    // this pointer
     WT_CONNECTION_IMPL *_connectionImpl;
 };
 

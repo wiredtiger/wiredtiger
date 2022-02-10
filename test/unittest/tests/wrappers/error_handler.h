@@ -1,5 +1,13 @@
-#ifndef WT_ERRORHANDLER_H
-#define WT_ERRORHANDLER_H
+/*-
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
+
+#ifndef WT_ERROR_HANDLER_H
+#define WT_ERROR_HANDLER_H
 
 class ErrorHandler {
     public:
@@ -9,4 +17,4 @@ class ErrorHandler {
     ErrorHandler() = delete;
 };
 
-#endif // WT_ERRORHANDLER_H
+#endif // WT_ERROR_HANDLER_H

@@ -1,3 +1,11 @@
+/*-
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
+
 #include "wt_internal.h"
 #include <catch2/catch.hpp>
 
@@ -95,7 +103,7 @@ TEST_CASE("Bitstring functions: __bit_nset", "[bitstring]")
         REQUIRE(bitVector[7] == 0x00);
     }
 
-    SECTION("Simple test: set non byte-aligned bitVector")
+    SECTION("Simple test: set non byte-aligned bit vector")
     {
         __bit_nset(bitVector.data(), 9, 20);
         REQUIRE(bitVector[0] == 0x00);
@@ -108,7 +116,7 @@ TEST_CASE("Bitstring functions: __bit_nset", "[bitstring]")
         REQUIRE(bitVector[7] == 0x00);
     }
 
-    SECTION("Simple test: first non byte-aligned bitVector")
+    SECTION("Simple test: first non byte-aligned bit vector")
     {
         __bit_nset(bitVector.data(), 0, 20);
         REQUIRE(bitVector[0] == 0xff);
@@ -121,7 +129,7 @@ TEST_CASE("Bitstring functions: __bit_nset", "[bitstring]")
         REQUIRE(bitVector[7] == 0x00);
     }
 
-    SECTION("Simple test: last non-aligned bitVector")
+    SECTION("Simple test: last non-aligned bit vector")
     {
         __bit_nset(bitVector.data(), 36, 63);
         REQUIRE(bitVector[0] == 0x00);

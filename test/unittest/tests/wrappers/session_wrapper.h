@@ -1,3 +1,11 @@
+/*-
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
+
 #ifndef WT_SESSION_H
 #define WT_SESSION_H
 
@@ -20,9 +28,10 @@ class SessionWrapper {
     explicit SessionWrapper(
       WT_SESSION_IMPL *sessionImpl, std::shared_ptr<ConnectionWrapper> connectionWrapper = nullptr);
 
-    // SessionWrapper is implemented such that it owns, and is responsible for freeing, _sessionImpl
-    WT_SESSION_IMPL *_sessionImpl;
     std::shared_ptr<ConnectionWrapper> _connectionWrapper;
+
+    // This class is implemented such that it owns, and is responsible for freeing, this pointer
+    WT_SESSION_IMPL *_sessionImpl;
 };
 
 #endif // WT_SESSION_H
