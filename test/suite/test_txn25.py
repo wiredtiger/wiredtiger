@@ -34,22 +34,35 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 class test_txn25(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=50MB'
-
     format_values = [
-        ('string-row', dict(key_format='S', usestrings=True, value_format='S')),
-        ('column', dict(key_format='r', usestrings=False, value_format='S')),
-        ('column-fix', dict(key_format='r', usestrings=False, value_format='8t')),
+        ('fix', dict(key_format='r', usestrings=False, value_format='8t')),
+        ('row', dict(key_format='S', usestrings=True, value_format='S')),
+        ('var', dict(key_format='r', usestrings=False, value_format='S')),
     ]
-    scenarios = make_scenarios(format_values)
+    log_config = [
+        ('logging', dict(uselog='enabled')),
+        ('no-logging', dict(uselog='')),
+    ]
+    scenarios = make_scenarios(format_values, log_config)
+
+    # This test varies the log settings, override the standard methods.
+    def setUpConnectionOpen(self, dir):
+        return None
+    def setUpSessionOpen(self, conn):
+        return None
+    def ConnectionOpen(self):
+        self.home = '.'
+        config = 'create,cache_size=50MB,log=(%s)' % self.uselog
+        self.conn = wiredtiger.wiredtiger_open(self.home, config)
+        self.session = self.conn.open_session()
 
     def getkey(self, i):
-        if self.usestrings:
-            return str(i)
-        else:
-            return i
+        return str(i) if self.usestrings else i
 
     def test_txn25(self):
+        # Open the connection.
+        self.ConnectionOpen()
+
         uri = 'file:test_txn25'
         create_config = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, 'allocation_size=512,' + create_config)
@@ -89,13 +102,10 @@ class test_txn25(wttest.WiredTigerTestCase):
             self.session.commit_transaction()
 
         session2.rollback_transaction()
-        session2.close()
 
-        # Close and re-open the connection.
-        cursor.close()
+        # Reopen the connection.
         self.conn.close()
-        self.conn = wiredtiger.wiredtiger_open(self.home, self.conn_config)
-        self.session = self.conn.open_session(self.session_config)
+        self.ConnectionOpen()
 
         # Now that we've reopened, check that we can view the latest data from the previous run.
         #
