@@ -92,6 +92,7 @@ struct S3_STATISTICS {
     /* Operations using AWS SDK. */
     uint64_t listObjectsCount;      /* Number of S3 list objects requests */
     uint64_t putObjectCount;        /* Number of S3 put object requests */
+    uint64_t getObjectCount;        /* Number of S3 put object requests */
     uint64_t objectExistsCount;     /* Number of S3 object exists requests */
 
     /* Operations using WiredTiger's native file handle operations. */
@@ -307,6 +308,7 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
             std::cerr << "ss_open_object: GetObject request to s3 failed" << std::endl;
             return (ret);
         }
+        s3->statistics->getObjectCount++;
     }
 
     /* Use WiredTiger's native file handle open. */
@@ -706,6 +708,7 @@ S3ShowStatistics(S3_STORAGE *s3)
 {
     std::cout << "S3 list objects count: " << s3->statistics->listObjectsCount << std::endl;
     std::cout << "S3 put object count: " << s3->statistics->putObjectCount << std::endl;
+    std::cout << "S3 get object count: " << s3->statistics->putObjectCount << std::endl;
     std::cout << "S3 object exists count: " << s3->statistics->objectExistsCount << std::endl;
 
     std::cout << "Non read/write file handle operations: " << s3->statistics->fhOps << std::endl;
