@@ -798,12 +798,6 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
     uint32_t hs_btree_id;
     bool hs_read_all_flag;
 
-    /*
-     * If we will delete all the updates of the key from the history store, we should not reinsert
-     * any update.
-     */
-    WT_ASSERT(session, ts > WT_TS_NONE || !reinsert);
-
     hs_read_all_flag = F_ISSET(hs_cursor, WT_CURSTD_HS_READ_ALL);
 
     hs_cursor->set_key(hs_cursor, 3, btree_id, key, ts);
@@ -866,10 +860,6 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
 #ifndef HAVE_DIAGNOSTIC
     WT_UNUSED(key);
 #endif
-
-    /* If we will delete all the updates of the key from the history store, we should not reinsert
-     * any update. */
-    WT_ASSERT(session, ts > WT_TS_NONE || !reinsert);
 
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
         /* Ignore records that are obsolete. */
