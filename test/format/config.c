@@ -1142,7 +1142,7 @@ config_transaction(void)
               EINVAL, "transaction.timestamps is incompatible with implicit transactions");
         if (GV(OPS_SALVAGE) && config_explicit(NULL, "ops.salvage")) /* FIXME WT-6431 */
             testutil_die(EINVAL, "transaction.timestamps is incompatible with salvage");
-	if (GV(LOGGING) && config_explicit(NULL, "logging"))
+        if (GV(LOGGING) && config_explicit(NULL, "logging"))
             testutil_die(EINVAL, "transaction.timestamps is incompatible with logging");
     }
 
@@ -1159,7 +1159,7 @@ config_transaction(void)
     } else if (GV(TRANSACTION_TIMESTAMPS) && config_explicit(NULL, "transaction.timestamps")) {
         config_off(NULL, "transaction.implicit");
         config_off(NULL, "ops.salvage");
-	config_off(NULL, "logging");
+        config_off(NULL, "logging");
     } else if (!GV(TRANSACTION_TIMESTAMPS) && config_explicit(NULL, "transaction.timestamps")) {
         config_off(NULL, "ops.prepare");
     } else if (GV(TRANSACTION_IMPLICIT) && config_explicit(NULL, "transaction.implicit")) {

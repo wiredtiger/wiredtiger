@@ -252,6 +252,8 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
 void
 wts_verify(WT_CONNECTION *conn, bool mirror_check)
 {
+    WT_DECL_RET;
+    WT_SESSION *session;
     u_int i;
 
     if (GV(OPS_VERIFY) == 0)
@@ -261,8 +263,10 @@ wts_verify(WT_CONNECTION *conn, bool mirror_check)
      * Individual object verification. Do a full checkpoint to reduce the possibility of returning
      * EBUSY from the following verify calls.
      */
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
     ret = session->checkpoint(session, NULL);
     testutil_assert(ret == 0 || ret == EBUSY);
+    testutil_check(session->close(session, NULL));
     tables_apply(table_verify, conn);
 
     /*
