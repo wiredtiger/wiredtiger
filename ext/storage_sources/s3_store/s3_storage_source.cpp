@@ -250,8 +250,8 @@ S3FileClose(WT_FILE_HANDLE *fileHandle, WT_SESSION *session)
         std::lock_guard<std::mutex> lock(storage->fhMutex);
         storage->fhList.remove(s3FileHandle);
     }
-    storage->statistics->fhOps++;
     if (wtFileHandle != NULL) {
+        storage->statistics->fhOps++;
         ret = wtFileHandle->close(wtFileHandle, session);
         if (ret != 0) {
             free(s3FileHandle->iface.name);
