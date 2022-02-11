@@ -95,9 +95,10 @@ class test_hs31(wttest.WiredTigerTestCase):
         # Evict the data from the cache.
         self.session.begin_transaction()
         cursor2 = self.session.open_cursor(uri, None, "debug=(release_evict=true)")
-        cursor2.set_key(self.create_key(1))
-        cursor2.search()
-        cursor2.reset()
+        for i in range(1, self.nrows):
+            cursor2.set_key(self.create_key(i))
+            cursor2.search()
+            cursor2.reset()
         self.session.rollback_transaction()
 
         if not self.ooo_value:
@@ -107,6 +108,7 @@ class test_hs31(wttest.WiredTigerTestCase):
             long_cursor = session2.open_cursor(uri, None)
             long_cursor[self.create_key(self.nrows + 10)] = value1
             long_cursor.reset()
+            long_cursor.close()
 
         # Remove the key with an ooo or mm timestamp.
         for i in range(1, self.nrows):
@@ -123,8 +125,19 @@ class test_hs31(wttest.WiredTigerTestCase):
             self.session.checkpoint()
 
         if not self.ooo_value:
-            # Commit the long running transaction.
-            session2.commit_transaction()
+            self.session.breakpoint()
+            # Ensure that old reader can read the history content.
+            long_cursor = session2.open_cursor(uri, None)
+            count = 0
+            for k, v in long_cursor:
+                self.assertEqual(v, value1)
+                count += 1
+            self.assertEqual(count, self.nrows)
+            long_cursor.reset()
+            long_cursor.close()
+
+            # Rollback the long running transaction.
+            session2.rollback_transaction()
             session2.close()
 
         # Pin oldest and stable to timestamp 5 so that the ooo tombstone is globally visible.
@@ -137,12 +150,13 @@ class test_hs31(wttest.WiredTigerTestCase):
         # Evict the data from the cache.
         self.session.begin_transaction()
         cursor2 = self.session.open_cursor(uri, None, "debug=(release_evict=true)")
-        cursor2.set_key(self.create_key(1))
-        if self.value_format == '8t':
-            self.assertEqual(cursor2.search(), 0)
-        else:
-            self.assertEqual(cursor2.search(), wiredtiger.WT_NOTFOUND)
-        cursor2.reset()
+        for i in range(1, self.nrows):
+            cursor2.set_key(self.create_key(i))
+            if self.value_format == '8t':
+                self.assertEqual(cursor2.search(), 0)
+            else:
+                self.assertEqual(cursor2.search(), wiredtiger.WT_NOTFOUND)
+            cursor2.reset()
         self.session.rollback_transaction()
 
         # Now apply an insert at timestamp 20.
