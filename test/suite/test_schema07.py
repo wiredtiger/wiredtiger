@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wttest
 
 # test_schema07.py
 #    Test that long-running tests don't fill the cache with metadata
@@ -47,7 +47,7 @@ class test_schema07(wttest.WiredTigerTestCase):
             # This will block if the metadata fills the cache
             c["key"] = "value"
             c.close()
-            self.session.drop(uri)
+            self.dropUntilSuccess(self.session, uri, None)
 
 if __name__ == '__main__':
     wttest.run()
