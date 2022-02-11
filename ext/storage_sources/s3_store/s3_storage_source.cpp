@@ -435,8 +435,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     fs->fileSystem.fs_exist = S3Exist;
     fs->fileSystem.fs_open_file = S3Open;
 
-    /* Add to the list of the active file systems. THe lock will be freed when the scope is exited.
-     */
+    /* Add to the list of the active file systems. Lock will be freed when the scope is exited. */
     {
         std::lock_guard<std::mutex> lockGuard(s3->fsListMutex);
         s3->fsList.push_back(fs);
