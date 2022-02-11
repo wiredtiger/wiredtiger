@@ -752,6 +752,11 @@ struct __wt_cursor {
  *
  * <b>Thread safety:</b> A WT_SESSION handle is not usually shared between
  * threads, see @ref threads for more information.
+ *
+ * The operations requiring exclusive access to the btree, such as verify,
+ * upgrade, salvage, rename, and alter, return EBUSY if the btree is dirty.
+ * Keep doing checkpoints to clean the btree before retrying these
+ * operations.
  */
 struct __wt_session {
 	/*! The connection for this session. */
