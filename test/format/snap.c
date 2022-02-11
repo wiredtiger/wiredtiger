@@ -151,7 +151,7 @@ snap_track(TINFO *tinfo, thread_op op)
     SNAP_OPS *snap;
     TABLE *table;
     WT_ITEM *ip;
-    uint8_t mask;
+    u_int mask;
 
     table = tinfo->table;
 
