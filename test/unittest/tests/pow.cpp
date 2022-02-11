@@ -1,5 +1,3 @@
-#include <memory>
-
 #include <catch2/catch.hpp>
 
 #include "wt_internal.h"
