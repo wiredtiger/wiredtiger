@@ -33,6 +33,14 @@ static int wt_leading_zeros_wrapper(T value)
     return result;
 }
 
+static void unpack_and_check(std::vector<uint8_t> const& packed, uint64_t expectedValue)
+{
+    uint8_t const *p = packed.data();
+    uint64_t unpackedValue = 0;
+    REQUIRE(__wt_vunpack_posint(&p, packed.size(), &unpackedValue) == 0);
+    REQUIRE(unpackedValue == expectedValue);
+}
+
 TEST_CASE("Integer packing macros: byte min/max", "[intpack]")
 {
     /*
@@ -99,4 +107,75 @@ TEST_CASE("Integer packing macros: calculations", "[intpack]")
     CHECK(wt_leading_zeros_wrapper<uint8_t>(0x1) == 7);
     CHECK(wt_leading_zeros_wrapper<uint32_t>(0) == sizeof(uint32_t));
     CHECK(wt_leading_zeros_wrapper<uint32_t>(0x1) == 7);
+}
+
+
+TEST_CASE("Integer packing functions: __wt_vpack_posint and __wt_vunpack_posint", "[intpack]")
+{
+    std::vector<uint8_t> packed(8, 0);
+
+    SECTION("pack and unpack 7")
+    {
+        uint8_t *p = packed.data();
+        uint64_t value = 7;
+        REQUIRE(__wt_vpack_posint(&p, packed.size(), value) == 0);
+        REQUIRE(packed[0] == 1);
+        REQUIRE(packed[1] == 7);
+        REQUIRE(packed[2] == 0);
+        REQUIRE(packed[3] == 0);
+        REQUIRE(packed[4] == 0);
+        REQUIRE(packed[5] == 0);
+        REQUIRE(packed[6] == 0);
+        REQUIRE(packed[7] == 0);
+        unpack_and_check(packed, value);
+    }
+
+    SECTION("pack and unpack  42")
+    {
+        uint8_t *p = packed.data();
+        uint64_t value = 42;
+        REQUIRE(__wt_vpack_posint(&p, packed.size(), value) == 0);
+        REQUIRE(packed[0] == 1);
+        REQUIRE(packed[1] == 42);
+        REQUIRE(packed[2] == 0);
+        REQUIRE(packed[3] == 0);
+        REQUIRE(packed[4] == 0);
+        REQUIRE(packed[5] == 0);
+        REQUIRE(packed[6] == 0);
+        REQUIRE(packed[7] == 0);
+        unpack_and_check(packed, value);
+    }
+
+    SECTION("pack and unpack  0x1234")
+    {
+        uint8_t *p = packed.data();
+        uint64_t value = 0x1234;
+        REQUIRE(__wt_vpack_posint(&p, packed.size(), value) == 0);
+        REQUIRE(packed[0] == 2);
+        REQUIRE(packed[1] == 0x12);
+        REQUIRE(packed[2] == 0x34);
+        REQUIRE(packed[3] == 0);
+        REQUIRE(packed[4] == 0);
+        REQUIRE(packed[5] == 0);
+        REQUIRE(packed[6] == 0);
+        REQUIRE(packed[7] == 0);
+        unpack_and_check(packed, value);
+    }
+
+    SECTION("pack and unpack  0x123456789")
+    {
+        uint8_t *p = packed.data();
+        uint64_t value = 0x123456789;
+        REQUIRE(__wt_vpack_posint(&p, 2, 0x123456789) == ENOMEM);
+        REQUIRE(__wt_vpack_posint(&p, packed.size(), 0x123456789) == 0);
+        REQUIRE(packed[0] == 5);
+        REQUIRE(packed[1] == 0x01);
+        REQUIRE(packed[2] == 0x23);
+        REQUIRE(packed[3] == 0x45);
+        REQUIRE(packed[4] == 0x67);
+        REQUIRE(packed[5] == 0x89);
+        REQUIRE(packed[6] == 0);
+        REQUIRE(packed[7] == 0);
+        unpack_and_check(packed, value);
+    }
 }
