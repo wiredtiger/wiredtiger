@@ -318,25 +318,25 @@ val_to_flcs(TABLE *table, WT_ITEM *value, uint8_t *bitvp)
     case 8:
         break;
     case 7:
-        bitv &= ~0x7f;
+        bitv &= 0x7f;
         break;
     case 6:
-        bitv &= ~0x3f;
+        bitv &= 0x3f;
         break;
     case 5:
-        bitv &= ~0x1f;
+        bitv &= 0x1f;
         break;
     case 4:
-        bitv &= ~0x0f;
+        bitv &= 0x0f;
         break;
     case 3:
-        bitv &= ~0x07;
+        bitv &= 0x07;
         break;
     case 2:
-        bitv &= ~0x03;
+        bitv &= 0x03;
         break;
     case 1:
-        bitv &= ~0x01;
+        bitv &= 0x01;
         break;
     }
     *bitvp = bitv;

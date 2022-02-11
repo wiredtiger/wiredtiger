@@ -151,6 +151,7 @@ snap_track(TINFO *tinfo, thread_op op)
     SNAP_OPS *snap;
     TABLE *table;
     WT_ITEM *ip;
+    uint8_t mask;
 
     table = tinfo->table;
 
@@ -174,9 +175,15 @@ snap_track(TINFO *tinfo, thread_op op)
     case MODIFY:
     case READ:
     case UPDATE:
-        if (table->type == FIX)
+        if (table->type == FIX) {
+            /*
+             * At this point we should have a value the right size for this table, even for mirror
+             * tables. If we messed up, bail now rather than waiting for a repeatable read to fail.
+             */
+            mask = (1u << TV(BTREE_BITCNT)) - 1;
+            testutil_assert((tinfo->bitv & mask) == tinfo->bitv);
             snap->bitv = tinfo->bitv;
-        else {
+        } else {
             ip = op == INSERT || op == UPDATE ? tinfo->new_value : tinfo->value;
             testutil_check(__wt_buf_set(NULL, &snap->value, ip->data, ip->size));
         }
@@ -284,11 +291,11 @@ snap_verify_callback(int ret, void *arg)
         if (snap->op == REMOVE)
             strcpy(snap_buf, "remove");
         else
-            testutil_check(__wt_snprintf(snap_buf, sizeof(snap_buf), "0x%02u", (u_int)snap->bitv));
+            testutil_check(__wt_snprintf(snap_buf, sizeof(snap_buf), "0x%02x", (u_int)snap->bitv));
         if (ret == WT_NOTFOUND)
             strcpy(ret_buf, "notfound");
         else
-            testutil_check(__wt_snprintf(ret_buf, sizeof(ret_buf), "0x%02u", (u_int)bitv));
+            testutil_check(__wt_snprintf(ret_buf, sizeof(ret_buf), "0x%02x", (u_int)bitv));
         fprintf(stderr, "snapshot-isolation: %" PRIu64 " search: expected {%s}, found {%s}\n",
           keyno, snap_buf, ret_buf);
         break;

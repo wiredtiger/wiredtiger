@@ -1123,7 +1123,7 @@ ops(void *arg)
         }
         if (ret == 0 && table->mirror)
             for (i = 1; i <= ntables; ++i)
-                if (tables[i] != skip1 && tables[i] != skip2) {
+                if (tables[i] != skip1 && tables[i] != skip2 && tables[i]->mirror) {
                     tinfo->table = tables[i];
                     ret = table_op(tinfo, intxn, iso_level, op);
                     testutil_assert(ret == 0 || ret == WT_ROLLBACK);
