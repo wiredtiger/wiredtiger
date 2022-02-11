@@ -220,14 +220,6 @@ create_database(const char *home, WT_CONNECTION **connp)
     if (GV(RUNS_IN_MEMORY) != 0)
         CONFIG_APPEND(p, ",in_memory=1");
 
-    /*
-     * If any tables are configured for mirroring, turn of syncing (checkpointing) individual files
-     * on close of a handle. Mirroring requires global checkpoints only because individual file
-     * checkpoints will cause the mirrored objects to get out of sync with each other.
-     */
-    if (g.base_mirror != NULL)
-        CONFIG_APPEND(p, ",file_close_sync=0");
-
     /* Block cache configuration. */
     if (GV(BLOCK_CACHE) != 0)
         CONFIG_APPEND(p,
