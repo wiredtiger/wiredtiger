@@ -220,7 +220,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
 
     if (ret == 0)
         WT_ERR(__hs_delete_reinsert_from_pos(
-          session, cursor, btree->id, key, tw->start_ts + 1, true, error_on_ooo_ts, &counter));
+          session, cursor, btree->id, key, tw->start_ts, true, error_on_ooo_ts, &counter));
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -1000,7 +1000,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
              * to the new update.
              */
             if (hs_cbt->upd_value->tw.start_ts >= ts)
-                hs_insert_tw.start_ts = hs_insert_tw.durable_start_ts = ts - 1;
+                hs_insert_tw.start_ts = hs_insert_tw.durable_start_ts = ts;
             else {
                 hs_insert_tw.start_ts = hs_cbt->upd_value->tw.start_ts;
                 hs_insert_tw.durable_start_ts = hs_cbt->upd_value->tw.durable_start_ts;
@@ -1012,7 +1012,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
              * another moved update OR the update itself triggered the correction. In either case,
              * we should preserve the stop transaction id.
              */
-            hs_insert_tw.stop_ts = hs_insert_tw.durable_stop_ts = ts - 1;
+            hs_insert_tw.stop_ts = hs_insert_tw.durable_stop_ts = ts;
             hs_insert_tw.stop_txn = hs_cbt->upd_value->tw.stop_txn;
 
             /* Extract the underlying value for reinsertion. */

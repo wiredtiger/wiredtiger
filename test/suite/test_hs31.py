@@ -100,6 +100,14 @@ class test_hs31(wttest.WiredTigerTestCase):
         cursor2.reset()
         self.session.rollback_transaction()
 
+        if not self.ooo_value:
+            # Start a long running transaction to stop the oldest id being advanced.
+            session2 = self.conn.open_session()
+            session2.begin_transaction()
+            long_cursor = session2.open_cursor(uri, None)
+            long_cursor[self.create_key(self.nrows + 10)] = value1
+            long_cursor.reset()
+
         # Remove the key with an ooo or mm timestamp.
         for i in range(1, self.nrows):
             self.session.begin_transaction()
@@ -113,6 +121,11 @@ class test_hs31(wttest.WiredTigerTestCase):
         if not self.globally_visible_before_ckpt:
             # Reconcile to write the stop time window.
             self.session.checkpoint()
+
+        if not self.ooo_value:
+            # Commit the long running transaction.
+            session2.commit_transaction()
+            session2.close()
 
         # Pin oldest and stable to timestamp 5 so that the ooo tombstone is globally visible.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
