@@ -754,7 +754,7 @@ struct __wt_cursor {
  * threads, see @ref threads for more information.
  *
  * The operations requiring exclusive access to the btree, such as drop,
- * verify, upgrade, salvage, rename, and alter, return EBUSY if the btree is 
+ * verify, upgrade, salvage, rename, and alter, return EBUSY if the btree is
  * dirty. Keep doing checkpoints to clean the btree before retrying these
  * operations.
  */
