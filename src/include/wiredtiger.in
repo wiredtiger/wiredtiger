@@ -1758,9 +1758,8 @@ struct __wt_session {
 	 * @config{commit_timestamp, set the commit timestamp for the current transaction.  The
 	 * supplied value must not be older than the first commit timestamp already set for the
 	 * current transaction\, if any.  The value must also not be older than the current oldest
-	 * and stable timestamps.  A commit timestamp is required for the commit of a prepared
-	 * transaction.  If the prepare timestamp has been set (because the transaction has been
-	 * prepared)\, the commit timestamp must not be older than it.  See @ref timestamp_txn_api.,
+	 * and stable timestamps.  For prepared transactions\, exactly one commit timestamp is
+	 * required; it must not be older than the prepare timestamp.  See @ref timestamp_txn_api.,
 	 * a string; default empty.}
 	 * @config{durable_timestamp, set the durable timestamp for the current transaction.
 	 * Required for the commit of a prepared transaction\, and otherwise not permitted.  The
@@ -1801,34 +1800,13 @@ struct __wt_session {
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.prepare_transaction, see dist/api_data.py}
 	 * @config{prepare_timestamp, set the prepare timestamp for the updates of the current
-	 * transaction.  The supplied value must not be older than any active read timestamps\, must
-	 * not be older than the current stable timestamp\, and must not be newer than any commit
-	 * timestamps already set.  See @ref timestamp_prepare., a string; default empty.}
+	 * transaction.  The supplied value must not be older than any active read timestamps\, and
+	 * must not be older than the current stable timestamp.  See @ref timestamp_prepare., a
+	 * string; default empty.}
 	 * @configend
 	 * @errors
 	 */
 	int __F(prepare_transaction)(WT_SESSION *session, const char *config);
-
-	/*!
-	 * Reset the snapshot.
-	 *
-	 * This method resets snapshots for snapshot isolation transactions to update their existing
-	 * snapshot. It raises an error when this API is used in an isolation other than snapshot,
-	 * or when the transaction has performed any write operations.
-	 *
-	 * This API internally releases the current snapshot and gets the new running transactions
-	 * snapshot to avoid pinning the content in the database that is no longer needed.
-	 * Applications not using read timestamps for search may see different results after the
-	 * snapshot is updated.
-	 *
-	 * @requires_transaction
-	 *
-	 * @snippet ex_all.c reset snapshot
-	 *
-	 * @param session the session handle
-	 * @errors
-	 */
-	int __F(reset_snapshot)(WT_SESSION *session);
 
 	/*!
 	 * Roll back the current transaction.
@@ -1853,45 +1831,12 @@ struct __wt_session {
 	 * @errors
 	 */
 	int __F(rollback_transaction)(WT_SESSION *session, const char *config);
+	/*! @} */
 
 	/*!
-	 * Set a timestamp on a transaction.
-	 *
-	 * The WT_SESSION.timestamp_transaction method can only be used at snapshot isolation.
-	 *
-	 * @snippet ex_all.c transaction timestamp
-	 *
-	 * @requires_transaction
-	 *
-	 * @param session the session handle
-	 * @configstart{WT_SESSION.timestamp_transaction, see dist/api_data.py}
-	 * @config{commit_timestamp, set the commit timestamp for the current transaction.  The
-	 * supplied value must not be older than the first commit timestamp already set for the
-	 * current transaction\, if any.  The value must also not be older than the current oldest
-	 * and stable timestamps.  A commit timestamp is required for the commit of a prepared
-	 * transaction.  If the prepare timestamp has already been set\, the commit timestamp must
-	 * not be older than it.  See @ref timestamp_txn_api., a string; default empty.}
-	 * @config{durable_timestamp, set the durable timestamp for the current transaction.
-	 * Required for the commit of a prepared transaction\, and otherwise not permitted.  Can
-	 * only be set once the current transaction has been prepared\, and a commit timestamp has
-	 * been set.  The supplied value must not be older than the commit timestamp.  The value
-	 * must also not be older than the current oldest and stable timestamps.  See @ref
-	 * timestamp_prepare., a string; default empty.}
-	 * @config{prepare_timestamp, set the prepare timestamp for the updates of the current
-	 * transaction.  The supplied value must not be older than any active read timestamps\, and
-	 * must not be older than the current stable timestamp.  May be set only once per
-	 * transaction\, and must be set before setting the commit timestamp.  Setting the prepare
-	 * timestamp does not by itself prepare the transaction\, but does oblige the application to
-	 * eventually prepare the transaction before committing it.  See @ref timestamp_prepare., a
-	 * string; default empty.}
-	 * @config{read_timestamp, read using the specified timestamp.  The supplied value must not
-	 * be older than the current oldest timestamp.  This can only be set once for a transaction.
-	 * See @ref timestamp_txn_api., a string; default empty.}
-	 * @configend
-	 * @errors
+	 * @name Transaction timestamps
+	 * @{
 	 */
-	int __F(timestamp_transaction)(WT_SESSION *session, const char *config);
-
 	/*!
 	 * Query the session's transaction timestamp state.
 	 *
@@ -1917,21 +1862,61 @@ struct __wt_session {
 	    WT_SESSION *session, char *hex_timestamp, const char *config);
 
 	/*!
-	 * Write a transactionally consistent snapshot of a database or set of
-	 * objects.  In the absence of transaction timestamps, the checkpoint
-	 * includes all transactions committed before the checkpoint starts.
+	 * Set a timestamp on a transaction.
 	 *
-	 * When timestamps are in use and a \c stable_timestamp has been set
-	 * via WT_CONNECTION::set_timestamp and the checkpoint runs with
-	 * \c use_timestamp=true (the default), updates committed with a
-	 * timestamp larger than the \c stable_timestamp will not be included
-	 * in the checkpoint for tables configured with \c log=(enabled=false).
-	 * For tables with logging enabled, all committed changes will be
-	 * included in the checkpoint (since recovery would roll them forward
-	 * anyway).
+	 * The WT_SESSION.timestamp_transaction method can only be used at snapshot isolation.
 	 *
-	 * Additionally, existing named checkpoints may optionally be
-	 * discarded.
+	 * @snippet ex_all.c transaction timestamp
+	 *
+	 * @requires_transaction
+	 *
+	 * @param session the session handle
+	 * @configstart{WT_SESSION.timestamp_transaction, see dist/api_data.py}
+	 * @config{commit_timestamp, set the commit timestamp for the current transaction.  The
+	 * supplied value must not be older than the first commit timestamp already set for the
+	 * current transaction\, if any.  The value must also not be older than the current oldest
+	 * and stable timestamps.  For prepared transactions\, a commit timestamp is required for
+	 * commit\, must not be older than the prepare timestamp\, can be set only once\, and must
+	 * not be set until after the transaction has successfully prepared.  See @ref
+	 * timestamp_txn_api., a string; default empty.}
+	 * @config{durable_timestamp, set the durable timestamp for the current transaction.
+	 * Required for the commit of a prepared transaction\, and otherwise not permitted.  Can
+	 * only be set once the current transaction has been prepared\, and a commit timestamp has
+	 * been set.  The supplied value must not be older than the commit timestamp.  The value
+	 * must also not be older than the current oldest and stable timestamps.  See @ref
+	 * timestamp_prepare., a string; default empty.}
+	 * @config{prepare_timestamp, set the prepare timestamp for the updates of the current
+	 * transaction.  The supplied value must not be older than any active read timestamps\, and
+	 * must not be older than the current stable timestamp.  Can be set only once per
+	 * transaction.  Setting the prepare timestamp does not by itself prepare the transaction\,
+	 * but does oblige the application to eventually prepare the transaction before committing
+	 * it.  See @ref timestamp_prepare., a string; default empty.}
+	 * @config{read_timestamp, read using the specified timestamp.  The supplied value must not
+	 * be older than the current oldest timestamp.  This can only be set once for a transaction.
+	 * See @ref timestamp_txn_api., a string; default empty.}
+	 * @configend
+	 * @errors
+	 */
+	int __F(timestamp_transaction)(WT_SESSION *session, const char *config);
+	/*! @} */
+
+	/*!
+	 * @name Transaction support
+	 * @{
+	 */
+	/*!
+	 * Write a transactionally consistent snapshot of a database or set of objects.  In the
+	 * absence of transaction timestamps, the checkpoint includes all transactions committed
+	 * before the checkpoint starts.
+	 *
+	 * When timestamps are in use and the checkpoint runs with \c use_timestamp=true (the
+	 * default), updates committed with a timestamp after the \c stable_timestamp, in tables
+	 * configured for checkpoint-level durability, are not included in the checkpoint. See
+	 * @ref checkpoint for more information. Committed updates in tables configured for
+	 * commit-level durability are always included in the checkpoint. See @ref durability for
+	 * more information.
+	 *
+	 * Additionally, existing named checkpoints may optionally be discarded.
 	 *
 	 * @requires_notransaction
 	 *
@@ -1951,8 +1936,9 @@ struct __wt_session {
 	 * flag; default \c false.}
 	 * @config{name, if set\, specify a name for the checkpoint (note that checkpoints including
 	 * LSM trees may not be named)., a string; default empty.}
-	 * @config{target, if non-empty\, checkpoint the list of objects., a list of strings;
-	 * default empty.}
+	 * @config{target, if non-empty\, checkpoint the list of objects.  Checkpointing a list of
+	 * objects separately from a database-wide checkpoint can lead to data inconsistencies\, see
+	 * @ref checkpoint_target for more information., a list of strings; default empty.}
 	 * @config{use_timestamp, if true (the default)\, create the checkpoint as of the last
 	 * stable timestamp if timestamps are in use\, or all current updates if there is no stable
 	 * timestamp set.  If false\, this option generates a checkpoint with all updates including
@@ -1961,6 +1947,27 @@ struct __wt_session {
 	 * @errors
 	 */
 	int __F(checkpoint)(WT_SESSION *session, const char *config);
+
+	/*!
+	 * Reset the snapshot.
+	 *
+	 * This method resets snapshots for snapshot isolation transactions to update their existing
+	 * snapshot. It raises an error when this API is used in an isolation other than snapshot,
+	 * or when the transaction has performed any write operations.
+	 *
+	 * This API internally releases the current snapshot and gets the new running transactions
+	 * snapshot to avoid pinning the content in the database that is no longer needed.
+	 * Applications not using read timestamps for search may see different results after the
+	 * snapshot is updated.
+	 *
+	 * @requires_transaction
+	 *
+	 * @snippet ex_all.c reset snapshot
+	 *
+	 * @param session the session handle
+	 * @errors
+	 */
+	int __F(reset_snapshot)(WT_SESSION *session);
 
 	/*!
 	 * Return the transaction ID range pinned by the session handle.
@@ -1977,6 +1984,7 @@ struct __wt_session {
 	 * @errors
 	 */
 	int __F(transaction_pinned_range)(WT_SESSION* session, uint64_t *range);
+	/*! @} */
 
 #ifndef DOXYGEN
 	/*!
@@ -2975,13 +2983,6 @@ struct __wt_connection {
  * specified to a library extension are passed to WT_CONNECTION::load_extension as the \c config
  * parameter (for example\, <code>extensions=(/path/ext.so={entry=my_entry})</code>)., a list of
  * strings; default empty.}
- * @config{file_close_sync, control whether to flush modified files to storage independent of a
- * global checkpoint when closing file handles to acquire exclusive access to a table.  If set to
- * false\, and logging is disabled\, API calls that require exclusive access to tables will return
- * EBUSY if there have been changes made to the table since the last global checkpoint.  When
- * logging is enabled\, the value for <code>file_close_sync</code> has no effect\, and\, modified
- * file is always flushed to storage when closing file handles to acquire exclusive access to the
- * table., a boolean flag; default \c true.}
  * @config{file_extend, file extension configuration.  If set\, extend files of the set type in
  * allocations of the set size\, instead of a block at a time as each new block is written.  For
  * example\, <code>file_extend=(data=16MB)</code>. If set to 0\, disable the file extension for the

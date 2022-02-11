@@ -1217,16 +1217,6 @@ wiredtiger_open_common =\
         size and the default config would extend log files in allocations of
         the maximum log file size.''',
         type='list', choices=['data', 'log']),
-    Config('file_close_sync', 'true', r'''
-        control whether to flush modified files to storage independent
-        of a global checkpoint when closing file handles to acquire exclusive
-        access to a table. If set to false, and logging is disabled, API calls that
-        require exclusive access to tables will return EBUSY if there have been
-        changes made to the table since the last global checkpoint. When logging
-        is enabled, the value for <code>file_close_sync</code> has no effect, and,
-        modified file is always flushed to storage when closing file handles to
-        acquire exclusive access to the table''',
-        type='boolean'),
     Config('hash', '', r'''
         manage resources around hash bucket arrays. All values must be a power of two.
         Note that setting large values can significantly increase memory usage inside
@@ -1789,17 +1779,13 @@ methods = {
 ]),
 
 'WT_SESSION.commit_transaction' : Method([
-    # FIXME-WT-8630: needs to be updated with the resolution of WT-8630. (XXX)
-    # (Maybe will need to be updated to say that for a prepared transaction only one
-    # commit timestamp may be set; otherwise likely unchanged.)
     Config('commit_timestamp', '', r'''
         set the commit timestamp for the current transaction. The supplied value
         must not be older than the first commit timestamp already set for the
         current transaction, if any. The value must also not be older than the
-        current oldest and stable timestamps. A commit timestamp is required for
-        the commit of a prepared transaction. If the prepare timestamp has been
-        set (because the transaction has been prepared), the commit timestamp must
-        not be older than it. See @ref timestamp_txn_api'''),
+        current oldest and stable timestamps. For prepared transactions, exactly one
+        commit timestamp is required; it must not be older than the prepare timestamp.
+        See @ref timestamp_txn_api'''),
     Config('durable_timestamp', '', r'''
         set the durable timestamp for the current transaction. Required for the
         commit of a prepared transaction, and otherwise not permitted. The
@@ -1822,29 +1808,21 @@ methods = {
 ]),
 
 'WT_SESSION.prepare_transaction' : Method([
-    # FIXME-WT-8630: needs to be updated with the resolution of WT-8630. (XXX)
-    # (Looks like: either at most one commit timestamp may be set, or the commit
-    # timestamp may not be set before prepare, which of these TBD.)
     Config('prepare_timestamp', '', r'''
         set the prepare timestamp for the updates of the current transaction.
-        The supplied value must not be older than any active read timestamps, must
-        not be older than the current stable timestamp, and must not be newer than
-        any commit timestamps already set. See @ref timestamp_prepare'''),
+        The supplied value must not be older than any active read timestamps, and must
+        not be older than the current stable timestamp. See @ref timestamp_prepare'''),
 ]),
 
 'WT_SESSION.timestamp_transaction' : Method([
-    # FIXME-WT-8630: needs to be updated with the resolution of WT-8630. (XXX)
-    # (Looks like: for a prepared transaction, either at most one commit timestamp
-    # may be set, or the commit timestamp may not be set before prepare, which of
-    # these TBD.)
     Config('commit_timestamp', '', r'''
         set the commit timestamp for the current transaction. The supplied value
         must not be older than the first commit timestamp already set for the
         current transaction, if any. The value must also not be older than the
-        current oldest and stable timestamps. A commit timestamp is required for
-        the commit of a prepared transaction.  If the prepare timestamp has
-        already been set, the commit timestamp must not be older than it. See
-        @ref timestamp_txn_api'''),
+        current oldest and stable timestamps. For prepared transactions, a commit
+        timestamp is required for commit, must not be older than the prepare
+        timestamp, can be set only once, and must not be set until after the
+        transaction has successfully prepared. See @ref timestamp_txn_api'''),
     Config('durable_timestamp', '', r'''
         set the durable timestamp for the current transaction. Required for the
         commit of a prepared transaction, and otherwise not permitted. Can only
@@ -1852,15 +1830,11 @@ methods = {
         timestamp has been set. The supplied value must not be older than the
         commit timestamp. The value must also not be older than the current
         oldest and stable timestamps. See @ref timestamp_prepare'''),
-    # FIXME-WT-8630: needs to be updated with the resolution of WT-8630. (XXX)
-    # (One possible resolution is to prohibit setting the prepare timestamp before
-    # actually committing the transaction.)
     Config('prepare_timestamp', '', r'''
         set the prepare timestamp for the updates of the current transaction.
         The supplied value must not be older than any active read timestamps,
-        and must not be older than the current stable timestamp.
-        May be set only once per transaction, and must be set before setting the
-        commit timestamp. Setting the prepare timestamp does not by itself
+        and must not be older than the current stable timestamp. Can be set only
+        once per transaction. Setting the prepare timestamp does not by itself
         prepare the transaction, but does oblige the application to eventually
         prepare the transaction before committing it. See @ref timestamp_prepare'''),
     Config('read_timestamp', '', r'''
@@ -1899,7 +1873,10 @@ methods = {
         if set, specify a name for the checkpoint (note that checkpoints
         including LSM trees may not be named)'''),
     Config('target', '', r'''
-        if non-empty, checkpoint the list of objects''', type='list'),
+        if non-empty, checkpoint the list of objects.  Checkpointing a list of objects separately
+        from a database-wide checkpoint can lead to data inconsistencies, see @ref checkpoint_target
+        for more information''',
+        type='list'),
     Config('use_timestamp', 'true', r'''
         if true (the default), create the checkpoint as of the last stable timestamp if timestamps
         are in use, or all current updates if there is no stable timestamp set. If false, this

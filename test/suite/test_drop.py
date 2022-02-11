@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, time
 import wiredtiger, wttest
 from helper import confirm_does_not_exist
 from wtdataset import SimpleDataSet, ComplexDataSet
@@ -64,7 +63,7 @@ class test_drop(wttest.WiredTigerTestCase):
             drop_uri = ds.index_name(0)
         else:
             drop_uri = uri
-        self.session.drop(drop_uri, None)
+        self.dropUntilSuccess(self.session, drop_uri)
         confirm_does_not_exist(self, drop_uri)
 
     # Test drop of an object.
