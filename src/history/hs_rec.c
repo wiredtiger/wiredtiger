@@ -9,8 +9,8 @@
 #include "wt_internal.h"
 
 static int __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
-  uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool error_on_ooo_ts,
-  uint64_t *hs_counter);
+  uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert,
+  bool tombstone_correction, bool error_on_ooo_ts, uint64_t *hs_counter);
 
 /*
  * __hs_verbose_cache_stats --
@@ -219,8 +219,8 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     }
 
     if (ret == 0)
-        WT_ERR(__hs_delete_reinsert_from_pos(
-          session, cursor, btree->id, key, tw->start_ts, true, error_on_ooo_ts, &counter));
+        WT_ERR(__hs_delete_reinsert_from_pos(session, cursor, btree->id, key, tw->start_ts + 1,
+          true, false, error_on_ooo_ts, &counter));
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -546,7 +546,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             if (!F_ISSET(fix_ts_upd, WT_UPDATE_FIXED_HS)) {
                 /* Delete and reinsert any update of the key with a higher timestamp. */
                 WT_ERR(__wt_hs_delete_key_from_ts(session, hs_cursor, btree->id, key,
-                  fix_ts_upd->start_ts + 1, true, error_on_ooo_ts));
+                  fix_ts_upd->start_ts + 1, true, false, error_on_ooo_ts));
                 F_SET(fix_ts_upd, WT_UPDATE_FIXED_HS);
             }
         }
@@ -789,7 +789,8 @@ err:
  */
 int
 __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
-  const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool error_on_ooo_ts)
+  const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool tombstone_correction,
+  bool error_on_ooo_ts)
 {
     WT_DECL_RET;
     WT_ITEM hs_key;
@@ -797,6 +798,12 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
     uint64_t hs_counter;
     uint32_t hs_btree_id;
     bool hs_read_all_flag;
+
+    /*
+     * If we will delete all the updates of the key from the history store, we should not reinsert
+     * any update except when the tombstone is not globally visible yet.
+     */
+    WT_ASSERT(session, tombstone_correction || ts > WT_TS_NONE || !reinsert);
 
     hs_read_all_flag = F_ISSET(hs_cursor, WT_CURSTD_HS_READ_ALL);
 
@@ -816,8 +823,8 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
         ++hs_counter;
     }
 
-    WT_ERR(__hs_delete_reinsert_from_pos(
-      session, hs_cursor, btree_id, key, ts, reinsert, error_on_ooo_ts, &hs_counter));
+    WT_ERR(__hs_delete_reinsert_from_pos(session, hs_cursor, btree_id, key, ts, reinsert,
+      tombstone_correction, error_on_ooo_ts, &hs_counter));
 
 done:
 err:
@@ -835,7 +842,8 @@ err:
  */
 static int
 __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
-  const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool error_on_ooo_ts, uint64_t *counter)
+  const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool tombstone_correction,
+  bool error_on_ooo_ts, uint64_t *counter)
 {
     WT_CURSOR *hs_insert_cursor;
     WT_CURSOR_BTREE *hs_cbt;
@@ -860,6 +868,12 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
 #ifndef HAVE_DIAGNOSTIC
     WT_UNUSED(key);
 #endif
+
+    /*
+     * If we will delete all the updates of the key from the history store, we should not reinsert
+     * any update except when the tombstone is not globally visible yet.
+     */
+    WT_ASSERT(session, tombstone_correction || ts > WT_TS_NONE || !reinsert);
 
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
         /* Ignore records that are obsolete. */
@@ -1000,7 +1014,8 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
              * to the new update.
              */
             if (hs_cbt->upd_value->tw.start_ts >= ts)
-                hs_insert_tw.start_ts = hs_insert_tw.durable_start_ts = ts;
+                hs_insert_tw.start_ts = hs_insert_tw.durable_start_ts =
+                  tombstone_correction ? ts : ts - 1;
             else {
                 hs_insert_tw.start_ts = hs_cbt->upd_value->tw.start_ts;
                 hs_insert_tw.durable_start_ts = hs_cbt->upd_value->tw.durable_start_ts;
@@ -1012,12 +1027,17 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
              * another moved update OR the update itself triggered the correction. In either case,
              * we should preserve the stop transaction id.
              */
-            hs_insert_tw.stop_ts = hs_insert_tw.durable_stop_ts = ts;
+            hs_insert_tw.stop_ts = hs_insert_tw.durable_stop_ts =
+              tombstone_correction ? ts : ts - 1;
             hs_insert_tw.stop_txn = hs_cbt->upd_value->tw.stop_txn;
 
             /* Extract the underlying value for reinsertion. */
             WT_ERR(hs_cursor->get_value(
               hs_cursor, &tw.durable_stop_ts, &tw.durable_start_ts, &hs_upd_type, &hs_value));
+
+            /* Reinsert the update with corrected timestamps. */
+            if (tombstone_correction && hs_ts == ts)
+                *counter = hs_counter;
 
             /* Insert the value back with different timestamps. */
             hs_insert_cursor->set_key(
