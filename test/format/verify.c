@@ -44,17 +44,10 @@ table_verify(TABLE *table, void *arg)
     conn = (WT_CONNECTION *)arg;
     testutil_assert(table != NULL);
 
-    /*
-     * Verify can return EBUSY if the handle isn't available. Eventually quit trying, the handle may
-     * not be available for a long time in the case of LSM.
-     */
     memset(&sap, 0, sizeof(sap));
     wiredtiger_open_session(conn, &sap, table->track_prefix, &session);
-    for (i = 0; ++i <= 5; __wt_sleep(1, 0)) {
-        if ((ret = session->verify(session, table->uri, "strict")) == 0)
-            break;
-        testutil_assert(ret == EBUSY);
-    }
+    ret = session->verify(session, table->uri, "strict");
+    testutil_assert(ret == 0 || ret == EBUSY);
     if (ret == EBUSY)
         WARN("table.%u skipped verify because of EBUSY", table->id);
     wiredtiger_close_session(session);
@@ -264,7 +257,12 @@ wts_verify(WT_CONNECTION *conn, bool mirror_check)
     if (GV(OPS_VERIFY) == 0)
         return;
 
-    /* Individual object verification. */
+    /*
+     * Individual object verification. Do a full checkpoint to reduce the possibility of returning
+     * EBUSY from the following verify calls.
+     */
+    ret = session->checkpoint(session, NULL);
+    testutil_assert(ret == 0 || ret == EBUSY);
     tables_apply(table_verify, conn);
 
     /*

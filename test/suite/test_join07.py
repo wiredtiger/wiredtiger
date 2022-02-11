@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, re, run
-import wiredtiger, wttest, suite_random
+import re
+import wttest
 from wtscenario import make_scenarios
 
 class ParseException(Exception):
@@ -496,7 +496,7 @@ class test_join07(wttest.WiredTigerTestCase):
         self.iterate(jc, mbr)
 
         self.close_cursors(jc)
-        self.session.drop('table:join07')
+        self.dropUntilSuccess(self.session, 'table:join07')
 
     def test_join_string(self):
         self.interpret("[N=1000][key=r] 7 < A <= 500 && B < 150 && C > 17")

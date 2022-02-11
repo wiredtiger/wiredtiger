@@ -30,10 +30,8 @@
 # rollback_to_stable
 # [END_TAGS]
 
-import fnmatch, os, shutil, threading, time
-from wtthread import checkpoint_thread, op_thread
 from helper import simulate_crash_restart
-import wiredtiger, wttest
+import wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wiredtiger import stat
@@ -56,7 +54,7 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(format_values)
 
     def conn_config(self):
-        config = 'cache_size=250MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true)'
+        config = 'cache_size=250MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
         return config
 
     def large_updates(self, uri, value, ds, nrows):
@@ -94,7 +92,7 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
 
         ds = SimpleDataSet(self, self.uri, 0, \
                 key_format=self.key_format, value_format=self.value_format, \
-                config='log=(enabled=false),leaf_page_max=4k')
+                config='leaf_page_max=4k')
         ds.populate()
 
         if self.value_format == '8t':

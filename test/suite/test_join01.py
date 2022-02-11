@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wttest
 from wtscenario import make_scenarios
 
 # test_join01.py
@@ -335,7 +335,7 @@ class test_join01(wttest.WiredTigerTestCase):
             nest2.close()
             for c in closeme:
                 c.close()
-        self.session.drop('table:join01')
+        self.dropUntilSuccess(self.session, 'table:join01')
 
 if __name__ == '__main__':
     wttest.run()
