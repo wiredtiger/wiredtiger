@@ -90,14 +90,14 @@ struct S3_FILE_HANDLE {
 /* Statistics to be collected for the S3 storage. */
 struct S3_STATISTICS {
     /* Operations using AWS SDK. */
-    uint64_t listObjectsCount;      /* Number of S3 list objects requests */
-    uint64_t putObjectCount;        /* Number of S3 put object requests */
-    uint64_t getObjectCount;        /* Number of S3 put object requests */
-    uint64_t objectExistsCount;     /* Number of S3 object exists requests */
+    uint64_t listObjectsCount;  /* Number of S3 list objects requests */
+    uint64_t putObjectCount;    /* Number of S3 put object requests */
+    uint64_t getObjectCount;    /* Number of S3 put object requests */
+    uint64_t objectExistsCount; /* Number of S3 object exists requests */
 
     /* Operations using WiredTiger's native file handle operations. */
-    uint64_t fhOps;                 /* Number of non read/write file handle operations */
-    uint64_t fhReadOps;             /* Number of file handle read operations */
+    uint64_t fhOps;     /* Number of non read/write file handle operations */
+    uint64_t fhReadOps; /* Number of file handle read operations */
 };
 
 /* Configuration variables for connecting to S3CrtClient. */
@@ -669,7 +669,7 @@ S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *f
 {
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
     int ret;
-    
+
     if (ret = fs->connection->PutObject(object, source) != 0)
         return (ret);
     FS2S3(fileSystem)->statistics->putObjectCount++;
