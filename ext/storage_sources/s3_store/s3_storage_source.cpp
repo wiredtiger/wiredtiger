@@ -116,7 +116,6 @@ static int S3ObjectListSingle(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
 static int S3ObjectListFree(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
 static int S3FileClose(WT_FILE_HANDLE *, WT_SESSION *);
-static int S3FileCloseInternal(S3_FILE_HANDLE *, WT_SESSION *);
 /*
  * S3Path --
  *     Construct a pathname from the directory and the object name.
@@ -219,28 +218,19 @@ S3GetDirectory(const std::string &home, const std::string &name, bool create, st
 static int
 S3FileClose(WT_FILE_HANDLE *fileHandle, WT_SESSION *session)
 {
+    int ret = 0;
     S3_FILE_HANDLE *s3FileHandle = (S3_FILE_HANDLE *)fileHandle;
     S3_STORAGE *storage = s3FileHandle->storage;
+    WT_FILE_HANDLE *wtFileHandle = s3FileHandle->wtFileHandle;
 
-    /* Remove the file handle from the list. */
+    /*
+     * We require exclusive access to the list of file handles when removing file handles. The
+     * lock_guard will be unlocked automatically once the scope is exited.
+     */
     {
         std::lock_guard<std::mutex> lock(storage->fhMutex);
         storage->fhList.remove(s3FileHandle);
     }
-
-    return (S3FileCloseInternal(s3FileHandle, session));
-}
-
-/*
- * S3FileCloseInternal --
- *      Internal file handle close.
- */
-static int
-S3FileCloseInternal(S3_FILE_HANDLE *s3FileHandle, WT_SESSION *session)
-{
-    int ret = 0;
-    WT_FILE_HANDLE *wtFileHandle = s3FileHandle->wtFileHandle;
-
     if (wtFileHandle != NULL) {
         ret = wtFileHandle->close(wtFileHandle, session);
         if (ret != 0) {
@@ -252,6 +242,7 @@ S3FileCloseInternal(S3_FILE_HANDLE *s3FileHandle, WT_SESSION *session)
 
     free(s3FileHandle->iface.name);
     free(s3FileHandle);
+
     return (ret);
 }
 
@@ -444,7 +435,8 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     fs->fileSystem.fs_exist = S3Exist;
     fs->fileSystem.fs_open_file = S3Open;
 
-    /* Add to the list of the active file systems. */
+    /* Add to the list of the active file systems. THe lock will be freed when the scope is exited.
+     */
     {
         std::lock_guard<std::mutex> lockGuard(s3->fsListMutex);
         s3->fsList.push_back(fs);
@@ -466,7 +458,7 @@ S3FileSystemTerminate(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session)
 
     UNUSED(session); /* unused */
 
-    /* Remove from the active filesystems list. */
+    /* Remove from the active filesystems list. The lock will be freed when the scope is exited. */
     {
         std::lock_guard<std::mutex> lockGuard(s3->fsListMutex);
         s3->fsList.remove(fs);
@@ -608,12 +600,14 @@ S3Terminate(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session)
         return (0);
 
     /*
-     * We should be single-threaded here. It should be safe to access the file handle list without a
-     * lock.
+     * Is it currently unclear at the moment what the multi-threading will look like in the
+     * extension. The current implementation is NOT thread-safe, and needs to be addressed in the
+     * future, as mulitple threads could call terminate leading to a race condition.
      */
-    for (auto &fh : s3->fhList)
-        S3FileCloseInternal(fh, session);
-
+    while (!s3->fhList.empty()) {
+        S3_FILE_HANDLE *fs = s3->fhList.front();
+        S3FileClose((WT_FILE_HANDLE *)fs, session);
+    }
     /*
      * Terminate any active filesystems. There are no references to the storage source, so it is
      * safe to walk the active filesystem list without a lock. The removal from the list happens
