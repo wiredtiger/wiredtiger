@@ -30,7 +30,6 @@
 #       test cursor duplication
 #
 
-import os, time
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet, ComplexDataSet
 from wtscenario import make_scenarios
@@ -77,7 +76,7 @@ class test_duplicate_cursor(wttest.WiredTigerTestCase):
                 key_format=self.keyfmt, value_format=self.valfmt)
         ds.populate()
         self.iterate(uri, ds)
-        self.session.drop(uri, None)
+        self.dropUntilSuccess(self.session, uri)
 
         # A complex, multi-file table object.
         if self.uri == "table:" and self.valfmt != '8t':
@@ -85,7 +84,7 @@ class test_duplicate_cursor(wttest.WiredTigerTestCase):
                     key_format=self.keyfmt, value_format=self.valfmt)
             ds.populate()
             self.iterate(uri, ds)
-            self.session.drop(uri, None)
+            self.dropUntilSuccess(self.session, uri)
 
 if __name__ == '__main__':
     wttest.run()

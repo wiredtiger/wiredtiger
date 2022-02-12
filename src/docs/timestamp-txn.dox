@@ -102,9 +102,9 @@ points in the transaction's lifetime, using WT_SESSION::timestamp_transaction:
 The \c commit time is the time at which other transactions with appropriately set
 read timestamps will see the transaction's updates.
 
-<!-- FIXME-WT-8630: needs to be updated with the resolution of WT-8630 -->
 The commit timestamp can be set at any point in the transaction's lifecycle.
-For prepared transactions, however, it can only be set after the prepare timestamp.
+For prepared transactions, however, it can only be set after the transaction
+has been successfully prepared.
 
 \warning Commit (and prepare) timestamps must not be set in the past
 of any read timestamp

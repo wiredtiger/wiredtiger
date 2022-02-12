@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os
-import wiredtiger, wttest, run
+import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 # test_join06.py
@@ -153,7 +152,7 @@ class test_join06(wttest.WiredTigerTestCase):
         c0.close()
         if self.isolation != '':
             self.session.commit_transaction()
-        self.session.drop('table:join06')
+        self.dropUntilSuccess(self.session, 'table:join06')
 
 if __name__ == '__main__':
     wttest.run()
