@@ -745,7 +745,7 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
          * failures, so use of "roundup=prepared" for other purposes is strongly discouraged.
          */
         if (F_ISSET(txn, WT_TXN_TS_ROUND_PREPARED)) {
-            oldest_ts = txn_global->stable_timestamp;
+            oldest_ts = txn_global->oldest_timestamp;
             if (prepare_ts < oldest_ts) {
                 __wt_verbose(session, WT_VERB_TIMESTAMP,
                   "prepare timestamp %s rounded to oldest timestamp %s",
