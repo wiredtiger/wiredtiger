@@ -862,7 +862,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     bool set_ts;
 
     set_ts = false;
-    commit_ts = durable_ts = prepare_ts = read_ts = 0;
+    commit_ts = durable_ts = prepare_ts = read_ts = WT_TS_NONE;
 
     WT_TRET(__wt_txn_context_check(session, true));
 
