@@ -91,7 +91,7 @@ class test_prepare05(wttest.WiredTigerTestCase, suite_subprocess):
 
         # This is also true even if the prepare timestamp was set first.
         self.session.begin_transaction()
-        self.session.timestamp_transaction('prepare_timestamp=' + self.timestamp_str(2))
+        self.session.timestamp_transaction('prepare_timestamp=' + self.timestamp_str(3))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:
                 self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(3)),

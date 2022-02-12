@@ -1760,13 +1760,16 @@ methods = {
         timestamp_roundup''',
         type='category', subconfig= [
         Config('prepared', 'false', r'''
-            applicable only for prepared transactions. Indicates if the prepare
-            timestamp and the commit timestamp of this transaction can be
-            rounded up. If the prepare timestamp is less than or equal to the stable
-            timestamp, the prepare timestamp will be rounded to the stable
-            timestamp plus one. If the commit timestamp is less than the prepare
-            timestamp, the commit timestamp will be rounded up to the prepare
-            timestamp''', type='boolean'),
+            applicable only for prepared transactions, and intended only for special-purpose
+            use. (See @ref timestamp_roundup_prepare.) Allows the prepare timestamp and the
+            commit timestamp of this transaction to be rounded up to be no older than the
+            oldest timestamp, and allows violating the usual restriction that the prepare
+            timestamp must be newer than the stable timestamp. Specifically: if the prepare
+            timestamp is less than or equal to the oldest timestamp, the prepare timestamp
+            will be rounded to the oldest timestamp. Then, if the commit timestamp is less
+            than the prepare timestamp, the commit timestamp will be rounded up to the prepare
+            timestamp. Neither timestamp will be checked against the stable timestamp''',
+            type='boolean'),
         Config('read', 'false', r'''
             if the read timestamp is less than the oldest timestamp, the
             read timestamp will be rounded up to the oldest timestamp''',
