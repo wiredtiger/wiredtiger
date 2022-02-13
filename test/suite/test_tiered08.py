@@ -44,7 +44,8 @@ class test_tiered08(wttest.WiredTigerTestCase):
     batch_size = 100000
 
     # Keep inserting keys until we've done this many flush and checkpoint ops.
-    ckpt_flush_target = 1000
+    ckpt_target = 1000
+    flush_target = 500
 
     uri = "table:test_tiered08"
 
@@ -91,19 +92,20 @@ class test_tiered08(wttest.WiredTigerTestCase):
 
         self.pr('Populating tiered table')
         c = self.session.open_cursor(self.uri, None, None)
-        while ckpt_count < self.ckpt_flush_target or flush_count < self.ckpt_flush_target:
+        while ckpt_count < self.ckpt_target or flush_count < self.flush_target:
             for i in range(nkeys, nkeys + self.batch_size):
                 c[self.key_gen(i)] = self.value_gen(i)
             nkeys += self.batch_size
             ckpt_count = self.get_stat(stat.conn.txn_checkpoint)
             flush_count = self.get_stat(stat.conn.flush_tier)
+            self.tty('Populating: ckpt {}, flush {}'.format(str(ckpt_count), str(flush_count)))
         c.close()
         return nkeys
 
     def verify(self, key_count):
-        self.pr('Verifying tiered table')
+        self.tty('Verifying tiered table: {}'.format(str(key_count)))
         c = self.session.open_cursor(self.uri, None, None)
-        for i in range(1, key_count, 1737):
+        for i in range(1, key_count, 237):
             self.assertEqual(c[self.key_gen(i)], self.value_gen(i))
         c.close()
 
