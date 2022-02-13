@@ -1164,7 +1164,7 @@ __txn_append_tombstone(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR_BTREE 
 
 err:
     __wt_free(session, tombstone);
-    return ret;
+    return (ret);
 }
 
 /*
@@ -1253,10 +1253,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * To prevent this scenario append a tombstone to the update chain when rolling back a prepared
      * update would result in only aborted updates on the update chain.
      */
-    if (F_ISSET(upd, WT_UPDATE_RECONCILED_PREPARE_IN_MEM) && !commit &&
-      first_committed_upd == NULL) {
+    if (F_ISSET(upd, WT_UPDATE_RECONCILED_PREPARE_IN_MEM) && !commit && first_committed_upd == NULL)
         WT_ERR(__txn_append_tombstone(session, op, cbt));
-    }
 
     /*
      * Locate the previous update from the history store and append it to the update chain if
