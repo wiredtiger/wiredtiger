@@ -839,9 +839,9 @@ done:
 
 /*
  * __txn_timestamp_usage_check --
- *     Print warning messages and/or return an error when encountering unexpected timestamp usage.
+ *     Check if a commit will violate timestamp rules.
  */
-static inline int
+static inline void
 __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *upd)
 {
     WT_BTREE *btree;
@@ -859,36 +859,32 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
     name = btree->dhandle->name;
     txn_has_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_DURABLE);
 
-    /*
-     * Debugging checks on timestamps, if configured on the object, check both object configuration
-     * and reporting configuration, there must be both to report failure.
-     */
+    /* Debugging checks on timestamps, if configured for reporting and the object. */
+    if (!LF_ISSET(WT_DHANDLE_TS_ASSERT_WRITE))
+        return;
     if (!LF_ISSET(WT_DHANDLE_TS_ALWAYS | WT_DHANDLE_TS_MIXED_MODE | WT_DHANDLE_TS_NEVER |
           WT_DHANDLE_TS_ORDERED))
-        return (0);
-    if (!LF_ISSET(WT_DHANDLE_TS_VERBOSE_WRITE | WT_DHANDLE_TS_ASSERT_WRITE))
-        return (0);
+        return;
 
-#if defined(WT_STANDALONE_BUILD)
     /* Timestamps are ignored on logged files. */
     if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(btree, WT_BTREE_NO_LOGGING))
-        return (0);
-#endif
+        return;
 
     /*
      * Do not check for timestamp usage in recovery. We don't expect recovery to be using timestamps
      * when applying commits, and it is possible that timestamps may be out of order in log replay.
      */
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
-        return (0);
+        return;
 
     /* Check for required timestamps. */
     if (LF_ISSET(WT_DHANDLE_TS_ALWAYS) && !txn_has_ts && txn->mod_count != 0) {
         __wt_err(session, EINVAL,
           "%s: " WT_TS_VERBOSE_PREFIX "timestamp required by table configuration and none set",
           name);
-        if (LF_ISSET(WT_DHANDLE_TS_ASSERT_WRITE))
-            ret = EINVAL;
+#ifdef HAVE_DIAGNOSTIC
+        __wt_abort(session);
+#endif
     }
 
     op_ts = upd->start_ts != WT_TS_NONE ? upd->start_ts : txn->commit_timestamp;
@@ -898,13 +894,13 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
         __wt_err(session, EINVAL,
           "%s: " WT_TS_VERBOSE_PREFIX "timestamp %s set when disallowed by table configuration",
           name, __wt_timestamp_to_string(op_ts, ts_string[0]));
-        if (LF_ISSET(WT_DHANDLE_TS_ASSERT_WRITE))
-            ret = EINVAL;
+#ifdef HAVE_DIAGNOSTIC
+        __wt_abort(session);
+#endif
     }
 
     prev_op_durable_ts = upd->prev_durable_ts;
 
-#if defined(WT_STANDALONE_BUILD)
     /* Ordered key consistency requires all updates use timestamps, once they are first used. */
     if (LF_ISSET(WT_DHANDLE_TS_ORDERED) && !txn_has_ts && prev_op_durable_ts != WT_TS_NONE) {
         __wt_err(session, EINVAL,
@@ -912,10 +908,10 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
           "no timestamp provided for an update to a table configured to always use timestamps "
           "once they are first used",
           name);
-        if (LF_ISSET(WT_DHANDLE_TS_ASSERT_WRITE))
-            ret = EINVAL;
-    }
+#ifdef HAVE_DIAGNOSTIC
+        __wt_abort(session);
 #endif
+    }
 
     /* Ordered and mixed-mode consistency requires all updates be in timestamp order. */
     if (LF_ISSET(WT_DHANDLE_TS_MIXED_MODE | WT_DHANDLE_TS_ORDERED) && txn_has_ts &&
@@ -927,17 +923,10 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
           name, __wt_timestamp_to_string(op_ts, ts_string[0]),
           __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1]),
           LF_ISSET(WT_DHANDLE_TS_MIXED_MODE) ? "mixed mode" : "strict ordering");
-        if (LF_ISSET(WT_DHANDLE_TS_ASSERT_WRITE))
-            ret = EINVAL;
-    }
-
-#if defined(HAVE_DIAGNOSTIC)
-    /* In diagnostic mode with connection abort set, panic the system and get a core dump. */
-    if (ret != 0 && FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT))
+#ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
-
-    return (ret);
+    }
 }
 
 /*
@@ -1190,7 +1179,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
     /* A prepared operation that is rolled back will not have a timestamp worth asserting on. */
     if (commit)
-        WT_ERR(__txn_timestamp_usage_check(session, op, upd));
+        __txn_timestamp_usage_check(session, op, upd);
 
     for (first_committed_upd = upd; first_committed_upd != NULL &&
          (first_committed_upd->txnid == WT_TXN_ABORTED ||
@@ -1441,8 +1430,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_DIAGNOSTIC
     prepare_count = 0;
 #endif
-    readonly = txn->mod_count == 0;
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
+    readonly = txn->mod_count == 0;
     cannot_fail = locked = false;
 
     /* Permit the commit if the transaction failed, but was read-only. */
@@ -1480,47 +1469,23 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /*
-     * We are about to release the snapshot: copy values into any positioned cursors so they don't
-     * point to updates that could be freed once we don't have a snapshot. If this transaction is
-     * prepared, then copying values would have been done during prepare.
+     * Release our snapshot in case it is keeping data pinned (this is particularly important for
+     * checkpoints). Before releasing our snapshot, copy values into any positioned cursors so they
+     * don't point to updates that could be freed once we don't have a snapshot. If this transaction
+     * is prepared, then copying values would have been done during prepare.
      */
     if (session->ncursors > 0 && !prepare) {
         WT_DIAGNOSTIC_YIELD;
         WT_ERR(__wt_session_copy_values(session));
     }
+    __wt_txn_release_snapshot(session);
 
     /*
-     * The default sync setting is inherited from the connection, but can be overridden by an
-     * explicit "sync" setting for this transaction.
+     * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
+     * page within each file are done at the same time.
      */
-    WT_ERR(__wt_config_gets_def(session, cfg, "sync", 0, &cval));
-
-    /*
-     * If the user chose the default setting, check whether sync is enabled for this transaction
-     * (either inherited or via begin_transaction). If sync is disabled, clear the field to avoid
-     * the log write being flushed.
-     *
-     * Otherwise check for specific settings. We don't need to check for "on" because that is the
-     * default inherited from the connection. If the user set anything in begin_transaction, we only
-     * override with an explicit setting.
-     */
-    if (cval.len == 0) {
-        if (!FLD_ISSET(txn->txn_logsync, WT_LOG_SYNC_ENABLED) && !F_ISSET(txn, WT_TXN_SYNC_SET))
-            txn->txn_logsync = 0;
-    } else {
-        /*
-         * If the caller already set sync on begin_transaction then they should not be using sync on
-         * commit_transaction. Flag that as an error.
-         */
-        if (F_ISSET(txn, WT_TXN_SYNC_SET))
-            WT_ERR_MSG(session, EINVAL, "sync already set during begin_transaction");
-        if (WT_STRING_MATCH("off", cval.str, cval.len))
-            txn->txn_logsync = 0;
-        /*
-         * We don't need to check for "on" here because that is the default to inherit from the
-         * connection setting.
-         */
-    }
+    if (prepare)
+        __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
 
     /* If we are logging, write a commit log record. */
     if (txn->logrec != NULL) {
@@ -1530,10 +1495,38 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             !F_ISSET(session, WT_SESSION_NO_LOGGING));
 
         /*
-         * We are about to block on I/O writing the log. Release our snapshot in case it is keeping
-         * data pinned. This is particularly important for checkpoints.
+         * The default sync setting is inherited from the connection, but can be overridden by an
+         * explicit "sync" setting for this transaction.
          */
-        __wt_txn_release_snapshot(session);
+        WT_ERR(__wt_config_gets_def(session, cfg, "sync", 0, &cval));
+
+        /*
+         * If the user chose the default setting, check whether sync is enabled for this transaction
+         * (either inherited or via begin_transaction). If sync is disabled, clear the field to
+         * avoid the log write being flushed.
+         *
+         * Otherwise check for specific settings. We don't need to check for "on" because that is
+         * the default inherited from the connection. If the user set anything in begin_transaction,
+         * we only override with an explicit setting.
+         */
+        if (cval.len == 0) {
+            if (!FLD_ISSET(txn->txn_logsync, WT_LOG_SYNC_ENABLED) && !F_ISSET(txn, WT_TXN_SYNC_SET))
+                txn->txn_logsync = 0;
+        } else {
+            /*
+             * If the caller already set sync on begin_transaction then they should not be using
+             * sync on commit_transaction. Flag that as an error.
+             */
+            if (F_ISSET(txn, WT_TXN_SYNC_SET))
+                WT_ERR_MSG(session, EINVAL, "sync already set during begin_transaction");
+            if (WT_STRING_MATCH("off", cval.str, cval.len))
+                txn->txn_logsync = 0;
+            /*
+             * We don't need to check for "on" here because that is the default to inherit from the
+             * connection setting.
+             */
+        }
+
         /*
          * We hold the visibility lock for reading from the time we write our log record until the
          * time we release our transaction so that the LSN any checkpoint gets will always reflect
@@ -1543,13 +1536,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         locked = true;
         WT_ERR(__wt_txn_log_commit(session, cfg));
     }
-
-    /*
-     * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
-     * page within each file are done at the same time.
-     */
-    if (prepare)
-        __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
 
     /* Process updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
@@ -1580,7 +1566,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                     break;
 
                 __wt_txn_op_set_timestamp(session, op);
-                WT_ERR(__txn_timestamp_usage_check(session, op, upd));
+                __txn_timestamp_usage_check(session, op, upd);
             } else {
                 /*
                  * If an operation has the key repeated flag set, skip resolving prepared updates as
@@ -1689,13 +1675,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         }
 
     /*
-     * We're between transactions, if we need to block for eviction, it's a good time to do so. Note
-     * that we must ignore any error return because the user's data is committed.
-     */
-    if (!readonly)
-        WT_IGNORE_RET(__wt_cache_eviction_check(session, false, false, NULL));
-
-    /*
      * Stable timestamp cannot be concurrently increased greater than or equal to the prepared
      * transaction's durable timestamp. Otherwise, checkpoint may only write partial updates of the
      * transaction.
@@ -1706,6 +1685,13 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
           "stable timestamp is larger than or equal to the committing prepared transaction's "
           "durable timestamp");
     }
+
+    /*
+     * We're between transactions, if we need to block for eviction, it's a good time to do so. Note
+     * that we must ignore any error return because the user's data is committed.
+     */
+    if (!readonly)
+        WT_IGNORE_RET(__wt_cache_eviction_check(session, false, false, NULL));
 
     return (0);
 

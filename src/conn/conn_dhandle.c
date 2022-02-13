@@ -481,18 +481,8 @@ __conn_dhandle_config_parse_ts(WT_SESSION_IMPL *session)
     else if (WT_STRING_MATCH("never", cval.str, cval.len))
         LF_SET(WT_DHANDLE_TS_ASSERT_READ_NEVER);
     WT_RET(__wt_config_gets(session, cfg, "assert.write_timestamp", &cval));
-    if (cval.val != 0)
+    if (WT_STRING_MATCH("on", cval.str, cval.len))
         LF_SET(WT_DHANDLE_TS_ASSERT_WRITE);
-
-    /* Timestamp debugging: verbose. */
-    WT_RET(__wt_config_gets(session, cfg, "verbose.read_timestamp", &cval));
-    if (WT_STRING_MATCH("always", cval.str, cval.len))
-        LF_SET(WT_DHANDLE_TS_VERBOSE_READ_ALWAYS);
-    else if (WT_STRING_MATCH("never", cval.str, cval.len))
-        LF_SET(WT_DHANDLE_TS_VERBOSE_READ_NEVER);
-    WT_RET(__wt_config_gets(session, cfg, "verbose.write_timestamp", &cval));
-    if (cval.val != 0)
-        LF_SET(WT_DHANDLE_TS_VERBOSE_WRITE);
 
     /* Timestamp debugging: write_timestamp_usage. */
     WT_RET(__wt_config_gets(session, cfg, "write_timestamp_usage", &cval));

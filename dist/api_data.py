@@ -46,7 +46,7 @@ common_runtime_config = [
     Config('app_metadata', '', r'''
         application-owned metadata for this object'''),
     Config('assert', '', r'''
-        enable enhanced timestamp checking with messages and error return''',
+        enable enhanced timestamp checking with error messages and optional core dump''',
         type='category', subconfig= [
         Config('commit_timestamp', 'none', r'''
             this option is no longer supported, retained for backward compatibility''',
@@ -55,46 +55,44 @@ common_runtime_config = [
             this option is no longer supported, retained for backward compatibility''',
             choices=['always', 'never', 'none'], undoc=True),
         Config('read_timestamp', 'none', r'''
-            check that timestamps are \c always or \c never used on reads
-            with this table, calling the message handler and failing on error;
-            should be set to \c none if mixed read use is allowed''',
-            choices=['always', 'never', 'none']),
-        Config('write_timestamp', 'false', r'''
-            check that timestamps are used per the configured \c
-            write_timestamp_usage option for this table, calling the message
-            handler and failing on error''',
-            type='boolean'),
+            check timestamps are \c always or \c never used on reads with
+            this table, writing an error message if policy is violated.
+            If the library was built in diagnostic mode, drop core at the
+            failing check. Should be set to \c none if mixed read use is
+            allowed''', choices=['always', 'never', 'none']),
+        Config('write_timestamp', 'off', r'''
+            check timestamps are used consistently with the configured
+            \c write_timestamp_usage option for this table, writing
+            an error message if policy is violated. If the library was
+            built in diagnostic mode, drop core at the failing check''',
+            choices=['off', 'on']),
         ]),
     Config('verbose', '', r'''
-        enable enhanced timestamp checking with messages''',
+        this option is no longer supported, retained for backward compatibility''',
         type='category', subconfig= [
         Config('read_timestamp', 'none', r'''
-            check that timestamps are \c always or \c never used on reads
-            with this table, calling the message handler on error; should
-            be set to \c none if mixed read use is allowed''',
+            this option is no longer supported, retained for backward compatibility''',
             choices=['always', 'never', 'none']),
         Config('write_timestamp', 'false', r'''
-            check that timestamps are used per the configured
-            \c write_timestamp_usage option for this table, calling the
-            message handler on error''',
+            this option is no longer supported, retained for backward compatibility''',
             type='boolean'),
-        ]),
+        ], undoc=True),
     Config('write_timestamp_usage', 'none', r'''
-        describe how timestamps are expected to be used on modifications to
-        the table. This option should be used in conjunction with the
-        corresponding \c write_timestamp configuration under the \c assert and
-        \c verbose options to provide logging and assertions for incorrect
-        timestamp usage. The choices are \c always which ensures a timestamp is
-        used for every operation on a table, \c ordered which ensures that
-        once timestamps are used for a key, they are always used, and also
-        that subsequent updates to each key must use increasing timestamps,
-        \c mixed_mode is like \c ordered except that updates with no timestamp
-        are allowed at any time, \c never enforces that timestamps are never
-        used for a table and \c none does not enforce any expectation on
-        timestamp usage meaning that no log message or assertions will be
-        produced regardless of the corresponding \c assert and \c verbose
-        settings''', choices=['always', 'mixed_mode', 'never', 'none',
-        'ordered']),
+        describe how timestamps are expected to be used on modifications
+        to the table. This option should be used in conjunction with the
+        corresponding \c write_timestamp configuration under the \c assert
+        and \c verbose options to provide logging and assertions for incorrect
+        timestamp usage. The choices are \c always which ensures a timestamp
+        is used for every operation on a table, \c ordered which ensures
+        that once timestamps are used for a key, they are always used,
+        and also that subsequent updates to each key must use increasing
+        timestamps, \c mixed_mode is like \c ordered except that updates
+        with no timestamp are allowed at any time, \c never enforces that
+        timestamps are never used for a table and \c none does not enforce
+        any expectation on timestamp usage meaning that no log message
+        or assertions will be produced regardless of the corresponding \c
+        assert and \c verbose settings''', choices=['always', 'mixed_mode',
+        'never', 'none', 'ordered']),
 ]
 
 # Metadata shared by all schema objects

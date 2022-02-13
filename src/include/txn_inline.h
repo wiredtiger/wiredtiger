@@ -1263,9 +1263,9 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
 
 /*
  * __wt_txn_search_check --
- *     Check if the current transaction can search.
+ *     Check if a search by the current transaction violates timestamp rules.
  */
-static inline int
+static inline void
 __wt_txn_search_check(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
@@ -1276,34 +1276,30 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
     flags = session->dhandle->ts_flags;
     name = session->dhandle->name;
 
-#if defined(WT_STANDALONE_BUILD)
+    /* Timestamps are ignored on logged files. */
     if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING))
-        return (0);
-#endif
+        return;
 
     /* Skip during recovery. */
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
-        return (0);
+        return;
 
     /* Verify if the table should always or never use a read timestamp. */
-    if (LF_ISSET(WT_DHANDLE_TS_ASSERT_READ_ALWAYS | WT_DHANDLE_TS_VERBOSE_READ_ALWAYS) &&
-      !F_ISSET(txn, WT_TXN_SHARED_TS_READ)) {
-        if (LF_ISSET(WT_DHANDLE_TS_ASSERT_READ_ALWAYS | WT_DHANDLE_TS_VERBOSE_READ_ALWAYS))
-            __wt_err(session, EINVAL,
-              "%s: " WT_TS_VERBOSE_PREFIX "read timestamps required and none set", name);
-        if (LF_ISSET(WT_DHANDLE_TS_ASSERT_READ_ALWAYS))
-            return (EINVAL);
+    if (LF_ISSET(WT_DHANDLE_TS_ASSERT_READ_ALWAYS) && !F_ISSET(txn, WT_TXN_SHARED_TS_READ)) {
+        __wt_err(session, EINVAL,
+          "%s: " WT_TS_VERBOSE_PREFIX "read timestamps required and none set", name);
+#ifdef HAVE_DIAGNOSTIC
+        __wt_abort(session);
+#endif
     }
 
-    if (LF_ISSET(WT_DHANDLE_TS_ASSERT_READ_NEVER | WT_DHANDLE_TS_VERBOSE_READ_NEVER) &&
-      F_ISSET(txn, WT_TXN_SHARED_TS_READ)) {
-        if (LF_ISSET(WT_DHANDLE_TS_ASSERT_READ_NEVER | WT_DHANDLE_TS_VERBOSE_READ_NEVER))
-            __wt_err(session, EINVAL,
-              "%s: " WT_TS_VERBOSE_PREFIX "read timestamps disallowed and one set", name);
-        if (LF_ISSET(WT_DHANDLE_TS_ASSERT_READ_NEVER))
-            return (EINVAL);
+    if (LF_ISSET(WT_DHANDLE_TS_ASSERT_READ_NEVER) && F_ISSET(txn, WT_TXN_SHARED_TS_READ)) {
+        __wt_err(session, EINVAL,
+          "%s: " WT_TS_VERBOSE_PREFIX "read timestamps disallowed and one set", name);
+#ifdef HAVE_DIAGNOSTIC
+        __wt_abort(session);
+#endif
     }
-    return (0);
 }
 
 /*
