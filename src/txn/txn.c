@@ -1134,6 +1134,39 @@ __txn_search_prepared_op(
 }
 
 /*
+ * __txn_append_tombstone --
+ *     Append a tombstone to the end of a keys update chain.
+ */
+static int
+__txn_append_tombstone(
+  WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_BTREE *btree, WT_CURSOR_BTREE *cbt)
+{
+    WT_DECL_RET;
+    WT_UPDATE *tombstone;
+    size_t not_used;
+    tombstone = NULL;
+
+    WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &not_used));
+#ifdef HAVE_DIAGNOSTIC
+    WT_WITH_BTREE(session, op->btree,
+      ret = btree->type == BTREE_ROW ?
+        __wt_row_modify(cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false, false) :
+        __wt_col_modify(cbt, cbt->recno, NULL, tombstone, WT_UPDATE_INVALID, false, false));
+#else
+    WT_WITH_BTREE(session, op->btree,
+      ret = btree->type == BTREE_ROW ?
+        __wt_row_modify(cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false) :
+        __wt_col_modify(cbt, cbt->recno, NULL, tombstone, WT_UPDATE_INVALID, false));
+#endif
+    WT_ERR(ret);
+    tombstone = NULL;
+
+err:
+    __wt_free(session, tombstone);
+    return ret;
+}
+
+/*
  * __txn_resolve_prepared_op --
  *     Resolve a transaction's operations indirect references.
  */
@@ -1147,18 +1180,17 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_ITEM hs_recno_key;
     WT_PAGE *page;
     WT_TXN *txn;
-    WT_UPDATE *first_committed_upd, *fix_upd, *tombstone, *upd;
+    WT_UPDATE *first_committed_upd, *fix_upd, *upd;
 #ifdef HAVE_DIAGNOSTIC
     WT_UPDATE *head_upd;
 #endif
-    size_t not_used;
     uint8_t *p, hs_recno_key_buf[WT_INTPACK64_MAXSIZE];
     char ts_string[3][WT_TS_INT_STRING_SIZE];
     bool first_committed_upd_in_hs, prepare_on_disk, upd_appended;
 
     hs_cursor = NULL;
     txn = session->txn;
-    fix_upd = tombstone = NULL;
+    fix_upd = NULL;
     upd_appended = false;
 
     WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
@@ -1261,21 +1293,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
              * we don't copy the prepared cell, which is now associated with a rolled back prepare,
              * and instead write nothing.
              */
-            WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &not_used));
-#ifdef HAVE_DIAGNOSTIC
-            WT_WITH_BTREE(session, op->btree,
-              ret = btree->type == BTREE_ROW ?
-                __wt_row_modify(
-                  cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false, false) :
-                __wt_col_modify(cbt, cbt->recno, NULL, tombstone, WT_UPDATE_INVALID, false, false));
-#else
-            WT_WITH_BTREE(session, op->btree,
-              ret = btree->type == BTREE_ROW ?
-                __wt_row_modify(cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false) :
-                __wt_col_modify(cbt, cbt->recno, NULL, tombstone, WT_UPDATE_INVALID, false));
-#endif
-            WT_ERR(ret);
-            tombstone = NULL;
+            WT_ERR(__txn_append_tombstone(session, op, btree, cbt));
         } else if (ret == 0)
             WT_ERR(__txn_locate_hs_record(
               session, hs_cursor, page, upd, commit, &fix_upd, &upd_appended, first_committed_upd));
@@ -1384,7 +1402,6 @@ err:
         WT_TRET(hs_cursor->close(hs_cursor));
     if (!upd_appended)
         __wt_free(session, fix_upd);
-    __wt_free(session, tombstone);
     return (ret);
 }
 
