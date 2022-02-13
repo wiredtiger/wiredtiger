@@ -44,7 +44,19 @@
 
 struct S3_FILE_HANDLE;
 struct S3_FILE_SYSTEM;
-struct S3_STATISTICS;
+
+/* Statistics to be collected for the S3 storage. */
+struct S3_STATISTICS {
+    /* Operations using AWS SDK. */
+    uint64_t listObjectsCount;  /* Number of S3 list objects requests */
+    uint64_t putObjectCount;    /* Number of S3 put object requests */
+    uint64_t getObjectCount;    /* Number of S3 put object requests */
+    uint64_t objectExistsCount; /* Number of S3 object exists requests */
+
+    /* Operations using WiredTiger's native file handle operations. */
+    uint64_t fhOps;     /* Number of non read/write file handle operations */
+    uint64_t fhReadOps; /* Number of file handle read operations */
+};
 
 /* S3 storage source structure. */
 struct S3_STORAGE {
@@ -59,7 +71,7 @@ struct S3_STORAGE {
     uint32_t referenceCount; /* Number of references to this storge source */
     int32_t verbose;
 
-    S3_STATISTICS *statistics;
+    S3_STATISTICS statistics;
 };
 struct S3_FILE_SYSTEM {
     WT_FILE_SYSTEM fileSystem;
@@ -85,19 +97,6 @@ struct S3_FILE_HANDLE {
      * as the native WT file handle read and close.
      */
     WT_FILE_HANDLE *wtFileHandle;
-};
-
-/* Statistics to be collected for the S3 storage. */
-struct S3_STATISTICS {
-    /* Operations using AWS SDK. */
-    uint64_t listObjectsCount;  /* Number of S3 list objects requests */
-    uint64_t putObjectCount;    /* Number of S3 put object requests */
-    uint64_t getObjectCount;    /* Number of S3 put object requests */
-    uint64_t objectExistsCount; /* Number of S3 object exists requests */
-
-    /* Operations using WiredTiger's native file handle operations. */
-    uint64_t fhOps;     /* Number of non read/write file handle operations */
-    uint64_t fhReadOps; /* Number of file handle read operations */
 };
 
 /* Configuration variables for connecting to S3CrtClient. */
@@ -129,7 +128,7 @@ static int S3ObjectListAdd(
 static int S3ObjectListSingle(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
 static int S3ObjectListFree(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
-static int S3ShowStatistics(S3_STORAGE *);
+static void S3ShowStatistics(S3_STATISTICS *);
 
 static int S3FileClose(WT_FILE_HANDLE *, WT_SESSION *);
 /*
@@ -162,15 +161,15 @@ S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool 
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
     int ret = 0;
 
-    /* Check if file in cache. */
+    /* Check if file exists in the cache. */
     *exist = S3CacheExists(fileSystem, name);
     if (*exist)
         return (ret);
 
     /* It's not in the cache, try the S3 bucket. */
-    if (ret = fs->connection->ObjectExists(name, *exist) != 0)
+    if ((ret = fs->connection->ObjectExists(name, *exist)) != 0)
         return (ret);
-    FS2S3(fileSystem)->statistics->objectExistsCount++;
+    FS2S3(fileSystem)->statistics.objectExistsCount++;
 
     return (ret);
 }
@@ -251,13 +250,12 @@ S3FileClose(WT_FILE_HANDLE *fileHandle, WT_SESSION *session)
         storage->fhList.remove(s3FileHandle);
     }
     if (wtFileHandle != NULL) {
-        storage->statistics->fhOps++;
-        ret = wtFileHandle->close(wtFileHandle, session);
-        if (ret != 0) {
+        if ((ret = wtFileHandle->close(wtFileHandle, session)) != 0) {
             free(s3FileHandle->iface.name);
             free(s3FileHandle);
             return (ret);
         }
+        storage->statistics.fhOps++;
     }
 
     free(s3FileHandle->iface.name);
@@ -308,7 +306,7 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
             std::cerr << "ss_open_object: GetObject request to s3 failed" << std::endl;
             return (ret);
         }
-        s3->statistics->getObjectCount++;
+        s3->statistics.getObjectCount++;
     }
 
     /* Use WiredTiger's native file handle open. */
@@ -368,8 +366,11 @@ S3FileRead(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t offset, siz
     S3_FILE_HANDLE *s3FileHandle = (S3_FILE_HANDLE *)fileHandle;
     S3_STORAGE *storage = s3FileHandle->storage;
     WT_FILE_HANDLE *wtFileHandle = s3FileHandle->wtFileHandle;
-    storage->statistics->fhReadOps++;
-    return (wtFileHandle->fh_read(wtFileHandle, session, offset, len, buf));
+    int ret;
+    if ((ret = wtFileHandle->fh_read(wtFileHandle, session, offset, len, buf)) != 0)
+        return (ret);
+    storage->statistics.fhReadOps++;
+    return (ret);
 }
 
 /*
@@ -516,9 +517,9 @@ S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *direct
         completePrefix += prefix;
 
     int ret;
-    if (ret = fs->connection->ListObjects(completePrefix, objects) != 0)
+    if ((ret = fs->connection->ListObjects(completePrefix, objects)) != 0)
         return (ret);
-    s3->statistics->listObjectsCount++;
+    s3->statistics.listObjectsCount++;
 
     *count = objects.size();
 
@@ -551,9 +552,9 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
         completePrefix += prefix;
 
     int ret;
-    if (ret = fs->connection->ListObjects(completePrefix, objects, 1, true) != 0)
+    if ((ret = fs->connection->ListObjects(completePrefix, objects, 1, true)) != 0)
         return (ret);
-    s3->statistics->listObjectsCount++;
+    s3->statistics.listObjectsCount++;
 
     *count = objects.size();
 
@@ -650,7 +651,7 @@ S3Terminate(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session)
     }
 
     /* Log collected statistics on termination. */
-    S3ShowStatistics(s3);
+    S3ShowStatistics(&s3->statistics);
 
     Aws::Utils::Logging::ShutdownAWSLogging();
     Aws::ShutdownAPI(options);
@@ -670,9 +671,9 @@ S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *f
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
     int ret;
 
-    if (ret = fs->connection->PutObject(object, source) != 0)
+    if ((ret = fs->connection->PutObject(object, source)) != 0)
         return (ret);
-    FS2S3(fileSystem)->statistics->putObjectCount++;
+    FS2S3(fileSystem)->statistics.putObjectCount++;
 
     return (ret);
 }
@@ -703,18 +704,16 @@ S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *f
  * S3ShowStatistics --
  *     Log collected statistics.
  */
-static int
-S3ShowStatistics(S3_STORAGE *s3)
+static void
+S3ShowStatistics(S3_STATISTICS *statistics)
 {
-    std::cout << "S3 list objects count: " << s3->statistics->listObjectsCount << std::endl;
-    std::cout << "S3 put object count: " << s3->statistics->putObjectCount << std::endl;
-    std::cout << "S3 get object count: " << s3->statistics->putObjectCount << std::endl;
-    std::cout << "S3 object exists count: " << s3->statistics->objectExistsCount << std::endl;
+    std::cout << "S3 list objects count: " << statistics->listObjectsCount << std::endl;
+    std::cout << "S3 put object count: " << statistics->putObjectCount << std::endl;
+    std::cout << "S3 get object count: " << statistics->putObjectCount << std::endl;
+    std::cout << "S3 object exists count: " << statistics->objectExistsCount << std::endl;
 
-    std::cout << "Non read/write file handle operations: " << s3->statistics->fhOps << std::endl;
-    std::cout << "File handle read operations: " << s3->statistics->fhReadOps << std::endl;
-
-    return (0);
+    std::cout << "Non read/write file handle operations: " << statistics->fhOps << std::endl;
+    std::cout << "File handle read operations: " << statistics->fhReadOps << std::endl;
 }
 
 /*
@@ -745,8 +744,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     }
 
     /* Set up statistics. */
-    if ((s3->statistics = (S3_STATISTICS *)calloc(1, sizeof(S3_STATISTICS))) == NULL)
-        return (errno);
+    s3->statistics = {0};
 
     /* Create a logger for this storage source, and then initialize the AWS SDK. */
     Aws::Utils::Logging::InitializeAWSLogging(
