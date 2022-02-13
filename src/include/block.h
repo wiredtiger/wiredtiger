@@ -227,11 +227,15 @@ struct __wt_block {
     const char *name;  /* Name */
     uint32_t objectid; /* Object id */
     uint32_t ref;      /* References */
-    bool ckpt_drain;   /* Draining concurrent writers to the next checkpoint */
+
+    WT_SPINLOCK lock; /* Block handle lock, used to lock the current checkpoint as well */
 
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
     bool linked;
+
+    bool ckpt_drain;            /* Draining concurrent writers to the next checkpoint */
+    bool created_during_backup; /* Created during incremental backup */
 
     WT_BLOCK **related;       /* Related objects */
     size_t related_allocated; /* Size of related object array */
@@ -241,8 +245,6 @@ struct __wt_block {
     wt_off_t size;        /* File size */
     wt_off_t extend_size; /* File extended size */
     wt_off_t extend_len;  /* File extend chunk size */
-
-    bool created_during_backup; /* Created during incremental backup */
 
     /* Configuration information, set when the file is opened. */
     uint32_t allocfirst; /* Allocation is first-fit */
@@ -257,8 +259,7 @@ struct __wt_block {
      * There is only a single checkpoint in a file that can be written; stored here, only accessed
      * by one WT_BM handle.
      */
-    WT_SPINLOCK live_lock; /* Live checkpoint lock */
-    WT_BLOCK_CKPT live;    /* Live checkpoint */
+    WT_BLOCK_CKPT live; /* Live checkpoint */
 #ifdef HAVE_DIAGNOSTIC
     bool live_open; /* Live system is open */
 #endif

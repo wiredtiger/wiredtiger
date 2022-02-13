@@ -43,9 +43,9 @@ __wt_block_compact_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     /* Dump the results of the compaction pass. */
     if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG)) {
-        __wt_spin_lock(session, &block->live_lock);
+        __wt_spin_lock(session, &block->lock);
         __block_dump_file_stat(session, block, false);
-        __wt_spin_unlock(session, &block->live_lock);
+        __wt_spin_unlock(session, &block->lock);
     }
     return (0);
 }
@@ -119,7 +119,7 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
         return (0);
     }
 
-    __wt_spin_lock(session, &block->live_lock);
+    __wt_spin_lock(session, &block->lock);
 
     /* Dump the current state of the file. */
     if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG))
@@ -173,7 +173,7 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
       block->name, (uintmax_t)(block->size / 10) / WT_MEGABYTE, (uintmax_t)block->size / 10,
       *skipp ? "skipped" : "proceeding");
 
-    __wt_spin_unlock(session, &block->live_lock);
+    __wt_spin_unlock(session, &block->lock);
 
     return (0);
 }
@@ -198,7 +198,7 @@ __compact_page_skip(
      * available list is necessary (otherwise writing the block would extend the file), but there's
      * an obvious race if the file is sufficiently busy.
      */
-    __wt_spin_lock(session, &block->live_lock);
+    __wt_spin_lock(session, &block->lock);
     limit = block->size - ((block->size / 10) * block->compact_pct_tenths);
     if (offset > limit) {
         el = &block->live.avail;
@@ -211,7 +211,7 @@ __compact_page_skip(
             }
         }
     }
-    __wt_spin_unlock(session, &block->live_lock);
+    __wt_spin_unlock(session, &block->lock);
 }
 
 /*
@@ -279,9 +279,9 @@ __wt_block_compact_page_rewrite(
 
     /* Allocate a replacement block. */
     WT_ERR(__wt_block_ext_prealloc(session, 5));
-    __wt_spin_lock(session, &block->live_lock);
+    __wt_spin_lock(session, &block->lock);
     ret = __wt_block_alloc(session, block, &new_offset, (wt_off_t)size);
-    __wt_spin_unlock(session, &block->live_lock);
+    __wt_spin_unlock(session, &block->lock);
     WT_ERR(ret);
     discard_block = true;
 
@@ -289,9 +289,9 @@ __wt_block_compact_page_rewrite(
     WT_ERR(__wt_write(session, block->fh, new_offset, size, tmp->mem));
 
     /* Free the original block. */
-    __wt_spin_lock(session, &block->live_lock);
+    __wt_spin_lock(session, &block->lock);
     ret = __wt_block_off_free(session, block, objectid, offset, (wt_off_t)size);
-    __wt_spin_unlock(session, &block->live_lock);
+    __wt_spin_unlock(session, &block->lock);
     WT_ERR(ret);
 
     /* Build the returned address cookie. */
@@ -306,9 +306,9 @@ __wt_block_compact_page_rewrite(
 
 err:
     if (discard_block) {
-        __wt_spin_lock(session, &block->live_lock);
+        __wt_spin_lock(session, &block->lock);
         WT_TRET(__wt_block_off_free(session, block, objectid, new_offset, (wt_off_t)size));
-        __wt_spin_unlock(session, &block->live_lock);
+        __wt_spin_unlock(session, &block->lock);
     }
     __wt_scr_free(session, &tmp);
     return (ret);

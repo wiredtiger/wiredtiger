@@ -147,7 +147,7 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_FH *fh, wt_off_t
      */
     if (handle->fh_extend_nolock != NULL && *release_lockp) {
         *release_lockp = false;
-        __wt_spin_unlock(session, &block->live_lock);
+        __wt_spin_unlock(session, &block->lock);
     }
 
     /*
@@ -266,14 +266,14 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint3
      */
     local_locked = false;
     if (!caller_locked) {
-        __wt_spin_lock(session, &block->live_lock);
+        __wt_spin_lock(session, &block->lock);
         local_locked = true;
     }
     ret = __wt_block_alloc(session, block, &offset, (wt_off_t)align_size);
     if (ret == 0)
         ret = __wt_block_extend(session, block, fh, offset, align_size, &local_locked);
     if (local_locked)
-        __wt_spin_unlock(session, &block->live_lock);
+        __wt_spin_unlock(session, &block->lock);
     WT_RET(ret);
 
     /*
@@ -326,10 +326,10 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint3
     /* Write the block. */
     if ((ret = __wt_write(session, fh, offset, align_size, buf->mem)) != 0) {
         if (!caller_locked)
-            __wt_spin_lock(session, &block->live_lock);
+            __wt_spin_lock(session, &block->lock);
         WT_TRET(__wt_block_off_free(session, block, objectid, offset, (wt_off_t)align_size));
         if (!caller_locked)
-            __wt_spin_unlock(session, &block->live_lock);
+            __wt_spin_unlock(session, &block->lock);
         WT_RET(ret);
     }
 
