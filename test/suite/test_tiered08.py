@@ -44,7 +44,7 @@ class test_tiered08(wttest.WiredTigerTestCase):
     batch_size = 100000
 
     # Keep inserting keys until we've done this many flush and checkpoint ops.
-    ckpt_flush_target = 10
+    ckpt_flush_target = 1000
 
     uri = "table:test_tiered08"
 
@@ -103,22 +103,15 @@ class test_tiered08(wttest.WiredTigerTestCase):
     def verify(self, key_count):
         self.pr('Verifying tiered table')
         c = self.session.open_cursor(self.uri, None, None)
-        for i in range(key_count):
+        for i in range(1, key_count, 1737):
             self.assertEqual(c[self.key_gen(i)], self.value_gen(i))
         c.close()
 
     def test_tiered08(self):
-
-        # FIXME-WT-7833
-        #     This test can trigger races in file handle access during flush_tier.
-        #     We will re-enable it when that is fixed.
-        self.skipTest('Concurrent flush_tier and insert operations not supported yet.')
-
         cfg = self.conn_config()
         self.pr('Config is: ' + cfg)
-        intl_page = 'internal_page_max=16K'
-        base_create = 'key_format=S,value_format=S,' + intl_page
-        self.session.create(self.uri, base_create)
+        self.session.create(self.uri,
+            'key_format=S,value_format=S,internal_page_max=4096,leaf_page_max=4096')
 
         done = threading.Event()
         ckpt = checkpoint_thread(self.conn, done)

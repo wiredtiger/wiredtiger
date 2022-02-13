@@ -11,6 +11,69 @@
 static void __bm_method_set(WT_BM *, bool);
 
 /*
+ * __bm_close_block_remove --
+ *     Remove a single block handle.
+ */
+static int
+__bm_close_block_remove(WT_SESSION_IMPL *session, WT_BLOCK *block)
+{
+    u_int i;
+
+    /* Discard any references we're holding. */
+    for (i = 0; i < block->related_next; ++i) {
+        --block->related[i]->ref;
+        block->related[i] = NULL;
+    }
+
+    /* Discard the block structure. */
+    return (__wt_block_close(session, block));
+}
+
+/*
+ * __bm_close_block --
+ *     Close a single block handle, removing the handle if it's no longer useful.
+ */
+static int
+__bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    bool found;
+
+    __wt_verbose(session, WT_VERB_BLKCACHE, "close: %s", block->name);
+
+    conn = S2C(session);
+
+    /* You can't close files during a checkpoint. */
+    WT_ASSERT(
+      session, block->ckpt_state == WT_CKPT_NONE || block->ckpt_state == WT_CKPT_PANIC_ON_FAILURE);
+
+    __wt_spin_lock(session, &conn->block_lock);
+    if (block->ref > 0 && --block->ref > 0) {
+        __wt_spin_unlock(session, &conn->block_lock);
+        return (0);
+    }
+
+    /*
+     * Every time we remove a block, we may have sufficiently decremented other references to allow
+     * other blocks to be removed. It's unlikely for blocks to reference each other but it's not out
+     * of the question, either. Loop until we don't find anything to close.
+     */
+    do {
+        found = false;
+        TAILQ_FOREACH (block, &conn->blockqh, q)
+            if (block->ref == 0) {
+                found = true;
+                WT_TRET(__bm_close_block_remove(session, block));
+                break;
+            }
+    } while (found);
+    __wt_spin_unlock(session, &conn->block_lock);
+
+    return (ret);
+}
+
+/*
  * __bm_readonly --
  *     General-purpose "writes not supported on this handle" function.
  */
@@ -60,7 +123,32 @@ static int
 __bm_checkpoint(
   WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
 {
-    return (__wt_block_checkpoint(session, bm->block, buf, ckptbase, data_checksum));
+    WT_BLOCK *block;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    WT_RET(__wt_block_checkpoint(session, bm->block, buf, ckptbase, data_checksum));
+
+    /*
+     * After a checkpoint, we can close previously writeable tiered objects. The block's reference
+     * count was set when the block was originally opened, switching didn't change it, and this is
+     * the close.
+     */
+    for (;;) {
+        __wt_spin_lock(session, &conn->block_lock);
+        TAILQ_FOREACH (block, &conn->blockqh, q)
+            if (block->ckpt_drain)
+                break;
+        __wt_spin_unlock(session, &conn->block_lock);
+        if (block == NULL)
+            break;
+
+        block->ckpt_drain = false;
+        WT_RET(__bm_close_block(session, block));
+    }
+
+    return (0);
 }
 
 /*
@@ -178,69 +266,6 @@ __bm_checkpoint_unload(WT_BM *bm, WT_SESSION_IMPL *session)
 
     /* Unload the checkpoint. */
     WT_TRET(__wt_block_checkpoint_unload(session, bm->block, !bm->is_live));
-
-    return (ret);
-}
-
-/*
- * __bm_close_block_remove --
- *     Remove a single block handle.
- */
-static int
-__bm_close_block_remove(WT_SESSION_IMPL *session, WT_BLOCK *block)
-{
-    u_int i;
-
-    /* Discard any references we're holding. */
-    for (i = 0; i < block->related_next; ++i) {
-        --block->related[i]->ref;
-        block->related[i] = NULL;
-    }
-
-    /* Discard the block structure. */
-    return (__wt_block_close(session, block));
-}
-
-/*
- * __bm_close_block --
- *     Close a single block handle, removing the handle if it's no longer useful.
- */
-static int
-__bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    bool found;
-
-    __wt_verbose(session, WT_VERB_BLKCACHE, "close: %s", block->name);
-
-    conn = S2C(session);
-
-    /* You can't close files during a checkpoint. */
-    WT_ASSERT(
-      session, block->ckpt_state == WT_CKPT_NONE || block->ckpt_state == WT_CKPT_PANIC_ON_FAILURE);
-
-    __wt_spin_lock(session, &conn->block_lock);
-    if (block->ref > 0 && --block->ref > 0) {
-        __wt_spin_unlock(session, &conn->block_lock);
-        return (0);
-    }
-
-    /*
-     * Every time we remove a block, we may have sufficiently decremented other references to allow
-     * other blocks to be removed. It's unlikely for blocks to reference each other but it's not out
-     * of the question, either. Loop until we don't find anything to close.
-     */
-    do {
-        found = false;
-        TAILQ_FOREACH (block, &conn->blockqh, q)
-            if (block->ref == 0) {
-                found = true;
-                WT_TRET(__bm_close_block_remove(session, block));
-                break;
-            }
-    } while (found);
-    __wt_spin_unlock(session, &conn->block_lock);
 
     return (ret);
 }
@@ -562,13 +587,9 @@ __bm_stat(WT_BM *bm, WT_SESSION_IMPL *session, WT_DSRC_STATS *stats)
 static int
 __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid, uint32_t flags)
 {
-    WT_BLOCK *block;
+    WT_BLOCK *block, *current;
 
-    block = bm->block;
-
-    /* Close out our current handle. */
-    WT_RET(__bm_close_block(session, block));
-    bm->block = NULL;
+    current = bm->block;
 
     /*
      * FIXME-WT-7596 the flags argument will be used in the future to perform various tasks,
@@ -579,22 +600,29 @@ __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid, uint3
      *  - allow opens on this object again
      */
     WT_UNUSED(flags);
-    WT_RET(__wt_blkcache_get_handle(session, NULL, objectid, &block));
+    WT_RET(__wt_blkcache_tiered_open(session, NULL, objectid, &block));
 
     /*
-     * KEITH XXX: We need to distinguish between tiered switch and loading a checkpoint. This is
-     * also discarding the extent list which isn't correct, because we can't know when to discard
+     * FIXME: We need to distinguish between tiered switch and loading a checkpoint. This is also
+     * discarding the extent list which isn't correct, because we can't know when to discard
      * previous files if we don't have the extent list. This fixes the problem where we randomly
      * write a new position in the new tiered object, but it's not OK.
      */
     WT_RET(__wt_block_ckpt_init(session, &block->live, "live"));
 
+    /* The previous block handle can be closed after the next checkpoint. */
+    current->ckpt_drain = true;
+
     /*
-     * This isn't right: the new block handle will reasonably have different methods for objects in
-     * different backing sources. That's not the case today, but the current architecture lacks the
-     * ability to support multiple sources cleanly.
+     * FIXME: the new block handle reasonably has different methods for objects in different backing
+     * sources. That's not the case today, but the current architecture lacks the ability to support
+     * multiple sources cleanly.
+     *
+     * FIXME: We need to think hard about the concurrency issues here, if it's safe to simply swap
+     * out the block manager's default block.
      */
     bm->block = block;
+
     return (0);
 }
 

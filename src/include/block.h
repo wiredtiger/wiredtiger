@@ -227,6 +227,7 @@ struct __wt_block {
     const char *name;  /* Name */
     uint32_t objectid; /* Object id */
     uint32_t ref;      /* References */
+    bool ckpt_drain;   /* Draining concurrent writers to the next checkpoint */
 
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
