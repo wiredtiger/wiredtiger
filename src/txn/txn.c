@@ -845,7 +845,6 @@ static inline void
 __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *upd)
 {
     WT_BTREE *btree;
-    WT_DECL_RET;
     WT_TXN *txn;
     wt_timestamp_t op_ts, prev_op_durable_ts;
     uint32_t flags;
