@@ -116,6 +116,23 @@ __bm_block_header(WT_BM *bm)
 }
 
 /*
+ * __bm_checkpoint_drain --
+ *     Drain the list of waiting WT_BLOCK structures.
+ */
+static int
+__bm_checkpoint_drain(WT_SESSION_IMPL *session, WT_BLOCK *block)
+{
+    if (block == NULL)
+        return (0);
+
+    /* Close the chain of WT_BLOCK structures from the end to the beginning. */
+    WT_RET(__bm_checkpoint_drain(session, block->ckpt_drain));
+    block->ckpt_drain = NULL;
+
+    return (__bm_close_block(session, block));
+}
+
+/*
  * __bm_checkpoint --
  *     Write a buffer into a block, creating a checkpoint.
  */
@@ -124,28 +141,19 @@ __bm_checkpoint(
   WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
 {
     WT_BLOCK *block;
-    WT_CONNECTION_IMPL *conn;
 
-    conn = S2C(session);
+    block = bm->block;
 
-    WT_RET(__wt_block_checkpoint(session, bm->block, buf, ckptbase, data_checksum));
+    WT_RET(__wt_block_checkpoint(session, block, buf, ckptbase, data_checksum));
 
     /*
      * After a checkpoint, we can close previously writeable tiered objects. The block's reference
-     * count was set when the block was originally opened, switching didn't change it, and this is
+     * count was set when the block was originally opened, switching didn't change it and this is
      * the close.
      */
-    for (;;) {
-        __wt_spin_lock(session, &conn->block_lock);
-        TAILQ_FOREACH (block, &conn->blockqh, q)
-            if (block->ckpt_drain)
-                break;
-        __wt_spin_unlock(session, &conn->block_lock);
-        if (block == NULL)
-            break;
-
-        block->ckpt_drain = false;
-        WT_RET(__bm_close_block(session, block));
+    if (block->ckpt_drain != NULL) {
+        WT_RET(__bm_checkpoint_drain(session, block->ckpt_drain));
+        block->ckpt_drain = NULL;
     }
 
     return (0);
@@ -602,16 +610,20 @@ __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid, uint3
     WT_UNUSED(flags);
     WT_RET(__wt_blkcache_tiered_open(session, NULL, objectid, &block));
 
+    /* Fast-path switching to the current object, just undo the reference count increment. */
+    if (block == current)
+        return (__bm_close_block(session, block));
+
     /*
-     * FIXME: We need to distinguish between tiered switch and loading a checkpoint. This is also
-     * discarding the extent list which isn't correct, because we can't know when to discard
-     * previous files if we don't have the extent list. This fixes the problem where we randomly
-     * write a new position in the new tiered object, but it's not OK.
+     * FIXME: We need to distinguish between tiered switch and loading a checkpoint. This discards
+     * the extent list, which isn't correct because we can't know when to discard previous files if
+     * we don't have the extent list. This fixes the problem where we randomly write a new position
+     * in the new tiered object, but it's not OK.
      */
     WT_RET(__wt_block_ckpt_init(session, &block->live, "live"));
 
     /* The previous block handle can be closed after the next checkpoint. */
-    current->ckpt_drain = true;
+    block->ckpt_drain = current;
 
     /*
      * FIXME: the new block handle reasonably has different methods for objects in different backing
