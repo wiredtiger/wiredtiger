@@ -315,7 +315,7 @@ TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
         return (TEST_FAILURE);
 
     if (objectSize != payload.length()) {
-        std::cout << "TestObjectExist().objectSize failed." << std::endl;
+        std::cerr << "TestObjectExist().objectSize failed." << std::endl;
         return (TEST_FAILURE);
     }
 

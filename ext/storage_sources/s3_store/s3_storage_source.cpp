@@ -365,11 +365,14 @@ S3Size(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, wt_off
 {
     S3_STORAGE *s3 = FS2S3(fileSystem);
     size_t objectSize;
-    bool exist = false;
+    bool exist;
+    *sizep = 0;
+    int ret;
 
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
     s3->statistics.objectExistsCount++;
-    int ret = fs->connection->ObjectExists(name, exist, objectSize);
+    if ((ret = fs->connection->ObjectExists(name, exist, objectSize)) != 0)
+        return (ret);
     *sizep = objectSize;
     return (ret);
 }
