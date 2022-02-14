@@ -750,6 +750,7 @@ struct __wt_page {
 
     uint64_t cache_create_gen; /* Page create timestamp */
     uint64_t evict_pass_gen;   /* Eviction pass generation */
+    uint64_t page_evict_count; /* Forced eviction count */
 };
 
 /*

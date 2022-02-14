@@ -76,6 +76,77 @@ err:
 }
 
 /*
+ * __curfile_set_key --
+ *     WT_CURSOR->set_key implementation for file cursor.
+ */
+static void
+__curfile_set_key(WT_CURSOR *cursor, ...)
+{
+    va_list ap;
+
+    va_start(ap, cursor);
+    F_CLR((WT_CURSOR_BTREE *)cursor, WT_CBT_RESEARCH);
+    WT_IGNORE_RET(__wt_cursor_set_keyv(cursor, cursor->flags, ap));
+    va_end(ap);
+}
+
+/*
+ * __curfile_research --
+ *     Research the saved key to regain the cursor position
+ */
+static int
+__curfile_research(WT_CURSOR *cursor)
+{
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    session = CUR2S(cursor);
+
+    if (!F_ISSET(cursor, WT_CURSTD_KEY_EXT))
+        return (__wt_panic(session, EINVAL, "Research flag is set without a search key"));
+
+    ret = __wt_btcur_search(cbt);
+
+    if (ret != 0)
+        return (
+          __wt_panic(session, ret, "Failed to research to regain the saved cursor key position"));
+
+    /* Search maintains a position, key and value. */
+    WT_ASSERT(session,
+      F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
+        F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+
+    F_CLR(cbt, WT_CBT_RESEARCH);
+
+    return (0);
+}
+
+/*
+ * __curfile_release_page --
+ *     Copy the return key value to the local buffer and release the page.
+ */
+static int
+__curfile_release_page(WT_CURSOR *cursor)
+{
+    WT_CURSOR_BTREE *cbt;
+    WT_SESSION_IMPL *session;
+
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    session = CUR2S(cursor);
+
+    WT_RET(__wt_buf_set(session, &cursor->key, cursor->key.data, cursor->key.size));
+    WT_RET(__wt_buf_set(session, &cursor->value, cursor->value.data, cursor->value.size));
+    F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+    F_SET(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
+    WT_RET(__wt_btcur_reset(cbt));
+    F_SET(cbt, WT_CBT_RESEARCH);
+
+    return (0);
+}
+
+/*
  * __curfile_next --
  *     WT_CURSOR->next method for the btree cursor type.
  */
@@ -90,12 +161,19 @@ __curfile_next(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, next, CUR2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
 
+    if (F_ISSET(cbt, WT_CBT_RESEARCH))
+        WT_ERR(__curfile_research(cursor));
+
     WT_ERR(__wt_btcur_next(cbt, false));
 
     /* Next maintains a position, key and value. */
     WT_ASSERT(session,
       F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+
+    /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
+    if (session->txn->isolation == WT_ISO_SNAPSHOT && cbt->ref->page->page_evict_count > 0)
+        WT_ERR(__curfile_release_page(cursor));
 
 err:
     API_END_RET(session, ret);
@@ -143,12 +221,19 @@ __curfile_prev(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, prev, CUR2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
 
+    if (F_ISSET(cbt, WT_CBT_RESEARCH))
+        WT_ERR(__curfile_research(cursor));
+
     WT_ERR(__wt_btcur_prev(cbt, false));
 
     /* Prev maintains a position, key and value. */
     WT_ASSERT(session,
       F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+
+    /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
+    if (session->txn->isolation == WT_ISO_SNAPSHOT && cbt->ref->page->page_evict_count > 0)
+        WT_ERR(__curfile_release_page(cursor));
 
 err:
     API_END_RET(session, ret);
@@ -207,6 +292,10 @@ __curfile_search(WT_CURSOR *cursor)
       F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
+    /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
+    if (session->txn->isolation == WT_ISO_SNAPSHOT && cbt->ref->page->page_evict_count > 0)
+        WT_ERR(__curfile_release_page(cursor));
+
 err:
     API_END_RET(session, ret);
 }
@@ -237,6 +326,10 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
     WT_ASSERT(session,
       F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+
+    /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
+    if (session->txn->isolation == WT_ISO_SNAPSHOT && cbt->ref->page->page_evict_count > 0)
+        WT_ERR(__curfile_release_page(cursor));
 
 err:
     API_END_RET(session, ret);
@@ -656,7 +749,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
 {
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
       __wt_cursor_get_value,                          /* get-value */
-      __wt_cursor_set_key,                            /* set-key */
+      __curfile_set_key,                              /* set-key */
       __wt_cursor_set_value,                          /* set-value */
       __curfile_compare,                              /* compare */
       __curfile_equals,                               /* equals */
