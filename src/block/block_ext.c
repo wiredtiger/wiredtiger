@@ -291,12 +291,12 @@ __wt_block_misplaced(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *list
      * checkpoint handle might be reading a block which is on the live system's discard list; any
      * attempt to free a block from a checkpoint handle has already failed.)
      */
-    __wt_spin_lock(session, &block->lock);
+    __wt_spin_lock(session, &block->live_lock);
     if (__block_off_match(&block->live.avail, offset, size))
         name = "available";
     else if (live && __block_off_match(&block->live.discard, offset, size))
         name = "discard";
-    __wt_spin_unlock(session, &block->lock);
+    __wt_spin_unlock(session, &block->live_lock);
     if (name != NULL)
         return (__wt_panic(session, WT_PANIC,
           "%s failed: %" PRIuMAX "/%" PRIu32 " is on the %s list (%s, %d)", list, (uintmax_t)offset,
@@ -584,9 +584,9 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
 #endif
 
     WT_RET(__wt_block_ext_prealloc(session, 5));
-    __wt_spin_lock(session, &block->lock);
+    __wt_spin_lock(session, &block->live_lock);
     ret = __wt_block_off_free(session, block, objectid, offset, (wt_off_t)size);
-    __wt_spin_unlock(session, &block->lock);
+    __wt_spin_unlock(session, &block->live_lock);
 
     return (ret);
 }
@@ -1066,7 +1066,7 @@ __wt_block_extlist_read_avail(
      * read should never appear on either). Checkpoint threads may be running in the file, don't
      * race with them.
      */
-    __wt_spin_lock(session, &block->lock);
+    __wt_spin_lock(session, &block->live_lock);
 #endif
 
     WT_ERR(__wt_block_extlist_read(session, block, el, ckpt_size));
@@ -1080,7 +1080,7 @@ __wt_block_extlist_read_avail(
 
 err:
 #ifdef HAVE_DIAGNOSTIC
-    __wt_spin_unlock(session, &block->lock);
+    __wt_spin_unlock(session, &block->live_lock);
 #endif
 
     return (ret);

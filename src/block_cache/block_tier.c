@@ -121,8 +121,13 @@ __wt_blkcache_get_handle(
             return (0);
         }
 
-    /* Lock the block handle. */
-    __wt_spin_lock(session, &current->lock);
+    /*
+     * Lock the block handle.
+     *
+     * FIXME: The layering here isn't good, we're using a lock in the block named "live_lock", even
+     * though this has nothing to do with the "live" system.
+     */
+    __wt_spin_lock(session, &current->live_lock);
 
     /* Check to make sure the object wasn't cached while we locked. */
     for (i = 0; i < current->related_next; ++i)
@@ -145,6 +150,6 @@ __wt_blkcache_get_handle(
     }
 
 err:
-    __wt_spin_unlock(session, &current->lock);
+    __wt_spin_unlock(session, &current->live_lock);
     return (ret);
 }

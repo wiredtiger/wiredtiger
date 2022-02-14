@@ -68,10 +68,10 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
          * We depend on the btree level for locking: things will go bad fast if we open the live
          * system in two handles, or salvage, truncate or verify the live/running file.
          */
-        __wt_spin_lock(session, &block->lock);
+        __wt_spin_lock(session, &block->live_lock);
         WT_ASSERT(session, block->live_open == false);
         block->live_open = true;
-        __wt_spin_unlock(session, &block->lock);
+        __wt_spin_unlock(session, &block->live_lock);
 #endif
         ci = &block->live;
         WT_ERR(__wt_block_ckpt_init(session, ci, "live"));
@@ -155,12 +155,12 @@ __wt_block_checkpoint_unload(WT_SESSION_IMPL *session, WT_BLOCK *block, bool che
     if (!checkpoint) {
         WT_TRET(__wt_block_truncate(session, block, block->size));
 
-        __wt_spin_lock(session, &block->lock);
+        __wt_spin_lock(session, &block->live_lock);
         __wt_block_ckpt_destroy(session, &block->live);
 #ifdef HAVE_DIAGNOSTIC
         block->live_open = false;
 #endif
-        __wt_spin_unlock(session, &block->lock);
+        __wt_spin_unlock(session, &block->live_lock);
     }
 
     return (ret);
@@ -191,7 +191,7 @@ __wt_block_checkpoint_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
     WT_DECL_RET;
 
-    __wt_spin_lock(session, &block->lock);
+    __wt_spin_lock(session, &block->live_lock);
     switch (block->ckpt_state) {
     case WT_CKPT_INPROGRESS:
     case WT_CKPT_PANIC_ON_FAILURE:
@@ -206,7 +206,7 @@ __wt_block_checkpoint_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
         block->ckpt_state = WT_CKPT_INPROGRESS;
         break;
     }
-    __wt_spin_unlock(session, &block->lock);
+    __wt_spin_unlock(session, &block->live_lock);
     return (ret);
 }
 
@@ -502,7 +502,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
      * blocks or potentially crash with our caller not yet having saved previous checkpoint
      * information to stable storage.
      */
-    __wt_spin_lock(session, &block->lock);
+    __wt_spin_lock(session, &block->live_lock);
     switch (block->ckpt_state) {
     case WT_CKPT_INPROGRESS:
         block->ckpt_state = WT_CKPT_PANIC_ON_FAILURE;
@@ -519,7 +519,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
         /* Salvage doesn't use the standard checkpoint APIs. */
         break;
     }
-    __wt_spin_unlock(session, &block->lock);
+    __wt_spin_unlock(session, &block->live_lock);
     WT_RET(ret);
 
     /*
@@ -583,7 +583,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
      * deleted and merged checkpoint information without a lock, except for the final merge of
      * ranges into the live tree.
      */
-    __wt_spin_lock(session, &block->lock);
+    __wt_spin_lock(session, &block->live_lock);
     locked = true;
 
     /*
@@ -767,7 +767,7 @@ err:
     }
 
     if (locked)
-        __wt_spin_unlock(session, &block->lock);
+        __wt_spin_unlock(session, &block->live_lock);
 
     /* Discard any checkpoint information we loaded. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
@@ -909,7 +909,7 @@ __wt_block_checkpoint_resolve(WT_SESSION_IMPL *session, WT_BLOCK *block, bool fa
      * Resolve the checkpoint after our caller has written the checkpoint information to stable
      * storage.
      */
-    __wt_spin_lock(session, &block->lock);
+    __wt_spin_lock(session, &block->live_lock);
     switch (block->ckpt_state) {
     case WT_CKPT_INPROGRESS:
         /* Something went wrong, but it's recoverable at our level. */
@@ -937,18 +937,18 @@ __wt_block_checkpoint_resolve(WT_SESSION_IMPL *session, WT_BLOCK *block, bool fa
           session, ret, "%s: fatal checkpoint failure during extent list merge", block->name);
         __wt_blkcache_set_readonly(session);
     }
-    __wt_spin_unlock(session, &block->lock);
+    __wt_spin_unlock(session, &block->live_lock);
 
     /* Discard the lists remaining after the checkpoint call. */
     __wt_block_extlist_free(session, &ci->ckpt_avail);
     __wt_block_extlist_free(session, &ci->ckpt_alloc);
     __wt_block_extlist_free(session, &ci->ckpt_discard);
 
-    __wt_spin_lock(session, &block->lock);
+    __wt_spin_lock(session, &block->live_lock);
 done:
     block->ckpt_state = WT_CKPT_NONE;
 err:
-    __wt_spin_unlock(session, &block->lock);
+    __wt_spin_unlock(session, &block->live_lock);
 
     return (ret);
 }
