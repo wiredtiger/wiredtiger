@@ -447,5 +447,4 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
         REQUIRE(packed[7] == 0);
         unpack_int_and_check(packed, value);
     }
-
 }
