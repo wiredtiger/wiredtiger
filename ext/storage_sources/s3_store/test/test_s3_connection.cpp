@@ -282,7 +282,7 @@ TestGetObject(const Aws::S3Crt::ClientConfiguration &config)
 }
 /*
  * TestObjectExists --
- *     Unit test to check if an object exists in an AWS bucket.
+ *     Unit test to check if an object exists in an AWS bucket and objectSize is correct.
  */
 int
 TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
@@ -297,7 +297,8 @@ TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
 
     /* Create a file to upload to the bucket.*/
     std::ofstream File(fileName);
-    File << "Test payload";
+    std::string payload = "Test payload";
+    File << payload;
     File.close();
 
     ret = conn.ObjectExists(objectName, exists, objectSize);
@@ -308,10 +309,13 @@ TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
         return (ret);
 
     ret = conn.ObjectExists(objectName, exists, objectSize);
-    std::cout << objectSize << std::endl;
     if (ret != 0 || !exists)
         return (TEST_FAILURE);
 
+    if (objectSize != payload.length()) {
+        std::cout << "TestObjectExist().objectSize failed." << std::endl;
+        return (TEST_FAILURE);
+    }
     if ((ret = conn.DeleteObject(objectName)) != 0)
         return (ret);
     std::cout << "TestObjectExists() succeeded." << std::endl;
