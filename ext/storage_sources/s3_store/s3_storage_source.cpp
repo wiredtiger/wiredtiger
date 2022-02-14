@@ -549,7 +549,6 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
     if (prefix != NULL)
         completePrefix += prefix;
 
-
     int ret;
     s3->statistics.listObjectsCount++;
     if ((ret = fs->connection->ListObjects(completePrefix, objects, 1, true)) != 0) {
