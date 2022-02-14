@@ -384,13 +384,11 @@ int
 __wt_txn_ts_log(WT_SESSION_IMPL *session)
 {
     struct timespec t;
-    WT_CONNECTION_IMPL *conn;
     WT_ITEM *logrec;
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
     wt_timestamp_t commit, durable, first_commit, prepare, read;
 
-    conn = S2C(session);
     txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
