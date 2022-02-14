@@ -222,7 +222,7 @@ S3GetDirectory(const std::string &home, const std::string &name, bool create, st
 
     ret = stat(dirName.c_str(), &sb);
     if (ret != 0 && errno == ENOENT && create) {
-        UNUSED(mkdir(dirName.c_str(), 0777));
+        mkdir(dirName.c_str(), 0777);
         ret = stat(dirName.c_str(), &sb);
     }
 
@@ -244,18 +244,18 @@ S3FileClose(WT_FILE_HANDLE *fileHandle, WT_SESSION *session)
 {
     int ret = 0;
     S3_FILE_HANDLE *s3FileHandle = (S3_FILE_HANDLE *)fileHandle;
-    S3_STORAGE *storage = s3FileHandle->storage;
+    S3_STORAGE *s3 = s3FileHandle->storage;
     WT_FILE_HANDLE *wtFileHandle = s3FileHandle->wtFileHandle;
     /*
      * We require exclusive access to the list of file handles when removing file handles. The
      * lock_guard will be unlocked automatically once the scope is exited.
      */
     {
-        std::lock_guard<std::mutex> lock(storage->fhMutex);
-        storage->fhList.remove(s3FileHandle);
+        std::lock_guard<std::mutex> lock(s3->fhMutex);
+        s3->fhList.remove(s3FileHandle);
     }
     if (wtFileHandle != NULL) {
-        storage->statistics.fhOps++;
+        s3->statistics.fhOps++;
         ret = wtFileHandle->close(wtFileHandle, session);
     }
 
@@ -363,13 +363,12 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
 static int
 S3Size(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, wt_off_t *sizep)
 {
-    S3_STORAGE *s3;
-    s3 = FS2S3(fileSystem);
+    S3_STORAGE *s3 = FS2S3(fileSystem);
     size_t objectSize;
     bool exist = false;
 
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
-    FS2S3(fileSystem)->statistics.objectExistsCount++;
+    s3->statistics.objectExistsCount++;
     int ret = fs->connection->ObjectExists(name, exist, objectSize);
     *sizep = objectSize;
     return (ret);
@@ -383,10 +382,10 @@ static int
 S3FileRead(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t offset, size_t len, void *buf)
 {
     S3_FILE_HANDLE *s3FileHandle = (S3_FILE_HANDLE *)fileHandle;
-    S3_STORAGE *storage = s3FileHandle->storage;
+    S3_STORAGE *s3 = s3FileHandle->storage;
     WT_FILE_HANDLE *wtFileHandle = s3FileHandle->wtFileHandle;
     int ret;
-    storage->statistics.fhReadOps++;
+    s3->statistics.fhReadOps++;
     if ((ret = wtFileHandle->fh_read(wtFileHandle, session, offset, len, buf)) != 0)
         std::cerr << "S3FileRead: fh_read failed." << std::endl;
     return (ret);
@@ -400,10 +399,10 @@ static int
 S3FileSize(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t *sizep)
 {
     S3_FILE_HANDLE *s3FileHandle = (S3_FILE_HANDLE *)fileHandle;
-    S3_STORAGE *storage = s3FileHandle->storage;
-    WT_FILE_HANDLE *wtFh = s3FileHandle->wtFileHandle;
-    storage->statistics.fhOps++;
-    return (wtFh->fh_size(wtFh, session, sizep));
+    S3_STORAGE *s3 = s3FileHandle->storage;
+    WT_FILE_HANDLE *wtFileHandle = s3FileHandle->wtFileHandle;
+    s3->statistics.fhOps++;
+    return (wtFileHandle->fh_size(wtFileHandle, session, sizep));
 }
 
 /*

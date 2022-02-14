@@ -87,8 +87,6 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         # Checking that the file still exists in S3 after removing it from the cache.
         os.remove(cache_prefix + self.bucket_name + '/' + filename)
         self.assertTrue(fs.fs_exist(session, filename))
- 
-
         file_list = [self.prefix + object_name]
         self.assertEquals(fs.fs_directory_list(session, None, None), file_list)
 

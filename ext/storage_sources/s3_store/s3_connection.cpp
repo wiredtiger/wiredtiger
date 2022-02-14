@@ -135,7 +135,7 @@ S3Connection::GetObject(const std::string &objectKey, const std::string &path) c
 /*
  * ObjectExists --
  *     Checks whether an object with the given key exists in the S3 bucket and also retrieves
- * objectSize.
+ *     size of the object.
  */
 int
 S3Connection::ObjectExists(const std::string &objectKey, bool &exists, size_t &objectSize) const
