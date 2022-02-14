@@ -466,6 +466,7 @@ compare_cursors(WT_CURSOR *cursor1, table_type type1, WT_CURSOR *cursor2, table_
 
     if (key1 != key2) {
         ret = ERR_KEY_MISMATCH;
+        printf("22222222222\n");
         goto mismatch;
     }
 
@@ -483,6 +484,7 @@ compare_cursors(WT_CURSOR *cursor1, table_type type1, WT_CURSOR *cursor2, table_
       (type1 != FIX && type2 != FIX &&
         (strlen(strval1) != strlen(strval2) || strcmp(strval1, strval2) != 0))) {
         ret = ERR_DATA_MISMATCH;
+        printf("1111111111\n");
         goto mismatch;
     }
 

@@ -117,7 +117,7 @@ __curfile_research(WT_CURSOR *cursor)
     WT_ASSERT(session,
       F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
-
+    
     F_CLR(cbt, WT_CBT_RESEARCH);
 
     return (0);
@@ -138,9 +138,8 @@ __curfile_release_page(WT_CURSOR *cursor)
 
     WT_RET(__wt_buf_set(session, &cursor->key, cursor->key.data, cursor->key.size));
     WT_RET(__wt_buf_set(session, &cursor->value, cursor->value.data, cursor->value.size));
-    F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
-    F_SET(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
     WT_RET(__wt_btcur_reset(cbt));
+    F_SET(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
     F_SET(cbt, WT_CBT_RESEARCH);
 
     return (0);
@@ -174,6 +173,8 @@ __curfile_next(WT_CURSOR *cursor)
     /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
     if (session->txn->isolation == WT_ISO_SNAPSHOT && cbt->ref->page->page_evict_count > 0)
         WT_ERR(__curfile_release_page(cursor));
+    
+    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_SET) && F_ISSET(cursor, WT_CURSTD_VALUE_SET));
 
 err:
     API_END_RET(session, ret);
@@ -201,6 +202,12 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
     WT_ASSERT(session,
       F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+    
+    /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
+    if (session->txn->isolation == WT_ISO_SNAPSHOT && cbt->ref->page->page_evict_count > 0)
+        WT_ERR(__curfile_release_page(cursor));
+    
+    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_SET) && F_ISSET(cursor, WT_CURSTD_VALUE_SET));
 
 err:
     API_END_RET(session, ret);
@@ -234,6 +241,8 @@ __curfile_prev(WT_CURSOR *cursor)
     /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
     if (session->txn->isolation == WT_ISO_SNAPSHOT && cbt->ref->page->page_evict_count > 0)
         WT_ERR(__curfile_release_page(cursor));
+    
+    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_SET) && F_ISSET(cursor, WT_CURSTD_VALUE_SET));
 
 err:
     API_END_RET(session, ret);
@@ -296,6 +305,8 @@ __curfile_search(WT_CURSOR *cursor)
     /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
     if (session->txn->isolation == WT_ISO_SNAPSHOT && cbt->ref->page->page_evict_count > 0)
         WT_ERR(__curfile_release_page(cursor));
+    
+    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_SET) && F_ISSET(cursor, WT_CURSTD_VALUE_SET));
 
 err:
     API_END_RET(session, ret);
@@ -332,6 +343,8 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
     /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
     if (session->txn->isolation == WT_ISO_SNAPSHOT && cbt->ref->page->page_evict_count > 0)
         WT_ERR(__curfile_release_page(cursor));
+    
+    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_SET) && F_ISSET(cursor, WT_CURSTD_VALUE_SET));
 
 err:
     API_END_RET(session, ret);
@@ -351,6 +364,7 @@ __curfile_insert(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, insert);
+    F_CLR(cbt, WT_CBT_RESEARCH);
     WT_ERR(__cursor_copy_release(cursor));
 
     if (!F_ISSET(cursor, WT_CURSTD_APPEND))
@@ -393,6 +407,7 @@ __wt_curfile_insert_check(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     tret = 0;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, update);
+    F_CLR(cbt, WT_CBT_RESEARCH);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -420,6 +435,7 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, modify);
+    F_CLR(cbt, WT_CBT_RESEARCH);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -455,6 +471,7 @@ __curfile_update(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, update);
+    F_CLR(cbt, WT_CBT_RESEARCH);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
     WT_ERR(__cursor_checkvalue(cursor));
@@ -498,6 +515,7 @@ __curfile_remove(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_REMOVE_API_CALL(cursor, session, CUR2BT(cbt));
+    F_CLR(cbt, WT_CBT_RESEARCH);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -539,6 +557,7 @@ __curfile_reserve(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, reserve);
+    F_CLR(cbt, WT_CBT_RESEARCH);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
