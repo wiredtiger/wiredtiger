@@ -33,13 +33,15 @@ import wiredtiger
 # test_prepare19.py
 # Test that for in-memory configurations of WiredTiger if rolling back a prepared, reconciled 
 # update results in an empty update chain then a tombstone is appended to the chain
-class try_prepare19(wttest.WiredTigerTestCase):
+class test_prepare19(wttest.WiredTigerTestCase):
+
 
     def conn_config(self):
         return 'in_memory=true'
     
+
     def test_server_example(self):
-        uri = 'table:try_prepare19'
+        uri = 'table:test_prepare19'
         config = 'key_format=i,value_format=S'
 
         self.session.create(uri, config)
