@@ -399,13 +399,11 @@ S3FileRead(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t offset, siz
 static int
 S3FileSize(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t *sizep)
 {
-    S3_FILE_HANDLE *s3FileHandle;
+    S3_FILE_HANDLE *s3FileHandle = (S3_FILE_HANDLE *)fileHandle;
     S3_STORAGE *storage = s3FileHandle->storage;
-    WT_FILE_HANDLE *wt_fh;
-    s3FileHandle = (S3_FILE_HANDLE *)fileHandle;
-    wt_fh = s3FileHandle->wtFileHandle;
-    storage->statistics.fhSizeOps++;
-    return (wt_fh->fh_size(wt_fh, session, sizep));
+    WT_FILE_HANDLE *wtFh = s3FileHandle->wtFileHandle;
+    storage->statistics.fhOps++;
+    return (wtFh->fh_size(wtFh, session, sizep));
 }
 
 /*

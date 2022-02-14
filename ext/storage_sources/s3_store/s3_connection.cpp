@@ -141,6 +141,7 @@ int
 S3Connection::ObjectExists(const std::string &objectKey, bool &exists, size_t &objectSize) const
 {
     exists = false;
+    objectSize = 0;
 
     Aws::S3Crt::Model::HeadObjectRequest request;
     request.SetBucket(_bucketName);
@@ -154,7 +155,6 @@ S3Connection::ObjectExists(const std::string &objectKey, bool &exists, size_t &o
     if (outcome.IsSuccess()) {
         exists = true;
         objectSize = outcome.GetResult().GetContentLength();
-
         return (0);
     } else if (outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND)
         return (0);

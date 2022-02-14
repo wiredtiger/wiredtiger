@@ -302,7 +302,7 @@ TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
     File.close();
 
     ret = conn.ObjectExists(objectName, exists, objectSize);
-    if (ret != 0 || exists)
+    if (ret != 0 || exists || objectSize != 0)
         return (TEST_FAILURE);
 
     if ((ret = conn.PutObject(objectName, fileName)) != 0)
