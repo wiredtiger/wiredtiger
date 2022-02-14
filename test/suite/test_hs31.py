@@ -36,7 +36,7 @@ class test_hs31(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=5MB,statistics=(all)'
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
-    #    ('column-fix', dict(key_format='r', value_format='8t')),
+        ('column-fix', dict(key_format='r', value_format='8t')),
         ('integer-row', dict(key_format='i', value_format='S')),
         ('string-row', dict(key_format='S', value_format='S')),
     ]
@@ -129,14 +129,10 @@ class test_hs31(wttest.WiredTigerTestCase):
             self.session.breakpoint()
             # Ensure that old reader can read the history content.
             long_cursor = session2.open_cursor(uri, None)
-            count = 0
-            for k, v in long_cursor:
-                if self.value_format == '8t' and count >= self.nrows:
-                    self.assertEqual(v, 0)
-                else:
-                    self.assertEqual(v, value1)
-                count += 1
-            self.assertEqual(count, self.nrows)
+            for i in range(1, self.nrows):
+                long_cursor.set_key(self.create_key(i))
+                self.assertEqual(long_cursor.search(), 0)
+                self.assertEqual(long_cursor.get_value(), value1)
             long_cursor.reset()
             long_cursor.close()
 
