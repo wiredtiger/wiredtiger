@@ -1420,14 +1420,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
         } else
             upd = supd->ins->upd;
 
-        /*
-         * For in-memory WiredTiger configurations, reconciled prepare updates may require a
-         * tombstone when they are rolled back. Set WT_UPDATE_PREPARE_RESTORED_FROM_DS to indicate
-         * this.
-         */
-        if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && upd->prepare_state == WT_PREPARE_INPROGRESS)
-            F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
-
         /* We shouldn't restore an empty update chain. */
         WT_ASSERT(session, upd != NULL);
 

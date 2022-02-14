@@ -1251,11 +1251,15 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * updates other transactions attempting to write to the same key will look at the on-page
      * value, think the prepared transaction is still active, and falsely report a write conflict.
      * To prevent this scenario append a tombstone to the update chain when rolling back a prepared
-     * update would result in only aborted updates on the update chain.
+     * reconciled update would result in only aborted updates on the update chain.
      */
-    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-      F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS) && !commit && first_committed_upd == NULL)
-        WT_ERR(__txn_append_tombstone(session, op, cbt));
+    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !commit && first_committed_upd == NULL) {
+        WT_TIME_WINDOW tw;
+        bool tw_found;
+        tw_found = __wt_read_cell_time_window(cbt, &tw);
+        if (tw_found && tw.prepare == WT_PREPARE_INPROGRESS)
+            WT_ERR(__txn_append_tombstone(session, op, cbt));
+    }
 
     /*
      * Locate the previous update from the history store and append it to the update chain if
@@ -1273,8 +1277,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * followed by the update is also from the same prepared transaction by either restoring the
      * previous update from history store or removing the key.
      */
-    prepare_on_disk = !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-      F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS) &&
+    prepare_on_disk = F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS) &&
       (upd->type != WT_UPDATE_TOMBSTONE ||
         (upd->next != NULL && upd->durable_ts == upd->next->durable_ts &&
           upd->txnid == upd->next->txnid && upd->start_ts == upd->next->start_ts));
