@@ -36,7 +36,7 @@ class test_hs31(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=5MB,statistics=(all)'
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
-        ('column-fix', dict(key_format='r', value_format='8t')),
+    #    ('column-fix', dict(key_format='r', value_format='8t')),
         ('integer-row', dict(key_format='i', value_format='S')),
         ('string-row', dict(key_format='S', value_format='S')),
     ]
@@ -102,6 +102,7 @@ class test_hs31(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
         if not self.ooo_value:
+            self.session.breakpoint()
             # Start a long running transaction to stop the oldest id being advanced.
             session2 = self.conn.open_session()
             session2.begin_transaction()
@@ -130,7 +131,10 @@ class test_hs31(wttest.WiredTigerTestCase):
             long_cursor = session2.open_cursor(uri, None)
             count = 0
             for k, v in long_cursor:
-                self.assertEqual(v, value1)
+                if self.value_format == '8t' and count >= self.nrows:
+                    self.assertEqual(v, 0)
+                else:
+                    self.assertEqual(v, value1)
                 count += 1
             self.assertEqual(count, self.nrows)
             long_cursor.reset()
