@@ -83,7 +83,10 @@ __bm_drain_and_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
     if (block == NULL)
         return (0);
 
-    /* Close any WT_BLOCK structures queued to be drained, from the end to the beginning. */
+    /*
+     * Close any WT_BLOCK structures queued to be drained: a recursive call to simplify closing them
+     * from the end to the beginning.
+     */
     WT_RET(__bm_drain_and_close(session, block->ckpt_drain));
     block->ckpt_drain = NULL;
 
@@ -151,10 +154,8 @@ __bm_checkpoint(
      * count was set when the block was originally opened, switching didn't change it and this is
      * the close.
      */
-    if (block->ckpt_drain != NULL) {
-        WT_RET(__bm_drain_and_close(session, block->ckpt_drain));
-        block->ckpt_drain = NULL;
-    }
+    WT_RET(__bm_drain_and_close(session, block->ckpt_drain));
+    block->ckpt_drain = NULL;
 
     return (0);
 }
