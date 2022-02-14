@@ -227,15 +227,17 @@ struct __wt_block {
     const char *name;  /* Name */
     uint32_t objectid; /* Object id */
     uint32_t ref;      /* References */
-    bool ckpt_drain;   /* Draining concurrent writers to the next checkpoint */
 
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
     bool linked;
 
+    WT_SPINLOCK cache_lock;   /* Block cache layer lock */
     WT_BLOCK **related;       /* Related objects */
     size_t related_allocated; /* Size of related object array */
     u_int related_next;       /* Next open slot */
+
+    WT_BLOCK *ckpt_drain; /* Draining concurrent writers to the next checkpoint */
 
     WT_FH *fh;            /* Backing file handle */
     wt_off_t size;        /* File size */
@@ -244,8 +246,7 @@ struct __wt_block {
 
     bool created_during_backup; /* Created during incremental backup */
 
-    WT_BLOCK *ckpt_drain; /* Draining concurrent writers to the next checkpoint */
-
+    /* Configuration information, set when the file is opened. */
     uint32_t allocfirst; /* Allocation is first-fit */
     uint32_t allocsize;  /* Allocation size */
     size_t os_cache;     /* System buffer cache flush max */

@@ -121,13 +121,8 @@ __wt_blkcache_get_handle(
             return (0);
         }
 
-    /*
-     * Lock the block handle.
-     *
-     * FIXME: The layering here isn't good, we're using a lock in the block named "live_lock", even
-     * though this has nothing to do with the "live" system.
-     */
-    __wt_spin_lock(session, &current->live_lock);
+    /* Lock the block cache layer.  */
+    __wt_spin_lock(session, &current->cache_lock);
 
     /* Check to make sure the object wasn't cached while we locked. */
     for (i = 0; i < current->related_next; ++i)
@@ -139,7 +134,7 @@ __wt_blkcache_get_handle(
     /* Open the object. */
     if (*blockp == NULL) {
         /* Allocate space to store a reference (do first for less complicated cleanup). */
-        WT_RET(__wt_realloc_def(
+        WT_ERR(__wt_realloc_def(
           session, &current->related_allocated, current->related_next + 1, &current->related));
 
         /* Get a reference to the object, opening it as necessary. */
@@ -150,6 +145,6 @@ __wt_blkcache_get_handle(
     }
 
 err:
-    __wt_spin_unlock(session, &current->live_lock);
+    __wt_spin_unlock(session, &current->cache_lock);
     return (ret);
 }
