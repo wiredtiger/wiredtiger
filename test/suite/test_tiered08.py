@@ -105,6 +105,7 @@ class test_tiered08(wttest.WiredTigerTestCase):
     def verify(self, key_count):
         self.pr('Verifying tiered table: {}'.format(str(key_count)))
         c = self.session.open_cursor(self.uri, None, None)
+        # Speed up the test by not looking at every key/value pair.
         for i in range(1, key_count, 237):
             self.assertEqual(c[self.key_gen(i)], self.value_gen(i))
         c.close()
