@@ -40,19 +40,19 @@ __bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
     WT_DECL_RET;
     bool found;
 
-    __wt_verbose(session, WT_VERB_BLKCACHE, "close: %s", block->name);
-
     conn = S2C(session);
 
-    /* You can't close files during a checkpoint. */
-    WT_ASSERT(
-      session, block->ckpt_state == WT_CKPT_NONE || block->ckpt_state == WT_CKPT_PANIC_ON_FAILURE);
+    __wt_verbose(session, WT_VERB_BLKCACHE, "close: %s", block->name);
 
     __wt_spin_lock(session, &conn->block_lock);
     if (block->ref > 0 && --block->ref > 0) {
         __wt_spin_unlock(session, &conn->block_lock);
         return (0);
     }
+
+    /* You can't close files during a checkpoint. */
+    WT_ASSERT(
+      session, block->ckpt_state == WT_CKPT_NONE || block->ckpt_state == WT_CKPT_PANIC_ON_FAILURE);
 
     /*
      * Every time we remove a block, we may have sufficiently decremented other references to allow
@@ -71,6 +71,23 @@ __bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
     __wt_spin_unlock(session, &conn->block_lock);
 
     return (ret);
+}
+
+/*
+ * __bm_drain_and_close --
+ *     Drain the list of waiting WT_BLOCK structures.
+ */
+static int
+__bm_drain_and_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
+{
+    if (block == NULL)
+        return (0);
+
+    /* Close any WT_BLOCK structures queued to be drained, from the end to the beginning. */
+    WT_RET(__bm_drain_and_close(session, block->ckpt_drain));
+    block->ckpt_drain = NULL;
+
+    return (__bm_close_block(session, block));
 }
 
 /*
@@ -116,23 +133,6 @@ __bm_block_header(WT_BM *bm)
 }
 
 /*
- * __bm_checkpoint_drain --
- *     Drain the list of waiting WT_BLOCK structures.
- */
-static int
-__bm_checkpoint_drain(WT_SESSION_IMPL *session, WT_BLOCK *block)
-{
-    if (block == NULL)
-        return (0);
-
-    /* Close the chain of WT_BLOCK structures from the end to the beginning. */
-    WT_RET(__bm_checkpoint_drain(session, block->ckpt_drain));
-    block->ckpt_drain = NULL;
-
-    return (__bm_close_block(session, block));
-}
-
-/*
  * __bm_checkpoint --
  *     Write a buffer into a block, creating a checkpoint.
  */
@@ -152,7 +152,7 @@ __bm_checkpoint(
      * the close.
      */
     if (block->ckpt_drain != NULL) {
-        WT_RET(__bm_checkpoint_drain(session, block->ckpt_drain));
+        WT_RET(__bm_drain_and_close(session, block->ckpt_drain));
         block->ckpt_drain = NULL;
     }
 
@@ -290,7 +290,14 @@ __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
     if (bm == NULL) /* Safety check */
         return (0);
 
-    ret = __bm_close_block(session, bm->block);
+    /*
+     * We shouldn't ever need to drain a chain of block handles, unless we're closing the database
+     * and tier flush happened without a checkpoint happening in the new object. Assert that's the
+     * case.
+     */
+    WT_ASSERT(session, F_ISSET(S2C(session), WT_CONN_CLOSING) || bm->block->ckpt_drain == NULL);
+
+    ret = __bm_drain_and_close(session, bm->block);
 
     __wt_overwrite_and_free(session, bm);
     return (ret);
@@ -833,7 +840,7 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
 
     *bmp = NULL;
 
-    __wt_verbose(session, WT_VERB_BLOCK, "open: %s", uri);
+    __wt_verbose(session, WT_VERB_BLKCACHE, "open: %s", uri);
 
     WT_RET(__wt_calloc_one(session, &bm));
     __bm_method_set(bm, false);
