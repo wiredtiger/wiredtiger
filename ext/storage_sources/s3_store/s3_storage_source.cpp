@@ -128,7 +128,7 @@ static int S3ObjectListAdd(
 static int S3ObjectListSingle(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
 static int S3ObjectListFree(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
-static void S3ShowStatistics(S3_STATISTICS *);
+static void S3ShowStatistics(const S3_STATISTICS &);
 
 static int S3FileClose(WT_FILE_HANDLE *, WT_SESSION *);
 /*
@@ -651,7 +651,7 @@ S3Terminate(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session)
     }
 
     /* Log collected statistics on termination. */
-    S3ShowStatistics(&s3->statistics);
+    S3ShowStatistics(s3->statistics);
 
     Aws::Utils::Logging::ShutdownAWSLogging();
     Aws::ShutdownAPI(options);
@@ -705,15 +705,15 @@ S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *f
  *     Log collected statistics.
  */
 static void
-S3ShowStatistics(S3_STATISTICS *statistics)
+S3ShowStatistics(const S3_STATISTICS &statistics)
 {
-    std::cout << "S3 list objects count: " << statistics->listObjectsCount << std::endl;
-    std::cout << "S3 put object count: " << statistics->putObjectCount << std::endl;
-    std::cout << "S3 get object count: " << statistics->putObjectCount << std::endl;
-    std::cout << "S3 object exists count: " << statistics->objectExistsCount << std::endl;
+    std::cout << "S3 list objects count: " << statistics.listObjectsCount << std::endl;
+    std::cout << "S3 put object count: " << statistics.putObjectCount << std::endl;
+    std::cout << "S3 get object count: " << statistics.putObjectCount << std::endl;
+    std::cout << "S3 object exists count: " << statistics.objectExistsCount << std::endl;
 
-    std::cout << "Non read/write file handle operations: " << statistics->fhOps << std::endl;
-    std::cout << "File handle read operations: " << statistics->fhReadOps << std::endl;
+    std::cout << "Non read/write file handle operations: " << statistics.fhOps << std::endl;
+    std::cout << "File handle read operations: " << statistics.fhReadOps << std::endl;
 }
 
 /*
