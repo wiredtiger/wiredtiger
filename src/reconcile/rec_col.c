@@ -756,7 +756,7 @@ __wt_rec_col_fix(
              * When an out-of-order or mixed-mode tombstone is getting written to disk, remove any
              * historical versions that are greater in the history store for this key.
              */
-            if (upd_select.ooo_or_mm_tombstone && r->hs_clear_on_tombstone)
+            if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
                 WT_ERR(__wt_rec_hs_clear_on_tombstone(
                   session, r, upd_select.tw.durable_stop_ts, recno, NULL, false));
 
@@ -776,7 +776,7 @@ __wt_rec_col_fix(
              * When an out-of-order or mixed-mode tombstone is getting written to disk, remove any
              * historical versions that are greater in the history store for this key.
              */
-            if (upd_select.ooo_or_mm_tombstone && r->hs_clear_on_tombstone)
+            if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
                 WT_ERR(__wt_rec_hs_clear_on_tombstone(
                   session, r, upd_select.tw.durable_stop_ts, recno, NULL, true));
 
@@ -1385,7 +1385,7 @@ record_loop:
                      * remove any historical versions that are greater in the history store for this
                      * key.
                      */
-                    if (upd_select.ooo_or_mm_tombstone && r->hs_clear_on_tombstone)
+                    if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
                         WT_ERR(__wt_rec_hs_clear_on_tombstone(
                           session, r, twp->durable_stop_ts, src_recno, NULL, true));
 
@@ -1396,7 +1396,7 @@ record_loop:
                      * remove any historical versions that are greater in the history store for this
                      * key.
                      */
-                    if (upd_select.ooo_or_mm_tombstone && r->hs_clear_on_tombstone)
+                    if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
                         WT_ERR(__wt_rec_hs_clear_on_tombstone(
                           session, r, twp->durable_stop_ts, src_recno, NULL, false));
 

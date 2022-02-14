@@ -811,7 +811,7 @@ __wt_rec_row_leaf(
                  * When an out-of-order or mixed-mode tombstone is getting written to disk, remove
                  * any historical versions that are greater in the history store for that key.
                  */
-                if (upd_select.ooo_or_mm_tombstone && r->hs_clear_on_tombstone) {
+                if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone) {
                     WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
                     WT_ERR(__wt_rec_hs_clear_on_tombstone(
                       session, r, twp->durable_stop_ts, WT_RECNO_OOB, tmpkey, true));
@@ -843,7 +843,7 @@ __wt_rec_row_leaf(
                  * When an out-of-order or mixed-mode tombstone is getting written to disk, remove
                  * any historical versions that are greater in the history store for this key.
                  */
-                if (upd_select.ooo_or_mm_tombstone && r->hs_clear_on_tombstone) {
+                if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone) {
                     WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
                     WT_ERR(__wt_rec_hs_clear_on_tombstone(
                       session, r, twp->durable_stop_ts, WT_RECNO_OOB, tmpkey, false));

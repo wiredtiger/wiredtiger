@@ -386,7 +386,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
      */
     upd_select->upd = NULL;
     upd_select->upd_saved = false;
-    upd_select->ooo_or_mm_tombstone = false;
+    upd_select->ooo_tombstone = false;
     select_tw = &upd_select->tw;
     WT_TIME_WINDOW_INIT(select_tw);
 
@@ -686,10 +686,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
             upd = upd->next;
 
         if (upd != NULL && upd->start_ts > tombstone->start_ts)
-            upd_select->ooo_or_mm_tombstone = true;
+            upd_select->ooo_tombstone = true;
 
         if (vpack != NULL && vpack->tw.start_ts > upd->start_ts)
-            upd_select->ooo_or_mm_tombstone = true;
+            upd_select->ooo_tombstone = true;
     }
 
     /*
