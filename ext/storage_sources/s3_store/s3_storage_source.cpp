@@ -167,7 +167,6 @@ S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool 
     size_t objectSize;
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
     S3_STORAGE *s3 = FS2S3(fileSystem);
-
     int ret = 0;
 
     /* Check if file exists in the cache. */
