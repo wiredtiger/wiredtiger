@@ -97,7 +97,10 @@ TEST_CASE("Integer packing macros: byte min/max", "[intpack]")
 
 TEST_CASE("Integer packing macros: calculations", "[intpack]")
 {
-    REQUIRE(GET_BITS(0x01, 8, 0) == 0x1ll);
+    REQUIRE(GET_BITS(0x01, 8, 0) == 0x01ll);
+    REQUIRE(GET_BITS(0xff, 8, 0) == 0xffll);
+    REQUIRE(GET_BITS(0xff, 8, 3) == 0x1fll);
+    REQUIRE(GET_BITS(0xf0, 8, 3) == 0x1ell);
 
     CHECK(wt_size_check_pack_wrapper(100, 0) == 0);
     CHECK(wt_size_check_pack_wrapper(100, 256) == 0);
