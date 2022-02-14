@@ -67,16 +67,9 @@ common_runtime_config = [
             built in diagnostic mode, drop core at the failing check''',
             choices=['off', 'on']),
         ]),
-    Config('verbose', '', r'''
+    Config('verbose', '[]', r'''
         this option is no longer supported, retained for backward compatibility''',
-        type='category', subconfig= [
-        Config('read_timestamp', 'none', r'''
-            this option is no longer supported, retained for backward compatibility''',
-            choices=['always', 'never', 'none']),
-        Config('write_timestamp', 'false', r'''
-            this option is no longer supported, retained for backward compatibility''',
-            type='boolean'),
-        ], undoc=True),
+        type='list', choices=['write_timestamp'], undoc=True),
     Config('write_timestamp_usage', 'none', r'''
         describe how timestamps are expected to be used on modifications
         to the table. This option should be used in conjunction with the
