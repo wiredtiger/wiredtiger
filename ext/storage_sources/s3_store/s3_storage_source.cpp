@@ -50,7 +50,7 @@ struct S3_STATISTICS {
     /* Operations using AWS SDK. */
     uint64_t listObjectsCount;  /* Number of S3 list objects requests */
     uint64_t putObjectCount;    /* Number of S3 put object requests */
-    uint64_t getObjectCount;    /* Number of S3 put object requests */
+    uint64_t getObjectCount;    /* Number of S3 get object requests */
     uint64_t objectExistsCount; /* Number of S3 object exists requests */
 
     /* Operations using WiredTiger's native file handle operations. */
@@ -68,7 +68,7 @@ struct S3_STORAGE {
     std::mutex fhMutex;                 /* Protect the file handle list*/
     std::list<S3_FILE_HANDLE *> fhList; /* List of open file handles */
 
-    uint32_t referenceCount; /* Number of references to this storge source */
+    uint32_t referenceCount; /* Number of references to this storage source */
     int32_t verbose;
 
     S3_STATISTICS statistics;
