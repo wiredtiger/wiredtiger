@@ -119,7 +119,6 @@ static int S3FileClose(WT_FILE_HANDLE *, WT_SESSION *);
 static int S3FileSize(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *);
 static int S3Size(WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *);
 
-
 /*
  * S3Path --
  *     Construct a pathname from the directory and the object name.
@@ -154,9 +153,7 @@ S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool 
     /* It's not in the cache, try the S3 bucket. */
     *exist = S3CacheExists(fileSystem, name);
     if (!*exist)
-        std::cout << "Inside S3Exist->ObjectExist" << std::endl;
         return (fs->connection->ObjectExists(name, *exist));
-    std::cout << "Inside S3Exist" << std::endl;
     return (0);
 }
 
@@ -247,8 +244,6 @@ S3FileClose(WT_FILE_HANDLE *fileHandle, WT_SESSION *session)
 
     free(s3FileHandle->iface.name);
     free(s3FileHandle);
-    std::cout << "Inside S3FileClose" << std::endl;
-
     return (ret);
 }
 
@@ -266,7 +261,6 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     WT_FILE_SYSTEM *wtFileSystem = s3Fs->wtFileSystem;
     WT_FILE_HANDLE *wtFileHandle;
     int ret;
-    std::cout << "Inside S3Open start" << std::endl;
 
     *fileHandlePtr = NULL;
 
@@ -341,8 +335,6 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     }
 
     *fileHandlePtr = fileHandle;
-    std::cout << "Inside S3Open end" << std::endl;
-
     return (0);
 }
 
@@ -358,7 +350,6 @@ S3Size(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, wt_off
     s3 = FS2S3(fileSystem);
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
     *sizep = fs->connection->ObjectLength(name);
-    std::cout << "Inside S3Size " << *sizep << std::endl;
     return (0);
 }
 
@@ -369,7 +360,6 @@ S3Size(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, wt_off
 static int
 S3FileRead(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t offset, size_t len, void *buf)
 {
-    std::cout << "Inside S3FileRead" << std::endl;
     WT_FILE_HANDLE *wtFileHandle = ((S3_FILE_HANDLE *)file_handle)->wtFileHandle;
     return (wtFileHandle->fh_read(wtFileHandle, session, offset, len, buf));
 }
@@ -381,13 +371,10 @@ S3FileRead(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t offset, si
 static int
 S3FileSize(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t *sizep)
 {
-    std::cout << "Inside S3FileSize" << std::endl;
     S3_FILE_HANDLE *s3FileHandle;
     WT_FILE_HANDLE *wt_fh;
-
-    s3FileHandle= (S3_FILE_HANDLE *)fileHandle;
+    s3FileHandle = (S3_FILE_HANDLE *)fileHandle;
     wt_fh = s3FileHandle->wtFileHandle;
-    std::cout << "Inside S3FileSize" << std::endl;
     return (wt_fh->fh_size(wt_fh, session, sizep));
 }
 
@@ -477,7 +464,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     fs->fileSystem.terminate = S3FileSystemTerminate;
     fs->fileSystem.fs_exist = S3Exist;
     fs->fileSystem.fs_open_file = S3Open;
-    fs->fileSystem.fs_size = S3Size; 
+    fs->fileSystem.fs_size = S3Size;
 
     /* Add to the list of the active file systems. Lock will be freed when the scope is exited. */
     {
