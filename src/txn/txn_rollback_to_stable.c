@@ -1575,8 +1575,8 @@ __rollback_to_stable_btree_apply(
     size_t addr_size;
     uint64_t rollback_txnid, write_gen;
     uint32_t btree_id;
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool dhandle_allocated, durable_ts_found, has_txn_updates_gt_than_ckpt_snap, perform_rts;
+    char *metadata_conf, ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool dhandle_allocated, durable_ts_found, has_txn_updates_gt_than_ckpt_snap, perform_rts, exist;
     bool prepared_updates;
 
     /* Ignore non-btree objects as well as the metadata and history store files. */
@@ -1584,9 +1584,10 @@ __rollback_to_stable_btree_apply(
         return (0);
 
     addr_size = 0;
+    metadata_conf = NULL;
     rollback_txnid = 0;
-    write_gen = 0;
     dhandle_allocated = false;
+    write_gen = 0;
 
     /* Find out the max durable timestamp of the object from checkpoint. */
     newest_start_durable_ts = newest_stop_durable_ts = WT_TS_NONE;
@@ -1695,22 +1696,27 @@ __rollback_to_stable_btree_apply(
           __wt_timestamp_to_string(rollback_timestamp, ts_string[1]), rollback_txnid);
 
     /*
-     * Truncate history store entries for the non-timestamped table.
-     * Exceptions:
+     * Truncate history store entries for the non-timestamped table or the table doesn't exist when
+     * performing a partial backup.
+     * 
+     * Exceptions for non-timestamped table:
      * 1. Modified tree - Scenarios where the tree is never checkpointed lead to zero
      * durable timestamp even they are timestamped tables. Until we have a special
      * indication of letting to know the table type other than checking checkpointed durable
      * timestamp to WT_TS_NONE, we need this exception.
      * 2. In-memory database - In this scenario, there is no history store to truncate.
      */
-    if ((!dhandle_allocated || !S2BT(session)->modified) && max_durable_ts == WT_TS_NONE &&
-      !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+    exist = __wt_metadata_search(session, uri, &metadata_conf) != WT_NOTFOUND;
+    if ((!exist && F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL)) ||
+      (!dhandle_allocated || !S2BT(session)->modified) && max_durable_ts == WT_TS_NONE &&
+        !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
         WT_ERR(__wt_config_getones(session, config, "id", &cval));
         btree_id = (uint32_t)cval.val;
         WT_ERR(__rollback_to_stable_btree_hs_truncate(session, btree_id));
     }
 
 err:
+    __wt_free(session, metadata_conf);
     if (dhandle_allocated)
         WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
