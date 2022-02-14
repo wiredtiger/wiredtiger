@@ -32,7 +32,6 @@ __wt_log_cmp(WT_LSN *lsn1, WT_LSN *lsn2)
 static inline bool
 __wt_log_op(WT_SESSION_IMPL *session)
 {
-    WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
