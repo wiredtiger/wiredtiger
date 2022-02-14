@@ -109,7 +109,8 @@ const uint64_t partSize = 8 * 1024 * 1024; /* 8 MB. */
 /* Setting SDK options. */
 Aws::SDKOptions options;
 
-static int S3GetDirectory(const S3_STORAGE *, const std::string &, const std::string &, bool, std::string &);
+static int S3GetDirectory(
+  const S3_STORAGE *, const std::string &, const std::string &, bool, std::string &);
 static bool S3CacheExists(WT_FILE_SYSTEM *, const std::string &);
 static std::string S3Path(const std::string &, const std::string &);
 static std::string S3HomePath(WT_FILE_SYSTEM *, const char *);
@@ -205,7 +206,8 @@ LocalFileExists(const std::string &path)
  *     Return a copy of a directory name after verifying that it is a directory.
  */
 static int
-S3GetDirectory(const S3_STORAGE *s3, const std::string &home, const std::string &name, bool create, std::string &copy)
+S3GetDirectory(const S3_STORAGE *s3, const std::string &home, const std::string &name, bool create,
+  std::string &copy)
 {
     copy = "";
 
@@ -227,8 +229,7 @@ S3GetDirectory(const S3_STORAGE *s3, const std::string &home, const std::string 
     if (ret != 0) {
         s3->log->LogVerboseMessage(-3, "S3GetDirectory: stat system call failed.");
         ret = errno;
-    }
-    else if ((sb.st_mode & S_IFMT) != S_IFDIR) {
+    } else if ((sb.st_mode & S_IFMT) != S_IFDIR) {
         s3->log->LogVerboseMessage(-3, "S3GetDirectory: invalid directory name.");
         ret = EINVAL;
     }
@@ -415,7 +416,8 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
            s3->wtApi, session, config, "prefix", &objPrefixConf)) == 0)
         objPrefix = objPrefixConf.str;
     else if (ret != WT_NOTFOUND) {
-        s3->log->LogVerboseMessage(-3, "S3CustomizeFileSystem: error parsing config for object prefix.");
+        s3->log->LogVerboseMessage(
+          -3, "S3CustomizeFileSystem: error parsing config for object prefix.");
         return (1);
     }
 
@@ -563,7 +565,7 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
 
     int ret;
     s3->statistics.listObjectsCount++;
-    if ((ret = fs->connection->ListObjects(completePrefix, objects, 1, true)) != 0) {\
+    if ((ret = fs->connection->ListObjects(completePrefix, objects, 1, true)) != 0) {
         s3->log->LogVerboseMessage(-3, "S3ObjectListSingle: ListObjects request to S3 failed.");
         return (ret);
     }
@@ -599,8 +601,8 @@ S3ObjectListFree(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, char **objectL
  *     Add objects retrieved from S3 bucket into the object list, and allocate the memory needed.
  */
 static int
-S3ObjectListAdd(
-  const S3_STORAGE *s3, char ***objectList, const std::vector<std::string> &objects, const uint32_t count)
+S3ObjectListAdd(const S3_STORAGE *s3, char ***objectList, const std::vector<std::string> &objects,
+  const uint32_t count)
 {
     char **entries;
     if ((entries = (char **)malloc(sizeof(char *) * count)) == NULL) {
@@ -611,10 +613,10 @@ S3ObjectListAdd(
 
     for (int i = 0; i < count; i++) {
         if ((entries[i] = strdup(objects[i].c_str())) == NULL) {
-            s3->log->LogVerboseMessage(-3, "S3ObjectListAdd: unable to allocate memory for object.");
+            s3->log->LogVerboseMessage(
+              -3, "S3ObjectListAdd: unable to allocate memory for object.");
             return (ENOMEM);
         }
-            
     }
     *objectList = entries;
 
@@ -699,7 +701,7 @@ S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *f
     FS2S3(fileSystem)->statistics.putObjectCount++;
     if (ret = (fs->connection->PutObject(object, source)) != 0)
         s3->log->LogVerboseMessage(-3, "S3Flush: PutObject request to S3 failed.");
-        
+
     return (ret);
 }
 
@@ -732,13 +734,19 @@ S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *f
 static void
 S3ShowStatistics(const S3_STORAGE *s3)
 {
-    s3->log->LogVerboseMessage(1, "S3 list objects count: " + std::to_string(s3->statistics.listObjectsCount));
-    s3->log->LogVerboseMessage(1, "S3 put object count: " + std::to_string(s3->statistics.putObjectCount));
-    s3->log->LogVerboseMessage(1, "S3 get object count: " + std::to_string(s3->statistics.getObjectCount));
-    s3->log->LogVerboseMessage(1, "S3 object exists count: " + std::to_string(s3->statistics.objectExistsCount));
+    s3->log->LogVerboseMessage(
+      1, "S3 list objects count: " + std::to_string(s3->statistics.listObjectsCount));
+    s3->log->LogVerboseMessage(
+      1, "S3 put object count: " + std::to_string(s3->statistics.putObjectCount));
+    s3->log->LogVerboseMessage(
+      1, "S3 get object count: " + std::to_string(s3->statistics.getObjectCount));
+    s3->log->LogVerboseMessage(
+      1, "S3 object exists count: " + std::to_string(s3->statistics.objectExistsCount));
 
-    s3->log->LogVerboseMessage(1, "Non read/write file handle operations: " + std::to_string(s3->statistics.fhOps));
-    s3->log->LogVerboseMessage(1, "File handle read operations: " + std::to_string(s3->statistics.fhReadOps));
+    s3->log->LogVerboseMessage(
+      1, "Non read/write file handle operations: " + std::to_string(s3->statistics.fhOps));
+    s3->log->LogVerboseMessage(
+      1, "File handle read operations: " + std::to_string(s3->statistics.fhReadOps));
 }
 
 /*
