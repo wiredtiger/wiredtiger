@@ -134,6 +134,9 @@ static int S3ObjectListFree(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
 static void S3ShowStatistics(const S3_STORAGE *);
 
 static int S3FileClose(WT_FILE_HANDLE *, WT_SESSION *);
+static int S3FileSize(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *);
+static int S3Size(WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *);
+
 /*
  * S3Path --
  *     Construct a pathname from the directory and the object name.
@@ -161,6 +164,7 @@ S3Path(const std::string &dir, const std::string &name)
 static int
 S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool *exist)
 {
+    size_t objectSize;
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
     S3_STORAGE *s3 = FS2S3(fileSystem);
 
@@ -173,8 +177,8 @@ S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool 
 
     /* It's not in the cache, try the S3 bucket. */
     s3->statistics.objectExistsCount++;
-    if ((ret = fs->connection->ObjectExists(name, *exist)) != 0)
-        s3->log->LogVerboseMessage(-3, "S3Open: readonly access required.");
+    if ((ret = fs->connection->ObjectExists(name, *exist, objectSize)) != 0)
+        s3->log->LogVerboseMessage(-3, "S3Exist: ObjectExists request to S3 failed.");
 
     return (ret);
 }
@@ -265,7 +269,6 @@ S3FileClose(WT_FILE_HANDLE *fileHandle, WT_SESSION *session)
 
     free(s3FileHandle->iface.name);
     free(s3FileHandle);
-
     return (ret);
 }
 
@@ -338,7 +341,7 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     fileHandle->fh_map_preload = NULL;
     fileHandle->fh_unmap = NULL;
     fileHandle->fh_read = S3FileRead;
-    fileHandle->fh_size = NULL;
+    fileHandle->fh_size = S3FileSize;
     fileHandle->fh_sync = NULL;
     fileHandle->fh_sync_nowait = NULL;
     fileHandle->fh_truncate = NULL;
@@ -364,6 +367,27 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
 }
 
 /*
+ * S3Size --
+ *     Get the size of a file in bytes, by file name.
+ */
+static int
+S3Size(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, wt_off_t *sizep)
+{
+    S3_STORAGE *s3 = FS2S3(fileSystem);
+    size_t objectSize;
+    bool exist;
+    *sizep = 0;
+    int ret;
+
+    S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
+    s3->statistics.objectExistsCount++;
+    if ((ret = fs->connection->ObjectExists(name, exist, objectSize)) != 0)
+        return (ret);
+    *sizep = objectSize;
+    return (ret);
+}
+
+/*
  * S3FileRead --
  *     Read a file using WiredTiger's native file handle read.
  */
@@ -371,13 +395,27 @@ static int
 S3FileRead(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t offset, size_t len, void *buf)
 {
     S3_FILE_HANDLE *s3FileHandle = (S3_FILE_HANDLE *)fileHandle;
-    S3_STORAGE *storage = s3FileHandle->storage;
+    S3_STORAGE *s3 = s3FileHandle->storage;
     WT_FILE_HANDLE *wtFileHandle = s3FileHandle->wtFileHandle;
     int ret;
-    storage->statistics.fhReadOps++;
+    s3->statistics.fhReadOps++;
     if ((ret = wtFileHandle->fh_read(wtFileHandle, session, offset, len, buf)) != 0)
-        storage->log->LogVerboseMessage(-3, "S3FileRead: fh_read failed.");
+        s3->log->LogVerboseMessage(-3, "S3FileRead: fh_read failed.");
     return (ret);
+}
+
+/*
+ * S3FileSize --
+ *     Get the size of a file in bytes, by file handle.
+ */
+static int
+S3FileSize(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t *sizep)
+{
+    S3_FILE_HANDLE *s3FileHandle = (S3_FILE_HANDLE *)fileHandle;
+    S3_STORAGE *s3 = s3FileHandle->storage;
+    WT_FILE_HANDLE *wtFileHandle = s3FileHandle->wtFileHandle;
+    s3->statistics.fhOps++;
+    return (wtFileHandle->fh_size(wtFileHandle, session, sizep));
 }
 
 /*
@@ -470,6 +508,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     fs->fileSystem.terminate = S3FileSystemTerminate;
     fs->fileSystem.fs_exist = S3Exist;
     fs->fileSystem.fs_open_file = S3Open;
+    fs->fileSystem.fs_size = S3Size;
 
     /* Add to the list of the active file systems. Lock will be freed when the scope is exited. */
     {
@@ -584,8 +623,8 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
 static int
 S3ObjectListFree(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, char **objectList, uint32_t count)
 {
-    (void)fileSystem;
-    (void)session;
+    UNUSED(fileSystem);
+    UNUSED(session);
 
     if (objectList != NULL) {
         while (count > 0)
