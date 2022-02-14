@@ -279,6 +279,7 @@ __curfile_search(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, search, CUR2BT(cbt));
+    F_CLR(cbt, WT_CBT_RESEARCH);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -314,6 +315,7 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, search_near, CUR2BT(cbt));
+    F_CLR(cbt, WT_CBT_RESEARCH);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
