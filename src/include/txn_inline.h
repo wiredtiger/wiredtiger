@@ -405,7 +405,8 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
     ref->ft_info.del->txnid = txn->id;
     __wt_txn_op_set_timestamp(session, op);
 
-    WT_ERR(__wt_txn_log_op(session, NULL));
+    if (__wt_log_op(session))
+        WT_ERR(__wt_txn_log_op(session, NULL));
     return (0);
 
 err:

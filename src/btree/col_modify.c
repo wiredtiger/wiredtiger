@@ -258,7 +258,8 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
 
     /* If the update was successful, add it to the in-memory log. */
     if (logged && modify_type != WT_UPDATE_RESERVE) {
-        WT_ERR(__wt_txn_log_op(session, cbt));
+        if (__wt_log_op(session))
+            WT_ERR(__wt_txn_log_op(session, cbt));
 
         /*
          * In case of append, the recno (key) for the value is assigned now. Set the key in the

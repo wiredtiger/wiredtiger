@@ -1835,7 +1835,7 @@ __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
      * We deal with this here by logging the truncate range first, then (in the logging code)
      * disabling writing of the in-memory remove records to disk.
      */
-    if (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED))
+    if (__wt_log_op(session))
         WT_RET(__wt_txn_truncate_log(session, start, stop));
 
     switch (btree->type) {

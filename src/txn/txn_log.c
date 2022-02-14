@@ -251,17 +251,10 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     WT_ITEM *logrec;
     WT_TXN *txn;
     WT_TXN_OP *op;
-
     uint32_t fileid;
 
     conn = S2C(session);
     txn = session->txn;
-
-    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
-      F_ISSET(session, WT_SESSION_NO_LOGGING) ||
-      (F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING) &&
-        !FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE)))
-        return (0);
 
     /* We'd better have a transaction. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING) && F_ISSET(txn, WT_TXN_HAS_ID));
@@ -401,10 +394,8 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
     txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
-    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
-      F_ISSET(session, WT_SESSION_NO_LOGGING) ||
-      !FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE))
-        return (0);
+    /* We'd better have a transaction, but we may not have allocated an ID. */
+    WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
     /*
      * There is a rare usage case of a prepared transaction that has no modifications, but then
@@ -413,9 +404,6 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
      */
     if (F_ISSET(txn, WT_TXN_PREPARE) && txn->mod_count == 0)
         return (0);
-
-    /* We'd better have a transaction running. */
-    WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
     WT_RET(__txn_logrec_init(session));
     logrec = txn->logrec;
