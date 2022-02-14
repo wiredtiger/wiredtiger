@@ -290,6 +290,7 @@ TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
     S3Connection conn(config, TestDefaults::bucketName, TestDefaults::objPrefix);
     bool exists = false;
     int ret = TEST_FAILURE;
+    size_t objectSize;
 
     const std::string objectName = "test_object";
     const std::string fileName = "test_object.txt";
@@ -299,14 +300,15 @@ TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
     File << "Test payload";
     File.close();
 
-    ret = conn.ObjectExists(objectName, exists);
+    ret = conn.ObjectExists(objectName, exists, objectSize);
     if (ret != 0 || exists)
         return (TEST_FAILURE);
 
     if ((ret = conn.PutObject(objectName, fileName)) != 0)
         return (ret);
 
-    ret = conn.ObjectExists(objectName, exists);
+    ret = conn.ObjectExists(objectName, exists, objectSize);
+    std::cout << objectSize << std::endl;
     if (ret != 0 || !exists)
         return (TEST_FAILURE);
 

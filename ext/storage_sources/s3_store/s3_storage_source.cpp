@@ -147,13 +147,14 @@ static int
 S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool *exist)
 {
     S3_STORAGE *s3;
+    size_t objectSize;
     s3 = FS2S3(fileSystem);
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
 
     /* It's not in the cache, try the S3 bucket. */
     *exist = S3CacheExists(fileSystem, name);
     if (!*exist)
-        return (fs->connection->ObjectExists(name, *exist));
+        return (fs->connection->ObjectExists(name, *exist, objectSize));
     return (0);
 }
 
@@ -200,7 +201,7 @@ S3GetDirectory(const std::string &home, const std::string &name, bool create, st
 
     ret = stat(dirName.c_str(), &sb);
     if (ret != 0 && errno == ENOENT && create) {
-        (void)mkdir(dirName.c_str(), 0777);
+        UNUSED(mkdir(dirName.c_str(), 0777));
         ret = stat(dirName.c_str(), &sb);
     }
 
@@ -345,12 +346,15 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
 static int
 S3Size(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, wt_off_t *sizep)
 {
-    // struct stat sb;
     S3_STORAGE *s3;
     s3 = FS2S3(fileSystem);
+    size_t objectSize;
+    bool exist = false;
+
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
-    *sizep = fs->connection->ObjectLength(name);
-    return (0);
+    int ret = fs->connection->ObjectExists(name, exist, objectSize);
+    *sizep = objectSize;
+    return (ret);
 }
 
 /*
@@ -568,8 +572,8 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
 static int
 S3ObjectListFree(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, char **objectList, uint32_t count)
 {
-    (void)fileSystem;
-    (void)session;
+    UNUSED(fileSystem);
+    UNUSED(session);
 
     if (objectList != NULL) {
         while (count > 0)

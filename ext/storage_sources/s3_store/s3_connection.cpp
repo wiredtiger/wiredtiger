@@ -137,7 +137,7 @@ S3Connection::GetObject(const std::string &objectKey, const std::string &path) c
  *     Checks whether an object with the given key exists in the S3 bucket.
  */
 int
-S3Connection::ObjectExists(const std::string &objectKey, bool &exists) const
+S3Connection::ObjectExists(const std::string &objectKey, bool &exists, size_t &objectSize) const
 {
     exists = false;
 
@@ -152,6 +152,8 @@ S3Connection::ObjectExists(const std::string &objectKey, bool &exists) const
      */
     if (outcome.IsSuccess()) {
         exists = true;
+        objectSize = outcome.GetResult().GetContentLength();
+
         return (0);
     } else if (outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND)
         return (0);
@@ -162,27 +164,4 @@ S3Connection::ObjectExists(const std::string &objectKey, bool &exists) const
      */
     std::cerr << "Error in ObjectExists." << std::endl;
     return (1);
-}
-
-/*
- * ObjectExists --
- *     Checks whether an object with the given key exists in the S3 bucket.
- */
-int
-S3Connection::ObjectLength(const std::string &objectKey) const
-{
-
-    Aws::S3Crt::Model::HeadObjectRequest request;
-    request.SetBucket(_bucketName);
-    request.SetKey(_objectPrefix + objectKey);
-    Aws::S3Crt::Model::HeadObjectOutcome outcome = _s3CrtClient.HeadObject(request);
-
-    /*
-     * If an object with the given key does not exist the HEAD request will return a 404.
-     * https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html Do not fail in this case.
-     */
-    if (outcome.IsSuccess()) {
-        return outcome.GetResult().GetContentLength();
-    } else if (outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND)
-        return (1);
 }
