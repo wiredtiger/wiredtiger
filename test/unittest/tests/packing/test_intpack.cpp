@@ -13,18 +13,35 @@
 #include "wt_internal.h"
 #include <catch2/catch.hpp>
 
+/*
+ * wt_size_check_pack_wrapper --
+ *    The WT_SIZE_CHECK_PACK() macro which will directly call return on failure.
+ *    Creating a wrapper function thereby ensures that the macro's return call is restricted to
+ *    this function's scope.
+ */
 static int wt_size_check_pack_wrapper(int value, size_t maxValue)
 {
     WT_SIZE_CHECK_PACK(value, maxValue);
     return 0;
 }
 
+/*
+ * wt_size_check_unpack_wrapper --
+ *    The WT_SIZE_CHECK_UNPACK() macro which will directly call return on failure.
+ *    Creating a wrapper function thereby ensures that the macro's return call is restricted to
+ *    this function's scope.
+ */
 static int wt_size_check_unpack_wrapper(int value, size_t maxValue)
 {
     WT_SIZE_CHECK_UNPACK(value, maxValue);
     return 0;
 }
 
+/*
+ * wt_leading_zeros_wrapper --
+ *    This function wraps WT_LEADING_ZEROS() to create a function that returns the
+ *    number of leading zeros, rather than requiring a result variable to be passed in
+ */
 template<class T>
 static int wt_leading_zeros_wrapper(T value)
 {
