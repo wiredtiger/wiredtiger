@@ -1245,23 +1245,6 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     page = cbt->ref->page;
 
     /*
-     * For in-memory configurations of WiredTiger if a prepared update is reconciled and then rolled
-     * back the on-page value will not be marked as aborted until the next eviction. In the special
-     * case where this rollback results in the update chain being entirely comprised of aborted
-     * updates other transactions attempting to write to the same key will look at the on-page
-     * value, think the prepared transaction is still active, and falsely report a write conflict.
-     * To prevent this scenario append a tombstone to the update chain when rolling back a prepared
-     * reconciled update would result in only aborted updates on the update chain.
-     */
-    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !commit && first_committed_upd == NULL) {
-        WT_TIME_WINDOW tw;
-        bool tw_found;
-        tw_found = __wt_read_cell_time_window(cbt, &tw);
-        if (tw_found && tw.prepare == WT_PREPARE_INPROGRESS)
-            WT_ERR(__txn_append_tombstone(session, op, cbt));
-    }
-
-    /*
      * Locate the previous update from the history store and append it to the update chain if
      * required. We know there may be content in the history store if the prepared update is written
      * to the disk image or first committed update older than the prepared update is marked as
@@ -1317,6 +1300,23 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
               session, hs_cursor, page, upd, commit, &fix_upd, &upd_appended, first_committed_upd));
         else
             ret = 0;
+    } else if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !commit && first_committed_upd == NULL) {
+        /*
+         * For in-memory configurations of WiredTiger if a prepared update is reconciled and then
+         * rolled back the on-page value will not be marked as aborted until the next eviction. In
+         * the special case where this rollback results in the update chain being entirely comprised
+         * of aborted updates other transactions attempting to write to the same key will look at
+         * the on-page value, think the prepared transaction is still active, and falsely report a
+         * write conflict. To prevent this scenario append a tombstone to the update chain when
+         * rolling back a prepared reconciled update would result in only aborted updates on the
+         * update chain.
+         */
+
+        WT_TIME_WINDOW tw;
+        bool tw_found;
+        tw_found = __wt_read_cell_time_window(cbt, &tw);
+        if (tw_found && tw.prepare == WT_PREPARE_INPROGRESS)
+            WT_ERR(__txn_append_tombstone(session, op, cbt));
     }
 
     for (; upd != NULL; upd = upd->next) {
