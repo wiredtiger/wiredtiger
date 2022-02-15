@@ -80,6 +80,16 @@ static void unpack_int_and_check(std::vector<uint8_t> const& packed, int64_t exp
 }
 
 
+static void test_pack_and_unpack_int(int64_t value, std::vector<uint8_t> const& expectedPacked)
+{
+    std::vector<uint8_t> packed(expectedPacked.size(), 0);
+    uint8_t *p = packed.data();
+    REQUIRE(__wt_vpack_int(&p, packed.size(), value) == 0);
+    CHECK(packed == expectedPacked);
+    unpack_int_and_check(packed, value);
+}
+
+
 TEST_CASE("Integer packing macros: byte min/max", "[intpack]")
 {
     /*
@@ -282,169 +292,66 @@ TEST_CASE("Integer packing functions: __wt_vpack_negint and __wt_vunpack_negint"
 
 TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[intpack]")
 {
-    std::vector<uint8_t> packed(8, 0);
-
     SECTION("pack and unpack 7")
     {
-        uint8_t *p = packed.data();
-        int64_t value = 7;
-        REQUIRE(__wt_vpack_int(&p, packed.size(), value) == 0);
-        REQUIRE(packed[0] == 0x87);
-        REQUIRE(packed[1] == 0);
-        REQUIRE(packed[2] == 0);
-        REQUIRE(packed[3] == 0);
-        REQUIRE(packed[4] == 0);
-        REQUIRE(packed[5] == 0);
-        REQUIRE(packed[6] == 0);
-        REQUIRE(packed[7] == 0);
-        unpack_int_and_check(packed, value);
+        test_pack_and_unpack_int(7, { 0x87, 0, 0, 0, 0, 0, 0, 0 });
     }
 
     SECTION("pack and unpack 42")
     {
-        uint8_t *p = packed.data();
-        int64_t value = 42;
-        REQUIRE(__wt_vpack_int(&p, packed.size(), value) == 0);
-        REQUIRE(packed[0] == 0xaa);
-        REQUIRE(packed[1] == 0);
-        REQUIRE(packed[2] == 0);
-        REQUIRE(packed[3] == 0);
-        REQUIRE(packed[4] == 0);
-        REQUIRE(packed[5] == 0);
-        REQUIRE(packed[6] == 0);
-        REQUIRE(packed[7] == 0);
-        unpack_int_and_check(packed, value);
+        test_pack_and_unpack_int(42, { 0xaa, 0, 0, 0, 0, 0, 0, 0 });
     }
 
     SECTION("pack and unpack 256")
     {
-        uint8_t *p = packed.data();
-        int64_t value = 256;
-        REQUIRE(__wt_vpack_int(&p, packed.size(), value) == 0);
-        REQUIRE(packed[0] == 0xc0);
-        REQUIRE(packed[1] == 0xc0);
-        REQUIRE(packed[2] == 0);
-        REQUIRE(packed[3] == 0);
-        REQUIRE(packed[4] == 0);
-        REQUIRE(packed[5] == 0);
-        REQUIRE(packed[6] == 0);
-        REQUIRE(packed[7] == 0);
-        unpack_int_and_check(packed, value);
+        test_pack_and_unpack_int(256, { 0xc0, 0xc0, 0, 0, 0, 0, 0, 0 });
     }
 
     SECTION("pack and unpack 257")
     {
-        uint8_t *p = packed.data();
-        int64_t value = 257;
-        REQUIRE(__wt_vpack_int(&p, packed.size(), value) == 0);
-        REQUIRE(packed[0] == 0xc0);
-        REQUIRE(packed[1] == 0xc1);
-        REQUIRE(packed[2] == 0);
-        REQUIRE(packed[3] == 0);
-        REQUIRE(packed[4] == 0);
-        REQUIRE(packed[5] == 0);
-        REQUIRE(packed[6] == 0);
-        REQUIRE(packed[7] == 0);
-        unpack_int_and_check(packed, value);
+        test_pack_and_unpack_int(257, { 0xc0, 0xc1, 0, 0, 0, 0, 0, 0 });
     }
 
     SECTION("pack and unpack 0x1234")
     {
-        uint8_t *p = packed.data();
-        int64_t value = 0x1234;
-        REQUIRE(__wt_vpack_int(&p, packed.size(), value) == 0);
-        REQUIRE(packed[0] == 0xd1);
-        REQUIRE(packed[1] == 0xf4);
-        REQUIRE(packed[2] == 0);
-        REQUIRE(packed[3] == 0);
-        REQUIRE(packed[4] == 0);
-        REQUIRE(packed[5] == 0);
-        REQUIRE(packed[6] == 0);
-        REQUIRE(packed[7] == 0);
-        unpack_int_and_check(packed, value);
+        test_pack_and_unpack_int(0x1234, { 0xd1, 0xf4, 0, 0, 0, 0, 0, 0 });
     }
 
-    SECTION("pack and unpack 0x123456789")
+    SECTION("pack and unpack 0x123456789 - won't fit")
     {
+        std::vector<uint8_t> packed(8, 0);
         uint8_t *p = packed.data();
         int64_t value = 0x123456789;
         /* value won't fit in two bytes */
         REQUIRE(__wt_vpack_int(&p, 2, value) == ENOMEM);
         /* value should fit in 8 bytes */
         REQUIRE(__wt_vpack_int(&p, packed.size(), value) == 0);
+    }
+
+    SECTION("pack and unpack 0x123456789 - should fit")
+    {
         /* The value that is stored in this case is (0x123456789 - 0x2040) = 0x123454749 */
-        REQUIRE(packed[0] == 0xe5); /* 'e' is the marker and '5' is the length in bytes */
-        REQUIRE(packed[1] == 0x01);
-        REQUIRE(packed[2] == 0x23);
-        REQUIRE(packed[3] == 0x45);
-        REQUIRE(packed[4] == 0x47); /* This byte modified by subtraction from original value */
-        REQUIRE(packed[5] == 0x49); /* This byte modified by subtraction from original value */
-        REQUIRE(packed[6] == 0);
-        REQUIRE(packed[7] == 0);
-        unpack_int_and_check(packed, value);
+        /* For the first byte: 'e' is the marker and '5' is the length in bytes */
+        test_pack_and_unpack_int(0x123456789, { 0xe5, 0x01, 0x23, 0x45, 0x47, 0x49, 0, 0 });
     }
 
     SECTION("pack and unpack -7")
     {
-        uint8_t *p = packed.data();
-        int64_t value = -7;
-        REQUIRE(__wt_vpack_int(&p, packed.size(), value) == 0);
-        REQUIRE(packed[0] == 0x79);
-        REQUIRE(packed[1] == 0);
-        REQUIRE(packed[2] == 0);
-        REQUIRE(packed[3] == 0);
-        REQUIRE(packed[4] == 0);
-        REQUIRE(packed[5] == 0);
-        REQUIRE(packed[6] == 0);
-        REQUIRE(packed[7] == 0);
-        unpack_int_and_check(packed, value);
+        test_pack_and_unpack_int(-7, { 0x79, 0, 0, 0, 0, 0, 0, 0 });
     }
 
     SECTION("pack and unpack -42")
     {
-        uint8_t *p = packed.data();
-        int64_t value = -42;
-        REQUIRE(__wt_vpack_int(&p, packed.size(), value) == 0);
-        REQUIRE(packed[0] == 0x56);
-        REQUIRE(packed[1] == 0);
-        REQUIRE(packed[2] == 0);
-        REQUIRE(packed[3] == 0);
-        REQUIRE(packed[4] == 0);
-        REQUIRE(packed[5] == 0);
-        REQUIRE(packed[6] == 0);
-        REQUIRE(packed[7] == 0);
-        unpack_int_and_check(packed, value);
+        test_pack_and_unpack_int(-42, { 0x56, 0, 0, 0, 0, 0, 0, 0 });
     }
 
     SECTION("pack and unpack -256")
     {
-        uint8_t *p = packed.data();
-        int64_t value = -256;
-        REQUIRE(__wt_vpack_int(&p, packed.size(), value) == 0);
-        REQUIRE(packed[0] == 0x3f);
-        REQUIRE(packed[1] == 0x40);
-        REQUIRE(packed[2] == 0);
-        REQUIRE(packed[3] == 0);
-        REQUIRE(packed[4] == 0);
-        REQUIRE(packed[5] == 0);
-        REQUIRE(packed[6] == 0);
-        REQUIRE(packed[7] == 0);
-        unpack_int_and_check(packed, value);
+        test_pack_and_unpack_int(-256, { 0x3f, 0x40, 0, 0, 0, 0, 0, 0 });
     }
 
     SECTION("pack and unpack -257")
     {
-        uint8_t *p = packed.data();
-        int64_t value = -257;
-        REQUIRE(__wt_vpack_int(&p, packed.size(), value) == 0);
-        REQUIRE(packed[0] == 0x3f);
-        REQUIRE(packed[1] == 0x3f);
-        REQUIRE(packed[2] == 0);
-        REQUIRE(packed[3] == 0);
-        REQUIRE(packed[4] == 0);
-        REQUIRE(packed[5] == 0);
-        REQUIRE(packed[6] == 0);
-        REQUIRE(packed[7] == 0);
-        unpack_int_and_check(packed, value);
+        test_pack_and_unpack_int(-257, { 0x3f, 0x3f, 0, 0, 0, 0, 0, 0 });
     }
 }
