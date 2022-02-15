@@ -29,6 +29,7 @@
 #include <wiredtiger_ext.h>
 #include <sys/stat.h>
 #include <fstream>
+#include <experimental/filesystem>
 #include <list>
 #include <errno.h>
 #include <unistd.h>
@@ -197,8 +198,7 @@ S3CacheExists(WT_FILE_SYSTEM *fileSystem, const std::string &name)
 static bool
 LocalFileExists(const std::string &path)
 {
-    std::ifstream f(path);
-    return (f.good());
+    return (std::experimental::filesystem::exists(path));
 }
 
 /*

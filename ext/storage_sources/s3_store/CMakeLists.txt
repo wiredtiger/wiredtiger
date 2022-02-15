@@ -1,3 +1,6 @@
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 project(s3_store CXX)
 
 # Create an intermediate library to build the helper library.
@@ -34,6 +37,7 @@ target_link_libraries(
         aws_bucket_util
         aws-sdk::s3-crt
         aws-sdk::core
+        stdc++fs
 )
 
 # Add the unit tests.
