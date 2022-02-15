@@ -58,6 +58,7 @@ S3LogSystem::LogVerboseMessage(int32_t verbosityLevel, const std::string &messag
         /* Use err_printf for error and warning messages. */
         if (verbosityLevel < -1)
             _wtApi->err_printf(_wtApi, NULL, "%s", message.c_str());
+        /* Use msg_printf for info and debug messages. */
         else
             _wtApi->msg_printf(_wtApi, NULL, "%s", message.c_str());
     }

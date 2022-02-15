@@ -471,8 +471,10 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     else if (ret == WT_NOTFOUND) {
         cacheStr = "cache-" + std::string(bucketName);
         ret = 0;
-    } else
+    } else {
+        s3->log->LogVerboseMessage(-3, "wiredtiger_extension_init: error parsing config for cache directory.");
         return (ret);
+    }
 
     /* Fetch the native WT file system. */
     if ((ret = s3->wtApi->file_system_get(s3->wtApi, session, &wtFileSystem)) != 0)
@@ -652,7 +654,7 @@ S3ObjectListAdd(const S3_STORAGE *s3, char ***objectList, const std::vector<std:
     for (int i = 0; i < count; i++) {
         if ((entries[i] = strdup(objects[i].c_str())) == NULL) {
             s3->log->LogVerboseMessage(
-              -3, "S3ObjectListAdd: unable to allocate memory for object.");
+              -3, "S3ObjectListAdd: unable to allocate memory for object string.");
             return (ENOMEM);
         }
     }
@@ -671,9 +673,6 @@ S3AddReference(WT_STORAGE_SOURCE *storageSource)
 {
     S3_STORAGE *s3 = (S3_STORAGE *)storageSource;
 
-    /*
-     * Missing reference or overflow?
-     */
     if (s3->referenceCount == 0 || s3->referenceCount + 1 == 0) {
         s3->log->LogVerboseMessage(-3, "S3AddReference: missing reference or overflow.");
         return (EINVAL);
@@ -811,7 +810,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     else if (ret == WT_NOTFOUND)
         s3->verbose = -3;
     else {
-        s3->log->LogVerboseMessage(-3, "wiredtiger_extension_init: unable to set verbose level.");
+        s3->log->LogVerboseMessage(-3, "wiredtiger_extension_init: error parsing config for verbose level.");
         free(s3);
         return (ret != 0 ? ret : EINVAL);
     }
