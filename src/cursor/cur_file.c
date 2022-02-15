@@ -92,7 +92,7 @@ __curfile_set_key(WT_CURSOR *cursor, ...)
 
 /*
  * __curfile_reposition --
- *     Research the saved key to regain the cursor position
+ *     Reposition the saved key
  */
 static int
 __curfile_reposition(WT_CURSOR *cursor)
