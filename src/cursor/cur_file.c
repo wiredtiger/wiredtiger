@@ -111,7 +111,7 @@ __curfile_reposition(WT_CURSOR *cursor)
 
     if (ret != 0)
         return (
-          __wt_panic(session, ret, "Failed to reposition to regain the saved cursor key position"));
+          __wt_panic(session, ret, "Failed to reposition the saved key"));
 
     /* Search maintains a position, key and value. */
     WT_ASSERT(session,
