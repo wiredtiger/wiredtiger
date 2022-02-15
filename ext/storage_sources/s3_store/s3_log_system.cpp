@@ -55,10 +55,10 @@ void
 S3LogSystem::LogVerboseMessage(int32_t verbosityLevel, const std::string &message)
 {
     if (verbosityLevel <= _wtVerbosityLevel) {
-        /* Use err_printf for error and warning messages. */
+        /* Use err_printf for error and warning messages and use msg_printf for notice, info and
+         * debug messages. */
         if (verbosityLevel < -1)
             _wtApi->err_printf(_wtApi, NULL, "%s", message.c_str());
-        /* Use msg_printf for notice, info and debug messages. */
         else
             _wtApi->msg_printf(_wtApi, NULL, "%s", message.c_str());
     }
