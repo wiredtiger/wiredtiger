@@ -26,12 +26,27 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest
+import datetime, random, os, wiredtiger, wttest
 FileSystem = wiredtiger.FileSystem  # easy access to constants
 
 # test_s3_store01.py
 #   Test minimal S3 extension with basic interactions with AWS S3CrtClient.
 class test_s3_store01(wttest.WiredTigerTestCase):
+    # Generates a unique prefix to be used with the object keys, eg:
+    # "s3test_artefacts/python_2022-31-01-16-34-10_623843294/"
+    prefix = 's3test_artefacts/python_'
+    prefix += datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+    # Range upto int32_max, matches that of C++'s std::default_random_engine
+    prefix += '_' + str(random.randrange(1,2147483646))
+    prefix += "/"
+
+    fs_config = 'prefix=' + prefix
+
+    # Bucket name can be overridden by an environment variable.
+    bucket_name = os.getenv('WT_S3_EXT_BUCKET')
+    if bucket_name is None:
+        bucket_name = "s3testext"
+
     # Load the s3 store extension, skip the test if missing.
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
@@ -43,12 +58,41 @@ class test_s3_store01(wttest.WiredTigerTestCase):
     def test_local_basic(self):
         # Test some basic functionality of the storage source API, calling
         # each supported method in the API at least once.
+        cache_prefix = "cache-"
+        filename = "foobar"
+        object_name = "foobar"
+    
         session = self.session
         s3_store = self.get_s3_storage_source()
+        fs = s3_store.ss_customize_file_system(session, self.bucket_name, "Secret", self.fs_config)
+       
+        # Test flush functionality and flushing to cache and checking if file exists.
+        f = open(filename, 'wb')
+        outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
+        f.write(outbytes)
+        f.close()
 
-        fs = s3_store.ss_customize_file_system(session, "wt-bucket", "Secret", None)
+        s3_store.ss_flush(session, fs, filename, object_name)
+        s3_store.ss_flush_finish(session, fs, filename, object_name)
+        self.assertTrue(fs.fs_exist(session, filename))
 
-        fs.terminate(session)
+        fh = fs.fs_open_file(session, filename, FileSystem.open_file_type_data, FileSystem.open_readonly)
+        inbytes = bytes(1000000)         # An empty buffer with a million zero bytes.
+        fh.fh_read(session, 0, inbytes)  # Read into the buffer.
+        self.assertEquals(outbytes[0:1000000], inbytes)
+        self.assertTrue(fs.fs_size(session, filename), len(outbytes))
+        self.assertEquals(fh.fh_size(session), len(outbytes))
+        fh.close(session)
+
+        # Checking that the file still exists in S3 after removing it from the cache.
+        os.remove(cache_prefix + self.bucket_name + '/' + filename)
+        self.assertTrue(fs.fs_exist(session, filename))
+        file_list = [self.prefix + object_name]
+        self.assertEquals(fs.fs_directory_list(session, None, None), file_list)
+
+        fs2 = s3_store.ss_customize_file_system(session, self.bucket_name, "Secret", self.fs_config)
+        self.assertEquals(fs.fs_directory_list(session, None, None), file_list)
+
         s3_store.terminate(session)
 
 if __name__ == '__main__':

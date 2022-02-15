@@ -19,10 +19,12 @@ method.
 @section timestamp_misc_diagnostic Using diagnostic configurations to enforce timestamp usage
 
 The WT_SESSION::create method supports additional checking of timestamp usage on
-a per-key or per-table basis.  These performance checks can significantly
-decrease application performance, but are useful development tools. Setting the
-\c write_timestamp_usage configuration specifies how timestamps are expected to
-be used by the table:
+a per-key or per-table basis. While these usage checks can decrease application
+performance and applications may not choose to configure them in production
+settings, they are strongly recommended during development.
+
+Setting the \c write_timestamp_usage configuration specifies how timestamps are
+expected to be used by the table:
 
 | Configuration | Description |
 |---------------|-------------|
@@ -53,5 +55,9 @@ non-timestamped tables, to get a new snapshot of the database to read
 from. See @ref snapshot_reset.
 Transactions that have set \c read_timestamp can also call
 WT_SESSION::reset_snapshot, but it will have no effect.
+
+@section timestamps_misc_in_memory In-memory configurations and timestamps
+
+Timestamps are supported for in-memory databases.
 
 */
