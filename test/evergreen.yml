@@ -2069,7 +2069,7 @@ tasks:
         params:
           working_dir: "wiredtiger/cmake_build"
           shell: bash
-          silent: false
+          silent: true
           script: |
             set -o errexit
             export AWS_ACCESS_KEY_ID=${aws_sdk_s3_ext_access_key}
@@ -3946,7 +3946,6 @@ buildvariants:
     - name: ftruncate-test
     - name: long-test
     - name: configure-combinations
-    - name: s3-ext-test
 
 - name: code-statistics
   display_name: "Code statistics"
@@ -4055,7 +4054,6 @@ buildvariants:
     - name: generate-datafile-little-endian
     - name: verify-datafile-little-endian
     - name: verify-datafile-from-big-endian
-    - name: s3-ext-test
 
 - name: big-endian
   display_name: "~ Big-endian (s390x/zSeries)"
@@ -4111,7 +4109,6 @@ buildvariants:
     - name: format-asan-smoke-ppc-test
     - name: format-wtperf-test
     - name: ".stress-test-ppc-1"
-    - name: s3-ext-test
 
 - name: ubuntu1804-zseries
   display_name: "~ Ubuntu 18.04 zSeries"
