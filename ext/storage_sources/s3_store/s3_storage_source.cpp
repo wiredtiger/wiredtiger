@@ -382,12 +382,12 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     std::string objPrefix;
     if ((ret = s3->wtApi->config_get_string(
            s3->wtApi, session, config, "prefix", &objPrefixConf)) == 0)
-        objPrefix = objPrefixConf.str;
+        objPrefix = std::string(objPrefixConf.str, objPrefixConf.len);
     else if (ret != WT_NOTFOUND) {
         std::cerr << "Error: customize_file_system: config parsing for object prefix";
         return (1);
     }
-    std::cout << "Prefix: " << objPrefixConf.str << std::endl;
+    std::cout << "Prefix: " << objPrefix << std::endl;
 
     /*
      * Configure the SDK and get the AWS region to be used. If no region is provided, the region
@@ -402,12 +402,12 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     std::string region;
     if ((ret = s3->wtApi->config_get_string(s3->wtApi, session, config, "region", &regionConf)) ==
       0)
-        awsConfig.region = regionConf.str;
+        awsConfig.region = std::string(regionConf.str, regionConf.len);
     else if (ret != WT_NOTFOUND) {
         std::cerr << "Error: customize_file_system: config parsing for AWS region";
         return (1);
     }
-    std::cout << "Region: " << regionConf.str << std::endl;
+    std::cout << "Region: " << awsConfig.region << std::endl;
 
     /*
      * Get the directory to setup the cache, or use the default one. The default cache directory is
