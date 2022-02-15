@@ -210,29 +210,22 @@ S3GetDirectory(const std::string &home, const std::string &name, bool create, st
 {
     copy = "";
 
-    struct stat sb;
-    int ret;
-    std::string dirName;
-
     /* For relative pathnames, the path is considered to be relative to the home directory. */
+    std::string dirName;
     if (name[0] == '/')
         dirName = name;
     else
         dirName = home + "/" + name;
+        
+    std::experimental::filesystem::path directory(dirName);
 
-    ret = stat(dirName.c_str(), &sb);
-    if (ret != 0 && errno == ENOENT && create) {
-        mkdir(dirName.c_str(), 0777);
-        ret = stat(dirName.c_str(), &sb);
+    if (!std::experimental::filesystem::is_directory(directory) && create) {
+        bool createSuccess = std::experimental::filesystem::create_directory(directory);
+        if (!createSuccess)
+            return (EINVAL);
     }
-
-    if (ret != 0)
-        ret = errno;
-    else if ((sb.st_mode & S_IFMT) != S_IFDIR)
-        ret = EINVAL;
-
     copy = dirName;
-    return (ret);
+    return (0);
 }
 
 /*
