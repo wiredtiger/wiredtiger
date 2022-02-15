@@ -25,8 +25,9 @@ add_subdirectory(${catch2_SOURCE_DIR} ${catch2_BINARY_DIR})
 # End of code that achieves what FetchContent_MakeAvailable(Catch2) would do.
 
 set(unittest_sources
-    tests/main.cxx
-    tests/extent_list.cxx
+    tests/main.cpp
+    tests/extent_list.cpp
+    tests/pow.cpp
     tests/packing/test_intpack.cpp
     tests/wrappers/block_mods.cpp
     tests/wrappers/connection_wrapper.cpp
