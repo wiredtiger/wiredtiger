@@ -79,12 +79,12 @@ common_runtime_config = [
         for every operation on a table, \c ordered which ensures that once
         timestamps are used for a key, they are always used, and also that
         subsequent updates to each key must use increasing timestamps,
-	\c mixed_mode is like \c ordered except that updates with no timestamp
-	are allowed at any time, \c never enforces that timestamps are never
-	used for a table and \c none does not enforce any expectation on
-	timestamp usage meaning that no log message or assertions will be
-	produced regardless of the corresponding \c assert setting''',
-	choices=['always', 'mixed_mode', 'never', 'none', 'ordered']),
+        \c mixed_mode is like \c ordered except that updates with no timestamp
+        are allowed at any time, \c never enforces that timestamps are never
+        used for a table and \c none does not enforce any expectation on
+        timestamp usage meaning that no log message or assertions will be
+        produced regardless of the corresponding \c assert setting''',
+        choices=['always', 'mixed_mode', 'never', 'none', 'ordered']),
 ]
 
 # Metadata shared by all schema objects
