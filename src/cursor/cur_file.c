@@ -105,22 +105,21 @@ __curfile_reposition(WT_CURSOR *cursor)
     session = CUR2S(cursor);
 
     if (!F_ISSET(cursor, WT_CURSTD_KEY_EXT))
-        return (__wt_panic(session, EINVAL, "Reposition flag is set without a search key"));
+        WT_ERR(__wt_panic(session, EINVAL, "Reposition flag is set without a search key"));
 
     ret = __wt_btcur_search(cbt);
 
     if (ret != 0)
-        return (
-          __wt_panic(session, ret, "Failed to reposition the saved key"));
+        WT_ERR(__wt_panic(session, ret, "Failed to reposition the saved key"));
 
     /* Search maintains a position, key and value. */
     WT_ASSERT(session,
       F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
+err:
     F_CLR(cbt, WT_CBT_REPOSITION);
-
-    return (0);
+    return (ret);
 }
 
 /*
