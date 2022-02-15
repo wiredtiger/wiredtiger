@@ -154,8 +154,9 @@ will be one of \c WT_BACKUP_FILE or \c WT_BACKUP_RANGE. For \c WT_BACKUP_RANGE,
 read the block from the source database file indicated by the file offset and
 size pair and write the block to the same offset in the
 backup database file, replacing the portion of the file represented by
-the offset/size pair.  It is not an error for an offset/size pair to extend past
+the offset/size pair. \warning It is not an error for an offset/size pair to extend past
 the current end of the source file, and any missing file data should be ignored.
+
 For \c WT_BACKUP_FILE, the user can choose to copy the entire file in
 any way they choose, or to use the offset/size pair which will
 indicate the expected size WiredTiger knew at the time of the call.
