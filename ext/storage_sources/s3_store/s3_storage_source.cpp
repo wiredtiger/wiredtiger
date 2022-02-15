@@ -472,7 +472,8 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
         cacheStr = "cache-" + std::string(bucketName);
         ret = 0;
     } else {
-        s3->log->LogVerboseMessage(-3, "wiredtiger_extension_init: error parsing config for cache directory.");
+        s3->log->LogVerboseMessage(
+          -3, "wiredtiger_extension_init: error parsing config for cache directory.");
         return (ret);
     }
 
@@ -805,12 +806,13 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     int ret = s3->wtApi->config_get(s3->wtApi, NULL, config, "verbose", &v);
 
     // If a verbose level is not found, it will set the level to -3 (Error).
+    s3->verbose = -3;
     if (ret == 0 && v.val >= -3 && v.val <= 1)
         s3->verbose = v.val;
-    else if (ret == WT_NOTFOUND)
-        s3->verbose = -3;
-    else {
-        s3->log->LogVerboseMessage(-3, "wiredtiger_extension_init: error parsing config for verbose level.");
+    else if (ret != WT_NOTFOUND) {
+        s3->log = new S3LogSystem(s3->wtApi, s3->verbose);
+        s3->log->LogVerboseMessage(
+          -3, "wiredtiger_extension_init: error parsing config for verbose level.");
         free(s3);
         return (ret != 0 ? ret : EINVAL);
     }
