@@ -328,7 +328,7 @@ class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
     ]
     scenarios = make_scenarios(types)
 
-    def XXXtest_timestamp_inconsistent(self):
+    def test_timestamp_inconsistent(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
 
@@ -356,8 +356,7 @@ class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(1))
         c[key] = ds.value(2)
-        msg_ooo ='updates a value with an older timestamp'
-        with self.expectedStderrPattern(msg):
+        with self.expectedStderrPattern('updates a value with an older timestamp'):
                 self.session.commit_transaction()
 
         # Make sure we can successfully add a different key at timestamp 1.
@@ -367,9 +366,7 @@ class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
         self.session.commit_transaction()
         
         # Insert key1 at timestamp 10 and key2 at 15. Then update both keys in one transaction at
-        # timestamp 13. If we're asserting, We should not be allowed to modify the one from 15 and
-        # the whole transaction should fail. If we're doing verbose messages, we get a message and
-        # the transaction will succeed.
+        # timestamp 13, and we should get a complaint about usage.
         key1 = ds.key(3)
         key2 = ds.key(4)
         self.session.begin_transaction()
@@ -383,38 +380,10 @@ class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(13))
         c[key1] = ds.value(5)
         c[key2] = ds.value(6)
-        with self.expectedStderrPattern(msg):
+        with self.expectedStderrPattern('updates a value with an older timestamp'):
             self.session.commit_transaction()
-        self.assertEquals(c[key1], ds.value(3))
-        self.assertEquals(c[key2], ds.value(4))
-
-        # Separately, we should be able to update key1 at timestamp 10 but not update key2 inserted
-        # at timestamp 15.
-        self.session.begin_transaction()
-        c[key1] = ds.value(7)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(13))
-
-        self.session.begin_transaction()
-        c[key2] = ds.value(8)
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.commit_transaction(
-            'commit_timestamp=' + self.timestamp_str(13)), '/' + msg_ooo + '/')
-        self.assertEquals(c[key2], ds.value(4))
-
-        # Make sure multiple update attempts still fail and eventually succeed with a later
-        # timestamp. This tests that aborted entries in the update chain are not considered
-        # for the timestamp check.
-        self.session.begin_transaction()
-        c[key2] = ds.value(9)
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.commit_transaction(
-            'commit_timestamp=' + self.timestamp_str(14)), '/' + msg_ooo + '/')
-        self.assertEquals(c[key2], ds.value(4))
-
-        self.session.begin_transaction()
-        c[key2] = ds.value(10)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(16))
-        self.assertEquals(c[key2], ds.value(10))
+        self.assertEquals(c[key1], ds.value(5))
+        self.assertEquals(c[key2], ds.value(6))
 
     # Try to update a key previously used with timestamps without one. We should get the
     # inconsistent usage error/message.
