@@ -375,7 +375,6 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     /*
      * Parse configuration string.
      */
-    std::cout << "Configuration string: " << config << std::endl;
 
     /* Get any prefix to be used for the object keys. */
     WT_CONFIG_ITEM objPrefixConf;
@@ -387,17 +386,20 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
         std::cerr << "Error: customize_file_system: config parsing for object prefix";
         return (1);
     }
-    std::cout << "Prefix: " << objPrefix << std::endl;
-
     /*
-     * Configure the SDK and get the AWS region to be used. If no region is provided, the region
-     * will default to the default region configured in the applicable AWS credentials.
+     * Configure the AWS Client configuration. The options that can be set are documented below:
      * https://docs.aws.amazon.com/sdk-for-cpp/v1/developer-guide/client-config.html
      */
     Aws::S3Crt::ClientConfiguration awsConfig;
     awsConfig.throughputTargetGbps = throughputTargetGbps;
     awsConfig.partSize = partSize;
 
+    /*
+     * Get the AWS region to be used. If no region is provided, the region will default to the
+     * default region configured in the applicable AWS credentials. The allowable values for AWS
+     * region are listed here in the AWS documentation:
+     * http://sdk.amazonaws.com/cpp/api/LATEST/namespace_aws_1_1_region.html
+     */
     WT_CONFIG_ITEM regionConf;
     std::string region;
     if ((ret = s3->wtApi->config_get_string(s3->wtApi, session, config, "region", &regionConf)) ==
@@ -407,8 +409,6 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
         std::cerr << "Error: customize_file_system: config parsing for AWS region";
         return (1);
     }
-    std::cout << "Region: " << awsConfig.region << std::endl;
-
     /*
      * Get the directory to setup the cache, or use the default one. The default cache directory is
      * named "cache-<name>", where name is the last component of the bucket name's path. We'll
@@ -418,7 +418,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     std::string cacheStr;
     if ((ret = s3->wtApi->config_get_string(
            s3->wtApi, session, config, "cache_directory", &cacheDirConf)) == 0)
-        cacheStr = cacheDirConf.str;
+        cacheStr = std::string(cacheDirConf.str, cacheDirConf.len);
     else if (ret == WT_NOTFOUND) {
         cacheStr = "cache-" + std::string(bucketName);
         ret = 0;
