@@ -1075,17 +1075,16 @@ struct __wt_session {
 	 * disabled.  See @ref readonly for more information., a boolean flag; default \c false.}
 	 * @config{write_timestamp_usage, describe how timestamps are expected to be used on
 	 * modifications to the table.  This option should be used in conjunction with the
-	 * corresponding \c write_timestamp configuration under the \c assert and \c verbose options
-	 * to provide logging and assertions for incorrect timestamp usage.  The choices are \c
-	 * always which ensures a timestamp is used for every operation on a table\, \c ordered
-	 * which ensures that once timestamps are used for a key\, they are always used\, and also
-	 * that subsequent updates to each key must use increasing timestamps\, \c mixed_mode is
-	 * like \c ordered except that updates with no timestamp are allowed at any time\, \c never
-	 * enforces that timestamps are never used for a table and \c none does not enforce any
-	 * expectation on timestamp usage meaning that no log message or assertions will be produced
-	 * regardless of the corresponding \c assert and \c verbose settings., a string\, chosen
-	 * from the following options: \c "always"\, \c "mixed_mode"\, \c "never"\, \c "none"\, \c
-	 * "ordered"; default \c none.}
+	 * corresponding \c write_timestamp configuration under the \c assert option to provide
+	 * logging and assertions for incorrect timestamp usage.  The choices are \c always which
+	 * ensures a timestamp is used for every operation on a table\, \c ordered which ensures
+	 * that once timestamps are used for a key\, they are always used\, and also that subsequent
+	 * updates to each key must use increasing timestamps\, \c mixed_mode is like \c ordered
+	 * except that updates with no timestamp are allowed at any time\, \c never enforces that
+	 * timestamps are never used for a table and \c none does not enforce any expectation on
+	 * timestamp usage meaning that no log message or assertions will be produced regardless of
+	 * the corresponding \c assert setting., a string\, chosen from the following options: \c
+	 * "always"\, \c "mixed_mode"\, \c "never"\, \c "none"\, \c "ordered"; default \c none.}
 	 * @configend
 	 * @errors
 	 */
@@ -1358,17 +1357,16 @@ struct __wt_session {
 	 * using a fixed-length store., a format string; default \c u.}
 	 * @config{write_timestamp_usage, describe how timestamps are expected to be used on
 	 * modifications to the table.  This option should be used in conjunction with the
-	 * corresponding \c write_timestamp configuration under the \c assert and \c verbose options
-	 * to provide logging and assertions for incorrect timestamp usage.  The choices are \c
-	 * always which ensures a timestamp is used for every operation on a table\, \c ordered
-	 * which ensures that once timestamps are used for a key\, they are always used\, and also
-	 * that subsequent updates to each key must use increasing timestamps\, \c mixed_mode is
-	 * like \c ordered except that updates with no timestamp are allowed at any time\, \c never
-	 * enforces that timestamps are never used for a table and \c none does not enforce any
-	 * expectation on timestamp usage meaning that no log message or assertions will be produced
-	 * regardless of the corresponding \c assert and \c verbose settings., a string\, chosen
-	 * from the following options: \c "always"\, \c "mixed_mode"\, \c "never"\, \c "none"\, \c
-	 * "ordered"; default \c none.}
+	 * corresponding \c write_timestamp configuration under the \c assert option to provide
+	 * logging and assertions for incorrect timestamp usage.  The choices are \c always which
+	 * ensures a timestamp is used for every operation on a table\, \c ordered which ensures
+	 * that once timestamps are used for a key\, they are always used\, and also that subsequent
+	 * updates to each key must use increasing timestamps\, \c mixed_mode is like \c ordered
+	 * except that updates with no timestamp are allowed at any time\, \c never enforces that
+	 * timestamps are never used for a table and \c none does not enforce any expectation on
+	 * timestamp usage meaning that no log message or assertions will be produced regardless of
+	 * the corresponding \c assert setting., a string\, chosen from the following options: \c
+	 * "always"\, \c "mixed_mode"\, \c "never"\, \c "none"\, \c "ordered"; default \c none.}
 	 * @configend
 	 * @errors
 	 */

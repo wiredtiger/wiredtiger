@@ -74,18 +74,17 @@ common_runtime_config = [
         describe how timestamps are expected to be used on modifications
         to the table. This option should be used in conjunction with the
         corresponding \c write_timestamp configuration under the \c assert
-        and \c verbose options to provide logging and assertions for incorrect
-        timestamp usage. The choices are \c always which ensures a timestamp
-        is used for every operation on a table, \c ordered which ensures
-        that once timestamps are used for a key, they are always used,
-        and also that subsequent updates to each key must use increasing
-        timestamps, \c mixed_mode is like \c ordered except that updates
-        with no timestamp are allowed at any time, \c never enforces that
-        timestamps are never used for a table and \c none does not enforce
-        any expectation on timestamp usage meaning that no log message
-        or assertions will be produced regardless of the corresponding \c
-        assert and \c verbose settings''', choices=['always', 'mixed_mode',
-        'never', 'none', 'ordered']),
+        option to provide logging and assertions for incorrect timestamp
+        usage. The choices are \c always which ensures a timestamp is used
+        for every operation on a table, \c ordered which ensures that once
+        timestamps are used for a key, they are always used, and also that
+        subsequent updates to each key must use increasing timestamps,
+	\c mixed_mode is like \c ordered except that updates with no timestamp
+	are allowed at any time, \c never enforces that timestamps are never
+	used for a table and \c none does not enforce any expectation on
+	timestamp usage meaning that no log message or assertions will be
+	produced regardless of the corresponding \c assert setting''',
+	choices=['always', 'mixed_mode', 'never', 'none', 'ordered']),
 ]
 
 # Metadata shared by all schema objects
