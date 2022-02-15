@@ -442,7 +442,7 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
 
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
-    return (__cursor_reset(cbt));
+    return (__wt_cursor_reset(cbt));
 }
 
 /*
@@ -468,7 +468,7 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
      * from the last operation. This also depends on the fact we're not setting the cursor's active
      * flag, this is really a special chunk of code and not to be modified without careful thought.
      */
-    WT_RET(__cursor_reset(cbt));
+    WT_RET(__wt_cursor_reset(cbt));
 
     WT_RET(btree->type == BTREE_ROW ? __cursor_row_search(cbt, false, NULL, NULL) :
                                       __cursor_col_search(cbt, NULL, NULL));
@@ -615,7 +615,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 
 err:
     if (ret != 0) {
-        WT_TRET(__cursor_reset(cbt));
+        WT_TRET(__wt_cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }
     return (ret);
@@ -799,7 +799,7 @@ err:
          * and next loops. Those internally do reset the cursor but not when performing a prefix
          * search near.
          */
-        WT_TRET(__cursor_reset(cbt));
+        WT_TRET(__wt_cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }
     return (ret);
@@ -876,7 +876,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
          * the cursor state: we may retry but eventually fail.
          */
         WT_TRET(__wt_cursor_localkey(cursor));
-        WT_TRET(__cursor_localvalue(cursor));
+        WT_TRET(__wt_cursor_localvalue(cursor));
         __cursor_state_save(cursor, &state);
         goto err;
     }
@@ -886,7 +886,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
      * Re-save the cursor state: we may retry but eventually fail.
      */
     WT_ERR(__wt_cursor_localkey(cursor));
-    WT_ERR(__cursor_localvalue(cursor));
+    WT_ERR(__wt_cursor_localvalue(cursor));
     __cursor_state_save(cursor, &state);
 
 retry:
@@ -947,7 +947,7 @@ duplicate:
             ret = WT_DUPLICATE_KEY;
         else {
             __wt_value_return(cbt, cbt->upd_value);
-            if ((ret = __cursor_localvalue(cursor)) == 0)
+            if ((ret = __wt_cursor_localvalue(cursor)) == 0)
                 ret = WT_DUPLICATE_KEY;
         }
     }
@@ -959,7 +959,7 @@ done:
         if (append_key)
             F_SET(cursor, WT_CURSTD_KEY_EXT);
     }
-    WT_TRET(__cursor_reset(cbt));
+    WT_TRET(__wt_cursor_reset(cbt));
     if (ret != 0 && ret != WT_DUPLICATE_KEY)
         __cursor_state_restore(cursor, &state);
 
@@ -1042,7 +1042,7 @@ err:
     /* Insert doesn't maintain a position across calls, clear resources. */
     if (ret == 0)
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-    WT_TRET(__cursor_reset(cbt));
+    WT_TRET(__wt_cursor_reset(cbt));
 
     return (ret);
 }
@@ -1190,7 +1190,7 @@ err:
                 WT_TRET(__wt_key_return(cbt));
         } else {
             F_CLR(cursor, WT_CURSTD_KEY_SET);
-            WT_TRET(__cursor_reset(cbt));
+            WT_TRET(__wt_cursor_reset(cbt));
         }
 
         /*
@@ -1198,7 +1198,7 @@ err:
          * key or resetting the cursor after an otherwise successful remove.
          */
         if (ret != 0) {
-            WT_TRET(__cursor_reset(cbt));
+            WT_TRET(__wt_cursor_reset(cbt));
             __cursor_state_restore(cursor, &state);
         }
     } else {
@@ -1221,7 +1221,7 @@ search_notfound:
          * value in the clause immediately above so we don't lose an error value if cursor reset
          * fails.
          */
-        WT_TRET(__cursor_reset(cbt));
+        WT_TRET(__wt_cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }
 
@@ -1291,7 +1291,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
          * the cursor state: we may retry but eventually fail.
          */
         WT_TRET(__wt_cursor_localkey(cursor));
-        WT_TRET(__cursor_localvalue(cursor));
+        WT_TRET(__wt_cursor_localvalue(cursor));
         __cursor_state_save(cursor, &state);
         goto err;
     }
@@ -1301,7 +1301,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
      * Re-save the cursor state: we may retry but eventually fail.
      */
     WT_ERR(__wt_cursor_localkey(cursor));
-    WT_ERR(__cursor_localvalue(cursor));
+    WT_ERR(__wt_cursor_localvalue(cursor));
     __cursor_state_save(cursor, &state);
 
 retry:
@@ -1387,7 +1387,7 @@ done:
     }
 
     if (ret != 0) {
-        WT_TRET(__cursor_reset(cbt));
+        WT_TRET(__wt_cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }
 
@@ -1530,7 +1530,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
      */
     if (ret != 0) {
 err:
-        WT_TRET(__cursor_reset(cbt));
+        WT_TRET(__wt_cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }
 
@@ -1931,7 +1931,7 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
      * the session handle's cursor count. Skip the usual cursor tear-down in that case.
      */
     if (!lowlevel)
-        ret = __cursor_reset(cbt);
+        ret = __wt_cursor_reset(cbt);
 
     __wt_buf_free(session, &cbt->_row_key);
     __wt_buf_free(session, &cbt->_tmp);

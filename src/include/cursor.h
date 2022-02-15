@@ -228,7 +228,7 @@ struct __wt_cursor_btree {
 #define WT_CBT_NO_TRACKING 0x0080u        /* Non tracking cursor. */
 #define WT_CBT_NO_TXN 0x0100u             /* Non-txn cursor (e.g. a checkpoint) */
 #define WT_CBT_READ_ONCE 0x0200u          /* Page in with WT_READ_WONT_NEED */
-#define WT_CBT_RESEARCH 0x0400u           /* Search the saved key to regain cursor position */
+#define WT_CBT_REPOSITION 0x0400u         /* Search the saved key to regain cursor position */
 #define WT_CBT_SEARCH_SMALLEST 0x0800u    /* Row-store: small-key insert list */
 #define WT_CBT_VAR_ONPAGE_MATCH 0x1000u   /* Var-store: on-page recno match */
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */

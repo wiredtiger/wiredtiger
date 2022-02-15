@@ -181,7 +181,7 @@ __curhs_search(WT_CURSOR_BTREE *hs_cbt, bool insert)
 
 err:
     if (ret != 0)
-        WT_TRET(__cursor_reset(hs_cbt));
+        WT_TRET(__wt_cursor_reset(hs_cbt));
 
     return (ret);
 }

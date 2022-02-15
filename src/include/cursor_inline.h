@@ -111,11 +111,11 @@ __wt_cursor_localkey(WT_CURSOR *cursor)
 }
 
 /*
- * __cursor_localvalue --
+ * __wt_cursor_localvalue --
  *     If the value points into the tree, get a local copy.
  */
 static inline int
-__cursor_localvalue(WT_CURSOR *cursor)
+__wt_cursor_localvalue(WT_CURSOR *cursor)
 {
     if (F_ISSET(cursor, WT_CURSTD_VALUE_INT)) {
         if (!WT_DATA_IN_ITEM(&cursor->value))
@@ -149,7 +149,7 @@ __cursor_needkey(WT_CURSOR *cursor)
 static inline int
 __cursor_needvalue(WT_CURSOR *cursor)
 {
-    WT_RET(__cursor_localvalue(cursor));
+    WT_RET(__wt_cursor_localvalue(cursor));
     return (__cursor_checkvalue(cursor));
 }
 
@@ -205,11 +205,11 @@ __cursor_leave(WT_SESSION_IMPL *session)
 }
 
 /*
- * __cursor_reset --
+ * __wt_cursor_reset --
  *     Reset the cursor, it no longer holds any position.
  */
 static inline int
-__cursor_reset(WT_CURSOR_BTREE *cbt)
+__wt_cursor_reset(WT_CURSOR_BTREE *cbt)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -222,6 +222,7 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
     __wt_cursor_key_order_reset(cbt); /* Clear key-order checks. */
 #endif
     __cursor_pos_clear(cbt);
+    F_CLR(cbt, WT_CBT_REPOSITION);
 
     /* If the cursor was active, deactivate it. */
     if (F_ISSET(cbt, WT_CBT_ACTIVE)) {
@@ -419,7 +420,7 @@ __wt_cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
     session = CUR2S(cbt);
 
     if (reenter)
-        WT_RET(__cursor_reset(cbt));
+        WT_RET(__wt_cursor_reset(cbt));
 
     /*
      * Any old insert position is now invalid. We rely on this being cleared to detect if a new

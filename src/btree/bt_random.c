@@ -588,6 +588,6 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
     return (0);
 
 err:
-    WT_TRET(__cursor_reset(cbt));
+    WT_TRET(__wt_cursor_reset(cbt));
     return (ret);
 }
