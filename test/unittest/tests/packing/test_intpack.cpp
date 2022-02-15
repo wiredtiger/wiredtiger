@@ -292,28 +292,63 @@ TEST_CASE("Integer packing functions: __wt_vpack_negint and __wt_vunpack_negint"
 
 TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[intpack]")
 {
+    /*
+     * While the code in each SECTION is small, keeping the code in separate SECTIONS
+     * makes it easier to determine which test has failed should any fail.
+     */
+
     SECTION("pack and unpack 7")
     {
+        /*
+         * Expected result is 0x80     | 0x07    = 0x87
+         *                    (marker)  (value)
+         */
         test_pack_and_unpack_int(7, { 0x87, 0, 0, 0, 0, 0, 0, 0 });
     }
 
     SECTION("pack and unpack 42")
     {
+        /*
+         * 42 = 0x2a
+         *
+         * Expected result is 0x80     | 0x2a    = 0xaa
+         *                    (marker)  (value)
+         */
         test_pack_and_unpack_int(42, { 0xaa, 0, 0, 0, 0, 0, 0, 0 });
     }
 
     SECTION("pack and unpack 256")
     {
+        /*
+         * 256 = 0x100
+         * 256 - (POS_1BYTE_MAX + 1) = 256 - 0x40 = 0x00c0
+         *
+         * Expected result is 0xc0     | 0x00                = 0xc0, and  0xc0
+         *                    (marker)  (top bits of value)               (bottom 8 bits of value)
+         */
         test_pack_and_unpack_int(256, { 0xc0, 0xc0, 0, 0, 0, 0, 0, 0 });
     }
 
     SECTION("pack and unpack 257")
     {
+        /*
+         * 257 = 0x101
+         * 257 - (POS_1BYTE_MAX + 1) = 257 - 0x40 = 0x00c1
+         *
+         * Expected result is 0xc0     | 0x00                = 0xc0, and  0xc1
+         *                    (marker)  (top bits of value)               (bottom 8 bits of value)
+         */
         test_pack_and_unpack_int(257, { 0xc0, 0xc1, 0, 0, 0, 0, 0, 0 });
     }
 
     SECTION("pack and unpack 0x1234")
     {
+        /*
+         * 0x1234 - (POS_1BYTE_MAX + 1) = 0x1234 - 0x40 = 0x11f4
+         *
+         * Expected result is 0xc0     | 0x11                = 0xd1, and  0xf4
+         *                    (marker)  (top bits of value)               (bottom 8 bits of value)
+         */
         test_pack_and_unpack_int(0x1234, { 0xd1, 0xf4, 0, 0, 0, 0, 0, 0 });
     }
 
@@ -337,21 +372,49 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
 
     SECTION("pack and unpack -7")
     {
+        /*
+         * -7 = 0xffffffffffffffc0
+         * -7 - 0xffffffffffffffc0 = 0x39
+         *
+         * Expected result is 0x40     | 0x39                     = 0x79
+         *                    (marker)  (bottom 6 bits of value)
+         */
         test_pack_and_unpack_int(-7, { 0x79, 0, 0, 0, 0, 0, 0, 0 });
     }
 
     SECTION("pack and unpack -42")
     {
+        /*
+         * -42 = 0xffffffffffffffd6
+         * -42 - 0xffffffffffffffc0 = 0x16
+         *
+         * Expected result is 0x40     | 0x16                     = 0x56
+         *                    (marker)  (bottom 6 bits of value)
+         */
         test_pack_and_unpack_int(-42, { 0x56, 0, 0, 0, 0, 0, 0, 0 });
     }
 
     SECTION("pack and unpack -256")
     {
+        /*
+         * -256 = 0xffffffffffffff00
+         * -256 - 0xffffffffffffdfc0 = 0x1f40
+         *
+         * Expected result is 0x20     | 0x1f                 = 0x3f, and 0x40
+         *                    (marker)  (top bits of value)               (bottom 8 bits of value)
+         */
         test_pack_and_unpack_int(-256, { 0x3f, 0x40, 0, 0, 0, 0, 0, 0 });
     }
 
     SECTION("pack and unpack -257")
     {
+        /*
+         * -257 = 0xfffffffffffffeff
+         * -257 - 0xffffffffffffdfc0 = 0x1f3f
+         *
+         * Expected result is 0x20     | 0x1f                 = 0x3f, and 0x3f
+         *                    (marker)  (top bits of value)               (bottom 8 bits of value)
+         */
         test_pack_and_unpack_int(-257, { 0x3f, 0x3f, 0, 0, 0, 0, 0, 0 });
     }
 }
