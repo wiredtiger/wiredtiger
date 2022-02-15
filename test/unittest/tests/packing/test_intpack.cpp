@@ -242,7 +242,7 @@ TEST_CASE("Integer packing functions: __wt_vpack_negint and __wt_vunpack_negint"
         uint8_t *p = packed.data();
         uint64_t value = -7;
         REQUIRE(__wt_vpack_negint(&p, packed.size(), value) == 0);
-        REQUIRE(packed[0] == 7);    /* 7 leading 0xff bytes, if stored as signed 64-bit */
+        REQUIRE(packed[0] == 7);    /* 7 leading 0x0ff bytes, if stored as signed 64-bit */
         REQUIRE(packed[1] == 0xf9); /* -7 as a signed 8-bit number stored in one byte */
         REQUIRE(packed[2] == 0);
         REQUIRE(packed[3] == 0);
@@ -258,7 +258,7 @@ TEST_CASE("Integer packing functions: __wt_vpack_negint and __wt_vunpack_negint"
         uint8_t *p = packed.data();
         uint64_t value = -42;
         REQUIRE(__wt_vpack_negint(&p, packed.size(), value) == 0);
-        REQUIRE(packed[0] == 7);    /* 7 leading 0xff bytes, if stored as signed 64-bit */
+        REQUIRE(packed[0] == 7);    /* 7 leading 0x0ff bytes, if stored as signed 64-bit */
         REQUIRE(packed[1] == 0xd6); /* -42 as a signed 64-bit number stored in one byte */
         REQUIRE(packed[2] == 0);
         REQUIRE(packed[3] == 0);
@@ -274,7 +274,7 @@ TEST_CASE("Integer packing functions: __wt_vpack_negint and __wt_vunpack_negint"
         uint8_t *p = packed.data();
         uint64_t value = -4242;
         REQUIRE(__wt_vpack_negint(&p, packed.size(), value) == 0);
-        REQUIRE(packed[0] == 6);    /* 6 leading 0xff bytes, if stored as signed 64-bit */
+        REQUIRE(packed[0] == 6);    /* 6 leading 0x0ff bytes, if stored as signed 64-bit */
         REQUIRE(packed[1] == 0xef); /* 1st byte of -4242 as a signed 64-bit number in two bytes */
         REQUIRE(packed[2] == 0x6e); /* 2nd byte of -4242 as a signed 64-bit number in two bytes */
         REQUIRE(packed[3] == 0);
@@ -307,7 +307,7 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
         /*
          * 42 = 0x2a
          *
-         * Expected result is 0x80     | 0x2a    = 0xaa
+         * Expected result is 0x80     | 0x2a    = 0x0aa
          *                    (marker)  (value)
          */
         test_pack_and_unpack_int(42, {0xaa, 0, 0, 0, 0, 0, 0, 0});
@@ -319,7 +319,7 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
          * 256 = 0x100
          * 256 - (POS_1BYTE_MAX + 1) = 256 - 0x40 = 0x00c0
          *
-         * Expected result is 0xc0     | 0x00                = 0xc0, and  0xc0
+         * Expected result is 0x0c0   | 0x00                = 0x0c0, and  0x0c0
          *                    (marker)  (top bits of value)               (bottom 8 bits of value)
          */
         test_pack_and_unpack_int(256, {0xc0, 0xc0, 0, 0, 0, 0, 0, 0});
@@ -331,8 +331,8 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
          * 257 = 0x101
          * 257 - (POS_1BYTE_MAX + 1) = 257 - 0x40 = 0x00c1
          *
-         * Expected result is 0xc0     | 0x00                = 0xc0, and  0xc1
-         *                    (marker)  (top bits of value)               (bottom 8 bits of value)
+         * Expected result is 0x0c0   | 0x00              = 0x0c0, and  0x0c1
+         *                    (marker)  (top bits of value)             (bottom 8 bits of value)
          */
         test_pack_and_unpack_int(257, {0xc0, 0xc1, 0, 0, 0, 0, 0, 0});
     }
@@ -342,8 +342,8 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
         /*
          * 0x1234 - (POS_1BYTE_MAX + 1) = 0x1234 - 0x40 = 0x11f4
          *
-         * Expected result is 0xc0     | 0x11                = 0xd1, and  0xf4
-         *                    (marker)  (top bits of value)               (bottom 8 bits of value)
+         * Expected result is 0x0c0    | 0x11              = 0x0d1, and  0x0f4
+         *                    (marker)  (top bits of value)              (bottom 8 bits of value)
          */
         test_pack_and_unpack_int(0x1234, {0xd1, 0xf4, 0, 0, 0, 0, 0, 0});
     }
@@ -393,8 +393,8 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
     SECTION("pack and unpack -256")
     {
         /*
-         * -256 = 0xffffffffffffff00
-         * -256 - 0xffffffffffffdfc0 = 0x1f40
+         * -256 = 0x0ffffffffffffff00
+         * -256 - 0x0ffffffffffffdfc0 = 0x1f40
          *
          * Expected result is 0x20     | 0x1f                 = 0x3f, and 0x40
          *                    (marker)  (top bits of value)               (bottom 8 bits of value)
