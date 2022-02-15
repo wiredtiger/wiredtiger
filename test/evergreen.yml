@@ -2542,10 +2542,10 @@ tasks:
     tags: ["stress-test-2", "stress-test-ppc-2"]
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-3
-    tags: ["stress-test-3", "stress-test-ppc-3"]
+    tags: ["stress-test-3"]
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-4
-    tags: ["stress-test-4", "stress-test-ppc-4"]
+    tags: ["stress-test-4"]
   - <<: *race-condition-stress-sanitizer-test
     name: race-condition-stress-sanitizer-test-1
     tags: ["stress-test-1"]
@@ -4036,8 +4036,6 @@ buildvariants:
     - name: format-wtperf-test
     - name: ".stress-test-ppc-1"
     - name: ".stress-test-ppc-2"
-    - name: ".stress-test-ppc-3"
-    - name: ".stress-test-ppc-4"
 
 - name: ubuntu1804-zseries
   display_name: "~ Ubuntu 18.04 zSeries"
