@@ -29,6 +29,7 @@ set(unittest_sources
     tests/extent_list.cpp
     tests/pow.cpp
     tests/fnv.cpp
+    tests/crc32.cpp
     tests/wrappers/block_mods.cpp
     tests/wrappers/connection_wrapper.cpp
     tests/wrappers/error_handler.cpp

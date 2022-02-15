@@ -20,7 +20,7 @@ TEST_CASE("log2_int", "[pow]")
     REQUIRE(__wt_log2_int(0x40000000) == 30);
 
     REQUIRE(__wt_log2_int(0x80000000 - 1) == 30);
-    REQUIRE(__wt_log2_int(0x80000000)     == 31);
+    REQUIRE(__wt_log2_int(0x80000000) == 31);
     REQUIRE(__wt_log2_int(0x80000000 + 1) == 31);
 
     REQUIRE(__wt_log2_int(0xffffffff) == 31);
@@ -45,7 +45,7 @@ TEST_CASE("ispo2", "[pow]")
     REQUIRE(__wt_ispo2(0x40000000) == true);
 
     REQUIRE(__wt_ispo2(0x80000000 - 1) == false);
-    REQUIRE(__wt_ispo2(0x80000000)     == true);
+    REQUIRE(__wt_ispo2(0x80000000) == true);
     REQUIRE(__wt_ispo2(0x80000000 + 1) == false);
 
     REQUIRE(__wt_ispo2(0xffffffff) == false);
