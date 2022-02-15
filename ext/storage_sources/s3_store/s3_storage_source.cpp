@@ -406,6 +406,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
         return (1);
     } else {
         std::cerr << "Error: Region not specified" << std::endl;
+        return (1);
     }
     /*
      * Get the directory to setup the cache, or use the default one. The default cache directory is
