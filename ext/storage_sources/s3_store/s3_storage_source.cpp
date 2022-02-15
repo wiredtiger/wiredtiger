@@ -298,12 +298,14 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
      * the future.
      */
     if (fileType != WT_FS_OPEN_FILE_TYPE_DATA && fileType != WT_FS_OPEN_FILE_TYPE_REGULAR) {
-        s3->log->LogVerboseMessage(WT_VERBOSE_ERROR, "S3Open: only data file and regular types supported.");
+        s3->log->LogVerboseMessage(
+          WT_VERBOSE_ERROR, "S3Open: only data file and regular types supported.");
         return (EINVAL);
     }
 
     if ((s3FileHandle = (S3_FILE_HANDLE *)calloc(1, sizeof(S3_FILE_HANDLE))) == NULL) {
-        s3->log->LogVerboseMessage(WT_VERBOSE_ERROR, "S3Open: unable to allocate memory for file handle.");
+        s3->log->LogVerboseMessage(
+          WT_VERBOSE_ERROR, "S3Open: unable to allocate memory for file handle.");
         return (ENOMEM);
     }
 
@@ -347,7 +349,8 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
 
     fileHandle->name = strdup(name);
     if (fileHandle->name == NULL) {
-        s3->log->LogVerboseMessage(WT_VERBOSE_ERROR, "S3Open: unable to allocate memory for object name.");
+        s3->log->LogVerboseMessage(
+          WT_VERBOSE_ERROR, "S3Open: unable to allocate memory for object name.");
         return (ENOMEM);
     }
 
@@ -437,7 +440,8 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 
     /* We need to have a bucket to setup the file system. */
     if (bucketName == NULL || strlen(bucketName) == 0) {
-        s3->log->LogVerboseMessage(WT_VERBOSE_ERROR, "S3CustomizeFileSystem: bucket not specified.");
+        s3->log->LogVerboseMessage(
+          WT_VERBOSE_ERROR, "S3CustomizeFileSystem: bucket not specified.");
         return (EINVAL);
     }
 
@@ -586,7 +590,8 @@ S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *direct
     int ret;
     s3->statistics.listObjectsCount++;
     if ((ret = fs->connection->ListObjects(completePrefix, objects)) != 0) {
-        s3->log->LogVerboseMessage(WT_VERBOSE_ERROR, "S3ObjectList: ListObjects request to S3 failed.");
+        s3->log->LogVerboseMessage(
+          WT_VERBOSE_ERROR, "S3ObjectList: ListObjects request to S3 failed.");
         return (ret);
     }
     *count = objects.size();
@@ -622,7 +627,8 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
     int ret;
     s3->statistics.listObjectsCount++;
     if ((ret = fs->connection->ListObjects(completePrefix, objects, 1, true)) != 0) {
-        s3->log->LogVerboseMessage(WT_VERBOSE_ERROR, "S3ObjectListSingle: ListObjects request to S3 failed.");
+        s3->log->LogVerboseMessage(
+          WT_VERBOSE_ERROR, "S3ObjectListSingle: ListObjects request to S3 failed.");
         return (ret);
     }
 
@@ -690,7 +696,8 @@ S3AddReference(WT_STORAGE_SOURCE *storageSource)
     S3_STORAGE *s3 = (S3_STORAGE *)storageSource;
 
     if (s3->referenceCount == 0 || s3->referenceCount + 1 == 0) {
-        s3->log->LogVerboseMessage(WT_VERBOSE_ERROR, "S3AddReference: missing reference or overflow.");
+        s3->log->LogVerboseMessage(
+          WT_VERBOSE_ERROR, "S3AddReference: missing reference or overflow.");
         return (EINVAL);
     }
 
