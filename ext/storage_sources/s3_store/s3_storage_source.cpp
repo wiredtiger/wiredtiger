@@ -384,7 +384,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
         objPrefix = std::string(objPrefixConf.str, objPrefixConf.len);
     else if (ret != WT_NOTFOUND) {
         std::cerr << "Error: customize_file_system: config parsing for object prefix";
-        return (1);
+        return (ret);
     }
 
     /* Configure the AWS Client configuration. */
@@ -403,10 +403,10 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
         awsConfig.region = std::string(regionConf.str, regionConf.len);
     else if (ret != WT_NOTFOUND) {
         std::cerr << "Error: customize_file_system: config parsing for AWS region";
-        return (1);
+        return (ret);
     } else {
         std::cerr << "Error: Region not specified" << std::endl;
-        return (1);
+        return (EINVAL);
     }
     /*
      * Get the directory to setup the cache, or use the default one. The default cache directory is
