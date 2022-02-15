@@ -1180,6 +1180,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_DECL_RET;
     WT_ITEM hs_recno_key;
     WT_PAGE *page;
+    WT_TIME_WINDOW tw;
     WT_TXN *txn;
     WT_UPDATE *first_committed_upd, *fix_upd, *upd;
 #ifdef HAVE_DIAGNOSTIC
@@ -1187,7 +1188,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 #endif
     uint8_t *p, hs_recno_key_buf[WT_INTPACK64_MAXSIZE];
     char ts_string[3][WT_TS_INT_STRING_SIZE];
-    bool first_committed_upd_in_hs, prepare_on_disk, upd_appended;
+    bool first_committed_upd_in_hs, prepare_on_disk, tw_found, upd_appended;
 
     hs_cursor = NULL;
     txn = session->txn;
@@ -1311,9 +1312,6 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          * rolling back a prepared reconciled update would result in only aborted updates on the
          * update chain.
          */
-
-        WT_TIME_WINDOW tw;
-        bool tw_found;
         tw_found = __wt_read_cell_time_window(cbt, &tw);
         if (tw_found && tw.prepare == WT_PREPARE_INPROGRESS)
             WT_ERR(__txn_append_tombstone(session, op, cbt));
