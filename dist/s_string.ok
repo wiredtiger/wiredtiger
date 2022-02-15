@@ -335,6 +335,7 @@ Optane
 Outfmt
 PARAM
 PFX
+POS
 POSIX
 PPC
 PREDEFINE
@@ -528,6 +529,7 @@ Zlib's
 Zstandard
 Zstd
 Zstd's
+aa
 aaa
 abcdef
 abcdefghijklmnopqrstuvwxyz

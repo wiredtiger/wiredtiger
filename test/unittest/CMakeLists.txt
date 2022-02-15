@@ -28,6 +28,7 @@ set(unittest_sources
     tests/main.cpp
     tests/extent_list.cpp
     tests/pow.cpp
+    tests/packing/test_intpack.cpp
     tests/fnv.cpp
     tests/wrappers/block_mods.cpp
     tests/wrappers/connection_wrapper.cpp
