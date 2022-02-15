@@ -290,7 +290,7 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
 
     /* We only support opening the file in read only mode. */
     if ((flags & WT_FS_OPEN_READONLY) == 0 || (flags & WT_FS_OPEN_CREATE) != 0) {
-        s3->log->LogVerboseMessage(-3, "S3Open: readonly access required.");
+        s3->log->LogVerboseMessage(-3, "S3Open: read-only access required.");
         return (EINVAL);
     }
 
@@ -805,7 +805,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 
     int ret = s3->wtApi->config_get(s3->wtApi, NULL, config, "verbose", &v);
 
-    // If a verbose level is not found, it will set the level to -3 (Error).
+    /* Verbose level defaults to -3 if it is outside the valid range or not found. */
     s3->verbose = -3;
     if (ret == 0 && v.val >= -3 && v.val <= 1)
         s3->verbose = v.val;
