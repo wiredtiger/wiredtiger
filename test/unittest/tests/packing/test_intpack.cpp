@@ -1,59 +1,59 @@
 /*-
-* Copyright (c) 2014-present MongoDB, Inc.
-* Copyright (c) 2008-2014 WiredTiger, Inc.
-*	All rights reserved.
-*
-* See the file LICENSE for redistribution information.
-*/
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
 
 /*
-* This file unit tests the macros and functions contained in intpack_inline.h
-*/
+ * This file unit tests the macros and functions contained in intpack_inline.h
+ */
 
 #include "wt_internal.h"
 #include <catch2/catch.hpp>
 
 /*
  * wt_size_check_pack_wrapper --
- *    The WT_SIZE_CHECK_PACK() macro which will directly call return on failure.
- *    Creating a wrapper function thereby ensures that the macro's return call is restricted to
- *    this function's scope.
+ *     The WT_SIZE_CHECK_PACK() macro which will directly call return on failure. Creating a wrapper
+ *     function thereby ensures that the macro's return call is restricted to this function's scope.
  */
-static int wt_size_check_pack_wrapper(int value, size_t maxValue)
+static int
+wt_size_check_pack_wrapper(int value, size_t maxValue)
 {
     WT_SIZE_CHECK_PACK(value, maxValue);
     return 0;
 }
 
-
 /*
  * wt_size_check_unpack_wrapper --
- *    The WT_SIZE_CHECK_UNPACK() macro which will directly call return on failure.
- *    Creating a wrapper function thereby ensures that the macro's return call is restricted to
- *    this function's scope.
+ *     The WT_SIZE_CHECK_UNPACK() macro which will directly call return on failure. Creating a
+ *     wrapper function thereby ensures that the macro's return call is restricted to this
+ *     function's scope.
  */
-static int wt_size_check_unpack_wrapper(int value, size_t maxValue)
+static int
+wt_size_check_unpack_wrapper(int value, size_t maxValue)
 {
     WT_SIZE_CHECK_UNPACK(value, maxValue);
     return 0;
 }
 
-
 /*
  * wt_leading_zeros_wrapper --
- *    This function wraps WT_LEADING_ZEROS() to create a function that returns the
- *    number of leading zeros, rather than requiring a result variable to be passed in
+ *     This function wraps WT_LEADING_ZEROS() to create a function that returns the number of
+ *     leading zeros, rather than requiring a result variable to be passed in
  */
-template<class T>
-static int wt_leading_zeros_wrapper(T value)
+template <class T>
+static int
+wt_leading_zeros_wrapper(T value)
 {
     int result = 0;
     WT_LEADING_ZEROS(value, result);
     return result;
 }
 
-
-static void unpack_posint_and_check(std::vector<uint8_t> const& packed, uint64_t expectedValue)
+static void
+unpack_posint_and_check(std::vector<uint8_t> const &packed, uint64_t expectedValue)
 {
     uint8_t const *p = packed.data();
     uint64_t unpackedValue = 0;
@@ -61,8 +61,8 @@ static void unpack_posint_and_check(std::vector<uint8_t> const& packed, uint64_t
     REQUIRE(unpackedValue == expectedValue);
 }
 
-
-static void unpack_negint_and_check(std::vector<uint8_t> const& packed, uint64_t expectedValue)
+static void
+unpack_negint_and_check(std::vector<uint8_t> const &packed, uint64_t expectedValue)
 {
     uint8_t const *p = packed.data();
     uint64_t unpackedValue = 0;
@@ -70,8 +70,8 @@ static void unpack_negint_and_check(std::vector<uint8_t> const& packed, uint64_t
     REQUIRE(unpackedValue == expectedValue);
 }
 
-
-static void unpack_int_and_check(std::vector<uint8_t> const& packed, int64_t expectedValue)
+static void
+unpack_int_and_check(std::vector<uint8_t> const &packed, int64_t expectedValue)
 {
     uint8_t const *p = packed.data();
     int64_t unpackedValue = 0;
@@ -79,8 +79,8 @@ static void unpack_int_and_check(std::vector<uint8_t> const& packed, int64_t exp
     REQUIRE(unpackedValue == expectedValue);
 }
 
-
-static void test_pack_and_unpack_int(int64_t value, std::vector<uint8_t> const& expectedPacked)
+static void
+test_pack_and_unpack_int(int64_t value, std::vector<uint8_t> const &expectedPacked)
 {
     std::vector<uint8_t> packed(expectedPacked.size(), 0);
     uint8_t *p = packed.data();
@@ -88,7 +88,6 @@ static void test_pack_and_unpack_int(int64_t value, std::vector<uint8_t> const& 
     CHECK(packed == expectedPacked);
     unpack_int_and_check(packed, value);
 }
-
 
 TEST_CASE("Integer packing macros: byte min/max", "[intpack]")
 {
@@ -126,14 +125,13 @@ TEST_CASE("Integer packing macros: byte min/max", "[intpack]")
     CHECK(pos_2byte_max_64 == 0x000000000000203fllu);
 };
 
-
 TEST_CASE("Integer packing macros: calculations", "[intpack]")
 {
     REQUIRE(GET_BITS(0x01ll, 8, 0) == 0x01ll);
     REQUIRE(GET_BITS(0xffll, 8, 0) == 0xffll);
     REQUIRE(GET_BITS(0xffll, 8, 3) == 0x1fll);
     REQUIRE(GET_BITS(0xf0ll, 8, 3) == 0x1ell);
-    REQUIRE(GET_BITS(0x8000ll,  8, 0) == 0x00ll);
+    REQUIRE(GET_BITS(0x8000ll, 8, 0) == 0x00ll);
     REQUIRE(GET_BITS(0x8000ll, 13, 8) == 0x00ll);
     REQUIRE(GET_BITS(0x8000ll, 16, 8) == 0x80ll);
     REQUIRE(GET_BITS(0x8000ll, 16, 15) == 0x1ll);
@@ -156,15 +154,14 @@ TEST_CASE("Integer packing macros: calculations", "[intpack]")
     CHECK(wt_leading_zeros_wrapper<uint64_t>(0x101ff) == 5);
 
     /*
-     * WT_LEADING_ZEROS uses sizeof(type) if the value is 0,
-     * but assumes uint64_t if non-zero, given odd results
+     * WT_LEADING_ZEROS uses sizeof(type) if the value is 0, but assumes uint64_t if non-zero, given
+     * odd results
      */
     CHECK(wt_leading_zeros_wrapper<uint8_t>(0) == sizeof(uint8_t));
     CHECK(wt_leading_zeros_wrapper<uint8_t>(0x1) == 7);
     CHECK(wt_leading_zeros_wrapper<uint32_t>(0) == sizeof(uint32_t));
     CHECK(wt_leading_zeros_wrapper<uint32_t>(0x1) == 7);
 }
-
 
 TEST_CASE("Integer packing functions: __wt_vpack_posint and __wt_vunpack_posint", "[intpack]")
 {
@@ -236,7 +233,6 @@ TEST_CASE("Integer packing functions: __wt_vpack_posint and __wt_vunpack_posint"
     }
 }
 
-
 TEST_CASE("Integer packing functions: __wt_vpack_negint and __wt_vunpack_negint", "[intpack]")
 {
     std::vector<uint8_t> packed(8, 0);
@@ -246,8 +242,8 @@ TEST_CASE("Integer packing functions: __wt_vpack_negint and __wt_vunpack_negint"
         uint8_t *p = packed.data();
         uint64_t value = -7;
         REQUIRE(__wt_vpack_negint(&p, packed.size(), value) == 0);
-        REQUIRE(packed[0] == 7);     /* 7 leading 0xff bytes, if stored as signed 64-bit */
-        REQUIRE(packed[1] == 0xf9);  /* -7 as a signed 8-bit number stored in one byte */
+        REQUIRE(packed[0] == 7);    /* 7 leading 0xff bytes, if stored as signed 64-bit */
+        REQUIRE(packed[1] == 0xf9); /* -7 as a signed 8-bit number stored in one byte */
         REQUIRE(packed[2] == 0);
         REQUIRE(packed[3] == 0);
         REQUIRE(packed[4] == 0);
@@ -262,8 +258,8 @@ TEST_CASE("Integer packing functions: __wt_vpack_negint and __wt_vunpack_negint"
         uint8_t *p = packed.data();
         uint64_t value = -42;
         REQUIRE(__wt_vpack_negint(&p, packed.size(), value) == 0);
-        REQUIRE(packed[0] == 7);     /* 7 leading 0xff bytes, if stored as signed 64-bit */
-        REQUIRE(packed[1] == 0xd6);  /* -42 as a signed 64-bit number stored in one byte */
+        REQUIRE(packed[0] == 7);    /* 7 leading 0xff bytes, if stored as signed 64-bit */
+        REQUIRE(packed[1] == 0xd6); /* -42 as a signed 64-bit number stored in one byte */
         REQUIRE(packed[2] == 0);
         REQUIRE(packed[3] == 0);
         REQUIRE(packed[4] == 0);
@@ -278,9 +274,9 @@ TEST_CASE("Integer packing functions: __wt_vpack_negint and __wt_vunpack_negint"
         uint8_t *p = packed.data();
         uint64_t value = -4242;
         REQUIRE(__wt_vpack_negint(&p, packed.size(), value) == 0);
-        REQUIRE(packed[0] == 6);     /* 6 leading 0xff bytes, if stored as signed 64-bit */
-        REQUIRE(packed[1] == 0xef);  /* 1st byte of -4242 as a signed 64-bit number in two bytes */
-        REQUIRE(packed[2] == 0x6e);  /* 2nd byte of -4242 as a signed 64-bit number in two bytes */
+        REQUIRE(packed[0] == 6);    /* 6 leading 0xff bytes, if stored as signed 64-bit */
+        REQUIRE(packed[1] == 0xef); /* 1st byte of -4242 as a signed 64-bit number in two bytes */
+        REQUIRE(packed[2] == 0x6e); /* 2nd byte of -4242 as a signed 64-bit number in two bytes */
         REQUIRE(packed[3] == 0);
         REQUIRE(packed[4] == 0);
         REQUIRE(packed[5] == 0);
@@ -293,8 +289,8 @@ TEST_CASE("Integer packing functions: __wt_vpack_negint and __wt_vunpack_negint"
 TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[intpack]")
 {
     /*
-     * While the code in each SECTION is small, keeping the code in separate SECTIONS
-     * makes it easier to determine which test has failed should any fail.
+     * While the code in each SECTION is small, keeping the code in separate SECTIONS makes it
+     * easier to determine which test has failed should any fail.
      */
 
     SECTION("pack and unpack 7")
@@ -303,7 +299,7 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
          * Expected result is 0x80     | 0x07    = 0x87
          *                    (marker)  (value)
          */
-        test_pack_and_unpack_int(7, { 0x87, 0, 0, 0, 0, 0, 0, 0 });
+        test_pack_and_unpack_int(7, {0x87, 0, 0, 0, 0, 0, 0, 0});
     }
 
     SECTION("pack and unpack 42")
@@ -314,7 +310,7 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
          * Expected result is 0x80     | 0x2a    = 0xaa
          *                    (marker)  (value)
          */
-        test_pack_and_unpack_int(42, { 0xaa, 0, 0, 0, 0, 0, 0, 0 });
+        test_pack_and_unpack_int(42, {0xaa, 0, 0, 0, 0, 0, 0, 0});
     }
 
     SECTION("pack and unpack 256")
@@ -326,7 +322,7 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
          * Expected result is 0xc0     | 0x00                = 0xc0, and  0xc0
          *                    (marker)  (top bits of value)               (bottom 8 bits of value)
          */
-        test_pack_and_unpack_int(256, { 0xc0, 0xc0, 0, 0, 0, 0, 0, 0 });
+        test_pack_and_unpack_int(256, {0xc0, 0xc0, 0, 0, 0, 0, 0, 0});
     }
 
     SECTION("pack and unpack 257")
@@ -338,7 +334,7 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
          * Expected result is 0xc0     | 0x00                = 0xc0, and  0xc1
          *                    (marker)  (top bits of value)               (bottom 8 bits of value)
          */
-        test_pack_and_unpack_int(257, { 0xc0, 0xc1, 0, 0, 0, 0, 0, 0 });
+        test_pack_and_unpack_int(257, {0xc0, 0xc1, 0, 0, 0, 0, 0, 0});
     }
 
     SECTION("pack and unpack 0x1234")
@@ -349,7 +345,7 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
          * Expected result is 0xc0     | 0x11                = 0xd1, and  0xf4
          *                    (marker)  (top bits of value)               (bottom 8 bits of value)
          */
-        test_pack_and_unpack_int(0x1234, { 0xd1, 0xf4, 0, 0, 0, 0, 0, 0 });
+        test_pack_and_unpack_int(0x1234, {0xd1, 0xf4, 0, 0, 0, 0, 0, 0});
     }
 
     SECTION("pack and unpack 0x123456789 - won't fit")
@@ -367,7 +363,7 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
     {
         /* The value that is stored in this case is (0x123456789 - 0x2040) = 0x123454749 */
         /* For the first byte: 'e' is the marker and '5' is the length in bytes */
-        test_pack_and_unpack_int(0x123456789, { 0xe5, 0x01, 0x23, 0x45, 0x47, 0x49, 0, 0 });
+        test_pack_and_unpack_int(0x123456789, {0xe5, 0x01, 0x23, 0x45, 0x47, 0x49, 0, 0});
     }
 
     SECTION("pack and unpack -7")
@@ -379,7 +375,7 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
          * Expected result is 0x40     | 0x39                     = 0x79
          *                    (marker)  (bottom 6 bits of value)
          */
-        test_pack_and_unpack_int(-7, { 0x79, 0, 0, 0, 0, 0, 0, 0 });
+        test_pack_and_unpack_int(-7, {0x79, 0, 0, 0, 0, 0, 0, 0});
     }
 
     SECTION("pack and unpack -42")
@@ -391,7 +387,7 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
          * Expected result is 0x40     | 0x16                     = 0x56
          *                    (marker)  (bottom 6 bits of value)
          */
-        test_pack_and_unpack_int(-42, { 0x56, 0, 0, 0, 0, 0, 0, 0 });
+        test_pack_and_unpack_int(-42, {0x56, 0, 0, 0, 0, 0, 0, 0});
     }
 
     SECTION("pack and unpack -256")
@@ -403,7 +399,7 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
          * Expected result is 0x20     | 0x1f                 = 0x3f, and 0x40
          *                    (marker)  (top bits of value)               (bottom 8 bits of value)
          */
-        test_pack_and_unpack_int(-256, { 0x3f, 0x40, 0, 0, 0, 0, 0, 0 });
+        test_pack_and_unpack_int(-256, {0x3f, 0x40, 0, 0, 0, 0, 0, 0});
     }
 
     SECTION("pack and unpack -257")
@@ -415,6 +411,6 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
          * Expected result is 0x20     | 0x1f                 = 0x3f, and 0x3f
          *                    (marker)  (top bits of value)               (bottom 8 bits of value)
          */
-        test_pack_and_unpack_int(-257, { 0x3f, 0x3f, 0, 0, 0, 0, 0, 0 });
+        test_pack_and_unpack_int(-257, {0x3f, 0x3f, 0, 0, 0, 0, 0, 0});
     }
 }
