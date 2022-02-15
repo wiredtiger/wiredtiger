@@ -360,15 +360,12 @@ verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts)
 
     while (ret == 0) {
         /* Advance the reference table's cursor. */
-        printf("reference next\n");
         ret = do_cursor_next(g.cookies[reference_table].type, cursors[reference_table]);
         if (ret != 0 && ret != WT_NOTFOUND)
             goto err;
 
-        if (ret == 0) {
+        if (ret == 0)
             ++key_count;
-            printf("key count %" PRIu64 "\n", key_count);
-        }
 
         /*
          * Check to see that all remaining cursors have the same key/value pair.
@@ -382,7 +379,6 @@ verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts)
              */
             if (g.cookies[i].type == LSM)
                 continue;
-            printf("cursor next\n");
             t_ret = do_cursor_next(g.cookies[i].type, cursors[i]);
             if (t_ret != 0 && t_ret != WT_NOTFOUND) {
                 ret = t_ret;

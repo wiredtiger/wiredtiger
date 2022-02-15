@@ -91,11 +91,11 @@ __curfile_set_key(WT_CURSOR *cursor, ...)
 }
 
 /*
- * __curfile_research --
+ * __curfile_reposition --
  *     Research the saved key to regain the cursor position
  */
 static int
-__curfile_research(WT_CURSOR *cursor)
+__curfile_reposition(WT_CURSOR *cursor)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -105,13 +105,13 @@ __curfile_research(WT_CURSOR *cursor)
     session = CUR2S(cursor);
 
     if (!F_ISSET(cursor, WT_CURSTD_KEY_EXT))
-        return (__wt_panic(session, EINVAL, "Research flag is set without a search key"));
+        return (__wt_panic(session, EINVAL, "Reposition flag is set without a search key"));
 
     ret = __wt_btcur_search(cbt);
 
     if (ret != 0)
         return (
-          __wt_panic(session, ret, "Failed to research to regain the saved cursor key position"));
+          __wt_panic(session, ret, "Failed to reposition to regain the saved cursor key position"));
 
     /* Search maintains a position, key and value. */
     WT_ASSERT(session,
@@ -158,7 +158,7 @@ __curfile_next(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
 
     if (F_ISSET(cbt, WT_CBT_REPOSITION))
-        WT_ERR(__curfile_research(cursor));
+        WT_ERR(__curfile_reposition(cursor));
 
     WT_ERR(__wt_btcur_next(cbt, false));
 
@@ -226,7 +226,7 @@ __curfile_prev(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
 
     if (F_ISSET(cbt, WT_CBT_REPOSITION))
-        WT_ERR(__curfile_research(cursor));
+        WT_ERR(__curfile_reposition(cursor));
 
     WT_ERR(__wt_btcur_prev(cbt, false));
 
