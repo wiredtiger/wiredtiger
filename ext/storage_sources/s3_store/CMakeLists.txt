@@ -3,6 +3,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(s3_store CXX)
 
+# This library needs to be linked in order for the std::filesystem to work. 
+set(filesystem_lib)
+if (WT_DARWIN)
+    set(filesystem_lib c++fs)
+elseif (WT_LINUX)
+    set(filesystem_lib stdc++fs)
+endif()
+
 # Create an intermediate library to build the helper library.
 add_library(aws_bucket_util STATIC s3_connection.cpp)
 set_property(TARGET aws_bucket_util PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -37,7 +45,7 @@ target_link_libraries(
         aws_bucket_util
         aws-sdk::s3-crt
         aws-sdk::core
-        stdc++fs
+        ${filesystem_lib}
 )
 
 # Add the unit tests.
