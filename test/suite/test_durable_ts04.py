@@ -48,6 +48,7 @@ from wtscenario import make_scenarios
 #    3. The behavior applies to both updates and removes.
 #    4. The behavior applies to pages that have been evicted as well as to in-memory updates.
 #    5. Rollback-to-stable can successfully roll back the transaction before it becomes stable.
+#    6. ignore_prepare=true disables the check.
 #
 # Additionally there are two ways to set up the scenario; one involves committing
 # before stable. (This is explicitly permitted if stable has moved up since prepare, as
@@ -82,8 +83,13 @@ class test_durable_ts04(wttest.WiredTigerTestCase):
         ('rollback', dict(op='rollback')),
         ('stabilize', dict(op='stabilize')),
     ]
+    ignoreprepare_values = [
+        ('no_ignore_prepare', dict(ignore_prepare=False)),
+        ('ignore_prepare', dict(ignore_prepare=True)),
+    ]
     scenarios = make_scenarios(format_values,
-        commit_values, remove_values, evict_values, checkpoint_values, op_values)
+        commit_values, remove_values, evict_values, checkpoint_values, op_values,
+        ignoreprepare_values)
 
     Deleted = 1234567  # Choose this to be different from any legal value.
 
@@ -96,7 +102,8 @@ class test_durable_ts04(wttest.WiredTigerTestCase):
                     lambda: cursor[i], '/committed but non-durable value/')
                 self.session.rollback_transaction()
         else:
-            self.session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
+            ign = ',ignore_prepare=true' if self.ignore_prepare else ''
+            self.session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts) + ign)
             for i in range(lo, hi):
                 if value == self.Deleted:
                     cursor.set_key(i)
@@ -172,8 +179,9 @@ class test_durable_ts04(wttest.WiredTigerTestCase):
         # Now try reading at 25 and 40. This should fail in all variants.
         # (25 is after commit, before stable, and before durable; 40 is after commit
         # and stable, and before durable.)
-        self.check(uri, nrows, None, value_a, 25)
-        self.check(uri, nrows, None, value_a, 40)
+        # If ignore_prepare is set, we should see the transaction anyway and get value_b.
+        self.check(uri, nrows, value_b if self.ignore_prepare else None, value_a, 25)
+        self.check(uri, nrows, value_b if self.ignore_prepare else None, value_a, 40)
 
         # We should be able to read at 50.
         self.check(uri, nrows, value_b, value_a, 50)
@@ -198,8 +206,8 @@ class test_durable_ts04(wttest.WiredTigerTestCase):
         else:
             # First, move stable to 49 and check we still can't read the nondurable values.
             self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(49))
-            self.check(uri, nrows, None, value_a, 25)
-            self.check(uri, nrows, None, value_a, 40)
+            self.check(uri, nrows, value_b if self.ignore_prepare else None, value_a, 25)
+            self.check(uri, nrows, value_b if self.ignore_prepare else None, value_a, 40)
             self.check(uri, nrows, value_b, value_a, 50)
 
             # Now, set it to 50 and we should be able to read the previously nondurable values.

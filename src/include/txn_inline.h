@@ -987,9 +987,14 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
         if (upd_visible == WT_VISIBLE_TRUE)
             break;
 
-        if (upd_visible == WT_VISIBLE_NONDURABLE)
-            WT_RET_MSG(
-              session, WT_PREPARE_CONFLICT, "read conflict with committed but non-durable value");
+        if (upd_visible == WT_VISIBLE_NONDURABLE) {
+            if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE))
+                /* With ignore_prepare, nondurable values are fully visible. */
+                break;
+            else
+                WT_RET_MSG(session, WT_PREPARE_CONFLICT,
+                  "read conflict with committed but non-durable value");
+        }
 
         /*
          * Save the prepared update to help us detect if we race with prepared commit or rollback
@@ -1106,7 +1111,8 @@ retry:
          */
         if (!have_stop_tw && __wt_txn_tw_stop_visible(session, &tw) &&
           !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE)) {
-            if (__wt_txn_tw_stop_nondurable(session, &tw))
+            if (__wt_txn_tw_stop_nondurable(session, &tw) &&
+              !F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE))
                 /* Disallow reading if we can see it but it isn't durable yet. */
                 WT_RET_MSG(session, WT_PREPARE_CONFLICT,
                   "read conflict with committed but non-durable value");
@@ -1136,7 +1142,8 @@ retry:
         if (WT_IS_HS(session->dhandle))
             return_onpage_value = true;
         else if (__wt_txn_tw_start_visible(session, &tw)) {
-            if (__wt_txn_tw_start_nondurable(session, &tw))
+            if (__wt_txn_tw_start_nondurable(session, &tw) &&
+              !F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE))
                 /* Disallow reading if we can see it but it isn't durable yet. */
                 WT_RET_MSG(session, WT_PREPARE_CONFLICT,
                   "read conflict with committed but non-durable value");
