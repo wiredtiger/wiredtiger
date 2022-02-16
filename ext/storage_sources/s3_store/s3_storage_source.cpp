@@ -472,10 +472,11 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
       0)
         awsConfig.region = std::string(regionConf.str, regionConf.len);
     else if (ret != WT_NOTFOUND) {
-        std::cerr << "Error: customize_file_system: config parsing for AWS region";
+        s3->log->LogVerboseErrorMessage(
+          "S3CustomizeFileSystem: error parsing config for AWS region.");
         return (ret);
     } else {
-        std::cerr << "Error: Region not specified" << std::endl;
+        s3->log->LogVerboseErrorMessage("S3CustomizeFileSystem: AWS region not specified.");
         return (EINVAL);
     }
     /*
