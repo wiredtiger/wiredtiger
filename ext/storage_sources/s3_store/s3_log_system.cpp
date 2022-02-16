@@ -2,14 +2,9 @@
 #include "s3_log_system.h"
 #include <cstdarg>
 
-S3LogSystem::S3LogSystem(WT_EXTENSION_API *wtApi, uint32_t wtVerbosityLevel)
-    : _wtApi(wtApi), _wtVerbosityLevel(wtVerbosityLevel)
+S3LogSystem::S3LogSystem(WT_EXTENSION_API *wtApi, uint32_t wtVerbosityLevel) : _wtApi(wtApi)
 {
-    // If the verbosity level is out of range it will default to AWS SDK Error level.
-    if (verbosityMapping.find(wtVerbosityLevel) != verbosityMapping.end())
-        _awsLogLevel = verbosityMapping.at(wtVerbosityLevel);
-    else
-        _awsLogLevel = Aws::Utils::Logging::LogLevel::Error;
+    SetWtVerbosityLevel(wtVerbosityLevel);
 }
 
 void
@@ -62,6 +57,17 @@ S3LogSystem::LogVerboseMessage(int32_t verbosityLevel, const std::string &messag
         else
             _wtApi->msg_printf(_wtApi, NULL, "%s", message.c_str());
     }
+}
+
+void
+S3LogSystem::SetWtVerbosityLevel(int32_t wtVerbosityLevel)
+{
+    _wtVerbosityLevel = wtVerbosityLevel;
+    /* If the verbosity level is out of range it will default to AWS SDK Error level. */
+    if (verbosityMapping.find(_wtVerbosityLevel) != verbosityMapping.end())
+        _awsLogLevel = verbosityMapping.at(_wtVerbosityLevel);
+    else
+        _awsLogLevel = Aws::Utils::Logging::LogLevel::Error;
 }
 
 void

@@ -62,7 +62,7 @@ struct S3_STATISTICS {
 struct S3_STORAGE {
     WT_STORAGE_SOURCE storageSource; /* Must come first */
     WT_EXTENSION_API *wtApi;         /* Extension API */
-    S3LogSystem *log;
+    std::shared_ptr<S3LogSystem> log;
 
     std::mutex fsListMutex;             /* Protect the file system list */
     std::list<S3_FILE_SYSTEM *> fsList; /* List of initiated file systems */
@@ -827,28 +827,27 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 
     int ret = s3->wtApi->config_get(s3->wtApi, NULL, config, "verbose", &v);
 
-    /* Verbose level defaults to WT_VERBOSE_ERROR (-3) if it is outside the valid range or not
-     * found. */
+    /* Create a logger for the storage source. Verbose level defaults to WT_VERBOSE_ERROR (-3) if it
+     * is outside the valid range or not found. */
     s3->verbose = WT_VERBOSE_ERROR;
-    if (ret == 0 && v.val >= WT_VERBOSE_ERROR && v.val <= WT_VERBOSE_DEBUG)
+    s3->log = Aws::MakeShared<S3LogSystem>("storage", s3->wtApi, s3->verbose);
+
+    if (ret == 0 && v.val >= WT_VERBOSE_ERROR && v.val <= WT_VERBOSE_DEBUG) {
         s3->verbose = v.val;
-    else if (ret != WT_NOTFOUND) {
-        s3->log = new S3LogSystem(s3->wtApi, s3->verbose);
+        s3->log->SetWtVerbosityLevel(s3->verbose);
+    } else if (ret != WT_NOTFOUND) {
         s3->log->LogVerboseMessage(
           WT_VERBOSE_ERROR, "wiredtiger_extension_init: error parsing config for verbose level.");
-        free(s3);
+        delete (s3);
         return (ret != 0 ? ret : EINVAL);
     }
 
     /* Set up statistics. */
     s3->statistics = {0};
 
-    /* Create a logger for this storage source, and then initialize the AWS SDK. */
-    Aws::Utils::Logging::InitializeAWSLogging(
-      Aws::MakeShared<S3LogSystem>("storage", s3->wtApi, s3->verbose));
+    /* Initialize the AWS SDK. */
+    Aws::Utils::Logging::InitializeAWSLogging(s3->log);
     Aws::InitAPI(options);
-
-    s3->log = new S3LogSystem(s3->wtApi, s3->verbose);
 
     /*
      * Allocate a S3 storage structure, with a WT_STORAGE structure as the first field, allowing us
@@ -868,7 +867,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     /* Load the storage */
     if ((ret = connection->add_storage_source(connection, "s3_store", &s3->storageSource, NULL)) !=
       0)
-        free(s3);
+        delete (s3);
 
     return (ret);
 }
