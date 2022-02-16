@@ -27,7 +27,6 @@
  */
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
-#include <sys/stat.h>
 #include <fstream>
 #include <experimental/filesystem>
 #include <list>
@@ -209,6 +208,7 @@ static int
 S3GetDirectory(const std::string &home, const std::string &name, bool create, std::string &copy)
 {
     copy = "";
+    std::error_code ec;
 
     /* For relative pathnames, the path is considered to be relative to the home directory. */
     std::string dirName;
@@ -216,14 +216,27 @@ S3GetDirectory(const std::string &home, const std::string &name, bool create, st
         dirName = name;
     else
         dirName = home + "/" + name;
-        
+
     std::experimental::filesystem::path directory(dirName);
 
-    if (!std::experimental::filesystem::is_directory(directory) && create) {
-        bool createSuccess = std::experimental::filesystem::create_directory(directory);
-        if (!createSuccess)
-            return (EINVAL);
+    /* The error code will be set to ENOENT if the directory does not exist. Do not fail in this
+     * case. */
+    bool isDirectory = std::experimental::filesystem::is_directory(directory, ec);
+    if (ec.value() != 0 && ec.value() != ENOENT) {
+        std::cerr << "S3GetDirectory: An error occurred when checking whether the directory exists."
+                  << std::endl;
+        return (ec.value());
     }
+
+    if (!isDirectory && create) {
+        bool createSuccess = std::experimental::filesystem::create_directory(directory, ec);
+        if (ec.value() != 0 || !createSuccess) {
+            std::cerr << "S3GetDirectory: An error occurred when creating the directory."
+                      << std::endl;
+            return (ec.value());
+        }
+    }
+
     copy = dirName;
     return (0);
 }
@@ -717,18 +730,31 @@ static int
 S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *fileSystem,
   const char *source, const char *object, const char *config)
 {
+    std::error_code ec;
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
     /* Constructing the pathname for source and cache from file system and local.  */
-    std::string srcPath = S3Path(fs->homeDir, source);
-    std::string destPath = S3Path(fs->cacheDir, source);
+    std::experimental::filesystem::path srcPath(S3Path(fs->homeDir, source));
+    std::experimental::filesystem::path destPath(S3Path(fs->cacheDir, source));
 
     /* Linking file with the local file. */
-    int ret = link(srcPath.c_str(), destPath.c_str());
+    std::experimental::filesystem::create_hard_link(srcPath, destPath, ec);
+    if (ec.value() != 0) {
+        std::cerr << "S3FlushFinish: Error creating the object link in the cache";
+        return (ec.value());
+    }
 
     /* The file should be read-only. */
-    if (ret == 0)
-        ret = chmod(destPath.c_str(), 0444);
-    return (ret);
+    std::experimental::filesystem::permissions(destPath,
+      std::experimental::filesystem::perms::group_read |
+        std::experimental::filesystem::perms::owner_read |
+        std::experimental::filesystem::perms::others_read,
+      ec);
+
+    if (ec.value() != 0) {
+        std::cerr << "S3FlushFinish: Error changing the object permissions to readonly";
+        return (ec.value());
+    }
+    return (0);
 }
 
 /*
