@@ -47,7 +47,7 @@ S3LogSystem::LogAwsMessage(const char *tag, const std::string &message) const
 }
 
 void
-S3LogSystem::LogVerboseMessage(int32_t verbosityLevel, const std::string &message)
+S3LogSystem::LogVerboseMessage(int32_t verbosityLevel, const std::string &message) const
 {
     if (verbosityLevel <= _wtVerbosityLevel) {
         /* Use err_printf for error and warning messages and use msg_printf for notice, info and
@@ -60,13 +60,13 @@ S3LogSystem::LogVerboseMessage(int32_t verbosityLevel, const std::string &messag
 }
 
 void
-S3LogSystem::LogVerboseErrorMessage(const std::string &message)
+S3LogSystem::LogVerboseErrorMessage(const std::string &message) const
 {
     LogVerboseMessage(WT_VERBOSE_ERROR, message);
 }
 
 void
-S3LogSystem::LogVerboseDebugMessage(const std::string &message)
+S3LogSystem::LogVerboseDebugMessage(const std::string &message) const
 {
     LogVerboseMessage(WT_VERBOSE_DEBUG, message);
 }
