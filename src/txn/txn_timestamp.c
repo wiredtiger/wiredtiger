@@ -741,8 +741,10 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
          * transactions _must_ be replayed identically by the application to avoid inconsistency,
          * or avoided. FIXME-WT-8747: remove this note when WT-8747 fixes this.)
          *
-         * In general preparing or committing before stable is unsafe and can cause data consistency
-         * failures, so use of "roundup=prepared" for other purposes is strongly discouraged.
+         * Under other circumstances, that is, not during application-level recovery when ordinary
+         * operations are excluded, use of "roundup=prepared" (for replaying transactions or
+         * otherwise) is not safe and can cause data inconsistency. There is currently no roundup
+         * mode for commit timestamps that is suitable for use during ordinary operation.
          */
         if (F_ISSET(txn, WT_TXN_TS_ROUND_PREPARED)) {
             oldest_ts = txn_global->oldest_timestamp;

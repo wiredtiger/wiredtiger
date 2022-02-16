@@ -1764,11 +1764,13 @@ methods = {
             use. (See @ref timestamp_roundup_prepare.) Allows the prepare timestamp and the
             commit timestamp of this transaction to be rounded up to be no older than the
             oldest timestamp, and allows violating the usual restriction that the prepare
-            timestamp must be newer than the stable timestamp. Specifically: if the prepare
+            timestamp must be newer than the stable timestamp. Specifically: at transaction
+            prepare, if the prepare
             timestamp is less than or equal to the oldest timestamp, the prepare timestamp
-            will be rounded to the oldest timestamp. Then, if the commit timestamp is less
-            than the prepare timestamp, the commit timestamp will be rounded up to the prepare
-            timestamp. Neither timestamp will be checked against the stable timestamp''',
+            will be rounded to the oldest timestamp. Subsequently, at commit time, if the
+            commit timestamp is less than the (now rounded) prepare timestamp, the commit
+            timestamp will be rounded up to it and thus to at least oldest.
+            Neither timestamp will be checked against the stable timestamp''',
             type='boolean'),
         Config('read', 'false', r'''
             if the read timestamp is less than the oldest timestamp, the

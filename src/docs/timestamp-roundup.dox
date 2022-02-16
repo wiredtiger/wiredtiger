@@ -105,4 +105,11 @@ before the crash, it is important to replay exactly the same write
 set; otherwise reads before and after the crash might produce
 ::WT_PREPARE_CONFLICT inconsistently.
 
+It is expected that the oldest timestamp is not advanced during
+application recovery.
+The rounding behavior does not check for this possibility; if for some
+reason applications wish to advance oldest while replaying
+transactions during recovery, they must check their commit timestamps
+explicitly to avoid committing before oldest.
+
 */
