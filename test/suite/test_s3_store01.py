@@ -42,6 +42,8 @@ class test_s3_store01(wttest.WiredTigerTestCase):
 
     fs_config = 'prefix=' + prefix
 
+    fs_config += ',region=ap-southeast-2'
+
     # Bucket name can be overridden by an environment variable.
     bucket_name = os.getenv('WT_S3_EXT_BUCKET')
     if bucket_name is None:
@@ -80,12 +82,13 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         inbytes = bytes(1000000)         # An empty buffer with a million zero bytes.
         fh.fh_read(session, 0, inbytes)  # Read into the buffer.
         self.assertEquals(outbytes[0:1000000], inbytes)
+        self.assertTrue(fs.fs_size(session, filename), len(outbytes))
+        self.assertEquals(fh.fh_size(session), len(outbytes))
         fh.close(session)
 
         # Checking that the file still exists in S3 after removing it from the cache.
         os.remove(cache_prefix + self.bucket_name + '/' + filename)
         self.assertTrue(fs.fs_exist(session, filename))
-
         file_list = [self.prefix + object_name]
         self.assertEquals(fs.fs_directory_list(session, None, None), file_list)
 

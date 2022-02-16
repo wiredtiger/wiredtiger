@@ -81,7 +81,7 @@ CleanupTestListObjects(S3Connection &conn, const int totalObjects, const std::st
     /* Delete objects and file at end of test. */
     int ret = 0;
     for (int i = 0; i < totalObjects; i++) {
-        if (ret = conn.DeleteObject(prefix + std::to_string(i) + ".txt") != 0)
+        if ((ret = conn.DeleteObject(prefix + std::to_string(i) + ".txt")) != 0)
             std::cerr << "Error in CleanupTestListBuckets: failed to remove "
                       << TestDefaults::objPrefix + prefix << std::to_string(i) << ".txt from "
                       << TestDefaults::bucketName << std::endl;
@@ -117,13 +117,13 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
 
     int ret;
     /* No matching objects. */
-    if (ret = conn.ListObjects(prefix, objects) != 0)
+    if ((ret = conn.ListObjects(prefix, objects)) != 0)
         return (ret);
     if (objects.size() != expectedResult)
         return (TEST_FAILURE);
 
     /* No matching objects with listSingle. */
-    if (ret = conn.ListObjects(prefix, objects, batchSize, listSingle) != 0)
+    if ((ret = conn.ListObjects(prefix, objects, batchSize, listSingle)) != 0)
         return (ret);
     if (objects.size() != expectedResult)
         return (TEST_FAILURE);
@@ -136,7 +136,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
 
     /* Put objects to prepare for test. */
     for (int i = 0; i < totalObjects; i++) {
-        if (ret = conn.PutObject(prefix + std::to_string(i) + ".txt", fileName) != 0) {
+        if ((ret = conn.PutObject(prefix + std::to_string(i) + ".txt", fileName)) != 0) {
             CleanupTestListObjects(conn, i, prefix, fileName);
             return (ret);
         }
@@ -144,7 +144,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
 
     /* List all objects. */
     expectedResult = totalObjects;
-    if (ret = conn.ListObjects(prefix, objects) != 0) {
+    if ((ret = conn.ListObjects(prefix, objects)) != 0) {
         CleanupTestListObjects(conn, totalObjects, prefix, fileName);
         return (ret);
     }
@@ -156,7 +156,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
     /* List single. */
     objects.clear();
     expectedResult = 1;
-    if (ret = conn.ListObjects(prefix, objects, batchSize, listSingle) != 0) {
+    if ((ret = conn.ListObjects(prefix, objects, batchSize, listSingle)) != 0) {
         CleanupTestListObjects(conn, totalObjects, prefix, fileName);
         return (ret);
     }
@@ -168,7 +168,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
     /* Expected number of matches with test_list_objects_1 prefix. */
     objects.clear();
     expectedResult = 11;
-    if (ret = conn.ListObjects(prefix + "1", objects) != 0) {
+    if ((ret = conn.ListObjects(prefix + "1", objects)) != 0) {
         CleanupTestListObjects(conn, totalObjects, prefix, fileName);
         return (ret);
     }
@@ -181,7 +181,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
     objects.clear();
     batchSize = 5;
     expectedResult = totalObjects;
-    if (ret = conn.ListObjects(prefix, objects, batchSize) != 0) {
+    if ((ret = conn.ListObjects(prefix, objects, batchSize)) != 0) {
         CleanupTestListObjects(conn, totalObjects, prefix, fileName);
         return (ret);
     }
@@ -193,7 +193,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
     /* ListSingle with 8 objects per AWS request. */
     objects.clear();
     expectedResult = 1;
-    if (ret = conn.ListObjects(prefix, objects, batchSize, listSingle) != 0) {
+    if ((ret = conn.ListObjects(prefix, objects, batchSize, listSingle)) != 0) {
         CleanupTestListObjects(conn, totalObjects, prefix, fileName);
         return (ret);
     }
@@ -206,7 +206,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
     objects.clear();
     batchSize = 8;
     expectedResult = totalObjects;
-    if (ret = conn.ListObjects(prefix, objects, batchSize) != 0) {
+    if ((ret = conn.ListObjects(prefix, objects, batchSize)) != 0) {
         CleanupTestListObjects(conn, totalObjects, prefix, fileName);
         return (ret);
     }
@@ -218,7 +218,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
     /* ListSingle with 8 objects per AWS request. */
     objects.clear();
     expectedResult = 1;
-    if (ret = conn.ListObjects(prefix, objects, batchSize, listSingle) != 0) {
+    if ((ret = conn.ListObjects(prefix, objects, batchSize, listSingle)) != 0) {
         CleanupTestListObjects(conn, totalObjects, prefix, fileName);
         return (ret);
     }
@@ -282,7 +282,7 @@ TestGetObject(const Aws::S3Crt::ClientConfiguration &config)
 }
 /*
  * TestObjectExists --
- *     Unit test to check if an object exists in an AWS bucket.
+ *     Unit test to check if an object exists in an AWS bucket and size of the object is correct.
  */
 int
 TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
@@ -290,25 +290,34 @@ TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
     S3Connection conn(config, TestDefaults::bucketName, TestDefaults::objPrefix);
     bool exists = false;
     int ret = TEST_FAILURE;
+    size_t objectSize;
 
     const std::string objectName = "test_object";
     const std::string fileName = "test_object.txt";
 
     /* Create a file to upload to the bucket.*/
     std::ofstream File(fileName);
-    File << "Test payload";
+    std::string payload = "Test payload";
+    File << payload;
     File.close();
 
-    ret = conn.ObjectExists(objectName, exists);
-    if (ret != 0 || exists)
+    if ((ret = conn.ObjectExists(objectName, exists, objectSize)) != 0)
+        return (ret);
+    if (exists || objectSize != 0)
         return (TEST_FAILURE);
 
     if ((ret = conn.PutObject(objectName, fileName)) != 0)
         return (ret);
 
-    ret = conn.ObjectExists(objectName, exists);
-    if (ret != 0 || !exists)
+    if ((ret = conn.ObjectExists(objectName, exists, objectSize)) != 0)
+        return (ret);
+    if (!exists)
         return (TEST_FAILURE);
+
+    if (objectSize != payload.length()) {
+        std::cerr << "TestObjectExist().objectSize failed." << std::endl;
+        return (TEST_FAILURE);
+    }
 
     if ((ret = conn.DeleteObject(objectName)) != 0)
         return (ret);
