@@ -35,7 +35,7 @@ from wtbackup import backup_base
 # Test recovering a selective backup with some logged tables, some not logged tables
 # and creating more of each during backup.
 class test_backup24(backup_base):
-    dir='backup.dir'                    # Backup directory name
+    dir='backup_all.dir' # Backup directory name
     config_log='key_format=S,value_format=S'
     config_nolog='key_format=S,value_format=S,log=(enabled=false)'
     log_t1="table:logged1"
@@ -101,41 +101,16 @@ class test_backup24(backup_base):
 
         # Now copy the files using full backup but as a selective backup. We want the logged
         # tables but only the first not-logged table. Skip the second not-logged table.
-        orig_logs = []
-        while True:
-            ret = bkup_c.next()
-            if ret != 0:
-                break
-            newfile = bkup_c.get_key()
-            self.assertNotEqual(newfile, self.log_tnew)
-            self.assertNotEqual(newfile, self.nolog_tnew)
-            if newfile == self.nolog_t2_file:
-                continue
-            sz = os.path.getsize(newfile)
-            self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
-            shutil.copy(newfile, self.dir)
-            if "WiredTigerLog" in newfile:
-                orig_logs.append(newfile)
+        all_files = self.take_selective_backup(self.dir, [self.nolog_t2_file], bkup_c)
+        orig_logs = [file for file in all_files if "WiredTigerLog" in file]
+        self.assertFalse(self.log_tnew in all_files)
+        self.assertFalse(self.nolog_tnew in all_files)
+        self.assertFalse(self.nolog_t2_file in all_files)
 
-        # After copying files, catch up the logs.
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        dupc = self.session.open_cursor(None, bkup_c, 'target=("log:")')
-        dup_logs = []
-        while True:
-            ret = dupc.next()
-            if ret != 0:
-                break
-            newfile = dupc.get_key()
-            self.assertTrue("WiredTigerLog" in newfile)
-            sz = os.path.getsize(newfile)
-            if (newfile not in orig_logs):
-                self.pr('DUP: Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
-                shutil.copy(newfile, self.dir)
-            # Record all log files returned for later verification.
-            dup_logs.append(newfile)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        dupc.close()
+        # Take a log backup.
+        self.take_log_backup(bkup_c, self.dir, orig_logs)
         bkup_c.close()
+
         flist = os.listdir(self.dir)
         self.pr("===== After log backup")
         for f in flist:
@@ -144,7 +119,7 @@ class test_backup24(backup_base):
         # After the full backup, open and recover the backup database.
         # Make sure we properly recover even though the log file will have
         # records for the newly created table file id.
-        backup_conn = self.wiredtiger_open(self.dir)
+        backup_conn = self.wiredtiger_open(self.dir, 'backup_load=partial')
         #backup_conn = self.wiredtiger_open(self.dir, 'verbose=(recovery)')
         flist = os.listdir(self.dir)
         self.pr("===== After recovery")

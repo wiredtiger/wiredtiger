@@ -59,10 +59,12 @@ __metadata_init(WT_SESSION_IMPL *session)
 static int
 __metadata_load_hot_backup(WT_SESSION_IMPL *session)
 {
+    WT_CURSOR *cursor;
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(value);
     WT_DECL_RET;
     WT_FSTREAM *fs;
+    char *filename, *key_metadata, *prefix_skipped_metadata;
     bool exist;
 
     /* Look for a hot backup file: if we find it, load it. */
@@ -82,17 +84,45 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
         if (value->size == 0)
             WT_ERR_PANIC(session, EINVAL, "%s: zero-length value", WT_METADATA_BACKUP);
 
-        if (F_ISSET(S2C(session), WT_CONN_BACKUP_ALL))
-            WT_ERR(__wt_metadata_update(session, key->data, value->data));
-        else if (F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL)) {
-            WT_RET(__wt_fs_exist(session, (char *)key->data, &exist));
-            if (exist)
-                WT_ERR(__wt_metadata_update(session, key->data, value->data));
-        } else
-            WT_ERR_PANIC(session, EINVAL, "Weird");
+        WT_ERR(__wt_metadata_update(session, key->data, value->data));
     }
 
     F_SET(S2C(session), WT_CONN_WAS_BACKUP);
+    WT_ERR(__wt_fclose(session, &fs));
+    WT_ERR(__wt_fopen(session, WT_METADATA_BACKUP, 0, WT_STREAM_READ, &fs));
+    if (F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL)) {
+        for (;;) {
+            WT_ERR(__wt_getline(session, fs, key));
+            if (key->size == 0)
+                break;
+            WT_ERR(__wt_getline(session, fs, value));
+            if (value->size == 0)
+                WT_ERR_PANIC(session, EINVAL, "%s: zero-length value", WT_METADATA_BACKUP);
+
+            filename = (char *)key->data;
+            if (WT_PREFIX_SKIP(filename, "file:")) {
+                WT_ERR(__wt_fs_exist(session, filename, &exist));
+                if (!exist) {
+                    WT_ERR(__wt_metadata_cursor(session, &cursor));
+                    while (cursor->next(cursor) == 0) {
+                        cursor->get_key(cursor, &key_metadata);
+                        prefix_skipped_metadata = key_metadata;
+                        if (WT_PREFIX_SKIP(prefix_skipped_metadata, "file:") ||
+                          WT_PREFIX_SKIP(prefix_skipped_metadata, "colgroup:") ||
+                          WT_PREFIX_SKIP(prefix_skipped_metadata, "index:") ||
+                          WT_PREFIX_SKIP(prefix_skipped_metadata, "lsm:") ||
+                          WT_PREFIX_SKIP(prefix_skipped_metadata, WT_SYSTEM_PREFIX) ||
+                          WT_PREFIX_SKIP(prefix_skipped_metadata, "table:") ||
+                          WT_PREFIX_SKIP(prefix_skipped_metadata, "tiered:")) {
+                            if (WT_PREFIX_MATCH(filename, prefix_skipped_metadata))
+                                WT_ERR(__wt_metadata_remove(session, key_metadata));
+                        }
+                    }
+                    WT_ERR(__wt_metadata_cursor_release(session, &cursor));
+                }
+            }
+        }
+    }
 
 err:
     WT_TRET(__wt_fclose(session, &fs));
