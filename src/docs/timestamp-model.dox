@@ -34,10 +34,9 @@ Timestamps are 64-bit unsigned integers naming a point in application time.
 WiredTiger does not interpret timestamps other than expecting larger timestamps
 to correspond to "later" times. Timestamp 0 is reserved, so timestamps must
 start at 1 or greater. It is not necessary for timestamp values to be clock time
-of any kind; an expected source for application timestamps is a global counter
-shared within a replica set. (A replica set is a group of instances of an
-application running on multiple instances of WiredTiger databases, usually
-distributed across a network.)
+of any kind; an expected timestamp source is a global counter shared by
+instances of an application distributed across a network, individually running
+local WiredTiger databases.
 
 Timestamps are read from and written to the WiredTiger API as hexadecimal
 strings without any leading prefix like "0x".  Applications using timestamps
@@ -78,7 +77,7 @@ database requires caution. Configuring logging for the database will
 automatically configure logging for each object in the database unless logging
 is explicitly turned off when the object is created.
 
-@subsection timestamps_durability_checkpoint Checkpoint durability and timestamps
+@section timestamps_durability_checkpoint Checkpoint durability and timestamps
 
 Checkpoint durability is the expected choice for most objects when
 timestamps are configured. The change from checkpoint durability without
@@ -88,9 +87,12 @@ are returned to the stable timestamp
 associated with the most recent checkpoint.  This gives the application
 fine-grained control over the point to which recovery moves after failure.
 
-\warning Because transaction commits will be after the current stable
-timestamp, recovery can roll back committed transactions.
-Applications are therefore responsible for ensuring such committed transactions
-are restored or abandoned as desired.
+\warning As in checkpoint durability without timestamps, transactions committed
+after a checkpoint will be rolled back as part of recovery. However, with the
+introduction of the stable timestamp as the checkpoint's timestamp, it becomes
+possible for a transaction to be committed, followed by a checkpoint, and then
+recovery would still roll back the transaction if the commit timestamp were
+after the checkpoint's stable timestamp. Applications are therefore responsible
+for ensuring such committed transactions are restored or abandoned as desired.
 
 */
