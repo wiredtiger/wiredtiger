@@ -176,7 +176,7 @@ S3Exist(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool 
     /* It's not in the cache, try the S3 bucket. */
     s3->statistics.objectExistsCount++;
     if ((ret = fs->connection->ObjectExists(name, *exist, objectSize)) != 0)
-        s3->log->LogVerboseMessage(WT_VERBOSE_ERROR, "S3Exist: ObjectExists request to S3 failed.");
+        s3->log->LogVerboseErrorMessage("S3Exist: ObjectExists request to S3 failed.");
 
     return (ret);
 }
@@ -229,10 +229,10 @@ S3GetDirectory(const S3_STORAGE &s3, const std::string &home, const std::string 
         ret = stat(dirName.c_str(), &sb);
     }
     if (ret != 0) {
-        s3.log->LogVerboseMessage(WT_VERBOSE_ERROR, "S3GetDirectory: stat system call failed.");
+        s3.log->LogVerboseErrorMessage("S3GetDirectory: stat system call failed.");
         ret = errno;
     } else if ((sb.st_mode & S_IFMT) != S_IFDIR) {
-        s3.log->LogVerboseMessage(WT_VERBOSE_ERROR, "S3GetDirectory: invalid directory name.");
+        s3.log->LogVerboseErrorMessage("S3GetDirectory: invalid directory name.");
         ret = EINVAL;
     }
 
@@ -262,7 +262,7 @@ S3FileClose(WT_FILE_HANDLE *fileHandle, WT_SESSION *session)
     if (wtFileHandle != NULL) {
         s3->statistics.fhOps++;
         if ((ret = wtFileHandle->close(wtFileHandle, session)) != 0)
-            s3->log->LogVerboseMessage(WT_VERBOSE_ERROR, "S3FileClose: close file handle failed.");
+            s3->log->LogVerboseErrorMessage("S3FileClose: close file handle failed.");
     }
 
     free(s3FileHandle->iface.name);
@@ -289,7 +289,7 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
 
     /* We only support opening the file in read only mode. */
     if ((flags & WT_FS_OPEN_READONLY) == 0 || (flags & WT_FS_OPEN_CREATE) != 0) {
-        s3->log->LogVerboseMessage(WT_VERBOSE_ERROR, "S3Open: read-only access required.");
+        s3->log->LogVerboseErrorMessage("S3Open: read-only access required.");
         return (EINVAL);
     }
 
@@ -298,14 +298,12 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
      * the future.
      */
     if (fileType != WT_FS_OPEN_FILE_TYPE_DATA && fileType != WT_FS_OPEN_FILE_TYPE_REGULAR) {
-        s3->log->LogVerboseMessage(
-          WT_VERBOSE_ERROR, "S3Open: only data file and regular types supported.");
+        s3->log->LogVerboseErrorMessage("S3Open: only data file and regular types supported.");
         return (EINVAL);
     }
 
     if ((s3FileHandle = (S3_FILE_HANDLE *)calloc(1, sizeof(S3_FILE_HANDLE))) == NULL) {
-        s3->log->LogVerboseMessage(
-          WT_VERBOSE_ERROR, "S3Open: unable to allocate memory for file handle.");
+        s3->log->LogVerboseErrorMessage("S3Open: unable to allocate memory for file handle.");
         return (ENOMEM);
     }
 
@@ -314,7 +312,7 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     if (!LocalFileExists(cachePath)) {
         s3->statistics.getObjectCount++;
         if ((ret = fs->connection->GetObject(name, cachePath)) != 0) {
-            s3->log->LogVerboseMessage(WT_VERBOSE_ERROR, "S3Open: GetObject request to S3 failed.");
+            s3->log->LogVerboseErrorMessage("S3Open: GetObject request to S3 failed.");
             return (ret);
         }
     }
@@ -323,7 +321,7 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     ret = wtFileSystem->fs_open_file(
       wtFileSystem, session, cachePath.c_str(), fileType, flags, &wtFileHandle);
     if (ret != 0) {
-        s3->log->LogVerboseMessage(WT_VERBOSE_ERROR, "S3Open: fs_open_file failed.");
+        s3->log->LogVerboseErrorMessage("S3Open: fs_open_file failed.");
         return (ret);
     }
 
@@ -349,8 +347,7 @@ S3Open(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
 
     fileHandle->name = strdup(name);
     if (fileHandle->name == NULL) {
-        s3->log->LogVerboseMessage(
-          WT_VERBOSE_ERROR, "S3Open: unable to allocate memory for object name.");
+        s3->log->LogVerboseErrorMessage("S3Open: unable to allocate memory for object name.");
         return (ENOMEM);
     }
 
@@ -401,7 +398,7 @@ S3FileRead(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t offset, siz
     int ret;
     s3->statistics.fhReadOps++;
     if ((ret = wtFileHandle->fh_read(wtFileHandle, session, offset, len, buf)) != 0)
-        s3->log->LogVerboseMessage(WT_VERBOSE_ERROR, "S3FileRead: fh_read failed.");
+        s3->log->LogVerboseErrorMessage("S3FileRead: fh_read failed.");
     return (ret);
 }
 
@@ -440,8 +437,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 
     /* We need to have a bucket to setup the file system. */
     if (bucketName == NULL || strlen(bucketName) == 0) {
-        s3->log->LogVerboseMessage(
-          WT_VERBOSE_ERROR, "S3CustomizeFileSystem: bucket not specified.");
+        s3->log->LogVerboseErrorMessage("S3CustomizeFileSystem: bucket not specified.");
         return (EINVAL);
     }
 
@@ -456,8 +452,8 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
            s3->wtApi, session, config, "prefix", &objPrefixConf)) == 0)
         objPrefix = std::string(objPrefixConf.str, objPrefixConf.len);
     else if (ret != WT_NOTFOUND) {
-        s3->log->LogVerboseMessage(
-          WT_VERBOSE_ERROR, "S3CustomizeFileSystem: error parsing config for object prefix.");
+        s3->log->LogVerboseErrorMessage(
+          "S3CustomizeFileSystem: error parsing config for object prefix.");
         return (ret);
     }
 
@@ -496,8 +492,8 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
         cacheStr = "cache-" + std::string(bucketName);
         ret = 0;
     } else {
-        s3->log->LogVerboseMessage(
-          WT_VERBOSE_ERROR, "wiredtiger_extension_init: error parsing config for cache directory.");
+        s3->log->LogVerboseErrorMessage(
+          "wiredtiger_extension_init: error parsing config for cache directory.");
         return (ret);
     }
 
@@ -512,8 +508,8 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 
     /* Create the file system. */
     if ((fs = (S3_FILE_SYSTEM *)calloc(1, sizeof(S3_FILE_SYSTEM))) == NULL) {
-        s3->log->LogVerboseMessage(
-          WT_VERBOSE_ERROR, "S3CustomizeFileSystem: unable to allocate memory for file system.");
+        s3->log->LogVerboseErrorMessage(
+          "S3CustomizeFileSystem: unable to allocate memory for file system.");
         return (ENOMEM);
     }
     fs->storage = s3;
@@ -590,8 +586,7 @@ S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *direct
     int ret;
     s3->statistics.listObjectsCount++;
     if ((ret = fs->connection->ListObjects(completePrefix, objects)) != 0) {
-        s3->log->LogVerboseMessage(
-          WT_VERBOSE_ERROR, "S3ObjectList: ListObjects request to S3 failed.");
+        s3->log->LogVerboseErrorMessage("S3ObjectList: ListObjects request to S3 failed.");
         return (ret);
     }
     *count = objects.size();
@@ -627,8 +622,7 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
     int ret;
     s3->statistics.listObjectsCount++;
     if ((ret = fs->connection->ListObjects(completePrefix, objects, 1, true)) != 0) {
-        s3->log->LogVerboseMessage(
-          WT_VERBOSE_ERROR, "S3ObjectListSingle: ListObjects request to S3 failed.");
+        s3->log->LogVerboseErrorMessage("S3ObjectListSingle: ListObjects request to S3 failed.");
         return (ret);
     }
 
@@ -668,15 +662,15 @@ S3ObjectListAdd(const S3_STORAGE &s3, char ***objectList, const std::vector<std:
 {
     char **entries;
     if ((entries = (char **)malloc(sizeof(char *) * count)) == NULL) {
-        s3.log->LogVerboseMessage(
-          WT_VERBOSE_ERROR, "S3ObjectListAdd: unable to allocate memory for object list.");
+        s3.log->LogVerboseErrorMessage(
+          "S3ObjectListAdd: unable to allocate memory for object list.");
         return (ENOMEM);
     }
 
     for (int i = 0; i < count; i++) {
         if ((entries[i] = strdup(objects[i].c_str())) == NULL) {
-            s3.log->LogVerboseMessage(
-              WT_VERBOSE_ERROR, "S3ObjectListAdd: unable to allocate memory for object string.");
+            s3.log->LogVerboseErrorMessage(
+              "S3ObjectListAdd: unable to allocate memory for object string.");
             return (ENOMEM);
         }
     }
@@ -696,8 +690,7 @@ S3AddReference(WT_STORAGE_SOURCE *storageSource)
     S3_STORAGE *s3 = (S3_STORAGE *)storageSource;
 
     if (s3->referenceCount == 0 || s3->referenceCount + 1 == 0) {
-        s3->log->LogVerboseMessage(
-          WT_VERBOSE_ERROR, "S3AddReference: missing reference or overflow.");
+        s3->log->LogVerboseErrorMessage("S3AddReference: missing reference or overflow.");
         return (EINVAL);
     }
 
@@ -760,7 +753,7 @@ S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *f
     int ret;
     FS2S3(fileSystem)->statistics.putObjectCount++;
     if (ret = (fs->connection->PutObject(object, source)) != 0)
-        s3->log->LogVerboseMessage(WT_VERBOSE_ERROR, "S3Flush: PutObject request to S3 failed.");
+        s3->log->LogVerboseErrorMessage("S3Flush: PutObject request to S3 failed.");
 
     return (ret);
 }
@@ -794,19 +787,19 @@ S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *f
 static void
 S3ShowStatistics(const S3_STORAGE &s3)
 {
-    s3.log->LogVerboseMessage(
-      WT_VERBOSE_DEBUG, "S3 list objects count: " + std::to_string(s3.statistics.listObjectsCount));
-    s3.log->LogVerboseMessage(
-      WT_VERBOSE_DEBUG, "S3 put object count: " + std::to_string(s3.statistics.putObjectCount));
-    s3.log->LogVerboseMessage(
-      WT_VERBOSE_DEBUG, "S3 get object count: " + std::to_string(s3.statistics.getObjectCount));
-    s3.log->LogVerboseMessage(WT_VERBOSE_DEBUG,
+    s3.log->LogVerboseDebugMessage(
+      "S3 list objects count: " + std::to_string(s3.statistics.listObjectsCount));
+    s3.log->LogVerboseDebugMessage(
+      "S3 put object count: " + std::to_string(s3.statistics.putObjectCount));
+    s3.log->LogVerboseDebugMessage(
+      "S3 get object count: " + std::to_string(s3.statistics.getObjectCount));
+    s3.log->LogVerboseDebugMessage(
       "S3 object exists count: " + std::to_string(s3.statistics.objectExistsCount));
 
-    s3.log->LogVerboseMessage(WT_VERBOSE_DEBUG,
+    s3.log->LogVerboseDebugMessage(
       "Non read/write file handle operations: " + std::to_string(s3.statistics.fhOps));
-    s3.log->LogVerboseMessage(
-      WT_VERBOSE_DEBUG, "File handle read operations: " + std::to_string(s3.statistics.fhReadOps));
+    s3.log->LogVerboseDebugMessage(
+      "File handle read operations: " + std::to_string(s3.statistics.fhReadOps));
 }
 
 /*
@@ -838,8 +831,8 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         s3->verbose = v.val;
         s3->log->SetWtVerbosityLevel(s3->verbose);
     } else if (ret != WT_NOTFOUND) {
-        s3->log->LogVerboseMessage(
-          WT_VERBOSE_ERROR, "wiredtiger_extension_init: error parsing config for verbose level.");
+        s3->log->LogVerboseErrorMessage(
+          "wiredtiger_extension_init: error parsing config for verbose level.");
         delete (s3);
         return (ret != 0 ? ret : EINVAL);
     }

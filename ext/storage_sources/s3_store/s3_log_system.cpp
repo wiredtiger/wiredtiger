@@ -60,6 +60,18 @@ S3LogSystem::LogVerboseMessage(int32_t verbosityLevel, const std::string &messag
 }
 
 void
+S3LogSystem::LogVerboseErrorMessage(const std::string &message)
+{
+    LogVerboseMessage(WT_VERBOSE_ERROR, message);
+}
+
+void
+S3LogSystem::LogVerboseDebugMessage(const std::string &message)
+{
+    LogVerboseMessage(WT_VERBOSE_DEBUG, message);
+}
+
+void
 S3LogSystem::SetWtVerbosityLevel(int32_t wtVerbosityLevel)
 {
     _wtVerbosityLevel = wtVerbosityLevel;
