@@ -827,8 +827,10 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 
     int ret = s3->wtApi->config_get(s3->wtApi, NULL, config, "verbose", &v);
 
-    /* Create a logger for the storage source. Verbose level defaults to WT_VERBOSE_ERROR (-3) if it
-     * is outside the valid range or not found. */
+    /*
+     * Create a logger for the storage source. Verbose level defaults to WT_VERBOSE_ERROR (-3) if it
+     * is outside the valid range or not found.
+     */
     s3->verbose = WT_VERBOSE_ERROR;
     s3->log = Aws::MakeShared<S3LogSystem>("storage", s3->wtApi, s3->verbose);
 
