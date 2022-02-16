@@ -748,9 +748,9 @@ struct __wt_page {
 #define WT_READGEN_STEP 100
     uint64_t read_gen;
 
-    uint64_t cache_create_gen; /* Page create timestamp */
-    uint64_t evict_pass_gen;   /* Eviction pass generation */
-    uint64_t page_evict_count; /* Forced eviction count */
+    uint64_t cache_create_gen;          /* Page create timestamp */
+    uint64_t evict_pass_gen;            /* Eviction pass generation */
+    uint64_t page_eviction_force_count; /* Forced eviction count */
 };
 
 /*

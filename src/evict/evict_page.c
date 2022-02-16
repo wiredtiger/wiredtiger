@@ -125,7 +125,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
      */
     time_start = 0;
     if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
-        ++ref->page->page_evict_count;
+        ++ref->page->page_eviction_force_count;
         time_start = __wt_clock(session);
         WT_STAT_CONN_INCR(session, cache_eviction_force);
 
