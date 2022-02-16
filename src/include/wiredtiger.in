@@ -2771,8 +2771,8 @@ struct __wt_connection {
  * @configstart{wiredtiger_open, see dist/api_data.py}
  * @config{backup_load, When performing restore on backup\, configure if WiredTiger should
  * reconstruct the all database files or only partially restore the database based on the tables
- * that are present in the directory., a list\, with values chosen from the following options: \c
- * "all"\, \c "partial"; default empty.}
+ * that are present in the directory., a string\, chosen from the following options: \c "all"\, \c
+ * "partial"; default empty.}
  * @config{block_cache = (, block cache configuration options., a set of related configuration
  * options defined below.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;blkcache_eviction_aggression, seconds an

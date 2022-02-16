@@ -1513,9 +1513,6 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
      * several reasons, the most immediate being that max_durable_ts cannot be none (zero) because
      * it's greater than rollback_timestamp, which is itself greater than zero.
      *
-     * TODO: It is possible that rollback timestmap is greater than max durable. This will in turn
-     * mean history store updates are obsolete, but if a table with same key is created it can still
-     * create problems if we don't clear out the updates.
      */
     if (max_durable_ts > rollback_timestamp && rollback_timestamp != WT_TS_NONE) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
@@ -1698,7 +1695,7 @@ __rollback_to_stable_btree_apply(
     /*
      * Truncate history store entries for the non-timestamped table or the table doesn't exist when
      * performing a partial backup.
-     * 
+     *
      * Exceptions for non-timestamped table:
      * 1. Modified tree - Scenarios where the tree is never checkpointed lead to zero
      * durable timestamp even they are timestamped tables. Until we have a special
@@ -1708,8 +1705,8 @@ __rollback_to_stable_btree_apply(
      */
     exist = __wt_metadata_search(session, uri, &metadata_conf) != WT_NOTFOUND;
     if ((!exist && F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL)) ||
-      (!dhandle_allocated || !S2BT(session)->modified) && max_durable_ts == WT_TS_NONE &&
-        !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+      ((!dhandle_allocated || !S2BT(session)->modified) && max_durable_ts == WT_TS_NONE &&
+        !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))) {
         WT_ERR(__wt_config_getones(session, config, "id", &cval));
         btree_id = (uint32_t)cval.val;
         WT_ERR(__rollback_to_stable_btree_hs_truncate(session, btree_id));

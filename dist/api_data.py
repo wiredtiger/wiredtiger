@@ -1141,7 +1141,7 @@ wiredtiger_open_common =\
             When performing restore on backup, configure if WiredTiger should reconstruct the all database files
             or only partially restore the database based on the tables that are present in the directory.
         ''',
-        type='list', choices=['all', 'partial']),
+        choices=['all', 'partial']),
     Config('buffer_alignment', '-1', r'''
         in-memory alignment (in bytes) for buffers used for I/O.  The
         default value of -1 indicates a platform-specific alignment value

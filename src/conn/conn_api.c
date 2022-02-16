@@ -2976,7 +2976,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     verify_meta = cval.val;
 
     WT_ERR(__wt_config_gets(session, cfg, "backup_load", &cval));
-    WT_RET(__wt_fs_exist(session, WT_METADATA_BACKUP, &exist_backup));
+    WT_ERR(__wt_fs_exist(session, WT_METADATA_BACKUP, &exist_backup));
     if (exist_backup && cval.len == 0)
         WT_ERR_MSG(session, EINVAL, "Detected backup without backup_load configuration.");
 
