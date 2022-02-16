@@ -858,7 +858,7 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
     name = btree->dhandle->name;
     txn_has_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_DURABLE);
 
-    /* Debugging checks on timestamps, if configured for reporting and the object. */
+    /* Skip timestamp usage checks unless both assert and usage configurations are set. */
     if (!LF_ISSET(WT_DHANDLE_TS_ASSERT_WRITE))
         return;
     if (!LF_ISSET(WT_DHANDLE_TS_ALWAYS | WT_DHANDLE_TS_MIXED_MODE | WT_DHANDLE_TS_NEVER |
