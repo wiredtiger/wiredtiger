@@ -1820,9 +1820,12 @@ __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    bool logging;
 
     btree = CUR2BT(start);
     session = CUR2S(start);
+    logging = __wt_log_op(session);
+
     WT_STAT_DATA_INCR(session, cursor_truncate);
 
     WT_RET(__wt_txn_autocommit_check(session));
@@ -1835,7 +1838,7 @@ __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
      * We deal with this here by logging the truncate range first, then (in the logging code)
      * disabling writing of the in-memory remove records to disk.
      */
-    if (__wt_log_op(session))
+    if (logging)
         WT_RET(__wt_txn_truncate_log(session, start, stop));
 
     switch (btree->type) {
@@ -1860,7 +1863,7 @@ __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
     }
 
 err:
-    if (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED))
+    if (logging)
         __wt_txn_truncate_end(session);
     return (ret);
 }
