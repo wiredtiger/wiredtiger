@@ -34,7 +34,6 @@ set(unittest_sources
     tests/wrappers/block_mods.cpp
     tests/wrappers/connection_wrapper.cpp
     tests/wrappers/error_handler.cpp
-    tests/wrappers/session_wrapper.cpp
     tests/block/test_bitstring.cpp
     tests/block/test_block_ckpt.cpp
 )

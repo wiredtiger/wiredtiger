@@ -5,26 +5,44 @@
  *
  * See the file LICENSE for redistribution information.
  */
+#include "wiredtiger.h"
+#include "wt_internal.h"
 
 #include "connection_wrapper.h"
 #include "error_handler.h"
 
-ConnectionWrapper::ConnectionWrapper(WT_CONNECTION_IMPL *connectionImpl)
-    : _connectionImpl(connectionImpl)
+ConnectionWrapper::ConnectionWrapper()
+    : _conn_impl(nullptr),
+      _conn(nullptr)
 {
+    ErrorHandler::throwIfNonZero(wiredtiger_open(nullptr, nullptr, "create", &_conn));
 }
 
 ConnectionWrapper::~ConnectionWrapper()
 {
-    __wt_free(nullptr, _connectionImpl);
+    ErrorHandler::throwIfNonZero(_conn->close(_conn, ""));
 }
 
-std::shared_ptr<ConnectionWrapper>
-ConnectionWrapper::buildTestConnectionWrapper()
+WT_SESSION_IMPL*
+ConnectionWrapper::createSession()
 {
-    WT_CONNECTION_IMPL *connectionImpl = nullptr;
-    ErrorHandler::throwIfNonZero(
-      __wt_calloc(nullptr, 1, sizeof(WT_CONNECTION_IMPL), &connectionImpl));
-    // Construct a Session object that will now own session.
-    return std::shared_ptr<ConnectionWrapper>(new ConnectionWrapper(connectionImpl));
+    WT_SESSION* sess;
+    _conn->open_session(_conn, nullptr, nullptr, &sess);
+
+    auto sess_impl = (WT_SESSION_IMPL*)sess;
+    _conn_impl = S2C(sess_impl);
+
+    return sess_impl;
+}
+
+WT_CONNECTION_IMPL*
+ConnectionWrapper::getWtConnectionImpl() const
+{
+    return _conn_impl;
+}
+
+WT_CONNECTION*
+ConnectionWrapper::getWtConnection() const
+{
+    return _conn;
 }

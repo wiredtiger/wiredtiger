@@ -13,27 +13,21 @@
 #include "wt_internal.h"
 
 class ConnectionWrapper {
-    public:
+public:
+    ConnectionWrapper();
     ~ConnectionWrapper();
-    WT_CONNECTION_IMPL *
-    getWtConnectionImpl()
-    {
-        return _connectionImpl;
-    };
-    WT_CONNECTION *
-    getWtConnection()
-    {
-        return reinterpret_cast<WT_CONNECTION *>(_connectionImpl);
-    };
 
-    static std::shared_ptr<ConnectionWrapper> buildTestConnectionWrapper();
+    WT_SESSION_IMPL* createSession();
 
-    private:
-    explicit ConnectionWrapper(WT_CONNECTION_IMPL *connectionImpl);
+    WT_CONNECTION_IMPL* getWtConnectionImpl() const;
+    WT_CONNECTION* getWtConnection() const;
+    const std::string& getDBHome() const;
 
+private:
     // This class is implemented such that it owns, and is responsible for freeing,
     // this pointer
-    WT_CONNECTION_IMPL *_connectionImpl;
+    WT_CONNECTION_IMPL* _conn_impl;
+    WT_CONNECTION* _conn;
 };
 
 #endif // WT_CONNECTION_WRAPPER_H
