@@ -135,9 +135,8 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
 
             filename = (char *)key->data;
             if (WT_PREFIX_SKIP(filename, "table:")) {
-                for (i = 0; i < slot; i++) {
+                for (i = 0; partial_backup_list[i] != NULL; ++i) {
                     if (WT_PREFIX_MATCH(partial_backup_list[i], filename)) {
-                        WT_UNUSED(drop_cfg);
                         WT_WITH_SCHEMA_LOCK(session,
                           WT_WITH_TABLE_WRITE_LOCK(
                             session, ret = __wt_schema_drop(session, (char *)key->data, drop_cfg)));
@@ -150,6 +149,11 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
     }
 
 err:
+    if (partial_backup_list != NULL) {
+        for (i = 0; partial_backup_list[i] != NULL; ++i)
+            __wt_free(session, partial_backup_list[i]);
+        __wt_free(session, partial_backup_list);
+    }
     WT_TRET(__wt_fclose(session, &fs));
     __wt_scr_free(session, &key);
     __wt_scr_free(session, &value);
