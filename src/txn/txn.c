@@ -602,16 +602,6 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
     if (cval.val)
         F_SET(txn, WT_TXN_TS_ROUND_READ);
 
-    /* Check if the read timestamp is allowed to be before the oldest timestamp. */
-    WT_ERR(__wt_config_gets_def(session, cfg, "read_before_oldest", 0, &cval));
-    if (cval.val) {
-        if (F_ISSET(txn, WT_TXN_TS_ROUND_READ))
-            WT_ERR_MSG(session, EINVAL,
-              "cannot specify roundup_timestamps.read and "
-              "read_before_oldest on the same transaction");
-        F_SET(txn, WT_TXN_TS_READ_BEFORE_OLDEST);
-    }
-
     WT_ERR(__wt_config_gets_def(session, cfg, "read_timestamp", 0, &cval));
     if (cval.len != 0) {
         WT_ERR(__wt_txn_parse_timestamp(session, "read", &read_ts, &cval));
@@ -2230,8 +2220,10 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
     WT_SESSION_IMPL *s;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *ckpt_cfg;
+    bool use_timestamp;
 
     conn = S2C(session);
+    use_timestamp = false;
 
     /*
      * Perform a system-wide checkpoint so that all tables are consistent with each other. All
@@ -2245,14 +2237,14 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
     if (cval.val != 0) {
         ckpt_cfg = "use_timestamp=true";
         if (conn->txn_global.has_stable_timestamp)
-            F_SET(conn, WT_CONN_CLOSING_TIMESTAMP);
+            use_timestamp = true;
     }
     if (!F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY | WT_CONN_PANIC)) {
         /*
          * Perform rollback to stable to ensure that the stable version is written to disk on a
          * clean shutdown.
          */
-        if (F_ISSET(conn, WT_CONN_CLOSING_TIMESTAMP)) {
+        if (use_timestamp) {
             __wt_verbose(session, WT_VERB_RTS,
               "performing shutdown rollback to stable with stable timestamp: %s",
               __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string));
