@@ -16,11 +16,11 @@
  */
 class S3Connection {
     public:
-    explicit S3Connection(const Aws::Auth::AWSCredentials &credentials,
+    S3Connection(const Aws::Auth::AWSCredentials &credentials,
       const Aws::S3Crt::ClientConfiguration &config, const std::string &bucketName,
       const std::string &objPrefix = "");
-    explicit S3Connection(const Aws::S3Crt::ClientConfiguration &config,
-      const std::string &bucketName, const std::string &objPrefix = "");
+    S3Connection(const Aws::S3Crt::ClientConfiguration &config, const std::string &bucketName,
+      const std::string &objPrefix = "");
     int ListObjects(const std::string &prefix, std::vector<std::string> &objects,
       uint32_t batchSize = 1000, bool listSingle = false) const;
     int PutObject(const std::string &objectKey, const std::string &fileName) const;

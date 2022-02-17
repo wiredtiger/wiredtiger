@@ -438,8 +438,8 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 
     /* Extract the AWS access key ID and the AWS secret key from authToken. */
     int delimiter = std::string(authToken).find(',');
-    std::string accessKeyId = std::string(authToken).substr(0, delimiter);
-    std::string secretKey = std::string(authToken).substr(delimiter + 1);
+    const std::string accessKeyId = std::string(authToken).substr(0, delimiter);
+    const std::string secretKey = std::string(authToken).substr(delimiter + 1);
     Aws::Auth::AWSCredentials credentials;
     credentials.SetAWSAccessKeyId(accessKeyId);
     credentials.SetAWSSecretKey(secretKey);
