@@ -265,10 +265,12 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
     }
 
     /*
-     * If we don't have the metadata cursor (e.g, we're in the process of creating the metadata), we
-     * can't sync it.
+     * If we don't have the metadata cursor or there is no meta checkpoint in the session (e.g,
+     * we're in the process of creating the metadata), we can't sync it.
      */
-    if (!need_sync || session->meta_cursor == NULL || F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+    if (!need_sync || session->meta_cursor == NULL || F_ISSET(S2C(session), WT_CONN_IN_MEMORY) ||
+      (S2C(session)->meta_ckpt_session == NULL &&
+        !FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED)))
         goto err;
 
     /* If we're logging, make sure the metadata update was flushed. */
