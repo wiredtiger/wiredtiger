@@ -181,7 +181,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     #
     # Uses a backup cursor to perform a full backup, by iterating through the cursor
     # grabbing files to copy over into a given directory. When dealing with a test
-    # that performs multiple incremental backups, we initially perform a proper backup
+    # that performs multiple incremental backups, we initially perform a full backup
     # on each incremental directory as a starting base.
     # Optional arguments:
     # backup_cur: A backup cursor that can be given into the function, but function caller
