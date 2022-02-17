@@ -95,7 +95,7 @@ __curfile_set_key(WT_CURSOR *cursor, ...)
  *     Reposition the saved key
  */
 static int
-__curfile_reposition(WT_CURSOR *cursor, bool next, bool *moved)
+__curfile_reposition(WT_CURSOR *cursor, bool exact_match, bool next, bool *moved)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -104,15 +104,20 @@ __curfile_reposition(WT_CURSOR *cursor, bool next, bool *moved)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     session = CUR2S(cursor);
-    *moved = false;
+
+    if (moved != NULL)
+        *moved = false;
 
     if (!F_ISSET(cursor, WT_CURSTD_KEY_EXT))
         WT_ERR(__wt_panic(session, EINVAL, "Reposition flag is set without a search key"));
 
     WT_ERR(__wt_btcur_search_near(cbt, &exact));
 
-    if ((exact > 0 && next) || (exact < 0 && !next))
-        *moved = true;
+    if (!exact_match) {
+        if ((exact > 0 && next) || (exact < 0 && !next))
+            *moved = true;
+    } else if (exact != 0)
+        WT_ERR(__wt_panic(session, EINVAL, "Cannot regain the exact position"));
 
     /* Search maintains a position, key and value. */
     WT_ASSERT(session,
@@ -161,7 +166,7 @@ __curfile_next(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
 
     if (session->txn->isolation == WT_ISO_SNAPSHOT && F_ISSET(cbt, WT_CBT_REPOSITION))
-        WT_ERR(__curfile_reposition(cursor, true, &moved));
+        WT_ERR(__curfile_reposition(cursor, false, true, &moved));
 
     F_CLR(cbt, WT_CBT_REPOSITION);
 
@@ -234,7 +239,7 @@ __curfile_prev(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
 
     if (session->txn->isolation == WT_ISO_SNAPSHOT && F_ISSET(cbt, WT_CBT_REPOSITION))
-        WT_ERR(__curfile_reposition(cursor, false, &moved));
+        WT_ERR(__curfile_reposition(cursor, false, false, &moved));
 
     F_CLR(cbt, WT_CBT_REPOSITION);
 
@@ -520,6 +525,14 @@ __curfile_remove(WT_CURSOR *cursor)
     uint64_t time_start, time_stop;
     bool positioned;
 
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    CURSOR_REMOVE_API_CALL(cursor, session, CUR2BT(cbt));
+
+    if (F_ISSET(cbt, WT_CBT_REPOSITION))
+        WT_ERR(__curfile_reposition(cursor, true, true, NULL));
+
+    F_CLR(cbt, WT_CBT_REPOSITION);
+
     /*
      * WT_CURSOR.remove has a unique semantic, the cursor stays positioned if it starts positioned,
      * otherwise clear the cursor on completion. Track if starting with a positioned cursor and pass
@@ -529,9 +542,6 @@ __curfile_remove(WT_CURSOR *cursor)
      */
     positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
-    cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_REMOVE_API_CALL(cursor, session, CUR2BT(cbt));
-    F_CLR(cbt, WT_CBT_REPOSITION);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
