@@ -290,7 +290,7 @@ __wt_turtle_exists(WT_SESSION_IMPL *session, bool *existp)
  *     Check the turtle file and create if necessary.
  */
 int
-__wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta)
+__wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, bool backup_load_partial)
 {
     WT_DECL_RET;
     char *metaconf, *unused_value;
