@@ -1512,7 +1512,6 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
      * there _are_ timestamped updates by checking max_durable_ts; that check is redundant here for
      * several reasons, the most immediate being that max_durable_ts cannot be none (zero) because
      * it's greater than rollback_timestamp, which is itself greater than zero.
-     *
      */
     if (max_durable_ts > rollback_timestamp && rollback_timestamp != WT_TS_NONE) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
@@ -1573,7 +1572,7 @@ __rollback_to_stable_btree_apply(
     uint64_t rollback_txnid, write_gen;
     uint32_t btree_id;
     char *metadata_conf, ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool dhandle_allocated, durable_ts_found, has_txn_updates_gt_than_ckpt_snap, perform_rts, exist;
+    bool dhandle_allocated, durable_ts_found, exist, has_txn_updates_gt_than_ckpt_snap, perform_rts;
     bool prepared_updates;
 
     /* Ignore non-btree objects as well as the metadata and history store files. */
