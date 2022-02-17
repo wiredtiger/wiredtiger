@@ -796,14 +796,25 @@ record_loop:
                 case WT_UPDATE_STANDARD:
                     data = upd->data;
                     size = upd->size;
+                    /*
+                     * When an out-of-order or mixed-mode tombstone is getting written to disk,
+                     * remove any historical versions that are greater in the history store for this
+                     * key.
+                     */
+                    if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
+                        WT_ERR(__wt_rec_hs_clear_on_tombstone(
+                          session, r, twp->durable_stop_ts, src_recno, NULL, true));
+
                     break;
                 case WT_UPDATE_TOMBSTONE:
                     /*
-                     * When removing a key due to a tombstone with a durable timestamp of "none",
-                     * also remove the history store contents associated with that key.
+                     * When an out-of-order or mixed-mode tombstone is getting written to disk,
+                     * remove any historical versions that are greater in the history store for this
+                     * key.
                      */
-                    if (twp->durable_stop_ts == WT_TS_NONE && r->hs_clear_on_tombstone)
-                        WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, src_recno, NULL));
+                    if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
+                        WT_ERR(__wt_rec_hs_clear_on_tombstone(
+                          session, r, twp->durable_stop_ts, src_recno, NULL, false));
 
                     deleted = true;
                     twp = &clear_tw;
