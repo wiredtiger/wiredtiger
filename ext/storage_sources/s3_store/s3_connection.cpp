@@ -43,7 +43,7 @@ S3Connection::ListObjects(const std::string &prefix, std::vector<std::string> &o
         return (1);
     auto result = outcomes.GetResult();
     for (const auto &object : result.GetContents())
-        objects.push_back(object.GetKey());
+        objects.push_back(object.GetKey().substr(_objectPrefix.length()));
 
     if (listSingle)
         return (0);
