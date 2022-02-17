@@ -160,14 +160,4 @@ timestamp older than the \c oldest timestamp.
 
 The read timestamp may only be set once in the lifetime of a transaction.
 
-<!-- XXX
-WE DO NOT DOCUMENT read_before_oldest.
-It is currently documented in the Reference Guide, and we should either document
-it here or not document it there.
-
-Unless WT_SESSION::begin_transaction is used to set \c read_before_oldest, in
-which case the read timestamp must be equal to or after the system's \c pinned
-timestamp.
--->
-
  */
