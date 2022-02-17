@@ -436,19 +436,33 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 
     s3 = (S3_STORAGE *)storageSource;
 
-    /* Extract the AWS access key ID and the AWS secret key from authToken. */
-    int delimiter = std::string(authToken).find(',');
-    const std::string accessKeyId = std::string(authToken).substr(0, delimiter);
-    const std::string secretKey = std::string(authToken).substr(delimiter + 1);
-    Aws::Auth::AWSCredentials credentials;
-    credentials.SetAWSAccessKeyId(accessKeyId);
-    credentials.SetAWSSecretKey(secretKey);
-
     /* We need to have a bucket to setup the file system. */
     if (bucketName == NULL || strlen(bucketName) == 0) {
         s3->log->LogVerboseErrorMessage("S3CustomizeFileSystem: bucket not specified.");
         return (EINVAL);
     }
+
+    /* Fail if there is no authentication provided. */
+    if (authToken == NULL || strlen(authToken) < 1) {
+        s3->log->LogVerboseErrorMessage("S3CustomizeFileSystem: authToken not specified.");
+        return (EINVAL);
+    }
+
+    /* Extract the AWS access key ID and the AWS secret key from authToken. */
+    int delimiter = std::string(authToken).find(',');
+    if (delimiter == std::string::npos) {
+        s3->log->LogVerboseErrorMessage("S3CustomizeFileSystem: authToken malformed.");
+        return (EINVAL);
+    }
+    const std::string accessKeyId = std::string(authToken).substr(0, delimiter);
+    const std::string secretKey = std::string(authToken).substr(delimiter + 1);
+    if (accessKeyId.size() == 0 || secretKey.size() == 0) {
+        s3->log->LogVerboseErrorMessage("S3CustomizeFileSystem: authToken malformed.");
+        return (EINVAL);
+    }
+    Aws::Auth::AWSCredentials credentials;
+    credentials.SetAWSAccessKeyId(accessKeyId);
+    credentials.SetAWSSecretKey(secretKey);
 
     /*
      * Parse configuration string.

@@ -50,7 +50,11 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         bucket_name = "s3testext"
 
     # Auth token contains the AWS access key ID and the AWS secret key as comma-separated values.
-    auth_token = os.getenv('AWS_ACCESS_KEY_ID') + "," + os.getenv('AWS_SECRET_ACCESS_KEY')
+    access_key = os.getenv('AWS_ACCESS_KEY_ID')
+    secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+    auth_token = None
+    if access_key and secret_key:
+        auth_token = access_key + "," + secret_key
 
     # Load the s3 store extension, skip the test if missing.
     def conn_extensions(self, extlist):
