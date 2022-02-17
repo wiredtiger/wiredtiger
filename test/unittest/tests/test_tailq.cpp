@@ -93,7 +93,7 @@ TestTailQWrapper<T>::copyItemsFromTailQ()
     return items;
 }
 
-TEST_CASE("Test TAILQ", "[TAILQ]")
+TEST_CASE("Test TAILQ - add to and remove from TAILQ", "[TAILQ]")
 {
     std::list<int> items{10, 20, 30, 40, 50, 60, 70};
 
@@ -121,4 +121,14 @@ TEST_CASE("Test TAILQ", "[TAILQ]")
         auto returnedItems3 = testTailQWrapper.copyItemsFromTailQ();
         CHECK(returnedItems3 == std::list<int>{10, 20, 40, 50, 70});
     }
+}
+
+TEST_CASE("Test TAILQ - attempted removal from empty TAILQ", "[TAILQ]")
+{
+    TestTailQWrapper<int> testTailQWrapper;
+
+    // the list is empty so this will have no effect
+    testTailQWrapper.removeValue(99);
+    auto returnedItems = testTailQWrapper.copyItemsFromTailQ();
+    CHECK(returnedItems.empty());
 }
