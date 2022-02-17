@@ -21,8 +21,8 @@ greater than the oldest timestamp no change will be made.
 
 It is possible for a system crash to cause a prepared transaction to
 be rolled back.
-Because the durable timestamp of a transaction is permitted to lag
-behind its commit timestamp, it is even possible for a system crash to
+Because the durable timestamp of a transaction is permitted to be
+later than its commit timestamp, it is even possible for a system crash to
 cause a prepared and committed transaction to be rolled back.
 Part of the purpose of the timestamp interface is to allow such
 transactions to be replayed at the same time during an
