@@ -179,7 +179,8 @@ main(int argc, char *argv[])
     testutil_check(session->open_cursor(session, name, NULL, "overwrite", &wcursor));
     for (i = 0; i < NUM_DOCS - 1; i++) {
         wcursor->set_key(wcursor, i);
-        testutil_check(wcursor->remove(wcursor));
+        if (wcursor->search(wcursor) == 0)
+            testutil_check(wcursor->remove(wcursor));
     }
     testutil_check(wcursor->close(wcursor));
     printf("%d documents deleted\n", NUM_DOCS - 1);
@@ -227,7 +228,8 @@ main(int argc, char *argv[])
     testutil_check(session->open_cursor(session, name, NULL, "overwrite", &wcursor));
     for (i = 0; i < NUM_DOCS; i++) {
         wcursor->set_key(wcursor, i);
-        testutil_check(wcursor->remove(wcursor));
+        if (wcursor->search(wcursor) == 0)
+            testutil_check(wcursor->remove(wcursor));
     }
     testutil_check(wcursor->close(wcursor));
 

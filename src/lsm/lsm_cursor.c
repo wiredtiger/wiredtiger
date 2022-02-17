@@ -1558,14 +1558,13 @@ __clsm_remove(WT_CURSOR *cursor)
     __cursor_novalue(cursor);
     WT_ERR(__clsm_enter(clsm, false, true));
 
-    if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
-        WT_ERR(__clsm_lookup(clsm, &value));
-        /*
-         * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may
-         * have landed on.
-         */
-        WT_ERR(__cursor_needkey(cursor));
-    }
+    WT_ERR(__clsm_lookup(clsm, &value));
+    /*
+     * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may have
+     * landed on.
+     */
+    WT_ERR(__cursor_needkey(cursor));
+
     WT_ERR(__clsm_put(session, clsm, &cursor->key, &__tombstone, positioned, false));
 
     /*

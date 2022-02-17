@@ -382,35 +382,35 @@ cursor_ops(WT_SESSION *session)
     }
 
     {
-        /*! [Remove a record and fail if we cannot remove a record that exists] */
+        /*! [Remove a record] */
         const char *key = "some key";
         error_check(session->open_cursor(session, "table:mytable", NULL, NULL, &cursor));
         cursor->set_key(cursor, key);
         if (cursor->search(cursor) == 0)
             error_check(cursor->remove(cursor));
-        /*! [Remove a record and fail if we cannot remove a record that exists] */
+        /*! [Remove a record] */
     }
 
     {
-        /*! [Removing a record that does not exist should give a not found error] */
+        /*! [Display an error] */
         const char *key = "non-existent key";
         cursor->set_key(cursor, key);
         if ((ret = cursor->remove(cursor)) != WT_NOTFOUND) {
             fprintf(stderr, "cursor.remove: %s\n", wiredtiger_strerror(ret));
             return (ret);
         }
-        /*! [Removing a record that does not exist should give a not found error] */
+        /*! [Display an error] */
     }
 
     {
-        /*! [Removing a record that does not exist should give a not found error - thread safe] */
+        /*! [Display an error thread safe] */
         const char *key = "non-existent key";
         cursor->set_key(cursor, key);
         if ((ret = cursor->remove(cursor)) != WT_NOTFOUND) {
             fprintf(stderr, "cursor.remove: %s\n", cursor->session->strerror(cursor->session, ret));
             return (ret);
         }
-        /*! [Removing a record that does not exist should give a not found error - thread safe] */
+        /*! [Display an error thread safe] */
     }
 
     /*! [Close the cursor] */
