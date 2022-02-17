@@ -48,8 +48,8 @@ TestTailQWrapper<T>::~TestTailQWrapper()
     tailq_entry<T>* item = TAILQ_FIRST(&_tailq);
     while (item) {
         TAILQ_REMOVE(&_tailq, item, _queue);
+        free(item); 
         item = TAILQ_FIRST(&_tailq);
-        free(item);
     }
 }
 
