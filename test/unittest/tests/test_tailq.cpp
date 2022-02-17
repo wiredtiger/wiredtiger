@@ -130,5 +130,11 @@ TEST_CASE("Test TAILQ", "[TAILQ]")
         testTailQWrapper.removeValue(60);
         auto returnedItems2 = testTailQWrapper.copyItemsFromTailQ();
         CHECK(returnedItems2 == std::list<int>{10, 20, 40, 50, 70});
+
+        // 99 isn't in the TAILQ, so this will have no effect.
+        testTailQWrapper.removeValue(99);
+        auto returnedItems3 = testTailQWrapper.copyItemsFromTailQ();
+        CHECK(returnedItems3 == std::list<int>{10, 20, 40, 50, 70});
+
     }
 }
