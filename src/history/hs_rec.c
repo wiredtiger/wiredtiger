@@ -800,8 +800,8 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
     bool hs_read_all_flag;
 
     /*
-     * If we will delete all the updates of the key from the history store, we should not reinsert
-     * any update except when an out-of-order tombstone is not globally visible yet.
+     * If we delete all the updates of the key from the history store, we should not reinsert any
+     * update except when an out-of-order tombstone is not globally visible yet.
      */
     WT_ASSERT(session, ooo_tombstone || ts > WT_TS_NONE || !reinsert);
 
@@ -870,8 +870,8 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
 #endif
 
     /*
-     * If we will delete all the updates of the key from the history store, we should not reinsert
-     * any update except when an out-of-order tombstone is not globally visible yet.
+     * If we delete all the updates of the key from the history store, we should not reinsert any
+     * update except when an out-of-order tombstone is not globally visible yet.
      */
     WT_ASSERT(session, ooo_tombstone || ts > WT_TS_NONE || !reinsert);
 
