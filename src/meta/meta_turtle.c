@@ -57,7 +57,7 @@ __metadata_init(WT_SESSION_IMPL *session)
  *     Load the contents of any hot backup file.
  */
 static int
-__metadata_load_hot_backup(WT_SESSION_IMPL *session)
+__metadata_load_hot_backup(WT_SESSION_IMPL *session, bool backup_load_partial)
 {
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(value);
@@ -94,7 +94,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
          * denote that the file does not exist in the directory.
          */
         filename = (char *)key->data;
-        if (F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL) && WT_PREFIX_SKIP(filename, "file:")) {
+        if (backup_load_partial && WT_PREFIX_SKIP(filename, "file:")) {
             WT_ERR(__wt_fs_exist(session, filename, &exist));
             if (!exist) {
                 /* Leave a NULL at the end to mark the end of the list. */
@@ -110,7 +110,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
     }
 
     F_SET(S2C(session), WT_CONN_WAS_BACKUP);
-    if (F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL)) {
+    if (backup_load_partial) {
         /*
          * Ideally we call rewind here, but currently WiredTiger's file system doesn't support the
          * fstream function.
@@ -382,12 +382,15 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, bool backup_load_pa
         if (verify_meta && exist_backup)
             WT_RET_MSG(
               session, EINVAL, "restoring a backup is incompatible with metadata verification");
+        if (backup_load_partial && !exist_backup)
+            WT_RET_MSG(session, EINVAL,
+              "restoring a partial backup is requires WiredTiger metadata backup file.");
 
         /* Create the metadata file. */
         WT_RET(__metadata_init(session));
 
         /* Load any hot-backup information. */
-        WT_RET(__metadata_load_hot_backup(session));
+        WT_RET(__metadata_load_hot_backup(session, backup_load_partial));
 
         /* Create any bulk-loaded file stubs. */
         WT_RET(__metadata_load_bulk(session));
