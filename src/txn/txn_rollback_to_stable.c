@@ -1693,8 +1693,7 @@ __rollback_to_stable_btree_apply(
           __wt_timestamp_to_string(rollback_timestamp, ts_string[1]), rollback_txnid);
 
     /*
-     * Truncate history store entries for the non-timestamped table or the table doesn't exist when
-     * performing a partial backup.
+     * Truncate history store entries for the non-timestamped table or if the table doesn't exist.
      *
      * Exceptions for non-timestamped table:
      * 1. Modified tree - Scenarios where the tree is never checkpointed lead to zero
@@ -1704,7 +1703,7 @@ __rollback_to_stable_btree_apply(
      * 2. In-memory database - In this scenario, there is no history store to truncate.
      */
     exist = __wt_metadata_search(session, uri, &metadata_conf) != WT_NOTFOUND;
-    if ((!exist && F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL)) ||
+    if (!exist ||
       ((!dhandle_allocated || !S2BT(session)->modified) && max_durable_ts == WT_TS_NONE &&
         !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))) {
         WT_ERR(__wt_config_getones(session, config, "id", &cval));

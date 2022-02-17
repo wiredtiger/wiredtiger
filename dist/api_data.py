@@ -1138,7 +1138,7 @@ wiredtiger_open_common =\
     wiredtiger_open_log_configuration +\
     wiredtiger_open_tiered_storage_configuration +\
     wiredtiger_open_statistics_log_configuration + [
-    Config('backup_load', '', r'''
+    Config('backup_load', 'all', r'''
             When performing restore on backup, configure if WiredTiger should reconstruct the all database files
             or only partially restore the database based on the tables that are present in the directory.
         ''',

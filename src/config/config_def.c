@@ -1464,7 +1464,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "version=(major=0,minor=0),write_timestamp_usage=none",
     confchk_tiered_meta, 52},
   {"wiredtiger_open",
-    "backup_load=,block_cache=(blkcache_eviction_aggression=1800,"
+    "backup_load=all,block_cache=(blkcache_eviction_aggression=1800,"
     "cache_on_checkpoint=true,cache_on_writes=true,enabled=false,"
     "full_target=95,hashsize=0,max_percent_overhead=10,nvram_path=,"
     "percent_file_in_dram=50,size=0,system_ram=0,type=),"
@@ -1504,7 +1504,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "verify_metadata=false,write_through=",
     confchk_wiredtiger_open, 59},
   {"wiredtiger_open_all",
-    "backup_load=,block_cache=(blkcache_eviction_aggression=1800,"
+    "backup_load=all,block_cache=(blkcache_eviction_aggression=1800,"
     "cache_on_checkpoint=true,cache_on_writes=true,enabled=false,"
     "full_target=95,hashsize=0,max_percent_overhead=10,nvram_path=,"
     "percent_file_in_dram=50,size=0,system_ram=0,type=),"
@@ -1544,7 +1544,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "verify_metadata=false,version=(major=0,minor=0),write_through=",
     confchk_wiredtiger_open_all, 60},
   {"wiredtiger_open_basecfg",
-    "backup_load=,block_cache=(blkcache_eviction_aggression=1800,"
+    "backup_load=all,block_cache=(blkcache_eviction_aggression=1800,"
     "cache_on_checkpoint=true,cache_on_writes=true,enabled=false,"
     "full_target=95,hashsize=0,max_percent_overhead=10,nvram_path=,"
     "percent_file_in_dram=50,size=0,system_ram=0,type=),"
@@ -1582,7 +1582,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "verify_metadata=false,version=(major=0,minor=0),write_through=",
     confchk_wiredtiger_open_basecfg, 54},
   {"wiredtiger_open_usercfg",
-    "backup_load=,block_cache=(blkcache_eviction_aggression=1800,"
+    "backup_load=all,block_cache=(blkcache_eviction_aggression=1800,"
     "cache_on_checkpoint=true,cache_on_writes=true,enabled=false,"
     "full_target=95,hashsize=0,max_percent_overhead=10,nvram_path=,"
     "percent_file_in_dram=50,size=0,system_ram=0,type=),"

@@ -59,13 +59,19 @@ __metadata_init(WT_SESSION_IMPL *session)
 static int
 __metadata_load_hot_backup(WT_SESSION_IMPL *session)
 {
-    WT_CURSOR *cursor;
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(value);
     WT_DECL_RET;
     WT_FSTREAM *fs;
-    char *filename, *key_metadata, *prefix_skipped_metadata;
     bool exist;
+    char **partial_backup_list, **p;
+    char *filename;
+    const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "remove_files=false", NULL};
+    size_t allocated, i, slot;
+
+    allocated = 0;
+    partial_backup_list = NULL;
+    slot = 0;
 
     /* Look for a hot backup file: if we find it, load it. */
     WT_RET(__wt_fs_exist(session, WT_METADATA_BACKUP, &exist));
@@ -83,14 +89,42 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
         WT_ERR(__wt_getline(session, fs, value));
         if (value->size == 0)
             WT_ERR_PANIC(session, EINVAL, "%s: zero-length value", WT_METADATA_BACKUP);
+        filename = (char *)key->data;
+        /*
+         * When perfoming partial backup restore, append the filename to the partial backup list to
+         * denote that the file does not exist in the directory.
+         */
+        if (F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL) && WT_PREFIX_SKIP(filename, "file:")) {
+            WT_ERR(__wt_fs_exist(session, filename, &exist));
+            if (!exist) {
+                /* Leave a NULL at the end to mark the end of the list. */
+                WT_ERR(__wt_realloc_def(session, &allocated, slot + 2, &partial_backup_list));
+                p = &partial_backup_list[slot];
+                p[0] = p[1] = NULL;
 
+                WT_ERR(__wt_strdup(session, filename, p));
+                slot++;
+            }
+        }
         WT_ERR(__wt_metadata_update(session, key->data, value->data));
     }
 
     F_SET(S2C(session), WT_CONN_WAS_BACKUP);
-    WT_ERR(__wt_fclose(session, &fs));
-    WT_ERR(__wt_fopen(session, WT_METADATA_BACKUP, 0, WT_STREAM_READ, &fs));
     if (F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL)) {
+        /* 
+         * Ideally we call rewind here, but currently WiredTiger's file system doesn't support the
+         * fstream function.
+         */
+        WT_ERR(__wt_fclose(session, &fs));
+        WT_ERR(__wt_fopen(session, WT_METADATA_BACKUP, 0, WT_STREAM_READ, &fs));
+
+        /*
+         * During partial backup, we parse through the hot backup file again with the constructed
+         * partial backup list. For each table metadata information, check if the filename exists in
+         * the partial backup list. If it does, it means that the file doesn't exist in the
+         * directory, and we need to delete all metadata entries associated with the table. To do
+         * so, perform a schema drop operation on the table to cleanly remove all linked references.
+         */
         for (;;) {
             WT_ERR(__wt_getline(session, fs, key));
             if (key->size == 0)
@@ -100,25 +134,16 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
                 WT_ERR_PANIC(session, EINVAL, "%s: zero-length value", WT_METADATA_BACKUP);
 
             filename = (char *)key->data;
-            if (WT_PREFIX_SKIP(filename, "file:")) {
-                WT_ERR(__wt_fs_exist(session, filename, &exist));
-                if (!exist) {
-                    WT_ERR(__wt_metadata_cursor(session, &cursor));
-                    while (cursor->next(cursor) == 0) {
-                        cursor->get_key(cursor, &key_metadata);
-                        prefix_skipped_metadata = key_metadata;
-                        if (WT_PREFIX_SKIP(prefix_skipped_metadata, "file:") ||
-                          WT_PREFIX_SKIP(prefix_skipped_metadata, "colgroup:") ||
-                          WT_PREFIX_SKIP(prefix_skipped_metadata, "index:") ||
-                          WT_PREFIX_SKIP(prefix_skipped_metadata, "lsm:") ||
-                          WT_PREFIX_SKIP(prefix_skipped_metadata, WT_SYSTEM_PREFIX) ||
-                          WT_PREFIX_SKIP(prefix_skipped_metadata, "table:") ||
-                          WT_PREFIX_SKIP(prefix_skipped_metadata, "tiered:")) {
-                            if (WT_PREFIX_MATCH(filename, prefix_skipped_metadata))
-                                WT_ERR(__wt_metadata_remove(session, key_metadata));
-                        }
+            if (WT_PREFIX_SKIP(filename, "table:")) {
+                for (i = 0; i < slot; i++) {
+                    if (WT_PREFIX_MATCH(partial_backup_list[i], filename)) {
+                        WT_UNUSED(drop_cfg);
+                        WT_WITH_SCHEMA_LOCK(session,
+                          WT_WITH_TABLE_WRITE_LOCK(
+                            session, ret = __wt_schema_drop(session, (char *)key->data, drop_cfg)));
+                        WT_ERR(ret);
+                        break;
                     }
-                    WT_ERR(__wt_metadata_cursor_release(session, &cursor));
                 }
             }
         }

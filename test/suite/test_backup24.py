@@ -55,7 +55,6 @@ class test_backup24(backup_base):
         return 'debug_mode=(table_logging=true),cache_size=1G,log=(enabled,file_max=%s,remove=false)' % \
             self.logmax
 
-    # Run background inserts while running checkpoints repeatedly.
     def test_backup24(self):
         log2 = "WiredTigerLog.0000000002"
 
@@ -111,20 +110,8 @@ class test_backup24(backup_base):
         self.take_log_backup(bkup_c, self.dir, orig_logs)
         bkup_c.close()
 
-        flist = os.listdir(self.dir)
-        self.pr("===== After log backup")
-        for f in flist:
-            self.pr(f)
-
-        # After the full backup, open and recover the backup database.
-        # Make sure we properly recover even though the log file will have
-        # records for the newly created table file id.
         backup_conn = self.wiredtiger_open(self.dir, 'backup_load=partial')
-        #backup_conn = self.wiredtiger_open(self.dir, 'verbose=(recovery)')
         flist = os.listdir(self.dir)
-        self.pr("===== After recovery")
-        for f in flist:
-            self.pr(f)
         self.assertFalse(self.nolog_t2_file in flist)
         self.assertFalse(self.nolog_tnew_file in flist)
         backup_conn.close()
