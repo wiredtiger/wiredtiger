@@ -31,6 +31,7 @@ set(unittest_sources
     tests/packing/test_intpack.cpp
     tests/fnv.cpp
     tests/crc32.cpp
+    tests/test_tailq.cpp
     tests/wrappers/block_mods.cpp
     tests/wrappers/connection_wrapper.cpp
     tests/wrappers/error_handler.cpp
