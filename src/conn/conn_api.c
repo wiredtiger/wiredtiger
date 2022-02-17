@@ -2584,7 +2584,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     const WT_NAME_FLAG *ft;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
-    bool config_base_set, backup_load_partial, exist_backup, try_salvage, verify_meta;
+    bool config_base_set, backup_load_partial, try_salvage, verify_meta;
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
 
