@@ -443,7 +443,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     }
 
     /* Fail if there is no authentication provided. */
-    if (authToken == NULL || strlen(authToken) < 1) {
+    if (authToken == NULL || strlen(authToken) == 0) {
         s3->log->LogVerboseErrorMessage("S3CustomizeFileSystem: authToken not specified.");
         return (EINVAL);
     }
@@ -456,7 +456,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     }
     const std::string accessKeyId = std::string(authToken).substr(0, delimiter);
     const std::string secretKey = std::string(authToken).substr(delimiter + 1);
-    if (accessKeyId.size() == 0 || secretKey.size() == 0) {
+    if (accessKeyId.empty() || secretKey.empty()) {
         s3->log->LogVerboseErrorMessage("S3CustomizeFileSystem: authToken malformed.");
         return (EINVAL);
     }
