@@ -2,7 +2,9 @@
 #ifndef S3CONNECTION
 #define S3CONNECTION
 
+#include <aws/auth/credentials.h>
 #include <aws/core/Aws.h>
+#include <aws/core/auth/AWSCredentialsProvider.h>
 #include <aws/s3-crt/S3CrtClient.h>
 
 #include <string>
@@ -14,6 +16,9 @@
  */
 class S3Connection {
     public:
+    explicit S3Connection(const Aws::Auth::AWSCredentials &credentials,
+      const Aws::S3Crt::ClientConfiguration &config, const std::string &bucketName,
+      const std::string &objPrefix = "");
     explicit S3Connection(const Aws::S3Crt::ClientConfiguration &config,
       const std::string &bucketName, const std::string &objPrefix = "");
     int ListObjects(const std::string &prefix, std::vector<std::string> &objects,
