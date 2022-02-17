@@ -63,11 +63,11 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
     WT_DECL_ITEM(value);
     WT_DECL_RET;
     WT_FSTREAM *fs;
-    bool exist;
-    char **partial_backup_list, **p;
-    char *filename;
-    const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "remove_files=false", NULL};
     size_t allocated, i, slot;
+    char *filename;
+    char **partial_backup_list, **p;
+    const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "remove_files=false", NULL};
+    bool exist;
 
     allocated = 0;
     partial_backup_list = NULL;
@@ -111,7 +111,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
 
     F_SET(S2C(session), WT_CONN_WAS_BACKUP);
     if (F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL)) {
-        /* 
+        /*
          * Ideally we call rewind here, but currently WiredTiger's file system doesn't support the
          * fstream function.
          */
