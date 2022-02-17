@@ -3983,6 +3983,7 @@ buildvariants:
     - name: make-check-test
     - name: unit-test
     - name: fops
+    - name: s3-ext-test
 
 - name: little-endian
   display_name: "~ Little-endian (x86)"
