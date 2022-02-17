@@ -3,13 +3,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(s3_store CXX)
 
-# This library needs to be linked in order for the std::filesystem to work. 
+# On certain platforms with older compiler versions, an additional library needs to be linked in order for the std::filesystem include to work.
+# See the notes section of the documentation below for details.
+# https://en.cppreference.com/w/cpp/filesystem
+# This ultimately will need to be modified to be compiler dependent instead of platform dependent.set(filesystem_lib)
 set(filesystem_lib)
-if (WT_DARWIN)
-    set(filesystem_lib c++fs)
-elseif (WT_LINUX)
+if (WT_LINUX)
     set(filesystem_lib stdc++fs)
 endif()
+# No extra linking is required for compilation on OSX.
 
 # Create an intermediate library to build the helper library.
 add_library(aws_bucket_util STATIC s3_connection.cpp)
