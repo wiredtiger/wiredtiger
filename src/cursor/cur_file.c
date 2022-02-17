@@ -525,6 +525,7 @@ __curfile_remove(WT_CURSOR *cursor)
     uint64_t time_start, time_stop;
     bool positioned;
 
+    positioned = false;
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_REMOVE_API_CALL(cursor, session, CUR2BT(cbt));
 
