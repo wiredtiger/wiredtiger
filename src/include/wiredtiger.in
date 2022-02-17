@@ -1529,8 +1529,9 @@ struct __wt_session {
 	 * Reset the session handle.
 	 *
 	 * This method resets the cursors associated with the session, clears session statistics and
-	 * discards cached resources. No session configurations are modified. WT_SESSION::reset will
-	 * fail if a transaction is in progress in the session.
+	 * discards cached resources. No session configurations are modified (or reset to their
+	 * default values). WT_SESSION::reset will fail if a transaction is in progress in the
+	 * session.
 	 *
 	 * @snippet ex_all.c Reset the session
 	 *
