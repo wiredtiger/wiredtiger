@@ -91,7 +91,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
             WT_ERR_PANIC(session, EINVAL, "%s: zero-length value", WT_METADATA_BACKUP);
         filename = (char *)key->data;
         /*
-         * When perfoming partial backup restore, append the filename to the partial backup list to
+         * When performing partial backup restore, append the filename to the partial backup list to
          * denote that the file does not exist in the directory.
          */
         if (F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL) && WT_PREFIX_SKIP(filename, "file:")) {
