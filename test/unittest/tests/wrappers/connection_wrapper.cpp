@@ -5,6 +5,8 @@
  *
  * See the file LICENSE for redistribution information.
  */
+#include <cstdio>
+
 #include "wiredtiger.h"
 #include "wt_internal.h"
 
@@ -21,6 +23,14 @@ ConnectionWrapper::ConnectionWrapper()
 ConnectionWrapper::~ConnectionWrapper()
 {
     ErrorHandler::throwIfNonZero(_conn->close(_conn, ""));
+
+    // ignoring errors here; we don't mind if something doesn't exist
+    std::remove("WiredTiger");
+    std::remove("WiredTiger.basecfg");
+    std::remove("WiredTiger.lock");
+    std::remove("WiredTiger.turtle");
+    std::remove("WiredTiger.wt");
+    std::remove("WiredTigerHS.wt");
 }
 
 WT_SESSION_IMPL*
