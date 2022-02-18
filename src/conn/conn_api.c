@@ -2970,7 +2970,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__wt_config_gets(session, cfg, "verify_metadata", &cval));
     verify_meta = cval.val;
-    WT_ERR(__wt_config_gets(session, cfg, "backup_load", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "backup_load_partial", &cval));
     backup_load_partial = cval.val;
     WT_ERR(__wt_turtle_init(session, verify_meta, backup_load_partial));
 

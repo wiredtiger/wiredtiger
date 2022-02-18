@@ -26,9 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
-import fnmatch, os, shutil
-from helper import compare_files
+import os, wiredtiger, wttest
 from wtbackup import backup_base
 
 # test_backup24.py
@@ -110,7 +108,7 @@ class test_backup24(backup_base):
         self.take_log_backup(bkup_c, self.dir, orig_logs)
         bkup_c.close()
 
-        backup_conn = self.wiredtiger_open(self.dir, 'backup_load=partial')
+        backup_conn = self.wiredtiger_open(self.dir, 'backup_load_partial=true')
         flist = os.listdir(self.dir)
         self.assertFalse(self.nolog_t2_file in flist)
         self.assertFalse(self.nolog_tnew_file in flist)
