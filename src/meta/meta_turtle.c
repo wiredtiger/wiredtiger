@@ -110,7 +110,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool backup_load_partial)
     }
 
     F_SET(S2C(session), WT_CONN_WAS_BACKUP);
-    if (backup_load_partial) {
+    if (backup_load_partial && partial_backup_list != NULL) {
         /*
          * Ideally we call rewind here, but currently WiredTiger's file system doesn't support the
          * fstream function.
