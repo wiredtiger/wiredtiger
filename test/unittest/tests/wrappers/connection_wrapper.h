@@ -21,7 +21,6 @@ class ConnectionWrapper {
 
     WT_CONNECTION_IMPL *getWtConnectionImpl() const;
     WT_CONNECTION *getWtConnection() const;
-    const std::string &getDBHome() const;
 
     private:
     // This class is implemented such that it owns, and is responsible for freeing,

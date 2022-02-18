@@ -11,24 +11,18 @@
 #include "wt_internal.h"
 
 #include "connection_wrapper.h"
-#include "error_handler.h"
+#include "../utils.h"
 
 ConnectionWrapper::ConnectionWrapper() : _conn_impl(nullptr), _conn(nullptr)
 {
-    ErrorHandler::throwIfNonZero(wiredtiger_open(nullptr, nullptr, "create", &_conn));
+    utils::throwIfNonZero(wiredtiger_open(nullptr, nullptr, "create", &_conn));
 }
 
 ConnectionWrapper::~ConnectionWrapper()
 {
-    ErrorHandler::throwIfNonZero(_conn->close(_conn, ""));
+    utils::throwIfNonZero(_conn->close(_conn, ""));
 
-    // ignoring errors here; we don't mind if something doesn't exist
-    std::remove("WiredTiger");
-    std::remove("WiredTiger.basecfg");
-    std::remove("WiredTiger.lock");
-    std::remove("WiredTiger.turtle");
-    std::remove("WiredTiger.wt");
-    std::remove("WiredTigerHS.wt");
+    utils::wiredtigerCleanup();
 }
 
 WT_SESSION_IMPL *

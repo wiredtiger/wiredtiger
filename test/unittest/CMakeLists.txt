@@ -32,9 +32,9 @@ set(unittest_sources
     tests/fnv.cpp
     tests/crc32.cpp
     tests/reconciliation_tracking.cpp
+    tests/utils.cpp
     tests/wrappers/block_mods.cpp
     tests/wrappers/connection_wrapper.cpp
-    tests/wrappers/error_handler.cpp
     tests/block/test_bitstring.cpp
     tests/block/test_block_ckpt.cpp
 )
