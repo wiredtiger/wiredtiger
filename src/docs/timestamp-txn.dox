@@ -17,21 +17,20 @@ read timestamps, will see the transaction's writes instead of any previous
 value.
 
 Updating a key without a commit timestamp creates a value that has "always
-existed". This makes sense when loading initial data into an object, but once
-timestamps are used to update a particular value, subsequent updates will likely
-also use a commit timestamp.  This is not enforced by the WiredTiger API:
-updating a key with a commit timestamp and then subsequently updating it without
-a commit timestamp will discard all prior historical values, and future
-reads will read the new value regardless of read timestamp.
-In other words, readers with
-already acquired snapshots will see prior historical values based on their
-timestamps. Readers acquiring a snapshot after the commit of the update without
-a timestamp will not see prior historical values regardless of their read
-timestamps.
+existed". This makes sense when loading initial data into an object or in
+applications wishing to clear historic values, but once timestamps are
+used to update a particular value, subsequent updates will likely also
+use a commit timestamp. Updating a key with a commit timestamp and then
+subsequently updating it without a commit timestamp will discard all prior
+historical values, and future reads will read the new value regardless of
+read timestamp. In other words, readers with already acquired snapshots will
+see prior historical values based on their timestamps. Readers acquiring
+a snapshot after the commit of the update without a timestamp will not see
+prior historical values regardless of their read timestamps.
 
 @section timestamp_txn_api_configure Enforcing application timestamp behavior
 
-Enforcing application timestamp behavior (for example, ensuring updates to a
+Enforcing application timestamp behavior (for example, requiring updates to a
 single data item appear in timestamp order), can be challenging for application
 writers. WiredTiger includes diagnostic support for many common restrictions;
 see @ref timestamp_misc_diagnostic.
