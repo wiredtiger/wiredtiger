@@ -530,11 +530,11 @@ __curfile_remove(WT_CURSOR *cursor)
     CURSOR_REMOVE_API_CALL(cursor, session, CUR2BT(cbt));
 
     if (F_ISSET(cbt, WT_CBT_REPOSITION)) {
-        /* TODO: Return not found after WT-8461 is done. */
         WT_ERR_NOTFOUND_OK(__curfile_reposition(cursor, true, true, NULL), true);
         if (ret == WT_NOTFOUND) {
-            ret = 0;
-            goto err;
+            __wt_verbose_notice(session, WT_VERB_ERROR_RETURNS, "%s",
+              "WT_ROLLBACK: rolling back cursor remove as initial position was lost");
+            WT_ERR(WT_ROLLBACK);
         }
     }
 
