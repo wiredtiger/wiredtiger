@@ -117,7 +117,7 @@ __curfile_reposition(WT_CURSOR *cursor, bool exact_match, bool next, bool *moved
         if ((exact > 0 && next) || (exact < 0 && !next))
             *moved = true;
     } else if (exact != 0)
-        WT_ERR(__wt_panic(session, EINVAL, "Cannot regain the exact position"));
+        WT_ERR(WT_NOTFOUND);
 
     /* Search maintains a position, key and value. */
     WT_ASSERT(session,
@@ -529,10 +529,14 @@ __curfile_remove(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_REMOVE_API_CALL(cursor, session, CUR2BT(cbt));
 
-    if (F_ISSET(cbt, WT_CBT_REPOSITION))
-        WT_ERR(__curfile_reposition(cursor, true, true, NULL));
-
-    F_CLR(cbt, WT_CBT_REPOSITION);
+    if (F_ISSET(cbt, WT_CBT_REPOSITION)) {
+        /* TODO: Return not found after WT-8461 is done. */
+        WT_ERR_NOTFOUND_OK(__curfile_reposition(cursor, true, true, NULL), true);
+        if (ret == WT_NOTFOUND) {
+            ret = 0;
+            goto err;
+        }
+    }
 
     /*
      * WT_CURSOR.remove has a unique semantic, the cursor stays positioned if it starts positioned,
