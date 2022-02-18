@@ -384,7 +384,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, bool backup_load_pa
               session, EINVAL, "restoring a backup is incompatible with metadata verification");
         if (backup_load_partial && !exist_backup)
             WT_RET_MSG(session, EINVAL,
-              "restoring a partial backup is requires WiredTiger metadata backup file.");
+              "restoring a partial backup is requires the WiredTiger metadata backup file.");
 
         /* Create the metadata file. */
         WT_RET(__metadata_init(session));
