@@ -8,7 +8,7 @@
 
 #include <catch2/catch.hpp>
 #include "wt_internal.h"
-#include "../wrappers/session_wrapper.h"
+#include "../wrappers/mock_session.h"
 #include "../wrappers/block_mods.h"
 
 TEST_CASE("Block helper: __wt_rduppo2", "[block]")
@@ -36,7 +36,7 @@ TEST_CASE("Block helper: __wt_rduppo2", "[block]")
 static void
 test_ckpt_add_blkmod_entry(wt_off_t offset, wt_off_t len, uint64_t expectedBits)
 {
-    std::shared_ptr<SessionWrapper> session = SessionWrapper::buildTestSessionWrapper();
+    std::shared_ptr<MockSession> session = MockSession::buildTestMockSession();
     BlockMods blockMods;
     blockMods.getWTBlockMods()->granularity = 1;
 
