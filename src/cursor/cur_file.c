@@ -568,6 +568,8 @@ __curfile_remove(WT_CURSOR *cursor)
               "WT_ROLLBACK: rolling back cursor remove as initial position was lost");
             WT_ERR(WT_ROLLBACK);
         }
+        /* Key must be positioned. */
+        WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_INT));
     }
 
     /*
