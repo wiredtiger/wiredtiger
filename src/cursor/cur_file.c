@@ -123,6 +123,8 @@ __curfile_reposition(WT_CURSOR *cursor, bool exact_match, bool next, bool *moved
     cbt = (WT_CURSOR_BTREE *)cursor;
     session = CUR2S(cursor);
 
+    WT_STAT_CONN_DATA_INCR(session, cursor_reposition);
+
     if (moved != NULL)
         *moved = false;
 
@@ -144,6 +146,8 @@ __curfile_reposition(WT_CURSOR *cursor, bool exact_match, bool next, bool *moved
 
 err:
     F_CLR(cbt, WT_CBT_REPOSITION);
+    if (ret != 0)
+        WT_STAT_CONN_DATA_INCR(session, cursor_reposition_failed);
     return (ret);
 }
 
@@ -162,6 +166,8 @@ __curfile_release_page(WT_CURSOR *cursor)
     WT_RET(__wt_cursor_localvalue(cursor));
     WT_RET(__wt_cursor_reset(cbt));
     F_SET(cbt, WT_CBT_REPOSITION);
+
+    WT_STAT_CONN_DATA_INCR(CUR2S(cursor), cursor_release_page_to_reposition);
 
     return (0);
 }

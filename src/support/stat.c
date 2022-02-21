@@ -159,6 +159,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: Total number of entries skipped by cursor prev calls",
   "cursor: Total number of entries skipped to position the history store cursor",
   "cursor: Total number of times a search near has exited due to prefix config",
+  "cursor: Total number of times cursor fails to reposition",
   "cursor: bulk loaded cursor insert calls",
   "cursor: cache cursors reuse count",
   "cursor: close calls that result in cache",
@@ -169,6 +170,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cursor prev calls that skip due to a globally visible history store tombstone",
   "cursor: cursor prev calls that skip greater than or equal to 100 entries",
   "cursor: cursor prev calls that skip less than 100 entries",
+  "cursor: cursor releases the page and marks to reposition it",
+  "cursor: cursor reposition",
   "cursor: insert calls",
   "cursor: insert key and value bytes",
   "cursor: modify",
@@ -431,6 +434,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_prev_skip_total = 0;
     stats->cursor_skip_hs_cur_position = 0;
     stats->cursor_search_near_prefix_fast_paths = 0;
+    stats->cursor_reposition_failed = 0;
     stats->cursor_insert_bulk = 0;
     stats->cursor_reopen = 0;
     stats->cursor_cache = 0;
@@ -441,6 +445,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_prev_hs_tombstone = 0;
     stats->cursor_prev_skip_ge_100 = 0;
     stats->cursor_prev_skip_lt_100 = 0;
+    stats->cursor_release_page_to_reposition = 0;
+    stats->cursor_reposition = 0;
     stats->cursor_insert = 0;
     stats->cursor_insert_bytes = 0;
     stats->cursor_modify = 0;
@@ -691,6 +697,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_prev_skip_total += from->cursor_prev_skip_total;
     to->cursor_skip_hs_cur_position += from->cursor_skip_hs_cur_position;
     to->cursor_search_near_prefix_fast_paths += from->cursor_search_near_prefix_fast_paths;
+    to->cursor_reposition_failed += from->cursor_reposition_failed;
     to->cursor_insert_bulk += from->cursor_insert_bulk;
     to->cursor_reopen += from->cursor_reopen;
     to->cursor_cache += from->cursor_cache;
@@ -701,6 +708,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_prev_hs_tombstone += from->cursor_prev_hs_tombstone;
     to->cursor_prev_skip_ge_100 += from->cursor_prev_skip_ge_100;
     to->cursor_prev_skip_lt_100 += from->cursor_prev_skip_lt_100;
+    to->cursor_release_page_to_reposition += from->cursor_release_page_to_reposition;
+    to->cursor_reposition += from->cursor_reposition;
     to->cursor_insert += from->cursor_insert;
     to->cursor_insert_bytes += from->cursor_insert_bytes;
     to->cursor_modify += from->cursor_modify;
@@ -955,6 +964,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_skip_hs_cur_position += WT_STAT_READ(from, cursor_skip_hs_cur_position);
     to->cursor_search_near_prefix_fast_paths +=
       WT_STAT_READ(from, cursor_search_near_prefix_fast_paths);
+    to->cursor_reposition_failed += WT_STAT_READ(from, cursor_reposition_failed);
     to->cursor_insert_bulk += WT_STAT_READ(from, cursor_insert_bulk);
     to->cursor_reopen += WT_STAT_READ(from, cursor_reopen);
     to->cursor_cache += WT_STAT_READ(from, cursor_cache);
@@ -965,6 +975,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_prev_hs_tombstone += WT_STAT_READ(from, cursor_prev_hs_tombstone);
     to->cursor_prev_skip_ge_100 += WT_STAT_READ(from, cursor_prev_skip_ge_100);
     to->cursor_prev_skip_lt_100 += WT_STAT_READ(from, cursor_prev_skip_lt_100);
+    to->cursor_release_page_to_reposition += WT_STAT_READ(from, cursor_release_page_to_reposition);
+    to->cursor_reposition += WT_STAT_READ(from, cursor_reposition);
     to->cursor_insert += WT_STAT_READ(from, cursor_insert);
     to->cursor_insert_bytes += WT_STAT_READ(from, cursor_insert_bytes);
     to->cursor_modify += WT_STAT_READ(from, cursor_modify);
@@ -1277,6 +1289,7 @@ static const char *const __stats_connection_desc[] = {
   "cursor: Total number of entries skipped by cursor prev calls",
   "cursor: Total number of entries skipped to position the history store cursor",
   "cursor: Total number of times a search near has exited due to prefix config",
+  "cursor: Total number of times cursor fails to reposition",
   "cursor: cached cursor count",
   "cursor: cursor bulk loaded cursor insert calls",
   "cursor: cursor close calls that result in cache",
@@ -1295,8 +1308,10 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor prev calls that skip due to a globally visible history store tombstone",
   "cursor: cursor prev calls that skip greater than or equal to 100 entries",
   "cursor: cursor prev calls that skip less than 100 entries",
+  "cursor: cursor releases the page and marks to reposition it",
   "cursor: cursor remove calls",
   "cursor: cursor remove key bytes removed",
+  "cursor: cursor reposition",
   "cursor: cursor reserve calls",
   "cursor: cursor reset calls",
   "cursor: cursor search calls",
@@ -1837,6 +1852,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_prev_skip_total = 0;
     stats->cursor_skip_hs_cur_position = 0;
     stats->cursor_search_near_prefix_fast_paths = 0;
+    stats->cursor_reposition_failed = 0;
     /* not clearing cursor_cached_count */
     stats->cursor_insert_bulk = 0;
     stats->cursor_cache = 0;
@@ -1855,8 +1871,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_prev_hs_tombstone = 0;
     stats->cursor_prev_skip_ge_100 = 0;
     stats->cursor_prev_skip_lt_100 = 0;
+    stats->cursor_release_page_to_reposition = 0;
     stats->cursor_remove = 0;
     stats->cursor_remove_bytes = 0;
+    stats->cursor_reposition = 0;
     stats->cursor_reserve = 0;
     stats->cursor_reset = 0;
     stats->cursor_search = 0;
@@ -2399,6 +2417,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_skip_hs_cur_position += WT_STAT_READ(from, cursor_skip_hs_cur_position);
     to->cursor_search_near_prefix_fast_paths +=
       WT_STAT_READ(from, cursor_search_near_prefix_fast_paths);
+    to->cursor_reposition_failed += WT_STAT_READ(from, cursor_reposition_failed);
     to->cursor_cached_count += WT_STAT_READ(from, cursor_cached_count);
     to->cursor_insert_bulk += WT_STAT_READ(from, cursor_insert_bulk);
     to->cursor_cache += WT_STAT_READ(from, cursor_cache);
@@ -2417,8 +2436,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_prev_hs_tombstone += WT_STAT_READ(from, cursor_prev_hs_tombstone);
     to->cursor_prev_skip_ge_100 += WT_STAT_READ(from, cursor_prev_skip_ge_100);
     to->cursor_prev_skip_lt_100 += WT_STAT_READ(from, cursor_prev_skip_lt_100);
+    to->cursor_release_page_to_reposition += WT_STAT_READ(from, cursor_release_page_to_reposition);
     to->cursor_remove += WT_STAT_READ(from, cursor_remove);
     to->cursor_remove_bytes += WT_STAT_READ(from, cursor_remove_bytes);
+    to->cursor_reposition += WT_STAT_READ(from, cursor_reposition);
     to->cursor_reserve += WT_STAT_READ(from, cursor_reserve);
     to->cursor_reset += WT_STAT_READ(from, cursor_reset);
     to->cursor_search += WT_STAT_READ(from, cursor_search);
