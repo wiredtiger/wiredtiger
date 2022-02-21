@@ -8,7 +8,7 @@
 
 #include <catch2/catch.hpp>
 #include "wt_internal.h"
-#include "../wrappers/connection_wrapper.h"
+#include "../wrappers/mock_session.h"
 #include "../wrappers/block_mods.h"
 
 TEST_CASE("Block helper: __wt_rduppo2", "[block]")
@@ -36,9 +36,7 @@ TEST_CASE("Block helper: __wt_rduppo2", "[block]")
 static void
 test_ckpt_add_blkmod_entry(wt_off_t offset, wt_off_t len, uint64_t expectedBits)
 {
-    ConnectionWrapper conn;
-    WT_SESSION_IMPL *session = conn.createSession();
-
+    std::shared_ptr<MockSession> session = MockSession::buildTestMockSession();
     BlockMods blockMods;
     blockMods.getWTBlockMods()->granularity = 1;
 
@@ -47,7 +45,7 @@ test_ckpt_add_blkmod_entry(wt_off_t offset, wt_off_t len, uint64_t expectedBits)
     REQUIRE(blockMods.getWTBlockMods()->bitstring.mem == nullptr);
     REQUIRE(blockMods.getWTBlockMods()->bitstring.data == nullptr);
 
-    int result = __ut_ckpt_add_blkmod_entry(session, blockMods.getWTBlockMods(), offset, len);
+    int result = __ut_ckpt_add_blkmod_entry(session->getWtSessionImpl(), blockMods.getWTBlockMods(), offset, len);
     REQUIRE(result == 0);
 
     REQUIRE(blockMods.getWTBlockMods()->nbits == expectedBits);

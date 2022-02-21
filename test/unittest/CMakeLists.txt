@@ -36,6 +36,8 @@ set(unittest_sources
     tests/utils.cpp
     tests/wrappers/block_mods.cpp
     tests/wrappers/connection_wrapper.cpp
+    tests/wrappers/mock_connection.cpp
+    tests/wrappers/mock_session.cpp
     tests/block/test_bitstring.cpp
     tests/block/test_block_ckpt.cpp
 )
