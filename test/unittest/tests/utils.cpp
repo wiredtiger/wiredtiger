@@ -15,7 +15,9 @@ throwIfNonZero(int result)
     }
 }
 
-void wiredtigerCleanup() {
+void
+wiredtigerCleanup()
+{
     // ignoring errors here; we don't mind if something doesn't exist
     std::remove("WiredTiger");
     std::remove("WiredTiger.basecfg");
