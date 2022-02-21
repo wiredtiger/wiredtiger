@@ -68,6 +68,7 @@ typedef struct {
     volatile int running;                 /* Whether to stop */
     int status;                           /* Exit status */
     bool sweep_stress;                    /* Sweep stress test */
+    bool btree_reposition;                /* Reposition btree cursor occasionally */
     bool failpoint_hs_delete_key_from_ts; /* Failpoint for hs key deletion. */
     bool failpoint_hs_insert_1;           /* Failpoint for hs insertion. */
     bool failpoint_hs_insert_2;           /* Failpoint for hs insertion. */

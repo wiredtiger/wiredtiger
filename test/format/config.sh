@@ -242,6 +242,8 @@ CONFIG configuration_list[] = {
 
 {"stress.aggressive_sweep", "stress aggressive sweep", C_BOOL, 2, 0, 0}
 
+{"stress.btree_reposition", "reposition btree cursor", C_BOOL, 2, 0, 0}
+
 {"stress.checkpoint", "stress checkpoints", C_BOOL, 2, 0, 0}
 
 {"stress.checkpoint_reserved_txnid_delay", "stress checkpoint invisible transaction id delay", C_BOOL, 2, 0, 0}

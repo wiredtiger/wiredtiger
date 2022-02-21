@@ -156,6 +156,8 @@ configure_timing_stress(char *p, size_t max)
         CONFIG_APPEND(p, ",checkpoint_slow");
     if (GV(STRESS_CHECKPOINT_PREPARE))
         CONFIG_APPEND(p, ",prepare_checkpoint_delay");
+    if (GV(STRESS_BTREE_REPOSITION))
+        CONFIG_APPEND(p, ",btree_reposition");
     if (GV(STRESS_CHECKPOINT_RESERVED_TXNID_DELAY))
         CONFIG_APPEND(p, ",checkpoint_reserved_txnid_delay");
     if (GV(STRESS_FAILPOINT_HS_DELETE_KEY_FROM_TS))
