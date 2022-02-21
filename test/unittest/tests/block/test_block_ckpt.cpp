@@ -36,8 +36,8 @@ TEST_CASE("Block helper: __wt_rduppo2", "[block]")
 static void
 test_ckpt_add_blkmod_entry(wt_off_t offset, wt_off_t len, uint64_t expectedBits)
 {
-    auto conn = ConnectionWrapper();
-    auto session = conn.createSession();
+    ConnectionWrapper conn;
+    WT_SESSION_IMPL *session = conn.createSession();
 
     BlockMods blockMods;
     blockMods.getWTBlockMods()->granularity = 1;

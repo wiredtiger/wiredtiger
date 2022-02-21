@@ -6,14 +6,14 @@
 
 TEST_CASE("ofvl_track_init", "[reconciliation]")
 {
-    auto conn = ConnectionWrapper();
-    auto session = conn.createSession();
+    ConnectionWrapper conn;
+    WT_SESSION_IMPL *session = conn.createSession();
 
     WT_PAGE p;
-    memset(&p, sizeof(p), 0);
+    memset(&p, 0, sizeof(p));
 
     WT_PAGE_MODIFY m;
-    memset(&m, sizeof(m), 0);
+    memset(&m, 0, sizeof(m));
 
     p.modify = &m;
 
@@ -23,8 +23,8 @@ TEST_CASE("ofvl_track_init", "[reconciliation]")
 
 TEST_CASE("ovfl_discard_verbose", "[reconciliation]")
 {
-    auto conn = ConnectionWrapper();
-    auto session = conn.createSession();
+    ConnectionWrapper conn;
+    WT_SESSION_IMPL *session = conn.createSession();
 
     SECTION("handle null page and tag")
     {
@@ -34,14 +34,14 @@ TEST_CASE("ovfl_discard_verbose", "[reconciliation]")
 
 TEST_CASE("ovfl_discard_wrapup", "[reconciliation]")
 {
-    auto conn = ConnectionWrapper();
-    auto session = conn.createSession();
+    ConnectionWrapper conn;
+    WT_SESSION_IMPL *session = conn.createSession();
 
     WT_PAGE p;
-    memset(&p, sizeof(p), 0);
+    memset(&p, 0, sizeof(p));
 
     WT_PAGE_MODIFY m;
-    memset(&m, sizeof(m), 0);
+    memset(&m, 0, sizeof(m));
     p.modify = &m;
 
     REQUIRE(__wt_ovfl_track_init(session, &p) == 0);
