@@ -9,8 +9,7 @@
 #include "mock_connection.h"
 #include "../utils.h"
 
-MockConnection::MockConnection(WT_CONNECTION_IMPL *connectionImpl)
-    : _connectionImpl(connectionImpl)
+MockConnection::MockConnection(WT_CONNECTION_IMPL *connectionImpl) : _connectionImpl(connectionImpl)
 {
 }
 
@@ -23,8 +22,7 @@ std::shared_ptr<MockConnection>
 MockConnection::buildTestMockConnection()
 {
     WT_CONNECTION_IMPL *connectionImpl = nullptr;
-    utils::throwIfNonZero(
-      __wt_calloc(nullptr, 1, sizeof(WT_CONNECTION_IMPL), &connectionImpl));
+    utils::throwIfNonZero(__wt_calloc(nullptr, 1, sizeof(WT_CONNECTION_IMPL), &connectionImpl));
     // Construct a Session object that will now own session.
     return std::shared_ptr<MockConnection>(new MockConnection(connectionImpl));
 }

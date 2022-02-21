@@ -12,6 +12,11 @@
 #include <memory>
 #include "wt_internal.h"
 
+/*
+ * Prefer a mock class over a "real" one when the operations you want to perform don't need a fully
+ * fleshed-out connection (or session). There are large speed advantages here, since the real thing
+ * will write a bunch of files to disk during the test, which also need to be removed.
+ */
 class MockConnection {
     public:
     ~MockConnection();

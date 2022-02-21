@@ -12,8 +12,7 @@
 #include "mock_connection.h"
 #include "../utils.h"
 
-MockSession::MockSession(
-  WT_SESSION_IMPL *session, std::shared_ptr<MockConnection> mockConnection)
+MockSession::MockSession(WT_SESSION_IMPL *session, std::shared_ptr<MockConnection> mockConnection)
     : _sessionImpl(session), _mockConnection(std::move(mockConnection))
 {
 }
