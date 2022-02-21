@@ -4,7 +4,7 @@
 #include "wrappers/connection_wrapper.h"
 #include "wt_internal.h"
 
-TEST_CASE("ofvl_track_init", "[reconciliation]")
+TEST_CASE("ovfl_track_init", "[reconciliation]")
 {
     ConnectionWrapper conn;
     WT_SESSION_IMPL *session = conn.createSession();
