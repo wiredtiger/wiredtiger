@@ -561,9 +561,9 @@ __curfile_remove(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint64_t time_start, time_stop;
-    bool positioned, released;
+    bool positioned;
 
-    positioned = released = false;
+    positioned = false;
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_REMOVE_API_CALL(cursor, session, CUR2BT(cbt));
 
@@ -612,15 +612,13 @@ __curfile_remove(WT_CURSOR *cursor)
     /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
     if (session->txn->isolation == WT_ISO_SNAPSHOT && positioned &&
       (cbt->ref->page->page_eviction_force_count > 0 ||
-        __curfile_reposition_timing_stress(session))) {
+        __curfile_reposition_timing_stress(session)))
         WT_ERR(__curfile_release_page(cursor));
-        released = true;
-    }
 
 err:
     /* If we've lost an initial position, we must fail. */
     CURSOR_UPDATE_API_END_RETRY(
-      session, ret, !positioned || F_ISSET(cursor, WT_CURSTD_KEY_INT) || released);
+      session, ret, !positioned || F_ISSET(cursor, WT_CURSTD_KEY_INT));
     return (ret);
 }
 
