@@ -650,12 +650,6 @@ __curfile_reserve(WT_CURSOR *cursor)
       F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
     WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
 
-    /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
-    if (session->txn->isolation == WT_ISO_SNAPSHOT &&
-      (cbt->ref->page->page_eviction_force_count > 0 ||
-        __curfile_reposition_timing_stress(session)))
-        WT_ERR(__curfile_release_page(cursor));
-
 err:
     CURSOR_UPDATE_API_END(session, ret);
 
@@ -666,7 +660,16 @@ err:
      * cases like LSM, the reserve never encountered the original key). For simplicity, repeat the
      * search here.
      */
-    return (ret == 0 ? cursor->search(cursor) : ret);
+    if (ret == 0)
+        ret = cursor->search(cursor);
+
+    /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
+    if (ret == 0 && session->txn->isolation == WT_ISO_SNAPSHOT &&
+      (cbt->ref->page->page_eviction_force_count > 0 ||
+        __curfile_reposition_timing_stress(session)))
+        WT_TRET(__curfile_release_page(cursor));
+
+    return (ret);
 }
 
 /*
