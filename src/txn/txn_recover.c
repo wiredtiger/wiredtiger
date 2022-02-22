@@ -1089,6 +1089,10 @@ err:
         __wt_err(session, ret, "Recovery failed");
     }
 
+    if (conn->partial_backup_remove_list != NULL) {
+        __wt_free(session, conn->partial_backup_remove_list);
+    }
+
     /*
      * Destroy the eviction threads that were started in support of recovery. They will be restarted
      * once the history store table is created.
