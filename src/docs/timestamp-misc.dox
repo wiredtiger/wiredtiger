@@ -57,6 +57,12 @@ WT_SESSION::reset_snapshot, but it will have no effect.
 
 @section timestamps_misc_in_memory In-memory configurations and timestamps
 
-Timestamps are supported for in-memory databases.
+Timestamps are supported for in-memory databases, but must be configured as in
+ordinary databases, and the same APIs are used in both cases for historical
+reasons. By default, in-memory database objects behave like commit-level
+objects in ordinary databases, that is, timestamps are ignored. If logging
+is disabled for the object, using the \c log=(enabled=false) configuration,
+then the timestamps will not be ignored and will behave as with objects in
+ordinary databases where logging has been disabled.
 
 */
