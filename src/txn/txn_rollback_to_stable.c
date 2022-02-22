@@ -1585,19 +1585,18 @@ __rollback_to_stable_btree_apply(
     size_t addr_size;
     uint64_t rollback_txnid, write_gen;
     uint32_t btree_id;
-    char *metadata_conf, ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool dhandle_allocated, durable_ts_found, has_txn_updates_gt_than_ckpt_snap, perform_rts,
-      prepared_updates;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool dhandle_allocated, durable_ts_found, has_txn_updates_gt_than_ckpt_snap, perform_rts;
+    bool prepared_updates;
 
     /* Ignore non-btree objects as well as the metadata and history store files. */
     if (!WT_BTREE_PREFIX(uri) || strcmp(uri, WT_HS_URI) == 0 || strcmp(uri, WT_METAFILE_URI) == 0)
         return (0);
 
     addr_size = 0;
-    metadata_conf = NULL;
     rollback_txnid = 0;
-    dhandle_allocated = false;
     write_gen = 0;
+    dhandle_allocated = false;
 
     /* Find out the max durable timestamp of the object from checkpoint. */
     newest_start_durable_ts = newest_stop_durable_ts = WT_TS_NONE;
@@ -1706,9 +1705,9 @@ __rollback_to_stable_btree_apply(
           __wt_timestamp_to_string(rollback_timestamp, ts_string[1]), rollback_txnid);
 
     /*
-     * Truncate history store entries for the non-timestamped table or if the table doesn't exist.
+     * Truncate history store entries for the non-timestamped table.
      *
-     * Exceptions for non-timestamped table:
+     * Exceptions:
      * 1. Modified tree - Scenarios where the tree is never checkpointed lead to zero
      * durable timestamp even they are timestamped tables. Until we have a special
      * indication of letting to know the table type other than checking checkpointed durable
@@ -1723,7 +1722,6 @@ __rollback_to_stable_btree_apply(
     }
 
 err:
-    __wt_free(session, metadata_conf);
     if (dhandle_allocated)
         WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
