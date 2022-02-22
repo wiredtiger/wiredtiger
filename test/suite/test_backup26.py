@@ -26,60 +26,71 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest
+import wiredtiger, wttest
+import os, re
 from wtbackup import backup_base
 from wtscenario import make_scenarios
+from wtdataset import SimpleDataSet
 
 # test_backup26.py
 # Test selective backup with large amount of tables. Recovering a partial backup should take
-# longer when there are more active tables. Therefore test recovery correctness in a partial backup.
+# longer when there are more active tables. Also test recovery correctness with both file and
+# table schemas in a partial backup.
 class test_backup26(backup_base):
     dir='backup.dir'                    # Backup directory name
     uri="table_backup"
-    ntables = 10000 if wttest.islongtest() else 500
+    ntables = 10000 if wttest.islongtest() else 50
+
+    types = [
+        dict(uri='table:'),
+        dict(uri='file:'),
+    ]
 
     remove_list = [
-        ('empty remove list', dict(remove_list=False)),
-        ('remove list', dict(remove_list=True)),
+        ('empty remove list', dict(ext=None, type=None)),
+        ('table remove list', dict(ext=".wt",type="table:")),
+        ('file remove list', dict(ext="",type="file:")),
     ]
     scenarios = make_scenarios(remove_list)
 
-    def validate_timestamp_data(self, session, uri, key, expected_err, timestamp):
-        session.begin_transaction('read_timestamp=' + self.timestamp_str(timestamp))
-        c = session.open_cursor(uri, None, None)
-        for i in range(0, 1000):
-            k = key + str(i)
-            c.set_key(k)
-            self.assertEqual(c.search(), expected_err)
-        c.close()
-        session.commit_transaction()
-
     def test_backup26(self):
-        selective_remove_list = []
+        selective_remove_uri_list = []
+        selective_file_list = []
         for i in range(0, self.ntables):
-            self.session.create("table:{0}".format(self.uri + str(i)), "key_format=S,value_format=S")
-            self.add_data("table:{0}".format(self.uri + str(i)), "key", "val")
-            if (self.remove_list and i != 0):
-                selective_remove_list.append(self.uri + str(i))
+            dict_type = self.types[i % len(self.types)]
+            uri = "{0}{1}".format(dict_type["uri"], self.uri + str(i))
+            dataset = SimpleDataSet(self, uri, 100, key_format="S")
+            dataset.populate()
+            if (self.type and self.type == dict_type["uri"]):
+                selective_remove_uri_list.append(uri)
+            else:
+                selective_file_list.append(uri)
         self.session.checkpoint()
 
         os.mkdir(self.dir)
+        file_list = os.listdir(".")
+        selective_remove_file_list = []
+        for file_uri in file_list:
+            if self.ext is not None and re.match('^{0}\w+{1}$'.format(self.uri, self.ext), file_uri):
+                selective_remove_file_list.append(file_uri)
 
         # Now copy the files using full backup. This should not include the tables inside the remove list.
-        all_files = self.take_selective_backup(self.dir, [remove_uri + ".wt" for remove_uri in selective_remove_list])
-
-        # After the full backup, open and recover the backup database.
-        backup_conn = self.wiredtiger_open(self.dir, "backup_load_partial=true")
-        bkup_session = backup_conn.open_session()
-        for remove_uri in selective_remove_list:
-            # Open the cursor and expect failure since file doesn't exist.
-            self.assertRaisesException(
-                wiredtiger.WiredTigerError,lambda: bkup_session.open_cursor("table:" + remove_uri, None, None))
-
-        # Only one table should be restored. Open cursor to check that it doesn't throw an error.
-        c = bkup_session.open_cursor("table:{0}".format(self.uri + "0"), None, None)
+        all_files = self.take_selective_backup(self.dir, selective_remove_file_list)
         
-        c.close()
+        # After the full backup, open and recover the backup database.
+        backup_conn = self.wiredtiger_open(self.dir, "restore_partial_backup=true")
+        bkup_session = backup_conn.open_session()
+        # Open the cursor from uris that was part of the selective backup and expect failure
+        # since file doesn't exist.
+        for remove_uri in selective_remove_uri_list:
+            self.assertRaisesException(
+                wiredtiger.WiredTigerError,lambda: bkup_session.open_cursor(remove_uri, None, None))
+
+        # Open the cursors on tables that copied over to the backup directory. They should still 
+        # recover properly.
+        for uri in selective_file_list:
+            c = bkup_session.open_cursor(uri, None, None)
+            c.close()
         backup_conn.close()
 
 if __name__ == '__main__':

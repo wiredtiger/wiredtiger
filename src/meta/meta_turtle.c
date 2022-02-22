@@ -57,19 +57,25 @@ __metadata_init(WT_SESSION_IMPL *session)
  *     Load the contents of any hot backup file.
  */
 static int
-__metadata_load_hot_backup(WT_SESSION_IMPL *session, bool backup_load_partial)
+__metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup)
 {
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(value);
     WT_DECL_RET;
     WT_FSTREAM *fs;
-    size_t allocated, i, slot;
-    char *filename;
+    size_t allocated, allocated_int, i, slot;
+    size_t buf_size;
+    char *filename, *buf;
     char **partial_backup_list, **p;
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "remove_files=false", NULL};
     bool exist;
 
     allocated = 0;
+    allocated_int = 0;
+    buf = NULL;
+    conn = S2C(session);
     partial_backup_list = NULL;
     slot = 0;
 
@@ -90,65 +96,87 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool backup_load_partial)
         if (value->size == 0)
             WT_ERR_PANIC(session, EINVAL, "%s: zero-length value", WT_METADATA_BACKUP);
         /*
-         * When performing partial backup restore, append the filename to the partial backup list to
-         * denote that the file does not exist in the directory.
+         * When performing partial backup restore, check through the file metadata entries and check
+         * if the file exists in the file system. If the file doesn't exist, append the filename to
+         * the partial backup list and the partial backup remove list so we can clean up the
+         * metadata and history store afterwards.
          */
         filename = (char *)key->data;
-        if (backup_load_partial && WT_PREFIX_SKIP(filename, "file:")) {
+        if (restore_partial_backup && WT_PREFIX_SKIP(filename, "file:")) {
             WT_ERR(__wt_fs_exist(session, filename, &exist));
             if (!exist) {
+                WT_ERR(__wt_realloc_def(
+                  session, &allocated_int, slot + 1, &conn->partial_backup_remove_list));
                 /* Leave a NULL at the end to mark the end of the list. */
                 WT_ERR(__wt_realloc_def(session, &allocated, slot + 2, &partial_backup_list));
                 p = &partial_backup_list[slot];
                 p[0] = p[1] = NULL;
 
                 WT_ERR(__wt_strdup(session, filename, p));
+                WT_ERR(__wt_config_getones(session, (char *)value->data, "id", &cval));
+                conn->partial_backup_remove_list[slot] = (uint32_t)cval.val;
                 slot++;
             }
+        } else if (restore_partial_backup && WT_SUFFIX_MATCH(filename, ".wti") &&
+          WT_SUFFIX_MATCH(filename, ".lsm")) {
+            WT_ERR_MSG(session, EINVAL,
+              "%s: partial backup currently doesn't support index or lsm files.", filename);
         }
         WT_ERR(__wt_metadata_update(session, key->data, value->data));
     }
 
     F_SET(S2C(session), WT_CONN_WAS_BACKUP);
-    if (backup_load_partial && partial_backup_list != NULL) {
+    if (restore_partial_backup && partial_backup_list != NULL) {
         /*
-         * Ideally we call rewind here, but currently WiredTiger's file system doesn't support the
-         * fstream function.
+         * During partial backup, parse through the partial backup list, and attempt to clean up all
+         * metadata references to do with the file. To do so, perform a schema drop operation on the
+         * table to cleanly remove all linked references. It is possible that performing a schema
+         * drop on the table reference can fail because a file can be created without a table
+         * schema, therefore perform a schema drop on the file reference when that happens.
          */
-        WT_ERR(__wt_fclose(session, &fs));
-        WT_ERR(__wt_fopen(session, WT_METADATA_BACKUP, 0, WT_STREAM_READ, &fs));
-
-        /*
-         * During partial backup, we parse through the hot backup file again with the constructed
-         * partial backup list. For each table metadata information, check if the filename exists in
-         * the partial backup list. If it does, it means that the file doesn't exist in the
-         * directory, and we need to delete all metadata entries associated with the table. To do
-         * so, perform a schema drop operation on the table to cleanly remove all linked references.
-         */
-        for (;;) {
-            WT_ERR(__wt_getline(session, fs, key));
-            if (key->size == 0)
-                break;
-            WT_ERR(__wt_getline(session, fs, value));
-            if (value->size == 0)
-                WT_ERR_PANIC(session, EINVAL, "%s: zero-length value", WT_METADATA_BACKUP);
-
-            filename = (char *)key->data;
-            if (WT_PREFIX_SKIP(filename, "table:")) {
-                for (i = 0; partial_backup_list[i] != NULL; ++i) {
-                    if (WT_PREFIX_MATCH(partial_backup_list[i], filename)) {
-                        WT_WITH_SCHEMA_LOCK(session,
-                          WT_WITH_TABLE_WRITE_LOCK(
-                            session, ret = __wt_schema_drop(session, (char *)key->data, drop_cfg)));
-                        WT_ERR(ret);
-                        break;
-                    }
-                }
+        for (i = 0; partial_backup_list[i] != NULL; ++i) {
+            filename = partial_backup_list[i];
+            /*
+             * Convert the file name to a table metadata reference. Check if the file name has wt
+             * extension. If so, we need to remove the wt suffix too.
+             */
+            if (WT_SUFFIX_MATCH(filename, ".wt")) {
+                buf_size = strlen("table:") + strlen(filename) - strlen(".wt") + 1;
+                WT_ERR(__wt_calloc_def(session, buf_size, &buf));
+                WT_ERR(__wt_snprintf(
+                  buf, buf_size, "table:%.*s", (int)(strlen(filename) - strlen(".wt")), filename));
+            } else {
+                buf_size = strlen("table:") + strlen(filename) + 1;
+                WT_ERR(__wt_calloc_def(session, buf_size, &buf));
+                WT_ERR(__wt_snprintf(buf, buf_size, "table:%.*s", (int)strlen(filename), filename));
             }
+
+            /*
+             * Perform schema drop on the table reference to cleanly remove all linked references to
+             * table.
+             */
+            WT_WITH_SCHEMA_LOCK(session,
+              WT_WITH_TABLE_WRITE_LOCK(session, ret = __wt_schema_drop(session, buf, drop_cfg)));
+            WT_ERR_ERROR_OK(ret, ENOENT, true);
+            __wt_free(session, buf);
+            if (ret == 0)
+                continue;
+
+            /* Construct the buffer to refer a file entry metadata and perform a schema drop. */
+            buf_size = strlen("file:") + strlen(filename) + 1;
+            WT_ERR(__wt_calloc(session, buf_size, 1, &buf));
+            WT_ERR(__wt_snprintf(buf, buf_size, "file:%s", filename));
+            WT_WITH_SCHEMA_LOCK(session,
+              WT_WITH_TABLE_WRITE_LOCK(
+                session, ret = __wt_schema_drop(session, (char *)buf, drop_cfg)));
+            WT_ERR(ret);
+            __wt_free(session, buf);
         }
     }
 
 err:
+    if (buf != NULL)
+        __wt_free(session, buf);
     if (partial_backup_list != NULL) {
         for (i = 0; partial_backup_list[i] != NULL; ++i)
             __wt_free(session, partial_backup_list[i]);
@@ -290,7 +318,7 @@ __wt_turtle_exists(WT_SESSION_IMPL *session, bool *existp)
  *     Check the turtle file and create if necessary.
  */
 int
-__wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, bool backup_load_partial)
+__wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, bool restore_partial_backup)
 {
     WT_DECL_RET;
     char *metaconf, *unused_value;
@@ -382,7 +410,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, bool backup_load_pa
         if (verify_meta && exist_backup)
             WT_RET_MSG(
               session, EINVAL, "restoring a backup is incompatible with metadata verification");
-        if (backup_load_partial && !exist_backup)
+        if (restore_partial_backup && !exist_backup)
             WT_RET_MSG(session, EINVAL,
               "restoring a partial backup is requires the WiredTiger metadata backup file.");
 
@@ -390,7 +418,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, bool backup_load_pa
         WT_RET(__metadata_init(session));
 
         /* Load any hot-backup information. */
-        WT_RET(__metadata_load_hot_backup(session, backup_load_partial));
+        WT_RET(__metadata_load_hot_backup(session, restore_partial_backup));
 
         /* Create any bulk-loaded file stubs. */
         WT_RET(__metadata_load_bulk(session));
