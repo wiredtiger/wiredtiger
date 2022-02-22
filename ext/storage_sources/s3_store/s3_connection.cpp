@@ -15,7 +15,19 @@
 #define S3_ALLOCATION_TAG ""
 /*
  * S3Connection --
- *     Constructor for AWS S3 bucket connection.
+ *     Constructor for AWS S3 bucket connection with provided credentials.
+ */
+S3Connection::S3Connection(const Aws::Auth::AWSCredentials &credentials,
+  const Aws::S3Crt::ClientConfiguration &config, const std::string &bucketName,
+  const std::string &objPrefix)
+    : _s3CrtClient(credentials, config), _bucketName(bucketName), _objectPrefix(objPrefix)
+{
+}
+
+/*
+ * S3Connection --
+ *     Constructor for AWS S3 bucket connection with credentials in local file.
+ *     https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html
  */
 S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config,
   const std::string &bucketName, const std::string &objPrefix)
@@ -42,6 +54,8 @@ S3Connection::ListObjects(const std::string &prefix, std::vector<std::string> &o
     if (!outcomes.IsSuccess())
         return (1);
     auto result = outcomes.GetResult();
+
+    /* Returning the object name with the prefix stripped. */
     for (const auto &object : result.GetContents())
         objects.push_back(object.GetKey().substr(_objectPrefix.length()));
 

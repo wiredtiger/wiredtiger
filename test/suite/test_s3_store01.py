@@ -37,6 +37,21 @@ FileSystem = wiredtiger.FileSystem  # easy access to constants
 # by any WiredTiger application, these APIs are used internally.
 # However, it is useful to do tests of this API independently.
 
+def get_auth_token(storage_source):
+    auth_token = None
+    if storage_source is 'local_store':
+        # Fake a secret token
+        auth_token = "Secret"
+    if storage_source is 's3_store':
+        # Auth token is the AWS access key ID and the AWS secret key as comma-separated values.
+        # We expect the values to have been provided through the environment variables.
+        access_key = os.getenv('AWS_ACCESS_KEY_ID')
+        secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+        if access_key and secret_key:
+            auth_token = access_key + "," + secret_key
+    return auth_token
+
+
 def get_bucket_info(storage_source):
     if storage_source is 'local_store':
         return([('objects1',''), ('objects2','')])
@@ -57,7 +72,7 @@ def generate_s3_prefix(test_name = ''):
     if test_name:
         prefix += test_name + '/'
 
-    return (prefix)
+    return prefix
 
 def get_fs_config(storage_source, additional_conf = '', test_name = ''):
     # There is no local store specific configuration needed
@@ -71,9 +86,9 @@ def get_fs_config(storage_source, additional_conf = '', test_name = ''):
             test_name = inspect.stack()[1][3]
         fs_conf = 'prefix=' + generate_s3_prefix(test_name)
         fs_conf += additional_conf
-        return (fs_conf)
+        return fs_conf
     
-    return (None)
+    return None
 
 class test_s3_store01(wttest.WiredTigerTestCase):
 
@@ -91,7 +106,7 @@ class test_s3_store01(wttest.WiredTigerTestCase):
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)
 
-    # Load the storage source extension.
+    # Load the storage source extension, skip the test if missing..
     def conn_extensions(self, extlist):
         # Windows doesn't support dynamically loaded extension libraries.
         if os.name == 'nt':
