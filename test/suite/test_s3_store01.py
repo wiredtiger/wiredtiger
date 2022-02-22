@@ -51,7 +51,6 @@ def get_auth_token(storage_source):
             auth_token = access_key + "," + secret_key
     return auth_token
 
-
 def get_bucket_info(storage_source):
     if storage_source is 'local_store':
         return([('objects1',''), ('objects2','')])
@@ -96,10 +95,12 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         ('local', dict(ss_name='local_store',
             #ss_config='verbose=1,delay_ms=200,force_delay=3'
             ss_config='',
+            ss_auth_token=get_auth_token('local_store'),
             ss_buckets=get_bucket_info('local_store'))),
         ('s3', dict(ss_name='s3_store',
             #ss_config='verbose=-3'
             ss_config='',
+            ss_auth_token=get_auth_token('s3_store'),
             ss_buckets=get_bucket_info('s3_store')))
     ]
 
@@ -108,6 +109,7 @@ class test_s3_store01(wttest.WiredTigerTestCase):
 
     # Load the storage source extension, skip the test if missing..
     def conn_extensions(self, extlist):
+        extlist.skip_if_missing = True
         # Windows doesn't support dynamically loaded extension libraries.
         if os.name == 'nt':
             extlist.skip_if_missing = True
@@ -142,7 +144,7 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         if self.ss_name is 'local_store':
             os.mkdir(bucket)
 
-        fs = ss.ss_customize_file_system(session, bucket, "Secret",
+        fs = ss.ss_customize_file_system(session, bucket, self.ss_auth_token,
             get_fs_config(self.ss_name, bucket_conf))
 
         # The object doesn't exist yet.
@@ -214,7 +216,7 @@ class test_s3_store01(wttest.WiredTigerTestCase):
             os.mkdir(bucket)
         
         cache_conf = ',cache_directory=' + cachedir
-        fs = ss.ss_customize_file_system(session, bucket, "Secret",
+        fs = ss.ss_customize_file_system(session, bucket, self.ss_auth_token,
             get_fs_config(self.ss_name, bucket_conf + cache_conf))
 
         # We call these 4K chunks of data "blocks" for this test, but that doesn't
@@ -368,13 +370,13 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         # Create file system objects. First try some error cases.
         errmsg = '/No such file or directory/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: ss.ss_customize_file_system(session, self.bucket1, "k1",
+            lambda: ss.ss_customize_file_system(session, self.bucket1, self.ss_auth_token,
                 get_fs_config(self.ss_name, self.bucket1_conf + bad_config)), errmsg)
 
         # Todo: For S3 need to handle the case where a bad bucket is provided, for now skip
         if self.ss_name is 'local_store':
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda: ss.ss_customize_file_system(session, "./objects_BAD", "k1",
+                lambda: ss.ss_customize_file_system(session, "./objects_BAD", self.ss_auth_token,
                     get_fs_config(self.ss_name, self.bucket1_conf + config1)), errmsg)
 
         # For local store - Create an empty file, try to use it as a directory.
@@ -384,14 +386,14 @@ class test_s3_store01(wttest.WiredTigerTestCase):
             errmsg = '/Invalid argument/'
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda: ss.ss_customize_file_system(
-                    session, "some_file", "k1", config1), errmsg)
+                    session, "some_file", self.ss_auth_token, config1), errmsg)
 
         # Now create some file systems that should succeed.
         # Use either different bucket directories or different prefixes,
         # so activity that happens in the various file systems should be independent.
-        fs1 = ss.ss_customize_file_system(session, self.bucket1, "k1",
+        fs1 = ss.ss_customize_file_system(session, self.bucket1, self.ss_auth_token,
             get_fs_config(self.ss_name, self.bucket1_conf + config1))
-        fs2 = ss.ss_customize_file_system(session, self.bucket2, "k2",
+        fs2 = ss.ss_customize_file_system(session, self.bucket2, self.ss_auth_token,
             get_fs_config(self.ss_name, self.bucket2_conf + config2))
         
         # Create files in the wt home directory.

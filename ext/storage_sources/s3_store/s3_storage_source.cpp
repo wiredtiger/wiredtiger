@@ -494,20 +494,20 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 
     /* Fail if there is no authentication provided. */
     if (authToken == NULL || strlen(authToken) == 0) {
-        s3->log->LogVerboseErrorMessage("S3CustomizeFileSystem: authToken not specified.");
+        s3->log->LogErrorMessage("S3CustomizeFileSystem: authToken not specified.");
         return (EINVAL);
     }
 
     /* Extract the AWS access key ID and the AWS secret key from authToken. */
     int delimiter = std::string(authToken).find(',');
     if (delimiter == std::string::npos) {
-        s3->log->LogVerboseErrorMessage("S3CustomizeFileSystem: authToken malformed.");
+        s3->log->LogErrorMessage("S3CustomizeFileSystem: authToken malformed.");
         return (EINVAL);
     }
     const std::string accessKeyId = std::string(authToken).substr(0, delimiter);
     const std::string secretKey = std::string(authToken).substr(delimiter + 1);
     if (accessKeyId.empty() || secretKey.empty()) {
-        s3->log->LogVerboseErrorMessage("S3CustomizeFileSystem: authToken malformed.");
+        s3->log->LogErrorMessage("S3CustomizeFileSystem: authToken malformed.");
         return (EINVAL);
     }
     Aws::Auth::AWSCredentials credentials;
@@ -809,7 +809,7 @@ S3Terminate(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session)
     /* Log collected statistics on termination. */
     S3ShowStatistics(*s3);
 
-    Aws::Utils::Logging::ShutdownAWSLogging();
+    //Aws::Utils::Logging::ShutdownAWSLogging();
     Aws::ShutdownAPI(options);
 
     delete (s3);
@@ -826,9 +826,25 @@ S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *f
 {
     S3_STORAGE *s3 = (S3_STORAGE *)storageSource;
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
+    WT_FILE_SYSTEM *wtFileSystem = fs->wtFileSystem;
 
     int ret;
+    bool nativeExist;
     FS2S3(fileSystem)->statistics.putObjectCount++;
+
+    /* Confirm that the file exists on the native filesystem. */
+    if ((ret = wtFileSystem->fs_exist(wtFileSystem, session, source, &nativeExist)) != 0) {
+        s3->log->LogErrorMessage(
+          "S3Flush: Failed to check for the existence of " + std::string(source) +
+          " on the native filesystem.");
+        return (ret);
+    }
+    if (!nativeExist) {
+        s3->log->LogErrorMessage("S3Flush: " + std::string(source) + " No such file.");
+        return (ENOENT);
+    }
+
+    /* Upload the object into the bucket. */
     if (ret = (fs->connection->PutObject(object, source)) != 0)
         s3->log->LogErrorMessage("S3Flush: PutObject request to S3 failed.");
 
@@ -846,7 +862,7 @@ S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *f
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
     /* Constructing the pathname for source and cache from file system and local.  */
     std::string srcPath = S3Path(fs->homeDir, source);
-    std::string destPath = S3Path(fs->cacheDir, source);
+    std::string destPath = S3Path(fs->cacheDir, object);
 
     /* Linking file with the local file. */
     int ret = link(srcPath.c_str(), destPath.c_str());
@@ -918,7 +934,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     s3->statistics = {0};
 
     /* Initialize the AWS SDK. */
-    Aws::Utils::Logging::InitializeAWSLogging(s3->log);
+    //Aws::Utils::Logging::InitializeAWSLogging(s3->log);
     Aws::InitAPI(options);
 
     /*
