@@ -67,12 +67,11 @@ class test_backup25(backup_base):
         c["newkey"] = "newvalue"
         c.close()
 
-        # Open the backup cursor and then create new tables and add data to them.
-        # Then copy the files.
+        # Open the backup cursor and then add new data to the table.
         bkup_c = self.session.open_cursor('backup:', None, None)
 
         # Add new data twice and checkpoint to have later checkpoints after the backup
-        # cursor is open. And have an uncheckpointed but logged modification too.
+        # cursor is open. Add an uncheckpointed but logged modification too.
         c = self.session.open_cursor(self.uri)
         c["bkupkey1"] = "bkupvalue1"
         c.close()
@@ -94,9 +93,9 @@ class test_backup25(backup_base):
         copy_wiredtiger_home(self, '.', self.dir)
         bkup_c.close()
 
-        # Open the new directory and verify we can see the 
-        new_conn = self.wiredtiger_open(self.dir)
-        self.captureout.checkAdditionalPattern(self, 'Both WiredTiger.turtle and WiredTiger.backup exist.*')
+        # Open the new directory and verify we can see the data after the backup cursor was opened.
+        with self.expectedStdoutPattern('Both WiredTiger.turtle and WiredTiger.backup exist.*'):
+            new_conn = self.wiredtiger_open(self.dir)
         new_sess = new_conn.open_session()
         c = new_sess.open_cursor(self.uri)
         self.assertEqual(c["bkupkey1"], "bkupvalue1")
