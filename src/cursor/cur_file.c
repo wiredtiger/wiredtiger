@@ -663,16 +663,7 @@ err:
      * cases like LSM, the reserve never encountered the original key). For simplicity, repeat the
      * search here.
      */
-    if (ret == 0)
-        ret = cursor->search(cursor);
-
-    /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
-    if (ret == 0 && session->txn->isolation == WT_ISO_SNAPSHOT && cbt->ref != NULL &&
-      (cbt->ref->page->page_eviction_force_count > 0 ||
-        __curfile_reposition_timing_stress(session)))
-        WT_TRET(__curfile_release_page(cursor));
-
-    return (ret);
+    return (ret == 0 ? cursor->search(cursor) : ret);
 }
 
 /*
