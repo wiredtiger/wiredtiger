@@ -1706,7 +1706,6 @@ __rollback_to_stable_btree_apply(
 
     /*
      * Truncate history store entries for the non-timestamped table.
-     *
      * Exceptions:
      * 1. Modified tree - Scenarios where the tree is never checkpointed lead to zero
      * durable timestamp even they are timestamped tables. Until we have a special
