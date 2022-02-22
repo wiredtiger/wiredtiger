@@ -65,9 +65,8 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup
     WT_DECL_ITEM(value);
     WT_DECL_RET;
     WT_FSTREAM *fs;
-    size_t allocated, allocated_int, i, slot;
-    size_t buf_size;
-    char *filename, *buf;
+    size_t allocated, allocated_int, buf_size, i, slot;
+    char *buf, *filename;
     char **partial_backup_list, **p;
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "remove_files=false", NULL};
     bool exist;
