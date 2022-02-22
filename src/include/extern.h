@@ -302,7 +302,7 @@ extern int __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t objectid, uint32_t flags)
+extern int __wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t objectid)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -774,8 +774,8 @@ extern int __wt_hex_to_raw(WT_SESSION_IMPL *session, const char *from, WT_ITEM *
 extern int __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
-  uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool error_on_ooo_ts)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool ooo_tombstone,
+  bool error_on_ooo_ts) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
   const char *value_format, uint64_t recno, WT_UPDATE_VALUE *upd_value, WT_ITEM *base_value_buf)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1220,8 +1220,9 @@ extern int __wt_rec_dictionary_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, u
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_dictionary_lookup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *val,
   WT_REC_DICTIONARY **dpp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_rec_hs_clear_on_tombstone(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint64_t recno,
-  WT_ITEM *rowkey) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_rec_hs_clear_on_tombstone(WT_SESSION_IMPL *session, WT_RECONCILE *r,
+  wt_timestamp_t ts, uint64_t recno, WT_ITEM *rowkey, bool reinsert)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_row_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref,
@@ -1620,8 +1621,6 @@ extern int __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_SESSION_IMPL *txn_session,
   int error_code, const char *error_string) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_verbose_dump_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verify_ckpt_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT *ci)
@@ -1925,6 +1924,8 @@ static inline bool __wt_isprint(u_char c) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unuse
 static inline bool __wt_isspace(u_char c) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline bool __wt_log_op(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_off_page(WT_PAGE *page, const void *p)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_op_timer_fired(WT_SESSION_IMPL *session)
@@ -2160,8 +2161,6 @@ static inline int __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTR
 static inline int __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
   WT_UPDATE *upd, WT_UPDATE **prepare_updp, WT_UPDATE **restored_updp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_txn_search_check(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type,
   WT_UPDATE **updp, size_t *sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_upd_alloc_tombstone(WT_SESSION_IMPL *session, WT_UPDATE **updp,
@@ -2345,7 +2344,7 @@ static inline void __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recn
 static inline void __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op);
 static inline void __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp);
 static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
-static inline void __wt_txn_timestamp_flags(WT_SESSION_IMPL *session);
+static inline void __wt_txn_search_check(WT_SESSION_IMPL *session);
 static inline void __wt_txn_unmodify(WT_SESSION_IMPL *session);
 static inline void __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd);
 static inline void __wt_upd_value_clear(WT_UPDATE_VALUE *upd_value);
