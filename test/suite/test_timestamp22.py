@@ -28,7 +28,7 @@
 #
 # test_timestamp22.py
 # Misuse the timestamp API, making sure we don't crash.
-import wiredtiger, wttest, re, suite_random
+import wttest, re, suite_random
 from wtdataset import SimpleDataSet
 from contextlib import contextmanager
 from wtscenario import make_scenarios
@@ -225,7 +225,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         if do_prepare:
             if commit_ts < prepare_ts:
                 ok_commit = False
-            if prepare_ts < self.oldest_ts:
+            if prepare_ts <= self.stable_ts:
                 ok_prepare = False
 
         # If the final commit is too old, we'll fail.
@@ -395,8 +395,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
 
         # Create tables with no entries
         ds = SimpleDataSet(
-            self, self.uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+            self, self.uri, 0, key_format=self.key_format, value_format=self.value_format)
 
         # We do a bunch of iterations, doing transactions, prepare, and global timestamp calls
         # with timestamps that are sometimes valid, sometimes not. We use the iteration number

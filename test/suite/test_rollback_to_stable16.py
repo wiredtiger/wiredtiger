@@ -30,11 +30,9 @@
 # rollback_to_stable
 # [END_TAGS]
 
-import os, shutil
 from helper import simulate_crash_restart
 import wiredtiger, wttest
 from wiredtiger import stat
-from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 # test_rollback_to_stable16.py
@@ -127,7 +125,9 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
         else:
             values = [0x01, 0x02, 0x03, 0x04]
 
-        create_params = 'log=(enabled=false),key_format={},value_format={}'.format(self.key_format, self.value_format)
+        # Create a table.
+        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        create_params += ',log=(enabled=false)' if self.in_memory else ''
         self.session.create(uri, create_params)
 
         # Pin oldest and stable to timestamp 1.

@@ -55,22 +55,20 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
     scenarios = make_scenarios(in_memory_values, format_values, restart_options)
 
     def conn_config(self):
-        config = 'cache_size=50MB,statistics=(all),log=(enabled=false),eviction_dirty_trigger=10,' \
+        config = 'cache_size=50MB,statistics=(all),eviction_dirty_trigger=10,' \
                  'eviction_updates_trigger=10'
         if self.in_memory:
             config += ',in_memory=true'
-        else:
-            config += ',in_memory=false'
         return config
 
     def test_rollback_to_stable_no_history(self):
         nrows = 1000
 
-        # Create a table without logging.
+        # Create a table.
         uri = "table:rollback_to_stable19"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+        ds_config = ',log=(enabled=false)' if self.in_memory else ''
+        ds = SimpleDataSet(self, uri, 0,
+            key_format=self.key_format, value_format=self.value_format, config=ds_config)
         ds.populate()
 
         if self.value_format == '8t':
@@ -93,7 +91,8 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
         cursor.close()
         s.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20))
 
-        # Configure debug behavior on a cursor to evict the page positioned on when the reset API is used.
+        # Configure debug behavior on a cursor to evict the page positioned on when the reset API
+        # is used.
         evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
 
         # Search for the key so we position our cursor on the page that we want to evict.
@@ -158,11 +157,11 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
     def test_rollback_to_stable_with_history(self):
         nrows = 1000
 
-        # Create a table without logging.
+        # Create a table.
         uri = "table:rollback_to_stable19"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+        ds_config = ',log=(enabled=false)' if self.in_memory else ''
+        ds = SimpleDataSet(self, uri, 0,
+            key_format=self.key_format, value_format=self.value_format, config=ds_config)
         ds.populate()
 
         if self.value_format == '8t':
@@ -193,7 +192,8 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
         cursor.close()
         s.prepare_transaction('prepare_timestamp=' + self.timestamp_str(40))
 
-        # Configure debug behavior on a cursor to evict the page positioned on when the reset API is used.
+        # Configure debug behavior on a cursor to evict the page positioned on when the reset API
+        # is used.
         evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
 
         # Search for the key so we position our cursor on the page that we want to evict.
@@ -244,9 +244,9 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
         upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
         hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
 
-        # After restart (not crash) the stats for the aborted updates and history store removed will be 0,
-        # as the updates aborted and history store removed will occur during shutdown, and on startup there
-        # will be no updates to be removed.
+        # After restart (not crash) the stats for the aborted updates and history store removed
+        # will be 0, as the updates aborted and history store removed will occur during shutdown,
+        # and on startup there will be no updates to be removed.
         if self.in_memory or not self.crash:
             self.assertEqual(hs_removed, 0)
             self.assertEqual(upd_aborted, 0)

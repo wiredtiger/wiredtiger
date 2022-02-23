@@ -1322,15 +1322,10 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
       "rollback to stable connection logging enabled: %s and btree logging enabled: %s",
       FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ? "true" : "false",
-      !F_ISSET(btree, WT_BTREE_NO_LOGGING) ? "true" : "false");
+      F_ISSET(btree, WT_BTREE_LOGGED) ? "true" : "false");
 
-    /*
-     * Immediately durable files don't get their commits wiped. This case mostly exists to support
-     * the semantic required for the oplog in MongoDB - updates that have been made to the oplog
-     * should not be aborted. It also wouldn't be safe to roll back updates for any table that had
-     * its records logged: those updates would be recovered after a crash, making them inconsistent.
-     */
-    if (__wt_btree_immediately_durable(session))
+    /* Files with commit-level durability (without timestamps), don't get their commits wiped. */
+    if (F_ISSET(btree, WT_BTREE_LOGGED))
         return (0);
 
     /* There is never anything to do for checkpoint handles. */
@@ -1885,8 +1880,8 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
      * concurrently. Copy parent session no logging option to the internal session to make sure that
      * rollback to stable doesn't generate log records.
      */
-    WT_RET(__wt_open_internal_session(S2C(session), "txn rollback_to_stable", true,
-      F_MASK(session, WT_SESSION_NO_LOGGING), 0, &session));
+    WT_RET(
+      __wt_open_internal_session(S2C(session), "txn rollback_to_stable", true, 0, 0, &session));
 
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 1);
     WT_WITH_CHECKPOINT_LOCK(
