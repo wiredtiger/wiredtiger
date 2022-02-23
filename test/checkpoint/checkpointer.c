@@ -202,7 +202,9 @@ real_checkpointer(void)
                 verify_ts = stable_ts;
             else
                 verify_ts = __wt_random(&rnd) % (stable_ts - oldest_ts + 1) + oldest_ts;
-            WT_ORDERED_READ(g.ts_oldest, g.ts_stable);
+            __wt_writelock((WT_SESSION_IMPL *)session, &g.clock_lock);
+            g.ts_oldest = g.ts_stable;
+            __wt_writeunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
         }
 
         /* Execute a checkpoint */
