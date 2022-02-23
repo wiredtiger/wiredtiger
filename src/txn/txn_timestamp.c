@@ -959,7 +959,8 @@ __wt_txn_set_timestamp_commit(WT_SESSION_IMPL *session, wt_timestamp_t ts)
 
     WT_TRET(__wt_txn_context_check(session, true));
 
-    WT_RET(__wt_txn_set_commit_timestamp(session, ts));
+    if (ts != WT_TS_NONE)
+        WT_RET(__wt_txn_set_commit_timestamp(session, ts));
 
     __wt_txn_publish_durable_timestamp(session);
 
