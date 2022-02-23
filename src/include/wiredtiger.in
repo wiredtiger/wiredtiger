@@ -1897,6 +1897,24 @@ struct __wt_session {
 	int __F(timestamp_transaction)(WT_SESSION *session, const char *config);
 	/*! @} */
 
+#ifndef DOXYGEN
+	/*!
+	 * Set the commit timestamp on a transaction numerically.  Prefer this over @ref
+	 * timestamp_transaction when the string parsing done in that method becomes a bottleneck.
+	 *
+	 * The WT_SESSION.timestamp_transaction_commit method can only be used at snapshot
+	 * isolation.
+	 *
+	 * @requires_transaction
+	 *
+	 * @param session the session handle
+	 * @param ts the commit timestamp
+	 * @errors
+	 */
+	int __F(timestamp_transaction_commit)(WT_SESSION *session, unsigned long long ts);
+	/*! @} */
+#endif
+
 	/*!
 	 * @name Transaction support
 	 * @{

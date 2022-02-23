@@ -947,6 +947,31 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __wt_txn_set_timestamp_commit --
+ *     Directly set the commit timestamp in a transaction, bypassing parsing logic. Prefer this to
+ *     @ref __wt_txn_set_timestamp when string parsing is a performance bottleneck.
+ */
+int
+__wt_txn_set_timestamp_commit(WT_SESSION_IMPL *session, wt_timestamp_t ts)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    WT_TRET(__wt_txn_context_check(session, true));
+
+    WT_RET(__wt_txn_set_commit_timestamp(session, ts));
+
+    __wt_txn_publish_durable_timestamp(session);
+
+    conn = S2C(session);
+    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE) &&
+      FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) && !F_ISSET(conn, WT_CONN_RECOVERING))
+        WT_RET(__wt_txn_ts_log(session));
+
+    return (0);
+}
+
+/*
  * __wt_txn_publish_durable_timestamp --
  *     Publish a transaction's durable timestamp.
  */
