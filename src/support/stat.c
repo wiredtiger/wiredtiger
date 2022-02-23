@@ -170,7 +170,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cursor prev calls that skip due to a globally visible history store tombstone",
   "cursor: cursor prev calls that skip greater than or equal to 100 entries",
   "cursor: cursor prev calls that skip less than 100 entries",
-  "cursor: cursor releases the page and marks to reposition it",
+  "cursor: cursor releases page to prepare for reposition",
   "cursor: cursor reposition",
   "cursor: insert calls",
   "cursor: insert key and value bytes",
@@ -445,7 +445,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_prev_hs_tombstone = 0;
     stats->cursor_prev_skip_ge_100 = 0;
     stats->cursor_prev_skip_lt_100 = 0;
-    stats->cursor_release_page_to_reposition = 0;
+    stats->cursor_reposition_prepare = 0;
     stats->cursor_reposition = 0;
     stats->cursor_insert = 0;
     stats->cursor_insert_bytes = 0;
@@ -708,7 +708,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_prev_hs_tombstone += from->cursor_prev_hs_tombstone;
     to->cursor_prev_skip_ge_100 += from->cursor_prev_skip_ge_100;
     to->cursor_prev_skip_lt_100 += from->cursor_prev_skip_lt_100;
-    to->cursor_release_page_to_reposition += from->cursor_release_page_to_reposition;
+    to->cursor_reposition_prepare += from->cursor_reposition_prepare;
     to->cursor_reposition += from->cursor_reposition;
     to->cursor_insert += from->cursor_insert;
     to->cursor_insert_bytes += from->cursor_insert_bytes;
@@ -975,7 +975,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_prev_hs_tombstone += WT_STAT_READ(from, cursor_prev_hs_tombstone);
     to->cursor_prev_skip_ge_100 += WT_STAT_READ(from, cursor_prev_skip_ge_100);
     to->cursor_prev_skip_lt_100 += WT_STAT_READ(from, cursor_prev_skip_lt_100);
-    to->cursor_release_page_to_reposition += WT_STAT_READ(from, cursor_release_page_to_reposition);
+    to->cursor_reposition_prepare += WT_STAT_READ(from, cursor_reposition_prepare);
     to->cursor_reposition += WT_STAT_READ(from, cursor_reposition);
     to->cursor_insert += WT_STAT_READ(from, cursor_insert);
     to->cursor_insert_bytes += WT_STAT_READ(from, cursor_insert_bytes);
@@ -1308,7 +1308,7 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor prev calls that skip due to a globally visible history store tombstone",
   "cursor: cursor prev calls that skip greater than or equal to 100 entries",
   "cursor: cursor prev calls that skip less than 100 entries",
-  "cursor: cursor releases the page and marks to reposition it",
+  "cursor: cursor releases page to prepare for reposition",
   "cursor: cursor remove calls",
   "cursor: cursor remove key bytes removed",
   "cursor: cursor reposition",
@@ -1871,7 +1871,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_prev_hs_tombstone = 0;
     stats->cursor_prev_skip_ge_100 = 0;
     stats->cursor_prev_skip_lt_100 = 0;
-    stats->cursor_release_page_to_reposition = 0;
+    stats->cursor_reposition_prepare = 0;
     stats->cursor_remove = 0;
     stats->cursor_remove_bytes = 0;
     stats->cursor_reposition = 0;
@@ -2436,7 +2436,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_prev_hs_tombstone += WT_STAT_READ(from, cursor_prev_hs_tombstone);
     to->cursor_prev_skip_ge_100 += WT_STAT_READ(from, cursor_prev_skip_ge_100);
     to->cursor_prev_skip_lt_100 += WT_STAT_READ(from, cursor_prev_skip_lt_100);
-    to->cursor_release_page_to_reposition += WT_STAT_READ(from, cursor_release_page_to_reposition);
+    to->cursor_reposition_prepare += WT_STAT_READ(from, cursor_reposition_prepare);
     to->cursor_remove += WT_STAT_READ(from, cursor_remove);
     to->cursor_remove_bytes += WT_STAT_READ(from, cursor_remove_bytes);
     to->cursor_reposition += WT_STAT_READ(from, cursor_reposition);

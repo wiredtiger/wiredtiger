@@ -5728,8 +5728,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CURSOR_PREV_SKIP_GE_100		1233
 /*! cursor: cursor prev calls that skip less than 100 entries */
 #define	WT_STAT_CONN_CURSOR_PREV_SKIP_LT_100		1234
-/*! cursor: cursor releases the page and marks to reposition it */
-#define	WT_STAT_CONN_CURSOR_RELEASE_PAGE_TO_REPOSITION	1235
+/*! cursor: cursor releases page to prepare for reposition */
+#define	WT_STAT_CONN_CURSOR_REPOSITION_PREPARE		1235
 /*! cursor: cursor remove calls */
 #define	WT_STAT_CONN_CURSOR_REMOVE			1236
 /*! cursor: cursor remove key bytes removed */
@@ -6896,8 +6896,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CURSOR_PREV_SKIP_GE_100		2156
 /*! cursor: cursor prev calls that skip less than 100 entries */
 #define	WT_STAT_DSRC_CURSOR_PREV_SKIP_LT_100		2157
-/*! cursor: cursor releases the page and marks to reposition it */
-#define	WT_STAT_DSRC_CURSOR_RELEASE_PAGE_TO_REPOSITION	2158
+/*! cursor: cursor releases page to prepare for reposition */
+#define	WT_STAT_DSRC_CURSOR_REPOSITION_PREPARE		2158
 /*! cursor: cursor reposition */
 #define	WT_STAT_DSRC_CURSOR_REPOSITION			2159
 /*! cursor: insert calls */

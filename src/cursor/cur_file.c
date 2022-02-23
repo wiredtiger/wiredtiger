@@ -129,7 +129,7 @@ __curfile_reposition(WT_CURSOR *cursor, bool exact_match, bool next, bool *moved
         *moved = false;
 
     if (!F_ISSET(cursor, WT_CURSTD_KEY_EXT))
-        WT_ERR(__wt_panic(session, EINVAL, "Reposition flag is set without a search key"));
+        WT_ERR_PANIC(session, EINVAL, "reposition flag is set without a search key");
 
     WT_ERR(__wt_btcur_search_near(cbt, &exact));
 
@@ -167,7 +167,7 @@ __curfile_release_page(WT_CURSOR *cursor)
     WT_RET(__wt_cursor_reset(cbt));
     F_SET(cbt, WT_CBT_REPOSITION);
 
-    WT_STAT_CONN_DATA_INCR(CUR2S(cursor), cursor_release_page_to_reposition);
+    WT_STAT_CONN_DATA_INCR(CUR2S(cursor), cursor_reposition_prepare);
 
     return (0);
 }
@@ -189,7 +189,7 @@ __curfile_next(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, next, CUR2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
 
-    if (session->txn->isolation == WT_ISO_SNAPSHOT && F_ISSET(cbt, WT_CBT_REPOSITION))
+    if (F_ISSET(cbt, WT_CBT_REPOSITION) && session->txn->isolation == WT_ISO_SNAPSHOT)
         WT_ERR(__curfile_reposition(cursor, false, true, &moved));
 
     F_CLR(cbt, WT_CBT_REPOSITION);
@@ -204,7 +204,7 @@ __curfile_next(WT_CURSOR *cursor)
 
     /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
     if (session->txn->isolation == WT_ISO_SNAPSHOT &&
-      (cbt->ref->page->page_eviction_force_count > 0 ||
+      (F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION) ||
         __curfile_reposition_timing_stress(session)))
         WT_ERR(__curfile_release_page(cursor));
 
@@ -239,7 +239,7 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
 
     /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
     if (session->txn->isolation == WT_ISO_SNAPSHOT &&
-      (cbt->ref->page->page_eviction_force_count > 0 ||
+      (F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION) ||
         __curfile_reposition_timing_stress(session)))
         WT_ERR(__curfile_release_page(cursor));
 
@@ -266,7 +266,7 @@ __curfile_prev(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, prev, CUR2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
 
-    if (session->txn->isolation == WT_ISO_SNAPSHOT && F_ISSET(cbt, WT_CBT_REPOSITION))
+    if (F_ISSET(cbt, WT_CBT_REPOSITION) && session->txn->isolation == WT_ISO_SNAPSHOT)
         WT_ERR(__curfile_reposition(cursor, false, false, &moved));
 
     F_CLR(cbt, WT_CBT_REPOSITION);
@@ -281,7 +281,7 @@ __curfile_prev(WT_CURSOR *cursor)
 
     /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
     if (session->txn->isolation == WT_ISO_SNAPSHOT &&
-      (cbt->ref->page->page_eviction_force_count > 0 ||
+      (F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION) ||
         __curfile_reposition_timing_stress(session)))
         WT_ERR(__curfile_release_page(cursor));
 
@@ -347,7 +347,7 @@ __curfile_search(WT_CURSOR *cursor)
 
     /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
     if (session->txn->isolation == WT_ISO_SNAPSHOT &&
-      (cbt->ref->page->page_eviction_force_count > 0 ||
+      (F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION) ||
         __curfile_reposition_timing_stress(session)))
         WT_ERR(__curfile_release_page(cursor));
 
@@ -387,7 +387,7 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
 
     /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
     if (session->txn->isolation == WT_ISO_SNAPSHOT &&
-      (cbt->ref->page->page_eviction_force_count > 0 ||
+      (F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION) ||
         __curfile_reposition_timing_stress(session)))
         WT_ERR(__curfile_release_page(cursor));
 
@@ -501,7 +501,7 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
     if (session->txn->isolation == WT_ISO_SNAPSHOT &&
-      (cbt->ref->page->page_eviction_force_count > 0 ||
+      (F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION) ||
         __curfile_reposition_timing_stress(session)))
         WT_ERR(__curfile_release_page(cursor));
 
@@ -541,7 +541,7 @@ __curfile_update(WT_CURSOR *cursor)
 
     /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
     if (session->txn->isolation == WT_ISO_SNAPSHOT &&
-      (cbt->ref->page->page_eviction_force_count > 0 ||
+      (F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION) ||
         __curfile_reposition_timing_stress(session)))
         WT_ERR(__curfile_release_page(cursor));
 
@@ -611,7 +611,7 @@ __curfile_remove(WT_CURSOR *cursor)
 
     /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
     if (session->txn->isolation == WT_ISO_SNAPSHOT && positioned &&
-      (cbt->ref->page->page_eviction_force_count > 0 ||
+      (F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION) ||
         __curfile_reposition_timing_stress(session))) {
         WT_ERR(__curfile_release_page(cursor));
         released = true;

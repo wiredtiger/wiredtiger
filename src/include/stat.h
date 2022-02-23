@@ -567,7 +567,7 @@ struct __wt_connection_stats {
     int64_t cursor_prev_hs_tombstone;
     int64_t cursor_prev_skip_ge_100;
     int64_t cursor_prev_skip_lt_100;
-    int64_t cursor_release_page_to_reposition;
+    int64_t cursor_reposition_prepare;
     int64_t cursor_remove;
     int64_t cursor_remove_bytes;
     int64_t cursor_reposition;
@@ -1016,7 +1016,7 @@ struct __wt_dsrc_stats {
     int64_t cursor_prev_hs_tombstone;
     int64_t cursor_prev_skip_ge_100;
     int64_t cursor_prev_skip_lt_100;
-    int64_t cursor_release_page_to_reposition;
+    int64_t cursor_reposition_prepare;
     int64_t cursor_reposition;
     int64_t cursor_insert;
     int64_t cursor_insert_bytes;
