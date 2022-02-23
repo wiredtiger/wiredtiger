@@ -69,4 +69,24 @@ that conflicts of this type cannot arise.
 Prepared transactions have their own configuration keyword for rounding
 timestamps; see @ref timestamp_roundup for more information.
 
+@section timestamp_prepare_ignore_prepare Configuring ignore_prepare
+
+The WT_SESSION::begin_transaction method includes the \c ignore_prepare
+configuration. Setting the \c ignore_prepare configuration to true causes
+readers to ignore prepared transactional values, that is, returning read
+values as if the prepared transaction didn't exist. This prevents readers
+from seeing the ::WT_PREPARE_CONFLICT error, returning the data as it was
+before the transaction was prepared. For this reason, applications using
+\c ignore_prepare cannot rely on repeatable reads, as the same read after the
+prepared transaction is resolved could return a different value. Additionally,
+setting the \c ignore_prepare configuration also causes the transaction to
+be read-only, and attempts to update items in the transaction will fail.
+
+\warning
+The \c ignore_prepare configuration can also be set to \c force, which not
+only causes readers to ignore prepared transactions, but also allows the
+transaction to make updates. This can cause data inconsistency problems with
+the commit or rollback of the prepared transaction, or the disappearance of
+a prepared update by overwriting it.
+
 */
