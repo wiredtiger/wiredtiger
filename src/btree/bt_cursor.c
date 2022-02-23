@@ -1094,7 +1094,7 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
      * FUTURE: again, it appears that this is no longer true...
      */
 
-    if (false && btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt, false)) {
+    if (session == NULL && btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt, false)) {
         WT_ERR(__wt_txn_autocommit_check(session));
 
         /*
