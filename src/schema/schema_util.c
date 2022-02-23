@@ -180,3 +180,35 @@ err:
     __wt_scr_free(session, &tmp);
     return (ret);
 }
+
+/*
+ * __wt_schema_convert_file_to_table --
+ *     Convert the file name to a table metadata reference. Check if the file name has wt extension.
+ *     If so, we need to remove the wt suffix too.
+ */
+int
+__wt_schema_convert_file_to_table(WT_SESSION_IMPL *session, const char *filename, char **buf)
+{
+    WT_DECL_RET;
+    size_t bufsz;
+    const char *filep;
+
+    filep = filename;
+    WT_PREFIX_SKIP_REQUIRED(session, filep, "file:");
+    if (WT_SUFFIX_MATCH(filep, ".wt")) {
+        bufsz = strlen("table:") + strlen(filep) - strlen(".wt") + 1;
+        WT_ERR(__wt_calloc_def(session, bufsz, buf));
+        WT_ERR(
+          __wt_snprintf(*buf, bufsz, "table:%.*s", (int)(strlen(filep) - strlen(".wt")), filep));
+    } else {
+        bufsz = strlen("table:") + strlen(filep) + 1;
+        WT_ERR(__wt_calloc_def(session, bufsz, buf));
+        WT_ERR(__wt_snprintf(*buf, bufsz, "table:%s", filep));
+    }
+    return (0);
+
+err:
+    if (buf != NULL)
+        __wt_free(session, buf);
+    return (ret);
+}

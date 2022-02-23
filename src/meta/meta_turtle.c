@@ -65,7 +65,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup
     WT_DECL_ITEM(value);
     WT_DECL_RET;
     WT_FSTREAM *fs;
-    size_t allocated, allocated_int, buf_size, i, slot;
+    size_t allocated, allocated_int, i, slot;
     char *buf, *filename;
     char **partial_backup_list, **p;
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "remove_files=false", NULL};
@@ -111,7 +111,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup
                 p = &partial_backup_list[slot];
                 p[0] = p[1] = NULL;
 
-                WT_ERR(__wt_strdup(session, filename, p));
+                WT_ERR(__wt_strdup(session, (char *)key->data, p));
                 WT_ERR(__wt_config_getones(session, (char *)value->data, "id", &cval));
                 conn->partial_backup_remove_list[slot] = (uint32_t)cval.val;
                 slot++;
@@ -124,7 +124,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup
         WT_ERR(__wt_metadata_update(session, key->data, value->data));
     }
 
-    F_SET(S2C(session), WT_CONN_WAS_BACKUP);
+    F_SET(conn, WT_CONN_WAS_BACKUP);
     if (restore_partial_backup && partial_backup_list != NULL) {
         /*
          * During partial backup, parse through the partial backup list, and attempt to clean up all
@@ -134,22 +134,8 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup
          * schema, therefore perform a schema drop on the file reference when that happens.
          */
         for (i = 0; partial_backup_list[i] != NULL; ++i) {
-            filename = partial_backup_list[i];
-            /*
-             * Convert the file name to a table metadata reference. Check if the file name has wt
-             * extension. If so, we need to remove the wt suffix too.
-             */
-            if (WT_SUFFIX_MATCH(filename, ".wt")) {
-                buf_size = strlen("table:") + strlen(filename) - strlen(".wt") + 1;
-                WT_ERR(__wt_calloc_def(session, buf_size, &buf));
-                WT_ERR(__wt_snprintf(
-                  buf, buf_size, "table:%.*s", (int)(strlen(filename) - strlen(".wt")), filename));
-            } else {
-                buf_size = strlen("table:") + strlen(filename) + 1;
-                WT_ERR(__wt_calloc_def(session, buf_size, &buf));
-                WT_ERR(__wt_snprintf(buf, buf_size, "table:%.*s", (int)strlen(filename), filename));
-            }
-
+            /* Convert the file name to a table metadata reference. */
+            WT_ERR(__wt_schema_convert_file_to_table(session, partial_backup_list[i], &buf));
             /*
              * Perform schema drop on the table reference to cleanly remove all linked references to
              * table.
@@ -162,12 +148,9 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup
                 continue;
 
             /* Construct the buffer to refer a file entry metadata and perform a schema drop. */
-            buf_size = strlen("file:") + strlen(filename) + 1;
-            WT_ERR(__wt_calloc(session, buf_size, 1, &buf));
-            WT_ERR(__wt_snprintf(buf, buf_size, "file:%s", filename));
             WT_WITH_SCHEMA_LOCK(session,
               WT_WITH_TABLE_WRITE_LOCK(
-                session, ret = __wt_schema_drop(session, (char *)buf, drop_cfg)));
+                session, ret = __wt_schema_drop(session, partial_backup_list[i], drop_cfg)));
             WT_ERR(ret);
             __wt_free(session, buf);
         }

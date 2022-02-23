@@ -1292,6 +1292,8 @@ extern int __wt_schema_colgroup_name(WT_SESSION_IMPL *session, WT_TABLE *table, 
 extern int __wt_schema_colgroup_source(
   WT_SESSION_IMPL *session, WT_TABLE *table, const char *cgname, const char *config, WT_ITEM *buf)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_schema_convert_file_to_table(WT_SESSION_IMPL *session, const char *filename,
+  char **buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_destroy_index(WT_SESSION_IMPL *session, WT_INDEX **idxp)
