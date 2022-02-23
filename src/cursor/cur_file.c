@@ -569,13 +569,12 @@ __curfile_remove(WT_CURSOR *cursor)
 
     if (F_ISSET(cbt, WT_CBT_REPOSITION)) {
         WT_ERR_NOTFOUND_OK(__curfile_reposition(cursor, true, true, NULL), true);
+        /* The key is removed, set the repositon flag again. */
         if (ret == WT_NOTFOUND) {
-            __wt_verbose_notice(session, WT_VERB_ERROR_RETURNS, "%s",
-              "WT_ROLLBACK: rolling back cursor remove as initial position was lost");
-            WT_ERR(WT_ROLLBACK);
+            F_SET(cbt, WT_CBT_REPOSITION);
+            ret = 0;
+            goto done;
         }
-        /* Key must be positioned. */
-        WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_INT));
     }
 
     /*
@@ -617,6 +616,7 @@ __curfile_remove(WT_CURSOR *cursor)
         released = true;
     }
 
+done:
 err:
     /* If we've lost an initial position, we must fail. */
     CURSOR_UPDATE_API_END_RETRY(
