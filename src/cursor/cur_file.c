@@ -122,6 +122,7 @@ __curfile_reposition(WT_CURSOR *cursor, bool exact_match, bool next, bool *moved
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     session = CUR2S(cursor);
+    exact = 0;
 
     WT_STAT_CONN_DATA_INCR(session, cursor_reposition);
 
@@ -131,13 +132,13 @@ __curfile_reposition(WT_CURSOR *cursor, bool exact_match, bool next, bool *moved
     if (!F_ISSET(cursor, WT_CURSTD_KEY_EXT))
         WT_ERR_PANIC(session, EINVAL, "reposition flag is set without a search key");
 
-    WT_ERR(__wt_btcur_search_near(cbt, &exact));
-
-    if (!exact_match) {
+    if (exact_match)
+        WT_ERR(__wt_btcur_search(cbt));
+    else {
+        WT_ERR(__wt_btcur_search_near(cbt, &exact));
         if ((exact > 0 && next) || (exact < 0 && !next))
             *moved = true;
-    } else if (exact != 0)
-        WT_ERR(WT_NOTFOUND);
+    }
 
     /* Search maintains a position, key and value. */
     WT_ASSERT(session,
@@ -569,9 +570,10 @@ __curfile_remove(WT_CURSOR *cursor)
 
     if (F_ISSET(cbt, WT_CBT_REPOSITION)) {
         WT_ERR_NOTFOUND_OK(__curfile_reposition(cursor, true, true, NULL), true);
-        /* The key is removed, set the repositon flag again. */
+        /* The key is removed, set the reposition flag again. */
         if (ret == WT_NOTFOUND) {
             F_SET(cbt, WT_CBT_REPOSITION);
+            positioned = released = true;
             ret = 0;
             goto done;
         }
