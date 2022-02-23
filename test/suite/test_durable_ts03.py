@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
+import wiredtiger
 from wtscenario import make_scenarios
 
 # test_durable_ts03.py
