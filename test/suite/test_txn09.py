@@ -33,7 +33,7 @@
 import fnmatch, os, shutil, time
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
-import wttest
+import wiredtiger, wttest
 
 class test_txn09(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_txn09'
@@ -144,13 +144,10 @@ class test_txn09(wttest.WiredTigerTestCase, suite_subprocess):
                 c[k] = c[k1] = i + 2
                 current[k] = current[k1] = i + 2
             elif op == 'remove':
-                # Ensure that the key k exists so that the delete oepration doesn't return an error.
                 c.set_key(k)
-                if c.search() == 0:
-                    del c[k]
+                c.remove()
                 c.set_key(k1)
-                if c.search() == 0:
-                    del c[k1]
+                c.remove()
                 if k in current:
                     del current[k]
                 if k1 in current:
