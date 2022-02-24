@@ -84,7 +84,7 @@ class test_backup27(backup_base):
         # After the full backup, open and recover the backup database.
         # Make sure we properly recover even though the log file will have
         # records for the newly created table file id.
-        backup_conn = self.wiredtiger_open(self.dir, "restore_partial_backup=true")
+        backup_conn = self.wiredtiger_open(self.dir, "backup_partial_restore=true")
         bkup_session = backup_conn.open_session()
 
         self.validate_timestamp_data(bkup_session, self.uri, "key", 0, 1)

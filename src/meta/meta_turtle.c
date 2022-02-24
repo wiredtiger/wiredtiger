@@ -66,7 +66,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup
     WT_DECL_RET;
     WT_FSTREAM *fs;
     size_t allocated_id, allocated_name, i, slot;
-    char *buf, *filename, **p, **partial_backup_names;
+    char *buf, *metadata_key, **p, **partial_backup_names;
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "remove_files=false", NULL};
     bool exist;
 
@@ -99,28 +99,33 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup
          * the partial backup list and the partial backup remove list so we can clean up the
          * metadata and history store afterwards.
          */
-        filename = (char *)key->data;
-        if (restore_partial_backup && WT_PREFIX_SKIP(filename, "file:")) {
-            if (WT_SUFFIX_MATCH(filename, ".wti") || WT_SUFFIX_MATCH(filename, ".lsm") ||
-              WT_SUFFIX_MATCH(dhandle->name, ".wtobj")) {
-                WT_ERR_MSG(session, EINVAL,
-                  "%s: partial backup currently doesn't support index or lsm files.", filename);
-            }
-            WT_ERR(__wt_fs_exist(session, filename, &exist));
-            if (!exist) {
-                WT_ERR(__wt_realloc_def(
-                  session, &allocated_id, slot + 1, &conn->partial_backup_remove_ids));
-                /* Leave a NULL at the end to mark the end of the list. */
-                WT_ERR(__wt_realloc_def(session, &allocated_name, slot + 2, &partial_backup_names));
-                p = &partial_backup_names[slot];
-                p[0] = p[1] = NULL;
+        metadata_key = (char *)key->data;
+        if (restore_partial_backup) {
+            if (WT_PREFIX_SKIP(metadata_key, "file:")) {
+                if (WT_SUFFIX_MATCH(metadata_key, ".wti") || WT_SUFFIX_MATCH(metadata_key, ".lsm") || WT_SUFFIX_MATCH(metadata_key, ".wtobj") || WT_SUFFIX_MATCH(metadata_key, ".bf"))
+                    WT_ERR_MSG(session, EINVAL,
+                    "%s: partial backup currently doesn't support index, lsm, tiered storage or bloom filter files.", metadata_key);
 
-                WT_ERR(__wt_strndup(session, key->data, key->size, p));
-                WT_ERR(__wt_config_getones(session, value->data, "id", &cval));
-                conn->partial_backup_remove_ids[slot] = (uint32_t)cval.val;
-                slot++;
+                WT_ERR(__wt_fs_exist(session, metadata_key, &exist));
+                if (!exist) {
+                    WT_ERR(__wt_realloc_def(
+                    session, &allocated_id, slot + 1, &conn->partial_backup_remove_ids));
+                    /* Leave a NULL at the end to mark the end of the list. */
+                    WT_ERR(__wt_realloc_def(session, &allocated_name, slot + 2, &partial_backup_names));
+                    p = &partial_backup_names[slot];
+                    p[0] = p[1] = NULL;
+
+                    WT_ERR(__wt_strndup(session, key->data, key->size, p));
+                    WT_ERR(__wt_config_getones(session, value->data, "id", &cval));
+                    conn->partial_backup_remove_ids[slot] = (uint32_t)cval.val;
+                    slot++;
+                }
+            } else if (WT_PREFIX_MATCH(metadata_key, "table:")) {
+                WT_ERR(__wt_config_getones(session, (char *)value->data, "colgroups", &cval));
+                WT_ERR(__wt_msg(session, "testing colgroups %s\n", (char *) cval.str));
             }
         }
+        
         /*
          * In the case of partial backup restore, add the entry to the metadata even if the file
          * doesn't exist so that we can correctly drop all related entries via the schema code

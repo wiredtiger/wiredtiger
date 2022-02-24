@@ -2584,7 +2584,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     const WT_NAME_FLAG *ft;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
-    bool config_base_set, restore_partial_backup, try_salvage, verify_meta;
+    bool config_base_set, backup_partial_restore, try_salvage, verify_meta;
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
 
@@ -2974,9 +2974,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__wt_config_gets(session, cfg, "verify_metadata", &cval));
     verify_meta = cval.val;
-    WT_ERR(__wt_config_gets(session, cfg, "restore_partial_backup", &cval));
-    restore_partial_backup = cval.val;
-    WT_ERR(__wt_turtle_init(session, verify_meta, restore_partial_backup));
+    WT_ERR(__wt_config_gets(session, cfg, "backup_partial_restore", &cval));
+    backup_partial_restore = cval.val;
+    WT_ERR(__wt_turtle_init(session, verify_meta, backup_partial_restore));
 
     /* Verify the metadata file. */
     if (verify_meta) {
