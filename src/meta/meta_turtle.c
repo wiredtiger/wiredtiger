@@ -102,9 +102,9 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup
         metadata_key = (char *)key->data;
         if (restore_partial_backup) {
             if (WT_PREFIX_SKIP(metadata_key, "file:")) {
-                if (WT_SUFFIX_MATCH(metadata_key, ".wti") || WT_SUFFIX_MATCH(metadata_key, ".lsm") || WT_SUFFIX_MATCH(metadata_key, ".wtobj") || WT_SUFFIX_MATCH(metadata_key, ".bf"))
+                if (WT_SUFFIX_MATCH(metadata_key, ".wti") || WT_SUFFIX_MATCH(metadata_key, ".wtobj"))
                     WT_ERR_MSG(session, EINVAL,
-                    "%s: partial backup currently doesn't support index, lsm, tiered storage or bloom filter files.", metadata_key);
+                    "%s: partial backup currently doesn't support index, tiered storage files.", metadata_key);
 
                 WT_ERR(__wt_fs_exist(session, metadata_key, &exist));
                 if (!exist) {
@@ -121,8 +121,13 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup
                     slot++;
                 }
             } else if (WT_PREFIX_MATCH(metadata_key, "table:")) {
-                WT_ERR(__wt_config_getones(session, (char *)value->data, "colgroups", &cval));
-                WT_ERR(__wt_msg(session, "testing colgroups %s\n", (char *) cval.str));
+                WT_ERR(__wt_config_getones(session, value->data, "colgroups", &cval));
+                if (cval.len != 0)
+                    WT_ERR_MSG(session, EINVAL,
+                        "%s: partial backup currently doesn't support colgroup files.", metadata_key);
+            } else if (WT_PREFIX_MATCH(metadata_key, "lsm:")) {
+                WT_ERR_MSG(session, EINVAL,
+                    "%s: partial backup currently doesn't support lsm files.", metadata_key);
             }
         }
         
