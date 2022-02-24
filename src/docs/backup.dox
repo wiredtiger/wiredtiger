@@ -1,12 +1,13 @@
 /*! @class doc_bulk_durability
 
-Bulk-loads are not commit-level durable, that is, the creation and
+Bulk loads are not commit-level durable, that is, the creation and
 bulk-load of an object will not appear in the database log files.\  For
 this reason, applications doing incremental backups after a full backup
-should repeat the full backup step after doing a bulk-load to make the
-bulk-load durable.\ In addition, incremental backups after a bulk-load
+should repeat the full backup step after doing a bulk load to make the
+bulk load durable.\ In addition, incremental backups after a bulk load
+(without an intervening full backup)
 can cause recovery to report errors because there are log records that
-apply to data files which don't appear in the backup.
+apply to data files which do not appear in the backup.
 
 */
 
@@ -126,7 +127,7 @@ using block modifications:
 additional configuration \c incremental=(enabled=true,this_id="ID1").
 The identifier specified in \c this_id starts block tracking and that
 identifier can be used in the future as the source of an incremental
-backup.
+backup. Identifiers can be any text string, but should be unique.
 
 2. Begin the incremental backup by opening a backup cursor with the
 \c backup: URI and config string of \c incremental=(src_id="ID1",this_id="ID2").
@@ -153,8 +154,11 @@ will be one of \c WT_BACKUP_FILE or \c WT_BACKUP_RANGE. For \c WT_BACKUP_RANGE,
 read the block from the source database file indicated by the file offset and
 size pair and write the block to the same offset in the
 backup database file, replacing the portion of the file represented by
-the offset/size pair.  It is not an error for an offset/size pair to extend past
-the current end of the source file, and any missing file data should be ignored.
+the offset/size pair. \warning It is not an error for an offset/size pair to extend past
+the current end of the source file, and any missing file data should be ignored. This is
+because there can be a long time between incremental backups and the file can expand and
+shrink a lot in the meantime.
+
 For \c WT_BACKUP_FILE, the user can choose to copy the entire file in
 any way they choose, or to use the offset/size pair which will
 indicate the expected size WiredTiger knew at the time of the call.

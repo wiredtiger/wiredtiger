@@ -215,6 +215,14 @@ cursor_ops(WT_SESSION *session)
     /*! [Return the previous record] */
 
     {
+        /*! [Get the table's largest key] */
+        const char *largest_key;
+        error_check(cursor->largest_key(cursor));
+        error_check(cursor->get_key(cursor, &largest_key));
+        /*! [Get the table's largest key] */
+    }
+
+    {
         WT_CURSOR *other = NULL;
         error_check(session->open_cursor(session, NULL, cursor, NULL, &other));
 
@@ -855,15 +863,17 @@ transaction_ops(WT_SESSION *session_arg)
     {
         /*! [reset snapshot] */
         /*
-         * Resets snapshots for snapshot isolation transactions to update their existing snapshot.
-         * It raises an error when this API is used for isolation other than snapshot isolation
-         * mode.
+         * Get a new read snapshot for the current transaction. This is only permitted for
+         * transactions running with snapshot isolation.
          */
+        const char *value1, *value2; /* For the cursor's string value. */
         error_check(session->open_cursor(session, "table:mytable", NULL, NULL, &cursor));
         error_check(session->begin_transaction(session, "isolation=snapshot"));
         cursor->set_key(cursor, "some-key");
         error_check(cursor->search(cursor));
+        error_check(cursor->get_value(cursor, &value1));
         error_check(session->reset_snapshot(session));
+        error_check(cursor->get_value(cursor, &value2)); /* May be different. */
         error_check(session->commit_transaction(session, NULL));
         /*! [reset snapshot] */
     }
@@ -891,6 +901,21 @@ transaction_ops(WT_SESSION *session_arg)
     }
 
     error_check(session->begin_transaction(session, NULL));
+
+    {
+        /*! [hexadecimal timestamp] */
+        uint64_t ts;
+        /* 2 bytes for each byte converted to hexadecimal; sizeof includes the trailing nul byte */
+        char timestamp_buf[sizeof("commit_timestamp=") + 2 * sizeof(uint64_t)];
+
+        (void)snprintf(timestamp_buf, sizeof(timestamp_buf), "commit_timestamp=%x", 20u);
+        error_check(session->timestamp_transaction(session, timestamp_buf));
+
+        error_check(conn->query_timestamp(conn, timestamp_buf, "get=all_durable"));
+        ts = strtoull(timestamp_buf, NULL, 16);
+        /*! [hexadecimal timestamp] */
+        (void)ts;
+    }
 
     {
         /*! [query timestamp] */

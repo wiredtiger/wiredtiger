@@ -1,0 +1,63 @@
+/*! @page timestamp_misc Miscellaneous timestamp topics
+
+@section timestamp_misc_rts Using rollback-to-stable with timestamps
+
+Applications can explicitly roll back the system to a specific stable timestamp
+by calling the WT_CONNECTION::rollback_to_stable method. Applications must first
+set the \c stable timestamp using WT_CONNECTION::set_timestamp and then call
+WT_CONNECTION::rollback_to_stable, which will discard all updates to
+checkpoint-durable tables that have commit timestamps more recent than the set
+stable timestamp.
+
+Logged tables and updates made without an associated commit timestamp are
+unaffected.
+
+The database must be quiescent during this process. Applications should close
+or reset all open cursors before calling the WT_CONNECTION::rollback_to_stable
+method.
+
+@section timestamp_misc_diagnostic Using diagnostic configurations to enforce timestamp usage
+
+The WT_SESSION::create method supports additional checking of timestamp usage on
+a per-key or per-table basis. While these usage checks can decrease application
+performance and applications may not choose to configure them in production
+settings, they are strongly recommended during development.
+
+Setting the \c write_timestamp_usage configuration specifies how timestamps are
+expected to be used by the table:
+
+| Configuration | Description |
+|---------------|-------------|
+| always | Require a commit timestamp every time a key in the table is updated. |
+| ordered | As soon as a commit timestamp is used for updating a key in the table, all future updates to the key will require a commit timestamp as well, and each update must have a later commit timestamp than any previous update. |
+| mixed_mode | Allow updates both with and without timestamps, and further allow updates in any timestamp order. (This is WiredTiger's default behavior, although future releases are expected to disallow updates with out-of-order timestamps.) |
+| never | Require that no updates to the table have a timestamp. |
+
+The \c write_timestamp_usage configuration is expected to be used with the
+\c assert and \c verbose configurations to the WT_SESSION::create method. The
+\c "assert(read_timestamp)" configuration can require that  timestamps always
+or never be used on reads with the table. The \c "assert(write_timestamp)"
+configuration maps to the \c write_timestamp_usage setting.  In both cases,
+setting the \c assert configuration will result in a core dump if WiredTiger
+detects a violation of the configured policy. Alternatively, setting the
+\c verbose configuration results in a diagnostic message to the application's
+WT_EVENT_HANDLER::handle_error method and an error return from of the called
+WiredTiger API where the error was detected.
+
+Note this is a best-effort check by WiredTiger, and there are cases where
+application misbehavior will not be detected.
+
+@section timestamp_misc_reset_snapshot Resetting the snapshot
+
+Transactions that have not set \c read_timestamp can use
+WT_SESSION::reset_snapshot with timestamped tables as with
+non-timestamped tables, to get a new snapshot of the database to read
+from. See @ref snapshot_reset.
+Transactions that have set \c read_timestamp can also call
+WT_SESSION::reset_snapshot, but it will have no effect.
+
+@section timestamps_misc_in_memory In-memory configurations and timestamps
+
+Timestamps are supported for in-memory databases.
+
+*/

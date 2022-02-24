@@ -329,16 +329,21 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
 static inline void
 __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
+    WT_BTREE *btree;
     WT_TXN *txn;
     WT_UPDATE *upd;
 
+    btree = op->btree;
     txn = session->txn;
 
     /*
-     * Updates in the metadata never get timestamps (either now or at commit): metadata cannot be
-     * read at a point in time, only the most recently committed data matches files on disk.
+     * Metadata updates, updates with no commit time, and logged objects don't have timestamps, and
+     * only the most recently committed data matches files on disk. The check for in-memory files
+     * comes first: in-memory files do have timestamps, but aren't logged.
      */
-    if (WT_IS_METADATA(op->btree->dhandle) || !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+    if (WT_IS_METADATA(btree->dhandle) || !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+        return;
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(btree, WT_BTREE_NO_LOGGING))
         return;
 
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
@@ -470,11 +475,13 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
     /*
      * The read of the transaction ID pinned by a checkpoint needs to be carefully ordered: if a
      * checkpoint is starting and we have to start checking the pinned ID, we take the minimum of it
-     * with the oldest ID, which is what we want.
+     * with the oldest ID, which is what we want. The logged tables are excluded as part of RTS, so
+     * there is no need of holding their oldest_id
      */
     WT_READ_BARRIER();
 
-    if (!F_ISSET(conn, WT_CONN_RECOVERING)) {
+    if (!F_ISSET(conn, WT_CONN_RECOVERING) || session->dhandle == NULL ||
+      !F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING)) {
         /*
          * Checkpoint transactions often fall behind ordinary application threads. If there is an
          * active checkpoint, keep changes until checkpoint is finished.
@@ -514,6 +521,12 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
      */
     if (!txn_global->has_pinned_timestamp)
         return;
+
+    /* If we have a version cursor open, use the pinned timestamp when it is opened. */
+    if (S2C(session)->version_cursor_count > 0) {
+        *pinned_tsp = txn_global->version_cursor_pinned_timestamp;
+        return;
+    }
 
     *pinned_tsp = pinned_ts = txn_global->pinned_timestamp;
 

@@ -301,11 +301,12 @@ struct __wt_connection_impl {
 
     /* Locked: handles in each bucket */
     uint64_t *dh_bucket_count;
-    uint64_t dhandle_count;     /* Locked: handles in the queue */
-    u_int open_btree_count;     /* Locked: open writable btree count */
-    uint32_t next_file_id;      /* Locked: file ID counter */
-    uint32_t open_file_count;   /* Atomic: open file handle count */
-    uint32_t open_cursor_count; /* Atomic: open cursor handle count */
+    uint64_t dhandle_count;        /* Locked: handles in the queue */
+    u_int open_btree_count;        /* Locked: open writable btree count */
+    uint32_t next_file_id;         /* Locked: file ID counter */
+    uint32_t open_file_count;      /* Atomic: open file handle count */
+    uint32_t open_cursor_count;    /* Atomic: open cursor handle count */
+    uint32_t version_cursor_count; /* Atomic: open version cursor count */
 
     /*
      * WiredTiger allocates space for 50 simultaneous sessions (threads of control) by default.
@@ -622,23 +623,22 @@ struct __wt_connection_impl {
 #define WT_CONN_CLOSING 0x000010u
 #define WT_CONN_CLOSING_CHECKPOINT 0x000020u
 #define WT_CONN_CLOSING_NO_MORE_OPENS 0x000040u
-#define WT_CONN_CLOSING_TIMESTAMP 0x000080u
-#define WT_CONN_COMPATIBILITY 0x000100u
-#define WT_CONN_DATA_CORRUPTION 0x000200u
-#define WT_CONN_EVICTION_RUN 0x000400u
-#define WT_CONN_FILE_CLOSE_SYNC 0x000800u
-#define WT_CONN_HS_OPEN 0x001000u
-#define WT_CONN_INCR_BACKUP 0x002000u
-#define WT_CONN_IN_MEMORY 0x004000u
-#define WT_CONN_LEAK_MEMORY 0x008000u
-#define WT_CONN_LSM_MERGE 0x010000u
-#define WT_CONN_OPTRACK 0x020000u
-#define WT_CONN_PANIC 0x040000u
-#define WT_CONN_READONLY 0x080000u
-#define WT_CONN_RECONFIGURING 0x100000u
-#define WT_CONN_RECOVERING 0x200000u
-#define WT_CONN_SALVAGE 0x400000u
-#define WT_CONN_WAS_BACKUP 0x800000u
+#define WT_CONN_COMPATIBILITY 0x000080u
+#define WT_CONN_DATA_CORRUPTION 0x000100u
+#define WT_CONN_EVICTION_RUN 0x000200u
+#define WT_CONN_FILE_CLOSE_SYNC 0x000400u
+#define WT_CONN_HS_OPEN 0x000800u
+#define WT_CONN_INCR_BACKUP 0x001000u
+#define WT_CONN_IN_MEMORY 0x002000u
+#define WT_CONN_LEAK_MEMORY 0x004000u
+#define WT_CONN_LSM_MERGE 0x008000u
+#define WT_CONN_OPTRACK 0x010000u
+#define WT_CONN_PANIC 0x020000u
+#define WT_CONN_READONLY 0x040000u
+#define WT_CONN_RECONFIGURING 0x080000u
+#define WT_CONN_RECOVERING 0x100000u
+#define WT_CONN_SALVAGE 0x200000u
+#define WT_CONN_WAS_BACKUP 0x400000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };

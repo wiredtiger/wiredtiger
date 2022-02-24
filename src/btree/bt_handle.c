@@ -388,11 +388,17 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     if (WT_IS_METADATA(btree->dhandle))
         F_SET(btree, WT_BTREE_IGNORE_CACHE);
 
-    WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
-    if (cval.val)
-        F_CLR(btree, WT_BTREE_NO_LOGGING);
-    else
-        F_SET(btree, WT_BTREE_NO_LOGGING);
+    /*
+     * Turn on logging when it's enabled in the database and not disabled for the tree. (Other code
+     * only checks the tree flag, so it's important the tree flag match the overall configuration.)
+     */
+    F_SET(btree, WT_BTREE_NO_LOGGING);
+    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) {
+        WT_ASSERT(session, !F_ISSET(conn, WT_CONN_IN_MEMORY));
+        WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
+        if (cval.val)
+            F_CLR(btree, WT_BTREE_NO_LOGGING);
+    }
 
     WT_RET(__wt_config_gets(session, cfg, "tiered_object", &cval));
     if (cval.val)
@@ -539,8 +545,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
      * happen during the recovery due to the unavailability of history store file.
      */
     if (!F_ISSET(conn, WT_CONN_RECOVERING) || WT_IS_METADATA(btree->dhandle) ||
-      __wt_btree_immediately_durable(session) ||
-      ckpt->run_write_gen < conn->last_ckpt_base_write_gen)
+      !F_ISSET(btree, WT_BTREE_NO_LOGGING) || ckpt->run_write_gen < conn->last_ckpt_base_write_gen)
         btree->base_write_gen = btree->run_write_gen;
     else
         btree->base_write_gen = ckpt->run_write_gen;
@@ -989,32 +994,11 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_btree_immediately_durable --
- *     Check whether this btree is configured for immediate durability.
- */
-bool
-__wt_btree_immediately_durable(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *btree;
-
-    btree = S2BT(session);
-
-    /*
-     * This is used to determine whether timestamp updates should be rolled back for this btree.
-     * With in-memory, the logging setting on tables is still important and when enabled they should
-     * be considered "durable".
-     */
-    return ((FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED) ||
-              (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))) &&
-      !F_ISSET(btree, WT_BTREE_NO_LOGGING));
-}
-
-/*
  * __wt_btree_switch_object --
  *     Switch to a writeable object for a tiered btree.
  */
 int
-__wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t objectid, uint32_t flags)
+__wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t objectid)
 {
     WT_BM *bm;
 
@@ -1024,5 +1008,5 @@ __wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t objectid, uint32_t f
      * number.
      */
     bm = S2BT(session)->bm;
-    return (bm == NULL ? 0 : bm->switch_object(bm, session, objectid, flags));
+    return (bm == NULL ? 0 : bm->switch_object(bm, session, objectid));
 }

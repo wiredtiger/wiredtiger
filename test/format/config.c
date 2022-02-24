@@ -251,10 +251,11 @@ config_table(TABLE *table, void *arg)
     table->max_mem_page = MEGABYTE(TV(BTREE_MEMORY_PAGE_MAX));
 
     /*
-     * Keep the number of rows and keys/values small for in-memory runs (overflow items aren't an
-     * issue for in-memory configurations and it helps prevents cache overflow).
+     * Keep the number of rows and keys/values small for in-memory and direct I/O runs (overflow
+     * items aren't an issue for in-memory configurations and it helps prevents cache overflow, and
+     * direct I/O can be so slow the additional I/O for overflow items causes eviction to stall).
      */
-    if (GV(RUNS_IN_MEMORY)) {
+    if (GV(RUNS_IN_MEMORY) || GV(DISK_DIRECT_IO)) {
         if (!config_explicit(table, "runs.rows") && TV(RUNS_ROWS) > 1000000)
             config_single(table, "runs.rows=1000000", false);
         if (!config_explicit(table, "btree.key_max"))
@@ -1050,11 +1051,13 @@ config_transaction(void)
             testutil_die(EINVAL, "prepare is incompatible with logging");
     }
 
-    /* Transaction timestamps are incompatible with implicit transactions. */
+    /* Transaction timestamps are incompatible with implicit transactions and logging. */
     if (GV(TRANSACTION_TIMESTAMPS) && config_explicit(NULL, "transaction.timestamps")) {
         if (GV(TRANSACTION_IMPLICIT) && config_explicit(NULL, "transaction.implicit"))
             testutil_die(
               EINVAL, "transaction.timestamps is incompatible with implicit transactions");
+        if (GV(LOGGING) && config_explicit(NULL, "logging"))
+            testutil_die(EINVAL, "transaction.timestamps is incompatible with logging");
     }
 
     /*
@@ -1074,11 +1077,15 @@ config_transaction(void)
     if (GV(TRANSACTION_TIMESTAMPS)) {
         if (!config_explicit(NULL, "transaction.implicit"))
             config_off(NULL, "transaction.implicit");
+        if (!config_explicit(NULL, "logging"))
+            config_off(NULL, "logging");
         if (!config_explicit(NULL, "ops.salvage"))
             config_off(NULL, "ops.salvage");
     }
-    if (GV(LOGGING))
+    if (GV(LOGGING)) {
         config_off(NULL, "ops.prepare");
+        config_off(NULL, "transaction.timestamps");
+    }
     if (GV(TRANSACTION_IMPLICIT))
         config_off(NULL, "transaction.timestamps");
     if (GV(OPS_SALVAGE))

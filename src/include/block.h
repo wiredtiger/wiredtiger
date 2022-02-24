@@ -199,7 +199,7 @@ struct __wt_bm {
     int (*salvage_valid)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t, bool);
     int (*size)(WT_BM *, WT_SESSION_IMPL *, wt_off_t *);
     int (*stat)(WT_BM *, WT_SESSION_IMPL *, WT_DSRC_STATS *stats);
-    int (*switch_object)(WT_BM *, WT_SESSION_IMPL *, uint32_t, uint32_t);
+    int (*switch_object)(WT_BM *, WT_SESSION_IMPL *, uint32_t);
     int (*sync)(WT_BM *, WT_SESSION_IMPL *, bool);
     int (*verify_addr)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     int (*verify_end)(WT_BM *, WT_SESSION_IMPL *);
@@ -230,6 +230,7 @@ struct __wt_block {
 
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
+    bool linked;
 
     WT_BLOCK **related;       /* Related objects */
     size_t related_allocated; /* Size of related object array */

@@ -39,6 +39,8 @@ define_c_test(
     DIR_NAME rwlock
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_rwlock>/WT_HOME>
     DEPENDS "WT_POSIX"
+    ADDITIONAL_FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/time_shift_test.sh
 )
 
 define_c_test(
@@ -64,8 +66,7 @@ define_c_test(
 #     SOURCES tiered_abort/main.c
 #     DIR_NAME tiered_abort
 #     # We need to manually specify the location of the local store library
-#     # and build directory as this path is more dynamic compared to layout autoconf
-#     # produces in build_posix.
+#     # and build directory as the build path is more dynamic.
 #     FLAGS "-DWT_STORAGE_LIB=\"ext/storage_sources/local_store/libwiredtiger_local_store.so\""
 #     VARIANTS
 #         "test_tiered_abort_5_thread;-b ${CMAKE_BINARY_DIR} -t 10 -T 5"
@@ -191,8 +192,7 @@ define_c_test(
     SOURCES wt2909_checkpoint_integrity/main.c
     DIR_NAME wt2909_checkpoint_integrity
     # We need to manually specify the location of the fail fs library
-    # and build directory as this path is more dynamic compared to layout autoconf
-    # produces in build_posix.
+    # and build directory as the build path is more dynamic.
     FLAGS "-DWT_FAIL_FS_LIB=\"ext/test/fail_fs/libwiredtiger_fail_fs.so\""
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt2909_checkpoint_integrity/smoke.sh
     ARGUMENTS -b ${CMAKE_BINARY_DIR} $<TARGET_FILE:test_wt2909_checkpoint_integrity>
@@ -211,8 +211,7 @@ define_c_test(
     SOURCES wt3120_filesys/main.c
     DIR_NAME wt3120_filesys
     # We need to manually specify the location of the fail fs library
-    # and build directory as this path is more dynamic compared to layout autoconf
-    # produces in build_posix.
+    # and build directory as the build path is more dynamic.
     FLAGS "-DWT_FAIL_FS_LIB=\"ext/test/fail_fs/libwiredtiger_fail_fs.so\""
     ARGUMENTS -b ${CMAKE_BINARY_DIR} -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt3120_filesys>/WT_HOME>
     DEPENDS "WT_POSIX"
@@ -348,5 +347,13 @@ define_c_test(
     SOURCES wt8246_compact_rts_data_correctness/main.c
     DIR_NAME wt8246_compact_rts_data_correctness
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8246_compact_rts_data_correctness>/WT_HOME>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt8659_reconstruct_database_from_logs
+    SOURCES wt8659_reconstruct_database_from_logs/main.c
+    DIR_NAME wt8659_reconstruct_database_from_logs
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8659_reconstruct_database_from_logs>/WT_HOME>
     DEPENDS "WT_POSIX"
 )

@@ -645,6 +645,17 @@ struct __wt_cursor {
 	int __F(close)(WT_HANDLE_CLOSED(WT_CURSOR) *cursor);
 
 	/*!
+	 * Get the table's largest key, ignoring visibility. This method is only supported by
+	 * file: or table: objects. The cursor ends with no position.
+	 *
+	 * @snippet ex_all.c Get the table's largest key
+	 *
+	 * @param cursor the cursor handle
+	 * @errors
+	 */
+	int __F(largest_key)(WT_CURSOR *cursor);
+
+	/*!
 	 * Reconfigure the cursor.
 	 *
 	 * The cursor is reset.
@@ -663,19 +674,6 @@ struct __wt_cursor {
 	 * @errors
 	 */
 	int __F(reconfigure)(WT_CURSOR *cursor, const char *config);
-
-	/*!
-	 * Get the largest key of the cursor regardless of visibility.
-	 * The cursor is not positioned after calling this api. Only supported by data cursors.
-	 *
-	 * @snippet ex_all.c Reset the cursor
-	 *
-	 * @param cursor the cursor handle
-	 * @errors
-	 * If \c read_timestamp is set, EINVAL is returned.
-	 * Also, calling \c WT_CURSOR::get_key after this api call returns EINVAL.
-	 */
-	int __F(largest_key)(WT_CURSOR *cursor);
 
 	/*
 	 * Protected fields, only to be used by cursor implementations.
@@ -968,7 +966,8 @@ struct __wt_session {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;this_id, a string that identifies the
 	 * current system state as a future backup source for an incremental backup via 'src_id'.
 	 * This identifier is required when opening an incremental backup cursor and an error will
-	 * be returned if one is not provided., a string; default empty.}
+	 * be returned if one is not provided.  The identifiers can be any text string\, but should
+	 * be unique., a string; default empty.}
 	 * @config{ ),,}
 	 * @config{next_random, configure the cursor to return a pseudo-random record from the
 	 * object when the WT_CURSOR::next method is called; valid only for row-store cursors.  See
@@ -1718,20 +1717,16 @@ struct __wt_session {
 	 * greater than or equal to 1; default \c 0.}
 	 * @config{priority, priority of the transaction for resolving conflicts.  Transactions with
 	 * higher values are less likely to abort., an integer between -100 and 100; default \c 0.}
-	 * @config{read_before_oldest, allows the caller to specify a read timestamp less than the
-	 * oldest timestamp but newer than or equal to the pinned timestamp.  Cannot be set to true
-	 * while also rounding up the read timestamp.  See @ref transaction_timestamps., a boolean
-	 * flag; default \c false.}
 	 * @config{read_timestamp, read using the specified timestamp.  The supplied value must not
-	 * be older than the current oldest timestamp.  See @ref transaction_timestamps., a string;
+	 * be older than the current oldest timestamp.  See @ref timestamp_txn_api., a string;
 	 * default empty.}
 	 * @config{roundup_timestamps = (, round up timestamps of the transaction.  This setting
-	 * alters the visibility expected in a transaction.  See @ref transaction_timestamps., a set
-	 * of related configuration options defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-	 * prepared, applicable only for prepared transactions.  Indicates if the prepare timestamp
-	 * and the commit timestamp of this transaction can be rounded up.  If the prepare timestamp
-	 * is less than the oldest timestamp\, the prepare timestamp will be rounded to the oldest
+	 * alters the visibility expected in a transaction.  See @ref timestamp_roundup., a set of
+	 * related configuration options defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;prepared,
+	 * applicable only for prepared transactions.  Indicates if the prepare timestamp and the
+	 * commit timestamp of this transaction can be rounded up.  If the prepare timestamp is less
+	 * than the stable timestamp\, the prepare timestamp will be rounded to the stable
 	 * timestamp.  If the commit timestamp is less than the prepare timestamp\, the commit
 	 * timestamp will be rounded up to the prepare timestamp., a boolean flag; default \c
 	 * false.}
@@ -1761,13 +1756,16 @@ struct __wt_session {
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.commit_transaction, see dist/api_data.py}
 	 * @config{commit_timestamp, set the commit timestamp for the current transaction.  The
-	 * supplied value must not be older than the first commit timestamp set for the current
-	 * transaction.  The value must also not be older than the current oldest and stable
-	 * timestamps.  See @ref transaction_timestamps., a string; default empty.}
-	 * @config{durable_timestamp, set the durable timestamp for the current transaction.  The
+	 * supplied value must not be older than the first commit timestamp already set for the
+	 * current transaction\, if any.  The value must also not be older than the current oldest
+	 * and stable timestamps.  For prepared transactions\, exactly one commit timestamp is
+	 * required; it must not be older than the prepare timestamp.  See @ref timestamp_txn_api.,
+	 * a string; default empty.}
+	 * @config{durable_timestamp, set the durable timestamp for the current transaction.
+	 * Required for the commit of a prepared transaction\, and otherwise not permitted.  The
 	 * supplied value must not be older than the commit timestamp set for the current
-	 * transaction.  The value must also not be older than the current stable timestamp.  See
-	 * @ref transaction_timestamps., a string; default empty.}
+	 * transaction.  The value must also not be older than the current oldest and stable
+	 * timestamps.  See @ref timestamp_prepare., a string; default empty.}
 	 * @config{operation_timeout_ms, when non-zero\, a requested limit on the time taken to
 	 * complete operations in this transaction.  Time is measured in real time milliseconds from
 	 * the start of each WiredTiger API call.  There is no guarantee any operation will not take
@@ -1776,7 +1774,7 @@ struct __wt_session {
 	 * greater than or equal to 1; default \c 0.}
 	 * @config{sync, override whether to sync log records when the transaction commits\,
 	 * inherited from ::wiredtiger_open \c transaction_sync.  The \c off setting does not wait
-	 * for record to be written or synchronized.  The \c on setting forces log records to be
+	 * for records to be written or synchronized.  The \c on setting forces log records to be
 	 * written to the storage device., a string\, chosen from the following options: \c "off"\,
 	 * \c "on"; default empty.}
 	 * @configend
@@ -1802,33 +1800,13 @@ struct __wt_session {
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.prepare_transaction, see dist/api_data.py}
 	 * @config{prepare_timestamp, set the prepare timestamp for the updates of the current
-	 * transaction.  The supplied value must not be older than any active read timestamps.  See
-	 * @ref transaction_timestamps., a string; default empty.}
+	 * transaction.  The supplied value must not be older than any active read timestamps\, and
+	 * must not be older than the current stable timestamp.  See @ref timestamp_prepare., a
+	 * string; default empty.}
 	 * @configend
 	 * @errors
 	 */
 	int __F(prepare_transaction)(WT_SESSION *session, const char *config);
-
-	/*!
-	 * Reset the snapshot.
-	 *
-	 * This method resets snapshots for snapshot isolation transactions to
-	 * update their existing snapshot. It raises an error when this API
-	 * is used for isolation other than snapshot isolation mode or when the session
-	 * has performed any write operations.
-	 * This API internally releases the current snapshot and gets the new running
-	 * transactions snapshot to avoid pinning the content in the database that is no
-	 * longer needed. Applications that don't use read_timestamp for the search may
-	 * see different results compared to earlier with the updated snapshot.
-	 *
-	 * @requires_transaction
-	 *
-	 * @snippet ex_all.c reset snapshot
-	 *
-	 * @param session the session handle
-	 * @errors
-	 */
-	int __F(reset_snapshot)(WT_SESSION *session);
 
 	/*!
 	 * Roll back the current transaction.
@@ -1853,6 +1831,35 @@ struct __wt_session {
 	 * @errors
 	 */
 	int __F(rollback_transaction)(WT_SESSION *session, const char *config);
+	/*! @} */
+
+	/*!
+	 * @name Transaction timestamps
+	 * @{
+	 */
+	/*!
+	 * Query the session's transaction timestamp state.
+	 *
+	 * The WT_SESSION.query_timestamp method can only be used at snapshot isolation.
+	 *
+	 * @param session the session handle
+	 * @param[out] hex_timestamp a buffer that will be set to the
+	 * hexadecimal encoding of the timestamp being queried.  Must be large
+	 * enough to hold a NUL terminated, hex-encoded 8B timestamp (17 bytes).
+	 * @configstart{WT_SESSION.query_timestamp, see dist/api_data.py}
+	 * @config{get, specify which timestamp to query: \c commit returns the most recently set
+	 * commit_timestamp; \c first_commit returns the first set commit_timestamp; \c prepare
+	 * returns the timestamp used in preparing a transaction; \c read returns the timestamp at
+	 * which the transaction is reading at.  See @ref timestamp_txn_api., a string\, chosen from
+	 * the following options: \c "commit"\, \c "first_commit"\, \c "prepare"\, \c "read";
+	 * default \c read.}
+	 * @configend
+	 * @errors
+	 * ::WT_NOTFOUND is returned if the session is not in a transaction or there is no matching
+	 * timestamp.
+	 */
+	int __F(query_timestamp)(
+	    WT_SESSION *session, char *hex_timestamp, const char *config);
 
 	/*!
 	 * Set a timestamp on a transaction.
@@ -1866,64 +1873,50 @@ struct __wt_session {
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.timestamp_transaction, see dist/api_data.py}
 	 * @config{commit_timestamp, set the commit timestamp for the current transaction.  The
-	 * supplied value must not be older than the first commit timestamp set for the current
-	 * transaction.  The value must also not be older than the current oldest and stable
-	 * timestamps.  See @ref transaction_timestamps., a string; default empty.}
-	 * @config{durable_timestamp, set the durable timestamp for the current transaction.  The
-	 * supplied value must not be older than the commit timestamp set for the current
-	 * transaction.  The value must also not be older than the current stable timestamp.  See
-	 * @ref transaction_timestamps., a string; default empty.}
+	 * supplied value must not be older than the first commit timestamp already set for the
+	 * current transaction\, if any.  The value must also not be older than the current oldest
+	 * and stable timestamps.  For prepared transactions\, a commit timestamp is required for
+	 * commit\, must not be older than the prepare timestamp\, can be set only once\, and must
+	 * not be set until after the transaction has successfully prepared.  See @ref
+	 * timestamp_txn_api., a string; default empty.}
+	 * @config{durable_timestamp, set the durable timestamp for the current transaction.
+	 * Required for the commit of a prepared transaction\, and otherwise not permitted.  Can
+	 * only be set once the current transaction has been prepared\, and a commit timestamp has
+	 * been set.  The supplied value must not be older than the commit timestamp.  The value
+	 * must also not be older than the current oldest and stable timestamps.  See @ref
+	 * timestamp_prepare., a string; default empty.}
 	 * @config{prepare_timestamp, set the prepare timestamp for the updates of the current
-	 * transaction.  The supplied value must not be older than any active read timestamps.  See
-	 * @ref transaction_timestamps., a string; default empty.}
+	 * transaction.  The supplied value must not be older than any active read timestamps\, and
+	 * must not be older than the current stable timestamp.  Can be set only once per
+	 * transaction.  Setting the prepare timestamp does not by itself prepare the transaction\,
+	 * but does oblige the application to eventually prepare the transaction before committing
+	 * it.  See @ref timestamp_prepare., a string; default empty.}
 	 * @config{read_timestamp, read using the specified timestamp.  The supplied value must not
 	 * be older than the current oldest timestamp.  This can only be set once for a transaction.
-	 * See @ref transaction_timestamps., a string; default empty.}
+	 * See @ref timestamp_txn_api., a string; default empty.}
 	 * @configend
 	 * @errors
 	 */
 	int __F(timestamp_transaction)(WT_SESSION *session, const char *config);
+	/*! @} */
 
 	/*!
-	 * Query the session's transaction timestamp state.
-	 *
-	 * The WT_SESSION.query_timestamp method can only be used at snapshot isolation.
-	 *
-	 * @param session the session handle
-	 * @param[out] hex_timestamp a buffer that will be set to the
-	 * hexadecimal encoding of the timestamp being queried.  Must be large
-	 * enough to hold a NUL terminated, hex-encoded 8B timestamp (17 bytes).
-	 * @configstart{WT_SESSION.query_timestamp, see dist/api_data.py}
-	 * @config{get, specify which timestamp to query: \c commit returns the most recently set
-	 * commit_timestamp.  \c first_commit returns the first set commit_timestamp.  \c prepare
-	 * returns the timestamp used in preparing a transaction.  \c read returns the timestamp at
-	 * which the transaction is reading at.  See @ref transaction_timestamps., a string\, chosen
-	 * from the following options: \c "commit"\, \c "first_commit"\, \c "prepare"\, \c "read";
-	 * default \c read.}
-	 * @configend
-	 * @errors
-	 * If the session is not in a transaction ::WT_NOTFOUND will be
-	 * returned.
+	 * @name Transaction support
+	 * @{
 	 */
-	int __F(query_timestamp)(
-	    WT_SESSION *session, char *hex_timestamp, const char *config);
-
 	/*!
-	 * Write a transactionally consistent snapshot of a database or set of
-	 * objects.  In the absence of transaction timestamps, the checkpoint
-	 * includes all transactions committed before the checkpoint starts.
+	 * Write a transactionally consistent snapshot of a database or set of objects.  In the
+	 * absence of transaction timestamps, the checkpoint includes all transactions committed
+	 * before the checkpoint starts.
 	 *
-	 * When timestamps are in use and a \c stable_timestamp has been set
-	 * via WT_CONNECTION::set_timestamp and the checkpoint runs with
-	 * \c use_timestamp=true (the default), updates committed with a
-	 * timestamp larger than the \c stable_timestamp will not be included
-	 * in the checkpoint for tables configured with \c log=(enabled=false).
-	 * For tables with logging enabled, all committed changes will be
-	 * included in the checkpoint (since recovery would roll them forward
-	 * anyway).
+	 * When timestamps are in use and the checkpoint runs with \c use_timestamp=true (the
+	 * default), updates committed with a timestamp after the \c stable_timestamp, in tables
+	 * configured for checkpoint-level durability, are not included in the checkpoint. See
+	 * @ref checkpoint for more information. Committed updates in tables configured for
+	 * commit-level durability are always included in the checkpoint. See @ref durability for
+	 * more information.
 	 *
-	 * Additionally, existing named checkpoints may optionally be
-	 * discarded.
+	 * Additionally, existing named checkpoints may optionally be discarded.
 	 *
 	 * @requires_notransaction
 	 *
@@ -1943,8 +1936,9 @@ struct __wt_session {
 	 * flag; default \c false.}
 	 * @config{name, if set\, specify a name for the checkpoint (note that checkpoints including
 	 * LSM trees may not be named)., a string; default empty.}
-	 * @config{target, if non-empty\, checkpoint the list of objects., a list of strings;
-	 * default empty.}
+	 * @config{target, if non-empty\, checkpoint the list of objects.  Checkpointing a list of
+	 * objects separately from a database-wide checkpoint can lead to data inconsistencies\, see
+	 * @ref checkpoint_target for more information., a list of strings; default empty.}
 	 * @config{use_timestamp, if true (the default)\, create the checkpoint as of the last
 	 * stable timestamp if timestamps are in use\, or all current updates if there is no stable
 	 * timestamp set.  If false\, this option generates a checkpoint with all updates including
@@ -1953,6 +1947,27 @@ struct __wt_session {
 	 * @errors
 	 */
 	int __F(checkpoint)(WT_SESSION *session, const char *config);
+
+	/*!
+	 * Reset the snapshot.
+	 *
+	 * This method resets snapshots for snapshot isolation transactions to update their existing
+	 * snapshot. It raises an error when this API is used in an isolation other than snapshot,
+	 * or when the transaction has performed any write operations.
+	 *
+	 * This API internally releases the current snapshot and gets the new running transactions
+	 * snapshot to avoid pinning the content in the database that is no longer needed.
+	 * Applications not using read timestamps for search may see different results after the
+	 * snapshot is updated.
+	 *
+	 * @requires_transaction
+	 *
+	 * @snippet ex_all.c reset snapshot
+	 *
+	 * @param session the session handle
+	 * @errors
+	 */
+	int __F(reset_snapshot)(WT_SESSION *session);
 
 	/*!
 	 * Return the transaction ID range pinned by the session handle.
@@ -1969,6 +1984,7 @@ struct __wt_session {
 	 * @errors
 	 */
 	int __F(transaction_pinned_range)(WT_SESSION* session, uint64_t *range);
+	/*! @} */
 
 #ifndef DOXYGEN
 	/*!
@@ -2162,11 +2178,12 @@ struct __wt_connection {
 	 * processing., a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
 	 * table_logging, if true\, write transaction related information to the log for all
-	 * operations\, even operations for tables with logging turned off.  This setting introduces
-	 * a log format change that may break older versions of WiredTiger.  These operations are
-	 * informational and skipped in recovery., a boolean flag; default \c false.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;update_restore_evict, if true\, control all dirty page
-	 * evictions through forcing update restore eviction., a boolean flag; default \c false.}
+	 * operations\, even operations for tables with logging turned off.  This additional logging
+	 * information is intended for debugging and is informational only\, that is\, it is ignored
+	 * during recovery., a boolean flag; default \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+	 * update_restore_evict, if true\, control all dirty page evictions through forcing update
+	 * restore eviction., a boolean flag; default \c false.}
 	 * @config{ ),,}
 	 * @config{error_prefix, prefix string for error messages., a string; default empty.}
 	 * @config{eviction = (, eviction configuration options., a set of related configuration
@@ -2471,23 +2488,22 @@ struct __wt_connection {
 	 * enough to hold a NUL terminated, hex-encoded 8B timestamp (17 bytes).
 	 * @configstart{WT_CONNECTION.query_timestamp, see dist/api_data.py}
 	 * @config{get, specify which timestamp to query: \c all_durable returns the largest
-	 * timestamp such that all timestamps up to that value have been made durable\, \c
-	 * last_checkpoint returns the timestamp of the most recent stable checkpoint\, \c
+	 * timestamp such that all timestamps up to that value have been made durable; \c
+	 * last_checkpoint returns the timestamp of the most recent stable checkpoint; \c
 	 * oldest_timestamp returns the most recent \c oldest_timestamp set with
-	 * WT_CONNECTION::set_timestamp\, \c oldest_reader returns the minimum of the read
-	 * timestamps of all active readers \c pinned returns the minimum of the \c oldest_timestamp
-	 * and the read timestamps of all active readers\, \c recovery returns the timestamp of the
-	 * most recent stable checkpoint taken prior to a shutdown and \c stable_timestamp returns
-	 * the most recent \c stable_timestamp set with WT_CONNECTION::set_timestamp.  (The \c
-	 * oldest and \c stable arguments are deprecated short-hand for \c oldest_timestamp and \c
-	 * stable_timestamp\, respectively.) See @ref transaction_timestamps., a string\, chosen
-	 * from the following options: \c "all_durable"\, \c "last_checkpoint"\, \c "oldest"\, \c
+	 * WT_CONNECTION::set_timestamp; \c oldest_reader returns the minimum of the read timestamps
+	 * of all active readers; \c pinned returns the minimum of the \c oldest_timestamp and the
+	 * read timestamps of all active readers; \c recovery returns the timestamp of the most
+	 * recent stable checkpoint taken prior to a shutdown; \c stable_timestamp returns the most
+	 * recent \c stable_timestamp set with WT_CONNECTION::set_timestamp.  (The \c oldest and \c
+	 * stable arguments are deprecated short-hand for \c oldest_timestamp and \c
+	 * stable_timestamp\, respectively.) See @ref timestamp_global_api., a string\, chosen from
+	 * the following options: \c "all_durable"\, \c "last_checkpoint"\, \c "oldest"\, \c
 	 * "oldest_reader"\, \c "oldest_timestamp"\, \c "pinned"\, \c "recovery"\, \c "stable"\, \c
 	 * "stable_timestamp"; default \c all_durable.}
 	 * @configend
 	 * @errors
-	 * If there is no matching timestamp (e.g., if this method is called
-	 * before timestamps are used) ::WT_NOTFOUND will be returned.
+	 * ::WT_NOTFOUND is returned if there is no matching timestamp.
 	 */
 	int __F(query_timestamp)(
 	    WT_CONNECTION *connection, char *hex_timestamp, const char *config);
@@ -2508,21 +2524,21 @@ struct __wt_connection {
 	 * timestamps greater than the specified value until the next durable timestamp moves the
 	 * tracked durable timestamp forwards.  This is only intended for use where the application
 	 * is rolling back locally committed transactions.  The supplied value must not be older
-	 * than the current oldest and stable timestamps.  See @ref transaction_timestamps., a
-	 * string; default empty.}
+	 * than the current oldest and stable timestamps.  See @ref timestamp_global_api., a string;
+	 * default empty.}
 	 * @config{force, set timestamps even if they violate normal ordering requirements.  For
 	 * example allow the \c oldest_timestamp to move backwards., a boolean flag; default \c
 	 * false.}
 	 * @config{oldest_timestamp, future commits and queries will be no earlier than the
 	 * specified timestamp.  Supplied values must be monotonically increasing\, any attempt to
 	 * set the value to older than the current is silently ignored.  The supplied value must not
-	 * be newer than the current stable timestamp.  See @ref transaction_timestamps., a string;
+	 * be newer than the current stable timestamp.  See @ref timestamp_global_api., a string;
 	 * default empty.}
 	 * @config{stable_timestamp, checkpoints will not include commits that are newer than the
 	 * specified timestamp in tables configured with \c log=(enabled=false). Supplied values
 	 * must be monotonically increasing\, any attempt to set the value to older than the current
 	 * is silently ignored.  The supplied value must not be older than the current oldest
-	 * timestamp.  See @ref transaction_timestamps., a string; default empty.}
+	 * timestamp.  See @ref timestamp_global_api., a string; default empty.}
 	 * @configend
 	 * @errors
 	 */
@@ -2530,19 +2546,14 @@ struct __wt_connection {
 	    WT_CONNECTION *connection, const char *config);
 
 	/*!
-	 * Rollback in-memory non-logged state to an earlier point in time.
+	 * Rollback tables to an earlier point in time, discarding all updates to checkpoint durable
+	 * tables that have commit times more recent than the current global stable timestamp.
 	 *
-	 * This method uses a timestamp to define the rollback point, and requires the application
-	 * use timestamps, the stable_timestamp have been set via a call to
-	 * WT_CONNECTION::set_timestamp, and a checkpoint operating on the last stable timestamp
-	 * to have completed. Any updates to checkpoint durable tables that are more recent than
-	 * the stable timestamp are removed.
+	 * No updates made to logged tables or updates made without an associated commit timestamp
+	 * will be discarded. See @ref timestamp_misc.
 	 *
-	 * This method requires that there are no open cursors or active operations for the duration
-	 * of the call.
-	 *
-	 * Any updates made to logged tables will not be rolled back. Any updates made without an
-	 * associated timestamp will not be rolled back. See @ref transaction_timestamps.
+	 * Applications should close or reset all open cursors before the call, and no other API
+	 * calls should be made for the duration of the call.
 	 *
 	 * @snippet ex_all.c rollback to stable
 	 *
@@ -2883,11 +2894,12 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;slow_checkpoint, if true\, slow down checkpoint
  * creation by slowing down internal page processing., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;table_logging, if true\, write transaction related information to
- * the log for all operations\, even operations for tables with logging turned off.  This setting
- * introduces a log format change that may break older versions of WiredTiger.  These operations are
- * informational and skipped in recovery., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;update_restore_evict, if true\, control all dirty page evictions
- * through forcing update restore eviction., a boolean flag; default \c false.}
+ * the log for all operations\, even operations for tables with logging turned off.  This additional
+ * logging information is intended for debugging and is informational only\, that is\, it is ignored
+ * during recovery., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * update_restore_evict, if true\, control all dirty page evictions through forcing update restore
+ * eviction., a boolean flag; default \c false.}
  * @config{ ),,}
  * @config{direct_io, Use \c O_DIRECT on POSIX systems\, and \c FILE_FLAG_NO_BUFFERING on Windows to
  * access files.  Options are given as a list\, such as <code>"direct_io=[data]"</code>. Configuring
