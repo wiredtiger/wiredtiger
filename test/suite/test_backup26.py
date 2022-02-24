@@ -78,7 +78,7 @@ class test_backup26(backup_base):
         all_files = self.take_selective_backup(self.dir, selective_remove_file_list)
         
         # After the full backup, open and recover the backup database.
-        backup_conn = self.wiredtiger_open(self.dir, "restore_partial_backup=true")
+        backup_conn = self.wiredtiger_open(self.dir, "backup_partial_restore=true")
         bkup_session = backup_conn.open_session()
         # Open the cursor from uris that was part of the selective backup and expect failure
         # since file doesn't exist.
