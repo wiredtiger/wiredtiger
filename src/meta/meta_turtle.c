@@ -105,7 +105,8 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool backup_partial_restore
                 if (WT_SUFFIX_MATCH(metadata_key, ".wti") ||
                   WT_SUFFIX_MATCH(metadata_key, ".wtobj"))
                     WT_ERR_MSG(session, EINVAL,
-                      "%s: partial backup currently doesn't support index, tiered storage files.",
+                      "%s: partial backup currently doesn't support index, or tiered storage "
+                      "files.",
                       metadata_key);
 
                 WT_ERR(__wt_fs_exist(session, metadata_key, &exist));
