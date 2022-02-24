@@ -22,12 +22,12 @@ build_branch()
     git checkout --quiet "$1"
 
     if [ "${build_sys[$1]}" == "cmake" ]; then
-            . ./test/evergreen/find_cmake.sh
-            config=""
-            config+="-DENABLE_SNAPPY=1 "
-            config+="-DWT_STANDALONE_BUILD=0 "
-            (mkdir build && cd build &&
-                $CMAKE $config ../. && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
+        . ./test/evergreen/find_cmake.sh
+        config=""
+        config+="-DENABLE_SNAPPY=1 "
+        config+="-DWT_STANDALONE_BUILD=0 "
+        (mkdir build && cd build &&
+            $CMAKE $config ../. && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
     else
         config=""
         config+="--enable-snappy "
