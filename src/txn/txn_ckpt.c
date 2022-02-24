@@ -1985,7 +1985,7 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
     with_timestamp = F_ISSET(txn, WT_TXN_SHARED_TS_READ);
 
     /* Logged tables ignore any read timestamp configured for the checkpoint. */
-    if (!F_ISSET(btree, WT_BTREE_NO_LOGGING))
+    if (F_ISSET(btree, WT_BTREE_LOGGED))
         F_CLR(txn, WT_TXN_SHARED_TS_READ);
 
     ret = __checkpoint_tree(session, true, cfg);
