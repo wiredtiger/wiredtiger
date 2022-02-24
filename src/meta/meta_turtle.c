@@ -57,7 +57,7 @@ __metadata_init(WT_SESSION_IMPL *session)
  *     Load the contents of any hot backup file.
  */
 static int
-__metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup)
+__metadata_load_hot_backup(WT_SESSION_IMPL *session, bool backup_partial_restore)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -100,18 +100,21 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup
          * metadata and history store afterwards.
          */
         metadata_key = (char *)key->data;
-        if (restore_partial_backup) {
+        if (backup_partial_restore) {
             if (WT_PREFIX_SKIP(metadata_key, "file:")) {
-                if (WT_SUFFIX_MATCH(metadata_key, ".wti") || WT_SUFFIX_MATCH(metadata_key, ".wtobj"))
+                if (WT_SUFFIX_MATCH(metadata_key, ".wti") ||
+                  WT_SUFFIX_MATCH(metadata_key, ".wtobj"))
                     WT_ERR_MSG(session, EINVAL,
-                    "%s: partial backup currently doesn't support index, tiered storage files.", metadata_key);
+                      "%s: partial backup currently doesn't support index, tiered storage files.",
+                      metadata_key);
 
                 WT_ERR(__wt_fs_exist(session, metadata_key, &exist));
                 if (!exist) {
                     WT_ERR(__wt_realloc_def(
-                    session, &allocated_id, slot + 1, &conn->partial_backup_remove_ids));
+                      session, &allocated_id, slot + 1, &conn->partial_backup_remove_ids));
                     /* Leave a NULL at the end to mark the end of the list. */
-                    WT_ERR(__wt_realloc_def(session, &allocated_name, slot + 2, &partial_backup_names));
+                    WT_ERR(
+                      __wt_realloc_def(session, &allocated_name, slot + 2, &partial_backup_names));
                     p = &partial_backup_names[slot];
                     p[0] = p[1] = NULL;
 
@@ -124,13 +127,13 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup
                 WT_ERR(__wt_config_getones(session, value->data, "colgroups", &cval));
                 if (cval.len != 0)
                     WT_ERR_MSG(session, EINVAL,
-                        "%s: partial backup currently doesn't support colgroup files.", metadata_key);
+                      "%s: partial backup currently doesn't support colgroup files.", metadata_key);
             } else if (WT_PREFIX_MATCH(metadata_key, "lsm:")) {
                 WT_ERR_MSG(session, EINVAL,
-                    "%s: partial backup currently doesn't support lsm files.", metadata_key);
+                  "%s: partial backup currently doesn't support lsm files.", metadata_key);
             }
         }
-        
+
         /*
          * In the case of partial backup restore, add the entry to the metadata even if the file
          * doesn't exist so that we can correctly drop all related entries via the schema code
@@ -140,7 +143,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup
     }
 
     F_SET(conn, WT_CONN_WAS_BACKUP);
-    if (restore_partial_backup && partial_backup_names != NULL) {
+    if (backup_partial_restore && partial_backup_names != NULL) {
         /*
          * During partial backup, parse through the partial backup list, and attempt to clean up all
          * metadata references relating to the file. To do so, perform a schema drop operation on
@@ -315,7 +318,7 @@ __wt_turtle_exists(WT_SESSION_IMPL *session, bool *existp)
  *     Check the turtle file and create if necessary.
  */
 int
-__wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, bool restore_partial_backup)
+__wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, bool backup_partial_restore)
 {
     WT_DECL_RET;
     char *metaconf, *unused_value;
@@ -407,7 +410,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, bool restore_partia
         if (verify_meta && exist_backup)
             WT_RET_MSG(
               session, EINVAL, "restoring a backup is incompatible with metadata verification");
-        if (restore_partial_backup && !exist_backup)
+        if (backup_partial_restore && !exist_backup)
             WT_RET_MSG(session, EINVAL,
               "restoring a partial backup is requires the WiredTiger metadata backup file.");
 
@@ -415,7 +418,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, bool restore_partia
         WT_RET(__metadata_init(session));
 
         /* Load any hot-backup information. */
-        WT_RET(__metadata_load_hot_backup(session, restore_partial_backup));
+        WT_RET(__metadata_load_hot_backup(session, backup_partial_restore));
 
         /* Create any bulk-loaded file stubs. */
         WT_RET(__metadata_load_bulk(session));
