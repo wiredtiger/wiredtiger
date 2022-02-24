@@ -4024,15 +4024,17 @@ buildvariants:
     - name: cyclomatic-complexity
 
 - name: compatibility-tests-less-frequent
+  active: false
   display_name: Compatibility tests (less frequent)
   batchtime: 10080 # 7 days
   run_on:
-  - ubuntu1804-test
+    - ubuntu1804-test
   tasks:
     - name: compatibility-test-for-older-releases
     - name: compatibility-test-for-wt-standalone-releases
 
 - name: compatibility-tests
+  active: false
   display_name: Compatibility tests
   run_on:
   - ubuntu2004-test
