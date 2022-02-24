@@ -42,10 +42,9 @@
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 typedef enum {
-    WT_VISIBLE_FALSE = 0,      /* Not a visible update */
-    WT_VISIBLE_NONDURABLE = 1, /* Committed but not durable update */
-    WT_VISIBLE_PREPARE = 2,    /* Prepared update */
-    WT_VISIBLE_TRUE = 3        /* A visible update */
+    WT_VISIBLE_FALSE = 0,   /* Not a visible update */
+    WT_VISIBLE_PREPARE = 1, /* Prepared update */
+    WT_VISIBLE_TRUE = 2     /* A visible update */
 } WT_VISIBLE_TYPE;
 
 /*
@@ -290,6 +289,11 @@ struct __wt_txn {
      * Timestamp copied into updates created by this transaction, when this transaction is prepared.
      */
     wt_timestamp_t prepare_timestamp;
+
+    /*
+     * Maximum durable timestamp of any data read by this transaction.
+     */
+    wt_timestamp_t max_durable_timestamp_read;
 
     /* Array of modifications by this transaction. */
     WT_TXN_OP *mod;

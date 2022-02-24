@@ -3834,8 +3834,7 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * Conflict with a prepared update.
  * This error is generated when the application attempts to read an updated
  * record which is part of a transaction that has been prepared but not yet
- * resolved, or part of a transaction that has been prepared and committed but
- * is not yet durable.
+ * resolved.
  */
 #define	WT_PREPARE_CONFLICT	(-31808)
 /*!

@@ -97,12 +97,11 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
             self.assertEqual(value, valueA)
         session.commit_transaction()
 
-        # Check that the updated data cannot be read while it is not yet durable.
+        # Check that the updated data can still be read even while it is not yet durable.
         self.assertEquals(cursor.reset(), 0)
         session.begin_transaction('read_timestamp=' + self.timestamp_str(210))
-        cursor.set_key(1)
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: cursor.search(), '/committed but non-durable value/')
+        for key, value in cursor:
+            self.assertEqual(value, valueB)
         session.rollback_transaction()
 
         # Read the updated data to confirm that it is visible.

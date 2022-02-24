@@ -582,41 +582,6 @@ __wt_txn_upd_value_visible_all(WT_SESSION_IMPL *session, WT_UPDATE_VALUE *upd_va
 }
 
 /*
- * __wt_txn_ts_nondurable --
- *     Is the given timestamp not yet durable? It is durable unless we are reading between the
- *     commit time the durable time *and* the global stable timestamp has not yet advanced past the
- *     durable time. (Note that it is not sufficient to just check that the global stable timestamp
- *     has advanced past the commit time; prepared transactions are allowed to commit earlier than
- *     stable if they were prepared after stable and stable has since moved up.) Assumes caller has
- *     already checked that the commit time is visible, so does not repeat checks in that code.
- */
-static inline bool
-__wt_txn_ts_nondurable(
-  WT_SESSION_IMPL *session, uint64_t txnid, uint64_t commit_ts, uint64_t durable_ts)
-{
-    WT_TXN_GLOBAL *txn_global;
-
-    txn_global = &S2C(session)->txn_global;
-
-    /* If there is no gap between commit time and durable time, we can't read between them. */
-    if (durable_ts == commit_ts)
-        return (false);
-
-    /*
-     * If the durable time is stable, the value might or might not actually be durable (depending on
-     * whether a checkpoint has been completed) but we (the caller) cannot become durable before it,
-     * so for us it counts as durable. The purpose of this check is to make sure we can't read a
-     * nondurable value, then commit and become durable before it, because that violates consistency
-     * expectations.
-     */
-    if (durable_ts <= txn_global->stable_timestamp)
-        return (false);
-
-    /* Otherwise, if the durable time is not visible, we are reading before it. */
-    return (!__wt_txn_visible(session, txnid, durable_ts));
-}
-
-/*
  * __wt_txn_tw_stop_visible --
  *     Is the given stop time window visible?
  */
@@ -625,18 +590,6 @@ __wt_txn_tw_stop_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
     return (WT_TIME_WINDOW_HAS_STOP(tw) && !tw->prepare &&
       __wt_txn_visible(session, tw->stop_txn, tw->stop_ts));
-}
-
-/*
- * __wt_txn_tw_stop_nondurable --
- *     Is the given stop time window not yet durable? See notes about the start time below. Assumes
- *     the caller has already checked that the stop time is visible, so among other things we know
- *     that the time window *does* have a stop time.
- */
-static inline bool
-__wt_txn_tw_stop_nondurable(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
-{
-    return (__wt_txn_ts_nondurable(session, tw->stop_txn, tw->stop_ts, tw->durable_stop_ts));
 }
 
 /*
@@ -655,17 +608,6 @@ __wt_txn_tw_start_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
                  tw->durable_start_ts != tw->durable_stop_ts)) ||
               !tw->prepare) &&
       __wt_txn_visible(session, tw->start_txn, tw->start_ts));
-}
-
-/*
- * __wt_txn_tw_start_nondurable --
- *     Is the given start time window not yet durable? Assumes caller has already checked that the
- *     start time is visible.
- */
-static inline bool
-__wt_txn_tw_start_nondurable(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
-{
-    return (__wt_txn_ts_nondurable(session, tw->start_txn, tw->start_ts, tw->durable_start_ts));
 }
 
 /*
@@ -796,11 +738,8 @@ __wt_txn_visible(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp
 static inline WT_VISIBLE_TYPE
 __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-    WT_TXN_GLOBAL *txn_global;
     uint8_t prepare_state, previous_state;
     bool upd_visible;
-
-    txn_global = &S2C(session)->txn_global;
 
     for (;; __wt_yield()) {
         /* Prepare state change is in progress, yield and try again. */
@@ -814,12 +753,6 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
             return (WT_VISIBLE_TRUE);
 
         upd_visible = __wt_txn_visible(session, upd->txnid, upd->start_ts);
-        if (upd_visible && upd->durable_ts > upd->start_ts &&
-          upd->durable_ts > txn_global->stable_timestamp) {
-            upd_visible = __wt_txn_visible(session, upd->txnid, upd->durable_ts);
-            if (!upd_visible)
-                return (WT_VISIBLE_NONDURABLE);
-        }
 
         /*
          * The visibility check is only valid if the update does not change state. If the state does
@@ -954,15 +887,6 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
         if (upd_visible == WT_VISIBLE_TRUE)
             break;
 
-        if (upd_visible == WT_VISIBLE_NONDURABLE) {
-            if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE))
-                /* With ignore_prepare, nondurable values are fully visible. */
-                break;
-            else
-                WT_RET_MSG(session, WT_PREPARE_CONFLICT,
-                  "read conflict with committed but non-durable value");
-        }
-
         /*
          * Save the prepared update to help us detect if we race with prepared commit or rollback
          * irrespective of update visibility.
@@ -993,6 +917,10 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
 
     if (upd == NULL)
         return (0);
+
+    if (session->isolation != WT_ISO_READ_UNCOMMITTED && cbt->upd_value->skip_buf == false)
+        session->txn->max_durable_timestamp_read =
+          WT_MAX(session->txn->max_durable_timestamp_read, upd->durable_ts);
 
     /*
      * Now assign to the update value. If it's not a modify, we're free to simply point the value at
@@ -1032,11 +960,10 @@ __wt_txn_read(
 {
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd, *restored_upd;
-    bool have_stop_tw, retry, return_onpage_value;
+    bool have_stop_tw, retry;
 
     prepare_upd = restored_upd = NULL;
     retry = true;
-    return_onpage_value = false;
 
 retry:
     WT_RET(__wt_txn_read_upd_list_internal(session, cbt, upd, &prepare_upd, &restored_upd));
@@ -1078,11 +1005,9 @@ retry:
          */
         if (!have_stop_tw && __wt_txn_tw_stop_visible(session, &tw) &&
           !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE)) {
-            if (__wt_txn_tw_stop_nondurable(session, &tw) &&
-              !F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE))
-                /* Disallow reading if we can see it but it isn't durable yet. */
-                WT_RET_MSG(session, WT_PREPARE_CONFLICT,
-                  "read conflict with committed but non-durable value");
+            if (session->isolation != WT_ISO_READ_UNCOMMITTED && cbt->upd_value->skip_buf == false)
+                session->txn->max_durable_timestamp_read =
+                  WT_MAX(session->txn->max_durable_timestamp_read, tw.durable_stop_ts);
             cbt->upd_value->buf.data = NULL;
             cbt->upd_value->buf.size = 0;
             cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;
@@ -1106,18 +1031,10 @@ retry:
          * 1. The record is from the history store.
          * 2. It is visible to the reader.
          */
-        if (WT_IS_HS(session->dhandle))
-            return_onpage_value = true;
-        else if (__wt_txn_tw_start_visible(session, &tw)) {
-            if (__wt_txn_tw_start_nondurable(session, &tw) &&
-              !F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE))
-                /* Disallow reading if we can see it but it isn't durable yet. */
-                WT_RET_MSG(session, WT_PREPARE_CONFLICT,
-                  "read conflict with committed but non-durable value");
-            return_onpage_value = true;
-        }
-
-        if (return_onpage_value) {
+        if (WT_IS_HS(session->dhandle) || __wt_txn_tw_start_visible(session, &tw)) {
+            if (session->isolation != WT_ISO_READ_UNCOMMITTED && cbt->upd_value->skip_buf == false)
+                session->txn->max_durable_timestamp_read =
+                  WT_MAX(session->txn->max_durable_timestamp_read, tw.durable_start_ts);
             if (cbt->upd_value->skip_buf) {
                 cbt->upd_value->buf.data = NULL;
                 cbt->upd_value->buf.size = 0;
@@ -1186,6 +1103,12 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
     txn->txn_logsync = S2C(session)->txn_logsync;
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
+
+    /*
+     * Clear the maximum durable timestamp that we've seen. It might not be empty if there have been
+     * preceding reads without an explicit transaction.
+     */
+    txn->max_durable_timestamp_read = WT_TS_NONE;
 
     WT_RET(__wt_txn_config(session, cfg));
 

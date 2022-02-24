@@ -706,6 +706,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
      */
     txn->flags = 0;
     txn->prepare_timestamp = WT_TS_NONE;
+    txn->max_durable_timestamp_read = WT_TS_NONE;
 
     /* Clear operation timer. */
     txn->operation_timeout_us = 0;

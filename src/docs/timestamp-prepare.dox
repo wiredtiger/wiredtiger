@@ -50,14 +50,15 @@ transactions should set the durable and commit timestamps to the same time.
 When a transaction has a durable timestamp later than its commit timestamp,
 reading its writes in a second transaction and then committing such that the
 second transaction becomes durable before the first can produce data
-inconsistency. To help prevent this, reads between the commit and durable
-timestamp will fail with ::WT_PREPARE_CONFLICT if the global stable timestamp has not
-yet advanced to the durable timestamp. Retrying such transactions will
-eventually succeed as long as either they are retried at a later timestamp or
-the stable timestamp continues to move forward.
+inconsistency. Such commits are prohibited.
+Applications that create gaps between their commit timestamps and
+durable timestamps are responsible for either not reading in those
+gaps, or coordinating the durable timestamps of their commits to
+prevent this scenario.
 
 \warning It is also possible to create data inconsistency by reading such a
-transaction's writes <i>after</i> its durable timestamp and committing without a
+transaction's writes <i>after</i> its durable timestamp (including by
+reading with no read timestamp) and committing without a
 timestamp, if the global stable timestamp has not yet reached the durable
 timestamp. (This can involve either reading with a read timestamp after the
 durable timestamp, or reading with no read timestamp, as the latter reads the

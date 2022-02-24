@@ -288,9 +288,18 @@ commits.
 Reads between the prepare timestamp and commit timestamp of a
 transaction that has been prepared but not committed fail with
 ::WT_PREPARE_CONFLICT.
-So do reads between the commit timestamp and durable timestamp of a
-transaction that has been committed when the stable timestamp has not
-yet reached the durable timestamp.
+
+Reads between the commit timestamp and durable timestamp of a
+transaction that has been committed but is not yet stable (that is,
+the stable timestamp is at or past the commit timestamp but has not
+yet advanced to the durable timestamp) are potentially unsafe.
+If a second transaction performs such a read and then commits with an
+<i>earlier</i> durable timestamp, and a checkpoint includes the second
+transaction's stable timestamp but not the first, that checkpoint then
+contains inconsistent data.
+To avoid this inconsistency, transactions that perform unsafe reads of
+this type are restricted at commit time to durable timestamps that are
+no less than the durable timestamps of the data they read.
 
 See @ref arch-transaction-prepare for further discussion of prepared
 transactions.

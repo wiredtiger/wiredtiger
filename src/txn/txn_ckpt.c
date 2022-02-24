@@ -1015,7 +1015,12 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * Commit the transaction now that we are sure that all files in the checkpoint have been
      * flushed to disk. It's OK to commit before checkpointing the metadata since we know that all
      * files in the checkpoint are now in a consistent state.
+     *
+     * Clear the maximum durable timestamp read before committing, since we explicitly allow
+     * nondurable values to be checkpointed. (They are cleaned out when needed by rollback to
+     * stable.)
      */
+    session->txn->max_durable_timestamp_read = WT_TS_NONE;
     WT_ERR(__wt_txn_commit(session, NULL));
 
     /*

@@ -680,6 +680,14 @@ __wt_txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_
           __wt_timestamp_to_string(durable_ts, ts_string[0]),
           __wt_timestamp_to_string(txn->commit_timestamp, ts_string[1]));
 
+    /* Transactions that have made writes must not commit into the past of things they read. */
+    if (txn->mod_count > 0 && durable_ts != WT_TS_NONE &&
+      durable_ts < txn->max_durable_timestamp_read)
+        WT_RET_MSG(session, EINVAL,
+          "durable timestamp %s is before the durable timestamp %s of a value it read",
+          __wt_timestamp_to_string(durable_ts, ts_string[0]),
+          __wt_timestamp_to_string(txn->max_durable_timestamp_read, ts_string[1]));
+
     txn->durable_timestamp = durable_ts;
     F_SET(txn, WT_TXN_HAS_TS_DURABLE);
 

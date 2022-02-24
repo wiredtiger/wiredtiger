@@ -57,8 +57,7 @@ is in progress, it should be rolled back and the operation retried in a new tran
 
 @par <code>WT_PREPARE_CONFLICT</code>
 This error is generated when the application attempts to read an updated record which is part of a
-transaction that has been prepared but not yet resolved, or part of a transaction that has been
-prepared and committed but is not yet durable.
+transaction that has been prepared but not yet resolved.
 
 @par <code>WT_TRY_SALVAGE</code>
 This error is generated when corruption is detected in an on-disk file. During normal operations,
