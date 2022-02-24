@@ -751,9 +751,6 @@ record_loop:
                 }
                 twp = &vpack->tw;
 
-                /* Clear the on-disk cell time window if it is obsolete. */
-                __wt_rec_time_window_clear_obsolete(session, NULL, vpack, r);
-
                 /*
                  * If we are handling overflow items, use the overflow item itself exactly once,
                  * after which we have to copy it into a buffer and from then on use a complete copy
