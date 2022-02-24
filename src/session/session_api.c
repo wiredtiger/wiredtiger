@@ -1811,7 +1811,7 @@ err:
  *     WT_SESSION->timestamp_transaction_commit method.
  */
 static int
-__session_timestamp_transaction_commit(WT_SESSION *wt_session, unsigned long long ts)
+__session_timestamp_transaction_commit(WT_SESSION *wt_session, uint64_t ts)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;

@@ -1911,7 +1911,7 @@ struct __wt_session {
 	 * @param ts the commit timestamp
 	 * @errors
 	 */
-	int __F(timestamp_transaction_commit)(WT_SESSION *session, unsigned long long ts);
+	int __F(timestamp_transaction_commit)(WT_SESSION *session, uint64_t ts);
 	/*! @} */
 #endif
 
