@@ -66,7 +66,6 @@ struct __wt_session_impl {
 
     const char *name;       /* Name */
     const char *lastop;     /* Last operation */
-    const char *debug_8392; /* Debug string */
     uint32_t id;            /* UID, offset in session array */
 
     uint64_t cache_wait_us;        /* Wait time for cache for current operation */
