@@ -1532,13 +1532,12 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
     /*
      * Truncate history store entries from the partial backup remove list. The list holds all of the
      * btree ids that do not exist as part of the database anymore due to performing a selective
-     * backup.
+     * restore from backup.
      */
-    if (conn->partial_backup_remove_list != NULL) {
-        for (i = 0; conn->partial_backup_remove_list[i] != 0; ++i) {
+    if (conn->partial_backup_remove_ids != NULL) {
+        for (i = 0; conn->partial_backup_remove_ids[i] != 0; ++i)
             WT_ERR(
-              __rollback_to_stable_btree_hs_truncate(session, conn->partial_backup_remove_list[i]));
-        }
+              __rollback_to_stable_btree_hs_truncate(session, conn->partial_backup_remove_ids[i]));
     }
 err:
     __wt_free(session, config);

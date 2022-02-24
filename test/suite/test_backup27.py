@@ -30,10 +30,10 @@ import os, wiredtiger, wttest
 from wtbackup import backup_base
 from wtscenario import make_scenarios
 
-# test_backup25.py
+# test_backup27.py
 # Test selective backup with history store contents. Recovering a partial backup should 
 # clear the history entries of the table that does not exist in the backup directory.
-class test_backup25(backup_base):
+class test_backup27(backup_base):
     dir='backup.dir'                    # Backup directory name
     newuri="table:table_no_hs"
     newuri_file="table_no_hs.wt"
@@ -59,7 +59,7 @@ class test_backup25(backup_base):
         c.close()
         session.commit_transaction()
 
-    def test_backup25(self):
+    def test_backup27(self):
         log2 = "WiredTigerLog.0000000002"
 
         self.session.create(self.uri, "key_format=S,value_format=S")

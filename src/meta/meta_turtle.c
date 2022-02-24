@@ -65,17 +65,16 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup
     WT_DECL_ITEM(value);
     WT_DECL_RET;
     WT_FSTREAM *fs;
-    size_t allocated, allocated_int, i, slot;
-    char *buf, *filename;
-    char **partial_backup_list, **p;
+    size_t allocated_id, allocated_name, i, slot;
+    char *buf, *filename, **p, **partial_backup_names;
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "remove_files=false", NULL};
     bool exist;
 
-    allocated = 0;
-    allocated_int = 0;
+    allocated_id = 0;
+    allocated_name = 0;
     buf = NULL;
     conn = S2C(session);
-    partial_backup_list = NULL;
+    partial_backup_names = NULL;
     slot = 0;
 
     /* Look for a hot backup file: if we find it, load it. */
@@ -102,40 +101,46 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup
          */
         filename = (char *)key->data;
         if (restore_partial_backup && WT_PREFIX_SKIP(filename, "file:")) {
+            if (WT_SUFFIX_MATCH(filename, ".wti") || WT_SUFFIX_MATCH(filename, ".lsm") ||
+              WT_SUFFIX_MATCH(dhandle->name, ".wtobj")) {
+                WT_ERR_MSG(session, EINVAL,
+                  "%s: partial backup currently doesn't support index or lsm files.", filename);
+            }
             WT_ERR(__wt_fs_exist(session, filename, &exist));
             if (!exist) {
                 WT_ERR(__wt_realloc_def(
-                  session, &allocated_int, slot + 1, &conn->partial_backup_remove_list));
+                  session, &allocated_id, slot + 1, &conn->partial_backup_remove_ids));
                 /* Leave a NULL at the end to mark the end of the list. */
-                WT_ERR(__wt_realloc_def(session, &allocated, slot + 2, &partial_backup_list));
-                p = &partial_backup_list[slot];
+                WT_ERR(__wt_realloc_def(session, &allocated_name, slot + 2, &partial_backup_names));
+                p = &partial_backup_names[slot];
                 p[0] = p[1] = NULL;
 
-                WT_ERR(__wt_strdup(session, (char *)key->data, p));
-                WT_ERR(__wt_config_getones(session, (char *)value->data, "id", &cval));
-                conn->partial_backup_remove_list[slot] = (uint32_t)cval.val;
+                WT_ERR(__wt_strndup(session, key->data, key->size, p));
+                WT_ERR(__wt_config_getones(session, value->data, "id", &cval));
+                conn->partial_backup_remove_ids[slot] = (uint32_t)cval.val;
                 slot++;
             }
-        } else if (restore_partial_backup && WT_SUFFIX_MATCH(filename, ".wti") &&
-          WT_SUFFIX_MATCH(filename, ".lsm")) {
-            WT_ERR_MSG(session, EINVAL,
-              "%s: partial backup currently doesn't support index or lsm files.", filename);
         }
+        /*
+         * In the case of partial backup restore, add the entry to the metadata even if the file
+         * doesn't exist so that we can correctly drop all related entries via the schema code
+         * later.
+         */
         WT_ERR(__wt_metadata_update(session, key->data, value->data));
     }
 
     F_SET(conn, WT_CONN_WAS_BACKUP);
-    if (restore_partial_backup && partial_backup_list != NULL) {
+    if (restore_partial_backup && partial_backup_names != NULL) {
         /*
          * During partial backup, parse through the partial backup list, and attempt to clean up all
-         * metadata references to do with the file. To do so, perform a schema drop operation on the
-         * table to cleanly remove all linked references. It is possible that performing a schema
-         * drop on the table reference can fail because a file can be created without a table
+         * metadata references relating to the file. To do so, perform a schema drop operation on
+         * the table to cleanly remove all linked references. It is possible that performing a
+         * schema drop on the table reference can fail because a file can be created without a table
          * schema, therefore perform a schema drop on the file reference when that happens.
          */
-        for (i = 0; partial_backup_list[i] != NULL; ++i) {
+        for (i = 0; partial_backup_names[i] != NULL; ++i) {
             /* Convert the file name to a table metadata reference. */
-            WT_ERR(__wt_schema_convert_file_to_table(session, partial_backup_list[i], &buf));
+            WT_ERR(__wt_schema_convert_file_to_table(session, partial_backup_names[i], &buf));
             /*
              * Perform schema drop on the table reference to cleanly remove all linked references to
              * table.
@@ -150,7 +155,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup
             /* Construct the buffer to refer a file entry metadata and perform a schema drop. */
             WT_WITH_SCHEMA_LOCK(session,
               WT_WITH_TABLE_WRITE_LOCK(
-                session, ret = __wt_schema_drop(session, partial_backup_list[i], drop_cfg)));
+                session, ret = __wt_schema_drop(session, partial_backup_names[i], drop_cfg)));
             WT_ERR(ret);
             __wt_free(session, buf);
         }
@@ -159,10 +164,10 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, bool restore_partial_backup
 err:
     if (buf != NULL)
         __wt_free(session, buf);
-    if (partial_backup_list != NULL) {
-        for (i = 0; partial_backup_list[i] != NULL; ++i)
-            __wt_free(session, partial_backup_list[i]);
-        __wt_free(session, partial_backup_list);
+    if (partial_backup_names != NULL) {
+        for (i = 0; partial_backup_names[i] != NULL; ++i)
+            __wt_free(session, partial_backup_names[i]);
+        __wt_free(session, partial_backup_names);
     }
     WT_TRET(__wt_fclose(session, &fs));
     __wt_scr_free(session, &key);

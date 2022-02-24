@@ -2769,6 +2769,10 @@ struct __wt_connection {
  * event handler is installed that writes error messages to stderr. See
  * @ref event_message_handling for more information.
  * @configstart{wiredtiger_open, see dist/api_data.py}
+ * @config{backup_partial_restore, When set to true\, allow a partial restore on the current
+ * database using the WiredTiger metadata backup file.  WiredTiger will reconstruct the database
+ * files that are only present in the directory and remove all table entries that are not in the
+ * directory anymore., a boolean flag; default \c false.}
  * @config{block_cache = (, block cache configuration options., a set of related configuration
  * options defined below.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;blkcache_eviction_aggression, seconds an
@@ -3098,10 +3102,6 @@ struct __wt_connection {
  * @config{readonly, open connection in read-only mode.  The database must exist.  All methods that
  * may modify a database are disabled.  See @ref readonly for more information., a boolean flag;
  * default \c false.}
- * @config{restore_partial_backup, When set\, perform partial restore on the current database using
- * the WiredTiger metadata backup file.  WiredTiger will reconstruct the database files that are
- * only present in the directory and remove all table entries that are not in the directory
- * anymore., a boolean flag; default \c false.}
  * @config{salvage, open connection and salvage any WiredTiger-owned database and log files that it
  * detects as corrupted.  This API should only be used after getting an error return of
  * WT_TRY_SALVAGE. Salvage rebuilds files in place\, overwriting existing files.  We recommend
