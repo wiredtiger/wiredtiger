@@ -1491,6 +1491,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
               "durable_timestamp should not be specified for non-prepared transaction");
     }
 
+    WT_ERR(__wt_txn_check_durable_timestamp(session));
+
     /*
      * Release our snapshot in case it is keeping data pinned (this is particularly important for
      * checkpoints). Before releasing our snapshot, copy values into any positioned cursors so they

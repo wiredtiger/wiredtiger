@@ -520,6 +520,52 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
 }
 
 /*
+ * __wt_txn_check_durable_timestamp --
+ *     Check that a transaction's effective durable timestamp is not before the durable timestamp of
+ * anything it read. That means the durable timestamp for prepared transactions and the commit
+ * timestamp otherwise. If committing without a timestamp, check that everything read is stable.
+ * This prevents consistency problems when one transaction reads another's committed values before
+ * they are stable and then commits and becomes stable first. See WT-8747.
+ */
+int
+__wt_txn_check_durable_timestamp(WT_SESSION_IMPL *session)
+{
+    WT_TXN *txn;
+    WT_TXN_GLOBAL *txn_global;
+    wt_timestamp_t durable_ts;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
+
+    txn = session->txn;
+    txn_global = &S2C(session)->txn_global;
+
+    /* Transactions that didn't write get a free pass. */
+    if (txn->mod_count == 0)
+        return (0);
+
+    if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
+        durable_ts = txn->durable_timestamp;
+    else if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+        durable_ts = txn->commit_timestamp;
+    else
+        durable_ts = WT_TS_NONE;
+
+    if (durable_ts == WT_TS_NONE) {
+        /* Don't waste cache cycles reading stable unless there's something to check. */
+        if (txn->max_durable_timestamp_read != WT_TS_NONE &&
+            txn->max_durable_timestamp_read > txn_global->stable_timestamp)
+            WT_RET_MSG(session, EINVAL,
+              "commit without timestamp applies before the durable timestamp %s of a value it read",
+              __wt_timestamp_to_string(txn->max_durable_timestamp_read, ts_string[1]));
+    } else if (durable_ts < txn->max_durable_timestamp_read)
+        WT_RET_MSG(session, EINVAL,
+          "durable timestamp %s is before the durable timestamp %s of a value it read",
+          __wt_timestamp_to_string(durable_ts, ts_string[0]),
+          __wt_timestamp_to_string(txn->max_durable_timestamp_read, ts_string[1]));
+
+    return (0);
+}
+
+/*
  * __wt_txn_set_commit_timestamp --
  *     Validate the commit timestamp of a transaction. If the commit timestamp is less than the
  *     oldest timestamp and transaction is configured to roundup timestamps of a prepared
@@ -679,14 +725,6 @@ __wt_txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_
           "durable timestamp %s is less than the commit timestamp %s for this transaction",
           __wt_timestamp_to_string(durable_ts, ts_string[0]),
           __wt_timestamp_to_string(txn->commit_timestamp, ts_string[1]));
-
-    /* Transactions that have made writes must not commit into the past of things they read. */
-    if (txn->mod_count > 0 && durable_ts != WT_TS_NONE &&
-      durable_ts < txn->max_durable_timestamp_read)
-        WT_RET_MSG(session, EINVAL,
-          "durable timestamp %s is before the durable timestamp %s of a value it read",
-          __wt_timestamp_to_string(durable_ts, ts_string[0]),
-          __wt_timestamp_to_string(txn->max_durable_timestamp_read, ts_string[1]));
 
     txn->durable_timestamp = durable_ts;
     F_SET(txn, WT_TXN_HAS_TS_DURABLE);
