@@ -281,10 +281,15 @@ __wt_cursor_get_key(WT_CURSOR *cursor, ...)
 void
 __wt_cursor_set_key(WT_CURSOR *cursor, ...)
 {
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
     va_list ap;
 
+    session = CUR2S(cursor);
+
     va_start(ap, cursor);
-    WT_IGNORE_RET(__wt_cursor_set_keyv(cursor, cursor->flags, ap));
+    if ((ret = __wt_cursor_set_keyv(cursor, cursor->flags, ap)) != 0)
+        WT_IGNORE_RET(__wt_panic(session, ret, "failed to set key"));
     va_end(ap);
 }
 
