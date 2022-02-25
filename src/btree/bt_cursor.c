@@ -1190,12 +1190,13 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
 
-    if (F_ISSET(cbt, WT_CBT_REPOSITION)) {
+    if (positioned && F_ISSET(cbt, WT_CBT_REPOSITION)) {
         WT_ERR_NOTFOUND_OK(__wt_btcur_reposition(cbt, true, true, NULL), true);
         /* The key is removed, set the reposition flag again. */
         if (ret == WT_NOTFOUND) {
             F_SET(cbt, WT_CBT_REPOSITION);
-            goto search_notfound;
+            ret = 0;
+            goto done;
         }
     }
 
