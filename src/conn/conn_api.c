@@ -2584,7 +2584,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     const WT_NAME_FLAG *ft;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
-    bool config_base_set, backup_partial_restore, try_salvage, verify_meta;
+    bool config_base_set, try_salvage, verify_meta;
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
 
@@ -2975,8 +2975,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_config_gets(session, cfg, "verify_metadata", &cval));
     verify_meta = cval.val;
     WT_ERR(__wt_config_gets(session, cfg, "backup_partial_restore", &cval));
-    backup_partial_restore = cval.val;
-    WT_ERR(__wt_turtle_init(session, verify_meta, backup_partial_restore));
+    if (cval.val != 0)
+        F_SET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE);
+    WT_ERR(__wt_turtle_init(session, verify_meta));
 
     /* Verify the metadata file. */
     if (verify_meta) {
@@ -3040,6 +3041,16 @@ err:
     if (session != &conn->dummy_session)
         __wt_scr_discard(session);
     __wt_scr_discard(&conn->dummy_session);
+
+    /*
+     * Clean up the partial backup restore flag and backup id list. The list was used as part of
+     * recovery to truncate the history store entries and the flag was used to allow schema drops to
+     * happen on tables to clean up the metadata entries, to schemas that are not part of the
+     * database anymore.
+     */
+    F_CLR(conn, WT_CONN_BACKUP_PARTIAL_RESTORE);
+    if (conn->partial_backup_remove_ids != NULL)
+        __wt_free(session, conn->partial_backup_remove_ids);
 
     if (ret != 0) {
         /*

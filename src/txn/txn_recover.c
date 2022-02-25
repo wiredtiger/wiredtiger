@@ -1090,13 +1090,6 @@ err:
     }
 
     /*
-     * Clean the partial backup list here, as it is possible that the list is initialized but we
-     * don't perform rollback to stable.
-     */
-    if (conn->partial_backup_remove_ids != NULL)
-        __wt_free(session, conn->partial_backup_remove_ids);
-
-    /*
      * Destroy the eviction threads that were started in support of recovery. They will be restarted
      * once the history store table is created.
      */
