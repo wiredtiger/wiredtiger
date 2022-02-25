@@ -63,7 +63,7 @@ The following table lists the transaction's timestamps and behaviors that can be
 | Timestamp | Constraint |  Description |
 |-----------|------------|-------------|
 | read_timestamp | >= oldest or >= pinned | see @ref timestamp_txn_api_read_timestamp; the transaction's read timestamp |
-| roundup_timestamps | None | see @ref timestamp_roundup; boolean setting for timestamp auto-adjustments |
+| roundup_timestamps | None | see @ref timestamp_prepare_roundup and @ref timestamp_read_roundup; boolean setting for timestamp auto-adjustments |
 
 @section timestamp_txn_api_commit Configuring transaction timestamp information with WT_SESSION::commit_transaction
 
