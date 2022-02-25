@@ -109,6 +109,7 @@ main(int argc, char *argv[])
     WT_SESSION *session, *session2;
     pthread_t thread;
     uint64_t i;
+    int ret;
 
     char str[] = "0000000000000000";
 
@@ -228,7 +229,10 @@ main(int argc, char *argv[])
     testutil_check(session->open_cursor(session, name, NULL, "overwrite", &wcursor));
     for (i = 0; i < NUM_DOCS; i++) {
         wcursor->set_key(wcursor, i);
-        if (wcursor->search(wcursor) == 0)
+        if ((ret = wcursor->search(wcursor)) == WT_NOTFOUND)
+            fprintf(
+              stderr, "cursor.remove: %s\n", wcursor->session->strerror(wcursor->session, ret));
+        else
             testutil_check(wcursor->remove(wcursor));
     }
     testutil_check(wcursor->close(wcursor));

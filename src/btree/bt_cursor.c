@@ -1093,7 +1093,6 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
      * not be positioned to the correct record in the case of implicit records in the append list.
      * FUTURE: again, it appears that this is no longer true...
      */
-
     if (session == NULL && btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt, false)) {
         WT_ERR(__wt_txn_autocommit_check(session));
 
