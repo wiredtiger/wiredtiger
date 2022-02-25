@@ -3941,7 +3941,7 @@ buildvariants:
     - name: package
 
 - name: documentation-update
-  # Documentation update is NOT expected to be triggerred on Evergreen projects
+  # Documentation update is NOT expected to be triggered on Evergreen projects
   # other than "WiredTiger (develop)"
   activate: false
   display_name: "~ Documentation update"
