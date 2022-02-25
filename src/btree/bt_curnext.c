@@ -890,5 +890,34 @@ err:
 int
 __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 {
-    return (__wt_btcur_next_prefix(cbt, NULL, truncating));
+    WT_CURSOR *cursor;
+    WT_SESSION_IMPL *session;
+    bool moved;
+
+    cursor = &cbt->iface;
+    session = CUR2S(cbt);
+    moved = false;
+
+    if (F_ISSET(cbt, WT_CBT_REPOSITION) && session->txn->isolation == WT_ISO_SNAPSHOT)
+        WT_RET(__wt_btcur_reposition(cbt, false, true, &moved));
+
+    F_CLR(cbt, WT_CBT_REPOSITION);
+
+    if (!moved)
+        WT_RET(__wt_btcur_next_prefix(cbt, NULL, truncating));
+
+    /* Next maintains a position, key and value. */
+    WT_ASSERT(session,
+      F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
+        F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+
+    /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
+    if (session->txn->isolation == WT_ISO_SNAPSHOT &&
+      (F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION) ||
+        __wt_btcur_reposition_timing_stress(session)))
+        WT_RET(__wt_btcur_release_page(cbt));
+
+    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_SET) && F_ISSET(cursor, WT_CURSTD_VALUE_SET));
+
+    return (0);
 }

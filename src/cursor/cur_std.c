@@ -426,6 +426,7 @@ __wt_cursor_set_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
     tmp.mem = NULL;
 
     CURSOR_API_CALL(cursor, session, set_key, NULL);
+    F_CLR((WT_CURSOR_BTREE *)cursor, WT_CBT_REPOSITION);
     WT_ERR(__cursor_copy_release(cursor));
     if (F_ISSET(cursor, WT_CURSTD_KEY_SET) && WT_DATA_IN_ITEM(buf)) {
         tmp = *buf;

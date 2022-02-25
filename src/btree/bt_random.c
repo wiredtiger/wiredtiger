@@ -585,6 +585,19 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
     /* Select a random entry from the leaf page. */
     WT_ERR(__random_leaf(cbt));
 
+    /* Next-random maintains a position, key and value. */
+    WT_ASSERT(session,
+      F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
+        F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+
+    /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
+    if (session->txn->isolation == WT_ISO_SNAPSHOT &&
+      (F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION) ||
+        __wt_btcur_reposition_timing_stress(session)))
+        WT_ERR(__wt_btcur_release_page(cbt));
+
+    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_SET) && F_ISSET(cursor, WT_CURSTD_VALUE_SET));
+
     return (0);
 
 err:

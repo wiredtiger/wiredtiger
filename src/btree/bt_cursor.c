@@ -511,11 +511,94 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
 }
 
 /*
+ * __wt_btcur_reposition_timing_stress --
+ *     Optionally reposition the cursor 10% of times
+ */
+bool
+__wt_btcur_reposition_timing_stress(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_BTREE_REPOSITION) &&
+      __wt_random(&session->rnd) % 10 == 0)
+        return (true);
+
+    return (false);
+}
+
+/*
+ * __wt_btcur_reposition --
+ *     Reposition the saved key
+ */
+int
+__wt_btcur_reposition(WT_CURSOR_BTREE *cbt, bool exact_match, bool next, bool *moved)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    int exact;
+
+    cursor = &cbt->iface;
+    session = CUR2S(cbt);
+    exact = 0;
+
+    WT_STAT_CONN_DATA_INCR(session, cursor_reposition);
+
+    if (moved != NULL)
+        *moved = false;
+
+    if (!F_ISSET(cursor, WT_CURSTD_KEY_EXT))
+        WT_ERR_PANIC(session, EINVAL, "reposition flag is set without a search key");
+
+    if (exact_match)
+        WT_ERR(__wt_btcur_search(cbt, false));
+    else {
+        WT_ERR(__wt_btcur_search_near(cbt, false, &exact));
+        if ((exact > 0 && next) || (exact < 0 && !next))
+            *moved = true;
+    }
+
+    /* Search maintains a position, key and value. */
+    WT_ASSERT(session,
+      F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
+        F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+
+err:
+    F_CLR(cbt, WT_CBT_REPOSITION);
+    if (ret != 0)
+        WT_STAT_CONN_DATA_INCR(session, cursor_reposition_failed);
+    return (ret);
+}
+
+/*
+ * __wt_btcur_release_page --
+ *     Copy the return key value to the local buffer and release the page.
+ */
+int
+__wt_btcur_release_page(WT_CURSOR_BTREE *cbt)
+{
+    WT_CURSOR *cursor;
+
+    cursor = &cbt->iface;
+
+    WT_RET(__wt_cursor_localkey(cursor));
+    WT_RET(__wt_cursor_localvalue(cursor));
+    WT_RET(__wt_cursor_reset(cbt));
+    F_SET(cbt, WT_CBT_REPOSITION);
+
+    WT_STAT_CONN_DATA_INCR(CUR2S(cursor), cursor_reposition_prepare);
+
+    return (0);
+}
+
+/*
  * __wt_btcur_search --
  *     Search for a matching record in the tree.
  */
 int
-__wt_btcur_search(WT_CURSOR_BTREE *cbt)
+__wt_btcur_search(WT_CURSOR_BTREE *cbt, bool reposition)
 {
     WT_BTREE *btree;
     WT_CURFILE_STATE state;
@@ -530,6 +613,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_search);
 
+    F_CLR(cbt, WT_CBT_REPOSITION);
     __wt_txn_search_check(session);
     __cursor_state_save(cursor, &state);
 
@@ -613,6 +697,19 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
         WT_ERR(__wt_cursor_key_order_init(cbt));
 #endif
 
+    /* Search maintains a position, key and value. */
+    WT_ASSERT(session,
+      F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
+        F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+
+    /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
+    if (reposition && session->txn->isolation == WT_ISO_SNAPSHOT &&
+      (F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION) ||
+        __wt_btcur_reposition_timing_stress(session)))
+        WT_ERR(__wt_btcur_release_page(cbt));
+
+    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_SET) && F_ISSET(cursor, WT_CURSTD_VALUE_SET));
+
 err:
     if (ret != 0) {
         WT_TRET(__wt_cursor_reset(cbt));
@@ -626,7 +723,7 @@ err:
  *     Search for a record in the tree.
  */
 int
-__wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
+__wt_btcur_search_near(WT_CURSOR_BTREE *cbt, bool reposition, int *exactp)
 {
     WT_BTREE *btree;
     WT_CURFILE_STATE state;
@@ -643,6 +740,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_search_near);
 
+    F_CLR(cbt, WT_CBT_REPOSITION);
     __wt_txn_search_check(session);
     __cursor_state_save(cursor, &state);
 
@@ -784,6 +882,13 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     }
 
 done:
+    /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
+    if (reposition && session->txn->isolation == WT_ISO_SNAPSHOT &&
+      (F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION) ||
+        __wt_btcur_reposition_timing_stress(session)))
+        WT_ERR(__wt_btcur_release_page(cbt));
+
+    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_SET) && F_ISSET(cursor, WT_CURSTD_VALUE_SET));
 err:
     if (ret == 0 && exactp != NULL)
         *exactp = exact;
@@ -830,6 +935,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     WT_STAT_CONN_DATA_INCR(session, cursor_insert);
     WT_STAT_CONN_DATA_INCRV(session, cursor_insert_bytes, insert_bytes);
 
+    F_CLR(cbt, WT_CBT_REPOSITION);
     if (btree->type == BTREE_ROW)
         WT_RET(__cursor_size_chk(session, &cursor->key));
     WT_RET(__cursor_size_chk(session, &cursor->value));
@@ -1018,6 +1124,7 @@ __wt_btcur_insert_check(WT_CURSOR_BTREE *cbt)
 
     WT_ASSERT(session, CUR2BT(cbt)->type == BTREE_ROW);
 
+    F_CLR(cbt, WT_CBT_REPOSITION);
     /*
      * The pinned page goes away if we do a search, get a local copy of any pinned key and discard
      * any pinned value. Unlike most of the btree cursor routines, we don't have to save/restore the
@@ -1074,6 +1181,15 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
 
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
+
+    if (F_ISSET(cbt, WT_CBT_REPOSITION)) {
+        WT_ERR_NOTFOUND_OK(__wt_btcur_reposition(cbt, true, true, NULL), true);
+        /* The key is removed, set the reposition flag again. */
+        if (ret == WT_NOTFOUND) {
+            F_SET(cbt, WT_CBT_REPOSITION);
+            goto search_notfound;
+        }
+    }
 
     /*
      * If remove positioned to an on-page key, the remove doesn't require another search. We don't
@@ -1231,8 +1347,16 @@ done:
      * (and check in diagnostic mode). Error handling may have converted failure to a success, do a
      * final check.
      */
-    if (ret == 0)
+    if (ret == 0) {
         F_CLR(cursor, WT_CURSTD_VALUE_SET);
+
+        /* If the page needs to be evicted, copy the data to the local buffer and release the page.
+         */
+        if (session->txn->isolation == WT_ISO_SNAPSHOT && F_ISSET(cursor, WT_CURSTD_KEY_INT) &&
+          (F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION) ||
+            __wt_btcur_reposition_timing_stress(session)))
+            WT_ERR(__wt_btcur_release_page(cbt));
+    }
 
     return (ret);
 }
@@ -1468,6 +1592,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     cursor = &cbt->iface;
     session = CUR2S(cbt);
 
+    F_CLR(cbt, WT_CBT_REPOSITION);
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
 
@@ -1496,7 +1621,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
         WT_ERR_MSG(session, ENOTSUP, "not supported in implicit transactions");
 
     if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT))
-        WT_ERR(__wt_btcur_search(cbt));
+        WT_ERR(__wt_btcur_search(cbt, false));
 
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
 
@@ -1522,6 +1647,21 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
         ret = __btcur_update(cbt, modify, WT_UPDATE_MODIFY);
     if (overwrite)
         F_SET(cursor, WT_CURSTD_OVERWRITE);
+
+    /*
+     * Modify maintains a position, key and value. Unlike update, it's not always an internal value.
+     */
+    WT_ASSERT(session,
+      F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
+    WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) != 0);
+
+    /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
+    if (session->txn->isolation == WT_ISO_SNAPSHOT &&
+      (F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION) ||
+        __wt_btcur_reposition_timing_stress(session)))
+        WT_ERR(__wt_btcur_release_page(cbt));
+
+    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_SET) && F_ISSET(cursor, WT_CURSTD_VALUE_SET));
 
     /*
      * We have our own cursor state restoration because we've modified the cursor before calling the
@@ -1555,6 +1695,7 @@ __wt_btcur_reserve(WT_CURSOR_BTREE *cbt)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_reserve);
 
+    F_CLR(cbt, WT_CBT_REPOSITION);
     /* WT_CURSOR.reserve is update-without-overwrite and a special value. */
     overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
     F_CLR(cursor, WT_CURSTD_OVERWRITE);
@@ -1586,7 +1727,22 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
         WT_RET(__cursor_size_chk(session, &cursor->key));
     WT_RET(__cursor_size_chk(session, &cursor->value));
 
-    return (__btcur_update(cbt, &cursor->value, WT_UPDATE_STANDARD));
+    WT_RET(__btcur_update(cbt, &cursor->value, WT_UPDATE_STANDARD));
+
+    /* Update maintains a position, key and value. */
+    WT_ASSERT(session,
+      F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
+        F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+
+    /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
+    if (session->txn->isolation == WT_ISO_SNAPSHOT &&
+      (F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION) ||
+        __wt_btcur_reposition_timing_stress(session)))
+        WT_RET(__wt_btcur_release_page(cbt));
+
+    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_SET) && F_ISSET(cursor, WT_CURSTD_VALUE_SET));
+
+    return (0);
 }
 
 /*
@@ -1727,7 +1883,7 @@ __cursor_truncate(
  * the end cursor, so we know that page is pinned in memory and we can proceed without concern.
  */
 retry:
-    WT_ERR(__wt_btcur_search(start));
+    WT_ERR(__wt_btcur_search(start, false));
     WT_ASSERT(session, F_MASK((WT_CURSOR *)start, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
 
     for (;;) {
@@ -1784,7 +1940,7 @@ __cursor_truncate_fix(
  * full search to refresh the page's modification information.
  */
 retry:
-    WT_ERR(__wt_btcur_search(start));
+    WT_ERR(__wt_btcur_search(start, false));
     WT_ASSERT(session, F_MASK((WT_CURSOR *)start, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
 
     for (;;) {

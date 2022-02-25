@@ -500,7 +500,7 @@ __curversion_search(WT_CURSOR *cursor)
 
     /* Do a search and position on the key if it is found */
     F_SET(file_cursor, WT_CURSTD_KEY_ONLY);
-    WT_ERR(__wt_btcur_search(cbt));
+    WT_ERR(__wt_btcur_search(cbt, false));
     WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
 
     /*

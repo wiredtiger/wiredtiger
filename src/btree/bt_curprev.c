@@ -656,13 +656,22 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     WT_SESSION_IMPL *session;
     size_t total_skipped, skipped;
     uint32_t flags;
-    bool newpage, restart;
+    bool moved, newpage, restart;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
     total_skipped = 0;
+    moved = false;
 
     WT_STAT_CONN_DATA_INCR(session, cursor_prev);
+
+    if (F_ISSET(cbt, WT_CBT_REPOSITION) && session->txn->isolation == WT_ISO_SNAPSHOT)
+        WT_ERR(__wt_btcur_reposition(cbt, false, false, &moved));
+
+    F_CLR(cbt, WT_CBT_REPOSITION);
+
+    if (moved)
+        goto done;
 
     flags = /* tree walk flags */
       WT_READ_NO_SPLIT | WT_READ_PREV | WT_READ_SKIP_INTL;
@@ -784,6 +793,20 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
             WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
         WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND, false);
     }
+
+done:
+    /* Prev maintains a position, key and value. */
+    WT_ASSERT(session,
+      F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
+        F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+
+    /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
+    if (session->txn->isolation == WT_ISO_SNAPSHOT &&
+      (F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION) ||
+        __wt_btcur_reposition_timing_stress(session)))
+        WT_ERR(__wt_btcur_release_page(cbt));
+
+    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_SET) && F_ISSET(cursor, WT_CURSTD_VALUE_SET));
 
 err:
     if (total_skipped < 100)
