@@ -1723,6 +1723,7 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
     WT_STAT_CONN_DATA_INCR(session, cursor_update);
     WT_STAT_CONN_DATA_INCRV(session, cursor_update_bytes, cursor->key.size + cursor->value.size);
 
+    F_CLR(cbt, WT_CBT_REPOSITION);
     if (btree->type == BTREE_ROW)
         WT_RET(__cursor_size_chk(session, &cursor->key));
     WT_RET(__cursor_size_chk(session, &cursor->value));
