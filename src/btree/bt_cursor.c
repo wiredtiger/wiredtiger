@@ -883,7 +883,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, bool reposition, int *exactp)
 
 done:
     /* If the page needs to be evicted, copy the data to the local buffer and release the page. */
-    if (reposition && session->txn->isolation == WT_ISO_SNAPSHOT &&
+    if (ret == 0 && reposition && session->txn->isolation == WT_ISO_SNAPSHOT &&
       (F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION) ||
         __wt_btcur_reposition_timing_stress(session)))
         WT_ERR(__wt_btcur_release_page(cbt));
