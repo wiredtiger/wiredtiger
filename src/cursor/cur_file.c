@@ -376,7 +376,7 @@ __curfile_remove(WT_CURSOR *cursor)
     __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
     /* If we've lost an initial position, we must fail. */
-    if (positioned && (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cbt, WT_CBT_REPOSITION))) {
+    if (positioned && (!F_ISSET(cursor, WT_CURSTD_KEY_INT) && !F_ISSET(cbt, WT_CBT_REPOSITION))) {
         __wt_verbose_notice(session, WT_VERB_ERROR_RETURNS, "%s",
           "WT_ROLLBACK: rolling back cursor remove as initial position was lost");
         WT_ERR(WT_ROLLBACK);
