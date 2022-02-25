@@ -70,6 +70,7 @@ from wtscenario import filter_scenarios, make_scenarios
 #      - a timestamped commit will fail if its durable timestamp is before the durable
 #        timestamp of something it read, and won't if its durable timestamp is the same
 #        or later.
+#      - note however that this only actually fails if the operation triggers the restriction.
 #
 # Note that we filter out the case where both the first transaction and the second
 # transaction do removes (including truncates) because this doesn't work -- as of this
@@ -124,9 +125,9 @@ class test_durable_ts04(wttest.WiredTigerTestCase):
         ('read_update', dict(second_op='update', second_read=True, op_xfail=True)),
         ('insert', dict(second_op='insert', second_read=False, op_xfail=False)),
         ('read_insert', dict(second_op='insert', second_read=True, op_xfail=True)),
-        # For the moment at least, truncate is a read-modify-write and will fail here even
-        # without an explicit read.
-        ('truncate', dict(second_op='truncate', second_read=False, op_xfail=True)),
+        # While truncate is a read-modify-write, it does not fail here without a
+        # read because we operate on disjoint chunks of the database.
+        ('truncate', dict(second_op='truncate', second_read=False, op_xfail=False)),
         ('read_truncate', dict(second_op='truncate', second_read=True, op_xfail=True)),
     ]
     second_commit_values = [
@@ -247,13 +248,13 @@ class test_durable_ts04(wttest.WiredTigerTestCase):
         if self.second_op == 'truncate':
             lo = self.session.open_cursor(uri)
             hi = self.session.open_cursor(uri)
-            lo.set_key(1)
-            hi.set_key(nrows // 2)
+            lo.set_key(nrows // 2 + 1)
+            hi.set_key(nrows)
             self.assertEqual(self.session.truncate(None, lo, hi, None), 0)
             lo.close()
             hi.close()
         else:
-            for k in range(1, nrows // 2):
+            for k in range(nrows // 2 + 1, nrows):
                 cursor.set_key(k)
                 if self.second_op == 'remove':
                     self.assertEqual(cursor.remove(), 0)
