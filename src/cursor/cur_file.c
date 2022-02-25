@@ -355,6 +355,8 @@ __curfile_remove(WT_CURSOR *cursor)
     uint64_t time_start, time_stop;
     bool positioned;
 
+    cbt = (WT_CURSOR_BTREE *)cursor;
+
     /*
      * WT_CURSOR.remove has a unique semantic, the cursor stays positioned if it starts positioned,
      * otherwise clear the cursor on completion. Track if starting with a positioned cursor and pass
@@ -364,7 +366,6 @@ __curfile_remove(WT_CURSOR *cursor)
      */
     positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT) || F_ISSET(cbt, WT_CBT_REPOSITION);
 
-    cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_REMOVE_API_CALL(cursor, session, CUR2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
