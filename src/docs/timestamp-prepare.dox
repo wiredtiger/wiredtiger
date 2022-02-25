@@ -47,7 +47,7 @@ transactions are higher-level MongoDB operations, requiring cluster-level
 consensus on durability. Applications without similar requirements for prepared
 transactions should set the durable and commit timestamps to the same time.
 
-\warning 
+\warning
 When a transaction has a durable timestamp later than its commit timestamp,
 reading its writes in a second transaction and then committing other writes such
 that the second transaction becomes durable before the first can produce data
