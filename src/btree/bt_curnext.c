@@ -915,7 +915,8 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
         __wt_btcur_reposition_timing_stress(session)))
         WT_RET(__wt_btcur_release_page(cbt));
 
-    WT_ASSERT(session, F_ISSET(&cbt->iface, WT_CURSTD_KEY_SET) && F_ISSET(&cbt->iface, WT_CURSTD_VALUE_SET));
+    WT_ASSERT(session,
+      F_ISSET(&cbt->iface, WT_CURSTD_KEY_SET) && F_ISSET(&cbt->iface, WT_CURSTD_VALUE_SET));
 
     return (0);
 }
