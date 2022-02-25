@@ -145,7 +145,7 @@ __wt_session_copy_values(WT_SESSION_IMPL *session)
                 (WT_BTREE_PREFIX(cursor->uri) &&
                   F_ISSET((WT_CURSOR_BTREE *)cursor, WT_CBT_NO_TXN)));
 #endif
-            WT_RET(__wt_cursor_localvalue(cursor));
+            WT_RET(__cursor_localvalue(cursor));
         }
 
     return (0);

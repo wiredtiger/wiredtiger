@@ -584,7 +584,7 @@ __wt_btcur_release_page(WT_CURSOR_BTREE *cbt)
     cursor = &cbt->iface;
 
     WT_RET(__wt_cursor_localkey(cursor));
-    WT_RET(__wt_cursor_localvalue(cursor));
+    WT_RET(__cursor_localvalue(cursor));
     WT_RET(__cursor_reset(cbt));
     F_SET(cbt, WT_CBT_REPOSITION);
 
@@ -982,7 +982,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
          * the cursor state: we may retry but eventually fail.
          */
         WT_TRET(__wt_cursor_localkey(cursor));
-        WT_TRET(__wt_cursor_localvalue(cursor));
+        WT_TRET(__cursor_localvalue(cursor));
         __cursor_state_save(cursor, &state);
         goto err;
     }
@@ -992,7 +992,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
      * Re-save the cursor state: we may retry but eventually fail.
      */
     WT_ERR(__wt_cursor_localkey(cursor));
-    WT_ERR(__wt_cursor_localvalue(cursor));
+    WT_ERR(__cursor_localvalue(cursor));
     __cursor_state_save(cursor, &state);
 
 retry:
@@ -1053,7 +1053,7 @@ duplicate:
             ret = WT_DUPLICATE_KEY;
         else {
             __wt_value_return(cbt, cbt->upd_value);
-            if ((ret = __wt_cursor_localvalue(cursor)) == 0)
+            if ((ret = __cursor_localvalue(cursor)) == 0)
                 ret = WT_DUPLICATE_KEY;
         }
     }
@@ -1415,7 +1415,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
          * the cursor state: we may retry but eventually fail.
          */
         WT_TRET(__wt_cursor_localkey(cursor));
-        WT_TRET(__wt_cursor_localvalue(cursor));
+        WT_TRET(__cursor_localvalue(cursor));
         __cursor_state_save(cursor, &state);
         goto err;
     }
@@ -1425,7 +1425,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
      * Re-save the cursor state: we may retry but eventually fail.
      */
     WT_ERR(__wt_cursor_localkey(cursor));
-    WT_ERR(__wt_cursor_localvalue(cursor));
+    WT_ERR(__cursor_localvalue(cursor));
     __cursor_state_save(cursor, &state);
 
 retry:

@@ -111,11 +111,11 @@ __wt_cursor_localkey(WT_CURSOR *cursor)
 }
 
 /*
- * __wt_cursor_localvalue --
+ * __cursor_localvalue --
  *     If the value points into the tree, get a local copy.
  */
 static inline int
-__wt_cursor_localvalue(WT_CURSOR *cursor)
+__cursor_localvalue(WT_CURSOR *cursor)
 {
     if (F_ISSET(cursor, WT_CURSTD_VALUE_INT)) {
         if (!WT_DATA_IN_ITEM(&cursor->value))
@@ -149,7 +149,7 @@ __cursor_needkey(WT_CURSOR *cursor)
 static inline int
 __cursor_needvalue(WT_CURSOR *cursor)
 {
-    WT_RET(__wt_cursor_localvalue(cursor));
+    WT_RET(__cursor_localvalue(cursor));
     return (__cursor_checkvalue(cursor));
 }
 
