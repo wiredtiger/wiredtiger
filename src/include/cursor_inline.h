@@ -205,11 +205,11 @@ __cursor_leave(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_cursor_reset --
+ * __cursor_reset --
  *     Reset the cursor, it no longer holds any position.
  */
 static inline int
-__wt_cursor_reset(WT_CURSOR_BTREE *cbt)
+__cursor_reset(WT_CURSOR_BTREE *cbt)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -420,7 +420,7 @@ __wt_cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
     session = CUR2S(cbt);
 
     if (reenter)
-        WT_RET(__wt_cursor_reset(cbt));
+        WT_RET(__cursor_reset(cbt));
 
     /*
      * Any old insert position is now invalid. We rely on this being cleared to detect if a new

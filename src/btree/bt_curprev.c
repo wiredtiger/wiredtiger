@@ -844,7 +844,7 @@ err:
         F_SET(cbt, WT_CBT_ITERATE_RETRY_PREV);
         break;
     default:
-        WT_TRET(__wt_cursor_reset(cbt));
+        WT_TRET(__cursor_reset(cbt));
     }
     F_CLR(cbt, WT_CBT_ITERATE_RETRY_NEXT);
     return (ret);
