@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
+import wiredtiger
 from wtscenario import make_scenarios
 
 # test_durable_ts03.py
@@ -96,9 +97,16 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
             self.assertEqual(value, valueA)
         session.commit_transaction()
 
-        # Read the updated data to confirm that it is visible.
+        # Check that the updated data can still be read even while it is not yet durable.
         self.assertEquals(cursor.reset(), 0)
         session.begin_transaction('read_timestamp=' + self.timestamp_str(210))
+        for key, value in cursor:
+            self.assertEqual(value, valueB)
+        session.rollback_transaction()
+
+        # Read the updated data to confirm that it is visible.
+        self.assertEquals(cursor.reset(), 0)
+        session.begin_transaction('read_timestamp=' + self.timestamp_str(220))
         for key, value in cursor:
             self.assertEqual(value, valueB)
         session.commit_transaction()
