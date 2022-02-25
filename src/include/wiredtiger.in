@@ -3789,7 +3789,8 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
 /*!
  * Non-specific WiredTiger error.
  * This error is returned when an error is not covered by a specific error
- * return.
+ * return. The operation may be retried; if a transaction is in progress, it
+ * should be rolled back and the operation retried in a new transaction.
  */
 #define	WT_ERROR	(-31802)
 /*!
@@ -3812,8 +3813,8 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
 /*! @endcond */
 /*!
  * Recovery must be run to continue.
- * This error is generated when wiredtiger_open is configured to return an error
- * if recovery is required to use the database.
+ * This error is generated when ::wiredtiger_open is configured to return an
+ * error if recovery is required to use the database.
  */
 #define	WT_RUN_RECOVERY	(-31806)
 /*!
