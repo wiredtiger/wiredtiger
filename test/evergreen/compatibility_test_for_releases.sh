@@ -42,7 +42,12 @@ pick_a_version()
     # Query out all released patch versions for a given release branch using "git tag"
     local versions=()
 
-    mapfile -t versions < <( git tag | grep $branch | grep -v rc | grep -v alpha )
+    # Avoid picking below types of versions:
+    #   - release candidates (rc)
+    #   - alpha releases (alpha)
+    #   - mongodb-4.4.0 through mongodb-4.4.6 (4.4.[0-6]$) as they are not compatible with Doxygen
+    #     version 1.8.17 (installed on the build hosts). WT-7437 was introduced since 4.4.7.
+    mapfile -t versions < <( git tag | grep $branch | grep -Ev "rc|alpha|4.4.[0-6]$" )
 
     # Randomly pick a version from the array of patch versions
     pv=${versions[$RANDOM % ${#versions[@]} ]}
