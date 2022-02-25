@@ -30,9 +30,8 @@
 # wt_util
 # [END_TAGS]
 
-import os, struct
 from suite_subprocess import suite_subprocess
-import wiredtiger, wttest
+import wttest
 
 # test_util11.py
 #    Utilities: wt list
@@ -96,8 +95,8 @@ class test_util11(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create('table:' + pfx + '4', params)
         self.populate(pfx + '2')
         self.populate(pfx + '3')
-        self.session.drop('table:' + pfx + '2', None)
-        self.session.drop('table:' + pfx + '4', None)
+        self.dropUntilSuccess(self.session, 'table:' + pfx + '2')
+        self.dropUntilSuccess(self.session, 'table:' + pfx + '4')
 
         # Construct what we think we'll find
         tablelist = ''.join('table:' + pfx + str(i) + '\n' for i in (1, 3, 5))
@@ -120,11 +119,11 @@ class test_util11(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create('table:' + pfx + '4', params)
         self.populate(pfx + '2')
         self.populate(pfx + '3')
-        self.session.drop('table:' + pfx + '5', None)
-        self.session.drop('table:' + pfx + '4', None)
-        self.session.drop('table:' + pfx + '3', None)
-        self.session.drop('table:' + pfx + '2', None)
-        self.session.drop('table:' + pfx + '1', None)
+        self.dropUntilSuccess(self.session, 'table:' + pfx + '5')
+        self.dropUntilSuccess(self.session, 'table:' + pfx + '4')
+        self.dropUntilSuccess(self.session, 'table:' + pfx + '3')
+        self.dropUntilSuccess(self.session, 'table:' + pfx + '2')
+        self.dropUntilSuccess(self.session, 'table:' + pfx + '1')
 
         # Construct what we think we'll find
         filelist = ''

@@ -6,6 +6,10 @@ engineer wanting to understand how the storage engine works. The goal
 of this guide is to help both MongoDB engineers and external users
 quickly understand the workings of WiredTiger.
 
+\warning
+The Architecture Guide is not updated in lockstep with the code base and is not
+necessarily correct or complete for any specific release.
+
 The relationships between the software components in WiredTiger are
 illustrated in the diagram below. An arrow originating at Component A
 and pointing to Component B indicates that Component B is used by
@@ -138,6 +142,7 @@ of the documentation.
     - @ref arch-session
     - @ref arch-cursor
     - @ref arch-transaction
+    - @ref arch-timestamp
     - @ref arch-snapshot
     - @ref arch-rts
 
@@ -195,6 +200,9 @@ of the documentation.
 @subpage arch-transaction
 - Transactions provide a powerful abstraction for multiple threads to
 operate on data concurrently.
+
+@subpage arch-timestamp
+- The timestamp data model.
 
 @subpage arch-snapshot
 - Snapshots are implemented by storing transaction ids committed before

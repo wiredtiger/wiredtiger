@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import fnmatch, os, shutil, time
 from helper import simulate_crash_restart
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 from wiredtiger import stat
@@ -51,7 +50,7 @@ class test_rollback_to_stable11(test_rollback_to_stable_base):
     scenarios = make_scenarios(format_values, prepare_values)
 
     def conn_config(self):
-        config = 'cache_size=1MB,statistics=(all),log=(enabled=true,remove=false)'
+        config = 'cache_size=1MB,statistics=(all)'
         return config
 
     def test_rollback_to_stable(self):
@@ -59,9 +58,7 @@ class test_rollback_to_stable11(test_rollback_to_stable_base):
 
         # Create a table without logging.
         uri = "table:rollback_to_stable11"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 
         if self.value_format == '8t':
@@ -88,9 +85,11 @@ class test_rollback_to_stable11(test_rollback_to_stable_base):
         # Verify data is visible and correct.
         self.check(value_b, uri, nrows, None, 20)
 
-        # Pin stable to timestamp 30 if prepare otherwise 20.
+        # Pin stable to timestamp 28 if prepare otherwise 20.
+        # large_updates() prepares at 1 before the timestamp passed (so 29)
+        # and this is required to be strictly greater than (not >=) stable.
         if self.prepare:
-            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(28))
         else:
             self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
 

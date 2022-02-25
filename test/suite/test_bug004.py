@@ -33,8 +33,8 @@
 # test_bug004.py
 #       Regression tests.
 
-import wiredtiger, wttest
-from wtdataset import SimpleDataSet, simple_key, simple_value
+import wttest
+from wtdataset import simple_key, simple_value
 from wtscenario import make_scenarios
 
 # Check to make sure we see the right versions of overflow keys and values
@@ -74,9 +74,9 @@ class test_bug004(wttest.WiredTigerTestCase):
         c1.close()
 
         # Verify the object, force it to disk, and verify the on-disk version.
-        self.session.verify(self.uri)
+        self.verifyUntilSuccess(self.session, self.uri)
         self.reopen_conn()
-        self.session.verify(self.uri)
+        self.verifyUntilSuccess(self.session, self.uri)
 
         # Create a new session and start a transaction to force the engine
         # to access old versions of the key/value pairs.

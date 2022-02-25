@@ -382,17 +382,40 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         F_CLR(btree, WT_BTREE_IGNORE_CACHE);
 
     /*
+     * Turn on logging when it's enabled in the database and not disabled for the tree. Timestamp
+     * behavior is described by the logging configurations for historical reasons; logged objects
+     * imply commit-level durability and ignored timestamps, not-logged objects imply checkpoint-
+     * level durability and supported timestamps. In-memory configurations default to ignoring all
+     * timestamps, and the application uses the logging configuration flag to turn on timestamps.
+     */
+    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) {
+        WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
+        if (cval.val)
+            F_SET(btree, WT_BTREE_LOGGED);
+    }
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+        F_SET(btree, WT_BTREE_LOGGED);
+        WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
+        if (!cval.val)
+            F_CLR(btree, WT_BTREE_LOGGED);
+    }
+
+    /*
      * The metadata isn't blocked by in-memory cache limits because metadata "unroll" is performed
      * by updates that are potentially blocked by the cache-full checks.
+     *
+     * The metadata file ignores timestamps and is logged if at all possible.
      */
-    if (WT_IS_METADATA(btree->dhandle))
+    if (WT_IS_METADATA(btree->dhandle)) {
         F_SET(btree, WT_BTREE_IGNORE_CACHE);
+        F_SET(btree, WT_BTREE_LOGGED);
+    }
 
-    WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
-    if (cval.val)
-        F_CLR(btree, WT_BTREE_NO_LOGGING);
-    else
-        F_SET(btree, WT_BTREE_NO_LOGGING);
+    /* The history store file is never logged and supports timestamps. */
+    if (strcmp(session->dhandle->name, WT_HS_URI) == 0) {
+        F_SET(btree->dhandle, WT_DHANDLE_HS);
+        F_CLR(btree, WT_BTREE_LOGGED);
+    }
 
     WT_RET(__wt_config_gets(session, cfg, "tiered_object", &cval));
     if (cval.val)
@@ -478,12 +501,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         }
     }
 
-    /* Set special flags for the history store table. */
-    if (strcmp(session->dhandle->name, WT_HS_URI) == 0) {
-        F_SET(btree->dhandle, WT_DHANDLE_HS);
-        F_SET(btree, WT_BTREE_NO_LOGGING);
-    }
-
     /* Configure encryption. */
     WT_RET(__wt_btree_config_encryptor(session, cfg, &btree->kencryptor));
 
@@ -538,8 +555,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
      * connection last checkpoint base write generation number is when rollback to stable doesn't
      * happen during the recovery due to the unavailability of history store file.
      */
-    if (!F_ISSET(conn, WT_CONN_RECOVERING) || WT_IS_METADATA(btree->dhandle) ||
-      __wt_btree_immediately_durable(session) ||
+    if (!F_ISSET(conn, WT_CONN_RECOVERING) || F_ISSET(btree, WT_BTREE_LOGGED) ||
       ckpt->run_write_gen < conn->last_ckpt_base_write_gen)
         btree->base_write_gen = btree->run_write_gen;
     else
@@ -989,32 +1005,11 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_btree_immediately_durable --
- *     Check whether this btree is configured for immediate durability.
- */
-bool
-__wt_btree_immediately_durable(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *btree;
-
-    btree = S2BT(session);
-
-    /*
-     * This is used to determine whether timestamp updates should be rolled back for this btree.
-     * With in-memory, the logging setting on tables is still important and when enabled they should
-     * be considered "durable".
-     */
-    return ((FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED) ||
-              (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))) &&
-      !F_ISSET(btree, WT_BTREE_NO_LOGGING));
-}
-
-/*
  * __wt_btree_switch_object --
  *     Switch to a writeable object for a tiered btree.
  */
 int
-__wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t objectid, uint32_t flags)
+__wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t objectid)
 {
     WT_BM *bm;
 
@@ -1024,5 +1019,5 @@ __wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t objectid, uint32_t f
      * number.
      */
     bm = S2BT(session)->bm;
-    return (bm == NULL ? 0 : bm->switch_object(bm, session, objectid, flags));
+    return (bm == NULL ? 0 : bm->switch_object(bm, session, objectid));
 }

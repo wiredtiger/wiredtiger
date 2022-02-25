@@ -310,6 +310,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(hs_value);
     WT_DECL_ITEM(key);
+    WT_DECL_ITEM(key_string);
     WT_DECL_RET;
     WT_PAGE *page;
     WT_TIME_WINDOW *hs_tw;
@@ -356,6 +357,10 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
         WT_ERR(__wt_vpack_uint(&memp, 0, recno));
         key->size = WT_PTRDIFF(memp, key->data);
     }
+
+    WT_ERR(__wt_scr_alloc(session, 0, &key_string));
+    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "rolling back the on-disk key: %s",
+      __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
 
     WT_ERR(__wt_scr_alloc(session, 0, &full_value));
     WT_ERR(__wt_page_cell_data_ref(session, page, unpack, full_value));
@@ -591,7 +596,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     } else {
         WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
         WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
-        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "%p: key removed", (void *)key);
+        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "%s", "key removed");
     }
 
     if (rip != NULL)
@@ -619,6 +624,7 @@ err:
     __wt_scr_free(session, &hs_value);
     if (rip == NULL || row_key == NULL)
         __wt_scr_free(session, &key);
+    __wt_scr_free(session, &key_string);
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->close(hs_cursor));
     return (ret);
@@ -634,10 +640,12 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, u
   bool *is_ondisk_stable)
 {
     WT_DECL_ITEM(key);
+    WT_DECL_ITEM(key_string);
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_PAGE *page;
     WT_UPDATE *upd;
+    uint8_t *memp;
     char ts_string[5][WT_TS_INT_STRING_SIZE];
     bool prepared;
 
@@ -766,16 +774,31 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, u
             WT_ERR(__wt_scr_alloc(session, 0, &key));
             WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
         }
+    } else {
+        /* Manufacture a column key. */
+        WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+        memp = key->mem;
+        WT_ERR(__wt_vpack_uint(&memp, 0, recno));
+        key->size = WT_PTRDIFF(memp, key->data);
+    }
+
+    WT_ERR(__wt_scr_alloc(session, 0, &key_string));
+    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "removing the key%s: %s",
+      upd->type == WT_UPDATE_TOMBSTONE ? "" : " tombstone",
+      __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
+
+    if (rip != NULL)
         WT_ERR(__rollback_row_modify(session, ref, upd, key));
-    } else
+    else
         WT_ERR(__rollback_col_modify(session, ref, upd, recno));
 
     if (0) {
 err:
         __wt_free(session, upd);
     }
-    if (rip != NULL && row_key == NULL)
+    if (rip == NULL || row_key == NULL)
         __wt_scr_free(session, &key);
+    __wt_scr_free(session, &key_string);
     return (ret);
 }
 
@@ -1299,15 +1322,10 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
       "rollback to stable connection logging enabled: %s and btree logging enabled: %s",
       FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ? "true" : "false",
-      !F_ISSET(btree, WT_BTREE_NO_LOGGING) ? "true" : "false");
+      F_ISSET(btree, WT_BTREE_LOGGED) ? "true" : "false");
 
-    /*
-     * Immediately durable files don't get their commits wiped. This case mostly exists to support
-     * the semantic required for the oplog in MongoDB - updates that have been made to the oplog
-     * should not be aborted. It also wouldn't be safe to roll back updates for any table that had
-     * its records logged: those updates would be recovered after a crash, making them inconsistent.
-     */
-    if (__wt_btree_immediately_durable(session))
+    /* Files with commit-level durability (without timestamps), don't get their commits wiped. */
+    if (F_ISSET(btree, WT_BTREE_LOGGED))
         return (0);
 
     /* There is never anything to do for checkpoint handles. */
@@ -1862,8 +1880,8 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
      * concurrently. Copy parent session no logging option to the internal session to make sure that
      * rollback to stable doesn't generate log records.
      */
-    WT_RET(__wt_open_internal_session(S2C(session), "txn rollback_to_stable", true,
-      F_MASK(session, WT_SESSION_NO_LOGGING), 0, &session));
+    WT_RET(
+      __wt_open_internal_session(S2C(session), "txn rollback_to_stable", true, 0, 0, &session));
 
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 1);
     WT_WITH_CHECKPOINT_LOCK(
