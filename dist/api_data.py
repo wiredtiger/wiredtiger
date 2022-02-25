@@ -1142,7 +1142,7 @@ wiredtiger_open_common =\
         When set to true, allow a partial restore on the current database using the
         WiredTiger metadata backup file. WiredTiger will reconstruct the
         database files that are only present in the directory and remove all
-        table entries that are not in the directory anymore.''', 
+        table entries that are not in the directory anymore''', 
         type='boolean'),
     Config('buffer_alignment', '-1', r'''
         in-memory alignment (in bytes) for buffers used for I/O.  The

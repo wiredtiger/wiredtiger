@@ -88,7 +88,7 @@ class test_backup28(backup_base):
             # or lsm formats.
             self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
                 lambda: self.wiredtiger_open(self.dir, "backup_partial_restore=true"),
-                '/partial backup currently doesn\'t support .* files./')
+                '/partial backup currently only support .* files./')
         else:
             # After the full backup, open and recover the backup database, and it should succeed.
             backup_conn = self.wiredtiger_open(self.dir, "backup_partial_restore=true")

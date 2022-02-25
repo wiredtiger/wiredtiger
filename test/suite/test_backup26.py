@@ -70,8 +70,10 @@ class test_backup26(backup_base):
         os.mkdir(self.dir)
         file_list = os.listdir(".")
         selective_remove_file_list = []
+        # Perform a regex match on all files and make sure that we match all the table name, 
+        # number and extension.
         for file_uri in file_list:
-            if self.ext is not None and re.match('^{0}\w+{1}$'.format(self.uri, self.ext), file_uri):
+            if self.ext is not None and re.match('^{0}\d+{1}$'.format(self.uri, self.ext), file_uri):
                 selective_remove_file_list.append(file_uri)
 
         # Now copy the files using full backup. This should not include the tables inside the remove list.
@@ -90,6 +92,8 @@ class test_backup26(backup_base):
         # recover properly.
         for uri in selective_file_list:
             c = bkup_session.open_cursor(uri, None, None)
+            ds = SimpleDataSet(self, uri, 100, key_format="S")
+            ds.check_cursor(c)
             c.close()
         backup_conn.close()
 

@@ -191,15 +191,15 @@ __wt_schema_convert_file_to_table(WT_SESSION_IMPL *session, const char *filename
 {
     WT_DECL_RET;
     size_t bufsz;
-    const char *filep;
+    const char *filep, *suffixp;
 
     filep = filename;
     WT_PREFIX_SKIP_REQUIRED(session, filep, "file:");
-    if (WT_SUFFIX_MATCH(filep, ".wt")) {
-        bufsz = strlen("table:") + strlen(filep) - strlen(".wt") + 1;
+    if ((suffixp = strrchr(filename, '.')) != NULL) {
+        bufsz = strlen("table:") + strlen(filep) - strlen(suffixp) + 1;
         WT_ERR(__wt_calloc_def(session, bufsz, buf));
         WT_ERR(
-          __wt_snprintf(*buf, bufsz, "table:%.*s", (int)(strlen(filep) - strlen(".wt")), filep));
+          __wt_snprintf(*buf, bufsz, "table:%.*s", (int)(strlen(filep) - strlen(suffixp)), filep));
     } else {
         bufsz = strlen("table:") + strlen(filep) + 1;
         WT_ERR(__wt_calloc_def(session, bufsz, buf));
