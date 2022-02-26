@@ -1,5 +1,22 @@
 /*! @page timestamp_misc Miscellaneous timestamp topics
 
+@section timestamp_read_roundup Rounding up the read timestamp
+
+Applications setting timestamps for a transaction have to comply with the
+constraints based on the global timestamp state. In order to be compliant with
+the constraints applications will need to query the global timestamp state and
+check their timestamps for compliance and adjust timestamps if required, and
+this creates obvious races with other threads. To reduce application burden,
+WiredTiger supports automatic timestamp rounding in some scenarios.
+
+Applications can configure
+<code>roundup_timestamps=(prepared=true,read=true)</code> with
+the WT_SESSION::begin_transaction method.
+
+Configuring <code>roundup_timestamps=(read=true)</code> causes the read
+timestamp to be rounded up to the oldest timestamp. If the read timestamp is
+greater than the oldest timestamp no change will be made.
+
 @section timestamp_misc_rts Using rollback-to-stable with timestamps
 
 Applications can explicitly roll back the system to a specific stable timestamp

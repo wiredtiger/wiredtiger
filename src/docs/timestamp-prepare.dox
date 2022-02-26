@@ -47,10 +47,12 @@ transactions are higher-level MongoDB operations, requiring cluster-level
 consensus on durability. Applications without similar requirements for prepared
 transactions should set the durable and commit timestamps to the same time.
 
+\warning
 When a transaction has a durable timestamp later than its commit timestamp,
 reading its writes in a second transaction and then committing other writes such
 that the second transaction becomes durable before the first can produce data
 inconsistency.
+
 In this scenario the second transaction depends on the first; thus it must be
 rolled back if the first transaction is rolled back; thus it must not become
 durable before the first transaction.
@@ -63,9 +65,6 @@ transaction is also its durable timestamp, and committing with no timestamp is
 roughly comparable to committing at the current stable timestamp.)
 
 Transactions that violate this restriction will fail at commit time.
-
-Prepared transactions have their own configuration keyword for rounding
-timestamps; see @ref timestamp_roundup for more information.
 
 @section timestamp_prepare_ignore_prepare Configuring ignore_prepare
 
