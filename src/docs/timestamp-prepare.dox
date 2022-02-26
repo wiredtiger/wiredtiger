@@ -66,6 +66,8 @@ latest committed values.) Applications using the delayed durable timestamp
 feature should be cautious about committing with no write timestamp to ensure
 that conflicts of this type cannot arise.
 
+Transactions that violate this restriction will fail at commit time.
+
 Prepared transactions have their own configuration keyword for rounding
 timestamps; see @ref timestamp_roundup for more information.
 

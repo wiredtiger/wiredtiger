@@ -144,7 +144,7 @@ class test_flcs02(wttest.WiredTigerTestCase):
             self.session.rollback_transaction()
 
         if not self.do_prepare:
-            # Cannot read between commit and durable.
+            # Avoid reading between commit and durable.
             readat(committs)
         readat(committs+1)
         readat(committs+5)
