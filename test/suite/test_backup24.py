@@ -48,6 +48,22 @@ class test_backup24(backup_base):
     nolog_tnew_file="notnew.wt"
     newuri="table:newtable"
 
+    def add_data(self, uri, key, val):
+        c = self.session.open_cursor(uri, None, self.data_cursor_config)
+        for i in range(0, self.nops):
+            k = key + str(i)
+            v = val + str(i)
+            c[k] = v
+        c.close()
+
+    def check_data(self, uri, key, val):
+        c = self.session.open_cursor(uri, None, self.data_cursor_config)
+        for i in range(0, self.nops):
+            c.set_key(key + str(i))
+            self.assertEqual(c.search(), 0)
+            self.assertEqual(c.get_value(), val + str(i))
+        c.close()
+
     # Create a large cache, otherwise this test runs quite slowly.
     def conn_config(self):
         return 'debug_mode=(table_logging=true),cache_size=1G,log=(enabled,file_max=%s,remove=false)' % \
@@ -117,16 +133,21 @@ class test_backup24(backup_base):
         bkup_session = backup_conn.open_session()
         metadata_c = bkup_session.open_cursor('metadata:', None, None)
         metadata_c.set_key(self.nolog_t2)
-        self.assertNotEqual(metadata_c.search(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(metadata_c.search(), wiredtiger.WT_NOTFOUND)
         metadata_c.set_key(self.nolog_t2_file)
-        self.assertNotEqual(metadata_c.search(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(metadata_c.search(), wiredtiger.WT_NOTFOUND)
 
         metadata_c.set_key(self.nolog_tnew)
-        self.assertNotEqual(metadata_c.search(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(metadata_c.search(), wiredtiger.WT_NOTFOUND)
         metadata_c.set_key(self.nolog_tnew_file)
-        self.assertNotEqual(metadata_c.search(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(metadata_c.search(), wiredtiger.WT_NOTFOUND)
         metadata_c.close()
         
+        # Test that the database partial recovered successfully.
+        self.check_data(self.log_t1, 'key', 'value')
+        self.check_data(self.log_t2, 'key', 'value')
+        self.check_data(self.nolog_t1, 'key', 'value')
+        self.check_data(self.nolog_t2, 'key', 'value')
         backup_conn.close()
 
 if __name__ == '__main__':
