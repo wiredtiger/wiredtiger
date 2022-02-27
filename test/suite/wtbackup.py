@@ -54,7 +54,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # Add data to the given uri.
     # Allows the option for doing a session checkpoint after adding data.
     #
-    def add_data(self, uri, key, val, do_checkpoint=False, variance=True):
+    def add_data(self, uri, key, val, do_checkpoint=False):
         assert(self.nops != 0)
         c = self.session.open_cursor(uri, None, self.data_cursor_config)
         for i in range(0, self.nops):
