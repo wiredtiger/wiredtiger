@@ -3941,6 +3941,9 @@ buildvariants:
     - name: package
 
 - name: documentation-update
+  # Documentation update is NOT expected to be triggered on Evergreen projects
+  # other than "WiredTiger (develop)"
+  activate: false
   display_name: "~ Documentation update"
   batchtime: 10080 # 7 days
   run_on:
