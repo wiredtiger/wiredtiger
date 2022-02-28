@@ -1334,6 +1334,8 @@ struct __wt_session {
 	 * table., a string; default empty.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;bucket_prefix, the
 	 * unique bucket prefix for this table., a string; default empty.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;bucket_region, bucket region string identifier\,
+	 * represents the bucket's location., a string; default empty.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;cache_directory, a directory to store locally cached
 	 * versions of files in the storage source.  By default\, it is named with \c "-cache"
 	 * appended to the bucket name.  A relative directory name is relative to the home

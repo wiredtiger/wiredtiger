@@ -39,22 +39,32 @@ def get_auth_token(storage_source):
         # Fake a secret token.
         auth_token = "Secret"
     if storage_source is 's3_store':
-        # Auth token is the AWS access key ID and the AWS secret key as comma-separated values.
+        # Auth token is the AWS access key ID and the AWS secret key as semi-colon separated values.
         # We expect the values to have been provided through the environment variables.
         access_key = os.getenv('AWS_ACCESS_KEY_ID')
         secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
         if access_key and secret_key:
-            auth_token = access_key + "," + secret_key
+            auth_token = access_key + ";" + secret_key
     return auth_token
 
 # Get a list of buckets available for the storage source.
-def get_bucket_info(storage_source):
+def get_bucket_list(storage_source):
     if storage_source is 'local_store':
-        return([('objects1',''), ('objects2','')])
+        return([('bucket1',''), ('bucket2','')])
     if storage_source is 's3_store':
         return([('s3testext',',region=ap-southeast-2'),
                 ('s3testext-us',',region=us-east-2')])
     return None
+
+# Get the name of the first bucket from the list of available buckets for the storage source.
+def get_single_bucket_name(storage_source):
+    bucket, _ = get_bucket_list(storage_source)[0]
+    return bucket
+
+# Get the region for the first bucket from the list of available buckets for the storage source.
+def get_single_bucket_conf(storage_source):
+    _, conf = get_bucket_list(storage_source)[0]
+    return conf[8:]
 
 # Generate a unique object prefix for the S3 store. 
 def generate_s3_prefix(test_name = ''):

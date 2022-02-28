@@ -28,7 +28,7 @@
 
 import os, wiredtiger, wttest
 from wtscenario import make_scenarios
-from helper_tiered import get_auth_token, get_bucket_info, get_fs_config
+from helper_tiered import get_auth_token, get_bucket_list, get_fs_config
 FileSystem = wiredtiger.FileSystem  # easy access to constants
 
 # test_tiered06.py
@@ -42,12 +42,12 @@ class test_tiered06(wttest.WiredTigerTestCase):
             #ss_config='verbose=1,delay_ms=200,force_delay=3'
             ss_config='',
             ss_auth_token=get_auth_token('local_store'),
-            ss_buckets=get_bucket_info('local_store'))),
+            ss_buckets=get_bucket_list('local_store'))),
         ('s3', dict(ss_name='s3_store',
             #ss_config='verbose=-3'
             ss_config='',
             ss_auth_token=get_auth_token('s3_store'),
-            ss_buckets=get_bucket_info('s3_store')))
+            ss_buckets=get_bucket_list('s3_store')))
     ]
 
     # Make scenarios for different cloud service providers

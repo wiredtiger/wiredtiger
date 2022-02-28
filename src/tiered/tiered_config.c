@@ -62,7 +62,7 @@ __wt_tiered_bucket_config(
   WT_SESSION_IMPL *session, const char *cfg[], WT_BUCKET_STORAGE **bstoragep)
 {
     WT_BUCKET_STORAGE *bstorage, *new;
-    WT_CONFIG_ITEM auth, bucket, cachedir, name, prefix;
+    WT_CONFIG_ITEM auth, bucket, bucket_region, cachedir, name, prefix;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
@@ -99,6 +99,7 @@ __wt_tiered_bucket_config(
     WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.bucket", &bucket));
     if (bucket.len == 0)
         WT_ERR_MSG(session, EINVAL, "table tiered storage requires bucket to be set");
+    WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.bucket_region", &bucket_region));
     WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.bucket_prefix", &prefix));
     if (prefix.len == 0)
         WT_ERR_MSG(session, EINVAL, "table tiered storage requires bucket_prefix to be set");
@@ -117,12 +118,16 @@ __wt_tiered_bucket_config(
     WT_ERR(__wt_calloc_one(session, &new));
     WT_ERR(__wt_strndup(session, auth.str, auth.len, &new->auth_token));
     WT_ERR(__wt_strndup(session, bucket.str, bucket.len, &new->bucket));
+    WT_ERR(__wt_strndup(session, bucket_region.str, bucket_region.len, &new->bucket_region));
     WT_ERR(__wt_strndup(session, prefix.str, prefix.len, &new->bucket_prefix));
     WT_ERR(__wt_strndup(session, cachedir.str, cachedir.len, &new->cache_directory));
 
     storage = nstorage->storage_source;
     if (cachedir.len != 0)
-        WT_ERR(__wt_buf_fmt(session, buf, "cache_directory=%s", new->cache_directory));
+        WT_ERR(__wt_buf_fmt(session, buf, "cache_directory=%s,", new->cache_directory));
+    if (bucket_region.len != 0)
+        WT_ERR(__wt_buf_fmt(session, buf, "region=%s", new->bucket_region));
+
     WT_ERR(storage->ss_customize_file_system(
       storage, &session->iface, new->bucket, new->auth_token, buf->data, &new->file_system));
     new->storage_source = storage;
@@ -169,6 +174,7 @@ __wt_tiered_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
     if (conn->bstorage == NULL)
         return (0);
     __wt_verbose(session, WT_VERB_TIERED, "TIERED_CONFIG: bucket %s", conn->bstorage->bucket);
+    __wt_verbose(session, WT_VERB_TIERED, "TIERED_CONFIG: region %s", conn->bstorage->bucket_region);
     __wt_verbose(
       session, WT_VERB_TIERED, "TIERED_CONFIG: prefix %s", conn->bstorage->bucket_prefix);
 
@@ -187,6 +193,7 @@ __wt_tiered_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
 err:
     __wt_free(session, conn->bstorage->auth_token);
     __wt_free(session, conn->bstorage->bucket);
+    __wt_free(session, conn->bstorage->bucket_region);
     __wt_free(session, conn->bstorage->bucket_prefix);
     __wt_free(session, conn->bstorage->cache_directory);
     __wt_free(session, conn->bstorage);

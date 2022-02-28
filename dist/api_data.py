@@ -217,6 +217,8 @@ tiered_config = [
             the bucket indicating the location for this table'''),
         Config('bucket_prefix', '', r'''
             the unique bucket prefix for this table'''),
+        Config('bucket_region', '', r'''
+            bucket region string identifier, represents the bucket's location'''),
         Config('cache_directory', '', r'''
             a directory to store locally cached versions of files in the storage source.  By
             default, it is named with \c "-cache" appended to the bucket name.  A relative
@@ -1067,6 +1069,8 @@ wiredtiger_open_tiered_storage_configuration = [
             authentication string identifier'''),
         Config('bucket', '', r'''
             bucket string identifier where the objects should reside'''),
+        Config('bucket_region', '', r'''
+            bucket region string identifier, represents the bucket's location'''),
         Config('bucket_prefix', '', r'''
             unique string prefix to identify our objects in the bucket.
             Multiple instances can share the storage bucket and this

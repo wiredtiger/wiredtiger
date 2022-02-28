@@ -499,7 +499,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     }
 
     /* Extract the AWS access key ID and the AWS secret key from authToken. */
-    int delimiter = std::string(authToken).find(',');
+    int delimiter = std::string(authToken).find(';');
     if (delimiter == std::string::npos) {
         s3->log->LogErrorMessage("S3CustomizeFileSystem: authToken malformed.");
         return (EINVAL);
