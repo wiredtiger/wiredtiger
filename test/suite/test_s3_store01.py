@@ -385,16 +385,14 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         bad_config = ",cache_directory=/BAD"
 
         # Create file system objects. First try some error cases.
-        errmsg = '/No such file or directory/'
+        errmsg = '/No such /'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(session, self.bucket1, self.ss_auth_token,
                 get_fs_config(self.ss_name, self.bucket1_conf + bad_config)), errmsg)
 
-        # Todo: For S3 need to handle the case where a bad bucket is provided, for now skip
-        if self.ss_name is 'local_store':
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda: ss.ss_customize_file_system(session, "./objects_BAD", self.ss_auth_token,
-                    get_fs_config(self.ss_name, self.bucket1_conf + config1)), errmsg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: ss.ss_customize_file_system(session, "./objects_BAD", self.ss_auth_token,
+                get_fs_config(self.ss_name, self.bucket1_conf + config1)), errmsg)
 
         # For local store - Create an empty file, try to use it as a directory.
         if self.ss_name is 'local_store':

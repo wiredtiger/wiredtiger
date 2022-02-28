@@ -109,7 +109,6 @@ S3Connection::PutObject(const std::string &objectKey, const std::string &fileNam
         return (0);
     }
 
-    std::cerr << "Error in PutObject: " << outcome.GetError().GetMessage() << std::endl;
     return (1);
 }
 
@@ -128,7 +127,6 @@ S3Connection::DeleteObject(const std::string &objectKey) const
     if (outcome.IsSuccess())
         return (0);
 
-    std::cerr << "Error in DeleteObject: " << outcome.GetError().GetMessage() << std::endl;
     return (1);
 }
 
@@ -189,7 +187,6 @@ S3Connection::ObjectExists(const std::string &objectKey, bool &exists, size_t &o
      * Fix later, return a proper error code. Not sure if we always have
      * outcome.GetError().GetResponseCode()
      */
-    std::cerr << "Error in ObjectExists." << std::endl;
     return (1);
 }
 
@@ -220,6 +217,5 @@ S3Connection::BucketExists(bool &exists) const
      * Fix later, return a proper error code. Not sure if we always have
      * outcome.GetError().GetResponseCode()
      */
-    std::cerr << "Error in BucketExists." << std::endl;
     return (1);
 }
