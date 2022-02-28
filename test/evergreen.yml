@@ -2081,7 +2081,7 @@ tasks:
             # Run unit testing
             ext/storage_sources/s3_store/test/run_s3_unit_tests
             # Run Python testing
-            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py tiered06 -s 1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py s3_store01
 
   - name: spinlock-gcc-test
     commands:
