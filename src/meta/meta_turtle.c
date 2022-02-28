@@ -145,7 +145,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
     F_SET(conn, WT_CONN_WAS_BACKUP);
     if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) && partial_backup_names != NULL) {
         /*
-         * During partial backup, parse through the partial backup list, and attempt to clean up all
+         * During partial backup, parse through the partial backup list and attempt to clean up all
          * metadata references relating to the file. To do so, perform a schema drop operation on
          * the table to cleanly remove all linked references. It is possible that performing a
          * schema drop on the table reference can fail because a file can be created without a table
@@ -165,7 +165,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
             if (ret == 0)
                 continue;
 
-            /* Construct the buffer to refer a file entry metadata and perform a schema drop. */
+            /* Perform schema drop on the file reference. */
             WT_WITH_SCHEMA_LOCK(session,
               WT_WITH_TABLE_WRITE_LOCK(
                 session, ret = __wt_schema_drop(session, partial_backup_names[i], drop_cfg)));
