@@ -67,7 +67,7 @@ functions:
         elif [[ "${branch_name}" == "mongodb-4.4" ]]; then
           git clone $mongo_repo -b v4.4
         elif [[ "${branch_name}" =~ "mongodb-" ]]; then   
-          echo "Checkout the correct mongodb branch for wiredtiger branch ${branch_name}"
+          echo "'fetch mongo repo' does not currently handle branch ${branch_name}"
           exit 1
         else
           git clone $mongo_repo -b master
