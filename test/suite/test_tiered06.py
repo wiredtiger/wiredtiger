@@ -172,11 +172,6 @@ class test_tiered06(wttest.WiredTigerTestCase):
         # Take one more reference for the road.
         store_z = self.get_storage_source()
 
-        # This test confirmed that certain objects do not exist. It might generate the following
-        # expected error message on S3. Igonore these messages.
-        #
-        #    self.ignoreStderrPatternIfExists('/HTTP response code: 404/')
-
     def test_ss_write_read(self):
         # Write and read to a file non-sequentially.
 
@@ -270,9 +265,6 @@ class test_tiered06(wttest.WiredTigerTestCase):
     bucket2 = ''
     bucket2_conf = ''
 
-    #bucket1,bucket1_conf = self.ss_buckets[0]
-    #bucket2,bucket2_conf = self.ss_buckets[1]
-
     cachedir1 = "./cache1"
     cachedir2 = "./cache2"
 
@@ -295,7 +287,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         expect = sorted(self.suffix(expect, 'wt'))
         self.assertEquals(got, expect)
 
-    # Check that objects are "in the cloud" fir the local store after a flush.
+    # Check that objects are "in the cloud" for the local store after a flush.
     # Using the local storage module, they are actually going to be in either
     # bucket1 or bucket2.
     def check_local_objects(self, expect1, expect2):
@@ -323,8 +315,6 @@ class test_tiered06(wttest.WiredTigerTestCase):
             f.write('hello')
 
     def test_ss_file_systems(self):
-        # Save all references so that we can cleanup properly on failure.
-        storage_sources = []
 
         # Test using various buckets, hosts.
         self.bucket1,self.bucket1_conf = self.ss_buckets[0]
