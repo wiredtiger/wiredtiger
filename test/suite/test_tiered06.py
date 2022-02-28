@@ -26,23 +26,99 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest
+import datetime, inspect, random, os, wiredtiger, wttest
+from wtscenario import make_scenarios
 FileSystem = wiredtiger.FileSystem  # easy access to constants
 
-# test_tiered06.py
-#    Test the local storage source's file system implementation.
+# test_s3_store01.py
+# Note: This is a copy of tiered06, and will merged into it with WT-8791.
+#    Test the storage source's file system implementation.
 # Note that the APIs we are testing are not meant to be used directly
 # by any WiredTiger application, these APIs are used internally.
 # However, it is useful to do tests of this API independently.
+
+def get_auth_token(storage_source):
+    auth_token = None
+    if storage_source is 'local_store':
+        # Fake a secret token
+        auth_token = "Secret"
+    if storage_source is 's3_store':
+        # Auth token is the AWS access key ID and the AWS secret key as comma-separated values.
+        # We expect the values to have been provided through the environment variables.
+        access_key = os.getenv('AWS_ACCESS_KEY_ID')
+        secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+        if access_key and secret_key:
+            auth_token = access_key + "," + secret_key
+    return auth_token
+
+def get_bucket_info(storage_source):
+    if storage_source is 'local_store':
+        return([('objects1',''), ('objects2','')])
+    if storage_source is 's3_store':
+        return([('s3testext',',region=ap-southeast-2'),
+                ('s3testext-us',',region=us-east-2')])
+    return None
+
+def generate_s3_prefix(test_name = ''):
+    # Generates a unique prefix to be used with the object keys, eg:
+    # "s3test_artefacts/python_2022-31-01-16-34-10_623843294/"
+    prefix = 's3test_artefacts/python_'
+    prefix += datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+    # Range upto int32_max, matches that of C++'s std::default_random_engine
+    prefix += '_' + str(random.randrange(1, 2147483646)) + '/'
+
+    if test_name:
+        prefix += test_name + '/'
+
+    return prefix
+
+def get_fs_config(storage_source, additional_conf = '', test_name = ''):
+    # There is no local store specific configuration needed
+    if storage_source is 'local_store':
+        return additional_conf
+
+    # There is not need to generate a unique prefix for local store
+    if storage_source is 's3_store':
+        # If the calling function has not provided a name, extract it from the stack
+        if not test_name:
+            test_name = inspect.stack()[1][3]
+        fs_conf = 'prefix=' + generate_s3_prefix(test_name)
+        fs_conf += additional_conf
+        return fs_conf
+    
+    return None
+
 class test_tiered06(wttest.WiredTigerTestCase):
-    # Load the local store extension.
+    storage_sources = [
+        ('local', dict(ss_name='local_store',
+            #ss_config='verbose=1,delay_ms=200,force_delay=3'
+            ss_config='',
+            ss_auth_token=get_auth_token('local_store'),
+            ss_buckets=get_bucket_info('local_store'))),
+        ('s3', dict(ss_name='s3_store',
+            #ss_config='verbose=-3'
+            ss_config='',
+            ss_auth_token=get_auth_token('s3_store'),
+            ss_buckets=get_bucket_info('s3_store')))
+    ]
+
+    # Make scenarios for different cloud service providers
+    scenarios = make_scenarios(storage_sources)
+
+    # Load the storage source extension, skip the test if missing..
     def conn_extensions(self, extlist):
+        extlist.skip_if_missing = True
         # Windows doesn't support dynamically loaded extension libraries.
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        #extlist.extension('storage_sources',
-        #  'local_store=(config=\"(verbose=1,delay_ms=200,force_delay=3)\")')
-        extlist.extension('storage_sources', 'local_store')
+
+        # Construct the configuration to load the storage source extension
+        ss = self.ss_name
+        if self.ss_config:
+            ss += '=(config=\"('
+            ss += self.ss_config
+            ss += ')\")'
+        extlist.extension('storage_sources', ss)
 
     def breakpoint(self):
         import pdb, sys
@@ -51,28 +127,56 @@ class test_tiered06(wttest.WiredTigerTestCase):
         sys.stderr = open('/dev/tty', 'w')
         pdb.set_trace()
 
-    def get_local_storage_source(self):
-        return self.conn.get_storage_source('local_store')
+    # Save all references so that we can cleanup properly on failure.
+    storage_sources = []
+    def get_storage_source(self):
+        ss = self.conn.get_storage_source(self.ss_name)
+        self.storage_sources.append(ss)
+        return ss
 
-    def test_local_basic(self):
+    # Override wttest tearDown to ensure storage sources are properly terminated
+    # on both success and failure.
+    def tearDown(self):
+        for ss in self.storage_sources:
+            ss.terminate(self.session)
+        super(test_s3_store01, self).tearDown()
+
+    def test_ss_basic(self):
         # Test some basic functionality of the storage source API, calling
         # each supported method in the API at least once.
 
         session = self.session
-        local = self.get_local_storage_source()
+        ss = self.get_storage_source()
 
-        os.mkdir("objects")
-        fs = local.ss_customize_file_system(session, "./objects", "Secret", None)
+        # Local store needs the bucket created as a directory on the filesystem.
+        bucket,bucket_conf = self.ss_buckets[0]
+        if self.ss_name is 'local_store':
+            os.mkdir(bucket)
+
+        fs = ss.ss_customize_file_system(session, bucket, self.ss_auth_token,
+            get_fs_config(self.ss_name, bucket_conf))
+
+        # Test that we handle references correctly.
+        store_x = self.get_storage_source()
+        store_y = self.get_storage_source()
 
         # The object doesn't exist yet.
-        self.assertFalse(fs.fs_exist(session, 'foobar'))
+        if self.ss_name is 's3_store':
+            with self.expectedStderrPattern('.*HTTP response code: 404.*'):
+                self.assertFalse(fs.fs_exist(session, 'foobar'))
+        else:
+            self.assertFalse(fs.fs_exist(session, 'foobar'))
 
         # We cannot use the file system to create files, it is readonly.
         # So use python I/O to build up the file.
         f = open('foobar', 'wb')
 
         # The object still doesn't exist yet.
-        self.assertFalse(fs.fs_exist(session, 'foobar'))
+        if self.ss_name is 's3_store':
+            with self.expectedStderrPattern('.*HTTP response code: 404.*'):
+                self.assertFalse(fs.fs_exist(session, 'foobar'))
+        else:
+            self.assertFalse(fs.fs_exist(session, 'foobar'))
 
         outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
         f.write(outbytes)
@@ -82,8 +186,8 @@ class test_tiered06(wttest.WiredTigerTestCase):
         self.assertEquals(fs.fs_directory_list(session, '', ''), [])
 
         # Flushing copies the file into the file system.
-        local.ss_flush(session, fs, 'foobar', 'foobar', None)
-        local.ss_flush_finish(session, fs, 'foobar', 'foobar', None)
+        ss.ss_flush(session, fs, 'foobar', 'foobar', None)
+        ss.ss_flush_finish(session, fs, 'foobar', 'foobar', None)
 
         # The object exists now.
         self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
@@ -97,7 +201,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         self.assertEquals(fh.fh_size(session), len(outbytes))
         fh.close(session)
 
-        # The fh_lock call doesn't do anything in the local store implementation.
+        # The fh_lock call doesn't do anything in the local and S3 store implementation.
         fh = fs.fs_open_file(session, 'foobar', FileSystem.open_file_type_data, FileSystem.open_readonly)
         fh.fh_lock(session, True)
         fh.fh_lock(session, False)
@@ -116,19 +220,32 @@ class test_tiered06(wttest.WiredTigerTestCase):
         self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
 
         fs.terminate(session)
-        local.terminate(session)
 
-    def test_local_write_read(self):
+        # Take one more reference for the road.
+        store_z = self.get_storage_source()
+
+        # This test confirmed that certain objects do not exist. It might generate the following
+        # expected error message on S3. Igonore these messages.
+        #
+        #    self.ignoreStderrPatternIfExists('/HTTP response code: 404/')
+
+    def test_ss_write_read(self):
         # Write and read to a file non-sequentially.
 
         session = self.session
-        local = self.get_local_storage_source()
+        ss = self.get_storage_source()
 
-        cachedir = ("objects_cache")
-        os.mkdir("objects")
-        os.mkdir("objects_cache")
-        fs = local.ss_customize_file_system(
-            session, "./objects", "Secret", "cache_directory=" + cachedir)
+        bucket,bucket_conf = self.ss_buckets[0]
+        cachedir = bucket + '_cache'
+        os.mkdir(cachedir)
+
+        # Local store needs the bucket created as a directory on the filesystem.
+        if self.ss_name is 'local_store':
+            os.mkdir(bucket)
+        
+        cache_conf = ',cache_directory=' + cachedir
+        fs = ss.ss_customize_file_system(session, bucket, self.ss_auth_token,
+            get_fs_config(self.ss_name, bucket_conf + cache_conf))
 
         # We call these 4K chunks of data "blocks" for this test, but that doesn't
         # necessarily relate to WT block sizing.
@@ -159,12 +276,12 @@ class test_tiered06(wttest.WiredTigerTestCase):
         f.close()
 
         # Flushing copies the file into the file system.
-        local.ss_flush(session, fs, 'abc', 'abc', None)
-        local.ss_flush_finish(session, fs, 'abc', 'abc', None)
+        ss.ss_flush(session, fs, 'abc', 'abc', None)
+        ss.ss_flush_finish(session, fs, 'abc', 'abc', None)
 
         # Use the file system to open and read the file.
         # We do this twice, and between iterations, we remove the cached file to make sure
-        # it is copied back from the bucket directory.
+        # it is copied back from the bucket.
         #
         # XXX: this uses knowledge of the implementation, but at the current time,
         # we don't have a way via the API to "age out" a file from the cache.
@@ -194,16 +311,19 @@ class test_tiered06(wttest.WiredTigerTestCase):
             fh.close(session)
             os.remove(os.path.join(cachedir, 'abc'))
 
-        local.terminate(session)
-
     def create_with_fs(self, fs, fname):
         session = self.session
         f = open(fname, 'wb')
         f.write('some stuff'.encode())
         f.close()
 
-    objectdir1 = "./objects1"
-    objectdir2 = "./objects2"
+    bucket1 = ''
+    bucket1_conf = ''
+    bucket2 = ''
+    bucket2_conf = ''
+
+    #bucket1,bucket1_conf = self.ss_buckets[0]
+    #bucket2,bucket2_conf = self.ss_buckets[1]
 
     cachedir1 = "./cache1"
     cachedir2 = "./cache2"
@@ -227,14 +347,17 @@ class test_tiered06(wttest.WiredTigerTestCase):
         expect = sorted(self.suffix(expect, 'wt'))
         self.assertEquals(got, expect)
 
-    # Check that objects are "in the cloud" after a flush.
+    # Check that objects are "in the cloud" fir the local store after a flush.
     # Using the local storage module, they are actually going to be in either
-    # objectdir1 or objectdir2.
-    def check_objects(self, expect1, expect2):
-        got = sorted(list(os.listdir(self.objectdir1)))
+    # bucket1 or bucket2.
+    def check_local_objects(self, expect1, expect2):
+        if self.ss_name is not 'local_store':
+            return
+
+        got = sorted(list(os.listdir(self.bucket1)))
         expect = sorted(self.suffix(expect1, 'wtobj'))
         self.assertEquals(got, expect)
-        got = sorted(list(os.listdir(self.objectdir2)))
+        got = sorted(list(os.listdir(self.bucket2)))
         expect = sorted(self.suffix(expect2, 'wtobj'))
         self.assertEquals(got, expect)
 
@@ -251,44 +374,55 @@ class test_tiered06(wttest.WiredTigerTestCase):
         with open(name + '.wt', 'w') as f:
             f.write('hello')
 
-    def test_local_file_systems(self):
+    def test_ss_file_systems(self):
+        # Save all references so that we can cleanup properly on failure.
+        storage_sources = []
+
         # Test using various buckets, hosts.
+        self.bucket1,self.bucket1_conf = self.ss_buckets[0]
+        self.bucket2,self.bucket2_conf = self.ss_buckets[1]
 
         session = self.session
-        local = self.conn.get_storage_source('local_store')
-        self.local = local
-        os.mkdir(self.objectdir1)
-        os.mkdir(self.objectdir2)
+        ss = self.get_storage_source()
+
+        # Local store needs the bucket created as a directory on the filesystem.
+        if self.ss_name is 'local_store':
+            os.mkdir(self.bucket1)
+            os.mkdir(self.bucket2)
+
         os.mkdir(self.cachedir1)
         os.mkdir(self.cachedir2)
-        config1 = "cache_directory=" + self.cachedir1
-        config2 = "cache_directory=" + self.cachedir2
-        bad_config = "cache_directory=/BAD"
+        config1 = ",cache_directory=" + self.cachedir1
+        config2 = ",cache_directory=" + self.cachedir2
+        bad_config = ",cache_directory=/BAD"
 
         # Create file system objects. First try some error cases.
-        errmsg = '/No such file or directory/'
+        errmsg = '/No such /'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: local.ss_customize_file_system(
-                session, "./objects1", "k1", bad_config), errmsg)
+            lambda: ss.ss_customize_file_system(session, self.bucket1, self.ss_auth_token,
+                get_fs_config(self.ss_name, self.bucket1_conf + bad_config)), errmsg)
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: local.ss_customize_file_system(
-                session, "./objects_BAD", "k1", config1), errmsg)
+            lambda: ss.ss_customize_file_system(session, "./objects_BAD", self.ss_auth_token,
+                get_fs_config(self.ss_name, self.bucket1_conf + config1)), errmsg)
 
-        # Create an empty file, try to use it as a directory.
-        with open("some_file", "w"):
-            pass
-        errmsg = '/Invalid argument/'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: local.ss_customize_file_system(
-                session, "some_file", "k1", config1), errmsg)
+        # For local store - Create an empty file, try to use it as a directory.
+        if self.ss_name is 'local_store':
+            with open("some_file", "w"):
+                pass
+            errmsg = '/Invalid argument/'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: ss.ss_customize_file_system(
+                    session, "some_file", self.ss_auth_token, config1), errmsg)
 
         # Now create some file systems that should succeed.
         # Use either different bucket directories or different prefixes,
         # so activity that happens in the various file systems should be independent.
-        fs1 = local.ss_customize_file_system(session, "./objects1", "k1", config1)
-        fs2 = local.ss_customize_file_system(session, "./objects2", "k2", config2)
-
+        fs1 = ss.ss_customize_file_system(session, self.bucket1, self.ss_auth_token,
+            get_fs_config(self.ss_name, self.bucket1_conf + config1))
+        fs2 = ss.ss_customize_file_system(session, self.bucket2, self.ss_auth_token,
+            get_fs_config(self.ss_name, self.bucket2_conf + config2))
+        
         # Create files in the wt home directory.
         for a in ['beagle', 'bird', 'bison', 'bat']:
             self.create_wt_file(a)
@@ -300,50 +434,50 @@ class test_tiered06(wttest.WiredTigerTestCase):
         self.check_dirlist(fs1, '', [])
         self.check_dirlist(fs2, '', [])
         self.check_caches([], [])
-        self.check_objects([], [])
+        self.check_local_objects([], [])
 
         # A flush copies to the cloud, nothing is removed.
-        local.ss_flush(session, fs1, 'beagle.wt', 'beagle.wtobj')
+        ss.ss_flush(session, fs1, 'beagle.wt', 'beagle.wtobj')
         self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
         self.check_dirlist(fs1, '', ['beagle'])
         self.check_dirlist(fs2, '', [])
         self.check_caches([], [])
-        self.check_objects(['beagle'], [])
+        self.check_local_objects(['beagle'], [])
 
         # Bad file to flush.
         errmsg = '/No such file/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: local.ss_flush(session, fs1, 'bad.wt', 'bad.wtobj'), errmsg)
+            lambda: ss.ss_flush(session, fs1, 'bad.wt', 'bad.wtobj'), errmsg)
 
         # It's okay to flush again, nothing changes.
-        local.ss_flush(session, fs1, 'beagle.wt', 'beagle.wtobj')
+        ss.ss_flush(session, fs1, 'beagle.wt', 'beagle.wtobj')
         self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
         self.check_dirlist(fs1, '', ['beagle'])
         self.check_dirlist(fs2, '', [])
         self.check_caches([], [])
-        self.check_objects(['beagle'], [])
+        self.check_local_objects(['beagle'], [])
 
         # When we flush_finish, the local file will be in both the local and cache directory.
-        local.ss_flush_finish(session, fs1, 'beagle.wt', 'beagle.wtobj')
+        ss.ss_flush_finish(session, fs1, 'beagle.wt', 'beagle.wtobj')
         self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
         self.check_dirlist(fs1, '', ['beagle'])
         self.check_dirlist(fs2, '', [])
         self.check_caches(['beagle'], [])
-        self.check_objects(['beagle'], [])
+        self.check_local_objects(['beagle'], [])
 
         # Do a some more in each file system.
-        local.ss_flush(session, fs1, 'bison.wt', 'bison.wtobj')
-        local.ss_flush(session, fs2, 'cat.wt', 'cat.wtobj')
-        local.ss_flush(session, fs1, 'bat.wt', 'bat.wtobj')
-        local.ss_flush_finish(session, fs2, 'cat.wt', 'cat.wtobj')
-        local.ss_flush(session, fs2, 'cub.wt', 'cub.wtobj')
-        local.ss_flush_finish(session, fs1, 'bat.wt', 'bat.wtobj')
+        ss.ss_flush(session, fs1, 'bison.wt', 'bison.wtobj')
+        ss.ss_flush(session, fs2, 'cat.wt', 'cat.wtobj')
+        ss.ss_flush(session, fs1, 'bat.wt', 'bat.wtobj')
+        ss.ss_flush_finish(session, fs2, 'cat.wt', 'cat.wtobj')
+        ss.ss_flush(session, fs2, 'cub.wt', 'cub.wtobj')
+        ss.ss_flush_finish(session, fs1, 'bat.wt', 'bat.wtobj')
 
         self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
         self.check_dirlist(fs1, '', ['beagle', 'bat', 'bison'])
         self.check_dirlist(fs2, '', ['cat', 'cub'])
         self.check_caches(['beagle', 'bat'], ['cat'])
-        self.check_objects(['beagle', 'bat', 'bison'], ['cat', 'cub'])
+        self.check_local_objects(['beagle', 'bat', 'bison'], ['cat', 'cub'])
 
         # Test directory listing prefixes.
         self.check_dirlist(fs1, '', ['beagle', 'bat', 'bison'])
@@ -356,7 +490,6 @@ class test_tiered06(wttest.WiredTigerTestCase):
         # also be able to terminate the storage source without terminating
         # all the file systems we created.
         fs1.terminate(session)
-        local.terminate(session)
 
 if __name__ == '__main__':
     wttest.run()
