@@ -162,14 +162,22 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         store_y = self.get_storage_source()
 
         # The object doesn't exist yet.
-        self.assertFalse(fs.fs_exist(session, 'foobar'))
+        if self.ss_name is 's3_store':
+            with self.expectedStderrPattern('.*HTTP response code: 404.*'):
+                self.assertFalse(fs.fs_exist(session, 'foobar'))
+        else:
+            self.assertFalse(fs.fs_exist(session, 'foobar'))
 
         # We cannot use the file system to create files, it is readonly.
         # So use python I/O to build up the file.
         f = open('foobar', 'wb')
 
         # The object still doesn't exist yet.
-        self.assertFalse(fs.fs_exist(session, 'foobar'))
+        if self.ss_name is 's3_store':
+            with self.expectedStderrPattern('.*HTTP response code: 404.*'):
+                self.assertFalse(fs.fs_exist(session, 'foobar'))
+        else:
+            self.assertFalse(fs.fs_exist(session, 'foobar'))
 
         outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
         f.write(outbytes)
@@ -216,6 +224,11 @@ class test_s3_store01(wttest.WiredTigerTestCase):
 
         # Take one more reference for the road.
         store_z = self.get_storage_source()
+
+        # This test confirmed that certain objects do not exist. It might generate the following
+        # expected error message on S3. Igonore these messages.
+        #
+        #    self.ignoreStderrPatternIfExists('/HTTP response code: 404/')
 
     def test_ss_write_read(self):
         # Write and read to a file non-sequentially.

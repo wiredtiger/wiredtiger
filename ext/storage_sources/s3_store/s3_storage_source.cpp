@@ -815,7 +815,7 @@ S3Terminate(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session)
     /* Log collected statistics on termination. */
     S3ShowStatistics(*s3);
 
-    //Aws::Utils::Logging::ShutdownAWSLogging();
+    Aws::Utils::Logging::ShutdownAWSLogging();
     Aws::ShutdownAPI(options);
 
     delete (s3);
@@ -940,7 +940,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     s3->statistics = {0};
 
     /* Initialize the AWS SDK. */
-    //Aws::Utils::Logging::InitializeAWSLogging(s3->log);
+    Aws::Utils::Logging::InitializeAWSLogging(s3->log);
     Aws::InitAPI(options);
 
     /*
