@@ -525,8 +525,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
            s3->wtApi, session, config, "prefix", &objPrefixConf)) == 0)
         objPrefix = std::string(objPrefixConf.str, objPrefixConf.len);
     else if (ret != WT_NOTFOUND) {
-        s3->log->LogErrorMessage(
-          "S3CustomizeFileSystem: error parsing config for object prefix.");
+        s3->log->LogErrorMessage("S3CustomizeFileSystem: error parsing config for object prefix.");
         return (ret);
     }
 
@@ -545,8 +544,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
       0)
         awsConfig.region = std::string(regionConf.str, regionConf.len);
     else if (ret != WT_NOTFOUND) {
-        s3->log->LogErrorMessage(
-          "S3CustomizeFileSystem: error parsing config for AWS region.");
+        s3->log->LogErrorMessage("S3CustomizeFileSystem: error parsing config for AWS region.");
         return (ret);
     } else {
         s3->log->LogErrorMessage("S3CustomizeFileSystem: AWS region not specified.");
@@ -595,8 +593,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     /* New can fail; will deal with this later. */
     try {
         fs->connection = new S3Connection(credentials, awsConfig, bucketName, objPrefix);
-    }
-    catch (std::invalid_argument& e) {
+    } catch (std::invalid_argument &e) {
         s3->log->LogErrorMessage(std::string("S3CustomizeFileSystem: ") + e.what());
         return (EINVAL);
     }
@@ -745,8 +742,7 @@ S3ObjectListAdd(const S3_STORAGE &s3, char ***objectList, const std::vector<std:
 {
     char **entries;
     if ((entries = (char **)malloc(sizeof(char *) * count)) == NULL) {
-        s3.log->LogErrorMessage(
-          "S3ObjectListAdd: unable to allocate memory for object list.");
+        s3.log->LogErrorMessage("S3ObjectListAdd: unable to allocate memory for object list.");
         return (ENOMEM);
     }
 
@@ -840,9 +836,8 @@ S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *f
 
     /* Confirm that the file exists on the native filesystem. */
     if ((ret = wtFileSystem->fs_exist(wtFileSystem, session, source, &nativeExist)) != 0) {
-        s3->log->LogErrorMessage(
-          "S3Flush: Failed to check for the existence of " + std::string(source) +
-          " on the native filesystem.");
+        s3->log->LogErrorMessage("S3Flush: Failed to check for the existence of " +
+          std::string(source) + " on the native filesystem.");
         return (ret);
     }
     if (!nativeExist) {
@@ -888,10 +883,8 @@ S3ShowStatistics(const S3_STORAGE &s3)
 {
     s3.log->LogDebugMessage(
       "S3 list objects count: " + std::to_string(s3.statistics.listObjectsCount));
-    s3.log->LogDebugMessage(
-      "S3 put object count: " + std::to_string(s3.statistics.putObjectCount));
-    s3.log->LogDebugMessage(
-      "S3 get object count: " + std::to_string(s3.statistics.getObjectCount));
+    s3.log->LogDebugMessage("S3 put object count: " + std::to_string(s3.statistics.putObjectCount));
+    s3.log->LogDebugMessage("S3 get object count: " + std::to_string(s3.statistics.getObjectCount));
     s3.log->LogDebugMessage(
       "S3 object exists count: " + std::to_string(s3.statistics.objectExistsCount));
 

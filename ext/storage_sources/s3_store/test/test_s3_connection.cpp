@@ -340,15 +340,14 @@ TestBadBucket(const Aws::S3Crt::ClientConfiguration &config)
     try {
         S3Connection conn(config, "BadBucket", TestDefaults::objPrefix);
         (void)conn;
-        std::cerr << "TestBadBucket: Failed to generate exception for the bad bucket."
-                  << std::endl;
-    } catch (std::invalid_argument& e) {
+        std::cerr << "TestBadBucket: Failed to generate exception for the bad bucket." << std::endl;
+    } catch (std::invalid_argument &e) {
         /* Make sure we get the expected exception message. */
         if (std::string(e.what()).compare("BadBucket : No such bucket.") == 0)
             ret = 0;
         else
-            std::cerr << "TestBadBucket failed with unexpected exception: "
-                      << e.what() << std::endl;
+            std::cerr << "TestBadBucket failed with unexpected exception: " << e.what()
+                      << std::endl;
     }
 
     if (ret != 0)
@@ -359,15 +358,14 @@ TestBadBucket(const Aws::S3Crt::ClientConfiguration &config)
     try {
         auto conn2 = new S3Connection(config, "BadBucket2", TestDefaults::objPrefix);
         (void)conn2;
-        std::cerr << "TestBadBucket: Failed to generate exception for the bad bucket."
-                  << std::endl;
-    } catch (std::invalid_argument& e) {
+        std::cerr << "TestBadBucket: Failed to generate exception for the bad bucket." << std::endl;
+    } catch (std::invalid_argument &e) {
         /* Make sure we get the expected exception message. */
         if (std::string(e.what()).compare("BadBucket2 : No such bucket.") == 0)
             ret = 0;
         else
-            std::cerr << "TestBadBucket failed with unexpected exception: "
-                      << e.what() << std::endl;
+            std::cerr << "TestBadBucket failed with unexpected exception: " << e.what()
+                      << std::endl;
     }
 
     if (ret != 0)
