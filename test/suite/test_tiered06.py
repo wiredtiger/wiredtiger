@@ -26,67 +26,15 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import datetime, inspect, random, os, wiredtiger, wttest
+import os, wiredtiger, wttest
 from wtscenario import make_scenarios
+from helper_tiered import get_auth_token, get_bucket_info, get_fs_config
 FileSystem = wiredtiger.FileSystem  # easy access to constants
 
-# test_s3_store01.py
-# Note: This is a copy of tiered06, and will merged into it with WT-8791.
-#    Test the storage source's file system implementation.
+# test_tiered06.py
 # Note that the APIs we are testing are not meant to be used directly
 # by any WiredTiger application, these APIs are used internally.
 # However, it is useful to do tests of this API independently.
-
-def get_auth_token(storage_source):
-    auth_token = None
-    if storage_source is 'local_store':
-        # Fake a secret token
-        auth_token = "Secret"
-    if storage_source is 's3_store':
-        # Auth token is the AWS access key ID and the AWS secret key as comma-separated values.
-        # We expect the values to have been provided through the environment variables.
-        access_key = os.getenv('AWS_ACCESS_KEY_ID')
-        secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
-        if access_key and secret_key:
-            auth_token = access_key + "," + secret_key
-    return auth_token
-
-def get_bucket_info(storage_source):
-    if storage_source is 'local_store':
-        return([('objects1',''), ('objects2','')])
-    if storage_source is 's3_store':
-        return([('s3testext',',region=ap-southeast-2'),
-                ('s3testext-us',',region=us-east-2')])
-    return None
-
-def generate_s3_prefix(test_name = ''):
-    # Generates a unique prefix to be used with the object keys, eg:
-    # "s3test_artefacts/python_2022-31-01-16-34-10_623843294/"
-    prefix = 's3test_artefacts/python_'
-    prefix += datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-    # Range upto int32_max, matches that of C++'s std::default_random_engine
-    prefix += '_' + str(random.randrange(1, 2147483646)) + '/'
-
-    if test_name:
-        prefix += test_name + '/'
-
-    return prefix
-
-def get_fs_config(storage_source, additional_conf = '', test_name = ''):
-    # There is no local store specific configuration needed
-    if storage_source is 'local_store':
-        return additional_conf
-
-    # There is not need to generate a unique prefix for local store
-    if storage_source is 's3_store':
-        # If the calling function has not provided a name, extract it from the stack
-        if not test_name:
-            test_name = inspect.stack()[1][3]
-        fs_conf = 'prefix=' + generate_s3_prefix(test_name)
-        fs_conf += additional_conf
-        return fs_conf
-    
-    return None
 
 class test_tiered06(wttest.WiredTigerTestCase):
     storage_sources = [
@@ -139,7 +87,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
     def tearDown(self):
         for ss in self.storage_sources:
             ss.terminate(self.session)
-        super(test_s3_store01, self).tearDown()
+        super(test_tiered06, self).tearDown()
 
     def test_ss_basic(self):
         # Test some basic functionality of the storage source API, calling
