@@ -3043,10 +3043,9 @@ err:
     __wt_scr_discard(&conn->dummy_session);
 
     /*
-     * Clean up the partial backup restore flag and backup id list. The list was used as part of
-     * recovery to truncate the history store entries and the flag was used to allow schema drops to
-     * happen on tables to clean up the metadata entries, to schemas that are not part of the
-     * database anymore.
+     * Clean up the partial backup restore flag and backup id list. The list was used in recovery to
+     * truncate the history store entries and the flag was used to allow schema drops to happen on
+     * tables to clean up the entries in the creation of the metadata file.
      */
     F_CLR(conn, WT_CONN_BACKUP_PARTIAL_RESTORE);
     if (conn->partial_backup_remove_ids != NULL)
