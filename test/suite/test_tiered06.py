@@ -75,19 +75,8 @@ class test_tiered06(wttest.WiredTigerTestCase):
         sys.stderr = open('/dev/tty', 'w')
         pdb.set_trace()
 
-    # Save all references so that we can cleanup properly on failure.
-    storage_sources = []
     def get_storage_source(self):
-        ss = self.conn.get_storage_source(self.ss_name)
-        self.storage_sources.append(ss)
-        return ss
-
-    # Override wttest tearDown to ensure storage sources are properly terminated
-    # on both success and failure.
-    def tearDown(self):
-        for ss in self.storage_sources:
-            ss.terminate(self.session)
-        super(test_tiered06, self).tearDown()
+        return self.conn.get_storage_source(self.ss_name)
 
     def test_ss_basic(self):
         # Test some basic functionality of the storage source API, calling
@@ -103,10 +92,6 @@ class test_tiered06(wttest.WiredTigerTestCase):
 
         fs = ss.ss_customize_file_system(session, bucket, self.ss_auth_token,
             get_fs_config(self.ss_name, bucket_conf))
-
-        # Test that we handle references correctly.
-        store_x = self.get_storage_source()
-        store_y = self.get_storage_source()
 
         # The object doesn't exist yet.
         if self.ss_name is 's3_store':
@@ -168,9 +153,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
 
         fs.terminate(session)
-
-        # Take one more reference for the road.
-        store_z = self.get_storage_source()
+        ss.terminate(session)
 
     def test_ss_write_read(self):
         # Write and read to a file non-sequentially.
@@ -253,6 +236,8 @@ class test_tiered06(wttest.WiredTigerTestCase):
                     self.assertEquals(in_block, a_block)
             fh.close(session)
             os.remove(os.path.join(cachedir, 'abc'))
+
+        ss.terminate(session)
 
     def create_with_fs(self, fs, fname):
         session = self.session
@@ -428,6 +413,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         # also be able to terminate the storage source without terminating
         # all the file systems we created.
         fs1.terminate(session)
+        ss.terminate(session)
 
 if __name__ == '__main__':
     wttest.run()
