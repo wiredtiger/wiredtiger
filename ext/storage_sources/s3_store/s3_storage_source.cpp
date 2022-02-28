@@ -600,7 +600,6 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
         s3->log->LogErrorMessage(std::string("S3CustomizeFileSystem: ") + e.what());
         return (EINVAL);
     }
-    fs->connection = new S3Connection(credentials, awsConfig, bucketName, objPrefix);
     fs->fileSystem.fs_directory_list = S3ObjectList;
     fs->fileSystem.fs_directory_list_single = S3ObjectListSingle;
     fs->fileSystem.fs_directory_list_free = S3ObjectListFree;
