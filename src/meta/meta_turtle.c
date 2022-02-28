@@ -161,13 +161,14 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
                  * references to table.
                  */
                 WT_WITH_SCHEMA_LOCK(session,
-                WT_WITH_TABLE_WRITE_LOCK(session, ret = __wt_schema_drop(session, buf, drop_cfg)));
+                  WT_WITH_TABLE_WRITE_LOCK(
+                    session, ret = __wt_schema_drop(session, buf, drop_cfg)));
                 WT_ERR_ERROR_OK(ret, ENOENT, true);
                 __wt_free(session, buf);
                 if (ret == 0)
                     continue;
             }
-            
+
             /* Perform schema drop on the file reference. */
             WT_WITH_SCHEMA_LOCK(session,
               WT_WITH_TABLE_WRITE_LOCK(
