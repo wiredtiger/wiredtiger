@@ -50,10 +50,10 @@ common_runtime_config = [
         type='category', subconfig= [
         Config('commit_timestamp', 'none', r'''
             this option is no longer supported, retained for backward compatibility''',
-            choices=['always', 'never', 'none'], undoc=True),
+            choices=['always', 'key_consistent', 'never', 'none'], undoc=True),
         Config('durable_timestamp', 'none', r'''
             this option is no longer supported, retained for backward compatibility''',
-            choices=['always', 'never', 'none'], undoc=True),
+            choices=['always', 'key_consistent', 'never', 'none'], undoc=True),
         Config('read_timestamp', 'none', r'''
             check timestamps are \c always or \c never used on reads with
             this table, writing an error message if policy is violated.
@@ -83,8 +83,10 @@ common_runtime_config = [
         are allowed at any time, \c never enforces that timestamps are never
         used for a table and \c none does not enforce any expectation on
         timestamp usage meaning that no log message or assertions will be
-        produced regardless of the corresponding \c assert setting''',
-        choices=['always', 'mixed_mode', 'never', 'none', 'ordered']),
+        produced regardless of the corresponding \c assert setting. (The
+        \c key_consistent choice is no longer supported, retained for
+        backward compatibility.)''',
+        choices=['always', 'key_consistent', 'mixed_mode', 'never', 'none', 'ordered']),
 ]
 
 # Metadata shared by all schema objects
@@ -1215,16 +1217,6 @@ wiredtiger_open_common =\
         size and the default config would extend log files in allocations of
         the maximum log file size.''',
         type='list', choices=['data', 'log']),
-    Config('file_close_sync', 'true', r'''
-        control whether to flush modified files to storage independent
-        of a global checkpoint when closing file handles to acquire exclusive
-        access to a table. If set to false, and logging is disabled, API calls that
-        require exclusive access to tables will return EBUSY if there have been
-        changes made to the table since the last global checkpoint. When logging
-        is enabled, the value for <code>file_close_sync</code> has no effect, and,
-        modified file is always flushed to storage when closing file handles to
-        acquire exclusive access to the table''',
-        type='boolean'),
     Config('hash', '', r'''
         manage resources around hash bucket arrays. All values must be a power of two.
         Note that setting large values can significantly increase memory usage inside
@@ -1733,9 +1725,8 @@ methods = {
         whether to ignore the updates by other prepared transactions as part of
         read operations of this transaction.  When \c true, forces the
         transaction to be read-only.  Use \c force to ignore prepared updates
-        and permit writes (which can cause lost updates unless the application
-        knows something about the relationship between prepared transactions
-        and the updates that are ignoring them)''',
+        and permit writes (see @ref timestamp_prepare_ignore_prepare for
+        more information)''',
         choices=['false', 'force', 'true']),
     Config('isolation', '', r'''
         the isolation level for this transaction; defaults to the
@@ -1759,26 +1750,22 @@ methods = {
         older than the current oldest timestamp.  See
         @ref timestamp_txn_api'''),
     Config('roundup_timestamps', '', r'''
-        round up timestamps of the transaction. This setting alters the
-        visibility expected in a transaction. See @ref
-        timestamp_roundup''',
+        round up timestamps of the transaction''',
         type='category', subconfig= [
         Config('prepared', 'false', r'''
-            applicable only for prepared transactions, and intended only for special-purpose
-            use. (See @ref timestamp_roundup_prepare.) Allows the prepare timestamp and the
-            commit timestamp of this transaction to be rounded up to be no older than the
-            oldest timestamp, and allows violating the usual restriction that the prepare
-            timestamp must be newer than the stable timestamp. Specifically: at transaction
-            prepare, if the prepare
-            timestamp is less than or equal to the oldest timestamp, the prepare timestamp
-            will be rounded to the oldest timestamp. Subsequently, at commit time, if the
-            commit timestamp is less than the (now rounded) prepare timestamp, the commit
-            timestamp will be rounded up to it and thus to at least oldest.
-            Neither timestamp will be checked against the stable timestamp''',
+            applicable only for prepared transactions, and intended only for special-purpose use,
+            see @ref timestamp_prepare_roundup. Allows the prepare timestamp and the commit
+            timestamp of this transaction to be rounded up to be no older than the oldest timestamp,
+            and allows violating the usual restriction that the prepare timestamp must be newer than
+            the stable timestamp. Specifically: at transaction prepare, if the prepare timestamp is
+            less than or equal to the oldest timestamp, the prepare timestamp will be rounded to the
+            oldest timestamp. Subsequently, at commit time, if the commit timestamp is less than the
+            (now rounded) prepare timestamp, the commit timestamp will be rounded up to it and thus
+            to at least oldest.  Neither timestamp will be checked against the stable timestamp''',
             type='boolean'),
         Config('read', 'false', r'''
-            if the read timestamp is less than the oldest timestamp, the
-            read timestamp will be rounded up to the oldest timestamp''',
+            if the read timestamp is less than the oldest timestamp, the read timestamp will be
+            rounded up to the oldest timestamp, see @ref timestamp_read_roundup''',
             type='boolean'),
         ]),
     Config('sync', '', r'''
