@@ -26,20 +26,20 @@ add_subdirectory(${catch2_SOURCE_DIR} ${catch2_BINARY_DIR})
 
 set(unittest_sources
     tests/main.cpp
-    tests/extent_list.cpp
-    tests/pow.cpp
-    tests/packing/test_intpack.cpp
-    tests/fnv.cpp
-    tests/crc32.cpp
+    tests/test_crc32.cpp
+    tests/test_extent_list.cpp
+    tests/test_fnv.cpp
+    tests/test_pow.cpp
+    tests/test_reconciliation_tracking.cpp
     tests/test_tailq.cpp
-    tests/reconciliation_tracking.cpp
     tests/utils.cpp
+    tests/block/test_bitstring.cpp
+    tests/block/test_block_ckpt.cpp
+    tests/packing/test_intpack.cpp
     tests/wrappers/block_mods.cpp
     tests/wrappers/connection_wrapper.cpp
     tests/wrappers/mock_connection.cpp
     tests/wrappers/mock_session.cpp
-    tests/block/test_bitstring.cpp
-    tests/block/test_block_ckpt.cpp
 )
 
 create_test_executable(unittests

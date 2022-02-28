@@ -10,7 +10,7 @@
 
 #include "wt_internal.h"
 
-TEST_CASE("log2_int", "[pow]")
+TEST_CASE("Power functions: log2_int", "[pow]")
 {
     // this is mathematically wrong, but given the unsigned return type, about
     // the best that can be expected
@@ -34,7 +34,7 @@ TEST_CASE("log2_int", "[pow]")
     REQUIRE(__wt_log2_int(0xffffffff) == 31);
 }
 
-TEST_CASE("ispo2", "[pow]")
+TEST_CASE("Power functions: ispo2", "[pow]")
 {
     // this is mathematically wrong, but makes sense for how it's used
     REQUIRE(__wt_ispo2(0) == true);
@@ -59,7 +59,7 @@ TEST_CASE("ispo2", "[pow]")
     REQUIRE(__wt_ispo2(0xffffffff) == false);
 }
 
-TEST_CASE("rduppo2", "[pow]")
+TEST_CASE("Power functions: rduppo2", "[pow]")
 {
     // Expected valid calls, where the 2nd param is a power of two
     REQUIRE(__wt_rduppo2(0, 8) == 0);

@@ -157,7 +157,7 @@ create_default_test_size_list(SizeListWrapper &wrapper)
         raw.push_back(nullptr);
 }
 
-TEST_CASE("block_off_srch_last", "[extent_list]")
+TEST_CASE("Extent Lists: block_off_srch_last", "[extent_list]")
 {
     std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
 
@@ -235,7 +235,7 @@ TEST_CASE("block_off_srch_last", "[extent_list]")
     }
 }
 
-TEST_CASE("block_off_srch", "[extent_list]")
+TEST_CASE("Extent Lists: block_off_srch", "[extent_list]")
 {
     std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
 
@@ -324,7 +324,7 @@ TEST_CASE("block_off_srch", "[extent_list]")
     }
 }
 
-TEST_CASE("block_first_srch", "[extent_list]")
+TEST_CASE("Extent Lists: block_first_srch", "[extent_list]")
 {
     std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
 
@@ -368,7 +368,7 @@ TEST_CASE("block_first_srch", "[extent_list]")
     }
 }
 
-TEST_CASE("block_size_srch", "[extent_list]")
+TEST_CASE("Extent Lists: block_size_srch", "[extent_list]")
 {
     std::vector<WT_SIZE **> stack(WT_SKIP_MAXDEPTH, nullptr);
 

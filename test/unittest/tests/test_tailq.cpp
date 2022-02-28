@@ -93,7 +93,7 @@ TestTailQWrapper<T>::copyItemsFromTailQ()
     return items;
 }
 
-TEST_CASE("Test TAILQ - add to and remove from TAILQ", "[TAILQ]")
+TEST_CASE("Test TAILQ: add to and remove from TAILQ", "[TAILQ]")
 {
     std::list<int> items{10, 20, 30, 40, 50, 60, 70};
 
@@ -123,7 +123,7 @@ TEST_CASE("Test TAILQ - add to and remove from TAILQ", "[TAILQ]")
     }
 }
 
-TEST_CASE("Test TAILQ - attempted removal from empty TAILQ", "[TAILQ]")
+TEST_CASE("Test TAILQ: attempted removal from empty TAILQ", "[TAILQ]")
 {
     TestTailQWrapper<int> testTailQWrapper;
 

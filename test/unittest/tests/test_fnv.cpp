@@ -12,7 +12,7 @@
 
 // due credit: the cases that hash to zero came from
 // http://www.isthe.com/chongo/tech/comp/fnv/#zero-hash
-TEST_CASE("hash_fnv64", "[fnv]")
+TEST_CASE("Hashing: hash_fnv64", "[fnv]")
 {
     const uint64_t fnv1a_64_init = 0xcbf29ce484222325;
     REQUIRE(__wt_hash_fnv64(nullptr, 0) == fnv1a_64_init);

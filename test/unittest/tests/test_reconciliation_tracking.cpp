@@ -12,7 +12,7 @@
 #include "wrappers/connection_wrapper.h"
 #include "wt_internal.h"
 
-TEST_CASE("ovfl_track_init", "[reconciliation]")
+TEST_CASE("Reconciliation tracking: ovfl_track_init", "[reconciliation]")
 {
     ConnectionWrapper conn;
     WT_SESSION_IMPL *session = conn.createSession();
@@ -29,7 +29,7 @@ TEST_CASE("ovfl_track_init", "[reconciliation]")
     REQUIRE(m.ovfl_track != nullptr);
 }
 
-TEST_CASE("ovfl_discard_verbose", "[reconciliation]")
+TEST_CASE("Reconciliation tracking: ovfl_discard_verbose", "[reconciliation]")
 {
     ConnectionWrapper conn;
     WT_SESSION_IMPL *session = conn.createSession();
@@ -40,7 +40,7 @@ TEST_CASE("ovfl_discard_verbose", "[reconciliation]")
     }
 }
 
-TEST_CASE("ovfl_discard_wrapup", "[reconciliation]")
+TEST_CASE("Reconciliation tracking: ovfl_discard_wrapup", "[reconciliation]")
 {
     ConnectionWrapper conn;
     WT_SESSION_IMPL *session = conn.createSession();

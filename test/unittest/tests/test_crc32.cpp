@@ -10,7 +10,7 @@
 
 #include "wt_internal.h"
 
-TEST_CASE("crc32c", "[crc32c]")
+TEST_CASE("CRC calculations: crc32c", "[crc32c]")
 {
     auto crc32c = wiredtiger_crc32c_func();
 
