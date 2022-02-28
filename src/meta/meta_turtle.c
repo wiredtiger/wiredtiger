@@ -147,30 +147,32 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
         /*
          * During partial backup, parse through the partial backup list and attempt to clean up all
          * metadata references relating to the file. To do so, perform a schema drop operation on
-         * the table to cleanly remove all linked references. It is possible that performing a
-         * schema drop on the table reference can fail because a file can be created without a table
-         * schema, therefore perform a schema drop on the file reference when that happens.
+         * the table to cleanly remove all linked references if the filename has an extensive. It is
+         * possible that performing a schema drop on the table reference can fail because a file can
+         * be created without a table schema, therefore perform a schema drop on the file reference
+         * when that happens.
          */
         for (i = 0; partial_backup_names[i] != NULL; ++i) {
-            /* Convert the file name to a table metadata reference. */
-            WT_ERR(__wt_schema_convert_file_to_table(session, partial_backup_names[i], &buf));
-            /*
-             * Perform schema drop on the table reference to cleanly remove all linked references to
-             * table.
-             */
-            WT_WITH_SCHEMA_LOCK(session,
-              WT_WITH_TABLE_WRITE_LOCK(session, ret = __wt_schema_drop(session, buf, drop_cfg)));
-            WT_ERR_ERROR_OK(ret, ENOENT, true);
-            __wt_free(session, buf);
-            if (ret == 0)
-                continue;
-
+            if (WT_SUFFIX_MATCH(partial_backup_names[i], ".wt")) {
+                /* Convert the file name to a table metadata reference. */
+                WT_ERR(__wt_schema_convert_file_to_table(session, partial_backup_names[i], &buf));
+                /*
+                 * Perform schema drop on the table reference to cleanly remove all linked
+                 * references to table.
+                 */
+                WT_WITH_SCHEMA_LOCK(session,
+                WT_WITH_TABLE_WRITE_LOCK(session, ret = __wt_schema_drop(session, buf, drop_cfg)));
+                WT_ERR_ERROR_OK(ret, ENOENT, true);
+                __wt_free(session, buf);
+                if (ret == 0)
+                    continue;
+            }
+            
             /* Perform schema drop on the file reference. */
             WT_WITH_SCHEMA_LOCK(session,
               WT_WITH_TABLE_WRITE_LOCK(
                 session, ret = __wt_schema_drop(session, partial_backup_names[i], drop_cfg)));
             WT_ERR(ret);
-            __wt_free(session, buf);
         }
     }
 

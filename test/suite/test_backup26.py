@@ -54,9 +54,9 @@ class test_backup26(backup_base):
         ('zero_percent', dict(percentage=0)),
     ]
     remove_list = [
-        ('empty remove list', dict(ext=None, type=None)),
-        ('table remove list', dict(ext=".wt",type="table:")),
-        ('file remove list', dict(ext="",type="file:")),
+        ('empty remove list', dict(type=None)),
+        ('table remove list', dict(type="table:")),
+        ('file remove list', dict(type="file:")),
     ]
     scenarios = make_scenarios(remove_list, percentage)
 
@@ -65,12 +65,12 @@ class test_backup26(backup_base):
         selective_file_list = []
         selective_remove_file_list = []
         for i in range(0, int(self.ntables * self.percentage)):
-            uri = "file:{0}_file".format(self.uri + str(i))
+            uri = "file:{0}_file.wt".format(self.uri + str(i))
             dataset = SimpleDataSet(self, uri, 100, key_format="S")
             dataset.populate()
             if (self.type and self.type == "file:"):
                 selective_remove_uri_list.append(uri)
-                selective_remove_file_list.append("{0}_file".format(self.uri + str(i)))
+                selective_remove_file_list.append("{0}_file.wt".format(self.uri + str(i)))
             else:
                 selective_file_list.append(uri)
 

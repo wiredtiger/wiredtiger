@@ -183,8 +183,8 @@ err:
 
 /*
  * __wt_schema_convert_file_to_table --
- *     Convert the file name to a table metadata reference. Check if the file name has wt extension.
- *     If so, we need to remove the wt suffix too.
+ *     Convert the file name to a table metadata reference. The filename needs to have an extension
+ *     for this function.
  */
 int
 __wt_schema_convert_file_to_table(WT_SESSION_IMPL *session, const char *filename, char **buf)
@@ -200,11 +200,8 @@ __wt_schema_convert_file_to_table(WT_SESSION_IMPL *session, const char *filename
         WT_ERR(__wt_calloc_def(session, bufsz, buf));
         WT_ERR(
           __wt_snprintf(*buf, bufsz, "table:%.*s", (int)(strlen(filep) - strlen(suffixp)), filep));
-    } else {
-        bufsz = strlen("table:") + strlen(filep) + 1;
-        WT_ERR(__wt_calloc_def(session, bufsz, buf));
-        WT_ERR(__wt_snprintf(*buf, bufsz, "table:%s", filep));
-    }
+    } else
+        WT_ERR_MSG(session, WT_ERROR, "There is no extension in the file name '%s'", filename);
     return (0);
 
 err:
