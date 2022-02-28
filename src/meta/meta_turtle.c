@@ -367,7 +367,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta)
         /*
          * Failure to read means a bad turtle file. Remove it and create a new turtle file.
          */
-        if (F_ISSET(S2C(session), WT_CONN_SALVAGE)) {
+        if (F_ISSET(conn, WT_CONN_SALVAGE)) {
             WT_WITH_TURTLE_LOCK(
               session, ret = __wt_turtle_read(session, WT_METAFILE_URI, &unused_value));
             __wt_free(session, unused_value);
