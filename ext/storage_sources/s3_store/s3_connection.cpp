@@ -18,7 +18,6 @@
  * S3Connection --
  *     Constructor for AWS S3 bucket connection with provided credentials.
  */
-/* Todo: Handle the case where a bad bucket has been provided. */
 S3Connection::S3Connection(const Aws::Auth::AWSCredentials &credentials,
   const Aws::S3Crt::ClientConfiguration &config, const std::string &bucketName,
   const std::string &objPrefix)
