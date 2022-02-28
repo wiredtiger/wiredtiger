@@ -57,14 +57,18 @@ functions:
   "fetch mongo repo" :
     command: shell.exec
     params:
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
         mongo_repo=https://github.com/mongodb/mongo
-        if [ "${branch_name}" = "mongodb-5.0" ]; then
+        if [[ "${branch_name}" == "mongodb-5.0" ]]; then
           git clone $mongo_repo -b v5.0
-        elif [ "${branch_name}" = "mongodb-4.4" ]; then
+        elif [[ "${branch_name}" == "mongodb-4.4" ]]; then
           git clone $mongo_repo -b v4.4
+        elif [[ "${branch_name}" =~ "mongodb-" ]]; then   
+          echo "Checkout the correct mongodb branch for wiredtiger branch ${branch_name}"
+          exit 1
         else
           git clone $mongo_repo -b master
         fi
