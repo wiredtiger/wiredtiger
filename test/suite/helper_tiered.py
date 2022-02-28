@@ -36,7 +36,7 @@ import datetime, inspect, os, random
 def get_auth_token(storage_source):
     auth_token = None
     if storage_source is 'local_store':
-        # Fake a secret token
+        # Fake a secret token.
         auth_token = "Secret"
     if storage_source is 's3_store':
         # Auth token is the AWS access key ID and the AWS secret key as comma-separated values.
@@ -86,3 +86,4 @@ def get_fs_config(storage_source, additional_conf = '', test_name = ''):
         return fs_conf
     
     return None
+    
