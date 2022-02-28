@@ -593,6 +593,13 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     fs->cacheDir = cacheDir;
 
     /* New can fail; will deal with this later. */
+    try {
+        fs->connection = new S3Connection(credentials, awsConfig, bucketName, objPrefix);
+    }
+    catch (std::invalid_argument& e) {
+        s3->log->LogErrorMessage(std::string("S3CustomizeFileSystem: ") + e.what());
+        return (EINVAL);
+    }
     fs->connection = new S3Connection(credentials, awsConfig, bucketName, objPrefix);
     fs->fileSystem.fs_directory_list = S3ObjectList;
     fs->fileSystem.fs_directory_list_single = S3ObjectListSingle;

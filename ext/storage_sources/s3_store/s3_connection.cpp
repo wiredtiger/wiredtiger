@@ -4,6 +4,7 @@
 #include <aws/s3-crt/model/PutObjectRequest.h>
 #include <aws/s3-crt/model/GetObjectRequest.h>
 #include <aws/s3-crt/model/HeadObjectRequest.h>
+#include <aws/s3-crt/model/HeadBucketRequest.h>
 
 #include "s3_connection.h"
 
@@ -23,6 +24,11 @@ S3Connection::S3Connection(const Aws::Auth::AWSCredentials &credentials,
   const std::string &objPrefix)
     : _s3CrtClient(credentials, config), _bucketName(bucketName), _objectPrefix(objPrefix)
 {
+    /* Confirm that we can access the bucket, else fail. */
+    bool exists;
+    int ret = BucketExists(exists);
+    if (ret != 0 || !exists)
+        throw std::invalid_argument(_bucketName + " : No such bucket.");
 }
 
 /*
@@ -34,6 +40,11 @@ S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config,
   const std::string &bucketName, const std::string &objPrefix)
     : _s3CrtClient(config), _bucketName(bucketName), _objectPrefix(objPrefix)
 {
+    /* Confirm that we can access the bucket, else fail. */
+    bool exists;
+    int ret = BucketExists(exists);
+    if (ret != 0 || !exists)
+        throw std::invalid_argument(_bucketName + " : No such bucket.");
 }
 
 /*
@@ -179,5 +190,36 @@ S3Connection::ObjectExists(const std::string &objectKey, bool &exists, size_t &o
      * outcome.GetError().GetResponseCode()
      */
     std::cerr << "Error in ObjectExists." << std::endl;
+    return (1);
+}
+
+/*
+ * BucketExists --
+ *     Checks whether the bucket configured for the class is accessible to us or not.
+ */
+int
+S3Connection::BucketExists(bool &exists) const
+{
+    exists = false;
+
+    Aws::S3Crt::Model::HeadBucketRequest request;
+    request.WithBucket(_bucketName);
+    Aws::S3Crt::Model::HeadBucketOutcome outcome = _s3CrtClient.HeadBucket(request);
+
+    /*
+     * If an object with the given key does not exist the HEAD request will return a 404.
+     * https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadBucket.html Do not fail in this case.
+     */
+    if (outcome.IsSuccess()) {
+        exists = true;
+        return (0);
+    } else if (outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND)
+        return (0);
+
+    /*
+     * Fix later, return a proper error code. Not sure if we always have
+     * outcome.GetError().GetResponseCode()
+     */
+    std::cerr << "Error in BucketExists." << std::endl;
     return (1);
 }
