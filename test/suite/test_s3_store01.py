@@ -65,8 +65,7 @@ def generate_s3_prefix(test_name = ''):
     prefix = 's3test_artefacts/python_'
     prefix += datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     # Range upto int32_max, matches that of C++'s std::default_random_engine
-    prefix += '_' + str(random.randrange(1,2147483646))
-    prefix += "/"
+    prefix += '_' + str(random.randrange(1, 2147483646)) + '/'
 
     if test_name:
         prefix += test_name + '/'
@@ -129,8 +128,19 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         sys.stderr = open('/dev/tty', 'w')
         pdb.set_trace()
 
+    # Save all references so that we can cleanup properly on failure.
+    storage_sources = []
     def get_storage_source(self):
-        return self.conn.get_storage_source(self.ss_name)
+        ss = self.conn.get_storage_source(self.ss_name)
+        self.storage_sources.append(ss)
+        return ss
+
+    # Override wttest tearDown to ensure storage sources are properly terminated
+    # on both success and failure.
+    def tearDown(self):
+        for ss in self.storage_sources:
+            ss.terminate(self.session)
+        super(test_s3_store01, self).tearDown()
 
     def test_ss_basic(self):
         # Test some basic functionality of the storage source API, calling
@@ -146,6 +156,10 @@ class test_s3_store01(wttest.WiredTigerTestCase):
 
         fs = ss.ss_customize_file_system(session, bucket, self.ss_auth_token,
             get_fs_config(self.ss_name, bucket_conf))
+
+        # Test that we handle references correctly.
+        store_x = self.get_storage_source()
+        store_y = self.get_storage_source()
 
         # The object doesn't exist yet.
         self.assertFalse(fs.fs_exist(session, 'foobar'))
@@ -199,7 +213,9 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
 
         fs.terminate(session)
-        ss.terminate(session)
+
+        # Take one more reference for the road.
+        store_z = self.get_storage_source()
 
     def test_ss_write_read(self):
         # Write and read to a file non-sequentially.
@@ -283,8 +299,6 @@ class test_s3_store01(wttest.WiredTigerTestCase):
             fh.close(session)
             os.remove(os.path.join(cachedir, 'abc'))
 
-        ss.terminate(session)
-
     def create_with_fs(self, fs, fname):
         session = self.session
         f = open(fname, 'wb')
@@ -349,6 +363,9 @@ class test_s3_store01(wttest.WiredTigerTestCase):
             f.write('hello')
 
     def test_ss_file_systems(self):
+        # Save all references so that we can cleanup properly on failure.
+        storage_sources = []
+
         # Test using various buckets, hosts.
         self.bucket1,self.bucket1_conf = self.ss_buckets[0]
         self.bucket2,self.bucket2_conf = self.ss_buckets[1]
@@ -463,7 +480,6 @@ class test_s3_store01(wttest.WiredTigerTestCase):
         # also be able to terminate the storage source without terminating
         # all the file systems we created.
         fs1.terminate(session)
-        ss.terminate(session)
 
 if __name__ == '__main__':
     wttest.run()

@@ -1083,8 +1083,10 @@ struct __wt_session {
 	 * except that updates with no timestamp are allowed at any time\, \c never enforces that
 	 * timestamps are never used for a table and \c none does not enforce any expectation on
 	 * timestamp usage meaning that no log message or assertions will be produced regardless of
-	 * the corresponding \c assert setting., a string\, chosen from the following options: \c
-	 * "always"\, \c "mixed_mode"\, \c "never"\, \c "none"\, \c "ordered"; default \c none.}
+	 * the corresponding \c assert setting.  (The \c key_consistent choice is no longer
+	 * supported\, retained for backward compatibility.)., a string\, chosen from the following
+	 * options: \c "always"\, \c "key_consistent"\, \c "mixed_mode"\, \c "never"\, \c "none"\,
+	 * \c "ordered"; default \c none.}
 	 * @configend
 	 * @errors
 	 */
@@ -1365,8 +1367,10 @@ struct __wt_session {
 	 * except that updates with no timestamp are allowed at any time\, \c never enforces that
 	 * timestamps are never used for a table and \c none does not enforce any expectation on
 	 * timestamp usage meaning that no log message or assertions will be produced regardless of
-	 * the corresponding \c assert setting., a string\, chosen from the following options: \c
-	 * "always"\, \c "mixed_mode"\, \c "never"\, \c "none"\, \c "ordered"; default \c none.}
+	 * the corresponding \c assert setting.  (The \c key_consistent choice is no longer
+	 * supported\, retained for backward compatibility.)., a string\, chosen from the following
+	 * options: \c "always"\, \c "key_consistent"\, \c "mixed_mode"\, \c "never"\, \c "none"\,
+	 * \c "ordered"; default \c none.}
 	 * @configend
 	 * @errors
 	 */
@@ -1693,10 +1697,9 @@ struct __wt_session {
 	 * @configstart{WT_SESSION.begin_transaction, see dist/api_data.py}
 	 * @config{ignore_prepare, whether to ignore the updates by other prepared transactions as
 	 * part of read operations of this transaction.  When \c true\, forces the transaction to be
-	 * read-only.  Use \c force to ignore prepared updates and permit writes (which can cause
-	 * lost updates unless the application knows something about the relationship between
-	 * prepared transactions and the updates that are ignoring them)., a string\, chosen from
-	 * the following options: \c "false"\, \c "force"\, \c "true"; default \c false.}
+	 * read-only.  Use \c force to ignore prepared updates and permit writes (see @ref
+	 * timestamp_prepare_ignore_prepare for more information)., a string\, chosen from the
+	 * following options: \c "false"\, \c "force"\, \c "true"; default \c false.}
 	 * @config{isolation, the isolation level for this transaction; defaults to the session's
 	 * isolation level., a string\, chosen from the following options: \c "read-uncommitted"\,
 	 * \c "read-committed"\, \c "snapshot"; default empty.}
@@ -1713,12 +1716,11 @@ struct __wt_session {
 	 * @config{read_timestamp, read using the specified timestamp.  The supplied value must not
 	 * be older than the current oldest timestamp.  See @ref timestamp_txn_api., a string;
 	 * default empty.}
-	 * @config{roundup_timestamps = (, round up timestamps of the transaction.  This setting
-	 * alters the visibility expected in a transaction.  See @ref timestamp_roundup., a set of
-	 * related configuration options defined below.}
+	 * @config{roundup_timestamps = (, round up timestamps of the transaction., a set of related
+	 * configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;prepared,
-	 * applicable only for prepared transactions\, and intended only for special-purpose use.
-	 * (See @ref timestamp_roundup_prepare.) Allows the prepare timestamp and the commit
+	 * applicable only for prepared transactions\, and intended only for special-purpose use\,
+	 * see @ref timestamp_prepare_roundup.  Allows the prepare timestamp and the commit
 	 * timestamp of this transaction to be rounded up to be no older than the oldest timestamp\,
 	 * and allows violating the usual restriction that the prepare timestamp must be newer than
 	 * the stable timestamp.  Specifically: at transaction prepare\, if the prepare timestamp is
@@ -1729,7 +1731,8 @@ struct __wt_session {
 	 * timestamp., a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read, if
 	 * the read timestamp is less than the oldest timestamp\, the read timestamp will be rounded
-	 * up to the oldest timestamp., a boolean flag; default \c false.}
+	 * up to the oldest timestamp\, see @ref timestamp_read_roundup., a boolean flag; default \c
+	 * false.}
 	 * @config{ ),,}
 	 * @config{sync, whether to sync log records when the transaction commits\, inherited from
 	 * ::wiredtiger_open \c transaction_sync., a boolean flag; default empty.}
@@ -2980,13 +2983,6 @@ struct __wt_connection {
  * specified to a library extension are passed to WT_CONNECTION::load_extension as the \c config
  * parameter (for example\, <code>extensions=(/path/ext.so={entry=my_entry})</code>)., a list of
  * strings; default empty.}
- * @config{file_close_sync, control whether to flush modified files to storage independent of a
- * global checkpoint when closing file handles to acquire exclusive access to a table.  If set to
- * false\, and logging is disabled\, API calls that require exclusive access to tables will return
- * EBUSY if there have been changes made to the table since the last global checkpoint.  When
- * logging is enabled\, the value for <code>file_close_sync</code> has no effect\, and\, modified
- * file is always flushed to storage when closing file handles to acquire exclusive access to the
- * table., a boolean flag; default \c true.}
  * @config{file_extend, file extension configuration.  If set\, extend files of the set type in
  * allocations of the set size\, instead of a block at a time as each new block is written.  For
  * example\, <code>file_extend=(data=16MB)</code>. If set to 0\, disable the file extension for the
@@ -3793,7 +3789,8 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
 /*!
  * Non-specific WiredTiger error.
  * This error is returned when an error is not covered by a specific error
- * return.
+ * return. The operation may be retried; if a transaction is in progress, it
+ * should be rolled back and the operation retried in a new transaction.
  */
 #define	WT_ERROR	(-31802)
 /*!
@@ -3816,8 +3813,8 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
 /*! @endcond */
 /*!
  * Recovery must be run to continue.
- * This error is generated when wiredtiger_open is configured to return an error
- * if recovery is required to use the database.
+ * This error is generated when ::wiredtiger_open is configured to return an
+ * error if recovery is required to use the database.
  */
 #define	WT_RUN_RECOVERY	(-31806)
 /*!
