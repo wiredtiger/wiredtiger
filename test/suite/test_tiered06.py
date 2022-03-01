@@ -44,7 +44,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
             ss_auth_token=get_auth_token('local_store'),
             ss_buckets=get_bucket_list('local_store'))),
         ('s3', dict(ss_name='s3_store',
-            #ss_config='verbose=-3'
+            #ss_config='verbose=1'
             ss_config='',
             ss_auth_token=get_auth_token('s3_store'),
             ss_buckets=get_bucket_list('s3_store')))
@@ -58,7 +58,6 @@ class test_tiered06(wttest.WiredTigerTestCase):
         # S3 store is built as an optional loadable extension, not all test environments build S3.
         if self.ss_name == 's3_store':
             extlist.skip_if_missing = True
-
         # Windows doesn't support dynamically loaded extension libraries.
         if os.name == 'nt':
             extlist.skip_if_missing = True

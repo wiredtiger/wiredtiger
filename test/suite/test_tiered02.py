@@ -65,16 +65,26 @@ class test_tiered02(wttest.WiredTigerTestCase):
 
     # Load the local store extension.
     def conn_extensions(self, extlist):
+        config = ''
+        # S3 store is built as an optional loadable extension, not all test environments build S3.
+        if self.ss_name == 's3_store':
+            #config = '=(config=\"(verbose=1)\")'
+            extlist.skip_if_missing = True
         # Windows doesn't support dynamically loaded extension libraries.
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('storage_sources', self.ss_name)
+
+        extlist.extension('storage_sources', self.ss_name + config)
 
     def progress(self, s):
         self.verbose(3, s)
         self.pr(s)
 
     def confirm_flush(self, increase=True):
+        # Need to do something different for S3, disable for the time being
+        if self.ss_name == 's3_store':
+            return
+
         got = sorted(list(os.listdir(self.bucket)))
         self.pr('Flushed objects: ' + str(got))
         if increase:

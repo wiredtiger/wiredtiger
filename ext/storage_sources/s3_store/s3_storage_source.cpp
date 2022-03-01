@@ -860,6 +860,7 @@ static int
 S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *fileSystem,
   const char *source, const char *object, const char *config)
 {
+    S3_STORAGE *s3 = (S3_STORAGE *)storage;
     S3_FILE_SYSTEM *fs = (S3_FILE_SYSTEM *)fileSystem;
     /* Constructing the pathname for source and cache from file system and local.  */
     std::string srcPath = S3Path(fs->homeDir, source);
@@ -867,10 +868,19 @@ S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *f
 
     /* Linking file with the local file. */
     int ret = link(srcPath.c_str(), destPath.c_str());
+    if (ret != 0) {
+        ret = errno;
+        s3->log->LogErrorMessage(
+          "S3FlushFinish: link " + std::string(source) + " to " + destPath + " failed");
+        return (ret);
+    }
 
     /* The file should be read-only. */
-    if (ret == 0)
-        ret = chmod(destPath.c_str(), 0444);
+    ret = chmod(destPath.c_str(), 0444);
+    if (ret != 0) {
+        ret = errno;
+        s3->log->LogErrorMessage("S3FlushFinish: chmod of " + destPath + " failed");
+    }
     return (ret);
 }
 

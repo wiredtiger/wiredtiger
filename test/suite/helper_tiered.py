@@ -70,13 +70,13 @@ def get_single_bucket_conf(storage_source):
 def generate_s3_prefix(test_name = ''):
     # Generates a unique prefix to be used with the object keys, eg:
     # "s3test_artefacts/python_2022-31-01-16-34-10_623843294/"
-    prefix = 's3test_artefacts/python_'
+    prefix = 's3test_artefacts--python_'
     prefix += datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     # Range upto int32_max, matches that of C++'s std::default_random_engine
-    prefix += '_' + str(random.randrange(1, 2147483646)) + '/'
+    prefix += '_' + str(random.randrange(1, 2147483646)) + '--'
 
     if test_name:
-        prefix += test_name + '/'
+        prefix += test_name + '--'
 
     return prefix
 
