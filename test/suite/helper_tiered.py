@@ -35,10 +35,10 @@ import datetime, inspect, os, random
 # Generate a storage store specific authentication token.
 def get_auth_token(storage_source):
     auth_token = None
-    if storage_source is 'local_store':
+    if storage_source == 'local_store':
         # Fake a secret token.
         auth_token = "Secret"
-    if storage_source is 's3_store':
+    if storage_source == 's3_store':
         # Auth token is the AWS access key ID and the AWS secret key as semi-colon separated values.
         # We expect the values to have been provided through the environment variables.
         access_key = os.getenv('AWS_ACCESS_KEY_ID')
@@ -47,24 +47,35 @@ def get_auth_token(storage_source):
             auth_token = access_key + ";" + secret_key
     return auth_token
 
+# Get buckets configured for the storage source
+
+# S3 buckets with their regions
+S3_buckets = \
+    [('s3testext', 'ap-southeast-2'),
+    ('s3testext-us', 'us-east-2')]
+
+# Local buckets do not have a region
+local_buckets = \
+    [('bucket1', ''),
+    ('bucket2', '')]
+
 # Get a list of buckets available for the storage source.
 def get_bucket_list(storage_source):
-    if storage_source is 'local_store':
-        return([('bucket1',''), ('bucket2','')])
-    if storage_source is 's3_store':
-        return([('s3testext',',region=ap-southeast-2'),
-                ('s3testext-us',',region=us-east-2')])
+    if storage_source == 'local_store':
+        return local_buckets
+    if storage_source == 's3_store':
+        return S3_buckets
     return None
 
-# Get the name of the first bucket from the list of available buckets for the storage source.
-def get_single_bucket_name(storage_source):
+# Get name of the first bucket in the list.
+def get_bucket1_name(storage_source):
     bucket, _ = get_bucket_list(storage_source)[0]
     return bucket
 
-# Get the region for the first bucket from the list of available buckets for the storage source.
-def get_single_bucket_conf(storage_source):
-    _, conf = get_bucket_list(storage_source)[0]
-    return conf[8:]
+# Get the region of the first bucket in the list.
+def get_bucket1_region(storage_source):
+    _, region = get_bucket_list(storage_source)[0]
+    return region
 
 # Generate a unique object prefix for the S3 store. 
 def generate_s3_prefix(test_name = ''):

@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wttest
-from helper_tiered import get_auth_token, get_single_bucket_name, get_single_bucket_conf
+from helper_tiered import get_auth_token, get_bucket1_name, get_bucket1_region
 from helper_tiered import generate_s3_prefix
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
@@ -35,17 +35,16 @@ from wtscenario import make_scenarios
 # test_tiered02.py
 #    Test tiered tree
 class test_tiered02(wttest.WiredTigerTestCase):
-
     storage_sources = [
         ('local', dict(ss_name = 'local_store',
             auth_token = get_auth_token('local_store'),
-            bucket = get_single_bucket_name('local_store'),
-            bucket_region = '',
+            bucket = get_bucket1_name('local_store'),
+            bucket_region = get_bucket1_region('local_store'),
             bucket_prefix = "pfx_")),
         ('s3', dict(ss_name = 's3_store',
             auth_token = get_auth_token('s3_store'),
-            bucket = get_single_bucket_name('s3_store'),
-            bucket_region = get_single_bucket_conf('s3_store'),
+            bucket = get_bucket1_name('s3_store'),
+            bucket_region = get_bucket1_region('s3_store'),
             bucket_prefix = generate_s3_prefix())),
     ]
     # Make scenarios for different cloud service providers
@@ -81,7 +80,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.pr(s)
 
     def confirm_flush(self, increase=True):
-        # Need to do something different for S3, disable for the time being
+        # Todo: Need to do something different for S3, disable for the time being
         if self.ss_name == 's3_store':
             return
 
