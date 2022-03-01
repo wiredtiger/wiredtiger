@@ -26,42 +26,62 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+from helper_tiered import get_auth_token, get_bucket1_name, get_bucket1_region
+from helper_tiered import generate_s3_prefix
+from wtscenario import make_scenarios
 import os, time, wiredtiger, wttest
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered12.py
 #    Test tiered storage with tiered flush finish timing delay.
 class test_tiered12(wttest.WiredTigerTestCase):
+    storage_sources = [
+        ('local', dict(ss_name = 'local_store',
+            auth_token = get_auth_token('local_store'),
+            bucket = get_bucket1_name('local_store'),
+            bucket_region = get_bucket1_region('local_store'),
+            bucket_prefix = "pfx_")),
+        ('s3', dict(ss_name = 's3_store',
+            auth_token = get_auth_token('s3_store'),
+            bucket = get_bucket1_name('s3_store'),
+            bucket_region = get_bucket1_region('s3_store'),
+            bucket_prefix = generate_s3_prefix())),
+    ]
+    # Make scenarios for different cloud service providers
+    scenarios = make_scenarios(storage_sources)
 
     # If the 'uri' changes all the other names must change with it.
     base = 'test_tiered12-000000000'
     obj1file = base + '1.wtobj'
     uri = "table:test_tiered12"
 
-    auth_token = "test_token"
-    bucket = "mybucket"
-    cache = "cache-mybucket"
-    extension_name = "local_store"
-    prefix1 = "1_"
     retention = 1
     saved_conn = ''
     def conn_config(self):
-        os.mkdir(self.bucket)
+        if self.ss_name == 'local_store' and not os.path.exists(self.bucket):
+            os.mkdir(self.bucket)
         self.saved_conn = \
           'statistics=(all),timing_stress_for_test=(tiered_flush_finish),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
-          'bucket_prefix=%s,' % self.prefix1 + \
+          'bucket_region=%s,' % self.bucket_region + \
+          'bucket_prefix=%s,' % self.bucket_prefix + \
           'local_retention=%d,' % self.retention + \
-          'name=%s)' % self.extension_name 
+          'name=%s)' % self.ss_name 
         return self.saved_conn
 
-    # Load the local store extension.
+    # Load the storage store extension.
     def conn_extensions(self, extlist):
+        config = ''
+        # S3 store is built as an optional loadable extension, not all test environments build S3.
+        if self.ss_name == 's3_store':
+            #config = '=(config=\"(verbose=1)\")'
+            extlist.skip_if_missing = True
         # Windows doesn't support dynamically loaded extension libraries.
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('storage_sources', self.extension_name)
+
+        extlist.extension('storage_sources', self.ss_name + config)
 
     def check(self, tc, n):
         for i in range(0, n):
@@ -70,6 +90,9 @@ class test_tiered12(wttest.WiredTigerTestCase):
         self.assertEquals(tc.search(), wiredtiger.WT_NOTFOUND)
 
     def test_tiered(self):
+        # Default cache location is cache-<bucket-name>
+        cache = "cache-" + self.bucket
+
         # Create a table. Add some data. Checkpoint and flush tier.
         # We have configured the timing stress for tiered caching which delays
         # the internal thread calling flush_finish for 1 second.
@@ -87,13 +110,16 @@ class test_tiered12(wttest.WiredTigerTestCase):
         c.close()
         self.session.checkpoint()
 
-        bucket_obj = os.path.join(self.bucket, self.prefix1 + self.obj1file)
-        cache_obj = os.path.join(self.cache, self.prefix1 + self.obj1file)
         self.session.flush_tier(None)
         # Immediately after flush_tier finishes the cached object should not yet exist
-        # but the bucket object does exist.
+        cache_obj = os.path.join(cache, self.bucket_prefix + self.obj1file)
         self.assertFalse(os.path.exists(cache_obj))
-        self.assertTrue(os.path.exists(bucket_obj))
+
+        # On local store, the bucket object should exist.
+        if self.ss_name == 'local_store':
+            bucket_obj = os.path.join(self.bucket, self.bucket_prefix + self.obj1file)
+            self.assertTrue(os.path.exists(bucket_obj))
+
         # Sleep more than the one second stress timing amount and give the thread time to run.
         time.sleep(2)
         # After sleeping, the internal thread should have created the cached object.
