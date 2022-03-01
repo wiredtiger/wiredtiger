@@ -868,6 +868,49 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
 }
 
 /*
+ * __wt_txn_set_timestamp_internal --
+ *     Does the "heavy lifting" for the outside-facing txn_set_timestamp functions.
+ */
+static int
+__wt_txn_set_timestamp_internal(
+  WT_SESSION_IMPL *session, uint64_t commit, uint64_t durable, uint64_t prepare, uint64_t read)
+{
+    WT_CONNECTION_IMPL *conn;
+    bool set_ts;
+
+    conn = S2C(session);
+    set_ts =
+      commit != WT_TS_NONE || durable != WT_TS_NONE || prepare != WT_TS_NONE || read != WT_TS_NONE;
+
+    /* Look for a commit timestamp. */
+    if (commit != WT_TS_NONE)
+        WT_RET(__wt_txn_set_commit_timestamp(session, commit));
+
+    /*
+     * Look for a durable timestamp. Durable timestamp should be set only after setting the commit
+     * timestamp.
+     */
+    if (durable != WT_TS_NONE)
+        WT_RET(__wt_txn_set_durable_timestamp(session, durable));
+    __wt_txn_publish_durable_timestamp(session);
+
+    /* Look for a read timestamp. */
+    if (read != WT_TS_NONE)
+        WT_RET(__wt_txn_set_read_timestamp(session, read));
+
+    /* Look for a prepare timestamp. */
+    if (prepare != WT_TS_NONE)
+        WT_RET(__wt_txn_set_prepare_timestamp(session, prepare));
+
+    /* Timestamps are only logged in debugging mode. */
+    if (set_ts && FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE) &&
+      FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) && !F_ISSET(conn, WT_CONN_RECOVERING))
+        WT_RET(__wt_txn_ts_log(session));
+
+    return (0);
+}
+
+/*
  * __wt_txn_set_timestamp --
  *     Parse a request to set a timestamp in a transaction.
  */
@@ -876,14 +919,10 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG cparser;
     WT_CONFIG_ITEM ckey, cval;
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     wt_timestamp_t commit_ts, durable_ts, prepare_ts, read_ts;
-    bool set_ts;
 
-    conn = S2C(session);
     commit_ts = durable_ts = prepare_ts = read_ts = WT_TS_NONE;
-    set_ts = false;
 
     WT_TRET(__wt_txn_context_check(session, true));
 
@@ -902,72 +941,57 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_config_init(session, &cparser, cfg[1]);
     while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0) {
         WT_ASSERT(session, ckey.str != NULL);
-        if (WT_STRING_MATCH("commit_timestamp", ckey.str, ckey.len)) {
+        if (WT_STRING_MATCH("commit_timestamp", ckey.str, ckey.len))
             WT_RET(__wt_txn_parse_timestamp(session, "commit", &commit_ts, &cval));
-            set_ts = true;
-        } else if (WT_STRING_MATCH("durable_timestamp", ckey.str, ckey.len)) {
+        else if (WT_STRING_MATCH("durable_timestamp", ckey.str, ckey.len))
             WT_RET(__wt_txn_parse_timestamp(session, "durable", &durable_ts, &cval));
-            set_ts = true;
-        } else if (WT_STRING_MATCH("prepare_timestamp", ckey.str, ckey.len)) {
+        else if (WT_STRING_MATCH("prepare_timestamp", ckey.str, ckey.len))
             WT_RET(__wt_txn_parse_timestamp(session, "prepare", &prepare_ts, &cval));
-            set_ts = true;
-        } else if (WT_STRING_MATCH("read_timestamp", ckey.str, ckey.len)) {
+        else if (WT_STRING_MATCH("read_timestamp", ckey.str, ckey.len))
             WT_RET(__wt_txn_parse_timestamp(session, "read", &read_ts, &cval));
-            set_ts = true;
-        }
     }
     WT_RET_NOTFOUND_OK(ret);
 
-    /* Look for a commit timestamp. */
-    if (commit_ts != WT_TS_NONE)
-        WT_RET(__wt_txn_set_commit_timestamp(session, commit_ts));
-
-    /*
-     * Look for a durable timestamp. Durable timestamp should be set only after setting the commit
-     * timestamp.
-     */
-    if (durable_ts != WT_TS_NONE)
-        WT_RET(__wt_txn_set_durable_timestamp(session, durable_ts));
-    __wt_txn_publish_durable_timestamp(session);
-
-    /* Look for a read timestamp. */
-    if (read_ts != WT_TS_NONE)
-        WT_RET(__wt_txn_set_read_timestamp(session, read_ts));
-
-    /* Look for a prepare timestamp. */
-    if (prepare_ts != WT_TS_NONE)
-        WT_RET(__wt_txn_set_prepare_timestamp(session, prepare_ts));
-
-    /* Timestamps are only logged in debugging mode. */
-    if (set_ts && FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE) &&
-      FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) && !F_ISSET(conn, WT_CONN_RECOVERING))
-        WT_RET(__wt_txn_ts_log(session));
-
-    return (0);
+    return __wt_txn_set_timestamp_internal(session, commit_ts, durable_ts, prepare_ts, read_ts);
 }
 
 /*
- * __wt_txn_set_timestamp_commit --
+ * __wt_txn_set_timestamp_numeric --
  *     Directly set the commit timestamp in a transaction, bypassing parsing logic. Prefer this to
- *     @ref __wt_txn_set_timestamp when string parsing is a performance bottleneck.
+ *     @ref __wt_txn_set_timestamp when string parsing is a performance bottleneck. The durable
+ *     timestamp must only be set after the commit timestamp.
  */
 int
-__wt_txn_set_timestamp_commit(WT_SESSION_IMPL *session, wt_timestamp_t ts)
+__wt_txn_set_timestamp_numeric(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_timestamp_t ts)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
 
     WT_TRET(__wt_txn_context_check(session, true));
 
-    if (ts != WT_TS_NONE)
-        WT_RET(__wt_txn_set_commit_timestamp(session, ts));
-
-    __wt_txn_publish_durable_timestamp(session);
-
-    conn = S2C(session);
-    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE) &&
-      FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) && !F_ISSET(conn, WT_CONN_RECOVERING))
-        WT_RET(__wt_txn_ts_log(session));
+    if (ts != WT_TS_NONE) {
+        switch (which) {
+        case WT_TS_TXN_TYPE_COMMIT:
+            WT_RET(
+              __wt_txn_set_timestamp_internal(session, ts, WT_TS_NONE, WT_TS_NONE, WT_TS_NONE));
+            break;
+        case WT_TS_TXN_TYPE_DURABLE:
+            WT_RET(
+              __wt_txn_set_timestamp_internal(session, WT_TS_NONE, ts, WT_TS_NONE, WT_TS_NONE));
+            break;
+        case WT_TS_TXN_TYPE_READ:
+            WT_RET(
+              __wt_txn_set_timestamp_internal(session, WT_TS_NONE, WT_TS_NONE, ts, WT_TS_NONE));
+            break;
+        case WT_TS_TXN_TYPE_PREPARE:
+            WT_RET(
+              __wt_txn_set_timestamp_internal(session, WT_TS_NONE, WT_TS_NONE, WT_TS_NONE, ts));
+            break;
+        default:
+            WT_RET_MSG(session, EINVAL, "Failed to handle timestamp type %u (timestamp=%" PRIu64 ")",
+              which, ts);
+            break;
+        }
+    }
 
     return (0);
 }

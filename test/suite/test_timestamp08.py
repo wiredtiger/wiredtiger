@@ -55,10 +55,10 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         c[2] = 2
 
         # Commit timestamp can be equal to the first...
-        self.session.timestamp_transaction_commit(3)
+        self.session.timestamp_transaction_numeric(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 3)
 
         # Or greater.
-        self.session.timestamp_transaction_commit(4)
+        self.session.timestamp_transaction_numeric(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 4)
 
         # In a single transaction it is illegal to set a commit timestamp
         # older than the first commit timestamp used for this transaction.
@@ -69,7 +69,7 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
                 '/older than the first commit timestamp/')
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.timestamp_transaction_commit(2),
+            lambda: self.session.timestamp_transaction_numeric(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 2),
                 '/older than the first commit timestamp/')
         self.session.rollback_transaction()
 
@@ -81,14 +81,14 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(3))
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.timestamp_transaction_commit(2),
+            lambda: self.session.timestamp_transaction_numeric(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 2),
                 '/less than the oldest timestamp/')
 
         # Commit timestamp <= Stable timestamp.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(6))
         self.session.begin_transaction()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.timestamp_transaction_commit(5),
+            lambda: self.session.timestamp_transaction_numeric(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 5),
                 '/less than the stable timestamp/')
         self.session.rollback_transaction()
 
