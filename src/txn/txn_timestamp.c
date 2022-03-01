@@ -986,10 +986,6 @@ __wt_txn_set_timestamp_numeric(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, w
             WT_RET(
               __wt_txn_set_timestamp_internal(session, WT_TS_NONE, WT_TS_NONE, WT_TS_NONE, ts));
             break;
-        default:
-            WT_RET_MSG(session, EINVAL, "Failed to handle timestamp type %u (timestamp=%" PRIu64 ")",
-              which, ts);
-            break;
         }
     }
 
