@@ -1755,18 +1755,17 @@ struct __wt_session {
 	 *
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.commit_transaction, see dist/api_data.py}
-	 * @config{commit_timestamp, set the commit timestamp for the current transaction.  The
-	 * value must not be older than the first commit timestamp already set for the current
-	 * transaction\, if any.  The value must not be older than the current oldest timestamp and
-	 * must be after the current stable timestamp.  For prepared transactions\, a commit
-	 * timestamp is required\, must not be older than the prepare timestamp\, can be set only
-	 * once\, and must not be set until after the transaction has successfully prepared.  See
-	 * @ref timestamp_txn_api and @ref timestamp_prepare., a string; default empty.}
+	 * @config{commit_timestamp, set the commit timestamp for the current transaction.  For
+	 * non-prepared transactions\, value must not be older than the first commit timestamp
+	 * already set for the current transaction\, if any\, must not be older than the current
+	 * oldest timestamp and must be after the current stable timestamp.  For prepared
+	 * transactions\, a commit timestamp is required\, must not be older than the prepare
+	 * timestamp and can be set only once.  See @ref timestamp_txn_api and @ref
+	 * timestamp_prepare., a string; default empty.}
 	 * @config{durable_timestamp, set the durable timestamp for the current transaction.
-	 * Required for the commit of a prepared transaction\, and otherwise not permitted.  Can
-	 * only be set after the transaction has been prepared and a commit timestamp has been set.
-	 * The value must not be older than the commit timestamp.  See @ref timestamp_prepare., a
-	 * string; default empty.}
+	 * Required for the commit of a prepared transaction\, and otherwise not permitted.  The
+	 * value must also be after the current oldest and stable timestamps and must not be older
+	 * than the commit timestamp.  See @ref timestamp_prepare., a string; default empty.}
 	 * @config{operation_timeout_ms, when non-zero\, a requested limit on the time taken to
 	 * complete operations in this transaction.  Time is measured in real time milliseconds from
 	 * the start of each WiredTiger API call.  There is no guarantee any operation will not take
@@ -1873,18 +1872,19 @@ struct __wt_session {
 	 *
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.timestamp_transaction, see dist/api_data.py}
-	 * @config{commit_timestamp, set the commit timestamp for the current transaction.  The
-	 * value must not be older than the first commit timestamp already set for the current
-	 * transaction\, if any.  The value must not be older than the current oldest timestamp and
-	 * must be after the current stable timestamp.  For prepared transactions\, a commit
-	 * timestamp is required\, must not be older than the prepare timestamp\, can be set only
-	 * once\, and must not be set until after the transaction has successfully prepared.  See
-	 * @ref timestamp_txn_api and @ref timestamp_prepare., a string; default empty.}
+	 * @config{commit_timestamp, set the commit timestamp for the current transaction.  For
+	 * non-prepared transactions\, the value must not be older than the first commit timestamp
+	 * already set for the current transaction\, if any\, must not be older than the current
+	 * oldest timestamp and must be after the current stable timestamp.  For prepared
+	 * transactions\, a commit timestamp is required\, must not be older than the prepare
+	 * timestamp\, can be set only once\, and must not be set until after the transaction has
+	 * successfully prepared.  See @ref timestamp_txn_api and @ref timestamp_prepare., a string;
+	 * default empty.}
 	 * @config{durable_timestamp, set the durable timestamp for the current transaction.
 	 * Required for the commit of a prepared transaction\, and otherwise not permitted.  Can
 	 * only be set after the transaction has been prepared and a commit timestamp has been set.
-	 * The value must not be older than the commit timestamp.  See @ref timestamp_prepare., a
-	 * string; default empty.}
+	 * The value must be after the current oldest and stable timestamps and must not be older
+	 * than the commit timestamp.  See @ref timestamp_prepare., a string; default empty.}
 	 * @config{prepare_timestamp, set the prepare timestamp for the updates of the current
 	 * transaction.  The value must not be older than any active read timestamps\, and must be
 	 * newer than the current stable timestamp.  Can be set only once per transaction.  Setting
@@ -1905,19 +1905,21 @@ struct __wt_session {
 	 * @{
 	 */
 	/*!
-	 * Write a transactionally consistent snapshot of a database or set of objects.  In the
-	 * absence of transaction timestamps, the checkpoint includes all transactions committed
-	 * before the checkpoint starts.
+	 * Write a transactionally consistent snapshot of a database or set of individual objects.
 	 *
-	 * When timestamps are in use and the checkpoint runs with \c use_timestamp=true (the
-	 * default), updates committed with a timestamp after the \c stable_timestamp, in tables
-	 * configured for checkpoint-level durability, are not included in the checkpoint. See
-	 * @ref checkpoint for more information. Committed updates in tables configured for
-	 * commit-level durability are always included in the checkpoint. See @ref durability for
-	 * more information.
+	 * When timestamps are not in use, the checkpoint includes all transactions committed
+	 * before the checkpoint starts. When timestamps are in use and the checkpoint runs with
+	 * \c use_timestamp=true (the default), updates committed with a timestamp after the
+	 * \c stable timestamp, in tables configured for checkpoint-level durability, are not
+	 * included in the checkpoint. Updates committed in tables configured for commit-level
+	 * durability are always included in the checkpoint. See @ref checkpoint and @ref durability
+	 * for more information.
 	 *
-	 * Additionally, existing named checkpoints may optionally be discarded.
+	 * Calling the checkpoint method multiple times serializes the checkpoints, new checkpoint
+	 * calls wait for running checkpoint calls to complete.
 	 *
+	 * Existing named checkpoints may optionally be discarded.
+	 * 
 	 * @requires_notransaction
 	 *
 	 * @snippet ex_all.c Checkpoint examples
