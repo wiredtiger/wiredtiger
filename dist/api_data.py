@@ -1775,20 +1775,17 @@ methods = {
 
 'WT_SESSION.commit_transaction' : Method([
     Config('commit_timestamp', '', r'''
-        set the commit timestamp for the current transaction. The
-        value must not be older than the first commit timestamp already set
-        for the current transaction, if any. The value must not be older than
-        the current oldest timestamp and must be after the current stable
-        timestamp. For prepared transactions, a commit timestamp is required,
-        must not be older than the prepare timestamp, can be set only once,
-        and must not be set until after the transaction has successfully
-        prepared. See @ref timestamp_txn_api and @ref timestamp_prepare'''),
+        set the commit timestamp for the current transaction. For non-prepared transactions,
+        value must not be older than the first commit timestamp already set for the current
+        transaction, if any, must not be older than the current oldest timestamp and must
+        be after the current stable timestamp. For prepared transactions, a commit timestamp
+        is required, must not be older than the prepare timestamp and can be set only once.
+        See @ref timestamp_txn_api and @ref timestamp_prepare'''),
     Config('durable_timestamp', '', r'''
-        set the durable timestamp for the current transaction. Required for
-        the commit of a prepared transaction, and otherwise not permitted. Can
-        only be set after the transaction has been prepared and a commit
-        timestamp has been set. The value must not be older than
-        the commit timestamp. See @ref timestamp_prepare'''),
+        set the durable timestamp for the current transaction. Required for the commit of a
+        prepared transaction, and otherwise not permitted. The value must also be after the
+        current oldest and stable timestamps and must not be older than the commit timestamp.
+        See @ref timestamp_prepare'''),
     Config('operation_timeout_ms', '0', r'''
         when non-zero, a requested limit on the time taken to complete operations in this
         transaction. Time is measured in real time milliseconds from the start of each WiredTiger
@@ -1813,20 +1810,19 @@ methods = {
 
 'WT_SESSION.timestamp_transaction' : Method([
     Config('commit_timestamp', '', r'''
-        set the commit timestamp for the current transaction. The
-        value must not be older than the first commit timestamp already set
-        for the current transaction, if any. The value must not be older than
-        the current oldest timestamp and must be after the current stable
-        timestamp. For prepared transactions, a commit timestamp is required,
-        must not be older than the prepare timestamp, can be set only once,
-        and must not be set until after the transaction has successfully
-        prepared. See @ref timestamp_txn_api and @ref timestamp_prepare'''),
+        set the commit timestamp for the current transaction. For non-prepared transactions,
+        the value must not be older than the first commit timestamp already set for the current
+        transaction, if any, must not be older than the current oldest timestamp and must be after
+        the current stable timestamp. For prepared transactions, a commit timestamp is required,
+        must not be older than the prepare timestamp, can be set only once, and must not be
+        set until after the transaction has successfully prepared. See @ref timestamp_txn_api
+        and @ref timestamp_prepare'''),
     Config('durable_timestamp', '', r'''
-        set the durable timestamp for the current transaction. Required for
-        the commit of a prepared transaction, and otherwise not permitted. Can
-        only be set after the transaction has been prepared and a commit
-        timestamp has been set. The value must not be older than
-        the commit timestamp. See @ref timestamp_prepare'''),
+        set the durable timestamp for the current transaction. Required for the commit of a
+        prepared transaction, and otherwise not permitted. Can only be set after the transaction
+        has been prepared and a commit timestamp has been set. The value must be after the
+        current oldest and stable timestamps and must not be older than the commit timestamp. See
+        @ref timestamp_prepare'''),
     Config('prepare_timestamp', '', r'''
         set the prepare timestamp for the updates of the current transaction.
         The value must not be older than any active read timestamps,
