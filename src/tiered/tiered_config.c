@@ -174,7 +174,8 @@ __wt_tiered_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
     if (conn->bstorage == NULL)
         return (0);
     __wt_verbose(session, WT_VERB_TIERED, "TIERED_CONFIG: bucket %s", conn->bstorage->bucket);
-    __wt_verbose(session, WT_VERB_TIERED, "TIERED_CONFIG: region %s", conn->bstorage->bucket_region);
+    __wt_verbose(
+      session, WT_VERB_TIERED, "TIERED_CONFIG: region %s", conn->bstorage->bucket_region);
     __wt_verbose(
       session, WT_VERB_TIERED, "TIERED_CONFIG: prefix %s", conn->bstorage->bucket_prefix);
 

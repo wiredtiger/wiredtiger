@@ -55,7 +55,10 @@ class test_tiered06(wttest.WiredTigerTestCase):
 
     # Load the storage source extension, skip the test if missing..
     def conn_extensions(self, extlist):
-        extlist.skip_if_missing = True
+        # S3 store is built as an optional loadable extension, not all test environments build S3.
+        if self.ss_name == 's3_store':
+            extlist.skip_if_missing = True
+
         # Windows doesn't support dynamically loaded extension libraries.
         if os.name == 'nt':
             extlist.skip_if_missing = True
@@ -86,7 +89,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         ss = self.get_storage_source()
 
         # Local store needs the bucket created as a directory on the filesystem.
-        bucket,bucket_conf = self.ss_buckets[0]
+        bucket, bucket_conf = self.ss_buckets[0]
         if self.ss_name is 'local_store':
             os.mkdir(bucket)
 
@@ -302,8 +305,8 @@ class test_tiered06(wttest.WiredTigerTestCase):
     def test_ss_file_systems(self):
 
         # Test using various buckets, hosts.
-        self.bucket1,self.bucket1_conf = self.ss_buckets[0]
-        self.bucket2,self.bucket2_conf = self.ss_buckets[1]
+        self.bucket1, self.bucket1_conf = self.ss_buckets[0]
+        self.bucket2, self.bucket2_conf = self.ss_buckets[1]
 
         session = self.session
         ss = self.get_storage_source()
