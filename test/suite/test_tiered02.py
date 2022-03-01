@@ -62,7 +62,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
           'bucket_prefix=%s,' % self.bucket_prefix + \
           'name=%s),tiered_manager=(wait=0)' % self.ss_name
 
-    # Load the local store extension.
+    # Load the storage store extension.
     def conn_extensions(self, extlist):
         config = ''
         # S3 store is built as an optional loadable extension, not all test environments build S3.

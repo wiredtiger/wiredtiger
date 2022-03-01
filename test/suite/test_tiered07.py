@@ -26,38 +26,59 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+from helper_tiered import get_auth_token, get_bucket1_name, get_bucket1_region
+from helper_tiered import generate_s3_prefix
+from wtscenario import make_scenarios
 import os, wiredtiger, wttest
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered07.py
 #    Basic tiered storage API for schema operations.
 class test_tiered07(wttest.WiredTigerTestCase):
+    storage_sources = [
+        ('local', dict(ss_name = 'local_store',
+            auth_token = get_auth_token('local_store'),
+            bucket = get_bucket1_name('local_store'),
+            bucket_region = get_bucket1_region('local_store'),
+            bucket_prefix = "pfx_")),
+        ('s3', dict(ss_name = 's3_store',
+            auth_token = get_auth_token('s3_store'),
+            bucket = get_bucket1_name('s3_store'),
+            bucket_region = get_bucket1_region('s3_store'),
+            bucket_prefix = generate_s3_prefix())),
+    ]
+    # Make scenarios for different cloud service providers
+    scenarios = make_scenarios(storage_sources)
+
     uri = "table:abc"
     uri2 = "table:ab"
     uri3 = "table:abcd"
     localuri = "table:local"
     newuri = "table:tier_new"
 
-    auth_token = "test_token"
-    bucket = "my_bucket"
-    bucket_prefix = "my_prefix"
-    extension_name = "local_store"
-
     def conn_extensions(self, extlist):
+        config = ''
+        # S3 store is built as an optional loadable extension, not all test environments build S3.
+        if self.ss_name == 's3_store':
+            #config = '=(config=\"(verbose=1)\")'
+            extlist.skip_if_missing = True
         # Windows doesn't support dynamically loaded extension libraries.
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('storage_sources', self.extension_name)
+
+        extlist.extension('storage_sources', self.ss_name + config)
 
     def conn_config(self):
-        os.mkdir(self.bucket)
+        if self.ss_name == 'local_store' and not os.path.exists(self.bucket):
+            os.mkdir(self.bucket)
         #  'verbose=(tiered),' + \
 
         return \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
+          'bucket_region=%s,' % self.bucket_region + \
           'bucket_prefix=%s,' % self.bucket_prefix + \
-          'name=%s,' % self.extension_name + \
+          'name=%s,' % self.ss_name + \
           'object_target_size=20M)'
 
     def check(self, tc, n):
