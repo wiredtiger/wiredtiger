@@ -1919,7 +1919,7 @@ struct __wt_session {
 	 * calls wait for running checkpoint calls to complete.
 	 *
 	 * Existing named checkpoints may optionally be discarded.
-	 * 
+	 *
 	 * @requires_notransaction
 	 *
 	 * @snippet ex_all.c Checkpoint examples
