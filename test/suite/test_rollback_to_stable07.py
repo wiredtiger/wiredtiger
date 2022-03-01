@@ -53,17 +53,15 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
     scenarios = make_scenarios(format_values, prepare_values)
 
     def conn_config(self):
-        config = 'cache_size=5MB,statistics=(all),log=(enabled=true)'
+        config = 'cache_size=5MB,statistics=(all)'
         return config
 
     def test_rollback_to_stable(self):
         nrows = 1000
 
-        # Create a table without logging.
+        # Create a table.
         uri = "table:rollback_to_stable07"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 
         if self.value_format == '8t':
@@ -88,10 +86,10 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
         self.large_updates(uri, value_a, ds, nrows, self.prepare, 50)
 
         # Verify data is visible and correct.
-        self.check(value_d, uri, nrows, None, 20)
-        self.check(value_c, uri, nrows, None, 30)
-        self.check(value_b, uri, nrows, None, 40)
-        self.check(value_a, uri, nrows, None, 50)
+        self.check(value_d, uri, nrows, None, 21 if self.prepare else 20)
+        self.check(value_c, uri, nrows, None, 31 if self.prepare else 30)
+        self.check(value_b, uri, nrows, None, 41 if self.prepare else 40)
+        self.check(value_a, uri, nrows, None, 51 if self.prepare else 50)
 
         # Pin stable to timestamp 50 if prepare otherwise 40.
         if self.prepare:
@@ -108,9 +106,9 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
         self.session.checkpoint()
 
         # Verify additional update data is visible and correct.
-        self.check(value_b, uri, nrows, None, 60)
-        self.check(value_c, uri, nrows, None, 70)
-        self.check(value_d, uri, nrows, None, 80)
+        self.check(value_b, uri, nrows, None, 61 if self.prepare else 60)
+        self.check(value_c, uri, nrows, None, 71 if self.prepare else 70)
+        self.check(value_d, uri, nrows, None, 81 if self.prepare else 80)
 
         # Simulate a server crash and restart.
         simulate_crash_restart(self, ".", "RESTART")

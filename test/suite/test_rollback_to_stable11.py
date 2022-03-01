@@ -50,7 +50,7 @@ class test_rollback_to_stable11(test_rollback_to_stable_base):
     scenarios = make_scenarios(format_values, prepare_values)
 
     def conn_config(self):
-        config = 'cache_size=1MB,statistics=(all),log=(enabled=true,remove=false)'
+        config = 'cache_size=1MB,statistics=(all)'
         return config
 
     def test_rollback_to_stable(self):
@@ -58,9 +58,7 @@ class test_rollback_to_stable11(test_rollback_to_stable_base):
 
         # Create a table without logging.
         uri = "table:rollback_to_stable11"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 
         if self.value_format == '8t':
@@ -85,11 +83,13 @@ class test_rollback_to_stable11(test_rollback_to_stable_base):
         self.large_updates(uri, value_b, ds, nrows, self.prepare, 20)
 
         # Verify data is visible and correct.
-        self.check(value_b, uri, nrows, None, 20)
+        self.check(value_b, uri, nrows, None, 21 if self.prepare else 20)
 
-        # Pin stable to timestamp 30 if prepare otherwise 20.
+        # Pin stable to timestamp 28 if prepare otherwise 20.
+        # large_updates() prepares at 1 before the timestamp passed (so 29)
+        # and this is required to be strictly greater than (not >=) stable.
         if self.prepare:
-            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(28))
         else:
             self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
 
@@ -109,7 +109,7 @@ class test_rollback_to_stable11(test_rollback_to_stable_base):
         self.large_updates(uri, value_d, ds, nrows, self.prepare, 30)
 
         # Verify data is visible and correct.
-        self.check(value_d, uri, nrows, None, 30)
+        self.check(value_d, uri, nrows, None, 31 if self.prepare else 30)
 
         # Checkpoint to ensure that all the updates are flushed to disk.
         self.session.checkpoint()

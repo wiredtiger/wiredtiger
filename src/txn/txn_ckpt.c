@@ -1984,11 +1984,8 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
     /* Are we using a read timestamp for this checkpoint transaction? */
     with_timestamp = F_ISSET(txn, WT_TXN_SHARED_TS_READ);
 
-    /*
-     * For tables with immediate durability (indicated by having logging enabled), ignore any read
-     * timestamp configured for the checkpoint.
-     */
-    if (__wt_btree_immediately_durable(session))
+    /* Logged tables ignore any read timestamp configured for the checkpoint. */
+    if (F_ISSET(btree, WT_BTREE_LOGGED))
         F_CLR(txn, WT_TXN_SHARED_TS_READ);
 
     ret = __checkpoint_tree(session, true, cfg);
@@ -2100,12 +2097,18 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
     if (!btree->modified && !bulk)
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
+#ifdef WT_STANDALONE_BUILD
     /*
      * Don't flush data from modified trees independent of system-wide checkpoint. Flushing trees
      * can lead to files that are inconsistent on disk after a crash.
      */
     if (btree->modified && !bulk && !metadata)
         return (__wt_set_return(session, EBUSY));
+#else
+    if (btree->modified && !bulk && !F_ISSET(btree, WT_BTREE_LOGGED) &&
+      (S2C(session)->txn_global.has_stable_timestamp || !metadata))
+        return (__wt_set_return(session, EBUSY));
+#endif
 
     /*
      * Make sure there isn't a potential race between backup copying the metadata and a checkpoint

@@ -57,10 +57,21 @@ functions:
   "fetch mongo repo" :
     command: shell.exec
     params:
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
-        git clone https://github.com/mongodb/mongo
+        mongo_repo=https://github.com/mongodb/mongo
+        if [[ "${branch_name}" == "mongodb-5.0" ]]; then
+          git clone $mongo_repo -b v5.0
+        elif [[ "${branch_name}" == "mongodb-4.4" ]]; then
+          git clone $mongo_repo -b v4.4
+        elif [[ "${branch_name}" =~ "mongodb-" ]]; then   
+          echo "'fetch mongo repo' does not currently handle branch ${branch_name}"
+          exit 1
+        else
+          git clone $mongo_repo -b master
+        fi
   "import wiredtiger into mongo" :
     command: shell.exec
     params:
@@ -158,7 +169,7 @@ functions:
             if [ -d cmake_build ]; then rm -r cmake_build; fi
             mkdir -p cmake_build
             cd cmake_build
-            $CMAKE -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_clang.cmake -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1 \
+            $CMAKE -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1 \
               -DHAVE_DIAGNOSTIC=1 -DCMAKE_BUILD_TYPE=ASan \
               -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 ${configure_python_setting|} \
               -G "${cmake_generator|Ninja}" ../.
@@ -2059,6 +2070,29 @@ tasks:
           display_name: " 1 Coverage report main page"
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/1_coverage_report_main.html
 
+  - name: s3-ext-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: -DENABLE_STRICT=0 -DHAVE_DIAGNOSTIC=1 -DENABLE_S3=1 -DIMPORT_S3_SDK=external -DENABLE_PYTHON=1
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          silent: true
+          script: |
+            set -o errexit
+            export AWS_ACCESS_KEY_ID=${aws_sdk_s3_ext_access_key}
+            export AWS_SECRET_ACCESS_KEY=${aws_sdk_s3_ext_secret_key}
+
+            # Only set verbose after having put the AWS access credentials into the environment.
+            set -o verbose
+
+            # Run unit testing
+            ext/storage_sources/s3_store/test/run_s3_unit_tests
+            # Run Python testing
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py s3_store01
 
   - name: spinlock-gcc-test
     commands:
@@ -2262,28 +2296,6 @@ tasks:
           test_env_vars:
             ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
-          format_test_script_args: -S
-
-  # FIXME-WT-8482: Replace this test with format-asan-smoke-test.
-  - name: format-asan-smoke-ppc-test
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          # FIXME-WT-8482: CC is set to the system default "clang" binary here as a workaround.
-          # Change it back to mongodbtoolchain "clang" binary.
-          posix_configure_flags:
-            -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
-            -DHAVE_DIAGNOSTIC=1
-            -DWITH_PIC=1
-            -DCMAKE_BUILD_TYPE=ASan
-            -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
-      - func: "format test script"
-        # Run smoke tests, don't stop at failed tests, use default config
-        vars:
-          test_env_vars:
-            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
-            ASAN_SYMBOLIZER_PATH=/usr/lib/llvm-6.0/bin/llvm-symbolizer
           format_test_script_args: -S
 
   - name: format-wtperf-test
@@ -2544,34 +2556,6 @@ tasks:
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120
 
-  # FIXME-WT-8482: Replace this test with format-stress-sanitizer-test.
-  - name: format-stress-sanitizer-ppc-test
-    tags: ["stress-test-ppc-1"]
-    # Set 2.5 hours timeout (60 * 60 * 2.5)
-    exec_timeout_secs: 9000
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          # FIXME-WT-8482: CC is set to the system default "clang" binary here as a workaround.
-          # Change it back to mongodbtoolchain "clang" binary.
-          posix_configure_flags:
-            -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
-            -DHAVE_DIAGNOSTIC=1
-            -DWITH_PIC=1
-            -DHAVE_BUILTIN_EXTENSION_LZ4=1
-            -DHAVE_BUILTIN_EXTENSION_SNAPPY=1
-            -DHAVE_BUILTIN_EXTENSION_ZLIB=1
-            -DCMAKE_BUILD_TYPE=ASan
-      - func: "format test script"
-        vars:
-          test_env_vars:
-            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
-            ASAN_SYMBOLIZER_PATH=/usr/lib/llvm-6.0/bin/llvm-symbolizer
-          # Run for 2 hours (2 * 60 = 120 minutes), don't stop at failed tests, use default config
-          format_test_script_args: -t 120
-
-
   - <<: *format-stress-test
     name: format-stress-test-1
     tags: ["stress-test-1"]
@@ -2586,10 +2570,10 @@ tasks:
     tags: ["stress-test-4"]
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-1
-    tags: ["stress-test-1"]
+    tags: ["stress-test-1", "stress-test-ppc-1"]
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-2
-    tags: ["stress-test-2"]
+    tags: ["stress-test-2", "stress-test-ppc-2"]
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-3
     tags: ["stress-test-3"]
@@ -2965,7 +2949,8 @@ tasks:
           perf-test-name: update-checkpoint-btree.wtperf
 
   - name: perf-test-update-checkpoint-lsm
-    tags: ["checkpoint-perf"]
+    # Disable/Un-tag the LSM perf test till the support for LSM is restored.
+    # tags: ["checkpoint-perf"]
     depends_on:
       - name: compile
     commands:
@@ -3212,7 +3197,8 @@ tasks:
           perf-test-name: evict-btree-1.wtperf
 
   - name: perf-test-evict-lsm 
-    tags: ["evict-perf"]
+    # Disable/Un-tag the LSM perf test till the support for LSM is restored.
+    # tags: ["evict-perf"]
     depends_on:
       - name: compile
     commands:
@@ -3227,7 +3213,8 @@ tasks:
           perf-test-name: evict-lsm.wtperf
       
   - name: perf-test-evict-lsm-1 
-    tags: ["evict-perf"]
+    # Disable/Un-tag the LSM perf test till the support for LSM is restored.
+    # tags: ["evict-perf"]
     depends_on:
       - name: compile
     commands:
@@ -3572,6 +3559,7 @@ buildvariants:
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp
     - name: data-validation-stress-test-checkpoint-no-timestamp
+    - name: s3-ext-test
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
@@ -3761,7 +3749,8 @@ buildvariants:
   tasks:
     - name: compile
     - name: ".btree-perf"
-    - name: ".lsm-perf"
+    # Disable LSM perf tests till the support for LSM is restored.
+    # - name: ".lsm-perf"
     - name: ".stress-perf"
     - name: ".checkpoint-perf"
     - name: ".evict-perf"
@@ -3772,9 +3761,10 @@ buildvariants:
     - name: Wiredtiger-perf-btree-jobs
       execution_tasks:
       - ".btree-perf"
-    - name: Wiredtiger-perf-lsm-jobs
-      execution_tasks:
-      - ".lsm-perf"
+    # Disable LSM perf tests till the support for LSM is restored.
+    # - name: Wiredtiger-perf-lsm-jobs
+    #   execution_tasks:
+    #   - ".lsm-perf"
     - name: Wiredtiger-perf-stress-jobs
       execution_tasks:
       - ".stress-perf"
@@ -4026,10 +4016,10 @@ buildvariants:
     make_command: ninja
     cmake_generator: Ninja
   tasks:
-  - name: compile
-  - name: generate-datafile-little-endian
-  - name: verify-datafile-little-endian
-  - name: verify-datafile-from-big-endian
+    - name: compile
+    - name: generate-datafile-little-endian
+    - name: verify-datafile-little-endian
+    - name: verify-datafile-from-big-endian
 
 - name: big-endian
   display_name: "~ Big-endian (s390x/zSeries)"
@@ -4049,10 +4039,10 @@ buildvariants:
     make_command: ninja
     cmake_generator: Ninja
   tasks:
-  - name: compile
-  - name: generate-datafile-big-endian
-  - name: verify-datafile-big-endian
-  - name: verify-datafile-from-little-endian
+    - name: compile
+    - name: generate-datafile-big-endian
+    - name: verify-datafile-big-endian
+    - name: verify-datafile-from-little-endian
 
 - name: ubuntu1804-ppc
   display_name: "~ Ubuntu 18.04 PPC"
@@ -4065,7 +4055,7 @@ buildvariants:
       WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR
     posix_configure_flags:
-      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
       -DCMAKE_C_FLAGS="-ggdb"
       -DHAVE_DIAGNOSTIC=1
       -DENABLE_PYTHON=1
@@ -4073,7 +4063,7 @@ buildvariants:
       -DENABLE_SNAPPY=1
       -DENABLE_STRICT=1
       -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     # Use half number of vCPU to avoid OOM kill failure
     smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
     cmake_generator: Ninja
@@ -4082,9 +4072,10 @@ buildvariants:
     - name: compile
     - name: unit-test
     - name: format-smoke-test
-    - name: format-asan-smoke-ppc-test
+    - name: format-asan-smoke-test
     - name: format-wtperf-test
     - name: ".stress-test-ppc-1"
+    - name: ".stress-test-ppc-2"
 
 - name: ubuntu1804-zseries
   display_name: "~ Ubuntu 18.04 zSeries"
@@ -4157,31 +4148,4 @@ buildvariants:
     - name: long-test
     - name: configure-combinations
     - name: format-smoke-test
-
-- name: ubuntu2004-tmp-s3-cmake
-  display_name: "* (Temporary) Ubuntu 20.04 S3 Extension CMake"
-  run_on:
-  - ubuntu2004-test
-  expansions:
-    test_env_vars:
-      WT_TOPDIR=$(git rev-parse --show-toplevel)
-      WT_BUILDDIR=$WT_TOPDIR/cmake_build
-      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
-    posix_configure_flags:
-      -DCMAKE_C_FLAGS="-ggdb"
-      -DHAVE_DIAGNOSTIC=1
-      -DENABLE_PYTHON=1
-      -DENABLE_ZLIB=1
-      -DENABLE_SNAPPY=1
-      -DENABLE_STRICT=0
-      -DENABLE_TCMALLOC=1
-      -DENABLE_S3=1
-      -DIMPORT_S3_SDK=external
-      -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
-      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
-    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
-    cmake_generator: Ninja
-    make_command: ninja
-  tasks:
-    - name: compile
+    - name: s3-ext-test

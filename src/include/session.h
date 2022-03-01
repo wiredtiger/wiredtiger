@@ -64,10 +64,9 @@ struct __wt_session_impl {
 
     u_int active; /* Non-zero if the session is in-use */
 
-    const char *name;       /* Name */
-    const char *lastop;     /* Last operation */
-    const char *debug_8392; /* Debug string */
-    uint32_t id;            /* UID, offset in session array */
+    const char *name;   /* Name */
+    const char *lastop; /* Last operation */
+    uint32_t id;        /* UID, offset in session array */
 
     uint64_t cache_wait_us;        /* Wait time for cache for current operation */
     uint64_t operation_start_us;   /* Operation start */
@@ -203,13 +202,12 @@ struct __wt_session_impl {
 #define WT_SESSION_INTERNAL 0x00200u
 #define WT_SESSION_LOGGING_INMEM 0x00400u
 #define WT_SESSION_NO_DATA_HANDLES 0x00800u
-#define WT_SESSION_NO_LOGGING 0x01000u
-#define WT_SESSION_NO_RECONCILE 0x02000u
-#define WT_SESSION_QUIET_CORRUPT_FILE 0x04000u
-#define WT_SESSION_READ_WONT_NEED 0x08000u
-#define WT_SESSION_RESOLVING_TXN 0x10000u
-#define WT_SESSION_ROLLBACK_TO_STABLE 0x20000u
-#define WT_SESSION_SCHEMA_TXN 0x40000u
+#define WT_SESSION_NO_RECONCILE 0x01000u
+#define WT_SESSION_QUIET_CORRUPT_FILE 0x02000u
+#define WT_SESSION_READ_WONT_NEED 0x04000u
+#define WT_SESSION_RESOLVING_TXN 0x08000u
+#define WT_SESSION_ROLLBACK_TO_STABLE 0x10000u
+#define WT_SESSION_SCHEMA_TXN 0x20000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 

@@ -1,3 +1,4 @@
+set(CMAKE_CXX_STANDARD 17)
 project(s3_store CXX)
 
 # Create an intermediate library to build the helper library.

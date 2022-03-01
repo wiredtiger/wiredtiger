@@ -60,18 +60,16 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
     scenarios = make_scenarios(key_format_values, prepare_values)
 
     def conn_config(self):
-        config = 'cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[history_store_checkpoint_delay]'
+        config = 'cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1),timing_stress_for_test=[history_store_checkpoint_delay]'
         return config
 
     def test_rollback_to_stable(self):
         nrows = 100
 
-        # Create a table without logging.
+        # Create a table.
         self.pr("create/populate table")
         uri = "table:rollback_to_stable14"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 
         # Pin oldest and stable to timestamp 10.
@@ -98,11 +96,11 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
         self.large_modifies(uri, 'T', ds, 3, 1, nrows, self.prepare, 60)
 
         # Verify data is visible and correct.
-        self.check(value_a, uri, nrows, None, 20)
-        self.check(value_modQ, uri, nrows, None, 30)
-        self.check(value_modR, uri, nrows, None, 40)
-        self.check(value_modS, uri, nrows, None, 50)
-        self.check(value_modT, uri, nrows, None, 60)
+        self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
+        self.check(value_modQ, uri, nrows, None, 31 if self.prepare else 30)
+        self.check(value_modR, uri, nrows, None, 41 if self.prepare else 40)
+        self.check(value_modS, uri, nrows, None, 51 if self.prepare else 50)
+        self.check(value_modT, uri, nrows, None, 61 if self.prepare else 60)
 
         # Pin stable to timestamp 60 if prepare otherwise 50.
         if self.prepare:
@@ -178,12 +176,10 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
     def test_rollback_to_stable_same_ts(self):
         nrows = 100
 
-        # Create a table without logging.
+        # Create a table.
         self.pr("create/populate table")
         uri = "table:rollback_to_stable14"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 
         # Pin oldest and stable to timestamp 10.
@@ -216,9 +212,9 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
             self.large_modifies(uri, 'T', ds, 3, 1, nrows, self.prepare, 60)
 
         # Verify data is visible and correct.
-        self.check(value_a, uri, nrows, None, 20)
-        self.check(value_modQ, uri, nrows, None, 30)
-        self.check(value_modT, uri, nrows, None, 60)
+        self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
+        self.check(value_modQ, uri, nrows, None, 31 if self.prepare else 30)
+        self.check(value_modT, uri, nrows, None, 61 if self.prepare else 60)
 
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
 
@@ -288,12 +284,10 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
     def test_rollback_to_stable_same_ts_append(self):
         nrows = 100
 
-        # Create a table without logging.
+        # Create a table.
         self.pr("create/populate table")
         uri = "table:rollback_to_stable14"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 
         # Pin oldest and stable to timestamp 10.
@@ -326,9 +320,9 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
             self.large_modifies(uri, 'T', ds, len(value_modS), 1, nrows, self.prepare, 60)
 
         # Verify data is visible and correct.
-        self.check(value_a, uri, nrows, None, 20)
-        self.check(value_modQ, uri, nrows, None, 30)
-        self.check(value_modT, uri, nrows, None, 60)
+        self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
+        self.check(value_modQ, uri, nrows, None, 31 if self.prepare else 30)
+        self.check(value_modT, uri, nrows, None, 61 if self.prepare else 60)
 
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
 

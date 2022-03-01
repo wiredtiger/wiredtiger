@@ -53,25 +53,23 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
     scenarios = make_scenarios(format_values, prepare_values)
 
     def conn_config(self):
-        config = 'cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[history_store_checkpoint_delay]'
+        config = 'cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1),timing_stress_for_test=[history_store_checkpoint_delay]'
         return config
 
     def test_rollback_to_stable(self):
         nrows = 1000
 
-        # Create a table without logging.
+        # Create a table.
         self.pr("create/populate tables")
         uri_1 = "table:rollback_to_stable10_1"
         ds_1 = SimpleDataSet(
-            self, uri_1, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+            self, uri_1, 0, key_format=self.key_format, value_format=self.value_format)
         ds_1.populate()
 
-        # Create another table without logging.
+        # Create another table.
         uri_2 = "table:rollback_to_stable10_2"
         ds_2 = SimpleDataSet(
-            self, uri_2, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+            self, uri_2, 0, key_format=self.key_format, value_format=self.value_format)
         ds_2.populate()
 
         if self.value_format == '8t':
@@ -106,15 +104,15 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         self.large_updates(uri_2, value_a, ds_2, nrows, self.prepare, 50)
 
         # Verify data is visible and correct.
-        self.check(value_d, uri_1, nrows, None, 20)
-        self.check(value_c, uri_1, nrows, None, 30)
-        self.check(value_b, uri_1, nrows, None, 40)
-        self.check(value_a, uri_1, nrows, None, 50)
+        self.check(value_d, uri_1, nrows, None, 21 if self.prepare else 20)
+        self.check(value_c, uri_1, nrows, None, 31 if self.prepare else 30)
+        self.check(value_b, uri_1, nrows, None, 41 if self.prepare else 40)
+        self.check(value_a, uri_1, nrows, None, 51 if self.prepare else 50)
 
-        self.check(value_d, uri_2, nrows, None, 20)
-        self.check(value_c, uri_2, nrows, None, 30)
-        self.check(value_b, uri_2, nrows, None, 40)
-        self.check(value_a, uri_2, nrows, None, 50)
+        self.check(value_d, uri_2, nrows, None, 21 if self.prepare else 20)
+        self.check(value_c, uri_2, nrows, None, 31 if self.prepare else 30)
+        self.check(value_b, uri_2, nrows, None, 41 if self.prepare else 40)
+        self.check(value_a, uri_2, nrows, None, 51 if self.prepare else 50)
 
         # Pin stable to timestamp 60 if prepare otherwise 50.
         if self.prepare:
@@ -190,19 +188,19 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
     def test_rollback_to_stable_prepare(self):
         nrows = 1000
 
-        # Create a table without logging.
+        # Create a table.
         self.pr("create/populate tables")
         uri_1 = "table:rollback_to_stable10_1"
         ds_1 = SimpleDataSet(
             self, uri_1, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)' + self.prepare_extraconfig)
+            config=self.prepare_extraconfig)
         ds_1.populate()
 
-        # Create another table without logging.
+        # Create another table.
         uri_2 = "table:rollback_to_stable10_2"
         ds_2 = SimpleDataSet(
             self, uri_2, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)' + self.prepare_extraconfig)
+            config=self.prepare_extraconfig)
         ds_2.populate()
 
         if self.value_format == '8t':
@@ -236,15 +234,15 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         self.large_updates(uri_2, value_a, ds_2, nrows, self.prepare, 50)
 
         # Verify data is visible and correct.
-        self.check(value_d, uri_1, nrows, None, 20)
-        self.check(value_c, uri_1, nrows, None, 30)
-        self.check(value_b, uri_1, nrows, None, 40)
-        self.check(value_a, uri_1, nrows, None, 50)
+        self.check(value_d, uri_1, nrows, None, 21 if self.prepare else 20)
+        self.check(value_c, uri_1, nrows, None, 31 if self.prepare else 30)
+        self.check(value_b, uri_1, nrows, None, 41 if self.prepare else 40)
+        self.check(value_a, uri_1, nrows, None, 51 if self.prepare else 50)
 
-        self.check(value_d, uri_2, nrows, None, 20)
-        self.check(value_c, uri_2, nrows, None, 30)
-        self.check(value_b, uri_2, nrows, None, 40)
-        self.check(value_a, uri_2, nrows, None, 50)
+        self.check(value_d, uri_2, nrows, None, 21 if self.prepare else 20)
+        self.check(value_c, uri_2, nrows, None, 31 if self.prepare else 30)
+        self.check(value_b, uri_2, nrows, None, 41 if self.prepare else 40)
+        self.check(value_a, uri_2, nrows, None, 51 if self.prepare else 50)
 
         # Pin stable to timestamp 60 if prepare otherwise 50.
         if self.prepare:

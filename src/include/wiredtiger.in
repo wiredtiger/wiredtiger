@@ -793,12 +793,12 @@ struct __wt_session {
 	/*!
 	 * Reconfigure a session handle.
 	 *
+	 * Only configurations listed in the method arguments are modified, other configurations
+	 * remain in their current state. This method additionally resets the cursors associated
+	 * with the session. WT_SESSION::reconfigure will fail if a transaction is in progress in
+	 * the session.
+	 *
 	 * @snippet ex_all.c Reconfigure a session
-	 *
-	 * WT_SESSION::reconfigure will fail if a transaction is in progress
-	 * in the session.
-	 *
-	 * All cursors are reset.
 	 *
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.reconfigure, see dist/api_data.py}
@@ -1047,15 +1047,18 @@ struct __wt_session {
 	 * "sequential"; default \c none.}
 	 * @config{app_metadata, application-owned metadata for this object., a string; default
 	 * empty.}
-	 * @config{assert = (, enable enhanced checking., a set of related configuration options
-	 * defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read_timestamp, verify that timestamps
-	 * should \c always or \c never be used on reads with this table.  Verification should be
-	 * set to \c none if mixed read use is allowed., a string\, chosen from the following
-	 * options: \c "always"\, \c "never"\, \c "none"; default \c none.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;write_timestamp, verify that commit timestamps are used
-	 * per the configured \c write_timestamp_usage option for this table., a string\, chosen
-	 * from the following options: \c "off"\, \c "on"; default \c off.}
+	 * @config{assert = (, enable enhanced timestamp checking with error messages and optional
+	 * core dump., a set of related configuration options defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read_timestamp, check timestamps are \c always or \c
+	 * never used on reads with this table\, writing an error message if policy is violated.  If
+	 * the library was built in diagnostic mode\, drop core at the failing check.  Should be set
+	 * to \c none if mixed read use is allowed., a string\, chosen from the following options:
+	 * \c "always"\, \c "never"\, \c "none"; default \c none.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+	 * write_timestamp, check timestamps are used consistently with the configured \c
+	 * write_timestamp_usage option for this table\, writing an error message if policy is
+	 * violated.  If the library was built in diagnostic mode\, drop core at the failing check.,
+	 * a string\, chosen from the following options: \c "off"\, \c "on"; default \c off.}
 	 * @config{ ),,}
 	 * @config{cache_resident, do not ever evict the object's pages from cache.  Not compatible
 	 * with LSM tables; see @ref tuning_cache_resident for more information., a boolean flag;
@@ -1075,24 +1078,20 @@ struct __wt_session {
 	 * 0.}
 	 * @config{readonly, the file is read-only.  All methods that may modify a file are
 	 * disabled.  See @ref readonly for more information., a boolean flag; default \c false.}
-	 * @config{verbose, enable messages for various events.  The choices are \c write_timestamp
-	 * which adds verbose messages as described by \c write_timestamp_usage.  Options are given
-	 * as a list\, such as \c "verbose=[write_timestamp]"., a list\, with values chosen from the
-	 * following options: \c "write_timestamp"; default \c [].}
 	 * @config{write_timestamp_usage, describe how timestamps are expected to be used on
 	 * modifications to the table.  This option should be used in conjunction with the
-	 * corresponding \c write_timestamp configuration under the \c assert and \c verbose options
-	 * to provide logging and assertions for incorrect timestamp usage.  The choices are \c
-	 * always which ensures a timestamp is used for every operation on a table\, \c ordered
-	 * which ensures that once timestamps are used for a key\, they are always used\, and also
-	 * that subsequent updates to each key must use increasing timestamps\, \c mixed_mode is
-	 * like \c ordered except that updates with no timestamp are allowed and have the effect of
-	 * resetting the chain of updates once the transaction ID based snapshot is no longer
-	 * relevant\, \c never enforces that timestamps are never used for a table and \c none does
-	 * not enforce any expectation on timestamp usage meaning that no log message or assertions
-	 * will be produced regardless of the corresponding \c assert and \c verbose settings., a
-	 * string\, chosen from the following options: \c "always"\, \c "mixed_mode"\, \c "never"\,
-	 * \c "none"\, \c "ordered"; default \c none.}
+	 * corresponding \c write_timestamp configuration under the \c assert option to provide
+	 * logging and assertions for incorrect timestamp usage.  The choices are \c always which
+	 * ensures a timestamp is used for every operation on a table\, \c ordered which ensures
+	 * that once timestamps are used for a key\, they are always used\, and also that subsequent
+	 * updates to each key must use increasing timestamps\, \c mixed_mode is like \c ordered
+	 * except that updates with no timestamp are allowed at any time\, \c never enforces that
+	 * timestamps are never used for a table and \c none does not enforce any expectation on
+	 * timestamp usage meaning that no log message or assertions will be produced regardless of
+	 * the corresponding \c assert setting.  (The \c key_consistent choice is no longer
+	 * supported\, retained for backward compatibility.)., a string\, chosen from the following
+	 * options: \c "always"\, \c "key_consistent"\, \c "mixed_mode"\, \c "never"\, \c "none"\,
+	 * \c "ordered"; default \c none.}
 	 * @configend
 	 * @errors
 	 */
@@ -1123,15 +1122,18 @@ struct __wt_session {
 	 * an integer between 512B and 128MB; default \c 4KB.}
 	 * @config{app_metadata, application-owned metadata for this object., a string; default
 	 * empty.}
-	 * @config{assert = (, enable enhanced checking., a set of related configuration options
-	 * defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read_timestamp, verify that timestamps
-	 * should \c always or \c never be used on reads with this table.  Verification should be
-	 * set to \c none if mixed read use is allowed., a string\, chosen from the following
-	 * options: \c "always"\, \c "never"\, \c "none"; default \c none.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;write_timestamp, verify that commit timestamps are used
-	 * per the configured \c write_timestamp_usage option for this table., a string\, chosen
-	 * from the following options: \c "off"\, \c "on"; default \c off.}
+	 * @config{assert = (, enable enhanced timestamp checking with error messages and optional
+	 * core dump., a set of related configuration options defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read_timestamp, check timestamps are \c always or \c
+	 * never used on reads with this table\, writing an error message if policy is violated.  If
+	 * the library was built in diagnostic mode\, drop core at the failing check.  Should be set
+	 * to \c none if mixed read use is allowed., a string\, chosen from the following options:
+	 * \c "always"\, \c "never"\, \c "none"; default \c none.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+	 * write_timestamp, check timestamps are used consistently with the configured \c
+	 * write_timestamp_usage option for this table\, writing an error message if policy is
+	 * violated.  If the library was built in diagnostic mode\, drop core at the failing check.,
+	 * a string\, chosen from the following options: \c "off"\, \c "on"; default \c off.}
 	 * @config{ ),,}
 	 * @config{block_allocation, configure block allocation.  Permitted values are \c "best" or
 	 * \c "first"; the \c "best" configuration uses a best-fit algorithm\, the \c "first"
@@ -1360,24 +1362,20 @@ struct __wt_session {
 	 * applications use a WT_ITEM structure to manipulate raw byte arrays.  Value items of type
 	 * 't' are bitfields\, and when configured with record number type keys\, will be stored
 	 * using a fixed-length store., a format string; default \c u.}
-	 * @config{verbose, enable messages for various events.  The choices are \c write_timestamp
-	 * which adds verbose messages as described by \c write_timestamp_usage.  Options are given
-	 * as a list\, such as \c "verbose=[write_timestamp]"., a list\, with values chosen from the
-	 * following options: \c "write_timestamp"; default \c [].}
 	 * @config{write_timestamp_usage, describe how timestamps are expected to be used on
 	 * modifications to the table.  This option should be used in conjunction with the
-	 * corresponding \c write_timestamp configuration under the \c assert and \c verbose options
-	 * to provide logging and assertions for incorrect timestamp usage.  The choices are \c
-	 * always which ensures a timestamp is used for every operation on a table\, \c ordered
-	 * which ensures that once timestamps are used for a key\, they are always used\, and also
-	 * that subsequent updates to each key must use increasing timestamps\, \c mixed_mode is
-	 * like \c ordered except that updates with no timestamp are allowed and have the effect of
-	 * resetting the chain of updates once the transaction ID based snapshot is no longer
-	 * relevant\, \c never enforces that timestamps are never used for a table and \c none does
-	 * not enforce any expectation on timestamp usage meaning that no log message or assertions
-	 * will be produced regardless of the corresponding \c assert and \c verbose settings., a
-	 * string\, chosen from the following options: \c "always"\, \c "mixed_mode"\, \c "never"\,
-	 * \c "none"\, \c "ordered"; default \c none.}
+	 * corresponding \c write_timestamp configuration under the \c assert option to provide
+	 * logging and assertions for incorrect timestamp usage.  The choices are \c always which
+	 * ensures a timestamp is used for every operation on a table\, \c ordered which ensures
+	 * that once timestamps are used for a key\, they are always used\, and also that subsequent
+	 * updates to each key must use increasing timestamps\, \c mixed_mode is like \c ordered
+	 * except that updates with no timestamp are allowed at any time\, \c never enforces that
+	 * timestamps are never used for a table and \c none does not enforce any expectation on
+	 * timestamp usage meaning that no log message or assertions will be produced regardless of
+	 * the corresponding \c assert setting.  (The \c key_consistent choice is no longer
+	 * supported\, retained for backward compatibility.)., a string\, chosen from the following
+	 * options: \c "always"\, \c "key_consistent"\, \c "mixed_mode"\, \c "never"\, \c "none"\,
+	 * \c "ordered"; default \c none.}
 	 * @configend
 	 * @errors
 	 */
@@ -1533,11 +1531,10 @@ struct __wt_session {
 	/*!
 	 * Reset the session handle.
 	 *
-	 * This method resets all cursors associated with this session,
-	 * discards cached resources and resets session statistics.
-	 * The session can be re-used immediately after this call returns.
-	 * If a transaction is running on this session, then this call takes
-	 * no action and return an error.
+	 * This method resets the cursors associated with the session, clears session statistics and
+	 * discards cached resources. No session configurations are modified (or reset to their
+	 * default values). WT_SESSION::reset will fail if a transaction is in progress in the
+	 * session.
 	 *
 	 * @snippet ex_all.c Reset the session
 	 *
@@ -1705,10 +1702,9 @@ struct __wt_session {
 	 * @configstart{WT_SESSION.begin_transaction, see dist/api_data.py}
 	 * @config{ignore_prepare, whether to ignore the updates by other prepared transactions as
 	 * part of read operations of this transaction.  When \c true\, forces the transaction to be
-	 * read-only.  Use \c force to ignore prepared updates and permit writes (which can cause
-	 * lost updates unless the application knows something about the relationship between
-	 * prepared transactions and the updates that are ignoring them)., a string\, chosen from
-	 * the following options: \c "false"\, \c "force"\, \c "true"; default \c false.}
+	 * read-only.  Use \c force to ignore prepared updates and permit writes (see @ref
+	 * timestamp_prepare_ignore_prepare for more information)., a string\, chosen from the
+	 * following options: \c "false"\, \c "force"\, \c "true"; default \c false.}
 	 * @config{isolation, the isolation level for this transaction; defaults to the session's
 	 * isolation level., a string\, chosen from the following options: \c "read-uncommitted"\,
 	 * \c "read-committed"\, \c "snapshot"; default empty.}
@@ -1725,19 +1721,23 @@ struct __wt_session {
 	 * @config{read_timestamp, read using the specified timestamp.  The supplied value must not
 	 * be older than the current oldest timestamp.  See @ref timestamp_txn_api., a string;
 	 * default empty.}
-	 * @config{roundup_timestamps = (, round up timestamps of the transaction.  This setting
-	 * alters the visibility expected in a transaction.  See @ref timestamp_roundup., a set of
-	 * related configuration options defined below.}
+	 * @config{roundup_timestamps = (, round up timestamps of the transaction., a set of related
+	 * configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;prepared,
-	 * applicable only for prepared transactions.  Indicates if the prepare timestamp and the
-	 * commit timestamp of this transaction can be rounded up.  If the prepare timestamp is less
-	 * than the stable timestamp\, the prepare timestamp will be rounded to the stable
-	 * timestamp.  If the commit timestamp is less than the prepare timestamp\, the commit
-	 * timestamp will be rounded up to the prepare timestamp., a boolean flag; default \c
+	 * applicable only for prepared transactions\, and intended only for special-purpose use\,
+	 * see @ref timestamp_prepare_roundup.  Allows the prepare timestamp and the commit
+	 * timestamp of this transaction to be rounded up to be no older than the oldest timestamp\,
+	 * and allows violating the usual restriction that the prepare timestamp must be newer than
+	 * the stable timestamp.  Specifically: at transaction prepare\, if the prepare timestamp is
+	 * less than or equal to the oldest timestamp\, the prepare timestamp will be rounded to the
+	 * oldest timestamp.  Subsequently\, at commit time\, if the commit timestamp is less than
+	 * the (now rounded) prepare timestamp\, the commit timestamp will be rounded up to it and
+	 * thus to at least oldest.  Neither timestamp will be checked against the stable
+	 * timestamp., a boolean flag; default \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read, if
+	 * the read timestamp is less than the oldest timestamp\, the read timestamp will be rounded
+	 * up to the oldest timestamp\, see @ref timestamp_read_roundup., a boolean flag; default \c
 	 * false.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read, if the read timestamp is less than the
-	 * oldest timestamp\, the read timestamp will be rounded up to the oldest timestamp., a
-	 * boolean flag; default \c false.}
 	 * @config{ ),,}
 	 * @config{sync, whether to sync log records when the transaction commits\, inherited from
 	 * ::wiredtiger_open \c transaction_sync., a boolean flag; default empty.}
@@ -1769,8 +1769,8 @@ struct __wt_session {
 	 * @config{durable_timestamp, set the durable timestamp for the current transaction.
 	 * Required for the commit of a prepared transaction\, and otherwise not permitted.  The
 	 * supplied value must not be older than the commit timestamp set for the current
-	 * transaction.  The value must also not be older than the current oldest and stable
-	 * timestamps.  See @ref timestamp_prepare., a string; default empty.}
+	 * transaction.  The value must also be newer than the current oldest and stable timestamps.
+	 * See @ref timestamp_prepare., a string; default empty.}
 	 * @config{operation_timeout_ms, when non-zero\, a requested limit on the time taken to
 	 * complete operations in this transaction.  Time is measured in real time milliseconds from
 	 * the start of each WiredTiger API call.  There is no guarantee any operation will not take
@@ -1806,8 +1806,8 @@ struct __wt_session {
 	 * @configstart{WT_SESSION.prepare_transaction, see dist/api_data.py}
 	 * @config{prepare_timestamp, set the prepare timestamp for the updates of the current
 	 * transaction.  The supplied value must not be older than any active read timestamps\, and
-	 * must not be older than the current stable timestamp.  See @ref timestamp_prepare., a
-	 * string; default empty.}
+	 * must be newer than the current stable timestamp.  See @ref timestamp_prepare., a string;
+	 * default empty.}
 	 * @configend
 	 * @errors
 	 */
@@ -1888,14 +1888,14 @@ struct __wt_session {
 	 * Required for the commit of a prepared transaction\, and otherwise not permitted.  Can
 	 * only be set once the current transaction has been prepared\, and a commit timestamp has
 	 * been set.  The supplied value must not be older than the commit timestamp.  The value
-	 * must also not be older than the current oldest and stable timestamps.  See @ref
+	 * must also be newer than the current oldest and stable timestamps.  See @ref
 	 * timestamp_prepare., a string; default empty.}
 	 * @config{prepare_timestamp, set the prepare timestamp for the updates of the current
 	 * transaction.  The supplied value must not be older than any active read timestamps\, and
-	 * must not be older than the current stable timestamp.  Can be set only once per
-	 * transaction.  Setting the prepare timestamp does not by itself prepare the transaction\,
-	 * but does oblige the application to eventually prepare the transaction before committing
-	 * it.  See @ref timestamp_prepare., a string; default empty.}
+	 * must be newer than the current stable timestamp.  Can be set only once per transaction.
+	 * Setting the prepare timestamp does not by itself prepare the transaction\, but does
+	 * oblige the application to eventually prepare the transaction before committing it.  See
+	 * @ref timestamp_prepare., a string; default empty.}
 	 * @config{read_timestamp, read using the specified timestamp.  The supplied value must not
 	 * be older than the current oldest timestamp.  This can only be set once for a transaction.
 	 * See @ref timestamp_txn_api., a string; default empty.}
@@ -2153,8 +2153,8 @@ struct __wt_connection {
 	 * checkpoint_retention, adjust log removal to retain the log records of this number of
 	 * checkpoints.  Zero or one means perform normal removal., an integer between 0 and 1024;
 	 * default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true\, dump the core
-	 * in the diagnostic mode on encountering the data corruption., a boolean flag; default \c
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true and built in
+	 * diagnostic mode\, dump core in the case of data corruption., a boolean flag; default \c
 	 * true.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;cursor_copy, if true\, use the system allocator to
 	 * make a copy of any data returned by a cursor operation and return the copy instead.  The
@@ -2874,8 +2874,8 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
  * checkpoint_retention, adjust log removal to retain the log records of this number of checkpoints.
  * Zero or one means perform normal removal., an integer between 0 and 1024; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true\, dump the core in the diagnostic mode
- * on encountering the data corruption., a boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true and built in diagnostic mode\, dump
+ * core in the case of data corruption., a boolean flag; default \c true.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;cursor_copy, if true\, use the system allocator to make a copy of
  * any data returned by a cursor operation and return the copy instead.  The copy is freed on the
  * next cursor operation.  This allows memory sanitizers to detect inappropriate references to
@@ -3794,7 +3794,8 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
 /*!
  * Non-specific WiredTiger error.
  * This error is returned when an error is not covered by a specific error
- * return.
+ * return. The operation may be retried; if a transaction is in progress, it
+ * should be rolled back and the operation retried in a new transaction.
  */
 #define	WT_ERROR	(-31802)
 /*!
@@ -3817,8 +3818,8 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
 /*! @endcond */
 /*!
  * Recovery must be run to continue.
- * This error is generated when wiredtiger_open is configured to return an error
- * if recovery is required to use the database.
+ * This error is generated when ::wiredtiger_open is configured to return an
+ * error if recovery is required to use the database.
  */
 #define	WT_RUN_RECOVERY	(-31806)
 /*!
