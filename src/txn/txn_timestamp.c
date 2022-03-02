@@ -952,7 +952,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     }
     WT_RET_NOTFOUND_OK(ret);
 
-    return __wt_txn_set_timestamp_internal(session, commit_ts, durable_ts, prepare_ts, read_ts);
+    return (__wt_txn_set_timestamp_internal(session, commit_ts, durable_ts, prepare_ts, read_ts));
 }
 
 /*
