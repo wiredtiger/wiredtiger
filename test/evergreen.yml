@@ -2146,7 +2146,7 @@ tasks:
               echo "Disk usage and free space for the current drive (pre-copy):"
               df -h .
               echo "===="
-              echo "Total size of WT_TEST dirwectory:"
+              echo "Total size of WT_TEST directory prior to copy:"
               du -hs WT_TEST
               echo "===="
               cp -rf WT_TEST WT_TEST_$file
