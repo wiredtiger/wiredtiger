@@ -103,14 +103,14 @@ class test_tiered06(wttest.WiredTigerTestCase):
         prefix = self.bucket_prefix_base + inspect.stack()[0][3] + '/'
 
         # Local store needs the bucket created as a directory on the filesystem.
-        if self.ss_name is 'local_store':
+        if self.ss_name == 'local_store':
             os.mkdir(self.bucket1)
 
         fs = ss.ss_customize_file_system(session, self.bucket1, self.auth_token,
             self.get_fs_config(prefix, self.bucket1_region))
 
         # The object doesn't exist yet.
-        if self.ss_name is 's3_store':
+        if self.ss_name == 's3_store':
             with self.expectedStderrPattern('.*HTTP response code: 404.*'):
                 self.assertFalse(fs.fs_exist(session, 'foobar'))
         else:
@@ -121,7 +121,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         f = open('foobar', 'wb')
 
         # The object still doesn't exist yet.
-        if self.ss_name is 's3_store':
+        if self.ss_name == 's3_store':
             with self.expectedStderrPattern('.*HTTP response code: 404.*'):
                 self.assertFalse(fs.fs_exist(session, 'foobar'))
         else:
@@ -185,7 +185,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         os.mkdir(cachedir)
 
         # Local store needs the bucket created as a directory on the filesystem.
-        if self.ss_name is 'local_store':
+        if self.ss_name == 'local_store':
             os.mkdir(self.bucket1)
         
         fs = ss.ss_customize_file_system(session, self.bucket1, self.auth_token,
@@ -289,7 +289,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
     # Using the local storage module, they are actually going to be in either
     # bucket1 or bucket2.
     def check_local_objects(self, expect1, expect2):
-        if self.ss_name is not 'local_store':
+        if self.ss_name != 'local_store':
             return
 
         got = sorted(list(os.listdir(self.bucket1)))
@@ -323,7 +323,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         prefix = self.bucket_prefix_base + inspect.stack()[0][3] + '/'
 
         # Local store needs the bucket created as a directory on the filesystem.
-        if self.ss_name is 'local_store':
+        if self.ss_name == 'local_store':
             os.mkdir(self.bucket1)
             os.mkdir(self.bucket2)
 
@@ -342,7 +342,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
                 self.get_fs_config(prefix, self.bucket1_region, self.cachedir1)), errmsg)
 
         # For local store - Create an empty file, try to use it as a directory.
-        if self.ss_name is 'local_store':
+        if self.ss_name == 'local_store':
             with open("some_file", "w"):
                 pass
             errmsg = '/Invalid argument/'
