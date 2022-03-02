@@ -2136,11 +2136,29 @@ tasks:
             for file in `ls $dir`
             do
               echo "===="
+              echo "Disk usage and free space for the current drive (pre-test):"
+              df -h .
+              echo "===="
               echo "==== Initiating wtperf test using $dir/$file ===="
               echo "===="
               ${test_env_vars|} ./bench/wtperf/wtperf -O $dir/$file -o verbose=2
+              echo "===="
+              echo "Disk usage and free space for the current drive (pre-copy):"
+              df -h .
+              echo "===="
+              echo "Total size of WT_TEST dirwectory:"
+              du -hs WT_TEST
+              echo "===="
               cp -rf WT_TEST WT_TEST_$file
+              echo "===="
+              echo "Disk usage and free space for the current drive (post-copy):"
+              df -h .
+              echo "===="
             done
+            echo "===="
+            echo "Disk usage and free space for the current drive (at the end):"
+            df -h .
+            echo "===="
 
   - name: ftruncate-test
     commands:
