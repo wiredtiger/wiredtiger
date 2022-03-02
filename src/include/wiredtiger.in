@@ -746,7 +746,7 @@ struct __wt_cursor {
 #endif
 };
 
-/*! WT_SESSION::timestamp_transaction_numeric timestamp types */
+/*! WT_SESSION::timestamp_transaction_uint timestamp types */
 typedef enum {
 	WT_TS_TXN_TYPE_COMMIT, /*!< Commit timestamp. */
 	WT_TS_TXN_TYPE_DURABLE, /*!< Durable timestamp. */
@@ -1908,7 +1908,7 @@ struct __wt_session {
 	 * Set the commit timestamp on a transaction numerically.  Prefer this over @ref
 	 * timestamp_transaction when the string parsing done in that method becomes a bottleneck.
 	 *
-	 * The WT_SESSION.timestamp_transaction_numeric method can only be used at snapshot
+	 * The WT_SESSION.timestamp_transaction_uint method can only be used at snapshot
 	 * isolation.
 	 *
 	 * @requires_transaction
@@ -1920,7 +1920,7 @@ struct __wt_session {
 	 * @param ts the timestamp. Zero means none.
 	 * @errors
 	 */
-	int __F(timestamp_transaction_numeric)(WT_SESSION *session, WT_TS_TXN_TYPE which,
+	int __F(timestamp_transaction_uint)(WT_SESSION *session, WT_TS_TXN_TYPE which,
 	        uint64_t ts);
 	/*! @} */
 

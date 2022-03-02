@@ -956,12 +956,12 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __wt_txn_set_timestamp_numeric --
+ * __wt_txn_set_timestamp_uint --
  *     Directly set the commit timestamp in a transaction, bypassing parsing logic. Prefer this to
  *     __wt_txn_set_timestamp when string parsing is a performance bottleneck.
  */
 int
-__wt_txn_set_timestamp_numeric(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_timestamp_t ts)
+__wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_timestamp_t ts)
 {
     WT_DECL_RET;
 
