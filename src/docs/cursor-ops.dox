@@ -101,6 +101,10 @@ To remove existing data using a cursor, use the WT_CURSOR::remove method:
 
 @snippet ex_cursor.c cursor remove
 
+The WT_CURSOR::remove method returns zero on success and a non-zero code on
+failure. WT_CURSOR::remove will fail with ::WT_NOTFOUND if the record does not
+exist.
+
 The WT_SESSION::open_cursor \c overwrite configuration is \c true by default,
 causing WT_CURSOR::insert, WT_CURSOR::remove and WT_CURSOR::update to ignore
 the current state of the record, and these methods will succeed regardless of
