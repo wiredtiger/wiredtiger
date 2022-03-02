@@ -2070,7 +2070,7 @@ tasks:
           display_name: " 1 Coverage report main page"
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/1_coverage_report_main.html
 
-  - name: s3-ext-test
+  - name: storage-source-ext-test
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2092,7 +2092,7 @@ tasks:
             # Run unit testing
             ext/storage_sources/s3_store/test/run_s3_unit_tests
             # Run Python testing
-            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py tiered06 -s 1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py -j 4 tiered
 
   - name: spinlock-gcc-test
     commands:
@@ -3559,7 +3559,7 @@ buildvariants:
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp
     - name: data-validation-stress-test-checkpoint-no-timestamp
-    - name: s3-ext-test
+    - name: storage-source-ext-test
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
@@ -4148,4 +4148,4 @@ buildvariants:
     - name: long-test
     - name: configure-combinations
     - name: format-smoke-test
-    - name: s3-ext-test
+    - name: storage-source-ext-test
