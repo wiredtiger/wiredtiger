@@ -721,9 +721,10 @@ __wt_meta_ckptlist_get(
     /*
      * Get the list of checkpoints for this file. We try to cache the ckptlist between each rebuild
      * from the metadata, but there might not be one, as there are operations that can invalidate a
-     * ckptlist. So, use a cached ckptlist if there is one. Otherwise re-generating the checkpoint
-     * list by reading the metadata. Also, we avoid using a cached checkpoint list for the metadata
-     * itself. Finally, there may not be a tree available in all cases.
+     * ckptlist. So, use a cached ckptlist if there is one. Otherwise re-generate the ckptlist by
+     * reading the metadata. Finally, we avoid using a cached ckptlist for the metadata itself, and
+     * there may not be a tree available in all cases, specifically when called from the wt utility
+     * list command.
      */
     btree = S2BT_SAFE(session);
     if (btree != NULL && btree->ckpt != NULL && !WT_IS_METADATA(session->dhandle)) {
