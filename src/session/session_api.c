@@ -1785,7 +1785,8 @@ err:
 
 /*
  * __session_timestamp_transaction --
- *     WT_SESSION->timestamp_transaction method.
+ *     WT_SESSION->timestamp_transaction method. Also see __session_timestamp_transaction_uint if
+ *     config parsing is a performance issue.
  */
 static int
 __session_timestamp_transaction(WT_SESSION *wt_session, const char *config)
