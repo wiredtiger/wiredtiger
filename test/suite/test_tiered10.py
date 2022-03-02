@@ -43,7 +43,8 @@ class test_tiered10(wttest.WiredTigerTestCase):
             bucket_region = get_bucket1_region('local_store'),
             prefix1 = '1_',
             prefix2 = '2_')),
-        # Enable after fixing
+        # WT-8896 - S3 extension doesnt gets stuck at initializing if more than one simultaneous
+        # WT connection is created. Renable once we have fixed this issue.
         #('s3', dict(ss_name = 's3_store',
         #    auth_token = get_auth_token('s3_store'),
         #    bucket = get_bucket1_name('s3_store'),
