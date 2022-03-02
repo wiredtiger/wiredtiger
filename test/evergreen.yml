@@ -2135,7 +2135,6 @@ tasks:
             dir=../bench/wtperf/stress
             for file in `ls $dir`
             do
-              echo "===="
               echo "Disk usage and free space for the current drive (pre-test):"
               df -h .
               echo "===="
@@ -2145,20 +2144,14 @@ tasks:
               echo "===="
               echo "Disk usage and free space for the current drive (pre-copy):"
               df -h .
-              echo "===="
               echo "Total size of WT_TEST directory prior to copy:"
               du -hs WT_TEST
-              echo "===="
               cp -rf WT_TEST WT_TEST_$file
-              echo "===="
               echo "Disk usage and free space for the current drive (post-copy):"
               df -h .
-              echo "===="
             done
-            echo "===="
             echo "Disk usage and free space for the current drive (at the end):"
             df -h .
-            echo "===="
 
   - name: ftruncate-test
     commands:
