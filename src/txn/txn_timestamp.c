@@ -963,9 +963,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_timestamp_t ts)
 {
-    WT_DECL_RET;
-
-    WT_TRET(__wt_txn_context_check(session, true));
+    WT_RET(__wt_txn_context_check(session, true));
 
     if (ts != WT_TS_NONE) {
         switch (which) {

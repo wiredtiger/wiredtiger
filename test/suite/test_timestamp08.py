@@ -73,20 +73,19 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
                 '/older than the first commit timestamp/')
         self.session.rollback_transaction()
 
-        # Commit timestamp >= Oldest timestamp
+        # Commit timestamp > Oldest timestamp
         self.session.begin_transaction()
         c[3] = 3
-        self.session.commit_transaction(
-            'commit_timestamp=' + self.timestamp_str(3))
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(3))
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 2),
                 '/less than the oldest timestamp/')
+        self.session.rollback_transaction()
 
         # Commit timestamp <= Stable timestamp.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(6))
         self.session.begin_transaction()
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(6))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 5),
                 '/less than the stable timestamp/')
@@ -97,7 +96,8 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(c[1], 1)
         c.set_key(2)
         self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND)
-        self.assertEqual(c[3], 3)
+        c.set_key(3)
+        self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND)
         self.session.commit_transaction()
 
 if __name__ == '__main__':
