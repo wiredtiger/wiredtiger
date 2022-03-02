@@ -50,7 +50,7 @@ def get_auth_token(storage_source):
 # Get buckets configured for the storage source
 
 # S3 buckets with their regions
-S3_buckets = \
+s3_buckets = \
     [('s3testext', 'ap-southeast-2'),
     ('s3testext-us', 'us-east-2')]
 
@@ -64,7 +64,7 @@ def get_bucket_list(storage_source):
     if storage_source == 'local_store':
         return local_buckets
     if storage_source == 's3_store':
-        return S3_buckets
+        return s3_buckets
     return None
 
 # Get name of the first bucket in the list.

@@ -29,7 +29,7 @@
 import inspect, os, wiredtiger, wttest
 from wtscenario import make_scenarios
 from helper_tiered import get_auth_token, get_bucket1_name, get_bucket1_region
-from helper_tiered import generate_s3_prefix, get_bucket_list
+from helper_tiered import generate_s3_prefix, get_bucket2_name, get_bucket2_region
 FileSystem = wiredtiger.FileSystem  # easy access to constants
 
 # test_tiered06.py
@@ -41,13 +41,17 @@ class test_tiered06(wttest.WiredTigerTestCase):
     storage_sources = [
         ('local', dict(ss_name = 'local_store',
             auth_token = get_auth_token('local_store'),
-            bucket = get_bucket1_name('local_store'),
-            bucket_region = get_bucket1_region('local_store'),
+            bucket1 = get_bucket1_name('local_store'),
+            bucket1_region = get_bucket1_region('local_store'),
+            bucket2 = get_bucket2_name('local_store'),
+            bucket2_region = get_bucket2_region('local_store'),
             bucket_prefix_base = "pfx_")),
         ('s3', dict(ss_name = 's3_store',
             auth_token = get_auth_token('s3_store'),
-            bucket = get_bucket1_name('s3_store'),
-            bucket_region = get_bucket1_region('s3_store'),
+            bucket1 = get_bucket1_name('s3_store'),
+            bucket1_region = get_bucket1_region('s3_store'),
+            bucket2 = get_bucket2_name('s3_store'),
+            bucket2_region = get_bucket2_region('s3_store'),
             bucket_prefix_base = generate_s3_prefix())),
     ]
     # Make scenarios for different cloud service providers
@@ -100,10 +104,10 @@ class test_tiered06(wttest.WiredTigerTestCase):
 
         # Local store needs the bucket created as a directory on the filesystem.
         if self.ss_name is 'local_store':
-            os.mkdir(self.bucket)
+            os.mkdir(self.bucket1)
 
-        fs = ss.ss_customize_file_system(session, self.bucket, self.auth_token,
-            self.get_fs_config(prefix, self.bucket_region))
+        fs = ss.ss_customize_file_system(session, self.bucket1, self.auth_token,
+            self.get_fs_config(prefix, self.bucket1_region))
 
         # The object doesn't exist yet.
         if self.ss_name is 's3_store':
@@ -177,15 +181,15 @@ class test_tiered06(wttest.WiredTigerTestCase):
         # avoid namespace collison. 0th element on the stack is the current function.
         prefix = self.bucket_prefix_base + inspect.stack()[0][3] + '/'
 
-        cachedir = self.bucket + '_cache'
+        cachedir = self.bucket1 + '_cache'
         os.mkdir(cachedir)
 
         # Local store needs the bucket created as a directory on the filesystem.
         if self.ss_name is 'local_store':
-            os.mkdir(self.bucket)
+            os.mkdir(self.bucket1)
         
-        fs = ss.ss_customize_file_system(session, self.bucket, self.auth_token,
-            self.get_fs_config(prefix, self.bucket_region, cachedir))
+        fs = ss.ss_customize_file_system(session, self.bucket1, self.auth_token,
+            self.get_fs_config(prefix, self.bucket1_region, cachedir))
 
         # We call these 4K chunks of data "blocks" for this test, but that doesn't
         # necessarily relate to WT block sizing.
@@ -259,11 +263,6 @@ class test_tiered06(wttest.WiredTigerTestCase):
         f.write('some stuff'.encode())
         f.close()
 
-    bucket1 = ''
-    bucket1_region = ''
-    bucket2 = ''
-    bucket2_region = ''
-
     cachedir1 = "./cache1"
     cachedir2 = "./cache2"
 
@@ -316,9 +315,6 @@ class test_tiered06(wttest.WiredTigerTestCase):
     def test_ss_file_systems(self):
 
         # Test using various buckets, hosts.
-        self.bucket1, self.bucket1_region = get_bucket_list(self.ss_name)[0]
-        self.bucket2, self.bucket2_region = get_bucket_list(self.ss_name)[1]
-
         session = self.session
         ss = self.get_storage_source()
 
