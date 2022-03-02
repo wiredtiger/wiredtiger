@@ -41,7 +41,8 @@ class test_tiered07(wttest.WiredTigerTestCase):
             bucket = get_bucket1_name('local_store'),
             bucket_region = get_bucket1_region('local_store'),
             bucket_prefix = "pfx_")),
-        # Enable after fixing the bug
+        # WT-8897 Disabled as S3 directory listing is interpreting a directory to end in a '/',
+        # whereas the code in the tiered storage doesn't expect that. Enable when fixed.
         #('s3', dict(ss_name = 's3_store',
         #    auth_token = get_auth_token('s3_store'),
         #    bucket = get_bucket1_name('s3_store'),
