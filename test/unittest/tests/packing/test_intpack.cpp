@@ -360,8 +360,8 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
     SECTION("pack and unpack 0x123456789 - should fit")
     {
         /*
-         * The value that is stored in this case is (0x123456789 - 0x2040) = 0x123454749.
-         * For the first byte: 'e' is the marker and '5' is the length in bytes.
+         * The value that is stored in this case is (0x123456789 - 0x2040) = 0x123454749. For the
+         * first byte: 'e' is the marker and '5' is the length in bytes.
          */
         test_pack_and_unpack_int(0x123456789, {0xe5, 0x01, 0x23, 0x45, 0x47, 0x49, 0, 0});
     }
