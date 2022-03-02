@@ -2070,7 +2070,7 @@ tasks:
           display_name: " 1 Coverage report main page"
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/1_coverage_report_main.html
 
-  - name: storage-source-ext-test
+  - name: tiered-storage-extensions-test
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2089,9 +2089,9 @@ tasks:
             # Only set verbose after having put the AWS access credentials into the environment.
             set -o verbose
 
-            # Run unit testing
+            # Run S3 extension unit testing
             ext/storage_sources/s3_store/test/run_s3_unit_tests
-            # Run Python testing
+            # Run Python testing for all tiered tests
             ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py -j 4 tiered
 
   - name: spinlock-gcc-test
@@ -3559,7 +3559,7 @@ buildvariants:
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp
     - name: data-validation-stress-test-checkpoint-no-timestamp
-    - name: storage-source-ext-test
+    - name: tiered-storage-extensions-test
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
@@ -4148,4 +4148,5 @@ buildvariants:
     - name: long-test
     - name: configure-combinations
     - name: format-smoke-test
-    - name: storage-source-ext-test
+    - name: tiered-storage-extensions-test
+
