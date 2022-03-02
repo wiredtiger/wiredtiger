@@ -27,6 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, re
+from helper_tiered import get_auth_token, get_bucket1_name, get_bucket1_region
+from helper_tiered import generate_s3_prefix
 import wtscenario, wttest
 from wtdataset import SimpleDataSet
 
@@ -41,41 +43,61 @@ class test_tiered03(wttest.WiredTigerTestCase):
     # sharing would probably need to be reworked.
     uri = 'file:test_tiered03'
 
+    storage_sources = [
+        ('local', dict(ss_name = 'local_store',
+            auth_token = get_auth_token('local_store'),
+            bucket = get_bucket1_name('local_store'),
+            bucket_region = get_bucket1_region('local_store'),
+            bucket_prefix = "pfx_")),
+        # Enable after fixing the test - there seems to be issue with two connections
+        #('s3', dict(ss_name = 's3_store',
+        #    auth_token = get_auth_token('s3_store'),
+        #    bucket = get_bucket1_name('s3_store'),
+        #    bucket_region = get_bucket1_region('s3_store'),
+        #    bucket_prefix = generate_s3_prefix())),
+    ]
     # Occasionally add a lot of records, so that merges (and bloom) happen.
     record_count_scenarios = wtscenario.quick_scenarios(
         'nrecs', [10, 10000], [0.9, 0.1])
+    scenarios = wtscenario.make_scenarios(storage_sources, record_count_scenarios, prune=100, prunelong=500)
 
-    scenarios = wtscenario.make_scenarios(record_count_scenarios, prune=100, prunelong=500)
-
-    auth_token = "test_token"
-    bucket = "mybucket"
     absolute_bucket_dir = None  # initialied in conn_config to an absolute path
-    cache_dir = "mybucket-cache" # a relative pathname, it will not be shared
-    bucket_prefix = "pfx_"
-    extension_name = "local_store"
 
     def conn_config(self):
-        # We have multiple connections that want to share a bucket directory.
-        # The first time this function is called, we'll establish the absolute
-        # path for the bucket, and always use that for the bucket name.
+        bucket_ret = self.bucket
+        cache_dir = self.bucket + '-cache'
+        # We have multiple connections that want to share a bucket.
+        # For the local store, the first time this function is called, we'll
+        # establish the absolute path for the bucket, and always use that for
+        # the bucket name.
         # The cache directory name is a relative one, so it won't be shared
         # between connections.
-        if self.absolute_bucket_dir == None:
-            self.absolute_bucket_dir = os.path.join(os.getcwd(), self.bucket)
-            os.mkdir(self.absolute_bucket_dir)
+        if self.ss_name == 'local_store':
+            if self.absolute_bucket_dir == None:
+                self.absolute_bucket_dir = os.path.join(os.getcwd(), self.bucket)
+                os.mkdir(self.absolute_bucket_dir)
+            bucket_ret = self.absolute_bucket_dir
         return \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
-          'bucket=%s,' % self.absolute_bucket_dir + \
-          'cache_directory=%s,' % self.cache_dir + \
+          'bucket=%s,' % bucket_ret  + \
+          'bucket_region=%s,' % self.bucket_region + \
+          'cache_directory=%s,' % cache_dir + \
           'bucket_prefix=%s,' % self.bucket_prefix + \
-          'name=%s)' % self.extension_name
+          'name=%s)' % self.ss_name
 
-    # Load the local store extension.
+    # Load the storage store extension.
     def conn_extensions(self, extlist):
+        config = ''
+        # S3 store is built as an optional loadable extension, not all test environments build S3.
+        if self.ss_name == 's3_store':
+            #config = '=(config=\"(verbose=1)\")'
+            extlist.skip_if_missing = True
+        #if self.ss_name == 'local_store':
+            #config = '=(config=\"(verbose=1,delay_ms=200,force_delay=3)\")'
         # Windows doesn't support dynamically loaded extension libraries.
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('storage_sources', self.extension_name)
+        extlist.extension('storage_sources', self.ss_name + config)
 
     # Test sharing data between a primary and a secondary
     def test_sharing(self):

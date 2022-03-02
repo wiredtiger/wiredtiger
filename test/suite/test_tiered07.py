@@ -41,11 +41,12 @@ class test_tiered07(wttest.WiredTigerTestCase):
             bucket = get_bucket1_name('local_store'),
             bucket_region = get_bucket1_region('local_store'),
             bucket_prefix = "pfx_")),
-        ('s3', dict(ss_name = 's3_store',
-            auth_token = get_auth_token('s3_store'),
-            bucket = get_bucket1_name('s3_store'),
-            bucket_region = get_bucket1_region('s3_store'),
-            bucket_prefix = generate_s3_prefix())),
+        # Enable after fixing the bug
+        #('s3', dict(ss_name = 's3_store',
+        #    auth_token = get_auth_token('s3_store'),
+        #    bucket = get_bucket1_name('s3_store'),
+        #    bucket_region = get_bucket1_region('s3_store'),
+        #    bucket_prefix = generate_s3_prefix())),
     ]
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)

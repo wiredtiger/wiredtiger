@@ -77,6 +77,16 @@ def get_bucket1_region(storage_source):
     _, region = get_bucket_list(storage_source)[0]
     return region
 
+# Get name of the second bucket in the list.
+def get_bucket2_name(storage_source):
+    bucket, _ = get_bucket_list(storage_source)[1]
+    return bucket
+
+# Get the region of the second bucket in the list.
+def get_bucket2_region(storage_source):
+    _, region = get_bucket_list(storage_source)[1]
+    return region
+
 # Generate a unique object prefix for the S3 store. 
 def generate_s3_prefix(test_name = ''):
     # Generates a unique prefix to be used with the object keys, eg:
