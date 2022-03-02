@@ -16,6 +16,6 @@ https://github.com/catchorg/Catch2/blob/devel/docs/command-line.md.
 ## Adding tests
 
 If you want add new tests to an existing subsytem, simply edit the relevant
-.cxx file. If you want to test a new subsystem, or a subsystem with no
-existing tests, create a new .cxx file and add it to the `SOURCES` list in
+.cpp file. If you want to test a new subsystem, or a subsystem with no
+existing tests, create a new .cpp file and add it to the `SOURCES` list in
 `create_test_executable()` (in `CMakeLists.txt`).

@@ -14,7 +14,7 @@
 int
 main(int argc, char **argv)
 {
-    // clean up after any previous failed/crashed test runs
+    // Clean up after any previous failed/crashed test runs.
     utils::wiredtigerCleanup();
 
     return Catch::Session().run(argc, argv);

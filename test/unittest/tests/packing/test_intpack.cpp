@@ -6,9 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
-/*
- * This file unit tests the macros and functions contained in intpack_inline.h
- */
+// This file unit tests the macros and functions contained in intpack_inline.h.
 
 #include "wt_internal.h"
 #include <catch2/catch.hpp>
@@ -92,7 +90,7 @@ test_pack_and_unpack_int(int64_t value, std::vector<uint8_t> const &expectedPack
 TEST_CASE("Integer packing macros: byte min/max", "[intpack]")
 {
     /*
-     * These macros have no type, so assign macros into variables to give them a type
+     * These macros have no type, so assign macros into variables to give them a type.
      */
     uint16_t neg_1byte_min_16 = NEG_1BYTE_MIN;
     uint16_t neg_2byte_min_16 = NEG_2BYTE_MIN;
@@ -361,8 +359,10 @@ TEST_CASE("Integer packing functions: __wt_vpack_int and __wt_vunpack_int", "[in
 
     SECTION("pack and unpack 0x123456789 - should fit")
     {
-        /* The value that is stored in this case is (0x123456789 - 0x2040) = 0x123454749 */
-        /* For the first byte: 'e' is the marker and '5' is the length in bytes */
+        /*
+         * The value that is stored in this case is (0x123456789 - 0x2040) = 0x123454749.
+         * For the first byte: 'e' is the marker and '5' is the length in bytes.
+         */
         test_pack_and_unpack_int(0x123456789, {0xe5, 0x01, 0x23, 0x45, 0x47, 0x49, 0, 0});
     }
 

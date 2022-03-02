@@ -24,13 +24,11 @@ struct ExtentWrapper {
 };
 
 struct ExtentListWrapper {
-    ExtentListWrapper() {}
-
-    ~ExtentListWrapper() {}
-
-    // unfortunately, some functions need raw 2D pointers, but that's not
-    // compatible with automatic memory management. _list is only for allocation
-    // bookkeeping - _raw_list can be rearranged however.
+    /*
+     * Unfortunately, some functions need raw 2D pointers, but that's not
+     * compatible with automatic memory management. _list is only for allocation
+     * bookkeeping - _raw_list can be rearranged however.
+     */
     std::vector<std::unique_ptr<ExtentWrapper>> _list;
     std::vector<WT_EXT *> _raw_list;
 };
@@ -47,14 +45,12 @@ struct SizeWrapper {
 };
 
 struct SizeListWrapper {
-    SizeListWrapper() {}
-
-    ~SizeListWrapper() {}
-
-    // unfortunately, some functions need raw 2D pointers, but that's not
-    // compatible with automatic memory management. _list is only for allocation
-    // bookkeeping - _raw_list can be rearranged however since it doesn't own
-    // any data.
+    /*
+     * Unfortunately, some functions need raw 2D pointers, but that's not
+     * compatible with automatic memory management. _list is only for allocation
+     * bookkeeping - _raw_list can be rearranged however since it doesn't own
+     * any data.
+     */
     std::vector<std::unique_ptr<SizeWrapper>> _list;
     std::vector<WT_SIZE *> _raw_list;
 };
@@ -62,8 +58,10 @@ struct SizeListWrapper {
 std::unique_ptr<ExtentWrapper>
 create_new_ext()
 {
-    // manually alloc enough extra space for the zero-length array to encode two
-    // skip lists.
+    /*
+     * Manually alloc enough extra space for the zero-length array to encode two
+     * skip lists.
+     */
     auto sz = sizeof(WT_EXT) + 2 * WT_SKIP_MAXDEPTH * sizeof(WT_EXT *);
 
     auto raw = (WT_EXT *)malloc(sz);
@@ -134,7 +132,7 @@ create_default_test_extent_list(ExtentListWrapper &wrapper)
         raw.push_back(nullptr);
 }
 
-// as above, but for a size list.
+// As above, but for a size list.
 void
 create_default_test_size_list(SizeListWrapper &wrapper)
 {
@@ -262,9 +260,11 @@ TEST_CASE("Extent Lists: block_off_srch", "[extent_list]")
 
         __ut_block_off_srch(&head[0], 2, &stack[0], false);
 
-        // for each level of the extent list, if the searched-for element was
-        // visible, we should point to it. otherwise, we should point to the
-        // next-largest item.
+        /*
+         * For each level of the extent list, if the searched-for element was
+         * visible, we should point to it. otherwise, we should point to the
+         * next-largest item.
+         */
         REQUIRE((*stack[0])->off == 2);
         REQUIRE((*stack[1])->off == 2);
         REQUIRE((*stack[2])->off == 3);
@@ -328,9 +328,11 @@ TEST_CASE("Extent Lists: block_first_srch", "[extent_list]")
 {
     std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
 
-    // Note that we're not checking stack here, since __block_first_srch
-    // delegates most of its work to __block_off_srch, which we're testing
-    // elsewhere.
+    /*
+     * Note that we're not checking stack here, since __block_first_srch
+     * delegates most of its work to __block_off_srch, which we're testing
+     * elsewhere.
+     */
 
     SECTION("empty list doesn't yield a chunk")
     {
@@ -395,9 +397,11 @@ TEST_CASE("Extent Lists: block_size_srch", "[extent_list]")
 
         __ut_block_size_srch(&head[0], 2, &stack[0]);
 
-        // for each level of the extent list, if the searched-for element was
-        // visible, we should point to it. otherwise, we should point to the
-        // next-largest item.
+        /*
+         * For each level of the extent list, if the searched-for element was
+         * visible, we should point to it. otherwise, we should point to the
+         * next-largest item.
+         */
         REQUIRE((*stack[0])->size == 2);
         REQUIRE((*stack[1])->size == 2);
         REQUIRE((*stack[2])->size == 3);

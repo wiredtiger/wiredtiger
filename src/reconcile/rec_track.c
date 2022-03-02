@@ -561,12 +561,12 @@ __wt_ovfl_track_wrapup_err(WT_SESSION_IMPL *session, WT_PAGE *page)
 int
 __ut_ovfl_discard_verbose(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, const char *tag)
 {
-    return __ovfl_discard_verbose(session, page, cell, tag);
+    return (__ovfl_discard_verbose(session, page, cell, tag));
 }
 
 int
 __ut_ovfl_discard_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-    return __ovfl_discard_wrapup(session, page);
+    return (__ovfl_discard_wrapup(session, page));
 }
 #endif
