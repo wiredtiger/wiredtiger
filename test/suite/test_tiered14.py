@@ -63,12 +63,14 @@ class test_tiered14(wttest.WiredTigerTestCase):
             auth_token = get_auth_token('local_store'),
             bucket = get_bucket1_name('local_store'),
             bucket_region = get_bucket1_region('local_store'),
-            bucket_prefix = "pfx_")),
+            bucket_prefix = "pfx_",
+            num_ops = 100)),
         ('s3', dict(ss_name = 's3_store',
             auth_token = get_auth_token('s3_store'),
             bucket = get_bucket1_name('s3_store'),
             bucket_region = get_bucket1_region('s3_store'),
-            bucket_prefix = generate_s3_prefix())),
+            bucket_prefix = generate_s3_prefix(),
+            num_ops = 20)),
     ]
     scenarios = wtscenario.make_scenarios(multiplier, keyfmt, dataset, storage_sources)
 
@@ -172,14 +174,14 @@ class test_tiered14(wttest.WiredTigerTestCase):
 
         for i in range(0, 10):
             testnum += 1
-            # Generate a sequence of 100 operations that is heavy on additions and updates.
-            s = ''.join(random.choices('aaaaauuuuufcr.', k=100))
+            # Generate a sequence of operations that is heavy on additions and updates.
+            s = ''.join(random.choices('aaaaauuuuufcr.', k=self.num_ops))
             self.playback(testnum, s)
 
         for i in range(0, 10):
             testnum += 1
-            # Generate a sequence of 100 operations that is has a greater mix of 'operational' functions.
-            s = ''.join(random.choices('aufcr.', k=100))
+            # Generate a sequence of operations that is has a greater mix of 'operational' functions.
+            s = ''.join(random.choices('aufcr.', k=self.num_ops))
             self.playback(testnum, s)
 
 if __name__ == '__main__':
