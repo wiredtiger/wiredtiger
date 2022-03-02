@@ -105,3 +105,4 @@ def generate_s3_prefix(test_name = ''):
     prefix += test_name + '--'
 
     return prefix
+
