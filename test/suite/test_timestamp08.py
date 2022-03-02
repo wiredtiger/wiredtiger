@@ -47,58 +47,195 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.commit_transaction(
             'commit_timestamp=' + self.timestamp_str(1))
 
-        # Check that we can set the commit timestamp through either the
-        # string or numeric APIs.
-        self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + self.timestamp_str(3))
-        c[2] = 2
-
-        # Commit timestamp can be equal to the first...
-        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 3)
-
-        # Or greater.
-        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 4)
-
         # In a single transaction it is illegal to set a commit timestamp
         # older than the first commit timestamp used for this transaction.
-        # Check this with both APIs.
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.timestamp_transaction(
-                'commit_timestamp=' + self.timestamp_str(2)),
-                '/older than the first commit timestamp/')
-
+        # Check both timestamp_transaction_uint and commit_transaction APIs.
+        self.session.begin_transaction()
+        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 3)
+        c[3] = 3
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 2),
                 '/older than the first commit timestamp/')
         self.session.rollback_transaction()
 
         # Commit timestamp > Oldest timestamp
-        self.session.begin_transaction()
-        c[3] = 3
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(3))
 
+        self.session.begin_transaction()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 2),
                 '/less than the oldest timestamp/')
         self.session.rollback_transaction()
 
-        # Commit timestamp <= Stable timestamp.
         self.session.begin_transaction()
+        c[4] = 4
+        self.session.commit_transaction(
+            'commit_timestamp=' + self.timestamp_str(4))
+
+        # Commit timestamp >= Stable timestamp.
+        # Check both timestamp_transaction and commit_transaction APIs.
+        # Oldest and stable timestamp are set to 5 at the moment.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(6))
+        self.session.begin_transaction()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 5),
                 '/less than the stable timestamp/')
         self.session.rollback_transaction()
 
-        # read things back out
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(3))
-        self.assertEqual(c[1], 1)
-        c.set_key(2)
-        self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND)
-        c.set_key(3)
+        # When explicitly set, commit timestamp for a transaction can be earlier
+        # than the commit timestamp of an earlier transaction.
+        self.session.begin_transaction()
+        c[6] = 6
+        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 6)
+        self.session.commit_transaction()
+
+        self.session.begin_transaction()
+        c[8] = 8
+        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 8)
+        self.session.commit_transaction()
+
+        self.session.begin_transaction()
+        c[7] = 7
+        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 7)
+        self.session.commit_transaction()
+
+        # Read timestamp >= oldest timestamp
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(7) +
+            ',stable_timestamp=' + self.timestamp_str(7))
+        if wiredtiger.standalone_build():
+            self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
+                self.session.begin_transaction('read_timestamp=' + self.timestamp_str(6)))
+        else:
+            # This is a MongoDB message, not written in standalone builds.
+            with self.expectedStdoutPattern('less than the oldest timestamp'):
+                self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
+                    self.session.begin_transaction('read_timestamp=' + self.timestamp_str(6)))
+
+        # c[8] is not visible at read_timestamp < 8
+        self.session.begin_transaction()
+        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_READ, 7)
+        self.assertEqual(c[6], 6)
+        self.assertEqual(c[7], 7)
+        c.set_key(8)
         self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND)
         self.session.commit_transaction()
+
+        self.session.begin_transaction()
+        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_READ, 8)
+        self.assertEqual(c[6], 6)
+        self.assertEqual(c[7], 7)
+        self.assertEqual(c[8], 8)
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=oldest_reader'), self.timestamp_str(8))
+        self.session.commit_transaction()
+
+        # We can move the oldest timestamp backwards with "force"
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5) + ',force')
+        if wiredtiger.standalone_build():
+            self.session.begin_transaction()
+            self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
+                self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_READ, 4))
+        else:
+            # This is a MongoDB message, not written in standalone builds.
+            self.session.begin_transaction()
+            with self.expectedStdoutPattern('less than the oldest timestamp'):
+                self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
+                    self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_READ, 4))
+        self.session.rollback_transaction()
+
+        self.session.begin_transaction()
+        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_READ, 6)
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=oldest_reader'), self.timestamp_str(6))
+        self.session.commit_transaction()
+
+    def test_all_durable(self):
+        self.session.create(self.uri, 'key_format=i,value_format=i')
+        cur1 = self.session.open_cursor(self.uri)
+
+        # Since this is a non-prepared transaction, we'll be using the commit
+        # timestamp when calculating all_durable since it's implied that they're
+        # the same thing.
+        self.session.begin_transaction()
+        cur1[1] = 1
+        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 3)
+        self.session.commit_transaction()
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), '3')
+
+        # We have a running transaction with a lower commit_timestamp than we've
+        # seen before. So all_durable should return (lowest commit timestamp - 1).
+        self.session.begin_transaction()
+        cur1[2] = 2
+        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 2)
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), '1')
+        self.session.commit_transaction()
+
+        # After committing, go back to the value we saw previously.
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), '3')
+
+        # For prepared transactions, we take into account the durable timestamp
+        # when calculating all_durable.
+        self.session.begin_transaction()
+        cur1[3] = 3
+        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_PREPARE, 6)
+        self.session.prepare_transaction()
+
+        # If we have a commit timestamp for a prepared transaction, then we
+        # don't want that to be visible in the all_durable calculation.
+        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 7)
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), '3')
+
+        # Now take into account the durable timestamp.
+        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_DURABLE, 8)
+        self.session.commit_transaction()
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), '8')
+
+        # All durable moves back when we have a running prepared transaction
+        # with a lower durable timestamp than has previously been committed.
+        self.session.begin_transaction()
+        cur1[4] = 4
+        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_PREPARE, 3)
+        self.session.prepare_transaction()
+
+        # If we have a commit timestamp for a prepared transaction, then we
+        # don't want that to be visible in the all_durable calculation.
+        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 4)
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), '8')
+
+        # Now take into account the durable timestamp.
+        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_DURABLE, 5)
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), '4')
+        self.session.commit_transaction()
+
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), '8')
+
+        # Now test a scenario with multiple commit timestamps for a single txn.
+        self.session.begin_transaction()
+        cur1[5] = 5
+        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 6)
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), '5')
+
+        # Make more changes and set a new commit timestamp.
+        # Our calculation should use the first commit timestamp so there should
+        # be no observable difference to the all_durable value.
+        cur1[6] = 6
+        self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 7)
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), '5')
+
+        # Once committed, we go back to 8.
+        self.session.commit_transaction()
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), '8')
 
 if __name__ == '__main__':
     wttest.run()

@@ -975,11 +975,11 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
             WT_RET(
               __wt_txn_set_timestamp_internal(session, WT_TS_NONE, ts, WT_TS_NONE, WT_TS_NONE));
             break;
-        case WT_TS_TXN_TYPE_READ:
+        case WT_TS_TXN_TYPE_PREPARE:
             WT_RET(
               __wt_txn_set_timestamp_internal(session, WT_TS_NONE, WT_TS_NONE, ts, WT_TS_NONE));
             break;
-        case WT_TS_TXN_TYPE_PREPARE:
+        case WT_TS_TXN_TYPE_READ:
             WT_RET(
               __wt_txn_set_timestamp_internal(session, WT_TS_NONE, WT_TS_NONE, WT_TS_NONE, ts));
             break;
