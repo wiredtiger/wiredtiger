@@ -48,7 +48,7 @@ class test_tiered03(wttest.WiredTigerTestCase):
             bucket_prefix = "pfx_",
             ss_name = 'local_store')),
         # FIXME-WT-8896 The S3 extension gets stuck during initialization if more than one
-        # simultaneous WT connection is created. Renable once we have fixed this issue.
+        # simultaneous WT connection is created. Enable once we have fixed this issue.
         #('s3', dict(auth_token = get_auth_token('s3_store'),
         #    bucket = get_bucket1_name('s3_store'),
         #    bucket_prefix = generate_s3_prefix(),
