@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper_tiered import get_auth_token, get_bucket1_name, get_bucket1_region
-from helper_tiered import generate_s3_prefix
+from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
 from wtscenario import make_scenarios
 import os, wiredtiger, wttest
 StorageSource = wiredtiger.StorageSource  # easy access to constants
@@ -36,18 +35,16 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Basic tiered storage API for schema operations.
 class test_tiered07(wttest.WiredTigerTestCase):
     storage_sources = [
-        ('local', dict(ss_name = 'local_store',
-            auth_token = get_auth_token('local_store'),
+        ('local', dict(auth_token = get_auth_token('local_store'),
             bucket = get_bucket1_name('local_store'),
-            bucket_region = get_bucket1_region('local_store'),
-            bucket_prefix = "pfx_")),
-        # WT-8897 Disabled as S3 directory listing is interpreting a directory to end in a '/',
+            bucket_prefix = "pfx_",
+            ss_name = 'local_store')),
+        # FIXME-WT-8897 Disabled as S3 directory listing is interpreting a directory to end in a '/',
         # whereas the code in the tiered storage doesn't expect that. Enable when fixed.
-        #('s3', dict(ss_name = 's3_store',
-        #    auth_token = get_auth_token('s3_store'),
+        #('s3', dict(auth_token = get_auth_token('s3_store'),
         #    bucket = get_bucket1_name('s3_store'),
-        #    bucket_region = get_bucket1_region('s3_store'),
-        #    bucket_prefix = generate_s3_prefix())),
+        #    bucket_prefix = generate_s3_prefix(),
+        #    ss_name = 's3_store'))
     ]
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)
@@ -79,7 +76,6 @@ class test_tiered07(wttest.WiredTigerTestCase):
         return \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
-          'bucket_region=%s,' % self.bucket_region + \
           'bucket_prefix=%s,' % self.bucket_prefix + \
           'name=%s,' % self.ss_name + \
           'object_target_size=20M)'

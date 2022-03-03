@@ -29,24 +29,21 @@
 # test_tiered13.py
 # Check that importing tiered tables returns an error.
 
-from helper_tiered import get_auth_token, get_bucket1_name, get_bucket1_region
-from helper_tiered import generate_s3_prefix
+from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
 from wtscenario import make_scenarios
 import os, shutil, wiredtiger
 from test_import01 import test_import_base
 
 class test_tiered13(test_import_base):
     storage_sources = [
-        ('local', dict(ss_name = 'local_store',
-            auth_token = get_auth_token('local_store'),
+        ('local', dict(auth_token = get_auth_token('local_store'),
             bucket = get_bucket1_name('local_store'),
-            bucket_region = get_bucket1_region('local_store'),
-            bucket_prefix = "pfx_")),
-        ('s3', dict(ss_name = 's3_store',
-            auth_token = get_auth_token('s3_store'),
+            bucket_prefix = "pfx_",
+            ss_name = 'local_store')),
+        ('s3', dict(auth_token = get_auth_token('s3_store'),
             bucket = get_bucket1_name('s3_store'),
-            bucket_region = get_bucket1_region('s3_store'),
-            bucket_prefix = generate_s3_prefix())),
+            bucket_prefix = generate_s3_prefix(),
+            ss_name = 's3_store')),
     ]
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)
@@ -81,7 +78,6 @@ class test_tiered13(test_import_base):
         self.saved_conn = \
           'create,tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
-          'bucket_region=%s,' % self.bucket_region + \
           'bucket_prefix=%s,' % self.bucket_prefix + \
           'name=%s,' % self.ss_name + \
           'object_target_size=20M),'

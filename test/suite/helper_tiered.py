@@ -50,42 +50,26 @@ def get_auth_token(storage_source):
 # Get buckets configured for the storage source
 
 # S3 buckets with their regions
-s3_buckets = \
-    [('s3testext', 'ap-southeast-2'),
-    ('s3testext-us', 'us-east-2')]
+s3_buckets = ['s3testext;ap-southeast-2', 's3testext-us;us-east-2']
 
 # Local buckets do not have a region
-local_buckets = \
-    [('bucket1', ''),
-    ('bucket2', '')]
-
-# Get a list of buckets available for the storage source.
-def get_bucket_list(storage_source):
-    if storage_source == 'local_store':
-        return local_buckets
-    if storage_source == 's3_store':
-        return s3_buckets
-    return None
+local_buckets = ['bucket1', 'bucket2']
 
 # Get name of the first bucket in the list.
 def get_bucket1_name(storage_source):
-    bucket, _ = get_bucket_list(storage_source)[0]
-    return bucket
-
-# Get the region of the first bucket in the list.
-def get_bucket1_region(storage_source):
-    _, region = get_bucket_list(storage_source)[0]
-    return region
+    if storage_source == 's3_store':
+        return s3_buckets[0]
+    if storage_source == 'local_store':
+        return local_buckets[0]
+    return None
 
 # Get name of the second bucket in the list.
 def get_bucket2_name(storage_source):
-    bucket, _ = get_bucket_list(storage_source)[1]
-    return bucket
-
-# Get the region of the second bucket in the list.
-def get_bucket2_region(storage_source):
-    _, region = get_bucket_list(storage_source)[1]
-    return region
+    if storage_source == 's3_store':
+        return s3_buckets[1]
+    if storage_source == 'local_store':
+        return local_buckets[1]
+    return None
 
 # Generate a unique object prefix for the S3 store. 
 def generate_s3_prefix(test_name = ''):

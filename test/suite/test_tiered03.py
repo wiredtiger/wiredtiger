@@ -27,8 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, re
-from helper_tiered import get_auth_token, get_bucket1_name, get_bucket1_region
-from helper_tiered import generate_s3_prefix
+from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket2_name
 import wtscenario, wttest
 from wtdataset import SimpleDataSet
 
@@ -44,18 +43,16 @@ class test_tiered03(wttest.WiredTigerTestCase):
     uri = 'file:test_tiered03'
 
     storage_sources = [
-        ('local', dict(ss_name = 'local_store',
-            auth_token = get_auth_token('local_store'),
-            bucket = get_bucket1_name('local_store'),
-            bucket_region = get_bucket1_region('local_store'),
-            bucket_prefix = "pfx_")),
-        # WT-8896 - S3 extension doesnt gets stuck at initializing if more than one simultaneous
-        # WT connection is created. Renable once we have fixed this issue.
-        #('s3', dict(ss_name = 's3_store',
-        #    auth_token = get_auth_token('s3_store'),
-        #    bucket = get_bucket1_name('s3_store'),
-        #    bucket_region = get_bucket1_region('s3_store'),
-        #    bucket_prefix = generate_s3_prefix())),
+        ('local', dict(auth_token = get_auth_token('local_store'),
+            bucket = get_bucket2_name('local_store'),
+            bucket_prefix = "pfx_",
+            ss_name = 'local_store')),
+        # FIXME-WT-8896 The S3 extension gets stuck during initialization if more than one
+        # simultaneous WT connection is created. Renable once we have fixed this issue.
+        #('s3', dict(auth_token = get_auth_token('s3_store'),
+        #    bucket = get_bucket2_name('s3_store'),
+        #    bucket_prefix = generate_s3_prefix(),
+        #    ss_name = 's3_store')),
     ]
     # Occasionally add a lot of records, so that merges (and bloom) happen.
     record_count_scenarios = wtscenario.quick_scenarios(
@@ -81,7 +78,6 @@ class test_tiered03(wttest.WiredTigerTestCase):
         return \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % bucket_ret  + \
-          'bucket_region=%s,' % self.bucket_region + \
           'cache_directory=%s,' % cache_dir + \
           'bucket_prefix=%s,' % self.bucket_prefix + \
           'name=%s)' % self.ss_name

@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper_tiered import get_auth_token, get_bucket1_name, get_bucket1_region
-from helper_tiered import generate_s3_prefix
+from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
 from wtscenario import make_scenarios
 import os, wiredtiger, wttest
 StorageSource = wiredtiger.StorageSource  # easy access to constants
@@ -37,20 +36,18 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 # prefixes to the same bucket directory but different local databases.
 class test_tiered10(wttest.WiredTigerTestCase):
     storage_sources = [
-        ('local', dict(ss_name = 'local_store',
-            auth_token = get_auth_token('local_store'),
+        ('local', dict(auth_token = get_auth_token('local_store'),
             bucket = get_bucket1_name('local_store'),
-            bucket_region = get_bucket1_region('local_store'),
             prefix1 = '1_',
-            prefix2 = '2_')),
-        # WT-8896 - S3 extension doesnt gets stuck at initializing if more than one simultaneous
-        # WT connection is created. Renable once we have fixed this issue.
-        #('s3', dict(ss_name = 's3_store',
-        #    auth_token = get_auth_token('s3_store'),
+            prefix2 = '2_',
+            ss_name = 'local_store')),
+        # FIXME-WT-8896 The S3 extension gets stuck during initialization if more than one
+        # simultaneous WT connection is created. Renable once we have fixed this issue.
+        #('s3', dict(auth_token = get_auth_token('s3_store'),
         #    bucket = get_bucket1_name('s3_store'),
-        #    bucket_region = get_bucket1_region('s3_store'),
         #    prefix1 = generate_s3_prefix(),
-        #    prefix2 = generate_s3_prefix())),
+        #    prefix2 = generate_s3_prefix(),
+        #    ss_name = 's3_store')),
     ]
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)
@@ -82,7 +79,6 @@ class test_tiered10(wttest.WiredTigerTestCase):
           'create,statistics=(all),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % bucket + \
-          'bucket_region=%s,' % self.bucket_region + \
           'local_retention=%d,' % self.retention + \
           'name=%s),' % self.ss_name 
         return dummy_conn

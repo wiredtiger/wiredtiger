@@ -28,8 +28,8 @@
 
 import os, time, wiredtiger, wttest
 from wiredtiger import stat
-from helper_tiered import get_auth_token, get_bucket1_name, get_bucket1_region
-from helper_tiered import generate_s3_prefix, get_bucket2_name, get_bucket2_region
+from helper_tiered import generate_s3_prefix, get_auth_token
+from helper_tiered import get_bucket1_name, get_bucket2_name
 from wtscenario import make_scenarios
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
@@ -37,22 +37,18 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Basic tiered storage API test.
 class test_tiered04(wttest.WiredTigerTestCase):
     storage_sources = [
-        ('local', dict(ss_name = 'local_store',
-            auth_token = get_auth_token('local_store'),
+        ('local', dict(auth_token = get_auth_token('local_store'),
             bucket = get_bucket1_name('local_store'),
-            region = get_bucket1_region('local_store'),
-            prefix = "pfx_",
             bucket1 = get_bucket2_name('local_store'),
-            region1 = get_bucket2_region('local_store'),
-            prefix1 = "pfx1_")),
-        ('s3', dict(ss_name = 's3_store',
-            auth_token = get_auth_token('s3_store'),
+            prefix = "pfx_",
+            prefix1 = "pfx1_",
+            ss_name = 'local_store')),
+        ('s3', dict(auth_token = get_auth_token('s3_store'),
             bucket = get_bucket1_name('s3_store'),
-            region = get_bucket1_region('s3_store'),
-            prefix = generate_s3_prefix(),
             bucket1 = get_bucket2_name('s3_store'),
-            region1 = get_bucket2_region('s3_store'),
-            prefix1 = generate_s3_prefix())),
+            prefix = generate_s3_prefix(),
+            prefix1 = generate_s3_prefix(),
+            ss_name = 's3_store')),
     ]
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)
@@ -83,7 +79,6 @@ class test_tiered04(wttest.WiredTigerTestCase):
           'statistics=(all),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
-          'bucket_region=%s,' % self.region + \
           'bucket_prefix=%s,' % self.prefix + \
           'local_retention=%d,' % self.retention + \
           'name=%s,' % self.ss_name + \
@@ -138,7 +133,6 @@ class test_tiered04(wttest.WiredTigerTestCase):
         conf = \
           ',tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket1 + \
-          'bucket_region=%s,' % self.region1 + \
           'bucket_prefix=%s,' % self.prefix1 + \
           'local_retention=%d,' % self.retention1 + \
           'name=%s,' % self.ss_name + \
