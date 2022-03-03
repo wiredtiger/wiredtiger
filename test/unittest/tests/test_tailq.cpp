@@ -20,9 +20,9 @@ template <class T> class TestTailQWrapper {
     public:
     TestTailQWrapper();
     ~TestTailQWrapper();
-    void pushBack(const T &value);
+    void pushBack(T const &value);
     void pushBack(std::list<T> const &values);
-    void removeValue(const T &value);
+    void removeValue(T const &value);
     std::list<T> copyItemsFromTailQ();
 
     private:
@@ -46,7 +46,7 @@ template <class T> TestTailQWrapper<T>::~TestTailQWrapper()
 
 template <class T>
 void
-TestTailQWrapper<T>::pushBack(const T &value)
+TestTailQWrapper<T>::pushBack(T const &value)
 {
     auto item = static_cast<tailq_entry<T> *>(malloc(sizeof(tailq_entry<T>)));
     item->_value = value;
@@ -63,7 +63,7 @@ TestTailQWrapper<T>::pushBack(std::list<T> const &values)
 
 template <class T>
 void
-TestTailQWrapper<T>::removeValue(const T &value)
+TestTailQWrapper<T>::removeValue(T const &value)
 {
     tailq_entry<T> *item = TAILQ_FIRST(&_tailq);
     bool searching = true;
