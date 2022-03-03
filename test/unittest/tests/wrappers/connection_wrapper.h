@@ -10,6 +10,7 @@
 #define WT_CONNECTION_WRAPPER_H
 
 #include <memory>
+#include <string>
 #include "wt_internal.h"
 
 /*
