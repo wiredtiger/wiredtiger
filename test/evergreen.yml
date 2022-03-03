@@ -1915,7 +1915,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 110 -j 4 direct_io=1
+          format_test_script_args: -t 110 direct_io=1
 
   - name: format-linux-no-ftruncate
     commands:
