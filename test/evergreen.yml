@@ -57,10 +57,18 @@ functions:
   "fetch mongo repo" :
     command: shell.exec
     params:
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
-        git clone https://github.com/mongodb/mongo
+        mongo_repo=https://github.com/mongodb/mongo
+        branch=${branch_name}
+        if [[ $branch =~ "mongodb-" ]]; then   
+          mongo_branch=v$(echo $branch | cut -d'-' -f 2)
+        else
+          mongo_branch=master
+        fi
+        git clone $mongo_repo -b $mongo_branch
   "import wiredtiger into mongo" :
     command: shell.exec
     params:
@@ -2138,11 +2146,18 @@ tasks:
             dir=../bench/wtperf/stress
             for file in `ls $dir`
             do
+              echo "Disk usage and free space for the current drive (pre-test):"
+              df -h .
               echo "===="
               echo "==== Initiating wtperf test using $dir/$file ===="
               echo "===="
               ${test_env_vars|} ./bench/wtperf/wtperf -O $dir/$file -o verbose=2
-              cp -rf WT_TEST WT_TEST_$file
+              echo "===="
+              echo "Disk usage and free space for the current drive (post-test):"
+              df -h .
+              echo "Total size of WT_TEST directory prior to move:"
+              du -hs WT_TEST
+              mv WT_TEST WT_TEST_$file
             done
 
   - name: ftruncate-test
@@ -2642,7 +2657,8 @@ tasks:
             virtualenv -p python3 venv
             source venv/bin/activate
             pip3 install lorem pymongo==3.12.2
-            ./run_many_coll.sh ../../mongo/build/opt/install/bin/mongod mongodb.log config/many-collection-testing many-collection clean-and-populate
+            mongod_path=$(find ../../mongo/build -executable -type f -path \*/bin/mongod)
+            ./run_many_coll.sh $mongod_path mongodb.log config/many-collection-testing many-collection clean-and-populate
 
       - command: shell.exec
         params:
