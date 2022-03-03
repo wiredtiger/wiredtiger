@@ -5,8 +5,11 @@
  *
  * See the file LICENSE for redistribution information.
  */
+#include <string>
+
+#define DB_HOME "test_db"
 
 namespace utils {
 void throwIfNonZero(int result);
-void wiredtigerCleanup();
+void wiredtigerCleanup(const std::string &db_home);
 } // namespace utils

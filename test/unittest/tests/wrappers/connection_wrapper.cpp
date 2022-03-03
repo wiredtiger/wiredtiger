@@ -13,16 +13,18 @@
 #include "connection_wrapper.h"
 #include "../utils.h"
 
-ConnectionWrapper::ConnectionWrapper() : _conn_impl(nullptr), _conn(nullptr)
+ConnectionWrapper::ConnectionWrapper(const std::string &db_home)
+    : _conn_impl(nullptr), _conn(nullptr), _db_home(db_home)
 {
-    utils::throwIfNonZero(wiredtiger_open(nullptr, nullptr, "create", &_conn));
+    utils::throwIfNonZero(mkdir(_db_home.c_str(), 0700));
+    utils::throwIfNonZero(wiredtiger_open(_db_home.c_str(), nullptr, "create", &_conn));
 }
 
 ConnectionWrapper::~ConnectionWrapper()
 {
     utils::throwIfNonZero(_conn->close(_conn, ""));
 
-    utils::wiredtigerCleanup();
+    utils::wiredtigerCleanup(_db_home);
 }
 
 WT_SESSION_IMPL *

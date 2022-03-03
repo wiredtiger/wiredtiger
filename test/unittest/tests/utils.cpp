@@ -23,16 +23,24 @@ throwIfNonZero(int result)
     }
 }
 
+int
+remove_wrapper(const std::string &path)
+{
+    return std::remove(path.c_str());
+}
+
 void
-wiredtigerCleanup()
+wiredtigerCleanup(const std::string &home)
 {
     // ignoring errors here; we don't mind if something doesn't exist
-    std::remove("WiredTiger");
-    std::remove("WiredTiger.basecfg");
-    std::remove("WiredTiger.lock");
-    std::remove("WiredTiger.turtle");
-    std::remove("WiredTiger.wt");
-    std::remove("WiredTigerHS.wt");
+    remove_wrapper(home + "/WiredTiger");
+    remove_wrapper(home + "/WiredTiger.basecfg");
+    remove_wrapper(home + "/WiredTiger.lock");
+    remove_wrapper(home + "/WiredTiger.turtle");
+    remove_wrapper(home + "/WiredTiger.wt");
+    remove_wrapper(home + "/WiredTigerHS.wt");
+
+    remove_wrapper(home);
 }
 
 } // namespace utils

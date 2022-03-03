@@ -8,13 +8,14 @@
 
 #include <catch2/catch.hpp>
 
+#include "utils.h"
 #include "wiredtiger.h"
 #include "wrappers/connection_wrapper.h"
 #include "wt_internal.h"
 
 TEST_CASE("Reconciliation tracking: ovfl_track_init", "[reconciliation]")
 {
-    ConnectionWrapper conn;
+    ConnectionWrapper conn(DB_HOME);
     WT_SESSION_IMPL *session = conn.createSession();
 
     WT_PAGE p;
@@ -31,7 +32,7 @@ TEST_CASE("Reconciliation tracking: ovfl_track_init", "[reconciliation]")
 
 TEST_CASE("Reconciliation tracking: ovfl_discard_verbose", "[reconciliation]")
 {
-    ConnectionWrapper conn;
+    ConnectionWrapper conn(DB_HOME);
     WT_SESSION_IMPL *session = conn.createSession();
 
     SECTION("handle null page and tag")
@@ -42,7 +43,7 @@ TEST_CASE("Reconciliation tracking: ovfl_discard_verbose", "[reconciliation]")
 
 TEST_CASE("Reconciliation tracking: ovfl_discard_wrapup", "[reconciliation]")
 {
-    ConnectionWrapper conn;
+    ConnectionWrapper conn(DB_HOME);
     WT_SESSION_IMPL *session = conn.createSession();
 
     WT_PAGE p;

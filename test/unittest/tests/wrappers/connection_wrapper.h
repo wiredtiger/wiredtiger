@@ -19,7 +19,7 @@
  */
 class ConnectionWrapper {
     public:
-    ConnectionWrapper();
+    ConnectionWrapper(const std::string &db_home);
     ~ConnectionWrapper();
 
     /*
@@ -35,6 +35,7 @@ class ConnectionWrapper {
     private:
     WT_CONNECTION_IMPL *_conn_impl;
     WT_CONNECTION *_conn;
+    std::string _db_home;
 };
 
 #endif // WT_CONNECTION_WRAPPER_H
