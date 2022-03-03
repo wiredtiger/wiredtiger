@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, re
-from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket2_name
+from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
 import wtscenario, wttest
 from wtdataset import SimpleDataSet
 
@@ -44,13 +44,13 @@ class test_tiered03(wttest.WiredTigerTestCase):
 
     storage_sources = [
         ('local', dict(auth_token = get_auth_token('local_store'),
-            bucket = get_bucket2_name('local_store'),
+            bucket = get_bucket1_name('local_store'),
             bucket_prefix = "pfx_",
             ss_name = 'local_store')),
         # FIXME-WT-8896 The S3 extension gets stuck during initialization if more than one
         # simultaneous WT connection is created. Renable once we have fixed this issue.
         #('s3', dict(auth_token = get_auth_token('s3_store'),
-        #    bucket = get_bucket2_name('s3_store'),
+        #    bucket = get_bucket1_name('s3_store'),
         #    bucket_prefix = generate_s3_prefix(),
         #    ss_name = 's3_store')),
     ]
@@ -63,7 +63,13 @@ class test_tiered03(wttest.WiredTigerTestCase):
 
     def conn_config(self):
         bucket_ret = self.bucket
-        cache_dir = self.bucket + '-cache'
+
+        # The bucket format for the S3 store is the name and the region separataed by a semi-colon.
+        if self.ss_name == 's3_store':
+            cache_dir = self.bucket[:self.bucket.find(';')] + '-cache'
+        else:
+            cache_dir = self.bucket + '-cache'
+
         # We have multiple connections that want to share a bucket.
         # For the local store, the first time this function is called, we'll
         # establish the absolute path for the bucket, and always use that for

@@ -498,7 +498,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     if (delimiter == std::string::npos || delimiter == 0 || delimiter == strlen(bucket) - 1) {
         s3->log->LogErrorMessage(
           "S3CustomizeFileSystem: bucket malformed, "
-          "should be a name and a region separated by a semi-colon");
+          "should be a name and a region separated by a semi-colon.");
         return (EINVAL);
     }
     const std::string bucketName = std::string(bucket).substr(0, delimiter);
