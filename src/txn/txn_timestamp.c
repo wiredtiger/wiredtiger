@@ -924,7 +924,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
     commit_ts = durable_ts = prepare_ts = read_ts = WT_TS_NONE;
 
-    WT_TRET(__wt_txn_context_check(session, true));
+    WT_RET(__wt_txn_context_check(session, true));
 
     /*
      * If the API received no configuration string, or we just have the base configuration, there's
