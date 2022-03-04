@@ -868,11 +868,11 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
 }
 
 /*
- * __wt_txn_set_timestamp_internal --
+ * __txn_set_timestamp_internal --
  *     Does the "heavy lifting" for the outside-facing txn_set_timestamp functions.
  */
 static int
-__wt_txn_set_timestamp_internal(
+__txn_set_timestamp_internal(
   WT_SESSION_IMPL *session, uint64_t commit, uint64_t durable, uint64_t prepare, uint64_t read)
 {
     WT_CONNECTION_IMPL *conn;
@@ -952,7 +952,28 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     }
     WT_RET_NOTFOUND_OK(ret);
 
-    return (__wt_txn_set_timestamp_internal(session, commit_ts, durable_ts, prepare_ts, read_ts));
+    return (__txn_set_timestamp_internal(session, commit_ts, durable_ts, prepare_ts, read_ts));
+}
+
+/*
+ * __ts_txn_type_to_str --
+ *     Convert a WT_TS_TXN_TYPE to a printable string.
+ */
+static const char *
+__ts_txn_type_to_str(WT_TS_TXN_TYPE which)
+{
+    switch (which) {
+    case WT_TS_TXN_TYPE_COMMIT:
+        return "commit_timestamp";
+    case WT_TS_TXN_TYPE_DURABLE:
+        return "durable_timestamp";
+    case WT_TS_TXN_TYPE_PREPARE:
+        return "prepare_timestamp";
+    case WT_TS_TXN_TYPE_READ:
+        return "read_timestamp";
+    }
+
+    return "UNKNOWN";
 }
 
 /*
@@ -968,22 +989,21 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
     if (ts != WT_TS_NONE) {
         switch (which) {
         case WT_TS_TXN_TYPE_COMMIT:
-            WT_RET(
-              __wt_txn_set_timestamp_internal(session, ts, WT_TS_NONE, WT_TS_NONE, WT_TS_NONE));
+            WT_RET(__txn_set_timestamp_internal(session, ts, WT_TS_NONE, WT_TS_NONE, WT_TS_NONE));
             break;
         case WT_TS_TXN_TYPE_DURABLE:
-            WT_RET(
-              __wt_txn_set_timestamp_internal(session, WT_TS_NONE, ts, WT_TS_NONE, WT_TS_NONE));
+            WT_RET(__txn_set_timestamp_internal(session, WT_TS_NONE, ts, WT_TS_NONE, WT_TS_NONE));
             break;
         case WT_TS_TXN_TYPE_PREPARE:
-            WT_RET(
-              __wt_txn_set_timestamp_internal(session, WT_TS_NONE, WT_TS_NONE, ts, WT_TS_NONE));
+            WT_RET(__txn_set_timestamp_internal(session, WT_TS_NONE, WT_TS_NONE, ts, WT_TS_NONE));
             break;
         case WT_TS_TXN_TYPE_READ:
-            WT_RET(
-              __wt_txn_set_timestamp_internal(session, WT_TS_NONE, WT_TS_NONE, WT_TS_NONE, ts));
+            WT_RET(__txn_set_timestamp_internal(session, WT_TS_NONE, WT_TS_NONE, WT_TS_NONE, ts));
             break;
         }
+    } else {
+        WT_RET_MSG(
+          session, EINVAL, "Failed to parse %s: zero not allowed", __ts_txn_type_to_str(which));
     }
 
     return (0);

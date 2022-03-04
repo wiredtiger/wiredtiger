@@ -47,6 +47,22 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.commit_transaction(
             'commit_timestamp=' + self.timestamp_str(1))
 
+        # Can't set a zero timestamp
+        self.session.begin_transaction()
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 0),
+                '/zero not allowed/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_DURABLE, 0),
+                '/zero not allowed/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_PREPARE, 0),
+                '/zero not allowed/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_READ, 0),
+                '/zero not allowed/')
+        self.session.rollback_transaction()
+
         # In a single transaction it is illegal to set a commit timestamp
         # older than the first commit timestamp used for this transaction.
         # Check both timestamp_transaction_uint and commit_transaction APIs.
