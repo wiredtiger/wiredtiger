@@ -31,7 +31,7 @@ The S3 store also configures a directory on the file system local to the WiredTi
 cache for the object files. The cache is meant to improve the read latency for the object files
 read after an initial download from the S3.
 
-@section s3_extension_s3connection S3 Connection class
+@section s3_extension_connection S3 Connection class
 
 The S3Connection class represents an active connection to an S3 bucket. It encapsulates and
 implements all the operations the S3 filesystem requires. The instantiation of the class object
@@ -59,7 +59,7 @@ The S3 store uses the filesystem's put-object functionality to flush the files i
 Tier Manager inside WiredTiger directs the flush of the files. The files pushed to the cloud are
 also copied to the local cache for easy access.
 
-@section s3_extension_file_system S3_FILE_HANDLE
+@section s3_extension_file_handle S3_FILE_HANDLE
 
 The S3 store also implements the WT_FILE_HANDLE interface, S3_FILE_SYSTEM, to access the files on
 the S3 file system. A handle is created to the copy of the object on the local cache. Since the
@@ -68,7 +68,7 @@ WT_FILE_HANDLE implementation native to WiredTiger. Hence, a copy of native WT_F
 encapsulated in the S3 filehandle. Since the object store is archival, all the writing access
 methods are disabled.
 
-@section s3_extension_file_system S3 Logging and Statistics
+@section s3_extension_log_stat S3 Logging and Statistics
 
 The S3 store provides a logger implementation that redirects the generated logs to the WiredTiger
 logging streams. AWS SDK also registers the same logger, and the best attempt is made to match the
