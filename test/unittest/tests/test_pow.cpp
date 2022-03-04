@@ -12,8 +12,8 @@
 
 TEST_CASE("Power functions: log2_int", "[pow]")
 {
-    // this is mathematically wrong, but given the unsigned return type, about
-    // the best that can be expected
+    // This is mathematically wrong, but given the unsigned return type, about
+    // the best that can be expected.
     REQUIRE(__wt_log2_int(0) == 0);
 
     REQUIRE(__wt_log2_int(1) == 0);
@@ -36,7 +36,7 @@ TEST_CASE("Power functions: log2_int", "[pow]")
 
 TEST_CASE("Power functions: ispo2", "[pow]")
 {
-    // this is mathematically wrong, but makes sense for how it's used
+    // This is mathematically wrong, but makes sense for how it's used.
     REQUIRE(__wt_ispo2(0) == true);
 
     REQUIRE(__wt_ispo2(1) == true);
@@ -61,7 +61,7 @@ TEST_CASE("Power functions: ispo2", "[pow]")
 
 TEST_CASE("Power functions: rduppo2", "[pow]")
 {
-    // Expected valid calls, where the 2nd param is a power of two
+    // Expected valid calls, where the 2nd param is a power of two.
     REQUIRE(__wt_rduppo2(0, 8) == 0);
     REQUIRE(__wt_rduppo2(1, 8) == 8);
     REQUIRE(__wt_rduppo2(9, 8) == 16);
@@ -75,7 +75,7 @@ TEST_CASE("Power functions: rduppo2", "[pow]")
     REQUIRE(__wt_rduppo2(42, 128) == 128);
 
     // Expected invalid calls, where the 2nd param is NOT a power of two,
-    // and therefore the return value should be 0
+    // and therefore the return value should be 0.
     REQUIRE(__wt_rduppo2(1, 7) == 0);
     REQUIRE(__wt_rduppo2(1, 42) == 0);
     REQUIRE(__wt_rduppo2(102, 42) == 0);

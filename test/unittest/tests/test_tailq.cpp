@@ -127,7 +127,7 @@ TEST_CASE("Test TAILQ: attempted removal from empty TAILQ", "[TAILQ]")
 {
     TestTailQWrapper<int> testTailQWrapper;
 
-    // the list is empty so this will have no effect
+    // The list is empty so this will have no effect.
     testTailQWrapper.removeValue(99);
     auto returnedItems = testTailQWrapper.copyItemsFromTailQ();
     CHECK(returnedItems.empty());

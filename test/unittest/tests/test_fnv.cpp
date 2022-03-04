@@ -10,7 +10,7 @@
 
 #include "wt_internal.h"
 
-// due credit: the cases that hash to zero came from
+// Due credit: the cases that hash to zero came from
 // http://www.isthe.com/chongo/tech/comp/fnv/#zero-hash
 TEST_CASE("Hashing: hash_fnv64", "[fnv]")
 {

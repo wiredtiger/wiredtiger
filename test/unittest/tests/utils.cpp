@@ -32,7 +32,7 @@ remove_wrapper(const std::string &path)
 void
 wiredtigerCleanup(const std::string &home)
 {
-    // ignoring errors here; we don't mind if something doesn't exist
+    // Ignoring errors here; we don't mind if something doesn't exist.
     remove_wrapper(home + "/WiredTiger");
     remove_wrapper(home + "/WiredTiger.basecfg");
     remove_wrapper(home + "/WiredTiger.lock");
