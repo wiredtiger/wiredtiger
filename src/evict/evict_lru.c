@@ -2691,14 +2691,14 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    double cache_bytes_updates, pct;
-    uint64_t total_bytes, total_dirty_bytes, total_updates_bytes;
+    double pct;
+    uint64_t total_bytes, total_dirty_bytes, total_updates_bytes, cache_bytes_updates;
     bool needed;
 
     conn = S2C(session);
     cache = conn->cache;
-    total_bytes = total_dirty_bytes = total_updates_bytes = 0;
-    pct = cache_bytes_updates = 0.0; /* [-Werror=uninitialized] */
+    total_bytes = total_dirty_bytes = total_updates_bytes = cache_bytes_updates = 0;
+    pct = 0.0; /* [-Werror=uninitialized] */
 
     WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
     WT_RET(__wt_msg(session, "cache dump"));
@@ -2737,7 +2737,7 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
       "total updates bytes: %.2f"
       "MB vs tracked updates %.2f"
       "MB",
-      (double)total_updates_bytes / WT_MEGABYTE, cache_bytes_updates / WT_MEGABYTE));
+      (double)total_updates_bytes / WT_MEGABYTE, (double)cache_bytes_updates / WT_MEGABYTE));
 
     return (0);
 }
