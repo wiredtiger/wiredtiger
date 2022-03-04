@@ -24,13 +24,13 @@ throwIfNonZero(int result)
 }
 
 int
-remove_wrapper(const std::string &path)
+remove_wrapper(std::string const &path)
 {
     return std::remove(path.c_str());
 }
 
 void
-wiredtigerCleanup(const std::string &home)
+wiredtigerCleanup(std::string const &home)
 {
     // Ignoring errors here; we don't mind if something doesn't exist.
     remove_wrapper(home + "/WiredTiger");
