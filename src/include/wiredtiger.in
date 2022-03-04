@@ -1917,7 +1917,7 @@ struct __wt_session {
 	 * @param which the timestamp you wish to set. See @ref WT_TS_TXN_TYPE for available
 	 * options, and @ref timestamp_transaction for constraints on when timestamps can be
 	 * set.
-	 * @param ts the timestamp. Zero means none.
+	 * @param ts the timestamp. Zero is not allowed.
 	 * @errors
 	 */
 	int __F(timestamp_transaction_uint)(WT_SESSION *session, WT_TS_TXN_TYPE which,
