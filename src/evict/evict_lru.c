@@ -2619,7 +2619,7 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session, uint64_t *total_bytesp,
             "internal: "
             "%" PRIu64 " pages, %.2f KB, "
             "%" PRIu64 "/%" PRIu64 " clean/dirty pages, "
-            "%.2f /%.2f clean / dirty KB, "
+            "%.2f/%.2f clean / dirty KB, "
             "%.2f KB max page, "
             "%.2f KB max dirty page ",
             intl_pages, (double)intl_bytes / WT_KILOBYTE, intl_pages - intl_dirty_pages,
@@ -2722,21 +2722,12 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
     total_bytes = __wt_cache_bytes_plus_overhead(conn->cache, total_bytes);
     cache_bytes_updates = __wt_cache_bytes_updates(cache);
 
-    WT_RET(__wt_msg(session,
-      "cache dump: total found: %.2f"
-      "MB vs tracked inuse %.2f"
-      "MB",
+    WT_RET(__wt_msg(session, "cache dump: total found: %.2f MB vs tracked inuse %.2f MB",
       (double)total_bytes / WT_MEGABYTE, (double)cache->bytes_inmem / WT_MEGABYTE));
-    WT_RET(__wt_msg(session,
-      "total dirty bytes: %.2f"
-      "MB vs tracked dirty %.2f"
-      "MB",
+    WT_RET(__wt_msg(session, "total dirty bytes: %.2f MB vs tracked dirty %.2f MB",
       (double)total_dirty_bytes / WT_MEGABYTE,
       (double)(cache->bytes_dirty_intl + cache->bytes_dirty_leaf) / WT_MEGABYTE));
-    WT_RET(__wt_msg(session,
-      "total updates bytes: %.2f"
-      "MB vs tracked updates %.2f"
-      "MB",
+    WT_RET(__wt_msg(session, "total updates bytes: %.2f MB vs tracked updates %.2f MB",
       (double)total_updates_bytes / WT_MEGABYTE, (double)cache_bytes_updates / WT_MEGABYTE));
 
     return (0);
