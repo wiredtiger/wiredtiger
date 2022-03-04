@@ -1818,7 +1818,7 @@ __session_timestamp_transaction_uint(WT_SESSION *wt_session, WT_TS_TXN_TYPE whic
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_NOCONF(session, timestamp_transaction_uint);
+    SESSION_API_CALL_PREPARE_ALLOWED_NOCONF(session, timestamp_transaction_uint);
 
     ret = __wt_txn_set_timestamp_uint(session, which, (wt_timestamp_t)ts);
 err:
