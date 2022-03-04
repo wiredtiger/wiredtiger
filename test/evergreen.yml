@@ -96,6 +96,7 @@ functions:
       working_dir: "wiredtiger"
       shell: bash
       script: |
+        
         # Fetch the gperftools library.
         if [[ "${posix_configure_flags|}" =~ (tcmalloc|TCMALLOC) ]]; then
           is_cmake_build=true
@@ -4103,8 +4104,8 @@ buildvariants:
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     # Use half number of vCPU to avoid OOM kill failure
     smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
-    cmake_generator: Ninja
-    make_command: ninja
+    cmake_generator: "Unix Makefiles"
+    make_command: make
   tasks:
     - name: compile
     - name: unit-test

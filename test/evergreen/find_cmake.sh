@@ -20,9 +20,9 @@ find_cmake ()
     elif [ -f "/opt/cmake/bin/cmake" ]; then
         CMAKE="/opt/cmake/bin/cmake"
         CTEST="/opt/cmake/bin/ctest"
-    elif command -v cmake 2>/dev/null; then
-        CMAKE=cmake
-        CTEST=ctest
+    # elif command -v cmake 2>/dev/null; then
+    #     CMAKE=cmake
+    #     CTEST=ctest
     elif uname -a | grep -iq 'x86_64 GNU/Linux'; then
         if [ -f "$(pwd)/cmake-$CMAKE_VERSION/bin/cmake" ]; then
             CMAKE="$(pwd)/cmake-$CMAKE_VERSION/bin/cmake"
