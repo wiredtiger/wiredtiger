@@ -654,7 +654,7 @@ __curtable_remove(WT_CURSOR *cursor)
 
 notfound:
     /*
-     * If the cursor was positioned, it stays positioned with a key but no no value, otherwise,
+     * If the cursor was positioned, it stays positioned with a key but has no value, otherwise,
      * there's no position, key or value. This isn't just cosmetic, without a reset, iteration on
      * this cursor won't start at the beginning/end of the table.
      */
