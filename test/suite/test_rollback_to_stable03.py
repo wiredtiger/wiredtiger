@@ -65,7 +65,9 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
 
         # Create a table.
         uri = "table:rollback_to_stable03"
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds_config = ',log=(enabled=false)' if self.in_memory else ''
+        ds = SimpleDataSet(self, uri, 0,
+            key_format=self.key_format, value_format=self.value_format, config=ds_config)
         ds.populate()
 
         if self.value_format == '8t':
@@ -83,15 +85,15 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
 
         self.large_updates(uri, valuea, ds, nrows, self.prepare, 10)
         # Check that all updates are seen.
-        self.check(valuea, uri, nrows, None, 10)
+        self.check(valuea, uri, nrows, None, 11 if self.prepare else 10)
 
         self.large_updates(uri, valueb, ds, nrows, self.prepare, 20)
         # Check that all updates are seen.
-        self.check(valueb, uri, nrows, None, 20)
+        self.check(valueb, uri, nrows, None, 21 if self.prepare else 20)
 
         self.large_updates(uri, valuec, ds, nrows, self.prepare, 30)
         # Check that all updates are seen.
-        self.check(valuec, uri, nrows, None, 30)
+        self.check(valuec, uri, nrows, None, 31 if self.prepare else 30)
 
         # Pin stable to timestamp 30 if prepare otherwise 20.
         if self.prepare:

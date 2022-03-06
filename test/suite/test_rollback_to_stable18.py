@@ -63,7 +63,9 @@ class test_rollback_to_stable18(test_rollback_to_stable_base):
 
         # Create a table.
         uri = "table:rollback_to_stable18"
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds_config = ',log=(enabled=false)'
+        ds = SimpleDataSet(self, uri, 0,
+            key_format=self.key_format, value_format=self.value_format, config=ds_config)
         ds.populate()
 
         if self.value_format == '8t':
@@ -82,8 +84,8 @@ class test_rollback_to_stable18(test_rollback_to_stable_base):
         self.large_removes(uri, ds, nrows, self.prepare, 30)
 
         # Verify data is visible and correct.
-        self.check(value_a, uri, nrows, None, 20)
-        self.check(None, uri, 0, nrows, 30)
+        self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
+        self.check(None, uri, 0, nrows, 31 if self.prepare else 30)
 
         # Configure debug behavior on a cursor to evict the page positioned on when the reset API is used.
         evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
