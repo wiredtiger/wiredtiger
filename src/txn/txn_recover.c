@@ -175,7 +175,7 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         WT_ERR(__wt_logop_col_remove_unpack(session, pp, end, &fileid, &recno));
         GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
         cursor->set_key(cursor, recno);
-        WT_ERR_NOTFOUND_OK(cursor->remove(cursor), false);
+        WT_ERR(cursor->remove(cursor));
         break;
 
     case WT_LOGOP_COL_TRUNCATE:
@@ -237,7 +237,7 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         WT_ERR(__wt_logop_row_remove_unpack(session, pp, end, &fileid, &key));
         GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
         __wt_cursor_set_raw_key(cursor, &key);
-        WT_ERR_NOTFOUND_OK(cursor->remove(cursor), false);
+        WT_ERR(cursor->remove(cursor));
         break;
 
     case WT_LOGOP_ROW_TRUNCATE:
