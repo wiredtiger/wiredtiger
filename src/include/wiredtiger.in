@@ -577,8 +577,7 @@ struct __wt_cursor {
 	/*!
 	 * Remove a record.
 	 *
-	 * The key must be set; the key's record will be removed if it exists,
-	 * no error will be returned if the record does not exist.
+	 * The key must be set; the key's record will be removed if it exists.
 	 *
 	 * @snippet ex_all.c Remove a record
 	 *

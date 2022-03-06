@@ -379,41 +379,33 @@ cursor_ops(WT_SESSION *session)
     }
 
     {
-        /*! [Remove a record and fail if DNE] */
-        const char *key = "some key";
-        error_check(
-          session->open_cursor(session, "table:mytable", NULL, "overwrite=false", &cursor));
-        cursor->set_key(cursor, key);
-        /* We expect to get a WT_NOTFOUND error if we try to remove a record that does not exist. */
-        if ((ret = cursor->remove(cursor)) == WT_NOTFOUND)
-            fprintf(stderr, "cursor.remove: %s\n", wiredtiger_strerror(ret));
-        else
-            error_check(ret);
-        /*! [Remove a record and fail if DNE] */
-    }
-
-    {
         /*! [Remove a record] */
         const char *key = "some key";
         error_check(session->open_cursor(session, "table:mytable", NULL, NULL, &cursor));
         cursor->set_key(cursor, key);
+        error_check(cursor->remove(cursor));
+        /*! [Remove a record] */
+    }
+
+    {
+        /*! [Remove a record and fail if DNE] */
+        const char *key = "non-existent key";
+        error_check(session->open_cursor(session, "table:mytable", NULL, NULL, &cursor));
+        cursor->set_key(cursor, key);
         /* We expect to get a WT_NOTFOUND error if we try to remove a record that does not exist. */
         if ((ret = cursor->remove(cursor)) == WT_NOTFOUND)
-            fprintf(stderr, "cursor.remove: %s\n", wiredtiger_strerror(ret));
+            fprintf(stderr, "cursor.remove: key doesn't exist %s\n", wiredtiger_strerror(ret));
         else
             error_check(ret);
-        /*! [Remove a record] */
+        /*! [Remove a record and fail if DNE] */
     }
 
     {
         /*! [Display an error] */
         const char *key = "non-existent key";
         cursor->set_key(cursor, key);
-        /* We expect to get a WT_NOTFOUND error if we try to remove a record that does not exist. */
-        if ((ret = cursor->remove(cursor)) == WT_NOTFOUND)
+        if ((ret = cursor->remove(cursor)) != 0)
             fprintf(stderr, "cursor.remove: %s\n", wiredtiger_strerror(ret));
-        else
-            error_check(ret);
         /*! [Display an error] */
     }
 
@@ -421,11 +413,8 @@ cursor_ops(WT_SESSION *session)
         /*! [Display an error thread safe] */
         const char *key = "non-existent key";
         cursor->set_key(cursor, key);
-        /* We expect to get a WT_NOTFOUND error if we try to remove a record that does not exist. */
-        if ((ret = cursor->remove(cursor)) == WT_NOTFOUND)
+        if ((ret = cursor->remove(cursor)) != 0)
             fprintf(stderr, "cursor.remove: %s\n", cursor->session->strerror(cursor->session, ret));
-        else
-            error_check(ret);
         /*! [Display an error thread safe] */
     }
 
