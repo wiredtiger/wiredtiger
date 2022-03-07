@@ -180,32 +180,3 @@ err:
     __wt_scr_free(session, &tmp);
     return (ret);
 }
-
-/*
- * __wt_schema_convert_file_to_table --
- *     Convert the file name to a table metadata reference. The filename needs to have an extension
- *     for this function.
- */
-int
-__wt_schema_convert_file_to_table(WT_SESSION_IMPL *session, const char *filename, char **buf)
-{
-    WT_DECL_RET;
-    size_t bufsz;
-    const char *filep, *suffixp;
-
-    filep = filename;
-    WT_PREFIX_SKIP_REQUIRED(session, filep, "file:");
-    if ((suffixp = strrchr(filename, '.')) != NULL) {
-        bufsz = strlen("table:") + strlen(filep) - strlen(suffixp) + 1;
-        WT_ERR(__wt_calloc_def(session, bufsz, buf));
-        WT_ERR(
-          __wt_snprintf(*buf, bufsz, "table:%.*s", (int)(strlen(filep) - strlen(suffixp)), filep));
-    } else
-        WT_ERR_MSG(session, WT_ERROR, "There is no extension in the file name '%s'", filename);
-    return (0);
-
-err:
-    if (buf != NULL)
-        __wt_free(session, buf);
-    return (ret);
-}
