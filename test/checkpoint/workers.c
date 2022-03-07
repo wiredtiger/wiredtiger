@@ -272,7 +272,7 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
             testutil_check(cursor->reset(cursor));
     } else {
         if (new_val % 39 < 30) {
-            // Do modify
+            /* Do modify. */
             ret = cursor->search(cursor);
             if (ret == 0 && (type != FIX || !cursor_fix_at_zero(cursor))) {
                 modify_build(entries, &nentries, new_val);
@@ -298,7 +298,7 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
             }
         }
 
-        // If key doesn't exist, turn modify into an insert.
+        /* If key doesn't exist, turn modify into an insert. */
         testutil_check(__wt_snprintf(valuebuf, sizeof(valuebuf), "%052u", new_val));
         if (type == FIX)
             cursor->set_value(cursor, flcs_encode(valuebuf));
@@ -424,20 +424,20 @@ real_worker(void)
                         next_rnd = __wt_random(&rnd);
                         if (g.prepare && next_rnd % 2 == 0) {
                             testutil_check(__wt_snprintf(
-                              buf, sizeof(buf), "prepare_timestamp=%x", g.ts_stable + 1));
+                              buf, sizeof(buf), "prepare_timestamp=%" PRIx64, g.ts_stable + 1));
                             if ((ret = session->prepare_transaction(session, buf)) != 0) {
                                 __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
                                 (void)log_print_err("real_worker:prepare_transaction", ret, 1);
                                 goto err;
                             }
                             testutil_check(__wt_snprintf(buf, sizeof(buf),
-                              "durable_timestamp=%x,commit_timestamp=%x", g.ts_stable + 3,
-                              g.ts_stable + 1));
+                              "durable_timestamp=%" PRIx64 ",commit_timestamp=%" PRIx64,
+                              g.ts_stable + 3, g.ts_stable + 1));
                         } else
                             testutil_check(__wt_snprintf(
-                              buf, sizeof(buf), "commit_timestamp=%x", g.ts_stable + 1));
+                              buf, sizeof(buf), "commit_timestamp=%" PRIx64, g.ts_stable + 1));
 
-                        // Commit majority of times
+                        /* Commit majority of times. */
                         if (next_rnd % 49 != 0) {
                             if ((ret = session->commit_transaction(session, buf)) != 0) {
                                 __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
@@ -458,7 +458,7 @@ real_worker(void)
                             reopen_cursors = true;
                     }
                 } else {
-                    // Commit majority of times
+                    /* Commit majority of times. */
                     if (next_rnd % 49 != 0) {
                         if ((ret = session->commit_transaction(session, NULL)) != 0) {
                             (void)log_print_err("real_worker:commit_transaction", ret, 1);
