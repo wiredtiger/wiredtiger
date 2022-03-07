@@ -2971,9 +2971,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_config_gets(session, cfg, "verify_metadata", &cval));
     verify_meta = cval.val;
     WT_ERR(__wt_config_gets(session, cfg, "backup_partial_restore", &cval));
-    if (cval.val != 0)
+    if (cval.len != 0)
         F_SET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE);
-    WT_ERR(__wt_turtle_init(session, verify_meta));
+    WT_ERR(__wt_turtle_init(session, verify_meta, &cval));
 
     /* Verify the metadata file. */
     if (verify_meta) {
@@ -3039,7 +3039,7 @@ err:
     __wt_scr_discard(&conn->dummy_session);
 
     /*
-     * Clean up the partial backup restore flag and backup id list. The list was used in recovery to
+     * Clean up the partial backup restore flag and backup btree id list. The list was used in recovery to
      * truncate the history store entries and the flag was used to allow schema drops to happen on
      * tables to clean up the entries in the creation of the metadata file.
      */

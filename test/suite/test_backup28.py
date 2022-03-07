@@ -33,71 +33,65 @@ from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet, SimpleIndexDataSet, SimpleLSMDataSet
 
 # test_backup28.py
-# Test selective backup with different schema types. Recovering a partial backup with colgroups, 
-# index or lsm formats should raise a message. The only supported types are file: and table:.
+# Test selective backup with different schema types. Recovering a partial backup with target uris
+# including colgroups, index or lsm formats should raise a message. The only supported types are
+# table formats in the uri list.
 class test_backup28(backup_base):
     dir='backup.dir'    # Backup directory name
     uri="table_backup"
 
     types = [
-        ('file', dict(uri='file:', use_cg=False, use_index=False, remove_list=False)),
-        ('lsm', dict(uri='lsm:', use_cg=False, use_index=False, remove_list=False)),
-        ('table-simple', dict(uri='table:', use_cg=False, use_index=False, remove_list=False)),
-        ('table-cg-copy', dict(uri='table:', use_cg=True, use_index=False, remove_list=False)),
-        ('table-index-copy', dict(uri='table:', use_cg=False, use_index=True, remove_list=False)),
-        ('table-cg-no-copy', dict(uri='table:', use_cg=True, use_index=False, remove_list=True)),
-        ('table-index-no-copy', dict(uri='table:', use_cg=False, use_index=True, remove_list=True)),
+        ('file', dict(pfx='file:', target_uri_list=["file:table0"])),
+        ('lsm', dict(pfx='lsm:', target_uri_list=["lsm:table0"])),
+        ('table-simple', dict(pfx='table:', target_uri_list=["table:table0"])),
+        ('table-cg', dict(pfx='table:', target_uri_list=["index:table0:i0", "table:table0"])),
+        ('table-index', dict(pfx='table:', target_uri_list=["colgroup:table0:g0", "table:table0"])),
     ]
 
     scenarios = make_scenarios(types)
 
     def test_backup28(self):
         selective_remove_file_list = []
-        uri = self.uri + 'table0'
+        uri = self.pfx + 'table0'
         create_params = 'key_format=S,value_format=S,'
-
-        cgparam = ''
-        suburi = None
-        if self.use_cg or self.use_index:
-            cgparam = 'columns=(k,v),'
-        if self.use_cg:
-            cgparam += 'colgroups=(g0),'
-
+    
+        cgparam = 'columns=(k,v),colgroups=(g0),'
         # Create the main table.
         self.session.create(uri, create_params + cgparam)
-        # Add in column group or index tables.
-        if self.use_cg:
-            cgparam = 'columns=(v),'
+
+        if (self.pfx != "lsm:" and self.pfx != "file:"):
+            # Add in column group and index tables.
+            colgroup_param = 'columns=(v),'
             suburi = 'colgroup:table0:g0'
-            self.session.create(suburi, cgparam)
-            selective_remove_file_list.append("table0_g0.wt")
-        elif self.use_index:
+            self.session.create(suburi, colgroup_param)
+            
             suburi = 'index:table0:i0'
             self.session.create(suburi, cgparam)
-            selective_remove_file_list.append("table0_i0.wt")
-        self.session.checkpoint()
+            self.session.checkpoint()
 
         os.mkdir(self.dir)
 
         # Now copy the files using full backup. Selectively don't copy files based on remove list.
-        all_files = self.take_selective_backup(self.dir, selective_remove_file_list if self.remove_list else [])
+        all_files = self.take_selective_backup(self.dir, [])
         
-        if self.use_cg or self.use_index or self.uri == "lsm:":
-            # After the full backup, perform partial backup restore on the backup database, it should
-            # fail and return with a message, because we currently don't support colgroups, indexes
-            # or lsm formats.
-            self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
-                lambda: self.wiredtiger_open(self.dir, "backup_partial_restore=true"),
-                '/partial backup currently doesn\'t support .* files./')
-        else:
+        target_uri_list_format = str(self.target_uri_list).replace("\'", "\"")
+        if len(self.target_uri_list) and self.target_uri_list[0] == "table:table0":
             # After the full backup, open and recover the backup database, and it should succeed.
-            backup_conn = self.wiredtiger_open(self.dir, "backup_partial_restore=true")
+            backup_conn = self.wiredtiger_open(self.dir, "backup_partial_restore={0}".format(target_uri_list_format))
             bkup_session = backup_conn.open_session()
-
+            
             # Make sure that the table recovered properly.
             c = bkup_session.open_cursor(uri, None, None)
             c.close()
             backup_conn.close()
+        else:
+            # After the full backup, perform partial backup restore adding the target uris of 
+            # indexes, colgroups or lsm. This should fail and return with a message, as we only allow 
+            # table formats.
+            self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+                lambda: self.wiredtiger_open(self.dir, "backup_partial_restore={0}".format(target_uri_list_format)),
+                '/partial backup restore only supports objects of type .* formats in the target uri list/')
+
             
 if __name__ == '__main__':
     wttest.run()

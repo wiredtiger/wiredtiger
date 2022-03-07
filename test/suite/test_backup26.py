@@ -53,46 +53,36 @@ class test_backup26(backup_base):
         ('ten_percent', dict(percentage=0.1)),
         ('zero_percent', dict(percentage=0)),
     ]
-    remove_list = [
-        ('empty remove list', dict(type=None)),
-        ('table remove list', dict(type="table:")),
-        ('file remove list', dict(type="file:")),
-    ]
-    scenarios = make_scenarios(remove_list, percentage)
+    scenarios = make_scenarios(percentage)
 
     def test_backup26(self):
+        selective_remove_uri_file_list = []
         selective_remove_uri_list = []
-        selective_file_list = []
-        selective_remove_file_list = []
-        for i in range(0, int(self.ntables * self.percentage)):
-            uri = "file:{0}_file.wt".format(self.uri + str(i))
-            dataset = SimpleDataSet(self, uri, 100, key_format="S")
-            dataset.populate()
-            if (self.type and self.type == "file:"):
-                selective_remove_uri_list.append(uri)
-                selective_remove_file_list.append("{0}_file.wt".format(self.uri + str(i)))
-            else:
-                selective_file_list.append(uri)
+        selective_uri_list = []
 
-        for i in range(0, int(self.ntables * (1 - self.percentage))):
-            uri = "table:{0}_table".format(self.uri + str(i))
+        for i in range(0, self.ntables):
+            uri = "table:{0}".format(self.uri + str(i))
             dataset = SimpleDataSet(self, uri, 100, key_format="S")
             dataset.populate()
-            if (self.type and self.type == "table:"):
+            if (i <= int(self.ntables * self.percentage)):
                 selective_remove_uri_list.append(uri)
-                selective_remove_file_list.append("{0}_table.wt".format(self.uri + str(i)))
+                selective_remove_uri_file_list.append("{0}.wt".format(self.uri + str(i)))
             else:
-                selective_file_list.append(uri)
+                selective_uri_list.append(uri)
         self.session.checkpoint()
 
         os.mkdir(self.dir)
 
         # Now copy the files using full backup. This should not include the tables inside the remove list.
-        all_files = self.take_selective_backup(self.dir, selective_remove_file_list)
 
-        starttime = time.time()        
+        #print(selective_remove_uri_file_list)
+        all_files = self.take_selective_backup(self.dir, selective_remove_uri_file_list)
+
+        starttime = time.time()
+
+        target_uris = str(selective_uri_list).replace("\'", "\"")
         # After the full backup, open and recover the backup database.
-        backup_conn = self.wiredtiger_open(self.dir, "backup_partial_restore=true")
+        backup_conn = self.wiredtiger_open(self.dir, "backup_partial_restore={0}".format(target_uris))
         elapsed = time.time() - starttime
         self.pr("%s partial backup has taken %.2f seconds." % (str(self), elapsed))
         
@@ -105,7 +95,7 @@ class test_backup26(backup_base):
 
         # Open the cursors on tables that copied over to the backup directory. They should still 
         # recover properly.
-        for uri in selective_file_list:
+        for uri in selective_uri_list:
             c = bkup_session.open_cursor(uri, None, None)
             ds = SimpleDataSet(self, uri, 100, key_format="S")
             ds.check_cursor(c)

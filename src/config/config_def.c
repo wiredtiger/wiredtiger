@@ -845,7 +845,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_transaction_sync_subconfigs
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
-  {"backup_partial_restore", "boolean", NULL, NULL, NULL, 0},
+  {"backup_partial_restore", "list", NULL, NULL, NULL, 0},
   {"block_cache", "category", NULL, NULL, confchk_wiredtiger_open_block_cache_subconfigs, 12},
   {"buffer_alignment", "int", NULL, "min=-1,max=1MB", NULL, 0},
   {"builtin_extension_config", "string", NULL, NULL, NULL, 0},
@@ -928,7 +928,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
-  {"backup_partial_restore", "boolean", NULL, NULL, NULL, 0},
+  {"backup_partial_restore", "list", NULL, NULL, NULL, 0},
   {"block_cache", "category", NULL, NULL, confchk_wiredtiger_open_block_cache_subconfigs, 12},
   {"buffer_alignment", "int", NULL, "min=-1,max=1MB", NULL, 0},
   {"builtin_extension_config", "string", NULL, NULL, NULL, 0},
@@ -1011,7 +1011,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
-  {"backup_partial_restore", "boolean", NULL, NULL, NULL, 0},
+  {"backup_partial_restore", "list", NULL, NULL, NULL, 0},
   {"block_cache", "category", NULL, NULL, confchk_wiredtiger_open_block_cache_subconfigs, 12},
   {"buffer_alignment", "int", NULL, "min=-1,max=1MB", NULL, 0},
   {"builtin_extension_config", "string", NULL, NULL, NULL, 0},
@@ -1090,7 +1090,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
-  {"backup_partial_restore", "boolean", NULL, NULL, NULL, 0},
+  {"backup_partial_restore", "list", NULL, NULL, NULL, 0},
   {"block_cache", "category", NULL, NULL, confchk_wiredtiger_open_block_cache_subconfigs, 12},
   {"buffer_alignment", "int", NULL, "min=-1,max=1MB", NULL, 0},
   {"builtin_extension_config", "string", NULL, NULL, NULL, 0},
@@ -1464,7 +1464,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "version=(major=0,minor=0),write_timestamp_usage=none",
     confchk_tiered_meta, 52},
   {"wiredtiger_open",
-    "backup_partial_restore=false,"
+    "backup_partial_restore=,"
     "block_cache=(blkcache_eviction_aggression=1800,"
     "cache_on_checkpoint=true,cache_on_writes=true,enabled=false,"
     "full_target=95,hashsize=0,max_percent_overhead=10,nvram_path=,"
@@ -1505,7 +1505,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "verify_metadata=false,write_through=",
     confchk_wiredtiger_open, 59},
   {"wiredtiger_open_all",
-    "backup_partial_restore=false,"
+    "backup_partial_restore=,"
     "block_cache=(blkcache_eviction_aggression=1800,"
     "cache_on_checkpoint=true,cache_on_writes=true,enabled=false,"
     "full_target=95,hashsize=0,max_percent_overhead=10,nvram_path=,"
@@ -1546,7 +1546,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "verify_metadata=false,version=(major=0,minor=0),write_through=",
     confchk_wiredtiger_open_all, 60},
   {"wiredtiger_open_basecfg",
-    "backup_partial_restore=false,"
+    "backup_partial_restore=,"
     "block_cache=(blkcache_eviction_aggression=1800,"
     "cache_on_checkpoint=true,cache_on_writes=true,enabled=false,"
     "full_target=95,hashsize=0,max_percent_overhead=10,nvram_path=,"
@@ -1585,7 +1585,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "verify_metadata=false,version=(major=0,minor=0),write_through=",
     confchk_wiredtiger_open_basecfg, 54},
   {"wiredtiger_open_usercfg",
-    "backup_partial_restore=false,"
+    "backup_partial_restore=,"
     "block_cache=(blkcache_eviction_aggression=1800,"
     "cache_on_checkpoint=true,cache_on_writes=true,enabled=false,"
     "full_target=95,hashsize=0,max_percent_overhead=10,nvram_path=,"

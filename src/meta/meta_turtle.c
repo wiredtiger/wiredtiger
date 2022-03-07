@@ -57,23 +57,25 @@ __metadata_init(WT_SESSION_IMPL *session)
  *     Load the contents of any hot backup file.
  */
 static int
-__metadata_load_hot_backup(WT_SESSION_IMPL *session)
+__metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *bkup_cfg)
 {
-    WT_CONFIG_ITEM cval;
+    WT_CONFIG bkup_config;
+    WT_CONFIG_ITEM cval, k, v;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(value);
     WT_DECL_RET;
     WT_FSTREAM *fs;
-    size_t allocated_id, allocated_name, i, slot;
-    char *buf, *metadata_key, **p, **partial_backup_names;
+    size_t allocated_id, allocated_name, cnt, len, slot;
+    char *filename, *metadata_conf, *metadata_key, **p, **partial_backup_names, *tablename;
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "remove_files=false", NULL};
     bool exist;
 
     allocated_id = 0;
     allocated_name = 0;
-    buf = NULL;
+    cnt = 0;
     conn = S2C(session);
+    filename = NULL;
     partial_backup_names = NULL;
     slot = 0;
 
@@ -82,6 +84,16 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
     if (!exist)
         return (0);
     WT_RET(__wt_fopen(session, WT_METADATA_BACKUP, 0, WT_STREAM_READ, &fs));
+
+    /* Check that the configuration string only has table schema formats in the target list. */
+    __wt_config_subinit(session, &bkup_config, bkup_cfg);
+    for (cnt = 0; (ret = __wt_config_next(&bkup_config, &k, &v)) == 0; ++cnt) {
+        if (!WT_PREFIX_MATCH(k.str, "table:"))
+            WT_ERR_MSG(session, EINVAL,
+                "partial backup restore only supports objects of type \"table\" formats in the "
+                "target uri list, but found %.*s instead.", (int) k.len, k.str);
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
 
     /* Read line pairs and load them into the metadata file. */
     WT_ERR(__wt_scr_alloc(session, 512, &key));
@@ -94,46 +106,32 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
         if (value->size == 0)
             WT_ERR_PANIC(session, EINVAL, "%s: zero-length value", WT_METADATA_BACKUP);
         /*
-         * When performing partial backup restore, check through the file metadata entries and check
-         * if the file exists in the file system. If the file doesn't exist, append the filename to
-         * the partial backup list and the partial backup remove list so we can clean up the
-         * metadata and history store afterwards.
+         * When performing partial backup restore, generate a list of tables that we must drop.
+         * Parse through all the table metadata entries and check if the metadata entry exists in
+         * the target uri configuration string. If the metadata entry doesn't exist in the target
+         * uri configuration string, append the table name to the partial backup list.
          */
         metadata_key = (char *)key->data;
-        if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE)) {
-            if (WT_PREFIX_SKIP(metadata_key, "file:")) {
-                if (WT_SUFFIX_MATCH(metadata_key, ".wti") ||
-                  WT_SUFFIX_MATCH(metadata_key, ".wtobj"))
-                    WT_ERR_MSG(session, EINVAL,
-                      "%s: partial backup currently doesn't support index or tiered storage "
-                      "files.",
-                      metadata_key);
-                WT_ERR(__wt_fs_exist(session, metadata_key, &exist));
-                if (!exist) {
-                    WT_ERR(__wt_realloc_def(
-                      session, &allocated_id, slot + 1, &conn->partial_backup_remove_ids));
-                    /* Leave a NULL at the end to mark the end of the list. */
-                    WT_ERR(
-                      __wt_realloc_def(session, &allocated_name, slot + 2, &partial_backup_names));
-                    p = &partial_backup_names[slot];
-                    p[0] = p[1] = NULL;
+        if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) &&
+          WT_PREFIX_MATCH(metadata_key, "table:")) {
+            __wt_config_subinit(session, &bkup_config, bkup_cfg);
+            for (cnt = 0; (ret = __wt_config_next(&bkup_config, &k, &v)) == 0; ++cnt)
+                if (k.len == strlen(metadata_key) && strncmp(k.str, metadata_key, k.len) == 0)
+                    break;
+            WT_ERR_NOTFOUND_OK(ret, true);
+            /* 
+             * The current metadata table entry does not exist in the target list, append the
+             * metadata key to the backup list.
+             */
+            if (ret == WT_NOTFOUND) {
+                WT_ERR(__wt_realloc_def(session, &allocated_name, slot + 2, &partial_backup_names));
+                p = &partial_backup_names[slot];
+                p[0] = p[1] = NULL;
 
-                    WT_ERR(__wt_strndup(session, key->data, key->size, p));
-                    WT_ERR(__wt_config_getones(session, value->data, "id", &cval));
-                    conn->partial_backup_remove_ids[slot] = (uint32_t)cval.val;
-                    slot++;
-                }
-            } else if (WT_PREFIX_MATCH(metadata_key, "table:")) {
-                WT_ERR(__wt_config_getones(session, value->data, "colgroups", &cval));
-                if (cval.len != 0)
-                    WT_ERR_MSG(session, EINVAL,
-                      "%s: partial backup currently doesn't support colgroup files.", metadata_key);
-            } else if (WT_PREFIX_MATCH(metadata_key, "lsm:")) {
-                WT_ERR_MSG(session, EINVAL,
-                  "%s: partial backup currently doesn't support lsm files.", metadata_key);
+                WT_ERR(__wt_strndup(session, (char *)key->data, key->size, &partial_backup_names[slot]));
+                slot++;
             }
         }
-
         /*
          * In the case of partial backup restore, add the entry to the metadata even if the file
          * doesn't exist so that we can correctly drop all related entries via the schema code
@@ -144,50 +142,44 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
 
     F_SET(conn, WT_CONN_WAS_BACKUP);
     if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) && partial_backup_names != NULL) {
+        WT_ERR(__wt_realloc_def(session, &allocated_id, slot + 1, &conn->partial_backup_remove_ids));
         /*
-         * During partial backup, parse through the partial backup list and attempt to clean up all
-         * metadata references relating to the file. To do so, perform a schema drop operation on
-         * the table to cleanly remove all linked references if the filename has an extensive. It is
-         * possible that performing a schema drop on the table reference can fail because a file can
-         * be created without a table schema, therefore perform a schema drop on the file reference
-         * when that happens.
+         * Parse through the partial backup list and attempt to clean up all metadata references
+         * relating to the file. To do so, perform a schema drop operation on the table to cleanly
+         * remove all linked references. At the same time generate a list of btree ids to be used in
+         * recovery to truncate all the history store records.
          */
-        for (i = 0; partial_backup_names[i] != NULL; ++i) {
-            if (WT_SUFFIX_MATCH(partial_backup_names[i], ".wt")) {
-                /* Convert the file name to a table metadata reference. */
-                WT_ERR(__wt_schema_convert_file_to_table(session, partial_backup_names[i], &buf));
-                /*
-                 * Perform schema drop on the table reference to cleanly remove all linked
-                 * references to table.
-                 */
-                WT_WITH_SCHEMA_LOCK(session,
-                  WT_WITH_TABLE_WRITE_LOCK(
-                    session, ret = __wt_schema_drop(session, buf, drop_cfg)));
-                WT_ERR_ERROR_OK(ret, ENOENT, true);
-                __wt_free(session, buf);
-                if (ret == 0)
-                    continue;
-            }
+        for (slot = 0; partial_backup_names[slot] != NULL; ++slot) {
+            //WT_ERR(__wt_msg(session, "%s\n", filename));
+            tablename = partial_backup_names[slot];
+            WT_PREFIX_SKIP_REQUIRED(session, tablename, "table:");
+            len = strlen("file:") + strlen(tablename) + strlen(".wt") + 1;
+            WT_ERR(__wt_calloc_def(session, len, &filename));
+            WT_ERR(__wt_snprintf(filename, len, "file:%s.wt", tablename));
+            WT_ERR(__wt_metadata_search(session, filename, &metadata_conf));
+            WT_ERR(__wt_config_getones(session, metadata_conf, "id", &cval));
+            conn->partial_backup_remove_ids[slot] = (uint32_t) cval.val;
+            __wt_free(session, filename);
 
-            /* Perform schema drop on the file reference. */
             WT_WITH_SCHEMA_LOCK(session,
               WT_WITH_TABLE_WRITE_LOCK(
-                session, ret = __wt_schema_drop(session, partial_backup_names[i], drop_cfg)));
+                session, ret = __wt_schema_drop(session, partial_backup_names[slot], drop_cfg)));
             WT_ERR(ret);
         }
     }
 
 err:
-    if (buf != NULL)
-        __wt_free(session, buf);
+    if (filename != NULL)
+        __wt_free(session, filename);
+    
     /*
      * Free the partial backup names list. The backup id list is used in recovery to truncate the
      * history store entries that do not exist as part of the database anymore. Recovery will be
      * responsible to freeing the list.
      */
     if (partial_backup_names != NULL) {
-        for (i = 0; partial_backup_names[i] != NULL; ++i)
-            __wt_free(session, partial_backup_names[i]);
+        for (slot = 0; partial_backup_names[slot] != NULL; ++slot)
+            __wt_free(session, partial_backup_names[slot]);
         __wt_free(session, partial_backup_names);
     }
     WT_TRET(__wt_fclose(session, &fs));
@@ -326,7 +318,7 @@ __wt_turtle_exists(WT_SESSION_IMPL *session, bool *existp)
  *     Check the turtle file and create if necessary.
  */
 int
-__wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta)
+__wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, WT_CONFIG_ITEM *bkup_cfg)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -428,7 +420,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta)
         WT_RET(__metadata_init(session));
 
         /* Load any hot-backup information. */
-        WT_RET(__metadata_load_hot_backup(session));
+        WT_RET(__metadata_load_hot_backup(session, bkup_cfg));
 
         /* Create any bulk-loaded file stubs. */
         WT_RET(__metadata_load_bulk(session));

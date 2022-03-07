@@ -1138,12 +1138,12 @@ wiredtiger_open_common =\
     wiredtiger_open_log_configuration +\
     wiredtiger_open_tiered_storage_configuration +\
     wiredtiger_open_statistics_log_configuration + [
-    Config('backup_partial_restore', 'false', r'''
+    Config('backup_partial_restore', '', r'''
         When set to true, allow a partial restore on the current database using the
         WiredTiger metadata backup file. WiredTiger will reconstruct the
         database files that are only present in the directory and remove all
         table entries that are not in the directory anymore''', 
-        type='boolean'),
+        type='list'),
     Config('buffer_alignment', '-1', r'''
         in-memory alignment (in bytes) for buffers used for I/O.  The
         default value of -1 indicates a platform-specific alignment value

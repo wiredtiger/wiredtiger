@@ -124,7 +124,8 @@ class test_backup24(backup_base):
         self.take_log_backup(bkup_c, self.dir, orig_logs)
         bkup_c.close()
 
-        backup_conn = self.wiredtiger_open(self.dir, 'backup_partial_restore=true')
+        target_uris = str([self.log_t1, self.log_t2, self.nolog_t1]).replace("\'", "\"")
+        backup_conn = self.wiredtiger_open(self.dir, 'backup_partial_restore={0}'.format(target_uris))
         flist = os.listdir(self.dir)
         self.assertFalse(self.nolog_t2_file in flist)
         self.assertFalse(self.nolog_tnew_file in flist)
@@ -147,7 +148,6 @@ class test_backup24(backup_base):
         self.check_data(self.log_t1, 'key', 'value')
         self.check_data(self.log_t2, 'key', 'value')
         self.check_data(self.nolog_t1, 'key', 'value')
-        self.check_data(self.nolog_t2, 'key', 'value')
         backup_conn.close()
 
 if __name__ == '__main__':

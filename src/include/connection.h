@@ -338,7 +338,7 @@ struct __wt_connection_impl {
     WT_RWLOCK hot_backup_lock; /* Hot backup serialization */
     uint64_t hot_backup_start; /* Clock value of most recent checkpoint needed by hot backup */
     char **hot_backup_list;    /* Hot backup file list */
-    uint32_t *partial_backup_remove_ids; /* Remove list for partial backup */
+    uint32_t *partial_backup_remove_ids; /* Remove btree id list for partial backup */
 
     WT_SESSION_IMPL *ckpt_session; /* Checkpoint thread session */
     wt_thread_t ckpt_tid;          /* Checkpoint thread */
