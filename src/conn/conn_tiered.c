@@ -112,6 +112,7 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT));
     __wt_seconds(session, &flush_time);
     /* XXX If/when flush tier no longer requires the checkpoint lock, this needs consideration. */
+    conn->flush_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
     conn->flush_most_recent = WT_MAX(flush_time, conn->ckpt_most_recent);
     conn->flush_ts = conn->txn_global.last_ckpt_timestamp;
 
@@ -433,9 +434,20 @@ err:
 static int
 __tier_storage_copy(WT_SESSION_IMPL *session)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_TIERED_WORK_UNIT *entry;
+    uint64_t ckpt_gen;
 
+    conn = S2C(session);
+    ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+    /*
+     * If the checkpoint generation has not changed, or the next checkpoint is still running we are
+     * not yet ready to copy those objects to shared storage. There is nothing to do.
+     */
+    if (conn->flush_gen == ckpt_gen ||
+      (conn->flush_gen < ckpt_gen && conn->txn_global.checkpoint_running))
+        return (0);
     entry = NULL;
     for (;;) {
         /* Check if we're quitting or being reconfigured. */
