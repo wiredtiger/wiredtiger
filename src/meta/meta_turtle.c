@@ -57,21 +57,19 @@ __metadata_init(WT_SESSION_IMPL *session)
  *     Load the contents of any hot backup file.
  */
 static int
-__metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *bkup_cfg)
+__metadata_load_hot_backup(WT_SESSION_IMPL *session, char **target_uris)
 {
-    WT_CONFIG bkup_config;
-    WT_CONFIG_ITEM cval, k, v;
+    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(value);
     WT_DECL_RET;
     WT_FSTREAM *fs;
-    size_t allocated_id, allocated_name, cnt, len, slot;
+    size_t allocated_name, cnt, len, slot;
     char *filename, *metadata_conf, *metadata_key, **p, **partial_backup_names, *tablename;
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "remove_files=false", NULL};
     bool exist;
 
-    allocated_id = 0;
     allocated_name = 0;
     cnt = 0;
     conn = S2C(session);
@@ -85,17 +83,6 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *bkup_cfg)
         return (0);
     WT_RET(__wt_fopen(session, WT_METADATA_BACKUP, 0, WT_STREAM_READ, &fs));
 
-    /* Check that the configuration string only has table schema formats in the target list. */
-    __wt_config_subinit(session, &bkup_config, bkup_cfg);
-    for (cnt = 0; (ret = __wt_config_next(&bkup_config, &k, &v)) == 0; ++cnt) {
-        if (!WT_PREFIX_MATCH(k.str, "table:"))
-            WT_ERR_MSG(session, EINVAL,
-              "partial backup restore only supports objects of type \"table\" formats in the "
-              "target uri list, but found %.*s instead.",
-              (int)k.len, k.str);
-    }
-    WT_ERR_NOTFOUND_OK(ret, false);
-
     /* Read line pairs and load them into the metadata file. */
     WT_ERR(__wt_scr_alloc(session, 512, &key));
     WT_ERR(__wt_scr_alloc(session, 512, &value));
@@ -107,24 +94,28 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *bkup_cfg)
         if (value->size == 0)
             WT_ERR_PANIC(session, EINVAL, "%s: zero-length value", WT_METADATA_BACKUP);
         /*
-         * When performing partial backup restore, generate a list of tables that we must drop.
+         * When performing partial backup restore, we must generate a list of tables that we must drop.
          * Parse through all the table metadata entries and check if the metadata entry exists in
-         * the target uri configuration string. If the metadata entry doesn't exist in the target
-         * uri configuration string, append the table name to the partial backup list.
+         * the target uri list. Note that because both the metadata backup file and target uri is 
+         * lexicographically sorted, we can use a two pointer method to check if the current metadata
+         * entry needs to be dropped. If the metadata entry doesn't exist in the target uri list,
+         * append the table name to the partial backup list.
          */
         metadata_key = (char *)key->data;
         if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) &&
           WT_PREFIX_MATCH(metadata_key, "table:")) {
-            __wt_config_subinit(session, &bkup_config, bkup_cfg);
-            for (cnt = 0; (ret = __wt_config_next(&bkup_config, &k, &v)) == 0; ++cnt)
-                if (k.len == strlen(metadata_key) && strncmp(k.str, metadata_key, k.len) == 0)
-                    break;
-            WT_ERR_NOTFOUND_OK(ret, true);
             /*
-             * The current metadata table entry does not exist in the target list, append the
-             * metadata key to the backup list.
+             * The target uri will be the deciding factor if a specific metadata table entry needs
+             * to be dropped. The entry in the target uri aims to be either equal or greater than 
+             * the current metadata entry. This allows us to handle two cases to decide if
+             * we need to append the metadata key to the backup list.
+             * 
+             * 1. If the metadata key is less than the current target uri, this means that the metadata
+             * entry needs to be dropped.
+             * 2. If the target uri is NULL, meaning that we have parsed through all of the entries
+             * in the target list. All following metadata entries needs to be dropped.
              */
-            if (ret == WT_NOTFOUND) {
+            if (target_uris[cnt] == NULL || strcmp(metadata_key, target_uris[cnt]) < 0) {
                 WT_ERR(__wt_realloc_def(session, &allocated_name, slot + 2, &partial_backup_names));
                 p = &partial_backup_names[slot];
                 p[0] = p[1] = NULL;
@@ -132,7 +123,8 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *bkup_cfg)
                 WT_ERR(
                   __wt_strndup(session, (char *)key->data, key->size, &partial_backup_names[slot]));
                 slot++;
-            }
+            } else if (strcmp(metadata_key, target_uris[cnt]) == 0)
+                cnt++;
         }
         /*
          * In the case of partial backup restore, add the entry to the metadata even if the file
@@ -144,8 +136,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *bkup_cfg)
 
     F_SET(conn, WT_CONN_WAS_BACKUP);
     if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) && partial_backup_names != NULL) {
-        WT_ERR(
-          __wt_realloc_def(session, &allocated_id, slot + 1, &conn->partial_backup_remove_ids));
+        WT_ERR(__wt_calloc_def(session, slot + 1, &conn->partial_backup_remove_ids));
         /*
          * Parse through the partial backup list and attempt to clean up all metadata references
          * relating to the file. To do so, perform a schema drop operation on the table to cleanly
@@ -320,7 +311,7 @@ __wt_turtle_exists(WT_SESSION_IMPL *session, bool *existp)
  *     Check the turtle file and create if necessary.
  */
 int
-__wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, WT_CONFIG_ITEM *bkup_cfg)
+__wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, char **target_uris)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -422,7 +413,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, WT_CONFIG_ITEM *bku
         WT_RET(__metadata_init(session));
 
         /* Load any hot-backup information. */
-        WT_RET(__metadata_load_hot_backup(session, bkup_cfg));
+        WT_RET(__metadata_load_hot_backup(session, target_uris));
 
         /* Create any bulk-loaded file stubs. */
         WT_RET(__metadata_load_bulk(session));

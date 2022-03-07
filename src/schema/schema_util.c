@@ -180,3 +180,25 @@ err:
     __wt_scr_free(session, &tmp);
     return (ret);
 }
+
+/*
+ * bkup_target_uris_sort_function --
+ *     Sort function for qsort.
+ */
+static int
+bkup_target_uris_sort_function(const void *left, const void *right)
+{
+    return (strcmp(*(const char **)left, *(const char **)right));
+}
+
+/*
+ * __wt_bkup_target_uris_sort --
+ *     Sort the list of names in the active file list.
+ */
+void
+__wt_bkup_target_uris_sort(char **bkup_target_list, size_t size)
+{
+    if (bkup_target_list == NULL)
+        return;
+    __wt_qsort(bkup_target_list, size, sizeof(char *), bkup_target_uris_sort_function);
+}

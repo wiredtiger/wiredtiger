@@ -41,19 +41,19 @@ class test_backup26(backup_base):
     uri="table_backup"
     ntables = 10000 if wttest.islongtest() else 500
 
-    types = [
-        ["table", dict(uri='table:')],
-        ["file", dict(uri='file:')],
+    reverse = [
+        ["reverse_target_list", dict(reverse=True)],
+        ["target_list", dict(reverse=False)],
     ]
 
-    # Percentage of tables in table format, and inverse for file format.
+    # Percentage of tables to not copy over in selective backup.
     percentage = [
         ('hundred_precent', dict(percentage=1)),
         ('fifty_percent', dict(percentage=0.5)),
         ('ten_percent', dict(percentage=0.1)),
         ('zero_percent', dict(percentage=0)),
     ]
-    scenarios = make_scenarios(percentage)
+    scenarios = make_scenarios(percentage, reverse)
 
     def test_backup26(self):
         selective_remove_uri_file_list = []
@@ -74,14 +74,15 @@ class test_backup26(backup_base):
         os.mkdir(self.dir)
 
         # Now copy the files using full backup. This should not include the tables inside the remove list.
-
-        #print(selective_remove_uri_file_list)
         all_files = self.take_selective_backup(self.dir, selective_remove_uri_file_list)
 
-        starttime = time.time()
-
-        target_uris = str(selective_uri_list).replace("\'", "\"")
-        # After the full backup, open and recover the backup database.
+        target_uris = None
+        if self.reverse:
+            target_uris = str(selective_uri_list[::-1]).replace("\'", "\"")
+        else:
+            target_uris = str(selective_uri_list).replace("\'", "\"")
+        starttime = time.time()       
+       # After the full backup, open and recover the backup database.
         backup_conn = self.wiredtiger_open(self.dir, "backup_partial_restore={0}".format(target_uris))
         elapsed = time.time() - starttime
         self.pr("%s partial backup has taken %.2f seconds." % (str(self), elapsed))

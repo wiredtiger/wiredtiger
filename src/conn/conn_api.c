@@ -2574,7 +2574,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     static const WT_NAME_FLAG file_types[] = {{"checkpoint", WT_DIRECT_IO_CHECKPOINT},
       {"data", WT_DIRECT_IO_DATA}, {"log", WT_DIRECT_IO_LOG}, {NULL, 0}};
 
-    WT_CONFIG_ITEM cval, keyid, secretkey, sval;
+    WT_CONFIG bkup_config;
+    WT_CONFIG_ITEM cval, k, keyid, secretkey, sval, v;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(encbuf);
     WT_DECL_ITEM(i1);
@@ -2585,17 +2586,21 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
     bool config_base_set, try_salvage, verify_meta;
+    char **target_uris;
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
+    size_t cnt;
 
     /* Leave lots of space for optional additional configuration. */
     const char *cfg[] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 
     *connectionp = NULL;
 
+    cnt = 0;
     conn = NULL;
     session = NULL;
     merge_cfg = NULL;
+    target_uris = NULL;
     try_salvage = false;
 
     WT_RET(__wt_library_init());
@@ -2971,9 +2976,33 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_config_gets(session, cfg, "verify_metadata", &cval));
     verify_meta = cval.val;
     WT_ERR(__wt_config_gets(session, cfg, "backup_partial_restore", &cval));
-    if (cval.len != 0)
+    if (cval.len != 0) {
         F_SET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE);
-    WT_ERR(__wt_turtle_init(session, verify_meta, &cval));
+        /* Check that the configuration string only has table schema formats in the target list. */
+        __wt_config_subinit(session, &bkup_config, &cval);
+        for (cnt = 0; (ret = __wt_config_next(&bkup_config, &k, &v)) == 0; ++cnt)
+            if (!WT_PREFIX_MATCH(k.str, "table:"))
+                WT_ERR_MSG(session, EINVAL,
+                  "partial backup restore only supports objects of type \"table\" formats in the "
+                  "target uri list, but found %.*s instead.",
+                  (int)k.len, k.str);
+        WT_ERR_NOTFOUND_OK(ret, false);
+
+        /* Construct the target list. */
+        WT_ERR(__wt_calloc_def(session, cnt + 1, &target_uris));
+        __wt_config_subinit(session, &bkup_config, &cval);
+        for (cnt = 0; (ret = __wt_config_next(&bkup_config, &k, &v)) == 0; ++cnt) {
+            WT_ERR(__wt_strndup(session, (char *)k.str, k.len, &target_uris[cnt]));
+        }
+        WT_ERR_NOTFOUND_OK(ret, false);
+
+        /* Last entry in the list should be NULL */
+        target_uris[cnt] = NULL;
+
+        /* Sort the target uri list, so that we can parse it quickly later on. */
+        __wt_bkup_target_uris_sort(target_uris, cnt);
+    }
+    WT_ERR(__wt_turtle_init(session, verify_meta, target_uris));
 
     /* Verify the metadata file. */
     if (verify_meta) {
@@ -3039,13 +3068,18 @@ err:
     __wt_scr_discard(&conn->dummy_session);
 
     /*
-     * Clean up the partial backup restore flag and backup btree id list. The list was used in
-     * recovery to truncate the history store entries and the flag was used to allow schema drops to
+     * Clean up the partial backup restore flag, backup btree id list and target uri list. The backup 
+     * id list was used in recovery to truncate the history store entries and the flag was used to allow schema drops to
      * happen on tables to clean up the entries in the creation of the metadata file.
      */
     F_CLR(conn, WT_CONN_BACKUP_PARTIAL_RESTORE);
     if (conn->partial_backup_remove_ids != NULL)
         __wt_free(session, conn->partial_backup_remove_ids);
+    if (target_uris != NULL) {
+        for (cnt = 0; target_uris[cnt] != NULL; ++cnt)
+            __wt_free(session, target_uris[cnt]);
+        __wt_free(session, target_uris);
+    }
 
     if (ret != 0) {
         /*
