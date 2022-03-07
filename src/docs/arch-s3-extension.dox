@@ -10,24 +10,23 @@ AWS C++ SDK to interact with the S3 cloud.
 
 The S3 store implements the following key functionalities defined by the storage source interface:
 
-Initialize the store, the AWS SDK and create a logging module for the store and the SDK.
+- Initialize the store, the AWS SDK and create a logging module for the store and the SDK.
 
-Register the S3 store as a storage source available to Wiredtiger.
+- Register the S3 store as a storage source available to Wiredtiger.
 
-Provide an API to access and terminate the store. A reference count is incremented each time the
+- Provide an API to access and terminate the store. A reference count is incremented each time the
 storage source reference is taken and decremented with the termination. When the reference count
-goes to zero, the storage source is de-registered with WiredTiger and any allocated resources
-deallocated.
+goes to zero, the storage source is de-registered with WiredTiger and any allocated resources freed.
 
-Another essential functionality the S3 store provides is to create a WT_FILE_SYSTEM implementation
-for a given bucket. The store requires a bucket and an access token to create the filesystem. The
-bucket is expected to be a string argument, which is the bucket name and the corresponding region
-separated by a ';', e.g. "bucket1;ap-southeast-2". The AWS requires an access token to authenticate
-programmatic access to S3. The access token comprises an access key ID and a secret access key as a
-set. The S3 store requires the token to be provided as a single string argument of the access key
-followed by the secret key, separated by a ';'.
+- Another essential functionality the S3 store provides is to create a \c WT_FILE_SYSTEM
+implementation for a given bucket. The store requires a bucket and an access token to create the
+filesystem. The bucket is expected to be a string argument, which is the bucket name and the
+corresponding region separated by a ';', e.g. "bucket1;ap-southeast-2". The AWS requires an access
+token to authenticate programmatic access to S3. The access token comprises an access key ID and a
+secret access key as a set. The S3 store requires the token to be provided as a single string
+argument of the access key followed by the secret key, separated by a ';'.
 
-The S3 store also configures a directory on the file system local to the WiredTiger database as a
+- The S3 store also configures a directory on the file system local to the WiredTiger database as a
 cache for the object files. The cache is meant to improve the read latency for the object files
 read after an initial download from the S3.
 
@@ -43,9 +42,9 @@ means to delete the objects to clean up artefacts from the internal unit testing
 
 @section s3_extension_file_system S3_FILE_SYSTEM
 
-WiredTiger supports a database over a custom file system by giving a WT_FILE_SYSTEM interface for
-the end-user to implement. The S3 store itself provides a means to configure as many file systems
-as needed, each linked to an S3 bucket. These file systems, called the S3_FILE_SYSTEM, are a custom
+WiredTiger supports a database over a custom file system by giving a \c WT_FILE_SYSTEM interface for
+the end-user to implement. The S3 store itself provides a means to configure as many file systems as
+needed, each linked to an S3 bucket. These file systems, called the \c S3_FILE_SYSTEM, are a custom
 implementation provided by the S3 store. The S3 filesystem contains an instance of the S3Connection
 class, hence providing an active connection to the S3 bucket embedded in the file system instance.
 
@@ -61,11 +60,11 @@ also copied to the local cache for easy access.
 
 @section s3_extension_file_handle S3_FILE_HANDLE
 
-The S3 store also implements the WT_FILE_HANDLE interface, S3_FILE_SYSTEM, to access the files on
-the S3 file system. A handle is created to the copy of the object on the local cache. Since the
+The S3 store also implements the \c WT_FILE_HANDLE interface, \c S3_FILE_SYSTEM, to access the files
+on the S3 file system. A handle is created to the copy of the object on the local cache. Since the
 local cache is a directory on the WiredTiger database's file system, the file is accessed using a
-WT_FILE_HANDLE implementation native to WiredTiger. Hence, a copy of native WT_FILE_HANDLE is kept
-encapsulated in the S3 filehandle. Since the object store is archival, all the writing access
+\c WT_FILE_HANDLE implementation native to WiredTiger. Hence, a copy of native \c WT_FILE_HANDLE is
+kept encapsulated in the S3 filehandle. Since the object store is archival, all the writing access
 methods are disabled.
 
 @section s3_extension_log_stat S3 Logging and Statistics
