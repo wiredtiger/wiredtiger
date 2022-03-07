@@ -153,7 +153,6 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *bkup_cfg)
          * recovery to truncate all the history store records.
          */
         for (slot = 0; partial_backup_names[slot] != NULL; ++slot) {
-            // WT_ERR(__wt_msg(session, "%s\n", filename));
             tablename = partial_backup_names[slot];
             WT_PREFIX_SKIP_REQUIRED(session, tablename, "table:");
             len = strlen("file:") + strlen(tablename) + strlen(".wt") + 1;
