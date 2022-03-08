@@ -82,6 +82,9 @@ class test_tiered02(wttest.WiredTigerTestCase):
         if self.ss_name != 'local_store':
             return
 
+        # This function is likely called immediately after a checkpoint. Sleep a bit to give
+        # the internal thread time to process the objects.
+        time.sleep(0.5)
         got = sorted(list(os.listdir(self.bucket)))
         self.pr('Flushed objects: ' + str(got))
         if increase:
@@ -124,7 +127,6 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.progress('flush_tier')
         self.session.flush_tier('sync=off')
         self.session.checkpoint()
-        time.sleep(1)
         ds.check()
 
         self.close_conn()
@@ -156,13 +158,11 @@ class test_tiered02(wttest.WiredTigerTestCase):
         ds.check()
         self.progress('checkpoint')
         self.session.checkpoint()
-        time.sleep(1)
         self.confirm_flush()
         self.progress('flush_tier')
         self.session.flush_tier('sync=off')
 
         self.session.checkpoint()
-        time.sleep(1)
         self.confirm_flush()
 
         self.progress('Create simple data set (200)')

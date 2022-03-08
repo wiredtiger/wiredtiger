@@ -109,9 +109,9 @@ class test_tiered12(wttest.WiredTigerTestCase):
         c["0"] = "0"
         self.check(c, 1)
         c.close()
-        self.session.checkpoint()
 
-        self.session.flush_tier(None)
+        self.session.flush_tier('sync=off')
+        self.session.checkpoint()
         # Immediately after flush_tier finishes the cached object should not yet exist
         cache_obj = os.path.join(cache, self.bucket_prefix + self.obj1file)
         self.assertFalse(os.path.exists(cache_obj))

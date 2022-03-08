@@ -122,7 +122,8 @@ class test_tiered07(wttest.WiredTigerTestCase):
         c.close()
         self.session.checkpoint()
         self.pr('After data, call flush_tier')
-        self.session.flush_tier(None)
+        self.session.flush_tier('sync=off')
+        self.session.checkpoint()
 
         # Drop table.
         self.pr('call drop')

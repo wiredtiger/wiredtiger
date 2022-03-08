@@ -90,8 +90,8 @@ class test_tiered13(test_import_base):
         c = self.session.open_cursor(self.uri)
         c["0"] = "0"
         c.close()
+        self.session.flush_tier('sync=off')
         self.session.checkpoint()
-        self.session.flush_tier(None)
         c = self.session.open_cursor(self.uri)
         c["1"] = "1"
         c.close()

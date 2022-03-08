@@ -122,7 +122,7 @@ class test_tiered11(wttest.WiredTigerTestCase):
         new_end_ts = self.add_data(self.nentries)
         # We have a new stable timestamp, but after the checkpoint. Make
         # sure the flush tier records the correct timestamp.
-        self.session.flush_tier(None)
+        self.session.flush_tier('sync=off')
         # Make sure a new checkpoint doesn't change any of our timestamp info.
         self.session.checkpoint()
 

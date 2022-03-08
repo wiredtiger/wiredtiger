@@ -114,7 +114,7 @@ class test_tiered09(wttest.WiredTigerTestCase):
         self.check(c, 1)
         c.close()
         self.session.checkpoint()
-        self.session.flush_tier(None)
+        self.session.flush_tier('sync=off')
         self.close_conn()
 
         # For local store, check if the path exists.
@@ -148,7 +148,7 @@ class test_tiered09(wttest.WiredTigerTestCase):
         self.check(c, 2)
         c.close()
         self.session.checkpoint()
-        self.session.flush_tier(None)
+        self.session.flush_tier('sync=off')
         self.close_conn()
 
         # For local store, Check each table was created with the correct prefix.

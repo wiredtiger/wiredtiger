@@ -133,7 +133,7 @@ class test_tiered14(wttest.WiredTigerTestCase):
             try:
                 if op == 'f':
                     self.progress('flush_tier')
-                    self.session.flush_tier(None)
+                    self.session.flush_tier('sync=off')
                 elif op == 'c':
                     self.progress('checkpoint')
                     self.session.checkpoint()
