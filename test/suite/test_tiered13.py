@@ -112,6 +112,7 @@ class test_tiered13(test_import_base):
         # - Try to import via a renamed file:name.wt with the file object's metadata.
 
         # Export the metadata for the current file object 2.
+        fileobj_config = ''
         cursor = self.session.open_cursor('metadata:', None, None)
         for k, v in cursor:
             if k.startswith(self.file2uri):
@@ -120,6 +121,7 @@ class test_tiered13(test_import_base):
                 table_config = cursor[k]
         cursor.close()
         self.close_conn()
+        self.assertTrue(fileobj_config != '')
         # Contruct the config strings.
         import_enabled = 'import=(enabled,repair=true)'
         import_meta = 'import=(enabled,repair=false,file_metadata=(' + \
