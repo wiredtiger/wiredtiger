@@ -639,7 +639,6 @@ __wt_rec_row_leaf(
     WT_BTREE *btree;
     WT_CELL *cell;
     WT_CELL_UNPACK_KV *kpack, _kpack, *vpack, _vpack;
-    WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(tmpkey);
     WT_DECL_RET;
@@ -655,7 +654,7 @@ __wt_rec_row_leaf(
     uint64_t slvg_skip;
     uint32_t i;
     uint8_t key_prefix;
-    bool dictionary, hs_clear, key_onpage_ovfl, ovfl_key;
+    bool dictionary, key_onpage_ovfl, ovfl_key;
     void *copy;
     const void *key_data;
 
@@ -684,11 +683,6 @@ __wt_rec_row_leaf(
      * they shouldn't open new dhandles. In those cases we won't ever need to blow away history
      * store content, so we can skip this.
      */
-    hs_cursor = NULL;
-    hs_clear = F_ISSET(S2C(session), WT_CONN_HS_OPEN) &&
-      !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES) && !WT_IS_HS(btree->dhandle) &&
-      !WT_IS_METADATA(btree->dhandle);
-
     WT_RET(__wt_rec_split_init(session, r, page, 0, btree->maxleafpage_precomp));
 
     /*
@@ -996,8 +990,6 @@ leaf_insert:
     ret = __wt_rec_split_finish(session, r);
 
 err:
-    if (hs_cursor != NULL)
-        WT_TRET(hs_cursor->close(hs_cursor));
     __wt_scr_free(session, &tmpkey);
     return (ret);
 }

@@ -580,20 +580,17 @@ __wt_rec_col_var(
     WT_CELL *cell;
     WT_CELL_UNPACK_KV *vpack, _vpack;
     WT_COL *cip;
-    WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(orig);
     WT_DECL_RET;
     WT_INSERT *ins;
-    WT_ITEM hs_recno_key;
     WT_PAGE *page;
     WT_TIME_WINDOW clear_tw, *twp;
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
     uint64_t n, nrepeat, repeat_count, rle, skip, src_recno;
     uint32_t i, size;
-    uint8_t *p, hs_recno_key_buf[WT_INTPACK64_MAXSIZE];
-    bool deleted, hs_clear, orig_deleted, update_no_copy;
+    bool deleted, orig_deleted, update_no_copy;
     const void *data;
 
     btree = S2BT(session);
@@ -625,11 +622,6 @@ __wt_rec_col_var(
      * they shouldn't open new dhandles. In those cases we won't ever need to blow away history
      * store content, so we can skip this.
      */
-    hs_cursor = NULL;
-    hs_clear = F_ISSET(S2C(session), WT_CONN_HS_OPEN) &&
-      !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES) && !WT_IS_HS(btree->dhandle) &&
-      !WT_IS_METADATA(btree->dhandle);
-
     WT_RET(__wt_rec_split_init(session, r, page, pageref->ref_recno, btree->maxleafpage_precomp));
 
     WT_RET(__wt_scr_alloc(session, 0, &orig));
@@ -1061,8 +1053,6 @@ next:
     ret = __wt_rec_split_finish(session, r);
 
 err:
-    if (hs_cursor != NULL)
-        WT_TRET(hs_cursor->close(hs_cursor));
     __wt_scr_free(session, &orig);
     return (ret);
 }
