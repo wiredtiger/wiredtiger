@@ -226,8 +226,7 @@ struct __wt_name_flag {
 
 /*
  * WT_BKUP_TARGET --
- *	A target uri entry to denote all uris that was copied from the previous backup in partial
- *  backup restores.
+ *	A target URI entry indicating this URI should be restored during a partial backup.
  */
 struct __wt_bkup_target {
     const char *name; /* File name */

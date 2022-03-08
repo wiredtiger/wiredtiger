@@ -53,6 +53,33 @@ __metadata_init(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __metadata_backup_target_uri_search --
+ *     Search if the target uri exists in the backup uri hash table.
+ */
+static bool
+__metadata_backup_target_uri_search(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_BKUP_TARGET *target_uri;
+    WT_CONNECTION_IMPL *conn;
+    uint64_t bucket, hash;
+    bool found;
+
+    conn = S2C(session);
+    found = false;
+
+    hash = __wt_hash_city64(uri, strlen(uri));
+    bucket = hash & (conn->hash_size - 1);
+
+    TAILQ_FOREACH (target_uri, &conn->bkuphash[bucket], hashq) {
+        if (strcmp(uri, target_uri->name) == 0) {
+            found = true;
+            break;
+        }
+    }
+    return (found);
+}
+
+/*
  * __metadata_load_hot_backup --
  *     Load the contents of any hot backup file.
  */
@@ -70,12 +97,10 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "remove_files=false", NULL};
     bool exist;
 
-    allocated_name = 0;
+    allocated_name = file_len = max_len = slot = 0;
     conn = S2C(session);
     filename = NULL;
-    max_len = 0;
     partial_backup_names = NULL;
-    slot = 0;
 
     /* Look for a hot backup file: if we find it, load it. */
     WT_RET(__wt_fs_exist(session, WT_METADATA_BACKUP, &exist));
@@ -98,17 +123,17 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
          * target uri list so that we can drop all entries later. To do this, parse through all the
          * table metadata entries and check if the metadata entry exists in the target uri hash
          * table. If the metadata entry doesn't exist in the hash table, append the table name to
-         * the partial backup list.
+         * the partial backup remove list.
          */
         metadata_key = (char *)key->data;
         if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) &&
           WT_PREFIX_MATCH(metadata_key, "table:"))
             /*
              * The target uri will be the deciding factor if a specific metadata table entry needs
-             * to be dropped. If the metadata table entry does not in the target uri hash table,
-             * append the metadata key to the backup remove list.
+             * to be dropped. If the metadata table entry does not exist in the target uri hash
+             * table, append the metadata key to the backup remove list.
              */
-            if (__wt_backup_target_uri_search(session, metadata_key) == false) {
+            if (__metadata_backup_target_uri_search(session, metadata_key) == false) {
                 if (key->size > max_len)
                     max_len = key->size;
                 WT_ERR(__wt_realloc_def(session, &allocated_name, slot + 2, &partial_backup_names));
@@ -132,6 +157,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
     if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) && partial_backup_names != NULL) {
         WT_ERR(__wt_calloc_def(session, slot + 1, &conn->partial_backup_remove_ids));
         file_len = strlen("file:") + max_len + strlen(".wt") + 1;
+        WT_ERR(__wt_calloc_def(session, file_len, &filename));
         /*
          * Parse through the partial backup list and attempt to clean up all metadata references
          * relating to the file. To do so, perform a schema drop operation on the table to cleanly
@@ -141,12 +167,10 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
         for (slot = 0; partial_backup_names[slot] != NULL; ++slot) {
             tablename = partial_backup_names[slot];
             WT_PREFIX_SKIP_REQUIRED(session, tablename, "table:");
-            WT_ERR(__wt_calloc_def(session, file_len, &filename));
             WT_ERR(__wt_snprintf(filename, file_len, "file:%s.wt", tablename));
             WT_ERR(__wt_metadata_search(session, filename, &metadata_conf));
             WT_ERR(__wt_config_getones(session, metadata_conf, "id", &cval));
             conn->partial_backup_remove_ids[slot] = (uint32_t)cval.val;
-            __wt_free(session, filename);
 
             WT_WITH_SCHEMA_LOCK(session,
               WT_WITH_TABLE_WRITE_LOCK(

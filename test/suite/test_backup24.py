@@ -130,7 +130,7 @@ class test_backup24(backup_base):
         self.assertFalse(self.nolog_t2_file in flist)
         self.assertFalse(self.nolog_tnew_file in flist)
 
-        # Test the files we didn't copy over during selective backup doesn't exist in the metadata.
+        # Test the files we didn't copy over during selective backup don't exist in the metadata.
         bkup_session = backup_conn.open_session()
         metadata_c = bkup_session.open_cursor('metadata:', None, None)
         metadata_c.set_key(self.nolog_t2)

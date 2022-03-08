@@ -1049,6 +1049,37 @@ err:
 }
 
 /*
+ * __conn_add_target_uri --
+ *     Add the target uri to the backup uri hash table.
+ */
+static int
+__conn_add_target_uri(WT_SESSION_IMPL *session, const char *name, size_t len)
+{
+    WT_BKUP_TARGET *new_target_uri;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    uint64_t bucket, hash;
+
+    conn = S2C(session);
+
+    WT_ERR(__wt_calloc_one(session, &new_target_uri));
+    WT_ERR(__wt_strndup(session, name, len, &new_target_uri->name));
+
+    hash = __wt_hash_city64(name, len);
+    bucket = hash & (conn->hash_size - 1);
+    new_target_uri->name_hash = hash;
+    WT_BKUP_TARGET_INSERT(conn, new_target_uri, bucket);
+
+    return (0);
+err:
+    if (new_target_uri != NULL)
+        __wt_free(session, new_target_uri->name);
+    __wt_free(session, new_target_uri);
+
+    return (ret);
+}
+
+/*
  * __conn_load_target_uri_list --
  *     Load the list of target uris and construct a hashtable from it.
  */
@@ -1073,7 +1104,7 @@ __conn_load_target_uri_list(WT_SESSION_IMPL *session, const char *cfg[])
                   "partial backup restore only supports objects of type \"table\" formats in the "
                   "target uri list, found %.*s instead.",
                   (int)k.len, k.str);
-            WT_RET(__wt_add_target_uri(session, (char *)k.str, k.len));
+            WT_RET(__conn_add_target_uri(session, (char *)k.str, k.len));
         }
         WT_RET_NOTFOUND_OK(ret);
     }
@@ -1677,13 +1708,13 @@ __conn_hash_config(WT_SESSION_IMPL *session, const char *cfg[])
     /* Don't set the values in the statistics here. They're set after the connection is set up. */
 
     /* Hash bucket arrays. */
+    WT_RET(__wt_calloc_def(session, conn->hash_size, &conn->bkuphash));
     WT_RET(__wt_calloc_def(session, conn->hash_size, &conn->blockhash));
     WT_RET(__wt_calloc_def(session, conn->hash_size, &conn->fhhash));
-    WT_RET(__wt_calloc_def(session, conn->hash_size, &conn->bkuphash));
     for (i = 0; i < conn->hash_size; ++i) {
+        TAILQ_INIT(&conn->bkuphash[i]);
         TAILQ_INIT(&conn->blockhash[i]);
         TAILQ_INIT(&conn->fhhash[i]);
-        TAILQ_INIT(&conn->bkuphash[i]);
     }
     WT_RET(__wt_calloc_def(session, conn->dh_hash_size, &conn->dh_bucket_count));
     WT_RET(__wt_calloc_def(session, conn->dh_hash_size, &conn->dhhash));

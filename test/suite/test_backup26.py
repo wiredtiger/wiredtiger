@@ -41,6 +41,7 @@ class test_backup26(backup_base):
     uri="table_backup"
     ntables = 10000 if wttest.islongtest() else 500
 
+    # Reverse the backup restore list, WiredTiger should still succeed in this case.
     reverse = [
         ["reverse_target_list", dict(reverse=True)],
         ["target_list", dict(reverse=False)],
@@ -49,6 +50,7 @@ class test_backup26(backup_base):
     # Percentage of tables to not copy over in selective backup.
     percentage = [
         ('hundred_precent', dict(percentage=1)),
+        ('ninety_percent', dict(percentage=0.9)),
         ('fifty_percent', dict(percentage=0.5)),
         ('ten_percent', dict(percentage=0.1)),
         ('zero_percent', dict(percentage=0)),
@@ -64,6 +66,8 @@ class test_backup26(backup_base):
             uri = "table:{0}".format(self.uri + str(i))
             dataset = SimpleDataSet(self, uri, 100, key_format="S")
             dataset.populate()
+            # Append the table uri to the selective backup remove list until the set percentage.
+            # These tables will not be copied over in selective backup.
             if (i <= int(self.ntables * self.percentage)):
                 selective_remove_uri_list.append(uri)
                 selective_remove_uri_file_list.append("{0}.wt".format(self.uri + str(i)))
@@ -88,7 +92,7 @@ class test_backup26(backup_base):
         self.pr("%s partial backup has taken %.2f seconds." % (str(self), elapsed))
         
         bkup_session = backup_conn.open_session()
-        # Open the cursor from uris that was part of the selective backup and expect failure
+        # Open the cursor from uris that were not part of the selective backup and expect failure
         # since file doesn't exist.
         for remove_uri in selective_remove_uri_list:
             self.assertRaisesException(

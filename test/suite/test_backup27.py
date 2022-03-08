@@ -77,15 +77,14 @@ class test_backup27(backup_base):
 
         os.mkdir(self.dir)
 
-        # Now copy the files using full backup. This should not include the newly
-        # created table.
+        # Now copy the files using selective backup. This should not include one of the tables.
         all_files = self.take_selective_backup(self.dir, [self.newuri_file])
 
-        # After the full backup, open and recover the backup database. Make sure we properly recover
-        # even though the log file will have records for the newly created table file id.
+        # After the full backup, open and partially recover the backup database on only one table.
         backup_conn = self.wiredtiger_open(self.dir, "backup_restore_target=[\"{0}\"]".format(self.uri))
         bkup_session = backup_conn.open_session()
 
+        # Test that the history store data still exists for the tables that got restored.
         self.validate_timestamp_data(bkup_session, self.uri, "key", 0, 1)
         self.validate_timestamp_data(bkup_session, self.uri, "key", 0, 10)
 
