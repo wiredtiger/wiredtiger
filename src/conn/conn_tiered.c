@@ -113,7 +113,7 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
     __wt_seconds(session, &flush_time);
     /*
      * XXX If/when flush tier no longer requires the checkpoint lock, all of these global values and
-     * their setting need consideration to make sure they don't race with a checkpoint.
+     * their settings need consideration to make sure they don't race with a checkpoint.
      */
     conn->flush_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
     __wt_verbose(session, WT_VERB_TIERED, "FLUSH_TIER: got flush gen %" PRIu64, conn->flush_gen);
