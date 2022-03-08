@@ -1061,7 +1061,7 @@ __conn_load_target_uri_list(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_TRET(__wt_config_gets(session, cfg, "backup_restore_target", &cval));
     if (cval.len != 0) {
-        F_SET(S2C(session), WT_CONN_backup_restore_target);
+        F_SET(S2C(session), WT_CONN_BACKUP_RESTORE_TARGET);
         /*
          * Check that the configuration string only has table schema formats in the target list and
          * construct the target hash table.
@@ -3078,7 +3078,7 @@ err:
      * used to allow schema drops to happen on tables to clean up the entries in the creation of the
      * metadata file.
      */
-    F_CLR(conn, WT_CONN_backup_restore_target);
+    F_CLR(conn, WT_CONN_BACKUP_RESTORE_TARGET);
     if (conn->partial_backup_remove_ids != NULL)
         __wt_free(session, conn->partial_backup_remove_ids);
     if (conn->bkuphash != NULL) {

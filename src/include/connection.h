@@ -646,7 +646,7 @@ struct __wt_connection_impl {
     uint32_t server_flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_backup_restore_target 0x000001u
+#define WT_CONN_BACKUP_RESTORE_TARGET 0x000001u
 #define WT_CONN_CACHE_CURSORS 0x000002u
 #define WT_CONN_CACHE_POOL 0x000004u
 #define WT_CONN_CKPT_GATHER 0x000008u

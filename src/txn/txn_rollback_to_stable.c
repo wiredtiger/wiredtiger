@@ -1534,7 +1534,7 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
      * btree ids that do not exist as part of the database anymore due to performing a selective
      * restore from backup.
      */
-    if (F_ISSET(conn, WT_CONN_backup_restore_target) && conn->partial_backup_remove_ids != NULL)
+    if (F_ISSET(conn, WT_CONN_BACKUP_RESTORE_TARGET) && conn->partial_backup_remove_ids != NULL)
         for (i = 0; conn->partial_backup_remove_ids[i] != 0; ++i)
             WT_ERR(
               __rollback_to_stable_btree_hs_truncate(session, conn->partial_backup_remove_ids[i]));
