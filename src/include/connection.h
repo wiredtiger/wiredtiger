@@ -215,12 +215,12 @@ struct __wt_name_flag {
  * backup restores.
  */
 #define WT_BKUP_TARGET_INSERT(conn, target_uri, bucket)                  \
-    do {                                                      \
+    do {                                                                 \
         TAILQ_INSERT_HEAD(&(conn)->bkuphash[bucket], target_uri, hashq); \
     } while (0)
 
 #define WT_BKUP_TARGET_REMOVE(conn, target_uri, bucket)             \
-    do {                                                 \
+    do {                                                            \
         TAILQ_REMOVE(&(conn)->bkuphash[bucket], target_uri, hashq); \
     } while (0)
 
