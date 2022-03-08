@@ -127,7 +127,10 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
          */
         metadata_key = (char *)key->data;
         if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) &&
-          WT_PREFIX_MATCH(metadata_key, "table:"))
+          WT_PREFIX_MATCH(metadata_key, "table:")) {
+            /* Assert that there should be no WiredTiger tables with a table format. */
+            WT_ASSERT(
+              session, __wt_name_check(session, (const char *)key->data, key->size, true) == 0);
             /*
              * The target uri will be the deciding factor if a specific metadata table entry needs
              * to be dropped. If the metadata table entry does not exist in the target uri hash
@@ -144,6 +147,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
                   __wt_strndup(session, (char *)key->data, key->size, &partial_backup_names[slot]));
                 slot++;
             }
+        }
 
         /*
          * In the case of partial backup restore, add the entry to the metadata even if the table
