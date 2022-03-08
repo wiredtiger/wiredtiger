@@ -182,23 +182,59 @@ err:
 }
 
 /*
- * bkup_target_uris_sort_function --
- *     Sort function for qsort.
+ * __wt_backup_target_uri_search --
+ *     Search if the uri exists in the target hash table.
  */
-static int
-bkup_target_uris_sort_function(const void *left, const void *right)
+bool
+__wt_backup_target_uri_search(WT_SESSION_IMPL *session, const char *uri)
 {
-    return (strcmp(*(const char **)left, *(const char **)right));
+    WT_BKUP_TARGET *target_uri;
+    WT_CONNECTION_IMPL *conn;
+    uint64_t bucket, hash;
+    bool found;
+
+    conn = S2C(session);
+    found = false;
+
+    hash = __wt_hash_city64(uri, strlen(uri));
+    bucket = hash & (conn->hash_size - 1);
+
+    TAILQ_FOREACH (target_uri, &conn->bkuphash[bucket], hashq) {
+        if (strcmp(uri, target_uri->name) == 0) {
+            found = true;
+            break;
+        }
+    }
+    return (found);
 }
 
 /*
- * __wt_bkup_target_uris_sort --
- *     Sort the list of names in the active file list.
+ * __wt_add_target_uri --
+ *     Add the target uri to the hash table.
  */
-void
-__wt_bkup_target_uris_sort(char **bkup_target_list, size_t size)
+int
+__wt_add_target_uri(WT_SESSION_IMPL *session, const char *name, size_t len)
 {
-    if (bkup_target_list == NULL)
-        return;
-    __wt_qsort(bkup_target_list, size, sizeof(char *), bkup_target_uris_sort_function);
+    WT_BKUP_TARGET *new_target_uri;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    uint64_t bucket, hash;
+
+    conn = S2C(session);
+
+    WT_ERR(__wt_calloc_one(session, &new_target_uri));
+    WT_ERR(__wt_strndup(session, name, len, &new_target_uri->name));
+
+    hash = __wt_hash_city64(name, len);
+    bucket = hash & (conn->hash_size - 1);
+    new_target_uri->name_hash = hash;
+    WT_BKUP_TARGET_INSERT(conn, new_target_uri, bucket);
+    
+    return (0);
+err:
+    if (new_target_uri != NULL)
+        __wt_free(session, new_target_uri->name);
+    __wt_free(session, new_target_uri);
+
+    return (ret);
 }

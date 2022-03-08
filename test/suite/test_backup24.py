@@ -125,7 +125,7 @@ class test_backup24(backup_base):
         bkup_c.close()
 
         target_uris = str([self.log_t1, self.log_t2, self.nolog_t1]).replace("\'", "\"")
-        backup_conn = self.wiredtiger_open(self.dir, 'backup_partial_restore={0}'.format(target_uris))
+        backup_conn = self.wiredtiger_open(self.dir, 'backup_restore_target={0}'.format(target_uris))
         flist = os.listdir(self.dir)
         self.assertFalse(self.nolog_t2_file in flist)
         self.assertFalse(self.nolog_tnew_file in flist)

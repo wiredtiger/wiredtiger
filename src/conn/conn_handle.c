@@ -138,6 +138,7 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_free(session, conn->dh_bucket_count);
     __wt_free(session, conn->dhhash);
     __wt_free(session, conn->fhhash);
+    __wt_free(session, conn->bkuphash);
 
     /* Free allocated recovered checkpoint snapshot memory */
     __wt_free(session, conn->recovery_ckpt_snapshot);

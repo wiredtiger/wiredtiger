@@ -211,6 +211,34 @@ struct __wt_name_flag {
     } while (0)
 
 /*
+ * Macros to ensure a file handle is inserted or removed from both the main and the hashed queue,
+ * used by connection-level and in-memory data structures.
+ */
+#define WT_BKUP_TARGET_INSERT(h, fh, bucket)                  \
+    do {                                                      \
+        TAILQ_INSERT_HEAD(&(h)->bkuphash[bucket], fh, hashq); \
+    } while (0)
+
+#define WT_BKUP_TARGET_REMOVE(h, fh, bucket)             \
+    do {                                                 \
+        TAILQ_REMOVE(&(h)->bkuphash[bucket], fh, hashq); \
+    } while (0)
+
+struct __wt_bkup_target {
+    /*
+     * There is a file name field in both the WT_FH and WT_FILE_HANDLE structures, which isn't
+     * ideal. There would be compromises to keeping a single copy: If it were in WT_FH, file systems
+     * could not access the name field, if it were just in the WT_FILE_HANDLE internal WiredTiger
+     * code would need to maintain a string inside a structure that is owned by the user (since we
+     * care about the content of the file name). Keeping two copies seems most reasonable.
+     */
+    const char *name; /* File name */
+
+    uint64_t name_hash;                  /* hash of name */
+    TAILQ_ENTRY(__wt_bkup_target) hashq; /* internal hash queue */
+};
+
+/*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
  */
@@ -339,6 +367,7 @@ struct __wt_connection_impl {
     uint64_t hot_backup_start; /* Clock value of most recent checkpoint needed by hot backup */
     char **hot_backup_list;    /* Hot backup file list */
     uint32_t *partial_backup_remove_ids; /* Remove btree id list for partial backup */
+    TAILQ_HEAD(__wt_bkuphash, __wt_bkup_target) * bkuphash; /* Hash table */
 
     WT_SESSION_IMPL *ckpt_session; /* Checkpoint thread session */
     wt_thread_t ckpt_tid;          /* Checkpoint thread */
@@ -617,7 +646,7 @@ struct __wt_connection_impl {
     uint32_t server_flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_BACKUP_PARTIAL_RESTORE 0x000001u
+#define WT_CONN_backup_restore_target 0x000001u
 #define WT_CONN_CACHE_CURSORS 0x000002u
 #define WT_CONN_CACHE_POOL 0x000004u
 #define WT_CONN_CKPT_GATHER 0x000008u

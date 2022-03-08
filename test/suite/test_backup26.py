@@ -83,7 +83,7 @@ class test_backup26(backup_base):
             target_uris = str(selective_uri_list).replace("\'", "\"")
         starttime = time.time()       
        # After the full backup, open and recover the backup database.
-        backup_conn = self.wiredtiger_open(self.dir, "backup_partial_restore={0}".format(target_uris))
+        backup_conn = self.wiredtiger_open(self.dir, "backup_restore_target={0}".format(target_uris))
         elapsed = time.time() - starttime
         self.pr("%s partial backup has taken %.2f seconds." % (str(self), elapsed))
         

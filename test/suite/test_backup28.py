@@ -76,7 +76,7 @@ class test_backup28(backup_base):
         target_uri_list_format = str(self.target_uri_list).replace("\'", "\"")
         if len(self.target_uri_list) and self.target_uri_list[0] == "table:table0":
             # After the full backup, open and recover the backup database, and it should succeed.
-            backup_conn = self.wiredtiger_open(self.dir, "backup_partial_restore={0}".format(target_uri_list_format))
+            backup_conn = self.wiredtiger_open(self.dir, "backup_restore_target={0}".format(target_uri_list_format))
             bkup_session = backup_conn.open_session()
             
             # Make sure that the table recovered properly.
@@ -88,7 +88,7 @@ class test_backup28(backup_base):
             # indexes, colgroups or lsm. This should fail and return with a message, as we only allow 
             # table formats.
             self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
-                lambda: self.wiredtiger_open(self.dir, "backup_partial_restore={0}".format(target_uri_list_format)),
+                lambda: self.wiredtiger_open(self.dir, "backup_restore_target={0}".format(target_uri_list_format)),
                 '/partial backup restore only supports objects of type .* formats in the target uri list/')
 
             

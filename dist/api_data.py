@@ -1138,11 +1138,10 @@ wiredtiger_open_common =\
     wiredtiger_open_log_configuration +\
     wiredtiger_open_tiered_storage_configuration +\
     wiredtiger_open_statistics_log_configuration + [
-    Config('backup_partial_restore', '', r'''
-        When set to true, allow a partial restore on the current database using the
-        WiredTiger metadata backup file. WiredTiger will reconstruct the
-        database files that are only present in the directory and remove all
-        table entries that are not in the directory anymore''', 
+    Config('backup_restore_target', '', r'''
+        If non-empty and restoring from a backup, restore only the table object targets listed.
+        WiredTiger will remove all table entries that are not listed in the list from the
+        reconstructed metadata. All targets must be use table: object URI configuration''', 
         type='list'),
     Config('buffer_alignment', '-1', r'''
         in-memory alignment (in bytes) for buffers used for I/O.  The

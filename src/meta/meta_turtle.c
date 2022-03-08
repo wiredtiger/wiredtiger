@@ -57,7 +57,7 @@ __metadata_init(WT_SESSION_IMPL *session)
  *     Load the contents of any hot backup file.
  */
 static int
-__metadata_load_hot_backup(WT_SESSION_IMPL *session, char **target_uris)
+__metadata_load_hot_backup(WT_SESSION_IMPL *session)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -65,15 +65,15 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, char **target_uris)
     WT_DECL_ITEM(value);
     WT_DECL_RET;
     WT_FSTREAM *fs;
-    size_t allocated_name, cnt, len, slot;
+    size_t allocated_name, file_len, max_len, slot;
     char *filename, *metadata_conf, *metadata_key, **p, **partial_backup_names, *tablename;
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "remove_files=false", NULL};
     bool exist;
 
     allocated_name = 0;
-    cnt = 0;
     conn = S2C(session);
     filename = NULL;
+    max_len = 0;
     partial_backup_names = NULL;
     slot = 0;
 
@@ -94,28 +94,23 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, char **target_uris)
         if (value->size == 0)
             WT_ERR_PANIC(session, EINVAL, "%s: zero-length value", WT_METADATA_BACKUP);
         /*
-         * When performing partial backup restore, we must generate a list of tables that we must drop.
-         * Parse through all the table metadata entries and check if the metadata entry exists in
-         * the target uri list. Note that because both the metadata backup file and target uri is 
-         * lexicographically sorted, we can use a two pointer method to check if the current metadata
-         * entry needs to be dropped. If the metadata entry doesn't exist in the target uri list,
-         * append the table name to the partial backup list.
+         * When performing partial backup restore, generate a list of tables that is not part of the
+         * target uri list so that we can drop all entries later. To do this, parse through all the
+         * table metadata entries and check if the metadata entry exists in the target uri hash
+         * table. If the metadata entry doesn't exist in the hash table, append the table name to
+         * the partial backup list.
          */
         metadata_key = (char *)key->data;
-        if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) &&
-          WT_PREFIX_MATCH(metadata_key, "table:")) {
+        if (F_ISSET(conn, WT_CONN_backup_restore_target) &&
+          WT_PREFIX_MATCH(metadata_key, "table:"))
             /*
              * The target uri will be the deciding factor if a specific metadata table entry needs
-             * to be dropped. The entry in the target uri aims to be either equal or greater than 
-             * the current metadata entry. This allows us to handle two cases to decide if
-             * we need to append the metadata key to the backup list.
-             * 
-             * 1. If the metadata key is less than the current target uri, this means that the metadata
-             * entry needs to be dropped.
-             * 2. If the target uri is NULL, meaning that we have parsed through all of the entries
-             * in the target list. All following metadata entries needs to be dropped.
+             * to be dropped. If the metadata table entry does not in the target uri hash table,
+             * append the metadata key to the backup remove list.
              */
-            if (target_uris[cnt] == NULL || strcmp(metadata_key, target_uris[cnt]) < 0) {
+            if (__wt_backup_target_uri_search(session, metadata_key) == false) {
+                if (key->size > max_len)
+                    max_len = key->size;
                 WT_ERR(__wt_realloc_def(session, &allocated_name, slot + 2, &partial_backup_names));
                 p = &partial_backup_names[slot];
                 p[0] = p[1] = NULL;
@@ -123,20 +118,20 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, char **target_uris)
                 WT_ERR(
                   __wt_strndup(session, (char *)key->data, key->size, &partial_backup_names[slot]));
                 slot++;
-            } else if (strcmp(metadata_key, target_uris[cnt]) == 0)
-                cnt++;
-        }
+            }
+
         /*
-         * In the case of partial backup restore, add the entry to the metadata even if the file
-         * doesn't exist so that we can correctly drop all related entries via the schema code
+         * In the case of partial backup restore, add the entry to the metadata even if the table
+         * entry doesn't exist so that we can correctly drop all related entries via the schema code
          * later.
          */
         WT_ERR(__wt_metadata_update(session, key->data, value->data));
     }
 
     F_SET(conn, WT_CONN_WAS_BACKUP);
-    if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) && partial_backup_names != NULL) {
+    if (F_ISSET(conn, WT_CONN_backup_restore_target) && partial_backup_names != NULL) {
         WT_ERR(__wt_calloc_def(session, slot + 1, &conn->partial_backup_remove_ids));
+        file_len = strlen("file:") + max_len + strlen(".wt") + 1;
         /*
          * Parse through the partial backup list and attempt to clean up all metadata references
          * relating to the file. To do so, perform a schema drop operation on the table to cleanly
@@ -146,9 +141,8 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, char **target_uris)
         for (slot = 0; partial_backup_names[slot] != NULL; ++slot) {
             tablename = partial_backup_names[slot];
             WT_PREFIX_SKIP_REQUIRED(session, tablename, "table:");
-            len = strlen("file:") + strlen(tablename) + strlen(".wt") + 1;
-            WT_ERR(__wt_calloc_def(session, len, &filename));
-            WT_ERR(__wt_snprintf(filename, len, "file:%s.wt", tablename));
+            WT_ERR(__wt_calloc_def(session, file_len, &filename));
+            WT_ERR(__wt_snprintf(filename, file_len, "file:%s.wt", tablename));
             WT_ERR(__wt_metadata_search(session, filename, &metadata_conf));
             WT_ERR(__wt_config_getones(session, metadata_conf, "id", &cval));
             conn->partial_backup_remove_ids[slot] = (uint32_t)cval.val;
@@ -311,7 +305,7 @@ __wt_turtle_exists(WT_SESSION_IMPL *session, bool *existp)
  *     Check the turtle file and create if necessary.
  */
 int
-__wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, char **target_uris)
+__wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -405,7 +399,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, char **target_uris)
         if (verify_meta && exist_backup)
             WT_RET_MSG(
               session, EINVAL, "restoring a backup is incompatible with metadata verification");
-        if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) && !exist_backup)
+        if (F_ISSET(conn, WT_CONN_backup_restore_target) && !exist_backup)
             WT_RET_MSG(session, EINVAL,
               "restoring a partial backup is requires the WiredTiger metadata backup file.");
 
@@ -413,7 +407,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, char **target_uris)
         WT_RET(__metadata_init(session));
 
         /* Load any hot-backup information. */
-        WT_RET(__metadata_load_hot_backup(session, target_uris));
+        WT_RET(__metadata_load_hot_backup(session));
 
         /* Create any bulk-loaded file stubs. */
         WT_RET(__metadata_load_bulk(session));
