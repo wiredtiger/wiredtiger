@@ -183,7 +183,7 @@ err:
 
 /*
  * __wt_backup_target_uri_search --
- *     Search if the uri exists in the target hash table.
+ *     Search if the target uri exists in the backup uri hash table.
  */
 bool
 __wt_backup_target_uri_search(WT_SESSION_IMPL *session, const char *uri)
@@ -210,7 +210,7 @@ __wt_backup_target_uri_search(WT_SESSION_IMPL *session, const char *uri)
 
 /*
  * __wt_add_target_uri --
- *     Add the target uri to the hash table.
+ *     Add the target uri to the backup uri hash table.
  */
 int
 __wt_add_target_uri(WT_SESSION_IMPL *session, const char *name, size_t len)
@@ -229,7 +229,7 @@ __wt_add_target_uri(WT_SESSION_IMPL *session, const char *name, size_t len)
     bucket = hash & (conn->hash_size - 1);
     new_target_uri->name_hash = hash;
     WT_BKUP_TARGET_INSERT(conn, new_target_uri, bucket);
-    
+
     return (0);
 err:
     if (new_target_uri != NULL)

@@ -211,8 +211,8 @@ struct __wt_name_flag {
     } while (0)
 
 /*
- * Macros to ensure a file handle is inserted or removed from both the main and the hashed queue,
- * used by connection-level and in-memory data structures.
+ * Macros to ensure a target uri is inserted or removed in the backup hashed queue, used for partial
+ * backup restores.
  */
 #define WT_BKUP_TARGET_INSERT(h, fh, bucket)                  \
     do {                                                      \
@@ -224,14 +224,12 @@ struct __wt_name_flag {
         TAILQ_REMOVE(&(h)->bkuphash[bucket], fh, hashq); \
     } while (0)
 
+/*
+ * WT_BKUP_TARGET --
+ *	A target uri entry to denote all uris that was copied from the previous backup in partial
+ *  backup restores.
+ */
 struct __wt_bkup_target {
-    /*
-     * There is a file name field in both the WT_FH and WT_FILE_HANDLE structures, which isn't
-     * ideal. There would be compromises to keeping a single copy: If it were in WT_FH, file systems
-     * could not access the name field, if it were just in the WT_FILE_HANDLE internal WiredTiger
-     * code would need to maintain a string inside a structure that is owned by the user (since we
-     * care about the content of the file name). Keeping two copies seems most reasonable.
-     */
     const char *name; /* File name */
 
     uint64_t name_hash;                  /* hash of name */
@@ -367,7 +365,7 @@ struct __wt_connection_impl {
     uint64_t hot_backup_start; /* Clock value of most recent checkpoint needed by hot backup */
     char **hot_backup_list;    /* Hot backup file list */
     uint32_t *partial_backup_remove_ids; /* Remove btree id list for partial backup */
-    TAILQ_HEAD(__wt_bkuphash, __wt_bkup_target) * bkuphash; /* Hash table */
+    TAILQ_HEAD(__wt_bkuphash, __wt_bkup_target) * bkuphash; /* target uri hash array */
 
     WT_SESSION_IMPL *ckpt_session; /* Checkpoint thread session */
     wt_thread_t ckpt_tid;          /* Checkpoint thread */
@@ -646,7 +644,7 @@ struct __wt_connection_impl {
     uint32_t server_flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_BACKUP_RESTORE_TARGET 0x000001u
+#define WT_CONN_BACKUP_PARTIAL_RESTORE 0x000001u
 #define WT_CONN_CACHE_CURSORS 0x000002u
 #define WT_CONN_CACHE_POOL 0x000004u
 #define WT_CONN_CKPT_GATHER 0x000008u
@@ -657,19 +655,18 @@ struct __wt_connection_impl {
 #define WT_CONN_COMPATIBILITY 0x000100u
 #define WT_CONN_DATA_CORRUPTION 0x000200u
 #define WT_CONN_EVICTION_RUN 0x000400u
-#define WT_CONN_FILE_CLOSE_SYNC 0x000800u
-#define WT_CONN_HS_OPEN 0x001000u
-#define WT_CONN_INCR_BACKUP 0x002000u
-#define WT_CONN_IN_MEMORY 0x004000u
-#define WT_CONN_LEAK_MEMORY 0x008000u
-#define WT_CONN_LSM_MERGE 0x010000u
-#define WT_CONN_OPTRACK 0x020000u
-#define WT_CONN_PANIC 0x040000u
-#define WT_CONN_READONLY 0x080000u
-#define WT_CONN_RECONFIGURING 0x100000u
-#define WT_CONN_RECOVERING 0x200000u
-#define WT_CONN_SALVAGE 0x400000u
-#define WT_CONN_WAS_BACKUP 0x800000u
+#define WT_CONN_HS_OPEN 0x000800u
+#define WT_CONN_INCR_BACKUP 0x001000u
+#define WT_CONN_IN_MEMORY 0x002000u
+#define WT_CONN_LEAK_MEMORY 0x004000u
+#define WT_CONN_LSM_MERGE 0x008000u
+#define WT_CONN_OPTRACK 0x010000u
+#define WT_CONN_PANIC 0x020000u
+#define WT_CONN_READONLY 0x040000u
+#define WT_CONN_RECONFIGURING 0x080000u
+#define WT_CONN_RECOVERING 0x100000u
+#define WT_CONN_SALVAGE 0x200000u
+#define WT_CONN_WAS_BACKUP 0x400000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };

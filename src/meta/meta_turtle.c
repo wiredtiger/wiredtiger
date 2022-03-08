@@ -101,7 +101,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
          * the partial backup list.
          */
         metadata_key = (char *)key->data;
-        if (F_ISSET(conn, WT_CONN_BACKUP_RESTORE_TARGET) &&
+        if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) &&
           WT_PREFIX_MATCH(metadata_key, "table:"))
             /*
              * The target uri will be the deciding factor if a specific metadata table entry needs
@@ -129,7 +129,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
     }
 
     F_SET(conn, WT_CONN_WAS_BACKUP);
-    if (F_ISSET(conn, WT_CONN_BACKUP_RESTORE_TARGET) && partial_backup_names != NULL) {
+    if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) && partial_backup_names != NULL) {
         WT_ERR(__wt_calloc_def(session, slot + 1, &conn->partial_backup_remove_ids));
         file_len = strlen("file:") + max_len + strlen(".wt") + 1;
         /*
@@ -161,8 +161,7 @@ err:
 
     /*
      * Free the partial backup names list. The backup id list is used in recovery to truncate the
-     * history store entries that do not exist as part of the database anymore. Recovery will be
-     * responsible to freeing the list.
+     * history store entries that do not exist as part of the database anymore.
      */
     if (partial_backup_names != NULL) {
         for (slot = 0; partial_backup_names[slot] != NULL; ++slot)
@@ -399,7 +398,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta)
         if (verify_meta && exist_backup)
             WT_RET_MSG(
               session, EINVAL, "restoring a backup is incompatible with metadata verification");
-        if (F_ISSET(conn, WT_CONN_BACKUP_RESTORE_TARGET) && !exist_backup)
+        if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) && !exist_backup)
             WT_RET_MSG(session, EINVAL,
               "restoring a partial backup is requires the WiredTiger metadata backup file.");
 
