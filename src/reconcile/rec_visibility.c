@@ -690,10 +690,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
          */
         if (tombstone == upd) {
             upd = upd->next;
-            while (upd != NULL && upd->txnid == WT_TXN_ABORTED)
-                upd = upd->next;
 
-            if (upd != NULL && upd->start_ts > tombstone->start_ts)
+            WT_ASSERT(session, upd != NULL);
+            if (upd->start_ts > tombstone->start_ts)
                 upd_select->ooo_tombstone = true;
 
             if (vpack != NULL && vpack->tw.start_ts > tombstone->start_ts)
