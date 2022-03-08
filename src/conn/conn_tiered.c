@@ -111,8 +111,12 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
      */
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT));
     __wt_seconds(session, &flush_time);
-    /* XXX If/when flush tier no longer requires the checkpoint lock, this needs consideration. */
+    /*
+     * XXX If/when flush tier no longer requires the checkpoint lock, all of these global values and
+     * their setting need consideration to make sure they don't race with a checkpoint.
+     */
     conn->flush_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+    __wt_verbose(session, WT_VERB_TIERED, "FLUSH_TIER: got flush gen %" PRIu64, conn->flush_gen);
     conn->flush_most_recent = WT_MAX(flush_time, conn->ckpt_most_recent);
     conn->flush_ts = conn->txn_global.last_ckpt_timestamp;
 
@@ -443,8 +447,14 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
     ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
     /*
      * If the checkpoint generation has not changed, or the next checkpoint is still running we are
-     * not yet ready to copy those objects to shared storage. There is nothing to do.
+     * not yet ready to copy those objects to shared storage. There is nothing to do. One global
+     * flush generation is sufficient because the next flush_tier cannot start until all flush work
+     * units from the previous call are complete. So that field is guaranteed to be the latest
+     * value.
      */
+    __wt_verbose(session, WT_VERB_TIERED,
+      "STORAGE_COPY: flush_gen %" PRIu64 ", ckpt_gen %" PRIu64 ", running %d", conn->flush_gen,
+      ckpt_gen, conn->txn_global.checkpoint_running);
     if (conn->flush_gen == ckpt_gen ||
       (conn->flush_gen < ckpt_gen && conn->txn_global.checkpoint_running))
         return (0);
@@ -818,6 +828,11 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
     /* Stop the internal server thread. */
     if (conn->flush_cond != NULL)
         __wt_cond_signal(session, conn->flush_cond);
+    if (conn->tiered_cond != NULL) {
+        __wt_cond_signal(session, conn->tiered_cond);
+        /* Give thread time to drain the work. */
+        __wt_sleep(1, 0);
+    }
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_TIERED);
     if (conn->tiered_tid_set) {
         WT_ASSERT(session, conn->tiered_cond != NULL);
