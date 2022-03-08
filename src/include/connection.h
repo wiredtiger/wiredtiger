@@ -214,14 +214,14 @@ struct __wt_name_flag {
  * Macros to ensure a target uri is inserted or removed in the backup hashed queue, used for partial
  * backup restores.
  */
-#define WT_BKUP_TARGET_INSERT(h, fh, bucket)                  \
+#define WT_BKUP_TARGET_INSERT(conn, target_uri, bucket)                  \
     do {                                                      \
-        TAILQ_INSERT_HEAD(&(h)->bkuphash[bucket], fh, hashq); \
+        TAILQ_INSERT_HEAD(&(conn)->bkuphash[bucket], target_uri, hashq); \
     } while (0)
 
-#define WT_BKUP_TARGET_REMOVE(h, fh, bucket)             \
+#define WT_BKUP_TARGET_REMOVE(conn, target_uri, bucket)             \
     do {                                                 \
-        TAILQ_REMOVE(&(h)->bkuphash[bucket], fh, hashq); \
+        TAILQ_REMOVE(&(conn)->bkuphash[bucket], target_uri, hashq); \
     } while (0)
 
 /*
