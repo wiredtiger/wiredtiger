@@ -685,7 +685,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
 
         /*
          * The selected update can be the tombstone itself when the tombstone is globally visible.
-         * Compare the tombstone's timestamp with either the next update in the update list or the 
+         * Compare the tombstone's timestamp with either the next update in the update list or the
          * on-disk cell timestamp to determine if the tombstone is an out-of-order or mixed mode.
          */
         if (tombstone == upd) {
@@ -698,8 +698,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
 
             if (vpack != NULL && vpack->tw.start_ts > tombstone->start_ts)
                 upd_select->ooo_tombstone = true;
-        }
-        else if (upd->start_ts > tombstone->start_ts)
+        } else if (upd->start_ts > tombstone->start_ts)
             upd_select->ooo_tombstone = true;
     }
 
