@@ -346,6 +346,7 @@ __metadata_add_backup_target_uri(WT_SESSION_IMPL *session, const char *name, siz
     hash = __wt_hash_city64(name, len);
     bucket = hash & (conn->hash_size - 1);
     new_target_uri->name_hash = hash;
+    /* Insert target uri entry into hashtable. */
     TAILQ_INSERT_HEAD(&(conn)->backuphash[bucket], new_target_uri, hashq);
 
     return (0);
@@ -522,6 +523,7 @@ err:
     for (i = 0; i < conn->hash_size; ++i)
         while (!TAILQ_EMPTY(&conn->backuphash[i])) {
             target_uri = TAILQ_FIRST(&conn->backuphash[i]);
+            /* Remove target uri entry from the hashtable. */
             TAILQ_REMOVE(&(conn)->backuphash[i], target_uri, hashq);
             __wt_free(session, target_uri->name);
             __wt_free(session, target_uri);
