@@ -1157,7 +1157,6 @@ err:
      * the sweep server.
      */
     WT_TRET(__wt_sweep_destroy(session));
-    WT_TRET(__wt_tiered_storage_destroy(session));
 
     /*
      * Shut down the checkpoint and capacity server threads: we don't want to throttle writes and
@@ -1168,6 +1167,11 @@ err:
 
     /* Perform a final checkpoint and shut down the global transaction state. */
     WT_TRET(__wt_txn_global_shutdown(session, cfg));
+    /*
+     * Tiered storage needs to flush any work after the final checkpoint which happens when the
+     * global transaction state is shut down. So this shutdown must come after.
+     */
+    WT_TRET(__wt_tiered_storage_destroy(session));
 
     if (ret != 0) {
         __wt_err(session, ret, "failure during close, disabling further writes");
