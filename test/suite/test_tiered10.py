@@ -28,7 +28,7 @@
 
 from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
 from wtscenario import make_scenarios
-import os, wiredtiger, wttest
+import os, time, wiredtiger, wttest
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered10.py
@@ -135,10 +135,14 @@ class test_tiered10(wttest.WiredTigerTestCase):
         self.check(c2, 20, 1)
         c1.close()
         c2.close()
-        session1.flush_tier('sync=off')
         session1.checkpoint()
-        session2.flush_tier('sync=off')
         session2.checkpoint()
+
+        session1.flush_tier('sync=off')
+        session1.checkpoint('force=true')
+        session2.flush_tier('sync=off')
+        session2.checkpoint('force=true')
+        time.sleep(1)
         conn1_obj1 = os.path.join(self.bucket, self.prefix1 + self.obj1file)
         conn2_obj1 = os.path.join(self.bucket, self.prefix2 + self.obj1file)
         self.assertTrue(os.path.exists(conn1_obj1))
