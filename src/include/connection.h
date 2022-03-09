@@ -211,28 +211,14 @@ struct __wt_name_flag {
     } while (0)
 
 /*
- * Macros to ensure a target uri is inserted or removed in the backup hashed queue, used for partial
- * backup restores.
- */
-#define WT_BKUP_TARGET_INSERT(conn, target_uri, bucket)                  \
-    do {                                                                 \
-        TAILQ_INSERT_HEAD(&(conn)->bkuphash[bucket], target_uri, hashq); \
-    } while (0)
-
-#define WT_BKUP_TARGET_REMOVE(conn, target_uri, bucket)             \
-    do {                                                            \
-        TAILQ_REMOVE(&(conn)->bkuphash[bucket], target_uri, hashq); \
-    } while (0)
-
-/*
- * WT_BKUP_TARGET --
+ * WT_BACKUP_TARGET --
  *	A target URI entry indicating this URI should be restored during a partial backup.
  */
-struct __wt_bkup_target {
+struct __wt_backup_target {
     const char *name; /* File name */
 
-    uint64_t name_hash;                  /* hash of name */
-    TAILQ_ENTRY(__wt_bkup_target) hashq; /* internal hash queue */
+    uint64_t name_hash;                    /* hash of name */
+    TAILQ_ENTRY(__wt_backup_target) hashq; /* internal hash queue */
 };
 
 /*
@@ -364,7 +350,7 @@ struct __wt_connection_impl {
     uint64_t hot_backup_start; /* Clock value of most recent checkpoint needed by hot backup */
     char **hot_backup_list;    /* Hot backup file list */
     uint32_t *partial_backup_remove_ids; /* Remove btree id list for partial backup */
-    TAILQ_HEAD(__wt_bkuphash, __wt_bkup_target) * bkuphash; /* target uri hash array */
+    TAILQ_HEAD(__wt_backuphash, __wt_backup_target) * backuphash; /* target uri hash array */
 
     WT_SESSION_IMPL *ckpt_session; /* Checkpoint thread session */
     wt_thread_t ckpt_tid;          /* Checkpoint thread */
