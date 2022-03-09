@@ -15,6 +15,7 @@ post:
     vars:
       postfix: -${execution}
   - func: "save wt hang analyzer core/debugger files"
+  - func: "print python stacktrace"
   - func: "dump stderr/stdout"
   - func: "cleanup"
 timeout:
@@ -493,6 +494,17 @@ functions:
         content_type: application/tar
         display_name: WT Hang Analyzer Output - Execution ${execution}
         remote_file: wiredtiger/${build_variant}/${revision}/wt_hang_analyzer/wt-hang-analyzer_${task_name}_${build_id}${postfix|}.tgz
+
+  "print python stacktrace":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build"
+      script: |
+        set -o errexit
+        set -o verbose
+        if [ -d "WT_TEST" ]; then
+          python3 ../test/evergreen/print_python_stack_trace.py -e ${python_binary|python3} -c WT_TEST -l .
+        fi
 
   "dump stderr/stdout":
     command: shell.exec
