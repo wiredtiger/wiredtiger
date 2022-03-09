@@ -54,7 +54,7 @@ __metadata_init(WT_SESSION_IMPL *session)
 
 /*
  * __metadata_backup_target_uri_search --
- *     Search if the target uri exists in the backup uri hash table.
+ *     Search in the backup uri hash table if the given uri exists.
  */
 static bool
 __metadata_backup_target_uri_search(WT_SESSION_IMPL *session, const char *uri)
@@ -70,12 +70,11 @@ __metadata_backup_target_uri_search(WT_SESSION_IMPL *session, const char *uri)
     hash = __wt_hash_city64(uri, strlen(uri));
     bucket = hash & (conn->hash_size - 1);
 
-    TAILQ_FOREACH (target_uri, &conn->backuphash[bucket], hashq) {
+    TAILQ_FOREACH (target_uri, &conn->backuphash[bucket], hashq)
         if (strcmp(uri, target_uri->name) == 0) {
             found = true;
             break;
         }
-    }
     return (found);
 }
 
