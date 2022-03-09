@@ -995,7 +995,7 @@ __curfile_update_check(WT_CURSOR_BTREE *cbt)
       page->modify->mod_row_update != NULL)
         upd = page->modify->mod_row_update[cbt->slot];
 
-    return (__wt_txn_modify_check(session, cbt, upd, NULL));
+    return (__wt_txn_modify_check(session, cbt, upd, NULL, upd->type));
 }
 
 /*

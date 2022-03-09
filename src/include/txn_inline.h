@@ -1303,18 +1303,20 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
  *     Check if the current transaction can modify an item.
  */
 static inline int
-__wt_txn_modify_check(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, wt_timestamp_t *prev_tsp)
+__wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd,
+  wt_timestamp_t *prev_tsp, u_int modify_type)
 {
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_TIME_WINDOW tw;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
+    WT_UPDATE *latest_upd;
     uint32_t snap_count;
     char ts_string[WT_TS_INT_STRING_SIZE];
     bool ignore_prepare_set, rollback, tw_found;
 
+    latest_upd = upd;
     rollback = tw_found = false;
     txn = session->txn;
     txn_global = &S2C(session)->txn_global;
@@ -1326,6 +1328,16 @@ __wt_txn_modify_check(
     if (txn_global->debug_rollback != 0 &&
       ++txn_global->debug_ops % txn_global->debug_rollback == 0)
         return (__wt_txn_rollback_required(session, "debug mode simulated conflict"));
+
+    /*
+     * If we are trying to prepend a tombstone in front of another tombstone, we should fail this
+     * with a WT_NOTFOUND error.
+     */
+    if (modify_type == WT_UPDATE_TOMBSTONE) {
+        if (latest_upd != NULL && latest_upd->type == WT_UPDATE_TOMBSTONE)
+            WT_ERR(WT_NOTFOUND);
+    }
+
     /*
      * Always include prepared transactions in this check: they are not supposed to affect
      * visibility for update operations.
