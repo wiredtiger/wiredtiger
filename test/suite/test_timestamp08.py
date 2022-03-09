@@ -88,7 +88,7 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.commit_transaction(
             'commit_timestamp=' + self.timestamp_str(4))
 
-        # Commit timestamp >= Stable timestamp.
+        # Commit timestamp > Stable timestamp.
         # Check both timestamp_transaction and commit_transaction APIs.
         # Oldest and stable timestamp are set to 5 at the moment.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(6))

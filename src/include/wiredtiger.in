@@ -1908,7 +1908,7 @@ struct __wt_session {
 	int __F(timestamp_transaction)(WT_SESSION *session, const char *config);
 
 	/*!
-	 * Set the commit timestamp on a transaction numerically.  Prefer this over @ref
+	 * Set a timestamp on a transaction numerically.  Prefer this over @ref
 	 * timestamp_transaction when the string parsing done in that method becomes a bottleneck.
 	 *
 	 * The WT_SESSION.timestamp_transaction_uint method can only be used at snapshot
