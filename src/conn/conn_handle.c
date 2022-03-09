@@ -134,7 +134,6 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_cond_destroy(session, &conn->lsm_manager.work_cond);
 
     /* Free allocated hash buckets. */
-    __wt_free(session, conn->backuphash);
     __wt_free(session, conn->blockhash);
     __wt_free(session, conn->dh_bucket_count);
     __wt_free(session, conn->dhhash);
