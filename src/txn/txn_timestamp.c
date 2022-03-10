@@ -884,35 +884,35 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
  *     Does the "heavy lifting" for the outside-facing txn_set_timestamp functions.
  */
 static int
-__txn_set_timestamp_internal(
-  WT_SESSION_IMPL *session, uint64_t commit, uint64_t durable, uint64_t prepare, uint64_t read)
+__txn_set_timestamp_internal(WT_SESSION_IMPL *session, uint64_t commit_ts, uint64_t durable_ts,
+  uint64_t prepare_ts, uint64_t read_ts)
 {
     WT_CONNECTION_IMPL *conn;
     bool set_ts;
 
     conn = S2C(session);
-    set_ts =
-      commit != WT_TS_NONE || durable != WT_TS_NONE || prepare != WT_TS_NONE || read != WT_TS_NONE;
+    set_ts = commit_ts != WT_TS_NONE || durable_ts != WT_TS_NONE || prepare_ts != WT_TS_NONE ||
+      read_ts != WT_TS_NONE;
 
     /* Look for a commit timestamp. */
-    if (commit != WT_TS_NONE)
-        WT_RET(__wt_txn_set_commit_timestamp(session, commit));
+    if (commit_ts != WT_TS_NONE)
+        WT_RET(__wt_txn_set_commit_timestamp(session, commit_ts));
 
     /*
      * Look for a durable timestamp. Durable timestamp should be set only after setting the commit
      * timestamp.
      */
-    if (durable != WT_TS_NONE)
-        WT_RET(__wt_txn_set_durable_timestamp(session, durable));
+    if (durable_ts != WT_TS_NONE)
+        WT_RET(__wt_txn_set_durable_timestamp(session, durable_ts));
     __wt_txn_publish_durable_timestamp(session);
 
     /* Look for a read timestamp. */
-    if (read != WT_TS_NONE)
-        WT_RET(__wt_txn_set_read_timestamp(session, read));
+    if (read_ts != WT_TS_NONE)
+        WT_RET(__wt_txn_set_read_timestamp(session, read_ts));
 
     /* Look for a prepare timestamp. */
-    if (prepare != WT_TS_NONE)
-        WT_RET(__wt_txn_set_prepare_timestamp(session, prepare));
+    if (prepare_ts != WT_TS_NONE)
+        WT_RET(__wt_txn_set_prepare_timestamp(session, prepare_ts));
 
     /* Timestamps are only logged in debugging mode. */
     if (set_ts && FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE) &&
@@ -985,7 +985,7 @@ __ts_txn_type_to_str(WT_TS_TXN_TYPE which)
         return "read_timestamp";
     }
 
-    return "UNKNOWN";
+    return "UNKNOWN_timestamp";
 }
 
 /*
