@@ -1354,8 +1354,7 @@ __wt_txn_modify_check(
      * time-window from an unrelated on-disk value if we are not careful as the slot can still be
      * set on the cursor b-tree.
      */
-    if (!rollback && upd == NULL &&
-      (CUR2BT(cbt)->type != BTREE_ROW || (CUR2BT(cbt)->type == BTREE_ROW && cbt->ins == NULL))) {
+    if (!rollback && upd == NULL && (CUR2BT(cbt)->type != BTREE_ROW || cbt->ins == NULL)) {
         tw_found = __wt_read_cell_time_window(cbt, &tw);
         if (tw_found) {
             if (WT_TIME_WINDOW_HAS_STOP(&tw)) {
