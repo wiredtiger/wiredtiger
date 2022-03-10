@@ -53,17 +53,10 @@ In all cases, ::WT_NOTFOUND is returned if there is no matching timestamp.
 
 The following table lists the transaction's timestamps and behaviors that can be set when the transaction begins, using WT_SESSION::begin_transaction:
 
-<!--
-   Note: I am getting errors from | ... @ref foo | (that is, a ref at the end of
-   a table cell); it is apparently including a \n in the reference name and then
-   being unable to find it. Adding link text in [] seems to mitigate the problem,
-   but moving the links to not be at the ends of table cells is more maintainable.
--->
-
 | Timestamp | Constraint |  Description |
 |-----------|------------|-------------|
-| read_timestamp | >= oldest or >= pinned | see @ref timestamp_txn_api_read_timestamp; the transaction's read timestamp |
-| roundup_timestamps | None | see @ref timestamp_roundup; boolean setting for timestamp auto-adjustments |
+| read_timestamp | >= oldest or >= pinned | the transaction's read timestamp, see @ref timestamp_txn_api_read_timestamp for details |
+| roundup_timestamps | None | boolean setting for timestamp auto-adjustments, see @ref timestamp_prepare_roundup and @ref timestamp_read_roundup for details |
 
 @section timestamp_txn_api_commit Configuring transaction timestamp information with WT_SESSION::commit_transaction
 
@@ -72,8 +65,8 @@ transaction commits, using WT_SESSION::commit_transaction:
 
 | Timestamp | Constraint | Description |
 |-----------|------------|-------------|
-| commit_timestamp | >= stable and >= prepare and >= any system read timestamp | see @ref timestamp_txn_api_commit_timestamp; the transaction's commit timestamp |
-| durable_timestamp | >= commit and > stable | see @ref timestamp_prepare; the transaction's durable timestamp, only applicable to prepared transactions |
+| commit_timestamp | > stable and >= prepare and >= any system read timestamp | the transaction's commit timestamp, see @ref timestamp_txn_api_commit_timestamp for details |
+| durable_timestamp | >= commit | the transaction's durable timestamp, only applicable to prepared transactions, see @ref timestamp_prepare for details |
 
 @section timestamp_txn_api_prepare Configuring transaction timestamp information with WT_SESSION::prepare_transaction
 
@@ -82,7 +75,7 @@ transaction is prepared, using WT_SESSION::prepare_transaction:
 
 | Timestamp | Constraint |Description |
 |-----------|------------|-------------|
-| prepare_timestamp | > stable and >= any system read timestamp | see @ref timestamp_prepare; the transaction's prepare timestamp |
+| prepare_timestamp | > stable and >= any system read timestamp | the transaction's prepare timestamp, see @ref timestamp_prepare for details |
 
 @section timestamp_txn_api_timestamp_transaction Configuring transaction timestamp information with WT_SESSION::timestamp_transaction
 
@@ -91,12 +84,12 @@ points in the transaction's lifetime, using WT_SESSION::timestamp_transaction:
 
 | Timestamp | Constraint | Description |
 |-----------|------------|-------------|
-| commit_timestamp | >= stable and >= prepare and >= any system read timestamp | see @ref timestamp_txn_api_commit_timestamp; the transaction's commit timestamp |
-| durable_timestamp | >= commit and > stable | see @ref timestamp_prepare; the transaction's durable timestamp, only applicable to prepared transactions |
-| prepare_timestamp | > stable and >= any system read timestamp | see @ref timestamp_prepare; the transaction's prepare timestamp |
-| read_timestamp | >= oldest or >= pinned | see @ref timestamp_txn_api_read_timestamp; the transaction's read timestamp |
+| commit_timestamp | > stable and >= prepare and >= any system read timestamp | the transaction's commit timestamp, see @ref timestamp_txn_api_commit_timestamp for details |
+| durable_timestamp | >= commit | the transaction's durable timestamp, only applicable to prepared transactions, see @ref timestamp_prepare for details |
+| prepare_timestamp | > stable and >= any system read timestamp | the transaction's prepare timestamp, see @ref timestamp_prepare for details |
+| read_timestamp | >= oldest or >= pinned | the transaction's read timestamp, see @ref timestamp_txn_api_read_timestamp for details |
 
-@section timestamp_txn_api_commit_timestamp Setting the transaction's "commit_timestamp"
+@section timestamp_txn_api_commit_timestamp Setting the transaction's commit timestamp
 
 The \c commit time is the time at which other transactions with appropriately set
 read timestamps will see the transaction's updates.
@@ -144,7 +137,7 @@ For prepared transactions, the commit timestamp must not be less than the
 prepare timestamp. Otherwise, the commit
 timestamp must not be less than the system's stable timestamp.
 
-@section timestamp_txn_api_read_timestamp Setting the transaction's "read_timestamp"
+@section timestamp_txn_api_read_timestamp Setting the transaction's read timestamp
 
 Setting the transaction's read timestamp causes a transaction to not see any
 commits with a newer timestamp. (Updates may still conflict with commits having
