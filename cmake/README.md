@@ -4,6 +4,10 @@
 
 To build with CMake we **require** the following dependencies:
 
+* A compiler that supports C11:
+  * `gcc` : Version 8.5 or later, or 
+  * `clang`: Version 7.01 or later, or
+  * `Visual Studio 2017`: If compiling on Windows
 * `cmake` : Official CMake install instructions found here: https://cmake.org/install/
   * *WiredTiger supports CMake 3.10+*
 
@@ -94,6 +98,7 @@ There are a number of additional configuration options you can pass to the CMake
 * `-DENABLE_ZSTD=1` : Build the libzstd compressor extension
 * `-DENABLE_SODIUM=1` : Build the libsodium encryptor extension
 * `-DHAVE_DIAGNOSTIC=1` : Enable WiredTiger diagnostics
+* `-DHAVE_UNITTEST=1` : Enable WiredTiger unit tests
 * `-DHAVE_ATTACH=1` : Enable to pause for debugger attach on failure
 * `-DENABLE_STRICT=1` : Compile with strict compiler warnings enabled
 * `-DENABLE_PYTHON=1` : Compile the python API

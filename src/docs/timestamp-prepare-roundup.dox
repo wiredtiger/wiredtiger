@@ -1,23 +1,9 @@
-/*! @page timestamp_roundup Automatic timestamp rounding
+/*! @page timestamp_prepare_roundup Automatic prepare timestamp rounding
 
-Applications setting timestamps for a transaction have to comply with the
-constraints based on the global timestamp state. In order to be compliant with
-the constraints applications will need to query the global timestamp state and
-check their timestamps for compliance and adjust timestamps if required, and
-this creates obvious races with other threads. To reduce application burden,
-WiredTiger supports automatic timestamp rounding in some scenarios.
+Prepared transactions have their own configuration keyword for rounding
+timestamps.
 
-@section timestamp_roundup_read Rounding up the read timestamp
-
-Applications can configure
-<code>roundup_timestamps=(prepared=true,read=true)</code> with
-the WT_SESSION::begin_transaction method.
-
-Configuring <code>roundup_timestamps=(read=true)</code> causes the read
-timestamp to be rounded up to the oldest timestamp. If the read timestamp is
-greater than the oldest timestamp no change will be made.
-
-@section timestamp_roundup_prepare Replaying prepared transactions by rounding up the prepare timestamp
+@section timestamp_prepare_roundup_replay Replaying prepared transactions by rounding up the prepare timestamp
 
 It is possible for a system crash to cause a prepared transaction to
 be rolled back.
@@ -62,7 +48,7 @@ If in any doubt it is far safer to either abort the transaction (this
 requires no further action in WiredTiger) or not allow stable to
 advance past a transaction that has prepared.
 
-@subsection timestamp_roundup_prepare_safety Safety rationale and details
+@section timestamp_prepare_roundup_safety Safety rationale and details
 
 When a transaction is prepared and rolled back by a crash, then
 replayed, this creates a period of time (execution time, not timestamp
@@ -91,8 +77,7 @@ the affected region of the database before replaying a prepared
 transaction, it is then responsible for compensating for its temporary
 absence somehow.)
 
-<!-- FIXME-WT-8747: WT-8747 is expected to prohibit non-durable reads -->
-Note that because a transaction's durable timestamp is allowed to be
+Because a transaction's durable timestamp is allowed to be
 later than its commit timestamp, it is possible for a transaction to
 prepare and commit and still be rolled back by a crash.
 It is thus possible to perform intersecting reads that succeed (rather

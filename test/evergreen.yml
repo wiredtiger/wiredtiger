@@ -57,10 +57,18 @@ functions:
   "fetch mongo repo" :
     command: shell.exec
     params:
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
-        git clone https://github.com/mongodb/mongo
+        mongo_repo=https://github.com/mongodb/mongo
+        branch=${branch_name}
+        if [[ $branch =~ "mongodb-" ]]; then   
+          mongo_branch=v$(echo $branch | cut -d'-' -f 2)
+        else
+          mongo_branch=master
+        fi
+        git clone $mongo_repo -b $mongo_branch
   "import wiredtiger into mongo" :
     command: shell.exec
     params:
@@ -937,6 +945,20 @@ tasks:
         vars:
           directory: bench/wtperf
 
+  - name: unittest-test
+    tags: ["pull_request"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DENABLE_LZ4=1 -DENABLE_SNAPPY=1 -DENABLE_ZLIB=1 -DHAVE_UNITTEST=1
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          script: |
+            set -o errexit
+            set -o verbose
+            test/unittest/unittests
   # End of normal make check test tasks
 
   # Start of cppsuite test tasks.
@@ -1894,17 +1916,19 @@ tasks:
       - func: "make wiredtiger"
       - func: "make check all"
 
-  # Use format.sh to run tests in parallel (x4) for just under two hours (the
+  # Use format.sh to run tests in parallel for just under two hours (the
   # default Evergreen timeout) on the higher spec build distros. This allows
   # us to perform multiple test runs while ensuring a long-running config does
-  # not result in an Evergreen test timeout failure.
+  # not result in an Evergreen test timeout failure. This test is run on a 
+  # higher spec distro due to historical issues with timeout failures. Consider 
+  # reducing the parallelism if frequent timeouts occur.
   - name: linux-directio
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 110 -j 4 direct_io=1
+          format_test_script_args: -t 110 direct_io=1
 
   - name: format-linux-no-ftruncate
     commands:
@@ -2059,7 +2083,7 @@ tasks:
           display_name: " 1 Coverage report main page"
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/1_coverage_report_main.html
 
-  - name: s3-ext-test
+  - name: tiered-storage-extensions-test
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2078,10 +2102,10 @@ tasks:
             # Only set verbose after having put the AWS access credentials into the environment.
             set -o verbose
 
-            # Run unit testing
+            # Run S3 extension unit testing
             ext/storage_sources/s3_store/test/run_s3_unit_tests
-            # Run Python testing
-            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py s3_store01
+            # Run Python testing for all tiered tests
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py -j $(nproc) tiered
 
   - name: spinlock-gcc-test
     commands:
@@ -2124,11 +2148,18 @@ tasks:
             dir=../bench/wtperf/stress
             for file in `ls $dir`
             do
+              echo "Disk usage and free space for the current drive (pre-test):"
+              df -h .
               echo "===="
               echo "==== Initiating wtperf test using $dir/$file ===="
               echo "===="
               ${test_env_vars|} ./bench/wtperf/wtperf -O $dir/$file -o verbose=2
-              cp -rf WT_TEST WT_TEST_$file
+              echo "===="
+              echo "Disk usage and free space for the current drive (post-test):"
+              df -h .
+              echo "Total size of WT_TEST directory prior to move:"
+              du -hs WT_TEST
+              mv WT_TEST WT_TEST_$file
             done
 
   - name: ftruncate-test
@@ -2628,7 +2659,8 @@ tasks:
             virtualenv -p python3 venv
             source venv/bin/activate
             pip3 install lorem pymongo==3.12.2
-            ./run_many_coll.sh ../../mongo/build/opt/install/bin/mongod mongodb.log config/many-collection-testing many-collection clean-and-populate
+            mongod_path=$(find ../../mongo/build -executable -type f -path \*/bin/mongod)
+            ./run_many_coll.sh $mongod_path mongodb.log config/many-collection-testing many-collection clean-and-populate
 
       - command: shell.exec
         params:
@@ -3548,7 +3580,8 @@ buildvariants:
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp
     - name: data-validation-stress-test-checkpoint-no-timestamp
-    - name: s3-ext-test
+    - name: unittest-test
+    - name: tiered-storage-extensions-test
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
@@ -4137,4 +4170,5 @@ buildvariants:
     - name: long-test
     - name: configure-combinations
     - name: format-smoke-test
-    - name: s3-ext-test
+    - name: tiered-storage-extensions-test
+
