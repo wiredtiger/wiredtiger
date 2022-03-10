@@ -4099,8 +4099,8 @@ buildvariants:
     - name: ".stress-test-ppc-1"
     - name: ".stress-test-ppc-2"
 
-- name: rhel80-zseries
-  display_name: "~ RHEL80 zSeries"
+- name: rhel8-zseries
+  display_name: "~ RHEL8 zSeries"
   run_on:
   - rhel80-zseries-test
   batchtime: 120 # 2 hours
