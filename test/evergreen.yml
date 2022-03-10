@@ -668,19 +668,8 @@ variables:
       - func: "compile wiredtiger address sanitizer"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 360
-          test_env_vars:
-            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
-            ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
-
-  - &format-stress-sanitizer-test-j6
-    exec_timeout_secs: 25200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger address sanitizer"
-      - func: "format test script"
-        vars:
-          format_test_script_args: -t 360 -j 6
+          # Run less parallel jobs on the ARM platform, otherwise OOM killer terminates one of them.
+          format_test_script_args: -t 360 -j $(if [ `uname -m` == "aarch64" ]; then echo 6; else echo 8; fi)
           test_env_vars:
             ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
@@ -2612,18 +2601,6 @@ tasks:
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-4
     tags: ["stress-test-4"]
-  - <<: *format-stress-sanitizer-test
-    name: format-stress-sanitizer-test-j6-1
-    tags: ["stress-test-arm64-1"]
-  - <<: *format-stress-sanitizer-test
-    name: format-stress-sanitizer-test-j6-2
-    tags: ["stress-test-arm64-2"]
-  - <<: *format-stress-sanitizer-test
-    name: format-stress-sanitizer-test-j6-3
-    tags: ["stress-test-arm64-3"]
-  - <<: *format-stress-sanitizer-test
-    name: format-stress-sanitizer-test-j6-4
-    tags: ["stress-test-arm64-4"]
   - <<: *race-condition-stress-sanitizer-test
     name: race-condition-stress-sanitizer-test-1
     tags: ["stress-test-1"]
@@ -3792,10 +3769,10 @@ buildvariants:
       -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
   tasks:
-    - name: ".stress-test-arm64-1"
-    - name: ".stress-test-arm64-2"
-    - name: ".stress-test-arm64-3"
-    - name: ".stress-test-arm64-4"
+    - name: ".stress-test-1"
+    - name: ".stress-test-2"
+    - name: ".stress-test-3"
+    - name: ".stress-test-4"
     - name: format-abort-recovery-stress-test
 
 - name: ubuntu2004-perf-tests
