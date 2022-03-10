@@ -118,7 +118,6 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
      * their settings need consideration to make sure they don't race with a checkpoint.
      */
     conn->flush_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
-    __wt_verbose(session, WT_VERB_TIERED, "FLUSH_TIER: got flush gen %" PRIu64, conn->flush_gen);
     conn->flush_most_recent = WT_MAX(flush_time, conn->ckpt_most_recent);
     conn->flush_ts = conn->txn_global.last_ckpt_timestamp;
 
@@ -454,9 +453,6 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
      * units from the previous call are complete. So that field is guaranteed to be the latest
      * value.
      */
-    __wt_verbose(session, WT_VERB_TIERED,
-      "STORAGE_COPY: flush_gen %" PRIu64 ", ckpt_gen %" PRIu64 ", running %d", conn->flush_gen,
-      ckpt_gen, conn->txn_global.checkpoint_running);
     if (conn->flush_gen == ckpt_gen ||
       (conn->flush_gen < ckpt_gen && conn->txn_global.checkpoint_running))
         return (0);
