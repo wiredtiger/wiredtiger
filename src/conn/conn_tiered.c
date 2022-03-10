@@ -117,7 +117,7 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
      * XXX If/when flush tier no longer requires the checkpoint lock, all of these global values and
      * their settings need consideration to make sure they don't race with a checkpoint.
      */
-    conn->flush_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+    conn->flush_ckpt_complete = false;
     conn->flush_most_recent = WT_MAX(flush_time, conn->ckpt_most_recent);
     conn->flush_ts = conn->txn_global.last_ckpt_timestamp;
 
@@ -439,22 +439,11 @@ err:
 static int
 __tier_storage_copy(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_TIERED_WORK_UNIT *entry;
-    uint64_t ckpt_gen;
 
-    conn = S2C(session);
-    ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
-    /*
-     * If the checkpoint generation has not changed, or the next checkpoint is still running we are
-     * not yet ready to copy those objects to shared storage. There is nothing to do. One global
-     * flush generation is sufficient because the next flush_tier cannot start until all flush work
-     * units from the previous call are complete. So that field is guaranteed to be the latest
-     * value.
-     */
-    if (conn->flush_gen == ckpt_gen ||
-      (conn->flush_gen < ckpt_gen && conn->txn_global.checkpoint_running))
+    /* There is nothing to do until the checkpoint after the flush completes. */
+    if (!S2C(session)->flush_ckpt_complete)
         return (0);
     entry = NULL;
     for (;;) {

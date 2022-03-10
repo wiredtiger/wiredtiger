@@ -430,7 +430,7 @@ struct __wt_connection_impl {
     WT_CONDVAR *flush_cond;          /* Flush wait mutex */
     WT_CONDVAR *tiered_cond;         /* Tiered wait mutex */
     bool tiered_server_running;      /* Internal tiered server operating */
-    uint64_t flush_gen;              /* Checkpoint generation of last flush_tier */
+    bool flush_ckpt_complete;        /* Checkpoint after flush completed */
     uint64_t flush_most_recent;      /* Clock value of last flush_tier */
     uint32_t flush_state;            /* State of last flush tier */
     wt_timestamp_t flush_ts;         /* Timestamp of most recent flush_tier */
