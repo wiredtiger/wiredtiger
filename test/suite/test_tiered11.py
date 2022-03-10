@@ -28,7 +28,7 @@
 
 from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
 from wtscenario import make_scenarios
-import os, wiredtiger, wttest
+import os, time, wiredtiger, wttest
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered11.py
@@ -125,6 +125,8 @@ class test_tiered11(wttest.WiredTigerTestCase):
         self.session.flush_tier('sync=off')
         # Make sure a new checkpoint doesn't change any of our timestamp info.
         self.session.checkpoint()
+        # Give flush thread time to do its work.
+        time.sleep(1)
 
         flush_str = 'flush_timestamp="' + end_ts + '"'
         self.check_metadata(self.tiereduri, flush_str)

@@ -126,7 +126,6 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.progress('flush_tier')
         self.session.flush_tier('sync=off')
-        self.session.checkpoint()
         ds.check()
 
         self.close_conn()

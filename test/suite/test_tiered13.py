@@ -31,7 +31,7 @@
 
 from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
 from wtscenario import make_scenarios
-import os, shutil, wiredtiger
+import os, shutil, time, wiredtiger
 from test_import01 import test_import_base
 
 class test_tiered13(test_import_base):
@@ -90,8 +90,10 @@ class test_tiered13(test_import_base):
         c = self.session.open_cursor(self.uri)
         c["0"] = "0"
         c.close()
+        self.session.checkpoint()
         self.session.flush_tier('sync=off')
         self.session.checkpoint()
+        time.sleep(1)
         c = self.session.open_cursor(self.uri)
         c["1"] = "1"
         c.close()
