@@ -74,6 +74,7 @@ class test_tiered07(wttest.WiredTigerTestCase):
         #  'verbose=(tiered),' + \
 
         return \
+          'debug_mode=(flush_checkpoint=true),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
           'bucket_prefix=%s,' % self.bucket_prefix + \
@@ -122,8 +123,7 @@ class test_tiered07(wttest.WiredTigerTestCase):
         c.close()
         self.session.checkpoint()
         self.pr('After data, call flush_tier')
-        self.session.flush_tier('sync=off')
-        self.session.checkpoint()
+        self.session.flush_tier(None)
 
         # Drop table.
         self.pr('call drop')

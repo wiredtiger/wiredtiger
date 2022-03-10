@@ -66,6 +66,7 @@ class test_tiered09(wttest.WiredTigerTestCase):
         if self.ss_name == 'local_store' and not os.path.exists(self.bucket):
             os.mkdir(self.bucket)
         self.saved_conn = \
+          'debug_mode=(flush_checkpoint=true),' + \
           'statistics=(all),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
@@ -114,7 +115,7 @@ class test_tiered09(wttest.WiredTigerTestCase):
         self.check(c, 1)
         c.close()
         self.session.checkpoint()
-        self.session.flush_tier('sync=off')
+        self.session.flush_tier(None)
         self.close_conn()
 
         # For local store, check if the path exists.
@@ -148,7 +149,7 @@ class test_tiered09(wttest.WiredTigerTestCase):
         self.check(c, 2)
         c.close()
         self.session.checkpoint()
-        self.session.flush_tier('sync=off')
+        self.session.flush_tier(None)
         self.close_conn()
 
         # For local store, Check each table was created with the correct prefix.

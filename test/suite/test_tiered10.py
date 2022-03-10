@@ -28,7 +28,7 @@
 
 from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
 from wtscenario import make_scenarios
-import os, time, wiredtiger, wttest
+import os, wiredtiger, wttest
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered10.py
@@ -76,6 +76,7 @@ class test_tiered10(wttest.WiredTigerTestCase):
         bucket += self.bucket
 
         self.saved_conn = \
+          'debug_mode=(flush_checkpoint=true),' + \
           'create,statistics=(all),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % bucket + \
@@ -136,13 +137,9 @@ class test_tiered10(wttest.WiredTigerTestCase):
         c1.close()
         c2.close()
         session1.checkpoint()
+        session1.flush_tier(None)
         session2.checkpoint()
-
-        session1.flush_tier('sync=off')
-        session1.checkpoint()
-        session2.flush_tier('sync=off')
-        session2.checkpoint()
-        time.sleep(1)
+        session2.flush_tier(None)
         conn1_obj1 = os.path.join(self.bucket, self.prefix1 + self.obj1file)
         conn2_obj1 = os.path.join(self.bucket, self.prefix2 + self.obj1file)
         self.assertTrue(os.path.exists(conn1_obj1))
@@ -151,14 +148,11 @@ class test_tiered10(wttest.WiredTigerTestCase):
         conn2.close()
 
         # Remove the local copies of the objects before we reopen so that we force
-        # the system to read from the bucket or bucket cache. We have a small retention
-        # value so the local object may or may not exist.
+        # the system to read from the bucket or bucket cache.
         local = self.conn1_dir + '/' + self.obj1file
-        if (os.path.exists(local)):
-            os.remove(local)
+        os.remove(local)
         local = self.conn2_dir + '/' + self.obj1file
-        if (os.path.exists(local)):
-            os.remove(local)
+        os.remove(local)
 
         conn1 = self.wiredtiger_open(self.conn1_dir, conn1_params)
         session1 = conn1.open_session()

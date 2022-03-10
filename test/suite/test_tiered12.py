@@ -58,6 +58,7 @@ class test_tiered12(wttest.WiredTigerTestCase):
         if self.ss_name == 'local_store' and not os.path.exists(self.bucket):
             os.mkdir(self.bucket)
         self.saved_conn = \
+          'debug_mode=(flush_checkpoint=true),' + \
           'statistics=(all),timing_stress_for_test=(tiered_flush_finish),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
@@ -89,7 +90,7 @@ class test_tiered12(wttest.WiredTigerTestCase):
     def test_tiered(self):
         # Default cache location is cache-<bucket-name>
         cache = "cache-" + self.bucket
-        # The bucket format for the S3 store is the name and the region separated by a semi-colon.
+        # The bucket format for the S3 store is the name and the region separataed by a semi-colon.
         # Strip off the region to get the cache folder.
         if self.ss_name == 's3_store':
             cache = cache[:cache.find(';')]  
@@ -111,9 +112,7 @@ class test_tiered12(wttest.WiredTigerTestCase):
         c.close()
         self.session.checkpoint()
 
-        self.session.flush_tier('sync=off')
-        self.session.checkpoint()
-        time.sleep(1)
+        self.session.flush_tier(None)
         # Immediately after flush_tier finishes the cached object should not yet exist
         cache_obj = os.path.join(cache, self.bucket_prefix + self.obj1file)
         self.assertFalse(os.path.exists(cache_obj))

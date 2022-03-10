@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, time, wttest
+import os, wttest
 from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
@@ -53,6 +53,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
         if self.ss_name == 'local_store' and not os.path.exists(self.bucket):
             os.mkdir(self.bucket)
         return \
+          'debug_mode=(flush_checkpoint=true),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
           'bucket_prefix=%s,' % self.bucket_prefix + \
@@ -82,9 +83,6 @@ class test_tiered02(wttest.WiredTigerTestCase):
         if self.ss_name != 'local_store':
             return
 
-        # This function is likely called immediately after a checkpoint. Sleep a bit to give
-        # the internal thread time to process the objects.
-        time.sleep(0.5)
         got = sorted(list(os.listdir(self.bucket)))
         self.pr('Flushed objects: ' + str(got))
         if increase:
@@ -92,6 +90,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
             # we are collecting more data - we still want it to fail
             # so it is noticed.
             if len(got) <= self.flushed_objects:
+                from time import sleep
                 self.prout('directory items: {} is not greater than {}!'.
                   format(got, self.flushed_objects))
                 self.prout('waiting to see if it resolves')
@@ -101,7 +100,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
                     if len(newgot) > self.flushed_objects:
                         self.prout('resolved, now see: {}'.format(newgot))
                         break
-                    time.sleep(i)
+                    sleep(i)
             self.assertGreater(len(got), self.flushed_objects)
         else:
             self.assertEqual(len(got), self.flushed_objects)
@@ -125,13 +124,13 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.progress('checkpoint')
         self.session.checkpoint()
         self.progress('flush_tier')
-        self.session.flush_tier('sync=off')
+        self.session.flush_tier(None)
+        self.confirm_flush()
         ds.check()
 
         self.close_conn()
         self.progress('reopen_conn')
         self.reopen_conn()
-        self.confirm_flush()
         # Check what was there before.
         ds = SimpleDataSet(self, self.uri, 10, config=args)
         ds.check()
@@ -147,8 +146,9 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         self.progress('flush_tier')
-        self.session.flush_tier('sync=off')
+        self.session.flush_tier(None)
         self.progress('flush_tier complete')
+        self.confirm_flush()
 
         self.progress('Create simple data set (100)')
         ds = SimpleDataSet(self, self.uri, 100, config=args)
@@ -157,11 +157,8 @@ class test_tiered02(wttest.WiredTigerTestCase):
         ds.check()
         self.progress('checkpoint')
         self.session.checkpoint()
-        self.confirm_flush()
         self.progress('flush_tier')
-        self.session.flush_tier('sync=off')
-
-        self.session.checkpoint()
+        self.session.flush_tier(None)
         self.confirm_flush()
 
         self.progress('Create simple data set (200)')

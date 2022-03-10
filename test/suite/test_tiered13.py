@@ -31,7 +31,7 @@
 
 from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
 from wtscenario import make_scenarios
-import os, shutil, time, wiredtiger
+import os, shutil, wiredtiger
 from test_import01 import test_import_base
 
 class test_tiered13(test_import_base):
@@ -76,6 +76,7 @@ class test_tiered13(test_import_base):
         if self.ss_name == 'local_store' and not os.path.exists(self.bucket):
             os.mkdir(self.bucket)
         self.saved_conn = \
+          'debug_mode=(flush_checkpoint=true),' + \
           'create,tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
           'bucket_prefix=%s,' % self.bucket_prefix + \
@@ -91,9 +92,7 @@ class test_tiered13(test_import_base):
         c["0"] = "0"
         c.close()
         self.session.checkpoint()
-        self.session.flush_tier('sync=off')
-        self.session.checkpoint()
-        time.sleep(1)
+        self.session.flush_tier(None)
         c = self.session.open_cursor(self.uri)
         c["1"] = "1"
         c.close()
@@ -114,7 +113,6 @@ class test_tiered13(test_import_base):
         # - Try to import via a renamed file:name.wt with the file object's metadata.
 
         # Export the metadata for the current file object 2.
-        fileobj_config = ''
         cursor = self.session.open_cursor('metadata:', None, None)
         for k, v in cursor:
             if k.startswith(self.file2uri):
@@ -123,7 +121,6 @@ class test_tiered13(test_import_base):
                 table_config = cursor[k]
         cursor.close()
         self.close_conn()
-        self.assertTrue(fileobj_config != '')
         # Contruct the config strings.
         import_enabled = 'import=(enabled,repair=true)'
         import_meta = 'import=(enabled,repair=false,file_metadata=(' + \

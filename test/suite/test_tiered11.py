@@ -28,7 +28,7 @@
 
 from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
 from wtscenario import make_scenarios
-import os, time, wiredtiger, wttest
+import os, wiredtiger, wttest
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered11.py
@@ -58,6 +58,7 @@ class test_tiered11(wttest.WiredTigerTestCase):
         if self.ss_name == 'local_store' and not os.path.exists(self.bucket):
             os.mkdir(self.bucket)
         self.saved_conn = \
+          'debug_mode=(flush_checkpoint=true),' + \
           'statistics=(all),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
@@ -122,11 +123,9 @@ class test_tiered11(wttest.WiredTigerTestCase):
         new_end_ts = self.add_data(self.nentries)
         # We have a new stable timestamp, but after the checkpoint. Make
         # sure the flush tier records the correct timestamp.
-        self.session.flush_tier('sync=off')
+        self.session.flush_tier(None)
         # Make sure a new checkpoint doesn't change any of our timestamp info.
         self.session.checkpoint()
-        # Give flush thread time to do its work.
-        time.sleep(1)
 
         flush_str = 'flush_timestamp="' + end_ts + '"'
         self.check_metadata(self.tiereduri, flush_str)

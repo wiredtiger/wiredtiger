@@ -76,6 +76,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
             os.mkdir(self.bucket)
             os.mkdir(self.bucket1)
         self.saved_conn = \
+          'debug_mode=(flush_checkpoint=true),' + \
           'statistics=(all),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
@@ -158,13 +159,14 @@ class test_tiered04(wttest.WiredTigerTestCase):
         # Check the local retention. After a flush_tier call the object file should exist in
         # the local database. Then after sleeping long enough it should be removed.
         self.pr("flush tier no checkpoint")
-        self.session.flush_tier('sync=off')
+        self.session.flush_tier(None)
         flush += 1
         # We should not have flushed either tiered table.
         skip = self.get_stat(stat.conn.flush_tier_skipped, None)
         self.assertEqual(skip, 2)
-        self.session.checkpoint()
 
+        self.session.checkpoint()
+        self.session.flush_tier(None)
         # Now we should have switched both tables. The skip value should stay the same.
         skip = self.get_stat(stat.conn.flush_tier_skipped, None)
         self.assertEqual(skip, 2)
@@ -205,8 +207,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         self.pr("flush tier again, holding open cursor")
-        self.session.flush_tier('sync=off')
-        self.session.checkpoint()
+        self.session.flush_tier(None)
         flush += 1
 
         c["3"] = "3"
@@ -250,8 +251,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
         # Now test some connection statistics with operations.
         retain = self.get_stat(stat.conn.tiered_retention, None)
         self.assertEqual(retain, self.retention)
-        self.session.flush_tier('sync=off')
-        self.session.checkpoint()
+        self.session.flush_tier(None)
         skip1 = self.get_stat(stat.conn.flush_tier_skipped, None)
         switch1 = self.get_stat(stat.conn.flush_tier_switched, None)
         # Make sure the last checkpoint and this flush tier are timed differently
@@ -284,16 +284,14 @@ class test_tiered04(wttest.WiredTigerTestCase):
         # statistics should stay the same.
         skip1 = self.get_stat(stat.conn.flush_tier_skipped, None)
         switch1 = self.get_stat(stat.conn.flush_tier_switched, None)
-        self.session.flush_tier('sync=off,timeout=100')
-        self.session.checkpoint()
+        self.session.flush_tier('timeout=100')
         skip2 = self.get_stat(stat.conn.flush_tier_skipped, None)
         switch2 = self.get_stat(stat.conn.flush_tier_switched, None)
         self.assertEqual(switch1, switch2)
         self.assertGreater(skip2, skip1)
 
-        self.session.flush_tier('sync=off,lock_wait=false')
+        self.session.flush_tier('lock_wait=false')
         self.session.flush_tier('sync=off')
-        self.session.checkpoint()
         flush += 3
         self.pr("reconfigure get stat")
         calls = self.get_stat(stat.conn.flush_tier, None)
@@ -311,7 +309,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.reopen_conn(config = self.saved_conn)
         skip1 = self.get_stat(stat.conn.flush_tier_skipped, None)
         switch1 = self.get_stat(stat.conn.flush_tier_switched, None)
-        self.session.flush_tier('sync=off')
+        self.session.flush_tier(None)
         skip2 = self.get_stat(stat.conn.flush_tier_skipped, None)
         switch2 = self.get_stat(stat.conn.flush_tier_switched, None)
         #

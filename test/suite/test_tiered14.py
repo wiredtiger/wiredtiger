@@ -75,6 +75,7 @@ class test_tiered14(wttest.WiredTigerTestCase):
         if self.ss_name == 'local_store' and not os.path.exists(self.bucket):
             os.mkdir(self.bucket)
         return \
+          'debug_mode=(flush_checkpoint=true),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
           'bucket_prefix=%s,' % self.bucket_prefix + \
@@ -133,7 +134,7 @@ class test_tiered14(wttest.WiredTigerTestCase):
             try:
                 if op == 'f':
                     self.progress('flush_tier')
-                    self.session.flush_tier('sync=off')
+                    self.session.flush_tier(None)
                 elif op == 'c':
                     self.progress('checkpoint')
                     self.session.checkpoint()

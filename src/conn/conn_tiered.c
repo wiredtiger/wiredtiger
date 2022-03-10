@@ -68,8 +68,10 @@ __flush_tier_wait(WT_SESSION_IMPL *session, const char **cfg)
         }
         if (++yield_count < WT_THOUSAND)
             __wt_yield();
-        else
+        else {
+            __wt_cond_signal(session, conn->tiered_cond);
             __wt_cond_wait(session, conn->flush_cond, 200, NULL);
+        }
     }
     return (0);
 }
@@ -518,6 +520,7 @@ __wt_flush_tier(WT_SESSION_IMPL *session, const char *config)
     WT_DECL_RET;
     uint32_t flags;
     const char *cfg[3];
+    const char *checkpoint_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_checkpoint), NULL};
     bool locked, wait;
 
     conn = S2C(session);
@@ -570,6 +573,8 @@ __wt_flush_tier(WT_SESSION_IMPL *session, const char *config)
           WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret, ret = __flush_tier_once(session, flags)));
     __wt_spin_unlock(session, &conn->flush_tier_lock);
     locked = false;
+    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_FLUSH_CKPT))
+        WT_ERR(__wt_txn_checkpoint(session, checkpoint_cfg, true));
 
     if (ret == 0 && LF_ISSET(WT_FLUSH_TIER_ON))
         WT_ERR(__flush_tier_wait(session, cfg));
