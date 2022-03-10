@@ -1349,7 +1349,8 @@ __wt_txn_modify_check(
      * aborted updates. Otherwise, we would have either already detected a conflict if we saw an
      * uncommitted update or determined that it would be safe to write if we saw a committed update.
      */
-    if (!rollback && upd == NULL) {
+    if (!rollback && upd == NULL &&
+      (CUR2BT(cbt)->type != BTREE_ROW || (CUR2BT(cbt)->type == BTREE_ROW && cbt->ins == NULL))) {
         tw_found = __wt_read_cell_time_window(cbt, &tw);
         if (tw_found) {
             if (WT_TIME_WINDOW_HAS_STOP(&tw)) {
