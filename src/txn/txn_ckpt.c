@@ -1169,10 +1169,14 @@ __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Signal the tiered storage thread because waits for the following checkpoint to complete to
-     * process flush units.
+     * process flush units. Reset the flush generation to indicate that a checkpoint completed. We
+     * clear it so that even if a checkpoint did no work the flush code will run. We cannot race
+     * setting the flush generation because this code and flush_tier both hold the checkpoint lock.
      */
-    if (conn->tiered_cond != NULL)
+    if (conn->tiered_cond != NULL) {
+        conn->flush_gen = 0;
         __wt_cond_signal(session, conn->tiered_cond);
+    }
 
     return (ret);
 }

@@ -139,9 +139,9 @@ class test_tiered10(wttest.WiredTigerTestCase):
         session2.checkpoint()
 
         session1.flush_tier('sync=off')
-        session1.checkpoint('force=true')
+        session1.checkpoint()
         session2.flush_tier('sync=off')
-        session2.checkpoint('force=true')
+        session2.checkpoint()
         time.sleep(1)
         conn1_obj1 = os.path.join(self.bucket, self.prefix1 + self.obj1file)
         conn2_obj1 = os.path.join(self.bucket, self.prefix2 + self.obj1file)
@@ -151,11 +151,14 @@ class test_tiered10(wttest.WiredTigerTestCase):
         conn2.close()
 
         # Remove the local copies of the objects before we reopen so that we force
-        # the system to read from the bucket or bucket cache.
+        # the system to read from the bucket or bucket cache. We have a small retention
+        # value so the local object may or may not exist.
         local = self.conn1_dir + '/' + self.obj1file
-        os.remove(local)
+        if (os.path.exists(local)):
+            os.remove(local)
         local = self.conn2_dir + '/' + self.obj1file
-        os.remove(local)
+        if (os.path.exists(local)):
+            os.remove(local)
 
         conn1 = self.wiredtiger_open(self.conn1_dir, conn1_params)
         session1 = conn1.open_session()
