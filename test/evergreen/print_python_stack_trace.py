@@ -27,8 +27,9 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import argparse
-import glob
 import itertools
+import os
+import re
 import subprocess
 import sys
 from shutil import which
@@ -38,6 +39,32 @@ def border_msg(msg: str):
     count = len(msg) + 2
     dash = "-"*count
     return "+{dash}+\n| {msg} |\n+{dash}+".format(dash=dash, msg=msg)
+
+
+class LLDBDumper:
+    """LLDBDumper class."""
+    def __init__(self):
+        self.dbg = self.__find_debugger("lldb")
+
+    @staticmethod
+    def __find_debugger(debugger: str):
+        """Find the installed debugger."""
+        return which(debugger)
+
+    def dump(self, exe_path: str, core_path: str, lib_path: str):
+        """Dump stack trace."""
+        if self.dbg is None:
+            sys.exit("Debugger gdb not found,"
+                     "skipping dumping of {}".format(core_path))
+
+        cmds = [
+            "thread backtrace all",
+            "quit"
+        ]
+
+        subprocess.run([self.dbg, "--batch"] + [exe_path, "-c", core_path ] +
+                        list(itertools.chain.from_iterable([['-o', b] for b in cmds])),
+                        check=True)
 
 
 class GDBDumper:
@@ -82,8 +109,12 @@ def main():
     args = parser.parse_args()
     
     # Store the path of the core files as a list.
-    core_files = glob.glob(args.core_path + '/**/*dump_python*',
-                           recursive=True)
+    core_files = []
+    regex = re.compile(r'.*dump.*python.*', re.IGNORECASE)
+    for root, dirs, files in os.walk(args.core_path):
+        for file in files:
+            if regex.match(file):
+                core_files.extend([os.path.join(root, file)])
 
     for core_file_path in core_files:
         print(border_msg(core_file_path), flush=True)
@@ -91,9 +122,8 @@ def main():
             dbg = GDBDumper()
             dbg.dump(args.executable_path, core_file_path, args.lib_path)
         elif sys.platform.startswith('darwin'):
-            print("Darwin")
-        elif sys.platform.startswith('win32') or sys.platform.startswith('cygwin'):
-            print("Windows")
+            dbg = LLDBDumper()
+            dbg.dump(args.executable_path, core_file_path, args.lib_path)
 
 if __name__ == "__main__":
     main()

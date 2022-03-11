@@ -11,12 +11,12 @@ stepback: true
 pre:
   - func: "cleanup"
 post:
+  - func: "print python stacktrace"
+  - func: "dump stderr/stdout"
   - func: "upload artifact"
     vars:
       postfix: -${execution}
   - func: "save wt hang analyzer core/debugger files"
-  - func: "print python stacktrace"
-  - func: "dump stderr/stdout"
   - func: "cleanup"
 timeout:
   - func: "run wt hang analyzer"
@@ -503,7 +503,7 @@ functions:
         set -o errexit
         set -o verbose
         if [ -d "WT_TEST" ]; then
-          python3 ../test/evergreen/print_python_stack_trace.py -e ${python_binary|python3} -c WT_TEST -l .
+          ${python_binary|python3} ../test/evergreen/print_python_stack_trace.py -e ${python_binary|python3} -c WT_TEST -l .
         fi
 
   "dump stderr/stdout":
