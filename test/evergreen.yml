@@ -3749,7 +3749,9 @@ buildvariants:
   run_on:
   - ubuntu2004-arm64-small
   expansions:
-    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    # Reduce the number of parallel operations, this is to prevent OOM killer interrupting the
+    # format sanitizer stress test.
+    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` - 1" | bc)
     make_command: ninja
     test_env_vars:
       LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libeatmydata.so
