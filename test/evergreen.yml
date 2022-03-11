@@ -668,8 +668,7 @@ variables:
       - func: "compile wiredtiger address sanitizer"
       - func: "format test script"
         vars:
-          # Run less jobs in parallel on the ARM platform, otherwise OOM killer terminates one of them.
-          format_test_script_args: -t 360 -j $(if [ `uname -m` == "aarch64" ]; then echo 6; else echo 8; fi)
+          format_test_script_args: -t 360
           test_env_vars:
             ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
