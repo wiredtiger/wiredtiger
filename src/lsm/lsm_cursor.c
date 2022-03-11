@@ -1557,12 +1557,20 @@ __clsm_remove(WT_CURSOR *cursor)
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
 
-    /* Remove fails if the key doesn't exist, do a search first. */
+    /*
+     * Remove fails if the key doesn't exist, do a search first. This requires a second pair of LSM
+     * enter/leave calls as we search the full stack, but updates are limited to the top-level.
+     */
     WT_ERR(__clsm_enter(clsm, false, false));
     WT_ERR(__clsm_lookup(clsm, &value));
     __clsm_leave(clsm);
 
     WT_ERR(__clsm_enter(clsm, false, true));
+    /*
+     * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may have
+     * landed on.
+     */
+    WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__clsm_put(session, clsm, &cursor->key, &__tombstone, true, false));
 
     /*
