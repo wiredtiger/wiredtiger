@@ -1550,7 +1550,7 @@ __clsm_remove(WT_CURSOR *cursor)
 
     clsm = (WT_CURSOR_LSM *)cursor;
 
-    /* Remeber if the cursor is currently positioned. */
+    /* Remember if the cursor is currently positioned. */
     positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
     CURSOR_REMOVE_API_CALL(cursor, session, NULL);
