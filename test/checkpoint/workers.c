@@ -237,8 +237,6 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
 
         for (int i = 10; i > 0; i--) {
             if ((ret = cursor->remove(cursor)) != 0) {
-                if (ret == WT_NOTFOUND)
-                    return (WT_NOTFOUND);
                 if (ret == WT_ROLLBACK)
                     return (WT_ROLLBACK);
                 return (log_print_err("cursor.remove", ret, 1));
@@ -288,8 +286,6 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
                 } else
                     ret = cursor->modify(cursor, entries, nentries);
                 if (ret != 0) {
-                    if (ret == WT_NOTFOUND)
-                        return (WT_NOTFOUND);
                     if (ret == WT_ROLLBACK)
                         return (WT_ROLLBACK);
                     return (log_print_err("cursor.modify", ret, 1));
@@ -417,7 +413,7 @@ real_worker(void)
 
         for (j = 0; ret == 0 && j < g.ntables; j++)
             ret = worker_op(cursors[j], g.cookies[j].type, keyno, i);
-        if (ret != 0 && ret != WT_NOTFOUND && ret != WT_ROLLBACK) {
+        if (ret != 0 && ret != WT_ROLLBACK) {
             (void)log_print_err("worker op failed", ret, 1);
             goto err;
         } else if (ret == 0) {

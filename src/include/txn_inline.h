@@ -1331,11 +1331,15 @@ __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
 
     /*
      * If we are trying to prepend a tombstone in front of another tombstone, we should fail this
-     * with a WT_NOTFOUND error.
+     * with a WT_NOTFOUND error. It is possible that RTS may add a tombstone on top of an existing
+     * tombstone when it is removing a key with a globally visible tombstone.
      */
     if (modify_type == WT_UPDATE_TOMBSTONE) {
-        if (latest_upd != NULL && latest_upd->type == WT_UPDATE_TOMBSTONE)
-            WT_ERR(WT_NOTFOUND);
+        if (!F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE) && latest_upd != NULL &&
+          latest_upd->type == WT_UPDATE_TOMBSTONE) {
+            return (__wt_txn_rollback_required(
+              session, "cannot prepend tombstone in front of another tombstone"));
+        }
     }
 
     /*
