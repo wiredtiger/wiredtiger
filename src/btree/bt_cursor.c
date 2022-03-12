@@ -854,7 +854,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
      *
      * Fixed-length column store can never use a positioned cursor to update because the cursor may
      * not be positioned to the correct record in the case of implicit records in the append list.
-     * FUTURE: it appears that this is no longer true...
+     * FIXME: it appears that this is no longer true.
      */
     if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt, false) &&
       F_ISSET(cursor, WT_CURSTD_OVERWRITE) && !append_key) {
@@ -995,8 +995,7 @@ __curfile_update_check(WT_CURSOR_BTREE *cbt)
       page->modify->mod_row_update != NULL)
         upd = page->modify->mod_row_update[cbt->slot];
 
-    return (
-      __wt_txn_modify_check(session, cbt, upd, NULL, upd == NULL ? WT_UPDATE_INVALID : upd->type));
+    return (__wt_txn_modify_check(session, cbt, upd, NULL, WT_UPDATE_STANDARD));
 }
 
 /*
@@ -1076,23 +1075,19 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
     __cursor_state_save(cursor, &state);
 
     /*
-     * If remove positioned to an on-page key, the remove doesn't require another search. We don't
-     * care about the "overwrite" configuration because regardless of the overwrite setting, any
-     * existing record is removed, and the record must exist with a positioned cursor.
-     *
-     * There's trickiness in the page-pinned check. By definition a remove operation leaves a cursor
+     * If remove is positioned to an on-page key, the remove doesn't require another search. There's
+     * trickiness in the page-pinned check. By definition a remove operation leaves a cursor
      * positioned if it's initially positioned. However, if every item on the page is deleted and we
      * unpin the page, eviction might delete the page and our search will re-instantiate an empty
-     * page for us. Cursor remove returns not-found whether or not that eviction/deletion happens
-     * and it's OK unless cursor-overwrite is configured (which means we return success even if
-     * there's no item to delete). In that case, we'll fail when we try to point the cursor at the
-     * key on the page to satisfy the positioned requirement. It's arguably safe to simply leave the
-     * key initialized in the cursor (as that's all a positioned cursor implies), but it's probably
-     * safer to avoid page eviction entirely in the positioned case.
+     * page for us. Cursor remove returns not-found whether or not that eviction/deletion happens,
+     * and in that case, we'll fail when we try to point the cursor at the key on the page to
+     * satisfy the positioned requirement. It's arguably safe to simply leave the key initialized in
+     * the cursor (as that's all a positioned cursor implies), but it's probably safer to avoid page
+     * eviction entirely in the positioned case.
      *
      * Fixed-length column store can never use a positioned cursor to update because the cursor may
      * not be positioned to the correct record in the case of implicit records in the append list.
-     * FUTURE: again, it appears that this is no longer true...
+     * FIXME: it appears that this is no longer true.
      */
     if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt, false)) {
         WT_ERR(__wt_txn_autocommit_check(session));
@@ -1252,7 +1247,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
      *
      * Fixed-length column store can never use a positioned cursor to update because the cursor may
      * not be positioned to the correct record in the case of implicit records in the append list.
-     * FUTURE: it appears that this is no longer true...
+     * FIXME: it appears that this is no longer true.
      */
     if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt, false)) {
         WT_ERR(__wt_txn_autocommit_check(session));
@@ -1718,7 +1713,9 @@ retry:
         if (stop != NULL && __cursor_equals(start, stop))
             return (0);
 
-        WT_ERR(__wt_btcur_next(start, true));
+        if ((ret = __wt_btcur_next(start, true)) == WT_NOTFOUND)
+            return (0);
+        WT_ERR(ret);
 
         start->compare = 0; /* Exact match */
     }
@@ -1728,9 +1725,7 @@ err:
         __cursor_restart(session, &yield_count, &sleep_usecs);
         goto retry;
     }
-
-    WT_RET_NOTFOUND_OK(ret);
-    return (0);
+    return (ret == WT_NOTFOUND ? WT_ROLLBACK : ret);
 }
 
 /*
@@ -1777,7 +1772,9 @@ retry:
         if (stop != NULL && __cursor_equals(start, stop))
             return (0);
 
-        WT_ERR(__wt_btcur_next(start, true));
+        if ((ret = __wt_btcur_next(start, true)) == WT_NOTFOUND)
+            return (0);
+        WT_ERR(ret);
 
         start->compare = 0; /* Exact match */
     }
@@ -1787,9 +1784,7 @@ err:
         __cursor_restart(session, &yield_count, &sleep_usecs);
         goto retry;
     }
-
-    WT_RET_NOTFOUND_OK(ret);
-    return (0);
+    return (ret == WT_NOTFOUND ? WT_ROLLBACK : ret);
 }
 
 /*
