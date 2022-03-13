@@ -13,6 +13,15 @@ records into the log for each transaction, giving all objects opened in the
 database commit-level durability. The operational transactional API does
 not otherwise change.
 
+\warning
+By default, log records are written to an in-memory buffer before
+WT_SESSION::commit_transaction returns, giving the highest performance but
+not ensuring immediate durability. The database can be configured to flush
+log records to the operating system buffer cache (ensuring durability over
+application failure), or to stable storage (ensuring durability over system
+failure), but that will impact performance. See @ref durability_flush_config
+for more information.
+
 It is possible to enable commit-level durability for some database
 objects and not others.
 To do this, one must pass \c log=(enabled) to ::wiredtiger_open and
@@ -81,13 +90,14 @@ be processed.
 
 Checkpoints can be done either explicitly by the application or periodically
 based on elapsed time or data size with the \c checkpoint configuration to
-::wiredtiger_open.  The period between checkpoints can be defined in seconds via
-\c wait, as the number of bytes written to the log since the last checkpoint via
-\c log_size, or both.  If both periods are defined then the checkpoint occurs as
-soon as either threshold has occurred and both are reset once the checkpoint is
-complete.  If using \c log_size to scheduled automatic checkpoints, we recommend
-the size selected be a multiple of the physical size of the underlying log file
-to more easily support automatic log file removal.
+::wiredtiger_open. The period between checkpoint completion and the start of
+a subsequent checkpoint can be set in seconds via \c wait, as the number of
+bytes written to the log since the last checkpoint via \c log_size, or both.
+If both are set then the checkpoint occurs as soon as either threshold has
+occurred and both are reset once the checkpoint is complete.  If using
+\c log_size to scheduled automatic checkpoints, we recommend the size selected
+be a multiple of the physical size of the underlying log file to more easily
+support automatic log file removal.
 
 @section durability_backup Backups
 
@@ -99,14 +109,14 @@ files referenced in the logs might not be found.  Applications should either
 copy all objects and log files if commit-level durability of the copied database
 is required, or alternatively, copy only selected objects when backing up and
 not copy log files at all, then fall back to checkpoint durability when
-switching to the backup.
+activating the backup.
 
 @section durability_archiving Log file archival and removal
 
 WiredTiger log files are named "WiredTigerLog.[number]" where "[number]"
-is a 10-digit value, for example WiredTigerLog.0000000001".  The log
-file with the largest number in its name is the most recent log file
-written.  The log file size can be set using the \c log configuration
+is a 10-digit value, for example <tt>WiredTigerLog.0000000001</tt>.
+The log file with the largest number in its name is the most recent log
+file written. The log file size can be set using the \c log configuration
 to ::wiredtiger_open.
 
 By default, WiredTiger automatically removes log files no longer required for

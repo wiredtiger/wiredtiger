@@ -11,9 +11,10 @@ There are three approaches to writing transactional programs in WiredTiger:
 applications with simple transactions where updates become durable when
 the last reference to the object is closed or at the next database checkpoint.
 
--# Applications supporting \b commit-level durability, which extends checkpoint-level
-durability, adding logging to the database so updates are durable as
-soon as their transaction successfully commits.
+-# Applications supporting \b commit-level durability, which extends
+checkpoint-level durability, adding logging to the database so updates written
+on behalf of a transaction become durable as soon as the transaction's log
+records become durable.
 
 -# Applications using timestamps for fine-grained control of the database,
 extending checkpoint-level durability. This allows applications to do things
