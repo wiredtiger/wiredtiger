@@ -24,8 +24,8 @@ for more information.
 
 It is possible to enable commit-level durability for some database
 objects and not others.
-To do this, one must pass \c log=(enabled) to ::wiredtiger_open and
-then pass \c log=(enabled=false) to WT_SESSION::create for the objects
+To do this, one must pass \c "log=(enabled)" to ::wiredtiger_open and
+then pass \c "log=(enabled=false)" to WT_SESSION::create for the objects
 that should continue to use checkpoint durability.
 (Doing the converse is not supported, that is,
 enabling logging on some tables while leaving the global switch turned
@@ -122,7 +122,7 @@ to ::wiredtiger_open.
 By default, WiredTiger automatically removes log files no longer required for
 recovery. Applications wanting to archive log files instead (for example, to
 support catastrophic recovery), must disable log file removal using the
-::wiredtiger_open \c log=(remove=false) configuration.
+::wiredtiger_open \c "log=(remove=false)" configuration.
 
 Log files may be removed or archived after a checkpoint has completed,
 as long as there is no backup in progress.  When performing @ref

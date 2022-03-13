@@ -1982,7 +1982,7 @@ methods = {
         stable timestamp.  See @ref timestamp_global_api'''),
     Config('stable_timestamp', '', r'''
         checkpoints will not include commits that are newer than the specified
-        timestamp in tables configured with \c log=(enabled=false).
+        timestamp in tables configured with \c "log=(enabled=false)".
         Values must be monotonically increasing, any attempt to set the value to
         older than the current is silently ignored.  The value must
         not be older than the current oldest timestamp.  See
