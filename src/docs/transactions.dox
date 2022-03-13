@@ -35,7 +35,7 @@ the first approach and iterating to a complete application is recommended.
 We will discuss these approaches in order, from the simplest to the most
 complex.
 
-If this is your first WiredTiger application, please read @ref explain_durability
+If this is your first WiredTiger application, please read @ref durability_overview
 for a discussion of WiredTiger durability models, so you can select the application
 architecture that is appropriate for your needs.
 

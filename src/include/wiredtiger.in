@@ -1895,8 +1895,8 @@ struct __wt_session {
 	 * \c use_timestamp=true (the default), updates committed with a timestamp after the
 	 * \c stable timestamp, in tables configured for checkpoint-level durability, are not
 	 * included in the checkpoint. Updates committed in tables configured for commit-level
-	 * durability are always included in the checkpoint. See @ref checkpoint and @ref durability
-	 * for more information.
+	 * durability are always included in the checkpoint. See @ref durability_checkpoint and
+	 * @ref durability_log for more information.
 	 *
 	 * Calling the checkpoint method multiple times serializes the checkpoints, new checkpoint
 	 * calls wait for running checkpoint calls to complete.

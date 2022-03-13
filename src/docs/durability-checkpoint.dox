@@ -1,4 +1,4 @@
-/*! @page checkpoint Checkpoint-level durability
+/*! @page durability_checkpoint Checkpoint-level durability
 
 WiredTiger supports checkpoint durability by default, and optionally
 commit-level durability when logging is enabled.  In most applications,
@@ -6,7 +6,7 @@ commit-level durability impacts performance more than checkpoint
 durability; checkpoints offer basic operation durability across
 application or system failure without impacting performance (although
 the creation of each checkpoint is a relatively heavy-weight operation).
-See @ref durability for information on commit-level durability.
+See @ref durability_log for information on commit-level durability.
 
 @section checkpoint_snapshot Checkpoints vs. snapshots
 
@@ -21,7 +21,7 @@ on-disk persistence.  The two concepts are closely connected, of course;
 when a checkpoint is created the code involved uses a snapshot to determine
 which updates should and should not appear in the checkpoint.
 
-@section checkpoints Checkpoints
+@section checkpoint_checkpoints Checkpoints
 
 A checkpoint is automatically created for each individual file whenever the last
 reference to a modified data source is closed.
