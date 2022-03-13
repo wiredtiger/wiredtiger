@@ -626,6 +626,11 @@ connection_runtime_config = [
             is not limited to not skewing newest, not favoring leaf pages,
             and modifying the eviction score mechanism.''',
             type='boolean'),
+        Config('flush_checkpoint', 'false', r'''
+            if true, call a system wide checkpoint immediately after a flush_tier 
+            completes to force objects out to disk so that a flush_tier can work
+            single-threaded''',
+            type='boolean'),
         Config('log_retention', '0', r'''
             adjust log removal to retain at least this number of log files, ignored if set to 0.
             (Warning: this option can remove log files required for recovery if no checkpoints
@@ -1138,6 +1143,12 @@ wiredtiger_open_common =\
     wiredtiger_open_log_configuration +\
     wiredtiger_open_tiered_storage_configuration +\
     wiredtiger_open_statistics_log_configuration + [
+    Config('backup_restore_target', '', r'''
+        If non-empty and restoring from a backup, restore only the table object targets listed.
+        WiredTiger will remove all the metadata entries for the tables that are not listed in th
+        list from the reconstructed metadata. The target list must include URIs matching of type
+        table:''', 
+        type='list'),
     Config('buffer_alignment', '-1', r'''
         in-memory alignment (in bytes) for buffers used for I/O.  The
         default value of -1 indicates a platform-specific alignment value
@@ -1872,8 +1883,8 @@ methods = {
         type='list'),
     Config('use_timestamp', 'true', r'''
         if true (the default), create the checkpoint as of the last stable timestamp if timestamps
-        are in use, or all current updates if there is no stable timestamp set. If false, this
-        option generates a checkpoint with all updates including those later than the timestamp''',
+        are in use, or with all committed  updates if there is no stable timestamp set. If false,
+        always generate a checkpoint with all committed updates, ignoring any stable timestamp''',
         type='boolean'),
 ]),
 
@@ -1977,7 +1988,7 @@ methods = {
         stable timestamp.  See @ref timestamp_global_api'''),
     Config('stable_timestamp', '', r'''
         checkpoints will not include commits that are newer than the specified
-        timestamp in tables configured with \c log=(enabled=false).
+        timestamp in tables configured with \c "log=(enabled=false)".
         Values must be monotonically increasing, any attempt to set the value to
         older than the current is silently ignored.  The value must
         not be older than the current oldest timestamp.  See
