@@ -1,9 +1,10 @@
 /*! @page timestamp_prepare_roundup Automatic prepare timestamp rounding
 
-Prepared transactions have their own configuration keyword for rounding
-timestamps.
-
 @section timestamp_prepare_roundup_replay Replaying prepared transactions by rounding up the prepare timestamp
+
+Prepared transactions have a configuration keyword for rounding timestamps.
+Applications can configure <code>roundup_timestamps=(prepare=true)</code>
+with the WT_SESSION::begin_transaction method.
 
 It is possible for a system crash to cause a prepared transaction to be
 rolled back. Because the durable timestamp of a transaction is permitted
