@@ -2294,6 +2294,7 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     if (F_ISSET(txn, WT_TXN_PREPARE))
         return (0);
 
+#ifndef WT_STANDALONE_BUILD
     /*
      * MongoDB can't (yet) handle rolling back read only transactions. For this reason, don't check
      * unless there's at least one update or we're configured to time out thread operations (a way
@@ -2301,6 +2302,7 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
      */
     if (txn->mod_count == 0 && !__wt_op_timer_fired(session))
         return (0);
+#endif
 
     /*
      * Check if either the transaction's ID or its pinned ID is equal to the oldest transaction ID.
