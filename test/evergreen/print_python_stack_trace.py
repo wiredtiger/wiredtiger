@@ -51,14 +51,14 @@ class LLDBDumper:
         """Find the installed debugger."""
         return which(debugger)
 
-    def dump(self, exe_path: str, core_path: str, lib_path: str):
+    def dump(self, exe_path: str, core_path: str):
         """Dump stack trace."""
         if self.dbg is None:
             sys.exit("Debugger gdb not found,"
                      "skipping dumping of {}".format(core_path))
 
         cmds = [
-            "thread backtrace all",
+            "thread backtrace all -c 30",
             "quit"
         ]
 
@@ -107,7 +107,7 @@ def main():
                         required=True)
     parser.add_argument('-l', '--lib_path', help='library path')
     args = parser.parse_args()
-    
+
     # Store the path of the core files as a list.
     core_files = []
     regex = re.compile(r'.*dump.*python.*', re.IGNORECASE)
@@ -123,7 +123,7 @@ def main():
             dbg.dump(args.executable_path, core_file_path, args.lib_path)
         elif sys.platform.startswith('darwin'):
             dbg = LLDBDumper()
-            dbg.dump(args.executable_path, core_file_path, args.lib_path)
+            dbg.dump(args.executable_path, core_file_path)
 
 if __name__ == "__main__":
     main()
