@@ -103,10 +103,12 @@ performance.
 Attempting to set the \c stable_timestamp to a value earlier than its current
 value will be silently ignored.
 
-\warning
 Using the stable timestamp in the checkpoint is not required, and can be
 overridden using the <tt>use_timestamp=false</tt> configuration of the
-WT_SESSION::checkpoint call. NEEDS MOTIVATION AND DISCUSSION
+WT_SESSION::checkpoint call. This is not intended for general use, but can
+be useful for backup scenarios where rolling back to a stable timestamp
+isn't possible and it's useful for a checkpoint to contain the most recent
+possible data.
 
 @subsection timestamp_global_forcing Forcing global timestamps
 
