@@ -1,7 +1,7 @@
 /*! @page transactions Transactional applications
 
-WiredTiger offers standard ACID-style transaction support where operations are
-done at snapshot isolation and subsequently become durable. (Readers not
+WiredTiger offers standard ACID-style transaction support where modifications happen
+at snapshot isolation and subsequently become durable. (Readers not
 already familiar with these concepts may wish to see @ref explain_acid for a brief
 discussion of ACID and @ref explain_isolation for a brief discussion of isolation
 levels.)
@@ -36,15 +36,16 @@ complex.
 
 If this is your first WiredTiger application, please read @ref explain_durability
 for a discussion of WiredTiger durability models, so you can select the application
-architecture that's appropriate for your needs.
+architecture that is appropriate for your needs.
 
 \warning
-Recovery is the process of restoring the database to a consistent state after
-failure. Recovery is automatically performed by WiredTiger, as necessary, when a
-database is opened. Recovery is required after the failure of any thread of
-control in the application, where the failed thread might have been executing
-inside of the WiredTiger library or open WiredTiger handles have been lost. If
-any application thread of control exits unexpectedly while holding any database
-resources of any kind, the application should close and re-open the database.
+Recovery is the process of restoring the database to a transactionally
+consistent state after failure. Recovery is automatically performed by
+WiredTiger, as necessary, when a database is opened. Recovery is required
+after the failure of any thread of control in the application, where the
+failed thread might have been executing inside of the WiredTiger library
+or open WiredTiger handles have been lost. If any application thread of
+control exits unexpectedly while holding any database resources of any kind,
+the application should close and re-open the database.
 
 */
