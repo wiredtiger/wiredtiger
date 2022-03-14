@@ -2455,8 +2455,13 @@ err:
         WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
         session->cache_wait_us += elapsed;
         if (cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
-            WT_TRET(WT_CACHE_FULL);
+            WT_TRET(__wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE_FULL));
             WT_STAT_CONN_INCR(session, cache_timed_out_ops);
+            __wt_verbose_debug(
+              session, WT_VERB_TRANSACTION, "Rollback reason: %s", session->txn->rollback_reason);
+            if (app_thread)
+                __wt_verbose_notice(
+                  session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
         }
     }
 
