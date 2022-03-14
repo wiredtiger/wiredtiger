@@ -62,9 +62,9 @@ class LLDBDumper:
             "quit"
         ]
 
-        subprocess.run([self.dbg, "--batch"] + [exe_path, "-c", core_path ] +
-                        list(itertools.chain.from_iterable([['-o', b] for b in cmds])),
-                        check=True)
+        subprocess.run([self.dbg, "--batch"] + [exe_path, "-c", core_path] +
+                       list(itertools.chain.from_iterable([['-o', b] for b in cmds])),
+                       check=True)
 
 
 class GDBDumper:
@@ -92,9 +92,9 @@ class GDBDumper:
         ])
 
         subprocess.run([self.dbg, "--batch", "--quiet"] +
-                        list(itertools.chain.from_iterable([['-ex', b] for b in cmds])) +
-                        [exe_path, core_path],
-                        check=True)
+                       list(itertools.chain.from_iterable([['-ex', b] for b in cmds])) +
+                       [exe_path, core_path],
+                       check=True)
 
 
 def main():
@@ -111,7 +111,7 @@ def main():
     # Store the path of the core files as a list.
     core_files = []
     regex = re.compile(r'.*dump.*python.*', re.IGNORECASE)
-    for root, dirs, files in os.walk(args.core_path):
+    for root, _, files in os.walk(args.core_path):
         for file in files:
             if regex.match(file):
                 core_files.extend([os.path.join(root, file)])
@@ -124,6 +124,9 @@ def main():
         elif sys.platform.startswith('darwin'):
             dbg = LLDBDumper()
             dbg.dump(args.executable_path, core_file_path)
+        elif sys.platform.startswith('win32') or sys.platform.startswith('cygwin'):
+            # FIXME - Windows to be supported in WT-8937
+            pass
 
 if __name__ == "__main__":
     main()
