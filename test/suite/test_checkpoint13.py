@@ -101,7 +101,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             read_name = 'WiredTigerCheckpoint'
 
         # Write some more data at time 30 to make sure it's not seen.
-        self.updates(uri, ds, nrows, value_b, 20)
+        self.updates(uri, ds, nrows, value_b, 30)
 
         # Open the checkpoint.
         ckpt_cursor = self.session.open_cursor(uri, None, 'checkpoint=' + read_name)
