@@ -135,6 +135,16 @@ config_bool(
 )
 
 config_bool(
+    ENABLE_MEMKIND
+    "Use MEMKIND as the backend allocator"
+    DEFAULT OFF
+    DEPENDS "HAVE_LIBMEMKIND"
+    # Specifically throw a fatal error if a user tries to enable the memkind allocator without
+    # actually having the library available (as opposed to silently defaulting to OFF).
+    DEPENDS_ERROR ON "Failed to find memkind library"
+)
+
+config_bool(
     ENABLE_SNAPPY
     "Build the snappy compressor extension"
     DEFAULT OFF
