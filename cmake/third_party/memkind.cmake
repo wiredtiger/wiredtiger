@@ -17,6 +17,6 @@ set_target_properties(wt::memkind PROPERTIES
 )
 if (HAVE_LIBMEMKIND_INCLUDES)
     set_target_properties(wt::memkind PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES ${HAVE_LIBEMEMKIND_INCLUDES}
+        INTERFACE_INCLUDE_DIRECTORIES ${HAVE_LIBMEMKIND_INCLUDES}
     )
 endif()
