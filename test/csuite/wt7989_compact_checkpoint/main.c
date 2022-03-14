@@ -51,6 +51,7 @@ static const char table_config_col[] =
   "allocation_size=4KB,leaf_page_max=4KB,key_format=r,value_format=QQQS";
 static char data_str[1024] = "";
 static pthread_t thread_compact;
+static uint64_t ready_counter;
 
 /* Structures definition. */
 struct thread_data {
@@ -88,7 +89,7 @@ main(int argc, char *argv[])
     /*
      * First, run test with WT_TIMING_STRESS_CHECKPOINT_SLOW. Row store case.
      */
-    run_test_clean(true, false, opts->preserve, opts->home, "SR", opts->uri);
+    // run_test_clean(true, false, opts->preserve, opts->home, "SR", opts->uri);
 
     /*
      * Now, run test where compact and checkpoint threads are synchronized using condition variable.
@@ -99,7 +100,7 @@ main(int argc, char *argv[])
     /*
      * Next, run test with WT_TIMING_STRESS_CHECKPOINT_SLOW. Column store case.
      */
-    run_test_clean(true, true, opts->preserve, opts->home, "SC", opts->uri);
+    // run_test_clean(true, true, opts->preserve, opts->home, "SC", opts->uri);
 
     /*
      * Finally, run test where compact and checkpoint threads are synchronized using condition
@@ -179,16 +180,8 @@ run_test(bool stress_test, bool column_store, const char *home, const char *uri)
     td.cond = NULL;
 
     /* Spawn checkpoint and compact threads. Order is important! */
-    if (stress_test) {
-        testutil_check(pthread_create(&thread_compact, NULL, thread_func_compact, &td));
-        testutil_check(pthread_create(&thread_checkpoint, NULL, thread_func_checkpoint, &td));
-    } else {
-        /* Create and initialize conditional variable. */
-        testutil_check(__wt_cond_alloc((WT_SESSION_IMPL *)session, "compact operation", &td.cond));
-
-        /* The checkpoint thread will spawn the compact thread when it's ready. */
-        testutil_check(pthread_create(&thread_checkpoint, NULL, thread_func_checkpoint, &td));
-    }
+    testutil_check(pthread_create(&thread_compact, NULL, thread_func_compact, &td));
+    testutil_check(pthread_create(&thread_checkpoint, NULL, thread_func_checkpoint, &td));
 
     /* Wait for the threads to finish the work. */
     (void)pthread_join(thread_checkpoint, NULL);
@@ -231,15 +224,19 @@ thread_func_compact(void *arg)
 {
     struct thread_data *td;
     WT_SESSION *session;
+    uint64_t ready_counter_local;
 
     td = (struct thread_data *)arg;
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-
-    if (td->cond != NULL) {
-        /* Wake up the checkpoint thread. */
-        printf("Sending the signal!\n");
-        __wt_cond_signal((WT_SESSION_IMPL *)session, td->cond);
+    
+    /* Wait until all the threads are ready to go. */
+    (void)__wt_atomic_add64(&ready_counter, 1);
+    for (;; __wt_yield()) {
+        WT_ORDERED_READ(ready_counter_local, ready_counter);
+        printf("Ready counter local: %"PRIu64"\n", ready_counter_local);
+        if (ready_counter_local >= 2)
+            break;
     }
 
     /* Perform compact operation. */
@@ -252,22 +249,6 @@ thread_func_compact(void *arg)
 }
 
 /*
- * wait_run_check --
- *     TODO: Add a comment describing this function.
- */
-static bool
-wait_run_check(WT_SESSION_IMPL *session)
-{
-    (void)session; /* Unused */
-
-    /*
-     * Always return true to make sure __wt_cond_wait_signal does wait. This callback is required
-     * with waits longer that one second.
-     */
-    return (true);
-}
-
-/*
  * thread_func_checkpoint --
  *     TODO: Add a comment describing this function.
  */
@@ -277,9 +258,8 @@ thread_func_checkpoint(void *arg)
     struct thread_data *td;
     WT_RAND_STATE rnd;
     WT_SESSION *session;
-    uint64_t sleep_sec;
+    uint64_t ready_counter_local, sleep_sec;
     int i;
-    bool signalled;
 
     td = (struct thread_data *)arg;
 
@@ -287,22 +267,13 @@ thread_func_checkpoint(void *arg)
 
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
 
-    if (td->cond != NULL) {
-        /*
-         * Spawn the compact thread here to make sure the both threads are ready for the synced
-         * start.
-         */
-        testutil_check(pthread_create(&thread_compact, NULL, thread_func_compact, td));
-
-        printf("Waiting for the signal...\n");
-        /*
-         * Wait for the signal and time out after 20 seconds. wait_run_check is required because the
-         * time out is longer that one second.
-         */
-        __wt_cond_wait_signal(
-          (WT_SESSION_IMPL *)session, td->cond, 20 * WT_MILLION, wait_run_check, &signalled);
-        testutil_assert(signalled);
-        printf("Signal received!\n");
+    /* Wait until all the threads are ready to go. */
+    (void)__wt_atomic_add64(&ready_counter, 1);
+    for (;; __wt_yield()) {
+        WT_ORDERED_READ(ready_counter_local, ready_counter);
+        printf("Ready counter local: %"PRIu64"\n", ready_counter_local);
+        if (ready_counter_local >= 2)
+            break;
     }
 
     /*
