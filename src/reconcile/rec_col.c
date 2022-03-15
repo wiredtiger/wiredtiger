@@ -1180,6 +1180,7 @@ int
 __wt_rec_col_var(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref, WT_SALVAGE_COOKIE *salvage)
 {
+    static WT_UPDATE upd_tombstone = {.txnid = WT_TXN_NONE, .type = WT_UPDATE_TOMBSTONE};
     enum { OVFL_IGNORE, OVFL_UNUSED, OVFL_USED } ovfl_state;
     struct {
         WT_ITEM *value; /* Value */
@@ -1200,7 +1201,7 @@ __wt_rec_col_var(
     WT_UPDATE_SELECT upd_select;
     uint64_t n, nrepeat, repeat_count, rle, skip, src_recno;
     uint32_t i, size;
-    bool deleted, orig_deleted, update_no_copy;
+    bool deleted, orig_deleted, orig_stale, update_no_copy;
     const void *data;
 
     btree = S2BT(session);
@@ -1210,6 +1211,7 @@ __wt_rec_col_var(
     twp = NULL;
     upd = NULL;
     size = 0;
+    orig_stale = false;
     data = NULL;
 
     cbt = &r->update_modify_cbt;
@@ -1276,6 +1278,9 @@ __wt_rec_col_var(
         if (orig_deleted)
             goto record_loop;
 
+        /* If the original value is stale, delete it when no updates are found. */
+        orig_stale = __wt_txn_tw_stop_visible_all(session, &vpack->tw);
+
         /*
          * Overflow items are tricky: we don't know until we're finished processing the set of
          * values if we need the overflow value or not. If we don't use the overflow item at all, we
@@ -1318,6 +1323,10 @@ record_loop:
             update_no_copy = true; /* No data copy */
             repeat_count = 1;      /* Single record */
             deleted = false;
+
+            /* If the on-disk value is stale and we got no update, update it with a tombstone. */
+            if (orig_stale && upd == NULL)
+                upd = &upd_tombstone;
 
             if (upd == NULL) {
                 update_no_copy = false; /* Maybe data copy */
