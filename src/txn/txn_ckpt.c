@@ -1152,10 +1152,12 @@ err:
 static int
 __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
 
-    txn_global = &S2C(session)->txn_global;
+    conn = S2C(session);
+    txn_global = &conn->txn_global;
 
     WT_STAT_CONN_SET(session, txn_checkpoint_running, 1);
     txn_global->checkpoint_running = true;
@@ -1164,6 +1166,15 @@ __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_STAT_CONN_SET(session, txn_checkpoint_running, 0);
     txn_global->checkpoint_running = false;
+
+    /*
+     * Signal the tiered storage thread because it waits for the following checkpoint to complete to
+     * process flush units. Indicate that the checkpoint has completed.
+     */
+    if (conn->tiered_cond != NULL) {
+        conn->flush_ckpt_complete = true;
+        __wt_cond_signal(session, conn->tiered_cond);
+    }
 
     return (ret);
 }
@@ -2097,12 +2108,18 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
     if (!btree->modified && !bulk)
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
+#ifdef WT_STANDALONE_BUILD
     /*
      * Don't flush data from modified trees independent of system-wide checkpoint. Flushing trees
      * can lead to files that are inconsistent on disk after a crash.
      */
     if (btree->modified && !bulk && !metadata)
         return (__wt_set_return(session, EBUSY));
+#else
+    if (btree->modified && !bulk && !F_ISSET(btree, WT_BTREE_LOGGED) &&
+      (S2C(session)->txn_global.has_stable_timestamp || !metadata))
+        return (__wt_set_return(session, EBUSY));
+#endif
 
     /*
      * Make sure there isn't a potential race between backup copying the metadata and a checkpoint

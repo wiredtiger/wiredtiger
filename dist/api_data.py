@@ -542,8 +542,7 @@ connection_runtime_config = [
         Config('max_percent_overhead', '10', r'''
             maximum tolerated overhead expressed as the number of blocks added
             and removed as percent of blocks looked up; cache population
-            and eviction will be suppressed if the overhead exceeds the
-            supplied threshold''',
+            and eviction will be suppressed if the overhead exceeds the threshold''',
             min='1', max='500'),
         Config('nvram_path', '', r'''
             the absolute path to the file system mounted on the NVRAM device'''),
@@ -626,6 +625,11 @@ connection_runtime_config = [
             history store eviction to happen more aggressively. This includes but
             is not limited to not skewing newest, not favoring leaf pages,
             and modifying the eviction score mechanism.''',
+            type='boolean'),
+        Config('flush_checkpoint', 'false', r'''
+            if true, call a system wide checkpoint immediately after a flush_tier 
+            completes to force objects out to disk so that a flush_tier can work
+            single-threaded''',
             type='boolean'),
         Config('log_retention', '0', r'''
             adjust log removal to retain at least this number of log files, ignored if set to 0.
@@ -1139,6 +1143,12 @@ wiredtiger_open_common =\
     wiredtiger_open_log_configuration +\
     wiredtiger_open_tiered_storage_configuration +\
     wiredtiger_open_statistics_log_configuration + [
+    Config('backup_restore_target', '', r'''
+        If non-empty and restoring from a backup, restore only the table object targets listed.
+        WiredTiger will remove all the metadata entries for the tables that are not listed in th
+        list from the reconstructed metadata. The target list must include URIs matching of type
+        table:''', 
+        type='list'),
     Config('buffer_alignment', '-1', r'''
         in-memory alignment (in bytes) for buffers used for I/O.  The
         default value of -1 indicates a platform-specific alignment value
@@ -1658,7 +1668,7 @@ methods = {
 'WT_SESSION.flush_tier' : Method([
     Config('flush_timestamp', '', r'''
         flush objects to all storage sources using the specified timestamp.
-        The supplied value must not be older than the current oldest timestamp and it must
+        The value must not be older than the current oldest timestamp and it must
         not be newer than the stable timestamp'''),
     Config('force', 'false', r'''
         force sharing of all data''',
@@ -1746,30 +1756,26 @@ methods = {
         Transactions with higher values are less likely to abort''',
         min='-100', max='100'),
     Config('read_timestamp', '', r'''
-        read using the specified timestamp.  The supplied value must not be
+        read using the specified timestamp.  The value must not be
         older than the current oldest timestamp.  See
         @ref timestamp_txn_api'''),
     Config('roundup_timestamps', '', r'''
-        round up timestamps of the transaction. This setting alters the
-        visibility expected in a transaction. See @ref
-        timestamp_roundup''',
+        round up timestamps of the transaction''',
         type='category', subconfig= [
         Config('prepared', 'false', r'''
-            applicable only for prepared transactions, and intended only for special-purpose
-            use. (See @ref timestamp_roundup_prepare.) Allows the prepare timestamp and the
-            commit timestamp of this transaction to be rounded up to be no older than the
-            oldest timestamp, and allows violating the usual restriction that the prepare
-            timestamp must be newer than the stable timestamp. Specifically: at transaction
-            prepare, if the prepare
-            timestamp is less than or equal to the oldest timestamp, the prepare timestamp
-            will be rounded to the oldest timestamp. Subsequently, at commit time, if the
-            commit timestamp is less than the (now rounded) prepare timestamp, the commit
-            timestamp will be rounded up to it and thus to at least oldest.
-            Neither timestamp will be checked against the stable timestamp''',
+            applicable only for prepared transactions, and intended only for special-purpose use,
+            see @ref timestamp_prepare_roundup. Allows the prepare timestamp and the commit
+            timestamp of this transaction to be rounded up to be no older than the oldest timestamp,
+            and allows violating the usual restriction that the prepare timestamp must be newer than
+            the stable timestamp. Specifically: at transaction prepare, if the prepare timestamp is
+            less than or equal to the oldest timestamp, the prepare timestamp will be rounded to the
+            oldest timestamp. Subsequently, at commit time, if the commit timestamp is less than the
+            (now rounded) prepare timestamp, the commit timestamp will be rounded up to it and thus
+            to at least oldest.  Neither timestamp will be checked against the stable timestamp''',
             type='boolean'),
         Config('read', 'false', r'''
-            if the read timestamp is less than the oldest timestamp, the
-            read timestamp will be rounded up to the oldest timestamp''',
+            if the read timestamp is less than the oldest timestamp, the read timestamp will be
+            rounded up to the oldest timestamp, see @ref timestamp_read_roundup''',
             type='boolean'),
         ]),
     Config('sync', '', r'''
@@ -1780,18 +1786,17 @@ methods = {
 
 'WT_SESSION.commit_transaction' : Method([
     Config('commit_timestamp', '', r'''
-        set the commit timestamp for the current transaction. The supplied value
-        must not be older than the first commit timestamp already set for the
-        current transaction, if any. The value must also not be older than the
-        current oldest and stable timestamps. For prepared transactions, exactly one
-        commit timestamp is required; it must not be older than the prepare timestamp.
-        See @ref timestamp_txn_api'''),
+        set the commit timestamp for the current transaction. For non-prepared transactions,
+        value must not be older than the first commit timestamp already set for the current
+        transaction, if any, must not be older than the current oldest timestamp and must
+        be after the current stable timestamp. For prepared transactions, a commit timestamp
+        is required, must not be older than the prepare timestamp and can be set only once.
+        See @ref timestamp_txn_api and @ref timestamp_prepare'''),
     Config('durable_timestamp', '', r'''
-        set the durable timestamp for the current transaction. Required for the
-        commit of a prepared transaction, and otherwise not permitted. The
-        supplied value must not be older than the commit timestamp set for the
-        current transaction. The value must also be newer than the current
-        oldest and stable timestamps. See @ref timestamp_prepare'''),
+        set the durable timestamp for the current transaction. Required for the commit of a
+        prepared transaction, and otherwise not permitted. The value must also be after the
+        current oldest and stable timestamps and must not be older than the commit timestamp.
+        See @ref timestamp_prepare'''),
     Config('operation_timeout_ms', '0', r'''
         when non-zero, a requested limit on the time taken to complete operations in this
         transaction. Time is measured in real time milliseconds from the start of each WiredTiger
@@ -1810,35 +1815,34 @@ methods = {
 'WT_SESSION.prepare_transaction' : Method([
     Config('prepare_timestamp', '', r'''
         set the prepare timestamp for the updates of the current transaction.
-        The supplied value must not be older than any active read timestamps, and must
+        The value must not be older than any active read timestamps, and must
         be newer than the current stable timestamp. See @ref timestamp_prepare'''),
 ]),
 
 'WT_SESSION.timestamp_transaction' : Method([
     Config('commit_timestamp', '', r'''
-        set the commit timestamp for the current transaction. The supplied value
-        must not be older than the first commit timestamp already set for the
-        current transaction, if any. The value must also not be older than the
-        current oldest and stable timestamps. For prepared transactions, a commit
-        timestamp is required for commit, must not be older than the prepare
-        timestamp, can be set only once, and must not be set until after the
-        transaction has successfully prepared. See @ref timestamp_txn_api'''),
+        set the commit timestamp for the current transaction. For non-prepared transactions,
+        the value must not be older than the first commit timestamp already set for the current
+        transaction, if any, must not be older than the current oldest timestamp and must be after
+        the current stable timestamp. For prepared transactions, a commit timestamp is required,
+        must not be older than the prepare timestamp, can be set only once, and must not be
+        set until after the transaction has successfully prepared. See @ref timestamp_txn_api
+        and @ref timestamp_prepare'''),
     Config('durable_timestamp', '', r'''
-        set the durable timestamp for the current transaction. Required for the
-        commit of a prepared transaction, and otherwise not permitted. Can only
-        be set once the current transaction has been prepared, and a commit
-        timestamp has been set. The supplied value must not be older than the
-        commit timestamp. The value must also be newer than the current
-        oldest and stable timestamps. See @ref timestamp_prepare'''),
+        set the durable timestamp for the current transaction. Required for the commit of a
+        prepared transaction, and otherwise not permitted. Can only be set after the transaction
+        has been prepared and a commit timestamp has been set. The value must be after the
+        current oldest and stable timestamps and must not be older than the commit timestamp. See
+        @ref timestamp_prepare'''),
     Config('prepare_timestamp', '', r'''
         set the prepare timestamp for the updates of the current transaction.
-        The supplied value must not be older than any active read timestamps,
+        The value must not be older than any active read timestamps,
         and must be newer than the current stable timestamp. Can be set only
         once per transaction. Setting the prepare timestamp does not by itself
         prepare the transaction, but does oblige the application to eventually
         prepare the transaction before committing it. See @ref timestamp_prepare'''),
     Config('read_timestamp', '', r'''
-        read using the specified timestamp.  The supplied value must not be
+        read using the specified timestamp.  The value must not be
         older than the current oldest timestamp.  This can only be set once
         for a transaction. See @ref timestamp_txn_api'''),
 ]),
@@ -1879,8 +1883,8 @@ methods = {
         type='list'),
     Config('use_timestamp', 'true', r'''
         if true (the default), create the checkpoint as of the last stable timestamp if timestamps
-        are in use, or all current updates if there is no stable timestamp set. If false, this
-        option generates a checkpoint with all updates including those later than the timestamp''',
+        are in use, or with all committed  updates if there is no stable timestamp set. If false,
+        always generate a checkpoint with all committed updates, ignoring any stable timestamp''',
         type='boolean'),
 ]),
 
@@ -1970,7 +1974,7 @@ methods = {
         timestamps greater than the specified value until the next durable
         timestamp moves the tracked durable timestamp forwards.  This is only
         intended for use where the application is rolling back locally committed
-        transactions. The supplied value must not be older than the current
+        transactions. The value must not be older than the current
         oldest and stable timestamps.  See @ref timestamp_global_api'''),
     Config('force', 'false', r'''
         set timestamps even if they violate normal ordering requirements.
@@ -1978,15 +1982,15 @@ methods = {
         type='boolean'),
     Config('oldest_timestamp', '', r'''
         future commits and queries will be no earlier than the specified
-        timestamp.  Supplied values must be monotonically increasing, any
+        timestamp. Values must be monotonically increasing, any
         attempt to set the value to older than the current is silently ignored.
-        The supplied value must not be newer than the current
+        The value must not be newer than the current
         stable timestamp.  See @ref timestamp_global_api'''),
     Config('stable_timestamp', '', r'''
         checkpoints will not include commits that are newer than the specified
-        timestamp in tables configured with \c log=(enabled=false).  Supplied
-        values must be monotonically increasing, any attempt to set the value to
-        older than the current is silently ignored.  The supplied value must
+        timestamp in tables configured with \c "log=(enabled=false)".
+        Values must be monotonically increasing, any attempt to set the value to
+        older than the current is silently ignored.  The value must
         not be older than the current oldest timestamp.  See
         @ref timestamp_global_api'''),
 ]),

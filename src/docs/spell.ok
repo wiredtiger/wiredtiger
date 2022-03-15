@@ -4,6 +4,8 @@ ADDR
 APIs
 ASAN
 ASan
+AWS
+AWS's
 ActiveState
 Adler's
 Atomicity
@@ -53,10 +55,10 @@ ENOTSUP
 EXTLIST
 EmpId
 Encryptors
+FIXME
 FSTREAM
 Facebook
 Facebook's
-FIXME
 FlameGraph
 FlameGraphs
 FlexeLint
@@ -110,10 +112,10 @@ NUMA
 NoSQL
 OPTYPE
 PMU
-Powershell
 PPC
 PRELOAD
 PROFDATA
+Powershell
 README
 RLE
 RedHat
@@ -123,15 +125,17 @@ RocksDB
 Roelofs
 RrVv
 Rrx
+SDK
+SDK's
 SCons
 SYSV
 Sanitizer
 Seward's
 SiH
-Timestamping
 TSC
 TXID
 TXT
+Timestamping
 UBSAN
 UNC
 URIs
@@ -168,6 +172,7 @@ allocator
 allocators
 allocsize
 ao
+ap
 api
 apiflags
 ar
@@ -250,6 +255,7 @@ customerABC
 customizability
 cv
 cyclomatic
+de
 dN
 dNLen
 dNOff
@@ -264,6 +270,7 @@ dbc
 dbformat
 dbm
 dbt
+deallocated
 decl
 decrement
 decrementing
@@ -294,6 +301,7 @@ dt
 dumpfile
 dup
 dups
+ebusy
 encrypt
 encryptor
 encryptor's
@@ -328,10 +336,12 @@ fileFontColor
 fileID
 fileShadowing
 fileformats
+filehandle
 fileid
 filename
 filesystem
 filesystems
+filesystem's
 fillfactor
 firstname
 flamegraph
@@ -383,6 +393,7 @@ indices
 init
 inmemory
 insn
+instantiation
 intl
 intpack
 inuse
