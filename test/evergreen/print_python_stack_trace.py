@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -37,24 +37,24 @@ from shutil import which
 
 def border_msg(msg: str):
     count = len(msg) + 2
-    dash = "-"*count
+    dash = "-" * count
     return "+{dash}+\n| {msg} |\n+{dash}+".format(dash=dash, msg=msg)
 
 
 class LLDBDumper:
-    """LLDBDumper class."""
+    """LLDBDumper class - prints stack traces on macOS"""
     def __init__(self):
-        self.dbg = self.__find_debugger("lldb")
+        self.dbg = self._find_debugger("lldb")
 
     @staticmethod
-    def __find_debugger(debugger: str):
+    def _find_debugger(debugger: str):
         """Find the installed debugger."""
         return which(debugger)
 
     def dump(self, exe_path: str, core_path: str):
         """Dump stack trace."""
         if self.dbg is None:
-            sys.exit("Debugger gdb not found,"
+            sys.exit("Debugger lldb not found,"
                      "skipping dumping of {}".format(core_path))
 
         cmds = [
@@ -68,12 +68,12 @@ class LLDBDumper:
 
 
 class GDBDumper:
-    """GDBDumper class."""
+    """GDBDumper class - prints stack traces on Linux"""
     def __init__(self):
-        self.dbg = self.__find_debugger("gdb")
+        self.dbg = self._find_debugger("gdb")
 
     @staticmethod
-    def __find_debugger(debugger: str):
+    def _find_debugger(debugger: str):
         """Find the installed debugger."""
         return which(debugger)
 
