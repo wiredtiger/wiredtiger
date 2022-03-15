@@ -217,19 +217,22 @@ config_table(TABLE *table, void *arg)
     testutil_assert(table != NULL);
 
     /*
-     * For any values set in the base configuration, export them to this table (where this table
-     * doesn't already have a value set).
+     * Choose a file format and a data source: they're interrelated (LSM is only compatible with
+     * row-store) and other items depend on them.
+     */
+    config_table_am(table);
+
+    /*
+     * Next, for any values set in the base configuration, export them to this table (where this
+     * table doesn't already have a value set). This is done after picking an access method as the
+     * access method is more complicated, the base value might be set to "row,var", to pick from two
+     * possible access methods, and so we do that before blindly taking any already set values from
+     * the base configuration.
      */
     if (ntables != 0)
         for (cp = configuration_list; cp->name != NULL; ++cp)
             if (F_ISSET(cp, C_TABLE) && !table->v[cp->off].set && tables[0]->v[cp->off].set)
                 config_promote(table, cp, &tables[0]->v[cp->off]);
-
-    /*
-     * Choose a file format and a data source: they're interrelated (LSM is only compatible with
-     * row-store) and other items depend on them.
-     */
-    config_table_am(table);
 
     /*
      * Build the top-level object name: we're overloading data_source in our configuration, LSM
