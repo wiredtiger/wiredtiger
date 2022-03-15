@@ -65,7 +65,7 @@ class test_txn27(wttest.WiredTigerTestCase):
         session1.begin_transaction()
         cursor1.set_key(ds.key(1))
         cursor1.set_value("a"*1024*5000)
-        self.assertEqual(0, cursor1.update())
+        cursor1.update()
 
         # Let WiredTiger's accounting catch up.
         time.sleep(2)
@@ -92,7 +92,7 @@ class test_txn27(wttest.WiredTigerTestCase):
         for i in range(1, 200):
             cursor1.set_key(ds.key(i))
             cursor1.set_value("a"*1024)
-            self.assertEqual(0, cursor1.insert())
+            cursor1.insert()
 
         # Open another session to insert data. We are past the eviction threshold and all the
         # data is uncommitted. Unless we configure a maximum wait duration the opertation will
@@ -102,7 +102,7 @@ class test_txn27(wttest.WiredTigerTestCase):
         cursor2.set_key(ds.key(201))
         cursor2.set_value("a"*20)
 
-        msg3 = 'transaction rolled back otherwise operation would overflow cache'
+        msg3 = 'transaction rolled back because of cache overflow'
         # Expect stdout to give us the true reason for the rollback.
         with self.expectedStdoutPattern(msg3):
             # This reason is the default reason for WT_ROLLBACK errors so we need to catch it.

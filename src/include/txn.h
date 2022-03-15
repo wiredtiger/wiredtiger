@@ -21,8 +21,7 @@
  */
 #define WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION \
     "oldest pinned transaction ID rolled back for eviction"
-#define WT_TXN_ROLLBACK_REASON_CACHE_FULL \
-    "transaction rolled back otherwise operation would overflow cache"
+#define WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW "transaction rolled back because of cache overflow"
 #define WT_TXN_ROLLBACK_REASON_CONFLICT "conflict between concurrent operations"
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
