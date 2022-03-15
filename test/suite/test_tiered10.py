@@ -36,7 +36,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 # prefixes to the same bucket directory but different local databases.
 class test_tiered10(wttest.WiredTigerTestCase):
     storage_sources = [
-        ('local', dict(auth_token = get_auth_token('dir_store'),
+        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
             bucket = get_bucket1_name('dir_store'),
             prefix1 = '1_',
             prefix2 = '2_',
@@ -69,7 +69,7 @@ class test_tiered10(wttest.WiredTigerTestCase):
         # Use this to create the directories and set up for the others.
         dummy_conn = 'create,statistics=(all),'
 
-        # For local store, the bucket is a directory one level up from database directories.
+        # For directory store, the bucket is a directory one level up from database directories.
         bucket = ''
         if self.ss_name == 'dir_store':
             bucket = '../'

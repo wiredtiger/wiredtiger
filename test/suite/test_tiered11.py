@@ -35,7 +35,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Test flush time and flush timestamp in metadata.
 class test_tiered11(wttest.WiredTigerTestCase):
     storage_sources = [
-        ('local', dict(auth_token = get_auth_token('dir_store'),
+        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
             bucket = get_bucket1_name('dir_store'),
             bucket_prefix = "pfx_",
             ss_name = 'dir_store')),

@@ -43,7 +43,7 @@ class test_tiered03(wttest.WiredTigerTestCase):
     uri = 'file:test_tiered03'
 
     storage_sources = [
-        ('local', dict(auth_token = get_auth_token('dir_store'),
+        ('dirstore', dict(auth_token = get_auth_token('dir_store'),
             bucket = get_bucket1_name('dir_store'),
             bucket_prefix = "pfx_",
             ss_name = 'dir_store')),
@@ -71,7 +71,7 @@ class test_tiered03(wttest.WiredTigerTestCase):
             cache_dir = self.bucket + '-cache'
 
         # We have multiple connections that want to share a bucket.
-        # For the local store, the first time this function is called, we'll
+        # For the directory store, the first time this function is called, we'll
         # establish the absolute path for the bucket, and always use that for
         # the bucket name.
         # The cache directory name is a relative one, so it won't be shared

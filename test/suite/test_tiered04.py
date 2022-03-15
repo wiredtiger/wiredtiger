@@ -37,7 +37,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Basic tiered storage API test.
 class test_tiered04(wttest.WiredTigerTestCase):
     storage_sources = [
-        ('local', dict(auth_token = get_auth_token('dir_store'),
+        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
             bucket = get_bucket1_name('dir_store'),
             bucket1 = get_bucket2_name('dir_store'),
             prefix = "pfx_",

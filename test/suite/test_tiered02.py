@@ -35,7 +35,7 @@ from wtscenario import make_scenarios
 #    Test tiered tree
 class test_tiered02(wttest.WiredTigerTestCase):
     storage_sources = [
-        ('local', dict(auth_token = get_auth_token('dir_store'),
+        ('dirstore', dict(auth_token = get_auth_token('dir_store'),
             bucket = get_bucket1_name('dir_store'),
             bucket_prefix = "pfx_",
             ss_name = 'dir_store')),
@@ -78,8 +78,8 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.pr(s)
 
     def confirm_flush(self, increase=True):
-        # Without directly using the filesystem API, directory listing is only supported on the
-        # local store. Limit this check to the local store. 
+        # Without directly using the filesystem API, directory listing is only supported on
+        # the directory store.  Limit this check to the directory store.
         if self.ss_name != 'dir_store':
             return
 

@@ -35,7 +35,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Basic tiered storage API test error for tiered manager and flush_tier.
 class test_tiered05(wttest.WiredTigerTestCase):
     storage_sources = [
-        ('local', dict(auth_token = get_auth_token('dir_store'),
+        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
             bucket = get_bucket1_name('dir_store'),
             bucket_prefix = "pfx_",
             ss_name = 'dir_store')),

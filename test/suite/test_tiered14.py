@@ -58,7 +58,7 @@ class test_tiered14(wttest.WiredTigerTestCase):
         #('complex', dict(dataset='complex', long_only=True)),
     ]
     storage_sources = [
-        ('local', dict(auth_token = get_auth_token('dir_store'),
+        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
             bucket = get_bucket1_name('dir_store'),
             bucket_prefix = "pfx_",
             num_ops = 100,

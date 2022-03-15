@@ -35,7 +35,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Test tiered storage with tiered flush finish timing delay.
 class test_tiered12(wttest.WiredTigerTestCase):
     storage_sources = [
-        ('local', dict(auth_token = get_auth_token('dir_store'),
+        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
             bucket = get_bucket1_name('dir_store'),
             bucket_prefix = "pfx_",
             ss_name = 'dir_store')),
@@ -117,7 +117,7 @@ class test_tiered12(wttest.WiredTigerTestCase):
         cache_obj = os.path.join(cache, self.bucket_prefix + self.obj1file)
         self.assertFalse(os.path.exists(cache_obj))
 
-        # On local store, the bucket object should exist.
+        # On directory store, the bucket object should exist.
         if self.ss_name == 'dir_store':
             bucket_obj = os.path.join(self.bucket, self.bucket_prefix + self.obj1file)
             self.assertTrue(os.path.exists(bucket_obj))

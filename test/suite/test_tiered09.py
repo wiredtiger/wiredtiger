@@ -35,7 +35,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Test tiered storage with sequential connections with different prefixes.
 class test_tiered09(wttest.WiredTigerTestCase):
     storage_sources = [
-        ('local', dict(auth_token = get_auth_token('dir_store'),
+        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
             bucket = get_bucket1_name('dir_store'),
             prefix1 = '1_',
             prefix2 = '2_',
@@ -118,7 +118,7 @@ class test_tiered09(wttest.WiredTigerTestCase):
         self.session.flush_tier(None)
         self.close_conn()
 
-        # For local store, check if the path exists.
+        # For directory store, check if the path exists.
         if self.ss_name == 'dir_store':
             self.assertTrue(os.path.exists(self.obj1file))
             self.assertTrue(os.path.exists(self.obj2file))
@@ -152,7 +152,7 @@ class test_tiered09(wttest.WiredTigerTestCase):
         self.session.flush_tier(None)
         self.close_conn()
 
-        # For local store, Check each table was created with the correct prefix.
+        # For directory store, Check each table was created with the correct prefix.
         if self.ss_name == 'dir_store':
             bucket_obj = os.path.join(self.bucket, self.prefix2 + self.obj1second)
             self.assertTrue(os.path.exists(bucket_obj))
