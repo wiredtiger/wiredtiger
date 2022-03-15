@@ -1432,14 +1432,16 @@ __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
 
     /*
      * Prepending a tombstone to another tombstone indicates remove of a non-existent key and that
-     * isn't permitted, return a WT_NOTFOUND error. It is possible that RTS may add a tombstone on
-     * top of an existing tombstone when it is removing a key with a globally visible tombstone.
-     * This check appears after the correctness checks so we return a rollback for a remove in a
-     * different snapshot.
+     * isn't permitted, return a WT_NOTFOUND error.
      */
-    if (modify_type == WT_UPDATE_TOMBSTONE && upd != NULL && upd->type == WT_UPDATE_TOMBSTONE &&
-      !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
-        return (WT_NOTFOUND);
+    if (modify_type == WT_UPDATE_TOMBSTONE) {
+        /* Loop until a valid update is found. */
+        while (upd != NULL && upd->txnid == WT_TXN_ABORTED)
+            upd = upd->next;
+
+        if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE)
+            return (WT_NOTFOUND);
+    }
 
     /* Everything is OK, optionally rollback for testing (skipping metadata operations). */
     if (!WT_IS_METADATA(cbt->dhandle)) {
