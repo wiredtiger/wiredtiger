@@ -34,7 +34,7 @@ static int col_modify(TINFO *, bool);
 static int col_remove(TINFO *, bool);
 static int col_reserve(TINFO *, bool);
 static int col_truncate(TINFO *);
-static int col_update(TINFO *, bool);
+static int col_update(TINFO *, thread_op, bool);
 static int nextprev(TINFO *, bool);
 static WT_THREAD_RET ops(void *);
 static int read_row(TINFO *);
@@ -733,7 +733,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         switch (table->type) {
         case FIX:
             ++tinfo->update; /* FLCS does an update instead of a modify. */
-            ret = col_update(tinfo, positioned);
+            ret = col_update(tinfo, op, positioned);
             break;
         case ROW:
             ++tinfo->modify;
@@ -804,7 +804,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
             break;
         case FIX:
         case VAR:
-            ret = col_update(tinfo, positioned);
+            ret = col_update(tinfo, op, positioned);
             break;
         }
         if (ret == 0) {
@@ -1661,7 +1661,7 @@ row_update(TINFO *tinfo, bool positioned)
  *     Update a row in a column-store file.
  */
 static int
-col_update(TINFO *tinfo, bool positioned)
+col_update(TINFO *tinfo, thread_op op, bool positioned)
 {
     TABLE *table;
     WT_CURSOR *cursor;
@@ -1673,9 +1673,13 @@ col_update(TINFO *tinfo, bool positioned)
     if (!positioned)
         cursor->set_key(cursor, tinfo->keyno);
     if (table->type == FIX) {
-        /* Mirrors will not have set the new value for FLCS. */
+        /*
+         * Mirrors will not have set the FLCS value, and this might have been a modify operation. If
+         * it's a modify operation, take the FLCS value from the value, if an update, take the FLCS
+         * value from the new value.
+         */
         if (table->mirror)
-            val_to_flcs(table, tinfo->new_value, &tinfo->bitv);
+            val_to_flcs(table, op == MODIFY ? tinfo->value : tinfo->new_value, &tinfo->bitv);
         cursor->set_value(cursor, tinfo->bitv);
     } else
         cursor->set_value(cursor, tinfo->new_value);
@@ -1816,7 +1820,7 @@ col_insert(TINFO *tinfo)
         return (WT_ROLLBACK);
 
     if (table->type == FIX) {
-        /* Mirrors will not have set the new value for FLCS. */
+        /* Mirrors will not have set the FLCS value. */
         if (table->mirror)
             val_to_flcs(table, tinfo->new_value, &tinfo->bitv);
         cursor->set_value(cursor, tinfo->bitv);
