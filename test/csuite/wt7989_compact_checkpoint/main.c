@@ -31,7 +31,8 @@
  * This test executes two test cases:
  * - One with WT_TIMING_STRESS_CHECKPOINT_SLOW flag. It adds 10 seconds sleep before each
  * checkpoint.
- * - Another test case synchronizes compact and checkpoint threads using a condition variable.
+ * - Another test case synchronizes compact and checkpoint threads by forcing them to wait
+ * until both threads have started.
  * The reason we have two tests here is that they give different output when configured
  * with "verbose=[compact,compact_progress]". There's a chance these two cases are different.
  */
@@ -57,7 +58,7 @@ static uint64_t ready_counter;
 struct thread_data {
     WT_CONNECTION *conn;
     const char *uri;
-    WT_CONDVAR *cond;
+    bool stress_test;
 };
 
 /* Forward declarations. */
@@ -89,22 +90,22 @@ main(int argc, char *argv[])
     /*
      * First, run test with WT_TIMING_STRESS_CHECKPOINT_SLOW. Row store case.
      */
-    // run_test_clean(true, false, opts->preserve, opts->home, "SR", opts->uri);
+    run_test_clean(true, false, opts->preserve, opts->home, "SR", opts->uri);
 
     /*
-     * Now, run test where compact and checkpoint threads are synchronized using condition variable.
-     * Row store case.
+     * Now, run test where compact and checkpoint threads are synchronized using global thread
+     * counter. Row store case.
      */
     run_test_clean(false, false, opts->preserve, opts->home, "NR", opts->uri);
 
     /*
      * Next, run test with WT_TIMING_STRESS_CHECKPOINT_SLOW. Column store case.
      */
-    // run_test_clean(true, true, opts->preserve, opts->home, "SC", opts->uri);
+    run_test_clean(true, true, opts->preserve, opts->home, "SC", opts->uri);
 
     /*
-     * Finally, run test where compact and checkpoint threads are synchronized using condition
-     * variable. Column store case.
+     * Finally, run test where compact and checkpoint threads are synchronized using global thread
+     * counter. Column store case.
      */
     run_test_clean(false, true, opts->preserve, opts->home, "NC", opts->uri);
 
@@ -122,6 +123,8 @@ run_test_clean(bool stress_test, bool column_store, bool preserve, const char *h
   const char *suffix, const char *uri)
 {
     char home_full[512];
+
+    ready_counter = 0;
 
     printf("\n");
     printf("Running %s test with %s store...\n", stress_test ? "stress" : "normal",
@@ -177,7 +180,7 @@ run_test(bool stress_test, bool column_store, const char *home, const char *uri)
 
     td.conn = conn;
     td.uri = uri;
-    td.cond = NULL;
+    td.stress_test = stress_test;
 
     /* Spawn checkpoint and compact threads. Order is important! */
     testutil_check(pthread_create(&thread_compact, NULL, thread_func_compact, &td));
@@ -190,12 +193,6 @@ run_test(bool stress_test, bool column_store, const char *home, const char *uri)
     /* Collect compact progress stats. */
     get_compact_progress(session, uri, &pages_reviewed, &pages_skipped, &pages_rewritten);
     size_check_res = check_db_size(session, uri);
-
-    /* Cleanup */
-    if (!stress_test) {
-        __wt_cond_destroy((WT_SESSION_IMPL *)session, &td.cond);
-        td.cond = NULL;
-    }
 
     testutil_check(session->close(session, NULL));
     session = NULL;
@@ -229,14 +226,18 @@ thread_func_compact(void *arg)
     td = (struct thread_data *)arg;
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    
-    /* Wait until all the threads are ready to go. */
-    (void)__wt_atomic_add64(&ready_counter, 1);
-    for (;; __wt_yield()) {
-        WT_ORDERED_READ(ready_counter_local, ready_counter);
-        printf("Ready counter local: %"PRIu64"\n", ready_counter_local);
-        if (ready_counter_local >= 2)
-            break;
+
+    if (!td->stress_test) {
+        /* Wait until both checkpoint and compact threads are ready to go. */
+        printf("Waiting for other threads before starting compaction.\n");
+        (void)__wt_atomic_add64(&ready_counter, 1);
+        for (;; __wt_yield()) {
+            WT_ORDERED_READ(ready_counter_local, ready_counter);
+            if (ready_counter_local >= 2) {
+                printf("Threads ready, starting compaction\n");
+                break;
+            }
+        }
     }
 
     /* Perform compact operation. */
@@ -267,13 +268,17 @@ thread_func_checkpoint(void *arg)
 
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
 
-    /* Wait until all the threads are ready to go. */
-    (void)__wt_atomic_add64(&ready_counter, 1);
-    for (;; __wt_yield()) {
-        WT_ORDERED_READ(ready_counter_local, ready_counter);
-        printf("Ready counter local: %"PRIu64"\n", ready_counter_local);
-        if (ready_counter_local >= 2)
-            break;
+    if (!td->stress_test) {
+        /* Wait until both checkpoint and compact threads are ready to go. */
+        printf("Waiting for other threads before starting checkpoint.\n");
+        (void)__wt_atomic_add64(&ready_counter, 1);
+        for (;; __wt_yield()) {
+            WT_ORDERED_READ(ready_counter_local, ready_counter);
+            if (ready_counter_local >= 2) {
+                printf("Threads ready, starting checkpoint\n");
+                break;
+            }
+        }
     }
 
     /*
