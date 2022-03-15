@@ -703,8 +703,21 @@ __wt_rec_col_fix(
             /* Clear the on-disk cell time window if it is obsolete. */
             __wt_rec_time_window_clear_obsolete(session, NULL, &unpack, r);
 
-            /* If it's from a previous run, it might become empty; if so, skip it. */
-            if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
+            /*
+             * The checks in unpack and clear_obsolete do not handle obsolete stop times; we need to
+             * do that explicitly because we need to act on it. So there are three cases: (a) the
+             * value has a globally visible stop time, in which case we should delete the value and
+             * drop the time window; (b) the time window may have changed but remains nonempty, in
+             * which case we leave the value and write write the time window to the new page; or (c)
+             * the time window has become empty, in which case we leave the value and drop the time
+             * window, which amounts to doing nothing at all.
+             */
+
+            if (__wt_txn_tw_stop_visible_all(session, &unpack.tw))
+                __bit_setv(r->first_free,
+                  (uint32_t)(origstartrecno + page->pg_fix_tws[tw].recno_offset - curstartrecno),
+                  btree->bitcnt, 0);
+            else if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
                 WT_ERR(__wt_rec_col_fix_addtw(session, r,
                   (uint32_t)(origstartrecno + page->pg_fix_tws[tw].recno_offset - curstartrecno),
                   &unpack.tw));
@@ -761,28 +774,30 @@ __wt_rec_col_fix(
                   session, r, upd_select.tw.durable_stop_ts, recno, NULL, false));
 
             val = 0;
+
+            /* Do not write a time window; if we get just a tombstone, it is globally visible. */
         } else {
             /* MODIFY is not allowed in FLCS. */
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
             val = *upd->data;
+
+            /* Write the time window. */
+            if (!WT_TIME_WINDOW_IS_EMPTY(&upd_select.tw)) {
+                /*
+                 * When an out-of-order or mixed-mode tombstone is getting written to disk, remove
+                 * any historical versions that are greater in the history store for this key.
+                 */
+                if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
+                    WT_ERR(__wt_rec_hs_clear_on_tombstone(
+                      session, r, upd_select.tw.durable_stop_ts, recno, NULL, true));
+
+                WT_ERR(__wt_rec_col_fix_addtw(
+                  session, r, (uint32_t)(recno - curstartrecno), &upd_select.tw));
+            }
         }
 
         /* Write the data. */
         __bit_setv(r->first_free, recno - curstartrecno, btree->bitcnt, val);
-
-        /* Write the time window. */
-        if (!WT_TIME_WINDOW_IS_EMPTY(&upd_select.tw)) {
-            /*
-             * When an out-of-order or mixed-mode tombstone is getting written to disk, remove any
-             * historical versions that are greater in the history store for this key.
-             */
-            if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
-                WT_ERR(__wt_rec_hs_clear_on_tombstone(
-                  session, r, upd_select.tw.durable_stop_ts, recno, NULL, true));
-
-            WT_ERR(__wt_rec_col_fix_addtw(
-              session, r, (uint32_t)(recno - curstartrecno), &upd_select.tw));
-        }
 
         /* If there was an entry in the time windows index for this key, skip over it. */
         if (tw < numtws && origstartrecno + page->pg_fix_tws[tw].recno_offset == recno)
@@ -806,8 +821,11 @@ __wt_rec_col_fix(
         /* Clear the on-disk cell time window if it is obsolete. */
         __wt_rec_time_window_clear_obsolete(session, NULL, &unpack, r);
 
-        /* If it's from a previous run, it might become empty; if so, skip it. */
-        if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
+        /* These cases are the same as the corresponding ones above. */
+
+        if (__wt_txn_tw_stop_visible_all(session, &unpack.tw))
+            __bit_setv(r->first_free, (uint32_t)(recno - curstartrecno), btree->bitcnt, 0);
+        else if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
             WT_ERR(
               __wt_rec_col_fix_addtw(session, r, (uint32_t)(recno - curstartrecno), &unpack.tw));
         tw++;
@@ -887,16 +905,25 @@ __wt_rec_col_fix(
             if (nrecs > 0) {
                 /* There's still space; write the inserted value. */
                 WT_ASSERT(session, curstartrecno + entry == recno);
-                if (upd == NULL || upd->type == WT_UPDATE_TOMBSTONE)
+                if (upd == NULL || upd->type == WT_UPDATE_TOMBSTONE) {
+                    /*
+                     * If there's no update because we had no insert list and we're filling in at
+                     * the end of an in-memory split, write a globally visible zero with no time
+                     * window. Similarly, if there are only aborted or invisible updates for this
+                     * key (the insert list exists but the visibility code gave us no update to
+                     * write), don't write a time window. And, if we get just a tombstone back from
+                     * visibility, that means a globally visible deleted value. There might be a
+                     * nonempty window in upd_select.tw, but we're supposed to ignore it.
+                     */
                     val = 0;
-                else {
-                    /* MODIFY is not allowed in FLCS. */
+                } else {
+                    /* MODIFY is not allowed in FLCS, so the update must be an ordinary value. */
                     WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
                     val = *upd->data;
+                    if (!WT_TIME_WINDOW_IS_EMPTY(&upd_select.tw))
+                        WT_ERR(__wt_rec_col_fix_addtw(session, r, entry, &upd_select.tw));
                 }
                 __bit_setv(r->first_free, entry, btree->bitcnt, val);
-                if (upd != NULL && !WT_TIME_WINDOW_IS_EMPTY(&upd_select.tw))
-                    WT_ERR(__wt_rec_col_fix_addtw(session, r, entry, &upd_select.tw));
                 --nrecs;
                 ++entry;
                 ++r->recno;
