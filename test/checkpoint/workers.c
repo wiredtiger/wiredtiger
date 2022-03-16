@@ -237,7 +237,9 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
 
         for (int i = 10; i > 0; i--) {
             if ((ret = cursor->remove(cursor)) != 0) {
-                if (ret == WT_ROLLBACK || ret == WT_NOTFOUND)
+                if (ret == WT_NOTFOUND)
+                    return (0);
+                if (ret == WT_ROLLBACK)
                     return (WT_ROLLBACK);
                 return (log_print_err("cursor.remove", ret, 1));
             }
