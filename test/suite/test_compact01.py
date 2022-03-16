@@ -37,7 +37,9 @@ from wtscenario import make_scenarios
 class test_compact(wttest.WiredTigerTestCase, suite_subprocess):
     name = 'test_compact'
 
-    # Use a small page size because we want to create lots of pages.
+    # We don't want to set the page size too small as compaction doesn't work on tables with many
+    # overflow items, furthermore eviction can get very slow with overflow items. We don't want the
+    # page size to be too big either as there won't be enough pages to rewrite.
     config = 'leaf_page_max=8KB,key_format=S'
     nentries = 50000
 
