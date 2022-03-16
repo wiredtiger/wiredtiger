@@ -37,7 +37,6 @@ check_copy(void)
 {
     WT_CONNECTION *conn;
     WT_DECL_RET;
-    WT_SESSION *session;
     size_t len;
     char *path;
 
@@ -65,12 +64,12 @@ check_copy(void)
 
     /* Now setup and open the path for real. */
     testutil_check(__wt_snprintf(path, len, "%s/BACKUP", g.home));
-    wts_open(path, &conn, &session, false);
+    wts_open(path, &conn, false);
 
     /* Verify the objects. */
     tables_apply(wts_verify, conn);
 
-    wts_close(&conn, &session);
+    wts_close(&conn);
 
     free(path);
 }
@@ -462,11 +461,12 @@ WT_THREAD_RET
 backup(void *arg)
 {
     ACTIVE_FILES active[2], *active_now, *active_prev;
+    SAP sap;
     WT_CONNECTION *conn;
     WT_CURSOR *backup_cursor;
     WT_DECL_RET;
     WT_SESSION *session;
-    u_int incremental, period;
+    u_int counter, incremental, period;
     uint64_t src_id, this_id;
     const char *config, *key;
     char cfg[512];
@@ -476,7 +476,9 @@ backup(void *arg)
 
     conn = g.wts_conn;
     /* Open a session. */
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    memset(&sap, 0, sizeof(sap));
+    wiredtiger_open_session(conn, &sap, NULL, &session);
+    counter = 0;
 
     __wt_seconds(NULL, &g.backup_id);
     active_files_init(&active[0]);
@@ -579,6 +581,8 @@ backup(void *arg)
         /*
          * open_cursor can return EBUSY if concurrent with a metadata operation, retry in that case.
          */
+        trace_msg(session, "Backup #%u start%s%s%s", ++counter, config == NULL ? "" : ": (",
+          config == NULL ? "" : config, config == NULL ? "" : ")");
         while (
           (ret = session->open_cursor(session, "backup:", NULL, config, &backup_cursor)) == EBUSY)
             __wt_yield();
@@ -605,6 +609,8 @@ backup(void *arg)
             testutil_check(session->truncate(session, "log:", backup_cursor, NULL, NULL));
 
         testutil_check(backup_cursor->close(backup_cursor));
+        trace_msg(session, "Backup #%u stop%s%s%s", counter, config == NULL ? "" : ": (",
+          config == NULL ? "" : config, config == NULL ? "" : ")");
         lock_writeunlock(session, &g.backup_lock);
         active_files_sort(active_now);
         active_files_remove_missing(active_prev, active_now);
@@ -637,7 +643,7 @@ backup(void *arg)
 
     active_files_free(&active[0]);
     active_files_free(&active[1]);
-    testutil_check(session->close(session, NULL));
+    wiredtiger_close_session(session);
 
     return (WT_THREAD_RET_VALUE);
 }

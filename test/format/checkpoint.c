@@ -61,10 +61,11 @@ wts_checkpoints(void)
 WT_THREAD_RET
 checkpoint(void *arg)
 {
+    SAP sap;
     WT_CONNECTION *conn;
     WT_DECL_RET;
     WT_SESSION *session;
-    u_int secs;
+    u_int counter, secs;
     char config_buf[64];
     const char *ckpt_config;
     bool backup_locked, named_checkpoints;
@@ -72,8 +73,11 @@ checkpoint(void *arg)
     (void)arg;
 
     conn = g.wts_conn;
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    counter = 0;
     named_checkpoints = !g.lsm_config;
+
+    memset(&sap, 0, sizeof(sap));
+    wiredtiger_open_session(conn, &sap, NULL, &session);
 
     for (secs = mmrand(NULL, 1, 10); !g.workers_finished;) {
         if (secs > 0) {
@@ -119,8 +123,12 @@ checkpoint(void *arg)
                     testutil_check(ret);
                 break;
             }
-
+        trace_msg(session, "Checkpoint #%u start%s%s%s", ++counter,
+          ckpt_config == NULL ? "" : ": (", ckpt_config == NULL ? "" : ckpt_config,
+          ckpt_config == NULL ? "" : ")");
         testutil_check(session->checkpoint(session, ckpt_config));
+        trace_msg(session, "Checkpoint #%u stop%s%s%s", ++counter, ckpt_config == NULL ? "" : ": (",
+          ckpt_config == NULL ? "" : ckpt_config, ckpt_config == NULL ? "" : ")");
 
         if (backup_locked)
             lock_writeunlock(session, &g.backup_lock);
@@ -128,6 +136,6 @@ checkpoint(void *arg)
         secs = mmrand(NULL, 5, 40);
     }
 
-    testutil_check(session->close(session, NULL));
+    wiredtiger_close_session(session);
     return (WT_THREAD_RET_VALUE);
 }

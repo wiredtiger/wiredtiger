@@ -55,6 +55,7 @@ static void verify_import(WT_SESSION *);
 WT_THREAD_RET
 import(void *arg)
 {
+    SAP isap, sap;
     WT_CONNECTION *conn, *import_conn;
     WT_DECL_RET;
     WT_SESSION *import_session, *session;
@@ -66,6 +67,7 @@ import(void *arg)
 
     WT_UNUSED(arg);
     conn = g.wts_conn;
+
     file_config = table_config = NULL;
     import_value = 0;
 
@@ -88,8 +90,10 @@ import(void *arg)
     /*
      * Open two sessions, one for test/format database and one for the import database.
      */
-    testutil_check(import_conn->open_session(import_conn, NULL, NULL, &import_session));
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    memset(&isap, 0, sizeof(isap));
+    wiredtiger_open_session(import_conn, &isap, NULL, &import_session);
+    memset(&sap, 0, sizeof(sap));
+    wiredtiger_open_session(conn, &sap, NULL, &session);
 
     /* Create new table and populate with data in import database. */
     testutil_checkfmt(
@@ -130,8 +134,9 @@ import(void *arg)
             __wt_sleep(1, 0);
         }
     }
-    wts_close(&import_conn, &import_session);
-    testutil_check(session->close(session, NULL));
+    wiredtiger_close_session(import_session);
+    wts_close(&import_conn);
+    wiredtiger_close_session(session);
     return (WT_THREAD_RET_VALUE);
 }
 

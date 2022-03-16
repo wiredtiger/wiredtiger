@@ -194,17 +194,17 @@ tinfo_teardown(void)
  *     Do a rollback to stable and verify operations.
  */
 static void
-rollback_to_stable(void)
+rollback_to_stable(WT_SESSION *session)
 {
     /* Rollback-to-stable only makes sense for timestamps. */
     if (!g.transaction_timestamps_config)
         return;
 
-    trace_msg("%-10s ts=%" PRIu64, "rts", g.stable_timestamp);
+    trace_msg(session, "%-10s ts=%" PRIu64, "rts", g.stable_timestamp);
     testutil_check(g.wts_conn->rollback_to_stable(g.wts_conn, NULL));
 
     /* Check the saved snap operations for consistency. */
-    snap_repeat_rollback(tinfo_list, GV(RUNS_THREADS));
+    snap_repeat_rollback(session, tinfo_list, GV(RUNS_THREADS));
 }
 
 /*
@@ -214,6 +214,7 @@ rollback_to_stable(void)
 void
 operations(u_int ops_seconds, bool lastrun)
 {
+    SAP sap;
     TINFO *tinfo, total;
     WT_CONNECTION *conn;
     WT_SESSION *session;
@@ -261,11 +262,12 @@ operations(u_int ops_seconds, bool lastrun)
     }
 
     /* Get a session. */
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    memset(&sap, 0, sizeof(sap));
+    wiredtiger_open_session(conn, &sap, NULL, &session);
 
     /* Initialize and start the worker threads. */
     tinfo_init();
-    trace_msg("%s", "=============== thread ops start");
+    trace_msg(session, "%s", "=============== thread ops start");
 
     for (i = 0; i < GV(RUNS_THREADS); ++i) {
         tinfo = tinfo_list[i];
@@ -375,7 +377,7 @@ operations(u_int ops_seconds, bool lastrun)
         testutil_check(__wt_thread_join(NULL, &timestamp_tid));
     g.workers_finished = false;
 
-    trace_msg("%s", "=============== thread ops stop");
+    trace_msg(session, "%s", "=============== thread ops stop");
 
     /*
      * The system should be quiescent at this point, call rollback to stable. Generally, we expect
@@ -384,14 +386,14 @@ operations(u_int ops_seconds, bool lastrun)
      * close/re-open pair. Note we are not advancing the oldest timestamp, otherwise we wouldn't be
      * able to replay operations from after rollback-to-stable completes.
      */
-    rollback_to_stable();
+    rollback_to_stable(session);
 
     if (lastrun) {
         tinfo_teardown();
         timestamp_teardown(session);
     }
 
-    testutil_check(session->close(session, NULL));
+    wiredtiger_close_session(session);
 }
 
 /*
@@ -610,11 +612,12 @@ ops_session_open(TINFO *tinfo)
 
     /* Close any open session (which closes all open cursors as well). */
     if ((session = tinfo->session) != NULL)
-        testutil_check(session->close(session, NULL));
+        wiredtiger_close_session(session);
     tinfo->session = NULL;
     memset(tinfo->cursors, 0, WT_MAX(ntables, 1) * sizeof(tinfo->cursors[0]));
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &tinfo->session));
+    wiredtiger_open_session(conn, &tinfo->sap, NULL, &session);
+    tinfo->session = session;
 }
 
 /* Isolation configuration. */
@@ -676,9 +679,6 @@ ops(void *arg)
     reset_op = mmrand(&tinfo->rnd, 100, 10000);
     /* Set the first operation where we'll truncate a range. */
     truncate_op = mmrand(&tinfo->rnd, 100, 10000);
-
-    /* Initialize operation trace. */
-    trace_ops_init(tinfo);
 
     for (intxn = false; !tinfo->quit; ++tinfo->ops) {
         /* Periodically open up a new session and cursors. */
@@ -1089,6 +1089,7 @@ rollback:
 void
 wts_read_scan(TABLE *table, void *arg)
 {
+    SAP sap;
     WT_CONNECTION *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -1112,7 +1113,8 @@ wts_read_scan(TABLE *table, void *arg)
     val_gen_init(&value);
 
     /* Open a session and cursor pair. */
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    memset(&sap, 0, sizeof(sap));
+    wiredtiger_open_session(conn, &sap, NULL, &session);
     wiredtiger_open_cursor(session, table->uri, NULL, &cursor);
 
     /* Check a random subset of the records using the key. */
@@ -1134,7 +1136,7 @@ wts_read_scan(TABLE *table, void *arg)
         }
     }
 
-    testutil_check(session->close(session, NULL));
+    wiredtiger_close_session(session);
 
     key_gen_teardown(&key);
     val_gen_teardown(&value);
@@ -1195,21 +1197,26 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
     }
 
     /* Log the operation */
+    if (!g.trace_read)
+        return (0);
     if (ret == 0)
         switch (table->type) {
         case FIX:
-            if (tinfo == NULL && g.trace_all)
-                trace_msg("read %" PRIu64 " {0x%02x}", keyno, ((char *)value->data)[0]);
-            if (tinfo != NULL)
+            if (tinfo == NULL)
+                trace_msg(
+                  cursor->session, "read %" PRIu64 " {0x%02x}", keyno, ((char *)value->data)[0]);
+            else
                 trace_op(tinfo, "read %" PRIu64 " {0x%02x}", keyno, ((char *)value->data)[0]);
 
             break;
         case ROW:
         case VAR:
-            if (tinfo == NULL && g.trace_all)
-                trace_msg("read %" PRIu64 " {%.*s}", keyno, (int)value->size, (char *)value->data);
-            if (tinfo != NULL)
-                trace_op(tinfo, "read %" PRIu64 " {%s}", keyno, trace_item(tinfo, value));
+            if (tinfo == NULL)
+                trace_msg(cursor->session, "read %" PRIu64 " {%.*s}", keyno, (int)value->size,
+                  (char *)value->data);
+            else
+                trace_op(
+                  tinfo, "read %" PRIu64 " {%.*s}", keyno, (int)value->size, (char *)value->data);
             break;
         }
 
@@ -1310,17 +1317,18 @@ order_error_row:
         return (ret);
     }
 
-    if (g.trace_all)
+    if (g.trace_cursor)
         switch (table->type) {
         case FIX:
             trace_op(tinfo, "%s %" PRIu64 " {0x%02x}", which, keyno, ((char *)value.data)[0]);
             break;
         case ROW:
-            trace_op(tinfo, "%s %" PRIu64 " {%.*s}, {%s}", which, keyno, (int)key.size,
-              (char *)key.data, trace_item(tinfo, &value));
+            trace_op(tinfo, "%s %" PRIu64 " {%.*s}, {%.*s}", which, keyno, (int)key.size,
+              (char *)key.data, (int)value.size, (char *)value.data);
             break;
         case VAR:
-            trace_op(tinfo, "%s %" PRIu64 " {%s}", which, keyno, trace_item(tinfo, &value));
+            trace_op(
+              tinfo, "%s %" PRIu64 " {%.*s}", which, keyno, (int)value.size, (char *)value.data);
             break;
         }
 
@@ -1449,8 +1457,8 @@ row_modify(TINFO *tinfo, bool positioned)
 
     WT_RET(modify(tinfo, cursor, positioned));
 
-    trace_op(tinfo, "modify %" PRIu64 " {%.*s}, {%s}", tinfo->keyno, (int)tinfo->key->size,
-      (char *)tinfo->key->data, trace_item(tinfo, tinfo->value));
+    trace_op(tinfo, "modify %" PRIu64 " {%.*s}, {%.*s}", tinfo->keyno, (int)tinfo->key->size,
+      (char *)tinfo->key->data, (int)tinfo->value->size, (char *)tinfo->value->data);
 
     return (0);
 }
@@ -1471,7 +1479,8 @@ col_modify(TINFO *tinfo, bool positioned)
 
     WT_RET(modify(tinfo, cursor, positioned));
 
-    trace_op(tinfo, "modify %" PRIu64 ", {%s}", tinfo->keyno, trace_item(tinfo, tinfo->value));
+    trace_op(tinfo, "modify %" PRIu64 ", {%.*s}", tinfo->keyno, (int)tinfo->value->size,
+      (char *)tinfo->value->data);
 
     return (0);
 }
@@ -1517,7 +1526,7 @@ row_truncate(TINFO *tinfo)
         WT_RET(ret);
     }
 
-    trace_op(tinfo, "truncate %" PRIu64 ", %" PRIu64, "truncate", tinfo->keyno, tinfo->last);
+    trace_op(tinfo, "truncate %" PRIu64 "-%" PRIu64, tinfo->keyno, tinfo->last);
 
     return (0);
 }
@@ -1587,8 +1596,8 @@ row_update(TINFO *tinfo, bool positioned)
     if ((ret = cursor->update(cursor)) != 0)
         return (ret);
 
-    trace_op(tinfo, "update %" PRIu64 " {%.*s}, {%s}", tinfo->keyno, (int)tinfo->key->size,
-      (char *)tinfo->key->data, trace_item(tinfo, tinfo->value));
+    trace_op(tinfo, "update %" PRIu64 " {%.*s}, {%.*s}", tinfo->keyno, (int)tinfo->key->size,
+      (char *)tinfo->key->data, (int)tinfo->value->size, (char *)tinfo->value->data);
 
     return (0);
 }
@@ -1622,7 +1631,8 @@ col_update(TINFO *tinfo, bool positioned)
         trace_op(tinfo, "update %" PRIu64 " {0x%02" PRIx8 "}", tinfo->keyno,
           ((uint8_t *)tinfo->value->data)[0]);
     else
-        trace_op(tinfo, "update %" PRIu64 " {%s}", tinfo->keyno, trace_item(tinfo, tinfo->value));
+        trace_op(tinfo, "update %" PRIu64 " {%.*s}", tinfo->keyno, (int)tinfo->value->size,
+          (char *)tinfo->value->data);
 
     return (0);
 }
@@ -1654,8 +1664,8 @@ row_insert(TINFO *tinfo, bool positioned)
         return (ret);
 
     /* Log the operation */
-    trace_op(tinfo, "insert %" PRIu64 " {%.*s}, {%s}", tinfo->keyno, (int)tinfo->key->size,
-      (char *)tinfo->key->data, trace_item(tinfo, tinfo->value));
+    trace_op(tinfo, "insert %" PRIu64 " {%.*s}, {%.*s}", tinfo->keyno, (int)tinfo->key->size,
+      (char *)tinfo->key->data, (int)tinfo->value->size, (char *)tinfo->value->data);
 
     return (0);
 }
@@ -1762,7 +1772,8 @@ col_insert(TINFO *tinfo)
         trace_op(tinfo, "insert %" PRIu64 " {0x%02" PRIx8 "}", tinfo->keyno,
           ((uint8_t *)tinfo->value->data)[0]);
     else
-        trace_op(tinfo, "insert %" PRIu64 " {%s}", tinfo->keyno, trace_item(tinfo, tinfo->value));
+        trace_op(tinfo, "insert %" PRIu64 " {%.*s}", tinfo->keyno, (int)tinfo->value->size,
+          (char *)tinfo->value->data);
 
     return (0);
 }

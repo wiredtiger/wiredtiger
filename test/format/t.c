@@ -179,7 +179,7 @@ main(int argc, char *argv[])
     /* Set values from the command line. */
     home = NULL;
     quiet_flag = syntax_check = false;
-    while ((ch = __wt_getopt(progname, argc, argv, "1BC:c:h:qRSrT:t")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "1BC:c:h:qRSrt:")) != EOF)
         switch (ch) {
         case '1':
             /* Ignored for backward compatibility. */
@@ -205,11 +205,8 @@ main(int argc, char *argv[])
         case 'S': /* Configuration syntax check */
             syntax_check = true;
             break;
-        case 'T': /* Trace specifics. */
-            trace_config(__wt_optarg);
-            /* FALLTHROUGH */
         case 't': /* Trace  */
-            g.trace = true;
+	    trace_config(__wt_optarg);
             break;
         default:
             usage();
@@ -292,14 +289,14 @@ main(int argc, char *argv[])
     if (g.reopen) {
         if (GV(RUNS_IN_MEMORY))
             testutil_die(0, "reopen impossible after in-memory run");
-        wts_open(g.home, &g.wts_conn, &g.wts_session, true);
+        wts_open(g.home, &g.wts_conn, true);
         timestamp_init();
         set_oldest_timestamp();
     } else {
         wts_create_home();
         config_print(false);
         wts_create_database();
-        wts_open(g.home, &g.wts_conn, &g.wts_session, true);
+        wts_open(g.home, &g.wts_conn, true);
         timestamp_init();
     }
 
@@ -343,7 +340,7 @@ main(int argc, char *argv[])
     TIMED_MAJOR_OP(tables_apply(wts_verify, g.wts_conn));
 
     track("shutting down", 0ULL);
-    wts_close(&g.wts_conn, &g.wts_session);
+    wts_close(&g.wts_conn);
 
     /* Salvage testing. */
     TIMED_MAJOR_OP(tables_apply(wts_salvage, NULL));

@@ -80,6 +80,7 @@ bulk_rollback_transaction(WT_SESSION *session)
 void
 wts_load(TABLE *table, void *arg)
 {
+    SAP sap;
     WT_CONNECTION *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -93,9 +94,11 @@ wts_load(TABLE *table, void *arg)
     testutil_assert(table != NULL);
 
     conn = g.wts_conn;
+    memset(&sap, 0, sizeof(sap));
+    wiredtiger_open_session(conn, &sap, NULL, &session);
 
     testutil_check(__wt_snprintf(track_buf, sizeof(track_buf), "table %u bulk load", table->id));
-    trace_msg("=============== %s bulk load start", table->uri);
+    trace_msg(session, "=============== %s bulk load start", table->uri);
 
     /*
      * No bulk load with custom collators, the order of insertion will not match the collation
@@ -105,7 +108,6 @@ wts_load(TABLE *table, void *arg)
     if (TV(BTREE_REVERSE))
         is_bulk = false;
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
     wiredtiger_open_cursor(session, table->uri, is_bulk ? "bulk,append" : NULL, &cursor);
 
     /* Set up the key/value buffers. */
@@ -123,23 +125,25 @@ wts_load(TABLE *table, void *arg)
             if (!is_bulk)
                 cursor->set_key(cursor, keyno);
             cursor->set_value(cursor, *(uint8_t *)value.data);
-            if (g.trace_all)
-                trace_msg("bulk %" PRIu32 " {0x%02" PRIx8 "}", keyno, ((uint8_t *)value.data)[0]);
+            if (g.trace_bulk)
+                trace_msg(
+                  session, "bulk %" PRIu32 " {0x%02" PRIx8 "}", keyno, ((uint8_t *)value.data)[0]);
             break;
         case VAR:
             if (!is_bulk)
                 cursor->set_key(cursor, keyno);
             cursor->set_value(cursor, &value);
-            if (g.trace_all)
-                trace_msg("bulk %" PRIu32 " {%.*s}", keyno, (int)value.size, (char *)value.data);
+            if (g.trace_bulk)
+                trace_msg(
+                  session, "bulk %" PRIu32 " {%.*s}", keyno, (int)value.size, (char *)value.data);
             break;
         case ROW:
             key_gen(table, &key, keyno);
             cursor->set_key(cursor, &key);
             cursor->set_value(cursor, &value);
-            if (g.trace_all)
-                trace_msg("bulk %" PRIu32 " {%.*s}, {%.*s}", keyno, (int)key.size, (char *)key.data,
-                  (int)value.size, (char *)value.data);
+            if (g.trace_bulk)
+                trace_msg(session, "bulk %" PRIu32 " {%.*s}, {%.*s}", keyno, (int)key.size,
+                  (char *)key.data, (int)value.size, (char *)value.data);
             break;
         }
 
@@ -207,9 +211,9 @@ wts_load(TABLE *table, void *arg)
         config_print(false);
     }
 
-    testutil_check(session->close(session, NULL));
-    trace_msg("=============== %s bulk load stop", table->uri);
+    trace_msg(session, "=============== %s bulk load stop", table->uri);
 
+    wiredtiger_close_session(session);
     key_gen_teardown(&key);
     val_gen_teardown(&value);
 }

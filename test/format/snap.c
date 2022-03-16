@@ -234,6 +234,20 @@ snap_verify(TINFO *tinfo, SNAP_OPS *snap)
     key = tinfo->key;
     value = tinfo->value;
 
+    if (g.trace_read) {
+        if (snap->op == REMOVE)
+            trace_uri_op(
+              tinfo, table->uri, "repeat %" PRIu64 " ts=%" PRIu64 " {deleted}", keyno, snap->ts);
+        else if (snap->op == INSERT && table->type == ROW)
+            trace_uri_op(tinfo, table->uri, "repeat {%.*s} ts=%" PRIu64 " {%.*s}", (int)snap->ksize,
+              (char *)snap->kdata, snap->ts, (int)snap->vsize, (char *)snap->vdata);
+        else if (table->type == FIX)
+            trace_uri_op(tinfo, table->uri, "repeat %" PRIu64 " ts=%" PRIu64, keyno, snap->ts);
+        else
+            trace_uri_op(tinfo, table->uri, "repeat %" PRIu64 " ts=%" PRIu64 " {%.*s}", keyno,
+              snap->ts, (int)snap->vsize, (char *)snap->vdata);
+    }
+
     /*
      * Retrieve the key/value pair by key. Row-store inserts have a unique generated key we saved,
      * else generate the key from the key number.
@@ -563,9 +577,6 @@ snap_repeat(TINFO *tinfo, SNAP_OPS *snap)
 
     session = tinfo->session;
 
-    trace_op(tinfo, "repeat %" PRIu64 " ts=%" PRIu64 " {%s}", snap->keyno, snap->ts,
-      trace_bytes(tinfo, snap->vdata, snap->vsize));
-
     /* Start a transaction with a read-timestamp and verify the record. */
     testutil_check(__wt_snprintf(buf, sizeof(buf), "read_timestamp=%" PRIx64, snap->ts));
 
@@ -631,12 +642,11 @@ snap_repeat_single(TINFO *tinfo)
  *     Repeat all known operations after a rollback.
  */
 void
-snap_repeat_rollback(TINFO **tinfo_array, size_t tinfo_count)
+snap_repeat_rollback(WT_SESSION *session, TINFO **tinfo_array, size_t tinfo_count)
 {
     SNAP_OPS *snap;
     SNAP_STATE *state;
     TINFO *tinfo, **tinfop;
-    WT_SESSION *push_session, *session;
     uint32_t count;
     size_t i, statenum;
     char buf[64];
@@ -647,11 +657,8 @@ snap_repeat_rollback(TINFO **tinfo_array, size_t tinfo_count)
     track("rollback_to_stable: checking", 0ULL);
     for (i = 0, tinfop = tinfo_array; i < tinfo_count; ++i, ++tinfop) {
         tinfo = *tinfop;
-        if ((push_session = tinfo->session) == NULL) {
-            if (session == NULL)
-                testutil_check(g.wts_conn->open_session(g.wts_conn, NULL, NULL, &session));
-            tinfo->session = session;
-        }
+        testutil_assert(tinfo->session == NULL);
+        tinfo->session = session;
 
         /*
          * For this thread, walk through both sets of snaps ("states"), looking for entries that are
@@ -676,7 +683,7 @@ snap_repeat_rollback(TINFO **tinfo_array, size_t tinfo_count)
             }
         }
 
-        tinfo->session = push_session;
+        tinfo->session = NULL;
     }
 
     /* Show the final result and check that we're accomplishing some checking. */

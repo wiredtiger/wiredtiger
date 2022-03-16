@@ -85,19 +85,28 @@ encryptor_at_open(void)
 static int
 handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
 {
+    SAP *sap;
     WT_DECL_RET;
     int nw;
 
     (void)handler;
-    (void)session;
 
     /*
-     * WiredTiger logs a verbose message when the read timestamp is set to a value older than the
-     * oldest timestamp. Ignore the message, it happens when repeating operations to confirm
-     * timestamped values don't change underneath us.
+     * Log to the trace database when tracing messages. In threaded paths there will be a per-thread
+     * session reference to the tracing database, but that requires a session, and verbose messages
+     * can be generated in the library when we don't have a session. There's a global session we can
+     * use, but that requires locking.
      */
-    if (strstr(message, "less than the oldest timestamp") != NULL)
+    if ((sap = session->app_private) != NULL && sap->trace != NULL) {
+        testutil_check(sap->trace->log_printf(sap->trace, "%s", message));
         return (0);
+    }
+    if (g.trace_session != NULL) {
+        __wt_spin_lock((WT_SESSION_IMPL *)g.trace_session, &g.trace_lock);
+        testutil_check(g.trace_session->log_printf(g.trace_session, "%s", message));
+        __wt_spin_unlock((WT_SESSION_IMPL *)g.trace_session, &g.trace_lock);
+        return (0);
+    }
 
     /* Write and flush the message so we're up-to-date on error. */
     nw = printf("%p:%s\n", (void *)session, message);
@@ -310,6 +319,7 @@ create_database(const char *home, WT_CONNECTION **connp)
 static void
 create_object(TABLE *table, void *arg)
 {
+    SAP sap;
     WT_CONNECTION *conn;
     WT_SESSION *session;
     size_t max;
@@ -410,9 +420,10 @@ create_object(TABLE *table, void *arg)
     /*
      * Create the underlying store.
      */
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    memset(&sap, 0, sizeof(sap));
+    wiredtiger_open_session(conn, &sap, NULL, &session);
     testutil_checkfmt(session->create(session, table->uri, config), "%s", table->uri);
-    testutil_check(session->close(session, NULL));
+    wiredtiger_close_session(session);
 }
 
 /*
@@ -453,7 +464,7 @@ wts_create_database(void)
  *     Open a connection to a WiredTiger database.
  */
 void
-wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool allow_verify)
+wts_open(const char *home, WT_CONNECTION **connp, bool allow_verify)
 {
     WT_CONNECTION *conn;
     size_t max;
@@ -461,7 +472,6 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
     const char *enc;
 
     *connp = NULL;
-    *sessionp = NULL;
 
     p = config;
     max = sizeof(config);
@@ -490,7 +500,6 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
         testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
     }
 
-    testutil_check(conn->open_session(conn, NULL, NULL, sessionp));
     *connp = conn;
 }
 
@@ -499,7 +508,7 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
  *     Close the open database.
  */
 void
-wts_close(WT_CONNECTION **connp, WT_SESSION **sessionp)
+wts_close(WT_CONNECTION **connp)
 {
     WT_CONNECTION *conn;
 
@@ -514,7 +523,6 @@ wts_close(WT_CONNECTION **connp, WT_SESSION **sessionp)
      */
     if (conn == g.wts_conn_inmemory)
         g.wts_conn_inmemory = NULL;
-    *sessionp = NULL;
 
     if (g.backward_compatible)
         testutil_check(conn->reconfigure(conn, "compatibility=(release=3.3)"));
@@ -529,6 +537,7 @@ wts_close(WT_CONNECTION **connp, WT_SESSION **sessionp)
 void
 wts_verify(TABLE *table, void *arg)
 {
+    SAP sap;
     WT_CONNECTION *conn;
     WT_DECL_RET;
     WT_SESSION *session;
@@ -543,17 +552,18 @@ wts_verify(TABLE *table, void *arg)
      * Verify can return EBUSY if the handle isn't available. Don't yield and retry, in the case of
      * LSM, the handle may not be available for a long time.
      */
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    memset(&sap, 0, sizeof(sap));
+    wiredtiger_open_session(conn, &sap, table->track_prefix, &session);
+
     /*
      * Do a full checkpoint to reduce the possibility of returning EBUSY from the following verify
      * call.
      */
     ret = session->checkpoint(session, NULL);
     testutil_assert(ret == 0 || ret == EBUSY);
-    session->app_private = table->track_prefix;
     ret = session->verify(session, table->uri, "strict");
     testutil_assert(ret == 0 || ret == EBUSY);
-    testutil_check(session->close(session, NULL));
+    wiredtiger_close_session(session);
 }
 
 struct stats_args {
@@ -613,6 +623,7 @@ wts_stats(void)
 {
     struct stats_args args;
     FILE *fp;
+    SAP sap;
     WT_CONNECTION *conn;
     WT_SESSION *session;
 
@@ -626,7 +637,9 @@ wts_stats(void)
     /* Connection statistics. */
     testutil_assert((fp = fopen(g.home_stats, "w")) != NULL);
     testutil_assert(fprintf(fp, "====== Connection statistics:\n") >= 0);
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+
+    memset(&sap, 0, sizeof(sap));
+    wiredtiger_open_session(conn, &sap, NULL, &session);
     stats_data_print(session, "statistics:", fp);
 
     /* Data source statistics. */
@@ -634,6 +647,6 @@ wts_stats(void)
     args.session = session;
     tables_apply(stats_data_source, &args);
 
-    testutil_check(session->close(session, NULL));
+    wiredtiger_close_session(session);
     fclose_and_clear(&fp);
 }

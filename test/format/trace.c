@@ -28,8 +28,12 @@
 
 #include "format.h"
 
-#define TRACE_DIR "OPS.TRACE"
-#define TRACE_INIT_CMD "rm -rf %s/" TRACE_DIR " && mkdir %s/" TRACE_DIR
+#define TRACE_CONFIG_CMD(cmd, flag)        \
+    if ((p = strstr(copy, cmd)) != NULL) { \
+        flag = true;                       \
+        memset(p, ' ', strlen(cmd));       \
+        continue;                          \
+    }
 
 /*
  * trace_config --
@@ -39,28 +43,41 @@ void
 trace_config(const char *config)
 {
     char *copy, *p;
+    bool all;
 
     copy = dstrdup(config);
-    for (;;) {
-        if ((p = strstr(copy, "all")) != NULL) {
-            g.trace_all = true;
-            memset(p, ' ', strlen("all"));
-            continue;
-        }
-        if ((p = strstr(copy, "local")) != NULL) {
-            g.trace_local = true;
-            memset(p, ' ', strlen("local"));
+    for (all = false;;) {
+        TRACE_CONFIG_CMD("all", all);
+        TRACE_CONFIG_CMD("bulk", g.trace_bulk);
+        TRACE_CONFIG_CMD("cursor", g.trace_cursor);
+        TRACE_CONFIG_CMD("read", g.trace_read);
+        TRACE_CONFIG_CMD("timestamp", g.trace_timestamp);
+        TRACE_CONFIG_CMD("txn", g.trace_txn);
+
+        if ((p = strstr(copy, "retain=")) != NULL) {
+            g.trace_retain = atoi(p + strlen("retain="));
+            for (; *p != '='; ++p)
+                *p = ' ';
+            for (*p++ = ' '; __wt_isdigit((u_char)*p); ++p)
+                *p = ' ';
             continue;
         }
         break;
     }
+    if (all)
+        g.trace_bulk = g.trace_cursor = g.trace_read = g.trace_timestamp = g.trace_txn = true;
 
     for (p = copy; *p != '\0'; ++p)
         if (*p != ',' && !__wt_isspace((u_char)*p))
             testutil_assertfmt(0, "unexpected trace configuration \"%s\"\n", config);
 
     free(copy);
+
+    g.trace = true;
 }
+
+#define TRACE_DIR "OPS.TRACE"
+#define TRACE_INIT_CMD "rm -rf %s/" TRACE_DIR " && mkdir %s/" TRACE_DIR
 
 /*
  * trace_init --
@@ -69,46 +86,30 @@ trace_config(const char *config)
 void
 trace_init(void)
 {
-    WT_CONNECTION *conn;
-    WT_SESSION *session;
-    size_t len;
-    char *p;
-    const char *config;
+    int retain;
+    char config[100], tracedir[MAX_FORMAT_PATH * 2];
 
     if (!g.trace)
         return;
 
-    /* Write traces to a separate database by default, optionally write traces to the primary. */
-    if (g.trace_local) {
-        if (!GV(LOGGING))
-            testutil_die(EINVAL,
-              "operation logging to the primary database requires logging be configured for that "
-              "database");
+    /* Retain a minimum of 10 log files. */
+    retain = WT_MAX(g.trace_retain, 10);
 
-        conn = g.wts_conn;
+    /* Create the trace directory. */
+    testutil_check(__wt_snprintf(tracedir, sizeof(tracedir), TRACE_INIT_CMD, g.home, g.home));
+    testutil_checkfmt(system(tracedir), "%s", "logging directory creation failed");
 
-        /* Keep the last N log files. */
-        testutil_check(conn->reconfigure(conn, "debug_mode=(log_retention=10)"));
-    } else {
-        len = strlen(g.home) * 2 + strlen(TRACE_INIT_CMD) + 10;
-        p = dmalloc(len);
-        testutil_check(__wt_snprintf(p, len, TRACE_INIT_CMD, g.home, g.home));
-        testutil_checkfmt(system(p), "%s", "logging directory creation failed");
-        free(p);
+    /* Configure logging with automatic removal, and keep the last N log files. */
+    testutil_check(__wt_snprintf(config, sizeof(config),
+      "create,log=(enabled=true,remove=true),debug_mode=(log_retention=%d)", retain));
+    testutil_check(__wt_snprintf(tracedir, sizeof(tracedir), "%s/%s", g.home, TRACE_DIR));
+    testutil_checkfmt(
+      wiredtiger_open(tracedir, NULL, config, &g.trace_conn), "%s: %s", tracedir, config);
 
-        /* Configure logging with automatic removal, and keep the last N log files. */
-        len = strlen(g.home) * strlen(TRACE_DIR) + 10;
-        p = dmalloc(len);
-        testutil_check(__wt_snprintf(p, len, "%s/%s", g.home, TRACE_DIR));
-        config = "create,log=(enabled=true,remove=true),debug_mode=(log_retention=10)";
-        testutil_checkfmt(wiredtiger_open(p, NULL, config, &conn), "%s: %s", p, config);
-        free(p);
-    }
-
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
-
-    g.trace_conn = conn;
-    g.trace_session = session;
+    /* Open a session and give it a lock. */
+    testutil_check(g.trace_conn->open_session(g.trace_conn, NULL, NULL, &g.trace_session));
+    testutil_check(
+      __wt_spin_init((WT_SESSION_IMPL *)g.trace_session, &g.trace_lock, "format trace lock"));
 }
 
 /*
@@ -123,22 +124,8 @@ trace_teardown(void)
     conn = g.trace_conn;
     g.trace_conn = NULL;
 
-    if (conn != NULL)
+    if (conn != NULL) {
+        __wt_spin_destroy((WT_SESSION_IMPL *)g.trace_session, &g.trace_lock);
         testutil_check(conn->close(conn, NULL));
-}
-
-/*
- * trace_ops_init --
- *     Per thread operation tracing setup.
- */
-void
-trace_ops_init(TINFO *tinfo)
-{
-    WT_SESSION *session;
-
-    if (!g.trace)
-        return;
-
-    testutil_check(g.trace_conn->open_session(g.trace_conn, NULL, NULL, &session));
-    tinfo->trace = session;
+    }
 }

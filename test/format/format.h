@@ -91,8 +91,13 @@ typedef struct {
     } l;
     enum { LOCK_NONE = 0, LOCK_WT, LOCK_PTHREAD } lock_type;
 } RWLOCK;
-
 #define LOCK_INITIALIZED(lock) ((lock)->lock_type != LOCK_NONE)
+
+/* Session application private information referenced in the event handlers. */
+typedef struct {
+    WT_SESSION *trace; /* Tracing session for logging operations */
+    const char *track; /* Tag for tracking operation progress */
+} SAP;
 
 #include "config.h"
 extern CONFIG configuration_list[];
@@ -169,6 +174,17 @@ typedef struct {
     bool reopen;              /* Reopen an existing database */
     bool workers_finished;    /* Operations completed */
 
+    WT_CONNECTION *trace_conn; /* Tracing operations */
+    WT_SESSION *trace_session;
+    WT_SPINLOCK trace_lock;
+    bool trace;
+    bool trace_bulk;
+    bool trace_cursor;
+    bool trace_read;
+    int trace_retain;
+    bool trace_timestamp;
+    bool trace_txn;
+
     char *home;          /* Home directory */
     char *home_config;   /* Run CONFIG file path */
     char *home_hsdump;   /* HS dump filename */
@@ -178,12 +194,7 @@ typedef struct {
 
     char *config_open; /* Command-line configuration */
 
-    bool trace;                /* trace operations  */
-    bool trace_all;            /* trace all operations  */
-    bool trace_local;          /* write trace to the primary database */
-    char tidbuf[128];          /* thread ID in printable form */
-    WT_CONNECTION *trace_conn; /* optional tracing database */
-    WT_SESSION *trace_session;
+    char tidbuf[128]; /* thread ID in printable form */
 
     RWLOCK backup_lock; /* Backup running */
     uint64_t backup_id; /* Block incremental id */
@@ -289,6 +300,7 @@ typedef struct {
     int id;           /* simple thread ID */
     wt_thread_t tid;  /* thread ID */
     char tidbuf[128]; /* thread ID in printable form */
+    SAP sap;          /* Thread's session event handler information */
 
     WT_RAND_STATE rnd; /* thread RNG state */
 
@@ -313,8 +325,6 @@ typedef struct {
         uint32_t insert_list[256]; /* Inserted column-store records, maps one-to-one to tables */
         u_int insert_list_cnt;
     } * col_insert;
-
-    WT_SESSION *trace; /* WiredTiger operations tracing session */
 
     uint64_t keyno;     /* key */
     WT_ITEM *key, _key; /* key, value */
@@ -381,7 +391,7 @@ void set_core_off(void);
 void set_oldest_timestamp(void);
 void snap_init(TINFO *);
 void snap_op_init(TINFO *, uint64_t, bool);
-void snap_repeat_rollback(TINFO **, size_t);
+void snap_repeat_rollback(WT_SESSION *, TINFO **, size_t);
 void snap_repeat_single(TINFO *);
 int snap_repeat_txn(TINFO *);
 void snap_repeat_update(TINFO *, bool);
@@ -401,12 +411,12 @@ void val_gen_init(WT_ITEM *);
 void val_gen_teardown(WT_ITEM *);
 void val_init(TABLE *, void *);
 void wts_checkpoints(void);
-void wts_close(WT_CONNECTION **, WT_SESSION **);
+void wts_close(WT_CONNECTION **);
 void wts_create_database(void);
 void wts_create_home(void);
 void wts_dump(const char *, bool);
 void wts_load(TABLE *, void *);
-void wts_open(const char *, WT_CONNECTION **, WT_SESSION **, bool);
+void wts_open(const char *, WT_CONNECTION **, bool);
 void wts_read_scan(TABLE *, void *);
 void wts_reopen(void);
 void wts_salvage(TABLE *, void *);
