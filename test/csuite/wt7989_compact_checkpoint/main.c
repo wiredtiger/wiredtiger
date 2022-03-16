@@ -102,13 +102,13 @@ main(int argc, char *argv[])
     /*
      * Next, run test with WT_TIMING_STRESS_CHECKPOINT_SLOW. Column store case.
      */
-    // run_test_clean(true, true, opts->preserve, opts->home, "SC", opts->uri);
+    run_test_clean(true, true, opts->preserve, opts->home, "SC", opts->uri);
 
     /*
      * Finally, run test where compact and checkpoint threads are synchronized using global thread
      * counter. Column store case.
      */
-    // run_test_clean(false, true, opts->preserve, opts->home, "NC", opts->uri);
+    run_test_clean(false, true, opts->preserve, opts->home, "NC", opts->uri);
 
     testutil_cleanup(opts);
 
@@ -294,8 +294,9 @@ thread_func_checkpoint(void *arg)
  * thread_wait --
  *     Loop to constantly yield the calling thread until all threads are ready.
  */
-static void 
-thread_wait(void){
+static void
+thread_wait(void)
+{
     uint64_t ready_counter_local;
 
     (void)__wt_atomic_add64(&ready_counter, 1);
