@@ -2084,6 +2084,7 @@ tasks:
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/1_coverage_report_main.html
 
   - name: tiered-storage-extensions-test
+    tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2105,7 +2106,7 @@ tasks:
             # Run S3 extension unit testing
             ext/storage_sources/s3_store/test/run_s3_unit_tests
             # Run Python testing for all tiered tests
-            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py -j $(nproc) tiered
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py -j $(nproc) tiered06
 
   - name: spinlock-gcc-test
     commands:
