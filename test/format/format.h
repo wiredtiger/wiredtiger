@@ -99,7 +99,10 @@ typedef struct {
     const char *track; /* Tag for tracking operation progress */
 } SAP;
 
-/* Something obvious for FLCS undefined values. */
+/*
+ * Default fixed-length column-store value when there's no available base mirror value, something
+ * with half the bits set.
+ */
 #define FIX_MIRROR_DNE 0x55
 
 /* There's no out-of-band value for FLCS, use 0xff as the least likely to match any existing value.
@@ -336,6 +339,7 @@ typedef struct {
     uint64_t keyno;                 /* key */
     WT_ITEM *key, _key;             /* read key */
     WT_ITEM *value, _value;         /* read value */
+    WT_ITEM *new_value, _new_value; /* insert or update value */
     uint8_t bitv;                   /* insert or update value (FLCS) */
 
     uint64_t last; /* truncate range */

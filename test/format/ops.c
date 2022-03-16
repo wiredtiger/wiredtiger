@@ -137,6 +137,8 @@ tinfo_init(void)
             key_gen_init(tinfo->key);
             tinfo->value = &tinfo->_value;
             val_gen_init(tinfo->value);
+            tinfo->new_value = &tinfo->_new_value;
+            val_gen_init(tinfo->new_value);
             tinfo->lastkey = &tinfo->_lastkey;
             key_gen_init(tinfo->lastkey);
 
@@ -190,6 +192,7 @@ tinfo_teardown(void)
         snap_teardown(tinfo);
         key_gen_teardown(tinfo->key);
         val_gen_teardown(tinfo->value);
+        val_gen_teardown(tinfo->new_value);
         key_gen_teardown(tinfo->lastkey);
 
         free(tinfo);
@@ -943,11 +946,6 @@ ops(void *arg)
             snap_repeat_single(tinfo);
         }
 
-        /* Make sure we don't keep values around. */
-        tinfo->value->size = 4;
-        strcpy(tinfo->value->mem, "XXX");
-        tinfo->bitv = FIX_MIRROR_DNE;
-
         /* Select a table. */
         table = tinfo->table = table_select(tinfo);
 
@@ -1084,9 +1082,9 @@ ops(void *arg)
          */
         if (op == INSERT || op == UPDATE) {
             if (table->type == FIX && table->mirror)
-                val_gen(g.base_mirror, &tinfo->rnd, tinfo->value, &tinfo->bitv, tinfo->keyno);
+                val_gen(g.base_mirror, &tinfo->rnd, tinfo->new_value, &tinfo->bitv, tinfo->keyno);
             else
-                val_gen(table, &tinfo->rnd, tinfo->value, &tinfo->bitv, tinfo->keyno);
+                val_gen(table, &tinfo->rnd, tinfo->new_value, &tinfo->bitv, tinfo->keyno);
         }
 
         /*
@@ -1100,7 +1098,7 @@ ops(void *arg)
             if (table->type != FIX || table->mirror)
                 modify_build(tinfo);
             else
-                val_gen(table, &tinfo->rnd, tinfo->value, &tinfo->bitv, tinfo->keyno);
+                val_gen(table, &tinfo->rnd, tinfo->new_value, &tinfo->bitv, tinfo->keyno);
         }
 
         /*
@@ -1647,13 +1645,13 @@ row_update(TINFO *tinfo, bool positioned)
         key_gen(tinfo->table, tinfo->key, tinfo->keyno);
         cursor->set_key(cursor, tinfo->key);
     }
-    cursor->set_value(cursor, tinfo->value);
+    cursor->set_value(cursor, tinfo->new_value);
 
     if ((ret = cursor->update(cursor)) != 0)
         return (ret);
 
     trace_op(tinfo, "update %" PRIu64 " {%.*s}, {%.*s}", tinfo->keyno, (int)tinfo->key->size,
-      (char *)tinfo->key->data, (int)tinfo->value->size, (char *)tinfo->value->data);
+      (char *)tinfo->key->data, (int)tinfo->new_value->size, (char *)tinfo->new_value->data);
 
     return (0);
 }
@@ -1681,10 +1679,10 @@ col_update(TINFO *tinfo, thread_op op, bool positioned)
          * value from the new value.
          */
         if (table->mirror)
-            val_to_flcs(table, op == MODIFY ? tinfo->value : tinfo->value, &tinfo->bitv);
+            val_to_flcs(table, op == MODIFY ? tinfo->value : tinfo->new_value, &tinfo->bitv);
         cursor->set_value(cursor, tinfo->bitv);
     } else
-        cursor->set_value(cursor, tinfo->value);
+        cursor->set_value(cursor, tinfo->new_value);
 
     if ((ret = cursor->update(cursor)) != 0)
         return (ret);
@@ -1692,8 +1690,8 @@ col_update(TINFO *tinfo, thread_op op, bool positioned)
     if (table->type == FIX)
         trace_op(tinfo, "update %" PRIu64 " {0x%02" PRIx8 "}", tinfo->keyno, tinfo->bitv);
     else
-        trace_op(tinfo, "update %" PRIu64 " {%.*s}", tinfo->keyno, (int)tinfo->value->size,
-          (char *)tinfo->value->data);
+        trace_op(tinfo, "update %" PRIu64 " {%.*s}", tinfo->keyno, (int)tinfo->new_value->size,
+          (char *)tinfo->new_value->data);
 
     return (0);
 }
@@ -1718,14 +1716,14 @@ row_insert(TINFO *tinfo, bool positioned)
         key_gen_insert(tinfo->table, &tinfo->rnd, tinfo->key, tinfo->keyno);
         cursor->set_key(cursor, tinfo->key);
     }
-    cursor->set_value(cursor, tinfo->value);
+    cursor->set_value(cursor, tinfo->new_value);
 
     if ((ret = cursor->insert(cursor)) != 0)
         return (ret);
 
     /* Log the operation */
     trace_op(tinfo, "insert %" PRIu64 " {%.*s}, {%.*s}", tinfo->keyno, (int)tinfo->key->size,
-      (char *)tinfo->key->data, (int)tinfo->value->size, (char *)tinfo->value->data);
+      (char *)tinfo->key->data, (int)tinfo->new_value->size, (char *)tinfo->new_value->data);
 
     return (0);
 }
@@ -1824,10 +1822,10 @@ col_insert(TINFO *tinfo)
     if (table->type == FIX) {
         /* Mirrors will not have set the FLCS value. */
         if (table->mirror)
-            val_to_flcs(table, tinfo->value, &tinfo->bitv);
+            val_to_flcs(table, tinfo->new_value, &tinfo->bitv);
         cursor->set_value(cursor, tinfo->bitv);
     } else
-        cursor->set_value(cursor, tinfo->value);
+        cursor->set_value(cursor, tinfo->new_value);
 
     /* Create a record, then add the key to our list of new records for later resolution. */
     if ((ret = cursor->insert(cursor)) != 0)
@@ -1840,8 +1838,8 @@ col_insert(TINFO *tinfo)
     if (table->type == FIX)
         trace_op(tinfo, "insert %" PRIu64 " {0x%02" PRIx8 "}", tinfo->keyno, tinfo->bitv);
     else
-        trace_op(tinfo, "insert %" PRIu64 " {%.*s}", tinfo->keyno, (int)tinfo->value->size,
-          (char *)tinfo->value->data);
+        trace_op(tinfo, "insert %" PRIu64 " {%.*s}", tinfo->keyno, (int)tinfo->new_value->size,
+          (char *)tinfo->new_value->data);
 
     return (0);
 }

@@ -184,7 +184,7 @@ snap_track(TINFO *tinfo, thread_op op)
             testutil_assert((tinfo->bitv & mask) == tinfo->bitv);
             snap->bitv = tinfo->bitv;
         } else {
-            ip = tinfo->value;
+            ip = op == INSERT || op == UPDATE ? tinfo->new_value : tinfo->value;
             testutil_check(__wt_buf_set(NULL, &snap->value, ip->data, ip->size));
         }
         break;
