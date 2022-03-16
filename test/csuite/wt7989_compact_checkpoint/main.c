@@ -73,6 +73,7 @@ static void set_timing_stress_checkpoint(WT_CONNECTION *);
 static bool check_db_size(WT_SESSION *, const char *);
 static void get_compact_progress(
   WT_SESSION *session, const char *, uint64_t *, uint64_t *, uint64_t *);
+static void thread_wait(void);
 
 /*
  * main --
@@ -101,13 +102,13 @@ main(int argc, char *argv[])
     /*
      * Next, run test with WT_TIMING_STRESS_CHECKPOINT_SLOW. Column store case.
      */
-    run_test_clean(true, true, opts->preserve, opts->home, "SC", opts->uri);
+    // run_test_clean(true, true, opts->preserve, opts->home, "SC", opts->uri);
 
     /*
      * Finally, run test where compact and checkpoint threads are synchronized using global thread
      * counter. Column store case.
      */
-    run_test_clean(false, true, opts->preserve, opts->home, "NC", opts->uri);
+    // run_test_clean(false, true, opts->preserve, opts->home, "NC", opts->uri);
 
     testutil_cleanup(opts);
 
@@ -221,7 +222,7 @@ thread_func_compact(void *arg)
 {
     struct thread_data *td;
     WT_SESSION *session;
-    uint64_t ready_counter_local;
+    // uint64_t ready_counter_local;
 
     td = (struct thread_data *)arg;
 
@@ -230,14 +231,8 @@ thread_func_compact(void *arg)
     if (!td->stress_test) {
         /* Wait until both checkpoint and compact threads are ready to go. */
         printf("Waiting for other threads before starting compaction.\n");
-        (void)__wt_atomic_add64(&ready_counter, 1);
-        for (;; __wt_yield()) {
-            WT_ORDERED_READ(ready_counter_local, ready_counter);
-            if (ready_counter_local >= 2) {
-                printf("Threads ready, starting compaction\n");
-                break;
-            }
-        }
+        thread_wait();
+        printf("Threads ready, starting compaction\n");
     }
 
     /* Perform compact operation. */
@@ -259,7 +254,7 @@ thread_func_checkpoint(void *arg)
     struct thread_data *td;
     WT_RAND_STATE rnd;
     WT_SESSION *session;
-    uint64_t ready_counter_local, sleep_sec;
+    uint64_t sleep_sec;
     int i;
 
     td = (struct thread_data *)arg;
@@ -271,14 +266,8 @@ thread_func_checkpoint(void *arg)
     if (!td->stress_test) {
         /* Wait until both checkpoint and compact threads are ready to go. */
         printf("Waiting for other threads before starting checkpoint.\n");
-        (void)__wt_atomic_add64(&ready_counter, 1);
-        for (;; __wt_yield()) {
-            WT_ORDERED_READ(ready_counter_local, ready_counter);
-            if (ready_counter_local >= 2) {
-                printf("Threads ready, starting checkpoint\n");
-                break;
-            }
-        }
+        thread_wait();
+        printf("Threads ready, starting checkpoint\n");
     }
 
     /*
@@ -299,6 +288,23 @@ thread_func_checkpoint(void *arg)
     session = NULL;
 
     return (NULL);
+}
+
+/*
+ * thread_wait --
+ *     Loop to constantly yield the calling thread until all threads are ready.
+ */
+static void 
+thread_wait(void){
+    uint64_t ready_counter_local;
+
+    (void)__wt_atomic_add64(&ready_counter, 1);
+    for (;; __wt_yield()) {
+        WT_ORDERED_READ(ready_counter_local, ready_counter);
+        if (ready_counter_local >= 2) {
+            break;
+        }
+    }
 }
 
 /*
