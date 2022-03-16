@@ -80,7 +80,7 @@ static const char *const uri_shadow = "shadow";
 static const char *const ckpt_file = "checkpoint_done";
 
 static bool columns, compat, inmem, stress, use_ts;
-static volatile uint64_t global_ts = 2;
+static volatile uint64_t global_ts = 1;
 
 /*
  * The configuration sets the eviction update and dirty targets at 20% so that on average, each
@@ -352,7 +352,7 @@ thread_run(void *arg)
      * Write our portion of the key space until we're killed.
      */
     printf("Thread %" PRIu32 " starts at %" PRIu64 "\n", td->info, td->start);
-    active_ts = 1;
+    active_ts = 0;
     for (i = td->start;; ++i) {
         testutil_check(session->begin_transaction(session, NULL));
         if (use_prep)
