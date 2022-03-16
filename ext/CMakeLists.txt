@@ -25,7 +25,7 @@ if(WT_POSIX)
     add_subdirectory(encryptors/sodium)
 
     # Build the storage_sources extensions.
-    add_subdirectory(storage_sources/local_store)
+    add_subdirectory(storage_sources/dir_store)
     if(ENABLE_S3)
         add_subdirectory(storage_sources/s3_store)
     endif()

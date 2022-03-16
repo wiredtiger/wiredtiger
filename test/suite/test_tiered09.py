@@ -35,12 +35,12 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Test tiered storage with sequential connections with different prefixes.
 class test_tiered09(wttest.WiredTigerTestCase):
     storage_sources = [
-        ('local', dict(auth_token = get_auth_token('local_store'),
-            bucket = get_bucket1_name('local_store'),
+        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
+            bucket = get_bucket1_name('dir_store'),
             prefix1 = '1_',
             prefix2 = '2_',
             prefix3 = '3_',
-            ss_name = 'local_store')),
+            ss_name = 'dir_store')),
         ('s3', dict(auth_token = get_auth_token('s3_store'),
             bucket = get_bucket1_name('s3_store'),
             prefix1 = generate_s3_prefix(),
@@ -63,7 +63,7 @@ class test_tiered09(wttest.WiredTigerTestCase):
     retention = 1
     saved_conn = ''
     def conn_config(self):
-        if self.ss_name == 'local_store' and not os.path.exists(self.bucket):
+        if self.ss_name == 'dir_store' and not os.path.exists(self.bucket):
             os.mkdir(self.bucket)
         self.saved_conn = \
           'debug_mode=(flush_checkpoint=true),' + \
@@ -82,7 +82,7 @@ class test_tiered09(wttest.WiredTigerTestCase):
         if self.ss_name == 's3_store':
             #config = '=(config=\"(verbose=1)\")'
             extlist.skip_if_missing = True
-        #if self.ss_name == 'local_store':
+        #if self.ss_name == 'dir_store':
             #config = '=(config=\"(verbose=1,delay_ms=200,force_delay=3)\")'
         # Windows doesn't support dynamically loaded extension libraries.
         if os.name == 'nt':
@@ -118,8 +118,8 @@ class test_tiered09(wttest.WiredTigerTestCase):
         self.session.flush_tier(None)
         self.close_conn()
 
-        # For local store, check if the path exists.
-        if self.ss_name == 'local_store':
+        # For directory store, check if the path exists.
+        if self.ss_name == 'dir_store':
             self.assertTrue(os.path.exists(self.obj1file))
             self.assertTrue(os.path.exists(self.obj2file))
             bucket_obj = os.path.join(self.bucket, self.prefix1 + self.obj1file)
@@ -129,7 +129,8 @@ class test_tiered09(wttest.WiredTigerTestCase):
         # to drop the local objects. Clean them up now to make sure we can open
         # the correct object in the bucket.
         localobj = './' + self.obj1file
-        os.remove(localobj)
+        if os.path.exists(localobj):
+            os.remove(localobj)
 
         # Reopen the connection with a different prefix this time.
         conn_params = self.saved_conn + ',tiered_storage=(bucket_prefix=%s)' % self.prefix2
@@ -152,8 +153,8 @@ class test_tiered09(wttest.WiredTigerTestCase):
         self.session.flush_tier(None)
         self.close_conn()
 
-        # For local store, Check each table was created with the correct prefix.
-        if self.ss_name == 'local_store':
+        # For directory store, Check each table was created with the correct prefix.
+        if self.ss_name == 'dir_store':
             bucket_obj = os.path.join(self.bucket, self.prefix2 + self.obj1second)
             self.assertTrue(os.path.exists(bucket_obj))
             bucket_obj = os.path.join(self.bucket, self.prefix1 + self.obj2file)
@@ -163,8 +164,11 @@ class test_tiered09(wttest.WiredTigerTestCase):
         # to drop the local objects. Clean them up now to make sure we can open
         # the correct object in the bucket.
         localobj = './' + self.obj2file
-        os.remove(localobj)
+        if os.path.exists(localobj):
+            os.remove(localobj)
         localobj = './' + self.obj1second
+        if os.path.exists(localobj):
+            os.remove(localobj)
 
         # Reopen with the other prefix and check all data. Even though we're using the
         # other prefix, we should find all the data in the object with the original
