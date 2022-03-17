@@ -720,8 +720,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     if (!is_hs_page && tombstone != NULL &&
       !F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS)) {
         upd = upd_select->upd;
-        while (upd != NULL && upd->txnid == WT_TXN_ABORTED)
-            upd = upd->next;
 
         /*
          * The selected update can be the tombstone itself when the tombstone is globally visible.
