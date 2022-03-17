@@ -567,11 +567,16 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     WT_ORDERED_READ(r->last_running, txn_global->last_running);
 
     /*
-     * Cache the pinned timestamp and oldest id, these are used to when we clear obsolete timestamps
+     * Cache the pinned timestamp and oldest id, these are used when we clear obsolete timestamps
      * and ids from time windows later in reconciliation.
+     *
+     * If we're recovering, all the transaction IDs we see will be from the previous session. Don't
+     * compare them to the current oldest id, which is incommensurate; instead use WT_TXN_MAX so
+     * they will all compare as obsolete.
      */
     __wt_txn_pinned_timestamp(session, &r->rec_start_pinned_ts);
-    r->rec_start_oldest_id = __wt_txn_oldest_id(session);
+    r->rec_start_oldest_id =
+      F_ISSET(S2C(session), WT_CONN_RECOVERING) ? WT_TXN_MAX : __wt_txn_oldest_id(session);
 
     /*
      * The checkpoint transaction doesn't pin the oldest txn id, therefore the global last_running
