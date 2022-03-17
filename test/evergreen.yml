@@ -3608,7 +3608,6 @@ buildvariants:
     - name: data-validation-stress-test-checkpoint-no-timestamp
     - name: unittest-test
     - name: tiered-storage-extensions-test
-    - name: tiered-test-small
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
