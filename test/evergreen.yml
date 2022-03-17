@@ -1534,7 +1534,7 @@ tasks:
           test_name: wt8659_reconstruct_database_from_logs
 
   - name: csuite-wt8963-insert-stress-test
-    tags: ["pull_request"]
+    tags: ["stress-test-1"]
     depends_on:
       - name: compile
     commands:
