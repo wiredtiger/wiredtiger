@@ -357,3 +357,11 @@ define_c_test(
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8659_reconstruct_database_from_logs>/WT_HOME>
     DEPENDS "WT_POSIX"
 )
+
+define_c_test(
+    TARGET test_wt8963_insert_stress
+    SOURCES wt8963_insert_stress/main.c
+    DIR_NAME wt8963_insert_stress
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8963_insert_stress>/WT_HOME>
+    DEPENDS "WT_POSIX"
+)

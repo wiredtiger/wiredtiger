@@ -1533,6 +1533,16 @@ tasks:
         vars:
           test_name: wt8659_reconstruct_database_from_logs
 
+  - name: csuite-wt8963-insert-stress-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite test"
+        vars:
+          test_name: wt8963_insert_stress
+
   # End of csuite test tasks
 
   # Start of Python unit test tasks
