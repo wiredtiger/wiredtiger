@@ -940,8 +940,9 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (durable_ts != WT_TS_NONE)
         WT_RET(__wt_txn_set_durable_timestamp(session, durable_ts));
+    __wt_txn_publish_durable_timestamp(session);
 
-    /* Look for a read timestamp, */
+    /* Look for a read timestamp. */
     if (read_ts != WT_TS_NONE)
         WT_RET(__wt_txn_set_read_timestamp(session, read_ts));
 
@@ -977,7 +978,6 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
         break;
     case WT_TS_TXN_TYPE_DURABLE:
         WT_RET(__wt_txn_set_durable_timestamp(session, ts));
-        __wt_txn_publish_durable_timestamp(session);
         break;
     case WT_TS_TXN_TYPE_READ:
         WT_RET(__wt_txn_set_read_timestamp(session, ts));
@@ -986,6 +986,7 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
         WT_RET(__wt_txn_set_prepare_timestamp(session, ts));
         break;
     }
+    __wt_txn_publish_durable_timestamp(session);
 
     /* Timestamps are only logged in debugging mode. */
     if (ts != WT_TS_NONE && FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE) &&
