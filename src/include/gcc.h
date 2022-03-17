@@ -98,8 +98,7 @@
 #error "Clang versions 3.5 and earlier are unsupported by WiredTiger"
 #endif
 
-#define WT_ATOMIC_CAS(ptr, oldp, newv) \
-    __atomic_compare_exchange_n(ptr, oldp, newv, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
+#define WT_ATOMIC_CAS(ptr, oldp, newv) __sync_bool_compare_and_swap(ptr, *oldp, newv)
 #define WT_ATOMIC_CAS_FUNC(name, vp_arg, old_arg, newv_arg)             \
     static inline bool __wt_atomic_cas##name(vp_arg, old_arg, newv_arg) \
     {                                                                   \
@@ -131,15 +130,15 @@ __wt_atomic_cas_ptr(void *vp, void *old, void *newv)
 #define WT_ATOMIC_FUNC(name, ret, vp_arg, v_arg)                 \
     static inline ret __wt_atomic_add##name(vp_arg, v_arg)       \
     {                                                            \
-        return (__atomic_add_fetch(vp, v, __ATOMIC_SEQ_CST));    \
+        return (__sync_add_and_fetch(vp, v));                    \
     }                                                            \
     static inline ret __wt_atomic_fetch_add##name(vp_arg, v_arg) \
     {                                                            \
-        return (__atomic_fetch_add(vp, v, __ATOMIC_SEQ_CST));    \
+        return (__sync_fetch_and_add(vp, v));                    \
     }                                                            \
     static inline ret __wt_atomic_sub##name(vp_arg, v_arg)       \
     {                                                            \
-        return (__atomic_sub_fetch(vp, v, __ATOMIC_SEQ_CST));    \
+        return (__sync_sub_and_fetch(vp, v));                    \
     }
 WT_ATOMIC_FUNC(8, uint8_t, uint8_t *vp, uint8_t v)
 WT_ATOMIC_FUNC(v8, uint8_t, volatile uint8_t *vp, volatile uint8_t v)
