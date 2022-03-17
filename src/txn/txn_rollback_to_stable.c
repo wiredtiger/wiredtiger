@@ -1432,11 +1432,11 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
 
     /* Open a history store table cursor. */
     WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /* Walk the history store for the given btree. */
     hs_cursor->set_key(hs_cursor, 1, btree_id);
-    ret = __wt_curhs_search_near_after(session, hs_cursor);
-
+    ret = __wt_curhs_search_near_before(session, hs_cursor);
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
@@ -1446,7 +1446,6 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           "rollback to stable history store cleanup of update with start timestamp: %s",
           __wt_timestamp_to_string(hs_start_ts, ts_string));
-
         WT_ERR(hs_cursor->remove(hs_cursor));
         WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
         WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts);
@@ -1527,17 +1526,17 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[1]));
 
-    WT_TRET(__wt_session_release_dhandle(session));
-
     /*
      * Truncate history store entries from the partial backup remove list. The list holds all of the
      * btree ids that do not exist as part of the database anymore due to performing a selective
      * restore from backup.
      */
-    if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) && conn->partial_backup_remove_ids != NULL)
-        for (i = 0; conn->partial_backup_remove_ids[i] != 0; ++i)
+    if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) && conn->partial_backup_remove_ids != NULL) 
+        for (i = 0; conn->partial_backup_remove_ids[i] != 0; ++i) {
             WT_ERR(
               __rollback_to_stable_btree_hs_truncate(session, conn->partial_backup_remove_ids[i]));
+        }
+    WT_TRET(__wt_session_release_dhandle(session));
 err:
     __wt_free(session, config);
     return (ret);
