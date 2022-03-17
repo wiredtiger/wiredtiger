@@ -222,7 +222,6 @@ thread_func_compact(void *arg)
 {
     struct thread_data *td;
     WT_SESSION *session;
-    // uint64_t ready_counter_local;
 
     td = (struct thread_data *)arg;
 
