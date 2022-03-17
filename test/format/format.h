@@ -339,8 +339,8 @@ typedef struct {
     uint64_t keyno;                 /* key */
     WT_ITEM *key, _key;             /* read key */
     WT_ITEM *value, _value;         /* read value */
-    WT_ITEM *new_value, _new_value; /* insert or update value */
-    uint8_t bitv;                   /* insert or update value (FLCS) */
+    WT_ITEM *new_value, _new_value; /* insert, modify or update value */
+    uint8_t bitv;                   /* FLCS insert, modify or update value */
 
     uint64_t last; /* truncate range */
     WT_ITEM *lastkey, _lastkey;
@@ -362,6 +362,8 @@ typedef struct {
     int nentries; /* Modify operations */
     WT_MODIFY entries[MAX_MODIFY_ENTRIES];
     WT_ITEM moda, modb; /* Temporary buffers for modify checks */
+
+    int op_ret; /* Operation return. */
 
 #define TINFO_RUNNING 1  /* Running */
 #define TINFO_COMPLETE 2 /* Finished */

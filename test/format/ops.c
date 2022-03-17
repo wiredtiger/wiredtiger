@@ -34,7 +34,7 @@ static int col_modify(TINFO *, bool);
 static int col_remove(TINFO *, bool);
 static int col_reserve(TINFO *, bool);
 static int col_truncate(TINFO *);
-static int col_update(TINFO *, thread_op, bool);
+static int col_update(TINFO *, bool);
 static int nextprev(TINFO *, bool);
 static WT_THREAD_RET ops(void *);
 static int read_row(TINFO *);
@@ -733,7 +733,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         switch (table->type) {
         case FIX:
             ++tinfo->update; /* FLCS does an update instead of a modify. */
-            ret = col_update(tinfo, op, positioned);
+            ret = col_update(tinfo, positioned);
             break;
         case ROW:
             ++tinfo->modify;
@@ -804,7 +804,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
             break;
         case FIX:
         case VAR:
-            ret = col_update(tinfo, op, positioned);
+            ret = col_update(tinfo, positioned);
             break;
         }
         if (ret == 0) {
@@ -814,6 +814,9 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
             OP_FAILED(false);
         break;
     }
+
+    /* Track the return, our caller needs it for modify cleanup. */
+    tinfo->op_ret = ret;
 
     /*
      * If the cursor is positioned, do a small number of next/prev cursor operations in a random
@@ -1069,16 +1072,21 @@ ops(void *arg)
         /*
          * If an insert or update, create a value.
          *
-         * This is messy: if the first table we're updating is FLCS and a mirrored table, use the
-         * base table (which must be ROW or VAR), to create a value usable for any table. Because
-         * every FLCS table tracks a different number of bits, we can't figure out the specific bits
-         * we're going to use until the insert or update call that's going to do the modify. If the
-         * first table we're updating is FLCS and not a mirrored table, we use the table we're
-         * modifying and acquire the bits for the table immediately. See the update/insert calls for
-         * the rest, where if the table is mirrored, we get the bits, otherwise, there's nothing to
-         * do, we have the value we need. If the first table we're updating isn't FLCS generate the
-         * new value for the table, no special work here, and the insert/update calls will create
-         * the new value if/when a mirrored FLCS table is updated based on this value.
+         * If the first table we're updating is FLCS and a mirrored table, use the base table (which
+         * must be ROW or VLCS), to create a value usable for any table. Because every FLCS table
+         * tracks a different number of bits, we can't figure out the specific bits we're going to
+         * use until the insert or update call that's going to do the modify.
+         *
+         * If the first table we're updating is FLCS and not a mirrored table, we use the table
+         * we're modifying and acquire the bits for the table immediately.
+         *
+         * See the column-store update/insert calls for the matching work, if the table is mirrored,
+         * we derive the bits based on the ROW/VLCS value, otherwise, there's nothing to do, we have
+         * the bits we need.
+         *
+         * If the first table we're updating isn't FLCS, generate the new value for the table, no
+         * special work is done here and the column-store insert/update calls will create derive the
+         * necessary bits if/when a mirrored FLCS table is updated in this operation.
          */
         if (op == INSERT || op == UPDATE) {
             if (table->type == FIX && table->mirror)
@@ -1091,8 +1099,8 @@ ops(void *arg)
          * If modify, build a modify change vector. FLCS operations do updates instead of modifies,
          * if we're not in a mirrored group, generate a bit value for the FLCS table. If we are in a
          * mirrored group or not modifying an FLCS table, we'll need a change vector and we will
-         * have to modify something other than the FLCS table first, to get a new value from which
-         * we can derive the FLCS value.
+         * have to modify a ROW/VLCS table first first to get a new value from which we can derive
+         * the FLCS value.
          */
         if (op == MODIFY) {
             if (table->type != FIX || table->mirror)
@@ -1113,6 +1121,16 @@ ops(void *arg)
             tinfo->table = g.base_mirror;
             ret = table_op(tinfo, intxn, iso_level, op);
             testutil_assert(ret == 0 || ret == WT_ROLLBACK);
+
+            /*
+             * We make blind modifies and the record may not exist. If the base modify returns DNE,
+             * skip the operation. This isn't to avoid wasted work: any FLCS table in the mirrored
+             * will do an update as FLCS doesn't support modify, and we'll fail when we compare the
+             * remove to the FLCS value.
+             */
+            if (tinfo->op_ret == WT_NOTFOUND)
+                goto skip_operation;
+
             skip1 = g.base_mirror;
         }
         if (ret == 0 && table != skip1) {
@@ -1130,6 +1148,7 @@ ops(void *arg)
                     if (ret == WT_ROLLBACK)
                         break;
                 }
+skip_operation:
         table = tinfo->table = NULL;
 
         /* Release the truncate operation counter. */
@@ -1489,14 +1508,14 @@ modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
     WT_RET(cursor->modify(cursor, tinfo->entries, tinfo->nentries));
 
-    testutil_check(cursor->get_value(cursor, tinfo->value));
+    testutil_check(cursor->get_value(cursor, tinfo->new_value));
 
     if (modify_check) {
         testutil_modify_apply(
           &tinfo->moda, &tinfo->modb, tinfo->entries, tinfo->nentries, FORMAT_PAD_BYTE);
-        testutil_assert(tinfo->moda.size == tinfo->value->size &&
+        testutil_assert(tinfo->moda.size == tinfo->new_value->size &&
           (tinfo->moda.size == 0 ||
-            memcmp(tinfo->moda.data, tinfo->value->data, tinfo->moda.size) == 0));
+            memcmp(tinfo->moda.data, tinfo->new_value->data, tinfo->moda.size) == 0));
     }
     return (0);
 }
@@ -1520,7 +1539,7 @@ row_modify(TINFO *tinfo, bool positioned)
     WT_RET(modify(tinfo, cursor, positioned));
 
     trace_op(tinfo, "modify %" PRIu64 " {%.*s}, {%.*s}", tinfo->keyno, (int)tinfo->key->size,
-      (char *)tinfo->key->data, (int)tinfo->value->size, (char *)tinfo->value->data);
+      (char *)tinfo->key->data, (int)tinfo->new_value->size, (char *)tinfo->new_value->data);
 
     return (0);
 }
@@ -1541,8 +1560,8 @@ col_modify(TINFO *tinfo, bool positioned)
 
     WT_RET(modify(tinfo, cursor, positioned));
 
-    trace_op(tinfo, "modify %" PRIu64 ", {%.*s}", tinfo->keyno, (int)tinfo->value->size,
-      (char *)tinfo->value->data);
+    trace_op(tinfo, "modify %" PRIu64 ", {%.*s}", tinfo->keyno, (int)tinfo->new_value->size,
+      (char *)tinfo->new_value->data);
 
     return (0);
 }
@@ -1661,7 +1680,7 @@ row_update(TINFO *tinfo, bool positioned)
  *     Update a row in a column-store file.
  */
 static int
-col_update(TINFO *tinfo, thread_op op, bool positioned)
+col_update(TINFO *tinfo, bool positioned)
 {
     TABLE *table;
     WT_CURSOR *cursor;
@@ -1673,13 +1692,9 @@ col_update(TINFO *tinfo, thread_op op, bool positioned)
     if (!positioned)
         cursor->set_key(cursor, tinfo->keyno);
     if (table->type == FIX) {
-        /*
-         * Mirrors will not have set the FLCS value, and this might have been a modify operation. If
-         * it's a modify operation, take the FLCS value from the value, if an update, take the FLCS
-         * value from the new value.
-         */
+        /* Mirrors will not have set the FLCS value. */
         if (table->mirror)
-            val_to_flcs(table, op == MODIFY ? tinfo->value : tinfo->new_value, &tinfo->bitv);
+            val_to_flcs(table, tinfo->new_value, &tinfo->bitv);
         cursor->set_value(cursor, tinfo->bitv);
     } else
         cursor->set_value(cursor, tinfo->new_value);
