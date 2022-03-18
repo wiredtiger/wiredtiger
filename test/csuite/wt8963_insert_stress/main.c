@@ -38,9 +38,11 @@
 #define NUM_THREADS 110
 #define KEY_MAX UINT32_MAX
 
-void *thread_insert_race(void *);
+static const char *const conn_config_string = "create,cache_size=4G,statistics=(fast)";
 
 static uint64_t ready_counter;
+
+void *thread_insert_race(void *);
 
 /*
  * set_key --
@@ -87,8 +89,7 @@ main(int argc, char *argv[])
     testutil_check(testutil_parse_opts(argc, argv, opts));
     testutil_make_work_dir(opts->home);
 
-    testutil_check(
-      wiredtiger_open(opts->home, NULL, "create,cache_size=3G,statistics=(fast)", &opts->conn));
+    testutil_check(wiredtiger_open(opts->home, NULL, conn_config_string, &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     testutil_check(__wt_snprintf(tableconf, sizeof(tableconf),
       "key_format=%s,value_format=%s,memory_page_image_max=50MB",
@@ -107,8 +108,7 @@ main(int argc, char *argv[])
     /* Reopen connection for WT_SESSION::verify. It requires exclusive access to the file. */
     testutil_check(opts->conn->close(opts->conn, NULL));
     opts->conn = NULL;
-    testutil_check(
-      wiredtiger_open(opts->home, NULL, "create,cache_size=4G,statistics=(fast)", &opts->conn));
+    testutil_check(wiredtiger_open(opts->home, NULL, conn_config_string, &opts->conn));
 
     /* Validate */
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
