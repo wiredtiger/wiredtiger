@@ -190,8 +190,6 @@ thread_run(void *arg)
         if (i == 0)
             i++;
 
-        testutil_check(session->begin_transaction(session, NULL));
-
         /*
          * The value is the insert- with key appended.
          */
@@ -218,7 +216,6 @@ thread_run(void *arg)
         while ((ret = cursor->insert(cursor)) == WT_ROLLBACK)
             ;
         testutil_assert(ret == 0);
-        testutil_check(session->commit_transaction(session, NULL));
 
         /*
          * Save the key separately for checking later.
@@ -241,8 +238,6 @@ thread_run(void *arg)
          * Decide what kind of operation can be performed on the already inserted data.
          */
         if (i % MAX_NUM_OPS == OP_TYPE_DELETE) {
-            testutil_check(session->begin_transaction(session, NULL));
-
             if (columnar_table)
                 cursor->set_key(cursor, i);
             else
@@ -251,7 +246,6 @@ thread_run(void *arg)
             while ((ret = cursor->remove(cursor)) == WT_ROLLBACK)
                 ;
             testutil_assert(ret == 0);
-            testutil_check(session->commit_transaction(session, NULL));
 
             /* Save the key separately for checking later.*/
             if (fprintf(fp[DELETE_RECORD_FILE_ID], "%" PRIu64 "\n", i) == -1)
@@ -268,30 +262,29 @@ thread_run(void *arg)
              * Make sure the modify operation is carried out in an snapshot isolation level with
              * explicit transaction.
              */
-            testutil_check(session->begin_transaction(session, NULL));
+            do {
+                testutil_check(session->begin_transaction(session, NULL));
 
-            ret = wiredtiger_calc_modify(session, &data, &newv, maxdiff, entries, &nentries);
+                if (columnar_table)
+                    cursor->set_key(cursor, i);
+                else
+                    cursor->set_key(cursor, kname);
 
-            if (columnar_table)
-                cursor->set_key(cursor, i);
-            else
-                cursor->set_key(cursor, kname);
-
-            if (ret == 0)
-                while ((ret = cursor->modify(cursor, entries, nentries)) == WT_ROLLBACK)
-                    ;
-            else {
-                /*
-                 * In case if we couldn't able to generate modify vectors, treat this change as a
-                 * normal update operation.
-                 */
-                cursor->set_value(cursor, &newv);
-                while ((ret = cursor->update(cursor)) == WT_ROLLBACK)
-                    ;
-            }
+                ret = wiredtiger_calc_modify(session, &data, &newv, maxdiff, entries, &nentries);
+                if (ret == 0)
+                    ret = cursor->modify(cursor, entries, nentries);
+                else {
+                    /*
+                     * In case if we couldn't able to generate modify vectors, treat this change as
+                     * a normal update operation.
+                     */
+                    cursor->set_value(cursor, &newv);
+                    ret = cursor->update(cursor);
+                }
+                testutil_check(ret = WT_ROLLBACK ? session->commit_transaction(session, NULL) :
+                                                   session->rollback_transaction(session, NULL));
+            } while (ret == WT_ROLLBACK);
             testutil_assert(ret == 0);
-
-            testutil_check(session->commit_transaction(session, NULL));
 
             /*
              * Save the key and new value separately for checking later.
