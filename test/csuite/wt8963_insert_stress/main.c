@@ -92,7 +92,7 @@ main(int argc, char *argv[])
       wiredtiger_open(opts->home, NULL, "create,cache_size=3G,statistics=(fast)", &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     testutil_check(__wt_snprintf(tableconf, sizeof(tableconf),
-      "key_format=%s,value_format=%s,leaf_page_max=32k,memory_page_image_max=50MB",
+      "key_format=%s,value_format=%s,memory_page_image_max=50MB",
       opts->table_type == TABLE_ROW ? "Q" : "r", opts->table_type == TABLE_FIX ? "8t" : "Q"));
     testutil_check(session->create(session, opts->uri, tableconf));
 
