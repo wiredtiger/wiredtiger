@@ -215,8 +215,9 @@ thread_run(void *arg)
             data.data = buf;
         }
         cursor->set_value(cursor, &data);
-        testutil_check(cursor->insert(cursor));
-
+        while ((ret = cursor->insert(cursor)) == WT_ROLLBACK)
+            ;
+        testutil_assert(ret == 0);
         testutil_check(session->commit_transaction(session, NULL));
 
         /*
@@ -247,8 +248,9 @@ thread_run(void *arg)
             else
                 cursor->set_key(cursor, kname);
 
-            testutil_check(cursor->remove(cursor));
-
+            while ((ret = cursor->remove(cursor)) == WT_ROLLBACK)
+                ;
+            testutil_assert(ret == 0);
             testutil_check(session->commit_transaction(session, NULL));
 
             /* Save the key separately for checking later.*/
@@ -276,15 +278,18 @@ thread_run(void *arg)
                 cursor->set_key(cursor, kname);
 
             if (ret == 0)
-                testutil_check(cursor->modify(cursor, entries, nentries));
+                while ((ret = cursor->modify(cursor, entries, nentries)) == WT_ROLLBACK)
+                    ;
             else {
                 /*
                  * In case if we couldn't able to generate modify vectors, treat this change as a
                  * normal update operation.
                  */
                 cursor->set_value(cursor, &newv);
-                testutil_check(cursor->update(cursor));
+                while ((ret = cursor->update(cursor)) == WT_ROLLBACK)
+                    ;
             }
+            testutil_assert(ret == 0);
 
             testutil_check(session->commit_transaction(session, NULL));
 
@@ -487,10 +492,11 @@ recover_and_verify(uint32_t nthreads)
                     cursor->set_key(cursor, kname);
                 }
 
-                if ((ret = cursor->search(cursor)) != 0) {
-                    if (ret != WT_NOTFOUND)
-                        testutil_die(ret, "search");
-                } else if (middle != 0) {
+                while ((ret = cursor->search(cursor)) == WT_ROLLBACK)
+                    ;
+                if (ret != 0)
+                    testutil_assert(ret == WT_NOTFOUND);
+                else if (middle != 0) {
                     /*
                      * We should never find an existing key after we have detected one missing for
                      * the thread.
@@ -516,9 +522,10 @@ recover_and_verify(uint32_t nthreads)
                     cursor->set_key(cursor, kname);
                 }
 
-                if ((ret = cursor->search(cursor)) != 0) {
-                    if (ret != WT_NOTFOUND)
-                        testutil_die(ret, "search");
+                while ((ret = cursor->search(cursor)) == WT_ROLLBACK)
+                    ;
+                if (ret != 0) {
+                    testutil_assert(ret == WT_NOTFOUND);
                     if (!inmem)
                         printf("%s: no insert record with key %" PRIu64 "\n",
                           fname[INSERT_RECORD_FILE_ID], key);
@@ -567,9 +574,10 @@ recover_and_verify(uint32_t nthreads)
                     cursor->set_key(cursor, kname);
                 }
 
-                if ((ret = cursor->search(cursor)) != 0) {
-                    if (ret != WT_NOTFOUND)
-                        testutil_die(ret, "search");
+                while ((ret = cursor->search(cursor)) == WT_ROLLBACK)
+                    ;
+                if (ret != 0) {
+                    testutil_assert(ret == WT_NOTFOUND);
                     if (!inmem)
                         printf("%s: no modified record with key %" PRIu64 "\n",
                           fname[MODIFY_RECORD_FILE_ID], key);
