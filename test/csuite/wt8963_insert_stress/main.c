@@ -107,15 +107,15 @@ main(int argc, char *argv[])
     /* Reopen connection for WT_SESSION::verify. It requires exclusive access to the file. */
     testutil_check(opts->conn->close(opts->conn, NULL));
     opts->conn = NULL;
-    testutil_check(wiredtiger_open(opts->home, NULL,
-      "create,cache_size=4G,statistics=(fast)", &opts->conn));
+    testutil_check(
+      wiredtiger_open(opts->home, NULL, "create,cache_size=4G,statistics=(fast)", &opts->conn));
 
     /* Validate */
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     testutil_check(session->verify(session, opts->uri, NULL));
 
     testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
-    
+
     for (i = 0; (ret = cursor->next(cursor)) == 0; i++)
         ;
 
@@ -140,9 +140,9 @@ thread_insert_race(void *arg)
     TEST_OPTS *opts;
     WT_CONNECTION *conn;
     WT_CURSOR *cursor;
+    WT_RAND_STATE rnd;
     WT_SESSION *session;
     uint64_t i, ready_counter_local, key;
-    WT_RAND_STATE rnd;
 
     opts = (TEST_OPTS *)arg;
     conn = opts->conn;
