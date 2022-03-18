@@ -1532,10 +1532,9 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
      * restore from backup.
      */
     if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) && conn->partial_backup_remove_ids != NULL)
-        for (i = 0; conn->partial_backup_remove_ids[i] != 0; ++i) {
+        for (i = 0; conn->partial_backup_remove_ids[i] != 0; ++i)
             WT_ERR(
               __rollback_to_stable_btree_hs_truncate(session, conn->partial_backup_remove_ids[i]));
-        }
     WT_TRET(__wt_session_release_dhandle(session));
 err:
     __wt_free(session, config);
