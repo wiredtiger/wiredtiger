@@ -281,8 +281,8 @@ thread_run(void *arg)
                     cursor->set_value(cursor, &newv);
                     ret = cursor->update(cursor);
                 }
-                testutil_check(ret = WT_ROLLBACK ? session->commit_transaction(session, NULL) :
-                                                   session->rollback_transaction(session, NULL));
+                testutil_check(ret == 0 ? session->commit_transaction(session, NULL) :
+                                          session->rollback_transaction(session, NULL));
             } while (ret == WT_ROLLBACK);
             testutil_assert(ret == 0);
 
