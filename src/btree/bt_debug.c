@@ -257,9 +257,8 @@ __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile)
      * checkpoint.
      */
     if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !WT_IS_HS(session->dhandle) &&
-      !(WT_READING_CHECKPOINT(session) && session->hs_checkpoint == NULL)) {
+      !(WT_READING_CHECKPOINT(session) && session->hs_checkpoint == NULL))
         WT_ERR(__wt_curhs_open(session, NULL, &ds->hs_cursor));
-    }
 
     if (ds->hs_cursor != NULL) {
         F_SET(ds->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);

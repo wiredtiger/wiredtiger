@@ -1524,10 +1524,9 @@ methods = {
     Config('checkpoint_use_history', 'true', r'''
         when opening a checkpoint cursor, open history store cursors and retrieve
         snapshot and timestamp information from the checkpoint. This is in general
-        required for corect reads; if setting it to false the caller must ensure
-        that the checkpoint is self-contained in the data store: needed for correct
-        reads: timestamps are not in use and the object was quiescent when the
-        checkpoint was taken''',
+        required for correct reads; if setting it to false the caller must ensure
+        that the checkpoint is self-contained in the data store: timestamps are not
+        in use and the object was quiescent when the checkpoint was taken''',
         type='boolean', undoc=True),
     Config('checkpoint_wait', 'true', r'''
         wait for the checkpoint lock, if \c checkpoint_wait=false, open the
