@@ -502,9 +502,12 @@ __wt_rec_time_window_clear_obsolete(
     if (!tw->prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
         /*
          * Check if the start of the time window is globally visible, and if so remove unnecessary
-         * values.
+         * values. Avoid doing anything if the values are already clear, as setting the cleared flag
+         * can cause row-store reconciliation to do extra work repacking values.
          */
-        if (WT_REC_TW_START_VISIBLE_ALL(r, tw)) {
+        if ((tw->start_ts != WT_TS_NONE || tw->durable_start_ts != WT_TS_NONE ||
+              tw->start_txn != WT_TXN_NONE) &&
+          WT_REC_TW_START_VISIBLE_ALL(r, tw)) {
             /* The durable timestamp should never be less than the start timestamp. */
             WT_ASSERT(session, tw->start_ts <= tw->durable_start_ts);
 
