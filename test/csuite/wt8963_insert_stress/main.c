@@ -41,7 +41,6 @@
 void *thread_insert_race(void *);
 
 static uint64_t ready_counter;
-static WT_RAND_STATE rnd;
 
 /*
  * set_key --
@@ -96,8 +95,6 @@ main(int argc, char *argv[])
       opts->table_type == TABLE_ROW ? "Q" : "r", opts->table_type == TABLE_FIX ? "8t" : "Q"));
     testutil_check(session->create(session, opts->uri, tableconf));
 
-    __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
-
     cs = clock();
 
     /* Multithreaded insert */
@@ -145,12 +142,15 @@ thread_insert_race(void *arg)
     WT_CURSOR *cursor;
     WT_SESSION *session;
     uint64_t i, ready_counter_local, key;
+    WT_RAND_STATE rnd;
 
     opts = (TEST_OPTS *)arg;
     conn = opts->conn;
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
+
+    __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
 
     /* Wait until all the threads are ready to go. */
     (void)__wt_atomic_add64(&ready_counter, 1);
