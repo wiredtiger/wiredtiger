@@ -111,7 +111,7 @@ main(int argc, char *argv[])
     testutil_check(opts->conn->close(opts->conn, NULL));
     opts->conn = NULL;
     testutil_check(wiredtiger_open(opts->home, NULL,
-      "create,cache_size=4G,eviction=(threads_max=1),statistics=(fast)", &opts->conn));
+      "create,cache_size=4G,statistics=(fast)", &opts->conn));
 
     /* Validate */
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
