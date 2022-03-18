@@ -1180,7 +1180,6 @@ int
 __wt_rec_col_var(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref, WT_SALVAGE_COOKIE *salvage)
 {
-    static WT_UPDATE upd_tombstone = {.txnid = WT_TXN_NONE, .type = WT_UPDATE_TOMBSTONE};
     enum { OVFL_IGNORE, OVFL_UNUSED, OVFL_USED } ovfl_state;
     struct {
         WT_ITEM *value; /* Value */
@@ -1324,11 +1323,11 @@ record_loop:
             repeat_count = 1;      /* Single record */
             deleted = false;
 
-            /* If the on-disk value is stale and we got no update, update it with a tombstone. */
-            if (orig_stale && upd == NULL)
-                upd = &upd_tombstone;
-
-            if (upd == NULL) {
+            if (upd == NULL && orig_stale) {
+                /* The on-disk value is stale and there was no update. Treat it as deleted. */
+                deleted = true;
+                twp = &clear_tw;
+            } else if (upd == NULL) {
                 update_no_copy = false; /* Maybe data copy */
 
                 /*
