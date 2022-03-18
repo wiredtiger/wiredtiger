@@ -569,6 +569,15 @@ err:
 int
 __wt_curhs_search_near_before(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
+    WT_CURSOR_HS *hs_cursor;
+
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+
+    /*
+     * If the btree id is set alone, it is not possible to position the cursor at a place that is
+     * smaller than set search key, therefore assert that the key must be set to use this function.
+     */
+    WT_ASSERT(session, F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET));
     return (__curhs_search_near_helper(session, cursor, true));
 }
 
@@ -589,12 +598,9 @@ __wt_curhs_search_near_after(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 static int
 __curhs_search_near_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool before)
 {
-    WT_CURSOR_HS *hs_cursor;
     WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
     int cmp;
-
-    hs_cursor = (WT_CURSOR_HS *)cursor;
 
     WT_RET(__wt_scr_alloc(session, 0, &srch_key));
     WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
@@ -602,12 +608,9 @@ __curhs_search_near_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool bef
     if (before) {
         /*
          * If we want to land on a key that is smaller or equal to the specified key, keep walking
-         * backwards as there may be content inserted concurrently. Note that there is an
-         * interesting edge case when the history cursor only sets the btree ID as it's key range. A
-         * record can be concurrently inserted into history store that points before the positioned
-         * cursor.
+         * backwards as there may be content inserted concurrently.
          */
-        if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET) && cmp > 0) {
+        if (cmp > 0) {
             while ((ret = cursor->prev(cursor)) == 0) {
                 WT_STAT_CONN_INCR(session, cursor_skip_hs_cur_position);
                 WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
@@ -622,12 +625,9 @@ __curhs_search_near_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool bef
     } else {
         /*
          * If we want to land on a key that is larger or equal to the specified key, keep walking
-         * forwards as there may be content inserted concurrently. Note that there is an
-         * interesting edge case when the history cursor only sets the btree ID as it's key range. A
-         * record can be concurrently inserted into history store that points to after the positioned
-         * cursor.
+         * forwards as there may be content inserted concurrently.
          */
-        if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET) && cmp < 0) {
+        if (cmp < 0) {
             while ((ret = cursor->next(cursor)) == 0) {
                 WT_STAT_CONN_INCR(session, cursor_skip_hs_cur_position);
                 WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
