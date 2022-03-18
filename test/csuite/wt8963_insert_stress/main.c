@@ -118,9 +118,10 @@ main(int argc, char *argv[])
     testutil_check(session->verify(session, opts->uri, NULL));
 
     testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
-    i = 0;
-    while ((ret = cursor->next(cursor)) == 0)
-        i++;
+    
+    for (i = 0; (ret = cursor->next(cursor)) == 0; i++)
+        ;
+
     testutil_assert(ret == WT_NOTFOUND);
 
     ce = clock();
