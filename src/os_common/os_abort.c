@@ -16,7 +16,7 @@ void
 __wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((noreturn))
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-#ifdef HAVE_ATTACH
+#ifdef HAVE_ATTACHS
     u_int i;
 
     __wt_errx(session, "process ID %" PRIdMAX ": waiting for debugger...", (intmax_t)getpid());
