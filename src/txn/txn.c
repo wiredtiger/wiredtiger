@@ -1720,6 +1720,12 @@ err:
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
 
+    /*
+     * If anything went wrong, roll back.
+     *
+     * !!!
+     * Nothing can fail after this point.
+     */
     if (locked)
         __wt_readunlock(session, &txn_global->visibility_rwlock);
 
@@ -1727,6 +1733,15 @@ err:
     if (cannot_fail)
         WT_RET_PANIC(session, ret,
           "failed to commit a transaction after data corruption point, failing the system");
+
+    /*
+     * Check for a prepared transaction, and quit: we can't ignore the error and we can't roll back
+     * a prepared transaction.
+     */
+    if (prepare)
+        WT_RET_PANIC(session, ret, "failed to commit prepared transaction, failing the system");
+
+    WT_TRET(__wt_txn_rollback(session, cfg));
     return (ret);
 }
 
@@ -2279,13 +2294,17 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     if (F_ISSET(txn, WT_TXN_PREPARE))
         return (0);
 
+#ifndef WT_STANDALONE_BUILD
     /*
+     * FIXME: SERVER-44870
+     *
      * MongoDB can't (yet) handle rolling back read only transactions. For this reason, don't check
      * unless there's at least one update or we're configured to time out thread operations (a way
      * to confirm our caller is prepared for rollback).
      */
     if (txn->mod_count == 0 && !__wt_op_timer_fired(session))
         return (0);
+#endif
 
     /*
      * Check if either the transaction's ID or its pinned ID is equal to the oldest transaction ID.
