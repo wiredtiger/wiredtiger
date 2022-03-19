@@ -160,8 +160,10 @@ __cursor_fix_implicit(WT_BTREE *btree, WT_CURSOR_BTREE *cbt)
      * Therefore, if the returned comparison is -1, the searched-for key was larger than any row on
      * the page's standard information or column-store insert list.
      *
-     * If the returned comparison is NOT -1, there was a row equal to or larger than the
-     * searched-for key, and we implicitly create missing rows.
+     * If the returned comparison is NOT -1, there's a row equal to or larger than the searched-for
+     * key, and we implicitly create missing rows. The "equal to" is important, this function does
+     * not do anything special for exact matches, and where behavior for exact matches differs from
+     * behavior for implicitly created records, our caller is responsible to handling it.
      */
     return (btree->type == BTREE_COL_FIX && cbt->compare != -1);
 }
@@ -1120,36 +1122,38 @@ retry:
 
     if (btree->type == BTREE_ROW) {
         WT_ERR(__cursor_row_search(cbt, false, NULL, NULL));
+        if (cbt->compare == 0) {
+            /*
+             * If we find a matching record, check whether an update would conflict. Do this before
+             * checking if the update is visible in __wt_cursor_valid, or we can miss conflicts.
+             */
+            WT_ERR(__curfile_update_check(cbt));
 
-        /* Check whether an update would conflict. */
-        WT_ERR(__curfile_update_check(cbt));
+            WT_WITH_UPDATE_VALUE_SKIP_BUF(
+              ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+            WT_ERR(ret);
+            if (!valid)
+                WT_ERR(WT_NOTFOUND);
 
-        if (cbt->compare != 0)
+            ret = __cursor_row_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
+        } else
             WT_ERR(WT_NOTFOUND);
-        WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
-        WT_ERR(ret);
-        if (!valid)
-            WT_ERR(WT_NOTFOUND);
-
-        ret = __cursor_row_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
     } else {
         WT_ERR(__cursor_col_search(cbt, NULL, NULL));
-
-        /*
-         * If we find a matching record, check whether an update would conflict. Do this before
-         * checking if the update is visible in __wt_cursor_valid, or we can miss conflict.
-         */
-        WT_ERR(__curfile_update_check(cbt));
-
-        /* Remove the record if it exists. */
-        valid = false;
         if (cbt->compare == 0) {
+            /*
+             * If we find a matching record, check whether an update would conflict. Do this before
+             * checking if the update is visible in __wt_cursor_valid, or we can miss conflicts.
+             */
+            WT_ERR(__curfile_update_check(cbt));
+
             WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
             WT_ERR(ret);
-        }
-        if (cbt->compare != 0 || !valid) {
-            if (!__cursor_fix_implicit(btree, cbt))
+            if (!valid)
                 WT_ERR(WT_NOTFOUND);
+
+            ret = __cursor_col_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
+        } else if (__cursor_fix_implicit(btree, cbt)) {
             /*
              * Creating a record past the end of the tree in a fixed-length column-store implicitly
              * fills the gap with empty records. Return success in that case, the record was deleted
@@ -1160,7 +1164,7 @@ retry:
              */
             cbt->recno = cursor->recno;
         } else
-            ret = __cursor_col_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
+            WT_ERR(WT_NOTFOUND);
     }
 
 err:
