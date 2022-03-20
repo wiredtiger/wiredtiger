@@ -569,15 +569,11 @@ err:
 int
 __wt_curhs_search_near_before(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
-    WT_CURSOR_HS *hs_cursor;
-
-    hs_cursor = (WT_CURSOR_HS *)cursor;
-
     /*
      * If the btree id is set alone, it is not possible to position the cursor at a place that is
      * smaller than set search key, therefore assert that the key must be set to use this function.
      */
-    WT_ASSERT(session, F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET));
+    WT_ASSERT(session, F_ISSET((WT_CURSOR_HS *)cursor, WT_HS_CUR_KEY_SET));
     return (__curhs_search_near_helper(session, cursor, true));
 }
 
