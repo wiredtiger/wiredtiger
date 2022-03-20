@@ -1566,11 +1566,11 @@ struct __wt_session {
 	 * contains.
 	 * @snippet ex_all.c Truncate a range
 	 *
-	 * When a range truncate is in progress, and another transaction inserts
-	 * a key into that range, the behavior is not well defined - a conflict
-	 * may be detected or both transactions may be permitted to commit. If
-	 * they do commit, and if there is a crash and recovery runs, the result
-	 * may be different than what was in cache before the crash.
+	 * Range truncate is implemented as a "scan and write" operation, specifically without range
+	 * locks. Inserts or other operations in the range, as well as operations before or after
+	 * the range when no explicit starting or ending key is set, are not well defined: conflicts
+	 * may be detected or both transactions may commit. If both commit, there's a failure and
+	 * recovery runs, the result may be different than what was in cache before the crash.
 	 *
 	 * The WT_CURSOR::truncate range truncate operation can only be used at snapshot isolation.
 	 *
