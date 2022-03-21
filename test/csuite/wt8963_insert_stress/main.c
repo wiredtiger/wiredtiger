@@ -31,15 +31,16 @@
  * The motivation for this test is to try and reproduce BF-24385 by stressing insert functionality.
  * The test creates a lot of threads that concurrently insert a lot of records with random keys.
  * Having a large memory page ensures that we have big insert lists. Big cache size allows having
- * more dirty content in the memory before eviction kicks in.
- * The test is in CSuite because CPPSuite doesn't allow averriding validation a the moment.
+ * more dirty content in the memory before eviction kicks in. The test is in C suite because CPP
+ * suite does not allow overriding validation at the moment.
  */
 
 #define THREAD_NUM_ITERATIONS 200000
 #define NUM_THREADS 110
 #define KEY_MAX UINT32_MAX
+#define TABLE_CONFIG_FMT "key_format=%s,value_format=%s,memory_page_image_max=50MB"
 
-static const char *const conn_config_string = "create,cache_size=4G,statistics=(fast)";
+static const char *const conn_config = "create,cache_size=4G";
 
 static uint64_t ready_counter;
 
@@ -90,10 +91,9 @@ main(int argc, char *argv[])
     testutil_check(testutil_parse_opts(argc, argv, opts));
     testutil_make_work_dir(opts->home);
 
-    testutil_check(wiredtiger_open(opts->home, NULL, conn_config_string, &opts->conn));
+    testutil_check(wiredtiger_open(opts->home, NULL, conn_config, &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
-    testutil_check(__wt_snprintf(tableconf, sizeof(tableconf),
-      "key_format=%s,value_format=%s,memory_page_image_max=50MB",
+    testutil_check(__wt_snprintf(tableconf, sizeof(tableconf), TABLE_CONFIG_FMT,
       opts->table_type == TABLE_ROW ? "Q" : "r", opts->table_type == TABLE_FIX ? "8t" : "Q"));
     testutil_check(session->create(session, opts->uri, tableconf));
 
@@ -109,7 +109,7 @@ main(int argc, char *argv[])
     /* Reopen connection for WT_SESSION::verify. It requires exclusive access to the file. */
     testutil_check(opts->conn->close(opts->conn, NULL));
     opts->conn = NULL;
-    testutil_check(wiredtiger_open(opts->home, NULL, conn_config_string, &opts->conn));
+    testutil_check(wiredtiger_open(opts->home, NULL, conn_config, &opts->conn));
 
     /* Validate */
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
