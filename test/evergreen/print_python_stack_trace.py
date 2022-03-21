@@ -122,8 +122,10 @@ def main():
             dbg = GDBDumper()
             dbg.dump(args.executable_path, core_file_path, args.lib_path)
         elif sys.platform.startswith('darwin'):
-            dbg = LLDBDumper()
-            dbg.dump(args.executable_path, core_file_path)
+            # FIXME - macOS to be supported in WT-8976
+            # dbg = LLDBDumper()
+            # dbg.dump(args.executable_path, core_file_path)
+            pass
         elif sys.platform.startswith('win32') or sys.platform.startswith('cygwin'):
             # FIXME - Windows to be supported in WT-8937
             pass
