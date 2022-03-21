@@ -393,7 +393,6 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
         /* Get current value and convert to full update if it is a modify. */
         WT_ERR(hs_cursor->get_value(
           hs_cursor, &hs_stop_durable_ts, &hs_durable_ts, &type_full, hs_value));
-
         type = (uint8_t)type_full;
 
         /* Retrieve the time window from the history cursor. */
@@ -589,9 +588,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
              * the rollback to stable operation.
              */
             F_SET(tombstone, WT_UPDATE_RESTORED_FROM_HS);
-            //if ((char)upd->data[0] == 'a') {
-            //    WT_ASSERT(session, false);
-            //}
+
             tombstone->next = upd;
             upd = tombstone;
             WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_restore_tombstones);

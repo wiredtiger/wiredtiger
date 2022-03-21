@@ -613,10 +613,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
              * FIXME-WT-6557: no need to check this after WT-6557 is done as the tombstone will be
              * freed when it is written to the disk image in the previous eviction.
              */
-            if (!F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_DS)) {
-                if (F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_HS)) {
-                    printf("yeet\n");
-                }
+            if (!F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS)) {
                 WT_RET(__rec_append_orig_value(session, page, tombstone, vpack));
 
                 /*
