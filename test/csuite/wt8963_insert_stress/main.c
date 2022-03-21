@@ -32,6 +32,7 @@
  * The test creates a lot of threads that concurrently insert a lot of records with random keys.
  * Having a large memory page ensures that we have big insert lists. Big cache size allows having
  * more dirty content in the memory before eviction kicks in.
+ * The test is in CSuite because CPPSuite doesn't allow averriding validation a the moment.
  */
 
 #define THREAD_NUM_ITERATIONS 200000
