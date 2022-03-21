@@ -265,10 +265,10 @@ wt_connect(const char *config_open)
     int ret;
     char config[512];
     char timing_stress_config[512];
-    bool fast_eviction_target = false;
-    bool fast_eviction_trigger = false;
-    bool timing_stress;
+    bool fast_eviction_target, fast_eviction_trigger, timing_stress;
 
+    fast_eviction_target = false;
+    fast_eviction_trigger = false;
     timing_stress = false;
     if (g.sweep_stress || g.failpoint_hs_delete_key_from_ts || g.hs_checkpoint_timing_stress ||
       g.reserved_txnid_timing_stress || g.checkpoint_slow_timing_stress) {
