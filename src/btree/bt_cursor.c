@@ -511,6 +511,54 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
 }
 
 /*
+ * __wt_btcur_reposition --
+ *     Reposition the cursor on the saved key.
+ */
+int
+__wt_btcur_reposition(WT_CURSOR_BTREE *cbt)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    cursor = &cbt->iface;
+    session = CUR2S(cbt);
+
+    if (!F_ISSET(cursor, WT_CURSTD_KEY_EXT))
+        WT_ERR_PANIC(session, EINVAL, "reposition flag is set without a search key");
+
+    WT_RET(__wt_btcur_search(cbt));
+
+    /* Search maintains a position, key and value. */
+    WT_ASSERT(session,
+      F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
+        F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+
+err:
+    F_CLR(cbt, WT_CBT_REPOSITION);
+    return (ret);
+}
+
+/*
+ * __wt_btcur_release_page --
+ *     Copy the key and value to the local buffer and reset the cursor.
+ */
+int
+__wt_btcur_release_page(WT_CURSOR_BTREE *cbt)
+{
+    WT_CURSOR *cursor;
+
+    cursor = &cbt->iface;
+
+    WT_RET(__wt_cursor_localkey(cursor));
+    WT_RET(__cursor_localvalue(cursor));
+    WT_RET(__cursor_reset(cbt));
+    F_SET(cbt, WT_CBT_REPOSITION);
+
+    return (0);
+}
+
+/*
  * __wt_btcur_search --
  *     Search for a matching record in the tree.
  */
