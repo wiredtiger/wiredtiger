@@ -1430,23 +1430,27 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
          * them back to their original update chains. Truncate before we restore them to ensure the
          * size of the page is correct.
          */
-        WT_ASSERT(session, upd->type != WT_UPDATE_TOMBSTONE);//supd->onpage_upd->data[0] == 'b');
         if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
             /*
              * We have decided to restore this update chain so it must have newer updates than the
              * onpage value on it.
              */
             WT_ASSERT(session, upd != supd->onpage_upd);
-            /*
-             * Move the pointer to the position before the onpage value and truncate all the updates
-             * starting from the onpage value.
-             */
-            for (prev_onpage = upd;
-                 prev_onpage->next != NULL && prev_onpage->next != supd->onpage_upd;
-                 prev_onpage = prev_onpage->next)
-                ;
-            WT_ASSERT(session, prev_onpage->next == supd->onpage_upd);
-            prev_onpage->next = NULL;
+
+            if (F_ISSET(supd->onpage_upd, WT_UPDATE_DS))
+                upd->next = NULL;
+            else {
+                /*
+                 * Move the pointer to the position before the onpage value and truncate all the updates
+                 * starting from the onpage value.
+                 */
+                for (prev_onpage = upd;
+                     prev_onpage->next != NULL && prev_onpage->next != supd->onpage_upd;
+                     prev_onpage = prev_onpage->next)
+                    ;
+                WT_ASSERT(session, prev_onpage->next == supd->onpage_upd);
+                prev_onpage->next = NULL;
+            }
         }
 
         switch (orig->type) {

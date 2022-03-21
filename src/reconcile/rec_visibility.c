@@ -46,7 +46,7 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_
  */
 static int
 __rec_append_orig_value(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK_KV *unpack, bool override)
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK_KV *unpack)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
@@ -64,7 +64,7 @@ __rec_append_orig_value(
     /* Review the current update list, checking conditions that mean no work is needed. */
     for (;; upd = upd->next) {
         /* Done if the update was restored from the data store or the history store. */
-        if (!override && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS))
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS))
             return (0);
 
         /*
@@ -617,7 +617,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
                 if (F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_HS)) {
                     printf("yeet\n");
                 }
-                WT_RET(__rec_append_orig_value(session, page, tombstone, vpack, true));
+                WT_RET(__rec_append_orig_value(session, page, tombstone, vpack));
 
                 /*
                  * We may have updated the global transaction concurrently and the tombstone is now
@@ -780,7 +780,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
      */
     if (upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
       !vpack->tw.prepare && (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
-        WT_RET(__rec_append_orig_value(session, page, upd_select->upd, vpack, false));
+        WT_RET(__rec_append_orig_value(session, page, upd_select->upd, vpack));
 
     __wt_rec_time_window_clear_obsolete(session, upd_select, NULL, r);
 

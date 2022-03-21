@@ -111,4 +111,4 @@ class test_rollback_to_stable32(test_rollback_to_stable_base):
         self.large_updates(uri, value_c, ds, nrows, False, 60)
         self.evict_cursor(uri, nrows, value_c)
         self.check(value_b, uri, nrows, None,  30)
-        #self.conn.close()
+        self.conn.close()
