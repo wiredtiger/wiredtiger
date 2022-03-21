@@ -475,19 +475,29 @@ __recovery_set_checkpoint_snapshot(WT_SESSION_IMPL *session)
     WT_CONFIG_ITEM k;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    uint8_t counter;
+    uint32_t counter;
     char *sys_config;
 
     sys_config = NULL;
     conn = S2C(session);
     counter = 0;
 
+    /* Initialize the recovery checkpoint snapshot variables to default values. */
+    conn->recovery_ckpt_snap_min = WT_TXN_NONE;
+    conn->recovery_ckpt_snap_max = WT_TXN_NONE;
+    conn->recovery_ckpt_snapshot_count = 0;
+
     /*
-     * WiredTiger versions 10.0.1 onward have a valid checkpoint snapshot on-disk. Ignore reading
-     * the on-disk checkpoint snapshot from older versions.
+     * WiredTiger versions 10.0.1 onward have a valid checkpoint snapshot on-disk. There was a bug
+     * in some versions of WiredTiger that are tagged with the 10.0.0 release, which saved the wrong
+     * checkpoint snapshot (see WT-8395), so we ignore the snapshot when it was created with one of
+     * those versions. Versions of WiredTiger prior to 10.0.0 never saved a checkpoint snapshot.
+     * Additionally the turtle file doesn't always exist (for example, backup doesn't include the
+     * turtle file), so there isn't always a WiredTiger version available. If there is no version
+     * available, assume that the snapshot is valid, otherwise restoring from a backup won't work.
      */
-    if (conn->recovery_major < 10 ||
-      (conn->recovery_major == 10 && conn->recovery_minor == 0 && conn->recovery_patch == 0))
+    if (__wt_version_defined(conn->recovery_version) &&
+      __wt_version_lte(conn->recovery_version, (WT_VERSION){10, 0, 0}))
         return (0);
 
     /*
@@ -792,6 +802,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     bool rts_executed;
 
     conn = S2C(session);
+    F_SET(conn, WT_CONN_RECOVERING);
+
     WT_CLEAR(r);
     WT_INIT_LSN(&r.ckpt_lsn);
     config = NULL;
@@ -801,14 +813,12 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
     /* We need a real session for recovery. */
-    WT_RET(
-      __wt_open_internal_session(conn, "txn-recover", false, WT_SESSION_NO_LOGGING, 0, &session));
+    WT_RET(__wt_open_internal_session(conn, "txn-recover", false, 0, 0, &session));
     r.session = session;
     WT_MAX_LSN(&r.max_ckpt_lsn);
     WT_MAX_LSN(&r.max_rec_lsn);
     conn->txn_global.recovery_timestamp = conn->txn_global.meta_ckpt_timestamp = WT_TS_NONE;
 
-    F_SET(conn, WT_CONN_RECOVERING);
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
     WT_ERR(__recovery_setup_file(&r, WT_METAFILE_URI, config));
     WT_ERR(__wt_metadata_cursor_open(session, NULL, &metac));
@@ -981,8 +991,7 @@ done:
      * that can properly upgrade from 10.0.0 without hitting the problem but only from a clean
      * shutdown of 10.0.0. Earlier releases are not affected by the upgrade issue.
      */
-    if (conn->unclean_shutdown && conn->recovery_major == 10 && conn->recovery_minor == 0 &&
-      conn->recovery_patch == 0)
+    if (conn->unclean_shutdown && __wt_version_eq(conn->recovery_version, (WT_VERSION){10, 0, 0}))
         WT_ERR_MSG(session, WT_ERROR,
           "Upgrading from a WiredTiger version 10.0.0 database that was not shutdown cleanly is "
           "not allowed. Perform a clean shutdown on version 10.0.0 and then upgrade.");
@@ -1049,7 +1058,7 @@ done:
     if (do_checkpoint || rts_executed)
         /*
          * Forcibly log a checkpoint so the next open is fast and keep the metadata up to date with
-         * the checkpoint LSN and archiving.
+         * the checkpoint LSN and removal.
          */
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
 
@@ -1063,7 +1072,7 @@ done:
     __wt_dhandle_update_write_gens(session);
 
     /*
-     * If we're downgrading and have newer log files, force an archive, no matter what the archive
+     * If we're downgrading and have newer log files, force log removal, no matter what the remove
      * setting is.
      */
     if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_FORCE_DOWNGRADE))

@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper import copy_wiredtiger_home
-import wiredtiger, wttest
+import wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
@@ -85,11 +84,11 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
         # Commit some updates to get eviction and history store fired up
         cursor = self.session.open_cursor(uri)
         for i in range(1, nsessions * nkeys):
-            self.session.begin_transaction('isolation=snapshot')
+            self.session.begin_transaction()
             cursor.set_key(ds.key(nrows + i))
             cursor.set_value(bigvalue1)
             self.assertEquals(cursor.insert(), 0)
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(1))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
 
         # Have prepared updates in multiple sessions. This should ensure writing
         # prepared updates to the history store
@@ -97,7 +96,7 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
         cursors = [0] * nsessions
         for j in range (0, nsessions):
             sessions[j] = self.conn.open_session()
-            sessions[j].begin_transaction('isolation=snapshot')
+            sessions[j].begin_transaction()
             cursors[j] = sessions[j].open_cursor(uri)
             # Each session will update many consecutive keys.
             start = (j * nkeys)
@@ -106,11 +105,11 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
                 cursors[j].set_key(ds.key(nrows + i))
                 cursors[j].set_value(bigvalue2)
                 self.assertEquals(cursors[j].insert(), 0)
-            sessions[j].prepare_transaction('prepare_timestamp=' + self.timestamp_str(2))
+            sessions[j].prepare_transaction('prepare_timestamp=' + self.timestamp_str(3))
 
         # Re-read the original versions of all the data. This ensures reading
         # original versions from the history store
-        self.check(uri, ds, nrows, nsessions, nkeys, 1, bigvalue1, bigvalue2)
+        self.check(uri, ds, nrows, nsessions, nkeys, 2, bigvalue1, bigvalue2)
 
         # Close all cursors and sessions, this will cause prepared updates to be
         # rollback-ed
@@ -121,7 +120,7 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
         # Re-read the original versions of all the data. This ensures reading
         # original versions from the data store as the prepared updates are
         # aborted
-        self.check(uri, ds, nrows, nsessions, nkeys, 2, bigvalue1, bigvalue2)
+        self.check(uri, ds, nrows, nsessions, nkeys, 3, bigvalue1, bigvalue2)
 
     def test_prepare_hs(self):
         # Create a small table.

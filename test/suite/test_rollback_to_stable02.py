@@ -26,9 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time
-from helper import copy_wiredtiger_home
-import wiredtiger, wttest
+import wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
 from wtscenario import make_scenarios
@@ -37,7 +35,6 @@ from test_rollback_to_stable01 import test_rollback_to_stable_base
 # test_rollback_to_stable02.py
 # Test that rollback to stable brings back the history value to replace on-disk value.
 class test_rollback_to_stable02(test_rollback_to_stable_base):
-    session_config = 'isolation=snapshot'
 
     # For FLCS, set the page size down. Otherwise for the in-memory scenarios we get enough
     # updates on the page that the in-memory page footprint exceeds the default maximum
@@ -52,7 +49,7 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
     format_values = [
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
         ('column_fix', dict(key_format='r', value_format='8t', extraconfig=',leaf_page_max=4096')),
-        ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
+        ('row_integer', dict(key_format='i', value_format='S', extraconfig='')),
     ]
 
     in_memory_values = [
@@ -71,18 +68,17 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         config = 'cache_size=100MB,statistics=(all)'
         if self.in_memory:
             config += ',in_memory=true'
-        else:
-            config += ',log=(enabled),in_memory=false'
         return config
 
     def test_rollback_to_stable(self):
         nrows = 10000
 
-        # Create a table without logging.
+        # Create a table.
         uri = "table:rollback_to_stable02"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)' + self.extraconfig)
+        ds_config = self.extraconfig
+        ds_config += ',log=(enabled=false)' if self.in_memory else ''
+        ds = SimpleDataSet(self, uri, 0,
+            key_format=self.key_format, value_format=self.value_format, config=ds_config)
         ds.populate()
 
         if self.value_format == '8t':
@@ -102,19 +98,19 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
 
         self.large_updates(uri, valuea, ds, nrows, self.prepare, 10)
         # Check that all updates are seen.
-        self.check(valuea, uri, nrows, None, 10)
+        self.check(valuea, uri, nrows, None, 11 if self.prepare else 10)
 
         self.large_updates(uri, valueb, ds, nrows, self.prepare, 20)
         # Check that the new updates are only seen after the update timestamp.
-        self.check(valueb, uri, nrows, None, 20)
+        self.check(valueb, uri, nrows, None, 21 if self.prepare else 20)
 
         self.large_updates(uri, valuec, ds, nrows, self.prepare, 30)
         # Check that the new updates are only seen after the update timestamp.
-        self.check(valuec, uri, nrows, None, 30)
+        self.check(valuec, uri, nrows, None, 31 if self.prepare else 30)
 
         self.large_updates(uri, valued, ds, nrows, self.prepare, 40)
         # Check that the new updates are only seen after the update timestamp.
-        self.check(valued, uri, nrows, None, 40)
+        self.check(valued, uri, nrows, None, 41 if self.prepare else 40)
 
         # Pin stable to timestamp 30 if prepare otherwise 20.
         if self.prepare:

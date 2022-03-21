@@ -75,6 +75,10 @@ typedef struct {
     int nfail;
 } THREAD_ARGS;
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -87,13 +91,6 @@ main(int argc, char *argv[])
     int i, key, nfail;
     char tableconf[128];
     const char *tablename;
-
-    /*
-     * Bypass this test for valgrind or slow test machines. This test is timing sensitive.
-     */
-    if (testutil_is_flag_set("TESTUTIL_BYPASS_VALGRIND") ||
-      testutil_is_flag_set("TESTUTIL_SLOW_MACHINE"))
-        return (EXIT_SUCCESS);
 
     opts = &_opts;
     sharedopts = &_sharedopts;
@@ -214,6 +211,10 @@ main(int argc, char *argv[])
     return (0);
 }
 
+/*
+ * thread_insert --
+ *     TODO: Add a comment describing this function.
+ */
 static void *
 thread_insert(void *arg)
 {
@@ -289,6 +290,10 @@ thread_insert(void *arg)
     return (NULL);
 }
 
+/*
+ * thread_get --
+ *     TODO: Add a comment describing this function.
+ */
 static void *
 thread_get(void *arg)
 {

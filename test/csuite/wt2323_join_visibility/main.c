@@ -85,16 +85,16 @@ static void *thread_insert(void *);
 static void *thread_join(void *);
 static void test_join(TEST_OPTS *, SHARED_OPTS *, bool, bool);
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
     SHARED_OPTS *sharedopts, _sharedopts;
     TEST_OPTS *opts, _opts;
     const char *tablename;
-
-    /* Bypass this test for valgrind */
-    if (testutil_is_flag_set("TESTUTIL_BYPASS_VALGRIND"))
-        return (EXIT_SUCCESS);
 
     opts = &_opts;
     sharedopts = &_sharedopts;
@@ -128,6 +128,10 @@ main(int argc, char *argv[])
     return (0);
 }
 
+/*
+ * test_join --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 test_join(TEST_OPTS *opts, SHARED_OPTS *sharedopts, bool bloom, bool sometimes_remove)
 {
@@ -206,13 +210,17 @@ test_join(TEST_OPTS *opts, SHARED_OPTS *sharedopts, bool bloom, bool sometimes_r
           insert_args[i].inserts, insert_args[i].removes, insert_args[i].notfounds,
           insert_args[i].rollbacks);
 
-    testutil_check(session->drop(session, sharedopts->posturi, NULL));
-    testutil_check(session->drop(session, sharedopts->baluri, NULL));
-    testutil_check(session->drop(session, sharedopts->flaguri, NULL));
-    testutil_check(session->drop(session, opts->uri, NULL));
+    testutil_drop(session, sharedopts->posturi, NULL);
+    testutil_drop(session, sharedopts->baluri, NULL);
+    testutil_drop(session, sharedopts->flaguri, NULL);
+    testutil_drop(session, opts->uri, NULL);
     testutil_check(session->close(session, NULL));
 }
 
+/*
+ * thread_insert --
+ *     TODO: Add a comment describing this function.
+ */
 static void *
 thread_insert(void *arg)
 {
@@ -307,6 +315,10 @@ thread_insert(void *arg)
     return (NULL);
 }
 
+/*
+ * thread_join --
+ *     TODO: Add a comment describing this function.
+ */
 static void *
 thread_join(void *arg)
 {

@@ -30,8 +30,6 @@
 # checkpoint:garbage_collection
 # [END_TAGS]
 
-import time
-from helper import copy_wiredtiger_home
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
@@ -83,16 +81,14 @@ class test_gc_base(wttest.WiredTigerTestCase):
 class test_gc01(test_gc_base):
     # Force a small cache.
     conn_config = ('cache_size=50MB,eviction_updates_trigger=95,eviction_updates_target=80,'
-                   'log=(enabled),statistics=(all)')
-    session_config = 'isolation=snapshot'
+                   'statistics=(all)')
 
     def test_gc(self):
         nrows = 10000
 
         # Create a table without logging.
         uri = "table:gc01"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format="i", value_format="S")
         ds.populate()
 
         # Pin oldest and stable to timestamp 1.

@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import sys, wiredtiger, wttest
+import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 # test_alter02.py
@@ -73,7 +73,7 @@ class test_alter02(wttest.WiredTigerTestCase):
     def ConnectionOpen(self):
         self.home = '.'
 
-        conn_params = 'create,log=(archive=false,file_max=100K,%s)' % self.uselog
+        conn_params = 'create,log=(file_max=100K,remove=false,%s)' % self.uselog
 
         try:
             self.conn = wiredtiger.wiredtiger_open(self.home, conn_params)

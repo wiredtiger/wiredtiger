@@ -32,10 +32,10 @@
 # should get deleted as usual.
 
 import time
-import wiredtiger, wttest
+import wttest
 
 class test_checkpoint05(wttest.WiredTigerTestCase):
-    conn_config = 'create,cache_size=100MB,log=(archive=false,enabled=true,file_max=100K)'
+    conn_config = 'create,cache_size=100MB,log=(enabled=true,file_max=100K,remove=false)'
 
     def count_checkpoints(self):
         metadata_cursor = self.session.open_cursor('metadata:', None, None)

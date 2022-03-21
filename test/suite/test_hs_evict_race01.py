@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 from time import sleep
-import wttest, threading, wiredtiger
+import wttest, threading
 from helper import simulate_crash_restart
 from wtscenario import make_scenarios
 
@@ -46,13 +46,12 @@ from wtscenario import make_scenarios
 # 6. Read the value and see if it matches the expected value.
 class test_hs_evict_race01(wttest.WiredTigerTestCase):
     conn_config = 'timing_stress_for_test=(checkpoint_slow)'
-    session_config = 'isolation=snapshot'
     uri = 'table:hs_evict_race01'
     numrows = 1
 
     key_format_values = [
         ('column', dict(key_format='r')),
-        ('integer_row', dict(key_format='i')),
+        ('row_integer', dict(key_format='i')),
     ]
     scenarios = make_scenarios(key_format_values)
     value1 = 'aaaaa'
@@ -70,10 +69,10 @@ class test_hs_evict_race01(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(4))
         # Move the stable timestamp.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(4))
-        # Insert a value at timetamp 5
+        # Insert a value at timetamp 6
         self.session.begin_transaction()
         cursor[1] = self.value2
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(6))
 
         cursor.close()
 
@@ -98,7 +97,7 @@ class test_hs_evict_race01(wttest.WiredTigerTestCase):
         cursor = session.open_cursor(self.uri)
         session.begin_transaction()
         cursor[1] = self.value4
-        session.commit_transaction('commit_timestamp=' + self.timestamp_str(4))
+        session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
         cursor.close()
         sleep(1.5)
         evict_cursor = session.open_cursor(self.uri, None, "debug=(release_evict)")

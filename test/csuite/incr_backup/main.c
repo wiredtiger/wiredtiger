@@ -156,7 +156,8 @@ die(void)
 }
 
 /*
- * Get operation type based on the number of changes
+ * get_operation_type --
+ *     Get operation type based on the number of changes.
  */
 static OPERATION_TYPE
 get_operation_type(uint64_t change_count)
@@ -456,6 +457,10 @@ create_table(WT_SESSION *session, WT_RAND_STATE *rand, TABLE_INFO *tinfo, uint32
     tinfo->tables_in_use++;
 }
 
+/*
+ * rename_table --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 rename_table(WT_SESSION *session, TABLE_INFO *tinfo, uint32_t slot)
 {
@@ -468,11 +473,16 @@ rename_table(WT_SESSION *session, TABLE_INFO *tinfo, uint32_t slot)
 
     olduri = tinfo->table[slot].name;
     VERBOSE(3, "rename %s %s\n", olduri, uri);
+    testutil_check(session->checkpoint(session, NULL));
     testutil_check(session->rename(session, olduri, uri, NULL));
     free(olduri);
     tinfo->table[slot].name = uri;
 }
 
+/*
+ * drop_table --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 drop_table(WT_SESSION *session, TABLE_INFO *tinfo, uint32_t slot)
 {
@@ -482,7 +492,7 @@ drop_table(WT_SESSION *session, TABLE_INFO *tinfo, uint32_t slot)
     uri = tinfo->table[slot].name;
 
     VERBOSE(3, "drop %s\n", uri);
-    testutil_check(session->drop(session, uri, NULL));
+    testutil_drop(session, uri, NULL);
     free(uri);
     tinfo->table[slot].name = NULL;
     tinfo->table[slot].change_count = 0;
@@ -508,6 +518,10 @@ tables_free(TABLE_INFO *tinfo)
     tinfo->table = NULL;
 }
 
+/*
+ * base_backup --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 base_backup(WT_CONNECTION *conn, WT_RAND_STATE *rand, const char *home, const char *backup_home,
   TABLE_INFO *tinfo, ACTIVE_FILES *active)
@@ -570,8 +584,9 @@ base_backup(WT_CONNECTION *conn, WT_RAND_STATE *rand, const char *home, const ch
 }
 
 /*
- * Open a file if it isn't already open. The "memory" of the open file name is kept in the buffer
- * passed in.
+ * reopen_file --
+ *     Open a file if it isn't already open. The "memory" of the open file name is kept in the
+ *     buffer passed in.
  */
 static void
 reopen_file(int *fdp, char *buf, size_t buflen, const char *filename, int oflag)
@@ -587,7 +602,8 @@ reopen_file(int *fdp, char *buf, size_t buflen, const char *filename, int oflag)
 }
 
 /*
- * Perform an incremental backup into an existing backup directory.
+ * incr_backup --
+ *     Perform an incremental backup into an existing backup directory.
  */
 static void
 incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABLE_INFO *tinfo,
@@ -641,7 +657,7 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
             testutil_check(session->open_cursor(session, NULL, cursor, buf, &file_cursor));
             VERBOSE(3, "open_cursor(session, NULL, cursor, \"%s\", &file_cursor)\n", buf);
             while ((ret = file_cursor->next(file_cursor)) == 0) {
-                error_check(file_cursor->get_key(file_cursor, &offset, &size, &type));
+                testutil_check(file_cursor->get_key(file_cursor, &offset, &size, &type));
                 testutil_assert(type == WT_BACKUP_FILE || type == WT_BACKUP_RANGE);
                 if (type == WT_BACKUP_RANGE) {
                     nrange++;
@@ -687,6 +703,10 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
     active_files_move(current_active, &active);
 }
 
+/*
+ * check_table --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 check_table(WT_SESSION *session, TABLE *table)
 {
@@ -761,7 +781,8 @@ check_table(WT_SESSION *session, TABLE *table)
 }
 
 /*
- * Verify the backup to make sure the proper tables exist and have the correct content.
+ * check_backup --
+ *     Verify the backup to make sure the proper tables exist and have the correct content.
  */
 static void
 check_backup(const char *backup_home, const char *backup_check, TABLE_INFO *tinfo)
@@ -790,6 +811,10 @@ check_backup(const char *backup_home, const char *backup_check, TABLE_INFO *tinf
     testutil_check(conn->close(conn, NULL));
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -802,7 +827,9 @@ main(int argc, char *argv[])
     int ch, ncheckpoints, nreopens, status;
     const char *backup_verbose, *working_dir;
     char conf[1024], home[1024], backup_check[1024], backup_dir[1024], command[4096];
+    bool preserve;
 
+    preserve = false;
     ncheckpoints = nreopens = 0;
     (void)testutil_set_progname(argv);
     custom_die = die; /* Set our own abort handler */
@@ -811,10 +838,13 @@ main(int argc, char *argv[])
 
     working_dir = "WT_TEST.incr_backup";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "h:S:v:")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "h:pS:v:")) != EOF)
         switch (ch) {
         case 'h':
             working_dir = __wt_optarg;
+            break;
+        case 'p':
+            preserve = true;
             break;
         case 'S':
             seed = (uint64_t)atoll(__wt_optarg);
@@ -836,8 +866,8 @@ main(int argc, char *argv[])
         rnd.v = seed;
 
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
-    testutil_check(__wt_snprintf(backup_dir, sizeof(backup_dir), "%s.BACKUP", home));
-    testutil_check(__wt_snprintf(backup_check, sizeof(backup_check), "%s.CHECK", home));
+    testutil_check(__wt_snprintf(backup_dir, sizeof(backup_dir), "../%s.BACKUP", home));
+    testutil_check(__wt_snprintf(backup_check, sizeof(backup_check), "../%s.CHECK", home));
     printf("Seed: %" PRIu64 "\n", seed);
 
     testutil_check(
@@ -950,5 +980,10 @@ main(int argc, char *argv[])
     tables_free(&tinfo);
 
     printf("Success.\n");
-    return (0);
+    if (!preserve) {
+        testutil_clean_test_artifacts(home);
+        testutil_clean_work_dir(home);
+    }
+
+    return (EXIT_SUCCESS);
 }

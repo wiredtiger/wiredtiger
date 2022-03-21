@@ -62,9 +62,10 @@ struct __wt_tiered_manager {
  * Different types of work units for tiered trees.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_TIERED_WORK_DROP_LOCAL 0x1u  /* Drop object from local storage. */
-#define WT_TIERED_WORK_DROP_SHARED 0x2u /* Drop object from tier. */
-#define WT_TIERED_WORK_FLUSH 0x4u       /* Flush object to tier. */
+#define WT_TIERED_WORK_DROP_LOCAL 0x1u   /* Drop object from local storage. */
+#define WT_TIERED_WORK_DROP_SHARED 0x2u  /* Drop object from tier. */
+#define WT_TIERED_WORK_FLUSH 0x4u        /* Flush object to tier. */
+#define WT_TIERED_WORK_FLUSH_FINISH 0x8u /* Perform flush finish on object. */
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /*
@@ -102,6 +103,8 @@ struct __wt_tiered_tiers {
     uint32_t flags; /* Flags including operations */
 };
 
+#define WT_TIERED_OBJECTID_NONE 0
+
 /*
  * WT_TIERED --
  *	Handle for a tiered data source. This data structure is used as the basis for metadata
@@ -122,8 +125,6 @@ struct __wt_tiered {
     WT_BUCKET_STORAGE *bstorage;
 
     WT_TIERED_TIERS tiers[WT_TIERED_MAX_TIERS]; /* Tiers array */
-
-    WT_BLOCK_FILE_OPENER opener;
 
     uint32_t current_id; /* Current object id number */
     uint32_t next_id;    /* Next object number */

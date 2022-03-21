@@ -10,17 +10,17 @@
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_READ_CACHE 0x0001u
-#define WT_READ_DELETED_CHECK 0x0002u
-#define WT_READ_DELETED_SKIP 0x0004u
-#define WT_READ_IGNORE_CACHE_SIZE 0x0008u
-#define WT_READ_NOTFOUND_OK 0x0010u
-#define WT_READ_NO_GEN 0x0020u
-#define WT_READ_NO_SPLIT 0x0040u
-#define WT_READ_NO_WAIT 0x0080u
-#define WT_READ_PREV 0x0100u
-#define WT_READ_RESTART_OK 0x0200u
-#define WT_READ_SKIP_INTL 0x0400u
-#define WT_READ_TRUNCATE 0x0800u
+#define WT_READ_IGNORE_CACHE_SIZE 0x0002u
+#define WT_READ_NOTFOUND_OK 0x0004u
+#define WT_READ_NO_GEN 0x0008u
+#define WT_READ_NO_SPLIT 0x0010u
+#define WT_READ_NO_WAIT 0x0020u
+#define WT_READ_PREV 0x0040u
+#define WT_READ_RESTART_OK 0x0080u
+#define WT_READ_SKIP_DELETED 0x0100u
+#define WT_READ_SKIP_INTL 0x0200u
+#define WT_READ_TRUNCATE 0x0400u
+#define WT_READ_VISIBLE_ALL 0x0800u
 #define WT_READ_WONT_NEED 0x1000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
@@ -1126,22 +1126,25 @@ struct __wt_ikey {
 
 /*
  * WT_UPDATE --
- *	Entries on leaf pages can be updated, either modified or deleted.
- *	Updates to entries referenced from the WT_ROW and WT_COL arrays are
- *	stored in the page's WT_UPDATE array.  When the first element on a page
- *	is updated, the WT_UPDATE array is allocated, with one slot for every
- *	existing element in the page.  A slot points to a WT_UPDATE structure;
- *	if more than one update is done for an entry, WT_UPDATE structures are
- *	formed into a forward-linked list.
+ *
+ * Entries on leaf pages can be updated, either modified or deleted. Updates to entries in the
+ * WT_ROW and WT_COL arrays are stored in the page's WT_UPDATE array. When the first element on a
+ * page is updated, the WT_UPDATE array is allocated, with one slot for every existing element in
+ * the page. A slot points to a WT_UPDATE structure; if more than one update is done for an entry,
+ * WT_UPDATE structures are formed into a forward-linked list.
  */
 struct __wt_update {
     volatile uint64_t txnid; /* transaction ID */
 
     wt_timestamp_t durable_ts; /* timestamps */
     wt_timestamp_t start_ts;
-#ifdef HAVE_DIAGNOSTIC
+
+    /*
+     * The durable timestamp of the previous update in the update chain. This timestamp is used for
+     * diagnostic checks only, and could be removed to reduce the size of the structure should that
+     * be necessary.
+     */
     wt_timestamp_t prev_durable_ts;
-#endif
 
     WT_UPDATE *next; /* forward-linked list */
 
@@ -1186,11 +1189,7 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data -- we verify the build
  * to ensure the compiler hasn't inserted padding.
  */
-#ifdef HAVE_DIAGNOSTIC
 #define WT_UPDATE_SIZE 47
-#else
-#define WT_UPDATE_SIZE 39
-#endif
 
 /*
  * The memory size of an update: include some padding because this is such a common case that
@@ -1408,7 +1407,8 @@ struct __wt_insert_head {
  * 2^32 versions.
  *
  * This struct is the in-memory representation. The number of entries is the number of time windows
- * (there are twice as many cells) and the offset is from the beginning of the page.
+ * (there are twice as many cells) and the offsets is from the beginning of the page. The space
+ * between the empty offset and the data offset is not used and is expected to be zeroed.
  *
  * This structure is only used when handling on-disk pages; once the page is read in, one should
  * instead use the time window index in the page structure, which is a different type found above.
@@ -1416,7 +1416,8 @@ struct __wt_insert_head {
 struct __wt_col_fix_auxiliary_header {
     uint32_t version;
     uint32_t entries;
-    uint32_t offset;
+    uint32_t emptyoffset;
+    uint32_t dataoffset;
 };
 
 /*

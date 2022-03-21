@@ -251,10 +251,11 @@ config_table(TABLE *table, void *arg)
     table->max_mem_page = MEGABYTE(TV(BTREE_MEMORY_PAGE_MAX));
 
     /*
-     * Keep the number of rows and keys/values small for in-memory runs (overflow items aren't an
-     * issue for in-memory configurations and it helps prevents cache overflow).
+     * Keep the number of rows and keys/values small for in-memory and direct I/O runs (overflow
+     * items aren't an issue for in-memory configurations and it helps prevents cache overflow, and
+     * direct I/O can be so slow the additional I/O for overflow items causes eviction to stall).
      */
-    if (GV(RUNS_IN_MEMORY)) {
+    if (GV(RUNS_IN_MEMORY) || GV(DISK_DIRECT_IO)) {
         if (!config_explicit(table, "runs.rows") && TV(RUNS_ROWS) > 1000000)
             config_single(table, "runs.rows=1000000", false);
         if (!config_explicit(table, "btree.key_max"))
@@ -391,8 +392,8 @@ config_backup_incr(void)
     }
 
     /*
-     * Incremental backup using log files is incompatible with logging archival. Testing log file
-     * archival doesn't seem as useful as testing backup, let the backup configuration override.
+     * Incremental backup using log files is incompatible with automatic log removals. Testing log
+     * file removal doesn't seem as useful as testing backup, let the backup configuration override.
      */
     if (config_explicit(NULL, "backup.incremental")) {
         if (g.backup_incr_flag == INCREMENTAL_LOG)
@@ -403,7 +404,7 @@ config_backup_incr(void)
     }
 
     /*
-     * Choose a type of incremental backup, where the log archival setting can eliminate incremental
+     * Choose a type of incremental backup, where the log remove setting can eliminate incremental
      * backup based on log files.
      */
     switch (mmrand(NULL, 1, 10)) {
@@ -415,9 +416,9 @@ config_backup_incr(void)
     case 4: /* 30% log based incremental */
     case 5:
     case 6:
-        if (!GV(LOGGING_ARCHIVE) || !config_explicit(NULL, "logging.archive")) {
-            if (GV(LOGGING_ARCHIVE))
-                config_off(NULL, "logging.archive");
+        if (!GV(LOGGING_REMOVE) || !config_explicit(NULL, "logging.remove")) {
+            if (GV(LOGGING_REMOVE))
+                config_off(NULL, "logging.remove");
             config_single(NULL, "backup.incremental=log", false);
             break;
         }
@@ -885,15 +886,15 @@ static void
 config_backup_incr_log_compatibility_check(void)
 {
     /*
-     * Incremental backup using log files is incompatible with logging archival. Disable logging
-     * archival if log incremental backup is set.
+     * Incremental backup using log files is incompatible with automatic log file removal. Disable
+     * logging removal if log incremental backup is set.
      */
-    if (GV(LOGGING_ARCHIVE) && config_explicit(NULL, "logging.archive"))
+    if (GV(LOGGING_REMOVE) && config_explicit(NULL, "logging.remove"))
         WARN("%s",
-          "backup.incremental=log is incompatible with logging.archive, turning off "
-          "logging.archive");
-    if (GV(LOGGING_ARCHIVE))
-        config_off(NULL, "logging.archive");
+          "backup.incremental=log is incompatible with logging.remove, turning off "
+          "logging.remove");
+    if (GV(LOGGING_REMOVE))
+        config_off(NULL, "logging.remove");
 }
 
 /*
@@ -1050,11 +1051,13 @@ config_transaction(void)
             testutil_die(EINVAL, "prepare is incompatible with logging");
     }
 
-    /* Transaction timestamps are incompatible with implicit transactions. */
+    /* Transaction timestamps are incompatible with implicit transactions and logging. */
     if (GV(TRANSACTION_TIMESTAMPS) && config_explicit(NULL, "transaction.timestamps")) {
         if (GV(TRANSACTION_IMPLICIT) && config_explicit(NULL, "transaction.implicit"))
             testutil_die(
               EINVAL, "transaction.timestamps is incompatible with implicit transactions");
+        if (GV(LOGGING) && config_explicit(NULL, "logging"))
+            testutil_die(EINVAL, "transaction.timestamps is incompatible with logging");
     }
 
     /*
@@ -1074,11 +1077,15 @@ config_transaction(void)
     if (GV(TRANSACTION_TIMESTAMPS)) {
         if (!config_explicit(NULL, "transaction.implicit"))
             config_off(NULL, "transaction.implicit");
+        if (!config_explicit(NULL, "logging"))
+            config_off(NULL, "logging");
         if (!config_explicit(NULL, "ops.salvage"))
             config_off(NULL, "ops.salvage");
     }
-    if (GV(LOGGING))
+    if (GV(LOGGING)) {
         config_off(NULL, "ops.prepare");
+        config_off(NULL, "transaction.timestamps");
+    }
     if (GV(TRANSACTION_IMPLICIT))
         config_off(NULL, "transaction.timestamps");
     if (GV(OPS_SALVAGE))
@@ -1129,16 +1136,24 @@ config_print_one(FILE *fp, CONFIG *cp, CONFIGV *v, const char *prefix)
 {
     const char *cstr;
 
+    /* Historic versions of format expect "none", instead of "off", for a few configurations. */
     if (F_ISSET(cp, C_STRING)) {
-        /* Historic versions of format expect "none", instead of "off", for a few configurations. */
         cstr = v->vstr == NULL ? "off" : v->vstr;
         if (strcmp(cstr, "off") == 0 &&
           (cp->off == V_GLOBAL_DISK_ENCRYPTION || cp->off == V_GLOBAL_LOGGING_COMPRESSION ||
             cp->off == V_TABLE_BTREE_COMPRESSION))
             cstr = "none";
         fprintf(fp, "%s%s=%s\n", prefix, cp->name, cstr);
-    } else
-        fprintf(fp, "%s%s=%" PRIu32 "\n", prefix, cp->name, v->v);
+        return;
+    }
+
+    /* Historic versions of format expect log=(archive), not log=(remove). */
+    if (g.backward_compatible && cp->off == V_GLOBAL_LOGGING_REMOVE) {
+        fprintf(fp, "%slogging.archive=%" PRIu32 "\n", prefix, v->v);
+        return;
+    }
+
+    fprintf(fp, "%s%s=%" PRIu32 "\n", prefix, cp->name, v->v);
 }
 
 /*

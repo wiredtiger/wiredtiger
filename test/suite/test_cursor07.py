@@ -30,9 +30,7 @@
 # Log cursors
 #
 
-import fnmatch, os, shutil, run, time
 from suite_subprocess import suite_subprocess
-from wiredtiger import stat
 from wtscenario import make_scenarios
 import wttest
 
@@ -54,7 +52,7 @@ class test_cursor07(wttest.WiredTigerTestCase, suite_subprocess):
     ])
     # Enable logging for this test.
     def conn_config(self):
-        return 'log=(archive=false,enabled,file_max=%s),' % self.logmax + \
+        return 'log=(enabled,file_max=%s,remove=false),' % self.logmax + \
             'transaction_sync="(method=dsync,enabled)"'
 
     def test_log_cursor(self):

@@ -26,14 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time, wiredtiger, wttest, unittest
+import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 # test_hs18.py
 # Test various older reader scenarios
 class test_hs18(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=5MB,eviction=(threads_max=1)'
-    session_config = 'isolation=snapshot'
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
         ('column-fix', dict(key_format='r', value_format='8t')),

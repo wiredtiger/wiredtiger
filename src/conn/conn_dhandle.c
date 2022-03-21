@@ -373,12 +373,9 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
          * We can't discard non-durable trees yet: first we have to close the underlying btree
          * handle, then we can mark the data handle dead.
          *
-         * If we are closing with timestamps enforced, then we have already checkpointed as of the
-         * timestamp as needed and any remaining dirty data should be discarded.
          */
         if (!discard && !marked_dead) {
-            if (F_ISSET(conn, WT_CONN_CLOSING_TIMESTAMP) || F_ISSET(conn, WT_CONN_IN_MEMORY) ||
-              F_ISSET(btree, WT_BTREE_NO_CHECKPOINT))
+            if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_NO_CHECKPOINT))
                 discard = true;
             else {
                 WT_TRET(__wt_checkpoint_close(session, final));
@@ -459,52 +456,44 @@ err:
 }
 
 /*
- * __conn_dhandle_config_parse --
- *     Parse out configuration settings relevant for the data handle.
+ * __conn_dhandle_config_parse_ts --
+ *     Parse out timestamp configuration settings for the data handle.
  */
 static int
-__conn_dhandle_config_parse(WT_SESSION_IMPL *session)
+__conn_dhandle_config_parse_ts(WT_SESSION_IMPL *session)
 {
-    WT_CONFIG_ITEM cval, sval;
+    WT_CONFIG_ITEM cval;
     WT_DATA_HANDLE *dhandle;
-    WT_DECL_RET;
+    uint32_t flags;
     const char **cfg;
 
     dhandle = session->dhandle;
+    flags = 0;
     cfg = dhandle->cfg;
 
-    /* Clear all the flags. */
-    dhandle->ts_flags = 0;
-
-    /* Debugging information */
-    WT_RET(__wt_config_gets(session, cfg, "assert.write_timestamp", &cval));
-    if (WT_STRING_MATCH("on", cval.str, cval.len))
-        FLD_SET(dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_WRITE);
-
+    /* Timestamp debugging: asserts. */
     WT_RET(__wt_config_gets(session, cfg, "assert.read_timestamp", &cval));
     if (WT_STRING_MATCH("always", cval.str, cval.len))
-        FLD_SET(dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_READ_ALWAYS);
+        LF_SET(WT_DHANDLE_TS_ASSERT_READ_ALWAYS);
     else if (WT_STRING_MATCH("never", cval.str, cval.len))
-        FLD_SET(dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_READ_NEVER);
+        LF_SET(WT_DHANDLE_TS_ASSERT_READ_NEVER);
+    WT_RET(__wt_config_gets(session, cfg, "assert.write_timestamp", &cval));
+    if (WT_STRING_MATCH("on", cval.str, cval.len))
+        LF_SET(WT_DHANDLE_TS_ASSERT_WRITE);
 
-    /* Setup verbose options */
-    WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
-    if ((ret = __wt_config_subgets(session, &cval, "write_timestamp", &sval)) == 0 && sval.val != 0)
-        FLD_SET(dhandle->ts_flags, WT_DHANDLE_VERB_TS_WRITE);
-    WT_RET_NOTFOUND_OK(ret);
-
-    /* Setup timestamp usage hints */
+    /* Timestamp debugging: write_timestamp_usage. */
     WT_RET(__wt_config_gets(session, cfg, "write_timestamp_usage", &cval));
     if (WT_STRING_MATCH("always", cval.str, cval.len))
-        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_ALWAYS);
-    else if (WT_STRING_MATCH("key_consistent", cval.str, cval.len))
-        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_KEY_CONSISTENT);
+        LF_SET(WT_DHANDLE_TS_ALWAYS);
     else if (WT_STRING_MATCH("mixed_mode", cval.str, cval.len))
-        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_MIXED_MODE);
+        LF_SET(WT_DHANDLE_TS_MIXED_MODE);
     else if (WT_STRING_MATCH("never", cval.str, cval.len))
-        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_NEVER);
+        LF_SET(WT_DHANDLE_TS_NEVER);
     else if (WT_STRING_MATCH("ordered", cval.str, cval.len))
-        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_ORDERED);
+        LF_SET(WT_DHANDLE_TS_ORDERED);
+
+    /* Reset the flags. */
+    dhandle->ts_flags = flags;
 
     return (0);
 }
@@ -547,7 +536,7 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
     /* Discard any previous configuration, set up the new configuration. */
     __conn_dhandle_config_clear(session);
     WT_ERR(__conn_dhandle_config_set(session));
-    WT_ERR(__conn_dhandle_config_parse(session));
+    WT_ERR(__conn_dhandle_config_parse_ts(session));
 
     switch (dhandle->type) {
     case WT_DHANDLE_TYPE_BTREE:

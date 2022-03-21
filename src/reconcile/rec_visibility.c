@@ -9,18 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __rec_update_stable --
- *     Return whether an update is stable or not.
- */
-static inline bool
-__rec_update_stable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
-{
-    return (F_ISSET(r, WT_REC_VISIBLE_ALL) ? __wt_txn_upd_visible_all(session, upd) :
-                                             __wt_txn_upd_visible(session, upd) &&
-          __wt_txn_visible(session, upd->txnid, upd->durable_ts));
-}
-
-/*
  * __rec_update_save --
  *     Save a WT_UPDATE list for later restoration.
  */
@@ -254,20 +242,6 @@ __timestamp_out_of_order_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw
         select_tw->start_ts = select_tw->stop_ts;
         return (true);
     }
-
-    /*
-     * As per the time window validation the durable_start_ts must not be greater than the stop_ts.
-     * Hence, if the stop_ts is less than durable_start_ts and greater than start_ts, make
-     * durable_start_ts equal to stop_ts.
-     */
-    if ((select_tw->start_ts != select_tw->stop_ts) &&
-      (select_tw->stop_ts < select_tw->durable_start_ts)) {
-        __wt_verbose(session, WT_VERB_TIMESTAMP,
-          "Warning: fixing out-of-order timestamps remove earlier than value; time window %s",
-          __wt_time_window_to_string(select_tw, time_string));
-
-        select_tw->durable_start_ts = select_tw->stop_ts;
-    }
     return (false);
 }
 
@@ -398,8 +372,6 @@ int
 __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
   WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
 {
-    WT_DECL_ITEM(tmp);
-    WT_DECL_RET;
     WT_PAGE *page;
     WT_TIME_WINDOW *select_tw;
     WT_UPDATE *first_txn_upd, *first_upd, *onpage_upd, *upd, *last_upd, *tombstone;
@@ -414,6 +386,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
      */
     upd_select->upd = NULL;
     upd_select->upd_saved = false;
+    upd_select->ooo_tombstone = false;
     select_tw = &upd_select->tw;
     WT_TIME_WINDOW_INIT(select_tw);
 
@@ -444,7 +417,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         if ((txnid = upd->txnid) == WT_TXN_ABORTED)
             continue;
 
-        ++r->updates_seen;
         upd_memsize += WT_UPDATE_MEMSIZE(upd);
 
         /*
@@ -506,13 +478,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
                 has_newer_updates = true;
                 if (upd->start_ts > max_ts)
                     max_ts = upd->start_ts;
-
-                /*
-                 * Track the oldest update not on the page, used to decide whether reads can use the
-                 * page image, hence using the start rather than the durable timestamp.
-                 */
-                if (upd->start_ts < r->min_skipped_ts)
-                    r->min_skipped_ts = upd->start_ts;
                 continue;
             } else {
                 /*
@@ -537,9 +502,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         if (upd_select->upd == NULL)
             upd_select->upd = upd;
 
-        if (F_ISSET(r, WT_REC_EVICT) && !__rec_update_stable(session, r, upd))
-            ++r->updates_unstable;
-        else if (!F_ISSET(r, WT_REC_EVICT))
+        if (!F_ISSET(r, WT_REC_EVICT))
             break;
     }
 
@@ -651,7 +614,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
              * freed when it is written to the disk image in the previous eviction.
              */
             if (!F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS)) {
-                WT_ERR(__rec_append_orig_value(session, page, tombstone, vpack));
+                WT_RET(__rec_append_orig_value(session, page, tombstone, vpack));
 
                 /*
                  * We may have updated the global transaction concurrently and the tombstone is now
@@ -710,7 +673,33 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
       upd_select->upd;
 
     /* Check the update chain for conditions that could prevent it's eviction. */
-    WT_ERR(__rec_validate_upd_chain(session, r, onpage_upd, select_tw, vpack));
+    WT_RET(__rec_validate_upd_chain(session, r, onpage_upd, select_tw, vpack));
+
+    /*
+     * Set the flag if the selected tombstone is an out-of-order or mixed mode to an update. Based
+     * on this flag, the caller functions perform the history store truncation for this key.
+     */
+    if (!is_hs_page && tombstone != NULL &&
+      !F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS)) {
+        upd = upd_select->upd;
+
+        /*
+         * The selected update can be the tombstone itself when the tombstone is globally visible.
+         * Compare the tombstone's timestamp with either the next update in the update list or the
+         * on-disk cell timestamp to determine if the tombstone is an out-of-order or mixed mode.
+         */
+        if (tombstone == upd) {
+            upd = upd->next;
+
+            /* Loop until a valid update is found. */
+            while (upd != NULL && upd->txnid == WT_TXN_ABORTED)
+                upd = upd->next;
+        }
+
+        if ((upd != NULL && upd->start_ts > tombstone->start_ts) ||
+          (vpack != NULL && vpack->tw.start_ts > tombstone->start_ts))
+            upd_select->ooo_tombstone = true;
+    }
 
     /*
      * Fixup any out of order timestamps, assert that checkpoint wasn't running when this round of
@@ -724,7 +713,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         /* Catch this case in diagnostic builds. */
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_ooo_checkpoint_race_3);
         WT_ASSERT(session, false);
-        WT_ERR(EBUSY);
+        WT_RET(EBUSY);
     }
 
     /*
@@ -742,7 +731,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         supd_restore = F_ISSET(r, WT_REC_EVICT) &&
           (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
 
-        WT_ERR(__rec_update_save(session, r, ins, rip, onpage_upd, supd_restore, upd_memsize));
+        WT_RET(__rec_update_save(session, r, ins, rip, onpage_upd, supd_restore, upd_memsize));
 
         /*
          * Mark the selected update (and potentially the tombstone preceding it) as being destined
@@ -788,10 +777,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
      */
     if (upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
       !vpack->tw.prepare && (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
-        WT_ERR(__rec_append_orig_value(session, page, upd_select->upd, vpack));
+        WT_RET(__rec_append_orig_value(session, page, upd_select->upd, vpack));
 
     __wt_rec_time_window_clear_obsolete(session, upd_select, NULL, r);
-err:
-    __wt_scr_free(session, &tmp);
-    return (ret);
+
+    return (0);
 }

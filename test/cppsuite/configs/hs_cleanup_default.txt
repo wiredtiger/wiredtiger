@@ -14,18 +14,31 @@ checkpoint_manager=
 ),
 runtime_monitor=
 (
+    cache_hs_insert=
+    (
+        max=10,
+        max=100000000,
+        postrun=true,
+        save=true,
+    ),
+    cc_pages_removed=
+    (
+        max=10000000,
+        postrun=true,
+        save=true,
+    ),
     stat_cache_size=
     (
-        enabled=true,
-        limit=1000
+        max=100,
+        runtime=true,
     ),
     stat_db_size=
     (
-        enabled=true,
         #10GB
-        limit=10000000000
+        max=10000000000,
+        runtime=true,
+        save=true,
     ),
-    postrun_statistics=[cache_hs_insert:10:100000000, cc_pages_removed:0:10000000],
 ),
 timestamp_manager=
 (
@@ -47,7 +60,9 @@ workload_generator=
     update_config=
     (
         op_rate=10ms,
-        ops_per_transaction=(max=100,min=20),
+        # Be careful to not aim too high with this config, if we fill the dirty cache and
+        # all threads are trying to update, they'll get pulled into eviction and will get stuck.
+        ops_per_transaction=(max=20,min=0),
         thread_count=10,
         value_size=10000
     )

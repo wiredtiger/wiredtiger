@@ -18,49 +18,64 @@ __wt_direct_io_size_check(
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    int64_t align;
+    uint32_t allocsize;
 
     *allocsizep = 0;
 
     conn = S2C(session);
 
     WT_RET(__wt_config_gets(session, cfg, config_name, &cval));
+    allocsize = (uint32_t)cval.val;
 
     /*
      * This function exists as a place to hang this comment: if direct I/O is configured, page sizes
      * must be at least as large as any buffer alignment as well as a multiple of the alignment.
      * Linux gets unhappy if you configure direct I/O and then don't do I/O in alignments and units
-     * of its happy place.
+     * of its happy place. Ideally, we'd fail if an application set an allocation size incompatible
+     * with the direct I/O size, while silently adjusting internal files using a default allocation
+     * size, but this function is too far down in the call stack to distinguish between the two. We
+     * document that setting a larger buffer alignment than the allocation size silently increases
+     * the allocation size: direct I/O isn't a heavily used feature, that should be sufficient.
      */
-    if (FLD_ISSET(conn->direct_io, WT_DIRECT_IO_CHECKPOINT | WT_DIRECT_IO_DATA)) {
-        align = (int64_t)conn->buffer_alignment;
-        if (align != 0 && (cval.val < align || cval.val % align != 0))
+    if (conn->buffer_alignment != 0 &&
+      FLD_ISSET(conn->direct_io, WT_DIRECT_IO_CHECKPOINT | WT_DIRECT_IO_DATA)) {
+
+        if (allocsize < conn->buffer_alignment)
+            allocsize = (uint32_t)conn->buffer_alignment;
+        if (allocsize % conn->buffer_alignment != 0)
             WT_RET_MSG(session, EINVAL,
-              "when direct I/O is configured, the %s size must be at least as large as the buffer "
-              "alignment as well as a multiple of the buffer alignment",
+              "when direct I/O is configured for data files, the %s size must be at least as large "
+              "as the buffer alignment, as well as a multiple of the buffer alignment",
               config_name);
     }
-    *allocsizep = (uint32_t)cval.val;
+    *allocsizep = allocsize;
     return (0);
 }
 
 /*
  * __check_imported_ts --
- *     Check the aggregated timestamps for each checkpoint in a file that we've imported. We're not
- *     allowed to import files with timestamps ahead of our oldest timestamp since a subsequent
- *     rollback to stable could result in data loss and historical reads could yield unexpected
- *     values. Therefore, this function should return non-zero to callers to signify that this is
- *     the case.
+ *     Check the aggregated timestamps for each checkpoint in a file that we've imported. By
+ *     default, we're not allowed to import files with timestamps ahead of the oldest timestamp
+ *     since a subsequent rollback to stable could result in data loss and historical reads could
+ *     yield unexpected values. Therefore, this function should return non-zero to callers to
+ *     signify that this is the case. If configured, it is possible to import files with timestamps
+ *     smaller than or equal to the stable timestamp. However, there is no history migrated with the
+ *     files and thus reading historical versions will not work.
  */
 static int
-__check_imported_ts(WT_SESSION_IMPL *session, const char *uri, const char *config)
+__check_imported_ts(
+  WT_SESSION_IMPL *session, const char *uri, const char *config, bool against_stable)
 {
     WT_CKPT *ckptbase, *ckpt;
     WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
+    wt_timestamp_t ts;
+    const char *ts_name;
 
     ckptbase = NULL;
     txn_global = &S2C(session)->txn_global;
+    ts = against_stable ? txn_global->stable_timestamp : txn_global->oldest_timestamp;
+    ts_name = against_stable ? "stable" : "oldest";
 
     WT_ERR_NOTFOUND_OK(
       __wt_meta_ckptlist_get_from_config(session, false, &ckptbase, NULL, config), true);
@@ -70,11 +85,11 @@ __check_imported_ts(WT_SESSION_IMPL *session, const char *uri, const char *confi
 
     /* Now iterate over each checkpoint and compare the aggregate timestamps with our oldest. */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
-        if (ckpt->ta.newest_start_durable_ts > txn_global->oldest_timestamp)
-            WT_ERR_MSG(session, EINVAL,
+        if (ckpt->ta.newest_start_durable_ts > ts)
+            WT_ERR_MSG(session, WT_ROLLBACK,
               "%s: import found aggregated newest start durable timestamp newer than the current "
-              "oldest timestamp, newest_start_durable_ts=%" PRIu64 ", oldest_ts=%" PRIu64,
-              uri, ckpt->ta.newest_start_durable_ts, txn_global->oldest_timestamp);
+              "%s timestamp, newest_start_durable_ts=%" PRIu64 ", %s_ts=%" PRIu64,
+              uri, ts_name, ckpt->ta.newest_start_durable_ts, ts_name, ts);
 
         /*
          * No need to check "newest stop" here as "newest stop durable" serves that purpose. When a
@@ -82,12 +97,12 @@ __check_imported_ts(WT_SESSION_IMPL *session, const char *uri, const char *confi
          * whereas "newest stop durable" refers to the newest non-max timestamp which is more useful
          * to us in terms of comparing with oldest.
          */
-        if (ckpt->ta.newest_stop_durable_ts > txn_global->oldest_timestamp) {
+        if (ckpt->ta.newest_stop_durable_ts > ts) {
             WT_ASSERT(session, ckpt->ta.newest_stop_durable_ts != WT_TS_MAX);
-            WT_ERR_MSG(session, EINVAL,
+            WT_ERR_MSG(session, WT_ROLLBACK,
               "%s: import found aggregated newest stop durable timestamp newer than the current "
-              "oldest timestamp, newest_stop_durable_ts=%" PRIu64 ", oldest_ts=%" PRIu64,
-              uri, ckpt->ta.newest_stop_durable_ts, txn_global->oldest_timestamp);
+              "%s timestamp, newest_stop_durable_ts=%" PRIu64 ", %s_ts=%" PRIu64,
+              uri, ts_name, ckpt->ta.newest_stop_durable_ts, ts_name, ts);
         }
     }
 
@@ -136,7 +151,7 @@ __create_file(
       *filecfg[] = {WT_CONFIG_BASE(session, file_meta), config, NULL, NULL, NULL, NULL};
     char *fileconf, *filemeta;
     uint32_t allocsize;
-    bool exists, import_repair, is_metadata;
+    bool against_stable, exists, import_repair, is_metadata;
 
     fileconf = filemeta = NULL;
 
@@ -182,6 +197,11 @@ __create_file(
      * reconstruct the configuration metadata from the file.
      */
     if (import) {
+        /*
+         * FIXME-WT-7735: Importing a tiered table is not yet allowed.
+         */
+        if (WT_SUFFIX_MATCH(filename, ".wtobj"))
+            WT_ERR_MSG(session, ENOTSUP, "%s: import not supported on tiered files", uri);
         /* First verify that the data to import exists on disk. */
         WT_IGNORE_RET(__wt_fs_exist(session, filename, &exists));
         if (!exists)
@@ -202,6 +222,12 @@ __create_file(
                     cval.len -= 2;
                 }
                 WT_ERR(__wt_strndup(session, cval.str, cval.len, &filemeta));
+                /*
+                 * FIXME-WT-7735: Importing a tiered table is not yet allowed.
+                 */
+                if (__wt_config_getones(session, filemeta, "tiered_object", &cval) == 0 &&
+                  cval.val != 0)
+                    WT_ERR_MSG(session, ENOTSUP, "%s: import not supported on tiered files", uri);
                 filecfg[2] = filemeta;
                 /*
                  * If there is a file metadata provided, reconstruct the incremental backup
@@ -234,9 +260,9 @@ __create_file(
         if (!import_repair) {
             WT_ERR(__wt_scr_alloc(session, 0, &val));
             WT_ERR(__wt_buf_fmt(session, val,
-              "id=%" PRIu32 ",version=(major=%d,minor=%d),checkpoint_lsn=",
-              ++S2C(session)->next_file_id, WT_BTREE_MAJOR_VERSION_MAX,
-              WT_BTREE_MINOR_VERSION_MAX));
+              "id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=",
+              ++S2C(session)->next_file_id, WT_BTREE_VERSION_MAX.major,
+              WT_BTREE_VERSION_MAX.minor));
             for (p = filecfg; *p != NULL; ++p)
                 ;
             *p = val->data;
@@ -249,10 +275,15 @@ __create_file(
 
         /*
          * Ensure that the timestamps in the imported data file are not in the future relative to
-         * our oldest timestamp.
+         * the configured global timestamp.
          */
-        if (import)
-            WT_ERR(__check_imported_ts(session, uri, fileconf));
+        if (import) {
+            against_stable =
+              __wt_config_getones(session, config, "import.compare_timestamp", &cval) == 0 &&
+              (WT_STRING_MATCH("stable", cval.str, cval.len) ||
+                WT_STRING_MATCH("stable_timestamp", cval.str, cval.len));
+            WT_ERR(__check_imported_ts(session, uri, fileconf, against_stable));
+        }
     }
 
     /*
@@ -260,10 +291,13 @@ __create_file(
      * we just wrote the collapsed configuration into the metadata file, and it's going to be
      * read/used by underlying functions.
      *
-     * Keep the handle exclusive until it is released at the end of the call, otherwise we could
-     * race with a drop.
+     * Turn off bulk-load for imported files.
      */
     WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
+
+    if (import)
+        __wt_btree_disable_bulk(session);
+
     if (WT_META_TRACKING(session))
         WT_ERR(__wt_meta_track_handle_lock(session, true));
     else
@@ -873,9 +907,9 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
          */
         WT_ERR(__wt_buf_fmt(session, tmp,
           ",tiered_storage=(bucket=%s,bucket_prefix=%s)"
-          ",id=%" PRIu32 ",version=(major=%d,minor=%d),checkpoint_lsn=",
+          ",id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=",
           conn->bstorage->bucket, conn->bstorage->bucket_prefix, ++conn->next_file_id,
-          WT_BTREE_MAJOR_VERSION_MAX, WT_BTREE_MINOR_VERSION_MAX));
+          WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
         cfg[1] = tmp->data;
         cfg[2] = config;
         cfg[3] = "tiers=()";

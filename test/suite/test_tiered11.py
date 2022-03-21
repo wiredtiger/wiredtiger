@@ -26,41 +26,59 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, time, wiredtiger, wttest
-from wiredtiger import stat
+from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
+from wtscenario import make_scenarios
+import os, wiredtiger, wttest
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered11.py
 #    Test flush time and flush timestamp in metadata.
 class test_tiered11(wttest.WiredTigerTestCase):
+    storage_sources = [
+        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
+            bucket = get_bucket1_name('dir_store'),
+            bucket_prefix = "pfx_",
+            ss_name = 'dir_store')),
+        ('s3', dict(auth_token = get_auth_token('s3_store'),
+            bucket = get_bucket1_name('s3_store'),
+            bucket_prefix = generate_s3_prefix(),
+            ss_name = 's3_store'))
+    ]
+    # Make scenarios for different cloud service providers
+    scenarios = make_scenarios(storage_sources)
+
     # If the 'uri' changes all the other names must change with it.
     base = 'test_tiered11-000000000'
-    fileuri_base = 'file:' + base
     nentries = 10
     objuri = 'object:' + base + '1.wtobj'
     tiereduri = "tiered:test_tiered11"
     uri = "table:test_tiered11"
 
-    auth_token = "test_token"
-    bucket = "mybucket"
-    extension_name = "local_store"
-    prefix = "this_pfx"
     def conn_config(self):
-        os.mkdir(self.bucket)
+        if self.ss_name == 'dir_store' and not os.path.exists(self.bucket):
+            os.mkdir(self.bucket)
         self.saved_conn = \
+          'debug_mode=(flush_checkpoint=true),' + \
           'statistics=(all),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
-          'bucket_prefix=%s,' % self.prefix + \
-          'name=%s)' % self.extension_name 
+          'bucket_prefix=%s,' % self.bucket_prefix + \
+          'name=%s)' % self.ss_name 
         return self.saved_conn
 
-    # Load the local store extension.
+    # Load the storage store extension.
     def conn_extensions(self, extlist):
+        config = ''
+        # S3 store is built as an optional loadable extension, not all test environments build S3.
+        if self.ss_name == 's3_store':
+            #config = '=(config=\"(verbose=1)\")'
+            extlist.skip_if_missing = True
+        #if self.ss_name == 'dir_store':
+            #config = '=(config=\"(verbose=1,delay_ms=200,force_delay=3)\")'
         # Windows doesn't support dynamically loaded extension libraries.
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('storage_sources', self.extension_name)
+        extlist.extension('storage_sources', self.ss_name + config)
 
     # Check for a specific string as part of the uri's metadata.
     def check_metadata(self, uri, val_str, match=True):
@@ -83,8 +101,8 @@ class test_tiered11(wttest.WiredTigerTestCase):
         for i in range(start, end):
             self.session.begin_transaction()
             c[i] = i
-            self.session.commit_transaction(
-              'commit_timestamp=' + self.timestamp_str(i))
+            # Jump the commit TS to leave rooom for the stable TS separate from any commit TS.
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(i * 2))
         # Set the oldest and stable timestamp to the end.
         end_ts = self.timestamp_str(end-1)
         self.conn.set_timestamp('oldest_timestamp=' + end_ts + ',stable_timestamp=' + end_ts)

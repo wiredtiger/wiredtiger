@@ -113,7 +113,7 @@ __wt_block_addr_pack(WT_BLOCK *block, uint8_t **pp, uint32_t objectid, wt_off_t 
      * starting with a single object with no object IDs, where all future objects in the stack know
      * a missing object ID is a reference to the base object.
      */
-    if (i != 0 && block->has_objects) {
+    if (i != WT_TIERED_OBJECTID_NONE) {
         **pp = WT_BLOCK_COOKIE_FILEID;
         ++(*pp);
         WT_RET(__wt_vpack_uint(pp, 0, i));
@@ -156,10 +156,11 @@ __wt_block_addr_invalid(
 #ifdef HAVE_DIAGNOSTIC
     /*
      * In diagnostic mode, verify the address isn't on the available list, or for live systems, the
-     * discard list.
+     * discard list. This only applies if the block is in this object.
      */
-    WT_RET(__wt_block_misplaced(
-      session, block, "addr-valid", offset, size, live, __PRETTY_FUNCTION__, __LINE__));
+    if (objectid == block->objectid)
+        WT_RET(__wt_block_misplaced(
+          session, block, "addr-valid", offset, size, live, __PRETTY_FUNCTION__, __LINE__));
 #endif
 
     /* Check if the address is past the end of the file. */

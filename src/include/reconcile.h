@@ -59,7 +59,8 @@ struct __wt_rec_chunk {
 
     WT_ITEM image; /* disk-image */
 
-    /* For fixed-length column store, track how many time windows we have. */
+    /* For fixed-length column store, track where the time windows start and how many we have. */
+    uint32_t aux_start_offset;
     uint32_t auxentries;
 };
 
@@ -91,13 +92,9 @@ struct __wt_reconcile {
     /* Track the pinned timestamp at the time reconciliation started. */
     wt_timestamp_t rec_start_pinned_ts;
 
-    /* Track the page's min/maximum transactions. */
+    /* Track the page's maximum transaction/timestamp. */
     uint64_t max_txn;
     wt_timestamp_t max_ts;
-    wt_timestamp_t min_skipped_ts;
-
-    u_int updates_seen;     /* Count of updates seen. */
-    u_int updates_unstable; /* Count of updates not visible_all. */
 
     /*
      * When we do not find any update to be written for the whole page, we would like to mark
@@ -312,7 +309,8 @@ typedef struct {
 
     WT_TIME_WINDOW tw;
 
-    bool upd_saved; /* An element on the row's update chain was saved */
+    bool upd_saved;     /* An element on the row's update chain was saved */
+    bool ooo_tombstone; /* Out-of-order tombstone */
 } WT_UPDATE_SELECT;
 
 /*

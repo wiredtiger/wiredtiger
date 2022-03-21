@@ -75,10 +75,11 @@ workload_tracking::load()
     logger::log_msg(LOG_TRACE, "Operations tracking created");
 
     /*
-     * Open sweep cursor. This cursor will be used to clear out obsolete data from the tracking
-     * table.
+     * Open sweep cursor in a dedicated sweep session. This cursor will be used to clear out
+     * obsolete data from the tracking table.
      */
-    _sweep_cursor = _session.open_scoped_cursor(_operation_table_name);
+    _sweep_session = connection_manager::instance().create_session();
+    _sweep_cursor = _sweep_session.open_scoped_cursor(_operation_table_name);
     logger::log_msg(LOG_TRACE, "Tracking table sweep initialized");
 }
 
@@ -99,7 +100,7 @@ workload_tracking::do_work()
     /* Take a copy of the oldest so that we sweep with a consistent timestamp. */
     oldest_ts = _tsm.get_oldest_ts();
 
-    /* We need to check if the component is still running to avoid unecessary iterations. */
+    /* We need to check if the component is still running to avoid unnecessary iterations. */
     while (_running && (ret = _sweep_cursor->prev(_sweep_cursor.get())) == 0) {
         testutil_check(_sweep_cursor->get_key(_sweep_cursor.get(), &collection_id, &key, &ts));
         testutil_check(_sweep_cursor->get_value(_sweep_cursor.get(), &op_type, &value));

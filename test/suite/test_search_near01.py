@@ -27,14 +27,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-import time, wiredtiger, wttest, unittest
+import wiredtiger, wttest
 from wiredtiger import stat
 
 # test_search_near01.py
 # Test various prefix search near scenarios.
 class test_search_near01(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
-    session_config = 'isolation=snapshot'
 
     def get_stat(self, stat, local_session = None):
         if (local_session != None):

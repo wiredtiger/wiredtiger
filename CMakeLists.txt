@@ -1,11 +1,3 @@
-#
-# Public Domain 2014-present MongoDB, Inc.
-# Public Domain 2008-2014 WiredTiger, Inc.
-#  All rights reserved.
-#
-# See the file LICENSE for redistribution information.
-#
-
 cmake_minimum_required(VERSION 3.10.0)
 
 # Try to use CCACHE if available - speeds up build times.
@@ -30,6 +22,8 @@ if(NOT WT_ARCH)
     # Defer to our hosts architecture as our target architecture.
     if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|i686|i386|AMD64)$")
         set(WT_ARCH "x86")
+    elseif ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(arm64|aarch64)$")
+        set(WT_ARCH "aarch64")
     else()
         set(WT_ARCH "${CMAKE_HOST_SYSTEM_PROCESSOR}")
     endif()
@@ -52,12 +46,13 @@ include(cmake/configs/auto.cmake)
 include(cmake/configs/base.cmake)
 
 # Import our third party library definitions.
+include(cmake/third_party/aws_sdk.cmake)
 include(cmake/third_party/gperftools.cmake)
 include(cmake/third_party/lz4.cmake)
-include(cmake/third_party/zstd.cmake)
 include(cmake/third_party/snappy.cmake)
-include(cmake/third_party/zlib.cmake)
 include(cmake/third_party/sodium.cmake)
+include(cmake/third_party/zlib.cmake)
+include(cmake/third_party/zstd.cmake)
 
 if(NOT ENABLE_SHARED AND NOT ENABLE_STATIC)
     message(FATAL_ERROR "Both ENABLE_SHARED & ENABLE_STATIC are disabled. Need to enable at least one build flavour.")
@@ -80,14 +75,17 @@ if(ENABLE_STRICT)
     endif()
 endif()
 
+# Enable CTest. Subsequent targets may additionally define their own ctest definitions.
+enable_testing()
+
 # Include the extensions to the build.
 add_subdirectory(ext)
 
 # Collect all the library sources we need to compile from the source filelist.
 parse_filelist_source(${CMAKE_CURRENT_LIST_DIR}/dist/filelist wt_sources)
 if(WT_WIN)
-    list(APPEND wt_source ${CMAKE_SOURCE_DIR}/build_win/wiredtiger.def)
-    set_source_files_properties(${CMAKE_SOURCE_DIR}/build_win/wiredtiger.def PROPERTIES HEADER_FILE_ONLY TRUE)
+    list(APPEND wt_source ${CMAKE_SOURCE_DIR}/cmake/configs/wiredtiger.def)
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/cmake/configs/wiredtiger.def PROPERTIES HEADER_FILE_ONLY TRUE)
 endif()
 
 set(builtin_objs)
@@ -190,15 +188,16 @@ add_subdirectory(src/utilities)
 # Establish our install target configuration.
 include(cmake/install/install.cmake)
 
-# Enable CTest. Subsequent targets may additionally define their own ctest definitions.
-enable_testing()
 
 if(ENABLE_PYTHON)
-   add_subdirectory(lang/python)
+    add_subdirectory(lang/python)
+    add_subdirectory(bench/workgen)
 endif()
 
 # Build the wiredtiger test suites.
-add_subdirectory(bench/workgen)
 add_subdirectory(bench/wtperf)
 add_subdirectory(examples)
 add_subdirectory(test)
+if(ENABLE_LLVM)
+    add_subdirectory(tools/xray_to_optrack)
+endif()

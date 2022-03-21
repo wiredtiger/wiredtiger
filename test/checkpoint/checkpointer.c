@@ -43,11 +43,11 @@ set_stable(void)
 {
     char buf[128];
 
-    if (g.race_timetamps)
-        testutil_check(__wt_snprintf(
-          buf, sizeof(buf), "stable_timestamp=%x,oldest_timestamp=%x", g.ts_stable, g.ts_stable));
+    if (g.race_timestamps)
+        testutil_check(__wt_snprintf(buf, sizeof(buf),
+          "stable_timestamp=%" PRIx64 ",oldest_timestamp=%" PRIx64, g.ts_stable, g.ts_stable));
     else
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "stable_timestamp=%x", g.ts_stable));
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "stable_timestamp=%" PRIx64, g.ts_stable));
     testutil_check(g.conn->set_timestamp(g.conn, buf));
 }
 
@@ -195,14 +195,16 @@ real_checkpointer(void)
             return (log_print_err("verify_consistency (online)", ret, 1));
 
         if (g.use_timestamps) {
-            testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable"));
+            testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable_timestamp"));
             testutil_timestamp_parse(timestamp_buf, &stable_ts);
             oldest_ts = g.ts_oldest;
             if (stable_ts <= oldest_ts)
                 verify_ts = stable_ts;
             else
                 verify_ts = __wt_random(&rnd) % (stable_ts - oldest_ts + 1) + oldest_ts;
-            WT_ORDERED_READ(g.ts_oldest, g.ts_stable);
+            __wt_writelock((WT_SESSION_IMPL *)session, &g.clock_lock);
+            g.ts_oldest = g.ts_stable;
+            __wt_writeunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
         }
 
         /* Execute a checkpoint */
@@ -225,7 +227,7 @@ real_checkpointer(void)
         /* Advance the oldest timestamp to the most recently set stable timestamp. */
         if (g.use_timestamps && g.ts_oldest != 0) {
             testutil_check(__wt_snprintf(
-              timestamp_buf, sizeof(timestamp_buf), "oldest_timestamp=%x", g.ts_oldest));
+              timestamp_buf, sizeof(timestamp_buf), "oldest_timestamp=%" PRIx64, g.ts_oldest));
             testutil_check(g.conn->set_timestamp(g.conn, timestamp_buf));
         }
         /* Random value between 4 and 8 seconds. */

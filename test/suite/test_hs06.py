@@ -42,7 +42,6 @@ from wtscenario import make_scenarios
 class test_hs06(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,statistics=(fast)'
-    session_config = 'isolation=snapshot'
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
         ('column-fix', dict(key_format='r', value_format='8t')),
@@ -267,7 +266,13 @@ class test_hs06(wttest.WiredTigerTestCase):
         prepare_session.commit_transaction(
             'commit_timestamp=' + self.timestamp_str(5) + ',durable_timestamp=' + self.timestamp_str(6))
 
+        # Specifically check that we can read between commit and durable.
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(5))
+        for i in range(1, 11):
+            self.assertEquals(value2, cursor[self.create_key(i)])
+        self.session.rollback_transaction()
+
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(6))
         for i in range(1, 11):
             self.assertEquals(value2, cursor[self.create_key(i)])
         self.session.rollback_transaction()
@@ -446,7 +451,8 @@ class test_hs06(wttest.WiredTigerTestCase):
 
         # Load 5Mb of data.
         self.conn.set_timestamp(
-            'oldest_timestamp=' + self.timestamp_str(1) + ',stable_timestamp=' + self.timestamp_str(1))
+            'oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
 
         # The base update is at timestamp 1.
         # When we history store evict these pages, the base update is the only thing behind
@@ -455,26 +461,26 @@ class test_hs06(wttest.WiredTigerTestCase):
         for i in range(1, 10000):
             self.session.begin_transaction()
             cursor[self.create_key(i)] = value1
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(1))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
 
         # Apply three sets of modifies.
         for i in range(1, 11):
             self.session.begin_transaction()
             cursor.set_key(self.create_key(i))
             self.assertEqual(cursor.modify([wiredtiger.Modify('B', 100, 1)]), 0)
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
-
-        for i in range(1, 11):
-            self.session.begin_transaction()
-            cursor.set_key(self.create_key(i))
-            self.assertEqual(cursor.modify([wiredtiger.Modify('C', 200, 1)]), 0)
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
 
         for i in range(1, 11):
             self.session.begin_transaction()
             cursor.set_key(self.create_key(i))
-            self.assertEqual(cursor.modify([wiredtiger.Modify('D', 300, 1)]), 0)
+            self.assertEqual(cursor.modify([wiredtiger.Modify('C', 200, 1)]), 0)
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(4))
+
+        for i in range(1, 11):
+            self.session.begin_transaction()
+            cursor.set_key(self.create_key(i))
+            self.assertEqual(cursor.modify([wiredtiger.Modify('D', 300, 1)]), 0)
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
 
         # Make a bunch of updates to another table to flush everything out of cache.
         uri2 = 'table:test_hs06_extra'
@@ -483,7 +489,7 @@ class test_hs06(wttest.WiredTigerTestCase):
         for i in range(1, 10000):
             self.session.begin_transaction()
             cursor2[self.create_key(i)] = value2
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(6))
 
         expected = list(value1)
         expected[100] = 'B'
@@ -492,7 +498,7 @@ class test_hs06(wttest.WiredTigerTestCase):
         expected = str().join(expected)
 
         # Go back and read.
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(4))
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(5))
         for i in range(1, 11):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
@@ -511,7 +517,8 @@ class test_hs06(wttest.WiredTigerTestCase):
         value2 = 'b' * 500
 
         self.conn.set_timestamp(
-            'oldest_timestamp=' + self.timestamp_str(1) + ',stable_timestamp=' + self.timestamp_str(1))
+            'oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(uri)
 
         # Base update.

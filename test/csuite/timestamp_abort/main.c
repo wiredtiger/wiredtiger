@@ -98,12 +98,12 @@ static volatile uint64_t global_ts = 1;
     "M,create,"                                               \
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
-    "log=(archive=true,file_max=10M,enabled),session_max=%d," \
+    "log=(enabled,file_max=10M,remove=true),session_max=%d,"  \
     "statistics=(fast),statistics_log=(wait=1,json=true)"
 #define ENV_CONFIG_TXNSYNC \
     ENV_CONFIG_DEF         \
     ",transaction_sync=(enabled,method=none)"
-#define ENV_CONFIG_REC "log=(archive=false,recover=on)"
+#define ENV_CONFIG_REC "log=(recover=on,remove=false)"
 
 /*
  * A minimum width of 10, along with zero filling, means that all the keys sort according to their
@@ -131,6 +131,11 @@ static pthread_rwlock_t ts_lock;
 
 static void handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -194,7 +199,7 @@ thread_ts_run(void *arg)
             first = false;
             /*
              * Set and reset the checkpoint retention setting on a regular basis. We want to test
-             * racing with the internal archive thread while we're here.
+             * racing with the internal log removal thread while we're here.
              */
             dbg = __wt_random(&rnd) % 2;
             if (dbg == 0)
@@ -466,11 +471,13 @@ rollback:
     /* NOTREACHED */
 }
 
-/*
- * Child process creates the database and table, and then creates worker threads to add data until
- * it is killed by the parent.
- */
 static void run_workload(uint32_t) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * run_workload --
+ *     Child process creates the database and table, and then creates worker threads to add data
+ *     until it is killed by the parent.
+ */
 static void
 run_workload(uint32_t nth)
 {
@@ -582,7 +589,8 @@ extern int __wt_optind;
 extern char *__wt_optarg;
 
 /*
- * Initialize a report structure. Since zero is a valid key we cannot just clear it.
+ * initialize_rep --
+ *     Initialize a report structure. Since zero is a valid key we cannot just clear it.
  */
 static void
 initialize_rep(REPORT *r)
@@ -592,8 +600,9 @@ initialize_rep(REPORT *r)
 }
 
 /*
- * Print out information if we detect missing records in the middle of the data of a report
- * structure.
+ * print_missing --
+ *     Print out information if we detect missing records in the middle of the data of a report
+ *     structure.
  */
 static void
 print_missing(REPORT *r, const char *fname, const char *msg)
@@ -606,7 +615,8 @@ print_missing(REPORT *r, const char *fname, const char *msg)
 }
 
 /*
- * Signal handler to catch if the child died unexpectedly.
+ * handler --
+ *     Signal handler to catch if the child died unexpectedly.
  */
 static void
 handler(int sig)
@@ -621,6 +631,10 @@ handler(int sig)
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -640,19 +654,20 @@ main(int argc, char *argv[])
     const char *working_dir;
     char buf[512], fname[64], kname[64], statname[1024];
     char ts_string[WT_TS_HEX_STRING_SIZE];
-    bool fatal, rand_th, rand_time, verify_only;
+    bool fatal, preserve, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
 
     columns = compat = inmem = stress = false;
     use_ts = true;
     nth = MIN_TH;
+    preserve = false;
     rand_th = rand_time = true;
     timeout = MIN_TIME;
     verify_only = false;
     working_dir = "WT_TEST.timestamp-abort";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "Cch:LmsT:t:vz")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "Cch:LmpsT:t:vz")) != EOF)
         switch (ch) {
         case 'C':
             compat = true;
@@ -669,6 +684,9 @@ main(int argc, char *argv[])
             break;
         case 'm':
             inmem = true;
+            break;
+        case 'p':
+            preserve = true;
             break;
         case 's':
             stress = true;
@@ -993,5 +1011,12 @@ main(int argc, char *argv[])
     if (fatal)
         return (EXIT_FAILURE);
     printf("%" PRIu64 " records verified\n", count);
+    if (!preserve) {
+        testutil_clean_test_artifacts(home);
+        /* At this point $PATH is inside `home`, which we intend to delete. cd to the parent dir. */
+        if (chdir("../") != 0)
+            testutil_die(errno, "root chdir: %s", home);
+        testutil_clean_work_dir(home);
+    }
     return (EXIT_SUCCESS);
 }

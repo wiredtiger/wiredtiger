@@ -30,7 +30,7 @@
 #   Readonly: Test readonly mode.
 #
 
-import fnmatch, os, shutil, time
+import os
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 import wttest
@@ -52,7 +52,7 @@ class test_readonly01(wttest.WiredTigerTestCase, suite_subprocess):
         ('readonly', dict(dirchmod=True)),
     ]
     log_list = [
-        ('logging', dict(logcfg='log=(archive=false,enabled,file_max=100K),')),
+        ('logging', dict(logcfg='log=(enabled,file_max=100K,remove=false),')),
         ('no_logging', dict(logcfg='log=(enabled=false),')),
     ]
 

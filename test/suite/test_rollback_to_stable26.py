@@ -29,7 +29,7 @@
 import threading, time
 from helper import simulate_crash_restart
 from test_rollback_to_stable01 import test_rollback_to_stable_base
-from wiredtiger import stat, WT_NOTFOUND
+from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wtthread import checkpoint_thread
@@ -38,12 +38,11 @@ from wtthread import checkpoint_thread
 # Test the rollback to stable does properly restore the prepare rollback entry
 # from the history store.
 class test_rollback_to_stable26(test_rollback_to_stable_base):
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
         ('column_fix', dict(key_format='r', value_format='8t')),
-        ('integer_row', dict(key_format='i', value_format='S')),
+        ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
     hs_remove_values = [
@@ -76,11 +75,9 @@ class test_rollback_to_stable26(test_rollback_to_stable_base):
     def test_rollback_to_stable(self):
         nrows = 10
 
-        # Create a table without logging.
+        # Create a table.
         uri = "table:rollback_to_stable26"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 
         if self.value_format == '8t':
@@ -131,8 +128,15 @@ class test_rollback_to_stable26(test_rollback_to_stable_base):
         ckpt = checkpoint_thread(self.conn, done)
         try:
             ckpt.start()
-            # Sleep for sometime so that checkpoint starts before committing last transaction.
-            time.sleep(5)
+
+            # Wait for checkpoint to start before committing last transaction.
+            ckpt_started = 0
+            while not ckpt_started:
+                stat_cursor = self.session.open_cursor('statistics:', None, None)
+                ckpt_started = stat_cursor[stat.conn.txn_checkpoint_running][2]
+                stat_cursor.close()
+                time.sleep(1)
+
             prepare_session.rollback_transaction()
         finally:
             done.set()

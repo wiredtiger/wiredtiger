@@ -57,7 +57,6 @@ __btree_clear(WT_SESSION_IMPL *session)
 int
 __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 {
-    WT_BLOCK_FILE_OPENER *opener;
     WT_BM *bm;
     WT_BTREE *btree;
     WT_CKPT ckpt;
@@ -67,7 +66,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     WT_DECL_RET;
     size_t root_addr_size;
     uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
-    const char *filename;
     bool creation, forced_salvage;
 
     btree = S2BT(session);
@@ -111,17 +109,9 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     /* Initialize and configure the WT_BTREE structure. */
     WT_ERR(__btree_conf(session, &ckpt));
 
-    /*
-     * Get an opener abstraction that the block manager can use to open any of the files that
-     * represent a btree. In the case of a tiered Btree, that would allow opening different files
-     * according to an object id in a reference. For a non-tiered Btree, the opener will know to
-     * always open a single file (given by the filename).
-     */
-    WT_ERR(__wt_tiered_opener(session, dhandle, &opener, &filename));
-
     /* Connect to the underlying block manager. */
-    WT_ERR(__wt_block_manager_open(session, filename, opener, dhandle->cfg, forced_salvage,
-      F_ISSET(btree, WT_BTREE_READONLY), btree->allocsize, &btree->bm));
+    WT_ERR(__wt_blkcache_open(
+      session, dhandle->name, dhandle->cfg, forced_salvage, false, btree->allocsize, &btree->bm));
 
     bm = btree->bm;
 
@@ -392,17 +382,40 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         F_CLR(btree, WT_BTREE_IGNORE_CACHE);
 
     /*
+     * Turn on logging when it's enabled in the database and not disabled for the tree. Timestamp
+     * behavior is described by the logging configurations for historical reasons; logged objects
+     * imply commit-level durability and ignored timestamps, not-logged objects imply checkpoint-
+     * level durability and supported timestamps. In-memory configurations default to ignoring all
+     * timestamps, and the application uses the logging configuration flag to turn on timestamps.
+     */
+    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) {
+        WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
+        if (cval.val)
+            F_SET(btree, WT_BTREE_LOGGED);
+    }
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+        F_SET(btree, WT_BTREE_LOGGED);
+        WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
+        if (!cval.val)
+            F_CLR(btree, WT_BTREE_LOGGED);
+    }
+
+    /*
      * The metadata isn't blocked by in-memory cache limits because metadata "unroll" is performed
      * by updates that are potentially blocked by the cache-full checks.
+     *
+     * The metadata file ignores timestamps and is logged if at all possible.
      */
-    if (WT_IS_METADATA(btree->dhandle))
+    if (WT_IS_METADATA(btree->dhandle)) {
         F_SET(btree, WT_BTREE_IGNORE_CACHE);
+        F_SET(btree, WT_BTREE_LOGGED);
+    }
 
-    WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
-    if (cval.val)
-        F_CLR(btree, WT_BTREE_NO_LOGGING);
-    else
-        F_SET(btree, WT_BTREE_NO_LOGGING);
+    /* The history store file is never logged and supports timestamps. */
+    if (strcmp(session->dhandle->name, WT_HS_URI) == 0) {
+        F_SET(btree->dhandle, WT_DHANDLE_HS);
+        F_CLR(btree, WT_BTREE_LOGGED);
+    }
 
     WT_RET(__wt_config_gets(session, cfg, "tiered_object", &cval));
     if (cval.val)
@@ -488,12 +501,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         }
     }
 
-    /* Set special flags for the history store table. */
-    if (strcmp(session->dhandle->name, WT_HS_URI) == 0) {
-        F_SET(btree->dhandle, WT_DHANDLE_HS);
-        F_SET(btree, WT_BTREE_NO_LOGGING);
-    }
-
     /* Configure encryption. */
     WT_RET(__wt_btree_config_encryptor(session, cfg, &btree->kencryptor));
 
@@ -527,10 +534,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
      * is that we want to initialize it once the first time we open the btree during a run and then
      * for every subsequent open, we want to reuse it. This so that we're still able to read
      * transaction ids from the previous time a btree was open in the same run.
-     *
-     * FIXME-WT-6819: When we begin discarding dhandles more aggressively, we need to check that
-     * updates aren't having their transaction ids wiped after reopening the dhandle. The runtime
-     * write generation is relevant here since it should remain static across the entire run.
      */
     btree->write_gen = WT_MAX(ckpt->write_gen + 1, conn->base_write_gen);
     WT_ASSERT(session, ckpt->write_gen >= ckpt->run_write_gen);
@@ -552,8 +555,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
      * connection last checkpoint base write generation number is when rollback to stable doesn't
      * happen during the recovery due to the unavailability of history store file.
      */
-    if (!F_ISSET(conn, WT_CONN_RECOVERING) || WT_IS_METADATA(btree->dhandle) ||
-      __wt_btree_immediately_durable(session) ||
+    if (!F_ISSET(conn, WT_CONN_RECOVERING) || F_ISSET(btree, WT_BTREE_LOGGED) ||
       ckpt->run_write_gen < conn->last_ckpt_base_write_gen)
         btree->base_write_gen = btree->run_write_gen;
     else
@@ -625,7 +627,7 @@ __wt_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
     WT_ERR(bm->addr_string(bm, session, tmp, addr, addr_size));
 
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
-    if ((ret = __wt_bt_read(session, &dsk, addr, addr_size)) == 0)
+    if ((ret = __wt_blkcache_read(session, &dsk, addr, addr_size)) == 0)
         ret = __wt_verify_dsk(session, tmp->data, &dsk);
     /*
      * Flag any failed read or verification: if we're in startup, it may be fatal.
@@ -795,7 +797,6 @@ static int
 __btree_preload(WT_SESSION_IMPL *session)
 {
     WT_ADDR_COPY addr;
-    WT_BM *bm;
     WT_BTREE *btree;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
@@ -803,7 +804,6 @@ __btree_preload(WT_SESSION_IMPL *session)
     uint64_t block_preload;
 
     btree = S2BT(session);
-    bm = btree->bm;
     block_preload = 0;
 
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
@@ -811,7 +811,7 @@ __btree_preload(WT_SESSION_IMPL *session)
     /* Pre-load the second-level internal pages. */
     WT_INTL_FOREACH_BEGIN (session, btree->root.page, ref)
         if (__wt_ref_addr_copy(session, ref, &addr)) {
-            WT_ERR(bm->read(bm, session, tmp, addr.addr, addr.size));
+            WT_ERR(__wt_blkcache_read(session, tmp, addr.addr, addr.size));
             ++block_preload;
         }
     WT_INTL_FOREACH_END;
@@ -833,11 +833,15 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_REF *next_walk;
+    uint32_t flags;
 
     btree = S2BT(session);
+    flags = WT_READ_PREV;
+    if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
+        LF_SET(WT_READ_VISIBLE_ALL);
 
     next_walk = NULL;
-    WT_RET(__wt_tree_walk(session, &next_walk, WT_READ_PREV));
+    WT_RET(__wt_tree_walk(session, &next_walk, flags));
     if (next_walk == NULL)
         return (WT_NOTFOUND);
 
@@ -884,6 +888,20 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
         WT_RET_MSG(session, EINVAL,
           "page sizes must be a multiple of the page allocation size (%" PRIu32 "B)",
           btree->allocsize);
+
+    /*
+     * FLCS leaf pages have a lower size limit than the default, because the size configures the
+     * bitmap data size and the timestamp data adds on to that. Each time window can be up to 63
+     * bytes and the total page size must not exceed 4G. Thus for an 8t table there can be 64M
+     * entries (so 64M of bitmap data and up to 63*64M == 4032M of time windows), less a bit for
+     * headers. For a 1t table there can be (64 7/8)M entries because the bitmap takes less space,
+     * but that corresponds to a configured page size of a bit over 8M. Consequently the absolute
+     * limit on the page size is 8M, but since pages this large make no sense and perform poorly
+     * even if they don't get bloated out with timestamp data, we'll cut down by a factor of 16 and
+     * set the limit to 128KB.
+     */
+    if (btree->type == BTREE_COL_FIX && btree->maxleafpage > 128 * WT_KILOBYTE)
+        WT_RET_MSG(session, EINVAL, "page size for fixed-length column store is limited to 128KB");
 
     /*
      * Default in-memory page image size for compression is 4x the maximum internal or leaf page
@@ -987,45 +1005,19 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_btree_immediately_durable --
- *     Check whether this btree is configured for immediate durability.
- */
-bool
-__wt_btree_immediately_durable(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *btree;
-
-    btree = S2BT(session);
-
-    /*
-     * This is used to determine whether timestamp updates should be rolled back for this btree.
-     * With in-memory, the logging setting on tables is still important and when enabled they should
-     * be considered "durable".
-     */
-    return ((FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED) ||
-              (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))) &&
-      !F_ISSET(btree, WT_BTREE_NO_LOGGING));
-}
-
-/*
  * __wt_btree_switch_object --
  *     Switch to a writeable object for a tiered btree.
  */
 int
-__wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t object_id, uint32_t flags)
+__wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t objectid)
 {
     WT_BM *bm;
-    WT_DECL_RET;
-
-    bm = S2BT(session)->bm;
 
     /*
      * When initially opening a tiered Btree, a tier switch is done internally without the btree
      * being fully opened. That's okay, the btree will be told later about the current object
      * number.
      */
-    if (bm != NULL)
-        ret = bm->switch_object(bm, session, object_id, flags);
-
-    return (ret);
+    bm = S2BT(session)->bm;
+    return (bm == NULL ? 0 : bm->switch_object(bm, session, objectid));
 }

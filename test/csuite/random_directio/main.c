@@ -193,11 +193,12 @@ typedef struct {
     uint32_t flags; /* Uses SCHEMA_* values above */
 } WT_THREAD_DATA;
 
+static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
 /*
  * usage --
  *     Print usage and exit.
  */
-static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
 {
@@ -337,6 +338,10 @@ gen_table2_name(char *buf, size_t buf_size, uint64_t id, uint32_t threadid, uint
         testutil_check(__wt_snprintf(buf, buf_size, "table:B%" PRIu64 "-%" PRIu32, id, threadid));
 }
 
+/*
+ * schema_operation --
+ *     TODO: Add a comment describing this function.
+ */
 static int
 schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t op, uint32_t flags)
 {
@@ -433,11 +438,12 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
     return (ret);
 }
 
+static WT_THREAD_RET thread_run(void *) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
 /*
  * thread_run --
  *     Run a writer thread.
  */
-static WT_THREAD_RET thread_run(void *) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static WT_THREAD_RET
 thread_run(void *arg)
 {
@@ -574,12 +580,13 @@ create_db(const char *method)
     testutil_check(conn->close(conn, NULL));
 }
 
+static void fill_db(uint32_t, uint32_t, const char *, uint32_t)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
 /*
  * fill_db --
  *     The child process creates worker threads to add data until it is killed by the parent.
  */
-static void fill_db(uint32_t, uint32_t, const char *, uint32_t)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
 {
@@ -684,7 +691,7 @@ check_empty(WT_SESSION *session, const char *uri)
 }
 
 /*
- * check_empty --
+ * check_one_entry --
  *     Check that the uri exists and has one entry.
  */
 static void
@@ -706,9 +713,9 @@ check_one_entry(WT_SESSION *session, const char *uri, const char *key, const cha
 }
 
 /*
- * check_schema
- *	Check that the database has the expected schema according to the
- *	last id seen for this thread.
+ * check_schema --
+ *     Check that the database has the expected schema according to the last id seen for this
+ *     thread.
  */
 static void
 check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid, uint32_t flags)
@@ -765,6 +772,10 @@ check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid, uint32_t f
     }
 }
 
+/*
+ * kill_child --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 kill_child(pid_t pid)
 {
@@ -806,9 +817,9 @@ check_db(uint32_t nth, uint32_t datasize, pid_t pid, bool directio, uint32_t fla
         large_arr[th] = dcalloc(LARGE_WRITE_SIZE, 1);
         large_buf(large_arr[th], LARGE_WRITE_SIZE, th, true);
     }
-    testutil_check(__wt_snprintf(checkdir, sizeof(checkdir), "%s.CHECK", home));
-    testutil_check(__wt_snprintf(dbgdir, sizeof(savedir), "%s.DEBUG", home));
-    testutil_check(__wt_snprintf(savedir, sizeof(savedir), "%s.SAVE", home));
+    testutil_check(__wt_snprintf(checkdir, sizeof(checkdir), "../%s.CHECK", home));
+    testutil_check(__wt_snprintf(dbgdir, sizeof(savedir), "../%s.DEBUG", home));
+    testutil_check(__wt_snprintf(savedir, sizeof(savedir), "../%s.SAVE", home));
 
     /*
      * We make a copy of the directory (possibly using direct I/O) for recovery and checking, and an
@@ -1051,7 +1062,7 @@ main(int argc, char *argv[])
     char *arg, *p;
     char args[1024], buf[1024];
     const char *method, *working_dir;
-    bool populate_only, rand_th, rand_time, verify_only;
+    bool populate_only, preserve, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
 
@@ -1062,7 +1073,7 @@ main(int argc, char *argv[])
     timeout = MIN_TIME;
     interval = DEFAULT_INTERVAL;
     flags = 0;
-    populate_only = verify_only = false;
+    populate_only = preserve = verify_only = false;
     working_dir = "WT_TEST.random-directio";
     method = "none";
     pid = 0;
@@ -1111,6 +1122,9 @@ main(int argc, char *argv[])
             break;
         case 'p':
             populate_only = true;
+            break;
+        case 'P':
+            preserve = true;
             break;
         case 'S':
             p = __wt_optarg;
@@ -1251,5 +1265,11 @@ main(int argc, char *argv[])
         return (EXIT_FAILURE);
     }
     printf("SUCCESS\n");
+
+    if (!preserve) {
+        testutil_clean_test_artifacts(home);
+        testutil_clean_work_dir(home);
+    }
+
     return (EXIT_SUCCESS);
 }

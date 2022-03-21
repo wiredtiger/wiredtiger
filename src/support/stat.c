@@ -1106,7 +1106,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: bytes not belonging to page images in the cache",
   "cache: bytes read into cache",
   "cache: bytes written from cache",
-  "cache: cache overflow score",
   "cache: checkpoint blocked page eviction",
   "cache: checkpoint of history store file blocked non-history store page eviction",
   "cache: eviction calls to get a page",
@@ -1175,7 +1174,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: hazard pointer check calls",
   "cache: hazard pointer check entries walked",
   "cache: hazard pointer maximum array length",
-  "cache: history store score",
   "cache: history store table insert calls",
   "cache: history store table insert calls that returned restart",
   "cache: history store table max on-disk size",
@@ -1354,7 +1352,7 @@ static const char *const __stats_connection_desc[] = {
   "lock: txn global read lock acquisitions",
   "lock: txn global write lock acquisitions",
   "log: busy returns attempting to switch slots",
-  "log: force archive time sleeping (usecs)",
+  "log: force log remove time sleeping (usecs)",
   "log: log bytes of payload data",
   "log: log bytes written",
   "log: log files manually zero-filled",
@@ -1581,9 +1579,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transaction rollback to stable currently running",
   "transaction: transaction walk of concurrent sessions",
   "transaction: transactions committed",
-  "transaction: transactions committed with one or more updates resolved through the slow path",
   "transaction: transactions rolled back",
-  "transaction: transactions rolled back with one or more updates resolved through the slow path",
   "transaction: update conflicts",
 };
 
@@ -1682,7 +1678,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_bytes_other */
     stats->cache_bytes_read = 0;
     stats->cache_bytes_write = 0;
-    /* not clearing cache_lookaside_score */
     stats->cache_eviction_checkpoint = 0;
     stats->cache_eviction_blocked_checkpoint_hs = 0;
     stats->cache_eviction_get_ref = 0;
@@ -1744,7 +1739,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_hazard_checks = 0;
     stats->cache_hazard_walks = 0;
     stats->cache_hazard_max = 0;
-    /* not clearing cache_hs_score */
     stats->cache_hs_insert = 0;
     stats->cache_hs_insert_restart = 0;
     /* not clearing cache_hs_ondisk_max */
@@ -1918,7 +1912,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->lock_txn_global_read_count = 0;
     stats->lock_txn_global_write_count = 0;
     stats->log_slot_switch_busy = 0;
-    stats->log_force_archive_sleep = 0;
+    stats->log_force_remove_sleep = 0;
     stats->log_bytes_payload = 0;
     stats->log_bytes_written = 0;
     stats->log_zero_fills = 0;
@@ -2141,9 +2135,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing txn_rollback_to_stable_running */
     stats->txn_walk_sessions = 0;
     stats->txn_commit = 0;
-    stats->txn_commit_slow_resolved = 0;
     stats->txn_rollback = 0;
-    stats->txn_rollback_slow_resolved = 0;
     stats->txn_update_conflict = 0;
 }
 
@@ -2218,7 +2210,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_bytes_other += WT_STAT_READ(from, cache_bytes_other);
     to->cache_bytes_read += WT_STAT_READ(from, cache_bytes_read);
     to->cache_bytes_write += WT_STAT_READ(from, cache_bytes_write);
-    to->cache_lookaside_score += WT_STAT_READ(from, cache_lookaside_score);
     to->cache_eviction_checkpoint += WT_STAT_READ(from, cache_eviction_checkpoint);
     to->cache_eviction_blocked_checkpoint_hs +=
       WT_STAT_READ(from, cache_eviction_blocked_checkpoint_hs);
@@ -2294,7 +2285,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_hazard_walks += WT_STAT_READ(from, cache_hazard_walks);
     if ((v = WT_STAT_READ(from, cache_hazard_max)) > to->cache_hazard_max)
         to->cache_hazard_max = v;
-    to->cache_hs_score += WT_STAT_READ(from, cache_hs_score);
     to->cache_hs_insert += WT_STAT_READ(from, cache_hs_insert);
     to->cache_hs_insert_restart += WT_STAT_READ(from, cache_hs_insert_restart);
     to->cache_hs_ondisk_max += WT_STAT_READ(from, cache_hs_ondisk_max);
@@ -2488,7 +2478,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->lock_txn_global_read_count += WT_STAT_READ(from, lock_txn_global_read_count);
     to->lock_txn_global_write_count += WT_STAT_READ(from, lock_txn_global_write_count);
     to->log_slot_switch_busy += WT_STAT_READ(from, log_slot_switch_busy);
-    to->log_force_archive_sleep += WT_STAT_READ(from, log_force_archive_sleep);
+    to->log_force_remove_sleep += WT_STAT_READ(from, log_force_remove_sleep);
     to->log_bytes_payload += WT_STAT_READ(from, log_bytes_payload);
     to->log_bytes_written += WT_STAT_READ(from, log_bytes_written);
     to->log_zero_fills += WT_STAT_READ(from, log_zero_fills);
@@ -2723,9 +2713,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_rollback_to_stable_running += WT_STAT_READ(from, txn_rollback_to_stable_running);
     to->txn_walk_sessions += WT_STAT_READ(from, txn_walk_sessions);
     to->txn_commit += WT_STAT_READ(from, txn_commit);
-    to->txn_commit_slow_resolved += WT_STAT_READ(from, txn_commit_slow_resolved);
     to->txn_rollback += WT_STAT_READ(from, txn_rollback);
-    to->txn_rollback_slow_resolved += WT_STAT_READ(from, txn_rollback_slow_resolved);
     to->txn_update_conflict += WT_STAT_READ(from, txn_update_conflict);
 }
 

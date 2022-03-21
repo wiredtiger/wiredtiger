@@ -86,8 +86,6 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
     /* The default session is used to access data handles during close. */
     F_CLR(session, WT_SESSION_NO_DATA_HANDLES);
 
-    __wt_block_cache_destroy(session);
-
     /*
      * Shut down server threads. Some of these threads access btree handles and eviction, shut them
      * down before the eviction server, and shut all servers down before closing open data handles.
@@ -113,6 +111,9 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 
     /* Shut down metadata tracking. */
     WT_TRET(__wt_meta_track_destroy(session));
+
+    /* Shut down the block cache */
+    __wt_blkcache_destroy(session);
 
     /*
      * Now that all data handles are closed, tell logging that a checkpoint has completed then shut
@@ -178,7 +179,6 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
                 __wt_free(session, s->dhhash);
                 __wt_stash_discard_all(session, s);
                 __wt_free(session, s->hazard);
-                __wt_hazard_weak_destroy(session, s);
             }
 
     /* Destroy the file-system configuration. */
@@ -232,7 +232,7 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_hs_open(session, cfg));
 
     /*
-     * Start the optional logging/archive threads. NOTE: The log manager must be started before
+     * Start the optional logging/removal threads. NOTE: The log manager must be started before
      * checkpoints so that the checkpoint server knows if logging is enabled. It must also be
      * started before any operation that can commit, or the commit can block.
      */

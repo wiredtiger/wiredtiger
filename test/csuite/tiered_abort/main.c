@@ -67,11 +67,11 @@ static char home[1024]; /* Program working dir */
 #define MAX_VAL 1024
 #define MIN_TH 5
 #define NUM_INT_THREADS 3
-#define RECORDS_FILE "records-%" PRIu32
+#define RECORDS_FILE "%s/records-%" PRIu32
 /* Include worker threads and extra sessions */
 #define SESSION_MAX (MAX_TH + 4)
 #ifndef WT_STORAGE_LIB
-#define WT_STORAGE_LIB "ext/storage_sources/local_store/.libs/libwiredtiger_local_store.so"
+#define WT_STORAGE_LIB "ext/storage_sources/dir_store/.libs/libwiredtiger_dir_store.so"
 #endif
 
 static const char *table_pfx = "table";
@@ -98,14 +98,14 @@ static uint32_t flush_calls = 1;
     "M,create,"                                               \
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
-    "log=(archive=true,file_max=10M,enabled),session_max=%d," \
+    "log=(enabled,file_max=10M,remove=true),session_max=%d,"  \
     "statistics=(fast),statistics_log=(wait=1,json=true),"    \
-    "tiered_storage=(bucket=%s,bucket_prefix=pfx,local_retention=%d,name=local_store)"
+    "tiered_storage=(bucket=%s,bucket_prefix=pfx,local_retention=%d,name=dir_store)"
 #define ENV_CONFIG_TXNSYNC                                \
     ENV_CONFIG_DEF                                        \
     ",eviction_dirty_target=20,eviction_dirty_trigger=90" \
     ",transaction_sync=(enabled,method=none)"
-#define ENV_CONFIG_REC "log=(archive=false,recover=on)"
+#define ENV_CONFIG_REC "log=(recover=on,remove=false)"
 
 /*
  * A minimum width of 10, along with zero filling, means that all the keys sort according to their
@@ -137,6 +137,11 @@ static pthread_rwlock_t ts_lock;
 
 static void handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -233,7 +238,7 @@ thread_flush_run(void *arg)
     THREAD_DATA *td;
     uint64_t stable;
     uint32_t i, sleep_time;
-    char ts_string[WT_TS_HEX_STRING_SIZE];
+    char buf[512], ts_string[WT_TS_HEX_STRING_SIZE];
 
     __wt_random_init(&rnd);
 
@@ -241,9 +246,10 @@ thread_flush_run(void *arg)
     /*
      * Keep a separate file with the records we wrote for checking.
      */
-    (void)unlink(sentinel_file);
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, sentinel_file));
+    (void)unlink(buf);
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    for (i = 0;; ++i) {
+    for (i = 0;;) {
         sleep_time = __wt_random(&rnd) % MAX_FLUSH_INVL;
         sleep(sleep_time);
         testutil_check(td->conn->query_timestamp(td->conn, ts_string, "get=last_checkpoint"));
@@ -264,8 +270,8 @@ thread_flush_run(void *arg)
          * Create the sentinel file so that the parent process knows the desired number of
          * flush_tier calls have finished and can start its timer.
          */
-        if (i == flush_calls) {
-            testutil_assert_errno((fp = fopen(sentinel_file, "w")) != NULL);
+        if (++i == flush_calls) {
+            testutil_assert_errno((fp = fopen(buf, "w")) != NULL);
             testutil_assert_errno(fclose(fp) == 0);
         }
     }
@@ -302,7 +308,7 @@ thread_run(void *arg)
     /*
      * Set up the separate file for checking.
      */
-    testutil_check(__wt_snprintf(cbuf, sizeof(cbuf), RECORDS_FILE, td->info));
+    testutil_check(__wt_snprintf(cbuf, sizeof(cbuf), RECORDS_FILE, home, td->info));
     (void)unlink(cbuf);
     testutil_assert_errno((fp = fopen(cbuf, "w")) != NULL);
     /*
@@ -415,11 +421,13 @@ rollback:
     /* NOTREACHED */
 }
 
-/*
- * Child process creates the database and table, and then creates worker threads to add data until
- * it is killed by the parent.
- */
 static void run_workload(uint32_t, const char *) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * run_workload --
+ *     Child process creates the database and table, and then creates worker threads to add data
+ *     until it is killed by the parent.
+ */
 static void
 run_workload(uint32_t nth, const char *build_dir)
 {
@@ -442,17 +450,14 @@ run_workload(uint32_t nth, const char *build_dir)
      */
     cache_mb = ((32 * WT_KILOBYTE * 10) * nth) / WT_MEGABYTE + 20;
 
-    if (chdir(home) != 0)
-        testutil_die(errno, "Child chdir: %s", home);
     testutil_check(__wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_TXNSYNC, cache_mb,
       SESSION_MAX, BUCKET, LOCAL_RETENTION));
 
     testutil_check(__wt_snprintf(extconf, sizeof(extconf), ",extensions=(%s/%s=(early_load=true))",
       build_dir, WT_STORAGE_LIB));
-
     strcat(envconf, extconf);
     printf("wiredtiger_open configuration: %s\n", envconf);
-    testutil_check(wiredtiger_open(NULL, NULL, envconf, &conn));
+    testutil_check(wiredtiger_open(home, NULL, envconf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     /*
      * Create all the tables.
@@ -518,7 +523,8 @@ extern int __wt_optind;
 extern char *__wt_optarg;
 
 /*
- * Initialize a report structure. Since zero is a valid key we cannot just clear it.
+ * initialize_rep --
+ *     Initialize a report structure. Since zero is a valid key we cannot just clear it.
  */
 static void
 initialize_rep(REPORT *r)
@@ -528,8 +534,9 @@ initialize_rep(REPORT *r)
 }
 
 /*
- * Print out information if we detect missing records in the middle of the data of a report
- * structure.
+ * print_missing --
+ *     Print out information if we detect missing records in the middle of the data of a report
+ *     structure.
  */
 static void
 print_missing(REPORT *r, const char *fname, const char *msg)
@@ -542,7 +549,8 @@ print_missing(REPORT *r, const char *fname, const char *msg)
 }
 
 /*
- * Signal handler to catch if the child died unexpectedly.
+ * handler --
+ *     Signal handler to catch if the child died unexpectedly.
  */
 static void
 handler(int sig)
@@ -555,6 +563,10 @@ handler(int sig)
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -573,22 +585,23 @@ main(int argc, char *argv[])
     uint32_t i, nth, timeout;
     int ch, status, ret;
     const char *working_dir;
-    char buf[512], bucket_dir[512], build_dir[512], fname[64], kname[64];
+    char buf[512], bucket_dir[512], build_dir[512], fname[512], kname[64];
     char envconf[1024], extconf[512];
     char ts_string[WT_TS_HEX_STRING_SIZE];
-    bool fatal, rand_th, rand_time, verify_only;
+    bool fatal, preserve, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
     use_ts = true;
     nth = MIN_TH;
+    preserve = false;
     rand_th = rand_time = true;
     timeout = MIN_TIME;
     verify_only = false;
     working_dir = "WT_TEST.tiered-abort";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "b:f:h:T:t:vz")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "b:f:h:pT:t:vz")) != EOF)
         switch (ch) {
         case 'b': /* Build directory */
             opts->build_dir = dstrdup(__wt_optarg);
@@ -598,6 +611,9 @@ main(int argc, char *argv[])
             break;
         case 'h':
             working_dir = __wt_optarg;
+            break;
+        case 'p':
+            preserve = true;
             break;
         case 'T':
             rand_th = false;
@@ -716,6 +732,10 @@ main(int argc, char *argv[])
     /* Copy the data to a separate folder for debugging purpose. */
     testutil_copy_data(home);
 
+    /* Come back to root directory, so we can link wiredtiger with extensions properly. */
+    if (chdir("../") != 0)
+        testutil_die(errno, "root chdir: %s", home);
+
     printf("Open database, run recovery and verify content\n");
 
     /* Open the connection which forces recovery to be run. */
@@ -725,7 +745,7 @@ main(int argc, char *argv[])
       build_dir, WT_STORAGE_LIB));
 
     strcat(envconf, extconf);
-    testutil_check(wiredtiger_open(NULL, NULL, envconf, &conn));
+    testutil_check(wiredtiger_open(home, NULL, envconf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     /* Open a cursor on all the tables. */
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s:%s", table_pfx, uri_collection));
@@ -752,7 +772,7 @@ main(int argc, char *argv[])
         initialize_rep(&c_rep[i]);
         initialize_rep(&l_rep[i]);
         initialize_rep(&o_rep[i]);
-        testutil_check(__wt_snprintf(fname, sizeof(fname), RECORDS_FILE, i));
+        testutil_check(__wt_snprintf(fname, sizeof(fname), RECORDS_FILE, home, i));
         if ((fp = fopen(fname, "r")) == NULL)
             testutil_die(errno, "fopen: %s", fname);
 
@@ -906,6 +926,13 @@ main(int argc, char *argv[])
     if (fatal)
         return (EXIT_FAILURE);
     printf("%" PRIu64 " records verified\n", count);
+    if (!preserve) {
+        testutil_clean_test_artifacts(home);
+        /* At this point $PATH is inside `home`, which we intend to delete. cd to the parent dir. */
+        if (chdir("../") != 0)
+            testutil_die(errno, "root chdir: %s", home);
+        testutil_clean_work_dir(home);
+    }
     testutil_cleanup(opts);
     return (EXIT_SUCCESS);
 }

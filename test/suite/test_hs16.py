@@ -26,14 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time, wiredtiger, wttest
+import wttest
 from wtscenario import make_scenarios
 
 # test_hs16.py
 # Ensure that we don't panic when inserting an update without timestamp to the history store.
 class test_hs16(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=5MB'
-    session_config = 'isolation=snapshot'
     format_values = (
         ('column', dict(key_format='r', value_format='S')),
         ('column-fix', dict(key_format='r', value_format='8t')),

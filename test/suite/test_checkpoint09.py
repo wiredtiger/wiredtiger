@@ -35,13 +35,12 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 class test_checkpoint09(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
-    session_config = 'isolation=snapshot'
+    conn_config = 'cache_size=50MB,statistics=(all)'
 
     format_values = [
         ('column-fix', dict(key_format='r', value_format='8t')),
         ('column', dict(key_format='r', value_format='u')),
-        ('string_row', dict(key_format='S', value_format='u')),
+        ('row_string', dict(key_format='S', value_format='u')),
     ]
 
     scenarios = make_scenarios(format_values)

@@ -36,8 +36,8 @@ static bool use_columns = false;
 
 #define RECORDS_FILE "records"
 
-#define ENV_CONFIG                                      \
-    "create,log=(file_max=100K,archive=false,enabled)," \
+#define ENV_CONFIG                                     \
+    "create,log=(enabled,file_max=100K,remove=false)," \
     "transaction_sync=(enabled,method=none)"
 #define ENV_CONFIG_REC "log=(recover=on)"
 
@@ -46,13 +46,15 @@ static bool use_columns = false;
 #define K_SIZE 16
 #define V_SIZE 256
 
-/*
- * Write a new log record into the log via log print, then open up a log cursor and walk the log to
- * make sure we can read it. The reason for this test is that if there is a partial log record at
- * the end of the previous log file and truncate does not exist, this tests that we can still read
- * past that record.
- */
 static void write_and_read_new(WT_SESSION *);
+
+/*
+ * write_and_read_new --
+ *     Write a new log record into the log via log print, then open up a log cursor and walk the log
+ *     to make sure we can read it. The reason for this test is that if there is a partial log
+ *     record at the end of the previous log file and truncate does not exist, this tests that we
+ *     can still read past that record.
+ */
 static void
 write_and_read_new(WT_SESSION *session)
 {
@@ -107,6 +109,11 @@ write_and_read_new(WT_SESSION *session)
 }
 
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -114,11 +121,13 @@ usage(void)
     exit(EXIT_FAILURE);
 }
 
-/*
- * Child process creates the database and table, and then writes data into the table until it
- * switches into log file 2.
- */
 static void fill_db(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * fill_db --
+ *     Child process creates the database and table, and then writes data into the table until it
+ *     switches into log file 2.
+ */
 static void
 fill_db(void)
 {
@@ -224,6 +233,10 @@ fill_db(void)
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -236,7 +249,9 @@ main(int argc, char *argv[])
     uint32_t count, max_key;
     int ch, ret, status;
     const char *working_dir;
+    bool preserve;
 
+    preserve = false;
     (void)testutil_set_progname(argv);
 
     working_dir = "WT_TEST.truncated-log";
@@ -248,6 +263,9 @@ main(int argc, char *argv[])
             break;
         case 'h':
             working_dir = __wt_optarg;
+            break;
+        case 'p':
+            preserve = true;
             break;
         default:
             usage();
@@ -328,5 +346,12 @@ main(int argc, char *argv[])
      */
     write_and_read_new(session);
     testutil_check(conn->close(conn, NULL));
+    if (!preserve) {
+        /* At this point $PATH is inside `home`, which we intend to delete. cd to the parent dir. */
+        if (chdir("../") != 0)
+            testutil_die(errno, "root chdir: %s", home);
+        testutil_clean_work_dir(home);
+    }
+
     return (EXIT_SUCCESS);
 }

@@ -31,10 +31,9 @@
 # [END_TAGS]
 
 from helper import copy_wiredtiger_home
-import wiredtiger, wttest
+import wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
-from wiredtiger import stat
 
 # test_checkpoint_snapshot01.py
 #   Checkpoint snapshot - Create multiple sessions which creates snapshots and
@@ -48,7 +47,7 @@ class test_checkpoint_snapshot01(wttest.WiredTigerTestCase):
     format_values = [
         ('column-fix', dict(key_format='r', value_format='8t')),
         ('column', dict(key_format='r', value_format='u')),
-        ('string_row', dict(key_format='S', value_format='u')),
+        ('row_string', dict(key_format='S', value_format='u')),
     ]
 
     scenarios = make_scenarios(format_values)
@@ -75,7 +74,7 @@ class test_checkpoint_snapshot01(wttest.WiredTigerTestCase):
         for j in range (0, self.nsessions):
             sessions[j] = self.conn.open_session()
             cursors[j] = sessions[j].open_cursor(self.uri)
-            sessions[j].begin_transaction('isolation=snapshot')
+            sessions[j].begin_transaction()
 
             start = (j * self.nkeys)
             end = start + self.nkeys

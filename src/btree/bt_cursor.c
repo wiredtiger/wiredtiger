@@ -530,7 +530,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_search);
 
-    WT_RET(__wt_txn_search_check(session));
+    __wt_txn_search_check(session);
     __cursor_state_save(cursor, &state);
 
     /*
@@ -553,12 +553,20 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 
         if (btree->type == BTREE_ROW) {
             WT_ERR(__cursor_row_search(cbt, false, cbt->ref, &leaf_found));
-            if (leaf_found && cbt->compare == 0)
-                WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+            if (leaf_found && cbt->compare == 0) {
+                if (F_ISSET(cursor, WT_CURSTD_KEY_ONLY))
+                    valid = true;
+                else
+                    WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+            }
         } else {
             WT_ERR(__cursor_col_search(cbt, cbt->ref, &leaf_found));
-            if (leaf_found && cbt->compare == 0)
-                WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
+            if (leaf_found && cbt->compare == 0) {
+                if (F_ISSET(cursor, WT_CURSTD_KEY_ONLY))
+                    valid = true;
+                else
+                    WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
+            }
         }
     }
     if (!valid) {
@@ -566,17 +574,26 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 
         if (btree->type == BTREE_ROW) {
             WT_ERR(__cursor_row_search(cbt, false, NULL, NULL));
-            if (cbt->compare == 0)
-                WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+            if (cbt->compare == 0) {
+                if (F_ISSET(cursor, WT_CURSTD_KEY_ONLY))
+                    valid = true;
+                else
+                    WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+            }
         } else {
             WT_ERR(__cursor_col_search(cbt, NULL, NULL));
-            if (cbt->compare == 0)
-                WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
+            if (cbt->compare == 0) {
+                if (F_ISSET(cursor, WT_CURSTD_KEY_ONLY))
+                    valid = true;
+                else
+                    WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
+            }
         }
     }
 
     if (valid)
-        ret = __cursor_kv_return(cbt, cbt->upd_value);
+        ret = F_ISSET(cursor, WT_CURSTD_KEY_ONLY) ? __wt_key_return(cbt) :
+                                                    __cursor_kv_return(cbt, cbt->upd_value);
     else if (__cursor_fix_implicit(btree, cbt)) {
         /*
          * Creating a record past the end of the tree in a fixed-length column-store implicitly
@@ -626,7 +643,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_search_near);
 
-    WT_RET(__wt_txn_search_check(session));
+    __wt_txn_search_check(session);
     __cursor_state_save(cursor, &state);
 
     /*
@@ -818,7 +835,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     WT_RET(__cursor_size_chk(session, &cursor->value));
 
     /* It's no longer possible to bulk-load into the tree. */
-    __wt_cursor_disable_bulk(session);
+    __wt_btree_disable_bulk(session);
 
     /*
      * Insert a new record if WT_CURSTD_APPEND configured, (ignoring any application set record
@@ -881,11 +898,9 @@ retry:
          * If not overwriting, fail if the key exists, else insert the key/value pair.
          */
         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE) && cbt->compare == 0) {
-            WT_WITH_UPDATE_VALUE_SKIP_BUF(
-              ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
-            WT_ERR(ret);
+            WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
             if (valid)
-                WT_ERR(WT_DUPLICATE_KEY);
+                goto duplicate;
         }
 
         ret = __cursor_row_modify(cbt, &cbt->iface.value, WT_UPDATE_STANDARD);
@@ -909,13 +924,11 @@ retry:
          */
         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
             if (cbt->compare == 0) {
-                WT_WITH_UPDATE_VALUE_SKIP_BUF(
-                  ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
-                WT_ERR(ret);
+                WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
                 if (valid)
-                    WT_ERR(WT_DUPLICATE_KEY);
+                    goto duplicate;
             } else if (__cursor_fix_implicit(btree, cbt))
-                WT_ERR(WT_DUPLICATE_KEY);
+                goto duplicate;
         }
 
         WT_ERR(__cursor_col_modify(cbt, &cbt->iface.value, WT_UPDATE_STANDARD));
@@ -927,6 +940,18 @@ err:
         goto retry;
     }
 
+    /* Return the found value for any duplicate key. */
+    if (0) {
+duplicate:
+        if (F_ISSET(cursor, WT_CURSTD_DUP_NO_VALUE))
+            ret = WT_DUPLICATE_KEY;
+        else {
+            __wt_value_return(cbt, cbt->upd_value);
+            if ((ret = __cursor_localvalue(cursor)) == 0)
+                ret = WT_DUPLICATE_KEY;
+        }
+    }
+
     /* Insert doesn't maintain a position across calls, clear resources. */
     if (ret == 0) {
 done:
@@ -935,7 +960,7 @@ done:
             F_SET(cursor, WT_CURSTD_KEY_EXT);
     }
     WT_TRET(__cursor_reset(cbt));
-    if (ret != 0)
+    if (ret != 0 && ret != WT_DUPLICATE_KEY)
         __cursor_state_restore(cursor, &state);
 
     return (ret);
@@ -1233,7 +1258,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     yield_count = sleep_usecs = 0;
 
     /* It's no longer possible to bulk-load into the tree. */
-    __wt_cursor_disable_bulk(session);
+    __wt_btree_disable_bulk(session);
 
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
@@ -1795,9 +1820,12 @@ __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    bool logging;
 
     btree = CUR2BT(start);
     session = CUR2S(start);
+    logging = __wt_log_op(session);
+
     WT_STAT_DATA_INCR(session, cursor_truncate);
 
     WT_RET(__wt_txn_autocommit_check(session));
@@ -1810,7 +1838,7 @@ __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
      * We deal with this here by logging the truncate range first, then (in the logging code)
      * disabling writing of the in-memory remove records to disk.
      */
-    if (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED))
+    if (logging)
         WT_RET(__wt_txn_truncate_log(session, start, stop));
 
     switch (btree->type) {
@@ -1835,7 +1863,7 @@ __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
     }
 
 err:
-    if (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED))
+    if (logging)
         __wt_txn_truncate_end(session);
     return (ret);
 }

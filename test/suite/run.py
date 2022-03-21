@@ -46,27 +46,22 @@ suitedir = sys.path[0]
 wt_disttop = os.path.dirname(os.path.dirname(suitedir))
 wt_3rdpartydir = os.path.join(wt_disttop, 'test', '3rdparty')
 
-# Check for a local build that contains the wt utility. First check in
-# current working directory, then in build_posix and finally in the disttop
-# directory. This isn't ideal - if a user has multiple builds in a tree we
+# Check for a local build that contains the wt utility. First check if the
+# supplied an explicit build directory ('WT_BUILDDIR'), then the current
+# working directory, and finally in the disttop directory.
+# This isn't ideal - if a user has multiple builds in a tree we
 # could pick the wrong one. We also need to account for the fact that there
-# may be an executable 'wt' file the build directory and a subordinate .libs
-# directory.
+# may be an executable 'wt' file the build directory.
 env_builddir = os.getenv('WT_BUILDDIR')
 curdir = os.getcwd()
 if env_builddir and os.path.isfile(os.path.join(env_builddir, 'wt')):
     wt_builddir = env_builddir
-elif os.path.basename(curdir) == '.libs' and \
-   os.path.isfile(os.path.join(curdir, os.pardir, 'wt')):
-    wt_builddir = os.path.join(curdir, os.pardir)
 elif os.path.isfile(os.path.join(curdir, 'wt')):
     wt_builddir = curdir
 elif os.path.isfile(os.path.join(curdir, 'wt.exe')):
     wt_builddir = curdir
 elif os.path.isfile(os.path.join(wt_disttop, 'wt')):
     wt_builddir = wt_disttop
-elif os.path.isfile(os.path.join(wt_disttop, 'build_posix', 'wt')):
-    wt_builddir = os.path.join(wt_disttop, 'build_posix')
 elif os.path.isfile(os.path.join(wt_disttop, 'wt.exe')):
     wt_builddir = wt_disttop
 else:
@@ -108,7 +103,7 @@ unittest = None
 
 def usage():
     print('Usage:\n\
-  $ cd build_posix\n\
+  $ cd build\n\
   $ python ../test/suite/run.py [ options ] [ tests ]\n\
 \n\
 Options:\n\
@@ -583,6 +578,20 @@ if __name__ == '__main__':
             sys.exit(2)
         from discover import defaultTestLoader as loader
         suites = loader.discover(suitedir)
+
+        # If you have an empty Python file, it comes back as an empty entry in suites
+        # and then the sort explodes. Drop empty entries first. Note: this converts
+        # suites to a list, but the sort does that anyway. Also note: there seems to be
+        # no way to count other than iteration; there's a count method but it also
+        # returns zero for test files that contain a test class with no test functions,
+        # and it's not clear that dropping those here is correct.
+        def isempty(s):
+            count = 0
+            for c in s:
+                count += 1
+            return (count == 0)
+        suites = [s for s in suites if not isempty(s)]
+
         suites = sorted(suites, key=lambda c: str(list(c)[0]))
         if configfile != None:
             suites = configApply(suites, configfile, configwrite)
@@ -618,13 +627,13 @@ if __name__ == '__main__':
                 s = test.scenario_number
                 if s > 1000:
                     hugetests.add(name)    # warn for too many scenarios
-            return (s, test.simpleName())  # sort by scenerio number first
+            return (s, test.simpleName())  # sort by scenario number first
         all_tests = sorted(tests, key = get_sort_keys)
         if not longtest:
             for name in hugetests:
                 print("WARNING: huge test " + name + " has > 1000 scenarios.\n" +
                       "That is only appropriate when using the --long option.\n" +
-                      "The number of scenerios for the test should be pruned")
+                      "The number of scenarios for the test should be pruned")
 
         # At this point we have an ordered list of all the tests.
         # Break it into just our batch.

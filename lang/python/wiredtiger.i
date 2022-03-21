@@ -119,15 +119,18 @@ from packing import pack, unpack
 	    SWIGTYPE_p___wt_cursor, 0);
 	if (*$1 != NULL) {
 		PY_CALLBACK *pcb;
-		uint32_t json;
+		uint32_t json, version_cursor;
 
 		json = (*$1)->flags & WT_CURSTD_DUMP_JSON;
+		version_cursor = (*$1)->flags & WT_CURSTD_VERSION_CURSOR;
 		if (!json)
 			(*$1)->flags |= WT_CURSTD_RAW;
 		PyObject_SetAttrString($result, "is_json",
 		    PyBool_FromLong(json != 0));
 		PyObject_SetAttrString($result, "is_column",
 		    PyBool_FromLong(strcmp((*$1)->key_format, "r") == 0));
+		PyObject_SetAttrString($result, "is_version_cursor",
+		    PyBool_FromLong(version_cursor != 0));
 		PyObject_SetAttrString($result, "key_format",
 		    PyString_InternFromString((*$1)->key_format));
 		PyObject_SetAttrString($result, "value_format",
@@ -594,6 +597,7 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %exception __wt_connection::get_home;
 %exception __wt_connection::is_new;
 %exception __wt_connection::search_near;
+%exception __wt_session::get_rollback_reason;
 %exception __wt_cursor::_set_key;
 %exception __wt_cursor::_set_key_str;
 %exception __wt_cursor::_set_value;
@@ -601,6 +605,7 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %exception wiredtiger_strerror;
 %exception wiredtiger_version;
 %exception diagnostic_build;
+%exception standalone_build;
 
 /* WT_CURSOR customization. */
 /* First, replace the varargs get / set methods with Python equivalents. */
@@ -629,7 +634,9 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 /* Handle binary data returns from get_key/value -- avoid cstring.i: it creates a list of returns. */
 %typemap(in,numinputs=0) (char **datap, int *sizep) (char *data, int size) { $1 = &data; $2 = &size; }
 %typemap(in,numinputs=0) (char **charp, int *sizep) (char *data, int size) { $1 = &data; $2 = &size; }
+%typemap(in,numinputs=0) (char **metadatap, int *metadatasizep, char **datap, int *datasizep) (char *metadata, int metadatasize, char *data, int datasize) { $1 = &metadata; $2 = &metadatasize; $3 = &data; $4 = &datasize; }
 %typemap(frearg) (char **datap, int *sizep) "";
+%typemap(frearg) (char **metadatap, int *metadatasizep, char **datap, int *datasizep) "";
 %typemap(argout) (char **charp, int *sizep) {
 	if (*$1)
 		$result = PyUnicode_FromStringAndSize(*$1, *$2);
@@ -638,7 +645,17 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 %typemap(argout) (char **datap, int *sizep) {
 	if (*$1)
 		$result = PyBytes_FromStringAndSize(*$1, *$2);
- }
+}
+
+%typemap(argout)(char **metadatap, int *metadatasizep, char **datap, int *datasizep) (
+    PyObject *metadata, PyObject *data) {
+	if (*$1 && *$3) {
+		metadata = PyBytes_FromStringAndSize(*$1, *$2);
+		$result = metadata;
+		data = PyBytes_FromStringAndSize(*$3, *$4);
+		$result = SWIG_Python_AppendOutput($result, data);
+	}
+}
 
 /* Handle binary data input from FILE_HANDLE->fh_write. */
 %typemap(in,numinputs=1) (size_t length, const void *buf) (Py_ssize_t length, const void *buf = NULL) {
@@ -769,6 +786,19 @@ typedef int int_void;
 		return (ret);
 	}
 
+	int_void _get_version_cursor_value(char **metadatap, int *metadatasizep, char **datap, int *datasizep) {
+		WT_ITEM metadata;
+		WT_ITEM v;
+		int ret = $self->get_value($self, &metadata, &v);
+		if (ret == 0) {
+			*metadatap = (char *)metadata.data;
+			*metadatasizep = (int)metadata.size;
+			*datap = (char *)v.data;
+			*datasizep = (int)v.size;
+		}
+		return (ret);
+	}
+
 	/* compare: special handling. */
 	int _compare(WT_CURSOR *other) {
 		int cmp = 0;
@@ -874,6 +904,11 @@ typedef int int_void;
 		@copydoc WT_CURSOR::get_value'''
 		if self.is_json:
 			return [self._get_json_value()]
+		elif self.is_version_cursor:
+			result = self._get_version_cursor_value()
+			metadata = unpack("QQQQQQBBBB", result[0])
+			data = unpack(self.value_format[10:], result[1])
+			return metadata + data
 		else:
 			return unpack(self.value_format, self._get_value())
 
@@ -1130,8 +1165,18 @@ int diagnostic_build() {
 #endif
 }
 %}
-
 int diagnostic_build();
+
+%{
+int standalone_build() {
+#ifdef WT_STANDALONE_BUILD
+	return 1;
+#else
+	return 0;
+#endif
+}
+%}
+int standalone_build();
 
 /* Remove / rename parts of the C API that we don't want in Python. */
 %immutable __wt_cursor::session;

@@ -27,7 +27,6 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 from test_rollback_to_stable01 import test_rollback_to_stable_base
-from wiredtiger import stat, Modify, WT_NOTFOUND
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
@@ -35,13 +34,12 @@ from wtscenario import make_scenarios
 #
 # Test mixing timestamped and non-timestamped updates on the same VLCS RLE cell.
 class test_rollback_to_stable27(test_rollback_to_stable_base):
-    session_config = 'isolation=snapshot'
 
     # Run it all on row-store as well as a control group: if something odd arises from the
     # RLE cell handling it won't happen in row-store.
     key_format_values = [
         ('column', dict(key_format='r')),
-        ('integer_row', dict(key_format='i')),
+        ('row_integer', dict(key_format='i')),
     ]
 
     in_memory_values = [
@@ -54,8 +52,7 @@ class test_rollback_to_stable27(test_rollback_to_stable_base):
     def conn_config(self):
         if self.in_memory:
             return 'in_memory=true'
-        else:
-            return 'in_memory=false'
+        return ''
 
     # Evict the page to force reconciliation.
     def evict(self, uri, key, check_value):
@@ -70,10 +67,11 @@ class test_rollback_to_stable27(test_rollback_to_stable_base):
     def test_rollback_to_stable(self):
         nrows = 10
 
-        # Create a table without logging.
+        # Create a table.
         uri = "table:rollback_to_stable27"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
+        ds_config = ',log=(enabled=false)' if self.in_memory else ''
+        ds = SimpleDataSet(self, uri, 0,
+            key_format=self.key_format, value_format="S", config=ds_config)
         ds.populate()
 
         value_a = "aaaaa" * 10

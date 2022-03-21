@@ -91,12 +91,9 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_DECL_RET;
     WT_ITEM tmp;
     WT_PAGE *notused;
-    uint64_t time_diff, time_start, time_stop;
     uint32_t page_flags;
     uint8_t previous_state;
-    bool prepare, timer;
-
-    time_start = time_stop = 0;
+    bool prepare;
 
     /*
      * Don't pass an allocated buffer to the underlying block read function, force allocation of new
@@ -135,17 +132,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     }
 
     /* There's an address, read the backing disk page and build an in-memory version of the page. */
-    timer = !F_ISSET(session, WT_SESSION_INTERNAL);
-    if (timer)
-        time_start = __wt_clock(session);
-    WT_ERR(__wt_bt_read(session, &tmp, addr.addr, addr.size));
-    if (timer) {
-        time_stop = __wt_clock(session);
-        time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-        WT_STAT_CONN_INCR(session, cache_read_app_count);
-        WT_STAT_CONN_INCRV(session, cache_read_app_time, time_diff);
-        WT_STAT_SESSION_INCRV(session, read_time, time_diff);
-    }
+    WT_ERR(__wt_blkcache_read(session, &tmp, addr.addr, addr.size));
 
     /*
      * Build the in-memory version of the page. Clear our local reference to the allocated copy of
@@ -210,20 +197,17 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_TXN *txn;
     uint64_t sleep_usecs, yield_cnt;
     uint8_t current_state;
     int force_attempts;
     bool busy, cache_work, evict_skip, stalled, wont_need;
 
     btree = S2BT(session);
+    txn = session->txn;
 
     if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE))
         LF_SET(WT_READ_IGNORE_CACHE_SIZE);
-
-    /* Sanity check flag combinations. */
-    WT_ASSERT(session,
-      !LF_ISSET(WT_READ_DELETED_SKIP) || !LF_ISSET(WT_READ_NO_WAIT) || LF_ISSET(WT_READ_CACHE));
-    WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_CHECK) || !LF_ISSET(WT_READ_DELETED_SKIP));
 
     /*
      * Ignore reads of pages already known to be in cache, otherwise the eviction server can
@@ -236,10 +220,10 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
          ;) {
         switch (current_state = ref->state) {
         case WT_REF_DELETED:
-            if (LF_ISSET(WT_READ_DELETED_SKIP | WT_READ_NO_WAIT))
+            if (LF_ISSET(WT_READ_NO_WAIT))
                 return (WT_NOTFOUND);
-            if (LF_ISSET(WT_READ_DELETED_CHECK) &&
-              __wt_delete_page_skip(session, ref, !F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)))
+            if (LF_ISSET(WT_READ_SKIP_DELETED) &&
+              __wt_delete_page_skip(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)))
                 return (WT_NOTFOUND);
             goto read;
         case WT_REF_DISK:
@@ -252,8 +236,7 @@ read:
              * space in the cache.
              */
             if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
-                WT_RET(__wt_cache_eviction_check(
-                  session, true, !F_ISSET(session->txn, WT_TXN_HAS_ID), NULL));
+                WT_RET(__wt_cache_eviction_check(session, true, txn->mod_count == 0, NULL));
             WT_RET(__page_read(session, ref, flags));
 
             /* We just read a page, don't evict it before we have a chance to use it. */

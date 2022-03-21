@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper import copy_wiredtiger_home
-import wiredtiger, wttest
+import wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
@@ -35,7 +34,6 @@ from wtscenario import make_scenarios
 #    Checking visibility and durability of updates with durable_timestamp and
 #    with restart.
 class test_durable_ts01(wttest.WiredTigerTestCase):
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('row-string', dict(keyfmt='S', valfmt='S')),
@@ -100,14 +98,14 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
 
         # Read the first update value with timestamp.
         self.assertEquals(cursor.reset(), 0)
-        session.begin_transaction('read_timestamp=' + self.timestamp_str(200))
+        session.begin_transaction('read_timestamp=' + self.timestamp_str(220))
         self.assertEquals(cursor.next(), 0)
         for i in range(1, 50):
             self.assertEquals(cursor.get_value(), ds.value(111))
             self.assertEquals(cursor.next(), 0)
         session.commit_transaction()
 
-        # Check that latest value is same as first  update value.
+        # Check that latest value is same as first update value.
         self.assertEquals(cursor.reset(), 0)
         session.begin_transaction()
         self.assertEquals(cursor.next(), 0)
@@ -115,9 +113,6 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
             self.assertEquals(cursor.get_value(), ds.value(111))
             self.assertEquals(cursor.next(), 0)
         session.commit_transaction()
-
-        # Set a stable timestamp so that first update value is durable.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(250))
 
         # Update all values with value 222 i.e. second update value.
         self.assertEquals(cursor.reset(), 0)
@@ -129,6 +124,10 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
             self.assertEquals(cursor.next(), 0)
 
         session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(200))
+
+        # Set a stable timestamp so that first update value is durable.
+        # (Must be done after preparing since preparing before stable is prohibited.)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(250))
 
         # Commit timestamp is earlier to stable timestamp but durable timestamp
         # is later than stable timestamp. Hence second update value is not durable.

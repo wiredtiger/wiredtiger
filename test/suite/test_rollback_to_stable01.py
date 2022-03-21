@@ -26,8 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time
-from helper import copy_wiredtiger_home
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat, wiredtiger_strerror, WiredTigerError, WT_ROLLBACK
@@ -52,7 +50,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
                     txn_session.rollback_transaction()
                 sleep(0.1)
                 if txn_session:
-                    txn_session.begin_transaction('isolation=snapshot')
+                    txn_session.begin_transaction()
                     self.pr("Began new transaction for " + name)
             try:
                 code()
@@ -185,12 +183,11 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
 
 # Test that rollback to stable clears the remove operation.
 class test_rollback_to_stable01(test_rollback_to_stable_base):
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
         ('column_fix', dict(key_format='r', value_format='8t')),
-        ('integer_row', dict(key_format='i', value_format='S')),
+        ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
     in_memory_values = [
@@ -209,18 +206,16 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         config = 'cache_size=50MB,statistics=(all)'
         if self.in_memory:
             config += ',in_memory=true'
-        else:
-            config += ',log=(enabled),in_memory=false'
         return config
 
     def test_rollback_to_stable(self):
         nrows = 10000
 
-        # Create a table without logging.
+        # Create a table.
         uri = "table:rollback_to_stable01"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+        ds_config = 'log=(enabled=false)' if self.in_memory else ''
+        ds = SimpleDataSet(self, uri, 0,
+            key_format=self.key_format, value_format=self.value_format, config=ds_config)
         ds.populate()
 
         if self.value_format == '8t':
@@ -234,12 +229,12 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
 
         self.large_updates(uri, valuea, ds, nrows, self.prepare, 10)
         # Check that all updates are seen.
-        self.check(valuea, uri, nrows, None, 10)
+        self.check(valuea, uri, nrows, None, 11 if self.prepare else 10)
 
         # Remove all keys with newer timestamp.
         self.large_removes(uri, ds, nrows, self.prepare, 20)
         # Check that the no keys should be visible.
-        self.check(valuea, uri, 0, nrows, 20)
+        self.check(valuea, uri, 0, nrows, 21 if self.prepare else 20)
 
         # Pin stable to timestamp 20 if prepare otherwise 10.
         if self.prepare:

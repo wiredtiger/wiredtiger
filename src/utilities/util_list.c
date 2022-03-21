@@ -12,6 +12,10 @@ static int list_init_block(WT_SESSION *, const char *, WT_BLOCK *);
 static int list_print(WT_SESSION *, const char *, bool, bool);
 static int list_print_checkpoint(WT_SESSION *, const char *);
 
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static int
 usage(void)
 {
@@ -24,6 +28,10 @@ usage(void)
     return (1);
 }
 
+/*
+ * util_list --
+ *     TODO: Add a comment describing this function.
+ */
 int
 util_list(WT_SESSION *session, int argc, char *argv[])
 {
@@ -100,9 +108,6 @@ list_init_block(WT_SESSION *session, const char *key, WT_BLOCK *block)
         block->allocsize = (uint32_t)cval.val;
     else if (ret != WT_NOTFOUND)
         WT_ERR(util_err(session, ret, "WT_CONFIG_PARSER.get"));
-
-    if (WT_PREFIX_MATCH(key, "tiered:"))
-        block->has_objects = true;
 
 err:
     if (parser != NULL && (tret = parser->close(parser)) != 0) {

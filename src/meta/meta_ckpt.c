@@ -713,21 +713,21 @@ __wt_meta_ckptlist_get(
     char *config;
 
     *ckptbasep = NULL;
-
     if (allocated != NULL)
         *allocated = 0;
 
-    btree = S2BT(session);
     config = NULL;
 
     /*
-     * Get the list of checkpoints for this file: We try to cache the ckptlist between each rebuild
-     * from the metadata. But there might not be one, as there are operations that can invalidate a
-     * ckptlist. So, use a cached ckptlist if there is one. Otherwise go through slow path of
-     * re-generating the ckptlist by reading the metadata. Also, we avoid using a cached checkpoint
-     * list for metadata itself.
+     * Get the list of checkpoints for this file. We try to cache the ckptlist between each rebuild
+     * from the metadata, but there might not be one, as there are operations that can invalidate a
+     * ckptlist. So, use a cached ckptlist if there is one. Otherwise re-generate the ckptlist by
+     * reading the metadata. Finally, we avoid using a cached ckptlist for the metadata itself, and
+     * there may not be a tree available in all cases, specifically when called from the wt utility
+     * list command.
      */
-    if (!WT_IS_METADATA(session->dhandle) && btree->ckpt != NULL) {
+    btree = S2BT_SAFE(session);
+    if (btree != NULL && btree->ckpt != NULL && !WT_IS_METADATA(session->dhandle)) {
         *ckptbasep = btree->ckpt;
         if (update)
             WT_ERR(__meta_ckptlist_allocate_new_ckpt(
@@ -1366,23 +1366,25 @@ err:
 static int
 __ckpt_version_chk(WT_SESSION_IMPL *session, const char *fname, const char *config)
 {
+    WT_BTREE_VERSION version;
     WT_CONFIG_ITEM a, v;
-    int majorv, minorv;
+
+    version = WT_NO_VERSION;
 
     WT_RET(__wt_config_getones(session, config, "version", &v));
     WT_RET(__wt_config_subgets(session, &v, "major", &a));
-    majorv = (int)a.val;
+    version.major = (uint16_t)a.val;
     WT_RET(__wt_config_subgets(session, &v, "minor", &a));
-    minorv = (int)a.val;
+    version.minor = (uint16_t)a.val;
 
-    if (majorv < WT_BTREE_MAJOR_VERSION_MIN || majorv > WT_BTREE_MAJOR_VERSION_MAX ||
-      (majorv == WT_BTREE_MAJOR_VERSION_MIN && minorv < WT_BTREE_MINOR_VERSION_MIN) ||
-      (majorv == WT_BTREE_MAJOR_VERSION_MAX && minorv > WT_BTREE_MINOR_VERSION_MAX))
+    if (__wt_version_gt(version, WT_BTREE_VERSION_MAX) ||
+      __wt_version_lt(version, WT_BTREE_VERSION_MIN))
         WT_RET_MSG(session, EACCES,
-          "%s is an unsupported WiredTiger source file version %d.%d; this WiredTiger build only "
-          "supports versions from %d.%d to %d.%d",
-          fname, majorv, minorv, WT_BTREE_MAJOR_VERSION_MIN, WT_BTREE_MINOR_VERSION_MIN,
-          WT_BTREE_MAJOR_VERSION_MAX, WT_BTREE_MINOR_VERSION_MAX);
+          "%s is an unsupported WiredTiger source file version %" PRIu16 ".%" PRIu16
+          "; this WiredTiger build only supports versions from %" PRIu16 ".%" PRIu16 " to %" PRIu16
+          ".%" PRIu16,
+          fname, version.major, version.minor, WT_BTREE_VERSION_MIN.major,
+          WT_BTREE_VERSION_MIN.minor, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor);
     return (0);
 }
 

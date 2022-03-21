@@ -152,9 +152,35 @@ typedef struct {
     } while (0)
 
 /*
+ * testutil_drop --
+ *     Drop a table
+ */
+#define testutil_drop(session, uri, config)                            \
+    do {                                                               \
+        int __ret;                                                     \
+        while ((__ret = session->drop(session, uri, config)) == EBUSY) \
+            testutil_check(session->checkpoint(session, NULL));        \
+        testutil_check(__ret);                                         \
+    } while (0)
+
+/*
+ * testutil_verify --
+ *     Verify a table
+ */
+#define testutil_verify(session, uri, config)                            \
+    do {                                                                 \
+        int __ret;                                                       \
+        while ((__ret = session->verify(session, uri, config)) == EBUSY) \
+            testutil_check(session->checkpoint(session, NULL));          \
+        testutil_check(__ret);                                           \
+    } while (0)
+
+/*
  * error_sys_check --
  *     Complain and quit if a function call fails. A special name because it appears in the
  *     documentation. Allow any non-negative values.
+ *
+ * DO NOT USE THIS MACRO IN TEST CODE, IT IS ONLY FOR DOCUMENTATION.
  */
 #define error_sys_check(call)                                                     \
     do {                                                                          \
@@ -168,6 +194,8 @@ typedef struct {
  *     Complain and quit if a function call fails. A special name because it appears in the
  *     documentation. Ignore ENOTSUP to allow library calls which might not be included in any
  *     particular build.
+ *
+ * DO NOT USE THIS MACRO IN TEST CODE, IT IS ONLY FOR DOCUMENTATION.
  */
 #define error_check(call)                                                         \
     do {                                                                          \
@@ -268,6 +296,7 @@ void op_cursor(void *);
 void op_drop(void *);
 bool testutil_is_flag_set(const char *);
 void testutil_build_dir(TEST_OPTS *, char *, int);
+void testutil_clean_test_artifacts(const char *);
 void testutil_clean_work_dir(const char *);
 void testutil_cleanup(TEST_OPTS *);
 void testutil_copy_data(const char *);

@@ -26,9 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import fnmatch, os, shutil, sys
+import os, shutil
 from suite_subprocess import suite_subprocess
-import wiredtiger, wttest
+import wttest
 from wtscenario import make_scenarios
 
 # test_schema08.py
@@ -40,7 +40,7 @@ from wtscenario import make_scenarios
 class test_schema08(wttest.WiredTigerTestCase, suite_subprocess):
     # We want to copy, truncate and run recovery so keep the log
     # file small and don't pre-allocate any. We expect a small log.
-    conn_config = 'log=(enabled,archive=false,file_max=100k,prealloc=false)'
+    conn_config = 'log=(enabled,file_max=100k,prealloc=false,remove=false)'
     types = [
         ('file', dict(uri='file:', use_cg=False, use_index=False)),
         ('lsm', dict(uri='lsm:', use_cg=False, use_index=False)),

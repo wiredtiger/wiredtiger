@@ -335,11 +335,12 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __checkpoint_reduce_dirty_cache --
- *     Release clean trees from the list cached for checkpoints.
+ * __checkpoint_wait_reduce_dirty_cache --
+ *     Try to reduce the amount of dirty data in cache so there is less work do during the critical
+ *     section of the checkpoint.
  */
 static void
-__checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
+__checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
@@ -352,11 +353,8 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
     conn = S2C(session);
     cache = conn->cache;
 
-    /*
-     * Give up if scrubbing is disabled, including when checkpointing with a timestamp on close (we
-     * can't evict dirty pages in that case, so scrubbing cannot help).
-     */
-    if (F_ISSET(conn, WT_CONN_CLOSING_TIMESTAMP) || cache->eviction_checkpoint_target < DBL_EPSILON)
+    /* Give up if scrubbing is disabled. */
+    if (cache->eviction_checkpoint_target < DBL_EPSILON)
         return;
 
     time_start = __wt_clock(session);
@@ -855,7 +853,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * Try to reduce the amount of dirty data in cache so there is less work do during the critical
      * section of the checkpoint.
      */
-    __checkpoint_reduce_dirty_cache(session);
+    __checkpoint_wait_reduce_dirty_cache(session);
 
     /* Tell logging that we are about to start a database checkpoint. */
     if (full && logging)
@@ -1154,10 +1152,12 @@ err:
 static int
 __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
 
-    txn_global = &S2C(session)->txn_global;
+    conn = S2C(session);
+    txn_global = &conn->txn_global;
 
     WT_STAT_CONN_SET(session, txn_checkpoint_running, 1);
     txn_global->checkpoint_running = true;
@@ -1166,6 +1166,15 @@ __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_STAT_CONN_SET(session, txn_checkpoint_running, 0);
     txn_global->checkpoint_running = false;
+
+    /*
+     * Signal the tiered storage thread because it waits for the following checkpoint to complete to
+     * process flush units. Indicate that the checkpoint has completed.
+     */
+    if (conn->tiered_cond != NULL) {
+        conn->flush_ckpt_complete = true;
+        __wt_cond_signal(session, conn->tiered_cond);
+    }
 
     return (ret);
 }
@@ -1986,11 +1995,8 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
     /* Are we using a read timestamp for this checkpoint transaction? */
     with_timestamp = F_ISSET(txn, WT_TXN_SHARED_TS_READ);
 
-    /*
-     * For tables with immediate durability (indicated by having logging enabled), ignore any read
-     * timestamp configured for the checkpoint.
-     */
-    if (__wt_btree_immediately_durable(session))
+    /* Logged tables ignore any read timestamp configured for the checkpoint. */
+    if (F_ISSET(btree, WT_BTREE_LOGGED))
         F_CLR(txn, WT_TXN_SHARED_TS_READ);
 
     ret = __checkpoint_tree(session, true, cfg);
@@ -2102,15 +2108,18 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
     if (!btree->modified && !bulk)
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
+#ifdef WT_STANDALONE_BUILD
     /*
-     * Don't flush data from modified trees independent of system-wide checkpoint when either there
-     * is a stable timestamp set or the connection is configured to disallow such operation.
-     * Flushing trees can lead to files that are inconsistent on disk after a crash.
+     * Don't flush data from modified trees independent of system-wide checkpoint. Flushing trees
+     * can lead to files that are inconsistent on disk after a crash.
      */
-    if (btree->modified && !bulk && !__wt_btree_immediately_durable(session) &&
-      (S2C(session)->txn_global.has_stable_timestamp ||
-        (!F_ISSET(S2C(session), WT_CONN_FILE_CLOSE_SYNC) && !metadata)))
+    if (btree->modified && !bulk && !metadata)
         return (__wt_set_return(session, EBUSY));
+#else
+    if (btree->modified && !bulk && !F_ISSET(btree, WT_BTREE_LOGGED) &&
+      (S2C(session)->txn_global.has_stable_timestamp || !metadata))
+        return (__wt_set_return(session, EBUSY));
+#endif
 
     /*
      * Make sure there isn't a potential race between backup copying the metadata and a checkpoint

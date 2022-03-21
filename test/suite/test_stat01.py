@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import helper, wiredtiger, wttest
+import wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet, simple_key
 from wtscenario import make_scenarios
@@ -62,7 +62,7 @@ class test_stat01(wttest.WiredTigerTestCase):
         parts = str.rpartition('(')
         return int(parts[2].rstrip(')'))
 
-    # Do a quick check of the entries in the the stats cursor, the "lookfor"
+    # Do a quick check of the entries in the stats cursor, the "lookfor"
     # string should appear with a minimum value of least "min".
     def check_stats(self, statcursor, min, lookfor):
         stringclass = ''.__class__

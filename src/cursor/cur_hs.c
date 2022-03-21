@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 static int __curhs_file_cursor_next(WT_SESSION_IMPL *, WT_CURSOR *);
-static int __curhs_file_cursor_open(WT_SESSION_IMPL *, WT_CURSOR **);
+static int __curhs_file_cursor_open(WT_SESSION_IMPL *, WT_CURSOR *, WT_CURSOR **);
 static int __curhs_file_cursor_prev(WT_SESSION_IMPL *, WT_CURSOR *);
 static int __curhs_file_cursor_search_near(WT_SESSION_IMPL *, WT_CURSOR *, int *);
 static int __curhs_prev_visible(WT_SESSION_IMPL *, WT_CURSOR_HS *);
@@ -20,14 +20,14 @@ static int __curhs_search_near_helper(WT_SESSION_IMPL *, WT_CURSOR *, bool);
  *     Open a new history store table cursor, internal function.
  */
 static int
-__curhs_file_cursor_open(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
+__curhs_file_cursor_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
     const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
 
     WT_WITHOUT_DHANDLE(
-      session, ret = __wt_open_cursor(session, WT_HS_URI, NULL, open_cursor_cfg, &cursor));
+      session, ret = __wt_open_cursor(session, WT_HS_URI, owner, open_cursor_cfg, &cursor));
     WT_RET(ret);
 
     /* History store cursors should always ignore tombstones. */
@@ -74,7 +74,7 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
       (session->dhandle != NULL && WT_IS_METADATA(S2BT(session)->dhandle)) ||
       session == conn->default_session)
         return (0);
-    WT_RET(__curhs_file_cursor_open(session, &cursor));
+    WT_RET(__curhs_file_cursor_open(session, NULL, &cursor));
     WT_RET(cursor->close(cursor));
     return (0);
 }
@@ -322,6 +322,7 @@ __curhs_set_key(WT_CURSOR *cursor, ...)
 {
     WT_CURSOR *file_cursor;
     WT_CURSOR_HS *hs_cursor;
+    WT_DECL_RET;
     WT_ITEM *datastore_key;
     WT_SESSION_IMPL *session;
     wt_timestamp_t start_ts;
@@ -345,8 +346,9 @@ __curhs_set_key(WT_CURSOR *cursor, ...)
     F_SET(hs_cursor, WT_HS_CUR_BTREE_ID_SET);
     if (arg_count > 1) {
         datastore_key = va_arg(ap, WT_ITEM *);
-        WT_IGNORE_RET(__wt_buf_set(
-          session, hs_cursor->datastore_key, datastore_key->data, datastore_key->size));
+        if ((ret = __wt_buf_set(
+               session, hs_cursor->datastore_key, datastore_key->data, datastore_key->size)) != 0)
+            WT_IGNORE_RET(__wt_panic(session, ret, "failed to set the contents of buffer"));
         F_SET(hs_cursor, WT_HS_CUR_KEY_SET);
     } else {
         hs_cursor->datastore_key->data = NULL;
@@ -885,7 +887,7 @@ __curhs_insert(WT_CURSOR *cursor)
      * Disable bulk loads into history store. This would normally occur when updating a record with
      * a cursor however the history store doesn't use cursor update, so we do it here.
      */
-    __wt_cursor_disable_bulk(session);
+    __wt_btree_disable_bulk(session);
 
     /*
      * The actual record to be inserted into the history store. Set the current update start time
@@ -922,12 +924,6 @@ __curhs_insert(WT_CURSOR *cursor)
 
     /* We no longer own the update memory, the page does; don't free it under any circumstances. */
     hs_tombstone = hs_upd = NULL;
-
-    /*
-     * Mark the insert as successful. Even if one of the calls below fails, some callers will still
-     * need to know whether the actual insert went through or not.
-     */
-    hs_cursor->insert_success = true;
 
 #ifdef HAVE_DIAGNOSTIC
     /* Do a search again and call next to check the key order. */
@@ -1116,7 +1112,7 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
     WT_ERR(__wt_strdup(session, WT_HS_URI, &cursor->uri));
 
     /* Open the file cursor for operations on the regular history store .*/
-    WT_ERR(__curhs_file_cursor_open(session, &hs_cursor->file_cursor));
+    WT_ERR(__curhs_file_cursor_open(session, owner, &hs_cursor->file_cursor));
 
     WT_WITH_BTREE(session, CUR2BT(hs_cursor->file_cursor),
       ret = __wt_cursor_init(cursor, WT_HS_URI, owner, NULL, cursorp));
@@ -1134,35 +1130,4 @@ err:
         *cursorp = NULL;
     }
     return (ret);
-}
-
-/*
- * __wt_curhs_clear_insert_success --
- *     Clear the insertion flag for the history store cursor. We should call this prior to using the
- *     WT_CURSOR->insert method.
- */
-void
-__wt_curhs_clear_insert_success(WT_CURSOR *cursor)
-{
-    WT_CURSOR_HS *hs_cursor;
-
-    hs_cursor = (WT_CURSOR_HS *)cursor;
-    hs_cursor->insert_success = false;
-}
-
-/*
- * __wt_curhs_check_insert_success --
- *     Check whether the insertion flag for the history store cursor is set or not. This signals
- *     whether or not the last WT_CURSOR->insert call successfully inserted the history store
- *     record. This is distinctly different from the return value of WT_CURSOR->insert since the
- *     return value could be non-zero due to cursor operations AFTER the actual history store
- *     insertion.
- */
-bool
-__wt_curhs_check_insert_success(WT_CURSOR *cursor)
-{
-    WT_CURSOR_HS *hs_cursor;
-
-    hs_cursor = (WT_CURSOR_HS *)cursor;
-    return (hs_cursor->insert_success);
 }

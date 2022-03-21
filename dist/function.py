@@ -2,12 +2,12 @@
 
 # Check the style of WiredTiger C code.
 from __future__ import print_function
-import fnmatch, os, re, sys
-from dist import all_c_files, compare_srcfile, source_files
+import re, sys
+from dist import all_c_files, compare_srcfile
 
 # Complain if a function comment is missing.
 def missing_comment():
-    for f in source_files():
+    for f in all_c_files():
         skip_re = re.compile(r'DO NOT EDIT: automatically built')
         func_re = re.compile(
             r'(/\*(?:[^\*]|\*[^/])*\*/)?\n\w[\w \*]+\n(\w+)', re.DOTALL)
@@ -15,6 +15,10 @@ def missing_comment():
         if skip_re.search(s):
             continue
         for m in func_re.finditer(s):
+            if m.group(2).startswith('__ut_'):
+                # This is just re-exposing an internal function for unit
+                # tests, no comment needed in this case.
+                continue
             if not m.group(1) or \
                not m.group(1).startswith('/*\n * %s --\n' % m.group(2)):
                    print("%s:%d: missing or malformed comment for %s" % \

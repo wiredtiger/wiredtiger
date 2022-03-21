@@ -28,7 +28,6 @@
 
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 
 # test_flcs01.py
 #
@@ -39,7 +38,6 @@ from wtscenario import make_scenarios
 # in-memory update records. (Testing on an in-memory database does not have that
 # effect.)
 class test_flcs01(wttest.WiredTigerTestCase):
-    session_config = 'isolation=snapshot'
     conn_config = 'in_memory=false'
 
     # Evict the page to force reconciliation.

@@ -35,6 +35,8 @@ __rec_col_fix_bulk_insert_split_check(WT_CURSOR_BULK *cbulk)
              */
             __wt_rec_incr(
               session, r, cbulk->entry, __bitstr_size((size_t)cbulk->entry * btree->bitcnt));
+            __bit_clear_end(
+              WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem), cbulk->entry, btree->bitcnt);
             WT_RET(__wt_rec_split(session, r, 0));
         }
         cbulk->entry = 0;
@@ -140,8 +142,8 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
          * Store the bulk cursor's last buffer, not the current value, we're tracking duplicates,
          * which means we want the previous value seen, not the current value.
          */
-        WT_RET(
-          __wt_rec_cell_build_val(session, r, cbulk->last.data, cbulk->last.size, &tw, cbulk->rle));
+        WT_RET(__wt_rec_cell_build_val(
+          session, r, cbulk->last->data, cbulk->last->size, &tw, cbulk->rle));
 
     /* Boundary: split or write the page. */
     if (WT_CROSSING_SPLIT_BND(r, val->len))
@@ -751,11 +753,12 @@ __wt_rec_col_fix(
 
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             /*
-             * When removing a key due to a tombstone with a durable timestamp of "none", also
-             * remove the history store contents associated with that key.
+             * When an out-of-order or mixed-mode tombstone is getting written to disk, remove any
+             * historical versions that are greater in the history store for this key.
              */
-            if (upd_select.tw.durable_stop_ts == WT_TS_NONE && r->hs_clear_on_tombstone)
-                WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, recno, NULL));
+            if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
+                WT_ERR(__wt_rec_hs_clear_on_tombstone(
+                  session, r, upd_select.tw.durable_stop_ts, recno, NULL, false));
 
             val = 0;
         } else {
@@ -768,9 +771,18 @@ __wt_rec_col_fix(
         __bit_setv(r->first_free, recno - curstartrecno, btree->bitcnt, val);
 
         /* Write the time window. */
-        if (!WT_TIME_WINDOW_IS_EMPTY(&upd_select.tw))
+        if (!WT_TIME_WINDOW_IS_EMPTY(&upd_select.tw)) {
+            /*
+             * When an out-of-order or mixed-mode tombstone is getting written to disk, remove any
+             * historical versions that are greater in the history store for this key.
+             */
+            if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
+                WT_ERR(__wt_rec_hs_clear_on_tombstone(
+                  session, r, upd_select.tw.durable_stop_ts, recno, NULL, true));
+
             WT_ERR(__wt_rec_col_fix_addtw(
               session, r, (uint32_t)(recno - curstartrecno), &upd_select.tw));
+        }
 
         /* If there was an entry in the time windows index for this key, skip over it. */
         if (tw < numtws && origstartrecno + page->pg_fix_tws[tw].recno_offset == recno)
@@ -907,6 +919,10 @@ __wt_rec_col_fix(
                 WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &unpack.tw);
             }
 
+            /* Make sure the trailing bits in the bitmap get cleared. */
+            __bit_clear_end(
+              WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem), r->entries, btree->bitcnt);
+
             /* Now split. */
             WT_ERR(__wt_rec_split(session, r, 0));
 
@@ -937,6 +953,9 @@ __wt_rec_col_fix(
         WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &unpack.tw);
     }
 
+    /* Make sure the trailing bits in the bitmap get cleared. */
+    __bit_clear_end(WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem), r->entries, btree->bitcnt);
+
     /* Write the remnant page. */
     WT_ERR(__wt_rec_split_finish(session, r));
 
@@ -949,11 +968,11 @@ err:
  *     Write the auxiliary header into the page image.
  */
 void
-__wt_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t entries,
-  uint32_t auxentries, uint8_t *image, size_t size)
+__wt_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, uint32_t entries,
+  uint32_t aux_start_offset, uint32_t auxentries, uint8_t *image, size_t size)
 {
     WT_BTREE *btree;
-    uint32_t auxdataoffset, auxheaderoffset, bitmapsize, offset;
+    uint32_t auxheaderoffset, bitmapsize, offset, space;
     uint8_t *endp, *p;
 
     btree = S2BT(session);
@@ -1000,6 +1019,10 @@ __wt_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint
      *
      * However, this means that we should not assume the bitmap size is given by the btree maximum
      * leaf page size but get it from the reconciliation info.
+     *
+     * Note: it is important to use *this* chunk's auxiliary start offset (passed in) and not read
+     * the auxiliary start offset from the WT_RECONCILE, as we may be writing the previous chunk and
+     * the latter describes the current chunk.
      */
 
     /* Figure how much primary data we have. */
@@ -1008,14 +1031,8 @@ __wt_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint
     /* The auxiliary header goes after the bitmap, which goes after the page header. */
     auxheaderoffset = WT_PAGE_HEADER_BYTE_SIZE(btree) + bitmapsize;
 
-    /* The auxiliary data goes wherever we have been writing it. */
-    auxdataoffset = r->aux_start_offset;
-
-    /* This should be at or after the place it goes on a normal-sized page. */
-    WT_ASSERT(session, auxdataoffset >= btree->maxleafpage + WT_COL_FIX_AUXHEADER_RESERVATION);
-
     /* This should also have left sufficient room for the header. */
-    WT_ASSERT(session, auxdataoffset >= auxheaderoffset + WT_COL_FIX_AUXHEADER_RESERVATION);
+    WT_ASSERT(session, aux_start_offset >= auxheaderoffset + WT_COL_FIX_AUXHEADER_RESERVATION);
 
     /*
      * If there is no auxiliary data, we will have already shortened the image size to discard the
@@ -1024,12 +1041,12 @@ __wt_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint
      * last page in the tree, this also avoids the space wastage described above.
      */
     if (auxentries == 0) {
-        WT_ASSERT(session, auxdataoffset >= size);
+        WT_ASSERT(session, aux_start_offset >= size);
         return;
     }
 
     /* The offset we're going to write is the distance from the header start to the data. */
-    offset = auxdataoffset - auxheaderoffset;
+    offset = aux_start_offset - auxheaderoffset;
 
     /*
      * Encoding the offset should fit -- either it is less than what encodes to 1 byte or greater
@@ -1040,16 +1057,18 @@ __wt_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint
      */
     WT_STATIC_ASSERT(WT_COL_FIX_AUXHEADER_SIZE_MAX < POS_1BYTE_MAX);
 
-    /* Should not be overwriting anything. */
-    WT_ASSERT(session, image[auxheaderoffset] == 0);
-
     p = image + auxheaderoffset;
-    endp = image + auxdataoffset;
+    endp = image + aux_start_offset;
 
     *(p++) = WT_COL_FIX_VERSION_TS;
     WT_IGNORE_RET(__wt_vpack_uint(&p, WT_PTRDIFF32(endp, p), auxentries));
     WT_IGNORE_RET(__wt_vpack_uint(&p, WT_PTRDIFF32(endp, p), offset));
     WT_ASSERT(session, p <= endp);
+
+    /* Zero the empty space, if any. */
+    space = WT_PTRDIFF32(endp, p);
+    if (space > 0)
+        memset(p, 0, space);
 }
 
 /*
@@ -1361,14 +1380,25 @@ record_loop:
                 case WT_UPDATE_STANDARD:
                     data = upd->data;
                     size = upd->size;
+                    /*
+                     * When an out-of-order or mixed-mode tombstone is getting written to disk,
+                     * remove any historical versions that are greater in the history store for this
+                     * key.
+                     */
+                    if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
+                        WT_ERR(__wt_rec_hs_clear_on_tombstone(
+                          session, r, twp->durable_stop_ts, src_recno, NULL, true));
+
                     break;
                 case WT_UPDATE_TOMBSTONE:
                     /*
-                     * When removing a key due to a tombstone with a durable timestamp of "none",
-                     * also remove the history store contents associated with that key.
+                     * When an out-of-order or mixed-mode tombstone is getting written to disk,
+                     * remove any historical versions that are greater in the history store for this
+                     * key.
                      */
-                    if (twp->durable_stop_ts == WT_TS_NONE && r->hs_clear_on_tombstone)
-                        WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, src_recno, NULL));
+                    if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
+                        WT_ERR(__wt_rec_hs_clear_on_tombstone(
+                          session, r, twp->durable_stop_ts, src_recno, NULL, false));
 
                     deleted = true;
                     twp = &clear_tw;

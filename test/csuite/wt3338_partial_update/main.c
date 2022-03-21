@@ -121,7 +121,8 @@ compare(WT_ITEM *orig, WT_ITEM *local, WT_ITEM *library)
     const uint8_t *p, *t;
 
     max = WT_MIN(local->size, library->size);
-    if (local->size != library->size || memcmp(local->data, library->data, local->size) != 0) {
+    if (local->size != library->size ||
+      (local->size != 0 && memcmp(local->data, library->data, local->size) != 0)) {
         for (i = 0, p = local->data, t = library->data; i < max; ++i, ++p, ++t)
             if (*p != *t)
                 break;
@@ -133,27 +134,24 @@ compare(WT_ITEM *orig, WT_ITEM *local, WT_ITEM *library)
         show(orig, "original");
         show(local, "local results");
         show(library, "library results");
+        testutil_assert(false);
     }
-    testutil_assert(
-      local->size == library->size && memcmp(local->data, library->data, local->size) == 0);
 }
 
 /*
- * modify_run
- *	Run some tests:
- *	1. Create an initial value, a copy and a fake cursor to use with the
- *	WiredTiger routines. Generate a set of modify vectors and apply them to
- *	the item stored in the cursor using the modify apply API. Also apply the
- *	same modify vector to one of the copies using a helper routine written
- *	to test the modify API. The final value generated with the modify API
- *	and the helper routine should match.
+ * modify_run --
+ *     Run some tests:
  *
- *	2. Use the initial value and the modified value generated above as
- *	inputs into the calculate-modify API to generate a set of modify
- *	vectors. Apply this generated vector to the initial value using the
- *	modify apply API to obtain a final value. The final value generated
- *	should match the modified value that was used as input to the
- *	calculate-modify API.
+ * 1. Create an initial value, a copy and a fake cursor to use with the WiredTiger routines.
+ *     Generate a set of modify vectors and apply them to the item stored in the cursor using the
+ *     modify apply API. Also apply the same modify vector to one of the copies using a helper
+ *     routine written to test the modify API. The final value generated with the modify API and the
+ *     helper routine should match.
+ *
+ * 2. Use the initial value and the modified value generated above as inputs into the
+ *     calculate-modify API to generate a set of modify vectors. Apply this generated vector to the
+ *     initial value using the modify apply API to obtain a final value. The final value generated
+ *     should match the modified value that was used as input to the calculate-modify API.
  */
 static void
 modify_run(TEST_OPTS *opts)
@@ -240,6 +238,10 @@ modify_run(TEST_OPTS *opts)
     __wt_buf_free(session, &modtmp);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {

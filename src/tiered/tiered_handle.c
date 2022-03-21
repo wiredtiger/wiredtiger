@@ -9,6 +9,71 @@
 #include "wt_internal.h"
 
 /*
+ * __tiered_name_check --
+ *     Check if the given tiered table name exists in the shared storage. This is called from create
+ *     to check if this name had previously existed, was dropped and we're now trying to create the
+ *     same name. We cannot do that if shared objects exist for the old table.
+ */
+static int
+__tiered_name_check(WT_SESSION_IMPL *session, WT_TIERED *tiered)
+{
+    WT_DECL_RET;
+    WT_FILE_SYSTEM *bucket_fs;
+    size_t len, obj_len;
+    u_int obj_count, i;
+    char **obj_files;
+    const char *name, *obj_name, *obj_uri;
+
+    bucket_fs = tiered->bstorage->file_system;
+    name = tiered->iface.name;
+    obj_name = obj_uri = NULL;
+    WT_ASSERT(session, WT_PREFIX_MATCH(name, "tiered:"));
+    WT_PREFIX_SKIP(name, "tiered:");
+    /* See if this name exists in the shared storage. */
+    __wt_verbose(session, WT_VERB_TIERED, "NAME_CHECK: check for %s", name);
+    WT_RET(bucket_fs->fs_directory_list(bucket_fs, (WT_SESSION *)session,
+      tiered->bstorage->bucket_prefix, name, &obj_files, &obj_count));
+    __wt_verbose(session, WT_VERB_TIERED, "NAME_CHECK: Got %d files", (int)obj_count);
+    if (obj_count == 0)
+        goto done;
+    /*
+     * We need to distinguish this name from a superset name so check the length also matches.
+     * Generate an object name so that we know the maximum length that our name should be and we can
+     * check for the right form.
+     */
+    WT_ERR(__wt_tiered_name(session, &tiered->iface, 1, WT_TIERED_NAME_OBJECT, &obj_uri));
+    obj_name = obj_uri;
+    WT_PREFIX_SKIP_REQUIRED(session, obj_name, "object:");
+    /*
+     * This is the length of the name-<object number>.wtobj string. The object name for any given
+     * tiered name is fixed length as the object number field is zero-filled and fixed, as is the
+     * suffix. So it is sufficient to match the name prefix and length below.
+     */
+    obj_len = strlen(obj_name);
+    for (i = 0; i < obj_count; ++i) {
+        __wt_verbose(session, WT_VERB_TIERED, "NAME_CHECK: %d %s", (int)i, obj_files[i]);
+        /*
+         * We know the name prefix matches from the directory list. If the length matches the full
+         * object name with id number and suffix, then we have a match. We don't know what object
+         * number the match may contain so we cannot do a full string comparison.
+         */
+        len = strlen(obj_files[i]);
+        if (len == obj_len) {
+            __wt_verbose(
+              session, WT_VERB_TIERED, "EEXIST %s already exists on shared storage", obj_files[i]);
+            WT_ERR_MSG(session, EEXIST, "%s already exists on shared storage", obj_files[i]);
+        }
+    }
+
+err:
+    WT_TRET(
+      bucket_fs->fs_directory_list_free(bucket_fs, (WT_SESSION *)session, obj_files, obj_count));
+    __wt_free(session, obj_uri);
+done:
+    return (ret);
+}
+
+/*
  * __tiered_dhandle_setup --
  *     Given a tiered index and name, set up the dhandle information.
  */
@@ -28,7 +93,7 @@ __tiered_dhandle_setup(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t i, 
             id = WT_TIERED_INDEX_LOCAL;
         else if (type == WT_DHANDLE_TYPE_TIERED_TREE)
             /*
-             * FIXME-WT-7538: this type can be removed. For now, there is nothing to do for this
+             * FIXME-WT-7731: this type can be removed. For now, there is nothing to do for this
              * type.
              */
             goto err;
@@ -150,7 +215,7 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     F_SET(this_tier, WT_TIERS_OP_READ | WT_TIERS_OP_WRITE);
 
     WT_WITH_DHANDLE(
-      session, &tiered->iface, ret = __wt_btree_switch_object(session, tiered->current_id, 0));
+      session, &tiered->iface, ret = __wt_btree_switch_object(session, tiered->current_id));
     WT_ERR(ret);
 
 err:
@@ -565,15 +630,24 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR_NOTFOUND_OK(ret, true);
 
     /* Open tiers if we have them, otherwise initialize. */
-    if (tiered->current_id != 0)
+    if (tiered->current_id != WT_TIERED_OBJECTID_NONE)
         WT_ERR(__tiered_init_tiers(session, tiered, &tierconf));
     else {
+        /*
+         * The tiered table name does not exist. But now check if any shared storage objects exist
+         * for this name. A user could have created a tiered table. Later dropped it, which removes
+         * the metadata entries and local files, but leaves the objects in the shared storage layer
+         * because others may be using those files. We do not allow a create of a duplicate name if
+         * we find objects. We do this after the tiered bucket storage is set up.
+         */
+        WT_ERR(__tiered_name_check(session, tiered));
+
         __wt_verbose(
           session, WT_VERB_TIERED, "TIERED_OPEN: create %s config %s", dhandle->name, config);
         WT_ERR(__wt_tiered_switch(session, config));
     }
     WT_ERR(__wt_btree_open(session, tiered_cfg));
-    WT_ERR(__wt_btree_switch_object(session, tiered->current_id, 0));
+    WT_ERR(__wt_btree_switch_object(session, tiered->current_id));
 
 #if 1
     if (0) {

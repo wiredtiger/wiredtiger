@@ -236,8 +236,9 @@ create_database(const char *home, WT_CONNECTION **connp)
     if (GV(LOGGING)) {
         s = GVS(LOGGING_COMPRESSION);
         CONFIG_APPEND(p,
-          ",log=(enabled=true,archive=%d,prealloc=%d,file_max=%" PRIu32 ",compressor=\"%s\")",
-          GV(LOGGING_ARCHIVE) ? 1 : 0, GV(LOGGING_PREALLOC) ? 1 : 0, KILOBYTE(GV(LOGGING_FILE_MAX)),
+          ",log=(enabled=true,%s=%d,prealloc=%d,file_max=%" PRIu32 ",compressor=\"%s\")",
+          g.backward_compatible ? "archive" : "remove", GV(LOGGING_REMOVE) ? 1 : 0,
+          GV(LOGGING_PREALLOC) ? 1 : 0, KILOBYTE(GV(LOGGING_FILE_MAX)),
           strcmp(s, "off") == 0 ? "none" : s);
     }
 
@@ -372,13 +373,17 @@ create_object(TABLE *table, void *arg)
       p, ",internal_key_truncate=%s", TV(BTREE_INTERNAL_KEY_TRUNCATION) ? "true" : "false");
     CONFIG_APPEND(p, ",split_pct=%" PRIu32, TV(BTREE_SPLIT_PCT));
 
+    /* Timestamps */
+    if (g.transaction_timestamps_config)
+        CONFIG_APPEND(p, ",log=(enabled=false)");
+
     /* Assertions: assertions slow down the code for additional diagnostic checking.  */
     if (GV(ASSERT_READ_TIMESTAMP))
         CONFIG_APPEND(
           p, ",assert=(read_timestamp=%s)", g.transaction_timestamps_config ? "always" : "never");
     if (GV(ASSERT_WRITE_TIMESTAMP))
         CONFIG_APPEND(p, ",assert=(write_timestamp=on),write_timestamp_usage=%s",
-          g.transaction_timestamps_config ? "key_consistent" : "never");
+          g.transaction_timestamps_config ? "always" : "never");
 
     /* Configure LSM. */
     if (DATASOURCE(table, "lsm")) {
@@ -539,6 +544,12 @@ wts_verify(TABLE *table, void *arg)
      * LSM, the handle may not be available for a long time.
      */
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    /*
+     * Do a full checkpoint to reduce the possibility of returning EBUSY from the following verify
+     * call.
+     */
+    ret = session->checkpoint(session, NULL);
+    testutil_assert(ret == 0 || ret == EBUSY);
     session->app_private = table->track_prefix;
     ret = session->verify(session, table->uri, "strict");
     testutil_assert(ret == 0 || ret == EBUSY);

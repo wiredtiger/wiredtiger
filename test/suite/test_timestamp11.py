@@ -31,11 +31,10 @@
 #
 
 from suite_subprocess import suite_subprocess
-import wiredtiger, wttest
+import wttest
 from wtscenario import make_scenarios
 
 class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('string-row', dict(key_format='S', value_format='S')),

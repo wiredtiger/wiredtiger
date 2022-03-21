@@ -257,6 +257,8 @@ __compact_worker(WT_SESSION_IMPL *session)
             if (session->op_handle[i]->compact_skip)
                 continue;
 
+            __wt_timing_stress(session, WT_TIMING_STRESS_COMPACT_SLOW);
+
             session->compact_state = WT_COMPACT_RUNNING;
             WT_WITH_DHANDLE(session, session->op_handle[i], ret = __wt_compact(session));
             WT_ERR_ERROR_OK(ret, EBUSY, true);
@@ -418,6 +420,11 @@ err:
     else
         WT_STAT_CONN_INCR(session, session_table_compact_success);
     WT_STAT_CONN_SET(session, session_table_compact_running, 0);
+
+    /* Map prepare-conflict to rollback. */
+    if (ret == WT_PREPARE_CONFLICT)
+        ret = WT_ROLLBACK;
+
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 

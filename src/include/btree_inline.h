@@ -45,6 +45,38 @@ __wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t old_state,
 }
 
 /*
+ * __wt_btree_disable_bulk --
+ *     Disable bulk loads into a tree.
+ */
+static inline void
+__wt_btree_disable_bulk(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
+
+    /*
+     * Once a tree (other than the LSM primary) is no longer empty, eviction should pay attention to
+     * it, and it's no longer possible to bulk-load into it.
+     */
+    if (!btree->original)
+        return;
+    if (btree->lsm_primary) {
+        btree->original = 0; /* Make the next test faster. */
+        return;
+    }
+
+    /*
+     * We use a compare-and-swap here to avoid races among the first inserts into a tree. Eviction
+     * is disabled when an empty tree is opened, and it must only be enabled once.
+     */
+    if (__wt_atomic_cas8(&btree->original, 1, 0)) {
+        btree->evict_disabled_open = false;
+        __wt_evict_file_exclusive_off(session);
+    }
+}
+
+/*
  * __wt_page_is_empty --
  *     Return if the page is empty.
  */
@@ -1485,21 +1517,17 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 }
 
 /*
- * __wt_btree_can_evict_dirty --
- *     Check whether eviction of dirty pages or splits are permitted in the current tree. We cannot
- *     evict dirty pages or split while a checkpoint is in progress, unless the checkpoint thread is
- *     doing the work. Also, during connection close, if we take a checkpoint as of a timestamp,
- *     eviction should not write dirty pages to avoid updates newer than the checkpoint timestamp
- *     leaking to disk.
+ * __wt_btree_syncing_by_other_session --
+ *     Returns true if the session's current btree is being synced by another thread.
  */
 static inline bool
-__wt_btree_can_evict_dirty(WT_SESSION_IMPL *session)
+__wt_btree_syncing_by_other_session(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
 
     btree = S2BT(session);
-    return ((!WT_BTREE_SYNCING(btree) || WT_SESSION_BTREE_SYNC(session)) &&
-      !F_ISSET(S2C(session), WT_CONN_CLOSING_TIMESTAMP));
+
+    return (WT_BTREE_SYNCING(btree) && !WT_SESSION_BTREE_SYNC(session));
 }
 
 /*
@@ -1680,7 +1708,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * historical tables, reconciliation no longer writes overflow cookies on internal pages, no
      * matter the size of the key.)
      */
-    if (!__wt_btree_can_evict_dirty(session) &&
+    if (__wt_btree_syncing_by_other_session(session) &&
       F_ISSET_ATOMIC_16(ref->home, WT_PAGE_INTL_OVERFLOW_KEYS))
         return (false);
 
@@ -1702,7 +1730,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * written and the previous version freed, that previous version might be referenced by an
      * internal page already written in the checkpoint, leaving the checkpoint inconsistent.
      */
-    if (modified && !__wt_btree_can_evict_dirty(session)) {
+    if (modified && __wt_btree_syncing_by_other_session(session)) {
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_checkpoint);
         return (false);
     }
@@ -2015,12 +2043,14 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
  *     traversal.
  */
 static inline int
-__wt_btcur_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
+__wt_btcur_skip_page(
+  WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
     WT_ADDR_COPY addr;
     uint8_t previous_state;
 
     WT_UNUSED(context);
+    WT_UNUSED(visible_all);
 
     *skipp = false; /* Default to reading */
 

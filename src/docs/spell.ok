@@ -3,6 +3,9 @@ ACM
 ADDR
 APIs
 ASAN
+ASan
+AWS
+AWS's
 ActiveState
 Adler's
 Atomicity
@@ -29,6 +32,7 @@ Cyclomatic
 DB's
 DBTs
 DCC
+DCLANG
 DCMAKE
 DENABLE
 DHANDLE
@@ -51,6 +55,7 @@ ENOTSUP
 EXTLIST
 EmpId
 Encryptors
+FIXME
 FSTREAM
 Facebook
 Facebook's
@@ -110,6 +115,7 @@ PMU
 PPC
 PRELOAD
 PROFDATA
+Powershell
 README
 RLE
 RedHat
@@ -119,6 +125,8 @@ RocksDB
 Roelofs
 RrVv
 Rrx
+SDK
+SDK's
 SCons
 SYSV
 Sanitizer
@@ -127,6 +135,7 @@ SiH
 TSC
 TXID
 TXT
+Timestamping
 UBSAN
 UNC
 URIs
@@ -163,6 +172,7 @@ allocator
 allocators
 allocsize
 ao
+ap
 api
 apiflags
 ar
@@ -245,6 +255,7 @@ customerABC
 customizability
 cv
 cyclomatic
+de
 dN
 dNLen
 dNOff
@@ -259,6 +270,7 @@ dbc
 dbformat
 dbm
 dbt
+deallocated
 decl
 decrement
 decrementing
@@ -273,6 +285,7 @@ dev
 dhandle
 dhandle's
 dhandles
+dir
 disjunction
 disjunctions
 distclean
@@ -289,6 +302,7 @@ dt
 dumpfile
 dup
 dups
+ebusy
 encrypt
 encryptor
 encryptor's
@@ -323,10 +337,12 @@ fileFontColor
 fileID
 fileShadowing
 fileformats
+filehandle
 fileid
 filename
 filesystem
 filesystems
+filesystem's
 fillfactor
 firstname
 flamegraph
@@ -378,6 +394,7 @@ indices
 init
 inmemory
 insn
+instantiation
 intl
 intpack
 inuse
@@ -456,6 +473,7 @@ mkdir
 mmap
 mpool
 mpoolfile
+msbuild
 msec
 msg
 msgs
@@ -562,6 +580,7 @@ req
 rerequests
 ret
 rf
+riscv
 rmw
 ro
 rotn
@@ -630,7 +649,9 @@ thang
 tid
 timeline
 timelines
+timespan
 timestamp
+timestamping
 timestamps
 toc
 todo
@@ -670,6 +691,7 @@ util
 valign
 valuefmt
 valuev
+vcxproj
 vec
 versa
 viewable

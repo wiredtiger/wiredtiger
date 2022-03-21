@@ -26,24 +26,21 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, threading, time
-from wtthread import checkpoint_thread
-import wiredtiger
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
-from helper import copy_wiredtiger_home, simulate_crash_restart
+from helper import simulate_crash_restart
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 
 # test_rollback_to_stable29.py
 # Test that the rollback to stable to verify the history store order when an out of order to a tombstone.
 class test_rollback_to_stable29(test_rollback_to_stable_base):
-    conn_config = 'cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true)'
+    conn_config = 'cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
         ('column_fix', dict(key_format='r', value_format='8t')),
-        ('integer_row', dict(key_format='i', value_format='S')),
+        ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
     scenarios = make_scenarios(format_values)
@@ -64,8 +61,7 @@ class test_rollback_to_stable29(test_rollback_to_stable_base):
             value_d = 'd' * 100
 
         # Create our table.
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 
         # Pin oldest and stable to timestamp 1.

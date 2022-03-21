@@ -89,7 +89,7 @@
          * We should not leave any history store cursor open when return from an api call. \
          * However, we cannot do a stricter check before WT-7247 is resolved.              \
          */                                                                                \
-        WT_ASSERT(s, (s)->api_call_counter > 1 || (s)->hs_cursor_counter <= 2);            \
+        WT_ASSERT(s, (s)->api_call_counter > 1 || (s)->hs_cursor_counter <= 3);            \
         /*                                                                                 \
          * No code after this line, otherwise error handling                               \
          * won't be correct.                                                               \
@@ -104,7 +104,6 @@
     do {                                                                    \
         bool __autotxn = false, __update = false;                           \
         API_CALL(s, h, n, dh, config, cfg);                                 \
-        __wt_txn_timestamp_flags(s);                                        \
         __autotxn = !F_ISSET((s)->txn, WT_TXN_AUTOCOMMIT | WT_TXN_RUNNING); \
         if (__autotxn)                                                      \
             F_SET((s)->txn, WT_TXN_AUTOCOMMIT);                             \
@@ -117,7 +116,6 @@
     do {                                                                    \
         bool __autotxn = false, __update = false;                           \
         API_CALL_NOCONF(s, h, n, dh);                                       \
-        __wt_txn_timestamp_flags(s);                                        \
         __autotxn = !F_ISSET((s)->txn, WT_TXN_AUTOCOMMIT | WT_TXN_RUNNING); \
         if (__autotxn)                                                      \
             F_SET((s)->txn, WT_TXN_AUTOCOMMIT);                             \
@@ -218,6 +216,13 @@
     SESSION_API_PREPARE_CHECK(s, WT_CURSOR, n);                                            \
     API_CALL_NOCONF(s, WT_CURSOR, n, ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle); \
     if (F_ISSET(cur, WT_CURSTD_CACHED))                                                    \
+    WT_ERR(__wt_cursor_cached(cur))
+
+#define CURSOR_API_CALL_CONF(cur, s, n, config, cfg, bt)                                         \
+    (s) = CUR2S(cur);                                                                            \
+    SESSION_API_PREPARE_CHECK(s, WT_CURSOR, n);                                                  \
+    API_CALL(s, WT_CURSOR, n, ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle, config, cfg); \
+    if (F_ISSET(cur, WT_CURSTD_CACHED))                                                          \
     WT_ERR(__wt_cursor_cached(cur))
 
 #define CURSOR_API_CALL_PREPARE_ALLOWED(cur, s, n, bt)                                     \

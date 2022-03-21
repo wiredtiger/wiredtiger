@@ -69,10 +69,10 @@ struct __wt_addr;
 typedef struct __wt_addr WT_ADDR;
 struct __wt_addr_copy;
 typedef struct __wt_addr_copy WT_ADDR_COPY;
+struct __wt_backup_target;
+typedef struct __wt_backup_target WT_BACKUP_TARGET;
 struct __wt_blkcache;
 typedef struct __wt_blkcache WT_BLKCACHE;
-struct __wt_blkcache_bucket_metadata;
-typedef struct __wt_blkcache_bucket_metadata WT_BLKCACHE_BUCKET_METADATA;
 struct __wt_blkcache_item;
 typedef struct __wt_blkcache_item WT_BLKCACHE_ITEM;
 struct __wt_blkincr;
@@ -83,8 +83,6 @@ struct __wt_block_ckpt;
 typedef struct __wt_block_ckpt WT_BLOCK_CKPT;
 struct __wt_block_desc;
 typedef struct __wt_block_desc WT_BLOCK_DESC;
-struct __wt_block_file_opener;
-typedef struct __wt_block_file_opener WT_BLOCK_FILE_OPENER;
 struct __wt_block_header;
 typedef struct __wt_block_header WT_BLOCK_HEADER;
 struct __wt_block_mods;
@@ -181,6 +179,8 @@ struct __wt_cursor_stat;
 typedef struct __wt_cursor_stat WT_CURSOR_STAT;
 struct __wt_cursor_table;
 typedef struct __wt_cursor_table WT_CURSOR_TABLE;
+struct __wt_cursor_version;
+typedef struct __wt_cursor_version WT_CURSOR_VERSION;
 struct __wt_data_handle;
 typedef struct __wt_data_handle WT_DATA_HANDLE;
 struct __wt_data_handle_cache;
@@ -209,10 +209,6 @@ struct __wt_fstream;
 typedef struct __wt_fstream WT_FSTREAM;
 struct __wt_hazard;
 typedef struct __wt_hazard WT_HAZARD;
-struct __wt_hazard_weak;
-typedef struct __wt_hazard_weak WT_HAZARD_WEAK;
-struct __wt_hazard_weak_array;
-typedef struct __wt_hazard_weak_array WT_HAZARD_WEAK_ARRAY;
 struct __wt_ikey;
 typedef struct __wt_ikey WT_IKEY;
 struct __wt_index;
@@ -367,6 +363,8 @@ struct __wt_update_vector;
 typedef struct __wt_update_vector WT_UPDATE_VECTOR;
 struct __wt_verbose_multi_category;
 typedef struct __wt_verbose_multi_category WT_VERBOSE_MULTI_CATEGORY;
+struct __wt_version;
+typedef struct __wt_version WT_VERSION;
 union __wt_lsn;
 typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
@@ -444,6 +442,7 @@ typedef uint64_t wt_timestamp_t;
 #include "verbose.h"
 
 #include "session.h" /* required by connection.h */
+#include "version.h" /* required by connection.h */
 #include "connection.h"
 
 #include "extern.h"
