@@ -1357,9 +1357,9 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_SAVE_UPD *supd;
-    WT_UPDATE *prev_onpage, *upd;
+    WT_UPDATE *upd, *prev_upd, *upd_backup;
     uint64_t recno;
-    uint32_t i, slot;
+    uint32_t i, slot, update_ds_counter;
     bool prepare;
 
     /*
@@ -1409,6 +1409,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
 
     /* Re-create each modification we couldn't write. */
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
+        update_ds_counter = 0;
+
         /* Ignore update chains that don't need to be restored. */
         if (!supd->restore)
             continue;
@@ -1437,20 +1439,27 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
              */
             WT_ASSERT(session, upd != supd->onpage_upd);
 
-            if (F_ISSET(supd->onpage_upd, WT_UPDATE_DS))
-                upd->next = NULL;
-            else {
-                /*
-                 * Move the pointer to the position before the onpage value and truncate all the updates
-                 * starting from the onpage value.
-                 */
-                for (prev_onpage = upd;
-                     prev_onpage->next != NULL && prev_onpage->next != supd->onpage_upd;
-                     prev_onpage = prev_onpage->next)
-                    ;
-                WT_ASSERT(session, prev_onpage->next == supd->onpage_upd);
-                prev_onpage->next = NULL;
+            /*
+             * Move the pointer to the position before the onpage value and truncate all the updates
+             * starting from the onpage value.
+             */
+            upd_backup = upd;
+            for (prev_upd = upd; prev_upd->next != NULL; prev_upd = prev_upd->next) {
+                if (F_ISSET(prev_upd->next, WT_UPDATE_DS)) {
+                    upd_backup = prev_upd->next;
+                    ++update_ds_counter;
+                    break;
+                }
             }
+            prev_upd->next = NULL;
+
+            (void)upd_backup;
+#ifdef HAVE_DIAGNOSTIC
+            for (; upd_backup->next != NULL && upd_backup->next != supd->onpage_upd; upd_backup = upd_backup->next)
+                if (F_ISSET(upd_backup->next, WT_UPDATE_DS))
+                    ++update_ds_counter;
+            WT_ASSERT(session, update_ds_counter <= 1);
+#endif
         }
 
         switch (orig->type) {
