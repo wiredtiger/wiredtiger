@@ -4167,8 +4167,8 @@ buildvariants:
     - name: verify-datafile-big-endian
     - name: verify-datafile-from-little-endian
 
-- name: rhel-ppc
-  display_name: "~ RHEL8.1 PPC"
+- name: rhel8-ppc
+  display_name: "~ RHEL8 PPC"
   run_on:
   - rhel81-power8-small
   batchtime: 120 # 2 hours
