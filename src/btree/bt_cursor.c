@@ -1156,13 +1156,13 @@ retry:
         } else if (__cursor_fix_implicit(btree, cbt)) {
             /*
              * Creating a record past the end of the tree in a fixed-length column-store implicitly
-             * fills the gap with empty records. Return success in that case, the record was deleted
-             * successfully.
+             * fills the gap with empty records, delete the record.
              *
              * Correct the btree cursor's location: the search will have pointed us at the
              * previous/next item, and that's not correct.
              */
             cbt->recno = cursor->recno;
+            ret = __cursor_col_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
         } else
             WT_ERR(WT_NOTFOUND);
     }
