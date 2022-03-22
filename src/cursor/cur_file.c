@@ -198,14 +198,15 @@ __curfile_search(WT_CURSOR *cursor)
     WT_ERR(__cursor_checkkey(cursor));
 
     time_start = __wt_clock(session);
-    WT_ERR(__wt_btcur_search(cbt));
+    WT_ERR(__wt_btcur_search(cbt, true));
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
     /* Search maintains a position, key and value. */
     WT_ASSERT(session,
-      F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
-        F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+      F_ISSET(cbt, WT_CBT_REPOSITION) ||
+        (F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
+          F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT));
 
 err:
     API_END_RET(session, ret);

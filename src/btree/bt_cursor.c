@@ -527,7 +527,7 @@ __wt_btcur_reposition(WT_CURSOR_BTREE *cbt)
     if (!F_ISSET(cursor, WT_CURSTD_KEY_EXT))
         WT_ERR_PANIC(session, EINVAL, "reposition flag is set without a search key");
 
-    WT_RET(__wt_btcur_search(cbt));
+    WT_ERR(__wt_btcur_search(cbt, false));
 
     /* Search maintains a position, key and value. */
     WT_ASSERT(session,
@@ -563,7 +563,7 @@ __wt_btcur_release_page(WT_CURSOR_BTREE *cbt)
  *     Search for a matching record in the tree.
  */
 int
-__wt_btcur_search(WT_CURSOR_BTREE *cbt)
+__wt_btcur_search(WT_CURSOR_BTREE *cbt, bool release_page)
 {
     WT_BTREE *btree;
     WT_CURFILE_STATE state;
@@ -660,6 +660,12 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     if (ret == 0)
         WT_ERR(__wt_cursor_key_order_init(cbt));
 #endif
+
+    if (ret == 0) {
+        if (release_page && session->txn->isolation == WT_ISO_SNAPSHOT) {
+            __wt_btcur_release_page(cbt);
+        }
+    }
 
 err:
     if (ret != 0) {
@@ -1544,7 +1550,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
         WT_ERR_MSG(session, ENOTSUP, "not supported in implicit transactions");
 
     if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT))
-        WT_ERR(__wt_btcur_search(cbt));
+        WT_ERR(__wt_btcur_search(cbt, false));
 
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
 
@@ -1775,7 +1781,7 @@ __cursor_truncate(
  * the end cursor, so we know that page is pinned in memory and we can proceed without concern.
  */
 retry:
-    WT_ERR(__wt_btcur_search(start));
+    WT_ERR(__wt_btcur_search(start, false));
     WT_ASSERT(session, F_MASK((WT_CURSOR *)start, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
 
     for (;;) {
@@ -1832,7 +1838,7 @@ __cursor_truncate_fix(
  * full search to refresh the page's modification information.
  */
 retry:
-    WT_ERR(__wt_btcur_search(start));
+    WT_ERR(__wt_btcur_search(start, false));
     WT_ASSERT(session, F_MASK((WT_CURSOR *)start, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
 
     for (;;) {
