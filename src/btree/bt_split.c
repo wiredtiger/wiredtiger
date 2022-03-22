@@ -1450,7 +1450,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                  ;
             WT_ASSERT(session, prev_onpage->next == tmp);
 #ifdef HAVE_DIAGNOSTIC
-            for (tmp = tmp->next;tmp != NULL && tmp != supd->onpage_upd; tmp = tmp->next)
+            for (tmp = tmp->next; tmp != NULL && tmp != supd->onpage_upd; tmp = tmp->next)
                 WT_ASSERT(session, tmp->txnid == WT_TXN_ABORTED);
 #endif
             prev_onpage->next = NULL;
