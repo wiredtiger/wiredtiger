@@ -1437,6 +1437,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
     /* Walk the history store for the given btree. */
     hs_cursor->set_key(hs_cursor, 1, btree_id);
     ret = __wt_curhs_search_near_after(session, hs_cursor);
+
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
@@ -1446,6 +1447,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           "rollback to stable history store cleanup of update with start timestamp: %s",
           __wt_timestamp_to_string(hs_start_ts, ts_string));
+
         WT_ERR(hs_cursor->remove(hs_cursor));
         WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
         WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts);
