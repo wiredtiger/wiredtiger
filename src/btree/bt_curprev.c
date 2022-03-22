@@ -664,6 +664,10 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_prev);
 
+    /* Reposition the cursor if the cursor was reset internally. */
+    if (F_ISSET(cbt, WT_CBT_REPOSITION) && session->txn->isolation == WT_ISO_SNAPSHOT)
+        WT_ERR(__wt_btcur_reposition(cbt));
+
     flags = /* tree walk flags */
       WT_READ_NO_SPLIT | WT_READ_PREV | WT_READ_SKIP_INTL;
     if (truncating)

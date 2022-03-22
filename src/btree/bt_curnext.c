@@ -890,5 +890,14 @@ err:
 int
 __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 {
-    return (__wt_btcur_next_prefix(cbt, NULL, truncating));
+    WT_SESSION_IMPL *session;
+
+    session = CUR2S(cbt);
+
+    /* Reposition the cursor if the cursor was reset internally. */
+    if (F_ISSET(cbt, WT_CBT_REPOSITION) && session->txn->isolation == WT_ISO_SNAPSHOT)
+        WT_RET(__wt_btcur_reposition(cbt));
+
+    WT_RET(__wt_btcur_next_prefix(cbt, NULL, truncating));
+    return (0);
 }

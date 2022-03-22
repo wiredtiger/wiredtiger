@@ -440,6 +440,7 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_reset);
 
+    F_CLR(cbt, WT_CBT_REPOSITION);
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
     return (__cursor_reset(cbt));
@@ -578,6 +579,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt, bool release_page)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_search);
 
+    F_CLR(cbt, WT_CBT_REPOSITION);
     __wt_txn_search_check(session);
     __cursor_state_save(cursor, &state);
 
@@ -662,9 +664,8 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt, bool release_page)
 #endif
 
     if (ret == 0) {
-        if (release_page && session->txn->isolation == WT_ISO_SNAPSHOT) {
-            __wt_btcur_release_page(cbt);
-        }
+        if (release_page && session->txn->isolation == WT_ISO_SNAPSHOT)
+            WT_ERR(__wt_btcur_release_page(cbt));
     }
 
 err:
@@ -697,6 +698,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_search_near);
 
+    F_CLR(cbt, WT_CBT_REPOSITION);
     __wt_txn_search_check(session);
     __cursor_state_save(cursor, &state);
 
@@ -884,6 +886,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     WT_STAT_CONN_DATA_INCR(session, cursor_insert);
     WT_STAT_CONN_DATA_INCRV(session, cursor_insert_bytes, insert_bytes);
 
+    F_CLR(cbt, WT_CBT_REPOSITION);
     if (btree->type == BTREE_ROW)
         WT_RET(__cursor_size_chk(session, &cursor->key));
     WT_RET(__cursor_size_chk(session, &cursor->value));
@@ -1072,6 +1075,7 @@ __wt_btcur_insert_check(WT_CURSOR_BTREE *cbt)
 
     WT_ASSERT(session, CUR2BT(cbt)->type == BTREE_ROW);
 
+    F_CLR(cbt, WT_CBT_REPOSITION);
     /*
      * The pinned page goes away if we do a search, get a local copy of any pinned key and discard
      * any pinned value. Unlike most of the btree cursor routines, we don't have to save/restore the
@@ -1125,6 +1129,10 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_remove);
     WT_STAT_CONN_DATA_INCRV(session, cursor_remove_bytes, cursor->key.size);
+
+    /* Reposition the cursor if the cursor was reset internally. */
+    if (F_ISSET(cbt, WT_CBT_REPOSITION) && session->txn->isolation == WT_ISO_SNAPSHOT)
+        WT_RET(__wt_btcur_reposition(cbt));
 
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
@@ -1311,6 +1319,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     session = CUR2S(cbt);
     yield_count = sleep_usecs = 0;
 
+    F_CLR(cbt, WT_CBT_REPOSITION);
     /* It's no longer possible to bulk-load into the tree. */
     __wt_btree_disable_bulk(session);
 
@@ -1522,6 +1531,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     cursor = &cbt->iface;
     session = CUR2S(cbt);
 
+    F_CLR(cbt, WT_CBT_REPOSITION);
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
 
