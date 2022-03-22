@@ -1400,13 +1400,11 @@ __rollback_to_stable_check(WT_SESSION_IMPL *session)
      * okay to have a transaction in prepared state.
      */
     txn_active = __txn_user_active(session);
-#ifdef HAVE_DIAGNOSTIC
-    if (txn_active)
-        WT_TRET(__wt_verbose_dump_txn(session));
-#endif
 
-    if (txn_active)
+    if (txn_active){
+        WT_TRET(__wt_verbose_dump_txn(session));
         WT_RET_MSG(session, EBUSY, "rollback_to_stable illegal with active transactions");
+    }
 
     return (ret);
 }
