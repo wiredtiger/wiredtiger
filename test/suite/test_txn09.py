@@ -32,7 +32,7 @@
 
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
-import wiredtiger, wttest
+import wttest
 
 class test_txn09(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_txn09'
