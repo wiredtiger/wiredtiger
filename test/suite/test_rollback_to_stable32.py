@@ -76,23 +76,25 @@ class test_rollback_to_stable32(test_rollback_to_stable_base):
             ',stable_timestamp=' + self.timestamp_str(10))
 
         # Perform several updates.
-        self.large_updates(uri, value_a, ds, nrows, False, 20)
+        self.large_updates(uri, value_a, ds, nrows, self.prepare, 20)
         # Perform several updates.
-        self.large_updates(uri, value_b, ds, nrows, False, 30)
+        self.large_updates(uri, value_b, ds, nrows, self.prepare, 30)
         # Perform several removes.
-        self.large_removes(uri, ds, nrows, False, 40)
+        self.large_removes(uri, ds, nrows, self.prepare, 40)
         # Pin stable to timestamp 50 if prepare otherwise 40.
-
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
+        if self.prepare:
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
+        else:
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
         # Perform several updates and checkpoint.
-        self.large_updates(uri, value_c, ds, nrows, False, 60)
+        self.large_updates(uri, value_c, ds, nrows, self.prepare, 60)
         self.session.checkpoint()
 
         # Verify data is visible and correct.
         # (In FLCS, the removed rows should read back as zero.)
-        self.check(value_a, uri, nrows, None, 20)
-        self.check(None, uri, 0, nrows,  40)
-        self.check(value_c, uri, nrows, None,  60)
+        self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
+        self.check(None, uri, 0, nrows, 41 if self.prepare else 40)
+        self.check(value_c, uri, nrows, None, 61 if self.prepare else 60)
         self.evict_cursor(uri, nrows, value_c)
 
         self.conn.rollback_to_stable()
@@ -108,7 +110,7 @@ class test_rollback_to_stable32(test_rollback_to_stable_base):
         self.session.rollback_transaction()
         self.session.breakpoint()
         # Perform several updates and checkpoint.
-        self.large_updates(uri, value_c, ds, nrows, False, 60)
+        self.large_updates(uri, value_c, ds, nrows, self.prepare, 60)
         self.evict_cursor(uri, nrows, value_c)
-        self.check(value_b, uri, nrows, None,  30)
+        self.check(value_b, uri, nrows, None, 31 if self.prepare else 30)
         self.conn.close()

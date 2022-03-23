@@ -1431,6 +1431,10 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
          * size of the page is correct.
          */
         if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+            /*
+             * If there is an on-page tombstone we need to remove it as well while performing update
+             * restore eviction.
+             */
             tmp = supd->onpage_tombstone != NULL ? supd->onpage_tombstone : supd->onpage_upd;
 
             /*
@@ -1450,8 +1454,13 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             WT_ASSERT(session, prev_onpage->next == tmp);
 #ifdef HAVE_DIAGNOSTIC
             /*
-             * Relies on the assumption that the tombstone is the only thing before the onpage
-             * update.
+             * During update restore eviction we remove anything older than the on-page update,
+             * including the on-page update. However it is possible a tombstone is also written as
+             * the stop time of the on-page value. To handle this we also need to remove the tombstone
+             * from the update chain.
+             *
+             * This assertion checks that there aren't any unexpected updates between that tombstone
+             * and the subsequent value which both make up the on-page value.
              */
             for (; tmp != NULL && tmp != supd->onpage_upd; tmp = tmp->next)
                 WT_ASSERT(session, tmp == supd->onpage_tombstone || tmp->txnid == WT_TXN_ABORTED);
