@@ -952,16 +952,13 @@ __cell_addr_window_cleanup(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
     if (unpack_addr != NULL) {
         ta = &unpack_addr->ta;
         if (ta->newest_txn != WT_TXN_NONE) {
-            if (!F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID)) {
-                ta->newest_txn = WT_TXN_NONE;
-                F_SET(unpack_addr, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
-            }
+            ta->newest_txn = WT_TXN_NONE;
+            F_SET(unpack_addr, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
         }
+
         if (ta->newest_stop_txn != WT_TXN_MAX) {
-            if (!F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID)) {
-                ta->newest_stop_txn = WT_TXN_NONE;
-                F_SET(unpack_addr, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
-            }
+            ta->newest_stop_txn = WT_TXN_NONE;
+            F_SET(unpack_addr, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
 
             /*
              * The combination of newest stop timestamp being WT_TS_MAX while the newest stop
@@ -990,16 +987,13 @@ __cell_kv_window_cleanup(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack_kv)
     if (unpack_kv != NULL) {
         tw = &unpack_kv->tw;
         if (tw->start_txn != WT_TXN_NONE) {
-            if (!F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID)) {
-                tw->start_txn = WT_TXN_NONE;
-                F_SET(unpack_kv, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
-            }
+            tw->start_txn = WT_TXN_NONE;
+            F_SET(unpack_kv, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
         }
+
         if (tw->stop_txn != WT_TXN_MAX) {
-            if (!F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID)) {
-                tw->stop_txn = WT_TXN_NONE;
-                F_SET(unpack_kv, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
-            }
+            tw->stop_txn = WT_TXN_NONE;
+            F_SET(unpack_kv, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
 
             /*
              * The combination of stop timestamp being WT_TS_MAX while the stop transaction not
@@ -1047,8 +1041,10 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
     if (dsk->write_gen > S2BT(session)->base_write_gen)
         return;
 
-    __cell_addr_window_cleanup(session, unpack_addr);
-    __cell_kv_window_cleanup(session, unpack_kv);
+    if (!F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID)) {
+        __cell_addr_window_cleanup(session, unpack_addr);
+        __cell_kv_window_cleanup(session, unpack_kv);
+    }
 }
 
 /*
