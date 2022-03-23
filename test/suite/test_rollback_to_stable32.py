@@ -32,9 +32,8 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 # test_rollback_to_stable32.py
-# Test the rollback to stable should retain/restore the tombstone from
-# the update list or from the history store for on-disk database with an
-# update restore eviction.
+# Test that update restore eviction correctly removes an on-disk
+# tombstone. Previously it would trigger an assertion in reconciliation.
 class test_rollback_to_stable32(test_rollback_to_stable_base):
 
     format_values = [
