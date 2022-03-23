@@ -1319,7 +1319,6 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     session = CUR2S(cbt);
     yield_count = sleep_usecs = 0;
 
-    F_CLR(cbt, WT_CBT_REPOSITION);
     /* It's no longer possible to bulk-load into the tree. */
     __wt_btree_disable_bulk(session);
 
@@ -1618,6 +1617,7 @@ __wt_btcur_reserve(WT_CURSOR_BTREE *cbt)
     session = CUR2S(cbt);
 
     WT_STAT_CONN_DATA_INCR(session, cursor_reserve);
+    F_CLR(cbt, WT_CBT_REPOSITION);
 
     /* WT_CURSOR.reserve is update-without-overwrite and a special value. */
     overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
@@ -1645,6 +1645,7 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_update);
     WT_STAT_CONN_DATA_INCRV(session, cursor_update_bytes, cursor->key.size + cursor->value.size);
+    F_CLR(cbt, WT_CBT_REPOSITION);
 
     if (btree->type == BTREE_ROW)
         WT_RET(__cursor_size_chk(session, &cursor->key));
