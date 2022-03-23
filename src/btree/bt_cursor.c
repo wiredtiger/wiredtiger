@@ -926,6 +926,13 @@ retry:
          */
         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
             if (cbt->compare == 0) {
+                /*
+                 * Removed FLCS records read as 0 values, there's no out-of-band value. Therefore,
+                 * the FLCS cursor validity check cannot return "does not exist", fail the insert.
+                 */
+                if (btree->type == BTREE_COL_FIX)
+                    goto duplicate;
+
                 WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
                 if (valid)
                     goto duplicate;
@@ -1320,11 +1327,17 @@ retry:
         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
             WT_ERR(__curfile_update_check(cbt));
             if (cbt->compare == 0) {
-                WT_WITH_UPDATE_VALUE_SKIP_BUF(
-                  ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
-                WT_ERR(ret);
-                if (!valid)
-                    WT_ERR(WT_NOTFOUND);
+                /*
+                 * Removed FLCS records read as 0 values, there's no out-of-band value. Therefore,
+                 * the FLCS cursor validity check cannot return "does not exist", the update is OK.
+                 */
+                if (btree->type != BTREE_COL_FIX) {
+                    WT_WITH_UPDATE_VALUE_SKIP_BUF(
+                      ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
+                    WT_ERR(ret);
+                    if (!valid)
+                        WT_ERR(WT_NOTFOUND);
+                }
             } else if (!__cursor_fix_implicit(btree, cbt))
                 WT_ERR(WT_NOTFOUND);
         }
