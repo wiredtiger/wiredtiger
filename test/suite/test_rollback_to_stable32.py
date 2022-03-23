@@ -39,13 +39,13 @@ class test_rollback_to_stable32(test_rollback_to_stable_base):
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
-        # ('column_fix', dict(key_format='r', value_format='8t')),
-        # ('row_integer', dict(key_format='i', value_format='S')),
+        ('column_fix', dict(key_format='r', value_format='8t')),
+        ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
     prepare_values = [
         ('no_prepare', dict(prepare=False)),
-        # ('prepare', dict(prepare=True))
+        ('prepare', dict(prepare=True))
     ]
 
     scenarios = make_scenarios(format_values, prepare_values)
