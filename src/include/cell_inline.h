@@ -955,7 +955,6 @@ __cell_addr_window_cleanup(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
             ta->newest_txn = WT_TXN_NONE;
             F_SET(unpack_addr, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
         }
-
         if (ta->newest_stop_txn != WT_TXN_MAX) {
             ta->newest_stop_txn = WT_TXN_NONE;
             F_SET(unpack_addr, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
@@ -990,7 +989,6 @@ __cell_kv_window_cleanup(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack_kv)
             tw->start_txn = WT_TXN_NONE;
             F_SET(unpack_kv, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
         }
-
         if (tw->stop_txn != WT_TXN_MAX) {
             tw->stop_txn = WT_TXN_NONE;
             F_SET(unpack_kv, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
