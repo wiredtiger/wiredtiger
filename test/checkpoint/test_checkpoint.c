@@ -283,7 +283,7 @@ wt_connect(const char *config_open)
     /*
      * Randomly decide on the eviction rate (fast or default).
      */
-
+    __wt_random_init_seed(NULL, &rnd);
     if ((__wt_random(&rnd) % 15) % 2 == 0)
         fast_eviction = true;
 
