@@ -448,8 +448,17 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
         return (0);
 
     __wt_epoch(session, &now);
-    if (WT_TIMEDIFF_SEC(now, cache->stuck_time) > WT_MINUTE * 5) {
-#if defined(HAVE_DIAGNOSTIC)
+
+#define WT_CACHE_STUCK_TIMEOUT_S 300
+#ifdef HAVE_DIAGNOSTIC
+    /* Enable extra logs before timing out. */
+    if (!FLD_ISSET(conn->verbose_timeout_flags, WT_VERBOSE_EVICTION_TIMEOUT) &&
+      WT_TIMEDIFF_MS(now, cache->stuck_time) > (WT_CACHE_STUCK_TIMEOUT_S * WT_THOUSAND) - 1)
+        FLD_SET(conn->verbose_timeout_flags, WT_VERBOSE_EVICTION_TIMEOUT);
+#endif
+
+    if (WT_TIMEDIFF_SEC(now, cache->stuck_time) > WT_CACHE_STUCK_TIMEOUT_S) {
+#ifdef HAVE_DIAGNOSTIC
         __wt_err(session, ETIMEDOUT, "Cache stuck for too long, giving up");
         WT_RET(__wt_verbose_dump_txn(session));
         WT_RET(__wt_verbose_dump_cache(session));
