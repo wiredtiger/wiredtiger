@@ -169,8 +169,19 @@ struct __wt_verbose_multi_category {
  *     format string and at least one additional argument, there's no portable way to remove the
  *     comma before an empty __VA_ARGS__ value.
  */
-#define __wt_verbose(session, category, fmt, ...) \
-    __wt_verbose_level(session, category, WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__)
+#define __wt_verbose(session, category, fmt, ...)                                                 \
+    do {                                                                                          \
+        if (FLD_ISSET(S2C(session)->verbose_timeout_flags, WT_VERBOSE_EVICTION_TIMEOUT) &&        \
+          (category == WT_VERB_EVICT || category == WT_VERB_EVICTSERVER ||                        \
+            category == WT_VERB_EVICT_STUCK))                                                     \
+            __wt_verbose_notice(session, category, fmt, __VA_ARGS__);                             \
+        else if (FLD_ISSET(S2C(session)->verbose_timeout_flags, WT_VERBOSE_CHECKPOINT_TIMEOUT) && \
+          (category == WT_VERB_CHECKPOINT || category == WT_VERB_CHECKPOINT_CLEANUP ||            \
+            category == WT_VERB_CHECKPOINT_PROGRESS))                                             \
+            __wt_verbose_notice(session, category, fmt, __VA_ARGS__);                             \
+        else                                                                                      \
+            __wt_verbose_level(session, category, WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__);    \
+    } while (0)
 
 /*
  * __wt_verbose_level_multi --
