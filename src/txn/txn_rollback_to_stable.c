@@ -1401,7 +1401,7 @@ __rollback_to_stable_check(WT_SESSION_IMPL *session)
      */
     txn_active = __txn_user_active(session);
 
-    if (txn_active){
+    if (txn_active) {
         WT_TRET(__wt_verbose_dump_txn(session));
         WT_RET_MSG(session, EBUSY, "rollback_to_stable illegal with active transactions");
     }
