@@ -1456,8 +1456,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             /*
              * During update restore eviction we remove anything older than the on-page update,
              * including the on-page update. However it is possible a tombstone is also written as
-             * the stop time of the on-page value. To handle this we also need to remove the tombstone
-             * from the update chain.
+             * the stop time of the on-page value. To handle this we also need to remove the
+             * tombstone from the update chain.
              *
              * This assertion checks that there aren't any unexpected updates between that tombstone
              * and the subsequent value which both make up the on-page value.
