@@ -929,12 +929,11 @@ retry:
                 /*
                  * Removed FLCS records read as 0 values, there's no out-of-band value. Therefore,
                  * the FLCS cursor validity check cannot return "does not exist", fail the insert.
+                 * Even so, we still have to call the cursor validity check function we return the
+                 * found value for any duplicate key.
                  */
-                if (btree->type == BTREE_COL_FIX)
-                    goto duplicate;
-
                 WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
-                if (valid)
+                if (valid || btree->type == BTREE_COL_FIX)
                     goto duplicate;
             } else if (__cursor_fix_implicit(btree, cbt))
                 goto duplicate;
