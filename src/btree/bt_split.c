@@ -1431,7 +1431,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
          * size of the page is correct.
          */
         if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
-            tmp = supd->tombstone != NULL ? supd->tombstone : supd->onpage_upd;
+            tmp = supd->onpage_tombstone != NULL ? supd->onpage_tombstone : supd->onpage_upd;
 
             /*
              * We have decided to restore this update chain so it must have newer updates than the
@@ -1444,14 +1444,17 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
              * Move the pointer to the position before the onpage value and truncate all the updates
              * starting from the onpage value.
              */
-            for (prev_onpage = upd;
-                 prev_onpage->next != NULL && prev_onpage->next != tmp;
+            for (prev_onpage = upd; prev_onpage->next != NULL && prev_onpage->next != tmp;
                  prev_onpage = prev_onpage->next)
-                 ;
+                ;
             WT_ASSERT(session, prev_onpage->next == tmp);
 #ifdef HAVE_DIAGNOSTIC
-            for (tmp = tmp->next; tmp != NULL && tmp != supd->onpage_upd; tmp = tmp->next)
-                WT_ASSERT(session, tmp->txnid == WT_TXN_ABORTED);
+            /*
+             * Relies on the assumption that the tombstone is the only thing before the onpage
+             * update.
+             */
+            for (; tmp != NULL && tmp != supd->onpage_upd; tmp = tmp->next)
+                WT_ASSERT(session, tmp == supd->onpage_tombstone || tmp->txnid == WT_TXN_ABORTED);
 #endif
             prev_onpage->next = NULL;
         }
