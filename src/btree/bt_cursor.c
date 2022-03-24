@@ -516,19 +516,23 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
  *     Reposition the cursor on the saved key.
  */
 int
-__wt_btcur_reposition(WT_CURSOR_BTREE *cbt)
+__wt_btcur_reposition(WT_CURSOR_BTREE *cbt, bool next, bool *moved)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    int exact;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
+    exact = 0;
 
     if (!F_ISSET(cursor, WT_CURSTD_KEY_EXT))
         WT_ERR_PANIC(session, EINVAL, "reposition flag is set without a search key");
 
-    WT_ERR(__wt_btcur_search(cbt, false));
+    WT_ERR(__wt_btcur_search_near(cbt, &exact));
+    if ((exact > 0 && next) || (exact < 0 && !next))
+        *moved = true;
 
     /* Search maintains a position, key and value. */
     WT_ASSERT(session,

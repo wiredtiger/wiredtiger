@@ -891,13 +891,16 @@ int
 __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 {
     WT_SESSION_IMPL *session;
+    bool moved;
 
     session = CUR2S(cbt);
+    moved = false;
 
     /* Reposition the cursor if the cursor was reset internally. */
     if (F_ISSET(cbt, WT_CBT_REPOSITION) && session->txn->isolation == WT_ISO_SNAPSHOT)
-        WT_RET(__wt_btcur_reposition(cbt));
+        WT_RET(__wt_btcur_reposition(cbt, true, &moved));
 
-    WT_RET(__wt_btcur_next_prefix(cbt, NULL, truncating));
+    if (!moved)
+        WT_RET(__wt_btcur_next_prefix(cbt, NULL, truncating));
     return (0);
 }

@@ -656,17 +656,21 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     WT_SESSION_IMPL *session;
     size_t total_skipped, skipped;
     uint32_t flags;
-    bool newpage, restart;
+    bool moved, newpage, restart;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
     total_skipped = 0;
+    moved = false;
 
     WT_STAT_CONN_DATA_INCR(session, cursor_prev);
 
     /* Reposition the cursor if the cursor was reset internally. */
     if (F_ISSET(cbt, WT_CBT_REPOSITION) && session->txn->isolation == WT_ISO_SNAPSHOT)
-        WT_ERR(__wt_btcur_reposition(cbt));
+        WT_ERR(__wt_btcur_reposition(cbt, false, &moved));
+
+    if (moved)
+        goto done;
 
     flags = /* tree walk flags */
       WT_READ_NO_SPLIT | WT_READ_PREV | WT_READ_SKIP_INTL;
@@ -789,6 +793,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
         WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND, false);
     }
 
+done:
 err:
     if (total_skipped < 100)
         WT_STAT_CONN_DATA_INCR(session, cursor_prev_skip_lt_100);
