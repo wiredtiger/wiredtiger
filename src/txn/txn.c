@@ -1708,8 +1708,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /*
-     * We're between transactions, if we need to block for eviction, it's a good time to do so. Note
-     * that we must ignore any error return because the user's data is committed.
+     * We're between transactions, if we need to block for eviction, it's a good time to do so.
+     * Ignore error returns, the return must reflect the fate of the transaction.
      */
     if (!readonly)
         WT_IGNORE_RET(__wt_cache_eviction_check(session, false, false, NULL));
@@ -1727,6 +1727,16 @@ err:
     if (cannot_fail)
         WT_RET_PANIC(session, ret,
           "failed to commit a transaction after data corruption point, failing the system");
+
+    /*
+     * Check for a prepared transaction, and quit: we can't ignore the error and we can't roll back
+     * a prepared transaction.
+     */
+    if (prepare)
+        WT_RET_PANIC(session, ret, "failed to commit prepared transaction, failing the system");
+
+    WT_TRET(__wt_session_reset_cursors(session, false));
+    WT_TRET(__wt_txn_rollback(session, cfg));
     return (ret);
 }
 
@@ -1903,7 +1913,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
     /* Configure the timeout for this rollback operation. */
-    WT_RET(__txn_config_operation_timeout(session, cfg, true));
+    WT_TRET(__txn_config_operation_timeout(session, cfg, true));
 
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
@@ -1979,9 +1989,10 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     __wt_txn_release(session);
+
     /*
-     * We're between transactions, if we need to block for eviction, it's a good time to do so. Note
-     * that we must ignore any error return because the user's data is committed.
+     * We're between transactions, if we need to block for eviction, it's a good time to do so.
+     * Ignore error returns, the return must reflect the fate of the transaction.
      */
     if (!readonly)
         WT_IGNORE_RET(__wt_cache_eviction_check(session, false, false, NULL));
@@ -2363,13 +2374,17 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     if (F_ISSET(txn, WT_TXN_PREPARE))
         return (0);
 
+#ifndef WT_STANDALONE_BUILD
     /*
+     * FIXME: SERVER-44870
+     *
      * MongoDB can't (yet) handle rolling back read only transactions. For this reason, don't check
      * unless there's at least one update or we're configured to time out thread operations (a way
      * to confirm our caller is prepared for rollback).
      */
     if (txn->mod_count == 0 && !__wt_op_timer_fired(session))
         return (0);
+#endif
 
     /*
      * Check if either the transaction's ID or its pinned ID is equal to the oldest transaction ID.
