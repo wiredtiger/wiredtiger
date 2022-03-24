@@ -27,11 +27,6 @@ WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency, 100)
  * If the current transaction is _already_ a checkpoint cursor dummy transaction, however, do
  * nothing. This happens when the history store logic opens history store cursors inside checkpoint
  * cursor operations on the data store, and we want to keep the existing state.
- *
- * Note: it's important that the anachronistic flag be ordered with respect to the read timestamp if
- * it's going to work as desired. That is, the computation for the pinned timestamp checks the
- * anachronistic flag and uses that to avoid factoring in the read timestamp, so we must ensure that
- * it cannot see our timestamp without also seeing the anachronistic flag set.
  */
 #define WT_WITH_CHECKPOINT(session, cbt, op)                                           \
     do {                                                                               \
