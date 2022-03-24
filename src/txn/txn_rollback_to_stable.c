@@ -1393,20 +1393,15 @@ static int
 __rollback_to_stable_check(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
-    bool txn_active;
 
     /*
      * Help the user comply with the requirement that there are no concurrent user operations. It is
      * okay to have a transaction in prepared state.
      */
-    txn_active = __txn_user_active(session);
-#ifdef HAVE_DIAGNOSTIC
-    if (txn_active)
+    if (__txn_user_active(session)) {
         WT_TRET(__wt_verbose_dump_txn(session));
-#endif
-
-    if (txn_active)
         WT_RET_MSG(session, EBUSY, "rollback_to_stable illegal with active transactions");
+    }
 
     return (ret);
 }
@@ -1681,8 +1676,7 @@ __rollback_to_stable_btree_apply(
 
     if (perform_rts || max_durable_ts > rollback_timestamp || prepared_updates ||
       !durable_ts_found || has_txn_updates_gt_than_ckpt_snap) {
-        ret = __wt_session_get_dhandle(
-          session, uri, NULL, NULL, WT_DHANDLE_DISCARD | WT_DHANDLE_EXCLUSIVE);
+        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
         if (ret != 0)
             WT_ERR_MSG(session, ret, "%s: unable to open handle%s", uri,
               ret == EBUSY ? ", error indicates handle is unavailable due to concurrent use" : "");
