@@ -29,11 +29,12 @@
 from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
 from wtscenario import make_scenarios
 import os, wiredtiger, wttest
+from suite_subprocess import suite_subprocess
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered07.py
 #    Basic tiered storage API for schema operations.
-class test_tiered07(wttest.WiredTigerTestCase):
+class test_tiered07(wttest.WiredTigerTestCase, suite_subprocess):
     storage_sources = [
         ('dir_store', dict(auth_token = get_auth_token('dir_store'),
             bucket = get_bucket1_name('dir_store'),
@@ -130,6 +131,18 @@ class test_tiered07(wttest.WiredTigerTestCase):
         self.session.drop(self.localuri)
         self.session.drop(self.uri)
 
+        # Dropping a table using the force setting should succeed even if the table does not exist.
+        self.session.drop(self.localuri, 'force=true')
+        self.session.drop(self.uri, 'force=true')
+
+        # Dropping a table should not succeed if the table does not exist.
+        # Test dropping a table that was previously dropped.
+        self.assertRaises(wiredtiger.WiredTigerError,
+            lambda: self.session.drop(self.localuri, None))
+        # Test dropping a table that does not exist.
+        self.assertRaises(wiredtiger.WiredTigerError,
+            lambda: self.session.drop("table:random_non_existent", None))
+
         # Create new table with same name. This should error.
         msg = "/already exists/"
         self.pr('check cannot create with same name')
@@ -147,7 +160,11 @@ class test_tiered07(wttest.WiredTigerTestCase):
 
         # Create new table with new name.
         self.pr('create new table')
-        self.session.create(self.newuri, 'key_format=S')
+        self.session.create(self.newuri, 'key_format=S,value_format=S,tiered_storage=(name=none)')
+
+        # Check that the underlying files are not removed when configured in drop.
+        self.session.drop(self.newuri, 'remove_files=false')
+        self.check_non_empty_file("tier_new.wt")
 
 if __name__ == '__main__':
     wttest.run()
