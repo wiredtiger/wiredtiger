@@ -168,12 +168,15 @@ thread_ts_run(void *arg)
     for (;;) {
         /*
          * We get the last committed timestamp periodically in order to update the oldest timestamp,
-         * that requires locking out transactional ops that set or query a timestamp.
+         * that requires locking out transactional ops that set or query a timestamp. If there is no
+         * work to do, all-durable will be 0 and we just wait.
          */
         testutil_check(pthread_rwlock_wrlock(&ts_lock));
         ret = td->conn->query_timestamp(td->conn, ts_string, "get=all_durable");
         testutil_check(pthread_rwlock_unlock(&ts_lock));
-        testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+        testutil_assert(ret == 0);
+        if (strtoull(ts_string, NULL, 16) == 0)
+            continue;
         if (ret == 0) {
             /*
              * Set both the oldest and stable timestamp so that we don't need to maintain read
