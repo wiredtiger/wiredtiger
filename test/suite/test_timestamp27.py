@@ -32,24 +32,33 @@
 
 import wiredtiger, wttest
 
-# Test query-timestamp returns 0 if the timestamp is not set.
-class test_timestamp27_query_notset(wttest.WiredTigerTestCase):
+# Test query-timestamp returns 0 if the timestamp is not set and set-timestamp of 0 fails.
+class test_timestamp27_timestamp_notset(wttest.WiredTigerTestCase):
     def test_conn_query_notset(self):
-        self.assertEquals(self.conn.query_timestamp('get=all_durable'), "0")
-        self.assertEquals(self.conn.query_timestamp('get=last_checkpoint'), "0")
-        self.assertEquals(self.conn.query_timestamp('get=oldest'), "0")
-        self.assertEquals(self.conn.query_timestamp('get=oldest_reader'), "0")
-        self.assertEquals(self.conn.query_timestamp('get=oldest_timestamp'), "0")
-        self.assertEquals(self.conn.query_timestamp('get=pinned'), "0")
-        self.assertEquals(self.conn.query_timestamp('get=recovery'), "0")
-        self.assertEquals(self.conn.query_timestamp('get=stable'), "0")
-        self.assertEquals(self.conn.query_timestamp('get=stable_timestamp'), "0")
+        for ts in ['all_durable', 'last_checkpoint', 'oldest',
+            'oldest_reader', 'oldest_timestamp', 'pinned', 'recovery', 'stable', 'stable_timestamp']:
+                self.assertEquals(self.conn.query_timestamp('get=' + ts), "0")
 
     def test_session_query_notset(self):
-        self.assertEquals(self.session.query_timestamp('get=commit'), "0")
-        self.assertEquals(self.session.query_timestamp('get=first_commit'), "0")
-        self.assertEquals(self.session.query_timestamp('get=prepare'), "0")
-        self.assertEquals(self.session.query_timestamp('get=read'), "0")
+        for ts in ['commit', 'first_commit', 'prepare', 'read']:
+            self.assertEquals(self.session.query_timestamp('get=' + ts), "0")
+
+    def test_conn_set_notset(self):
+        for ts in ['durable', 'oldest', 'stable']:
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.conn.set_timestamp(ts + '_timestamp=0'), '/zero not permitted/')
+
+    def test_session_set_commit_zero(self):
+        for ts in ['commit', 'durable']:
+            self.session.begin_transaction()
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+                self.session.commit_transaction(ts + '_timestamp=0'), '/zero not permitted/')
+
+    def test_session_set_prepare_zero(self):
+        for ts in ['prepare']:
+            self.session.begin_transaction()
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+                self.session.prepare_transaction('prepare_timestamp=0'), '/zero not permitted/')
 
 if __name__ == '__main__':
     wttest.run()
