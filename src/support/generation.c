@@ -104,15 +104,16 @@ __wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
 void
 __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 {
+    struct timespec start, stop;
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *s;
-    uint64_t v, start, stop;
+    uint64_t v;
     uint32_t i, session_cnt;
     u_int minutes;
     int pause_cnt;
 
     conn = S2C(session);
-    start = 0; /* [-Wconditional-uninitialized] */
+    __wt_epoch(NULL, &start);
 
     /*
      * No lock is required because the session array is fixed size, but it may contain inactive
@@ -159,10 +160,10 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
              */
             if (minutes == 0) {
                 minutes = 1;
-                __wt_seconds(session, &start);
+                __wt_epoch(session, &start);
             } else {
-                __wt_seconds(session, &stop);
-                if (stop - start > minutes * WT_MINUTE) {
+                __wt_epoch(session, &stop);
+                if (WT_TIMEDIFF_SEC(stop, start) > minutes * WT_MINUTE) {
                     __wt_verbose_notice(session, WT_VERB_GENERATION,
                       "%s generation drain waited %u minutes", __gen_name(which), minutes);
                     ++minutes;
