@@ -165,7 +165,7 @@ thread_ts_run(void *arg)
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
     /* Update the oldest timestamp every 1 millisecond. */
-    for (;;) {
+    for (;; __wt_sleep(0, 1000)) {
         /*
          * We get the last committed timestamp periodically in order to update the oldest timestamp,
          * that requires locking out transactional ops that set or query a timestamp. If there is no
@@ -175,18 +175,16 @@ thread_ts_run(void *arg)
         ret = td->conn->query_timestamp(td->conn, ts_string, "get=all_durable");
         testutil_check(pthread_rwlock_unlock(&ts_lock));
         testutil_assert(ret == 0);
-        if (strtoull(ts_string, NULL, 16) == 0)
+        if (testutil_timestamp_parse(ts_string) == 0)
             continue;
-        if (ret == 0) {
-            /*
-             * Set both the oldest and stable timestamp so that we don't need to maintain read
-             * availability at older timestamps.
-             */
-            testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
-              "oldest_timestamp=%s,stable_timestamp=%s", ts_string, ts_string));
-            testutil_check(td->conn->set_timestamp(td->conn, tscfg));
-        }
-        __wt_sleep(0, 1000);
+
+        /*
+         * Set both the oldest and stable timestamp so that we don't need to maintain read
+         * availability at older timestamps.
+         */
+        testutil_check(__wt_snprintf(
+          tscfg, sizeof(tscfg), "oldest_timestamp=%s,stable_timestamp=%s", ts_string, ts_string));
+        testutil_check(td->conn->set_timestamp(td->conn, tscfg));
     }
     /* NOTREACHED */
 }
