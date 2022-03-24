@@ -1,5 +1,3 @@
-
-
 #!/usr/bin/env python
 #
 # Public Domain 2014-present MongoDB, Inc.
@@ -67,6 +65,12 @@ class test_timestamp27_timestamp_notset(wttest.WiredTigerTestCase):
         for ts in ['commit', 'durable', 'prepare', 'read']:
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
                 self.session.timestamp_transaction(ts + '_timestamp=0'), '/zero not permitted/')
+
+    def test_session_set_timestamp_uint_zero(self):
+        self.session.begin_transaction()
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+            self.session.timestamp_transaction_uint(
+            wiredtiger.WT_TS_TXN_TYPE_READ, 0), '/zero not permitted/')
 
 if __name__ == '__main__':
     wttest.run()

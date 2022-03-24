@@ -61,7 +61,7 @@ __wt_txn_parse_timestamp(
 {
     WT_RET(__wt_txn_parse_timestamp_raw(session, name, timestamp, cval));
     if (cval->len != 0 && *timestamp == WT_TS_NONE)
-        WT_RET_MSG(session, EINVAL, "Failed to parse %s timestamp '%.*s': zero not permitted", name,
+        WT_RET_MSG(session, EINVAL, "illegal %s timestamp '%.*s': zero not permitted", name,
           (int)cval->len, cval->str);
 
     return (0);
@@ -938,10 +938,29 @@ int
 __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_timestamp_t ts)
 {
     WT_CONNECTION_IMPL *conn;
+    const char *name;
 
     WT_RET(__wt_txn_context_check(session, true));
 
     conn = S2C(session);
+
+    if (ts == 0) {
+        switch (which) {
+        case WT_TS_TXN_TYPE_COMMIT:
+            name = "commit";
+            break;
+        case WT_TS_TXN_TYPE_DURABLE:
+            name = "durable";
+            break;
+        case WT_TS_TXN_TYPE_READ:
+            name = "read";
+            break;
+        case WT_TS_TXN_TYPE_PREPARE:
+            name = "prepare";
+            break;
+        }
+        WT_RET_MSG(session, EINVAL, "illegal %s timestamp: zero not permitted", name);
+    }
 
     switch (which) {
     case WT_TS_TXN_TYPE_COMMIT:

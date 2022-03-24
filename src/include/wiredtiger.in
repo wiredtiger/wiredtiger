@@ -1893,18 +1893,19 @@ struct __wt_session {
 	int __F(timestamp_transaction)(WT_SESSION *session, const char *config);
 
 	/*!
-	 * Set a timestamp on a transaction numerically.  Prefer this over @ref
-	 * timestamp_transaction when the string parsing done in that method becomes a bottleneck.
+	 * Set a timestamp on a transaction numerically.  Prefer this method over
+	 * WT_SESSION::timestamp_transaction if the hexadecimal string parsing done in that method
+	 * becomes a bottleneck.
 	 *
-	 * The WT_SESSION.timestamp_transaction_uint method can only be used at snapshot
-	 * isolation.
+	 * The WT_SESSION.timestamp_transaction_uint method can only be used at snapshot isolation.
+	 *
+	 * @snippet ex_all.c transaction timestamp_uint
 	 *
 	 * @requires_transaction
 	 *
 	 * @param session the session handle
-	 * @param which the timestamp you wish to set. See @ref WT_TS_TXN_TYPE for available
-	 * options, and @ref timestamp_transaction for constraints on when timestamps can be
-	 * set.
+	 * @param which the timestamp being set (see ::WT_TS_TXN_TYPE for available options, and
+	 * WT_SESSION::timestamp_transaction for constraints on the timestamps).
 	 * @param ts the timestamp.
 	 * @errors
 	 */

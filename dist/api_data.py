@@ -1824,6 +1824,7 @@ methods = {
         be newer than the current stable timestamp. See @ref timestamp_prepare'''),
 ]),
 
+'WT_SESSION.timestamp_transaction_uint' : Method([]),
 'WT_SESSION.timestamp_transaction' : Method([
     Config('commit_timestamp', '', r'''
         set the commit timestamp for the current transaction. For non-prepared transactions,
