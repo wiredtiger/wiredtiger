@@ -114,6 +114,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
     bool extra_timeout_logs;
 
     conn = S2C(session);
+    extra_timeout_logs = false;
     __wt_epoch(NULL, &start);
 
     /*
