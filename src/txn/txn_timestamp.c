@@ -962,11 +962,11 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
         case WT_TS_TXN_TYPE_DURABLE:
             name = "durable";
             break;
-        case WT_TS_TXN_TYPE_READ:
-            name = "read";
-            break;
         case WT_TS_TXN_TYPE_PREPARE:
             name = "prepare";
+            break;
+        case WT_TS_TXN_TYPE_READ:
+            name = "read";
             break;
         }
         WT_RET_MSG(session, EINVAL, "illegal %s timestamp: zero not permitted", name);
@@ -979,11 +979,11 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
     case WT_TS_TXN_TYPE_DURABLE:
         WT_RET(__wt_txn_set_durable_timestamp(session, ts));
         break;
-    case WT_TS_TXN_TYPE_READ:
-        WT_RET(__wt_txn_set_read_timestamp(session, ts));
-        break;
     case WT_TS_TXN_TYPE_PREPARE:
         WT_RET(__wt_txn_set_prepare_timestamp(session, ts));
+        break;
+    case WT_TS_TXN_TYPE_READ:
+        WT_RET(__wt_txn_set_read_timestamp(session, ts));
         break;
     }
     __wt_txn_publish_durable_timestamp(session);

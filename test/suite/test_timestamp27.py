@@ -70,6 +70,15 @@ class test_timestamp27_timestamp_notset(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
             self.session.timestamp_transaction_uint(
+            wiredtiger.WT_TS_TXN_TYPE_COMMIT, 0), '/zero not permitted/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+            self.session.timestamp_transaction_uint(
+            wiredtiger.WT_TS_TXN_TYPE_DURABLE, 0), '/zero not permitted/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+            self.session.timestamp_transaction_uint(
+            wiredtiger.WT_TS_TXN_TYPE_PREPARE, 0), '/zero not permitted/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+            self.session.timestamp_transaction_uint(
             wiredtiger.WT_TS_TXN_TYPE_READ, 0), '/zero not permitted/')
 
 if __name__ == '__main__':
