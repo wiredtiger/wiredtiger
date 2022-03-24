@@ -945,6 +945,7 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
     conn = S2C(session);
 
     if (ts == 0) {
+        name = "unknown";
         switch (which) {
         case WT_TS_TXN_TYPE_COMMIT:
             name = "commit";
