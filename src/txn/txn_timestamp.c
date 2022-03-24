@@ -96,21 +96,30 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
     include_oldest = LF_ISSET(WT_TXN_TS_INCLUDE_OLDEST);
     txn_has_write_lock = LF_ISSET(WT_TXN_TS_ALREADY_LOCKED);
 
+    /* If including oldest and there's none set, we're done, nothing else matters. */
+    if (include_oldest && !txn_global->has_oldest_timestamp) {
+        *tsp = 0;
+        return;
+    }
+
     if (!txn_has_write_lock)
         __wt_readlock(session, &txn_global->rwlock);
 
-    tmp_ts = include_oldest && txn_global->has_oldest_timestamp ? txn_global->oldest_timestamp : 0;
+    tmp_ts = include_oldest ? txn_global->oldest_timestamp : WT_TS_NONE;
 
     /* Check for a running checkpoint */
     if (LF_ISSET(WT_TXN_TS_INCLUDE_CKPT) && txn_global->checkpoint_timestamp != WT_TS_NONE &&
-      (tmp_ts == 0 || txn_global->checkpoint_timestamp < tmp_ts))
+      (tmp_ts == WT_TS_NONE || txn_global->checkpoint_timestamp < tmp_ts))
         tmp_ts = txn_global->checkpoint_timestamp;
 
     /* Walk the array of concurrent transactions. */
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         __txn_get_read_timestamp(s, &tmp_read_ts);
-        if (tmp_ts == 0 || (tmp_read_ts != 0 && tmp_read_ts < tmp_ts))
+        /*
+         * A zero timestamp is possible here only when the oldest timestamp is not accounted for.
+         */
+        if (tmp_ts == WT_TS_NONE || (tmp_read_ts != WT_TS_NONE && tmp_read_ts < tmp_ts))
             tmp_ts = tmp_read_ts;
     }
 
