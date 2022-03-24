@@ -107,10 +107,11 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
     struct timespec start, stop;
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *s;
-    uint64_t v;
+    uint64_t time_diff, v;
     uint32_t i, session_cnt;
     u_int minutes;
     int pause_cnt;
+    bool extra_timeout_logs;
 
     conn = S2C(session);
     __wt_epoch(NULL, &start);
@@ -163,11 +164,20 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
                 __wt_epoch(session, &start);
             } else {
                 __wt_epoch(session, &stop);
-                if (WT_TIMEDIFF_SEC(stop, start) > minutes * WT_MINUTE) {
+                time_diff = WT_TIMEDIFF_MS(stop, start);
+                if (time_diff > minutes * WT_MINUTE * WT_THOUSAND) {
                     __wt_verbose_notice(session, WT_VERB_GENERATION,
                       "%s generation drain waited %u minutes", __gen_name(which), minutes);
                     ++minutes;
                     WT_ASSERT(session, minutes < 4);
+                }
+                /* Enable extra logs before timing out. */
+                else if (!extra_timeout_logs && time_diff > (3 * WT_MINUTE * WT_THOUSAND - 20)) {
+                    if (which == WT_GEN_EVICT)
+                        FLD_SET(conn->verbose_timeout_flags, WT_VERBOSE_EVICTION_TIMEOUT);
+                    else if (which == WT_GEN_CHECKPOINT)
+                        FLD_SET(conn->verbose_timeout_flags, WT_VERBOSE_CHECKPOINT_TIMEOUT);
+                    extra_timeout_logs = true;
                 }
             }
         }
