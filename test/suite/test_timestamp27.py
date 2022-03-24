@@ -35,15 +35,15 @@ import wiredtiger, wttest
 # Test query-timestamp returns 0 if the timestamp is not set and set-timestamp of 0 fails.
 class test_timestamp27_timestamp_notset(wttest.WiredTigerTestCase):
     def test_conn_query_notset(self):
-        for ts in ['all_durable', 'last_checkpoint', 'oldest',
-            'oldest_reader', 'oldest_timestamp', 'pinned', 'recovery', 'stable', 'stable_timestamp']:
+        for ts in ['all_durable', 'last_checkpoint', 'oldest', 'oldest_reader',
+            'oldest_timestamp', 'pinned', 'recovery', 'stable', 'stable_timestamp']:
                 self.assertEquals(self.conn.query_timestamp('get=' + ts), "0")
 
     def test_session_query_notset(self):
         for ts in ['commit', 'first_commit', 'prepare', 'read']:
             self.assertEquals(self.session.query_timestamp('get=' + ts), "0")
 
-    def test_conn_set_notset(self):
+    def test_conn_set_zero(self):
         for ts in ['durable', 'oldest', 'stable']:
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda: self.conn.set_timestamp(ts + '_timestamp=0'), '/zero not permitted/')
