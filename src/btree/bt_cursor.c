@@ -1130,10 +1130,6 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
     WT_STAT_CONN_DATA_INCR(session, cursor_remove);
     WT_STAT_CONN_DATA_INCRV(session, cursor_remove_bytes, cursor->key.size);
 
-    /* Reposition the cursor if the cursor was reset internally. */
-    if (F_ISSET(cbt, WT_CBT_REPOSITION) && session->txn->isolation == WT_ISO_SNAPSHOT)
-        WT_RET(__wt_btcur_reposition(cbt));
-
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
 
@@ -1286,6 +1282,15 @@ search_notfound:
         WT_TRET(__cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }
+
+    /*
+     * If a reposition was requested but the search failed due to WT_NOTFOUND, do not clear the
+     * reposition flag so that the cursor can be repositioned in next/prev cursor methods.
+     */
+    if (ret == WT_NOTFOUND && F_ISSET(cbt, WT_CBT_REPOSITION))
+        ret = 0;
+    else
+        F_CLR(cbt, WT_CBT_REPOSITION);
 
 done:
     /*
