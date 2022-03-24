@@ -30,12 +30,12 @@ WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency, 100)
  */
 #define WT_WITH_CHECKPOINT(session, cbt, op)                                           \
     do {                                                                               \
-        WT_TXN *saved_txn;                                                             \
+        WT_TXN *__saved_txn;                                                           \
                                                                                        \
         if ((cbt)->checkpoint_txn != NULL) {                                           \
-            saved_txn = (session)->txn;                                                \
-            if (F_ISSET(saved_txn, WT_TXN_IS_CHECKPOINT))                              \
-                saved_txn = NULL;                                                      \
+            __saved_txn = (session)->txn;                                              \
+            if (F_ISSET(__saved_txn, WT_TXN_IS_CHECKPOINT))                            \
+                __saved_txn = NULL;                                                    \
             else {                                                                     \
                 (session)->txn = (cbt)->checkpoint_txn;                                \
                 if ((cbt)->checkpoint_hs_dhandle != NULL) {                            \
@@ -44,11 +44,11 @@ WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency, 100)
                 }                                                                      \
             }                                                                          \
         } else {                                                                       \
-            saved_txn = NULL;                                                          \
+            __saved_txn = NULL;                                                        \
         }                                                                              \
         op;                                                                            \
-        if (saved_txn != NULL) {                                                       \
-            (session)->txn = saved_txn;                                                \
+        if (__saved_txn != NULL) {                                                     \
+            (session)->txn = __saved_txn;                                              \
             session->hs_checkpoint = NULL;                                             \
         }                                                                              \
     } while (0)
