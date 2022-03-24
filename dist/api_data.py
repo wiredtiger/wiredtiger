@@ -1667,10 +1667,6 @@ methods = {
 ]),
 
 'WT_SESSION.flush_tier' : Method([
-    Config('flush_timestamp', '', r'''
-        flush objects to all storage sources using the specified timestamp.
-        The value must not be older than the current oldest timestamp and it must
-        not be newer than the stable timestamp'''),
     Config('force', 'false', r'''
         force sharing of all data''',
         type='boolean'),

@@ -824,9 +824,6 @@ struct __wt_session {
 	 *
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.flush_tier, see dist/api_data.py}
-	 * @config{flush_timestamp, flush objects to all storage sources using the specified
-	 * timestamp.  The value must not be older than the current oldest timestamp and it must not
-	 * be newer than the stable timestamp., a string; default empty.}
 	 * @config{force, force sharing of all data., a boolean flag; default \c false.}
 	 * @config{lock_wait, wait for locks\, if \c lock_wait=false\, fail if any required locks
 	 * are not available immediately., a boolean flag; default \c true.}
