@@ -1651,7 +1651,7 @@ methods = {
         recently set commit_timestamp; \c first_commit returns the first set
         commit_timestamp; \c prepare returns the timestamp used in preparing
         a transaction; \c read returns the timestamp at which the transaction
-        is reading at. See @ref timestamp_txn_api''',
+        is reading. See @ref timestamp_txn_api''',
         choices=['commit', 'first_commit', 'prepare', 'read']),
 ]),
 

@@ -1840,7 +1840,7 @@ struct __wt_session {
 	 * @config{get, specify which timestamp to query: \c commit returns the most recently set
 	 * commit_timestamp; \c first_commit returns the first set commit_timestamp; \c prepare
 	 * returns the timestamp used in preparing a transaction; \c read returns the timestamp at
-	 * which the transaction is reading at.  See @ref timestamp_txn_api., a string\, chosen from
+	 * which the transaction is reading.  See @ref timestamp_txn_api., a string\, chosen from
 	 * the following options: \c "commit"\, \c "first_commit"\, \c "prepare"\, \c "read";
 	 * default \c read.}
 	 * @configend
