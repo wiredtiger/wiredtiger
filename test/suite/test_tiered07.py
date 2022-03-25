@@ -131,6 +131,11 @@ class test_tiered07(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.drop(self.localuri)
         self.session.drop(self.uri)
 
+        # FIXME: The drop operation for tiered tables should both remove the files from the metadata
+        # file and remove the corresponding local object files in the directory.
+        # self.assertFalse(os.path.isfile("abc-0000000001.wtobj"))
+        # self.assertFalse(os.path.isfile("abc-0000000002.wtobj"))
+
         # Dropping a table using the force setting should succeed even if the table does not exist.
         self.session.drop(self.localuri, 'force=true')
         self.session.drop(self.uri, 'force=true')
