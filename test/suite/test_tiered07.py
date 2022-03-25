@@ -160,11 +160,7 @@ class test_tiered07(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Create new table with new name.
         self.pr('create new table')
-        self.session.create(self.newuri, 'key_format=S,value_format=S,tiered_storage=(name=none)')
-
-        # Check that the underlying files are not removed when configured in drop.
-        self.session.drop(self.newuri, 'remove_files=false')
-        self.check_non_empty_file("tier_new.wt")
+        self.session.create(self.newuri, 'key_format=S')
 
 if __name__ == '__main__':
     wttest.run()
