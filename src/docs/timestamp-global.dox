@@ -142,8 +142,6 @@ or \c oldest_reader if there are no active transactions.
 | recovery | <= stable | The stable timestamp used in the most recent checkpoint prior to the last shutdown. |
 | stable_timestamp | None | The current application-set \c stable_timestamp value. |
 
-In all cases, ::WT_NOTFOUND is returned if there is no matching timestamp.
-
 @subsection timestamp_global_query_api_all_durable Reading the "all_durable" timestamp
 
 <!--

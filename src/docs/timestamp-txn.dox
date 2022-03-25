@@ -54,8 +54,6 @@ if the timestamp is not available or has not been set, for example, the
 | prepare | the timestamp used to prepare the transaction |
 | read | the timestamp at which the transaction is reading |
 
-In all cases, ::WT_NOTFOUND is returned if there is no matching timestamp.
-
 @section timestamp_txn_api_begin Configuring transaction timestamp information with WT_SESSION::begin_transaction
 
 The following table lists the transaction's timestamps and behaviors that can be set when the transaction begins, using WT_SESSION::begin_transaction:

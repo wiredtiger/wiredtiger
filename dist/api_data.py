@@ -1651,8 +1651,7 @@ methods = {
         recently set commit_timestamp; \c first_commit returns the first set
         commit_timestamp; \c prepare returns the timestamp used in preparing
         a transaction; \c read returns the timestamp at which the transaction
-        is reading at. In all cases, 0 is returned if the timestamp has not
-        been set. See @ref timestamp_txn_api''',
+        is reading at. See @ref timestamp_txn_api''',
         choices=['commit', 'first_commit', 'prepare', 'read']),
 ]),
 
@@ -1961,10 +1960,10 @@ methods = {
         returns the minimum of the read timestamps of all active readers; \c pinned returns
         the minimum of the \c oldest_timestamp and the read timestamps of all active readers;
         \c recovery returns the timestamp of the most recent stable checkpoint taken prior
-        to a shutdown; \c stable_timestamp returns the most recent \c stable_timestamp set
-        with WT_CONNECTION::set_timestamp. In all cases, 0 is returned if the timestamp has
-        not been set. (The \c oldest and \c stable arguments are deprecated short-hand for \c
-        oldest_timestamp and \c stable_timestamp, respectively.) See @ref timestamp_global_api''',
+        to a shutdown; \c stable_timestamp returns the most recent \c stable_timestamp set with
+        WT_CONNECTION::set_timestamp. (The \c oldest and \c stable arguments are deprecated
+        short-hand for \c oldest_timestamp and \c stable_timestamp, respectively.) See @ref
+        timestamp_global_api''',
         choices=['all_durable','last_checkpoint','oldest',
             'oldest_reader','oldest_timestamp','pinned','recovery','stable','stable_timestamp']),
 ]),
