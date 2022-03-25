@@ -815,7 +815,7 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
         conn->tiered_mgr_tid_set = false;
     }
 
-    /* 
+    /*
      * Stop the internal server thread. If there is unfinished work, we will recover it on startup
      * just as if there had been a system failure.
      */
