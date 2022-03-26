@@ -36,13 +36,11 @@ static void
 bulk_begin_transaction(WT_SESSION *session)
 {
     uint64_t ts;
-    char buf[64];
 
     /* Writes require snapshot isolation. */
     wiredtiger_begin_transaction(session, NULL);
     ts = __wt_atomic_addv64(&g.timestamp, 1);
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "read_timestamp=%" PRIx64, ts));
-    testutil_check(session->timestamp_transaction(session, buf));
+    testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_READ, ts));
 }
 
 /*
@@ -53,11 +51,10 @@ static void
 bulk_commit_transaction(WT_SESSION *session)
 {
     uint64_t ts;
-    char buf[64];
 
     ts = __wt_atomic_addv64(&g.timestamp, 1);
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "commit_timestamp=%" PRIx64, ts));
-    testutil_check(session->commit_transaction(session, buf));
+    testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
+    testutil_check(session->commit_transaction(session, NULL));
 
     /* Update the oldest timestamp, otherwise updates are pinned in memory. */
     timestamp_once(session, false, false);

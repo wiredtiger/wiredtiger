@@ -627,18 +627,16 @@ snap_repeat(TINFO *tinfo, SNAP_OPS *snap)
     WT_SESSION *session;
 #define MAX_RETRY_ON_ROLLBACK 1000
     u_int max_retry;
-    char buf[64];
 
     session = tinfo->session;
 
     /* Start a transaction with a read-timestamp and verify the record. */
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "read_timestamp=%" PRIx64, snap->ts));
-
     for (max_retry = 0; max_retry < MAX_RETRY_ON_ROLLBACK; ++max_retry, __wt_yield()) {
         wiredtiger_begin_transaction(session, "isolation=snapshot");
 
         /* EINVAL means the timestamp has aged out of the system. */
-        if ((ret = session->timestamp_transaction(session, buf)) == EINVAL) {
+        if ((ret = session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_READ, snap->ts)) ==
+          EINVAL) {
             snap_ts_clear(tinfo, snap->ts);
             break;
         }

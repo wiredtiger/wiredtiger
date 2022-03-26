@@ -434,7 +434,6 @@ begin_transaction_ts(TINFO *tinfo)
     WT_DECL_RET;
     WT_SESSION *session;
     uint64_t ts;
-    char buf[64];
 
     session = tinfo->session;
 
@@ -456,16 +455,13 @@ begin_transaction_ts(TINFO *tinfo)
          * If the timestamp has aged out of the system, we'll get EINVAL when we try and set it.
          * That kills the transaction, we have to restart.
          */
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "read_timestamp=%" PRIx64, ts));
-        ret = session->timestamp_transaction(session, buf);
+        ret = session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_READ, ts);
         if (ret == 0) {
             snap_op_init(tinfo, ts, true);
             trace_uri_op(tinfo, NULL, "begin snapshot read-ts=%" PRIu64 " (repeatable)", ts);
             return;
         }
-        if (ret != EINVAL)
-            testutil_check(ret);
-
+        testutil_assert(ret == EINVAL);
         testutil_check(session->rollback_transaction(session, NULL));
     }
 
@@ -480,11 +476,8 @@ begin_transaction_ts(TINFO *tinfo)
      * Lock out the oldest timestamp update.
      */
     lock_writelock(session, &g.ts_lock);
-
     ts = __wt_atomic_addv64(&g.timestamp, 1);
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "read_timestamp=%" PRIx64, ts));
-    testutil_check(session->timestamp_transaction(session, buf));
-
+    testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_READ, ts));
     lock_writeunlock(session, &g.ts_lock);
 
     snap_op_init(tinfo, ts, false);
@@ -517,7 +510,6 @@ commit_transaction(TINFO *tinfo, bool prepared)
 {
     WT_SESSION *session;
     uint64_t ts;
-    char buf[64];
 
     session = tinfo->session;
 
@@ -532,13 +524,11 @@ commit_transaction(TINFO *tinfo, bool prepared)
         lock_writelock(session, &g.ts_lock);
 
         ts = __wt_atomic_addv64(&g.timestamp, 1);
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "commit_timestamp=%" PRIx64, ts));
-        testutil_check(session->timestamp_transaction(session, buf));
+        testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
 
-        if (prepared) {
-            testutil_check(__wt_snprintf(buf, sizeof(buf), "durable_timestamp=%" PRIx64, ts));
-            testutil_check(session->timestamp_transaction(session, buf));
-        }
+        if (prepared)
+            testutil_check(
+              session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_DURABLE, ts));
 
         lock_writeunlock(session, &g.ts_lock);
         testutil_check(session->commit_transaction(session, NULL));
@@ -582,7 +572,6 @@ prepare_transaction(TINFO *tinfo)
     WT_DECL_RET;
     WT_SESSION *session;
     uint64_t ts;
-    char buf[64];
 
     session = tinfo->session;
 
@@ -601,8 +590,8 @@ prepare_transaction(TINFO *tinfo)
     lock_writelock(session, &g.ts_lock);
 
     ts = __wt_atomic_addv64(&g.timestamp, 1);
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "prepare_timestamp=%" PRIx64, ts));
-    ret = session->prepare_transaction(session, buf);
+    testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_PREPARE, ts));
+    ret = session->prepare_transaction(session, NULL);
 
     trace_uri_op(tinfo, NULL, "prepare ts=%" PRIu64, ts);
 
