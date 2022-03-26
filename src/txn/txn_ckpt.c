@@ -2113,8 +2113,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
      * can lead to files that are inconsistent on disk after a crash.
      */
     if (btree->modified && !bulk && !metadata)
-        WT_RET_MSG(session, EBUSY, "%s: checkpoint close blocked by modified data in the cache",
-          session->dhandle->name);
+        return (__wt_set_return(session, EBUSY));
 
     /*
      * Make sure there isn't a potential race between backup copying the metadata and a checkpoint
