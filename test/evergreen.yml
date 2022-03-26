@@ -11,11 +11,12 @@ stepback: true
 pre:
   - func: "cleanup"
 post:
+  - func: "print python stacktrace"
+  - func: "dump stderr/stdout"
   - func: "upload artifact"
     vars:
       postfix: -${execution}
   - func: "save wt hang analyzer core/debugger files"
-  - func: "dump stderr/stdout"
   - func: "cleanup"
 timeout:
   - func: "run wt hang analyzer"
@@ -493,6 +494,17 @@ functions:
         content_type: application/tar
         display_name: WT Hang Analyzer Output - Execution ${execution}
         remote_file: wiredtiger/${build_variant}/${revision}/wt_hang_analyzer/wt-hang-analyzer_${task_name}_${build_id}${postfix|}.tgz
+
+  "print python stacktrace":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build"
+      script: |
+        set -o errexit
+        set -o verbose
+        if [ -d "WT_TEST" ]; then
+          ${python_binary|python3} ../test/evergreen/print_python_stack_trace.py -e ${python_binary|python3} -c WT_TEST -l .
+        fi
 
   "dump stderr/stdout":
     command: shell.exec
@@ -1532,6 +1544,15 @@ tasks:
       - func: "csuite test"
         vars:
           test_name: wt8659_reconstruct_database_from_logs
+
+  - name: csuite-wt8963-insert-stress-test
+    tags: ["stress-test-1"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "csuite test"
+        vars:
+          test_name: wt8963_insert_stress
 
   # End of csuite test tasks
 
@@ -3572,6 +3593,7 @@ buildvariants:
     posix_configure_flags:
       -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       -DCMAKE_C_FLAGS="-ggdb"
+      -DCMAKE_CXX_FLAGS="-ggdb"
       -DHAVE_DIAGNOSTIC=1
       -DENABLE_PYTHON=1
       -DENABLE_ZLIB=1
@@ -3635,6 +3657,7 @@ buildvariants:
       -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
       -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
       -DCMAKE_C_FLAGS="-ggdb"
+      -DCMAKE_CXX_FLAGS="-ggdb"
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
@@ -3704,6 +3727,7 @@ buildvariants:
       -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
       -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
       -DCMAKE_C_FLAGS="-ggdb"
+      -DCMAKE_CXX_FLAGS="-ggdb"
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
@@ -3925,6 +3949,7 @@ buildvariants:
       -DENABLE_STATIC=1
       -DENABLE_TCMALLOC=1
       -DENABLE_ZLIB=1
+      -DCMAKE_CXX_FLAGS="-ggdb"
       -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
   tasks:
     - name: compile
@@ -4142,10 +4167,10 @@ buildvariants:
     - name: verify-datafile-big-endian
     - name: verify-datafile-from-little-endian
 
-- name: ubuntu1804-ppc
-  display_name: "~ Ubuntu 18.04 PPC"
+- name: rhel8-ppc
+  display_name: "~ RHEL8 PPC"
   run_on:
-  - ubuntu1804-power8-test
+  - rhel81-power8-small
   batchtime: 120 # 2 hours
   expansions:
     format_test_setting: ulimit -c unlimited
