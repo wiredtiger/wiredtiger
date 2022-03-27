@@ -1547,7 +1547,7 @@ static void
 __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi)
 {
     WT_SAVE_UPD *supd;
-    WT_UPDATE *tmp;
+    WT_UPDATE **tmp;
     uint32_t i, slot;
 
     /* If we have saved updates, we must have decided to restore them to the new page. */
@@ -1572,10 +1572,11 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
             supd->ins->upd = NULL;
 
         /* Free the updates written to the data store and the history store. */
-        tmp = supd->onpage_tombstone != NULL ? supd->onpage_tombstone : supd->onpage_upd;
-        if (tmp != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-            __wt_free_update_list(session, &tmp);
-        supd->onpage_tombstone = supd->onpage_upd = NULL;
+        tmp = supd->onpage_tombstone != NULL ? &supd->onpage_tombstone : &supd->onpage_upd;
+        if (tmp != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+            __wt_free_update_list(session, tmp);
+            supd->onpage_tombstone = supd->onpage_upd = NULL;
+        }
     }
 }
 
