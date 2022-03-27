@@ -10,10 +10,8 @@ $ mkdir build && cd build
 cmake -DENABLE_PYTHON=1 -DHAVE_DIAGNOSTIC=1 -DENABLE_S3=1 -DENABLE_STRICT=0 -G Ninja ../.
 ```
 
-* Running with the tag '-DENABLE_S3=1' will default to looking for a local installation of S3 because of the compiler flag in cmake.
-   
-    - Otherwise if a local S3 installation is not found, an external installation will be prompted to install S3 during the build step.
-    
+* Running with the tag '-DENABLE_S3=1' will default to looking for a local installation of S3.
+       
 * Optionally the compiler flag 'IMPORT_S3_SDK' can be set to either:
     -  'external' prompts the S3 to be externally installed during the build step.
     -  'package' for the compiler to search for a local installation of the S3 to use.  
