@@ -37,6 +37,7 @@ __wt_yield_no_barrier(void) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 #ifndef HAVE_DIAGNOSTIC
     __wt_abort(NULL);
-#endif
+#else
     SwitchToThread();
+#endif
 }
