@@ -173,7 +173,7 @@ struct __wt_verbose_multi_category {
  *     comma before an empty __VA_ARGS__ value.
  */
 #define __wt_verbose(session, category, fmt, ...) \
-    __wt_verbose_level(session, category, WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__);
+    __wt_verbose_level(session, category, WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__)
 
 /*
  * __wt_verbose_level_multi --
