@@ -771,6 +771,9 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
+          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=0
+      - func: "compile wiredtiger"
+        vars:
           posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake -DGNU_C_VERSION=7 -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1
       - func: "compile wiredtiger"
         vars:
@@ -783,6 +786,9 @@ tasks:
     tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=0
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake -DCLANG_C_VERSION=6.0 -DCLANG_CXX_VERSION=6.0 -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1
@@ -2707,7 +2713,7 @@ tasks:
             ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
 
-  - name: race-condition-stress-sanitizer-test-no-barier
+  - name: race-condition-stress-sanitizer-test-no-barrier
     tags: ["stress-test-no-barrier"]
     exec_timeout_secs: 25200
     commands:
@@ -3775,7 +3781,7 @@ buildvariants:
       -DCMAKE_BUILD_TYPE=UBSan
       -DCC_OPTIMIZE_LEVEL=-O1
       -DENABLE_STRICT=1
-      -DHAVE_DIAGNOTIC=1
+      -DHAVE_DIAGNOSTIC=1
       -DENABLE_STATIC=0
       -DENABLE_TCMALLOC=1
       -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
