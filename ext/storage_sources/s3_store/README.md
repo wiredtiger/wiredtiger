@@ -25,6 +25,9 @@ cmake -DENABLE_PYTHON=1 -DHAVE_DIAGNOSTIC=1 -DENABLE_S3=1 -DENABLE_STRICT=0 -G N
 ### Installing AWS SDK S3 C++ locally
 
 Follow the guide below to install SDK locally: 
+* Note: Set BUILD_ONLY flag to "s3-crt" to only install necessary dependencies for this extension. 
+    -  CMake searches locally for the s3-crt package and not s3 only package.
+
 https://docs.aws.amazon.com/sdk-for-cpp/v1/developer-guide/setup-linux.html
 
 
