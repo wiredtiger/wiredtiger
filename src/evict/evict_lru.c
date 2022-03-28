@@ -378,14 +378,18 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+#ifdef HAVE_DIAGNOSTIC
     bool verbose_timeout_flags;
+#endif
 
     /* Assume there has been no progress. */
     *did_work = false;
 
     conn = S2C(session);
     cache = conn->cache;
+#ifdef HAVE_DIAGNOSTIC
     verbose_timeout_flags = false;
+#endif
 
     /* Evict pages from the cache as needed. */
     WT_RET(__evict_pass(session));
