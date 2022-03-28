@@ -1571,7 +1571,12 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
         } else
             supd->ins->upd = NULL;
 
-        /* Free the updates written to the data store and the history store. */
+        /*
+         * Free the updates written to the data store and the history store when there exists an
+         * onpage value. It is possible that there can be an onpage tombstone without an onpage
+         * value when the tombstone is globally visible. Do not free them here as it is possible
+         * that the globally visible tombstone is already freed as part of update obsolete check.
+         */
         if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
             tmp = supd->onpage_tombstone != NULL ? &supd->onpage_tombstone : &supd->onpage_upd;
             __wt_free_update_list(session, tmp);
