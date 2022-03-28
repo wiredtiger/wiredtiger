@@ -1572,8 +1572,8 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
             supd->ins->upd = NULL;
 
         /* Free the updates written to the data store and the history store. */
-        tmp = supd->onpage_tombstone != NULL ? &supd->onpage_tombstone : &supd->onpage_upd;
-        if (tmp != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+        if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+            tmp = supd->onpage_tombstone != NULL ? &supd->onpage_tombstone : &supd->onpage_upd;
             __wt_free_update_list(session, tmp);
             supd->onpage_tombstone = supd->onpage_upd = NULL;
         }
