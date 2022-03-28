@@ -565,8 +565,7 @@ struct __wt_cursor {
 	/*!
 	 * Remove a record.
 	 *
-	 * The key must be set; the key's record will be removed if it exists,
-	 * no error will be returned if the record does not exist.
+	 * The key must be set; the key's record will be removed if it exists.
 	 *
 	 * @snippet ex_all.c Remove a record
 	 *
@@ -654,10 +653,10 @@ struct __wt_cursor {
 	 * @configstart{WT_CURSOR.reconfigure, see dist/api_data.py}
 	 * @config{append, append the value as a new record\, creating a new record number key;
 	 * valid only for cursors with record number keys., a boolean flag; default \c false.}
-	 * @config{overwrite, configures whether the cursor's insert\, update and remove methods
-	 * check the existing state of the record.  If \c overwrite is \c false\, WT_CURSOR::insert
-	 * fails with ::WT_DUPLICATE_KEY if the record exists\, WT_CURSOR::update fails with
-	 * ::WT_NOTFOUND if the record does not exist., a boolean flag; default \c true.}
+	 * @config{overwrite, configures whether the cursor's insert and update methods check the
+	 * existing state of the record.  If \c overwrite is \c false\, WT_CURSOR::insert fails with
+	 * ::WT_DUPLICATE_KEY if the record exists\, WT_CURSOR::update fails with ::WT_NOTFOUND if
+	 * the record does not exist., a boolean flag; default \c true.}
 	 * @configend
 	 * @errors
 	 */
@@ -733,6 +732,14 @@ struct __wt_cursor {
 	uint32_t flags;
 #endif
 };
+
+/*! WT_SESSION::timestamp_transaction_uint timestamp types */
+typedef enum {
+	WT_TS_TXN_TYPE_COMMIT, /*!< Commit timestamp. */
+	WT_TS_TXN_TYPE_DURABLE, /*!< Durable timestamp. */
+	WT_TS_TXN_TYPE_PREPARE, /*!< Prepare timestamp. */
+	WT_TS_TXN_TYPE_READ /*!< Read timestamp. */
+} WT_TS_TXN_TYPE;
 
 /*!
  * All data operations are performed in the context of a WT_SESSION.  This
@@ -967,10 +974,10 @@ struct __wt_session {
 	 * object into \c next_random_sample_size equal-sized pieces\, and each retrieval returns a
 	 * record from one of those pieces.  See @ref cursor_random for details., a string; default
 	 * \c 0.}
-	 * @config{overwrite, configures whether the cursor's insert\, update and remove methods
-	 * check the existing state of the record.  If \c overwrite is \c false\, WT_CURSOR::insert
-	 * fails with ::WT_DUPLICATE_KEY if the record exists\, WT_CURSOR::update fails with
-	 * ::WT_NOTFOUND if the record does not exist., a boolean flag; default \c true.}
+	 * @config{overwrite, configures whether the cursor's insert and update methods check the
+	 * existing state of the record.  If \c overwrite is \c false\, WT_CURSOR::insert fails with
+	 * ::WT_DUPLICATE_KEY if the record exists\, WT_CURSOR::update fails with ::WT_NOTFOUND if
+	 * the record does not exist., a boolean flag; default \c true.}
 	 * @config{raw, ignore the encodings for the key and value\, manage data as if the formats
 	 * were \c "u". See @ref cursor_raw for details., a boolean flag; default \c false.}
 	 * @config{read_once, results that are brought into cache from disk by this cursor will be
@@ -1567,11 +1574,11 @@ struct __wt_session {
 	 * contains.
 	 * @snippet ex_all.c Truncate a range
 	 *
-	 * When a range truncate is in progress, and another transaction inserts
-	 * a key into that range, the behavior is not well defined - a conflict
-	 * may be detected or both transactions may be permitted to commit. If
-	 * they do commit, and if there is a crash and recovery runs, the result
-	 * may be different than what was in cache before the crash.
+	 * Range truncate is implemented as a "scan and write" operation, specifically without range
+	 * locks. Inserts or other operations in the range, as well as operations before or after
+	 * the range when no explicit starting or ending key is set, are not well defined: conflicts
+	 * may be detected or both transactions may commit. If both commit, there's a failure and
+	 * recovery runs, the result may be different than what was in cache before the crash.
 	 *
 	 * The WT_CURSOR::truncate range truncate operation can only be used at snapshot isolation.
 	 *
@@ -1631,6 +1638,8 @@ struct __wt_session {
 	 * @param name the URI of the table or file to verify, optional if verifying the history
 	 * store
 	 * @configstart{WT_SESSION.verify, see dist/api_data.py}
+	 * @config{do_not_clear_txn_id, Turn off transaction id clearing\, intended for debugging
+	 * and better diagnosis of crashes or failures., a boolean flag; default \c false.}
 	 * @config{dump_address, Display page addresses\, time windows\, and page types as pages are
 	 * verified\, using the application's message handler\, intended for debugging., a boolean
 	 * flag; default \c false.}
@@ -1881,6 +1890,25 @@ struct __wt_session {
 	 * @errors
 	 */
 	int __F(timestamp_transaction)(WT_SESSION *session, const char *config);
+
+	/*!
+	 * Set a timestamp on a transaction numerically.  Prefer this over @ref
+	 * timestamp_transaction when the string parsing done in that method becomes a bottleneck.
+	 *
+	 * The WT_SESSION.timestamp_transaction_uint method can only be used at snapshot
+	 * isolation.
+	 *
+	 * @requires_transaction
+	 *
+	 * @param session the session handle
+	 * @param which the timestamp you wish to set. See @ref WT_TS_TXN_TYPE for available
+	 * options, and @ref timestamp_transaction for constraints on when timestamps can be
+	 * set.
+	 * @param ts the timestamp.
+	 * @errors
+	 */
+	int __F(timestamp_transaction_uint)(WT_SESSION *session, WT_TS_TXN_TYPE which,
+	        uint64_t ts);
 	/*! @} */
 
 	/*!

@@ -210,10 +210,10 @@ test_join(TEST_OPTS *opts, SHARED_OPTS *sharedopts, bool bloom, bool sometimes_r
           insert_args[i].inserts, insert_args[i].removes, insert_args[i].notfounds,
           insert_args[i].rollbacks);
 
-    testutil_drop(session, sharedopts->posturi, NULL);
-    testutil_drop(session, sharedopts->baluri, NULL);
-    testutil_drop(session, sharedopts->flaguri, NULL);
-    testutil_drop(session, opts->uri, NULL);
+    WT_OP_CHECKPOINT_WAIT(session, session->drop(session, sharedopts->posturi, NULL));
+    WT_OP_CHECKPOINT_WAIT(session, session->drop(session, sharedopts->baluri, NULL));
+    WT_OP_CHECKPOINT_WAIT(session, session->drop(session, sharedopts->flaguri, NULL));
+    WT_OP_CHECKPOINT_WAIT(session, session->drop(session, opts->uri, NULL));
     testutil_check(session->close(session, NULL));
 }
 
@@ -257,11 +257,10 @@ thread_insert(void *arg)
 #endif
         if (sharedopts->remove && __wt_random(&rnd) % 5 == 0 && maincur->search(maincur) == 0) {
             /*
-             * Another thread can be removing at the same time.
+             * Another thread can be removing at the same time, or we can remove twice in a row.
              */
             ret = maincur->remove(maincur);
-            testutil_assert(
-              ret == 0 || (N_INSERT_THREAD > 1 && (ret == WT_NOTFOUND || ret == WT_ROLLBACK)));
+            testutil_assert(ret == 0 || ret == WT_NOTFOUND || ret == WT_ROLLBACK);
             if (ret == 0)
                 threadargs->removes++;
             else if (ret == WT_NOTFOUND)
