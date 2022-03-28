@@ -26,15 +26,14 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
+from helper_tiered import get_auth_token, get_bucket1_name
 from wtscenario import make_scenarios
 import os, wiredtiger, wttest
-from suite_subprocess import suite_subprocess
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered07.py
 #    Basic tiered storage API for schema operations.
-class test_tiered07(wttest.WiredTigerTestCase, suite_subprocess):
+class test_tiered07(wttest.WiredTigerTestCase):
     storage_sources = [
         ('dir_store', dict(auth_token = get_auth_token('dir_store'),
             bucket = get_bucket1_name('dir_store'),
