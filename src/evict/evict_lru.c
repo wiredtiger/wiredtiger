@@ -378,12 +378,14 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    bool verbose_timeout_flags;
 
     /* Assume there has been no progress. */
     *did_work = false;
 
     conn = S2C(session);
     cache = conn->cache;
+    verbose_timeout_flags = false;
 
     /* Evict pages from the cache as needed. */
     WT_RET(__evict_pass(session));
@@ -452,9 +454,14 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 #define WT_CACHE_STUCK_TIMEOUT_S 300
 #ifdef HAVE_DIAGNOSTIC
     /* Enable extra logs before timing out. */
-    if (!FLD_ISSET(conn->verbose_timeout_flags, WT_VERBOSE_EVICTION_TIMEOUT) &&
-      WT_TIMEDIFF_MS(now, cache->stuck_time) > ((WT_CACHE_STUCK_TIMEOUT_S + 1) * WT_THOUSAND) - 20)
-        FLD_SET(conn->verbose_timeout_flags, WT_VERBOSE_EVICTION_TIMEOUT);
+    if (!verbose_timeout_flags &&
+      WT_TIMEDIFF_MS(now, cache->stuck_time) >
+        ((WT_CACHE_STUCK_TIMEOUT_S + 1) * WT_THOUSAND) - 20) {
+        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG);
+        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG);
+        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG);
+        verbose_timeout_flags = true;
+    }
 #endif
 
     if (WT_TIMEDIFF_SEC(now, cache->stuck_time) > WT_CACHE_STUCK_TIMEOUT_S) {

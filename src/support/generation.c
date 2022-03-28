@@ -111,10 +111,10 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
     uint32_t i, session_cnt;
     u_int minutes;
     int pause_cnt;
-    bool extra_timeout_logs;
+    bool verbose_timeout_flags;
 
     conn = S2C(session);
-    extra_timeout_logs = false;
+    verbose_timeout_flags = false;
     __wt_epoch(NULL, &start);
 
     /*
@@ -173,12 +173,18 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
                     WT_ASSERT(session, minutes < 4);
                 }
                 /* Enable extra logs before timing out. */
-                else if (!extra_timeout_logs && time_diff > (3 * WT_MINUTE * WT_THOUSAND - 20)) {
-                    if (which == WT_GEN_EVICT)
-                        FLD_SET(conn->verbose_timeout_flags, WT_VERBOSE_EVICTION_TIMEOUT);
-                    else if (which == WT_GEN_CHECKPOINT)
-                        FLD_SET(conn->verbose_timeout_flags, WT_VERBOSE_CHECKPOINT_TIMEOUT);
-                    extra_timeout_logs = true;
+                else if (!verbose_timeout_flags && time_diff > (3 * WT_MINUTE * WT_THOUSAND - 20)) {
+                    if (which == WT_GEN_EVICT) {
+                        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG);
+                        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG);
+                        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG);
+                    } else if (which == WT_GEN_CHECKPOINT) {
+                        WT_SET_VERBOSE_LEVEL(session, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG);
+                        WT_SET_VERBOSE_LEVEL(session, WT_VERB_CHECKPOINT_CLEANUP, WT_VERBOSE_DEBUG);
+                        WT_SET_VERBOSE_LEVEL(
+                          session, WT_VERB_CHECKPOINT_PROGRESS, WT_VERBOSE_DEBUG);
+                    }
+                    verbose_timeout_flags = true;
                 }
             }
         }

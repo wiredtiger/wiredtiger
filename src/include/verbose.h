@@ -106,6 +106,9 @@ struct __wt_verbose_multi_category {
 #define WT_DECL_VERBOSE_MULTI_CATEGORY(items) \
     ((WT_VERBOSE_MULTI_CATEGORY){.categories = (items), .cnt = WT_ELEMENTS(items)})
 
+/* Set the verbosity level for a given category. */
+#define WT_SET_VERBOSE_LEVEL(session, category, level) S2C(session)->verbose[category] = level;
+
 /* Check if a given verbosity level satisfies the verbosity level of a category. */
 #define WT_VERBOSE_LEVEL_ISSET(session, category, level) (level <= S2C(session)->verbose[category])
 
@@ -169,18 +172,9 @@ struct __wt_verbose_multi_category {
  *     format string and at least one additional argument, there's no portable way to remove the
  *     comma before an empty __VA_ARGS__ value.
  */
-#define __wt_verbose(session, category, fmt, ...)                                                 \
-    do {                                                                                          \
-        if (FLD_ISSET(S2C(session)->verbose_timeout_flags, WT_VERBOSE_EVICTION_TIMEOUT) &&        \
-          (category == WT_VERB_EVICT || category == WT_VERB_EVICTSERVER ||                        \
-            category == WT_VERB_EVICT_STUCK))                                                     \
-            __wt_verbose_notice(session, category, fmt, __VA_ARGS__);                             \
-        else if (FLD_ISSET(S2C(session)->verbose_timeout_flags, WT_VERBOSE_CHECKPOINT_TIMEOUT) && \
-          (category == WT_VERB_CHECKPOINT || category == WT_VERB_CHECKPOINT_CLEANUP ||            \
-            category == WT_VERB_CHECKPOINT_PROGRESS))                                             \
-            __wt_verbose_notice(session, category, fmt, __VA_ARGS__);                             \
-        else                                                                                      \
-            __wt_verbose_level(session, category, WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__);    \
+#define __wt_verbose(session, category, fmt, ...)                                          \
+    do {                                                                                   \
+        __wt_verbose_level(session, category, WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__); \
     } while (0)
 
 /*
