@@ -53,6 +53,7 @@ class test_tiered07(wttest.WiredTigerTestCase, suite_subprocess):
     uri = "table:abc"
     uri2 = "table:ab"
     uri3 = "table:abcd"
+    uri4 = "table:abcde"
     localuri = "table:local"
     newuri = "table:tier_new"
 
@@ -131,8 +132,10 @@ class test_tiered07(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.drop(self.localuri)
         self.session.drop(self.uri)
 
-        # FIXME: The drop operation for tiered tables should both remove the files from the metadata
-        # file and remove the corresponding local object files in the directory.
+        # By default, the remove_files configuration for drop is true. This means that the
+        # drop operation for tiered tables should both remove the files from the metadata
+        # file and remove the corresponding local object files in the directory. Currently the
+        # below code is commented as the files are not removed from the directory. FIXME: WT-9003
         # self.assertFalse(os.path.isfile("abc-0000000001.wtobj"))
         # self.assertFalse(os.path.isfile("abc-0000000002.wtobj"))
 
@@ -166,6 +169,11 @@ class test_tiered07(wttest.WiredTigerTestCase, suite_subprocess):
         # Create new table with new name.
         self.pr('create new table')
         self.session.create(self.newuri, 'key_format=S')
+
+        # Test the drop operation without removing associated files.
+        self.session.create(self.uri4, 'key_format=S,value_format=S')
+        self.session.drop(self.uri4, 'remove_files=false')
+        self.assertTrue(os.path.isfile("abcde-0000000001.wtobj"))
 
 if __name__ == '__main__':
     wttest.run()
