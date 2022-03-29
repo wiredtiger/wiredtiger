@@ -99,8 +99,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_BACKUPHASH *backuphash)
 
     allocated_name = file_len = max_len = slot = 0;
     conn = S2C(session);
-    filename = NULL;
-    metadata_conf = NULL;
+    filename = metadata_conf = NULL;
     partial_backup_names = NULL;
 
     /* Look for a hot backup file: if we find it, load it. */
@@ -136,7 +135,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_BACKUPHASH *backuphash)
              * The target uri will be the deciding factor if a specific metadata table entry needs
              * to be dropped. If the metadata table entry does not exist in the target uri hash
              * table, append the metadata key to the backup remove list.
-             */
+             */ 
             if (__metadata_backup_target_uri_search(session, backuphash, metadata_key) == false) {
                 if (key->size > max_len)
                     max_len = key->size;
