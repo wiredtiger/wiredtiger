@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper_tiered import get_auth_token, get_bucket1_name
+from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
 import os, wiredtiger, wttest
 from wtscenario import make_scenarios
 
@@ -37,15 +37,24 @@ class test_create_excl(wttest.WiredTigerTestCase):
             bucket = get_bucket1_name('dir_store'),
             bucket_prefix = "pfx_",
             ss_name = 'dir_store')),
+        ('s3', dict(auth_token = get_auth_token('s3_store'),
+            bucket = get_bucket1_name('s3_store'),
+            bucket_prefix = generate_s3_prefix(),
+            ss_name = 's3_store')),
     ]
 
-    scenarios = make_scenarios(storage_sources)
+    types = [
+        ('file', dict(type = 'file', uri_type = 'file:')),
+        ('table', dict(type = 'table', uri_type = 'table:')),
+        ('tiered', dict(type = 'tiered', uri_type = 'table:')),
+    ]
+
+    scenarios = make_scenarios(storage_sources, types)
 
     def conn_config(self):
         if self.ss_name == 'dir_store' and not os.path.exists(self.bucket):
             os.mkdir(self.bucket)
         return \
-          'debug_mode=(flush_checkpoint=true),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
           'bucket_prefix=%s,' % self.bucket_prefix + \
@@ -65,36 +74,31 @@ class test_create_excl(wttest.WiredTigerTestCase):
         extlist.extension('storage_sources', self.ss_name + config)
 
     def test_create_excl(self):
-        file_uri = "file:create_excl_file"
-        table_uri = "table:create_excl_table"
-        tiered_uri = "table:create_excl_tiered"
+        uri = self.uri_type + "create_excl_" + self.type
+        exclusive_config = "exclusive=true"
+        not_exclusive_config = "exclusive=false"
 
-        self.session.create(file_uri, "exclusive=true")
-        self.session.create(table_uri, "exclusive=true,tiered_storage=(name=none)")
-        self.session.create(tiered_uri, "exclusive=true")
+        # As we are using connection level tiered storage configurations specify that
+        # we want a normal non-tiered table by appending an additional config.
+        if self.type == "table":
+            exclusive_config += ",tiered_storage=(name=none)"
+            not_exclusive_config += ",tiered_storage=(name=none)"
+
+        # Create the object with the exclusive setting.
+        self.session.create(uri, exclusive_config)
 
         # Exclusive re-create should error.
         self.assertRaises(wiredtiger.WiredTigerError,
-            lambda: self.session.create(file_uri, "exclusive=true"))
-        self.assertRaises(wiredtiger.WiredTigerError,
-            lambda: self.session.create(table_uri, "exclusive=true,tiered_storage=(name=none)"))
-        self.assertRaises(wiredtiger.WiredTigerError,
-            lambda: self.session.create(tiered_uri, "exclusive=true"))
+            lambda: self.session.create(uri, exclusive_config))
 
         # Non-exclusive re-create is allowed.
-        self.session.create(file_uri, "exclusive=false")
-        self.session.create(table_uri, "exclusive=false")
-        self.session.create(tiered_uri, "exclusive=false")
+        self.session.create(uri, not_exclusive_config)
 
         # Exclusive create on a table that does not exist should succeed.
-        self.session.create(file_uri + "non_existent", "exclusive=true")
-        self.session.create(table_uri + "non_existent", "exclusive=true,tiered_storage=(name=none)")
-        self.session.create(tiered_uri + "non_existent", "exclusive=true")
+        self.session.create(uri + "_non_existent", exclusive_config)
 
         # Non-exclusive create is allowed.
-        self.session.create(file_uri + "non_existent1", "exclusive=false")
-        self.session.create(table_uri + "non_existent1", "exclusive=false,tiered_storage=(name=none)")
-        self.session.create(tiered_uri + "non_existent1", "exclusive=false")
+        self.session.create(uri + "_non_existent1", not_exclusive_config)
 
 if __name__ == '__main__':
     wttest.run()
