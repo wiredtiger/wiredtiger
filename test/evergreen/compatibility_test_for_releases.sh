@@ -83,19 +83,14 @@ build_branch()
         config+="--disable-standalone-build "
 
         # Check if the build directory already exists, if so recompile the code without remaking the directory
-        if [ -d "build" ]; then
-            (cd build && sh ../build_posix/reconf &&
+        (mkdir -p build && cd build && sh ../build_posix/reconf &&
             ../configure $config && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
-        else
-            (mkdir build && cd build && sh ../build_posix/reconf &&
-                ../configure $config && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
-            # Copy out the extension modules to their parent directory. This is done to maintain uniformity between
-            # autoconf and CMake build directories, where relative module paths can possibly be cached when running verify/upgrade_downgrade
-            # tests between branch directories i.e. in the connection configuration.
-            cp build/ext/compressors/snappy/.libs/libwiredtiger_snappy.so build/ext/compressors/snappy/libwiredtiger_snappy.so
-            cp build/ext/collators/reverse/.libs/libwiredtiger_reverse_collator.so build/ext/collators/reverse/libwiredtiger_reverse_collator.so
-            cp build/ext/encryptors/rotn/.libs/libwiredtiger_rotn.so build/ext/encryptors/rotn/libwiredtiger_rotn.so
-        fi
+        # Copy out the extension modules to their parent directory. This is done to maintain uniformity between
+        # autoconf and CMake build directories, where relative module paths can possibly be cached when running verify/upgrade_downgrade
+        # tests between branch directories i.e. in the connection configuration.
+        cp build/ext/compressors/snappy/.libs/libwiredtiger_snappy.so build/ext/compressors/snappy/libwiredtiger_snappy.so
+        cp build/ext/collators/reverse/.libs/libwiredtiger_reverse_collator.so build/ext/collators/reverse/libwiredtiger_reverse_collator.so
+        cp build/ext/encryptors/rotn/.libs/libwiredtiger_rotn.so build/ext/encryptors/rotn/libwiredtiger_rotn.so
     fi
 
 }
