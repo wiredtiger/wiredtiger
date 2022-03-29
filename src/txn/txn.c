@@ -2045,12 +2045,12 @@ __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
 /*
  * __wt_txn_init_checkpoint_cursor --
  *     Create a transaction object for a checkpoint cursor. On success, takes charge of the snapshot
- *     array passed down, which should have been allocated separately. (On failure, the caller must
- *     destroy it.)
+ *     array passed down, which should have been allocated separately, and nulls the pointer. (On
+ *     failure, the caller must destroy it.)
  */
 int
 __wt_txn_init_checkpoint_cursor(
-  WT_SESSION_IMPL *session, const WT_CKPT_SNAPSHOT *snapinfo, WT_TXN **txn_ret)
+  WT_SESSION_IMPL *session, WT_CKPT_SNAPSHOT *snapinfo, WT_TXN **txn_ret)
 {
     WT_TXN *txn;
 
@@ -2073,6 +2073,13 @@ __wt_txn_init_checkpoint_cursor(
     txn->snap_max = snapinfo->snapshot_max;
     txn->snapshot = snapinfo->snapshot_txns;
     txn->snapshot_count = snapinfo->snapshot_count;
+
+    /*
+     * At this point we have taken charge of the snapshot's transaction list; it has been moved to
+     * the dummy transaction. Null the caller's copy so it doesn't get freed twice if something
+     * above us fails after we return.
+     */
+    snapinfo->snapshot_txns = NULL;
 
     /* Set the read timestamp.  */
     txn->checkpoint_read_timestamp = snapinfo->stable_ts;

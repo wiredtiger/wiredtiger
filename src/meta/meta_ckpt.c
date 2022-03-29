@@ -1517,8 +1517,13 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, bool full, const char *name, siz
       __wt_timestamp_to_string(txn_global->meta_ckpt_timestamp, ts_string[1]),
       conn->base_write_gen);
 
-    /* Record the base write gen in metadata as part of full checkpoints. */
-
+    /*
+     * Record the base write gen in metadata as part of full checkpoints.
+     *
+     * Note that "full" here means what it does in __txn_checkpoint: the user didn't give an
+     * explicit list of trees to checkpoint. It is allowed (though currently not sensible) for the
+     * user to do that with a named checkpoint, in which case we don't want to make this change.
+     */
     if (full) {
         WT_ERR(__wt_buf_fmt(
           session, valbuf, WT_SYSTEM_BASE_WRITE_GEN "=%" PRIu64, conn->base_write_gen));

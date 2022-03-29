@@ -766,13 +766,13 @@ __curfile_setup_checkpoint(WT_CURSOR_BTREE *cbt, const char *cfg[], WT_DATA_HAND
      * possible for hs_dhandle to be null; this means there is no corresponding history store
      * checkpoint. In this case we will avoid trying to open it later.
      *
-     * We keep the history store dhandle in the checkpoint cursor, and hold it open as long as the
-     * checkpoint cursor remains open. It is never directly used, but it ensures that the history
-     * store checkpoint will not be removed under us and any history store lookups done via the
-     * checkpoint cursor (which open the history store separately themselves) will be able to open
-     * the right version of the history store. This is essential for unnamed checkpoints as they
-     * turn over frequently and asynchronously. It is, strictly speaking, not necessary for named
-     * checkpoints, because as long as a named checkpoint data store cursor is open that named
+     * We keep the history store checkpoint dhandle in the checkpoint cursor, and hold it open as
+     * long as the checkpoint cursor remains open. It is never directly used, but it ensures that
+     * the history store checkpoint will not be removed under us and any history store lookups done
+     * via the checkpoint cursor (which open the history store separately themselves) will be able
+     * to open the right version of the history store. This is essential for unnamed checkpoints as
+     * they turn over frequently and asynchronously. It is, strictly speaking, not necessary for
+     * named checkpoints, because as long as a named checkpoint data store cursor is open that named
      * checkpoint cannot be changed. However, making the behavior conditional would introduce
      * substantial interface complexity to little benefit.
      *
@@ -861,18 +861,11 @@ __curfile_setup_checkpoint(WT_CURSOR_BTREE *cbt, const char *cfg[], WT_DATA_HAND
     WT_ERR(__wt_txn_init_checkpoint_cursor(session, ckpt_snapshot, &cbt->checkpoint_txn));
 
     /*
-     * At this point we have taken charge of the snapshot's transaction list; it has been moved to
-     * the dummy transaction in the cursor and will be freed when the cursor is destroyed. Null the
-     * caller's copy so it doesn't get freed twice if we fail after this point.
-     */
-    ckpt_snapshot->snapshot_txns = NULL;
-
-    /*
      * Stow the history store handle on success. (It will be released further up the call chain if
      * we fail.)
      */
-    if (ret == 0)
-        cbt->checkpoint_hs_dhandle = hs_dhandle;
+    WT_ASSERT(session, ret == 0);
+    cbt->checkpoint_hs_dhandle = hs_dhandle;
 
 err:
     return (ret);
@@ -1094,7 +1087,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
      *
      * 2. For checkpoint cursors it is not safe to take the checkpoint lock here, because the LSM
      * code opens checkpoint cursors while holding the schema lock and the checkpoint lock is
-     * supposed to come before the checkpoint lock. If there should ever be some reason to do an
+     * supposed to come before the schema lock. If there should ever be some reason to do an
      * exclusive open of a checkpoint cursor, something will have to give.
      *
      * 3. If we are opening a checkpoint cursor, we need two dhandles, one for the tree we're
