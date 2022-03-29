@@ -39,7 +39,7 @@ pick_a_version()
 {
     branch=$1
 
-    # Query out all released patch versions for a given release branch using "git tag"
+    # Query out all released git versions for a given release branch using "git tag"
     local versions=()
 
     # Avoid picking below types of versions:
@@ -63,10 +63,14 @@ build_branch()
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
     echo "Building branch: \"$1\""
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    
+    # Only clone the branch if the option is picked
+    if [ "$2" == 1 ]; then
+        git clone --quiet https://github.com/wiredtiger/wiredtiger.git "$1"
+        cd "$1"
+        git checkout --quiet "$1"
+    fi
 
-    git clone --quiet https://github.com/wiredtiger/wiredtiger.git "$1"
-    cd "$1"
-    git checkout --quiet "$1"
     if [ "${build_sys[$1]}" == "cmake" ]; then
         . ./test/evergreen/find_cmake.sh
         config=""
@@ -77,15 +81,23 @@ build_branch()
     else
         config+="--enable-snappy "
         config+="--disable-standalone-build "
-        (mkdir build && cd build && sh ../build_posix/reconf &&
+
+        # Check if the build directory already exists, if so recompile the code without remaking the directory
+        if [ -d "build" ]; then
+            (cd build && sh ../build_posix/reconf &&
             ../configure $config && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
-        # Copy out the extension modules to their parent directory. This is done to maintain uniformity between
-        # autoconf and CMake build directories, where relative module paths can possibly be cached when running verify/upgrade_downgrade
-        # tests between branch directories i.e. in the connection configuration.
-        cp build/ext/compressors/snappy/.libs/libwiredtiger_snappy.so build/ext/compressors/snappy/libwiredtiger_snappy.so
-        cp build/ext/collators/reverse/.libs/libwiredtiger_reverse_collator.so build/ext/collators/reverse/libwiredtiger_reverse_collator.so
-        cp build/ext/encryptors/rotn/.libs/libwiredtiger_rotn.so build/ext/encryptors/rotn/libwiredtiger_rotn.so
+        else
+            (mkdir build && cd build && sh ../build_posix/reconf &&
+                ../configure $config && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
+            # Copy out the extension modules to their parent directory. This is done to maintain uniformity between
+            # autoconf and CMake build directories, where relative module paths can possibly be cached when running verify/upgrade_downgrade
+            # tests between branch directories i.e. in the connection configuration.
+            cp build/ext/compressors/snappy/.libs/libwiredtiger_snappy.so build/ext/compressors/snappy/libwiredtiger_snappy.so
+            cp build/ext/collators/reverse/.libs/libwiredtiger_reverse_collator.so build/ext/collators/reverse/libwiredtiger_reverse_collator.so
+            cp build/ext/encryptors/rotn/.libs/libwiredtiger_rotn.so build/ext/encryptors/rotn/libwiredtiger_rotn.so
+        fi
     fi
+
 }
 
 #############################################################
@@ -279,8 +291,9 @@ run_test_checkpoint()
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
     echo "Running test checkpoint in branch: \"$branch_name\""
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-
+    pwd;
     cd "$branch_name/build/test/checkpoint"
+    #cd "$branch_name/build"
 
     if [ "${build_sys[$branch_name]}" == "cmake" ]; then
         test_bin="test_checkpoint"
@@ -637,7 +650,7 @@ if [ "$upgrade_to_latest" = true ]; then
     for b in ${upgrade_to_latest_upgrade_downgrade_release_branches[@]}; do
         # prepare test data and test upgrade to the branch b.
         (prepare_test_data_wt_8395) && \
-        (build_branch $b) && \
+        (build_branch $b 1) && \
         (test_upgrade_to_branch $b $test_data)
 
         # cleanup.
@@ -661,8 +674,8 @@ if [ "$two_versions" = true ]; then
     fi
 
     # Build the branches
-    (build_branch $v1)
-    (build_branch $v2)
+    (build_branch $v1 1)
+    (build_branch $v2 1)
 
     # Run test for both branches to generate data files
     (run_test_checkpoint $v1 "row")
@@ -677,19 +690,33 @@ fi
 
 if [ "$patch_version" = true ]; then
     for b in ${patch_version_upgrade_downgrade_release_branches[@]}; do
-        # Build the tip of the release branch and run test to genearte data files
-        (build_branch $b)
+        # Build the tip of the release branch and run test to generate data files
+        (build_branch $b 1)
         (run_test_checkpoint "$b" "row")
 
         # Pick a patch version from the list of patch versions for the release branch
-        cd $b; pv=$(pick_a_version $b); cd ..
-        (build_branch $pv)
+        cd $b; pv=$(pick_a_version $b); echo "$pv"; cd ..
+
+        (build_branch $pv 1)
+        rtn=$(is_test_checkpoint_recovery_supported $pv)
+
+        # Apply patch fix from WT-8708 to already released compatible versions to avoid test/checkpoint setting commit timestamp less than stable timestamp
+        if [ "$pv" \< "mongodb-4.4.13" ] || [ "$pv" \< "mongodb-5.0.7" ] && [ $rtn == "yes" ]; then
+            cd $pv;
+
+            git format-patch -1 d4b0ad6cacb874fdc20bcc76311d789dd5a01441;
+            patch -p1 < 0001-WT-8708-Fix-timestamp-usage-error-in-test-checkpoint.patch;
+
+            (build_branch $pv 0)
+            cd ..;
+        fi
+
         (run_test_checkpoint "$pv" "row")
 
         # Use one version binary to verify data files generated by the other version
         (verify_test_checkpoint "$b" "$pv" "row")
+        
         # Only run verify if the picked version supports test checkpoint recovery
-        rtn=$(is_test_checkpoint_recovery_supported $pv)
         if [ $rtn == "no" ]; then
             echo -e "\n\"$pv\" does not support test checkpoint with recovery, skipping ...\n"
         else
@@ -703,13 +730,13 @@ fi
 # Build the branches.
 if [ "$newer" = true ]; then
     for b in ${newer_release_branches[@]}; do
-        (build_branch $b)
+        (build_branch $b 1)
     done
 fi
 
 if [ "$older" = true ]; then
     for b in ${older_release_branches[@]}; do
-        (build_branch $b)
+        (build_branch $b 1)
     done
 fi
 
@@ -717,11 +744,11 @@ fi
 # release before that. Minor trickiness, we depend on the "develop" directory already existing
 # so we have a source in which to do git commands.
 if [ "${wt_standalone}" = true ]; then
-    (build_branch develop)
+    (build_branch develop 1)
     cd develop; wt1=$(get_prev_version 1); cd ..
-    (build_branch "$wt1")
+    (build_branch "$wt1" 1)
     cd develop; wt2=$(get_prev_version 2); cd ..
-    (build_branch "$wt2")
+    (build_branch "$wt2" 1)
 fi
 
 if [ "$newer" = true ]; then
