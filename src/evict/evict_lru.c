@@ -457,7 +457,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 
 #define WT_CACHE_STUCK_TIMEOUT_S 300
 #ifdef HAVE_DIAGNOSTIC
-    /* Enable extra logs before timing out. */
+    /* Enable extra logs 20ms before timing out. */
     if (!verbose_timeout_flags &&
       WT_TIMEDIFF_MS(now, cache->stuck_time) >
         ((WT_CACHE_STUCK_TIMEOUT_S + 1) * WT_THOUSAND) - 20) {

@@ -172,7 +172,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
                     ++minutes;
                     WT_ASSERT(session, minutes < 4);
                 }
-                /* Enable extra logs before timing out. */
+                /* Enable extra logs 20ms before timing out. */
                 else if (!verbose_timeout_flags && time_diff > (3 * WT_MINUTE * WT_THOUSAND - 20)) {
                     if (which == WT_GEN_EVICT) {
                         WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG);
