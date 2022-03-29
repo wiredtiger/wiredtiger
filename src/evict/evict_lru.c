@@ -455,12 +455,12 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 
     __wt_epoch(session, &now);
 
-#define WT_CACHE_STUCK_TIMEOUT_S 300
+#define WT_CACHE_STUCK_TIMEOUT_SEC 300
 #ifdef HAVE_DIAGNOSTIC
     /* Enable extra logs 20ms before timing out. */
     if (!verbose_timeout_flags &&
       WT_TIMEDIFF_MS(now, cache->stuck_time) >
-        ((WT_CACHE_STUCK_TIMEOUT_S + 1) * WT_THOUSAND) - 20) {
+        ((WT_CACHE_STUCK_TIMEOUT_SEC + 1) * WT_THOUSAND) - 20) {
         WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG);
         WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG);
         WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG);
@@ -468,7 +468,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     }
 #endif
 
-    if (WT_TIMEDIFF_SEC(now, cache->stuck_time) > WT_CACHE_STUCK_TIMEOUT_S) {
+    if (WT_TIMEDIFF_SEC(now, cache->stuck_time) > WT_CACHE_STUCK_TIMEOUT_SEC) {
 #ifdef HAVE_DIAGNOSTIC
         __wt_err(session, ETIMEDOUT, "Cache stuck for too long, giving up");
         WT_RET(__wt_verbose_dump_txn(session));
