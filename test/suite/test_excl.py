@@ -82,8 +82,8 @@ class test_create_excl(wttest.WiredTigerTestCase):
             lambda: self.session.create(tiered_uri, "exclusive=true"))
 
         # Non-exclusive re-create is allowed.
-        self.session.create(file_uri)
-        self.session.create(table_uri)
+        self.session.create(file_uri, "exclusive=false")
+        self.session.create(table_uri, "exclusive=false")
         self.session.create(tiered_uri, "exclusive=false")
 
         # Exclusive create on a table that does not exist should succeed.
