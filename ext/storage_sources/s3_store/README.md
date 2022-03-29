@@ -2,8 +2,7 @@
 
 ## Building and running 
 
-This is a guide to build WiredTiger with the S3 extension enabled. 
-
+This is a guide to build WiredTiger with the S3 extension enabled.
 
 ##### **First** Build method - meeting AWS dependency through system installed library
 
@@ -17,13 +16,13 @@ $ mkdir build && cd build
 cmake -DENABLE_PYTHON=1 -DHAVE_DIAGNOSTIC=1 -DENABLE_S3=1 -DENABLE_STRICT=0 -G Ninja ../.
 ```
 
-* Running with the tag `-DENABLE_S3=1` will default to looking for a local installation of S3.
+* Running with the flag `ENABLE_S3=1` will default to looking for a local installation of S3.
 
 * Optionally the compiler flag `IMPORT_S3_SDK` can also be set to:
     *   `package` for the compiler to search for a local installation of the S3 to use.
     *    This flag should be set alongside the `ENABLE_S3` flag.   
 
-* `DENABLE_STRICT` should be set to 0.
+* `ENABLE_STRICT` should be set to 0.
     This is to to turn off strict compiler warnings so it does not pick up different formatting errors of the 3rd party dependenceis.
 
 * Also optionally: `- G Ninja` here to generate a ninja build. 
