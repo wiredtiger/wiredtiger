@@ -36,7 +36,7 @@ from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-class test_checkpoint09(wttest.WiredTigerTestCase):
+class test_checkpoint23(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(all)'
 
     # There is no point running this on FLCS because FLCS does not have overflow items.
