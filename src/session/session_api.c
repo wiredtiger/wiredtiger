@@ -1851,7 +1851,7 @@ __session_reset_snapshot(WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
     txn = session->txn;
 
-    /* Return error if the isolation mode is read committed. */
+    /* Return error if the isolation mode is not snapshot. */
     if (txn->isolation != WT_ISO_SNAPSHOT)
         WT_RET_MSG(
           session, ENOTSUP, "not supported in read-committed or read-uncommitted transactions");
