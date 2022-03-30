@@ -5,8 +5,8 @@
 This is a guide to build WiredTiger with the S3 extension enabled.
 
 There are two different ways to build WiredTiger with S3 extension:
-    1. Using a system installation of the S3.
-    2. Letting CMake manage the S3 dependency as an external project, letting it download and compile each time.
+1. Using a system installation of the S3.
+2. Letting CMake manage the S3 dependency as an external project, letting it download and compile each time.
 
 There are two CMake flags associated with the S3 extension: `ENABLE_S3` and `IMPORT_S3_SDK`.
 * `ENABLE_S3=1` is required to build the S3 extension.
