@@ -821,13 +821,12 @@ err:
         F_SET(cbt, WT_CBT_ITERATE_RETRY_PREV);
         break;
     default:
-        WT_TRET(__cursor_reset(cbt));
+        WT_TRET(__cursor_reset(cbt, false));
     }
     F_CLR(cbt, WT_CBT_ITERATE_RETRY_NEXT);
 
-    if (ret == 0) {
+    if (ret == 0)
         WT_RET(__wt_btcur_reposition(cbt, release_page));
-    }
 
     return (ret);
 }
