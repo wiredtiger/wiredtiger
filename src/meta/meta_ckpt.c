@@ -1563,8 +1563,7 @@ err:
  * __wt_meta_read_checkpoint_snapshot --
  *     Fetch the snapshot data for a checkpoint from the metadata file. Reads the selected named
  *     checkpoint's snapshot, or if the checkpoint name passed is null, the most recent checkpoint's
- *     snapshot if the checkpoint name passed is null. The snapshot list returned is allocated and
- *     must be freed by the caller.
+ *     snapshot. The snapshot list returned is allocated and must be freed by the caller.
  */
 int
 __wt_meta_read_checkpoint_snapshot(WT_SESSION_IMPL *session, const char *ckpt_name,

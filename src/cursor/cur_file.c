@@ -1106,11 +1106,11 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
      * 5. To avoid a proliferation of cases, and to avoid repeatedly parsing config strings, we
      * always pass down the return arguments for the history store dhandle and checkpoint snapshot
      * information (except for the bulk-only case and the LSM case) and pass the results on to
-     * __curfile_create. We
-     * will not get anything back unless we are actually opening a checkpoint cursor. The open code
-     * takes care of the special case of opening a checkpoint cursor on the history store. (This is
-     * not normally done by applications; but it is done by a couple tests, and furthermore any
-     * internally opened history store cursors come through here, so this case does matter.)
+     * __curfile_create. We will not get anything back unless we are actually opening a checkpoint
+     * cursor. The open code takes care of the special case of opening a checkpoint cursor on the
+     * history store. (This is not normally done by applications; but it is done by a couple tests,
+     * and furthermore any internally opened history store cursors come through here, so this case
+     * does matter.)
      */
 
     /* Get the handle and lock it while the cursor is using it. */

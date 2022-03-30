@@ -405,10 +405,10 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * mutually inconsistent checkpoints, and read out whatever exists taking active steps to avoid
      * racing with a currently running checkpoint.
      *
-     * Note that this fundamentally relies on WT-8695 prohibiting partial checkpoints. In the
-     * presence of partial checkpoints we would have to actively find matching trees, and in many
-     * cases (because old unnamed checkpoints are garbage collected) the proper matching history
-     * store wouldn't exist any more and we'd be stuck.
+     * Note that this fundamentally relies on partial checkpoints being prohibited. In the presence
+     * of partial checkpoints we would have to actively find matching trees, and in many cases
+     * (because old unnamed checkpoints are garbage collected) the proper matching history store
+     * wouldn't exist any more and we'd be stuck.
      *
      * The scheme is as follows: 1. Read checkpoint info out of the metadata, and retry until we get
      * a consistent set; then 2. Open both dhandles and retry the whole thing if we didn't get the
@@ -449,9 +449,9 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * Furthermore, this avoids any confusion potentially caused by older versions not including the
      * checkpoint time in the snapshot and timestamp metadata.
      *
-     * Also note that only the exact name "WiredTigerCheckpoint" needs to be resolved. Requests
-     * Requests to open specific versions, such as "WiredTigerCheckpoint.6", must be looked up like
-     * named checkpoints but are otherwise still treated as unnamed. This is necessary so that the
+     * Also note that only the exact name "WiredTigerCheckpoint" needs to be resolved. Requests to
+     * open specific versions, such as "WiredTigerCheckpoint.6", must be looked up like named
+     * checkpoints but are otherwise still treated as unnamed. This is necessary so that the
      * matching history store checkpoint we find can be itself opened later.
      *
      * It is also at least theoretically possible for there to be no matching history store
@@ -475,13 +475,6 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
         if (ckpt_snapshot != NULL)
             /* We're about to re-fetch this; discard the prior version. No effect the first time. */
             __wt_free(session, ckpt_snapshot->snapshot_txns);
-
-#ifndef WT_STANDALONE_BUILD
-        /* FIXME-WT-8892: Currently WT-8695 is only in place for standalone builds. */
-        if (ckpt_snapshot != NULL)
-            /* We need a matching snapshot (and maybe history) and can't reliably find it. */
-            WT_RET_MSG(session, ENOTSUP, "checkpoint cursors not supported in this build");
-#endif
 
         /* Look up the data store checkpoint. */
         if (must_resolve)

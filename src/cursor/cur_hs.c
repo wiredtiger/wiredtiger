@@ -35,7 +35,7 @@ __curhs_file_cursor_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR *
          * aren't supposed to come here.
          */
         WT_ASSERT(session, session->hs_checkpoint != NULL);
-        len = 11 + strlen(session->hs_checkpoint) + 1;
+        len = strlen("checkpoint=") + strlen(session->hs_checkpoint) + 1;
         WT_RET(__wt_malloc(session, len, &tmp));
         WT_ERR(__wt_snprintf(tmp, len, "checkpoint=%s", session->hs_checkpoint));
         open_cursor_cfg[1] = tmp;

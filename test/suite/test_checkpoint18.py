@@ -29,6 +29,7 @@
 import threading, time
 import wttest
 import wiredtiger
+from wiredtiger import stat
 from wtthread import checkpoint_thread
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
@@ -46,7 +47,7 @@ from wtscenario import make_scenarios
 # of WiredTigerCheckpoint and hanging onto it.
 
 class test_checkpoint(wttest.WiredTigerTestCase):
-    conn_config = 'timing_stress_for_test=[checkpoint_slow]'
+    conn_config = 'statistics=(all),timing_stress_for_test=[checkpoint_slow]'
     session_config = 'isolation=snapshot'
 
     format_values = [
@@ -120,8 +121,15 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ckpt = checkpoint_thread(self.conn, done)
         try:
             ckpt.start()
-            # Sleep a bit so that checkpoint starts before committing last transaction.
-            time.sleep(2)
+
+            # Wait for checkpoint to start before committing.
+            ckpt_started = 0
+            while not ckpt_started:
+                stat_cursor = self.session.open_cursor('statistics:', None, None)
+                ckpt_started = stat_cursor[stat.conn.txn_checkpoint_running][2]
+                stat_cursor.close()
+                time.sleep(1)
+
             session2.commit_transaction()
         finally:
             done.set()

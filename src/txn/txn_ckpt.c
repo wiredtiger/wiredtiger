@@ -877,7 +877,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     wt_timestamp_t ckpt_tmp_ts;
     size_t namelen;
     uint64_t fsync_duration_usecs, generation, hs_ckpt_duration_usecs;
-    uint64_t time_start_fsync, time_stop_fsync, time_start_hs, time_stop_hs;
+    uint64_t time_start_fsync, time_start_hs, time_stop_fsync, time_stop_hs;
     u_int i;
     const char *name;
     bool can_skip, failed, full, idle, logging, tracking, use_timestamp;
