@@ -1797,7 +1797,7 @@ __session_timestamp_transaction(WT_SESSION *wt_session, const char *config)
     cfg[1] = config;
 #endif
 
-    ret = __wt_txn_set_timestamp(session, cfg);
+    ret = __wt_txn_set_timestamp(session, cfg, false);
 err:
     API_END_RET(session, ret);
 }
