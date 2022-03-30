@@ -598,6 +598,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         if (!F_ISSET(txn, WT_READ_VISIBLE_ALL))
             LF_SET(WT_READ_VISIBLE_ALL);
 
+        __sync_load_throttle_init(&load_throttle);
+
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
             WT_ERR(__wt_tree_walk_custom_skip(session, &walk, __sync_page_skip, NULL, flags));
@@ -606,7 +608,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 break;
 
             if (F_ISSET(walk, WT_REF_FLAG_INTERNAL) && internal_cleanup) {
-                __sync_load_throttle_init(&load_throttle);
                 WT_WITH_PAGE_INDEX(
                   session, ret = __sync_ref_int_obsolete_cleanup(session, walk, &load_throttle));
                 WT_ERR(ret);
