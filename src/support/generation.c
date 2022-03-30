@@ -166,14 +166,16 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
             } else {
                 __wt_epoch(session, &stop);
                 time_diff = WT_TIMEDIFF_MS(stop, start);
+#define WT_GEN_DRAIN_TIMEOUT_MIN 4
                 if (time_diff > minutes * WT_MINUTE * WT_THOUSAND) {
                     __wt_verbose_notice(session, WT_VERB_GENERATION,
                       "%s generation drain waited %u minutes", __gen_name(which), minutes);
                     ++minutes;
-                    WT_ASSERT(session, minutes < 4);
+                    WT_ASSERT(session, minutes < WT_GEN_DRAIN_TIMEOUT_MIN);
                 }
                 /* Enable extra logs 20ms before timing out. */
-                else if (!verbose_timeout_flags && time_diff > (3 * WT_MINUTE * WT_THOUSAND - 20)) {
+                else if (!verbose_timeout_flags &&
+                  time_diff > ((WT_GEN_DRAIN_TIMEOUT_MIN - 1) * WT_MINUTE * WT_THOUSAND - 20)) {
                     if (which == WT_GEN_EVICT) {
                         WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG);
                         WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG);
