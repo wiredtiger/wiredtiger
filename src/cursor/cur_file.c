@@ -18,15 +18,17 @@ WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency, 100)
 /*
  * Wrapper for substituting checkpoint state when doing checkpoint cursor operations.
  *
- * A checkpoint cursor has up to three extra things in it: a dummy transaction (always), a read
- * timestamp (sometimes), and a dhandle for the corresponding history store checkpoint (sometimes).
- * If there's a transaction, we substitute the transaction into the session, the read timestamp into
- * txn_shared (if it's present), and stick the checkpoint name of the history store dhandle in the
- * session for when the history store is opened, then undo it all after the operation completes.
+ * A checkpoint cursor has two extra things in it: a dummy transaction (always), and a dhandle for
+ * the corresponding history store checkpoint (mostly but not always).
+ *
+ * If there's a checkpoint transaction, it means we're a checkpoint cursor. In that case we
+ * substitute the transaction into the session, and also stick the checkpoint name of the history
+ * store dhandle in the session for when the history store is opened. After the operation completes
+ * we then undo it all.
  *
  * If the current transaction is _already_ a checkpoint cursor dummy transaction, however, do
  * nothing. This happens when the history store logic opens history store cursors inside checkpoint
- * cursor operations on the data store, and we want to keep the existing state.
+ * cursor operations on the data store. In that case we want to keep the existing state.
  */
 #define WT_WITH_CHECKPOINT(session, cbt, op)                                           \
     do {                                                                               \
