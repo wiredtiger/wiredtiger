@@ -123,7 +123,7 @@ __sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF *
  *     the computation should be simple and incremental.
  */
 static inline void
-__sync_load_throttle_init(uint32_t *load_throttle)
+__sync_load_throttle_init(u_int *load_throttle)
 {
     *load_throttle = 4;
 }
@@ -133,7 +133,7 @@ __sync_load_throttle_init(uint32_t *load_throttle)
  *     Update the page load throttle for visiting a new internal page.
  */
 static inline void
-__sync_load_throttle_next_int(uint32_t *load_throttle)
+__sync_load_throttle_next_int(u_int *load_throttle)
 {
     (*load_throttle)++;
 }
@@ -143,13 +143,13 @@ __sync_load_throttle_next_int(uint32_t *load_throttle)
  *     Check if the throttle lets us load a page and update the value accordingly.
  */
 static inline bool
-__sync_load_throttle_check(uint32_t *load_throttle)
+__sync_load_throttle_check(u_int *load_throttle)
 {
     if (*load_throttle > 0) {
         (*load_throttle)--;
-        return true;
+        return (true);
     }
-    return false;
+    return (false);
 }
 
 /*
@@ -163,7 +163,7 @@ __sync_should_read_obsolete_page(WT_SESSION_IMPL *session, uint32_t *load_thrott
     /* If the cache is under stress, don't make it worse. */
     if (__wt_cache_aggressive(session) || __wt_cache_full(session) || __wt_cache_stuck(session) ||
       __wt_eviction_needed(session, false, false, NULL))
-        return false;
+        return (false);
 
     return (__sync_load_throttle_check(load_throttle));
 }
@@ -174,7 +174,7 @@ __sync_should_read_obsolete_page(WT_SESSION_IMPL *session, uint32_t *load_thrott
  *     obsolete page.
  */
 static int
-__sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t *load_throttle)
+__sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, u_int *load_throttle)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
@@ -249,12 +249,12 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t *load_
              * up. Only take this path for a limited number of pages so as not to churn the cache.
              *
              * Set READ_SKIP_DELETED so that if someone else deletes the page when we unlock it, we
-             * don't then bother reinstantiating it.
+             * don't then bother to reinstantiate it.
              */
             WT_REF_UNLOCK(ref, previous_state);
             ret = __wt_page_in(session, ref, WT_READ_WONT_NEED | WT_READ_SKIP_DELETED);
             WT_RET_NOTFOUND_OK(ret);
-            if (ret != WT_NOTFOUND) {
+            if (ret == 0) {
                 /* Mark the page dirty and count what we did in the stats. */
                 WT_RET(__wt_page_modify_init(session, ref->page));
                 __wt_page_modify_set(session, ref->page);
@@ -376,7 +376,7 @@ err:
  *     deleted.
  */
 static int
-__sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent, uint32_t *load_throttle)
+__sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent, u_int *load_throttle)
 {
     WT_PAGE_INDEX *pindex;
     WT_REF *ref;
@@ -470,7 +470,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_TXN *txn;
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
-    uint32_t flags, load_throttle, rec_flags;
+    uint32_t flags, overflow_load_throttle, rec_flags;
     bool dirty, internal_cleanup, is_hs, tried_eviction;
 
     conn = S2C(session);
@@ -601,7 +601,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         if (!F_ISSET(txn, WT_READ_VISIBLE_ALL))
             LF_SET(WT_READ_VISIBLE_ALL);
 
-        __sync_load_throttle_init(&load_throttle);
+        __sync_load_throttle_init(&overflow_load_throttle);
 
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
@@ -611,8 +611,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 break;
 
             if (F_ISSET(walk, WT_REF_FLAG_INTERNAL) && internal_cleanup) {
-                WT_WITH_PAGE_INDEX(
-                  session, ret = __sync_ref_int_obsolete_cleanup(session, walk, &load_throttle));
+                WT_WITH_PAGE_INDEX(session,
+                  ret = __sync_ref_int_obsolete_cleanup(session, walk, &overflow_load_throttle));
                 WT_ERR(ret);
             }
 
