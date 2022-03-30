@@ -247,6 +247,9 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t *load_
              * This page has overflow items, so we can't just drop it. Instead, read it into memory
              * and mark it dirty (and ready to evict) so that the next reconciliation will clean it
              * up. Only take this path for a limited number of pages so as not to churn the cache.
+             *
+             * Set READ_SKIP_DELETED so that if someone else deletes the page when we unlock it, we
+             * don't then bother reinstantiating it.
              */
             WT_REF_UNLOCK(ref, previous_state);
             ret = __wt_page_in(session, ref, WT_READ_WONT_NEED | WT_READ_SKIP_DELETED);
