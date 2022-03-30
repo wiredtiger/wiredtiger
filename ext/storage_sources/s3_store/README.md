@@ -5,8 +5,8 @@
 This is a guide to build WiredTiger with the S3 extension enabled.
 
 There are two different ways to build WiredTiger with S3 extension:
-*    1. Using a system installation of the S3.
-*    2. Letting CMake manage the S3 dependency as an external project, letting it download and compile each time.
+    1. Using a system installation of the S3.
+    2. Letting CMake manage the S3 dependency as an external project, letting it download and compile each time.
 
 There are two CMake flags associated with the S3 extension: `ENABLE_S3` and `IMPORT_S3_SDK`.
 * `ENABLE_S3=1` is required to build the S3 extension.
@@ -23,7 +23,7 @@ Follow the [guide to install SDK locally](https://docs.aws.amazon.com/sdk-for-cp
     *   CMake searches locally for the 's3-crt' package and will not find the 's3' package.
 
 
-##### **First** Build method - meeting AWS dependency through system installed library
+##### **First** build method - meeting AWS dependency through system installed library
 
 This method will find an existing system installation of the AWS S3 and will not require a download stage during build.
 
@@ -33,7 +33,6 @@ $ mkdir build && cd build
 
 # Configure and run cmake with Ninja
 cmake -DENABLE_PYTHON=1 -DHAVE_DIAGNOSTIC=1 -DENABLE_S3=1 -DENABLE_STRICT=0 -G Ninja ../.
-
 ninja
 ```
 
@@ -43,7 +42,7 @@ ninja
     This is to to turn off strict compiler warnings so it does not pick up different formatting errors of the 3rd party dependenceis.
 
 
-##### **Second** Build method - externally installing AWS S3 during build step
+##### **Second** build method - externally installing AWS S3 during build step
 
 This method configures CMake to download, compile, and install the AWS S3 every build.
 
@@ -53,7 +52,6 @@ $ mkdir build && cd build
 
 # Configure and run cmake with Ninja
 cmake -DENABLE_PYTHON=1 -DHAVE_DIAGNOSTIC=1 -DIMPORT_S3_SDK=external -DENABLE_S3=1 -DENABLE_STRICT=0 -G Ninja ../.
-
 ninja
 ```
 
@@ -68,7 +66,6 @@ ninja
 ```bash
 # This will run all tiered tests on storage sources including S3, run the tests from the build directory
 cd build
-
 python3 ../test/suite/run.py -v 4 tiered
 ```
 
@@ -77,7 +74,6 @@ python3 ../test/suite/run.py -v 4 tiered
 ```bash
 # Once WiredTiger has been built with the S3 Extension, run the tests from the build directory
 cd build 
-
 ctest --verbose -R ${TEST NAME}
 ```
 
