@@ -27,6 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
+from helper_tiered import tiered_storage_sources, tiered_conn_config, tiered_conn_extensions, \
+    is_tiered_scenario
 from wtscenario import make_scenarios
 
 # test_alter04.py
@@ -57,7 +59,26 @@ class test_alter04(wttest.WiredTigerTestCase):
         ('cache', dict(setting='os_cache_max')),
         ('cache_dirty', dict(setting='os_cache_dirty_max')),
     ]
-    scenarios = make_scenarios(types, sizes, reopen, settings)
+    scenarios = make_scenarios(tiered_storage_sources, types, sizes, reopen, settings)
+
+    # Setup custom connection config.
+    def conn_config(self):
+        return tiered_conn_config(self)
+
+    # Load the storage sources extension.
+    def conn_extensions(self, extlist):
+        return tiered_conn_extensions(self, extlist)
+
+    # Wrapper around session.alter call
+    def alter(self, uri, alter_param):
+        # Tiered storage does not fully support alter operation. FIXME WT-9027
+        try:
+            self.session.alter(uri, alter_param)
+        except BaseException as err:
+            if is_tiered_scenario(self) and str(err) == 'Operation not supported':
+                self.skipTest('Tiered storage does not fully support alter operation.')
+            else:
+                raise
 
     def verify_metadata(self, metastr):
         if metastr == '':
@@ -84,6 +105,9 @@ class test_alter04(wttest.WiredTigerTestCase):
 
     # Alter: Change the setting after creation
     def test_alter04_cache(self):
+        if is_tiered_scenario(self) and self.uri == 'lsm:':
+            self.skipTest('Tiered storage does not support LSM.')
+        
         uri = self.uri + self.name
         create_params = 'key_format=i,value_format=i,'
         complex_params = ''
@@ -129,14 +153,14 @@ class test_alter04(wttest.WiredTigerTestCase):
         # for all allowed settings.
         for a in self.cache_alter:
             alter_param = '%s=%s' % (self.setting, a)
-            self.session.alter(uri, alter_param)
+            self.alter(uri, alter_param)
             if self.reopen:
                 self.reopen_conn()
             special = self.use_cg or self.use_index
             if not special:
                 self.verify_metadata(alter_param)
             else:
-                self.session.alter(suburi, alter_param)
+                self.alter(suburi, alter_param)
                 self.verify_metadata(alter_param)
 
 if __name__ == '__main__':

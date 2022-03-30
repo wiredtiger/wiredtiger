@@ -90,3 +90,59 @@ def generate_s3_prefix(test_name = ''):
 
     return prefix
 
+# Storage sources
+tiered_storage_sources = [
+    ('dirstore', dict(auth_token = get_auth_token('dir_store'),
+        bucket = get_bucket1_name('dir_store'),
+        bucket_prefix = "pfx_",
+        ss_name = 'dir_store')),
+    ('s3', dict(auth_token = get_auth_token('s3_store'),
+        bucket = get_bucket1_name('s3_store'),
+        bucket_prefix = generate_s3_prefix(),
+        ss_name = 's3_store')),
+    ('non_tiered', dict(ss_name = 'non_tiered')),            
+]
+
+# Retruns True if the current scenario is tiered
+def is_tiered_scenario(test_case):
+    res = False
+    if hasattr(test_case, 'ss_name'):
+        res = test_case.ss_name != 'non_tiered'
+    
+    return res
+
+# Setup custom connection config.
+def tiered_conn_config(test_case):
+    # Handle non_tiered storage scenarios.
+    if not is_tiered_scenario(test_case):
+        return ''
+
+    # Setup directories structure for local tiered storage.
+    if test_case.ss_name == 'dir_store' and not os.path.exists(test_case.bucket):
+        os.mkdir(test_case.bucket)
+
+    # Build tiered storage connection string.
+    return \
+        'debug_mode=(flush_checkpoint=true),' + \
+        'tiered_storage=(auth_token=%s,' % test_case.auth_token + \
+        'bucket=%s,' % test_case.bucket + \
+        'bucket_prefix=%s,' % test_case.bucket_prefix + \
+        'name=%s),tiered_manager=(wait=0)' % test_case.ss_name
+
+# Load the storage sources extension.
+def tiered_conn_extensions(test_case, extlist):
+    # Handle non_tiered storage scenarios.
+    if not is_tiered_scenario(test_case):
+        return ''
+    
+    config = ''
+    # S3 store is built as an optional loadable extension, not all test environments build S3.
+    if test_case.ss_name == 's3_store':
+        #config = '=(config=\"(verbose=1)\")'
+        extlist.skip_if_missing = True
+    #if test_case.ss_name == 'dir_store':
+        #config = '=(config=\"(verbose=1,delay_ms=200,force_delay=3)\")'
+    # Windows doesn't support dynamically loaded extension libraries.
+    if os.name == 'nt':
+        extlist.skip_if_missing = True
+    extlist.extension('storage_sources', test_case.ss_name + config)

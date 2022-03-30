@@ -26,15 +26,18 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest
+import os, wiredtiger, wttest
 from wtscenario import make_scenarios
+from helper_tiered import tiered_storage_sources, tiered_conn_config, tiered_conn_extensions, \
+    is_tiered_scenario
 
 # test_alter01.py
 #    Smoke-test the session alter operations.
 class test_alter01(wttest.WiredTigerTestCase):
     name = "alter01"
     entries = 100
-    # Settings for access_pattern_hint
+
+    # Datasource types
     types = [
         ('file', dict(uri='file:', use_cg=False, use_index=False)),
         ('lsm', dict(uri='lsm:', use_cg=False, use_index=False)),
@@ -42,6 +45,8 @@ class test_alter01(wttest.WiredTigerTestCase):
         ('table-index', dict(uri='table:', use_cg=False, use_index=True)),
         ('table-simple', dict(uri='table:', use_cg=False, use_index=False)),
     ]
+
+    # Settings for access_pattern_hint
     hints = [
         ('default', dict(acreate='')),
         ('none', dict(acreate='none')),
@@ -49,6 +54,7 @@ class test_alter01(wttest.WiredTigerTestCase):
         ('sequential', dict(acreate='sequential')),
     ]
     access_alter=('', 'none', 'random', 'sequential')
+
     # Settings for cache_resident
     resid = [
         ('default', dict(ccreate='')),
@@ -60,7 +66,28 @@ class test_alter01(wttest.WiredTigerTestCase):
         ('reopen', dict(reopen=True)),
     ]
     cache_alter=('', 'false', 'true')
-    scenarios = make_scenarios(types, hints, resid, reopen)
+
+    # Build all scenarios
+    scenarios = make_scenarios(tiered_storage_sources, types, hints, resid, reopen)
+
+    # Setup custom connection config.
+    def conn_config(self):
+        return tiered_conn_config(self)
+
+    # Load the storage sources extension.
+    def conn_extensions(self, extlist):
+        return tiered_conn_extensions(self, extlist)
+
+    # Wrapper around session.alter call
+    def alter(self, uri, alter_param):
+        # Tiered storage does not fully support alter operation. FIXME WT-9027
+        try:
+            self.session.alter(uri, alter_param)
+        except BaseException as err:
+            if is_tiered_scenario(self) and str(err) == 'Operation not supported':
+                self.skipTest('Tiered storage does not fully support alter operation.')
+            else:
+                raise
 
     def verify_metadata(self, metastr):
         if metastr == '':
@@ -87,6 +114,9 @@ class test_alter01(wttest.WiredTigerTestCase):
 
     # Alter: Change the access pattern hint after creation
     def test_alter01_access(self):
+        if is_tiered_scenario(self) and self.uri == 'lsm:':
+            self.skipTest('Tiered storage does not support LSM.')
+
         uri = self.uri + self.name
         create_params = 'key_format=i,value_format=i,'
         complex_params = ''
@@ -153,7 +183,7 @@ class test_alter01(wttest.WiredTigerTestCase):
                     cache_str = 'cache_resident=%s' % c
                     alter_param += ',%s' % cache_str
                 if alter_param != '':
-                    self.session.alter(uri, alter_param)
+                    self.alter(uri, alter_param)
                     if self.reopen:
                         self.reopen_conn()
                     special = self.use_cg or self.use_index
@@ -161,7 +191,7 @@ class test_alter01(wttest.WiredTigerTestCase):
                         self.verify_metadata(access_str)
                         self.verify_metadata(cache_str)
                     else:
-                        self.session.alter(suburi, alter_param)
+                        self.alter(suburi, alter_param)
                         self.verify_metadata(access_str)
                         self.verify_metadata(cache_str)
 

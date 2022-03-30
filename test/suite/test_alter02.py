@@ -26,7 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import sys, wiredtiger, wttest
+from helper_tiered import tiered_storage_sources, tiered_conn_config, tiered_conn_extensions, \
+    is_tiered_scenario
 from wtscenario import make_scenarios
 
 # test_alter02.py
@@ -63,7 +65,15 @@ class test_alter02(wttest.WiredTigerTestCase):
         ('no-reopen', dict(reopen=False)),
         ('reopen', dict(reopen=True)),
     ]
-    scenarios = make_scenarios(conn_log, types, tables, reopen)
+    scenarios = make_scenarios(tiered_storage_sources, conn_log, types, tables, reopen)
+
+    # Setup custom connection config.
+    def conn_config(self):
+        return tiered_conn_config(self)
+
+    # Load the storage sources extension.
+    def conn_extensions(self, extlist):
+        return tiered_conn_extensions(self, extlist)
 
     # This test varies the log setting.  Override the standard methods.
     def setUpConnectionOpen(self, dir):
@@ -72,8 +82,15 @@ class test_alter02(wttest.WiredTigerTestCase):
         return None
     def ConnectionOpen(self):
         self.home = '.'
+        
+        config = self.conn_config()
+        config += self.extensionsConfig()
+        # In case the open starts additional threads, flush first to avoid confusion.
+        sys.stdout.flush()
 
         conn_params = 'create,log=(file_max=100K,remove=false,%s)' % self.uselog
+        if config != '':
+            conn_params += ',' + config
 
         try:
             self.conn = wiredtiger.wiredtiger_open(self.home, conn_params)
@@ -127,8 +144,22 @@ class test_alter02(wttest.WiredTigerTestCase):
         # the string in both records.
         self.assertEqual(count, expected_keys * 2)
 
+    # Wrapper around session.alter call
+    def alter(self, uri, alter_param):
+        # Tiered storage does not fully support alter operation. FIXME WT-9027
+        try:
+            self.session.alter(uri, alter_param)
+        except BaseException as err:
+            if is_tiered_scenario(self) and str(err) == 'Operation not supported':
+                self.skipTest('Tiered storage does not fully support alter operation.')
+            else:
+                raise
+
     # Alter: Change the log setting after creation
     def test_alter02_log(self):
+        if is_tiered_scenario(self) and self.uri == 'lsm:':
+            self.skipTest('Tiered storage does not support LSM.')
+        
         uri = self.uri + self.name
         create_params = 'key_format=i,value_format=S,'
         complex_params = ''
@@ -208,9 +239,9 @@ class test_alter02(wttest.WiredTigerTestCase):
             self.conn.close()
             self.ConnectionOpen()
 
-        self.session.alter(uri, alter_param)
+        self.alter(uri, alter_param)
         if special:
-            self.session.alter(suburi, alter_param)
+            self.alter(suburi, alter_param)
         self.verify_metadata(log_str)
         # Put some more data in table.
         c = self.session.open_cursor(uri, None)
