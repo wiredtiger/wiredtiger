@@ -115,6 +115,7 @@ class test_checkpoint23(wttest.WiredTigerTestCase):
         initial_overflow_items = self.get_tree_stat(ds, stat.dsrc.btree_overflow)
 
         # Shut down and restart again so nothing's in memory.
+        # (Counting overflow items reads pages in.)
         self.reopen_conn()
 
         # Move oldest up so all the data is obsolete.
