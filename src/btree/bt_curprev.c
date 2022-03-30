@@ -826,12 +826,7 @@ err:
     F_CLR(cbt, WT_CBT_ITERATE_RETRY_NEXT);
 
     if (ret == 0) {
-        if (release_page && session->txn->isolation == WT_ISO_SNAPSHOT &&
-          F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION)) {
-            WT_RET(__wt_cursor_localkey(cursor));
-            WT_RET(__cursor_reset(cbt));
-            WT_RET(__wt_btcur_search(cbt, false));
-        }
+        WT_RET(__wt_btcur_reposition(cbt, release_page));
     }
 
     return (ret);
