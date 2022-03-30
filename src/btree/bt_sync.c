@@ -115,57 +115,19 @@ __sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF *
 }
 
 /*
- * __sync_load_throttle_init --
- *     Initialize the page load throttle. The (arbitrary) throttle computation is: allow on average
- *     one load for each internal page in the tree, or at least each one we visit, but allow
- *     oversubscribing the average by at most four at any time. Reasoning: it should be proportional
- *     to the tree size (otherwise for large trees the cleanup will never make much progress), and
- *     the computation should be simple and incremental.
- */
-static inline void
-__sync_load_throttle_init(u_int *load_throttle)
-{
-    *load_throttle = 4;
-}
-
-/*
- * __sync_load_throttle_next_int --
- *     Update the page load throttle for visiting a new internal page.
- */
-static inline void
-__sync_load_throttle_next_int(u_int *load_throttle)
-{
-    (*load_throttle)++;
-}
-
-/*
- * __sync_load_throttle_check --
- *     Check if the throttle lets us load a page and update the value accordingly.
- */
-static inline bool
-__sync_load_throttle_check(u_int *load_throttle)
-{
-    if (*load_throttle > 0) {
-        (*load_throttle)--;
-        return (true);
-    }
-    return (false);
-}
-
-/*
  * __sync_should_read_obsolete_page --
  *     Check if we should read in an obsolete page with overflow items in order to re-reconcile it
  *     and discard it all.
  */
 static int
-__sync_should_read_obsolete_page(WT_SESSION_IMPL *session, uint32_t *load_throttle)
+__sync_should_read_obsolete_page(WT_SESSION_IMPL *session)
 {
     /* If the cache is under stress, don't make it worse. */
     if (__wt_cache_aggressive(session) || __wt_cache_full(session) || __wt_cache_stuck(session) ||
       __wt_eviction_needed(session, false, false, NULL))
         return (false);
 
-    return (__sync_load_throttle_check(load_throttle));
+    return (true);
 }
 
 /*
@@ -174,7 +136,7 @@ __sync_should_read_obsolete_page(WT_SESSION_IMPL *session, uint32_t *load_thrott
  *     obsolete page.
  */
 static int
-__sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, u_int *load_throttle)
+__sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
@@ -242,7 +204,7 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, u_int *load_thr
             WT_STAT_CONN_DATA_INCR(session, cc_pages_removed);
 
             WT_RET(__wt_page_parent_modify_set(session, ref, true));
-        } else if (obsolete && __sync_should_read_obsolete_page(session, load_throttle)) {
+        } else if (obsolete && __sync_should_read_obsolete_page(session)) {
             /*
              * This page has overflow items, so we can't just drop it. Instead, read it into memory
              * and mark it dirty (and ready to evict) so that the next reconciliation will clean it
@@ -376,7 +338,7 @@ err:
  *     deleted.
  */
 static int
-__sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent, u_int *load_throttle)
+__sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
 {
     WT_PAGE_INDEX *pindex;
     WT_REF *ref;
@@ -386,13 +348,11 @@ __sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent, u_int 
       "%p: traversing the internal page %p for obsolete child pages", (void *)parent,
       (void *)parent->page);
 
-    __sync_load_throttle_next_int(load_throttle);
-
     WT_INTL_INDEX_GET(session, parent->page, pindex);
     for (slot = 0; slot < pindex->entries; slot++) {
         ref = pindex->index[slot];
 
-        WT_RET(__sync_ref_obsolete_check(session, ref, load_throttle));
+        WT_RET(__sync_ref_obsolete_check(session, ref));
     }
 
     WT_STAT_CONN_DATA_INCRV(session, cc_pages_visited, pindex->entries);
@@ -470,7 +430,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_TXN *txn;
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
-    uint32_t flags, overflow_load_throttle, rec_flags;
+    uint32_t flags, rec_flags;
     bool dirty, internal_cleanup, is_hs, tried_eviction;
 
     conn = S2C(session);
@@ -601,8 +561,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         if (!F_ISSET(txn, WT_READ_VISIBLE_ALL))
             LF_SET(WT_READ_VISIBLE_ALL);
 
-        __sync_load_throttle_init(&overflow_load_throttle);
-
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
             WT_ERR(__wt_tree_walk_custom_skip(session, &walk, __sync_page_skip, NULL, flags));
@@ -611,8 +569,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 break;
 
             if (F_ISSET(walk, WT_REF_FLAG_INTERNAL) && internal_cleanup) {
-                WT_WITH_PAGE_INDEX(session,
-                  ret = __sync_ref_int_obsolete_cleanup(session, walk, &overflow_load_throttle));
+                WT_WITH_PAGE_INDEX(session, ret = __sync_ref_int_obsolete_cleanup(session, walk));
                 WT_ERR(ret);
             }
 
