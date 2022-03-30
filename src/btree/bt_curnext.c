@@ -888,19 +888,22 @@ err:
  *     Move to the next record in the tree.
  */
 int
-__wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
+__wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating, bool release_page)
 {
+    WT_CURSOR *cursor;
     WT_SESSION_IMPL *session;
-    bool moved;
 
+    cursor = &cbt->iface;
     session = CUR2S(cbt);
-    moved = false;
 
-    /* Reposition the cursor if the cursor was reset internally. */
-    if (F_ISSET(cbt, WT_CBT_REPOSITION) && session->txn->isolation == WT_ISO_SNAPSHOT)
-        WT_RET(__wt_btcur_reposition(cbt, true, &moved));
+    WT_RET(__wt_btcur_next_prefix(cbt, NULL, truncating));
 
-    if (!moved)
-        WT_RET(__wt_btcur_next_prefix(cbt, NULL, truncating));
+    if (release_page && session->txn->isolation == WT_ISO_SNAPSHOT &&
+      F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION)) {
+        WT_RET(__wt_cursor_localkey(cursor));
+        WT_RET(__cursor_reset(cbt));
+        WT_RET(__wt_btcur_search(cbt, false));
+    }
+
     return (0);
 }

@@ -16,21 +16,6 @@ WT_STAT_USECS_HIST_INCR_FUNC(opread, perf_hist_opread_latency, 100)
 WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency, 100)
 
 /*
- * __curfile_set_key --
- *     WT_CURSOR->set_key implementation for file cursor.
- */
-static void
-__curfile_set_key(WT_CURSOR *cursor, ...)
-{
-    va_list ap;
-
-    va_start(ap, cursor);
-    F_CLR((WT_CURSOR_BTREE *)cursor, WT_CBT_REPOSITION);
-    WT_IGNORE_RET(__wt_cursor_set_keyv(cursor, cursor->flags, ap));
-    va_end(ap);
-}
-
-/*
  * __curfile_compare --
  *     WT_CURSOR->compare method for the btree cursor type.
  */
@@ -105,7 +90,7 @@ __curfile_next(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, next, CUR2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
 
-    WT_ERR(__wt_btcur_next(cbt, false));
+    WT_ERR(__wt_btcur_next(cbt, false, true));
 
     /* Next maintains a position, key and value. */
     WT_ASSERT(session,
@@ -158,7 +143,7 @@ __curfile_prev(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, prev, CUR2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
 
-    WT_ERR(__wt_btcur_prev(cbt, false));
+    WT_ERR(__wt_btcur_prev(cbt, false, true));
 
     /* Prev maintains a position, key and value. */
     WT_ASSERT(session,
@@ -219,9 +204,8 @@ __curfile_search(WT_CURSOR *cursor)
 
     /* Search maintains a position, key and value. */
     WT_ASSERT(session,
-      F_ISSET(cbt, WT_CBT_REPOSITION) ||
-        (F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
-          F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT));
+      F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
+        F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:
     API_END_RET(session, ret);
@@ -408,7 +392,6 @@ __curfile_remove(WT_CURSOR *cursor)
     uint64_t time_start, time_stop;
     bool positioned;
 
-    cbt = (WT_CURSOR_BTREE *)cursor;
     /*
      * WT_CURSOR.remove has a unique semantic, the cursor stays positioned if it starts positioned,
      * otherwise clear the cursor on completion. Track if starting with a positioned cursor and pass
@@ -416,8 +399,9 @@ __curfile_remove(WT_CURSOR *cursor)
      * in the tree. This is complicated by the loop in this code that restarts operations if they
      * return prepare-conflict or restart.
      */
-    positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT) || F_ISSET(cbt, WT_CBT_REPOSITION);
+    positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
+    cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_REMOVE_API_CALL(cursor, session, CUR2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
@@ -428,7 +412,7 @@ __curfile_remove(WT_CURSOR *cursor)
     __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
     /* If we've lost an initial position, we must fail. */
-    if (positioned && !F_ISSET(cursor, WT_CURSTD_KEY_INT) && !F_ISSET(cbt, WT_CBT_REPOSITION)) {
+    if (positioned && !F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
         __wt_verbose_notice(session, WT_VERB_ERROR_RETURNS, "%s",
           "WT_ROLLBACK: rolling back cursor remove as initial position was lost");
         WT_ERR(WT_ROLLBACK);
@@ -443,8 +427,7 @@ __curfile_remove(WT_CURSOR *cursor)
 
 err:
     /* If we've lost an initial position, we must fail. */
-    CURSOR_UPDATE_API_END_RETRY(session, ret,
-      !positioned || F_ISSET(cursor, WT_CURSTD_KEY_INT) || F_ISSET(cbt, WT_CBT_REPOSITION));
+    CURSOR_UPDATE_API_END_RETRY(session, ret, !positioned || F_ISSET(cursor, WT_CURSTD_KEY_INT));
     return (ret);
 }
 
@@ -673,7 +656,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
 {
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
       __wt_cursor_get_value,                          /* get-value */
-      __curfile_set_key,                              /* set-key */
+      __wt_cursor_set_key,                            /* set-key */
       __wt_cursor_set_value,                          /* set-value */
       __curfile_compare,                              /* compare */
       __curfile_equals,                               /* equals */

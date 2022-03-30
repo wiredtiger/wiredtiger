@@ -440,7 +440,6 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_reset);
 
-    F_CLR(cbt, WT_CBT_REPOSITION);
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
     return (__cursor_reset(cbt));
@@ -512,58 +511,6 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
 }
 
 /*
- * __wt_btcur_reposition --
- *     Reposition the cursor on the saved key.
- */
-int
-__wt_btcur_reposition(WT_CURSOR_BTREE *cbt, bool next, bool *moved)
-{
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-    int exact;
-
-    cursor = &cbt->iface;
-    session = CUR2S(cbt);
-    exact = 0;
-
-    if (!F_ISSET(cursor, WT_CURSTD_KEY_EXT))
-        WT_ERR_PANIC(session, EINVAL, "reposition flag is set without a search key");
-
-    WT_ERR(__wt_btcur_search_near(cbt, &exact));
-    if ((exact > 0 && next) || (exact < 0 && !next))
-        *moved = true;
-
-    /* Search maintains a position, key and value. */
-    WT_ASSERT(session,
-      F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
-        F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
-
-err:
-    F_CLR(cbt, WT_CBT_REPOSITION);
-    return (ret);
-}
-
-/*
- * __wt_btcur_release_page --
- *     Copy the key and value to the local buffer and reset the cursor.
- */
-int
-__wt_btcur_release_page(WT_CURSOR_BTREE *cbt)
-{
-    WT_CURSOR *cursor;
-
-    cursor = &cbt->iface;
-
-    WT_RET(__wt_cursor_localkey(cursor));
-    WT_RET(__cursor_localvalue(cursor));
-    WT_RET(__cursor_reset(cbt));
-    F_SET(cbt, WT_CBT_REPOSITION);
-
-    return (0);
-}
-
-/*
  * __wt_btcur_search --
  *     Search for a matching record in the tree.
  */
@@ -583,7 +530,6 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt, bool release_page)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_search);
 
-    F_CLR(cbt, WT_CBT_REPOSITION);
     __wt_txn_search_check(session);
     __cursor_state_save(cursor, &state);
 
@@ -668,8 +614,12 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt, bool release_page)
 #endif
 
     if (ret == 0) {
-        if (release_page && session->txn->isolation == WT_ISO_SNAPSHOT)
-            WT_ERR(__wt_btcur_release_page(cbt));
+        if (release_page && session->txn->isolation == WT_ISO_SNAPSHOT &&
+          F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION)) {
+            WT_ERR(__wt_cursor_localkey(cursor));
+            WT_ERR(__cursor_reset(cbt));
+            WT_ERR(__wt_btcur_search(cbt, false));
+        }
     }
 
 err:
@@ -702,7 +652,6 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_search_near);
 
-    F_CLR(cbt, WT_CBT_REPOSITION);
     __wt_txn_search_check(session);
     __cursor_state_save(cursor, &state);
 
@@ -832,7 +781,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         /*
          * We walked to the end of the tree without finding a match. Walk backwards instead.
          */
-        while ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND) {
+        while ((ret = __wt_btcur_prev(cbt, false, false)) != WT_NOTFOUND) {
             WT_ERR(ret);
             if (btree->type == BTREE_ROW)
                 WT_ERR(__wt_compare(session, btree->collator, &cursor->key, &state.key, &exact));
@@ -844,6 +793,14 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     }
 
 done:
+    if (session->txn->isolation == WT_ISO_SNAPSHOT &&
+      F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION)) {
+        WT_ERR(__wt_cursor_localkey(cursor));
+        WT_ERR(__cursor_reset(cbt));
+        /* try to evict page */
+
+        WT_ERR(__wt_btcur_search(cbt, false));
+    }
 err:
     if (ret == 0 && exactp != NULL)
         *exactp = exact;
@@ -890,7 +847,6 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     WT_STAT_CONN_DATA_INCR(session, cursor_insert);
     WT_STAT_CONN_DATA_INCRV(session, cursor_insert_bytes, insert_bytes);
 
-    F_CLR(cbt, WT_CBT_REPOSITION);
     if (btree->type == BTREE_ROW)
         WT_RET(__cursor_size_chk(session, &cursor->key));
     WT_RET(__cursor_size_chk(session, &cursor->value));
@@ -1079,7 +1035,6 @@ __wt_btcur_insert_check(WT_CURSOR_BTREE *cbt)
 
     WT_ASSERT(session, CUR2BT(cbt)->type == BTREE_ROW);
 
-    F_CLR(cbt, WT_CBT_REPOSITION);
     /*
      * The pinned page goes away if we do a search, get a local copy of any pinned key and discard
      * any pinned value. Unlike most of the btree cursor routines, we don't have to save/restore the
@@ -1286,15 +1241,6 @@ search_notfound:
         WT_TRET(__cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }
-
-    /*
-     * If a reposition was requested but the search failed due to WT_NOTFOUND, do not clear the
-     * reposition flag so that the cursor can be repositioned in next/prev cursor methods.
-     */
-    if (ret == WT_NOTFOUND && F_ISSET(cbt, WT_CBT_REPOSITION))
-        ret = 0;
-    else
-        F_CLR(cbt, WT_CBT_REPOSITION);
 
 done:
     /*
@@ -1539,7 +1485,6 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     cursor = &cbt->iface;
     session = CUR2S(cbt);
 
-    F_CLR(cbt, WT_CBT_REPOSITION);
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
 
@@ -1626,7 +1571,6 @@ __wt_btcur_reserve(WT_CURSOR_BTREE *cbt)
     session = CUR2S(cbt);
 
     WT_STAT_CONN_DATA_INCR(session, cursor_reserve);
-    F_CLR(cbt, WT_CBT_REPOSITION);
 
     /* WT_CURSOR.reserve is update-without-overwrite and a special value. */
     overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
@@ -1654,7 +1598,6 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_update);
     WT_STAT_CONN_DATA_INCRV(session, cursor_update_bytes, cursor->key.size + cursor->value.size);
-    F_CLR(cbt, WT_CBT_REPOSITION);
 
     if (btree->type == BTREE_ROW)
         WT_RET(__cursor_size_chk(session, &cursor->key));
@@ -1810,7 +1753,7 @@ retry:
         if (stop != NULL && __cursor_equals(start, stop))
             return (0);
 
-        WT_ERR(__wt_btcur_next(start, true));
+        WT_ERR(__wt_btcur_next(start, true, false));
 
         start->compare = 0; /* Exact match */
     }
@@ -1869,7 +1812,7 @@ retry:
         if (stop != NULL && __cursor_equals(start, stop))
             return (0);
 
-        WT_ERR(__wt_btcur_next(start, true));
+        WT_ERR(__wt_btcur_next(start, true, false));
 
         start->compare = 0; /* Exact match */
     }

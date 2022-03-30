@@ -216,19 +216,18 @@ struct __wt_cursor_btree {
 #endif
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CBT_ACTIVE 0x0001u             /* Active in the tree */
-#define WT_CBT_CACHEABLE_RLE_CELL 0x0002u /* Col-store: value in RLE cell valid for its keys */
-#define WT_CBT_ITERATE_APPEND 0x0004u     /* Col-store: iterating append list */
-#define WT_CBT_ITERATE_NEXT 0x0008u       /* Next iteration configuration */
-#define WT_CBT_ITERATE_PREV 0x0010u       /* Prev iteration configuration */
-#define WT_CBT_ITERATE_RETRY_NEXT 0x0020u /* Prepare conflict by next. */
-#define WT_CBT_ITERATE_RETRY_PREV 0x0040u /* Prepare conflict by prev. */
-#define WT_CBT_NO_TRACKING 0x0080u        /* Non tracking cursor. */
-#define WT_CBT_NO_TXN 0x0100u             /* Non-txn cursor (e.g. a checkpoint) */
-#define WT_CBT_READ_ONCE 0x0200u          /* Page in with WT_READ_WONT_NEED */
-#define WT_CBT_REPOSITION 0x0400u         /* Search the saved key to regain cursor position */
-#define WT_CBT_SEARCH_SMALLEST 0x0800u    /* Row-store: small-key insert list */
-#define WT_CBT_VAR_ONPAGE_MATCH 0x1000u   /* Var-store: on-page recno match */
+#define WT_CBT_ACTIVE 0x001u             /* Active in the tree */
+#define WT_CBT_CACHEABLE_RLE_CELL 0x002u /* Col-store: value in RLE cell valid for its keys */
+#define WT_CBT_ITERATE_APPEND 0x004u     /* Col-store: iterating append list */
+#define WT_CBT_ITERATE_NEXT 0x008u       /* Next iteration configuration */
+#define WT_CBT_ITERATE_PREV 0x010u       /* Prev iteration configuration */
+#define WT_CBT_ITERATE_RETRY_NEXT 0x020u /* Prepare conflict by next. */
+#define WT_CBT_ITERATE_RETRY_PREV 0x040u /* Prepare conflict by prev. */
+#define WT_CBT_NO_TRACKING 0x080u        /* Non tracking cursor. */
+#define WT_CBT_NO_TXN 0x100u             /* Non-txn cursor (e.g. a checkpoint) */
+#define WT_CBT_READ_ONCE 0x200u          /* Page in with WT_READ_WONT_NEED */
+#define WT_CBT_SEARCH_SMALLEST 0x400u    /* Row-store: small-key insert list */
+#define WT_CBT_VAR_ONPAGE_MATCH 0x800u   /* Var-store: on-page recno match */
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 #define WT_CBT_POSITION_MASK /* Flags associated with position */                      \
