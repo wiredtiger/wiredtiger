@@ -107,7 +107,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
     struct timespec start, stop;
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *s;
-    uint64_t time_diff, v;
+    uint64_t time_diff_ms, v;
     uint32_t i, session_cnt;
     u_int minutes;
     int pause_cnt;
@@ -165,9 +165,9 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
                 __wt_epoch(session, &start);
             } else {
                 __wt_epoch(session, &stop);
-                time_diff = WT_TIMEDIFF_MS(stop, start);
+                time_diff_ms = WT_TIMEDIFF_MS(stop, start);
 #define WT_GEN_DRAIN_TIMEOUT_MIN 4
-                if (time_diff > minutes * WT_MINUTE * WT_THOUSAND) {
+                if (time_diff_ms > minutes * WT_MINUTE * WT_THOUSAND) {
                     __wt_verbose_notice(session, WT_VERB_GENERATION,
                       "%s generation drain waited %u minutes", __gen_name(which), minutes);
                     ++minutes;
@@ -175,7 +175,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
                 }
                 /* Enable extra logs 20ms before timing out. */
                 else if (!verbose_timeout_flags &&
-                  time_diff > ((WT_GEN_DRAIN_TIMEOUT_MIN - 1) * WT_MINUTE * WT_THOUSAND - 20)) {
+                  time_diff_ms > (WT_GEN_DRAIN_TIMEOUT_MIN * WT_MINUTE * WT_THOUSAND - 20)) {
                     if (which == WT_GEN_EVICT) {
                         WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG);
                         WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG);
