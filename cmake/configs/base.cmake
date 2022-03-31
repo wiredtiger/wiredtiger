@@ -142,7 +142,7 @@ config_bool(
 
 config_bool(
     ENABLE_MEMKIND
-    "Use MEMKIND as the backend allocator"
+    "Enable the memkind library, needed for NVRAM or SSD block caches"
     DEFAULT OFF
     DEPENDS "HAVE_LIBMEMKIND"
     # Specifically throw a fatal error if a user tries to enable the memkind allocator without
