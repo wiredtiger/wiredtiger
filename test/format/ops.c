@@ -401,7 +401,6 @@ operations(u_int ops_seconds, bool lastrun)
 static void
 begin_transaction_ts(TINFO *tinfo)
 {
-    TINFO **tlp;
     WT_DECL_RET;
     WT_SESSION *session;
     uint64_t ts;
@@ -416,13 +415,7 @@ begin_transaction_ts(TINFO *tinfo)
      * 75% of the time, pick a read timestamp before any commit timestamp in any thread, 25% of
      * the time don't set a timestamp at all.
      */
-    ts = 0;
-    if (mmrand(&tinfo->rnd, 1, 4) != 1) {
-        for (ts = g.timestamp, tlp = tinfo_list; *tlp != NULL; ++tlp)
-            ts = WT_MIN(ts, (*tlp)->commit_ts);
-        if (ts != 0)
-            --ts;
-    }
+    ts = mmrand(&tinfo->rnd, 1, 4) == 1 ? 0 : maximum_read_ts();
     if (ts != 0) {
         wiredtiger_begin_transaction(session, NULL);
 
