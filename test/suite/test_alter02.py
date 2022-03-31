@@ -74,14 +74,14 @@ class test_alter02(TieredConfigMixin, wttest.WiredTigerTestCase):
     def ConnectionOpen(self):
         self.home = '.'
         
-        config = self.conn_config()
-        config += self.extensionsConfig()
+        tiered_config = self.conn_config()
+        tiered_config += self.extensionsConfig()
         # In case the open starts additional threads, flush first to avoid confusion.
         sys.stdout.flush()
 
         conn_params = 'create,log=(file_max=100K,remove=false,%s)' % self.uselog
-        if config != '':
-            conn_params += ',' + config
+        if tiered_config != '':
+            conn_params += ',' + tiered_config
 
         try:
             self.conn = wiredtiger.wiredtiger_open(self.home, conn_params)
