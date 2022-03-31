@@ -27,13 +27,12 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import sys, wiredtiger, wttest
-from helper_tiered import tiered_storage_sources, tiered_conn_config, tiered_conn_extensions, \
-    is_tiered_scenario
+from helper_tiered import TieredConfigMixin, tiered_storage_sources
 from wtscenario import make_scenarios
 
 # test_alter02.py
 #    Smoke-test the session alter operations.
-class test_alter02(wttest.WiredTigerTestCase):
+class test_alter02(TieredConfigMixin, wttest.WiredTigerTestCase):
     entries = 500
     # Binary values.
     value = u'\u0001\u0002abcd\u0003\u0004'
@@ -66,14 +65,6 @@ class test_alter02(wttest.WiredTigerTestCase):
         ('reopen', dict(reopen=True)),
     ]
     scenarios = make_scenarios(tiered_storage_sources, conn_log, types, tables, reopen)
-
-    # Setup custom connection config.
-    def conn_config(self):
-        return tiered_conn_config(self)
-
-    # Load the storage sources extension.
-    def conn_extensions(self, extlist):
-        return tiered_conn_extensions(self, extlist)
 
     # This test varies the log setting.  Override the standard methods.
     def setUpConnectionOpen(self, dir):
@@ -144,21 +135,10 @@ class test_alter02(wttest.WiredTigerTestCase):
         # the string in both records.
         self.assertEqual(count, expected_keys * 2)
 
-    # Wrapper around session.alter call
-    def alter(self, uri, alter_param):
-        # Tiered storage does not fully support alter operation. FIXME WT-9027
-        try:
-            self.session.alter(uri, alter_param)
-        except BaseException as err:
-            if is_tiered_scenario(self) and str(err) == 'Operation not supported':
-                self.skipTest('Tiered storage does not fully support alter operation.')
-            else:
-                raise
-
     # Alter: Change the log setting after creation
     def test_alter02_log(self):
-        if is_tiered_scenario(self) and self.uri == 'lsm:':
-            self.skipTest('Tiered storage does not support LSM.')
+        if self.is_tiered_scenario() and (self.uri == 'lsm:' or self.uri == 'file:'):
+            self.skipTest('Tiered storage does not support LSM or file URIs.')
         
         uri = self.uri + self.name
         create_params = 'key_format=i,value_format=S,'

@@ -28,12 +28,11 @@
 
 import os, wiredtiger, wttest
 from wtscenario import make_scenarios
-from helper_tiered import tiered_storage_sources, tiered_conn_config, tiered_conn_extensions, \
-    is_tiered_scenario
+from helper_tiered import TieredConfigMixin, tiered_storage_sources
 
 # test_alter01.py
 #    Smoke-test the session alter operations.
-class test_alter01(wttest.WiredTigerTestCase):
+class test_alter01(TieredConfigMixin, wttest.WiredTigerTestCase):
     name = "alter01"
     entries = 100
 
@@ -70,25 +69,6 @@ class test_alter01(wttest.WiredTigerTestCase):
     # Build all scenarios
     scenarios = make_scenarios(tiered_storage_sources, types, hints, resid, reopen)
 
-    # Setup custom connection config.
-    def conn_config(self):
-        return tiered_conn_config(self)
-
-    # Load the storage sources extension.
-    def conn_extensions(self, extlist):
-        return tiered_conn_extensions(self, extlist)
-
-    # Wrapper around session.alter call
-    def alter(self, uri, alter_param):
-        # Tiered storage does not fully support alter operation. FIXME WT-9027
-        try:
-            self.session.alter(uri, alter_param)
-        except BaseException as err:
-            if is_tiered_scenario(self) and str(err) == 'Operation not supported':
-                self.skipTest('Tiered storage does not fully support alter operation.')
-            else:
-                raise
-
     def verify_metadata(self, metastr):
         if metastr == '':
             return
@@ -114,8 +94,8 @@ class test_alter01(wttest.WiredTigerTestCase):
 
     # Alter: Change the access pattern hint after creation
     def test_alter01_access(self):
-        if is_tiered_scenario(self) and self.uri == 'lsm:':
-            self.skipTest('Tiered storage does not support LSM.')
+        if self.is_tiered_scenario() and (self.uri == 'lsm:' or self.uri == 'file:'):
+            self.skipTest('Tiered storage does not support LSM or file URIs.')
 
         uri = self.uri + self.name
         create_params = 'key_format=i,value_format=i,'

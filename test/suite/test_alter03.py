@@ -27,36 +27,16 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from helper_tiered import tiered_storage_sources, tiered_conn_config, tiered_conn_extensions, \
-    is_tiered_scenario
+from helper_tiered import TieredConfigMixin, tiered_storage_sources
 from wtscenario import make_scenarios
 
 # test_alter03.py
 #    Check if app_metadata can be altered.
-class test_alter03(wttest.WiredTigerTestCase):
+class test_alter03(TieredConfigMixin, wttest.WiredTigerTestCase):
     name = "alter03"
 
     # Build all scenarios
     scenarios = make_scenarios(tiered_storage_sources)
-
-    # Setup custom connection config.
-    def conn_config(self):
-        return tiered_conn_config(self)
-
-    # Load the storage sources extension.
-    def conn_extensions(self, extlist):
-        return tiered_conn_extensions(self, extlist)
-
-    # Wrapper around session.alter call
-    def alter(self, uri, alter_param):
-        # Tiered storage does not fully support alter operation. FIXME WT-9027
-        try:
-            self.session.alter(uri, alter_param)
-        except BaseException as err:
-            if is_tiered_scenario(self) and str(err) == 'Operation not supported':
-                self.skipTest('Tiered storage does not fully support alter operation.')
-            else:
-                raise
 
     def verify_metadata(self, table_metastr, lsm_metastr, file_metastr):
         c = self.session.open_cursor('metadata:', None, None)
@@ -80,7 +60,7 @@ class test_alter03(wttest.WiredTigerTestCase):
         if file_metastr != '':
             # We must find a file type entry for the object and its value
             # should contain the provided file meta string.
-            if is_tiered_scenario(self):
+            if self.is_tiered_scenario():
                 c.set_key('file:' + self.name + '-0000000001.wtobj')
                 
                 # Removing quotes wrapping app metadata value just to make the test pass.
@@ -153,7 +133,7 @@ class test_alter03(wttest.WiredTigerTestCase):
 
     # Alter LSM: A non exclusive alter should not be allowed
     def test_alter03_lsm_app_metadata(self):
-        if is_tiered_scenario(self):
+        if self.is_tiered_scenario():
             self.skipTest('Tiered storage does not support LSM.')
         
         uri = "lsm:" + self.name
