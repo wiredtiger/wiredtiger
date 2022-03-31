@@ -90,7 +90,7 @@ def generate_s3_prefix(test_name = ''):
 
     return prefix
 
-# Storage sources
+# Storage sources.
 tiered_storage_sources = [
     ('dirstore', dict(is_tiered = True,
         is_local_storage = True,
@@ -107,8 +107,9 @@ tiered_storage_sources = [
     ('non_tiered', dict(is_tiered = False)),            
 ]
 
+# This mixin class provides tiered storage configuration.
 class TieredConfigMixin:
-    # Returns True if the current scenario is tiered
+    # Returns True if the current scenario is tiered.
     def is_tiered_scenario(self):
         res = False
         if hasattr(self, 'is_tiered'):
@@ -160,7 +161,7 @@ class TieredConfigMixin:
 
     # Wrapper around session.alter call
     def alter(self, uri, alter_param):
-        # Tiered storage does not fully support alter operation. FIXME WT-9027
+        # Tiered storage does not fully support alter operation. FIXME WT-9027.
         try:
             self.session.alter(uri, alter_param)
         except BaseException as err:
