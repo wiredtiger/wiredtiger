@@ -39,7 +39,7 @@ pick_a_version()
 {
     branch=$1
 
-    # Query out all released git versions for a given release branch using "git tag"
+    # Query out all released patch versions for a given release branch using "git tag"
     local versions=()
 
     # Avoid picking below types of versions:
@@ -65,7 +65,7 @@ build_branch()
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
     
     # Only clone the branch if the option is picked
-    if [ "$2" == 1 ]; then
+    if [ ! -d "build" ]; then
         git clone --quiet https://github.com/wiredtiger/wiredtiger.git "$1"
         cd "$1"
         git checkout --quiet "$1"
@@ -76,7 +76,7 @@ build_branch()
         config=""
         config+="-DENABLE_SNAPPY=1 "
         config+="-DWT_STANDALONE_BUILD=0 "
-        (mkdir build && cd build &&
+        (mkdir -p build && cd build &&
             $CMAKE $config ../. && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
     else
         config+="--enable-snappy "
@@ -286,9 +286,8 @@ run_test_checkpoint()
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
     echo "Running test checkpoint in branch: \"$branch_name\""
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-    pwd;
+
     cd "$branch_name/build/test/checkpoint"
-    #cd "$branch_name/build"
 
     if [ "${build_sys[$branch_name]}" == "cmake" ]; then
         test_bin="test_checkpoint"
@@ -645,7 +644,7 @@ if [ "$upgrade_to_latest" = true ]; then
     for b in ${upgrade_to_latest_upgrade_downgrade_release_branches[@]}; do
         # prepare test data and test upgrade to the branch b.
         (prepare_test_data_wt_8395) && \
-        (build_branch $b 1) && \
+        (build_branch $b) && \
         (test_upgrade_to_branch $b $test_data)
 
         # cleanup.
@@ -669,8 +668,8 @@ if [ "$two_versions" = true ]; then
     fi
 
     # Build the branches
-    (build_branch $v1 1)
-    (build_branch $v2 1)
+    (build_branch $v1)
+    (build_branch $v2)
 
     # Run test for both branches to generate data files
     (run_test_checkpoint $v1 "row")
@@ -686,23 +685,23 @@ fi
 if [ "$patch_version" = true ]; then
     for b in ${patch_version_upgrade_downgrade_release_branches[@]}; do
         # Build the tip of the release branch and run test to generate data files
-        (build_branch $b 1)
+        (build_branch $b)
         (run_test_checkpoint "$b" "row")
 
         # Pick a patch version from the list of patch versions for the release branch
-        cd $b; pv=$(pick_a_version $b); echo "$pv"; cd ..
+        cd $b; pv=$(pick_a_version $b); cd ..
 
-        (build_branch $pv 1)
+        (build_branch $pv)
         rtn=$(is_test_checkpoint_recovery_supported $pv)
 
         # Apply patch fix from WT-8708 to already released compatible versions to avoid test/checkpoint setting commit timestamp less than stable timestamp
-        if [ "$pv" \< "mongodb-4.4.13" ] || [ "$pv" \< "mongodb-5.0.7" ] && [ $rtn == "yes" ]; then
+        if [ $rtn == "yes" ] && ! git log --oneline | grep WT-8708 -b "$pv" --; then
             cd $pv;
 
             git format-patch -1 d4b0ad6cacb874fdc20bcc76311d789dd5a01441;
             patch -p1 < 0001-WT-8708-Fix-timestamp-usage-error-in-test-checkpoint.patch;
 
-            (build_branch $pv 0)
+            (build_branch $pv)
             cd ..;
         fi
 
@@ -725,13 +724,13 @@ fi
 # Build the branches.
 if [ "$newer" = true ]; then
     for b in ${newer_release_branches[@]}; do
-        (build_branch $b 1)
+        (build_branch $b)
     done
 fi
 
 if [ "$older" = true ]; then
     for b in ${older_release_branches[@]}; do
-        (build_branch $b 1)
+        (build_branch $b)
     done
 fi
 
@@ -739,11 +738,11 @@ fi
 # release before that. Minor trickiness, we depend on the "develop" directory already existing
 # so we have a source in which to do git commands.
 if [ "${wt_standalone}" = true ]; then
-    (build_branch develop 1)
+    (build_branch develop)
     cd develop; wt1=$(get_prev_version 1); cd ..
-    (build_branch "$wt1" 1)
+    (build_branch "$wt1")
     cd develop; wt2=$(get_prev_version 2); cd ..
-    (build_branch "$wt2" 1)
+    (build_branch "$wt2")
 fi
 
 if [ "$newer" = true ]; then
