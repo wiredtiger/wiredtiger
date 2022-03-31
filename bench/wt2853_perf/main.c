@@ -74,7 +74,7 @@ typedef struct {
 /*
  * main --
  *     Setup the creation of tables and indices. Run the insert and read operation threads and check
- *     for any performance discrepancies.  
+ *     for any performance discrepancies.
  */
 int
 main(int argc, char *argv[])
@@ -85,7 +85,7 @@ main(int argc, char *argv[])
     WT_CURSOR *maincur;
     WT_SESSION *session;
     pthread_t get_tid[N_GET_THREAD], insert_tid[N_INSERT_THREAD];
-    int i, key, nwarnings, njoins;
+    int i, key, njoins, nwarnings;
     char tableconf[128];
     const char *tablename;
 
@@ -96,7 +96,7 @@ main(int argc, char *argv[])
     memset(sharedopts, 0, sizeof(*sharedopts));
     memset(insert_args, 0, sizeof(insert_args));
     memset(get_args, 0, sizeof(get_args));
-    nwarnings = njoins = 0;
+    njoins = nwarnings = 0;
 
     sharedopts->bloom = BLOOM;
     testutil_check(testutil_parse_opts(argc, argv, opts));
@@ -212,7 +212,7 @@ main(int argc, char *argv[])
 
 /*
  * thread_insert --
- *     Insert records continously to stress the WiredTiger's indices.
+ *     Insert records to stress the WiredTiger's indices.
  */
 static void *
 thread_insert(void *arg)
@@ -263,8 +263,8 @@ thread_insert(void *arg)
         }
         maincur->set_value(maincur, post, bal, extra, flag, key);
         ret = maincur->insert(maincur);
-        if (ret == WT_ROLLBACK) {         
-            testutil_check(session->rollback_transaction(session, NULL));   
+        if (ret == WT_ROLLBACK) {
+            testutil_check(session->rollback_transaction(session, NULL));
             continue;
         }
 
@@ -296,7 +296,7 @@ thread_insert(void *arg)
 
 /*
  * thread_get --
- *     Continously perform reads and loop through the indices with same key. Record the time taken
+ *     Continuously perform reads and loop through the indices with same key. Record the time taken
  *     to finish the read on table and the indices.
  */
 static void *
@@ -374,18 +374,20 @@ thread_get(void *arg)
  *     Construct the performance json which is used to generate the performance charts.
  */
 static void
-create_perf_json(bool usecolumns, int njoins, int nwarnings) {
+create_perf_json(bool usecolumns, int njoins, int nwarnings)
+{
     FILE *fp;
     char testname[50];
 
     fp = NULL;
 
-    testutil_check(__wt_snprintf(testname, sizeof(testname), "wt2853_perf_%s", usecolumns ? "col" : "row"));
+    testutil_check(
+      __wt_snprintf(testname, sizeof(testname), "wt2853_perf_%s", usecolumns ? "col" : "row"));
     testutil_assert_errno((fp = fopen("wt2853_perf.json", "w")) != NULL);
     testutil_assert(fprintf(fp,
-      "[{\"info\":{\"test_name\": \"%s\"},"
-      "\"metrics\": [{\"name\":\"Cursor Joins\",\"value\":%d}, {\"name\":\"GAP"
-      " Warnings\",\"value\":%d}]}]",
-      testname, njoins, nwarnings) >= 0);
+                      "[{\"info\":{\"test_name\": \"%s\"},"
+                      "\"metrics\": [{\"name\":\"Cursor Joins\",\"value\":%d}, {\"name\":\"GAP"
+                      " Warnings\",\"value\":%d}]}]",
+                      testname, njoins, nwarnings) >= 0);
     testutil_assert(fclose(fp) == 0);
 }
