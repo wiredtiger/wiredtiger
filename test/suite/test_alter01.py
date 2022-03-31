@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest
+import wttest
 from wtscenario import make_scenarios
 from helper_tiered import TieredConfigMixin, tiered_storage_sources
 
@@ -36,7 +36,7 @@ class test_alter01(TieredConfigMixin, wttest.WiredTigerTestCase):
     name = "alter01"
     entries = 100
 
-    # Datasource types
+    # Data source types
     types = [
         ('file', dict(uri='file:', use_cg=False, use_index=False)),
         ('lsm', dict(uri='lsm:', use_cg=False, use_index=False)),

@@ -107,20 +107,17 @@ tiered_storage_sources = [
     ('non_tiered', dict(is_tiered = False)),            
 ]
 
-# This mixin class provides tiered storage configuration.
+# This mixin class provides tiered storage configuration methods.
 class TieredConfigMixin:
     # Returns True if the current scenario is tiered.
     def is_tiered_scenario(self):
-        res = False
-        if hasattr(self, 'is_tiered'):
-            res = self.is_tiered
-        
-        return res
+        return hasattr(self, 'is_tiered') and self.is_tiered
 
-    # Setup custom connection config.
+    # Setup connection config.
     def conn_config(self):
         return self.tiered_conn_config()
 
+    # Setup tiered connection config.
     def tiered_conn_config(self):
         # Handle non_tiered storage scenarios.
         if not self.is_tiered_scenario():
@@ -142,6 +139,7 @@ class TieredConfigMixin:
     def conn_extensions(self, extlist):
         return self.tiered_conn_extensions(extlist)
 
+    # Load tiered storage source extension.
     def tiered_conn_extensions(self, extlist):
         # Handle non_tiered storage scenarios.
         if not self.is_tiered_scenario():
