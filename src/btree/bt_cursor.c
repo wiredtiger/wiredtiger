@@ -444,7 +444,7 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
 
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
-    return (__cursor_reset(cbt, false));
+    return (__cursor_reset(cbt));
 }
 
 /*
@@ -470,7 +470,7 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
      * from the last operation. This also depends on the fact we're not setting the cursor's active
      * flag, this is really a special chunk of code and not to be modified without careful thought.
      */
-    WT_RET(__cursor_reset(cbt, false));
+    WT_RET(__cursor_reset(cbt));
 
     WT_RET(btree->type == BTREE_ROW ? __cursor_row_search(cbt, false, NULL, NULL) :
                                       __cursor_col_search(cbt, NULL, NULL));
@@ -528,12 +528,16 @@ __wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
 
     if (session->txn->isolation == WT_ISO_SNAPSHOT && !WT_SESSION_IS_CHECKPOINT(session) &&
       F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION)) {
-        WT_RET(__wt_cursor_localkey(cursor));
-        WT_RET(__cursor_reset(cbt, true));
+        F_SET(cbt, WT_CBT_RELEASE_EVICT_PAGE);
+        WT_ERR(__wt_cursor_localkey(cursor));
+        WT_ERR(__cursor_reset(cbt));
         if ((ret = __wt_btcur_search(cbt, false)) != 0)
-            WT_RET_PANIC(session, ret, "failed to reposition the cursor");
+            WT_ERR_PANIC(session, ret, "failed to reposition the cursor");
     }
-    return (0);
+
+err:
+    F_CLR(cbt, WT_CBT_RELEASE_EVICT_PAGE);
+    return (ret);
 }
 
 /*
@@ -644,7 +648,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt, bool evict_reposition)
 
 err:
     if (ret != 0) {
-        WT_TRET(__cursor_reset(cbt, false));
+        WT_TRET(__cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }
     return (ret);
@@ -830,7 +834,7 @@ err:
          * and next loops. Those internally do reset the cursor but not when performing a prefix
          * search near.
          */
-        WT_TRET(__cursor_reset(cbt, false));
+        WT_TRET(__cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }
     return (ret);
@@ -996,7 +1000,7 @@ done:
         if (append_key)
             F_SET(cursor, WT_CURSTD_KEY_EXT);
     }
-    WT_TRET(__cursor_reset(cbt, false));
+    WT_TRET(__cursor_reset(cbt));
     if (ret != 0 && ret != WT_DUPLICATE_KEY)
         __cursor_state_restore(cursor, &state);
 
@@ -1079,7 +1083,7 @@ err:
     /* Insert doesn't maintain a position across calls, clear resources. */
     if (ret == 0)
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-    WT_TRET(__cursor_reset(cbt, false));
+    WT_TRET(__cursor_reset(cbt));
 
     return (ret);
 }
@@ -1220,7 +1224,7 @@ err:
                 WT_TRET(__wt_key_return(cbt));
         } else {
             F_CLR(cursor, WT_CURSTD_KEY_SET);
-            WT_TRET(__cursor_reset(cbt, false));
+            WT_TRET(__cursor_reset(cbt));
         }
 
         /*
@@ -1228,7 +1232,7 @@ err:
          * key or resetting the cursor after an otherwise successful remove.
          */
         if (ret != 0) {
-            WT_TRET(__cursor_reset(cbt, false));
+            WT_TRET(__cursor_reset(cbt));
             __cursor_state_restore(cursor, &state);
         }
     } else {
@@ -1237,7 +1241,7 @@ err:
          * value in the clause immediately above so we don't lose an error value if cursor reset
          * fails.
          */
-        WT_TRET(__cursor_reset(cbt, false));
+        WT_TRET(__cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }
 
@@ -1414,7 +1418,7 @@ done:
     }
 
     if (ret != 0) {
-        WT_TRET(__cursor_reset(cbt, false));
+        WT_TRET(__cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }
 
@@ -1557,7 +1561,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
      */
     if (ret != 0) {
 err:
-        WT_TRET(__cursor_reset(cbt, false));
+        WT_TRET(__cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }
 
@@ -1961,7 +1965,7 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
      * the session handle's cursor count. Skip the usual cursor tear-down in that case.
      */
     if (!lowlevel)
-        ret = __cursor_reset(cbt, false);
+        ret = __cursor_reset(cbt);
 
     __wt_buf_free(session, &cbt->_row_key);
     __wt_buf_free(session, &cbt->_tmp);

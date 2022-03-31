@@ -209,7 +209,7 @@ __cursor_leave(WT_SESSION_IMPL *session)
  *     Reset the cursor, it no longer holds any position.
  */
 static inline int
-__cursor_reset(WT_CURSOR_BTREE *cbt, bool evict_page)
+__cursor_reset(WT_CURSOR_BTREE *cbt)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -262,7 +262,7 @@ __cursor_reset(WT_CURSOR_BTREE *cbt, bool evict_page)
      * there's a debug mode where an application can force the eviction in order to test or stress
      * the system. Clear the reference so we never try the release twice.
      */
-    if (F_ISSET(cursor, WT_CURSTD_DEBUG_RESET_EVICT) || evict_page)
+    if (F_ISSET(cursor, WT_CURSTD_DEBUG_RESET_EVICT) || F_ISSET(cbt, WT_CBT_RELEASE_EVICT_PAGE))
         WT_TRET_BUSY_OK(__wt_page_release_evict(session, cbt->ref, 0));
     else
         ret = __wt_page_release(session, cbt->ref, 0);
@@ -387,7 +387,7 @@ __wt_cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
     session = CUR2S(cbt);
 
     if (reenter)
-        WT_RET(__cursor_reset(cbt, false));
+        WT_RET(__cursor_reset(cbt));
 
     /*
      * Any old insert position is now invalid. We rely on this being cleared to detect if a new
