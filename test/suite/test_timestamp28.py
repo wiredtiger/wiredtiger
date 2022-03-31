@@ -27,12 +27,12 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_timestamp28.py
-#   Timestamps: smoke test that commit and durable are tested at both commit and set time.
+#   Timestamps: smoke test that commit is tested at both commit and set time.
 
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 
-# Timestamps: smoke test that commit and durable are tested at both commit and set time.
+# Timestamps: smoke test that commit is tested at both commit and set time.
 class test_timestamp28(wttest.WiredTigerTestCase):
     def test_timestamp28(self):
         uri = 'table:timestamp28'
@@ -40,10 +40,9 @@ class test_timestamp28(wttest.WiredTigerTestCase):
         ds.populate()
         c = self.session.open_cursor(uri)
 
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
         self.session.begin_transaction()
         c[5] = 'xxx'
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(
             'commit_timestamp=' + self.timestamp_str(20)), '/must be after/')
@@ -53,7 +52,6 @@ class test_timestamp28(wttest.WiredTigerTestCase):
         c[5] = 'xxx'
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(50))
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(60))
-        self.session.breakpoint()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(), '/must be after/')
 
