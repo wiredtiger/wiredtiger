@@ -358,6 +358,7 @@ PowerPC
 Pre
 Preload
 Prepend
+Prepending
 Prev
 QQQS
 Qsort
@@ -514,6 +515,7 @@ WiredTigerPreplog
 WiredTigerTmplog
 WiredTigerTxn
 WithSeeds
+Wmissing
 Wpedantic
 WriteFile
 Wsign
@@ -1198,6 +1200,7 @@ nontransactionally
 noop
 nop
 noraw
+noreturn
 notfound
 notsup
 notused

@@ -27,7 +27,7 @@ add_library(cppsuite_test_harness STATIC
 target_include_directories(cppsuite_test_harness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(
     cppsuite_test_harness
-    PUBLIC -std=c++11
+    PUBLIC -std=c++17
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 target_link_libraries(cppsuite_test_harness PRIVATE test_util)

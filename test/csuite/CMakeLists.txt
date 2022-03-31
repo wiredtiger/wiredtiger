@@ -67,7 +67,7 @@ define_c_test(
 #     DIR_NAME tiered_abort
 #     # We need to manually specify the location of the local store library
 #     # and build directory as the build path is more dynamic.
-#     FLAGS "-DWT_STORAGE_LIB=\"ext/storage_sources/local_store/libwiredtiger_local_store.so\""
+#     FLAGS "-DWT_STORAGE_LIB=\"ext/storage_sources/dir_store/libwiredtiger_dir_store.so\""
 #     VARIANTS
 #         "test_tiered_abort_5_thread;-b ${CMAKE_BINARY_DIR} -t 10 -T 5"
 #     DEPENDS "WT_POSIX"
@@ -75,7 +75,7 @@ define_c_test(
 if (WT_POSIX)
     create_test_executable(test_tiered_abort
         SOURCES tiered_abort/main.c
-        FLAGS "-DWT_STORAGE_LIB=\"ext/storage_sources/local_store/libwiredtiger_local_store.so\""
+        FLAGS "-DWT_STORAGE_LIB=\"ext/storage_sources/dir_store/libwiredtiger_dir_store.so\""
         BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/tiered_abort
         ADDITIONAL_FILES
             ${CMAKE_CURRENT_SOURCE_DIR}/tiered_abort/smoke.sh
@@ -355,5 +355,13 @@ define_c_test(
     SOURCES wt8659_reconstruct_database_from_logs/main.c
     DIR_NAME wt8659_reconstruct_database_from_logs
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8659_reconstruct_database_from_logs>/WT_HOME>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt8963_insert_stress
+    SOURCES wt8963_insert_stress/main.c
+    DIR_NAME wt8963_insert_stress
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8963_insert_stress>/WT_HOME>
     DEPENDS "WT_POSIX"
 )

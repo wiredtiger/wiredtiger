@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
+from helper_tiered import get_auth_token, get_bucket1_name
 from wtscenario import make_scenarios
 import os, wiredtiger, wttest
 StorageSource = wiredtiger.StorageSource  # easy access to constants
@@ -35,10 +35,10 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Basic tiered storage API for schema operations.
 class test_tiered07(wttest.WiredTigerTestCase):
     storage_sources = [
-        ('local', dict(auth_token = get_auth_token('local_store'),
-            bucket = get_bucket1_name('local_store'),
+        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
+            bucket = get_bucket1_name('dir_store'),
             bucket_prefix = "pfx_",
-            ss_name = 'local_store')),
+            ss_name = 'dir_store')),
         # FIXME-WT-8897 Disabled as S3 directory listing is interpreting a directory to end in a '/',
         # whereas the code in the tiered storage doesn't expect that. Enable when fixed.
         #('s3', dict(auth_token = get_auth_token('s3_store'),
@@ -52,6 +52,7 @@ class test_tiered07(wttest.WiredTigerTestCase):
     uri = "table:abc"
     uri2 = "table:ab"
     uri3 = "table:abcd"
+    uri4 = "table:abcde"
     localuri = "table:local"
     newuri = "table:tier_new"
 
@@ -61,7 +62,7 @@ class test_tiered07(wttest.WiredTigerTestCase):
         if self.ss_name == 's3_store':
             #config = '=(config=\"(verbose=1)\")'
             extlist.skip_if_missing = True
-        #if self.ss_name == 'local_store':
+        #if self.ss_name == 'dir_store':
             #config = '=(config=\"(verbose=1,delay_ms=200,force_delay=3)\")'
         # Windows doesn't support dynamically loaded extension libraries.
         if os.name == 'nt':
@@ -69,7 +70,7 @@ class test_tiered07(wttest.WiredTigerTestCase):
         extlist.extension('storage_sources', self.ss_name + config)
 
     def conn_config(self):
-        if self.ss_name == 'local_store' and not os.path.exists(self.bucket):
+        if self.ss_name == 'dir_store' and not os.path.exists(self.bucket):
             os.mkdir(self.bucket)
         #  'verbose=(tiered),' + \
 
@@ -130,6 +131,25 @@ class test_tiered07(wttest.WiredTigerTestCase):
         self.session.drop(self.localuri)
         self.session.drop(self.uri)
 
+        # By default, the remove_files configuration for drop is true. This means that the
+        # drop operation for tiered tables should both remove the files from the metadata
+        # file and remove the corresponding local object files in the directory. Currently the
+        # below code is commented as the files are not removed from the directory. FIXME: WT-9003
+        # self.assertFalse(os.path.isfile("abc-0000000001.wtobj"))
+        # self.assertFalse(os.path.isfile("abc-0000000002.wtobj"))
+
+        # Dropping a table using the force setting should succeed even if the table does not exist.
+        self.session.drop(self.localuri, 'force=true')
+        self.session.drop(self.uri, 'force=true')
+
+        # Dropping a table should not succeed if the table does not exist.
+        # Test dropping a table that was previously dropped.
+        self.assertRaises(wiredtiger.WiredTigerError,
+            lambda: self.session.drop(self.localuri, None))
+        # Test dropping a table that does not exist.
+        self.assertRaises(wiredtiger.WiredTigerError,
+            lambda: self.session.drop("table:random_non_existent", None))
+
         # Create new table with same name. This should error.
         msg = "/already exists/"
         self.pr('check cannot create with same name')
@@ -148,6 +168,11 @@ class test_tiered07(wttest.WiredTigerTestCase):
         # Create new table with new name.
         self.pr('create new table')
         self.session.create(self.newuri, 'key_format=S')
+
+        # Test the drop operation without removing associated files.
+        self.session.create(self.uri4, 'key_format=S,value_format=S')
+        self.session.drop(self.uri4, 'remove_files=false')
+        self.assertTrue(os.path.isfile("abcde-0000000001.wtobj"))
 
 if __name__ == '__main__':
     wttest.run()

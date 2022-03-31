@@ -11,11 +11,12 @@ stepback: true
 pre:
   - func: "cleanup"
 post:
+  - func: "print python stacktrace"
+  - func: "dump stderr/stdout"
   - func: "upload artifact"
     vars:
       postfix: -${execution}
   - func: "save wt hang analyzer core/debugger files"
-  - func: "dump stderr/stdout"
   - func: "cleanup"
 timeout:
   - func: "run wt hang analyzer"
@@ -167,7 +168,7 @@ functions:
             mkdir -p cmake_build
             cd cmake_build
             $CMAKE -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1 \
-              -DHAVE_DIAGNOSTIC=1 -DCMAKE_BUILD_TYPE=ASan \
+              -DHAVE_DIAGNOSTIC=1 ${NON_BARRIER_DIAGNOSTIC_YIELDS|} -DCMAKE_BUILD_TYPE=ASan \
               -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 ${configure_python_setting|} \
               -G "${cmake_generator|Ninja}" ../.
           fi
@@ -186,7 +187,7 @@ functions:
             mkdir -p cmake_build
             cd cmake_build
             $CMAKE -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1 \
-              -DHAVE_DIAGNOSTIC=1 -DENABLE_STRICT=1  \
+              -DHAVE_DIAGNOSTIC=1 ${NON_BARRIER_DIAGNOSTIC_YIELDS|} -DENABLE_STRICT=1  \
               -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 ${configure_python_setting|} \
               -G "${cmake_generator|Ninja}" ../.
           fi
@@ -494,6 +495,17 @@ functions:
         display_name: WT Hang Analyzer Output - Execution ${execution}
         remote_file: wiredtiger/${build_variant}/${revision}/wt_hang_analyzer/wt-hang-analyzer_${task_name}_${build_id}${postfix|}.tgz
 
+  "print python stacktrace":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build"
+      script: |
+        set -o errexit
+        set -o verbose
+        if [ -d "WT_TEST" ]; then
+          ${python_binary|python3} ../test/evergreen/print_python_stack_trace.py -e ${python_binary|python3} -c WT_TEST -l .
+        fi
+
   "dump stderr/stdout":
     command: shell.exec
     params:
@@ -759,6 +771,9 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
+          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=0
+      - func: "compile wiredtiger"
+        vars:
           posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake -DGNU_C_VERSION=7 -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1
       - func: "compile wiredtiger"
         vars:
@@ -771,6 +786,9 @@ tasks:
     tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=0
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake -DCLANG_C_VERSION=6.0 -DCLANG_CXX_VERSION=6.0 -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1
@@ -1533,6 +1551,15 @@ tasks:
         vars:
           test_name: wt8659_reconstruct_database_from_logs
 
+  - name: csuite-wt8963-insert-stress-test
+    tags: ["stress-test-1"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "csuite test"
+        vars:
+          test_name: wt8963_insert_stress
+
   # End of csuite test tasks
 
   # Start of Python unit test tasks
@@ -1766,6 +1793,17 @@ tasks:
       - func: "compatibility test"
         vars:
           compat_test_args: -u
+
+  - name: compatibility-test-for-patch-releases
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+            test/evergreen/compatibility_test_for_releases.sh -p
 
   - name: compatibility-test-for-wt-standalone-releases
     commands:
@@ -2106,6 +2144,32 @@ tasks:
             ext/storage_sources/s3_store/test/run_s3_unit_tests
             # Run Python testing for all tiered tests
             ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py -j $(nproc) tiered
+
+  - name: tiered-test-small
+    tags: ["pull_request"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: -DENABLE_STRICT=0 -DHAVE_DIAGNOSTIC=1 -DENABLE_S3=1 -DIMPORT_S3_SDK=external -DENABLE_PYTHON=1
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          silent: true
+          script: |
+            set -o errexit
+            export AWS_ACCESS_KEY_ID=${aws_sdk_s3_ext_access_key}
+            export AWS_SECRET_ACCESS_KEY=${aws_sdk_s3_ext_secret_key}
+
+            # Only set verbose after having put the AWS access credentials into the environment.
+            set -o verbose
+
+            # Run S3 extension unit testing
+            ext/storage_sources/s3_store/test/run_s3_unit_tests
+            # Run Python testing for tiered06 
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py -j $(nproc) tiered06
+
 
   - name: spinlock-gcc-test
     commands:
@@ -2621,6 +2685,60 @@ tasks:
   - <<: *recovery-stress-test
     name: recovery-stress-test-3
     tags: ["stress-test-3", "stress-test-zseries-3"]
+
+  - name: format-stress-test-no-barrier
+    tags: ["stress-test-no-barrier"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger with builtins"
+        vars: 
+          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
+      - func: "format test script"
+        vars:
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
+
+  - name: format-stress-sanitizer-test-no-barrier
+    tags: ["stress-test-no-barrier"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger address sanitizer"
+        vars: 
+          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
+      - func: "format test script"
+        vars:
+          format_test_script_args: -t 360
+          test_env_vars:
+            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
+            ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
+
+  - name: race-condition-stress-sanitizer-test-no-barrier
+    tags: ["stress-test-no-barrier"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars: 
+          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DNON_BARRIER_DIAGNOSTIC_YIELDS=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 -DHAVE_BUILTIN_EXTENSION_ZSTD=1
+      - func: "format test script"
+        vars:
+          format_test_script_args: -R -t 360
+          test_env_vars:
+            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
+            ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
+
+  - name: recovery-stress-test-no-barrier
+    tags: ["stress-test-no-barrier"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DNON_BARRIER_DIAGNOSTIC_YIELDS=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
+      - func: "recovery stress test script"
+        vars:
+          times: 25
 
   - name: format-abort-recovery-stress-test
     commands:
@@ -3535,6 +3653,7 @@ buildvariants:
     posix_configure_flags:
       -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       -DCMAKE_C_FLAGS="-ggdb"
+      -DCMAKE_CXX_FLAGS="-ggdb"
       -DHAVE_DIAGNOSTIC=1
       -DENABLE_PYTHON=1
       -DENABLE_ZLIB=1
@@ -3598,6 +3717,7 @@ buildvariants:
       -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
       -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
       -DCMAKE_C_FLAGS="-ggdb"
+      -DCMAKE_CXX_FLAGS="-ggdb"
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
@@ -3661,12 +3781,13 @@ buildvariants:
       -DCMAKE_BUILD_TYPE=UBSan
       -DCC_OPTIMIZE_LEVEL=-O1
       -DENABLE_STRICT=1
-      -DHAVE_DIAGNOTIC=1
+      -DHAVE_DIAGNOSTIC=1
       -DENABLE_STATIC=0
       -DENABLE_TCMALLOC=1
       -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
       -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
       -DCMAKE_C_FLAGS="-ggdb"
+      -DCMAKE_CXX_FLAGS="-ggdb"
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
@@ -3741,6 +3862,46 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
+    - name: ".stress-test-no-barrier"
+    - name: format-abort-recovery-stress-test
+
+- name: ubuntu2004-stress-tests-arm64
+  display_name: Ubuntu 20.04 Stress tests (ARM64)
+  run_on:
+  # FIXME-WT-8946: Use a larger machine with a reduced number of parallel jobs to prevent OOM killer
+  # from interrupting the format sanitizer stress tests. Once we have root caused and fixed the
+  # issue, we should reduce to a smaller machine with the same number of parallel jobs as the cores
+  # available.
+  - ubuntu2004-arm64-large
+  expansions:
+    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
+    make_command: ninja
+    test_env_vars:
+      LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libeatmydata.so
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+    posix_configure_flags:
+      -DHAVE_DIAGNOSTIC=1
+      -DENABLE_PYTHON=1
+      -DENABLE_ZLIB=1
+      -DENABLE_SNAPPY=1
+      -DENABLE_STRICT=1
+      -DENABLE_STATIC=1
+      -DENABLE_TCMALLOC=1
+      -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
+      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+  tasks:
+  # FIXME-WT-8947: For now run the whole stress test suite like we do on the x86 platform. But later
+  # find a smaller set of tests that give an optimal test coverage while being mindful of machine
+  # costs and availability.
+    - name: ".stress-test-1"
+    - name: ".stress-test-2"
+    - name: ".stress-test-3"
+    - name: ".stress-test-4"
+    - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
 
 - name: ubuntu2004-perf-tests
@@ -3850,6 +4011,7 @@ buildvariants:
       -DENABLE_STATIC=1
       -DENABLE_TCMALLOC=1
       -DENABLE_ZLIB=1
+      -DCMAKE_CXX_FLAGS="-ggdb"
       -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
   tasks:
     - name: compile
@@ -3976,6 +4138,7 @@ buildvariants:
   - ubuntu2004-test
   tasks:
     - name: compatibility-test-for-newer-releases
+    - name: compatibility-test-for-patch-releases
     - name: import-compatibility-test
 
 - name: windows-64
@@ -4066,10 +4229,10 @@ buildvariants:
     - name: verify-datafile-big-endian
     - name: verify-datafile-from-little-endian
 
-- name: ubuntu1804-ppc
-  display_name: "~ Ubuntu 18.04 PPC"
+- name: rhel8-ppc
+  display_name: "~ RHEL8 PPC"
   run_on:
-  - ubuntu1804-power8-test
+  - rhel81-power8-small
   batchtime: 120 # 2 hours
   expansions:
     format_test_setting: ulimit -c unlimited
@@ -4099,10 +4262,10 @@ buildvariants:
     - name: ".stress-test-ppc-1"
     - name: ".stress-test-ppc-2"
 
-- name: ubuntu1804-zseries
-  display_name: "~ Ubuntu 18.04 zSeries"
+- name: rhel8-zseries
+  display_name: "~ RHEL8 zSeries"
   run_on:
-  - ubuntu1804-zseries-test
+  - rhel80-zseries-test
   batchtime: 120 # 2 hours
   expansions:
     test_env_vars:
