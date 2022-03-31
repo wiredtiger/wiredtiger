@@ -63,8 +63,11 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('advance', dict(do_advance=True)),
     ]
     name_values = [
-        ('named', dict(second_checkpoint='second_checkpoint')),
-        ('unnamed', dict(second_checkpoint=None, long_only=True)),
+        # Reopening and unnamed checkpoints will not work as intended because the reopen makes
+        # a new checkpoint.
+        ('named', dict(second_checkpoint='second_checkpoint', do_reopen=False)),
+        ('named_reopen', dict(second_checkpoint='second_checkpoint', do_reopen=True)),
+        ('unnamed', dict(second_checkpoint=None, do_reopen=False, long_only=True)),
     ]
     scenarios = make_scenarios(format_values,
         overlap_values, stable_ts_values, advance_values, name_values)
@@ -180,6 +183,10 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             done.set()
             ckpt.join()
 
+        # Reopen if desired to cycle the write generations.
+        if self.do_reopen:
+            self.reopen_conn()
+
         # There are two states we should be able to produce. In all cases we should
         # see all the original data (value_a at time 10, value_b at time 20). If
         # the value_c transaction appears in the checkpoint we should see all the
@@ -231,14 +238,15 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
         # If we haven't died yet, pretend to crash and run RTS to see if the
         # checkpoint was inconsistent.
-        simulate_crash_restart(self, ".", "RESTART")
+        # (This only works if we didn't reopen the connection, so don't bother if we did.)
+        if not self.do_reopen:
+            simulate_crash_restart(self, ".", "RESTART")
 
-        # Make sure we did get an inconsistent checkpoint.
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        inconsistent_ckpt = stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2]
-        stat_cursor.close()
-        self.assertGreater(inconsistent_ckpt, 0)
-
+            # Make sure we did get an inconsistent checkpoint.
+            stat_cursor = self.session.open_cursor('statistics:', None, None)
+            inconsistent_ckpt = stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2]
+            stat_cursor.close()
+            self.assertGreater(inconsistent_ckpt, 0)
 
 if __name__ == '__main__':
     wttest.run()

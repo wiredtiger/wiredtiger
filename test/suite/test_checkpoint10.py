@@ -39,7 +39,6 @@ from wtscenario import make_scenarios
 # open it for read. No timestamps in this version.
 
 class test_checkpoint(wttest.WiredTigerTestCase):
-    conn_config = 'statistics=(all),timing_stress_for_test=[checkpoint_slow]'
     session_config = 'isolation=snapshot'
 
     format_values = [
@@ -53,10 +52,23 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('overlap', dict(do_overlap=True)),
     ]
     name_values = [
-        ('named', dict(second_checkpoint='second_checkpoint')),
-        ('unnamed', dict(second_checkpoint=None)),
+        # Reopening and unnamed checkpoints will not work as intended because the reopen makes
+        # a new checkpoint.
+        ('named', dict(second_checkpoint='second_checkpoint', do_reopen=False)),
+        ('named_reopen', dict(second_checkpoint='second_checkpoint', do_reopen=True)),
+        ('unnamed', dict(second_checkpoint=None, do_reopen=False)),
     ]
-    scenarios = make_scenarios(format_values, overlap_values, name_values)
+    log_values = [
+        ('nonlogged', dict(do_log=False)),
+        ('logged', dict(do_log=True)),
+    ]
+    scenarios = make_scenarios(format_values, overlap_values, name_values, log_values)
+
+    def conn_config(self):
+        cfg = 'statistics=(all),timing_stress_for_test=[checkpoint_slow]'
+        if self.do_log:
+            cfg += ',log=(enabled=true)'
+        return cfg 
 
     def large_updates(self, uri, ds, nrows, value):
         cursor = self.session.open_cursor(uri)
@@ -142,6 +154,10 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             done.set()
             ckpt.join()
 
+        # Reopen if desired to cycle the write generations.
+        if self.do_reopen:
+            self.reopen_conn()
+
         # There are two states we should be able to produce: one with the original
         # data and one with the additional data.
         #
@@ -163,14 +179,15 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
         # If we haven't died yet, pretend to crash and run RTS to see if the
         # checkpoint was inconsistent.
-        simulate_crash_restart(self, ".", "RESTART")
+        # (This only works if we didn't reopen the connection, so don't bother if we did.)
+        if not self.do_reopen:
+            simulate_crash_restart(self, ".", "RESTART")
 
-        # Make sure we did get an inconsistent checkpoint.
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        inconsistent_ckpt = stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2]
-        stat_cursor.close()
-        self.assertGreater(inconsistent_ckpt, 0)
-
+            # Make sure we did get an inconsistent checkpoint.
+            stat_cursor = self.session.open_cursor('statistics:', None, None)
+            inconsistent_ckpt = stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2]
+            stat_cursor.close()
+            self.assertGreater(inconsistent_ckpt, 0)
 
 if __name__ == '__main__':
     wttest.run()
