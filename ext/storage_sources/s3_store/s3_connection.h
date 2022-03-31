@@ -37,10 +37,8 @@
 #include <string>
 #include <vector>
 
-/*
- * Class to represent an active connection to the AWS S3 endpoint. Allows for interaction with S3
- * client.
- */
+// Class to represent an active connection to the AWS S3 endpoint. Allows for interaction with S3-Crt
+// client. Note we are using S3-Crt client in this class, which differs to the S3 client. 
 class S3Connection {
     public:
     S3Connection(const Aws::Auth::AWSCredentials &credentials,

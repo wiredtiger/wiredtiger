@@ -1,3 +1,30 @@
+/*-
+ * Public Domain 2014-present MongoDB, Inc.
+ * Public Domain 2008-2014 WiredTiger, Inc.
+ *
+ * This is free and unencumbered software released into the public domain.
+ *
+ * Anyone is free to copy, modify, publish, use, compile, sell, or
+ * distribute this software, either in source code form or as a compiled
+ * binary, for any purpose, commercial or non-commercial, and by any
+ * means.
+ *
+ * In jurisdictions that recognize copyright laws, the author or authors
+ * of this software dedicate any and all copyright interest in the
+ * software to the public domain. We make this dedication for the benefit
+ * of the public at large and to the detriment of our heirs and
+ * successors. We intend this dedication to be an overt act of
+ * relinquishment in perpetuity of all present and future rights to this
+ * software under copyright law.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
 #include <aws/core/Aws.h>
 #include "s3_log_system.h"
 #include <cstdarg>
@@ -50,8 +77,8 @@ void
 S3LogSystem::LogVerboseMessage(int32_t verbosityLevel, const std::string &message) const
 {
     if (verbosityLevel <= _wtVerbosityLevel) {
-        /* Use err_printf for error and warning messages and use msg_printf for notice, info and
-         * debug messages. */
+        // Use err_printf for error and warning messages and use msg_printf for notice, info and
+        // debug messages.
         if (verbosityLevel < -1)
             _wtApi->err_printf(_wtApi, NULL, "%s", message.c_str());
         else
@@ -75,7 +102,7 @@ void
 S3LogSystem::SetWtVerbosityLevel(int32_t wtVerbosityLevel)
 {
     _wtVerbosityLevel = wtVerbosityLevel;
-    /* If the verbosity level is out of range it will default to AWS SDK Error level. */
+    // If the verbosity level is out of range it will default to AWS SDK Error level.
     if (verbosityMapping.find(_wtVerbosityLevel) != verbosityMapping.end())
         _awsLogLevel = verbosityMapping.at(_wtVerbosityLevel);
     else
