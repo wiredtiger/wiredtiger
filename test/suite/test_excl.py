@@ -41,12 +41,13 @@ class test_create_excl(wttest.WiredTigerTestCase):
             bucket = get_bucket1_name('s3_store'),
             bucket_prefix = generate_s3_prefix(),
             ss_name = 's3_store')),
+        ('non_tiered', dict(auth_token = '',
+            bucket = '', bucket_prefix = '', ss_name = '')),
     ]
 
     types = [
-        ('file', dict(type = 'file', uri_type = 'file:')),
-        ('table', dict(type = 'table', uri_type = 'table:')),
-        ('tiered', dict(type = 'tiered', uri_type = 'table:')),
+        ('file', dict(type = 'file:')),
+        ('table', dict(type = 'table:')),
     ]
 
     scenarios = make_scenarios(storage_sources, types)
@@ -74,31 +75,23 @@ class test_create_excl(wttest.WiredTigerTestCase):
         extlist.extension('storage_sources', self.ss_name + config)
 
     def test_create_excl(self):
-        uri = self.uri_type + "create_excl_" + self.type
-        exclusive_config = "exclusive=true"
-        not_exclusive_config = "exclusive=false"
-
-        # As we are using connection level tiered storage configurations specify that
-        # we want a normal non-tiered table by appending an additional config.
-        if self.type == "table":
-            exclusive_config += ",tiered_storage=(name=none)"
-            not_exclusive_config += ",tiered_storage=(name=none)"
+        uri = self.type + "create_excl"
 
         # Create the object with the exclusive setting.
-        self.session.create(uri, exclusive_config)
+        self.session.create(uri, "exclusive=true")
 
         # Exclusive re-create should error.
         self.assertRaises(wiredtiger.WiredTigerError,
-            lambda: self.session.create(uri, exclusive_config))
+            lambda: self.session.create(uri, "exclusive=true"))
 
         # Non-exclusive re-create is allowed.
-        self.session.create(uri, not_exclusive_config)
+        self.session.create(uri, "exclusive=false")
 
         # Exclusive create on a table that does not exist should succeed.
-        self.session.create(uri + "_non_existent", exclusive_config)
+        self.session.create(uri + "_non_existent", "exclusive=true")
 
         # Non-exclusive create is allowed.
-        self.session.create(uri + "_non_existent1", not_exclusive_config)
+        self.session.create(uri + "_non_existent1", "exclusive=false")
 
 if __name__ == '__main__':
     wttest.run()
