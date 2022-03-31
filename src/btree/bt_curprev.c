@@ -648,7 +648,7 @@ restart_read_page:
  *     Move to the previous record in the tree.
  */
 int
-__wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating, bool release_page)
+__wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating, bool evict_reposition)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -825,8 +825,8 @@ err:
     }
     F_CLR(cbt, WT_CBT_ITERATE_RETRY_NEXT);
 
-    if (ret == 0)
-        WT_RET(__wt_btcur_reposition(cbt, release_page));
+    if (ret == 0 && evict_reposition)
+        WT_RET(__wt_btcur_evict_reposition(cbt));
 
     return (ret);
 }

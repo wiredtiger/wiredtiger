@@ -513,24 +513,25 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
 }
 
 /*
- * __wt_btcur_reposition --
+ * __wt_btcur_evict_reposition --
  *     Try to evict the page and reposition the cursor on the saved key.
  */
 int
-__wt_btcur_reposition(WT_CURSOR_BTREE *cbt, bool release_page)
+__wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
 {
     WT_CURSOR *cursor;
+    WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
 
-    if (release_page && session->txn->isolation == WT_ISO_SNAPSHOT) { // &&
-    //   !WT_SESSION_IS_CHECKPOINT(session) &&
-    //   F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION)) {
+    if (session->txn->isolation == WT_ISO_SNAPSHOT && !WT_SESSION_IS_CHECKPOINT(session) &&
+      F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION)) {
         WT_RET(__wt_cursor_localkey(cursor));
         WT_RET(__cursor_reset(cbt, true));
-        WT_RET(__wt_btcur_search(cbt, false));
+        if ((ret = __wt_btcur_search(cbt, false)) != 0)
+            WT_RET_PANIC(session, ret, "failed to reposition the cursor");
     }
     return (0);
 }
@@ -540,7 +541,7 @@ __wt_btcur_reposition(WT_CURSOR_BTREE *cbt, bool release_page)
  *     Search for a matching record in the tree.
  */
 int
-__wt_btcur_search(WT_CURSOR_BTREE *cbt, bool release_page)
+__wt_btcur_search(WT_CURSOR_BTREE *cbt, bool evict_reposition)
 {
     WT_BTREE *btree;
     WT_CURFILE_STATE state;
@@ -638,8 +639,8 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt, bool release_page)
         WT_ERR(__wt_cursor_key_order_init(cbt));
 #endif
 
-    if (ret == 0)
-        WT_ERR(__wt_btcur_reposition(cbt, release_page));
+    if (ret == 0 && evict_reposition)
+        WT_ERR(__wt_btcur_evict_reposition(cbt));
 
 err:
     if (ret != 0) {
@@ -813,7 +814,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 
 done:
     if (ret == 0)
-        WT_ERR(__wt_btcur_reposition(cbt, true));
+        WT_ERR(__wt_btcur_evict_reposition(cbt));
 err:
     if (ret == 0 && exactp != NULL)
         *exactp = exact;

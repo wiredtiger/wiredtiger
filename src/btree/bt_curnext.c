@@ -888,12 +888,12 @@ err:
  *     Move to the next record in the tree.
  */
 int
-__wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating, bool release_page)
+__wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating, bool evict_reposition)
 {
-
     WT_RET(__wt_btcur_next_prefix(cbt, NULL, truncating));
 
-    WT_RET(__wt_btcur_reposition(cbt, release_page));
+    if (evict_reposition)
+        WT_RET(__wt_btcur_evict_reposition(cbt));
 
     return (0);
 }
