@@ -107,14 +107,7 @@ __curhs_file_cursor_next(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
     WT_DECL_RET;
 
-    /*
-     * Do not relax the isolation level when reading from a checkpoint. We want to see what was
-     * committed as of the checkpoint and not see anything committed later.
-     */
-    if (WT_READING_CHECKPOINT(session))
-        ret = cursor->next(cursor);
-    else
-        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
     return (ret);
 }
 
@@ -127,14 +120,7 @@ __curhs_file_cursor_prev(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
     WT_DECL_RET;
 
-    /*
-     * Do not relax the isolation level when reading from a checkpoint. We want to see what was
-     * committed as of the checkpoint and not see anything committed later.
-     */
-    if (WT_READING_CHECKPOINT(session))
-        ret = cursor->prev(cursor);
-    else
-        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->prev(cursor));
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->prev(cursor));
     return (ret);
 }
 
@@ -148,15 +134,8 @@ __curhs_file_cursor_search_near(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int
 {
     WT_DECL_RET;
 
-    /*
-     * Do not relax the isolation level when reading from a checkpoint. We want to see what was
-     * committed as of the checkpoint and not see anything committed later.
-     */
-    if (WT_READING_CHECKPOINT(session))
-        ret = cursor->search_near(cursor, exactp);
-    else
-        WT_WITH_TXN_ISOLATION(
-          session, WT_ISO_READ_UNCOMMITTED, ret = cursor->search_near(cursor, exactp));
+    WT_WITH_TXN_ISOLATION(
+      session, WT_ISO_READ_UNCOMMITTED, ret = cursor->search_near(cursor, exactp));
     return (ret);
 }
 
