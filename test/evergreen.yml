@@ -4033,7 +4033,9 @@ buildvariants:
       LD_LIBRARY_PATH=$top_builddir/.libs
   tasks:
     - name: coverage-report
-    - name: cyclomatic-complexity
+  # Cyclomatic complexity metrics are NOT expected to be captured on Evergreen projects other than
+  # "WiredTiger (develop)".
+    # - name: cyclomatic-complexity
 
 - name: compatibility-tests-less-frequent
   # Compatibility tests are NOT expected to be triggered on Evergreen projects
