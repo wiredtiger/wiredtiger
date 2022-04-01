@@ -4019,20 +4019,23 @@ buildvariants:
     - name: long-test
     - name: configure-combinations
 
-- name: code-statistics
-  display_name: "Code statistics"
-  batchtime: 10080 # 7 days
-  run_on:
-  - ubuntu2004-test
-  expansions:
-    test_env_vars:
-      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      top_dir=$(git rev-parse --show-toplevel)
-      top_builddir=$top_dir/build_posix
-      LD_LIBRARY_PATH=$top_builddir/.libs
-  tasks:
-    - name: coverage-report
+# Code coverage and complexity metrics are not required on the mongodb-5.0 branch as
+# they are only required on the 'develop' branch.
+#
+#- name: code-statistics
+#  display_name: "Code statistics"
+#  batchtime: 10080 # 7 days
+#  run_on:
+#  - ubuntu2004-test
+#  expansions:
+#    test_env_vars:
+#      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
+#      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+#      top_dir=$(git rev-parse --show-toplevel)
+#      top_builddir=$top_dir/build_posix
+#      LD_LIBRARY_PATH=$top_builddir/.libs
+#  tasks:
+#    - name: coverage-report
   # Cyclomatic complexity metrics are NOT expected to be captured on Evergreen projects other than
   # "WiredTiger (develop)".
     # - name: cyclomatic-complexity
