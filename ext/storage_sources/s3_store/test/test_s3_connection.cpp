@@ -386,9 +386,7 @@ TestBadBucket(const Aws::S3Crt::ClientConfiguration &config)
     return (TEST_SUCCESS);
 }
 
-//
- * main --
- *     Set up configs and call unit tests.
+// Set up configs and call unit tests.
  
 int
 main()
