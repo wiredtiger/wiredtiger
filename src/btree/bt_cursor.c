@@ -526,17 +526,20 @@ __wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
     cursor = &cbt->iface;
     session = CUR2S(cbt);
 
-    if (session->txn->isolation == WT_ISO_SNAPSHOT && !WT_SESSION_IS_CHECKPOINT(session) &&
-      F_ISSET_ATOMIC_16(cbt->ref->page, WT_PAGE_FORCE_EVICTION)) {
-        F_SET(cbt, WT_CBT_RELEASE_EVICT_PAGE);
-        WT_ERR(__wt_cursor_localkey(cursor));
-        WT_ERR(__cursor_reset(cbt));
+    /*
+     * Try to evict the page and then reposition the cursor back to the page for operations with
+     * snapshot isolation and for pages that require urgent eviction. Snapshot isolation level
+     * maintains a snapshot allowing the cursor to point at the correct value after a reposition
+     * unlike read committed isolation level.
+     */
+    if (session->txn->isolation == WT_ISO_SNAPSHOT &&
+      __wt_page_evict_soon_check(session, cbt->ref, NULL)) {
+        WT_RET(__wt_cursor_localkey(cursor));
+        WT_RET(__cursor_reset(cbt));
         if ((ret = __wt_btcur_search(cbt, false)) != 0)
-            WT_ERR_PANIC(session, ret, "failed to reposition the cursor");
+            WT_RET_PANIC(session, ret, "failed to reposition the cursor");
     }
 
-err:
-    F_CLR(cbt, WT_CBT_RELEASE_EVICT_PAGE);
     return (ret);
 }
 

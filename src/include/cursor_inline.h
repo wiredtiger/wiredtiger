@@ -262,7 +262,7 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
      * there's a debug mode where an application can force the eviction in order to test or stress
      * the system. Clear the reference so we never try the release twice.
      */
-    if (F_ISSET(cursor, WT_CURSTD_DEBUG_RESET_EVICT) || F_ISSET(cbt, WT_CBT_RELEASE_EVICT_PAGE))
+    if (F_ISSET(cursor, WT_CURSTD_DEBUG_RESET_EVICT))
         WT_TRET_BUSY_OK(__wt_page_release_evict(session, cbt->ref, 0));
     else
         ret = __wt_page_release(session, cbt->ref, 0);

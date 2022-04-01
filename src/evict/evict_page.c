@@ -45,6 +45,36 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
+ * __wt_page_evict_soon_check --
+ *     Check whether the page should be evicted urgently.
+ */
+bool
+__wt_page_evict_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_split)
+{
+    WT_BTREE *btree;
+    WT_PAGE *page;
+
+    btree = S2BT(session);
+    page = ref->page;
+
+    /*
+     * Attempt to evict pages with the special "oldest" read generation. This is set for pages that
+     * grow larger than the configured memory_page_max setting, when we see many deleted items, and
+     * when we are attempting to scan without trashing the cache.
+     *
+     * Checkpoint should not queue pages for urgent eviction if they require dirty eviction: there
+     * is a special exemption that allows checkpoint to evict dirty pages in a tree that is being
+     * checkpointed, and no other thread can help with that. Checkpoints don't rely on this code for
+     * dirty eviction: that is handled explicitly in __wt_sync_file.
+     */
+    if (WT_READGEN_EVICT_SOON(page->read_gen) && btree->evict_disabled == 0 &&
+      __wt_page_can_evict(session, ref, inmem_split) &&
+      (!WT_SESSION_IS_CHECKPOINT(session) || __wt_page_evict_clean(page)))
+        return (true);
+    return (false);
+}
+
+/*
  * __wt_page_release_evict --
  *     Release a reference to a page, and attempt to immediately evict it.
  */
@@ -125,7 +155,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
      */
     time_start = 0;
     if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
-        F_SET_ATOMIC_16(ref->page, WT_PAGE_FORCE_EVICTION);
         time_start = __wt_clock(session);
         WT_STAT_CONN_INCR(session, cache_eviction_force);
 
