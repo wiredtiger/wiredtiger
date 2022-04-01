@@ -968,8 +968,8 @@ tasks:
         vars:
           directory: test/thread
 
-- name: bench-wtperf-test
-   tags: ["pull_request"]
+  - name: bench-wtperf-test
+    tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
