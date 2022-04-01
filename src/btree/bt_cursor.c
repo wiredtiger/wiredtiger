@@ -525,6 +525,7 @@ __wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
+    F_CLR(cbt, WT_CBT_EVICT_REPOSITION);
 
     /*
      * Try to evict the page and then reposition the cursor back to the page for operations with
