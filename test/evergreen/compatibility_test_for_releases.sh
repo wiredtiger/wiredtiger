@@ -693,9 +693,10 @@ if [ "$patch_version" = true ]; then
 
         (build_branch $pv)
         rtn=$(is_test_checkpoint_recovery_supported $pv)
+        patch_fix_included=$(git log --oneline --grep=WT-8708 -b "$pv" --)
 
         # Apply patch fix from WT-8708 to already released compatible versions to avoid test/checkpoint setting commit timestamp less than stable timestamp
-        if [ $rtn == "yes" ] && ! git log --oneline | grep WT-8708 -b "$pv" --; then
+        if [ $rtn == "yes" ] && [ ! $patch_fix_included ]; then
             cd $pv;
 
             git format-patch -1 d4b0ad6cacb874fdc20bcc76311d789dd5a01441;
