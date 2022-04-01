@@ -267,7 +267,7 @@ thread_insert(void *arg)
             testutil_check(session->rollback_transaction(session, NULL));
             continue;
         }
-
+        testutil_assert(ret == 0 || ret == WT_ROLLBACK);
         testutil_check(maincur->reset(maincur));
         testutil_check(session->commit_transaction(session, NULL));
         if (i % 1000 == 0 && i != 0) {
@@ -388,6 +388,6 @@ create_perf_json(bool usecolumns, int njoins, int nwarnings)
                       "[{\"info\":{\"test_name\": \"%s\"},"
                       "\"metrics\": [{\"name\":\"Cursor Joins\",\"value\":%d}, {\"name\":\"GAP"
                       " Warnings\",\"value\":%d}]}]",
-                      testname, njoins, nwarnings) >= 0);
+                      testname, njoins, nwarnings) > 0);
     testutil_assert(fclose(fp) == 0);
 }
