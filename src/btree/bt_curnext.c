@@ -888,11 +888,11 @@ err:
  *     Move to the next record in the tree.
  */
 int
-__wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating, bool evict_reposition)
+__wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 {
     WT_RET(__wt_btcur_next_prefix(cbt, NULL, truncating));
 
-    if (evict_reposition)
+    if (F_ISSET(cbt, WT_CBT_EVICT_REPOSITION))
         WT_RET(__wt_btcur_evict_reposition(cbt));
 
     return (0);

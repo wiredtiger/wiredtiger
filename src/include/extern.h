@@ -271,13 +271,13 @@ extern int __wt_btcur_insert_check(WT_CURSOR_BTREE *cbt)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating, bool evict_reposition)
+extern int __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating, bool evict_reposition)
+extern int __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -286,8 +286,7 @@ extern int __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
 extern int __wt_btcur_reserve(WT_CURSOR_BTREE *cbt)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_reset(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_btcur_search(WT_CURSOR_BTREE *cbt, bool evict_reposition)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_btcur_search(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
