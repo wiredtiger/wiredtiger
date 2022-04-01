@@ -4021,6 +4021,9 @@ buildvariants:
 
 - name: code-statistics
   display_name: "Code statistics"
+  # Code coverage and complexity metrics are not required on the mongodb-5.0 branch as
+  # they are only required on the 'develop' branch.
+  activate: false
   batchtime: 10080 # 7 days
   run_on:
   - ubuntu2004-test
@@ -4033,9 +4036,7 @@ buildvariants:
       LD_LIBRARY_PATH=$top_builddir/.libs
   tasks:
     - name: coverage-report
-  # Cyclomatic complexity metrics are NOT expected to be captured on Evergreen projects other than
-  # "WiredTiger (develop)".
-    # - name: cyclomatic-complexity
+    - name: cyclomatic-complexity
 
 - name: compatibility-tests-less-frequent
   # Compatibility tests are NOT expected to be triggered on Evergreen projects
