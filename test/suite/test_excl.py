@@ -26,55 +26,23 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
-import os, wiredtiger, wttest
+from helper_tiered import TieredConfigMixin, tiered_storage_sources
+import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 # Test session.create with the exclusive configuration.
-class test_create_excl(wttest.WiredTigerTestCase):
-    storage_sources = [
-        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
-            bucket = get_bucket1_name('dir_store'),
-            bucket_prefix = "pfx_",
-            ss_name = 'dir_store')),
-        ('s3', dict(auth_token = get_auth_token('s3_store'),
-            bucket = get_bucket1_name('s3_store'),
-            bucket_prefix = generate_s3_prefix(),
-            ss_name = 's3_store')),
-        ('non_tiered', dict(auth_token = '',
-            bucket = '', bucket_prefix = '', ss_name = '')),
-    ]
-
+class test_create_excl(TieredConfigMixin, wttest.WiredTigerTestCase):
     types = [
         ('file', dict(type = 'file:')),
         ('table', dict(type = 'table:')),
     ]
 
-    scenarios = make_scenarios(storage_sources, types)
-
-    def conn_config(self):
-        if self.ss_name == 'dir_store' and not os.path.exists(self.bucket):
-            os.mkdir(self.bucket)
-        return \
-          'tiered_storage=(auth_token=%s,' % self.auth_token + \
-          'bucket=%s,' % self.bucket + \
-          'bucket_prefix=%s,' % self.bucket_prefix + \
-          'name=%s),tiered_manager=(wait=0)' % self.ss_name
-
-    def conn_extensions(self, extlist):
-        config = ''
-        # S3 store is built as an optional loadable extension, not all test environments build S3.
-        if self.ss_name == 's3_store':
-            #config = '=(config=\"(verbose=1)\")'
-            extlist.skip_if_missing = True
-        #if self.ss_name == 'dir_store':
-            #config = '=(config=\"(verbose=1,delay_ms=200,force_delay=3)\")'
-        # Windows doesn't support dynamically loaded extension libraries.
-        if os.name == 'nt':
-            extlist.skip_if_missing = True
-        extlist.extension('storage_sources', self.ss_name + config)
+    scenarios = make_scenarios(tiered_storage_sources, types)
 
     def test_create_excl(self):
+        if self.is_tiered_scenario() and self.type == 'file:':
+            self.skipTest('Tiered storage does not support file URIs.')
+
         uri = self.type + "create_excl"
 
         # Create the object with the exclusive setting.
