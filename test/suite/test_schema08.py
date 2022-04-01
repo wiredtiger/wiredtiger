@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, shutil
+from helper_tiered import TieredConfigMixin, tiered_storage_sources
 from suite_subprocess import suite_subprocess
 import wttest
 from wtscenario import make_scenarios
@@ -37,7 +38,7 @@ from wtscenario import make_scenarios
 # After doing the operation, create a backup copy of the directory,
 # walk the log recording each LSN, truncate the backup copy of the
 # log walking backward from the LSNs and then run recovery.
-class test_schema08(wttest.WiredTigerTestCase, suite_subprocess):
+class test_schema08(TieredConfigMixin, wttest.WiredTigerTestCase, suite_subprocess):
     # We want to copy, truncate and run recovery so keep the log
     # file small and don't pre-allocate any. We expect a small log.
     conn_config = 'log=(enabled,file_max=100k,prealloc=false,remove=false)'
@@ -58,16 +59,16 @@ class test_schema08(wttest.WiredTigerTestCase, suite_subprocess):
         ('no_ckpt', dict(ckpt=False)),
         ('with_ckpt', dict(ckpt=True)),
     ]
-    scenarios = make_scenarios(types, ops, ckpt)
+    scenarios = make_scenarios(tiered_storage_sources, types, ops, ckpt)
     count = 0
     lsns = []
     backup_pfx = "BACKUP."
 
     def do_alter(self, uri, suburi):
         alter_param = 'cache_resident=true'
-        self.session.alter(uri, alter_param)
+        self.alter(uri, alter_param)
         if suburi != None:
-            self.session.alter(suburi, alter_param)
+            self.alter(suburi, alter_param)
 
     def do_ops(self, uri, suburi):
         if (self.schema_ops == 'none'):
@@ -151,6 +152,9 @@ class test_schema08(wttest.WiredTigerTestCase, suite_subprocess):
     # Test that creating and dropping tables does not write individual
     # log records.
     def test_schema08_create(self):
+        if self.is_tiered_scenario() and (self.uri == 'lsm:' or self.uri == 'file:'):
+            self.skipTest('Tiered storage does not support LSM or file URIs.')
+
         self.count = 0
         self.lsns = []
         uri = self.uri + 'table0'

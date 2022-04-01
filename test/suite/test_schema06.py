@@ -27,20 +27,23 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
+from helper_tiered import TieredConfigMixin, tiered_storage_sources
 from wtscenario import make_scenarios
 
 # test_schema06.py
 #    Repeatedly create and drop indices
-class test_schema06(wttest.WiredTigerTestCase):
+class test_schema06(TieredConfigMixin, wttest.WiredTigerTestCase):
     """
     Test basic operations
     """
     nentries = 1000
 
-    scenarios = make_scenarios([
+    types = [
         ('normal', { 'idx_config' : '' }),
         ('lsm', { 'idx_config' : ',type=lsm' }),
-    ])
+    ]
+
+    scenarios = make_scenarios(tiered_storage_sources, types)
 
     def flip(self, inum, val):
         """

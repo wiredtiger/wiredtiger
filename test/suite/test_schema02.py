@@ -27,20 +27,23 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
+from helper_tiered import TieredConfigMixin, tiered_storage_sources
 from wtscenario import make_scenarios
 
 # test_schema02.py
 #    Columns, column groups, indexes
-class test_schema02(wttest.WiredTigerTestCase):
+class test_schema02(TieredConfigMixin, wttest.WiredTigerTestCase):
     """
     Test basic operations
     """
     nentries = 1000
 
-    scenarios = make_scenarios([
+    types = [
         ('normal', { 'idx_config' : '' }),
         ('lsm', { 'idx_config' : ',type=lsm' }),
-    ])
+    ]
+
+    scenarios = make_scenarios(tiered_storage_sources, types)
 
     def expect_failure_colgroup(self, name, configstr, match):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -63,6 +66,12 @@ class test_schema02(wttest.WiredTigerTestCase):
         self.session.create("colgroup:main:c1", "columns=(S1,i2)")
 
     def test_colgroup_failures(self):
+        # We skip testing the tiered storage scenarios as we fail to create
+        # column groups in tiered storage scenarios. We should fix this issue
+        # and then remove the condition to skip tests. FIXME: WT-9048
+        if self.is_tiered_scenario():
+            self.skipTest('Tiered storage does not work with column groups.')
+
         # too many columns
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.session.create("table:main", "key_format=S,"
