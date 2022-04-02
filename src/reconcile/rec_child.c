@@ -61,10 +61,12 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_C
         /*
          * MongoDB builds have a data consistency bug because we don't write timestamp information,
          * required to correctly handle fast-truncate objects. Checkpoint must continue because we
-         * don't have a choice, but eviction can fail the attempt.
+         * don't have a choice, but eviction can fail the attempt. In the case of checkpoint, don't
+         * mark the page clean, that way it can't be evicted regardless.
          */
         if (F_ISSET(r, WT_REC_EVICT))
             return (__wt_set_return(session, EBUSY));
+        r->leave_dirty = true;
 #endif
         *statep = WT_CHILD_PROXY;
         return (0);

@@ -1871,7 +1871,8 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
     }
 #ifdef WT_STANDALONE_BUILD_FT_FIX
     /* Set the fast-truncate proxy cell information flag. */
-    F_SET(dsk, WT_PAGE_FT_UPDATE);
+    if (page->type == WT_PAGE_ROW_INT)
+        F_SET(dsk, WT_PAGE_FT_UPDATE);
 #endif
 
     dsk->unused = 0;
