@@ -1224,11 +1224,11 @@ __rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
 }
 
 /*
- * __rollback_to_stable__page_skip --
+ * __rollback_to_stable_page_skip --
  *     Skip if rollback to stable doesn't require reading this page.
  */
 static int
-__rollback_to_stable__page_skip(
+__rollback_to_stable_page_skip(
   WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
     WT_PAGE_DELETED *page_del;
