@@ -377,6 +377,11 @@ typedef uint64_t wt_timestamp_t;
  * DO NOT EDIT: automatically built by dist/s_typedef.
  */
 
+/* Standalone builds include fast-truncate data consistency fixes. */
+#ifdef WT_STANDALONE_BUILD
+#define WT_STANDALONE_BUILD_FT_FIX 1
+#endif
+
 /*******************************************
  * WiredTiger internal include files.
  *******************************************/

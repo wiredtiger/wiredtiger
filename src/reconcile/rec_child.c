@@ -15,11 +15,13 @@
 static int
 __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_CHILD_STATE *statep)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_PAGE_DELETED *page_del;
     WT_TXN *txn;
 
     *statep = WT_CHILD_IGNORE;
 
+    conn = S2C(session);
     txn = session->txn;
 
     /*
@@ -51,6 +53,24 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_C
      * Deal with underlying disk blocks. If there are readers that might want to see the page's
      * state before it's deleted, or the fast-delete can be undone by RTS, we can't discard the
      * pages. Write a cell to the internal page with information describing the fast-delete.
+     */
+    if (__wt_page_del_active(session, ref, true) ||
+      (conn->txn_global.has_stable_timestamp &&
+        page_del->timestamp >= conn->txn_global.stable_timestamp)) {
+#ifndef WT_STANDALONE_BUILD_FT_FIX
+        /*
+         * MongoDB builds have a data consistency bug because we don't write timestamp information,
+         * required to correctly handle fast-truncate objects. Checkpoint must continue because we
+         * don't have a choice, but eviction can fail the attempt.
+         */
+        if (F_ISSET(r, WT_REC_EVICT))
+            return (__wt_set_return(session, EBUSY));
+#endif
+        *statep = WT_CHILD_PROXY;
+        return (0);
+    }
+
+    /*
      * Otherwise, we can discard the leaf page to the block manager and no cell needs to be written.
      * Done outside of the underlying tracking routines because this action is permanent and
      * irrevocable. (Clearing the address means we've lost track of the disk address in a permanent
@@ -58,15 +78,8 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_C
      * read into this part of the name space again, the cache read function instantiates an entirely
      * new page.)
      */
-    if (__wt_page_del_active(session, ref, true) ||
-      (S2C(session)->txn_global.has_stable_timestamp &&
-        page_del->timestamp >= S2C(session)->txn_global.stable_timestamp))
-        *statep = WT_CHILD_PROXY;
-    else {
-        WT_RET(__wt_ref_block_free(session, ref));
-        __wt_overwrite_and_free(session, ref->ft_info.del);
-    }
-
+    WT_RET(__wt_ref_block_free(session, ref));
+    __wt_overwrite_and_free(session, ref->ft_info.del);
     return (0);
 }
 

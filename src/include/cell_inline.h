@@ -189,6 +189,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
     *flagsp = flags;
 }
 
+#ifdef WT_STANDALONE_BUILD_FT_FIX
 /*
  * __cell_pack_addr_del --
  *     Pack the fast-delete information for an address.
@@ -214,6 +215,7 @@ __cell_pack_addr_del(uint8_t **pp, WT_PAGE_DELETED *page_del, u_int cell_type)
     **pp = v;
     ++*pp;
 }
+#endif
 
 /*
  * __wt_cell_pack_addr --
@@ -237,7 +239,9 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
      */
     if (page_del != NULL) {
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_LEAF || cell_type == WT_CELL_ADDR_LEAF_NO);
+#ifdef WT_STANDALONE_BUILD_FT_FIX
         __cell_pack_addr_del(&p, page_del, cell_type);
+#endif
         cell_type = WT_CELL_ADDR_DEL;
     }
 
@@ -885,8 +889,8 @@ copy_cell_restart:
         break;
     }
 
-    /* Unpack any fast-delete information. */
-    if (unpack->raw == WT_CELL_ADDR_DEL) {
+    /* Unpack any fast-truncate information. */
+    if (unpack->raw == WT_CELL_ADDR_DEL && F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
         page_del = &unpack_addr->page_del;
         WT_RET(__wt_vunpack_uint(
           &p, end == NULL ? 0 : WT_PTRDIFF(end, p), (uint64_t *)&page_del->txnid));
