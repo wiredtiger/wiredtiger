@@ -339,6 +339,10 @@ class test_schema03(TieredConfigMixin, wttest.WiredTigerTestCase):
             self.reopen_conn()
 
     def test_schema(self):
+        if self.is_tiered_scenario() and (self.s_index_args == ',type=lsm' or self.s_index_args == ',type=file' or
+            self.s_extra_table_args == ',type=lsm' or self.s_extra_table_args == ',type=file'):
+            self.skipTest('Tiered storage does not support LSM or file URIs.')
+
         rand = suite_random.suite_random()
         if self.SHOW_PYTHON:
             print('  ################################################')
