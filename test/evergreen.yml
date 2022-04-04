@@ -610,11 +610,6 @@ functions:
       params:
         file: ./wiredtiger/cmake_build/${test_path}.json
 
-  "upload wt2853_perf test stats":
-    - command: perf.send
-      params:
-        file: ./wiredtiger/cmake_build/bench/wt2853_perf/wt2853_perf.json
-
   "upload-perf-test-stats":
     - command: shell.exec
       params:
