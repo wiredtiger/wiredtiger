@@ -60,6 +60,8 @@ class test_hs20(wttest.WiredTigerTestCase):
         value1 = 'a' * 500
         value2 = 'b' * 50
 
+        # FIXME-WT-9063 revisit the use of self.retry() throughout this file.
+
         # Insert a value that is larger than the maximum leaf value.
         for i in range(0, 10):
             for retry in self.retry():
@@ -99,5 +101,5 @@ class test_hs20(wttest.WiredTigerTestCase):
         # Search the first modifies.
         for i in range(0, 10):
             for retry in self.retry():
-                with retry.transaction(read_timestamp = 3):
+                with retry.transaction(read_timestamp = 3, rollback = True):
                     self.assertEqual(cursor[self.make_key(i)], value1 + "B")

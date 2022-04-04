@@ -70,6 +70,8 @@ class test_hs11(wttest.WiredTigerTestCase):
             value1 = 'a' * 500
             value2 = 'b' * 500
 
+        # FIXME-WT-9063 revisit the use of self.retry() throughout this file.
+
         # Apply a series of updates from timestamps 1-4.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(uri)
@@ -103,7 +105,7 @@ class test_hs11(wttest.WiredTigerTestCase):
         # Ensure that we blew away history store content.
         for ts in range(1, 5):
             for retry in self.retry():
-                with retry.transaction(read_timestamp = ts):
+                with retry.transaction(read_timestamp = ts, rollback = True):
                     for i in range(1, self.nrows):
                         if i % 2 == 0:
                             if self.update_type == 'deletion':
@@ -166,7 +168,7 @@ class test_hs11(wttest.WiredTigerTestCase):
 
         # Ensure that we didn't select old history store content even if it is not blew away.
         for retry in self.retry():
-            with retry.transaction(read_timestamp = 10):
+            with retry.transaction(read_timestamp = 10, rollback = True):
                 for i in range(1, self.nrows):
                     if i % 2 == 0:
                         cursor.set_key(self.create_key(i))

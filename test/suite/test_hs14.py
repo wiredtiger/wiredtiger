@@ -68,6 +68,8 @@ class test_hs14(wttest.WiredTigerTestCase):
             value4 = 'd' * 500
             value5 = 'e' * 500
 
+        # FIXME-WT-9063 revisit the use of self.retry() throughout this file.
+
         for i in range(1, nrows):
             for retry in self.retry():
                 with retry.transaction(commit_timestamp = 2):
@@ -87,7 +89,7 @@ class test_hs14(wttest.WiredTigerTestCase):
 
         start = time.time()
         for retry in self.retry():
-            with retry.transaction(read_timestamp = 3):
+            with retry.transaction(read_timestamp = 3, rollback = True):
                 for i in range(1, nrows):
                     self.assertEqual(cursor[self.create_key(i)], value3)
         end = time.time()
@@ -109,7 +111,7 @@ class test_hs14(wttest.WiredTigerTestCase):
 
         start = time.time()
         for retry in self.retry():
-            with retry.transaction(read_timestamp = 9):
+            with retry.transaction(read_timestamp = 9, rollback = True):
                 for i in range(1, nrows):
                     cursor.set_key(self.create_key(i))
                     if self.value_format == '8t':

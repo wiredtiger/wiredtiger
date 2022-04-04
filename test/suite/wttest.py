@@ -436,7 +436,7 @@ class WiredTigerTestCase(unittest.TestCase):
                 self.retryable = retryable
             @contextmanager
             def transaction(self, session=None, begin_config=None, commit_config=None,
-                            commit_timestamp=None, read_timestamp=None):
+                            commit_timestamp=None, read_timestamp=None, rollback=False):
                 testcase = self.retryable.testcase
                 if session == None:
                     session = testcase.session
@@ -453,8 +453,8 @@ class WiredTigerTestCase(unittest.TestCase):
                 session.begin_transaction(begin_config)
                 try:
                     yield
-                    if read_timestamp != None:
-                        session.rollback_transaction(commit_config)
+                    if rollback:
+                        session.rollback_transaction()
                     else:
                         session.commit_transaction(commit_config)
                     self.retryable.done = True
