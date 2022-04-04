@@ -38,7 +38,10 @@
 #include <fstream>
 #include <iostream>
 
+// This is a tag that can be set and used when uploading or retrieving objects from the S3.
+// Tagging in S3 allows for categorisation of objects, as well as other benefits. 
 #define S3_ALLOCATION_TAG ""
+
 std::shared_ptr<S3LogSystem> log;
 
 // Constructor for AWS S3 bucket conqnection with provided credentials.
@@ -96,6 +99,7 @@ S3Connection::ListObjects(const std::string &prefix, std::vector<std::string> &o
         objects.push_back(object.GetKey().substr(_objectPrefix.length()));
 
     if (listSingle)
+        log->LogDebugMessage("S3Connection::ListObjects list single success.");
         return (0);
 
     // Continuation token will be an empty string if we have returned all possible objects.
@@ -110,6 +114,7 @@ S3Connection::ListObjects(const std::string &prefix, std::vector<std::string> &o
             objects.push_back(object.GetKey().substr(_objectPrefix.length()));
         continuationToken = result.GetNextContinuationToken();
     }
+    log->LogDebugMessage("S3Connection::ListObjects all possible objects listed.");
     return (0);
 }
 
@@ -127,6 +132,7 @@ S3Connection::PutObject(const std::string &objectKey, const std::string &fileNam
 
     Aws::S3Crt::Model::PutObjectOutcome outcome = _s3CrtClient.PutObject(request);
     if (outcome.IsSuccess()) {
+        log->LogDebugMessage("S3Connection::PutObject Object was put into S3 bucket with success.");
         return (0);
     }
 
@@ -143,6 +149,7 @@ S3Connection::DeleteObject(const std::string &objectKey) const
 
     Aws::S3Crt::Model::DeleteObjectOutcome outcome = _s3CrtClient.DeleteObject(request);
     if (outcome.IsSuccess())
+        log->LogDebugMessage("S3Connection::DeleteObject Object was deleted from S3 bucket with success.");
         return (0);
 
     return (1);
@@ -159,6 +166,7 @@ S3Connection::GetObject(const std::string &objectKey, const std::string &path) c
     // The S3 Object should be downloaded to disk rather than into an in-memory buffer. Use a custom
     // response stream factory to specify how the response should be downloaded.
     request.SetResponseStreamFactory([=]() {
+        log->LogDebugMessage("S3Connection::DeleteObject Object was downloaded to disk with success.");
         return (Aws::New<Aws::FStream>(
           S3_ALLOCATION_TAG, path, std::ios_base::out | std::ios_base::binary));
     });
@@ -166,6 +174,7 @@ S3Connection::GetObject(const std::string &objectKey, const std::string &path) c
     if (!_s3CrtClient.GetObject(request).IsSuccess())
         return (1);
 
+    log->LogDebugMessage("S3Connection::GetObject Object was retrieved from S3 bucket with success.");
     return (0);
 }
 
@@ -187,12 +196,14 @@ S3Connection::ObjectExists(const std::string &objectKey, bool &exists, size_t &o
     if (outcome.IsSuccess()) {
         exists = true;
         objectSize = outcome.GetResult().GetContentLength();
+        log->LogDebugMessage("S3Connection::ObjectExists Object was found from S3 bucket with success.");
         return (0);
     } else if (outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND)
+        log->LogDebugMessage("S3Connection::ObjectExists Object was not found from S3 bucket.");
         return (0);
 
     // Fix later, return a proper error code. Not sure if we always have
-    // outcome.GetError().GetResponseCode()   
+    // outcome.GetError().GetResponseCode()
     return (1);
 }
 
@@ -210,6 +221,7 @@ S3Connection::BucketExists(bool &exists) const
     // Do not fail in this case.
     if (outcome.IsSuccess()) {
         exists = true;
+        log->LogDebugMessage("S3Connection::BucketExists bucket was found from S3 bucket with success.");
         return (0);
     } else if (outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND)
         return (0);
