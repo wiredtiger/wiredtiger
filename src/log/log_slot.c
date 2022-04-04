@@ -413,7 +413,7 @@ __wt_log_slot_switch(
             WT_STAT_CONN_INCR(session, log_slot_switch_busy);
             __wt_yield();
         } else if (ret != 0)
-            (void)__wt_panic(session, ret, "log slot switch fatal error");
+            WT_TRET(__wt_panic(session, ret, "log slot switch fatal error"));
 
         WT_RET(WT_SESSION_CHECK_PANIC(session));
         if (F_ISSET(S2C(session), WT_CONN_CLOSING))
