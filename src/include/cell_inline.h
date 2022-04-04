@@ -195,7 +195,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
  *     Pack the fast-delete information for an address.
  */
 static inline void
-__cell_pack_addr_del(uint8_t **pp, WT_PAGE_DELETED *page_del, u_int cell_type)
+__cell_pack_addr_del(uint8_t **pp, WT_PAGE_DELETED *page_del)
 {
     uint8_t v;
 
@@ -203,13 +203,8 @@ __cell_pack_addr_del(uint8_t **pp, WT_PAGE_DELETED *page_del, u_int cell_type)
     WT_IGNORE_RET(__wt_vpack_uint(pp, 0, page_del->timestamp));
     WT_IGNORE_RET(__wt_vpack_uint(pp, 0, page_del->durable_timestamp));
 
-    /*
-     * There's two additional bits of information: is the fast-delete prepared, and are we replacing
-     * a leaf without overflow items or not. (There are 6 additional bits here for later.)
-     */
+    /* There's an additional bit of information: is the fast-delete prepared, with 7 spare bits. */
     v = 0;
-    if (cell_type == WT_CELL_ADDR_LEAF_NO)
-        FLD_SET(v, WT_CELL_ADDR_DEL_LEAF_NO);
     if (page_del->prepare_state != 0)
         FLD_SET(v, WT_CELL_ADDR_DEL_PREPARE);
     **pp = v;
@@ -239,8 +234,11 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
      */
     if (page_del != NULL) {
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_LEAF || cell_type == WT_CELL_ADDR_LEAF_NO);
+        WT_ASSERT(session,
+          page_del->prepare_state == 0 || page_del->prepare_state == WT_PREPARE_INPROGRESS);
+        WT_ASSERT(session, page_del->committed == 1);
 #ifdef WT_STANDALONE_BUILD_FT_FIX
-        __cell_pack_addr_del(&p, page_del, cell_type);
+        __cell_pack_addr_del(&p, page_del);
 #endif
         cell_type = WT_CELL_ADDR_DEL;
     }
@@ -897,7 +895,8 @@ copy_cell_restart:
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->timestamp));
         WT_RET(__wt_vunpack_uint(
           &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->durable_timestamp));
-        page_del->prepare_state = FLD_ISSET(*p, WT_CELL_ADDR_DEL_PREPARE) ? 1 : 0;
+        page_del->prepare_state =
+          FLD_ISSET(*p, WT_CELL_ADDR_DEL_PREPARE) ? WT_PREPARE_INPROGRESS : 0;
         unpack_addr->page_del_cell =
           FLD_ISSET(*p, WT_CELL_ADDR_DEL_LEAF_NO) ? WT_CELL_ADDR_LEAF_NO : WT_CELL_ADDR_LEAF;
         ++p;
