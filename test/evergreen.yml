@@ -605,10 +605,10 @@ functions:
         set -o verbose
         ${test_env_vars|} test/csuite/${test_binary}/smoke.sh ${test_args|} 2>&1
 
-  "upload cpp test stats":
+  "upload test stats":
     - command: perf.send
       params:
-        file: ./wiredtiger/cmake_build/test/cppsuite/${test_name}.json
+        file: ./wiredtiger/cmake_build/${test_path}.json
 
   "upload wt2853_perf test stats":
     - command: perf.send
@@ -1008,9 +1008,9 @@ tasks:
           test_config: debug_mode=(cursor_copy=true)
           test_config_filename: configs/base_test_default.txt
           test_name: base_test
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: base_test
+          test_name: test/cppsuite/base_test
 
   - name: cppsuite-hs-cleanup-default
     tags: ["pull_request"]
@@ -1023,9 +1023,9 @@ tasks:
           test_config: debug_mode=(cursor_copy=true)
           test_config_filename: configs/hs_cleanup_default.txt
           test_name: hs_cleanup
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: hs_cleanup
+          test_name: test/cppsuite/hs_cleanup
 
   - name: cppsuite-search-near-01-default
     tags: ["pull_request"]
@@ -1037,9 +1037,9 @@ tasks:
         vars:
           test_config_filename: configs/search_near_01_default.txt
           test_name: search_near_01
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: search_near_01
+          test_name: test/cppsuite/search_near_01
 
   - name: cppsuite-search-near-02-default
     tags: ["pull_request"]
@@ -1051,9 +1051,9 @@ tasks:
         vars:
           test_config_filename: configs/search_near_02_default.txt
           test_name: search_near_02
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: search_near_02
+          test_name: test/cppsuite/search_near_02
 
   - name: cppsuite-search-near-03-default
     tags: ["pull_request"]
@@ -1065,9 +1065,9 @@ tasks:
         vars:
           test_config_filename: configs/search_near_03_default.txt
           test_name: search_near_03
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: search_near_03
+          test_name: test/cppsuite/search_near_03
 
   - name: cppsuite-base-test-stress
     depends_on:
@@ -1078,9 +1078,9 @@ tasks:
         vars:
           test_config_filename: configs/base_test_stress.txt
           test_name: base_test
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: base_test
+          test_name: test/cppsuite/base_test
 
   - name: cppsuite-hs-cleanup-stress
     depends_on:
@@ -1091,9 +1091,9 @@ tasks:
         vars:
           test_config_filename: configs/hs_cleanup_stress.txt
           test_name: hs_cleanup
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: hs_cleanup
+          test_name: test/cppsuite/hs_cleanup
 
   - name: cppsuite-search-near-01-stress
     depends_on:
@@ -1104,9 +1104,9 @@ tasks:
         vars:
           test_config_filename: configs/search_near_01_stress.txt
           test_name: search_near_01
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: search_near_01
+          test_name: test/cppsuite/search_near_01
 
   - name: cppsuite-search-near-02-stress
     depends_on:
@@ -1117,9 +1117,9 @@ tasks:
         vars:
           test_config_filename: configs/search_near_02_stress.txt
           test_name: search_near_02
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: search_near_02
+          test_name: test/cppsuite/search_near_02
 
   - name: cppsuite-search-near-03-stress
     depends_on:
@@ -1130,9 +1130,9 @@ tasks:
         vars:
           test_config_filename: configs/search_near_03_stress.txt
           test_name: search_near_03
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: search_near_03
+          test_name: test/cppsuite/search_near_03
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
@@ -3648,7 +3648,9 @@ tasks:
       - func: "wt2853_perf test"
         vars:
           wt2853_perf_args: "-t r"
-      - func: "upload wt2853_perf test stats"
+      - func: "upload test stats"
+        vars:
+          test_name: bench/wt2853_perf/wt2853_perf
 
   - name: bench-wt2853-perf-test-col
     tags: ["wt2853-perf"]
@@ -3659,7 +3661,9 @@ tasks:
       - func: "wt2853_perf test"
         vars:
           wt2853_perf_args: "-t c"
-      - func: "upload wt2853_perf test stats"
+      - func: "upload test stats"
+        vars:
+          test_name: bench/wt2853_perf/wt2853_perf
 
 #######################################
 #            Buildvariants            #

@@ -8,9 +8,7 @@ endif()
 
 include(${CMAKE_SOURCE_DIR}/test/ctest_helpers.cmake)
 
-if(WT_POSIX)
-    create_test_executable(test_wt2853_perf
-        SOURCES
-            main.c
-    )
-endif()
+create_test_executable(test_wt2853_perf
+    SOURCES
+        main.c
+)

@@ -267,7 +267,7 @@ thread_insert(void *arg)
             testutil_check(session->rollback_transaction(session, NULL));
             continue;
         }
-        testutil_assert(ret == 0 || ret == WT_ROLLBACK);
+        testutil_assert(ret == 0);
         testutil_check(maincur->reset(maincur));
         testutil_check(session->commit_transaction(session, NULL));
         if (i % 1000 == 0 && i != 0) {
