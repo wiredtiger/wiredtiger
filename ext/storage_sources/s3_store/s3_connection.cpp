@@ -25,7 +25,9 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-#include <aws/core/Aws.h>
+#include "s3_connection.h"
+#include "s3_log_system.h"
+
 #include <aws/s3-crt/model/DeleteObjectRequest.h>
 #include <aws/s3-crt/model/ListObjectsV2Request.h>
 #include <aws/s3-crt/model/PutObjectRequest.h>
@@ -33,16 +35,13 @@
 #include <aws/s3-crt/model/HeadObjectRequest.h>
 #include <aws/s3-crt/model/HeadBucketRequest.h>
 
-#include "s3_connection.h"
-
 #include <fstream>
 #include <iostream>
-#include <string>
-#include <vector>
 
 #define S3_ALLOCATION_TAG ""
+std::shared_ptr<S3LogSystem> log;
 
-// Constructor for AWS S3 bucket connection with provided credentials.
+// Constructor for AWS S3 bucket conqnection with provided credentials.
 S3Connection::S3Connection(const Aws::Auth::AWSCredentials &credentials,
   const Aws::S3Crt::ClientConfiguration &config, const std::string &bucketName,
   const std::string &objPrefix)
@@ -51,11 +50,15 @@ S3Connection::S3Connection(const Aws::Auth::AWSCredentials &credentials,
     // Confirm that we can access the bucket, else fail.
     bool exists;
     int ret = BucketExists(exists);
-    if (ret != 0 || !exists)
+    if (!exists)
         throw std::invalid_argument(_bucketName + " : No such bucket.");
+    else if (ret!= 0)
+        log->LogErrorMessage("S3Connection: Access to bucket:" + _bucketName + " failed via provided credentials.");
+    else
+        log->LogDebugMessage("S3Connection: Access to bucket:" + _bucketName + " success via provided credentials.");
 }
 
-// Constructor for AWS S3 bucket connection with credentials in local file.
+// Constructor for AWS S3 bucket connection with credentials in local file. 
 S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config,
   const std::string &bucketName, const std::string &objPrefix)
     : _s3CrtClient(config), _bucketName(bucketName), _objectPrefix(objPrefix)
@@ -63,8 +66,12 @@ S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config,
     // Confirm that we can access the bucket, else fail.
     bool exists;
     int ret = BucketExists(exists);
-    if (ret != 0 || !exists)
+    if (!exists)
         throw std::invalid_argument(_bucketName + " : No such bucket.");
+    else if (ret!= 0)
+        log->LogErrorMessage("S3Connection: Access to bucket:" + _bucketName + " failed via credentials in a local file.");
+    else
+        log->LogDebugMessage("S3Connection: Access to bucket:" + _bucketName + " success via credentials in local file.");
 }
 
 // Builds a list of object names, with prefix matching, from an S3 bucket into a vector. The
@@ -111,7 +118,7 @@ int
 S3Connection::PutObject(const std::string &objectKey, const std::string &fileName) const
 {
     std::shared_ptr<Aws::IOStream> inputData = Aws::MakeShared<Aws::FStream>(
-      "s3-source", fileName.c_str(), std::ios_base::in | std::ios_base::binary);
+      S3_ALLOCATION_TAG, fileName.c_str(), std::ios_base::in | std::ios_base::binary);
 
     Aws::S3Crt::Model::PutObjectRequest request;
     request.SetBucket(_bucketName);
