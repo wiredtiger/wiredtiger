@@ -1005,7 +1005,7 @@ tasks:
           test_name: base_test
       - func: "upload test stats"
         vars:
-          test_name: test/cppsuite/base_test
+          test_path: test/cppsuite/base_test
 
   - name: cppsuite-hs-cleanup-default
     tags: ["pull_request"]
@@ -1020,7 +1020,7 @@ tasks:
           test_name: hs_cleanup
       - func: "upload test stats"
         vars:
-          test_name: test/cppsuite/hs_cleanup
+          test_path: test/cppsuite/hs_cleanup
 
   - name: cppsuite-search-near-01-default
     tags: ["pull_request"]
@@ -1034,7 +1034,7 @@ tasks:
           test_name: search_near_01
       - func: "upload test stats"
         vars:
-          test_name: test/cppsuite/search_near_01
+          test_path: test/cppsuite/search_near_01
 
   - name: cppsuite-search-near-02-default
     tags: ["pull_request"]
@@ -1048,7 +1048,7 @@ tasks:
           test_name: search_near_02
       - func: "upload test stats"
         vars:
-          test_name: test/cppsuite/search_near_02
+          test_path: test/cppsuite/search_near_02
 
   - name: cppsuite-search-near-03-default
     tags: ["pull_request"]
@@ -1062,7 +1062,7 @@ tasks:
           test_name: search_near_03
       - func: "upload test stats"
         vars:
-          test_name: test/cppsuite/search_near_03
+          test_path: test/cppsuite/search_near_03
 
   - name: cppsuite-base-test-stress
     depends_on:
@@ -1075,7 +1075,7 @@ tasks:
           test_name: base_test
       - func: "upload test stats"
         vars:
-          test_name: test/cppsuite/base_test
+          test_path: test/cppsuite/base_test
 
   - name: cppsuite-hs-cleanup-stress
     depends_on:
@@ -1088,7 +1088,7 @@ tasks:
           test_name: hs_cleanup
       - func: "upload test stats"
         vars:
-          test_name: test/cppsuite/hs_cleanup
+          test_path: test/cppsuite/hs_cleanup
 
   - name: cppsuite-search-near-01-stress
     depends_on:
@@ -1101,7 +1101,7 @@ tasks:
           test_name: search_near_01
       - func: "upload test stats"
         vars:
-          test_name: test/cppsuite/search_near_01
+          test_path: test/cppsuite/search_near_01
 
   - name: cppsuite-search-near-02-stress
     depends_on:
@@ -1114,7 +1114,7 @@ tasks:
           test_name: search_near_02
       - func: "upload test stats"
         vars:
-          test_name: test/cppsuite/search_near_02
+          test_path: test/cppsuite/search_near_02
 
   - name: cppsuite-search-near-03-stress
     depends_on:
@@ -1127,7 +1127,7 @@ tasks:
           test_name: search_near_03
       - func: "upload test stats"
         vars:
-          test_name: test/cppsuite/search_near_03
+          test_path: test/cppsuite/search_near_03
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
@@ -3645,7 +3645,7 @@ tasks:
           wt2853_perf_args: "-t r"
       - func: "upload test stats"
         vars:
-          test_name: bench/wt2853_perf/wt2853_perf
+          test_path: bench/wt2853_perf/wt2853_perf
 
   - name: bench-wt2853-perf-test-col
     tags: ["wt2853-perf"]
@@ -3658,7 +3658,7 @@ tasks:
           wt2853_perf_args: "-t c"
       - func: "upload test stats"
         vars:
-          test_name: bench/wt2853_perf/wt2853_perf
+          test_path: bench/wt2853_perf/wt2853_perf
 
 #######################################
 #            Buildvariants            #
