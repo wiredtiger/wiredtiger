@@ -864,14 +864,23 @@ struct __wt_page_deleted {
     wt_timestamp_t durable_timestamp;
 
     /*
-     * The state is used for transaction prepare to manage visibility and inheriting prepare state
-     * to update_list.
+     * The prepare state is used for transaction prepare to manage visibility and inheriting prepare
+     * state to update_list.
      */
-    volatile uint8_t prepare_state; /* Prepare state. */
+    volatile uint8_t prepare_state;
 
-    uint8_t previous_state; /* Previous state */
+    /*
+     * The previous state of the WT_REF; if the fast-truncate transaction is rolled back without the
+     * page first being instantiated, this is the state to which the WT_REF returns.
+     */
+    uint8_t previous_ref_state;
 
-    uint8_t committed; /* Committed */
+    /*
+     * If the fast-truncate transaction has resolved. If we're forced to instantiate a page, and the
+     * resolved flag isn't set, we have to create a list of update structures for the transaction to
+     * resolve in a subsequent abort/commit.
+     */
+    uint8_t resolved;
 };
 
 /*

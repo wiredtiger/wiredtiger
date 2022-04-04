@@ -126,7 +126,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
     /* Allocate and initialize the page-deleted structure. */
     WT_ERR(__wt_calloc_one(session, &ref->ft_info.del));
-    ref->ft_info.del->previous_state = previous_state;
+    ref->ft_info.del->previous_ref_state = previous_state;
 
     WT_ERR(__wt_txn_modify_page_delete(session, ref));
 
@@ -193,15 +193,15 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
      * a hazard pointer. We're safe since pages with unresolved transactions aren't going anywhere.
      */
     if (current_state == WT_REF_DELETED)
-        current_state = ref->ft_info.del->previous_state;
+        current_state = ref->ft_info.del->previous_ref_state;
     else if ((updp = ref->ft_info.update) != NULL)
         for (; *updp != NULL; ++updp)
             (*updp)->txnid = WT_TXN_ABORTED;
 
     /*
-     * We didn't set the WT_PAGE_DELETED transaction ID to aborted or discard any WT_UPDATE list,
-     * instead, we discard both structures entirely, it has the same effect. It's a single call,
-     * they're a union of two pointers.
+     * Don't set the WT_PAGE_DELETED transaction ID to aborted, discard any WT_UPDATE list or set
+     * the resolved flag to 1; instead, discard the structures, it has the same effect. It's a
+     * single call, they're a union of two pointers.
      */
     __wt_free(session, ref->ft_info.del);
 
@@ -332,8 +332,8 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * building might split in the future, so we update that structure to include references to all
      * of the update structures we create, so the transaction can abort.
      *
-     * Second, a truncate call deleted a page and the truncate committed, but an older transaction
-     * or the stable timestamp forced us to keep the old version of the page around, and then we
+     * Second, a truncate call deleted a page and the truncate resolved, but an older transaction or
+     * the stable timestamp forced us to keep the old version of the page around, and then we
      * crashed and recovered or we're running inside a checkpoint, and now we're being forced to
      * read that page.
      *
@@ -346,7 +346,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * other pages.
      */
     page_del = __wt_page_del_active(session, ref, true) ? ref->ft_info.del : NULL;
-    if (page_del != NULL && page_del->committed == 0) {
+    if (page_del != NULL && page_del->resolved == 0) {
         count = 0;
         if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
             WT_SKIP_FOREACH (ins, insert)

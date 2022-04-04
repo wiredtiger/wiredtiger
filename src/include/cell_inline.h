@@ -203,9 +203,16 @@ __cell_pack_addr_del(uint8_t **pp, WT_PAGE_DELETED *page_del)
     WT_IGNORE_RET(__wt_vpack_uint(pp, 0, page_del->timestamp));
     WT_IGNORE_RET(__wt_vpack_uint(pp, 0, page_del->durable_timestamp));
 
-    /* There's an additional bit of information: is the fast-delete prepared, with 7 spare bits. */
+    /*
+     * There's an additional bit of information, if the fast-delete is prepared, with 7 spare bits.
+     * Once the prepare is resolved, we don't care about re-instantiating it when reading the page,
+     * the transaction ID and timestamps are all we need. This is not unexpected: when get here if
+     * we're evicting an internal page with a fast-truncated child page, then the fast-truncate was
+     * prepared and committed, but rollback-to-stable can still undo the deletion.
+     */
     v = 0;
-    if (page_del->prepare_state != 0)
+    if (page_del->prepare_state == WT_PREPARE_LOCKED ||
+      page_del->prepare_state == WT_PREPARE_INPROGRESS)
         FLD_SET(v, WT_CELL_ADDR_DEL_PREPARE);
     **pp = v;
     ++*pp;
@@ -896,8 +903,8 @@ copy_cell_restart:
           &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->durable_timestamp));
         page_del->prepare_state =
           FLD_ISSET(*p, WT_CELL_ADDR_DEL_PREPARE) ? WT_PREPARE_INPROGRESS : 0;
-        unpack_addr->page_del_cell =
-          FLD_ISSET(*p, WT_CELL_ADDR_DEL_LEAF_NO) ? WT_CELL_ADDR_LEAF_NO : WT_CELL_ADDR_LEAF;
+        page_del->previous_ref_state = WT_REF_DISK; /* The leaf page is on disk. */
+        page_del->resolved = 1;                     /* There is no running transaction. */
         ++p;
         WT_CELL_LEN_CHK(p, 0);
     }

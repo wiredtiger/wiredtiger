@@ -807,8 +807,6 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
             if (F_ISSET(page->dsk, WT_PAGE_FT_UPDATE)) {
                 WT_ERR(__wt_calloc_one(session, &ref->ft_info.del));
                 *ref->ft_info.del = unpack.page_del;
-                ref->ft_info.del->previous_state = WT_REF_DISK;
-                ref->ft_info.del->committed = 1;
             }
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
 

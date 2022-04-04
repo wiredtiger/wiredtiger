@@ -1240,14 +1240,15 @@ __rollback_to_stable_page_skip(
     *skipp = false; /* Default to reading */
 
     /*
-     * Skip unprepared fast-truncate operations durable at or before the RTS timestamp. If we find a
-     * page without fast-truncate timestamp information, it's an old format page: there's no way to
-     * get correct behavior, skip them, that's what old versions of this code did.
+     * Skip unprepared or resolved fast-truncate operations durable at or before the RTS timestamp.
+     * If we find a page without fast-truncate timestamp information, it's an old format page:
+     * there's no way to get correct behavior, skip them, that's what old versions of this code did.
      */
     if (ref->state == WT_REF_DELETED) {
         page_del = ref->ft_info.del;
         if (page_del == NULL ||
-          (page_del->prepare_state == 0 && page_del->durable_timestamp <= rollback_timestamp))
+          ((page_del->prepare_state == 0 || page_del->prepare_state == WT_PREPARE_RESOLVED) &&
+            page_del->durable_timestamp <= rollback_timestamp))
             *skipp = true;
         return (0);
     }

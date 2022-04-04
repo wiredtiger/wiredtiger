@@ -155,8 +155,7 @@ struct __wt_cell {
 /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CELL_ADDR_DEL_LEAF_NO 0x1u /* fast-delete replaced a leaf-no-overflow cell */
-#define WT_CELL_ADDR_DEL_PREPARE 0x2u /* fast-delete was prepared */
+#define WT_CELL_ADDR_DEL_PREPARE 0x1u /* fast-delete was prepared */
 /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
 
 /*
@@ -204,8 +203,7 @@ struct __wt_cell_unpack_addr {
 
     WT_TIME_AGGREGATE ta; /* Address validity window */
 
-    WT_PAGE_DELETED page_del; /* Fast-delete information */
-    uint8_t page_del_cell;
+    WT_PAGE_DELETED page_del; /* Fast-truncate information */
 };
 
 /*
