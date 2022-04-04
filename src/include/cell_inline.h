@@ -241,8 +241,6 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
      */
     if (page_del != NULL) {
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_LEAF || cell_type == WT_CELL_ADDR_LEAF_NO);
-        WT_ASSERT(session,
-          page_del->prepare_state == 0 || page_del->prepare_state == WT_PREPARE_INPROGRESS);
 #ifdef WT_STANDALONE_BUILD_FT_FIX
         __cell_pack_addr_del(&p, page_del);
 #endif
