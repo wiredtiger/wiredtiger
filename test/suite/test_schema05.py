@@ -62,6 +62,7 @@ class test_schema05(TieredConfigMixin, wttest.WiredTigerTestCase):
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
         extlist.extension('extractors', 'csv')
+        return self.tiered_conn_extensions(extlist)
 
     def create_indices(self):
         # Create self.nindices index files, each with a column from the CSV

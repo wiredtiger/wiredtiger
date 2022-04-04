@@ -39,8 +39,8 @@ class test_schema02(TieredConfigMixin, wttest.WiredTigerTestCase):
     nentries = 1000
 
     types = [
-        ('normal', { 'idx_config' : '' }),
-        ('lsm', { 'idx_config' : ',type=lsm' }),
+        ('normal', dict(type='normal', idx_config='')),
+        ('lsm', dict(type='lsm', idx_config=',type=lsm')),
     ]
 
     scenarios = make_scenarios(tiered_storage_sources, types)
@@ -50,6 +50,9 @@ class test_schema02(TieredConfigMixin, wttest.WiredTigerTestCase):
             lambda:self.session.create("colgroup:" + name, configstr), match)
 
     def test_colgroup_after_failure(self):
+        if self.is_tiered_scenario() and self.type == 'lsm':
+            self.skipTest('Tiered storage does not support LSM URIs.')
+
         # bogus formats
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.session.create("table:main",
@@ -66,6 +69,9 @@ class test_schema02(TieredConfigMixin, wttest.WiredTigerTestCase):
         self.session.create("colgroup:main:c1", "columns=(S1,i2)")
 
     def test_colgroup_failures(self):
+        if self.is_tiered_scenario() and self.type == 'lsm':
+            self.skipTest('Tiered storage does not support LSM URIs.')
+
         # We skip testing the tiered storage scenarios as we fail to create
         # column groups in tiered storage scenarios. We should fix this issue
         # and then remove the condition to skip tests. FIXME: WT-9048
@@ -136,6 +142,9 @@ class test_schema02(TieredConfigMixin, wttest.WiredTigerTestCase):
         self.session.create("colgroup:main2:c2", "columns=(S3,i4)")
 
     def test_index(self):
+        if self.is_tiered_scenario() and self.type == 'lsm':
+            self.skipTest('Tiered storage does not support LSM URIs.')
+
         self.session.create("table:main", "key_format=iS,value_format=SiSi,"
                             "columns=(ikey,Skey,S1,i2,S3,i4),colgroups=(c1,c2)")
 
@@ -281,6 +290,9 @@ class test_schema02(TieredConfigMixin, wttest.WiredTigerTestCase):
         self.assertEqual(count, n)
 
     def test_colgroups(self):
+        if self.is_tiered_scenario() and self.type == 'lsm':
+            self.skipTest('Tiered storage does not support LSM URIs.')
+
         self.session.create("table:main", "key_format=iS,value_format=SiSi,"
                             "columns=(ikey,Skey,S1,i2,S3,i4),colgroups=(c1,c2)")
         self.session.create("colgroup:main:c1", "columns=(S1,i2)")
