@@ -304,6 +304,10 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
     WT_STAT_CONN_DATA_INCR(session, cache_read_deleted);
 
+    /* Track the prepared, fast-truncate pages we've had to instantiate. */
+    if (ref->ft_info.del != NULL && ref->ft_info.del->prepare_state != WT_PREPARE_INIT)
+        WT_STAT_CONN_DATA_INCR(session, cache_read_deleted_prepared);
+
     /*
      * Give the page a modify structure. If the tree is already dirty and so will be written, mark
      * the page dirty. (We want to free the deleted pages, but if the handle is read-only or if the
@@ -313,16 +317,10 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     if (btree->modified)
         __wt_page_modify_set(session, page);
 
-    /*
-     * Allocate the per-page update array if one doesn't already exist. (It might already exist
-     * because deletes are instantiated after the history store table updates.)
-     */
+    /* Allocate the per-page update array if one doesn't already exist. */
     if (page->entries != 0 && page->modify->mod_row_update == NULL)
         WT_PAGE_ALLOC_AND_SWAP(
           session, page, page->modify->mod_row_update, upd_array, page->entries);
-
-    if (ref->ft_info.del != NULL && ref->ft_info.del->prepare_state != WT_PREPARE_INIT)
-        WT_STAT_CONN_DATA_INCR(session, cache_read_deleted_prepared);
 
     /*
      * An operation is accessing a "deleted" page, and we're building an in-memory version of the
