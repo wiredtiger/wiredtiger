@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  *
  * wtperf_opt.i
- *	List of options for wtperf.  This is included multiple times.
+ *  List of options for wtperf.  This is included multiple times.
  */
 
 #ifdef OPT_DECLARE_STRUCT
@@ -167,7 +167,7 @@ DEF_OPT_AS_UINT32(scan_table_count, 0,
   "number of separate tables to be used for scanning. Zero indicates that tables are shared with "
   "other operations")
 DEF_OPT_AS_BOOL(select_latest, 0, "in workloads that involve inserts and another type of operation,"
-		"select the recently inserted records with higher probability")
+        "select the recently inserted records with higher probability")
 DEF_OPT_AS_CONFIG_STRING(sess_config, "", "session configuration string")
 DEF_OPT_AS_UINT32(session_count_idle, 0, "number of idle sessions to create. Default 0.")
 /* The following table configuration is based on the configuration MongoDB uses for collections. */
@@ -192,6 +192,8 @@ DEF_OPT_AS_STRING(threads, "",
   "'modify', 'modify_delta', 'modify_distribute', 'modify_force_update', 'updates', "
   "'update_delta', 'truncate', 'truncate_pct' and 'truncate_count'. There are also behavior "
   "modifiers, supported modifiers are 'ops_per_txn'")
+DEF_OPT_AS_STRING(tiered_ext, "none",
+  "tiered extension.  Allowed configuration values are: 'none', 'dir_store")
 DEF_OPT_AS_CONFIG_STRING(transaction_config, "",
   "WT_SESSION.begin_transaction configuration string, applied during the populate phase when "
   "populate_ops_per_txn is nonzero")

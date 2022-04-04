@@ -40,24 +40,28 @@ typedef struct __wtperf WTPERF;
 typedef struct __wtperf_thread WTPERF_THREAD;
 typedef struct __truncate_queue_entry TRUNCATE_QUEUE_ENTRY;
 
+#ifndef DIR_STORE_PATH
+#define DIR_STORE_PATH "storage_sources/dir_store/libwiredtiger_dir_store.so"
+#endif
 #ifndef LZ4_PATH
-#define LZ4_PATH "lz4/.libs/libwiredtiger_lz4.so"
+#define LZ4_PATH "compressons/lz4/libwiredtiger_lz4.so"
 #endif
 #ifndef SNAPPY_PATH
-#define SNAPPY_PATH "snappy/.libs/libwiredtiger_snappy.so"
+#define SNAPPY_PATH "compressons/snappy/libwiredtiger_snappy.so"
 #endif
 #ifndef ZLIB_PATH
-#define ZLIB_PATH "zlib/.libs/libwiredtiger_zlib.so"
+#define ZLIB_PATH "compressons/zlib/libwiredtiger_zlib.so"
 #endif
 #ifndef ZSTD_PATH
-#define ZSTD_PATH "zstd/.libs/libwiredtiger_zstd.so"
+#define ZSTD_PATH "compressons/zstd/libwiredtiger_zstd.so"
 #endif
 
 #define EXT_PFX ",extensions=("
 #define EXT_SFX ")"
-#define EXTPATH "../../ext/compressors/" /* Extensions path */
+#define EXTPATH "../../ext/" /* Extensions path */
 #define BLKCMP_PFX "block_compressor="
 
+#define DIR_STORE EXT_PFX EXTPATH DIR_STORE_PATH EXT_SFX
 #define LZ4_BLK BLKCMP_PFX "lz4"
 #define LZ4_EXT EXT_PFX EXTPATH LZ4_PATH EXT_SFX
 #define SNAPPY_BLK BLKCMP_PFX "snappy"
@@ -143,6 +147,8 @@ struct __wtperf {         /* Per-database structure */
 
     const char *compress_ext;   /* Compression extension for conn */
     const char *compress_table; /* Compression arg to table create */
+
+    const char *tiered_ext;   /* Compression extension for conn */
 
     WTPERF_THREAD *backupthreads; /* Backup threads */
     WTPERF_THREAD *ckptthreads;   /* Checkpoint threads */

@@ -46,7 +46,7 @@ static CONFIG_OPTS config_opts_default = {
 
 /*
  * STRING_MATCH --
- *	Return if a string matches a bytestring of a specified length.
+ *  Return if a string matches a bytestring of a specified length.
  */
 #undef STRING_MATCH
 #define STRING_MATCH(str, bytes, len) (strncmp(str, bytes, len) == 0 && (str)[(len)] == '\0')
@@ -187,7 +187,7 @@ config_threads(WTPERF *wtperf, const char *config, size_t len)
     /*
      * The thread configuration may be in multiple groups, that is, we have
      * to handle configurations like:
-     *	threads=((count=2,reads=1),(count=8,inserts=2,updates=1))
+     *  threads=((count=2,reads=1),(count=8,inserts=2,updates=1))
      *
      * Start a scan on the original string, then do scans on each string
      * returned from the original string.

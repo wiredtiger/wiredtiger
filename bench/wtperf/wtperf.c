@@ -2022,6 +2022,32 @@ config_compress(WTPERF *wtperf)
     return (ret);
 }
 
+/*
+ * config_tiered_ext --
+ *     Parse the tiered extension configuration
+ */
+static int
+config_tiered_ext(WTPERF *wtperf)
+{
+    CONFIG_OPTS *opts;
+    int ret;
+    const char *s;
+
+    opts = wtperf->opts;
+    ret = 0;
+
+    s = opts->tiered_ext;
+    if (strcmp(s, "none") == 0)
+        wtperf->tiered_ext = NULL;
+    else if (strcmp(s, "dir_store") == 0) {
+        wtperf->tiered_ext = DIR_STORE;
+    } else {
+        fprintf(stderr, "invalid tiered extension configuration: %s\n", s);
+        ret = EINVAL;
+    }
+    return (ret);
+}
+
 static int
 start_all_runs(WTPERF *wtperf)
 {
@@ -2372,6 +2398,9 @@ main(int argc, char *argv[])
     if ((ret = config_compress(wtperf)) != 0)
         goto err;
 
+    if ((ret = config_tiered_ext(wtperf)) != 0)
+        goto err;
+
     /* You can't have truncate on a random collection. */
     if (F_ISSET(wtperf, CFG_TRUNCATE) && opts->random_range) {
         lprintf(wtperf, 1, 0, "Cannot run truncate and random_range\n");
@@ -2389,9 +2418,10 @@ main(int argc, char *argv[])
 
     /* Concatenate non-default configuration strings. */
     if (user_cconfig != NULL || opts->session_count_idle > 0 || wtperf->compress_ext != NULL ||
-      opts->in_memory) {
+        opts->in_memory || wtperf->tiered_ext != NULL) {
         req_len = 20;
         req_len += wtperf->compress_ext != NULL ? strlen(wtperf->compress_ext) : 0;
+        req_len += wtperf->tiered_ext != NULL ? strlen(wtperf->tiered_ext) : 0;
         if (opts->session_count_idle > 0) {
             sreq_len = strlen("session_max=") + 6;
             req_len += sreq_len;
@@ -2408,6 +2438,11 @@ main(int argc, char *argv[])
         if (wtperf->compress_ext != NULL && strlen(wtperf->compress_ext) != 0) {
             testutil_check(__wt_snprintf_len_incr(
               cc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, wtperf->compress_ext));
+            append_comma = ",";
+        }
+        if (wtperf->tiered_ext != NULL && strlen(wtperf->tiered_ext) != 0) {
+            testutil_check(__wt_snprintf_len_incr(
+              cc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, wtperf->tiered_ext));
             append_comma = ",";
         }
         if (opts->in_memory) {
