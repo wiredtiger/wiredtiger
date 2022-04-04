@@ -454,7 +454,9 @@ thread_run(void *arg)
         data.size = __wt_random(&rnd) % MAX_VAL;
         data.data = lbuf;
         cur_local->set_value(cur_local, &data);
-        testutil_check(cur_local->insert(cur_local));
+        while ((ret = cur_local->insert(cur_local)) == WT_ROLLBACK)
+            ;
+        testutil_assert(ret == 0);
 
         /* Save the timestamps and key separately for checking later. */
         if (fprintf(fp, "%" PRIu64 " %" PRIu64 " %" PRIu64 "\n", active_ts,
