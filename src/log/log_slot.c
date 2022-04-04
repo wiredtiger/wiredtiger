@@ -414,7 +414,7 @@ __wt_log_slot_switch(
             break;
         /*
          * If we get an unexpected error, we need to panic. If we cannot switch the slot because of
-         * a real error (like ENOSPC) there's nothing we can do.
+         * a real error, such as running out of space, there's nothing we can do.
          */
         if (ret != 0 && ret != EBUSY)
             return (__wt_panic(session, ret, "log slot switch fatal error"));
