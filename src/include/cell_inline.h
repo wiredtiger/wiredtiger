@@ -904,7 +904,7 @@ copy_cell_restart:
         page_del->prepare_state =
           FLD_ISSET(*p, WT_CELL_ADDR_DEL_PREPARE) ? WT_PREPARE_INPROGRESS : 0;
         page_del->previous_ref_state = WT_REF_DISK; /* The leaf page is on disk. */
-        page_del->resolved = 1;                     /* There is no running transaction. */
+        page_del->resolved = true;                  /* There is no running transaction. */
         ++p;
         WT_CELL_LEN_CHK(p, 0);
     }

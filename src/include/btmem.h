@@ -880,7 +880,7 @@ struct __wt_page_deleted {
      * resolved flag isn't set, we have to create a list of update structures for the transaction to
      * resolve in a subsequent abort/commit.
      */
-    uint8_t resolved;
+    bool resolved;
 };
 
 /*
