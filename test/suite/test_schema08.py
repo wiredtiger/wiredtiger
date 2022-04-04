@@ -41,7 +41,8 @@ from wtscenario import make_scenarios
 class test_schema08(TieredConfigMixin, wttest.WiredTigerTestCase, suite_subprocess):
     # We want to copy, truncate and run recovery so keep the log
     # file small and don't pre-allocate any. We expect a small log.
-    conn_config = 'log=(enabled,file_max=100k,prealloc=false,remove=false)'
+    conn_config_string = 'log=(enabled,file_max=100k,prealloc=false,remove=false),'
+    
     types = [
         ('file', dict(uri='file:', use_cg=False, use_index=False)),
         ('lsm', dict(uri='lsm:', use_cg=False, use_index=False)),
@@ -63,6 +64,10 @@ class test_schema08(TieredConfigMixin, wttest.WiredTigerTestCase, suite_subproce
     count = 0
     lsns = []
     backup_pfx = "BACKUP."
+
+    # Setup connection config.
+    def conn_config(self):
+        return self.conn_config_string + self.tiered_conn_config()
 
     def do_alter(self, uri, suburi):
         alter_param = 'cache_resident=true'
@@ -152,8 +157,8 @@ class test_schema08(TieredConfigMixin, wttest.WiredTigerTestCase, suite_subproce
     # Test that creating and dropping tables does not write individual
     # log records.
     def test_schema08_create(self):
-        if self.is_tiered_scenario() and (self.uri == 'lsm:' or self.uri == 'file:'):
-            self.skipTest('Tiered storage does not support LSM or file URIs.')
+        if self.is_tiered_scenario() and (self.uri == 'lsm:' or self.uri == 'file:' or self.schema_ops == 'rename'):
+            self.skipTest('Tiered storage does not support LSM or file URIs, and also does not support the rename operation.')
 
         self.count = 0
         self.lsns = []
@@ -189,8 +194,10 @@ class test_schema08(TieredConfigMixin, wttest.WiredTigerTestCase, suite_subproce
         self.do_ops(uri, suburi)
         self.find_logrecs()
         # print "Found " + str(self.count) + " log records"
-        self.make_backups()
-        self.run_recovery(uri, suburi)
+
+        if not self.is_tiered_scenario():
+            self.make_backups()
+            self.run_recovery(uri, suburi)
 
 if __name__ == '__main__':
     wttest.run()
