@@ -84,25 +84,11 @@ S3LogSystem::LogVerboseMessage(int32_t verbosityLevel, const std::string &messag
     if (verbosityLevel <= _wtVerbosityLevel) {
         // Use err_printf for error and warning messages and use msg_printf for notice, info and
         // debug messages.
-        if (verbosityLevel < -1)
+        if (verbosityLevel < WT_VERBOSE_NOTICE)
             _wtApi->err_printf(_wtApi, NULL, "%s", message.c_str());
         else
             _wtApi->msg_printf(_wtApi, NULL, "%s", message.c_str());
     }
-}
-
-// Sends the error logs to WiredTiger's error level log stream. 
-void
-S3LogSystem::LogErrorMessage(const std::string &message) const
-{
-    LogVerboseMessage(WT_VERBOSE_ERROR, message);
-}
-
-// Sends the debug logs to WiredTiger's error level log stream. 
-void
-S3LogSystem::LogDebugMessage(const std::string &message) const
-{
-    LogVerboseMessage(WT_VERBOSE_DEBUG, message);
 }
 
 // Sets the WiredTiger verbosity level by mapping the AWS SDK log level.

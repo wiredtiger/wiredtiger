@@ -26,7 +26,6 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 #include "s3_connection.h"
-#include "s3_log_system.h"
 
 #include <aws/s3-crt/model/DeleteObjectRequest.h>
 #include <aws/s3-crt/model/ListObjectsV2Request.h>
@@ -42,8 +41,6 @@
 // Tagging in S3 allows for categorisation of objects, as well as other benefits. 
 #define S3_ALLOCATION_TAG ""
 
-std::shared_ptr<S3LogSystem> log;
-
 // Constructor for AWS S3 bucket conqnection with provided credentials.
 S3Connection::S3Connection(const Aws::Auth::AWSCredentials &credentials,
   const Aws::S3Crt::ClientConfiguration &config, const std::string &bucketName,
@@ -55,12 +52,9 @@ S3Connection::S3Connection(const Aws::Auth::AWSCredentials &credentials,
     int ret = BucketExists(exists);
     if (!exists)
         throw std::invalid_argument(_bucketName + " : No such bucket.");
-    else if (ret!= 0)
-        log->LogErrorMessage("S3Connection: Access to bucket:" + _bucketName + " failed via provided credentials.");
-    else
-        log->LogDebugMessage("S3Connection: Access to bucket:" + _bucketName + " success via provided credentials.");
-}
-
+    if (ret!= 0)
+        throw std::invalid_argument(_bucketName + " :Unable to access bucket.");
+        
 // Constructor for AWS S3 bucket connection with credentials in local file. 
 S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config,
   const std::string &bucketName, const std::string &objPrefix)
@@ -71,11 +65,8 @@ S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config,
     int ret = BucketExists(exists);
     if (!exists)
         throw std::invalid_argument(_bucketName + " : No such bucket.");
-    else if (ret!= 0)
-        log->LogErrorMessage("S3Connection: Access to bucket:" + _bucketName + " failed via credentials in a local file.");
-    else
-        log->LogDebugMessage("S3Connection: Access to bucket:" + _bucketName + " success via credentials in local file.");
-}
+    if (ret!= 0)
+        throw std::invalid_argument(_bucketName + " : Unable to access bucket.");
 
 // Builds a list of object names, with prefix matching, from an S3 bucket into a vector. The
 // batchSize parameter specifies the maximum number of objects returned in each AWS response, up
@@ -99,7 +90,6 @@ S3Connection::ListObjects(const std::string &prefix, std::vector<std::string> &o
         objects.push_back(object.GetKey().substr(_objectPrefix.length()));
 
     if (listSingle)
-        log->LogDebugMessage("S3Connection::ListObjects list single success.");
         return (0);
 
     // Continuation token will be an empty string if we have returned all possible objects.
@@ -114,7 +104,6 @@ S3Connection::ListObjects(const std::string &prefix, std::vector<std::string> &o
             objects.push_back(object.GetKey().substr(_objectPrefix.length()));
         continuationToken = result.GetNextContinuationToken();
     }
-    log->LogDebugMessage("S3Connection::ListObjects all possible objects listed.");
     return (0);
 }
 
@@ -132,7 +121,6 @@ S3Connection::PutObject(const std::string &objectKey, const std::string &fileNam
 
     Aws::S3Crt::Model::PutObjectOutcome outcome = _s3CrtClient.PutObject(request);
     if (outcome.IsSuccess()) {
-        log->LogDebugMessage("S3Connection::PutObject Object was put into S3 bucket with success.");
         return (0);
     }
 
@@ -149,7 +137,6 @@ S3Connection::DeleteObject(const std::string &objectKey) const
 
     Aws::S3Crt::Model::DeleteObjectOutcome outcome = _s3CrtClient.DeleteObject(request);
     if (outcome.IsSuccess())
-        log->LogDebugMessage("S3Connection::DeleteObject Object was deleted from S3 bucket with success.");
         return (0);
 
     return (1);
@@ -166,7 +153,6 @@ S3Connection::GetObject(const std::string &objectKey, const std::string &path) c
     // The S3 Object should be downloaded to disk rather than into an in-memory buffer. Use a custom
     // response stream factory to specify how the response should be downloaded.
     request.SetResponseStreamFactory([=]() {
-        log->LogDebugMessage("S3Connection::DeleteObject Object was downloaded to disk with success.");
         return (Aws::New<Aws::FStream>(
           S3_ALLOCATION_TAG, path, std::ios_base::out | std::ios_base::binary));
     });
@@ -174,7 +160,6 @@ S3Connection::GetObject(const std::string &objectKey, const std::string &path) c
     if (!_s3CrtClient.GetObject(request).IsSuccess())
         return (1);
 
-    log->LogDebugMessage("S3Connection::GetObject Object was retrieved from S3 bucket with success.");
     return (0);
 }
 
@@ -196,10 +181,8 @@ S3Connection::ObjectExists(const std::string &objectKey, bool &exists, size_t &o
     if (outcome.IsSuccess()) {
         exists = true;
         objectSize = outcome.GetResult().GetContentLength();
-        log->LogDebugMessage("S3Connection::ObjectExists Object was found from S3 bucket with success.");
         return (0);
     } else if (outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND)
-        log->LogDebugMessage("S3Connection::ObjectExists Object was not found from S3 bucket.");
         return (0);
 
     // Fix later, return a proper error code. Not sure if we always have
@@ -221,7 +204,6 @@ S3Connection::BucketExists(bool &exists) const
     // Do not fail in this case.
     if (outcome.IsSuccess()) {
         exists = true;
-        log->LogDebugMessage("S3Connection::BucketExists bucket was found from S3 bucket with success.");
         return (0);
     } else if (outcome.GetError().GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND)
         return (0);

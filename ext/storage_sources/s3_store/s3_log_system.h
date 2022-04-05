@@ -25,6 +25,9 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
+#ifndef S3LOGSYSTEM
+#define S3LOGSYSTEM
+
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
 
@@ -65,10 +68,12 @@ class S3LogSystem : public Aws::Utils::Logging::LogSystemInterface {
       const Aws::OStringStream &messageStream) override;
 
     // This function sends error messages to the WiredTiger's error level log stream. 
-    void LogErrorMessage(const std::string &message) const;
+    void LogErrorMessage(const std::string &message) const
+    {LogVerboseMessage(WT_VERBOSE_ERROR, message);}
     
     // This function sends error messages to the WiredTiger's debug level log stream. 
-    void LogDebugMessage(const std::string &message) const;
+    void LogDebugMessage(const std::string &message) const
+    {LogVerboseMessage(WT_VERBOSE_DEBUG, message);}
 
     // This function sets the WiredTiger Extension's verbosity level and matches the AWS log levels to this. 
     void SetWtVerbosityLevel(int32_t wtVerbosityLevel);
@@ -83,3 +88,4 @@ class S3LogSystem : public Aws::Utils::Logging::LogSystemInterface {
     WT_EXTENSION_API *_wtApi;
     int32_t _wtVerbosityLevel;
 };
+#endif
