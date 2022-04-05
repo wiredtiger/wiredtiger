@@ -1062,11 +1062,12 @@ err:
 int
 __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
 {
+    static WT_ITEM flcs_zero = {"", 1, NULL, 0, 0};
+
     WT_BTREE *btree;
     WT_CURFILE_STATE state;
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    WT_ITEM flcs_zero;
     WT_SESSION_IMPL *session;
     uint64_t yield_count, sleep_usecs;
     bool searched, valid;
@@ -1158,18 +1159,14 @@ retry:
             WT_ERR(ret);
             if (!valid && btree->type != BTREE_COL_FIX)
                 WT_ERR(WT_NOTFOUND);
-            else if (!valid) {
+            else if (!valid)
                 /*
                  * To preserve the illusion that deleted values are 0 and that we can therefore
                  * delete them, without violating the system restriction against consecutive
                  * tombstones, generate a dummy value for the new tombstone to delete. Make the
                  * dummy value zero for good measure.
                  */
-                cbt->v = 0;
-                flcs_zero.data = &cbt->v;
-                flcs_zero.size = 1;
                 WT_ERR(__cursor_col_modify(cbt, &flcs_zero, WT_UPDATE_STANDARD));
-            }
 
             ret = __cursor_col_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
         } else if (__cursor_fix_implicit(btree, cbt)) {
