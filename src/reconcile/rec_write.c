@@ -8,9 +8,9 @@
 
 #include "wt_internal.h"
 
-static void __rec_cleanup(WT_SESSION_IMPL *, WT_RECONCILE *);
-static void __rec_destroy(WT_SESSION_IMPL *, void *);
-static void __rec_destroy_session(WT_SESSION_IMPL *);
+static int __rec_cleanup(WT_SESSION_IMPL *, WT_RECONCILE *);
+static int __rec_destroy(WT_SESSION_IMPL *, void *);
+static int __rec_destroy_session(WT_SESSION_IMPL *);
 static int __rec_init(WT_SESSION_IMPL *, WT_REF *, uint32_t, WT_SALVAGE_COOKIE *, void *);
 static int __rec_hs_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *);
 static int __rec_root_write(WT_SESSION_IMPL *, WT_PAGE *, uint32_t);
@@ -265,7 +265,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         btree->rec_multiblock_max = r->multi_next;
 
     /* Clean up the reconciliation structure. */
-    __rec_cleanup(session, r);
+    WT_RET(__rec_cleanup(session, r));
 
     /*
      * When threads perform eviction, don't cache block manager structures (even across calls), we
@@ -700,8 +700,8 @@ err:
         if (ret == 0)
             *(WT_RECONCILE **)reconcilep = r;
         else {
-            __rec_cleanup(session, r);
-            __rec_destroy(session, &r);
+            WT_TRET(__rec_cleanup(session, r));
+            WT_TRET(__rec_destroy(session, &r));
         }
     }
 
@@ -712,7 +712,7 @@ err:
  * __rec_cleanup --
  *     Clean up after a reconciliation run, except for structures cached across runs.
  */
-static void
+static int
 __rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
     WT_BTREE *btree;
@@ -720,6 +720,9 @@ __rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     uint32_t i;
 
     btree = S2BT(session);
+
+    if (r->hs_cursor != NULL)
+        WT_RET(r->hs_cursor->reset(r->hs_cursor));
 
     if (btree->type == BTREE_ROW)
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
@@ -733,19 +736,25 @@ __rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
     /* Reconciliation is not re-entrant, make sure that doesn't happen. */
     r->ref = NULL;
+
+    return (0);
 }
 
 /*
  * __rec_destroy --
  *     Clean up the reconciliation structure.
  */
-static void
+static int
 __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
 {
     WT_RECONCILE *r;
 
     if ((r = *(WT_RECONCILE **)reconcilep) == NULL)
-        return;
+        return (0);
+
+    if (r->hs_cursor != NULL)
+        WT_RET(r->hs_cursor->close(r->hs_cursor));
+
     *(WT_RECONCILE **)reconcilep = NULL;
 
     __wt_buf_free(session, &r->chunk_A.key);
@@ -768,16 +777,18 @@ __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
     __wt_buf_free(session, &r->update_modify_cbt._upd_value.buf);
 
     __wt_free(session, r);
+
+    return (0);
 }
 
 /*
  * __rec_destroy_session --
  *     Clean up the reconciliation structure, session version.
  */
-static void
+static int
 __rec_destroy_session(WT_SESSION_IMPL *session)
 {
-    __rec_destroy(session, &session->reconcile);
+    return (__rec_destroy(session, &session->reconcile));
 }
 
 /*
@@ -2021,8 +2032,8 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     __wt_page_modify_set(session, parent);
 
 err:
-    __rec_cleanup(session, r);
-    __rec_destroy(session, &cbulk->reconcile);
+    WT_TRET(__rec_cleanup(session, r));
+    WT_TRET(__rec_destroy(session, &cbulk->reconcile));
 
     return (ret);
 }
