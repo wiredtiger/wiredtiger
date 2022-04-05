@@ -168,7 +168,7 @@ functions:
             mkdir -p cmake_build
             cd cmake_build
             $CMAKE -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1 \
-              -DHAVE_DIAGNOSTIC=1 -DCMAKE_BUILD_TYPE=ASan \
+              -DHAVE_DIAGNOSTIC=1 ${NON_BARRIER_DIAGNOSTIC_YIELDS|} -DCMAKE_BUILD_TYPE=ASan \
               -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 ${configure_python_setting|} \
               -G "${cmake_generator|Ninja}" ../.
           fi
@@ -187,7 +187,7 @@ functions:
             mkdir -p cmake_build
             cd cmake_build
             $CMAKE -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1 \
-              -DHAVE_DIAGNOSTIC=1 -DENABLE_STRICT=1  \
+              -DHAVE_DIAGNOSTIC=1 ${NON_BARRIER_DIAGNOSTIC_YIELDS|} -DENABLE_STRICT=1  \
               -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 ${configure_python_setting|} \
               -G "${cmake_generator|Ninja}" ../.
           fi
@@ -333,6 +333,15 @@ functions:
         set -o errexit
         set -o verbose
         ${test_env_vars|} ./run -t ${test_name} -C '${test_config}' -f ${test_config_filename} -l 2
+
+  "wt2853_perf test":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build/bench/wt2853_perf"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} ./test_wt2853_perf ${wt2853_perf_args}
 
   "csuite test":
     command: shell.exec
@@ -596,10 +605,10 @@ functions:
         set -o verbose
         ${test_env_vars|} test/csuite/${test_binary}/smoke.sh ${test_args|} 2>&1
 
-  "upload cpp test stats":
+  "upload test stats":
     - command: perf.send
       params:
-        file: ./wiredtiger/cmake_build/test/cppsuite/${test_name}.json
+        file: ./wiredtiger/cmake_build/${test_path}.json
 
   "upload-perf-test-stats":
     - command: shell.exec
@@ -771,6 +780,9 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
+          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=0
+      - func: "compile wiredtiger"
+        vars:
           posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake -DGNU_C_VERSION=7 -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1
       - func: "compile wiredtiger"
         vars:
@@ -783,6 +795,9 @@ tasks:
     tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=0
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake -DCLANG_C_VERSION=6.0 -DCLANG_CXX_VERSION=6.0 -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1
@@ -988,9 +1003,9 @@ tasks:
           test_config: debug_mode=(cursor_copy=true)
           test_config_filename: configs/base_test_default.txt
           test_name: base_test
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: base_test
+          test_path: test/cppsuite/base_test
 
   - name: cppsuite-hs-cleanup-default
     tags: ["pull_request"]
@@ -1003,9 +1018,9 @@ tasks:
           test_config: debug_mode=(cursor_copy=true)
           test_config_filename: configs/hs_cleanup_default.txt
           test_name: hs_cleanup
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: hs_cleanup
+          test_path: test/cppsuite/hs_cleanup
 
   - name: cppsuite-search-near-01-default
     tags: ["pull_request"]
@@ -1017,9 +1032,9 @@ tasks:
         vars:
           test_config_filename: configs/search_near_01_default.txt
           test_name: search_near_01
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: search_near_01
+          test_path: test/cppsuite/search_near_01
 
   - name: cppsuite-search-near-02-default
     tags: ["pull_request"]
@@ -1031,9 +1046,9 @@ tasks:
         vars:
           test_config_filename: configs/search_near_02_default.txt
           test_name: search_near_02
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: search_near_02
+          test_path: test/cppsuite/search_near_02
 
   - name: cppsuite-search-near-03-default
     tags: ["pull_request"]
@@ -1045,9 +1060,9 @@ tasks:
         vars:
           test_config_filename: configs/search_near_03_default.txt
           test_name: search_near_03
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: search_near_03
+          test_path: test/cppsuite/search_near_03
 
   - name: cppsuite-base-test-stress
     depends_on:
@@ -1058,9 +1073,9 @@ tasks:
         vars:
           test_config_filename: configs/base_test_stress.txt
           test_name: base_test
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: base_test
+          test_path: test/cppsuite/base_test
 
   - name: cppsuite-hs-cleanup-stress
     depends_on:
@@ -1071,9 +1086,9 @@ tasks:
         vars:
           test_config_filename: configs/hs_cleanup_stress.txt
           test_name: hs_cleanup
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: hs_cleanup
+          test_path: test/cppsuite/hs_cleanup
 
   - name: cppsuite-search-near-01-stress
     depends_on:
@@ -1084,9 +1099,9 @@ tasks:
         vars:
           test_config_filename: configs/search_near_01_stress.txt
           test_name: search_near_01
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: search_near_01
+          test_path: test/cppsuite/search_near_01
 
   - name: cppsuite-search-near-02-stress
     depends_on:
@@ -1097,9 +1112,9 @@ tasks:
         vars:
           test_config_filename: configs/search_near_02_stress.txt
           test_name: search_near_02
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: search_near_02
+          test_path: test/cppsuite/search_near_02
 
   - name: cppsuite-search-near-03-stress
     depends_on:
@@ -1110,9 +1125,9 @@ tasks:
         vars:
           test_config_filename: configs/search_near_03_stress.txt
           test_name: search_near_03
-      - func: "upload cpp test stats"
+      - func: "upload test stats"
         vars:
-          test_name: search_near_03
+          test_path: test/cppsuite/search_near_03
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
@@ -1453,16 +1468,6 @@ tasks:
       - func: "csuite test"
         vars:
           test_name: wt2834_join_bloom_fix
-
-  - name: csuite-wt2853-perf-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt2853_perf
 
   - name: csuite-wt2909-checkpoint-integrity-test
     tags: ["pull_request"]
@@ -2680,6 +2685,60 @@ tasks:
     name: recovery-stress-test-3
     tags: ["stress-test-3", "stress-test-zseries-3"]
 
+  - name: format-stress-test-no-barrier
+    tags: ["stress-test-no-barrier"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger with builtins"
+        vars: 
+          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
+      - func: "format test script"
+        vars:
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
+
+  - name: format-stress-sanitizer-test-no-barrier
+    tags: ["stress-test-no-barrier"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger address sanitizer"
+        vars: 
+          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
+      - func: "format test script"
+        vars:
+          format_test_script_args: -t 360
+          test_env_vars:
+            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
+            ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
+
+  - name: race-condition-stress-sanitizer-test-no-barrier
+    tags: ["stress-test-no-barrier"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars: 
+          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DNON_BARRIER_DIAGNOSTIC_YIELDS=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 -DHAVE_BUILTIN_EXTENSION_ZSTD=1
+      - func: "format test script"
+        vars:
+          format_test_script_args: -R -t 360
+          test_env_vars:
+            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
+            ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
+
+  - name: recovery-stress-test-no-barrier
+    tags: ["stress-test-no-barrier"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DNON_BARRIER_DIAGNOSTIC_YIELDS=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
+      - func: "recovery stress test script"
+        vars:
+          times: 25
+
   - name: format-abort-recovery-stress-test
     commands:
       # Allow 30 minutes beyond test runtime because recovery under load can cause the test to
@@ -3575,6 +3634,32 @@ tasks:
           comparison_op: "lt"
           expected-stats: '{"Warning Idle (drop)": 50, "Latency drop(in sec.) Max1": 500, "Latency warnings (read, insert, update)": 500}'
 
+  - name: bench-wt2853-perf-test-row
+    tags: ["wt2853-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "wt2853_perf test"
+        vars:
+          wt2853_perf_args: "-t r"
+      - func: "upload test stats"
+        vars:
+          test_path: bench/wt2853_perf/wt2853_perf
+
+  - name: bench-wt2853-perf-test-col
+    tags: ["wt2853-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "wt2853_perf test"
+        vars:
+          wt2853_perf_args: "-t c"
+      - func: "upload test stats"
+        vars:
+          test_path: bench/wt2853_perf/wt2853_perf
+
 #######################################
 #            Buildvariants            #
 #######################################
@@ -3721,7 +3806,7 @@ buildvariants:
       -DCMAKE_BUILD_TYPE=UBSan
       -DCC_OPTIMIZE_LEVEL=-O1
       -DENABLE_STRICT=1
-      -DHAVE_DIAGNOTIC=1
+      -DHAVE_DIAGNOSTIC=1
       -DENABLE_STATIC=0
       -DENABLE_TCMALLOC=1
       -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
@@ -3802,6 +3887,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
+    - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
 
 - name: ubuntu2004-stress-tests-arm64
@@ -3840,6 +3926,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
+    - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
 
 - name: ubuntu2004-perf-tests
@@ -3878,6 +3965,7 @@ buildvariants:
     - name: ".log-perf"
     - name: ".long-perf"
     - name: many-dhandle-stress
+    - name: ".wt2853-perf"
   display_tasks:
     - name: Wiredtiger-perf-btree-jobs
       execution_tasks:
@@ -3901,6 +3989,9 @@ buildvariants:
     - name: Wiredtiger-perf-long-jobs
       execution_tasks:
       - ".long-perf"
+    - name: WiredTiger-wt2853-perf
+      execution_tasks:
+      - ".wt2853-perf"
 
 - name: large-scale-tests
   display_name: "Large scale tests"
@@ -4169,6 +4260,8 @@ buildvariants:
 
 - name: rhel8-ppc
   display_name: "~ RHEL8 PPC"
+  # FIXME-WT-8981
+  activate: false
   run_on:
   - rhel81-power8-small
   batchtime: 120 # 2 hours
