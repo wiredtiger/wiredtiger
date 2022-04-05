@@ -176,7 +176,8 @@ __curhs_search(WT_CURSOR_BTREE *hs_cbt, bool insert)
       ret = __wt_row_search(hs_cbt, &hs_cbt->iface.key, insert, NULL, false, NULL));
 
 #ifdef HAVE_DIAGNOSTIC
-    WT_TRET(__wt_cursor_key_order_init(hs_cbt));
+    if (ret == 0)
+        WT_TRET(__wt_cursor_key_order_init(hs_cbt));
 #endif
 
 err:
@@ -938,10 +939,10 @@ __curhs_insert(WT_CURSOR *cursor)
 
 #ifdef HAVE_DIAGNOSTIC
     /* Do a search again and call next to check the key order. */
-    WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, false));
-    WT_ASSERT(session, ret == 0);
-    if (cbt->compare == 0)
+    ret = __wt_btcur_search(cbt);
+    if (ret == 0)
         WT_ERR_NOTFOUND_OK(__curhs_file_cursor_next(session, file_cursor), false);
+    WT_ASSERT(session, ret == NOT_FOUND);
 #endif
 
     /* Insert doesn't maintain a position across calls, clear resources. */
