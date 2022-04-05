@@ -9,7 +9,8 @@ value_sz=1024
 icount=800000
 reopen_connection=false
 run_time=360
-threads=((count=5,reads=1),(count=5,inserts=1),(count=5,updates=1))
+#threads=((count=5,reads=1),(count=5,inserts=1),(count=5,updates=1))
+threads=((count=1,updates=1))
 warmup=10
 sample_interval=5
 populate_threads=8
