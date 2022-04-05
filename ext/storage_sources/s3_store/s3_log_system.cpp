@@ -29,11 +29,13 @@
 #include "s3_log_system.h"
 #include <cstdarg>
 
+// Constructor for S3LogSystem that calls to set the WiredTiger verbosity level. 
 S3LogSystem::S3LogSystem(WT_EXTENSION_API *wtApi, uint32_t wtVerbosityLevel) : _wtApi(wtApi)
 {
     SetWtVerbosityLevel(wtVerbosityLevel);
 }
 
+// Writes the log stream to the output stream using printf style. 
 void
 S3LogSystem::Log(Aws::Utils::Logging::LogLevel logLevel, const char *tag, const char *format, ...)
 {
@@ -60,6 +62,7 @@ S3LogSystem::Log(Aws::Utils::Logging::LogLevel logLevel, const char *tag, const 
     va_end(args);
 }
 
+// Writes the log stream to the output stream. 
 void
 S3LogSystem::LogStream(
   Aws::Utils::Logging::LogLevel logLevel, const char *tag, const Aws::OStringStream &messageStream)
@@ -67,37 +70,28 @@ S3LogSystem::LogStream(
     LogAwsMessage(tag, messageStream.rdbuf()->str().c_str());
 }
 
+// Directs the output stream to WiredTiger's log streams. 
 void
 S3LogSystem::LogAwsMessage(const char *tag, const std::string &message) const
 {
     _wtApi->err_printf(_wtApi, NULL, "%s : %s", tag, message.c_str());
 }
 
+// Directs the output stream to WiredTiger's log streams matched at WiredTiger's log stream levels.
 void
 S3LogSystem::LogVerboseMessage(int32_t verbosityLevel, const std::string &message) const
 {
     if (verbosityLevel <= _wtVerbosityLevel) {
         // Use err_printf for error and warning messages and use msg_printf for notice, info and
         // debug messages.
-        if (verbosityLevel < -1)
+        if (verbosityLevel < WT_VERBOSE_NOTICE)
             _wtApi->err_printf(_wtApi, NULL, "%s", message.c_str());
         else
             _wtApi->msg_printf(_wtApi, NULL, "%s", message.c_str());
     }
 }
 
-void
-S3LogSystem::LogErrorMessage(const std::string &message) const
-{
-    LogVerboseMessage(WT_VERBOSE_ERROR, message);
-}
-
-void
-S3LogSystem::LogDebugMessage(const std::string &message) const
-{
-    LogVerboseMessage(WT_VERBOSE_DEBUG, message);
-}
-
+// Sets the WiredTiger verbosity level by mapping the AWS SDK log level.
 void
 S3LogSystem::SetWtVerbosityLevel(int32_t wtVerbosityLevel)
 {
@@ -109,6 +103,7 @@ S3LogSystem::SetWtVerbosityLevel(int32_t wtVerbosityLevel)
         _awsLogLevel = Aws::Utils::Logging::LogLevel::Error;
 }
 
+// Unused. 
 void
 S3LogSystem::Flush()
 {

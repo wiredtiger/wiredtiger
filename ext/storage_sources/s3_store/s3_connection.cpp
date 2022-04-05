@@ -25,7 +25,8 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-#include <aws/core/Aws.h>
+#include "s3_connection.h"
+
 #include <aws/s3-crt/model/DeleteObjectRequest.h>
 #include <aws/s3-crt/model/ListObjectsV2Request.h>
 #include <aws/s3-crt/model/PutObjectRequest.h>
@@ -33,16 +34,14 @@
 #include <aws/s3-crt/model/HeadObjectRequest.h>
 #include <aws/s3-crt/model/HeadBucketRequest.h>
 
-#include "s3_connection.h"
-
 #include <fstream>
 #include <iostream>
-#include <string>
-#include <vector>
 
+// This is a tag that can be set and used when uploading or retrieving objects from the S3.
+// Tagging in S3 allows for categorisation of objects, as well as other benefits. 
 #define S3_ALLOCATION_TAG ""
 
-// Constructor for AWS S3 bucket connection with provided credentials.
+// Constructor for AWS S3 bucket conqnection with provided credentials.
 S3Connection::S3Connection(const Aws::Auth::AWSCredentials &credentials,
   const Aws::S3Crt::ClientConfiguration &config, const std::string &bucketName,
   const std::string &objPrefix)
@@ -51,11 +50,12 @@ S3Connection::S3Connection(const Aws::Auth::AWSCredentials &credentials,
     // Confirm that we can access the bucket, else fail.
     bool exists;
     int ret = BucketExists(exists);
-    if (ret != 0 || !exists)
+    if (!exists)
         throw std::invalid_argument(_bucketName + " : No such bucket.");
-}
-
-// Constructor for AWS S3 bucket connection with credentials in local file.
+    if (ret!= 0)
+        throw std::invalid_argument(_bucketName + " :Unable to access bucket.");
+        
+// Constructor for AWS S3 bucket connection with credentials in local file. 
 S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config,
   const std::string &bucketName, const std::string &objPrefix)
     : _s3CrtClient(config), _bucketName(bucketName), _objectPrefix(objPrefix)
@@ -63,9 +63,10 @@ S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config,
     // Confirm that we can access the bucket, else fail.
     bool exists;
     int ret = BucketExists(exists);
-    if (ret != 0 || !exists)
+    if (!exists)
         throw std::invalid_argument(_bucketName + " : No such bucket.");
-}
+    if (ret!= 0)
+        throw std::invalid_argument(_bucketName + " : Unable to access bucket.");
 
 // Builds a list of object names, with prefix matching, from an S3 bucket into a vector. The
 // batchSize parameter specifies the maximum number of objects returned in each AWS response, up
@@ -111,7 +112,7 @@ int
 S3Connection::PutObject(const std::string &objectKey, const std::string &fileName) const
 {
     std::shared_ptr<Aws::IOStream> inputData = Aws::MakeShared<Aws::FStream>(
-      "s3-source", fileName.c_str(), std::ios_base::in | std::ios_base::binary);
+      S3_ALLOCATION_TAG, fileName.c_str(), std::ios_base::in | std::ios_base::binary);
 
     Aws::S3Crt::Model::PutObjectRequest request;
     request.SetBucket(_bucketName);
@@ -185,7 +186,7 @@ S3Connection::ObjectExists(const std::string &objectKey, bool &exists, size_t &o
         return (0);
 
     // Fix later, return a proper error code. Not sure if we always have
-    // outcome.GetError().GetResponseCode()   
+    // outcome.GetError().GetResponseCode()
     return (1);
 }
 
