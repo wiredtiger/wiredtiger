@@ -29,13 +29,13 @@
 #include "s3_log_system.h"
 #include <cstdarg>
 
-// Constructor for S3LogSystem that calls to set the WiredTiger verbosity level. 
+// Constructor for S3LogSystem that calls to set the WiredTiger verbosity level.
 S3LogSystem::S3LogSystem(WT_EXTENSION_API *wtApi, uint32_t wtVerbosityLevel) : _wtApi(wtApi)
 {
     SetWtVerbosityLevel(wtVerbosityLevel);
 }
 
-// Writes the log stream to the output stream using printf style. 
+// Writes the log stream to the output stream using printf style.
 void
 S3LogSystem::Log(Aws::Utils::Logging::LogLevel logLevel, const char *tag, const char *format, ...)
 {
@@ -62,7 +62,7 @@ S3LogSystem::Log(Aws::Utils::Logging::LogLevel logLevel, const char *tag, const 
     va_end(args);
 }
 
-// Writes the log stream to the output stream. 
+// Writes the log stream to the output stream.
 void
 S3LogSystem::LogStream(
   Aws::Utils::Logging::LogLevel logLevel, const char *tag, const Aws::OStringStream &messageStream)
@@ -70,7 +70,7 @@ S3LogSystem::LogStream(
     LogAwsMessage(tag, messageStream.rdbuf()->str().c_str());
 }
 
-// Directs the output stream to WiredTiger's log streams. 
+// Directs the output stream to WiredTiger's log streams.
 void
 S3LogSystem::LogAwsMessage(const char *tag, const std::string &message) const
 {
@@ -103,7 +103,7 @@ S3LogSystem::SetWtVerbosityLevel(int32_t wtVerbosityLevel)
         _awsLogLevel = Aws::Utils::Logging::LogLevel::Error;
 }
 
-// Unused. 
+// Unused.
 void
 S3LogSystem::Flush()
 {

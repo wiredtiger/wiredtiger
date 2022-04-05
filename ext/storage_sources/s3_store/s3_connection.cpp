@@ -38,7 +38,7 @@
 #include <iostream>
 
 // This is a tag that can be set and used when uploading or retrieving objects from the S3.
-// Tagging in S3 allows for categorisation of objects, as well as other benefits. 
+// Tagging in S3 allows for categorisation of objects, as well as other benefits.
 #define S3_ALLOCATION_TAG ""
 
 // Constructor for AWS S3 bucket conqnection with provided credentials.
@@ -52,11 +52,11 @@ S3Connection::S3Connection(const Aws::Auth::AWSCredentials &credentials,
     int ret = BucketExists(exists);
     if (!exists)
         throw std::invalid_argument(_bucketName + " : No such bucket.");
-    if (ret!= 0)
+    if (ret != 0)
         throw std::invalid_argument(_bucketName + " :Unable to access bucket.");
 }
-        
-// Constructor for AWS S3 bucket connection with credentials in local file. 
+
+// Constructor for AWS S3 bucket connection with credentials in local file.
 S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config,
   const std::string &bucketName, const std::string &objPrefix)
     : _s3CrtClient(config), _bucketName(bucketName), _objectPrefix(objPrefix)
@@ -66,7 +66,7 @@ S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config,
     int ret = BucketExists(exists);
     if (!exists)
         throw std::invalid_argument(_bucketName + " : No such bucket.");
-    if (ret!= 0)
+    if (ret != 0)
         throw std::invalid_argument(_bucketName + " : Unable to access bucket.");
 }
 
@@ -129,7 +129,7 @@ S3Connection::PutObject(const std::string &objectKey, const std::string &fileNam
     return (1);
 }
 
-// Deletes an object from S3 bucket. Returns 0 if success, otherwise 1. 
+// Deletes an object from S3 bucket. Returns 0 if success, otherwise 1.
 int
 S3Connection::DeleteObject(const std::string &objectKey) const
 {
@@ -179,7 +179,7 @@ S3Connection::ObjectExists(const std::string &objectKey, bool &exists, size_t &o
     Aws::S3Crt::Model::HeadObjectOutcome outcome = _s3CrtClient.HeadObject(request);
 
     // If an object with the given key does not exist the HEAD request will return a 404.
-    // Do not fail in this case. 
+    // Do not fail in this case.
     if (outcome.IsSuccess()) {
         exists = true;
         objectSize = outcome.GetResult().GetContentLength();
@@ -202,7 +202,7 @@ S3Connection::BucketExists(bool &exists) const
     request.WithBucket(_bucketName);
     Aws::S3Crt::Model::HeadBucketOutcome outcome = _s3CrtClient.HeadBucket(request);
 
-    // If an object with the given key does not exist the HEAD request will return a 404. 
+    // If an object with the given key does not exist the HEAD request will return a 404.
     // Do not fail in this case.
     if (outcome.IsSuccess()) {
         exists = true;

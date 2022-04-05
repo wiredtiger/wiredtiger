@@ -66,9 +66,9 @@ struct S3Storage {
     WT_EXTENSION_API *wtApi;         /* Extension API */
     std::shared_ptr<S3LogSystem> log;
 
-    std::mutex fsListMutex;             /* Protect the file system list */
+    std::mutex fsListMutex;           /* Protect the file system list */
     std::list<S3FileSystem *> fsList; /* List of initiated file systems */
-    std::mutex fhMutex;                 /* Protect the file handle list*/
+    std::mutex fhMutex;               /* Protect the file handle list*/
     std::list<S3FileHandle *> fhList; /* List of open file handles */
 
     uint32_t referenceCount; /* Number of references to this storage source */
@@ -94,11 +94,11 @@ struct S3FileSystem {
 
 struct S3FileHandle {
     WT_FILE_HANDLE iface; /* Must come first */
-    S3Storage *storage;  /* Enclosing storage source */
+    S3Storage *storage;   /* Enclosing storage source */
     /*
-     * Similarly, The S3FileHandle is built on top of the WT_FILE_HANDLE. We require an instance
-     * of the WT_FILE_HANDLE in order to access the native WiredTiger filehandle functionality, such
-     * as the native WT file handle read and close.
+     * Similarly, The S3FileHandle is built on top of the WT_FILE_HANDLE. We require an instance of
+     * the WT_FILE_HANDLE in order to access the native WiredTiger filehandle functionality, such as
+     * the native WT file handle read and close.
      */
     WT_FILE_HANDLE *wtFileHandle;
 };
@@ -665,11 +665,9 @@ S3ObjectListInternal(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char
 
     int ret;
     s3->statistics.listObjectsCount++;
-    
-    if (listSingle)
-        ret = fs->connection->ListObjects(completePrefix, objects, 1, true);
-    else
-        ret = fs->connection->ListObjects(completePrefix, objects);
+
+    ret = listSingle ? fs->connection->ListObjects(completePrefix, objects, 1, true) :
+                       fs->connection->ListObjects(completePrefix, objects);
 
     if (ret != 0) {
         s3->log->LogErrorMessage("S3ObjectList: ListObjects request to S3 failed.");
@@ -690,7 +688,7 @@ static int
 S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
   const char *prefix, char ***objectList, uint32_t *count)
 {
-    return(S3ObjectListInternal(fileSystem, session, directory, prefix, objectList, count, false));
+    return (S3ObjectListInternal(fileSystem, session, directory, prefix, objectList, count, false));
 }
 
 /*
@@ -701,7 +699,7 @@ static int
 S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
   const char *prefix, char ***objectList, uint32_t *count)
 {
-    return(S3ObjectListInternal(fileSystem, session, directory, prefix, objectList, count, true));
+    return (S3ObjectListInternal(fileSystem, session, directory, prefix, objectList, count, true));
 }
 
 /*
@@ -867,7 +865,10 @@ S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *f
     }
 
     /* The file should be read-only. */
-    std::filesystem::permissions(destPath.c_str(), std::filesystem::perms::owner_read | std::filesystem::perms::group_read | std::filesystem::perms::others_read, std::filesystem::perm_options::add, ec);
+    std::filesystem::permissions(destPath.c_str(),
+      std::filesystem::perms::owner_read | std::filesystem::perms::group_read |
+        std::filesystem::perms::others_read,
+      std::filesystem::perm_options::add, ec);
     ret = ec.value();
     if (ret != 0) {
         ret = errno;
@@ -951,7 +952,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 
     /* Load the storage */
     if ((ret = connection->add_storage_source(connection, "s3_store", &s3->storageSource, NULL)) !=
-      0){
+      0) {
         Aws::Utils::Logging::ShutdownAWSLogging();
         delete (s3);
     }
