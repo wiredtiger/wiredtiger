@@ -179,7 +179,7 @@ thread_ts_run(void *arg)
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
         /*
          * All durable can intermittently move backwards, we do not want to set stable and the
-         * oldest timestamps backwards - refer WT-8001.
+         * oldest timestamps backwards.
          */
         all_dur_ts = strtoul(ts_string, NULL, 16);
         if (!first && all_dur_ts < prev_all_dur_ts) {
