@@ -346,7 +346,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * other pages.
      */
     page_del = __wt_page_del_active(session, ref, true) ? ref->ft_info.del : NULL;
-    if (page_del != NULL && !page_del->resolved) {
+    if (page_del != NULL && !page_del->committed) {
         count = 0;
         if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
             WT_SKIP_FOREACH (ins, insert)

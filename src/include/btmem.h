@@ -876,11 +876,12 @@ struct __wt_page_deleted {
     uint8_t previous_ref_state;
 
     /*
-     * If the fast-truncate transaction has resolved. If we're forced to instantiate a page, and the
-     * resolved flag isn't set, we have to create a list of update structures for the transaction to
-     * resolve in a subsequent abort/commit.
+     * If the fast-truncate transaction has committed. If we're forced to instantiate the page, and
+     * the committed flag isn't set, we have to create an update structure list for the transaction
+     * to resolve in a subsequent commit. (This is tricky: if the transaction is rolled back, the
+     * entire structure is discarded, that is, the flag is set only on commit and not on rollback.)
      */
-    bool resolved;
+    bool committed;
 };
 
 /*
