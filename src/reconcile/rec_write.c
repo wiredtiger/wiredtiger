@@ -2738,7 +2738,7 @@ __wt_rec_hs_clear_on_tombstone(WT_SESSION_IMPL *session, WT_RECONCILE *r, wt_tim
         WT_RET(__wt_curhs_open(session, NULL, &r->hs_cursor));
 
     /*
-     * From WT_TS_NONE delete all the history store content of the key. The test of
+     * From WT_TS_NONE delete/reinsert all the history store content of the key. The test of
      * WT_REC_CHECKPOINT_RUNNING asks the function to fail with EBUSY if we are trying to evict an
      * out of order or mixed-mode update while a checkpoint is in progress; such eviction can race
      * with the checkpoint itself and lead to history store inconsistency. (Note:
