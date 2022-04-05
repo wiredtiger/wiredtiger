@@ -45,9 +45,8 @@ WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency, 100)
                     session->hs_checkpoint = (cbt)->checkpoint_hs_dhandle->checkpoint; \
                 }                                                                      \
             }                                                                          \
-        } else {                                                                       \
+        } else                                                                         \
             __saved_txn = NULL;                                                        \
-        }                                                                              \
         op;                                                                            \
         if (__saved_txn != NULL) {                                                     \
             (session)->txn = __saved_txn;                                              \
@@ -595,8 +594,6 @@ err:
 
     WT_ASSERT(session, session->dhandle == NULL || session->dhandle->session_inuse > 0);
 
-    __wt_cursor_close(cursor);
-
     /* Free any private transaction set up for a checkpoint cursor. */
     if (cbt->checkpoint_txn != NULL)
         __wt_txn_close_checkpoint_cursor(session, &cbt->checkpoint_txn);
@@ -607,6 +604,8 @@ err:
           session, cbt->checkpoint_hs_dhandle, WT_TRET(__wt_session_release_dhandle(session)));
         cbt->checkpoint_hs_dhandle = NULL;
     }
+
+    __wt_cursor_close(cursor);
 
     /*
      * Note: release the data handle last so that cursor statistics are updated correctly.
