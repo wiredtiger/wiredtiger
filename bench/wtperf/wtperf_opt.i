@@ -192,8 +192,15 @@ DEF_OPT_AS_STRING(threads, "",
   "'modify', 'modify_delta', 'modify_distribute', 'modify_force_update', 'updates', "
   "'update_delta', 'truncate', 'truncate_pct' and 'truncate_count'. There are also behavior "
   "modifiers, supported modifiers are 'ops_per_txn'")
-DEF_OPT_AS_STRING(tiered_ext, "none",
-  "tiered extension.  Allowed configuration values are: 'none', 'dir_store")
+/*
+ * Note for tiered storage usage, the test expects that the bucket will be specified in the
+ * runner's 'conn_config' line. Any bucket or directory listed is assumed to already exist and the
+ * test program will just use it. The program does not parse the connection configuration line.
+ */
+DEF_OPT_AS_STRING(tiered, "none",
+  "tiered extension.  Allowed configuration values are: 'none', 'dir_store', 's3'")
+DEF_OPT_AS_UINT32(
+  tiered_flush_interval, 120, "Call flush_tier every interval seconds during the workload phase. We recommend this value be larger than the checkpoint_interval.")
 DEF_OPT_AS_CONFIG_STRING(transaction_config, "",
   "WT_SESSION.begin_transaction configuration string, applied during the populate phase when "
   "populate_ops_per_txn is nonzero")

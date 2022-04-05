@@ -1,7 +1,7 @@
 conn_config="cache_size=20G,log=(enabled=true),tiered_storage=(bucket=/Users/sasha/Work/WiredTiger/BUCKET,bucket_prefix=pfx,local_retention=2,name=dir_store)"
 pareto=20
 table_config="type=file"
-tiered_ext="dir_store"
+tiered="dir_store"
 key_sz=100
 value_sz=1024
 icount=12000000
