@@ -643,13 +643,9 @@ S3FileSystemTerminate(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session)
     return (0);
 }
 
-/*
- * S3ObjectList --
- *     Return a list of object names for the given location.
- */
 static int
-S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
-  const char *prefix, char ***objectList, uint32_t *count)
+S3ObjectListInternal(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
+  const char *prefix, char ***objectList, uint32_t *count, bool listSingle)
 {
     S3FileSystem *fs = (S3FileSystem *)fileSystem;
     S3Storage *s3 = FS2S3(fileSystem);
@@ -669,7 +665,13 @@ S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *direct
 
     int ret;
     s3->statistics.listObjectsCount++;
-    if ((ret = fs->connection->ListObjects(completePrefix, objects)) != 0) {
+    
+    if (listSingle)
+        ret = fs->connection->ListObjects(completePrefix, objects, 1, true);
+    else
+        ret = fs->connection->ListObjects(completePrefix, objects);
+
+    if (ret != 0) {
         s3->log->LogErrorMessage("S3ObjectList: ListObjects request to S3 failed.");
         return (ret);
     }
@@ -681,6 +683,17 @@ S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *direct
 }
 
 /*
+ * S3ObjectList --
+ *     Return a list of object names for the given location.
+ */
+static int
+S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
+  const char *prefix, char ***objectList, uint32_t *count)
+{
+    return(S3ObjectListInternal(fileSystem, session, directory, prefix, objectList, count, false));
+}
+
+/*
  * S3ObjectListSingle --
  *     Return a single object name for the given location.
  */
@@ -688,34 +701,7 @@ static int
 S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
   const char *prefix, char ***objectList, uint32_t *count)
 {
-    S3FileSystem *fs = (S3FileSystem *)fileSystem;
-    S3Storage *s3 = FS2S3(fileSystem);
-    std::vector<std::string> objects;
-    std::string completePrefix;
-
-    *count = 0;
-
-    if (directory != NULL) {
-        completePrefix += directory;
-        /* Add a terminating '/' if one doesn't exist. */
-        if (completePrefix.length() > 1 && completePrefix[completePrefix.length() - 1] != '/')
-            completePrefix += '/';
-    }
-    if (prefix != NULL)
-        completePrefix += prefix;
-
-    int ret;
-    s3->statistics.listObjectsCount++;
-    if ((ret = fs->connection->ListObjects(completePrefix, objects, 1, true)) != 0) {
-        s3->log->LogErrorMessage("S3ObjectListSingle: ListObjects request to S3 failed.");
-        return (ret);
-    }
-
-    *count = objects.size();
-
-    S3ObjectListAdd(*s3, objectList, objects, *count);
-
-    return (ret);
+    return(S3ObjectListInternal(fileSystem, session, directory, prefix, objectList, count, true));
 }
 
 /*

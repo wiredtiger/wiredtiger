@@ -54,6 +54,7 @@ S3Connection::S3Connection(const Aws::Auth::AWSCredentials &credentials,
         throw std::invalid_argument(_bucketName + " : No such bucket.");
     if (ret!= 0)
         throw std::invalid_argument(_bucketName + " :Unable to access bucket.");
+}
         
 // Constructor for AWS S3 bucket connection with credentials in local file. 
 S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config,
@@ -67,6 +68,7 @@ S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config,
         throw std::invalid_argument(_bucketName + " : No such bucket.");
     if (ret!= 0)
         throw std::invalid_argument(_bucketName + " : Unable to access bucket.");
+}
 
 // Builds a list of object names, with prefix matching, from an S3 bucket into a vector. The
 // batchSize parameter specifies the maximum number of objects returned in each AWS response, up
