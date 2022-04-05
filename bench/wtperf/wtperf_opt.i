@@ -200,7 +200,9 @@ DEF_OPT_AS_STRING(threads, "",
 DEF_OPT_AS_STRING(tiered, "none",
   "tiered extension.  Allowed configuration values are: 'none', 'dir_store', 's3'")
 DEF_OPT_AS_UINT32(
-  tiered_flush_interval, 120, "Call flush_tier every interval seconds during the workload phase. We recommend this value be larger than the checkpoint_interval.")
+  tiered_flush_interval, 0, "Call flush_tier every interval seconds during the workload phase. "
+  "We recommend this value be larger than the checkpoint_interval. 0 to disable. The "
+  "'tiered_extension' must be set to something other than 'none'.")
 DEF_OPT_AS_CONFIG_STRING(transaction_config, "",
   "WT_SESSION.begin_transaction configuration string, applied during the populate phase when "
   "populate_ops_per_txn is nonzero")

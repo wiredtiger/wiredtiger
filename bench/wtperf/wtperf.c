@@ -2097,15 +2097,30 @@ config_tiered(WTPERF *wtperf)
     ret = 0;
 
     s = opts->tiered;
-    if (strcmp(s, "none") == 0)
+    if (strcmp(s, "none") == 0) {
         wtperf->tiered_ext = NULL;
-    else if (strcmp(s, "dir_store") == 0)
-        wtperf->tiered_ext = DIR_EXT;
-    else if (strcmp(s, "s3") == 0)
-        wtperf->tiered_ext = S3_EXT;
-    else {
+        return (0);
+    }
+    if (strcmp(s, "dir_store") != 0 && strcmp(s, "s3") != 0) {
         fprintf(stderr, "invalid tiered extension configuration: %s\n", s);
-        ret = EINVAL;
+        return (EINVAL);
+    }
+    if (opts->tiered_flush_interval == 0) {
+        fprintf(stderr, "tiered_flush_interval must be non-zero for tiered extension: %s\n", s);
+        return (EINVAL);
+    }
+    if (strcmp(s, "dir_store") == 0) {
+        if (strstr(opts->conn_config, "dir_store") == NULL) {
+            fprintf(stderr, "tiered extension name not found in connection configuration: %s\n", s);
+            ret = EINVAL;
+        } else
+            wtperf->tiered_ext = DIR_EXT;
+    } else if (strcmp(s, "s3") == 0) {
+        if (strstr(opts->conn_config, "s3") == NULL) {
+            fprintf(stderr, "tiered extension name not found in connection configuration: %s\n", s);
+            ret = EINVAL;
+        } else
+            wtperf->tiered_ext = S3_EXT;
     }
     return (ret);
 }
