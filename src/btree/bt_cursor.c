@@ -393,7 +393,7 @@ __cursor_row_search(WT_CURSOR_BTREE *cbt, bool insert, WT_REF *leaf, bool *leaf_
  *     Column-store modify from a cursor.
  */
 static inline int
-__cursor_col_modify(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
+__cursor_col_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type)
 {
 #ifdef HAVE_DIAGNOSTIC
     return (__wt_col_modify(cbt, cbt->iface.recno, value, NULL, modify_type, false, false));
@@ -407,7 +407,7 @@ __cursor_col_modify(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
  *     Row-store modify from a cursor.
  */
 static inline int
-__cursor_row_modify(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
+__cursor_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type)
 {
 #ifdef HAVE_DIAGNOSTIC
     return (__wt_row_modify(cbt, &cbt->iface.key, value, NULL, modify_type, false, false));
@@ -1062,7 +1062,7 @@ err:
 int
 __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
 {
-    static WT_ITEM flcs_zero = {"", 1, NULL, 0, 0};
+    static const WT_ITEM flcs_zero = {"", 1, NULL, 0, 0};
 
     WT_BTREE *btree;
     WT_CURFILE_STATE state;
@@ -1709,8 +1709,8 @@ __wt_btcur_equals(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *equalp)
  *     Discard a cursor range from row-store or variable-width column-store tree.
  */
 static int
-__cursor_truncate(
-  WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop, int (*rmfunc)(WT_CURSOR_BTREE *, WT_ITEM *, u_int))
+__cursor_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
+  int (*rmfunc)(WT_CURSOR_BTREE *, const WT_ITEM *, u_int))
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
@@ -1764,8 +1764,8 @@ err:
  *     Discard a cursor range from fixed-width column-store tree.
  */
 static int
-__cursor_truncate_fix(
-  WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop, int (*rmfunc)(WT_CURSOR_BTREE *, WT_ITEM *, u_int))
+__cursor_truncate_fix(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
+  int (*rmfunc)(WT_CURSOR_BTREE *, const WT_ITEM *, u_int))
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
