@@ -939,7 +939,7 @@ __curhs_insert(WT_CURSOR *cursor)
 
 #ifdef HAVE_DIAGNOSTIC
     /* Do a search again and call next to check the key order. */
-    ret = __wt_btcur_search(cbt);
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = file_cursor->search(file_cursor));
     if (ret == 0)
         WT_ERR_NOTFOUND_OK(__curhs_file_cursor_next(session, file_cursor), false);
     WT_ASSERT(session, ret == NOT_FOUND);
