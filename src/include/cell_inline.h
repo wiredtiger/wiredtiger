@@ -189,36 +189,6 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
     *flagsp = flags;
 }
 
-#ifdef WT_STANDALONE_BUILD_FT_FIX
-/*
- * __cell_pack_addr_del --
- *     Pack the fast-delete information for an address.
- */
-static inline void
-__cell_pack_addr_del(uint8_t **pp, WT_PAGE_DELETED *page_del)
-{
-    uint8_t v;
-
-    WT_IGNORE_RET(__wt_vpack_uint(pp, 0, page_del->txnid));
-    WT_IGNORE_RET(__wt_vpack_uint(pp, 0, page_del->timestamp));
-    WT_IGNORE_RET(__wt_vpack_uint(pp, 0, page_del->durable_timestamp));
-
-    /*
-     * There's an additional bit of information, if the fast-delete is prepared, with 7 spare bits.
-     * Once the prepare is resolved, we don't care about re-instantiating it when reading the page,
-     * the transaction ID and timestamps are all we need. This is not unexpected: when get here if
-     * we're evicting an internal page with a fast-truncated child page, then the fast-truncate was
-     * prepared and committed, but rollback-to-stable can still undo the deletion.
-     */
-    v = 0;
-    if (page_del->prepare_state == WT_PREPARE_LOCKED ||
-      page_del->prepare_state == WT_PREPARE_INPROGRESS)
-        FLD_SET(v, WT_CELL_ADDR_DEL_PREPARE);
-    **pp = v;
-    ++*pp;
-}
-#endif
-
 /*
  * __wt_cell_pack_addr --
  *     Pack an address cell.
@@ -241,8 +211,13 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
      */
     if (page_del != NULL) {
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_LEAF || cell_type == WT_CELL_ADDR_LEAF_NO);
+        WT_ASSERT(session,
+          page_del->prepare_state == WT_PREPARE_INIT ||
+            page_del->prepare_state == WT_PREPARE_RESOLVED);
 #ifdef WT_STANDALONE_BUILD_FT_FIX
-        __cell_pack_addr_del(&p, page_del);
+        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
+        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->timestamp));
+        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->durable_timestamp));
 #endif
         cell_type = WT_CELL_ADDR_DEL;
     }
@@ -899,12 +874,9 @@ copy_cell_restart:
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->timestamp));
         WT_RET(__wt_vunpack_uint(
           &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->durable_timestamp));
-        page_del->prepare_state =
-          FLD_ISSET(*p, WT_CELL_ADDR_DEL_PREPARE) ? WT_PREPARE_INPROGRESS : 0;
+        page_del->prepare_state = 0;                /* No prepare can have been in progress. */
         page_del->previous_ref_state = WT_REF_DISK; /* The leaf page is on disk. */
         page_del->committed = true;                 /* There is no running transaction. */
-        ++p;
-        WT_CELL_LEN_CHK(p, 0);
     }
 
     /*

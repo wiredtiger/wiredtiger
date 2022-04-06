@@ -18,6 +18,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_C
     WT_CONNECTION_IMPL *conn;
     WT_PAGE_DELETED *page_del;
     WT_TXN *txn;
+    uint8_t prepare_state;
 
     *statep = WT_CHILD_IGNORE;
 
@@ -50,6 +51,23 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_C
     }
 
     /*
+     * A visible entry can be in a prepared state and checkpoints skip in-progress prepared changes.
+     * We can't race here, the entry won't be visible to the checkpoint, or will be in a prepared
+     * state, one or the other.
+     *
+     * We should never see an in-progress prepare in eviction: when we check to see if an internal
+     * page can be evicted, we check for an unresolved fast-truncate, which includes a fast-truncate
+     * in a prepared state, so it's an error to see that during eviction.
+     */
+    WT_ORDERED_READ(prepare_state, page_del->prepare_state);
+    if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
+        WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
+
+        *statep = WT_CHILD_ORIGINAL;
+        return (0);
+    }
+
+    /*
      * Deal with underlying disk blocks. If there are readers that might want to see the page's
      * state before it's deleted, or the fast-delete can be undone by RTS, we can't discard the
      * pages. Write a cell to the internal page with information describing the fast-delete.
@@ -57,17 +75,6 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_C
     if (__wt_page_del_active(session, ref, true) ||
       (conn->txn_global.has_stable_timestamp &&
         page_del->timestamp >= conn->txn_global.stable_timestamp)) {
-#ifndef WT_STANDALONE_BUILD_FT_FIX
-        /*
-         * MongoDB builds have a data consistency bug because we don't write timestamp information,
-         * required to correctly handle fast-truncate objects. Checkpoint must continue because we
-         * don't have a choice, but eviction can fail the attempt. In the case of checkpoint, don't
-         * mark the page clean, that way it can't be evicted regardless.
-         */
-        if (F_ISSET(r, WT_REC_EVICT))
-            return (__wt_set_return(session, EBUSY));
-        r->leave_dirty = true;
-#endif
         *statep = WT_CHILD_PROXY;
         return (0);
     }
