@@ -242,11 +242,11 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     } while (0)
 #define WT_READ_BARRIER()                           \
     do {                                            \
-        __asm__ volatile("dsb ishld" ::: "memory"); \
+        __asm__ volatile("dmb ishld" ::: "memory"); \
     } while (0)
 #define WT_WRITE_BARRIER()                          \
     do {                                            \
-        __asm__ volatile("dsb ishst" ::: "memory"); \
+        __asm__ volatile("dmb ishst" ::: "memory"); \
     } while (0)
 
 #elif defined(__s390x__)
