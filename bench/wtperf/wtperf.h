@@ -46,18 +46,10 @@ typedef struct __truncate_queue_entry TRUNCATE_QUEUE_ENTRY;
 #define BLKCMP_PFX "block_compressor="
 
 /* Compressor Extensions */
-#ifndef LZ4_PATH
 #define LZ4_PATH "compressors/lz4/libwiredtiger_lz4.so"
-#endif
-#ifndef SNAPPY_PATH
 #define SNAPPY_PATH "compressors/snappy/libwiredtiger_snappy.so"
-#endif
-#ifndef ZLIB_PATH
 #define ZLIB_PATH "compressors/zlib/libwiredtiger_zlib.so"
-#endif
-#ifndef ZSTD_PATH
 #define ZSTD_PATH "compressors/zstd/libwiredtiger_zstd.so"
-#endif
 
 #define LZ4_BLK BLKCMP_PFX "lz4"
 #define LZ4_EXT EXT_PFX EXTPATH LZ4_PATH EXT_SFX
@@ -73,7 +65,7 @@ typedef struct __truncate_queue_entry TRUNCATE_QUEUE_ENTRY;
 #define DIR_STORE_PATH "storage_sources/dir_store/libwiredtiger_dir_store.so"
 #endif
 #ifndef S3_PATH
-#define S3_PATH "storage_sources/s3_store/.libs/libwiredtiger_s3_store.so"
+#define S3_PATH "storage_sources/s3_store/libwiredtiger_s3_store.so"
 #endif
 
 #define DIR_EXT EXT_PFX EXTPATH DIR_STORE_PATH EXT_SFX
