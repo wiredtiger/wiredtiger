@@ -389,6 +389,20 @@ __verify_dsk_row_int(
         }
 
         /*
+         * The format of the WT_CELL_ADDR_DELL cell changed along with the page flags, check flags
+         * and contents match.
+         */
+        if (cell_type == WT_CELL_ADDR_DEL &&
+          ((F_ISSET(dsk, WT_PAGE_FT_UPDATE) && unpack->page_del.txnid == WT_TXN_NONE) ||
+            (!F_ISSET(dsk, WT_PAGE_FT_UPDATE) && unpack->page_del.txnid != WT_TXN_NONE)))
+            WT_ERR_VRFY(session,
+              "cell %" PRIu32
+              " on page at %s is of type %s; the WT_PAGE_FT_UPDATE flag is %s"
+              "set, but the fast-truncate content has a transaction ID of %" PRIu64,
+              cell_num - 1, tag, __wt_cell_type_string(cell_type),
+              F_ISSET(dsk, WT_PAGE_FT_UPDATE) ? "" : "not ", unpack->page_del.txnid);
+
+        /*
          * Remaining checks are for key order. If this cell isn't a key, we're done, move to the
          * next cell. If this cell is an overflow item, instantiate the key and compare it with the
          * last key.
