@@ -200,8 +200,8 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /*
      * Don't set the WT_PAGE_DELETED transaction ID to aborted, discard any WT_UPDATE list or set
-     * the resolved flag to 1; instead, discard the structures, it has the same effect. It's a
-     * single call, they're a union of two pointers.
+     * the committed flag; instead, discard the structures, it has the same effect. It's a single
+     * call, they're a union of two pointers.
      */
     __wt_free(session, ref->ft_info.del);
 
