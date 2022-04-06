@@ -615,10 +615,6 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts
 
     txn = session->txn;
 
-    if (txn->isolation != WT_ISO_SNAPSHOT)
-        WT_RET_MSG(session, EINVAL,
-          "setting a commit_timestamp requires a transaction running at snapshot isolation");
-
     /*
      * In scenarios where the prepare timestamp is greater than the provided commit timestamp, the
      * validate function returns the new commit timestamp based on the configuration.
@@ -829,13 +825,6 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
         return (0);
     }
 
-    /* Read timestamps imply / require snapshot isolation. */
-    if (!F_ISSET(txn, WT_TXN_RUNNING))
-        txn->isolation = WT_ISO_SNAPSHOT;
-    else if (txn->isolation != WT_ISO_SNAPSHOT)
-        WT_RET_MSG(session, EINVAL,
-          "setting a read_timestamp requires a transaction running at snapshot isolation");
-
     /* Read timestamps can't change once set. */
     if (F_ISSET(txn, WT_TXN_SHARED_TS_READ))
         WT_RET_MSG(session, EINVAL, "a read_timestamp may only be set once per transaction");
@@ -920,6 +909,9 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
     txn = session->txn;
     set_ts = false;
 
+    if (txn->isolation != WT_ISO_SNAPSHOT)
+        WT_RET_MSG(session, EINVAL,
+          "setting a timestamp requires a transaction running at snapshot isolation");
     WT_RET(__wt_txn_context_check(session, true));
 
     /*
@@ -996,7 +988,13 @@ int
 __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_timestamp_t ts)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_TXN *txn;
 
+    txn = session->txn;
+
+    if (txn->isolation != WT_ISO_SNAPSHOT)
+        WT_RET_MSG(session, EINVAL,
+          "setting a timestamp requires a transaction running at snapshot isolation");
     WT_RET(__wt_txn_context_check(session, true));
 
     conn = S2C(session);
