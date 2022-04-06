@@ -1799,8 +1799,8 @@ methods = {
     Config('durable_timestamp', '', r'''
         set the durable timestamp for the current transaction. Required for the commit of a
         prepared transaction, and otherwise not permitted. The value must also be after the
-        current oldest and stable timestamps and must not be older than the commit timestamp.
-        See @ref timestamp_prepare'''),
+        current stable timestamp and must not be older than the commit timestamp.  See @ref
+        timestamp_prepare'''),
     Config('operation_timeout_ms', '0', r'''
         when non-zero, a requested limit on the time taken to complete operations in this
         transaction. Time is measured in real time milliseconds from the start of each WiredTiger
@@ -1836,8 +1836,8 @@ methods = {
         set the durable timestamp for the current transaction. Required for the commit of a
         prepared transaction, and otherwise not permitted. Can only be set after the transaction
         has been prepared and a commit timestamp has been set. The value must be after the
-        current oldest and stable timestamps and must not be older than the commit timestamp. See
-        @ref timestamp_prepare'''),
+        current stable timestamp and must not be older than the commit timestamp. See @ref
+        timestamp_prepare'''),
     Config('prepare_timestamp', '', r'''
         set the prepare timestamp for the updates of the current transaction.
         The value must not be older than any active read timestamps,
@@ -1973,13 +1973,12 @@ methods = {
 
 'WT_CONNECTION.set_timestamp' : Method([
     Config('durable_timestamp', '', r'''
-        reset the maximum durable timestamp tracked by WiredTiger.  This will
-        cause future calls to WT_CONNECTION::query_timestamp to ignore durable
-        timestamps greater than the specified value until the next durable
-        timestamp moves the tracked durable timestamp forwards.  This is only
-        intended for use where the application is rolling back locally committed
-        transactions. The value must not be older than the current
-        oldest and stable timestamps.  See @ref timestamp_global_api'''),
+        reset the maximum durable timestamp tracked by WiredTiger.  This causes future calls to
+        WT_CONNECTION::query_timestamp to ignore durable timestamps greater than the specified
+        value until the next durable timestamp moves the tracked durable timestamp forwards.
+        This is only intended for use where the application is rolling back locally committed
+        transactions. The value must be after the current stable timestamp.  See @ref
+        timestamp_global_api'''),
     Config('force', 'false', r'''
         set timestamps even if they violate normal ordering requirements.
         For example allow the \c oldest_timestamp to move backwards''',
