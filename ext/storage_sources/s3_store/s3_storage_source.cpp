@@ -396,7 +396,8 @@ S3ObjectSize(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, 
 
     s3->statistics.objectExistsCount++;
     if ((ret = fs->connection->ObjectExists(name, exists, objectSize)) != 0) {
-        s3->log->LogDebugMessage("S3ObjectSize: Found S3 object size.");
+        s3->log->LogDebugMessage(
+          "S3ObjectSize: Found S3 object size to be " + std::to_string(objectSize) + " bytes.");
         return (ret);
     }
     *sizep = objectSize;
@@ -428,7 +429,8 @@ S3FileRead(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t offset, siz
     if ((ret = wtFileHandle->fh_read(wtFileHandle, session, offset, len, buf)) != 0)
         s3->log->LogErrorMessage("S3FileRead: fh_read failed.");
     else
-        s3->log->LogDebugMessage("S3FileRead: fh_read succeeded.");
+        s3->log->LogDebugMessage(
+          "S3FileRead: fh_read succeeded in reading " + std::to_string(len) + " bytes.");
     return (ret);
 }
 
@@ -638,7 +640,8 @@ S3ObjectListInternal(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char
     }
     *count = objects.size();
 
-    s3->log->LogDebugMessage("S3ObjectList: ListObjects request to S3 succeeded.");
+    s3->log->LogDebugMessage("S3ObjectList: ListObjects request to S3 succeeded. Received " +
+      std::to_string(*count) + " objects.");
     S3ObjectListAdd(*s3, objectList, objects, *count);
 
     return (ret);
@@ -884,6 +887,8 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     // Load the storage
     if ((ret = connection->add_storage_source(connection, "s3_store", &s3->storageSource, NULL)) !=
       0) {
+        s3->log->LogErrorMessage(
+          "wiredtiger_extension_init: Could not load S3 storage source, shutting down.");
         Aws::Utils::Logging::ShutdownAWSLogging();
         Aws::ShutdownAPI(options);
         delete (s3);
