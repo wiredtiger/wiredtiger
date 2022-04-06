@@ -46,9 +46,13 @@ typedef struct __truncate_queue_entry TRUNCATE_QUEUE_ENTRY;
 #define BLKCMP_PFX "block_compressor="
 
 /* Compressor Extensions */
+#undef LZ4_PATH
 #define LZ4_PATH "compressors/lz4/libwiredtiger_lz4.so"
+#undef SNAPPY_PATH
 #define SNAPPY_PATH "compressors/snappy/libwiredtiger_snappy.so"
+#undef ZLIB_PATH
 #define ZLIB_PATH "compressors/zlib/libwiredtiger_zlib.so"
+#undef ZSTD_PATH
 #define ZSTD_PATH "compressors/zstd/libwiredtiger_zstd.so"
 
 #define LZ4_BLK BLKCMP_PFX "lz4"
