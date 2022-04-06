@@ -144,8 +144,8 @@ __wt_block_salvage_next(
             break;
 
         /* Free the allocation-size block. */
-        __wt_verbose(session, WT_VERB_SALVAGE, "skipping %" PRIu32 "B at file offset %" PRIuMAX,
-          allocsize, (uintmax_t)offset);
+        // __wt_verbose(session, WT_VERB_SALVAGE, "skipping %" PRIu32 "B at file offset %" PRIuMAX,
+        //   allocsize, (uintmax_t)offset);
         WT_ERR(__wt_block_off_free(session, block, objectid, offset, (wt_off_t)allocsize));
         block->slvg_off += allocsize;
     }

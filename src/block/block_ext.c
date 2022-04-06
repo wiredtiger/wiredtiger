@@ -543,9 +543,10 @@ append:
         ext->size -= size;
         WT_RET(__block_ext_insert(session, &block->live.avail, ext));
     } else {
-        __wt_verbose(session, WT_VERB_BLOCK, "allocate range %" PRIdMAX "-%" PRIdMAX,
-          (intmax_t)ext->off, (intmax_t)(ext->off + ext->size));
-
+        if (ext->off <= 24732672 && ext->off + ext->size >= 24732672) {
+            __wt_verbose(session, WT_VERB_BLOCK, "allocate range %" PRIdMAX "-%" PRIdMAX,
+            (intmax_t)ext->off, (intmax_t)(ext->off + ext->size));
+        }
         __wt_block_ext_free(session, ext);
     }
 
@@ -575,8 +576,10 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
     if (objectid != block->objectid)
         return (0);
 
-    __wt_verbose(session, WT_VERB_BLOCK, "free %" PRIu32 ": %" PRIdMAX "/%" PRIdMAX, objectid,
-      (intmax_t)offset, (intmax_t)size);
+    if (offset <= 24732672 && offset + size >= 24732672) {
+        __wt_verbose(session, WT_VERB_BLOCK, "free %" PRIu32 ": %" PRIdMAX "/%" PRIdMAX, objectid,
+        (intmax_t)offset, (intmax_t)size);
+    }
 
 #ifdef HAVE_DIAGNOSTIC
     WT_RET(__wt_block_misplaced(
@@ -1007,8 +1010,10 @@ __block_merge(
             after = NULL;
     }
     if (before == NULL && after == NULL) {
-        __wt_verbose(session, WT_VERB_BLOCK, "%s: insert range %" PRIdMAX "-%" PRIdMAX, el->name,
-          (intmax_t)off, (intmax_t)(off + size));
+        if (off + size >= 24732672 && off <= 24732672) {
+            __wt_verbose(session, WT_VERB_BLOCK, "%s: insert range %" PRIdMAX "-%" PRIdMAX, el->name,
+            (intmax_t)off, (intmax_t)(off + size));
+        }
 
         return (__block_off_insert(session, el, off, size));
     }
@@ -1021,11 +1026,13 @@ __block_merge(
      */
     if (before == NULL) {
         WT_RET(__block_off_remove(session, block, el, after->off, &ext));
-
-        __wt_verbose(session, WT_VERB_BLOCK,
-          "%s: range grows from %" PRIdMAX "-%" PRIdMAX ", to %" PRIdMAX "-%" PRIdMAX, el->name,
-          (intmax_t)ext->off, (intmax_t)(ext->off + ext->size), (intmax_t)off,
-          (intmax_t)(off + ext->size + size));
+        //24732672
+        if (strcmp(el->name, "live.avail") == 0 && ext->off + ext->size >= 24732672 && ext->off <= 24732672) {
+            __wt_verbose(session, WT_VERB_BLOCK,
+            "%s: range grows from %" PRIdMAX "-%" PRIdMAX ", to %" PRIdMAX "-%" PRIdMAX, el->name,
+            (intmax_t)ext->off, (intmax_t)(ext->off + ext->size), (intmax_t)off,
+            (intmax_t)(off + ext->size + size));
+        }
 
         ext->off = off;
         ext->size += size;
@@ -1035,12 +1042,12 @@ __block_merge(
             WT_RET(__block_off_remove(session, block, el, after->off, NULL));
         }
         WT_RET(__block_off_remove(session, block, el, before->off, &ext));
-
-        __wt_verbose(session, WT_VERB_BLOCK,
-          "%s: range grows from %" PRIdMAX "-%" PRIdMAX ", to %" PRIdMAX "-%" PRIdMAX, el->name,
-          (intmax_t)ext->off, (intmax_t)(ext->off + ext->size), (intmax_t)ext->off,
-          (intmax_t)(ext->off + ext->size + size));
-
+        if (strcmp(el->name, "live.avail") == 0 && ext->off + ext->size >= 24732672 && ext->off <= 24732672) {
+            __wt_verbose(session, WT_VERB_BLOCK,
+                "%s: range grows from %" PRIdMAX "-%" PRIdMAX ", to %" PRIdMAX "-%" PRIdMAX, el->name,
+                (intmax_t)ext->off, (intmax_t)(ext->off + ext->size), (intmax_t)ext->off,
+                (intmax_t)(ext->off + ext->size + size));
+        }
         ext->size += size;
     }
     return (__block_ext_insert(session, el, ext));

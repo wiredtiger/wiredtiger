@@ -473,7 +473,7 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
         CONFIG_APPEND(p, ",encryption=(name=%s)", enc);
 
     CONFIG_APPEND(p, ",error_prefix=\"%s\"", progname);
-
+    CONFIG_APPEND(p, ",verbose=[block]");
     /* Optional timing stress. */
     configure_timing_stress(p, max);
 

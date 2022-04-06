@@ -694,13 +694,13 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
         WT_ERR(
           __wt_row_leaf_key_copy(session, page, &page->pg_row[page->entries - 1], &trk->row_stop));
 
-        __wt_verbose(session, WT_VERB_SALVAGE, "%s start key %s",
-          __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
-          __wt_buf_set_printable(
-            session, trk->row_start.data, trk->row_start.size, false, ss->tmp2));
-        __wt_verbose(session, WT_VERB_SALVAGE, "%s stop key %s",
-          __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
-          __wt_buf_set_printable(session, trk->row_stop.data, trk->row_stop.size, false, ss->tmp2));
+        // __wt_verbose(session, WT_VERB_SALVAGE, "%s start key %s",
+        //   __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
+        //   __wt_buf_set_printable(
+        //     session, trk->row_start.data, trk->row_start.size, false, ss->tmp2));
+        // __wt_verbose(session, WT_VERB_SALVAGE, "%s stop key %s",
+        //   __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
+        //   __wt_buf_set_printable(session, trk->row_stop.data, trk->row_stop.size, false, ss->tmp2));
 
         /* Row-store pages can contain overflow items. */
         WT_ERR(__slvg_trk_leaf_ovfl(session, dsk, trk));

@@ -311,14 +311,14 @@ main(int argc, char *argv[])
      */
     tables_apply(key_init, NULL);
     tables_apply(val_init, NULL);
-    if (!g.reopen)
-        TIMED_MAJOR_OP(tables_apply(wts_load, NULL));
-    TIMED_MAJOR_OP(tables_apply(wts_verify, g.wts_conn));
+    //if (!g.reopen)
+    //    TIMED_MAJOR_OP(tables_apply(wts_load, NULL));
+    //TIMED_MAJOR_OP(tables_apply(wts_verify, g.wts_conn));
     if (GV(OPS_VERIFY) == 0)
         TIMED_MAJOR_OP(tables_apply(wts_read_scan, g.wts_conn));
 
     /* Optionally start checkpoints. */
-    wts_checkpoints();
+    //wts_checkpoints();
 
     /*
      * Calculate how long each operations loop should run. Take any timer value and convert it to
@@ -329,18 +329,19 @@ main(int argc, char *argv[])
      * even if we run out of time, otherwise it won't get done. So, in summary pick a reasonable
      * time and then don't check for timer expiration once the main operations loop completes.
      */
-    ops_seconds = GV(RUNS_TIMER) == 0 ? 0 : ((GV(RUNS_TIMER) * 60) - 15) / FORMAT_OPERATION_REPS;
-    for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps)
-        operations(ops_seconds, reps == FORMAT_OPERATION_REPS);
+    //ops_seconds = GV(RUNS_TIMER) == 0 ? 0 : ((GV(RUNS_TIMER) * 60) - 15) / FORMAT_OPERATION_REPS;
+    //for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps)
+    //    operations(ops_seconds, reps == FORMAT_OPERATION_REPS);
 
     /* Copy out the run's statistics. */
-    TIMED_MAJOR_OP(wts_stats());
-
+    //TIMED_MAJOR_OP(wts_stats());
+    WT_UNUSED(reps);
+    WT_UNUSED(ops_seconds);
     /*
      * Verify the objects. Verify closes the underlying handle and discards the statistics, read
      * them first.
      */
-    TIMED_MAJOR_OP(tables_apply(wts_verify, g.wts_conn));
+    //TIMED_MAJOR_OP(tables_apply(wts_verify, g.wts_conn));
 
     track("shutting down", 0ULL);
     wts_close(&g.wts_conn, &g.wts_session);

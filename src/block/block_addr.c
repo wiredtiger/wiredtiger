@@ -183,10 +183,13 @@ __wt_block_addr_string(
       session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
 
     /* Printable representation. */
-    WT_RET(__wt_buf_fmt(session, buf,
-      "[%" PRIu32 ": %" PRIuMAX "-%" PRIuMAX ", %" PRIu32 ", %" PRIu32 "]", objectid,
-      (uintmax_t)offset, (uintmax_t)offset + size, size, checksum));
-
+    if (offset + size >= 24732672 && offset <= 24732672) {
+      WT_RET(__wt_buf_fmt(session, buf,
+        "[%" PRIu32 ": %" PRIuMAX "-%" PRIuMAX ", %" PRIu32 ", %" PRIu32 "]", objectid,
+        (uintmax_t)offset, (uintmax_t)offset + size, size, checksum));
+    } else {
+      WT_RET(__wt_buf_fmt(session, buf, "nop"));
+    }
     return (0);
 }
 
