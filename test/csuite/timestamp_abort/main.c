@@ -154,10 +154,13 @@ thread_ts_run(void *arg)
     WT_RAND_STATE rnd;
     WT_SESSION *session;
     THREAD_DATA *td;
+    wt_timestamp_t all_dur_ts, prev_all_dur_ts;
     uint32_t rand_op;
     int dbg;
     char tscfg[64], ts_string[WT_TS_HEX_STRING_SIZE];
     bool first;
+
+    prev_all_dur_ts = WT_TS_NONE;
 
     td = (THREAD_DATA *)arg;
     __wt_random_init(&rnd);
@@ -175,8 +178,14 @@ thread_ts_run(void *arg)
         ret = td->conn->query_timestamp(td->conn, ts_string, "get=all_durable");
         testutil_check(pthread_rwlock_unlock(&ts_lock));
         testutil_assert(ret == 0);
-        if (testutil_timestamp_parse(ts_string) == 0)
+        /*
+         * All durable can intermittently move backwards, we do not want to set stable and the
+         * oldest timestamps backwards.
+         */
+        all_dur_ts = testutil_timestamp_parse(ts_string);
+        if (all_dur_ts == 0 || all_dur_ts < prev_all_dur_ts)
             continue;
+        prev_all_dur_ts = all_dur_ts;
 
         rand_op = __wt_random(&rnd) % 4;
         /*
