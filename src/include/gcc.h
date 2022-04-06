@@ -227,10 +227,16 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
 #define WT_PAUSE() __asm__ volatile("isb" ::: "memory")
 
 /*
- * dmb are chosen here because they are sufficient to guarantee the ordering described above. We
- * don't want to use dsbs because they provide a much stronger guarantee of completion which isn't
- * required. Additionally, dsbs synchronize other system activities such as tlb and cache
- * maintenance instructions which is not required in this case.
+ * ARM offers three barrier types:
+ *   isb - instruction synchronization barrier
+ *   dmb - data memory barrier
+ *   dsb - data synchronization barrier
+ *
+ * To implement memory barriers for WiredTiger, we need at-least the dmb. dmb are sufficient to
+ * guarantee the ordering described above. We don't want to use dsbs because they provide a much
+ * stronger guarantee of completion which isn't required. Additionally, dsbs synchronize other
+ * system activities such as tlb and cache maintenance instructions which is not required in this
+ * case.
  *
  * A shareability domain of inner-shareable is selected because all the entities participating in
  * the ordering requirements are CPUs and ordering with respect to other devices or memory-types
