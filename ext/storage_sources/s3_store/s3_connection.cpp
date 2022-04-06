@@ -55,6 +55,7 @@ S3Connection::S3Connection(const Aws::Auth::AWSCredentials &credentials,
     if (ret != 0)
         throw std::invalid_argument(_bucketName + " :Unable to access bucket.");
 }
+
 // Constructor for AWS S3 bucket connection with credentials in local file.
 S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config,
   const std::string &bucketName, const std::string &objPrefix)
