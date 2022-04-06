@@ -88,7 +88,7 @@ setupTestDefaults()
         TestDefaults::bucketName = envBucket;
     std::cerr << "Bucket to be used for testing: " << TestDefaults::bucketName << std::endl;
 
-    // Append the prefix to be used for object names by a unique string. 
+    // Append the prefix to be used for object names by a unique string.
     if (randomizeTestPrefix() != 0)
         return (TEST_FAILURE);
     std::cerr << "Generated prefix: " << TestDefaults::objPrefix << std::endl;
@@ -100,7 +100,7 @@ static int
 CleanupTestListObjects(S3Connection &conn, const int totalObjects, const std::string &prefix,
   const std::string &fileName)
 {
-    // Delete objects and file at end of test. 
+    // Delete objects and file at end of test.
     int ret = 0;
     for (int i = 0; i < totalObjects; i++) {
         if ((ret = conn.DeleteObject(prefix + std::to_string(i) + ".txt")) != 0)
@@ -113,7 +113,6 @@ CleanupTestListObjects(S3Connection &conn, const int totalObjects, const std::st
     return (ret);
 }
 
-
 // Unit test for listing S3 objects under the test bucket.
 // Todo: Remove code duplication in this function.
 int
@@ -122,39 +121,39 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
     S3Connection conn(config, TestDefaults::bucketName, TestDefaults::objPrefix);
     std::vector<std::string> objects;
 
-    // Name of file to insert in the test. 
+    // Name of file to insert in the test.
     const std::string fileName = "test_list_objects.txt";
-    // Total objects to insert in the test. 
+    // Total objects to insert in the test.
     const int32_t totalObjects = 20;
-    // Prefix for objects in this test. 
+    // Prefix for objects in this test.
     const std::string prefix = "test_list_objects_";
-    // Parameter for getting single object. 
+    // Parameter for getting single object.
     const bool listSingle = true;
-    // Number of objects to access per iteration of AWS. 
+    // Number of objects to access per iteration of AWS.
     int32_t batchSize = 1;
-    // Expected number of matches. 
+    // Expected number of matches.
     int32_t expectedResult = 0;
 
     int ret;
-    // No matching objects. 
+    // No matching objects.
     if ((ret = conn.ListObjects(prefix, objects)) != 0)
         return (ret);
     if (objects.size() != expectedResult)
         return (TEST_FAILURE);
 
-    // No matching objects with listSingle. 
+    // No matching objects with listSingle.
     if ((ret = conn.ListObjects(prefix, objects, batchSize, listSingle)) != 0)
         return (ret);
     if (objects.size() != expectedResult)
         return (TEST_FAILURE);
 
-    // Create file to prepare for test. 
+    // Create file to prepare for test.
     if (!static_cast<bool>(std::ofstream(fileName).put('.'))) {
         std::cerr << "Error creating file." << std::endl;
         return (TEST_FAILURE);
     }
 
-    // Put objects to prepare for test. 
+    // Put objects to prepare for test.
     for (int i = 0; i < totalObjects; i++) {
         if ((ret = conn.PutObject(prefix + std::to_string(i) + ".txt", fileName)) != 0) {
             CleanupTestListObjects(conn, i, prefix, fileName);
@@ -162,7 +161,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
         }
     }
 
-    // List all objects. 
+    // List all objects.
     expectedResult = totalObjects;
     if ((ret = conn.ListObjects(prefix, objects)) != 0) {
         CleanupTestListObjects(conn, totalObjects, prefix, fileName);
@@ -173,7 +172,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
         return (TEST_FAILURE);
     }
 
-    // List single. 
+    // List single.
     objects.clear();
     expectedResult = 1;
     if ((ret = conn.ListObjects(prefix, objects, batchSize, listSingle)) != 0) {
@@ -185,7 +184,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
         return (TEST_FAILURE);
     }
 
-    // Expected number of matches with test_list_objects_1 prefix. 
+    // Expected number of matches with test_list_objects_1 prefix.
     objects.clear();
     expectedResult = 11;
     if ((ret = conn.ListObjects(prefix + "1", objects)) != 0) {
@@ -197,7 +196,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
         return (TEST_FAILURE);
     }
 
-    // List with 5 objects per AWS request. 
+    // List with 5 objects per AWS request.
     objects.clear();
     batchSize = 5;
     expectedResult = totalObjects;
@@ -210,7 +209,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
         return (TEST_FAILURE);
     }
 
-    // ListSingle with 8 objects per AWS request. 
+    // ListSingle with 8 objects per AWS request.
     objects.clear();
     expectedResult = 1;
     if ((ret = conn.ListObjects(prefix, objects, batchSize, listSingle)) != 0) {
@@ -222,7 +221,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
         return (TEST_FAILURE);
     }
 
-    // List with 8 objects per AWS request. 
+    // List with 8 objects per AWS request.
     objects.clear();
     batchSize = 8;
     expectedResult = totalObjects;
@@ -235,7 +234,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
         return (TEST_FAILURE);
     }
 
-    // ListSingle with 8 objects per AWS request. 
+    // ListSingle with 8 objects per AWS request.
     objects.clear();
     expectedResult = 1;
     if ((ret = conn.ListObjects(prefix, objects, batchSize, listSingle)) != 0) {
@@ -262,24 +261,24 @@ TestGetObject(const Aws::S3Crt::ClientConfiguration &config)
     const std::string objectName = "permanent_object";
     const std::string path = "./" + objectName;
 
-    // Create a file and upload to the bucket. 
+    // Create a file and upload to the bucket.
     std::ofstream File(objectName);
     File << "Test payload";
     File.close();
     if ((ret = conn.PutObject(objectName, objectName)) != 0)
         return (ret);
 
-    // Delete the local copy of the file. 
+    // Delete the local copy of the file.
     if (std::remove(path.c_str()) != 0)
         return (TEST_FAILURE);
 
-    // Download the file from S3 
+    // Download the file from S3
     if ((ret = conn.GetObject(objectName, path)) != 0) {
         std::cerr << "TestGetObject: call to S3Connection:GetObject has failed." << std::endl;
         return (ret);
     }
 
-    // The file should now be in the current directory. 
+    // The file should now be in the current directory.
     std::ifstream f(path);
     if (!f.good()) {
         std::cerr << "TestGetObject: target " << objectName
@@ -287,7 +286,7 @@ TestGetObject(const Aws::S3Crt::ClientConfiguration &config)
         return (TEST_FAILURE);
     }
 
-    // Clean up test artifacts. 
+    // Clean up test artifacts.
     if (std::remove(path.c_str()) != 0)
         return (TEST_FAILURE);
 
@@ -341,19 +340,19 @@ TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
 }
 
 // Unit test to check if connection to a non-existing bucket fails gracefully.
- 
+
 int
 TestBadBucket(const Aws::S3Crt::ClientConfiguration &config)
 {
     int ret = TEST_FAILURE;
 
-    // The connection object instantitation should not succeed. 
+    // The connection object instantitation should not succeed.
     try {
         S3Connection conn(config, "BadBucket", TestDefaults::objPrefix);
         (void)conn;
         std::cerr << "TestBadBucket: Failed to generate exception for the bad bucket." << std::endl;
     } catch (std::invalid_argument &e) {
-        // Make sure we get the expected exception message. 
+        // Make sure we get the expected exception message.
         if (std::string(e.what()).compare("BadBucket : No such bucket.") == 0)
             ret = 0;
         else
@@ -365,13 +364,13 @@ TestBadBucket(const Aws::S3Crt::ClientConfiguration &config)
         return (ret);
 
     ret = TEST_FAILURE;
-    // Also check for the dynamic allocation. 
+    // Also check for the dynamic allocation.
     try {
         auto conn2 = new S3Connection(config, "BadBucket2", TestDefaults::objPrefix);
         (void)conn2;
         std::cerr << "TestBadBucket: Failed to generate exception for the bad bucket." << std::endl;
     } catch (std::invalid_argument &e) {
-        // Make sure we get the expected exception message. 
+        // Make sure we get the expected exception message.
         if (std::string(e.what()).compare("BadBucket2 : No such bucket.") == 0)
             ret = 0;
         else
@@ -387,21 +386,21 @@ TestBadBucket(const Aws::S3Crt::ClientConfiguration &config)
 }
 
 // Set up configs and call unit tests.
- 
+
 int
 main()
 {
-    // Setup the test environment. 
+    // Setup the test environment.
     if (setupTestDefaults() != 0)
         return (TEST_FAILURE);
 
-    // Set up the config to use the defaults specified. 
+    // Set up the config to use the defaults specified.
     Aws::S3Crt::ClientConfiguration awsConfig;
     awsConfig.region = TestDefaults::region;
     awsConfig.throughputTargetGbps = TestDefaults::throughputTargetGbps;
     awsConfig.partSize = TestDefaults::partSize;
 
-    // Set the SDK options and initialize the API. 
+    // Set the SDK options and initialize the API.
     Aws::SDKOptions options;
     Aws::InitAPI(options);
 
@@ -410,7 +409,7 @@ main()
     TEST(TestListObjects, awsConfig);
     TEST(TestGetObject, awsConfig);
 
-    // Shutdown the API at end of tests. 
+    // Shutdown the API at end of tests.
     Aws::ShutdownAPI(options);
     return (TEST_SUCCESS);
 }

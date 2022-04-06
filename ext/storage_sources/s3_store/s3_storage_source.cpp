@@ -65,9 +65,9 @@ struct S3Storage {
     WT_EXTENSION_API *wtApi;         /* Extension API */
     std::shared_ptr<S3LogSystem> log;
 
-    std::mutex fsListMutex;             /* Protect the file system list */
+    std::mutex fsListMutex;           /* Protect the file system list */
     std::list<S3FileSystem *> fsList; /* List of initiated file systems */
-    std::mutex fhMutex;                 /* Protect the file handle list*/
+    std::mutex fhMutex;               /* Protect the file handle list*/
     std::list<S3FileHandle *> fhList; /* List of open file handles */
 
     uint32_t referenceCount; /* Number of references to this storage source */
@@ -93,11 +93,11 @@ struct S3FileSystem {
 
 struct S3FileHandle {
     WT_FILE_HANDLE iface; /* Must come first */
-    S3Storage *storage;  /* Enclosing storage source */
+    S3Storage *storage;   /* Enclosing storage source */
     /*
-     * Similarly, The S3FileHandle is built on top of the WT_FILE_HANDLE. We require an instance
-     * of the WT_FILE_HANDLE in order to access the native WiredTiger filehandle functionality, such
-     * as the native WT file handle read and close.
+     * Similarly, The S3FileHandle is built on top of the WT_FILE_HANDLE. We require an instance of
+     * the WT_FILE_HANDLE in order to access the native WiredTiger filehandle functionality, such as
+     * the native WT file handle read and close.
      */
     WT_FILE_HANDLE *wtFileHandle;
 };

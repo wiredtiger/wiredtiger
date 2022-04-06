@@ -44,10 +44,10 @@ static const std::map<int32_t, Aws::Utils::Logging::LogLevel> verbosityMapping =
   {1, Aws::Utils::Logging::LogLevel::Debug}};
 
 // This class provides the S3 Store with a logger implementation that redirects the generated
-// logs to WiredTiger's logging streams. This class implements the AWS LogSystemInterface
-// to derive functions to incorporate the logging with WiredTiger's logging system. AWS SDK 
-// also registers the same logger, and the best attempt is made to match the SDK's logging
-// levels to WiredTiger's. 
+// logs to WiredTiger's logging streams. This class implements AWS's LogSystemInterface class,
+// an interface for logging implementations. This class derives functions from the interface to
+// incorporate the logging with WiredTiger's logging system. AWS SDK also registers the same
+// logger, and the best attempt is made to match the SDK's logging levels to WiredTiger's.
 class S3LogSystem : public Aws::Utils::Logging::LogSystemInterface {
     public:
     S3LogSystem(WT_EXTENSION_API *wtApi, uint32_t wtVerbosityLevel);
@@ -58,27 +58,34 @@ class S3LogSystem : public Aws::Utils::Logging::LogSystemInterface {
     }
 
     // This function is inherited from AWS's LogSystemInterface. This function does a printf style
-    // output to the output stream. This function is mostly unchanged from AWS' implementation. 
+    // output to the output stream. This function is mostly unchanged from AWS' implementation.
     void Log(
       Aws::Utils::Logging::LogLevel logLevel, const char *tag, const char *format, ...) override;
 
-    // This function is inherited from AWS's LogSystemInterface. This function writes the log stream to the 
-    // output stream, in this case WiredTiger's output stream. 
+    // This function is inherited from AWS's LogSystemInterface. This function writes the log stream
+    // to the output stream, in this case WiredTiger's output stream.
     void LogStream(Aws::Utils::Logging::LogLevel logLevel, const char *tag,
       const Aws::OStringStream &messageStream) override;
 
-    // This function sends error messages to the WiredTiger's error level log stream. 
-    void LogErrorMessage(const std::string &message) const
-    {LogVerboseMessage(WT_VERBOSE_ERROR, message);}
-    
-    // This function sends error messages to the WiredTiger's debug level log stream. 
-    void LogDebugMessage(const std::string &message) const
-    {LogVerboseMessage(WT_VERBOSE_DEBUG, message);}
+    // This function sends error messages to the WiredTiger's error level log stream.
+    void
+    LogErrorMessage(const std::string &message) const
+    {
+        LogVerboseMessage(WT_VERBOSE_ERROR, message);
+    }
 
-    // This function sets the WiredTiger Extension's verbosity level and matches the AWS log levels to this. 
+    // This function sends error messages to the WiredTiger's debug level log stream.
+    void
+    LogDebugMessage(const std::string &message) const
+    {
+        LogVerboseMessage(WT_VERBOSE_DEBUG, message);
+    }
+
+    // This function sets the WiredTiger Extension's verbosity level and matches the AWS log levels
+    // to this.
     void SetWtVerbosityLevel(int32_t wtVerbosityLevel);
 
-    // This function is inherited from AWS LogSystemInterface and is not implemented. 
+    // This function is inherited from AWS LogSystemInterface and is not implemented.
     void Flush() override;
 
     private:
