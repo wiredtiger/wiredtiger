@@ -339,7 +339,7 @@ sodium_terminate(WT_ENCRYPTOR *encryptor, WT_SESSION *session)
 
     (void)session; /* Unused parameters */
 
-    /* Close libsodium's internal reference to /dev/random so it doesn't leak. */
+    /* Close the internal reference in libsodium to /dev/random so it doesn't leak. */
     randombytes_close();
 
     /* Free the allocated memory. */
