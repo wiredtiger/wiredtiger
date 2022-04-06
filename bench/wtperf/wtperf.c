@@ -1544,6 +1544,29 @@ execute_populate(WTPERF *wtperf)
     opts = wtperf->opts;
     max_key = (uint64_t)opts->icount + (uint64_t)opts->scan_icount;
 
+    /*
+     * If this is going to be a tiered workload, start the checkpoint threads and
+     * the flush threads during the populate phase so that the tiers are created
+     * as we populate the database.
+     */
+    if (opts->tiered_flush_interval != 0) {
+        lprintf(wtperf, 0, 1, "Starting 1 flush_tier thread");
+        wtperf->flushthreads = dcalloc(1, sizeof(WTPERF_THREAD));
+        start_threads(wtperf, NULL, wtperf->flushthreads, 1, flush_tier_worker);
+
+        /* Start the checkpoint thread. */
+        if (opts->checkpoint_threads != 0) {
+            lprintf(
+                wtperf, 0, 1, "Starting %" PRIu32 " checkpoint thread(s)", opts->checkpoint_threads);
+            wtperf->ckptthreads = dcalloc(opts->checkpoint_threads, sizeof(WTPERF_THREAD));
+            start_threads(
+                wtperf, NULL, wtperf->ckptthreads, opts->checkpoint_threads, checkpoint_worker);
+        } else {
+            lprintf(wtperf, 0, 1, "Running a flush-tier thread without checkpoint threads "
+                    "on populate may hang the flush thread.");
+        }
+    }
+
     lprintf(wtperf, 0, 1, "Starting %" PRIu32 " populate thread(s) for %" PRIu64 " items",
       opts->populate_threads, max_key);
 
@@ -1616,6 +1639,18 @@ execute_populate(WTPERF *wtperf)
 
     /* Stop cycling idle tables. */
     stop_idle_table_cycle(wtperf, idle_table_cycle_thread);
+
+    /* Stop the flush and checkpoint threads if we used them during populate */
+    wtperf->stop = true;
+    if (wtperf->flushthreads != NULL) {
+        stop_threads(1, wtperf->flushthreads);
+        free(wtperf->flushthreads);
+    }
+    if (wtperf->ckptthreads != NULL) {
+        stop_threads(1, wtperf->ckptthreads);
+        free(wtperf->ckptthreads);
+    }
+    wtperf->stop = false;
 
     return (0);
 }
@@ -2122,6 +2157,8 @@ config_tiered(WTPERF *wtperf)
         } else
             wtperf->tiered_ext = S3_EXT;
     }
+    if (opts->checkpoint_threads == 0)
+        printf("Warning: flush tier workload may hang if no checkpoint threads are running.\n");
     return (ret);
 }
 
