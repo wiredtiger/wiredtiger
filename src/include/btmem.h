@@ -858,6 +858,13 @@ struct __wt_page {
  *	Related information for truncated pages.
  */
 struct __wt_page_deleted {
+    /*
+     * Transaction IDs are set when updates are created (before they become visible) and only change
+     * when marked with WT_TXN_ABORTED. Transaction ID readers expect to copy a transaction ID into
+     * a local variable and see a stable value. In case a compiler might re-read the transaction ID
+     * from memory rather than using the local variable, mark the shared transaction IDs volatile to
+     * prevent unexpected repeated/reordered reads.
+     */
     volatile uint64_t txnid; /* Transaction ID */
 
     wt_timestamp_t timestamp; /* Timestamps */
@@ -1146,6 +1153,13 @@ struct __wt_ikey {
  * WT_UPDATE structures are formed into a forward-linked list.
  */
 struct __wt_update {
+    /*
+     * Transaction IDs are set when updates are created (before they become visible) and only change
+     * when marked with WT_TXN_ABORTED. Transaction ID readers expect to copy a transaction ID into
+     * a local variable and see a stable value. In case a compiler might re-read the transaction ID
+     * from memory rather than using the local variable, mark the shared transaction IDs volatile to
+     * prevent unexpected repeated/reordered reads.
+     */
     volatile uint64_t txnid; /* transaction ID */
 
     wt_timestamp_t durable_ts; /* timestamps */
