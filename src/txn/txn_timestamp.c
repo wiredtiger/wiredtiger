@@ -869,11 +869,6 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
     txn = session->txn;
     set_ts = false;
 
-    if (txn->isolation != WT_ISO_SNAPSHOT)
-        WT_RET_MSG(session, EINVAL,
-          "setting a timestamp requires a transaction running at snapshot isolation");
-    WT_RET(__wt_txn_context_check(session, true));
-
     /*
      * If no commit or durable timestamp is set here, set to any previously set values and validate
      * them, the stable timestamp might have moved forward since they were successfully set.
@@ -910,6 +905,15 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
         }
         WT_RET_NOTFOUND_OK(ret);
     }
+
+    /* Check if there's nothing to check. */
+    if (!set_ts && commit_ts == WT_TS_NONE && durable_ts == WT_TS_NONE)
+        return (0);
+
+    if (txn->isolation != WT_ISO_SNAPSHOT)
+        WT_RET_MSG(session, EINVAL,
+          "setting a timestamp requires a transaction running at snapshot isolation");
+    WT_RET(__wt_txn_context_check(session, true));
 
     /* Look for a commit timestamp. */
     if (commit_ts != WT_TS_NONE)
