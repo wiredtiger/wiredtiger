@@ -593,13 +593,13 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
             page->pg_fix_numtws = entry_num;
 
         /*
-         * If we skipped "quite a few" entries (threshold is arbitrary), mark the page dirty so it
-         * gets rewritten without them.
+         * If we skipped "quite a few" entries (threshold is arbitrary), and the tree is already
+         * dirty and so will be written, mark the page dirty so it gets rewritten without them.
          */
-        if (!F_ISSET(btree, WT_BTREE_READONLY) && skipped >= auxhdr.entries / 4 &&
-          skipped >= dsk->u.entries / 100 && skipped > 4) {
+        if (btree->modified && skipped >= auxhdr.entries / 4 && skipped >= dsk->u.entries / 100 &&
+          skipped > 4) {
             WT_RET(__wt_page_modify_init(session, page));
-            __wt_page_modify_set(session, page);
+            __wt_page_only_modify_set(session, page);
         }
 
         break;
@@ -817,7 +817,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
              */
             if (btree->modified) {
                 WT_ERR(__wt_page_modify_init(session, page));
-                __wt_page_modify_set(session, page);
+                __wt_page_only_modify_set(session, page);
             }
 
             ref->addr = unpack.cell;
