@@ -140,9 +140,7 @@ static int S3FileSize(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *);
 static int S3FileLock(WT_FILE_HANDLE *, WT_SESSION *, bool);
 static int S3ObjectSize(WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *);
 
-// S3Path --
-//    Construct a pathname from the directory and the object name.
-
+// Construct a pathname from the directory and the object name.
 static std::string
 S3Path(const std::string &dir, const std::string &name)
 {
@@ -159,9 +157,7 @@ S3Path(const std::string &dir, const std::string &name)
     return (dir + "/" + strippedName);
 }
 
-//  S3FileExists--
-//    Return if the file exists. First checks the cache, and then the S3 Bucket.
-
+// Return if the file exists. First checks the cache, and then the S3 Bucket.
 static int
 S3FileExists(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool *fileExists)
 {
@@ -187,9 +183,7 @@ S3FileExists(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, 
     return (ret);
 }
 
-// S3CacheExists --
-//    Checks whether the given file exists in the cache.
-
+// Checks whether the given file exists in the cache.
 static bool
 S3CacheExists(WT_FILE_SYSTEM *fileSystem, const std::string &name)
 {
@@ -197,9 +191,7 @@ S3CacheExists(WT_FILE_SYSTEM *fileSystem, const std::string &name)
     return (LocalFileExists(path));
 }
 
-// LocalFileExists --
-//    Checks whether a file corresponding to the provided path exists locally.
-
+// Checks whether a file corresponding to the provided path exists locally.
 static bool
 LocalFileExists(const std::string &path)
 {
@@ -207,9 +199,7 @@ LocalFileExists(const std::string &path)
     return (f.good());
 }
 
-// S3GetDirectory --
-//    Return a copy of a directory name after verifying that it is a directory.
-
+// Return a copy of a directory name after verifying that it is a directory.
 static int
 S3GetDirectory(const S3Storage &s3, const std::string &home, const std::string &name, bool create,
   std::string &copy)
@@ -246,9 +236,7 @@ S3GetDirectory(const S3Storage &s3, const std::string &home, const std::string &
     return (ret);
 }
 
-// S3FileClose --
-//   File handle close.
-
+// File handle close.
 static int
 S3FileClose(WT_FILE_HANDLE *fileHandle, WT_SESSION *session)
 {
@@ -276,9 +264,7 @@ S3FileClose(WT_FILE_HANDLE *fileHandle, WT_SESSION *session)
     return (ret);
 }
 
-// S3FileOpen --
-//   File open for the s3 storage source.
-
+// File open for the s3 storage source.
 static int
 S3FileOpen(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
   WT_FS_OPEN_FILE_TYPE fileType, uint32_t flags, WT_FILE_HANDLE **fileHandlePtr)
@@ -297,7 +283,6 @@ S3FileOpen(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
 
     // Currently, only data files should be being opened; although this constraint can be relaxed in
     // the future.
-
     if (fileType != WT_FS_OPEN_FILE_TYPE_DATA && fileType != WT_FS_OPEN_FILE_TYPE_REGULAR) {
         s3->log->LogErrorMessage("S3FileOpen: only data file and regular types supported.");
         return (EINVAL);
@@ -359,7 +344,6 @@ S3FileOpen(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
 
     // We require exclusive access to the list of file handles when adding file handles to it. The
     // lock_guard will be unlocked automatically when the scope is exited.
-
     {
         std::lock_guard<std::mutex> lock(s3->fhMutex);
         s3FileHandle->storage->fhList.push_back(s3FileHandle);
@@ -369,9 +353,7 @@ S3FileOpen(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     return (0);
 }
 
-// S3Rename --
-//    POSIX rename, not supported for cloud objects.
-
+// POSIX rename, not supported for cloud objects.
 static int
 S3Rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, const char *to,
   uint32_t flags)
@@ -385,9 +367,7 @@ S3Rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, con
     return (ENOTSUP);
 }
 
-// S3Remove --
-//    POSIX remove, not supported for cloud objects.
-
+// POSIX remove, not supported for cloud objects.
 static int
 S3Remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, uint32_t flags)
 {
@@ -423,9 +403,7 @@ S3ObjectSize(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, 
     return (ret);
 }
 
-// S3FileLock --
-//    Lock/unlock a file.
-
+// Lock/unlock a file.
 static int
 S3FileLock(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, bool lock)
 {
@@ -454,9 +432,7 @@ S3FileRead(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t offset, siz
     return (ret);
 }
 
-// S3FileSize --
-//    Get the size of a file in bytes, by file handle.
-
+// Get the size of a file in bytes, by file handle.
 static int
 S3FileSize(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t *sizep)
 {
@@ -467,10 +443,8 @@ S3FileSize(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t *sizep)
     return (wtFileHandle->fh_size(wtFileHandle, session, sizep));
 }
 
-// S3CustomizeFileSystem --
-//    Return a customized file system to access the s3 storage source objects. The authToken
-//    contains the AWS access key ID and the AWS secret key as comma-separated values.
-
+// Return a customized file system to access the s3 storage source objects. The authToken
+// contains the AWS access key ID and the AWS secret key as comma-separated values.
 static int
 S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, const char *bucket,
   const char *authToken, const char *config, WT_FILE_SYSTEM **fileSystem)
@@ -505,7 +479,6 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 
     // An auth token is needed to setup the file system. The token is expected to be an access key
     // and a secret key separated by a semi-colon.
-
     if (authToken == NULL || strlen(authToken) == 0) {
         s3->log->LogErrorMessage("S3CustomizeFileSystem: auth token not specified.");
         return (EINVAL);
@@ -547,7 +520,6 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     // Get the directory to setup the cache, or use the default one. The default cache directory is
     // named "cache-<name>", where name is the last component of the bucket name's path. We'll
     // create it if it doesn't exist.
-
     WT_CONFIG_ITEM cacheDirConf;
     std::string cacheDir;
     std::string cacheStr;
@@ -613,9 +585,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     return (ret);
 }
 
-// S3FileSystemTerminate --
-//    Discard any resources on termination of the file system.
-
+// Discard any resources on termination of the file system.
 static int
 S3FileSystemTerminate(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session)
 {
@@ -635,9 +605,7 @@ S3FileSystemTerminate(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session)
     return (0);
 }
 
-// S3ObjectList --
-//    Return a list of object names for the given location.
-
+// Return a list of object names for the given location.
 static int
 S3ObjectListInternal(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
   const char *prefix, char ***objectList, uint32_t *count, bool listSingle)
@@ -676,9 +644,7 @@ S3ObjectListInternal(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char
     return (ret);
 }
 
-// S3ObjectList --
-//    Return a list of object names for the given location.
-
+// Return a list of object names for the given location.
 static int
 S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
   const char *prefix, char ***objectList, uint32_t *count)
@@ -686,9 +652,7 @@ S3ObjectList(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *direct
     return (S3ObjectListInternal(fileSystem, session, directory, prefix, objectList, count, false));
 }
 
-// S3ObjectListSingle --
-//    Return a single object name for the given location.
-
+// Return a single object name for the given location.
 static int
 S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
   const char *prefix, char ***objectList, uint32_t *count)
@@ -696,9 +660,7 @@ S3ObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *
     return (S3ObjectListInternal(fileSystem, session, directory, prefix, objectList, count, true));
 }
 
-// S3ObjectListFree --
-//    Free memory allocated by S3ObjectList.
-
+// Free memory allocated by S3ObjectList.
 static int
 S3ObjectListFree(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, char **objectList, uint32_t count)
 {
@@ -714,9 +676,7 @@ S3ObjectListFree(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, char **objectL
     return (0);
 }
 
-// S3ObjectListAdd --
-//    Add objects retrieved from S3 bucket into the object list, and allocate the memory needed.
-
+// Add objects retrieved from S3 bucket into the object list, and allocate the memory needed.
 static int
 S3ObjectListAdd(const S3Storage &s3, char ***objectList, const std::vector<std::string> &objects,
   const uint32_t count)
@@ -739,10 +699,8 @@ S3ObjectListAdd(const S3Storage &s3, char ***objectList, const std::vector<std::
     return (0);
 }
 
-// S3AddReference --
-//    Add a reference to the storage source so we can reference count to know when to really
-//    terminate.
-
+// Add a reference to the storage source so we can reference count to know when to really
+// terminate.
 static int
 S3AddReference(WT_STORAGE_SOURCE *storageSource)
 {
@@ -794,9 +752,7 @@ S3Terminate(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session)
     return (0);
 }
 
-// S3Flush --
-//    Flush file to S3 Store using AWS SDK C++ PutObject.
-
+// Flush file to S3 Store using AWS SDK C++ PutObject.
 static int
 S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *fileSystem,
   const char *source, const char *object, const char *config)
@@ -828,9 +784,7 @@ S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *f
     return (ret);
 }
 
-// S3FlushFinish --
-//    Flush local file to cache.
-
+// Flush local file to cache.
 static int
 S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *fileSystem,
   const char *source, const char *object, const char *config)
@@ -865,9 +819,7 @@ S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *f
     return (ret);
 }
 
-// S3LogStatistics --
-//    Log collected statistics.
-
+// Log collected statistics.
 static void
 S3LogStatistics(const S3Storage &s3)
 {
@@ -884,9 +836,7 @@ S3LogStatistics(const S3Storage &s3)
       "File handle read operations: " + std::to_string(s3.statistics.fhReadOps));
 }
 
-// wiredtiger_extension_init --
-//    A S3 storage source library.
-
+// A S3 storage source library.
 int
 wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
