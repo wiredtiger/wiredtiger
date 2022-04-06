@@ -528,39 +528,17 @@ __wt_txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *com
 {
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t commit_ts, oldest_ts, stable_ts;
+    wt_timestamp_t commit_ts, stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool has_oldest_ts, has_stable_ts;
 
     txn = session->txn;
     txn_global = &S2C(session)->txn_global;
     commit_ts = *commit_tsp;
 
-    /* Added this redundant initialization to circumvent build failure. */
-    oldest_ts = stable_ts = WT_TS_NONE;
-
-    /*
-     * Compare against the oldest and the stable timestamp. Return an error if the given timestamp
-     * is less than oldest and/or stable timestamp.
-     */
-    has_oldest_ts = txn_global->has_oldest_timestamp;
-    if (has_oldest_ts)
-        oldest_ts = txn_global->oldest_timestamp;
-    has_stable_ts = txn_global->has_stable_timestamp;
-    if (has_stable_ts)
-        stable_ts = txn_global->stable_timestamp;
-
     if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE)) {
-        /*
-         * For a non-prepared transactions the commit timestamp should not be less than the stable
-         * timestamp.
-         */
-        if (has_oldest_ts && commit_ts < oldest_ts)
-            WT_RET_MSG(session, EINVAL, "commit timestamp %s is less than the oldest timestamp %s",
-              __wt_timestamp_to_string(commit_ts, ts_string[0]),
-              __wt_timestamp_to_string(oldest_ts, ts_string[1]));
-
-        if (has_stable_ts && commit_ts <= stable_ts)
+        /* For non-prepared transactions the commit timestamp must be after the stable timestamp. */
+        stable_ts = txn_global->has_stable_timestamp ? txn_global->stable_timestamp : WT_TS_NONE;
+        if (commit_ts <= stable_ts)
             WT_RET_MSG(session, EINVAL, "commit timestamp %s must be after the stable timestamp %s",
               __wt_timestamp_to_string(commit_ts, ts_string[0]),
               __wt_timestamp_to_string(stable_ts, ts_string[1]));
@@ -649,33 +627,15 @@ __wt_txn_validate_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t dur
 {
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t oldest_ts, stable_ts;
+    wt_timestamp_t stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool has_oldest_ts, has_stable_ts;
 
     txn = session->txn;
     txn_global = &S2C(session)->txn_global;
 
-    /* Added this redundant initialization to circumvent build failure. */
-    oldest_ts = stable_ts = 0;
-
-    /*
-     * Compare against the oldest and the stable timestamp. Return an error if the given timestamp
-     * is less than oldest and/or stable timestamp.
-     */
-    has_oldest_ts = txn_global->has_oldest_timestamp;
-    if (has_oldest_ts)
-        oldest_ts = txn_global->oldest_timestamp;
-    has_stable_ts = txn_global->has_stable_timestamp;
-    if (has_stable_ts)
-        stable_ts = txn_global->stable_timestamp;
-
-    if (has_oldest_ts && durable_ts < oldest_ts)
-        WT_RET_MSG(session, EINVAL, "durable timestamp %s is less than the oldest timestamp %s",
-          __wt_timestamp_to_string(durable_ts, ts_string[0]),
-          __wt_timestamp_to_string(oldest_ts, ts_string[1]));
-
-    if (has_stable_ts && durable_ts <= stable_ts)
+    /* Compare against the stable timestamp. */
+    stable_ts = txn_global->has_stable_timestamp ? txn_global->stable_timestamp : WT_TS_NONE;
+    if (durable_ts <= stable_ts)
         WT_RET_MSG(session, EINVAL, "durable timestamp %s must be after the stable timestamp %s",
           __wt_timestamp_to_string(durable_ts, ts_string[0]),
           __wt_timestamp_to_string(stable_ts, ts_string[1]));
