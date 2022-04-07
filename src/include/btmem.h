@@ -892,7 +892,6 @@ struct __wt_ref_hist {
  */
 struct __wt_ref {
     WT_PAGE *page; /* Page */
-
     /*
      * When the tree deepens as a result of a split, the home page value changes. Don't cache it, we
      * need to see that change when looking up our slot in the page's index structure.
@@ -912,7 +911,8 @@ struct __wt_ref {
 #define WT_REF_FLAG_INTERNAL 0x1u /* Page is an internal page */
 #define WT_REF_FLAG_LEAF 0x2u     /* Page is a leaf page */
 #define WT_REF_FLAG_READING 0x4u  /* Page is being read in */
-                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+#define WT_REF_MOVED 0x8u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 
 #define WT_REF_DISK 0       /* Page is on disk */

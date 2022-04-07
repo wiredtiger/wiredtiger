@@ -265,11 +265,10 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
         if (__wt_atomic_cas_ptr(&ref->addr, ref_addr, addr))
             addr = NULL;
     }
-
+    F_SET(ref, WT_REF_MOVED);
     /* And finally, copy the WT_REF pointer itself. */
     *to_refp = ref;
     WT_MEM_TRANSFER(*decrp, *incrp, sizeof(WT_REF));
-
 err:
     if (addr != NULL) {
         __wt_free(session, addr->addr);
