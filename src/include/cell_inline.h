@@ -880,6 +880,11 @@ copy_cell_restart:
         page_del->prepare_state = 0;                /* No prepare can have been in progress. */
         page_del->previous_ref_state = WT_REF_DISK; /* The leaf page is on disk. */
         page_del->committed = true;                 /* There is no running transaction. */
+
+        /* Avoid a stale transaction ID on restart. */
+        if (dsk->write_gen <= S2BT(session)->base_write_gen &&
+          !F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID))
+            page_del->txnid = WT_TXN_NONE;
     }
 
     /*
