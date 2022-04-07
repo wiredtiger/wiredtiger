@@ -219,8 +219,13 @@ S3GetDirectory(const S3Storage &s3, const std::string &home, const std::string &
 
     ret = stat(dirName.c_str(), &sb);
     if (ret != 0 && errno == ENOENT && create) {
-        std::filesystem::create_directory(dirName.c_str());
-        std::filesystem::permissions(dirName.c_str(), std::filesystem::perms::all);
+        try {
+            std::filesystem::create_directory(dirName.c_str());
+            std::filesystem::permissions(dirName.c_str(), std::filesystem::perms::all);
+        } catch (std::filesystem::filesystem_error const &e) {
+            s3.log->LogErrorMessage(std::string("S3GetDirectory: ") + e.what());
+        }
+
         ret = stat(dirName.c_str(), &sb);
         s3.log->LogDebugMessage("S3GetDirectory: Successfully created directory.");
     }
