@@ -33,13 +33,13 @@
 #include "test_harness/util/logger.h"
 #include "test_harness/test.h"
 
-#include "base_test.cxx"
-#include "burst_inserts.cxx"
-#include "example_test.cxx"
-#include "hs_cleanup.cxx"
-#include "search_near_01.cxx"
-#include "search_near_02.cxx"
-#include "search_near_03.cxx"
+#include "base_test.cpp"
+#include "burst_inserts.cpp"
+#include "example_test.cpp"
+#include "hs_cleanup.cpp"
+#include "search_near_01.cpp"
+#include "search_near_02.cpp"
+#include "search_near_03.cpp"
 
 /* Declarations to avoid the error raised by -Werror=missing-prototypes. */
 const std::string parse_configuration_from_file(const std::string &filename);

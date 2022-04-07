@@ -16,7 +16,7 @@ else
 fi
 
 # Check if the test already exists.
-FILE=tests/$1.cxx
+FILE=tests/$1.cpp
 if test -f "$FILE"; then
     echo "$FILE cannot be created as it already exists."
     exit 1
@@ -30,7 +30,7 @@ if test -f "$CONFIG"; then
 fi
 
 # Copy the default template.
-cp tests/example_test.cxx "$FILE"
+cp tests/example_test.cpp "$FILE"
 echo "Created $FILE."
 cp configs/example_test_default.txt "$CONFIG"
 echo "Created $CONFIG."
@@ -45,10 +45,10 @@ REPLACE="# Configuration for $1."
 sed -i "1s/.*/$REPLACE/" "$CONFIG"
 echo "Updated $CONFIG."
 
-# Include the new test in run.cxx
-FILE=tests/run.cxx
-SEARCH="#include \"example_test.cxx\""
-VALUE="#include \"$1.cxx\""
+# Include the new test in run.cpp
+FILE=tests/run.cpp
+SEARCH="#include \"example_test.cpp\""
+VALUE="#include \"$1.cpp\""
 sed -i "/$SEARCH/a $VALUE" $FILE
 
 # Add the new test to the run_test() method
@@ -77,5 +77,5 @@ cd ../../dist || exit 1
 
 # Last changes to be done manually
 echo "Follow the next steps to execute your new test:"
-echo "1. Start editing $1.cxx"
+echo "1. Start editing $1.cpp"
 echo "2. Compile your changes, go to <build_dir>/test/cppsuite and run your test with ./run -t $1"
