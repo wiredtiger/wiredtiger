@@ -40,9 +40,9 @@ elseif(IMPORT_S3_SDK_EXTERNAL)
             -DBUILD_ONLY=s3-crt
             -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp/install
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-            # This chooses whether or not to build AWS CPP SDK with the service integration tests
-            # Alternatively you can set -DAUTORUN_UNIT_TESTS to decide whether or not to run the tests if you build with them.
-            # Note: if testing is not enabled, this AUTORUN_UNIT_TESTS gets ignored. 
+            # ENABLE TESTING decides whether or not to build the AWS CPP SDK with the services integration tests.
+            # Alternatively you can build with testing enabled but set AUTORUN_UNIT_TESTS flag to ON/OFF to decide 
+            # whether or not to run the tests. If testing is not enabled, the AUTORUN_UNIT_TESTS flag gets ignored. 
             -DENABLE_TESTING=OFF
         BUILD_ALWAYS FALSE
         INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp/install
