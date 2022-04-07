@@ -109,8 +109,8 @@ __wt_backup_file_remove(WT_SESSION_IMPL *session)
     WT_TRET(__wt_remove_if_exists(session, WT_BACKUP_TMP, true));
     WT_TRET(__wt_remove_if_exists(session, WT_LOGINCR_BACKUP, true));
     WT_TRET(__wt_remove_if_exists(session, WT_LOGINCR_SRC, true));
-    WT_TRET(__wt_remove_if_exists(session, WT_METADATA_BACKUP, true));
     WT_TRET(__wt_remove_if_exists(session, WT_EXPORT_BACKUP, true));
+    WT_TRET(__wt_remove_if_exists(session, WT_METADATA_BACKUP, true));
     return (ret);
 }
 
@@ -298,6 +298,11 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
         if (!F_ISSET(S2C(session), WT_CONN_INCR_BACKUP))
             WT_RET_MSG(session, EINVAL, "Incremental backup is not configured");
         F_SET(cb, WT_CURBACKUP_QUERYID);
+    }
+
+    /* Special backup cursor for export operation. */
+    if (strcmp(uri, "backup:export") == 0) {
+        F_SET(cb, WT_CURBACKUP_EXPORT);
     }
 
     /*
@@ -623,11 +628,6 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     /* Return an error if block-based incremental backup is performed with open LSM trees. */
     if (incremental_config && !TAILQ_EMPTY(&conn->lsmqh))
         WT_ERR_MSG(session, ENOTSUP, "LSM does not work with block-based incremental backup");
-
-    WT_ERR(__wt_config_gets(session, cfg, "export", &cval));
-    if (cval.val) {
-        F_SET(cb, WT_CURBACKUP_EXPORT);
-    }
 
 err:
     if (ret != 0 && cb->incr_src != NULL) {

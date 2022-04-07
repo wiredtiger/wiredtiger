@@ -392,7 +392,6 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
     "choices=[\"hex\",\"json\",\"pretty\",\"pretty_hex\","
     "\"print\"]",
     NULL, 0},
-  {"export", "boolean", NULL, NULL, NULL, 0},
   {"incremental", "category", NULL, NULL, confchk_WT_SESSION_open_cursor_incremental_subconfigs, 7},
   {"next_random", "boolean", NULL, NULL, NULL, 0},
   {"next_random_sample_size", "string", NULL, NULL, NULL, 0},
@@ -1290,12 +1289,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_SESSION.open_cursor",
     "append=false,bulk=false,checkpoint=,checkpoint_wait=true,"
     "debug=(dump_version=false,release_evict=false),dump=,"
-    "export=false,incremental=(consolidate=false,enabled=false,file=,"
+    "incremental=(consolidate=false,enabled=false,file=,"
     "force_stop=false,granularity=16MB,src_id=,this_id=),"
     "next_random=false,next_random_sample_size=0,overwrite=true,"
     "prefix_search=false,raw=false,read_once=false,readonly=false,"
     "skip_sort_check=false,statistics=,target=",
-    confchk_WT_SESSION_open_cursor, 18},
+    confchk_WT_SESSION_open_cursor, 17},
   {"WT_SESSION.prepare_transaction", "prepare_timestamp=", confchk_WT_SESSION_prepare_transaction,
     1},
   {"WT_SESSION.query_timestamp", "get=read", confchk_WT_SESSION_query_timestamp, 1},

@@ -1549,10 +1549,6 @@ methods = {
         "print" selects a format where only non-printing characters are hexadecimal encoded. These
         formats are compatible with the @ref util_dump and @ref util_load commands''',
         choices=['hex', 'json', 'pretty', 'pretty_hex', 'print']),
-    Config('export', 'false', r'''
-        configure a special backup cursor for the export operation.
-        ''',
-        type='boolean'),
     Config('incremental', '', r'''
         configure the cursor for block incremental backup usage. These formats
         are only compatible with the backup data source; see @ref backup''',

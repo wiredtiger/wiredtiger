@@ -68,8 +68,7 @@ class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
         # TODO: Flush stuff.
 
         # Open a special backup cursor for export operation.
-        config = "export=true"
-        export_cursor = self.session.open_cursor('backup:', None, config)
+        export_cursor = self.session.open_cursor('backup:export', None, None)
 
         os.mkdir(self.dir)
         copy_wiredtiger_home(self, '.', self.dir)
