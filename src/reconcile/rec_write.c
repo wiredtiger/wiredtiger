@@ -1869,11 +1869,10 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
         if (chunk->entries != 0 && !r->any_empty_value)
             F_SET(dsk, WT_PAGE_EMPTY_V_NONE);
     }
-#ifdef WT_STANDALONE_BUILD_FT_FIX
+
     /* Set the fast-truncate proxy cell information flag. */
-    if (page->type == WT_PAGE_ROW_INT)
+    if (page->type == WT_PAGE_ROW_INT && __wt_process.fast_truncate_2022)
         F_SET(dsk, WT_PAGE_FT_UPDATE);
-#endif
 
     dsk->unused = 0;
     dsk->version = WT_PAGE_VERSION_TS;

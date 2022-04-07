@@ -211,15 +211,18 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
      */
     if (page_del != NULL) {
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_LEAF || cell_type == WT_CELL_ADDR_LEAF_NO);
+        cell_type = WT_CELL_ADDR_DEL;
+
+        /* We should never be in an in-progress prepared state. */
         WT_ASSERT(session,
           page_del->prepare_state == WT_PREPARE_INIT ||
             page_del->prepare_state == WT_PREPARE_RESOLVED);
-#ifdef WT_STANDALONE_BUILD_FT_FIX
-        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
-        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->timestamp));
-        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->durable_timestamp));
-#endif
-        cell_type = WT_CELL_ADDR_DEL;
+
+        if (__wt_process.fast_truncate_2022) {
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->timestamp));
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->durable_timestamp));
+        }
     }
 
     if (recno == WT_RECNO_OOB)
