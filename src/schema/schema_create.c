@@ -8,6 +8,20 @@
 
 #include "wt_internal.h"
 
+/* Holds metadata entry name and the associated config string. */
+typedef struct {
+    char *name;
+    char *config;
+} WT_IMPORT_ENTRY;
+
+/* Array of metadata entries used in the import from metadata file process. */
+typedef struct {
+    size_t entries_allocated; /* allocated */
+    size_t entries_next;      /* next slot */
+
+    WT_IMPORT_ENTRY *entries;
+} WT_IMPORT_LIST;
+
 /*
  * __wt_direct_io_size_check --
  *     Return a size from the configuration, complaining if it's insufficient for direct I/O.
@@ -739,7 +753,7 @@ __create_table(
     WT_DECL_RET;
     WT_TABLE *table;
     size_t len;
-    int ncolgroups, nkeys;
+    int ncolgroups, num_keys;
     char *cgcfg, *cgname, *filecfg, *filename, *importcfg, *tablecfg;
     const char *cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
     const char *tablename;
@@ -776,9 +790,9 @@ __create_table(
          */
         if (!import_repair) {
             __wt_config_init(session, &conf, config);
-            for (nkeys = 0; (ret = __wt_config_next(&conf, &ckey, &cval)) == 0; nkeys++)
+            for (num_keys = 0; (ret = __wt_config_next(&conf, &ckey, &cval)) == 0; num_keys++)
                 ;
-            if (nkeys == 1)
+            if (num_keys == 1)
                 WT_ERR_MSG(session, EINVAL,
                   "%s: import requires that the table configuration is specified or the "
                   "'repair' option is provided",
@@ -962,6 +976,102 @@ __create_data_source(
 }
 
 /*
+ * __import_entry_cmp --
+ *     Qsort function: sort the import entries array by name.
+ */
+static int WT_CDECL
+__import_entry_cmp(const void *a, const void *b)
+{
+    WT_IMPORT_ENTRY *ae, *be;
+
+    ae = (WT_IMPORT_ENTRY *)a;
+    be = (WT_IMPORT_ENTRY *)b;
+
+    return strcmp(ae->name, be->name);
+}
+
+/*
+ * __schema_parse_wt_export --
+ *     Parse export metadata file and populate array of name/config entries. The array is sorted by
+ *     entry name. Caller is responsible to free any memory allocated for the import list.
+ */
+static int
+__schema_parse_wt_export(
+  WT_SESSION_IMPL *session, const char *export_file, WT_IMPORT_LIST *import_list)
+{
+    WT_DECL_ITEM(key);
+    WT_DECL_ITEM(value);
+    WT_DECL_RET;
+    WT_FSTREAM *fs;
+    char *metacfg;
+    const char *md_key, *md_value;
+    bool exist;
+
+    metacfg = NULL;
+
+    /* Look for a metadata export file: if we find it, load it. */
+    WT_RET(__wt_fs_exist(session, export_file, &exist));
+    if (!exist)
+        return (0);
+    WT_RET(__wt_fopen(session, export_file, 0, WT_STREAM_READ, &fs));
+
+    /* Read line pairs and add them to the import list. */
+    WT_ERR(__wt_scr_alloc(session, 1024, &key));
+    WT_ERR(__wt_scr_alloc(session, 1024, &value));
+    for (;;) {
+        WT_ERR(__wt_getline(session, fs, key));
+        if (key->size == 0)
+            break;
+        WT_ERR(__wt_getline(session, fs, value));
+        if (value->size == 0)
+            WT_ERR_PANIC(session, EINVAL, "%s: zero-length value", export_file);
+
+        /* Skip any WiredTiger tables and system entries. */
+        md_key = (const char *)key->data;
+        md_value = (const char *)value->data;
+        if (WT_SUFFIX_MATCH(md_key, WT_METAFILE) || WT_SUFFIX_MATCH(md_key, WT_HS_FILE) ||
+          WT_PREFIX_MATCH(md_key, WT_SYSTEM_PREFIX))
+            continue;
+
+        /*
+         * Check if the entry already exists in the metadata. Raise an error if we try to import an
+         * existing URI rather than just silently returning.
+         */
+        if ((ret = __wt_metadata_search(session, md_key, &metacfg)) != WT_NOTFOUND) {
+            WT_TRET(EEXIST);
+            goto err;
+        }
+
+        if (metacfg != NULL) {
+            __wt_free(session, metacfg);
+        }
+
+        /* Grow the entries array if needed. */
+        WT_ERR(__wt_realloc_def(session, &import_list->entries_allocated,
+          import_list->entries_next + 1, &import_list->entries));
+
+        /* Populate the next entry. */
+        WT_ERR(__wt_strndup(
+          session, md_key, key->size, &import_list->entries[import_list->entries_next].name));
+        WT_ERR(__wt_strndup(
+          session, md_value, value->size, &import_list->entries[import_list->entries_next].config));
+        import_list->entries_next++;
+    }
+
+    /* Sort the array by name. We will use binary search later to get config string. */
+    __wt_qsort(
+      import_list->entries, import_list->entries_next, sizeof(WT_IMPORT_ENTRY), __import_entry_cmp);
+
+err:
+    WT_TRET(__wt_fclose(session, &fs));
+    __wt_free(session, metacfg);
+    __wt_scr_free(session, &key);
+    __wt_scr_free(session, &value);
+
+    return (ret);
+}
+
+/*
  * __schema_create --
  *     Process a WT_SESSION::create operation for all supported types.
  */
@@ -971,7 +1081,13 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     WT_CONFIG_ITEM cval;
     WT_DATA_SOURCE *dsrc;
     WT_DECL_RET;
+    WT_IMPORT_LIST import_list;
+    size_t i;
+    char *export_file;
     bool exclusive, import;
+
+    WT_CLEAR(import_list);
+    export_file = NULL;
 
     exclusive = __wt_config_getones(session, config, "exclusive", &cval) == 0 && cval.val != 0;
     import = __wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0;
@@ -985,8 +1101,15 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
      * back it all out.
      */
     WT_RET(__wt_meta_track_on(session));
-    if (import)
+    if (import) {
         F_SET(session, WT_SESSION_IMPORT);
+
+        if (__wt_config_getones(session, config, "import.metadata_file", &cval) == 0 &&
+          cval.len != 0 && (cval.type == WT_CONFIG_ITEM_STRING || cval.type == WT_CONFIG_ITEM_ID)) {
+            WT_ERR(__wt_strndup(session, cval.str, cval.len, &export_file));
+            WT_ERR(__schema_parse_wt_export(session, export_file, &import_list));
+        }
+    }
 
     if (WT_PREFIX_MATCH(uri, "colgroup:"))
         ret = __create_colgroup(session, uri, exclusive, config);
@@ -1010,9 +1133,18 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     else
         ret = __wt_bad_object_type(session, uri);
 
+err:
     session->dhandle = NULL;
     F_CLR(session, WT_SESSION_IMPORT);
     WT_TRET(__wt_meta_track_off(session, true, ret != 0));
+
+    for (i = 0; i < import_list.entries_next; ++i) {
+        __wt_free(session, import_list.entries[i].name);
+        __wt_free(session, import_list.entries[i].config);
+    }
+
+    __wt_free(session, import_list.entries);
+    __wt_free(session, export_file);
 
     return (ret);
 }
