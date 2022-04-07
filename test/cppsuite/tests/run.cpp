@@ -33,9 +33,9 @@
 #include "test_harness/util/logger.h"
 #include "test_harness/test.h"
 
-#include "base_test.cpp"
 #include "burst_inserts.cpp"
 #include "hs_cleanup.cpp"
+#include "operations_test.cpp"
 #include "search_near_01.cpp"
 #include "search_near_02.cpp"
 #include "search_near_03.cpp"
@@ -118,12 +118,12 @@ run_test(const std::string &test_name, const std::string &config, const std::str
 
     test_harness::logger::log_msg(LOG_TRACE, "Configuration\t:" + config);
 
-    if (test_name == "base_test")
-        base_test(test_harness::test_args{config, test_name, wt_open_config}).run();
-    else if (test_name == "hs_cleanup")
+    if (test_name == "hs_cleanup")
         hs_cleanup(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "burst_inserts")
         burst_inserts(test_harness::test_args{config, test_name, wt_open_config}).run();
+    else if (test_name == "operations_test")
+        operations_test(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "search_near_01")
         search_near_01(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "search_near_02")
@@ -154,7 +154,7 @@ main(int argc, char *argv[])
 {
     std::string cfg, config_filename, current_cfg, current_test_name, test_name, wt_open_config;
     int64_t error_code = 0;
-    const std::vector<std::string> all_tests = {"base_test", "burst_inserts", "hs_cleanup",
+    const std::vector<std::string> all_tests = {"burst_inserts", "hs_cleanup", "operations_test",
       "search_near_01", "search_near_02", "search_near_03", "test_template"};
 
     /* Set the program name for error messages. */
