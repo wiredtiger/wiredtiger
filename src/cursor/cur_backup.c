@@ -110,6 +110,7 @@ __wt_backup_file_remove(WT_SESSION_IMPL *session)
     WT_TRET(__wt_remove_if_exists(session, WT_LOGINCR_BACKUP, true));
     WT_TRET(__wt_remove_if_exists(session, WT_LOGINCR_SRC, true));
     WT_TRET(__wt_remove_if_exists(session, WT_METADATA_BACKUP, true));
+    WT_TRET(__wt_remove_if_exists(session, WT_EXPORT_BACKUP, true));
     return (ret);
 }
 
@@ -623,6 +624,11 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     if (incremental_config && !TAILQ_EMPTY(&conn->lsmqh))
         WT_ERR_MSG(session, ENOTSUP, "LSM does not work with block-based incremental backup");
 
+    WT_ERR(__wt_config_gets(session, cfg, "export", &cval));
+    if (cval.val) {
+        F_SET(cb, WT_CURBACKUP_EXPORT);
+    }
+
 err:
     if (ret != 0 && cb->incr_src != NULL) {
         F_CLR(cb->incr_src, WT_BLKINCR_INUSE);
@@ -666,7 +672,7 @@ __backup_start(
     WT_DECL_RET;
     WT_FSTREAM *srcfs;
     const char *dest;
-    bool exist, is_dup, log_only, target_list;
+    bool exist, export_backup, is_dup, log_only, target_list;
 
     conn = S2C(session);
     srcfs = NULL;
@@ -789,7 +795,12 @@ __backup_start(
         WT_ERR(__wt_fopen(session, WT_LOGINCR_SRC, WT_FS_OPEN_CREATE, WT_STREAM_WRITE, &srcfs));
         WT_ERR(__backup_list_append(session, cb, dest));
     } else {
-        dest = WT_METADATA_BACKUP;
+        export_backup = F_ISSET(cb, WT_CURBACKUP_EXPORT);
+        if (export_backup)
+            dest = WT_EXPORT_BACKUP;
+        else
+            dest = WT_METADATA_BACKUP;
+
         WT_ERR(__backup_list_append(session, cb, dest));
         WT_ERR(__wt_fs_exist(session, WT_BASECONFIG, &exist));
         if (exist)

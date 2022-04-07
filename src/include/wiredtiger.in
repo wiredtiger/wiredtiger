@@ -931,6 +931,8 @@ struct __wt_session {
 	 * encoded.  These formats are compatible with the @ref util_dump and @ref util_load
 	 * commands., a string\, chosen from the following options: \c "hex"\, \c "json"\, \c
 	 * "pretty"\, \c "pretty_hex"\, \c "print"; default empty.}
+	 * @config{export, configure a special backup cursor for the export operation., a boolean
+	 * flag; default \c false.}
 	 * @config{incremental = (, configure the cursor for block incremental backup usage.  These
 	 * formats are only compatible with the backup data source; see @ref backup., a set of
 	 * related configuration options defined below.}
