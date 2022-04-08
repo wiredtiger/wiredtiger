@@ -235,16 +235,16 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
         self.perform_backup_or_crash_restart(".", self.backup_dir)
 
-        # Check the table contains the transaction at time 30. The checkpoint should wait for it.
-        self.check(self.valuea, self.uri, self.nrows * 2, 30, False)
+        # Check the table contains the last checkpointed value.
+        self.check(self.valuea, self.uri, self.nrows, 30, True)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         inconsistent_ckpt = stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2]
         keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
         stat_cursor.close()
 
-        self.assertEqual(inconsistent_ckpt, 0)
-        self.assertEqual(keys_removed, 0)
+        self.assertGreater(inconsistent_ckpt, 0)
+        self.assertGreaterEqual(keys_removed, 0)
 
     def test_checkpoint_snapshot_with_txnid_and_timestamp(self):
         self.moresetup()
