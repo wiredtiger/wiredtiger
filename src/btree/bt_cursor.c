@@ -178,6 +178,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
     WT_BTREE *btree;
     WT_CELL *cell;
     WT_COL *cip;
+    WT_DECL_ITEM(unpack_key);
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
     WT_UPDATE *upd;
@@ -325,11 +326,20 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
         upd = (page->modify != NULL && page->modify->mod_row_update != NULL) ?
           page->modify->mod_row_update[cbt->slot] :
           NULL;
+
+        if (key == NULL) {
+            WT_RET(__wt_scr_alloc(session, 0, &unpack_key));
+            WT_RET(__wt_row_leaf_key(
+              session, cbt->ref->page, &cbt->ref->page->pg_row[cbt->slot], unpack_key, true));
+            key = unpack_key;
+        }
         break;
     }
 
     /* Check for a value on disk or in the history store. Pass in any update. */
     WT_RET(__wt_txn_read(session, cbt, key, recno, upd));
+    if (unpack_key != NULL)
+        __wt_scr_free(session, &unpack_key);
     if (cbt->upd_value->type != WT_UPDATE_INVALID) {
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
             return (0);
@@ -559,7 +569,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
                 if (F_ISSET(cursor, WT_CURSTD_KEY_ONLY))
                     valid = true;
                 else
-                    WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+                    WT_ERR(__wt_cursor_valid(cbt, (cbt->ins != NULL ? NULL : cbt->tmp), WT_RECNO_OOB, &valid));
             }
         } else {
             WT_ERR(__cursor_col_search(cbt, cbt->ref, &leaf_found));
@@ -580,7 +590,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
                 if (F_ISSET(cursor, WT_CURSTD_KEY_ONLY))
                     valid = true;
                 else
-                    WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+                    WT_ERR(__wt_cursor_valid(cbt, (cbt->ins != NULL ? NULL : cbt->tmp), WT_RECNO_OOB, &valid));
             }
         } else {
             WT_ERR(__cursor_col_search(cbt, NULL, NULL));
@@ -684,7 +694,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
          */
         if (leaf_found &&
           (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)))
-            WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+            WT_ERR(__wt_cursor_valid(cbt, ((cbt->compare != 0 || cbt->ins != NULL) ? NULL : cbt->tmp), WT_RECNO_OOB, &valid));
     }
     if (!valid) {
         WT_ERR(__wt_cursor_func_init(cbt, true));
@@ -695,7 +705,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
          */
         if (btree->type == BTREE_ROW) {
             WT_ERR(__cursor_row_search(cbt, true, NULL, NULL));
-            WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+            WT_ERR(__wt_cursor_valid(cbt, ((cbt->compare != 0 || cbt->ins != NULL) ? NULL : cbt->tmp), WT_RECNO_OOB, &valid));
         } else {
             WT_ERR(__cursor_col_search(cbt, NULL, NULL));
             WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
@@ -900,7 +910,7 @@ retry:
          * If not overwriting, fail if the key exists, else insert the key/value pair.
          */
         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE) && cbt->compare == 0) {
-            WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+            WT_ERR(__wt_cursor_valid(cbt, (cbt->ins != NULL ? NULL : cbt->tmp), WT_RECNO_OOB, &valid));
             if (valid)
                 goto duplicate;
         }
@@ -1138,7 +1148,7 @@ retry:
             WT_ERR(__curfile_update_check(cbt));
 
             WT_WITH_UPDATE_VALUE_SKIP_BUF(
-              ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+              ret = __wt_cursor_valid(cbt, (cbt->ins != NULL ? NULL : cbt->tmp), WT_RECNO_OOB, &valid));
             WT_ERR(ret);
             if (!valid)
                 WT_ERR(WT_NOTFOUND);
@@ -1316,7 +1326,7 @@ retry:
             WT_ERR(__curfile_update_check(cbt));
             if (cbt->compare == 0) {
                 WT_WITH_UPDATE_VALUE_SKIP_BUF(
-                  ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+                  ret = __wt_cursor_valid(cbt, (cbt->ins != NULL ? NULL : cbt->tmp), WT_RECNO_OOB, &valid));
                 WT_ERR(ret);
                 if (!valid)
                     WT_ERR(WT_NOTFOUND);
