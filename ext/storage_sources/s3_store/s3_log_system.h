@@ -43,9 +43,9 @@ static const std::map<int32_t, Aws::Utils::Logging::LogLevel> verbosityMapping =
   {-1, Aws::Utils::Logging::LogLevel::Info}, {0, Aws::Utils::Logging::LogLevel::Info},
   {1, Aws::Utils::Logging::LogLevel::Debug}};
 
-// Provides the S3 Store with a logger implementation that redirects the generated logs to 
-// WiredTiger's logging streams. This class implements AWS's LogSystemInterface class, an interface 
-// for logging implementations. Functions are derived from the interface to incorporate the 
+// Provides the S3 Store with a logger implementation that redirects the generated logs to
+// WiredTiger's logging streams. This class implements AWS's LogSystemInterface class, an interface
+// for logging implementations. Functions are derived from the interface to incorporate the
 // logging with WiredTiger's logging system.
 class S3LogSystem : public Aws::Utils::Logging::LogSystemInterface {
     public:
@@ -79,7 +79,10 @@ class S3LogSystem : public Aws::Utils::Logging::LogSystemInterface {
     void SetWtVerbosityLevel(int32_t wtVerbosityLevel);
 
     // Inherited from AWS LogSystemInterface and is not used.
-    void Flush() {return;}
+    void
+    Flush()
+    {
+    }
 
     private:
     void LogAwsMessage(const char *tag, const std::string &message) const;

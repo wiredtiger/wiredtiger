@@ -35,7 +35,7 @@ S3LogSystem::S3LogSystem(WT_EXTENSION_API *wtApi, uint32_t wtVerbosityLevel) : _
     SetWtVerbosityLevel(wtVerbosityLevel);
 }
 
-// Overrides the interface's Log method to write the AWS SDK log stream to WiredTiger's log stream 
+// Overrides the interface's Log method to write the AWS SDK log stream to WiredTiger's log stream
 // using variadic style through a helper function. Inherited from AWS's LogSystemInterface.
 void
 S3LogSystem::Log(Aws::Utils::Logging::LogLevel logLevel, const char *tag, const char *format, ...)
@@ -63,7 +63,7 @@ S3LogSystem::Log(Aws::Utils::Logging::LogLevel logLevel, const char *tag, const 
     va_end(args);
 }
 
-// Overrides the interface's LogStream method to write the AWS SDK log stream to WiredTiger's log 
+// Overrides the interface's LogStream method to write the AWS SDK log stream to WiredTiger's log
 // stream through a helper function. Inherited from AWS's LogSystemInterface.
 void
 S3LogSystem::LogStream(
