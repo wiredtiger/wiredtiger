@@ -674,6 +674,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     if (use_timestamp && txn_global->meta_ckpt_timestamp != WT_TS_NONE) {
         while (__wt_txn_checkpoint_cannot_start(session)) {
             __wt_sleep(0, 100 * WT_THOUSAND);
+            WT_STAT_CONN_INCRV(session, txn_checkpoint_prep_wait, 100);
             wait_time++;
         }
         /* Grumble (with timing data) if we had to wait more than five seconds. */
