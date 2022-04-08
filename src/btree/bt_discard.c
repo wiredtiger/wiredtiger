@@ -24,6 +24,9 @@ static void __free_update(WT_SESSION_IMPL *, WT_UPDATE **, uint32_t, bool);
 void
 __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_PAGE *orig_page;
+
+    orig_page = ref->page;
     /*
      * A version of the page-out function that allows us to make additional diagnostic checks.
      *
@@ -45,6 +48,7 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
         F_ISSET(session->dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_EXCLUSIVE) ||
         !__wt_gen_active(session, WT_GEN_SPLIT, ref->page->pg_intl_split_gen));
 
+    WT_ASSERT(session, orig_page == ref->page);
     __wt_page_out(session, &ref->page);
 }
 
@@ -130,8 +134,12 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     }
 
     /* Discard any allocated disk image. */
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC))
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC)) {
+        __wt_errx(session, "PAGE_OUT: Free DSK page %p dsk %p size %d", (void *)page, (void *)dsk,
+          (int)dsk->mem_size);
         __wt_overwrite_and_free_len(session, dsk, dsk->mem_size);
+        __wt_yield();
+    }
 
     __wt_overwrite_and_free(session, page);
 }

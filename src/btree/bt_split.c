@@ -265,7 +265,6 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
         if (__wt_atomic_cas_ptr(&ref->addr, ref_addr, addr))
             addr = NULL;
     }
-    F_SET(ref, WT_REF_MOVED);
     /* And finally, copy the WT_REF pointer itself. */
     *to_refp = ref;
     WT_MEM_TRANSFER(*decrp, *incrp, sizeof(WT_REF));
@@ -484,8 +483,10 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
          */
         child_pindex = WT_INTL_INDEX_GET_SAFE(child);
         child_incr = 0;
-        for (child_refp = child_pindex->index, j = 0; j < slots; ++child_refp, ++root_refp, ++j)
+        for (child_refp = child_pindex->index, j = 0; j < slots; ++child_refp, ++root_refp, ++j) {
             WT_ERR(__split_ref_move(session, root, root_refp, &root_decr, child_refp, &child_incr));
+            F_SET(*child_refp, WT_REF_MOVED_ROOT);
+        }
 
         __wt_cache_page_inmem_incr(session, child, child_incr);
     }
@@ -1002,8 +1003,10 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
          */
         child_pindex = WT_INTL_INDEX_GET_SAFE(child);
         child_incr = 0;
-        for (child_refp = child_pindex->index, j = 0; j < slots; ++child_refp, ++page_refp, ++j)
+        for (child_refp = child_pindex->index, j = 0; j < slots; ++child_refp, ++page_refp, ++j) {
             WT_ERR(__split_ref_move(session, page, page_refp, &page_decr, child_refp, &child_incr));
+            F_SET(*child_refp, WT_REF_MOVED_INTERNAL);
+        }
 
         __wt_cache_page_inmem_incr(session, child, child_incr);
     }

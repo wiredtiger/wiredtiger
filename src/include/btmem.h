@@ -899,7 +899,7 @@ struct __wt_ref {
     WT_PAGE *volatile home;        /* Reference page */
     volatile uint32_t pindex_hint; /* Reference page index hint */
 
-    uint8_t unused[2]; /* Padding: before the flags field so flags can be easily expanded. */
+    uint8_t unused[1]; /* Padding: before the flags field so flags can be easily expanded. */
 
 /*
  * Define both internal- and leaf-page flags for now: we only need one, but it provides an easy way
@@ -908,12 +908,13 @@ struct __wt_ref {
  * depending on it to be "!leaf" instead.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_REF_FLAG_INTERNAL 0x1u /* Page is an internal page */
-#define WT_REF_FLAG_LEAF 0x2u     /* Page is a leaf page */
-#define WT_REF_FLAG_READING 0x4u  /* Page is being read in */
-#define WT_REF_MOVED 0x8u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
-    uint8_t flags;
+#define WT_REF_FLAG_INTERNAL 0x01u /* Page is an internal page */
+#define WT_REF_FLAG_LEAF 0x02u     /* Page is a leaf page */
+#define WT_REF_FLAG_READING 0x04u  /* Page is being read in */
+#define WT_REF_MOVED_INTERNAL 0x08u
+#define WT_REF_MOVED_ROOT 0x10u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+    uint16_t flags;
 
 #define WT_REF_DISK 0       /* Page is on disk */
 #define WT_REF_DELETED 1    /* Page is on disk, but deleted */
@@ -993,9 +994,9 @@ struct __wt_ref {
  * inserted padding which would break the world.
  */
 #ifdef HAVE_DIAGNOSTIC
-#define WT_REF_SIZE (48 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
+#define WT_REF_SIZE (56 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
 #else
-#define WT_REF_SIZE 48
+#define WT_REF_SIZE 56
 #endif
 
 /* A macro wrapper allowing us to remember the callers code location */

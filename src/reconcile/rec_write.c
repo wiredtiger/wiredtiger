@@ -1448,6 +1448,8 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
         tmp = r->prev_ptr;
         r->prev_ptr = r->cur_ptr;
         r->cur_ptr = tmp;
+        __wt_errx(session, "REC_SPLIT: Swap. Now r %p prev_ptr %p cur_ptr %p", (void *)r,
+          (void *)r->prev_ptr, (void *)r->cur_ptr);
     }
 
     /* Initialize the next chunk, including the key. */
@@ -1598,6 +1600,8 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         tmp = r->prev_ptr;
         r->prev_ptr = r->cur_ptr;
         r->cur_ptr = tmp;
+        __wt_errx(session, "REC_SPLIT_FINISH_PROCESS_PREV: Swap. Now r %p prev_ptr %p cur_ptr %p",
+          (void *)r, (void *)r->prev_ptr, (void *)r->cur_ptr);
         return (__rec_split_chunk_init(session, r, r->prev_ptr));
     }
 
@@ -1640,6 +1644,8 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     }
 
     /* Write out the previous image */
+    __wt_errx(session, "REC_SPLIT_FINISH_PROCESS_PREV: Split write. r %p prev_ptr %p", (void *)r,
+      (void *)r->prev_ptr);
     return (__rec_split_write(session, r, r->prev_ptr, NULL, false));
 }
 
@@ -1692,8 +1698,11 @@ __wt_rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     if (r->prev_ptr != NULL) {
         if (r->page->type != WT_PAGE_COL_FIX)
             WT_RET(__rec_split_finish_process_prev(session, r));
-        else
+        else {
+            __wt_errx(session, "REC_SPLIT_FINISH: Split write. r %p prev_ptr %p", (void *)r,
+              (void *)r->prev_ptr);
             WT_RET(__rec_split_write(session, r, r->prev_ptr, NULL, false));
+        }
     }
 
     /* Write the remaining data/last page. */
