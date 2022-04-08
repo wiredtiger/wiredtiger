@@ -353,8 +353,8 @@ struct __wt_txn {
     uint32_t flags;
 
     /*
-     * Zero or more bytes of value (the payload) immediately follows the WT_UPDATE structure. We use
-     * a C99 flexible array member which has the semantics we want.
+     * Zero or more bytes of value (the payload) immediately follows the WT_TXN structure. We use a
+     * C99 flexible array member which has the semantics we want.
      */
     uint64_t __snapshot[];
 };
