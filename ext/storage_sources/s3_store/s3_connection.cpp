@@ -37,11 +37,11 @@
 #include <fstream>
 #include <iostream>
 
-// This is a tag that can be set and used when uploading or retrieving objects from the S3.
+// Tag that can be set and used when uploading or retrieving objects from the S3.
 // Tagging in S3 allows for categorisation of objects, as well as other benefits.
 #define S3_ALLOCATION_TAG ""
 
-// Constructor for AWS S3 bucket conqnection with provided credentials.
+// Constructor for AWS S3 bucket connection with provided credentials.
 S3Connection::S3Connection(const Aws::Auth::AWSCredentials &credentials,
   const Aws::S3Crt::ClientConfiguration &config, const std::string &bucketName,
   const std::string &objPrefix)
