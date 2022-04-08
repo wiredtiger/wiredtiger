@@ -849,8 +849,7 @@ __curfile_setup_checkpoint(WT_CURSOR_BTREE *cbt, const char *cfg[], WT_DATA_HAND
              */
             if (ckpt_snapshot->stable_ts < ckpt_snapshot->oldest_ts)
                 WT_ERR_MSG(session, EINVAL,
-                  "checkpoint_read_timestamp must not be before the checkpoint oldest "
-                  "timestamp");
+                  "checkpoint_read_timestamp must not be before the checkpoint oldest timestamp");
         }
     }
 
