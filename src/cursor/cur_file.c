@@ -1029,13 +1029,8 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
     uint32_t flags;
     bool bitmap, bulk, checkpoint_use_history, checkpoint_wait;
 
-    ckpt_snapshot.snapshot_max = WT_TXN_MAX;
-    ckpt_snapshot.snapshot_min = WT_TXN_MAX;
-    ckpt_snapshot.snapshot_txns = NULL;
-    ckpt_snapshot.snapshot_count = 0;
     hs_dhandle = NULL;
     bitmap = bulk = false;
-    checkpoint_use_history = true;
     checkpoint_wait = true;
     flags = 0;
 
@@ -1071,9 +1066,8 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
         LF_SET(WT_BTREE_BULK | WT_DHANDLE_EXCLUSIVE);
 
     /* Find out if we're supposed to avoid opening the history store. */
-    WT_RET(__wt_config_gets_def(session, cfg, "checkpoint_use_history", 0, &cval));
-    if (cval.len > 0)
-        checkpoint_use_history = (cval.val != 0);
+    WT_RET(__wt_config_gets_def(session, cfg, "checkpoint_use_history", 1, &cval));
+    checkpoint_use_history = cval.val != 0;
 
     /*
      * This open path is used for checkpoint cursors and bulk cursors as well as ordinary cursors.
@@ -1112,6 +1106,12 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
      * and furthermore any internally opened history store cursors come through here, so this case
      * does matter.)
      */
+    ckpt_snapshot.oldest_ts = WT_TS_NONE;
+    ckpt_snapshot.stable_ts = WT_TS_NONE;
+    ckpt_snapshot.snapshot_max = WT_TXN_MAX;
+    ckpt_snapshot.snapshot_min = WT_TXN_MAX;
+    ckpt_snapshot.snapshot_txns = NULL;
+    ckpt_snapshot.snapshot_count = 0;
 
     /* Get the handle and lock it while the cursor is using it. */
     if (LF_ISSET(WT_DHANDLE_EXCLUSIVE) && checkpoint_wait)
