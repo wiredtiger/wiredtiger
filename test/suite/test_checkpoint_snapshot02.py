@@ -215,8 +215,18 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         ckpt = checkpoint_thread(self.conn, done)
         try:
             ckpt.start()
-            # Sleep for sometime so that checkpoint starts before committing last transaction.
-            time.sleep(2)
+
+            # Wait for checkpoint to start before committing last transaction.
+            # Note: because we assigned the transaction a commit timestamp before the
+            # checkpoint timestamp, the checkpoint will wait for us to finish committing.
+            # But that happens after it starts running according to the stat.
+            ckpt_started = 0
+            while not ckpt_started:
+                stat_cursor = self.session.open_cursor('statistics:', None, None)
+                ckpt_started = stat_cursor[stat.conn.txn_checkpoint_running][2]
+                stat_cursor.close()
+                time.sleep(1)
+
             session1.commit_transaction()
 
         finally:
@@ -225,16 +235,16 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
         self.perform_backup_or_crash_restart(".", self.backup_dir)
 
-        # Check the table contains the last checkpointed value.
-        self.check(self.valuea, self.uri, self.nrows, 30, True)
+        # Check the table contains the transaction at time 30. The checkpoint should wait for it.
+        self.check(self.valuea, self.uri, self.nrows * 2, 30, False)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         inconsistent_ckpt = stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2]
         keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
         stat_cursor.close()
 
-        self.assertGreater(inconsistent_ckpt, 0)
-        self.assertGreaterEqual(keys_removed, 0)
+        self.assertEqual(inconsistent_ckpt, 0)
+        self.assertEqual(keys_removed, 0)
 
     def test_checkpoint_snapshot_with_txnid_and_timestamp(self):
         self.moresetup()
@@ -262,6 +272,8 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
             cursor2.set_key(ds.key(i))
             cursor2.set_value(self.valuea)
             self.assertEqual(cursor2.insert(), 0)
+
+        # Give the first transaction (which has no contents) a timestamp.
         session1.timestamp_transaction('commit_timestamp=' + self.timestamp_str(30))
 
         # Set stable timestamp to 40
@@ -272,8 +284,15 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         ckpt = checkpoint_thread(self.conn, done)
         try:
             ckpt.start()
-            # Sleep for sometime so that checkpoint starts before committing last transaction.
-            time.sleep(2)
+
+            # Wait for checkpoint to start before committing last transaction.
+            ckpt_started = 0
+            while not ckpt_started:
+                stat_cursor = self.session.open_cursor('statistics:', None, None)
+                ckpt_started = stat_cursor[stat.conn.txn_checkpoint_running][2]
+                stat_cursor.close()
+                time.sleep(1)
+
             session2.commit_transaction()
 
         finally:
