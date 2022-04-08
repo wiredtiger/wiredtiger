@@ -15,14 +15,12 @@
 static int
 __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_CHILD_STATE *statep)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_PAGE_DELETED *page_del;
     WT_TXN *txn;
     uint8_t prepare_state;
 
     *statep = WT_CHILD_IGNORE;
 
-    conn = S2C(session);
     txn = session->txn;
 
     /*
@@ -72,9 +70,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_C
      * state before it's deleted, or the fast-delete can be undone by RTS, we can't discard the
      * pages. Write a cell to the internal page with information describing the fast-delete.
      */
-    if (__wt_page_del_active(session, ref, true) ||
-      (conn->txn_global.has_stable_timestamp &&
-        page_del->timestamp > conn->txn_global.stable_timestamp)) {
+    if (__wt_page_del_active(session, ref, true)) {
         *statep = WT_CHILD_PROXY;
         return (0);
     }
