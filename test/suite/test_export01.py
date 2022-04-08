@@ -65,7 +65,8 @@ class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
         c3["k3"] = "k3"
         c3.close()
 
-        # TODO: Flush stuff.
+        self.session.checkpoint()
+        self.session.flush_tier(None)
 
         # Open a special backup cursor for export operation.
         export_cursor = self.session.open_cursor('backup:export', None, None)
@@ -73,10 +74,13 @@ class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
         os.mkdir(self.dir)
         copy_wiredtiger_home(self, '.', self.dir)
 
-        # TODO: Check that the WiredTiger.export file contains the expected entries.
-        # TODO: Remove the backup file properly.
-
         export_cursor.close()
+
+        # The export file should be removed from the home directory.
+        self.assertFalse(os.path.isfile("WiredTiger.export"))
+        
+        # The export file should exist in the backup directory.
+        self.assertTrue(os.path.isfile(self.dir + "/WiredTiger.export"))
 
 if __name__ == '__main__':
     wttest.run()
