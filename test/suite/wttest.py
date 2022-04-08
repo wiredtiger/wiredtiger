@@ -185,6 +185,12 @@ class WiredTigerTestCase(unittest.TestCase):
     _printOnceSeen = {}
     _ttyDescriptor = None   # set this early, to allow tty() to be called any time.
 
+    # We retry tests that get rollback errors in a way that is mostly invisible.
+    # There is a visible difference in that the rollback error's stack trace is recorded
+    # in the results.txt .  If a single test fails more than self._rollbacksAllowedPerTest,
+    # we will also raise an error.
+    _rollbacksAllowedPerTest = 2
+
     # conn_config can be overridden to add to basic connection configuration.
     # Can be a string or a callable function or lambda expression.
     conn_config = ''
@@ -212,10 +218,12 @@ class WiredTigerTestCase(unittest.TestCase):
             shutil.rmtree(d, ignore_errors=True)
         os.makedirs(d)
         wtscenario.set_long_run(longtest)
+        resultFileName = os.path.join(d, 'results.txt')
         WiredTigerTestCase._parentTestdir = d
         WiredTigerTestCase._builddir = builddir
         WiredTigerTestCase._origcwd = os.getcwd()
-        WiredTigerTestCase._resultfile = open(os.path.join(d, 'results.txt'), "w", 1)  # line buffered
+        WiredTigerTestCase._resultFileName = resultFileName
+        WiredTigerTestCase._resultFile = open(resultFileName, "w", 1)  # line buffered
         WiredTigerTestCase._gdbSubprocess = gdbSub
         WiredTigerTestCase._lldbSubprocess = lldbSub
         WiredTigerTestCase._longtest = longtest
@@ -226,15 +234,30 @@ class WiredTigerTestCase(unittest.TestCase):
         WiredTigerTestCase._stdout = sys.stdout
         WiredTigerTestCase._stderr = sys.stderr
         WiredTigerTestCase._concurrent = False
-        WiredTigerTestCase._globalSetup = True
         WiredTigerTestCase._seeds = [521288629, 362436069]
         WiredTigerTestCase._randomseed = False
+        WiredTigerTestCase._retriesAfterRollback = 0
+        WiredTigerTestCase._testsRun = 0
         if hookmgr == None:
             hookmgr = wthooks.WiredTigerHookManager()
         WiredTigerTestCase._hookmgr = hookmgr
         if seedw != 0 and seedz != 0:
             WiredTigerTestCase._randomseed = True
             WiredTigerTestCase._seeds = [seedw, seedz]
+        WiredTigerTestCase._globalSetup = True
+
+    @staticmethod
+    def finalReport():
+        # We retry tests that get rollback errors in a way that is mostly invisible.
+        # self._rollbacksAllowedPerTest makes sure a single test doesn't rollback too many times.
+        # We also want to report an error if the total number of retries gets above a threshold,
+        # we use 1% if the number of tests is large enough.  Each rollback error's stack
+        # is already recorded, so we give visibility to it here.
+        total = WiredTigerTestCase._testsRun
+        retries = WiredTigerTestCase._retriesAfterRollback
+        if (total > 300 and retries/total > 0.01) or (total <= 300 and retries >= 3):
+            raise Exception('Retries from WT_ROLLBACK: {}/{}, see {} for stack traces'.format(
+                retries, total, WiredTigerTestCase._resultFileName))
 
     def fdSetUp(self):
         self.captureout = CapturedFd('stdout.txt', 'standard output')
@@ -283,6 +306,38 @@ class WiredTigerTestCase(unittest.TestCase):
     def skipTest(self, reason):
         self.skipped = True
         super(WiredTigerTestCase, self).skipTest(reason)
+
+    # Override unittest.run.
+    # We do this so we can intercept calls to the test method.
+    def run(self, result=None):
+        self._savedTestMethodName = self._testMethodName
+        self._testMethodName = "runTestMethod"
+        try:
+            super(WiredTigerTestCase, self).run(result)
+        finally:
+            self._testMethodName = self._savedTestMethodName
+
+    # This function is called in advance of every test method
+    # invocation.  It retries the test method whenever
+    # it fails due to a rollback error, up to a point.
+    def runTestMethod(self):
+        rollbacksAllowed = self._rollbacksAllowedPerTest
+        finished = False
+        method = getattr(self, self._savedTestMethodName)
+        WiredTigerTestCase._testsRun += 1
+        while not finished and rollbacksAllowed > 0:
+            try:
+                method()
+                finished = True
+            except wiredtiger.WiredTigerRollbackError:
+                WiredTigerTestCase._retriesAfterRollback += 1
+                self.prexception(sys.exc_info())
+                if rollbacksAllowed <= 0:
+                    self.pr('rollback error, no more restarts, failing test.')
+                    raise
+                else:
+                    self.pr('rollback error, restarting test.')
+                    rollbacksAllowed -= 1
 
     # Construct the expected filename for an extension library and return
     # the name if the file exists.
@@ -841,7 +896,7 @@ class WiredTigerTestCase(unittest.TestCase):
         print a progress line for testing
         """
         msg = '    ' + self.shortid() + ': ' + s
-        WiredTigerTestCase._resultfile.write(msg + '\n')
+        WiredTigerTestCase._resultFile.write(msg + '\n')
 
     def prhead(self, s, *beginning):
         """
@@ -852,12 +907,12 @@ class WiredTigerTestCase(unittest.TestCase):
             msg += '\n'
         msg += '  ' + self.shortid() + ': ' + s
         self.prout(msg)
-        WiredTigerTestCase._resultfile.write(msg + '\n')
+        WiredTigerTestCase._resultFile.write(msg + '\n')
 
     def prexception(self, excinfo):
-        WiredTigerTestCase._resultfile.write('\n')
-        traceback.print_exception(excinfo[0], excinfo[1], excinfo[2], None, WiredTigerTestCase._resultfile)
-        WiredTigerTestCase._resultfile.write('\n')
+        WiredTigerTestCase._resultFile.write('\n')
+        traceback.print_exception(excinfo[0], excinfo[1], excinfo[2], None, WiredTigerTestCase._resultFile)
+        WiredTigerTestCase._resultFile.write('\n')
 
     def recno(self, i):
         """
@@ -947,8 +1002,10 @@ def runsuite(suite, parallel):
         if WiredTigerTestCase._randomseed:
             WiredTigerTestCase.prout("Starting test suite with seedw={0} and seedz={1}. Rerun this test with -seed {0}.{1} to get the same randomness"
                 .format(str(WiredTigerTestCase._seeds[0]), str(WiredTigerTestCase._seeds[1])))
-        return unittest.TextTestRunner(
+        result = unittest.TextTestRunner(
             verbosity=WiredTigerTestCase._verbose).run(suite_to_run)
+        WiredTigerTestCase.finalReport()
+        return result
     except BaseException as e:
         # This should not happen for regular test errors, unittest should catch everything
         print('ERROR: running test: ', e)
