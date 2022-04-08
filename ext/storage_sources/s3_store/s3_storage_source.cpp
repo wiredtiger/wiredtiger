@@ -217,22 +217,29 @@ S3GetDirectory(const S3Storage &s3, const std::string &home, const std::string &
     else
         dirName = home + "/" + name;
 
-    ret = stat(dirName.c_str(), &sb);
-    if (ret != 0 && errno == ENOENT && create) {
+    // Use filesystem status to find if directory exists.
+    std::error_code ec;
+    std::filesystem::file_status status = std::filesystem::status(dirName.c_str(), ec);
+    ret = ec.value();
+
+    if (!std::filesystem::exists(status) && create) {
         try {
+            std::cout << "Creating directory " << dirName << "..." << std::endl;
             std::filesystem::create_directory(dirName.c_str());
             std::filesystem::permissions(dirName.c_str(), std::filesystem::perms::all);
         } catch (std::filesystem::filesystem_error const &e) {
             s3.log->LogErrorMessage(std::string("S3GetDirectory: ") + e.what());
         }
 
-        ret = stat(dirName.c_str(), &sb);
         s3.log->LogDebugMessage("S3GetDirectory: Successfully created directory.");
     }
+
+    status = std::filesystem::status(dirName.c_str(), ec);
+    ret = ec.value();
+
     if (ret != 0) {
-        ret = errno;
         s3.log->LogErrorMessage("S3GetDirectory: No such file or directory");
-    } else if ((sb.st_mode & S_IFMT) != S_IFDIR) {
+    } else if (!std::filesystem::is_directory(status)) {
         s3.log->LogErrorMessage("S3GetDirectory: invalid directory name");
         ret = EINVAL;
     }
