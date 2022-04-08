@@ -400,6 +400,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
     session_txnid = WT_SESSION_TXN_SHARED(session)->id;
 
+    //WT_REC_ASSERT_KEY_CONSISTENT(r)
+
     /*
      * If called with a WT_INSERT item, use its WT_UPDATE list (which must exist), otherwise check
      * for an on-page row-store WT_UPDATE list (which may not exist). Return immediately if the item

@@ -19,6 +19,8 @@
  */
 #define WT_REC_SPLIT_MIN_ITEMS_USE_MEM 10
 
+
+#define WT_REC_ASSERT_KEY_CONSISTENT(r) WT_ASSERT(session, !(r)->ikey_on_page || WT_IKEY_DATA((r)->ref->key.ikey) == (r)->ikey_mem);
 /*
  * WT_REC_TW_START_VISIBLE_ALL
  *     Check if the provided time window's start is globally visible as per the saved state on the

@@ -692,6 +692,8 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
       !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES) && !WT_IS_HS(btree->dhandle) &&
       !WT_IS_METADATA(btree->dhandle);
 
+    r->ikey_mem = WT_IKEY_DATA(ref->key.ikey);
+    r->ikey_on_page = ((uintptr_t)(r->ikey_mem)) & WT_IK_FLAG;
 /*
  * If we allocated the reconciliation structure and there was an error, clean up. If our caller
  * passed in a structure, they own it.

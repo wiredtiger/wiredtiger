@@ -95,6 +95,8 @@ struct __wt_reconcile {
     /* Track the page's maximum transaction/timestamp. */
     uint64_t max_txn;
     wt_timestamp_t max_ts;
+    void *ikey_mem;
+    bool ikey_on_page;
 
     /*
      * When we do not find any update to be written for the whole page, we would like to mark
