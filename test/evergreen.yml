@@ -192,7 +192,7 @@ functions:
               -DHAVE_DIAGNOSTIC=1 ${NON_BARRIER_DIAGNOSTIC_YIELDS|} -DCMAKE_BUILD_TYPE=ASan \
               -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 ${configure_python_setting|} \
               -G "${cmake_generator|Ninja}" ../.
-          fifo
+          fi
     - *make_wiredtiger
 
   "compile wiredtiger with builtins":
@@ -2706,8 +2706,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          # FIXME-WT-8482: CC is set to the system default "clang" binary here as a workaround.
-          # Change it back to mongodbtoolchain "clang" binary.
+          # CC is set to the system default "clang" binary here as a workaround to mongo toolchains not supporting ASAN on Ubuntu PPC.
           posix_configure_flags:
             -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
             -DHAVE_DIAGNOSTIC=1
