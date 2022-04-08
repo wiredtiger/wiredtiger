@@ -268,6 +268,8 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
     /* And finally, copy the WT_REF pointer itself. */
     *to_refp = ref;
     WT_MEM_TRANSFER(*decrp, *incrp, sizeof(WT_REF));
+    __wt_errx(session, "SPLIT_REF_MOVE: Moving ref with page->dsk: %p from ref %p to ref %p",
+          (void *)from_home->dsk, (void *)*from_refp, (void *)*to_refp);
 err:
     if (addr != NULL) {
         __wt_free(session, addr->addr);
