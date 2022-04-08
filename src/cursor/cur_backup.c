@@ -12,7 +12,7 @@ static int __backup_all(WT_SESSION_IMPL *);
 static int __backup_list_append(WT_SESSION_IMPL *, WT_CURSOR_BACKUP *, const char *);
 static int __backup_list_uri_append(WT_SESSION_IMPL *, const char *, bool *);
 static int __backup_start(
-  WT_SESSION_IMPL *, WT_CURSOR_BACKUP *, WT_CURSOR_BACKUP *, const char *[]);
+  WT_SESSION_IMPL *, WT_CURSOR_BACKUP *, WT_CURSOR_BACKUP *, const char *[], bool);
 static int __backup_stop(WT_SESSION_IMPL *, WT_CURSOR_BACKUP *);
 
 #define WT_CURSOR_BACKUP_CHECK_STOP(cursor) \
@@ -276,6 +276,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     WT_CURSOR *cursor;
     WT_CURSOR_BACKUP *cb, *othercb;
     WT_DECL_RET;
+    bool export_backup;
 
     WT_STATIC_ASSERT(offsetof(WT_CURSOR_BACKUP, iface) == 0);
 
@@ -301,16 +302,14 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     }
 
     /* Special backup cursor for export operation. */
-    if (strcmp(uri, "backup:export") == 0) {
-        F_SET(cb, WT_CURBACKUP_EXPORT);
-    }
+    export_backup = (strcmp(uri, "backup:export") == 0) ? true : false;
 
     /*
      * Start the backup and fill in the cursor's list. Acquire the schema lock, we need a consistent
      * view when creating a copy.
      */
-    WT_WITH_CHECKPOINT_LOCK(
-      session, WT_WITH_SCHEMA_LOCK(session, ret = __backup_start(session, cb, othercb, cfg)));
+    WT_WITH_CHECKPOINT_LOCK(session,
+      WT_WITH_SCHEMA_LOCK(session, ret = __backup_start(session, cb, othercb, cfg, export_backup)));
     WT_ERR(ret);
     WT_ERR(cb->incr_file == NULL ?
         __wt_cursor_init(cursor, uri, NULL, cfg, cursorp) :
@@ -664,15 +663,15 @@ __backup_query_setup(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
  *     Start a backup.
  */
 static int
-__backup_start(
-  WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, WT_CURSOR_BACKUP *othercb, const char *cfg[])
+__backup_start(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, WT_CURSOR_BACKUP *othercb,
+  const char *cfg[], bool export_backup)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_FSTREAM *srcfs;
     const char *dest;
-    bool exist, export_backup, is_dup, log_only, target_list;
+    bool exist, is_dup, log_only, target_list;
 
     conn = S2C(session);
     srcfs = NULL;
@@ -795,11 +794,7 @@ __backup_start(
         WT_ERR(__wt_fopen(session, WT_LOGINCR_SRC, WT_FS_OPEN_CREATE, WT_STREAM_WRITE, &srcfs));
         WT_ERR(__backup_list_append(session, cb, dest));
     } else {
-        export_backup = F_ISSET(cb, WT_CURBACKUP_EXPORT);
-        if (export_backup)
-            dest = WT_EXPORT_BACKUP;
-        else
-            dest = WT_METADATA_BACKUP;
+        dest = (export_backup) ? WT_EXPORT_BACKUP : WT_METADATA_BACKUP;
 
         WT_ERR(__backup_list_append(session, cb, dest));
         WT_ERR(__wt_fs_exist(session, WT_BASECONFIG, &exist));
