@@ -18,6 +18,7 @@ typedef struct {
 typedef struct {
     size_t entries_allocated; /* allocated */
     size_t entries_next;      /* next slot */
+    const char *uri;          /* entries in the list will be related to this uri */
 
     WT_IMPORT_ENTRY *entries;
 } WT_IMPORT_LIST;
@@ -991,84 +992,75 @@ __import_entry_cmp(const void *a, const void *b)
 }
 
 /*
+ * __metadata_entry_worker --
+ *     Worker function for metadata file reader procedure. The function populates import list with
+ *     entries related to the import URI.
+ */
+static int
+__metadata_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, void *state)
+{
+    WT_DECL_RET;
+    WT_IMPORT_LIST *import_list;
+    char *metacfg;
+    const char *md_key, *md_value;
+
+    import_list = (WT_IMPORT_LIST *)state;
+    md_key = (const char *)key->data;
+    md_value = (const char *)value->data;
+
+    /* Skip any WiredTiger tables and system entries. */
+    if (WT_SUFFIX_MATCH(md_key, WT_METAFILE) || WT_SUFFIX_MATCH(md_key, WT_HS_FILE) ||
+      WT_PREFIX_MATCH(md_key, WT_SYSTEM_PREFIX))
+        return (0);
+
+    /*
+     * Check if the entry already exists in the metadata. Raise an error if we try to import an
+     * existing URI rather than just silently returning.
+     */
+    ret = __wt_metadata_search(session, md_key, &metacfg);
+    __wt_free(session, metacfg);
+    if (ret != WT_NOTFOUND)
+        return EEXIST;
+
+    /* Grow the entries array if needed. */
+    WT_RET(__wt_realloc_def(session, &import_list->entries_allocated, import_list->entries_next + 1,
+      &import_list->entries));
+
+    /* Populate the next entry. */
+    WT_RET(__wt_strndup(
+      session, md_key, key->size, &import_list->entries[import_list->entries_next].name));
+    WT_RET(__wt_strndup(
+      session, md_value, value->size, &import_list->entries[import_list->entries_next].config));
+    import_list->entries_next++;
+
+    return (0);
+}
+
+/*
  * __schema_parse_wt_export --
- *     Parse export metadata file and populate array of name/config entries. The array is sorted by
- *     entry name. Caller is responsible to free any memory allocated for the import list.
+ *     Parse export metadata file and populate array of name/config entries related to uri. The
+ *     array is sorted by entry name. Caller is responsible to free any memory allocated for the
+ *     import list.
  */
 static int
 __schema_parse_wt_export(
   WT_SESSION_IMPL *session, const char *export_file, WT_IMPORT_LIST *import_list)
 {
-    WT_DECL_ITEM(key);
-    WT_DECL_ITEM(value);
-    WT_DECL_RET;
-    WT_FSTREAM *fs;
-    char *metacfg;
-    const char *md_key, *md_value;
     bool exist;
 
-    metacfg = NULL;
+    exist = false;
 
-    /* Look for a metadata export file: if we find it, load it. */
-    WT_RET(__wt_fs_exist(session, export_file, &exist));
+    /* Open metadata backup file and iterate over the key value pairs. */
+    WT_RET(
+      __wt_read_metadata_file(session, export_file, __metadata_entry_worker, &import_list, &exist));
     if (!exist)
         return (0);
-    WT_RET(__wt_fopen(session, export_file, 0, WT_STREAM_READ, &fs));
-
-    /* Read line pairs and add them to the import list. */
-    WT_ERR(__wt_scr_alloc(session, 1024, &key));
-    WT_ERR(__wt_scr_alloc(session, 1024, &value));
-    for (;;) {
-        WT_ERR(__wt_getline(session, fs, key));
-        if (key->size == 0)
-            break;
-        WT_ERR(__wt_getline(session, fs, value));
-        if (value->size == 0)
-            WT_ERR_PANIC(session, EINVAL, "%s: zero-length value", export_file);
-
-        /* Skip any WiredTiger tables and system entries. */
-        md_key = (const char *)key->data;
-        md_value = (const char *)value->data;
-        if (WT_SUFFIX_MATCH(md_key, WT_METAFILE) || WT_SUFFIX_MATCH(md_key, WT_HS_FILE) ||
-          WT_PREFIX_MATCH(md_key, WT_SYSTEM_PREFIX))
-            continue;
-
-        /*
-         * Check if the entry already exists in the metadata. Raise an error if we try to import an
-         * existing URI rather than just silently returning.
-         */
-        if ((ret = __wt_metadata_search(session, md_key, &metacfg)) != WT_NOTFOUND) {
-            WT_TRET(EEXIST);
-            goto err;
-        }
-
-        if (metacfg != NULL) {
-            __wt_free(session, metacfg);
-        }
-
-        /* Grow the entries array if needed. */
-        WT_ERR(__wt_realloc_def(session, &import_list->entries_allocated,
-          import_list->entries_next + 1, &import_list->entries));
-
-        /* Populate the next entry. */
-        WT_ERR(__wt_strndup(
-          session, md_key, key->size, &import_list->entries[import_list->entries_next].name));
-        WT_ERR(__wt_strndup(
-          session, md_value, value->size, &import_list->entries[import_list->entries_next].config));
-        import_list->entries_next++;
-    }
 
     /* Sort the array by name. We will use binary search later to get config string. */
     __wt_qsort(
       import_list->entries, import_list->entries_next, sizeof(WT_IMPORT_ENTRY), __import_entry_cmp);
 
-err:
-    WT_TRET(__wt_fclose(session, &fs));
-    __wt_free(session, metacfg);
-    __wt_scr_free(session, &key);
-    __wt_scr_free(session, &value);
-
-    return (ret);
+    return (0);
 }
 
 /*
@@ -1107,6 +1099,7 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
         if (__wt_config_getones(session, config, "import.metadata_file", &cval) == 0 &&
           cval.len != 0 && (cval.type == WT_CONFIG_ITEM_STRING || cval.type == WT_CONFIG_ITEM_ID)) {
             WT_ERR(__wt_strndup(session, cval.str, cval.len, &export_file));
+            import_list.uri = uri;
             WT_ERR(__schema_parse_wt_export(session, export_file, &import_list));
         }
     }
