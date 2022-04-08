@@ -34,7 +34,7 @@ import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# Test assert always/never settings when associated with write_timestamp_usage.
+# Test assert never setting when associated with write_timestamp_usage.
 class test_timestamp26_never(wttest.WiredTigerTestCase):
     conn_config = 'debug_mode=(corruption_abort=false)'
     assert_ts = [
@@ -56,7 +56,7 @@ class test_timestamp26_never(wttest.WiredTigerTestCase):
     ]
     scenarios = make_scenarios(types, assert_ts, commit_ts, with_ts)
 
-    def test_always_never(self):
+    def test_never(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
 
@@ -558,7 +558,8 @@ class test_timestamp26_in_memory_ts(wttest.WiredTigerTestCase):
             with self.expectedStderrPattern('unexpected timestamp usage'):
                 self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(1))
 
-        # Commit without a timestamp.
+        # Commit without a timestamp (but first with a timestamp if in ordered mode so we get
+        # a failure).
         if self.always:
             self.session.begin_transaction()
             c[ds.key(2)] = ds.value(2)
