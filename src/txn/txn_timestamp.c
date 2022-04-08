@@ -1120,11 +1120,9 @@ __wt_txn_checkpoint_cannot_start(WT_SESSION_IMPL *session)
     WT_TXN_SHARED *txn_shared;
     wt_timestamp_t durable_ts;
     uint32_t i, session_count;
-    bool busy;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
-    busy = true;
 
     /* We're going to scan the table: wait for the lock. */
     __wt_readlock(session, &txn_global->rwlock);
@@ -1144,12 +1142,12 @@ __wt_txn_checkpoint_cannot_start(WT_SESSION_IMPL *session)
 
         if (txn_shared->id == WT_TXN_NONE)
             continue;
-        if (durable_ts != WT_TXN_NONE && durable_ts <= txn_global->meta_ckpt_timestamp)
-            goto done;
+        if (durable_ts != WT_TXN_NONE && durable_ts <= txn_global->meta_ckpt_timestamp) {
+            __wt_readunlock(session, &txn_global->rwlock);
+            return (true);
+        }
     }
-    busy = false;
 
-done:
     __wt_readunlock(session, &txn_global->rwlock);
-    return (busy);
+    return (false);
 }
