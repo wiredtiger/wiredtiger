@@ -25,33 +25,35 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# test_timestamp28.py
+#   Timestamps: smoke test that commit is tested at both commit and set time.
 
-import wttest
-from helper_tiered import TieredConfigMixin, tiered_storage_sources
-from wtscenario import make_scenarios
+import wiredtiger, wttest
+from wtdataset import SimpleDataSet
 
-# test_schema07.py
-#    Test that long-running tests don't fill the cache with metadata
-class test_schema07(TieredConfigMixin, wttest.WiredTigerTestCase):
-    tablename = 'table:test_schema07'
+# Timestamps: smoke test that commit is tested at both commit and set time.
+class test_timestamp28(wttest.WiredTigerTestCase):
+    def test_timestamp28(self):
+        uri = 'table:timestamp28'
+        ds = SimpleDataSet(self, uri, 50, key_format='i', value_format='S')
+        ds.populate()
+        c = self.session.open_cursor(uri)
 
-    conn_config = 'cache_size=10MB'
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
+        self.session.begin_transaction()
+        c[5] = 'xxx'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(
+            'commit_timestamp=' + self.timestamp_str(20)), '/must be after/')
 
-    scenarios = make_scenarios(tiered_storage_sources)
-
-    @wttest.longtest("Creating many tables shouldn't fill the cache")
-    def test_many_tables(self):
-        s = self.session
-        # We have a 10MB cache, metadata is (well) over 512B per table,
-        # if we can create 20K tables, something must be cleaning up.
-        for i in range(20000):
-            uri = '%s-%06d' % (self.tablename, i)
-            s.create(uri)
-            c = s.open_cursor(uri)
-            # This will block if the metadata fills the cache
-            c["key"] = "value"
-            c.close()
-            self.dropUntilSuccess(self.session, uri)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
+        self.session.begin_transaction()
+        c[5] = 'xxx'
+        self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(50))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(60))
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(), '/must be after/')
 
 if __name__ == '__main__':
     wttest.run()
