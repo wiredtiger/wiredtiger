@@ -1139,9 +1139,6 @@ __wt_txn_checkpoint_cannot_start(WT_SESSION_IMPL *session)
          * FUTURE: there is currently no way to tell if a transaction has started committing, or has
          * only been assigned a durable or commit timestamp with timestamp_transaction(). It would
          * be better not to wait for transactions that haven't actually started committing yet.
-         *
-         * Also FUTURE: it would be nice to skip waiting for transactions that are committing only
-         * to logged tables, but we have no way to know which those are.
          */
         __txn_get_durable_timestamp(txn_shared, &durable_ts);
 
