@@ -778,6 +778,11 @@ __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
         break;
     }
 
+    if (F_ISSET(session, WT_REF_FLAG_INTERNAL)) {
+        __wt_errx(session, "BTREE_NEW_LEAF_PAGE: Transitioning internal ref to leaf %p",
+          (void *)ref);
+    }
+
     /*
      * When deleting a chunk of the name-space, we can delete internal pages. However, if we are
      * ever forced to re-instantiate that piece of the namespace, it comes back as a leaf page.
