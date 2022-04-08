@@ -337,6 +337,8 @@ class WiredTigerTestCase(unittest.TestCase):
                     raise
                 else:
                     self.pr('rollback error, restarting test.')
+                    self.cleanStdout()
+                    self.cleanStderr()
                     rollbacksAllowed -= 1
 
     # Construct the expected filename for an extension library and return
