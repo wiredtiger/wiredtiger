@@ -204,7 +204,7 @@ static int
 S3GetDirectory(const S3Storage &s3, const std::string &home, const std::string &name, bool create,
   std::string &copy)
 {
-    // copy must be defined before the function returns.
+    // copy must be initialised before the function returns.
     copy = "";
 
     struct stat sb;
@@ -217,17 +217,29 @@ S3GetDirectory(const S3Storage &s3, const std::string &home, const std::string &
     else
         dirName = home + "/" + name;
 
-    ret = stat(dirName.c_str(), &sb);
-    if (ret != 0 && errno == ENOENT && create) {
-        std::filesystem::create_directory(dirName.c_str());
-        std::filesystem::permissions(dirName.c_str(), std::filesystem::perms::all);
-        ret = stat(dirName.c_str(), &sb);
+    // Use filesystem status to find if directory exists.
+    std::error_code ec;
+    std::filesystem::file_status status = std::filesystem::status(dirName.c_str(), ec);
+    ret = ec.value();
+
+    if (!std::filesystem::exists(status) && create) {
+        try {
+            std::cout << "Creating directory " << dirName << "..." << std::endl;
+            std::filesystem::create_directory(dirName.c_str());
+            std::filesystem::permissions(dirName.c_str(), std::filesystem::perms::all);
+        } catch (std::filesystem::filesystem_error const &e) {
+            s3.log->LogErrorMessage(std::string("S3GetDirectory: ") + e.what());
+        }
+
         s3.log->LogDebugMessage("S3GetDirectory: Successfully created directory.");
     }
+
+    status = std::filesystem::status(dirName.c_str(), ec);
+    ret = ec.value();
+
     if (ret != 0) {
-        ret = errno;
         s3.log->LogErrorMessage("S3GetDirectory: No such file or directory");
-    } else if ((sb.st_mode & S_IFMT) != S_IFDIR) {
+    } else if (!std::filesystem::is_directory(status)) {
         s3.log->LogErrorMessage("S3GetDirectory: invalid directory name");
         ret = EINVAL;
     }
@@ -379,13 +391,12 @@ S3Remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, uin
     return (ENOTSUP);
 }
 
-// S3ObjectSize --
-//    Get the size of a file in bytes, by file name.
+// Get the size of a file in bytes, by file name.
 
 static int
 S3ObjectSize(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, wt_off_t *sizep)
 {
-    // sizep must be defined before the function returns.
+    // sizep must be initialised before the function returns.
     *sizep = 0;
 
     S3Storage *s3 = FS2S3(fileSystem);
@@ -415,8 +426,7 @@ S3FileLock(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, bool lock)
     return (0);
 }
 
-// S3FileRead --
-//    Read a file using WiredTiger's native file handle read.
+// Read a file using WiredTiger's native file handle read.
 
 static int
 S3FileRead(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t offset, size_t len, void *buf)
@@ -487,7 +497,9 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     }
     delimiter = std::string(authToken).find(';');
     if (delimiter == std::string::npos || delimiter == 0 || delimiter == strlen(authToken) - 1) {
-        s3->log->LogErrorMessage("S3CustomizeFileSystem: improper authToken.");
+        s3->log->LogErrorMessage(
+          "S3CustomizeFileSystem: improper authToken, should be an access key and a secret key "
+          "separated by a semicolon.");
         return (EINVAL);
     }
     const std::string accessKeyId = std::string(authToken).substr(0, delimiter);
@@ -718,8 +730,7 @@ S3AddReference(WT_STORAGE_SOURCE *storageSource)
     return (0);
 }
 
-// S3Terminate --
-//    Discard any resources on termination.
+// Discard any resources on termination.
 
 static int
 S3Terminate(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session)
@@ -750,7 +761,7 @@ S3Terminate(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session)
     Aws::Utils::Logging::ShutdownAWSLogging();
     Aws::ShutdownAPI(options);
 
-    s3->log->LogDebugMessage("S3Terminate: Terminating S3 storage source.");
+    s3->log->LogDebugMessage("S3Terminate: Terminated S3 storage source.");
     delete (s3);
     return (0);
 }
@@ -856,8 +867,6 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     s3->log = Aws::MakeShared<S3LogSystem>("storage", s3->wtApi, s3->verbose);
 
     if (ret == 0 && v.val >= WT_VERBOSE_ERROR && v.val <= WT_VERBOSE_DEBUG) {
-        s3->verbose = v.val;
-        std::cout << "v.val = " << v.val << std::endl;
         s3->log->SetWtVerbosityLevel(s3->verbose);
     } else if (ret != WT_NOTFOUND) {
         s3->log->LogErrorMessage(
