@@ -973,8 +973,12 @@ retry:
         return (0);
     WT_ASSERT(session, cbt->upd_value->type == WT_UPDATE_INVALID);
 
-    /* If there is no ondisk value, there can't be anything in the history store either. */
-    if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX) {
+    /*
+     * If there is no ondisk value, there can't be anything in the history store either. For a row
+     * store, we can't have a history store value if the key is found in the insert list.
+     */
+    if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX ||
+      (S2BT(session)->type == BTREE_ROW && cbt->ins != NULL)) {
         cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
         return (0);
     }
