@@ -66,13 +66,16 @@ class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
         c3.close()
 
         self.session.checkpoint()
-        self.session.flush_tier(None)
+
+        if self.is_tiered_scenario():
+            self.session.flush_tier(None)
 
         # Open a special backup cursor for export operation.
         export_cursor = self.session.open_cursor('backup:export', None, None)
 
         os.mkdir(self.dir)
         copy_wiredtiger_home(self, '.', self.dir)
+        self.assertTrue(os.path.isfile("WiredTiger.export"))
 
         export_cursor.close()
 

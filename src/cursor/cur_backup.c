@@ -107,9 +107,9 @@ __wt_backup_file_remove(WT_SESSION_IMPL *session)
      * there's any chance of an incremental backup file existing.
      */
     WT_TRET(__wt_remove_if_exists(session, WT_BACKUP_TMP, true));
+    WT_TRET(__wt_remove_if_exists(session, WT_EXPORT_BACKUP, true));
     WT_TRET(__wt_remove_if_exists(session, WT_LOGINCR_BACKUP, true));
     WT_TRET(__wt_remove_if_exists(session, WT_LOGINCR_SRC, true));
-    WT_TRET(__wt_remove_if_exists(session, WT_EXPORT_BACKUP, true));
     WT_TRET(__wt_remove_if_exists(session, WT_METADATA_BACKUP, true));
     return (ret);
 }
@@ -292,7 +292,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
         WT_CURSOR_BACKUP_CHECK_STOP(othercb);
 
     /* Special backup cursor to query incremental IDs. */
-    if (strcmp(uri, "backup:query_id") == 0) {
+    if (WT_STRING_MATCH("backup:query_id", uri, strlen("backup:query_id"))) {
         /* Top level cursor code does not allow a URI and cursor. We don't need to check here. */
         WT_ASSERT(session, othercb == NULL);
         if (!F_ISSET(S2C(session), WT_CONN_INCR_BACKUP))
@@ -301,9 +301,8 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     }
 
     /* Special backup cursor for export operation. */
-    if (strcmp(uri, "backup:export") == 0) {
+    if (WT_STRING_MATCH("backup:export", uri, strlen("backup:export")))
         F_SET(cb, WT_CURBACKUP_EXPORT);
-    }
 
     /*
      * Start the backup and fill in the cursor's list. Acquire the schema lock, we need a consistent
