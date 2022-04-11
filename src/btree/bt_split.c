@@ -265,11 +265,12 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
         if (__wt_atomic_cas_ptr(&ref->addr, ref_addr, addr))
             addr = NULL;
     }
+    __wt_errx(session, "SPLIT_REF_MOVE: Moving ref with parent page->dsk: %p from ref %p to ref %p",
+          (void *)from_home->dsk, (void *)*from_refp, (void *)*to_refp);
     /* And finally, copy the WT_REF pointer itself. */
     *to_refp = ref;
     WT_MEM_TRANSFER(*decrp, *incrp, sizeof(WT_REF));
-    __wt_errx(session, "SPLIT_REF_MOVE: Moving ref with page->dsk: %p from ref %p to ref %p",
-          (void *)from_home->dsk, (void *)*from_refp, (void *)*to_refp);
+
 err:
     if (addr != NULL) {
         __wt_free(session, addr->addr);
@@ -364,7 +365,8 @@ __split_ref_prepare(
             child_ref->pindex_hint = j++;
         }
         WT_INTL_FOREACH_END;
-
+        __wt_errx(session, "SPLIT_INTERNAL: Moving child refs to new home page %p",
+          (void *)child);
 #ifdef HAVE_DIAGNOSTIC
         WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, child));
 #endif
@@ -972,7 +974,8 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
         slots = i == children - 1 ? remain : chunk;
 
         WT_ERR(__wt_page_alloc(session, page->type, slots, false, &child));
-
+        __wt_errx(session, "SPLIT_INTERNAL: Creating a new internal page: %p from page %p",
+          (void *)child, (void *)page);
         /*
          * Initialize the page's child reference; we need a copy of the page's key.
          */

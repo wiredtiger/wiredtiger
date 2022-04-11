@@ -1134,8 +1134,13 @@ __wt_rec_split_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page, ui
         ref = r->ref;
         if (__wt_ref_is_root(ref))
             WT_RET(__wt_buf_set(session, &chunk->key, "", 1));
-        else
+        else {
             __wt_ref_key(ref->home, ref, &chunk->key.data, &chunk->key.size);
+            if (((uintptr_t)ref->ref_ikey) &  WT_IK_FLAG) {
+                __wt_errx(session, "REC_SPLIT_INIT: Copying ikey pointer %p from ref %p",
+                    (void*)ref->ref_ikey, (void*)ref);
+            }
+        }
     } else
         chunk->recno = recno;
 
