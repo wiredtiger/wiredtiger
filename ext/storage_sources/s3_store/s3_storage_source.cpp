@@ -220,11 +220,9 @@ S3GetDirectory(const S3Storage &s3, const std::string &home, const std::string &
     // Use filesystem status to find if directory exists.
     std::error_code ec;
     std::filesystem::file_status status = std::filesystem::status(dirName.c_str(), ec);
-    ret = ec.value();
 
     if (!std::filesystem::exists(status) && create) {
         try {
-            std::cout << "Creating directory " << dirName << "..." << std::endl;
             std::filesystem::create_directory(dirName.c_str());
             std::filesystem::permissions(dirName.c_str(), std::filesystem::perms::all);
         } catch (std::filesystem::filesystem_error const &e) {
@@ -867,6 +865,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     s3->log = Aws::MakeShared<S3LogSystem>("storage", s3->wtApi, s3->verbose);
 
     if (ret == 0 && v.val >= WT_VERBOSE_ERROR && v.val <= WT_VERBOSE_DEBUG) {
+        s3->verbose = v.val;
         s3->log->SetWtVerbosityLevel(s3->verbose);
     } else if (ret != WT_NOTFOUND) {
         s3->log->LogErrorMessage(
