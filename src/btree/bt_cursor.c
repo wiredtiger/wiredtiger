@@ -538,7 +538,7 @@ __wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
         WT_RET(__cursor_reset(cbt));
         ret = __wt_btcur_search(cbt, false);
         /*
-         * If we got a WT_ROLLBACK it may be because there is a lot of cache pressure and the
+         * If we got a WT_ROLLBACK it is because there is a lot of cache pressure and the
          * transaction is being killed - don't panic in that case.
          */
         if (ret != 0 && ret != WT_ROLLBACK)
