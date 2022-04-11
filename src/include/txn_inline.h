@@ -974,8 +974,7 @@ retry:
      * If there is no ondisk value, there can't be anything in the history store either. For a row
      * store, we can't have a history store value if the key is found in the insert list.
      */
-    if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX ||
-      (S2BT(session)->type == BTREE_ROW && cbt->ins != NULL)) {
+    if (cbt->ref->page->dsk == NULL || (S2BT(session)->type == BTREE_ROW && cbt->ins != NULL)) {
         cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
         return (0);
     }
