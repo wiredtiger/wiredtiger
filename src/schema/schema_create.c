@@ -992,7 +992,7 @@ __import_entry_cmp(const void *a, const void *b)
     return strcmp(ae->name, be->name);
 }
 
-/* 
+/*
  * __get_uri_suffix --
  *     Get suffix of the URI.
  */
