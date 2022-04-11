@@ -51,7 +51,7 @@ class LLDBDumper:
         """Find the installed debugger."""
         return which(debugger)
 
-    def dump(self, exe_path: str, core_path: str, dump_all: bool):
+    def dump(self, exe_path: str, core_path: str, dump_all: bool, output_file: str):
         """Dump stack trace."""
         if self.dbg is None:
             sys.exit("Debugger lldb not found,"
@@ -63,9 +63,12 @@ class LLDBDumper:
             cmds.append("backtrace -c 30")
         cmds.append("quit")
 
+        output = None
+        if (output_file):
+            output = open(output_file, "w")
         subprocess.run([self.dbg, "--batch"] + [exe_path, "-c", core_path] +
                        list(itertools.chain.from_iterable([['-o', b] for b in cmds])),
-                       check=True)
+                       check=True, stdout=output)
 
 
 class GDBDumper:
@@ -77,7 +80,7 @@ class GDBDumper:
     def _find_debugger(debugger: str):
         """Find the installed debugger."""
         return which(debugger)
-    
+
     def dump(self, exe_path: str, core_path: str, lib_path: str, dump_all: bool, output_file: str):
         """Dump stack trace."""
         if self.dbg is None:
