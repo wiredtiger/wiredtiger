@@ -533,7 +533,7 @@ __wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
      * maintains a snapshot allowing the cursor to point at the correct value after a reposition
      * unlike read committed isolation level.
      */
-    if (session->txn->isolation == WT_ISO_SNAPSHOT &&
+    if (session->txn->isolation == WT_ISO_SNAPSHOT && F_ISSET(session->txn, WT_TXN_RUNNING) &&
       __wt_page_evict_soon_check(session, cbt->ref, NULL)) {
         WT_RET(__wt_cursor_localkey(cursor));
         WT_RET(__cursor_reset(cbt));
