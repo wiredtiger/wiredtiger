@@ -11,7 +11,9 @@
 #error "Only x64 is supported with MSVC"
 #endif
 
+#ifndef __cplusplus
 #define inline __inline
+#endif
 
 /* MSVC Doesn't provide __PRETTY_FUNCTION__, it has __FUNCSIG__ */
 #ifdef _MSC_VER
@@ -45,9 +47,9 @@
     {                                                                                       \
         return (_InterlockedExchangeAdd##s((t *)(vp), -(t)v) - (v));                        \
     }                                                                                       \
-    static inline bool __wt_atomic_cas##name(type *vp, type old, type new)                  \
+    static inline bool __wt_atomic_cas##name(type *vp, type oldVal, type newVal)                  \
     {                                                                                       \
-        return (_InterlockedCompareExchange##s((t *)(vp), (t)(new), (t)(old)) == (t)(old)); \
+        return (_InterlockedCompareExchange##s((t *)(vp), (t)(newVal), (t)(oldVal)) == (t)(oldVal)); \
     }
 
 WT_ATOMIC_FUNC(8, uint8_t, uint8_t, 8, char)
@@ -68,9 +70,9 @@ WT_ATOMIC_FUNC(size, size_t, size_t, 64, __int64)
  *     Pointer compare and swap.
  */
 static inline bool
-__wt_atomic_cas_ptr(void *vp, void *old, void *new)
+__wt_atomic_cas_ptr(void *vp, void *oldVal, void *newVal)
 {
-    return (_InterlockedCompareExchange64(vp, (int64_t) new, (int64_t)old) == ((int64_t)old));
+    return (_InterlockedCompareExchange64((volatile __int64 *)vp, (int64_t) newVal, (int64_t)oldVal) == ((int64_t)oldVal));
 }
 
 /*

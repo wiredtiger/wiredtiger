@@ -16,7 +16,20 @@
 ConnectionWrapper::ConnectionWrapper(const std::string &db_home)
     : _conn_impl(nullptr), _conn(nullptr), _db_home(db_home)
 {
-    utils::throwIfNonZero(mkdir(_db_home.c_str(), 0700));
+    struct stat sb;
+    if (stat(_db_home.c_str(), &sb) == 0)
+    {
+        if (!S_ISDIR(sb.st_mode))
+        {
+            std::string errorMessage("Path is exists and is not a directory: " + db_home);
+            throw std::runtime_error(errorMessage);
+        }
+        /* We are happy that it is an existing directory */
+    }
+    else
+    {
+        utils::throwIfNonZero(mkdir(_db_home.c_str(), 0700));
+    }
     utils::throwIfNonZero(wiredtiger_open(_db_home.c_str(), nullptr, "create", &_conn));
 }
 

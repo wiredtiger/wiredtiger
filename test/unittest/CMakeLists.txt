@@ -18,9 +18,16 @@ set(unittest_sources
     tests/wrappers/mock_session.cpp
 )
 
+# disable 4200 warning on windows, its related to struct definitions with zero sized arrays
+if(WT_WIN)
+    set(UNITTEST_FLAGS /wd4200)
+else()
+    set(UNITTEST_FLAGS -Wno-missing-declarations)
+endif()
+
 create_test_executable(unittests
     SOURCES ${unittest_sources}
-    FLAGS -Wno-missing-declarations
+    FLAGS ${UNITTEST_FLAGS}
     CXX
 )
 
