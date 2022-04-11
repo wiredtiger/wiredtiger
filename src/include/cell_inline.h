@@ -210,8 +210,12 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
      * information after the aggregated timestamp information.
      */
     if (page_del != NULL) {
-        /* We only fast-truncate leaf pages without overflow items. */
-        WT_ASSERT(session, cell_type == WT_CELL_ADDR_LEAF_NO);
+        /*
+         * We only fast-truncate leaf pages without overflow items, however, we can write a proxy
+         * cell for a page, evict and then read the internal page, and then checkpoint is writing it
+         * again.
+         */
+        WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL || cell_type == WT_CELL_ADDR_LEAF_NO);
         cell_type = WT_CELL_ADDR_DEL;
 
         /* We should never be in an in-progress prepared state. */
