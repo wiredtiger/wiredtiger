@@ -90,8 +90,7 @@ __curfile_next(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, next, CUR2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
 
-    F_SET(cbt, WT_CBT_EVICT_REPOSITION);
-    WT_ERR(__wt_btcur_next(cbt, false));
+    WT_ERR(__wt_btcur_next(cbt, false, true));
 
     /* Next maintains a position, key and value. */
     WT_ASSERT(session,
@@ -99,7 +98,6 @@ __curfile_next(WT_CURSOR *cursor)
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:
-    F_CLR(cbt, WT_CBT_EVICT_REPOSITION);
     API_END_RET(session, ret);
 }
 
@@ -145,8 +143,7 @@ __curfile_prev(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, prev, CUR2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
 
-    F_SET(cbt, WT_CBT_EVICT_REPOSITION);
-    WT_ERR(__wt_btcur_prev(cbt, false));
+    WT_ERR(__wt_btcur_prev(cbt, false, true));
 
     /* Prev maintains a position, key and value. */
     WT_ASSERT(session,
@@ -154,7 +151,6 @@ __curfile_prev(WT_CURSOR *cursor)
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:
-    F_CLR(cbt, WT_CBT_EVICT_REPOSITION);
     API_END_RET(session, ret);
 }
 
@@ -200,10 +196,9 @@ __curfile_search(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, search, CUR2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
-    F_SET(cbt, WT_CBT_EVICT_REPOSITION);
 
     time_start = __wt_clock(session);
-    WT_ERR(__wt_btcur_search(cbt));
+    WT_ERR(__wt_btcur_search(cbt, true));
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
@@ -213,7 +208,6 @@ __curfile_search(WT_CURSOR *cursor)
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:
-    F_CLR(cbt, WT_CBT_EVICT_REPOSITION);
     API_END_RET(session, ret);
 }
 
@@ -233,7 +227,6 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
     CURSOR_API_CALL(cursor, session, search_near, CUR2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
-    F_SET(cbt, WT_CBT_EVICT_REPOSITION);
 
     time_start = __wt_clock(session);
     WT_ERR(__wt_btcur_search_near(cbt, exact));
@@ -246,7 +239,6 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:
-    F_CLR(cbt, WT_CBT_EVICT_REPOSITION);
     API_END_RET(session, ret);
 }
 
