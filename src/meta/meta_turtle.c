@@ -8,11 +8,16 @@
 
 #include "wt_internal.h"
 
+/*
+ * Structure to hold state for metadata entry worker procedure.
+ */
 typedef struct {
-    WT_BACKUPHASH *backuphash;
-    size_t max_len;
-    size_t slot;
-    char **partial_backup_names;
+    WT_BACKUPHASH *backuphash; /* queue of target URI entries */
+    size_t max_len;            /* max key length */
+
+    size_t slot;                 /* next slot */
+    size_t allocated;            /* allocated for partial backup keys array */
+    char **partial_backup_names; /* partial backup keys array */
 } WT_METADATA_FILE_WALK_STATE;
 
 /*
@@ -139,10 +144,8 @@ __metadata_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, 
 {
     WT_CONNECTION_IMPL *conn;
     WT_METADATA_FILE_WALK_STATE *md_state;
-    size_t allocated_name;
     char *metadata_key, **p;
 
-    allocated_name = 0;
     metadata_key = NULL;
     p = NULL;
     conn = S2C(session);
@@ -170,7 +173,7 @@ __metadata_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, 
                 md_state->max_len = key->size;
 
             WT_RET(__wt_realloc_def(
-              session, &allocated_name, md_state->slot + 2, &md_state->partial_backup_names));
+              session, &md_state->allocated, md_state->slot + 2, &md_state->partial_backup_names));
             p = &md_state->partial_backup_names[md_state->slot];
             p[0] = p[1] = NULL;
 
