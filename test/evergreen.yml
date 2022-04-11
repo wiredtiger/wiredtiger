@@ -511,10 +511,12 @@ functions:
         script: |
           set -o errexit
           set -o verbose
-          if [ -d "WT_TEST" ]; then
-            ${python_binary|python3} ../test/evergreen/print_stack_trace.py -e ${python_binary|python3} -c WT_TEST -l .
-          fi
-          ${python_binary|python3} ../test/evergreen/print_stack_trace.py -e ./test/format/t -c test/format -l .
+          # Parse through any failures inside the WT_TEST directory.
+          ${python_binary|python3} ../test/evergreen/print_stack_trace.py --unit_test -e ${python_binary|python3} -c WT_TEST -l .
+          
+          # Look through the stress format directory for any coredumps.
+          cd test/format
+          ${python_binary|python3} ../../../test/evergreen/print_stack_trace.py --format -e ./t -c . -l .
     - command: s3.put
       params:
         aws_secret: ${aws_secret}

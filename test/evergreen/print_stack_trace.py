@@ -115,18 +115,24 @@ def main():
                         help='directory path to the core dumps',
                         required=True)
     parser.add_argument('-l', '--lib_path', help='library path')
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--unit_test', action='store_true', help='Format core dumps from python unit tests')
+    group.add_argument('--format', action='store_true', help='Format core dumps from format tests')
     args = parser.parse_args()
 
     # Store the path of the core files as a list.
     core_files = []
-    format_regex = re.compile(r'dump_t', re.IGNORECASE)
-    python_regex = re.compile(r'dump.*python', re.IGNORECASE)
+
+    regex = None
+    if (args.format):
+        regex = re.compile(r'dump_t.*core', re.IGNORECASE)
+    elif (args.unit_test):
+        regex = re.compile(r'dump.*python.*core', re.IGNORECASE)
+
     for root, _, files in os.walk(args.core_path):
         for file in files:
-            if format_regex.match(file):
-                core_files.append((os.path.join(root, file), False))
-            elif python_regex.match(file):
-                core_files.append((os.path.join(root, file), True))
+            if regex.match(file):
+                core_files.append((os.path.join(root, file), args.format))
 
     for core_file_path, dump_all in core_files:
         print(border_msg(core_file_path), flush=True)
