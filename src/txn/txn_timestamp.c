@@ -1133,6 +1133,9 @@ __wt_txn_checkpoint_cannot_start(WT_SESSION_IMPL *session)
     for (i = 0, txn_shared = txn_global->txn_shared_list; i < session_count; i++, txn_shared++) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
 
+        if (txn_shared->id == WT_TXN_NONE)
+            continue;
+
         /*
          * FUTURE: there is currently no way to tell if a transaction has started committing, or has
          * only been assigned a durable or commit timestamp with timestamp_transaction(). It would
@@ -1140,8 +1143,6 @@ __wt_txn_checkpoint_cannot_start(WT_SESSION_IMPL *session)
          */
         __txn_get_durable_timestamp(txn_shared, &durable_ts);
 
-        if (txn_shared->id == WT_TXN_NONE)
-            continue;
         if (durable_ts != WT_TXN_NONE && durable_ts <= txn_global->meta_ckpt_timestamp) {
             __wt_readunlock(session, &txn_global->rwlock);
             return (true);
