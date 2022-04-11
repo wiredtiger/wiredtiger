@@ -43,6 +43,12 @@ config_bool(
 )
 
 config_bool(
+    NON_BARRIER_DIAGNOSTIC_YIELDS
+    "Don't set a full barrier when yielding threads in diagnostic mode. Requires diagnostic mode to be enabled."
+    DEFAULT OFF
+)
+
+config_bool(
     HAVE_UNITTEST
     "Enable WiredTiger unit tests"
     DEFAULT OFF
@@ -132,6 +138,16 @@ config_bool(
     # Specifically throw a fatal error if a user tries to enable the lz4 compressor without
     # actually having the library available (as opposed to silently defaulting to OFF).
     DEPENDS_ERROR ON "Failed to find lz4 library"
+)
+
+config_bool(
+    ENABLE_MEMKIND
+    "Enable the memkind library, needed for NVRAM or SSD block caches"
+    DEFAULT OFF
+    DEPENDS "HAVE_LIBMEMKIND"
+    # Specifically throw a fatal error if a user tries to enable the memkind allocator without
+    # actually having the library available (as opposed to silently defaulting to OFF).
+    DEPENDS_ERROR ON "Failed to find memkind library"
 )
 
 config_bool(
@@ -243,6 +259,10 @@ if(HAVE_DIAGNOSTIC AND (NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug"))
     else()
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
     endif()
+endif()
+
+if (NON_BARRIER_DIAGNOSTIC_YIELDS AND NOT HAVE_DIAGNOSTIC)
+    message(FATAL_ERROR "`NON_BARRIER_DIAGNOSTIC_YIELDS` can only be enabled when `HAVE_DIAGNOSTIC` is enabled.")
 endif()
 
 if(WT_WIN)

@@ -37,6 +37,7 @@ DCMAKE
 DENABLE
 DHANDLE
 DHAVE
+DNON
 DONTNEED
 DSPINLOCK
 DWT
@@ -285,6 +286,7 @@ dev
 dhandle
 dhandle's
 dhandles
+dir
 disjunction
 disjunctions
 distclean

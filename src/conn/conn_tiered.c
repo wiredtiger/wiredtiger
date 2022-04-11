@@ -770,7 +770,7 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_cond_alloc(session, "storage server", &conn->tiered_cond));
     FLD_SET(conn->server_flags, WT_CONN_SERVER_TIERED);
 
-    WT_ERR(__wt_open_internal_session(conn, "storage-server", true, 0, 0, &conn->tiered_session));
+    WT_ERR(__wt_open_internal_session(conn, "tiered-server", true, 0, 0, &conn->tiered_session));
     session = conn->tiered_session;
 
     /* Start the thread. */
@@ -815,14 +815,12 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
         conn->tiered_mgr_tid_set = false;
     }
 
-    /* Stop the internal server thread. */
+    /*
+     * Stop the internal server thread. If there is unfinished work, we will recover it on startup
+     * just as if there had been a system failure.
+     */
     if (conn->flush_cond != NULL)
         __wt_cond_signal(session, conn->flush_cond);
-    if (conn->tiered_cond != NULL) {
-        __wt_cond_signal(session, conn->tiered_cond);
-        /* Give thread time to drain the work. */
-        __wt_sleep(1, 0);
-    }
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_TIERED);
     if (conn->tiered_tid_set) {
         WT_ASSERT(session, conn->tiered_cond != NULL);

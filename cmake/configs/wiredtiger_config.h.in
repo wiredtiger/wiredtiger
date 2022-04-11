@@ -33,6 +33,9 @@
 /* Define to 1 for diagnostic tests. */
 #cmakedefine HAVE_DIAGNOSTIC 1
 
+/* Define to 1 to remove full memory barriers on diagnostic yields. */
+#cmakedefine NON_BARRIER_DIAGNOSTIC_YIELDS 0
+
 /* Define to 1 for unit tests. */
 #cmakedefine HAVE_UNITTEST 0
 
@@ -59,6 +62,9 @@
 
 /* Define to 1 if you have the `lz4' library (-llz4). */
 #cmakedefine HAVE_LIBLZ4 1
+
+/* Define to 1 if you have the `memkind' library (-lmemkind). */
+#cmakedefine HAVE_LIBMEMKIND 1
 
 /* Define to 1 if you have the `pthread' library (-lpthread). */
 #cmakedefine HAVE_LIBPTHREAD 1

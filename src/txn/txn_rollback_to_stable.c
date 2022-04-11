@@ -1340,23 +1340,27 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
 }
 
 /*
- * __txn_user_active --
- *     Return if there are any running user transactions.
+ * __rollback_to_stable_check --
+ *     Check to the extent possible that the rollback request is reasonable.
  */
-static bool
-__txn_user_active(WT_SESSION_IMPL *session)
+static int
+__rollback_to_stable_check(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     WT_SESSION_IMPL *session_in_list;
     uint32_t i, session_cnt;
-    bool txn_active;
+    bool cursor_active, txn_active;
 
     conn = S2C(session);
-    txn_active = false;
+    cursor_active = txn_active = false;
 
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
 
     /*
+     * Help the user comply with the requirement there be no concurrent user operations. It is okay
+     * to have a transaction in the prepared state.
+     *
      * WT_TXN structures are allocated and freed as sessions are activated and closed. Lock the
      * session open/close to ensure we don't race. This call is a rarely used RTS-only function,
      * acquiring the lock shouldn't be an issue.
@@ -1375,40 +1379,27 @@ __txn_user_active(WT_SESSION_IMPL *session)
             txn_active = true;
             break;
         }
+
+        /* Check if a user session has an active file cursor. */
+        if (session_in_list->ncursors != 0) {
+            cursor_active = true;
+            break;
+        }
     }
     __wt_spin_unlock(session, &conn->api_lock);
 
     /*
-     * A new transaction may start after we return from this call and callers should be aware of
-     * this limitation.
+     * A new cursor may be positioned or a transaction may start after we return from this call and
+     * callers should be aware of this limitation.
      */
-    return (txn_active);
-}
-
-/*
- * __rollback_to_stable_check --
- *     Ensure the rollback request is reasonable.
- */
-static int
-__rollback_to_stable_check(WT_SESSION_IMPL *session)
-{
-    WT_DECL_RET;
-    bool txn_active;
-
-    /*
-     * Help the user comply with the requirement that there are no concurrent user operations. It is
-     * okay to have a transaction in prepared state.
-     */
-    txn_active = __txn_user_active(session);
-#ifdef HAVE_DIAGNOSTIC
-    if (txn_active)
+    if (cursor_active)
+        WT_RET_MSG(session, EBUSY, "rollback_to_stable illegal with active file cursors");
+    if (txn_active) {
+        ret = EBUSY;
         WT_TRET(__wt_verbose_dump_txn(session));
-#endif
-
-    if (txn_active)
-        WT_RET_MSG(session, EBUSY, "rollback_to_stable illegal with active transactions");
-
-    return (ret);
+        WT_RET_MSG(session, ret, "rollback_to_stable illegal with active transactions");
+    }
+    return (0);
 }
 
 /*
@@ -1432,6 +1423,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
 
     /* Open a history store table cursor. */
     WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /* Walk the history store for the given btree. */
     hs_cursor->set_key(hs_cursor, 1, btree_id);
@@ -1527,8 +1519,6 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[1]));
 
-    WT_TRET(__wt_session_release_dhandle(session));
-
     /*
      * Truncate history store entries from the partial backup remove list. The list holds all of the
      * btree ids that do not exist as part of the database anymore due to performing a selective
@@ -1538,6 +1528,7 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
         for (i = 0; conn->partial_backup_remove_ids[i] != 0; ++i)
             WT_ERR(
               __rollback_to_stable_btree_hs_truncate(session, conn->partial_backup_remove_ids[i]));
+    WT_TRET(__wt_session_release_dhandle(session));
 err:
     __wt_free(session, config);
     return (ret);
@@ -1681,7 +1672,11 @@ __rollback_to_stable_btree_apply(
 
     if (perform_rts || max_durable_ts > rollback_timestamp || prepared_updates ||
       !durable_ts_found || has_txn_updates_gt_than_ckpt_snap) {
-        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
+        /*
+         * Open a handle; we're potentially opening a lot of handles and there's no reason to cache
+         * all of them for future unknown use, discard on close.
+         */
+        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_DISCARD);
         if (ret != 0)
             WT_ERR_MSG(session, ret, "%s: unable to open handle%s", uri,
               ret == EBUSY ? ", error indicates handle is unavailable due to concurrent use" : "");

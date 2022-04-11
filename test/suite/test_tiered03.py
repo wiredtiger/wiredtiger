@@ -43,10 +43,10 @@ class test_tiered03(wttest.WiredTigerTestCase):
     uri = 'file:test_tiered03'
 
     storage_sources = [
-        ('local', dict(auth_token = get_auth_token('local_store'),
-            bucket = get_bucket1_name('local_store'),
+        ('dirstore', dict(auth_token = get_auth_token('dir_store'),
+            bucket = get_bucket1_name('dir_store'),
             bucket_prefix = "pfx_",
-            ss_name = 'local_store')),
+            ss_name = 'dir_store')),
         # FIXME-WT-8896 The S3 extension gets stuck during initialization if more than one
         # simultaneous WT connection is created. Enable once we have fixed this issue.
         #('s3', dict(auth_token = get_auth_token('s3_store'),
@@ -54,7 +54,7 @@ class test_tiered03(wttest.WiredTigerTestCase):
         #    bucket_prefix = generate_s3_prefix(),
         #    ss_name = 's3_store')),
     ]
-    # Occasionally add a lot of records, so that merges (and bloom) happen.
+    # Occasionally add a lot of records to vary the amount of work flush does.
     record_count_scenarios = wtscenario.quick_scenarios(
         'nrecs', [10, 10000], [0.9, 0.1])
     scenarios = wtscenario.make_scenarios(storage_sources, record_count_scenarios, prune=100, prunelong=500)
@@ -71,12 +71,12 @@ class test_tiered03(wttest.WiredTigerTestCase):
             cache_dir = self.bucket + '-cache'
 
         # We have multiple connections that want to share a bucket.
-        # For the local store, the first time this function is called, we'll
+        # For the directory store, the first time this function is called, we'll
         # establish the absolute path for the bucket, and always use that for
         # the bucket name.
         # The cache directory name is a relative one, so it won't be shared
         # between connections.
-        if self.ss_name == 'local_store':
+        if self.ss_name == 'dir_store':
             if self.absolute_bucket_dir == None:
                 self.absolute_bucket_dir = os.path.join(os.getcwd(), self.bucket)
                 os.mkdir(self.absolute_bucket_dir)
@@ -96,7 +96,7 @@ class test_tiered03(wttest.WiredTigerTestCase):
         if self.ss_name == 's3_store':
             #config = '=(config=\"(verbose=1)\")'
             extlist.skip_if_missing = True
-        #if self.ss_name == 'local_store':
+        #if self.ss_name == 'dir_store':
             #config = '=(config=\"(verbose=1,delay_ms=200,force_delay=3)\")'
         # Windows doesn't support dynamically loaded extension libraries.
         if os.name == 'nt':

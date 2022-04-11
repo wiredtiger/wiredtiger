@@ -265,7 +265,8 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create_import_subconfigs[] = {
     "\"stable_timestamp\"]",
     NULL, 0},
   {"enabled", "boolean", NULL, NULL, NULL, 0}, {"file_metadata", "string", NULL, NULL, NULL, 0},
-  {"repair", "boolean", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
+  {"metadata_file", "string", NULL, NULL, NULL, 0}, {"repair", "boolean", NULL, NULL, NULL, 0},
+  {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create_merge_custom_subconfigs[] = {
   {"prefix", "string", NULL, NULL, NULL, 0},
@@ -314,7 +315,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
   {"huffman_key", "string", NULL, NULL, NULL, 0}, {"huffman_value", "string", NULL, NULL, NULL, 0},
   {"ignore_in_memory_cache_size", "boolean", NULL, NULL, NULL, 0},
   {"immutable", "boolean", NULL, NULL, NULL, 0},
-  {"import", "category", NULL, NULL, confchk_WT_SESSION_create_import_subconfigs, 4},
+  {"import", "category", NULL, NULL, confchk_WT_SESSION_create_import_subconfigs, 5},
   {"internal_item_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_truncate", "boolean", NULL, NULL, NULL, 0},
@@ -438,6 +439,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_timestamp_transaction[] = {
   {"read_timestamp", "string", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_verify[] = {
+  {"do_not_clear_txn_id", "boolean", NULL, NULL, NULL, 0},
   {"dump_address", "boolean", NULL, NULL, NULL, 0}, {"dump_blocks", "boolean", NULL, NULL, NULL, 0},
   {"dump_layout", "boolean", NULL, NULL, NULL, 0}, {"dump_offsets", "list", NULL, NULL, NULL, 0},
   {"dump_pages", "boolean", NULL, NULL, NULL, 0},
@@ -1255,7 +1257,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "exclusive=false,extractor=,format=btree,huffman_key=,"
     "huffman_value=,ignore_in_memory_cache_size=false,immutable=false"
     ",import=(compare_timestamp=oldest_timestamp,enabled=false,"
-    "file_metadata=,repair=false),internal_item_max=0,"
+    "file_metadata=,metadata_file=,repair=false),internal_item_max=0,"
     "internal_key_max=0,internal_key_truncate=true,"
     "internal_page_max=4KB,key_format=u,key_gap=10,leaf_item_max=0,"
     "leaf_key_max=0,leaf_page_max=32KB,leaf_value_max=0,"
@@ -1314,10 +1316,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     confchk_WT_SESSION_timestamp_transaction, 4},
   {"WT_SESSION.truncate", "", NULL, 0}, {"WT_SESSION.upgrade", "", NULL, 0},
   {"WT_SESSION.verify",
-    "dump_address=false,dump_blocks=false,dump_layout=false,"
-    "dump_offsets=,dump_pages=false,stable_timestamp=false,"
-    "strict=false",
-    confchk_WT_SESSION_verify, 7},
+    "do_not_clear_txn_id=false,dump_address=false,dump_blocks=false,"
+    "dump_layout=false,dump_offsets=,dump_pages=false,"
+    "stable_timestamp=false,strict=false",
+    confchk_WT_SESSION_verify, 8},
   {"colgroup.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
