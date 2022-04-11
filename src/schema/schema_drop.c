@@ -208,7 +208,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
         if (remove_files) {
             filename = tier->name;
             WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
-            WT_TRET(__wt_meta_track_drop(session, filename));
+            WT_ERR(__wt_meta_track_drop(session, filename));
         }
     }
 
@@ -242,7 +242,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
             WT_PREFIX_SKIP_REQUIRED(session, filename, "object:");
             WT_ERR(__wt_fs_exist(session, filename, &exist));
             if (exist)
-                WT_TRET(__wt_meta_track_drop(session, filename));
+                WT_ERR(__wt_meta_track_drop(session, filename));
         }
         __wt_free(session, name);
     }
@@ -251,7 +251,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
      * Close all btree handles associated with this table. This must be done after we're done using
      * the tiered structure because that is from the dhandle.
      */
-    WT_TRET(__wt_session_release_dhandle(session));
+    WT_ERR(__wt_session_release_dhandle(session));
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
       session, ret = __wt_conn_dhandle_close_all(session, uri, true, force));
     WT_ERR(ret);
