@@ -537,7 +537,8 @@ __wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
       __wt_page_evict_soon_check(session, cbt->ref, NULL)) {
         WT_RET(__wt_cursor_localkey(cursor));
         WT_RET(__cursor_reset(cbt));
-        if ((ret = __wt_btcur_search(cbt)) != 0)
+        ret = __wt_btcur_search(cbt);
+        if (ret != 0 && ret != WT_ROLLBACK)
             WT_RET_PANIC(session, ret, "failed to reposition the cursor");
     }
 
