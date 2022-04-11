@@ -35,7 +35,8 @@ S3LogSystem::S3LogSystem(WT_EXTENSION_API *wtApi, uint32_t wtVerbosityLevel) : _
     SetWtVerbosityLevel(wtVerbosityLevel);
 }
 
-// Writes the log stream to the output stream using printf style.
+// Overrides the interface's Log method to write the AWS SDK log stream to WiredTiger's log stream
+// using variadic style through a helper function. Inherited from AWS's LogSystemInterface.
 void
 S3LogSystem::Log(Aws::Utils::Logging::LogLevel logLevel, const char *tag, const char *format, ...)
 {
@@ -62,7 +63,8 @@ S3LogSystem::Log(Aws::Utils::Logging::LogLevel logLevel, const char *tag, const 
     va_end(args);
 }
 
-// Writes the log stream to the output stream.
+// Overrides the interface's LogStream method to write the AWS SDK log stream to WiredTiger's log
+// stream through a helper function. Inherited from AWS's LogSystemInterface.
 void
 S3LogSystem::LogStream(
   Aws::Utils::Logging::LogLevel logLevel, const char *tag, const Aws::OStringStream &messageStream)
@@ -70,14 +72,14 @@ S3LogSystem::LogStream(
     LogAwsMessage(tag, messageStream.rdbuf()->str().c_str());
 }
 
-// Directs the output stream to WiredTiger's log streams.
+// Directs the message to WiredTiger's log streams.
 void
 S3LogSystem::LogAwsMessage(const char *tag, const std::string &message) const
 {
     _wtApi->err_printf(_wtApi, NULL, "%s : %s", tag, message.c_str());
 }
 
-// Directs the output stream to WiredTiger's log streams matched at WiredTiger's log stream levels.
+// Directs the message to WiredTiger's log streams matched at WiredTiger's log stream levels.
 void
 S3LogSystem::LogVerboseMessage(int32_t verbosityLevel, const std::string &message) const
 {
@@ -101,11 +103,4 @@ S3LogSystem::SetWtVerbosityLevel(int32_t wtVerbosityLevel)
         _awsLogLevel = verbosityMapping.at(_wtVerbosityLevel);
     else
         _awsLogLevel = Aws::Utils::Logging::LogLevel::Error;
-}
-
-// Unused.
-void
-S3LogSystem::Flush()
-{
-    return;
 }

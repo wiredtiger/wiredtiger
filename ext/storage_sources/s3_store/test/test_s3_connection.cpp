@@ -78,7 +78,7 @@ randomizeTestPrefix()
     return (TEST_SUCCESS);
 }
 
-// Override the defaults with the ones specific for this test instance.
+// Overrides the defaults with the ones specific for this test instance.
 static int
 setupTestDefaults()
 {
@@ -113,7 +113,7 @@ CleanupTestListObjects(S3Connection &conn, const int totalObjects, const std::st
     return (ret);
 }
 
-// Unit test for listing S3 objects under the test bucket.
+// Lists S3 objects under the test bucket.
 // Todo: Remove code duplication in this function.
 int
 TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
@@ -251,7 +251,7 @@ TestListObjects(const Aws::S3Crt::ClientConfiguration &config)
     return (TEST_SUCCESS);
 }
 
-// Unit test to get an object from an S3 Bucket.
+// Gets an object from an S3 Bucket.
 int
 TestGetObject(const Aws::S3Crt::ClientConfiguration &config)
 {
@@ -297,7 +297,7 @@ TestGetObject(const Aws::S3Crt::ClientConfiguration &config)
     return (TEST_SUCCESS);
 }
 
-// Unit test to check if an object exists in an AWS bucket and size of the object is correct.
+// Checks if an object exists in an AWS bucket and if the size of the object is correct.
 int
 TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
 {
@@ -339,8 +339,7 @@ TestObjectExists(const Aws::S3Crt::ClientConfiguration &config)
     return (TEST_SUCCESS);
 }
 
-// Unit test to check if connection to a non-existing bucket fails gracefully.
-
+// Checks if connection to a non-existing bucket fails gracefully.
 int
 TestBadBucket(const Aws::S3Crt::ClientConfiguration &config)
 {
@@ -385,8 +384,7 @@ TestBadBucket(const Aws::S3Crt::ClientConfiguration &config)
     return (TEST_SUCCESS);
 }
 
-// Set up configs and call unit tests.
-
+// Sets up configs and calls unit tests.
 int
 main()
 {
