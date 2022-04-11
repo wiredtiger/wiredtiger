@@ -51,16 +51,17 @@ class LLDBDumper:
         """Find the installed debugger."""
         return which(debugger)
 
-    def dump(self, exe_path: str, core_path: str):
+    def dump(self, exe_path: str, core_path: str, dump_all: bool):
         """Dump stack trace."""
         if self.dbg is None:
             sys.exit("Debugger lldb not found,"
                      "skipping dumping of {}".format(core_path))
 
-        cmds = [
-            "thread backtrace all -c 30",
-            "quit"
-        ]
+        if dump_all:
+            cmds.append("thread apply all backtrace -c 30")
+        else:
+            cmds.append("backtrace -c 30")
+        cmds.append("quit")
 
         subprocess.run([self.dbg, "--batch"] + [exe_path, "-c", core_path] +
                        list(itertools.chain.from_iterable([['-o', b] for b in cmds])),
@@ -76,8 +77,8 @@ class GDBDumper:
     def _find_debugger(debugger: str):
         """Find the installed debugger."""
         return which(debugger)
-
-    def dump(self, exe_path: str, core_path: str, lib_path: str):
+    
+    def dump(self, exe_path: str, core_path: str, lib_path: str, dump_all: bool, output_file: str):
         """Dump stack trace."""
         if self.dbg is None:
             sys.exit("Debugger gdb not found,"
@@ -86,15 +87,20 @@ class GDBDumper:
         cmds = []
         if lib_path:
             cmds.append("set solib-search-path " + lib_path)
-        cmds.extend([
-            "thread apply all backtrace 30",
-            "quit"
-        ])
 
+        if dump_all:
+            cmds.append("thread apply all backtrace 30")
+        else:
+            cmds.append("backtrace 30")
+        cmds.append("quit")
+
+        output = None
+        if (output_file):
+            output = open(output_file, "w")
         subprocess.run([self.dbg, "--batch", "--quiet"] +
                        list(itertools.chain.from_iterable([['-ex', b] for b in cmds])) +
                        [exe_path, core_path],
-                       check=True)
+                       check=True, stdout=output)
 
 
 def main():
@@ -110,21 +116,32 @@ def main():
 
     # Store the path of the core files as a list.
     core_files = []
-    regex = re.compile(r'.*dump.*python.*', re.IGNORECASE)
+    format_regex = re.compile(r'dump_t', re.IGNORECASE)
+    python_regex = re.compile(r'dump.*python', re.IGNORECASE)
     for root, _, files in os.walk(args.core_path):
         for file in files:
-            if regex.match(file):
-                core_files.extend([os.path.join(root, file)])
+            if format_regex.match(file):
+                core_files.append((os.path.join(root, file), False))
+            elif python_regex.match(file):
+                core_files.append((os.path.join(root, file), True))
 
-    for core_file_path in core_files:
+    for core_file_path, dump_all in core_files:
         print(border_msg(core_file_path), flush=True)
         if sys.platform.startswith('linux'):
             dbg = GDBDumper()
-            dbg.dump(args.executable_path, core_file_path, args.lib_path)
+            dbg.dump(args.executable_path, core_file_path, args.lib_path, dump_all, None)
+
+            # Extract the filename from the core file path, to create a stacktrace output file.
+            file_name, _ = os.path.splitext(os.path.basename(core_file_path))
+            dbg.dump(args.executable_path, core_file_path, args.lib_path, True, file_name + "-stacktrace.txt")
         elif sys.platform.startswith('darwin'):
             # FIXME - macOS to be supported in WT-8976
             # dbg = LLDBDumper()
-            # dbg.dump(args.executable_path, core_file_path)
+            # dbg.dump(args.executable_path, core_file_path, dump_all)
+
+            # Extract the filename from the core file path, to create a stacktrace output file.
+            # file_name, _ = os.path.splitext(os.path.basename(core_file_path))
+            # dbg.dump(args.executable_path, core_file_path, args.lib_path, dump_all, file_name + "-stacktrace.txt")
             pass
         elif sys.platform.startswith('win32') or sys.platform.startswith('cygwin'):
             # FIXME - Windows to be supported in WT-8937
