@@ -179,15 +179,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt2853_perf
-    SOURCES wt2853_perf/main.c
-    DIR_NAME wt2853_perf
-    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt2853_perf/smoke.sh
-    ARGUMENTS $<TARGET_FILE:test_wt2853_perf>
-    DEPENDS "WT_POSIX"
-)
-
-define_c_test(
     TARGET test_wt2909_checkpoint_integrity
     SOURCES wt2909_checkpoint_integrity/main.c
     DIR_NAME wt2909_checkpoint_integrity
