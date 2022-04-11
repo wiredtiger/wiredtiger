@@ -37,10 +37,6 @@
 #include <fstream>
 #include <iostream>
 
-// Tag that can be set and used when uploading or retrieving objects from the S3.
-// Tagging in S3 allows for categorisation of objects, as well as other benefits.
-#define S3_ALLOCATION_TAG ""
-
 // Constructor for AWS S3 bucket connection with provided credentials.
 S3Connection::S3Connection(const Aws::Auth::AWSCredentials &credentials,
   const Aws::S3Crt::ClientConfiguration &config, const std::string &bucketName,
@@ -114,7 +110,7 @@ int
 S3Connection::PutObject(const std::string &objectKey, const std::string &fileName) const
 {
     std::shared_ptr<Aws::IOStream> inputData = Aws::MakeShared<Aws::FStream>(
-      S3_ALLOCATION_TAG, fileName.c_str(), std::ios_base::in | std::ios_base::binary);
+      s3AllocationTag, fileName.c_str(), std::ios_base::in | std::ios_base::binary);
 
     Aws::S3Crt::Model::PutObjectRequest request;
     request.SetBucket(_bucketName);
@@ -156,7 +152,7 @@ S3Connection::GetObject(const std::string &objectKey, const std::string &path) c
     // response stream factory to specify how the response should be downloaded.
     request.SetResponseStreamFactory([=]() {
         return (Aws::New<Aws::FStream>(
-          S3_ALLOCATION_TAG, path, std::ios_base::out | std::ios_base::binary));
+          s3AllocationTag, path, std::ios_base::out | std::ios_base::binary));
     });
 
     if (!_s3CrtClient.GetObject(request).IsSuccess())

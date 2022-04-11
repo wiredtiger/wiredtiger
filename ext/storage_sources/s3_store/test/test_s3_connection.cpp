@@ -84,7 +84,7 @@ setupTestDefaults()
 {
     // Prefer to use the bucket provided through the environment variable.
     const char *envBucket = std::getenv("WT_S3_EXT_BUCKET");
-    if (envBucket != NULL)
+    if (envBucket != nullptr)
         TestDefaults::bucketName = envBucket;
     std::cerr << "Bucket to be used for testing: " << TestDefaults::bucketName << std::endl;
 
