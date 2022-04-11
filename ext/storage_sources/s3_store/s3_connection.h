@@ -69,8 +69,8 @@ class S3Connection {
     const std::string _objectPrefix;
 
     // Tag that can be set and used when uploading or retrieving objects from the S3.
-    // Tagging in S3 allows for categorisation of objects, as well as other benefits.
-    static inline const char* const s3AllocationTag = "s3-source";
+    // Tagging in S3 allows for categorization of objects, as well as other benefits.
+    static inline const char *const s3AllocationTag = "s3-source";
 
     int BucketExists(bool &exists) const;
 };
