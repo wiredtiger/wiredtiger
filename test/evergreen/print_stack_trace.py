@@ -122,6 +122,7 @@ def main():
 
     # Store the path of the core files as a list.
     core_files = []
+    dump_all = args.unit_test
 
     regex = None
     if (args.format):
@@ -132,9 +133,9 @@ def main():
     for root, _, files in os.walk(args.core_path):
         for file in files:
             if regex.match(file):
-                core_files.append((os.path.join(root, file), args.format))
+                core_files.append(os.path.join(root, file))
 
-    for core_file_path, dump_all in core_files:
+    for core_file_path in core_files:
         print(border_msg(core_file_path), flush=True)
         if sys.platform.startswith('linux'):
             dbg = GDBDumper()
