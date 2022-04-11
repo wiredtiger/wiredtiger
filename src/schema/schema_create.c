@@ -19,6 +19,7 @@ typedef struct {
     size_t entries_allocated; /* allocated */
     size_t entries_next;      /* next slot */
     const char *uri;          /* entries in the list will be related to this uri */
+    const char *uri_suffix;   /* suffix of the URI */
 
     WT_IMPORT_ENTRY *entries;
 } WT_IMPORT_LIST;
@@ -991,6 +992,20 @@ __import_entry_cmp(const void *a, const void *b)
     return strcmp(ae->name, be->name);
 }
 
+/* 
+ * __get_uri_suffix --
+ *     Get suffix of the URI.
+ */
+static int
+__get_uri_suffix(WT_SESSION_IMPL *session, const char *uri, const char **suffix)
+{
+    *suffix = strchr(uri, ':');
+    if (*suffix == NULL || (++(*suffix))[0] == '\0')
+        WT_RET_MSG(session, WT_ERROR, "%s invalid URI", uri);
+
+    return (0);
+}
+
 /*
  * __metadata_entry_worker --
  *     Worker function for metadata file reader procedure. The function populates import list with
@@ -1002,15 +1017,17 @@ __metadata_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, 
     WT_DECL_RET;
     WT_IMPORT_LIST *import_list;
     char *metacfg;
-    const char *md_key, *md_value;
+    const char *md_key, *md_key_suffix, *md_value;
 
     import_list = (WT_IMPORT_LIST *)state;
     md_key = (const char *)key->data;
     md_value = (const char *)value->data;
 
-    /* Skip any WiredTiger tables and system entries. */
-    if (WT_SUFFIX_MATCH(md_key, WT_METAFILE) || WT_SUFFIX_MATCH(md_key, WT_HS_FILE) ||
-      WT_PREFIX_MATCH(md_key, WT_SYSTEM_PREFIX))
+    /* Get suffix of the key. */
+    WT_RET(__get_uri_suffix(session, md_key, &md_key_suffix));
+
+    /* Skip unrelated entries. */
+    if (!WT_PREFIX_MATCH(md_key_suffix, import_list->uri_suffix))
         return (0);
 
     /*
@@ -1100,6 +1117,7 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
           cval.len != 0 && (cval.type == WT_CONFIG_ITEM_STRING || cval.type == WT_CONFIG_ITEM_ID)) {
             WT_ERR(__wt_strndup(session, cval.str, cval.len, &export_file));
             import_list.uri = uri;
+            WT_ERR(__get_uri_suffix(session, uri, &import_list.uri_suffix));
             WT_ERR(__schema_parse_wt_export(session, export_file, &import_list));
         }
     }
