@@ -122,9 +122,9 @@ __wt_read_metadata_file(WT_SESSION_IMPL *session, const char *file,
     }
 
 err:
-    WT_TRET(__wt_fclose(session, &fs));
     __wt_scr_free(session, &key);
     __wt_scr_free(session, &value);
+    WT_TRET(__wt_fclose(session, &fs));
 
     return (ret);
 }
@@ -249,11 +249,8 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_BACKUPHASH *backuphash)
     }
 
 err:
-    if (metadata_conf != NULL)
-        __wt_free(session, metadata_conf);
-
-    if (filename != NULL)
-        __wt_free(session, filename);
+    __wt_free(session, metadata_conf);
+    __wt_free(session, filename);
 
     /*
      * Free the partial backup names list. The backup id list is used in recovery to truncate the

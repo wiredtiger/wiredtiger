@@ -1052,7 +1052,7 @@ __schema_parse_wt_export(
 
     /* Open metadata backup file and iterate over the key value pairs. */
     WT_RET(
-      __wt_read_metadata_file(session, export_file, __metadata_entry_worker, &import_list, &exist));
+      __wt_read_metadata_file(session, export_file, __metadata_entry_worker, import_list, &exist));
     if (!exist)
         return (0);
 
