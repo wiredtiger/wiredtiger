@@ -80,7 +80,6 @@ class test_checkpoint06(wttest.WiredTigerTestCase):
         start.set_key(5)
         end = self.session.open_cursor(self.uri)
         end.set_key(9995)
-        self.session.breakpoint()
         self.session.truncate(None, start, None, None)
         if self.prepare:
             self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(3))
