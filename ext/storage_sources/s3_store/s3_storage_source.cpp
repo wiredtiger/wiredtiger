@@ -890,8 +890,8 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     s3->referenceCount = 1;
 
     // Load the storage
-    if ((ret = connection->add_storage_source(connection, "s3_store", &s3->storageSource, nullptr)) !=
-      0) {
+    if ((ret = connection->add_storage_source(
+           connection, "s3_store", &s3->storageSource, nullptr)) != 0) {
         s3->log->LogErrorMessage(
           "wiredtiger_extension_init: Could not load S3 storage source, shutting down.");
         Aws::Utils::Logging::ShutdownAWSLogging();
