@@ -295,4 +295,12 @@ database_operation::update_operation(thread_context *tc)
     if (tc->transaction.active())
         tc->transaction.rollback();
 }
+
+void
+database_operation::user_operation(thread_context *tc)
+{
+    logger::log_msg(
+      LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+}
+
 } // namespace test_harness

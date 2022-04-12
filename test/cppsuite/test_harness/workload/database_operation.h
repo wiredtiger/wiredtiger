@@ -53,10 +53,11 @@ class database_operation {
     /* Basic read operation that chooses a random collection and walks a cursor. */
     virtual void read_operation(thread_context *tc);
 
-    /*
-     * Basic update operation that chooses a random key and updates it.
-     */
+    /* Basic update operation that chooses a random key and updates it. */
     virtual void update_operation(thread_context *tc);
+
+    /* User defined operation without a default implementation. */
+    virtual void user_operation(thread_context *tc);
 
     virtual ~database_operation() = default;
 };
