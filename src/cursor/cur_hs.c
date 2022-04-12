@@ -887,6 +887,9 @@ __curhs_insert(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_UPDATE *hs_tombstone, *hs_upd;
+#ifdef HAVE_DIAGNOSTIC
+    int exact;
+#endif
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
@@ -939,8 +942,8 @@ __curhs_insert(WT_CURSOR *cursor)
 
 #ifdef HAVE_DIAGNOSTIC
     /* Do a search again and call next to check the key order. */
-    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = file_cursor->search(file_cursor));
-    WT_ASSERT(session, ret == 0);
+    ret = __curhs_file_cursor_search_near(session, file_cursor, &exact);
+    WT_ASSERT(session, ret == 0 && exact == 0);
     WT_ERR_NOTFOUND_OK(__curhs_file_cursor_next(session, file_cursor), false);
 #endif
 
