@@ -1014,9 +1014,7 @@ __get_uri_suffix(WT_SESSION_IMPL *session, const char *uri, const char **suffix)
 static int
 __metadata_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, void *state)
 {
-    WT_DECL_RET;
     WT_IMPORT_LIST *import_list;
-    char *metacfg;
     const char *md_key, *md_key_suffix, *md_value;
 
     import_list = (WT_IMPORT_LIST *)state;
@@ -1031,13 +1029,9 @@ __metadata_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, 
         return (0);
 
     /*
-     * Check if the entry already exists in the metadata. Raise an error if we try to import an
-     * existing URI rather than just silently returning.
+     * We are not checking if the entry already exists in the metadata. It will be handled later in
+     * the appropriate create call.
      */
-    ret = __wt_metadata_search(session, md_key, &metacfg);
-    __wt_free(session, metacfg);
-    if (ret != WT_NOTFOUND)
-        return EEXIST;
 
     /* Grow the entries array if needed. */
     WT_RET(__wt_realloc_def(session, &import_list->entries_allocated, import_list->entries_next + 1,
