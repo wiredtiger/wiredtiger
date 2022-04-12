@@ -182,8 +182,8 @@ class test_hs30(wttest.WiredTigerTestCase):
         stat_cursor.close()
 
         if self.do_evict:
-            # Should have read nrows twice.
-            self.assertEqual(hs_read, nrows * 2)
+            # Should have atleast read nrows twice.
+            self.assertTrue(hs_read >= nrows * 2)
         else:
             # Apparently even if we checkpoint, without an explicit evict the old in-memory
             # updates hang around and the history store isn't accessed.
