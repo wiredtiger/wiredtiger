@@ -535,16 +535,22 @@ __wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
     if (session->txn->isolation == WT_ISO_SNAPSHOT && F_ISSET(session->txn, WT_TXN_RUNNING) &&
       __wt_page_evict_soon_check(session, cbt->ref, NULL) &&
       !__wt_hazard_check_more_than_one(session, cbt->ref)) {
-        WT_RET(__wt_cursor_localkey(cursor));
-        WT_RET(__cursor_reset(cbt));
+
+        WT_STAT_CONN_DATA_INCR(session, cursor_reposition);
+        WT_ERR(__wt_cursor_localkey(cursor));
+        WT_ERR(__cursor_reset(cbt));
         ret = __wt_btcur_search(cbt, false);
         /*
          * If we got a WT_ROLLBACK it is because there is a lot of cache pressure and the
          * transaction is being killed - don't panic in that case.
          */
         if (ret != 0 && ret != WT_ROLLBACK)
-            WT_RET_PANIC(session, ret, "failed to reposition the cursor");
+            WT_ERR_PANIC(session, ret, "failed to reposition the cursor");
     }
+
+err:
+    if (ret != 0)
+        WT_STAT_CONN_DATA_INCR(session, cursor_reposition_failed);
 
     return (ret);
 }
