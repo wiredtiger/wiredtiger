@@ -68,6 +68,7 @@ const std::string STATISTICS_CONFIG = "statistics_config";
 const std::string THREAD_COUNT = "thread_count";
 const std::string TYPE = "type";
 const std::string UPDATE_CONFIG = "update_config";
+const std::string USER_CONFIG = "user_config";
 const std::string VALUE_SIZE = "value_size";
 
 /* WiredTiger API consts. */

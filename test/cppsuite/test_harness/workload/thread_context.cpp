@@ -46,6 +46,8 @@ type_string(thread_type type)
         return ("read");
     case thread_type::UPDATE:
         return ("update");
+    case thread_type::USER:
+        return ("user");
     default:
         testutil_die(EINVAL, "unexpected thread_type: %d", static_cast<int>(type));
     }
