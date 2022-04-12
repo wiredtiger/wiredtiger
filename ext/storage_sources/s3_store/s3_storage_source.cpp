@@ -28,11 +28,9 @@
 
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
-#include <sys/stat.h>
 #include <fstream>
 #include <list>
 #include <errno.h>
-#include <unistd.h>
 #include <filesystem>
 
 #include "s3_connection.h"
@@ -207,7 +205,6 @@ S3GetDirectory(const S3Storage &s3, const std::string &home, const std::string &
     // copy must be initialised before the function returns.
     copy = "";
 
-    struct stat sb;
     int ret;
     std::string dirName;
 
@@ -261,7 +258,7 @@ S3FileClose(WT_FILE_HANDLE *fileHandle, WT_SESSION *session)
         std::lock_guard<std::mutex> lock(s3->fhMutex);
         s3->fhList.remove(s3FileHandle);
     }
-    if (wtFileHandle != NULL) {
+    if (wtFileHandle != nullptr) {
         s3->statistics.fhOps++;
         if ((ret = wtFileHandle->close(wtFileHandle, session)) != 0)
             s3->log->LogErrorMessage("S3FileClose: close file handle failed.");
@@ -283,7 +280,7 @@ S3FileOpen(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     S3Storage *s3 = FS2S3(fileSystem);
     int ret;
 
-    *fileHandlePtr = NULL;
+    *fileHandlePtr = nullptr;
 
     // We only support opening the file in read only mode.
     if ((flags & WT_FS_OPEN_READONLY) == 0 || (flags & WT_FS_OPEN_CREATE) != 0) {
@@ -299,7 +296,7 @@ S3FileOpen(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     }
 
     S3FileHandle *s3FileHandle;
-    if ((s3FileHandle = (S3FileHandle *)calloc(1, sizeof(S3FileHandle))) == NULL) {
+    if ((s3FileHandle = (S3FileHandle *)calloc(1, sizeof(S3FileHandle))) == nullptr) {
         s3->log->LogErrorMessage("S3FileOpen: unable to allocate memory for file handle.");
         return (ENOMEM);
     }
@@ -331,23 +328,23 @@ S3FileOpen(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     // We only define the functions we need since S3 is read-only.
     WT_FILE_HANDLE *fileHandle = (WT_FILE_HANDLE *)s3FileHandle;
     fileHandle->close = S3FileClose;
-    fileHandle->fh_advise = NULL;
-    fileHandle->fh_extend = NULL;
-    fileHandle->fh_extend_nolock = NULL;
+    fileHandle->fh_advise = nullptr;
+    fileHandle->fh_extend = nullptr;
+    fileHandle->fh_extend_nolock = nullptr;
     fileHandle->fh_lock = S3FileLock;
-    fileHandle->fh_map = NULL;
-    fileHandle->fh_map_discard = NULL;
-    fileHandle->fh_map_preload = NULL;
-    fileHandle->fh_unmap = NULL;
+    fileHandle->fh_map = nullptr;
+    fileHandle->fh_map_discard = nullptr;
+    fileHandle->fh_map_preload = nullptr;
+    fileHandle->fh_unmap = nullptr;
     fileHandle->fh_read = S3FileRead;
     fileHandle->fh_size = S3FileSize;
-    fileHandle->fh_sync = NULL;
-    fileHandle->fh_sync_nowait = NULL;
-    fileHandle->fh_truncate = NULL;
-    fileHandle->fh_write = NULL;
+    fileHandle->fh_sync = nullptr;
+    fileHandle->fh_sync_nowait = nullptr;
+    fileHandle->fh_truncate = nullptr;
+    fileHandle->fh_write = nullptr;
 
     fileHandle->name = strdup(name);
-    if (fileHandle->name == NULL) {
+    if (fileHandle->name == nullptr) {
         s3->log->LogErrorMessage("S3FileOpen: unable to allocate memory for object name.");
         return (ENOMEM);
     }
@@ -467,7 +464,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     // We need to have a bucket to setup the file system. The bucket is expected to be a name and a
     // region, separated by a semi-colon. eg: 'abcd;ap-southeast-2'.
 
-    if (bucket == NULL || strlen(bucket) == 0) {
+    if (bucket == nullptr || strlen(bucket) == 0) {
         s3->log->LogErrorMessage("S3CustomizeFileSystem: bucket not specified.");
         return (EINVAL);
     }
@@ -482,14 +479,14 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
     const std::string region = std::string(bucket).substr(delimiter + 1);
 
     // Fail if there is no authentication provided.
-    if (authToken == NULL || strlen(authToken) == 0) {
+    if (authToken == nullptr || strlen(authToken) == 0) {
         s3->log->LogErrorMessage("S3CustomizeFileSystem: authToken not specified.");
         return (EINVAL);
     }
 
     // An auth token is needed to setup the file system. The token is expected to be an access key
     // and a secret key separated by a semi-colon.
-    if (authToken == NULL || strlen(authToken) == 0) {
+    if (authToken == nullptr || strlen(authToken) == 0) {
         s3->log->LogErrorMessage("S3CustomizeFileSystem: auth token not specified.");
         return (EINVAL);
     }
@@ -559,7 +556,7 @@ S3CustomizeFileSystem(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, con
 
     // Create the file system.
     S3FileSystem *fs;
-    if ((fs = (S3FileSystem *)calloc(1, sizeof(S3FileSystem))) == NULL) {
+    if ((fs = (S3FileSystem *)calloc(1, sizeof(S3FileSystem))) == nullptr) {
         s3->log->LogErrorMessage(
           "S3CustomizeFileSystem: unable to allocate memory for file system.");
         return (ENOMEM);
@@ -629,13 +626,13 @@ S3ObjectListInternal(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char
 
     *count = 0;
 
-    if (directory != NULL) {
+    if (directory != nullptr) {
         completePrefix += directory;
         // Add a terminating '/' if one doesn't exist.
         if (completePrefix.length() > 1 && completePrefix[completePrefix.length() - 1] != '/')
             completePrefix += '/';
     }
-    if (prefix != NULL)
+    if (prefix != nullptr)
         completePrefix += prefix;
 
     int ret;
@@ -695,13 +692,13 @@ S3ObjectListAdd(const S3Storage &s3, char ***objectList, const std::vector<std::
   const uint32_t count)
 {
     char **entries;
-    if ((entries = (char **)malloc(sizeof(char *) * count)) == NULL) {
+    if ((entries = (char **)malloc(sizeof(char *) * count)) == nullptr) {
         s3.log->LogErrorMessage("S3ObjectListAdd: unable to allocate memory for object list.");
         return (ENOMEM);
     }
 
     for (int i = 0; i < count; i++) {
-        if ((entries[i] = strdup(objects[i].c_str())) == NULL) {
+        if ((entries[i] = strdup(objects[i].c_str())) == nullptr) {
             s3.log->LogErrorMessage(
               "S3ObjectListAdd: unable to allocate memory for object string.");
             return (ENOMEM);
@@ -857,7 +854,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 
     s3 = new S3Storage;
     s3->wtApi = connection->get_extension_api(connection);
-    int ret = s3->wtApi->config_get(s3->wtApi, NULL, config, "verbose.tiered", &v);
+    int ret = s3->wtApi->config_get(s3->wtApi, nullptr, config, "verbose.tiered", &v);
 
     // Create a logger for the storage source. Verbose level defaults to WT_VERBOSE_ERROR (-3) if it
     // is outside the valid range or not found.
@@ -893,7 +890,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     s3->referenceCount = 1;
 
     // Load the storage
-    if ((ret = connection->add_storage_source(connection, "s3_store", &s3->storageSource, NULL)) !=
+    if ((ret = connection->add_storage_source(connection, "s3_store", &s3->storageSource, nullptr)) !=
       0) {
         s3->log->LogErrorMessage(
           "wiredtiger_extension_init: Could not load S3 storage source, shutting down.");
