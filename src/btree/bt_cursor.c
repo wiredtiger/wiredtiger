@@ -533,7 +533,8 @@ __wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
      * unlike read committed isolation level.
      */
     if (session->txn->isolation == WT_ISO_SNAPSHOT && F_ISSET(session->txn, WT_TXN_RUNNING) &&
-      __wt_page_evict_soon_check(session, cbt->ref, NULL)) {
+      __wt_page_evict_soon_check(session, cbt->ref, NULL) &&
+      !__wt_hazard_check_more_than_one(session, cbt->ref)) {
         WT_RET(__wt_cursor_localkey(cursor));
         WT_RET(__cursor_reset(cbt));
         ret = __wt_btcur_search(cbt, false);
