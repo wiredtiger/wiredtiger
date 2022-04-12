@@ -235,6 +235,7 @@ __timestamp_out_of_order_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw
     WT_ASSERT(session, select_tw->stop_txn >= select_tw->start_txn);
 
     if (select_tw->stop_ts < select_tw->start_ts) {
+        WT_ASSERT(session, select_tw->stop_ts == WT_TS_NONE);
         __wt_verbose(session, WT_VERB_TIMESTAMP,
           "Warning: fixing out-of-order timestamps remove earlier than value; time window %s",
           __wt_time_window_to_string(select_tw, time_string));
@@ -285,6 +286,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      * of the selected update.
      */
     if (select_tw->stop_ts < select_tw->start_ts) {
+        WT_ASSERT(session, select_tw->stop_ts == WT_TS_NONE);
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_ooo_checkpoint_race_2);
         return (EBUSY);
     }
@@ -315,6 +317,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
 
         /* Validate that the updates older than us have older timestamps. */
         if (prev_upd->start_ts < upd->start_ts) {
+            WT_ASSERT(session, prev_upd->start_ts == WT_TS_NONE);
             WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_ooo_checkpoint_race_4);
             return (EBUSY);
         }
@@ -357,6 +360,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
             prev_upd->durable_ts >= vpack->tw.durable_stop_ts);
         if (prev_upd->start_ts < vpack->tw.start_ts ||
           (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prev_upd->start_ts < vpack->tw.stop_ts)) {
+            WT_ASSERT(session, prev_upd->start_ts == WT_TS_NONE);
             WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_ooo_checkpoint_race_1);
             return (EBUSY);
         }

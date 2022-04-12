@@ -77,7 +77,7 @@ class test_hs_evict_race01(wttest.WiredTigerTestCase):
         cursor.close()
 
         # Create a thread.
-        ooo_thread = threading.Thread(target=self.out_of_order_update_and_evict)
+        ooo_thread = threading.Thread(target=self.no_timestamp_update_and_evict)
 
         # Start the thread
         ooo_thread.start()
@@ -91,13 +91,13 @@ class test_hs_evict_race01(wttest.WiredTigerTestCase):
         self.assertEquals(self.value1, cursor[1])
         self.session.rollback_transaction()
 
-    def out_of_order_update_and_evict(self):
+    def no_timestamp_update_and_evict(self):
         sleep(0.5)
         session = self.setUpSessionOpen(self.conn)
         cursor = session.open_cursor(self.uri)
         session.begin_transaction()
         cursor[1] = self.value4
-        session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
+        session.commit_transaction()
         cursor.close()
         sleep(1.5)
         evict_cursor = session.open_cursor(self.uri, None, "debug=(release_evict)")

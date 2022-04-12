@@ -310,10 +310,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
 #define MAX_REVERSE_MODIFY_NUM 16
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_UPDATE_VECTOR updates;
-    WT_UPDATE_VECTOR out_of_order_ts_updates;
     WT_SAVE_UPD *list;
-    WT_UPDATE *first_globally_visible_upd, *fix_ts_upd, *min_ts_upd, *out_of_order_ts_upd;
-    WT_UPDATE *newest_hs, *non_aborted_upd, *oldest_upd, *prev_upd, *ref_upd, *tombstone, *upd;
+    WT_UPDATE *newest_hs, *oldest_upd, *prev_upd, *ref_upd, *tombstone, *upd;
     WT_TIME_WINDOW tw;
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size, modify_cnt;
@@ -335,16 +333,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     __wt_update_vector_init(session, &updates);
-    /*
-     * We use another stack to store the out-of-order timestamp updates (including updates without a
-     * timestamp). We walk the update chain from the newest to the oldest. Once an out-of-order
-     * timestamp update is detected, and it has a lower timestamp than the head of the stack, it is
-     * pushed to the stack. When we are inserting updates to the history store, we compare the
-     * update's timestamp with the head of the stack. If it is larger than the out-of-order
-     * timestamp, we fix the timestamp by inserting with the out-of-order timestamp. If the update
-     * we are inserting is the head of the stack, we pop it from the stack.
-     */
-    __wt_update_vector_init(session, &out_of_order_ts_updates);
 
     if (!btree->hs_entries)
         btree->hs_entries = true;
@@ -397,10 +385,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             WT_ERR(__wt_illegal_value(session, r->page->type));
         }
 
-        newest_hs = first_globally_visible_upd = min_ts_upd = out_of_order_ts_upd = NULL;
+        newest_hs = NULL;
         ref_upd = list->onpage_upd;
 
-        __wt_update_vector_clear(&out_of_order_ts_updates);
         __wt_update_vector_clear(&updates);
 
         /*
@@ -438,16 +425,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
          * 4) We have a single tombstone on the chain, it is simply ignored.
          */
         squashed = false;
-        for (upd = list->onpage_upd, non_aborted_upd = prev_upd = NULL; upd != NULL;
-             prev_upd = non_aborted_upd, upd = upd->next) {
+        for (upd = list->onpage_upd, prev_upd = NULL; upd != NULL; upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
 
-            non_aborted_upd = upd;
-
-            /* Detect out of order timestamp update. */
-            if (min_ts_upd != NULL && min_ts_upd->start_ts < upd->start_ts &&
-              out_of_order_ts_upd != min_ts_upd) {
+            /* Detect any mixed mode timestamp update. */
+            if (prev_upd != NULL && prev_upd->start_ts < upd->start_ts) {
+                WT_ASSERT(session, prev_upd->start_ts == WT_TS_NONE);
                 /*
                  * Fail the eviction if we detect out of order timestamps and the error flag is set.
                  * We cannot modify the history store to fix the out of order timestamp updates as
@@ -464,17 +448,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                  * timestamp update.
                  */
                 enable_reverse_modify = false;
-                WT_ERR(__wt_update_vector_push(&out_of_order_ts_updates, min_ts_upd));
-                out_of_order_ts_upd = min_ts_upd;
-            } else if (upd->prepare_state != WT_PREPARE_INPROGRESS &&
-              (min_ts_upd == NULL || upd->start_ts <= min_ts_upd->start_ts))
-                min_ts_upd = upd;
+            }
 
             WT_ERR(__wt_update_vector_push(&updates, upd));
-
-            /* Track the first update that is globally visible. */
-            if (first_globally_visible_upd == NULL && __wt_txn_upd_visible_all(session, upd))
-                first_globally_visible_upd = upd;
 
             /*
              * Always insert full update to the history store if we write a prepared update to the
@@ -506,11 +482,11 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                     squashed = true;
             }
 
-            /*
-             * No need to continue if we see the first self contained value after the first globally
-             * visible value.
-             */
-            if (first_globally_visible_upd != NULL && WT_UPDATE_DATA_VALUE(upd))
+            prev_upd = upd;
+
+            /* No need to continue if we found a first self contained value that is globally
+             * visible. */
+            if (__wt_txn_upd_visible_all(session, upd) && WT_UPDATE_DATA_VALUE(upd))
                 break;
 
             /*
@@ -524,7 +500,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
         prev_upd = upd = NULL;
 
         WT_ASSERT(session, updates.size > 0);
-
         __wt_update_vector_peek(&updates, &oldest_upd);
 
         WT_ASSERT(session,
@@ -536,18 +511,11 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
          * inserting the first update and it may be skipped if there is nothing to insert to the
          * history store.
          */
-        if (oldest_upd->type == WT_UPDATE_TOMBSTONE) {
-            if (out_of_order_ts_upd != NULL && out_of_order_ts_upd->start_ts < oldest_upd->start_ts)
-                fix_ts_upd = out_of_order_ts_upd;
-            else
-                fix_ts_upd = oldest_upd;
-
-            if (!F_ISSET(fix_ts_upd, WT_UPDATE_FIXED_HS)) {
-                /* Delete and reinsert any update of the key with a higher timestamp. */
-                WT_ERR(__wt_hs_delete_key_from_ts(session, hs_cursor, btree->id, key,
-                  fix_ts_upd->start_ts + 1, true, false, error_on_ooo_ts));
-                F_SET(fix_ts_upd, WT_UPDATE_FIXED_HS);
-            }
+        if (oldest_upd->type == WT_UPDATE_TOMBSTONE && !F_ISSET(oldest_upd, WT_UPDATE_FIXED_HS)) {
+            /* Delete and reinsert any update of the key with a higher timestamp. */
+            WT_ERR(__wt_hs_delete_key_from_ts(session, hs_cursor, btree->id, key,
+              oldest_upd->start_ts + 1, true, false, error_on_ooo_ts));
+            F_SET(oldest_upd, WT_UPDATE_FIXED_HS);
         }
 
         /* Skip if we have nothing to insert to the history store. */
@@ -560,7 +528,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
 
         /* Construct the oldest full update. */
         WT_ERR(__hs_next_upd_full_value(session, &updates, NULL, full_value, &upd));
-
         hs_inserted = false;
 
         /*
@@ -579,14 +546,10 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             tombstone = NULL;
             __wt_update_vector_peek(&updates, &prev_upd);
 
-            if (out_of_order_ts_updates.size > 0) {
-                __wt_update_vector_peek(&out_of_order_ts_updates, &out_of_order_ts_upd);
-            } else
-                out_of_order_ts_upd = NULL;
-
-            if (out_of_order_ts_upd != NULL && out_of_order_ts_upd->start_ts < upd->start_ts) {
-                tw.durable_start_ts = out_of_order_ts_upd->durable_ts;
-                tw.start_ts = out_of_order_ts_upd->start_ts;
+            if (prev_upd->start_ts < upd->start_ts) {
+                WT_ASSERT(session, prev_upd->start_ts == WT_TS_NONE);
+                tw.durable_start_ts = prev_upd->durable_ts;
+                tw.start_ts = prev_upd->start_ts;
             } else {
                 tw.durable_start_ts = upd->durable_ts;
                 tw.start_ts = upd->start_ts;
@@ -612,31 +575,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                  */
                 WT_ASSERT(session, prev_upd->start_ts <= prev_upd->durable_ts);
 
-                /*
-                 * Pop from the out of order timestamp updates stack if the previous update or the
-                 * current update is at the head of the stack. We need to check both cases because
-                 * if there is a tombstone older than the out of order timestamp, we would not pop
-                 * it because we skip the tombstone. Pop it when we are inserting it instead.
-                 *
-                 * Here it is assumed that the out of order update is equal to the oldest update
-                 * among the multiple out of order consecutive updates that have same timestamps.
-                 * For instance, U1@10 -> U2@10 -> U3@10 -> U4@20, U3 which is the oldest update
-                 * will be the out of order update.
-                 */
-                if (out_of_order_ts_upd != NULL &&
-                  (out_of_order_ts_upd == prev_upd || out_of_order_ts_upd == upd)) {
-                    __wt_update_vector_pop(&out_of_order_ts_updates, &out_of_order_ts_upd);
-                    out_of_order_ts_upd = NULL;
-                }
-
-                if (out_of_order_ts_upd != NULL &&
-                  out_of_order_ts_upd->start_ts < prev_upd->start_ts) {
-                    tw.durable_stop_ts = out_of_order_ts_upd->durable_ts;
-                    tw.stop_ts = out_of_order_ts_upd->start_ts;
-                } else {
-                    tw.durable_stop_ts = prev_upd->durable_ts;
-                    tw.stop_ts = prev_upd->start_ts;
-                }
+                tw.durable_stop_ts = prev_upd->durable_ts;
+                tw.stop_ts = prev_upd->start_ts;
                 tw.stop_txn = prev_upd->txnid;
 
                 if (prev_upd->type == WT_UPDATE_TOMBSTONE)
@@ -731,19 +671,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             if (upd == newest_hs)
                 break;
         }
-
-        /*
-         * In the case that the onpage value is an out of order timestamp update and the update
-         * older than it is a tombstone, it remains in the stack.
-         */
-        WT_ASSERT(session, out_of_order_ts_updates.size <= 1);
-#ifdef HAVE_DIAGNOSTIC
-        if (out_of_order_ts_updates.size == 1) {
-            __wt_update_vector_peek(&out_of_order_ts_updates, &upd);
-            WT_ASSERT(session,
-              upd->txnid == list->onpage_upd->txnid && upd->start_ts == list->onpage_upd->start_ts);
-        }
-#endif
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
@@ -767,7 +694,6 @@ err:
     if (modify_value != NULL)
         __wt_scr_free(session, &modify_value);
     __wt_update_vector_free(&updates);
-    __wt_update_vector_free(&out_of_order_ts_updates);
     __wt_scr_free(session, &full_value);
     __wt_scr_free(session, &prev_full_value);
 

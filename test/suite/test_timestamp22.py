@@ -147,10 +147,10 @@ class test_timestamp22(wttest.WiredTigerTestCase):
                     # It's possible this will succeed, we'll check below.
                     this_commit_ts = self.gen_ts(commit_ts)
 
-                    # OOD does not work with prepared updates. Hence, the commit ts should always be
-                    # greater than the last durable ts.
-                    if this_commit_ts <= self.last_durable:
-                        this_commit_ts = self.last_durable + 1
+                    # OOD does not work. Hence, the commit ts should always be
+                    # greater than the last commit ts.
+                    if this_commit_ts <= running_commit_ts:
+                        this_commit_ts = running_commit_ts + 1
 
                 config += ',commit_timestamp=' + self.timestamp_str(this_commit_ts)
 
