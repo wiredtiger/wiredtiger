@@ -120,6 +120,7 @@ thread_count = [
 
 read_thread_config = thread_count + throttle_config + transaction_config + record_config
 update_insert_thread_config = thread_count + transaction_config + throttle_config + record_config
+user_operation_thread_config = thread_count + transaction_config + throttle_config + record_config
 
 #
 # Configuration for the checkpoint_manager component.
@@ -175,7 +176,10 @@ workload_generator = enabled_config_true + component_config + [
         type='category', subconfig=update_insert_thread_config),
     Config('update_config', '',r'''
         Config that specifies the number of update threads and their behaviour.''',
-        type='category', subconfig=update_insert_thread_config)
+        type='category', subconfig=update_insert_thread_config),
+    Config('user_config', '',r'''
+        Config that specifies the number of user operation threads and their behaviour.''',
+        type='category', subconfig=user_operation_thread_config)
 ]
 
 test_config = [
