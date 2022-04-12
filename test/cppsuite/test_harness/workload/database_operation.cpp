@@ -247,6 +247,13 @@ database_operation::read_operation(thread_context *tc)
 }
 
 void
+database_operation::remove_operation(thread_context *tc)
+{
+    logger::log_msg(
+      LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+}
+
+void
 database_operation::update_operation(thread_context *tc)
 {
     logger::log_msg(
