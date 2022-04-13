@@ -168,7 +168,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 #define WT_GEN_DRAIN_TIMEOUT_MIN 4
                 if (time_diff_ms > minutes * WT_MINUTE * WT_THOUSAND) {
                     __wt_verbose_notice(session, WT_VERB_GENERATION,
-                      "%s generation drain waited %lu minutes", __gen_name(which), minutes);
+                      "%s generation drain waited %" PRIu64 "minutes", __gen_name(which), minutes);
                     ++minutes;
                     WT_ASSERT(session, minutes < WT_GEN_DRAIN_TIMEOUT_MIN);
                 }
