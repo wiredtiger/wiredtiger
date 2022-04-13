@@ -107,7 +107,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
     struct timespec start, stop;
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *s;
-    uint64_t time_diff_ms, v, minutes;
+    uint64_t minutes, time_diff_ms, v;
     uint32_t i, session_cnt;
     int pause_cnt;
     bool verbose_timeout_flags;
