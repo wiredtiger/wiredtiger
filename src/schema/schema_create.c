@@ -993,20 +993,6 @@ __create_import_cmp(const void *a, const void *b)
 }
 
 /*
- * __get_uri_suffix --
- *     Get suffix of the URI.
- */
-static int
-__get_uri_suffix(WT_SESSION_IMPL *session, const char *uri, const char **suffix)
-{
-    *suffix = strchr(uri, ':');
-    if (*suffix == NULL || (++(*suffix))[0] == '\0')
-        WT_RET_MSG(session, WT_ERROR, "%s invalid URI", uri);
-
-    return (0);
-}
-
-/*
  * __create_meta_entry_worker --
  *     Worker function for metadata file reader procedure. The function populates the import list
  *     with entries related to the import URI.
@@ -1022,7 +1008,9 @@ __create_meta_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *valu
     meta_value = (const char *)value->data;
 
     /* Get suffix of the key. */
-    WT_RET(__get_uri_suffix(session, meta_key, &meta_key_suffix));
+    meta_key_suffix = strchr(meta_key, ':');
+    WT_ASSERT(session, meta_key_suffix != NULL && meta_key_suffix[1] != '\0');
+    ++meta_key_suffix;
 
     /* Skip unrelated entries. */
     if (!WT_PREFIX_MATCH(meta_key_suffix, import_list->uri_suffix))
@@ -1111,7 +1099,12 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
           cval.len != 0 && (cval.type == WT_CONFIG_ITEM_STRING || cval.type == WT_CONFIG_ITEM_ID)) {
             WT_ERR(__wt_strndup(session, cval.str, cval.len, &export_file));
             import_list.uri = uri;
-            WT_ERR(__get_uri_suffix(session, uri, &import_list.uri_suffix));
+
+            /* Get suffix of the URI. */
+            import_list.uri_suffix = strchr(uri, ':');
+            WT_ASSERT(session, import_list.uri_suffix != NULL && import_list.uri_suffix[1] != '\0');
+            ++import_list.uri_suffix;
+
             WT_ERR(__create_parse_export(session, export_file, &import_list));
         }
     }
