@@ -461,12 +461,6 @@ restart_read_insert:
         cbt->iter_retry = WT_CBT_RETRY_PAGE;
         cbt->slot = cbt->row_iteration_slot / 2 - 1;
 restart_read_page:
-        rip = &page->pg_row[cbt->slot];
-        /*
-         * The saved cursor key from the slot is used later to get the value from the history store
-         * if the on-disk data is not visible.
-         */
-        WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack));
         /*
          * If the cursor has prefix search configured we can early exit here if the key that we are
          * visiting is after our prefix.
@@ -476,6 +470,13 @@ restart_read_page:
             WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
             return (WT_NOTFOUND);
         }
+
+        /*
+         * The saved cursor key from the slot is used later to get the value from the history store
+         * if the on-disk data is not visible.
+         */
+        rip = &page->pg_row[cbt->slot];
+        WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack));
         WT_RET(
           __wt_txn_read(session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip)));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {

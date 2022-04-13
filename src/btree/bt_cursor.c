@@ -321,6 +321,16 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
         /* Paranoia. */
         WT_ASSERT(session, recno == WT_RECNO_OOB);
 
+        /*
+         * The key can be NULL only when we didn't find an exact match, copy the search found key
+         * into the temporary buffer for further use.
+         */
+        if (key == NULL) {
+            WT_RET(__wt_row_leaf_key(
+              session, cbt->ref->page, &cbt->ref->page->pg_row[cbt->slot], cbt->tmp, true));
+            key = cbt->tmp;
+        }
+
         /* Check for an update. */
         upd = (page->modify != NULL && page->modify->mod_row_update != NULL) ?
           page->modify->mod_row_update[cbt->slot] :
@@ -559,15 +569,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
                 if (F_ISSET(cursor, WT_CURSTD_KEY_ONLY))
                     valid = true;
                 else
-                    /*
-                     * Whenever the cursor doesn't found an exact match or found an exact match in
-                     * the insert list, it is possible that temporary key of the cursor and the
-                     * cursor position slot will differ. Pass the key as NULL instead of the cursor
-                     * temporary key to let the key to be generated internally from cursor position
-                     * slot to access the history store.
-                     */
-                    WT_ERR(__wt_cursor_valid(
-                      cbt, (cbt->ins != NULL ? NULL : cbt->tmp), WT_RECNO_OOB, &valid));
+                    WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
             }
         } else {
             WT_ERR(__cursor_col_search(cbt, cbt->ref, &leaf_found));
@@ -588,15 +590,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
                 if (F_ISSET(cursor, WT_CURSTD_KEY_ONLY))
                     valid = true;
                 else
-                    /*
-                     * Whenever the cursor doesn't found an exact match or found an exact match in
-                     * the insert list, it is possible that temporary key of the cursor and the
-                     * cursor position slot will differ. Pass the key as NULL instead of the cursor
-                     * temporary key to let the key to be generated internally from cursor position
-                     * slot to access the history store.
-                     */
-                    WT_ERR(__wt_cursor_valid(
-                      cbt, (cbt->ins != NULL ? NULL : cbt->tmp), WT_RECNO_OOB, &valid));
+                    WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
             }
         } else {
             WT_ERR(__cursor_col_search(cbt, NULL, NULL));
@@ -698,15 +692,13 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
          * page slots or we might be legitimately positioned after the last page slot). Ignore those
          * cases, it makes things too complicated.
          *
-         * Whenever the cursor doesn't found an exact match or found an exact match in the insert
-         * list, it is possible that temporary key of the cursor and the cursor position slot will
-         * differ. Pass the key as NULL instead of the cursor temporary key to let the key to be
-         * generated internally from cursor position slot to access the history store.
+         * If there's an exact match, the row-store search function built the key in the cursor's
+         * temporary buffer.
          */
         if (leaf_found &&
           (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)))
-            WT_ERR(__wt_cursor_valid(cbt,
-              ((cbt->compare != 0 || cbt->ins != NULL) ? NULL : cbt->tmp), WT_RECNO_OOB, &valid));
+            WT_ERR(
+              __wt_cursor_valid(cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, &valid));
     }
     if (!valid) {
         WT_ERR(__wt_cursor_func_init(cbt, true));
@@ -718,13 +710,11 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         if (btree->type == BTREE_ROW) {
             WT_ERR(__cursor_row_search(cbt, true, NULL, NULL));
             /*
-             * Whenever the cursor doesn't found an exact match or found an exact match in the
-             * insert list, it is possible that temporary key of the cursor and the cursor position
-             * slot will differ. Pass the key as NULL instead of the cursor temporary key to let the
-             * key to be generated internally from cursor position slot to access the history store.
+             * If there's an exact match, the row-store search function built the key in the
+             * cursor's temporary buffer.
              */
-            WT_ERR(__wt_cursor_valid(cbt,
-              ((cbt->compare != 0 || cbt->ins != NULL) ? NULL : cbt->tmp), WT_RECNO_OOB, &valid));
+            WT_ERR(
+              __wt_cursor_valid(cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, &valid));
         } else {
             WT_ERR(__cursor_col_search(cbt, NULL, NULL));
             WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
@@ -929,14 +919,7 @@ retry:
          * If not overwriting, fail if the key exists, else insert the key/value pair.
          */
         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE) && cbt->compare == 0) {
-            /*
-             * Whenever the cursor doesn't found an exact match or found an exact match in the
-             * insert list, it is possible that temporary key of the cursor and the cursor position
-             * slot will differ. Pass the key as NULL instead of the cursor temporary key to let the
-             * key to be generated internally from cursor position slot to access the history store.
-             */
-            WT_ERR(
-              __wt_cursor_valid(cbt, (cbt->ins != NULL ? NULL : cbt->tmp), WT_RECNO_OOB, &valid));
+            WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
             if (valid)
                 goto duplicate;
         }
@@ -1172,16 +1155,8 @@ retry:
              * checking if the update is visible in __wt_cursor_valid, or we can miss conflicts.
              */
             WT_ERR(__curfile_update_check(cbt));
-
-            /*
-             * Whenever the cursor doesn't found an exact match or found an exact match in the
-             * insert list, it is possible that temporary key of the cursor and the cursor position
-             * slot will differ. Pass the key as NULL instead of the cursor temporary key to let the
-             * key to be generated internally from cursor position slot to access the history store.
-             */
             WT_WITH_UPDATE_VALUE_SKIP_BUF(
-              ret =
-                __wt_cursor_valid(cbt, (cbt->ins != NULL ? NULL : cbt->tmp), WT_RECNO_OOB, &valid));
+              ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
             WT_ERR(ret);
             if (!valid)
                 WT_ERR(WT_NOTFOUND);
@@ -1358,16 +1333,8 @@ retry:
         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
             WT_ERR(__curfile_update_check(cbt));
             if (cbt->compare == 0) {
-                /*
-                 * Whenever the cursor doesn't found an exact match or found an exact match in the
-                 * insert list, it is possible that temporary key of the cursor and the cursor
-                 * position slot will differ. Pass the key as NULL instead of the cursor temporary
-                 * key to let the key to be generated internally from cursor position slot to access
-                 * the history store.
-                 */
                 WT_WITH_UPDATE_VALUE_SKIP_BUF(
-                  ret = __wt_cursor_valid(
-                    cbt, (cbt->ins != NULL ? NULL : cbt->tmp), WT_RECNO_OOB, &valid));
+                  ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
                 WT_ERR(ret);
                 if (!valid)
                     WT_ERR(WT_NOTFOUND);

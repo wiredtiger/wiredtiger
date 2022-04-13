@@ -954,8 +954,6 @@ static inline int
 __wt_txn_read(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE *upd)
 {
-    WT_DECL_ITEM(unpack_key);
-    WT_DECL_RET;
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd, *restored_upd;
     bool have_stop_tw, retry;
@@ -970,11 +968,8 @@ retry:
         return (0);
     WT_ASSERT(session, cbt->upd_value->type == WT_UPDATE_INVALID);
 
-    /*
-     * If there is no ondisk value, there can't be anything in the history store either. For a row
-     * store, we can't have a history store value if the key is found in the insert list.
-     */
-    if (cbt->ref->page->dsk == NULL || (S2BT(session)->type == BTREE_ROW && cbt->ins != NULL)) {
+    /* If there is no ondisk value, there can't be anything in the history store either. */
+    if (cbt->ref->page->dsk == NULL) {
         cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
         return (0);
     }
@@ -1045,25 +1040,9 @@ retry:
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
-        /*
-         * Generate a local key for the history store search from the cursor position slot when the
-         * caller doesn't pass it.
-         */
-        if (S2BT(session)->type == BTREE_ROW && key == NULL) {
-            WT_RET(__wt_scr_alloc(session, 0, &unpack_key));
-            WT_RET(__wt_row_leaf_key(
-              session, cbt->ref->page, &cbt->ref->page->pg_row[cbt->slot], unpack_key, true));
-            key = unpack_key;
-        }
         __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH);
-        ret = __wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format, recno,
-          cbt->upd_value, &cbt->upd_value->buf);
-        /* Free the locally allocated key. */
-        if (unpack_key != NULL) {
-            __wt_scr_free(session, &unpack_key);
-            key = NULL;
-        }
-        WT_RET(ret);
+        WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format, recno,
+          cbt->upd_value, &cbt->upd_value->buf));
     }
 
     /*
