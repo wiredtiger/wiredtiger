@@ -33,7 +33,7 @@ from helper_tiered import TieredConfigMixin, tiered_storage_sources
 from wtscenario import make_scenarios
 import os, wttest
 
-class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
+class test_export02(TieredConfigMixin, wttest.WiredTigerTestCase):
     dir = 'backup.dir'
 
     types = [
@@ -42,29 +42,26 @@ class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(tiered_storage_sources, types)
 
-    # Test that the WiredTiger.export file is correctly created and removed.
+    # Test that the WiredTiger.export file contains the correct contents
+    # after performing operations on the home directory, creating a backup
+    # directory, and then performing operations on the backup directory.
     def test_export(self):
-        uri_a = self.type + "exporta"
-        uri_b = self.type + "exportb"
-        uri_c = self.type + "exportc"
+        uri_d = self.type + "exportd"
+        uri_e = self.type + "exporte"
+        uri_f = self.type + "exportf"
 
-        # Create a few tables.
-        self.session.create(uri_a)
-        self.session.create(uri_b)
-        self.session.create(uri_c)
+        # Create two tables.
+        self.session.create(uri_d)
+        self.session.create(uri_e)
 
         # Insert some records.
-        c1 = self.session.open_cursor(uri_a)
-        c1["k1"] = "v1"
-        c1.close()
+        c4 = self.session.open_cursor(uri_d)
+        c4["k4"] = "v4"
+        c4.close()
 
-        c2 = self.session.open_cursor(uri_b)
-        c2["k2"] = "v2"
-        c2.close()
-
-        c3 = self.session.open_cursor(uri_c)
-        c3["k3"] = "v3"
-        c3.close()
+        c5 = self.session.open_cursor(uri_e)
+        c5["k5"] = "v5"
+        c5.close()
 
         self.session.checkpoint()
 
@@ -72,19 +69,42 @@ class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
             self.session.flush_tier(None)
 
         # Open a special backup cursor for export operation.
-        export_cursor = self.session.open_cursor('backup:export', None, None)
+        main_cursor = self.session.open_cursor('backup:export', None, None)
 
+        # Copy the main database to another directory, including the WiredTiger.export file.
         os.mkdir(self.dir)
         copy_wiredtiger_home(self, '.', self.dir)
-        self.assertTrue(os.path.isfile("WiredTiger.export"))
+
+        main_cursor.close()
+        self.close_conn()
+
+        # Open a connection and session on the directory copy.
+        self.conn = self.setUpConnectionOpen(self.dir)
+        self.session = self.setUpSessionOpen(self.conn)
+
+        # Create a third table and drop the second table.
+        self.session.create(uri_f)
+        c6 = self.session.open_cursor(uri_f)
+        c6["k6"] = "k6"
+        c6.close()
+
+        self.session.checkpoint()
+
+        if self.is_tiered_scenario():
+            self.session.flush_tier(None)
+
+        self.session.drop(uri_e)
+
+        # Open an export cursor on the database copy.
+        export_cursor = self.session.open_cursor('backup:export', None, None)
+        self.assertTrue(os.path.isfile(self.dir + "/WiredTiger.export"))
+
+        # The information for the third table should exist in the WiredTiger.export file
+        # but the information for the second table should not exist in the file.
+        self.assertTrue(open(self.dir + "/WiredTiger.export", "r").read().find("exporte") == -1)
+        self.assertTrue(open(self.dir + "/WiredTiger.export", "r").read().find("exportf") != -1)
 
         export_cursor.close()
-
-        # The export file should be removed from the home directory.
-        self.assertFalse(os.path.isfile("WiredTiger.export"))
-        
-        # The export file should exist in the backup directory.
-        self.assertTrue(os.path.isfile(self.dir + "/WiredTiger.export"))
 
 if __name__ == '__main__':
     wttest.run()
