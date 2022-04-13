@@ -250,14 +250,15 @@ class WiredTigerTestCase(unittest.TestCase):
     def finalReport():
         # We retry tests that get rollback errors in a way that is mostly invisible.
         # self._rollbacksAllowedPerTest makes sure a single test doesn't rollback too many times.
-        # We also want to report an error if the total number of retries gets above a threshold,
-        # we use 1% if the number of tests is large enough.  Each rollback error's stack
-        # is already recorded, so we give visibility to it here.
-        total = WiredTigerTestCase._testsRun
-        retries = WiredTigerTestCase._retriesAfterRollback
-        if (total > 300 and retries/total > 0.01) or (total <= 300 and retries >= 3):
-            raise Exception('Retries from WT_ROLLBACK: {}/{}, see {} for stack traces'.format(
-                retries, total, WiredTigerTestCase._resultFileName))
+        # We also want to report an error if the total number of retries in the entire run gets
+        # above a threshold, we use 1%.  To prevent a shorter run (say 50 tests) from tripping
+        # over this if it happens to have 1 or 2 hits, we won't fail unless there's an absolute
+        # quantity of failures above 3.
+        totalTestsRun = WiredTigerTestCase._testsRun
+        totalRetries = WiredTigerTestCase._retriesAfterRollback
+        if totalRetries / totalTestsRun > 0.01 and totalRetries >= 3:
+            raise Exception('Retries from WT_ROLLBACK in test suite: {}/{}, see {} for stack traces'.format(
+                totalRetries, totalTestsRun, WiredTigerTestCase._resultFileName))
 
     def fdSetUp(self):
         self.captureout = CapturedFd('stdout.txt', 'standard output')
@@ -332,7 +333,7 @@ class WiredTigerTestCase(unittest.TestCase):
             except wiredtiger.WiredTigerRollbackError:
                 WiredTigerTestCase._retriesAfterRollback += 1
                 self.prexception(sys.exc_info())
-                if rollbacksAllowed <= 0:
+                if rollbacksAllowed == 0:
                     self.pr('rollback error, no more restarts, failing test.')
                     raise
                 else:
@@ -551,6 +552,16 @@ class WiredTigerTestCase(unittest.TestCase):
     def checkStdout(self):
         self.captureout.check(self)
 
+    def readyDirectoryForRemoval(self, directory):
+        # Make sure any read-only files or directories left behind
+        # are made writeable in preparation for removal.
+        os.chmod(directory, 0o777)
+        for root, dirs, files in os.walk(directory):
+            for d in dirs:
+                os.chmod(os.path.join(root, d), 0o777)
+            for f in files:
+                os.chmod(os.path.join(root, f), 0o666)
+
     def tearDown(self):
         # This approach works for all our support Python versions and
         # is suggested by one of the answers in:
@@ -590,17 +601,11 @@ class WiredTigerTestCase(unittest.TestCase):
             # always get back to original directory
             os.chdir(self.origcwd)
 
-        # Make sure no read-only files or directories were left behind
-        os.chmod(self.testdir, 0o777)
-        for root, dirs, files in os.walk(self.testdir):
-            for d in dirs:
-                os.chmod(os.path.join(root, d), 0o777)
-            for f in files:
-                os.chmod(os.path.join(root, f), 0o666)
         self.pr('passed=' + str(passed))
         self.pr('skipped=' + str(self.skipped))
 
         # Clean up unless there's a failure
+        self.readyDirectoryForRemoval(self.testdir)
         if (passed and (not WiredTigerTestCase._preserveFiles)) or self.skipped:
             shutil.rmtree(self.testdir, ignore_errors=True)
         else:
