@@ -1346,6 +1346,7 @@ checkpoint_worker(void *arg)
         }
         wtperf->ckpt = false;
         ++thread->ckpt.ops;
+        printf("CHECKPOINT DONE\n");
     }
 
     if (session != NULL && ((ret = session->close(session, NULL)) != 0)) {
@@ -1550,11 +1551,7 @@ execute_populate(WTPERF *wtperf)
      * as we populate the database.
      */
     if (opts->tiered_flush_interval != 0) {
-        lprintf(wtperf, 0, 1, "Starting 1 flush_tier thread");
-        wtperf->flushthreads = dcalloc(1, sizeof(WTPERF_THREAD));
-        start_threads(wtperf, NULL, wtperf->flushthreads, 1, flush_tier_worker);
-
-        /* Start the checkpoint thread. */
+         /* Start the checkpoint thread. */
         if (opts->checkpoint_threads != 0) {
             lprintf(
                 wtperf, 0, 1, "Starting %" PRIu32 " checkpoint thread(s)", opts->checkpoint_threads);
@@ -1565,6 +1562,10 @@ execute_populate(WTPERF *wtperf)
             lprintf(wtperf, 0, 1, "Running a flush-tier thread without checkpoint threads "
                     "on populate may hang the flush thread.");
         }
+
+        lprintf(wtperf, 0, 1, "Starting 1 flush_tier thread");
+        wtperf->flushthreads = dcalloc(1, sizeof(WTPERF_THREAD));
+        start_threads(wtperf, NULL, wtperf->flushthreads, 1, flush_tier_worker);
     }
 
     lprintf(wtperf, 0, 1, "Starting %" PRIu32 " populate thread(s) for %" PRIu64 " items",
@@ -1645,10 +1646,12 @@ execute_populate(WTPERF *wtperf)
     if (wtperf->flushthreads != NULL) {
         stop_threads(1, wtperf->flushthreads);
         free(wtperf->flushthreads);
+        wtperf->flushthreads = NULL;
     }
     if (wtperf->ckptthreads != NULL) {
         stop_threads(1, wtperf->ckptthreads);
         free(wtperf->ckptthreads);
+        wtperf->ckptthreads = NULL;
     }
     wtperf->stop = false;
 
@@ -2060,11 +2063,16 @@ wtperf_free(WTPERF *wtperf)
         free(wtperf->uris);
     }
 
-    free(wtperf->backupthreads);
-    free(wtperf->ckptthreads);
-    free(wtperf->flushthreads);
-    free(wtperf->scanthreads);
-    free(wtperf->popthreads);
+    if (wtperf->backupthreads != NULL)
+        free(wtperf->backupthreads);
+
+        free(wtperf->ckptthreads);
+    if (wtperf->flushthreads != NULL)
+        free(wtperf->flushthreads);
+    if (wtperf->scanthreads != NULL)
+        free(wtperf->scanthreads);
+    if (wtperf->popthreads != NULL)
+        free(wtperf->popthreads);
 
     free(wtperf->workers);
     free(wtperf->workload);
@@ -2368,10 +2376,12 @@ err:
     /* Notify the worker threads they are done. */
     wtperf->stop = true;
 
-    stop_threads(1, wtperf->backupthreads);
-    stop_threads(1, wtperf->ckptthreads);
-    stop_threads(1, wtperf->flushthreads);
-    stop_threads(1, wtperf->scanthreads);
+    if (wtperf->workers_cnt != 0 && (opts->run_time != 0 || opts->run_ops != 0)) {
+        stop_threads(1, wtperf->backupthreads);
+        stop_threads(1, wtperf->ckptthreads);
+        stop_threads(1, wtperf->flushthreads);
+        stop_threads(1, wtperf->scanthreads);
+    }
 
     if (monitor_created != 0)
         testutil_check(__wt_thread_join(NULL, &monitor_thread));

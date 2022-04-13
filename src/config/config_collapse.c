@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -45,7 +45,7 @@ __wt_config_collapse(WT_SESSION_IMPL *session, const char **cfg, char **config_r
             k.len += 2;
         }
         if (v.type == WT_CONFIG_ITEM_STRING) {
-            --v.str;
+           --v.str;
             v.len += 2;
         }
         WT_ERR(__wt_buf_catfmt(session, tmp, "%.*s=%.*s,", (int)k.len, k.str, (int)v.len, v.str));
@@ -359,7 +359,7 @@ __wt_config_merge(WT_SESSION_IMPL *session, const char **cfg, const char *cfg_st
     /* Convert the array of entries into a string. */
     ret = __config_merge_format(session, &merge, config_ret);
 
-err:
+  err:
     for (i = 0; i < merge.entries_next; ++i) {
         __wt_free(session, merge.entries[i].k);
         __wt_free(session, merge.entries[i].v);

@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -150,6 +150,9 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
                 /* If nothing has changed, there's nothing to do. */
                 if (ckpt_time == 0 || (uint64_t)cval.val > ckpt_time) {
                     WT_STAT_CONN_INCR(session, flush_tier_skipped);
+                    __wt_verbose(session, WT_VERB_TIERED, "FLUSH_TIER_ONCE: skipped: "
+                                 "ckpt_time=%" PRIu64 ", flush_time=%" PRIu64 "",
+                                 ckpt_time, cval.val);
                     continue;
                 }
             }
@@ -186,6 +189,8 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
     uint64_t now;
     const char *object;
 
+    printf("REMOVE LOCAL\n");
+
     entry = NULL;
     for (;;) {
         /* Check if we're quitting or being reconfigured. */
@@ -194,11 +199,13 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
 
         __wt_seconds(session, &now);
         __wt_tiered_get_drop_local(session, now, &entry);
-        if (entry == NULL)
+        if (entry == NULL) {
+            __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: no entry at time %" PRId64 "", now);
             break;
+        }
         WT_ERR(__wt_tiered_name(
           session, &entry->tiered->iface, entry->id, WT_TIERED_NAME_OBJECT, &object));
-        __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: %s at %" PRIu64, object, now);
+
         WT_PREFIX_SKIP_REQUIRED(session, object, "object:");
         /*
          * If the handle is still open, it could still be in use for reading. In that case put the

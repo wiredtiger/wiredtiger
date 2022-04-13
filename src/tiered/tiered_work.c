@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -176,6 +176,7 @@ __wt_tiered_put_drop_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t
     /* Put a work unit in the queue with the time this object expires. */
     entry->op_val = now + tiered->bstorage->retain_secs;
     entry->tiered = tiered;
+    __wt_verbose(session, WT_VERB_TIERED, "PUT DROP LOCAL: for time %" PRId64 "",  entry->op_val );
     __wt_tiered_push_work(session, entry);
     return (0);
 }
@@ -189,6 +190,7 @@ __wt_tiered_put_drop_shared(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_
 {
     WT_TIERED_WORK_UNIT *entry;
 
+    printf("PUT_DROP_SHARED\n");
     WT_RET(__wt_calloc_one(session, &entry));
     entry->type = WT_TIERED_WORK_DROP_SHARED;
     entry->id = id;

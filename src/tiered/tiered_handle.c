@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -592,9 +592,10 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     else
         WT_ERR(__wt_tiered_bucket_config(session, tiered_cfg, &tiered->bstorage));
     WT_ASSERT(session, tiered->bstorage != NULL);
+
     /* Collapse into one string for later use in switch. */
     WT_ERR(__wt_config_merge(session, tiered_cfg, NULL, &config));
-
+    printf("CONFIGURATION `: %s\n", config);
     /*
      * Pull in any configuration of the original table for the object and file components that may
      * have been sent in on the create.
