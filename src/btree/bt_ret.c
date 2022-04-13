@@ -41,6 +41,14 @@ __key_return(WT_CURSOR_BTREE *cbt)
             return (0);
         }
 
+        /* If the cursor references a WT_INSERT item, take its key. */
+        if (cbt->ins != NULL) {
+            WT_ASSERT(CUR2S(cbt), cbt->compare != 0);
+            cursor->key.data = WT_INSERT_KEY(cbt->ins);
+            cursor->key.size = WT_INSERT_KEY_SIZE(cbt->ins);
+            return (0);
+        }
+
         /* Otherwise, take the key from the original page. */
         rip = &page->pg_row[cbt->slot];
         return (__wt_row_leaf_key(CUR2S(cbt), page, rip, &cursor->key, false));
