@@ -513,20 +513,36 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
 }
 
 /*
+ * __cursor_reposition_timing_stress --
+ *     Optionally reposition the cursor 10% of times
+ */
+static inline bool
+__cursor_reposition_timing_stress(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_EVICT_REPOSITION) &&
+      __wt_random(&session->rnd) % 10 == 0)
+        return (true);
+
+    return (false);
+}
+
+/*
  * __wt_btcur_evict_reposition --
  *     Try to evict the page and reposition the cursor on the saved key.
  */
 int
 __wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
-    conn = S2C(session);
 
     /*
      * Try to evict the page and then reposition the cursor back to the page for operations with
@@ -537,7 +553,7 @@ __wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
     if (session->txn->isolation == WT_ISO_SNAPSHOT && F_ISSET(session->txn, WT_TXN_RUNNING) &&
       ((__wt_page_evict_soon_check(session, cbt->ref, NULL) &&
          !__wt_hazard_check_more_than_one(session, cbt->ref)) ||
-        FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_EVICT_REPOSITION))) {
+        __cursor_reposition_timing_stress(session))) {
 
         WT_STAT_CONN_DATA_INCR(session, cursor_reposition);
         WT_ERR(__wt_cursor_localkey(cursor));
