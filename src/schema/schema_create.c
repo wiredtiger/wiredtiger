@@ -1015,17 +1015,17 @@ static int
 __metadata_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, void *state)
 {
     WT_IMPORT_LIST *import_list;
-    const char *md_key, *md_key_suffix, *md_value;
+    const char *meta_key, *meta_key_suffix, *meta_value;
 
     import_list = (WT_IMPORT_LIST *)state;
-    md_key = (const char *)key->data;
-    md_value = (const char *)value->data;
+    meta_key = (const char *)key->data;
+    meta_value = (const char *)value->data;
 
     /* Get suffix of the key. */
-    WT_RET(__get_uri_suffix(session, md_key, &md_key_suffix));
+    WT_RET(__get_uri_suffix(session, meta_key, &meta_key_suffix));
 
     /* Skip unrelated entries. */
-    if (!WT_PREFIX_MATCH(md_key_suffix, import_list->uri_suffix))
+    if (!WT_PREFIX_MATCH(meta_key_suffix, import_list->uri_suffix))
         return (0);
 
     /*
@@ -1039,9 +1039,9 @@ __metadata_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, 
 
     /* Populate the next entry. */
     WT_RET(__wt_strndup(
-      session, md_key, key->size, &import_list->entries[import_list->entries_next].name));
+      session, meta_key, key->size, &import_list->entries[import_list->entries_next].name));
     WT_RET(__wt_strndup(
-      session, md_value, value->size, &import_list->entries[import_list->entries_next].config));
+      session, meta_value, value->size, &import_list->entries[import_list->entries_next].config));
     import_list->entries_next++;
 
     return (0);

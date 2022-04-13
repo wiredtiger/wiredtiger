@@ -98,7 +98,7 @@ __metadata_backup_target_uri_search(
  */
 int
 __wt_read_metadata_file(WT_SESSION_IMPL *session, const char *file,
-  int (*md_entry_worker_func)(WT_SESSION_IMPL *, WT_ITEM *, WT_ITEM *, void *), void *state,
+  int (*meta_entry_worker_func)(WT_SESSION_IMPL *, WT_ITEM *, WT_ITEM *, void *), void *state,
   bool *file_exist)
 {
     WT_DECL_ITEM(key);
@@ -123,7 +123,7 @@ __wt_read_metadata_file(WT_SESSION_IMPL *session, const char *file,
         if (value->size == 0)
             WT_ERR_PANIC(session, EINVAL, "%s: zero-length value", file);
 
-        WT_ERR(md_entry_worker_func(session, key, value, state));
+        WT_ERR(meta_entry_worker_func(session, key, value, state));
     }
 
 err:
@@ -143,13 +143,13 @@ static int
 __metadata_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, void *state)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_METADATA_FILE_WALK_STATE *md_state;
+    WT_METADATA_FILE_WALK_STATE *meta_state;
     char *metadata_key, **p;
 
     metadata_key = NULL;
     p = NULL;
     conn = S2C(session);
-    md_state = (WT_METADATA_FILE_WALK_STATE *)state;
+    meta_state = (WT_METADATA_FILE_WALK_STATE *)state;
 
     /*
      * When performing partial backup restore, generate a list of tables that is not part of the
@@ -167,19 +167,19 @@ __metadata_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, 
          * dropped. If the metadata table entry does not exist in the target uri hash table, append
          * the metadata key to the backup remove list.
          */
-        if (__metadata_backup_target_uri_search(session, md_state->backuphash, metadata_key) ==
+        if (__metadata_backup_target_uri_search(session, meta_state->backuphash, metadata_key) ==
           false) {
-            if (key->size > md_state->max_len)
-                md_state->max_len = key->size;
+            if (key->size > meta_state->max_len)
+                meta_state->max_len = key->size;
 
             WT_RET(__wt_realloc_def(
-              session, &md_state->allocated, md_state->slot + 2, &md_state->partial_backup_names));
-            p = &md_state->partial_backup_names[md_state->slot];
+              session, &meta_state->allocated, meta_state->slot + 2, &meta_state->partial_backup_names));
+            p = &meta_state->partial_backup_names[meta_state->slot];
             p[0] = p[1] = NULL;
 
             WT_RET(__wt_strndup(session, (char *)key->data, key->size,
-              &md_state->partial_backup_names[md_state->slot]));
-            md_state->slot++;
+              &meta_state->partial_backup_names[meta_state->slot]));
+            meta_state->slot++;
         }
     }
 
@@ -202,7 +202,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_BACKUPHASH *backuphash)
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_METADATA_FILE_WALK_STATE md_state;
+    WT_METADATA_FILE_WALK_STATE meta_state;
     size_t file_len;
     char *filename, *metadata_conf, *tablename;
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "remove_files=false", NULL};
@@ -213,19 +213,19 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_BACKUPHASH *backuphash)
     filename = metadata_conf = tablename = NULL;
     exist = false;
 
-    WT_CLEAR(md_state);
-    md_state.backuphash = backuphash;
+    WT_CLEAR(meta_state);
+    meta_state.backuphash = backuphash;
 
     /* Open metadata backup file and iterate over the key value pairs. */
     WT_ERR(__wt_read_metadata_file(
-      session, WT_METADATA_BACKUP, __metadata_entry_worker, &md_state, &exist));
+      session, WT_METADATA_BACKUP, __metadata_entry_worker, &meta_state, &exist));
     if (!exist)
         goto err;
 
     F_SET(conn, WT_CONN_WAS_BACKUP);
-    if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) && md_state.partial_backup_names != NULL) {
-        WT_ERR(__wt_calloc_def(session, md_state.slot + 1, &conn->partial_backup_remove_ids));
-        file_len = strlen("file:") + md_state.max_len + strlen(".wt") + 1;
+    if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) && meta_state.partial_backup_names != NULL) {
+        WT_ERR(__wt_calloc_def(session, meta_state.slot + 1, &conn->partial_backup_remove_ids));
+        file_len = strlen("file:") + meta_state.max_len + strlen(".wt") + 1;
         WT_ERR(__wt_calloc_def(session, file_len, &filename));
         /*
          * Parse through the partial backup list and attempt to clean up all metadata references
@@ -233,19 +233,19 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_BACKUPHASH *backuphash)
          * remove all linked references. At the same time generate a list of btree ids to be used in
          * recovery to truncate all the history store records.
          */
-        for (md_state.slot = 0; md_state.partial_backup_names[md_state.slot] != NULL;
-             ++md_state.slot) {
-            tablename = md_state.partial_backup_names[md_state.slot];
+        for (meta_state.slot = 0; meta_state.partial_backup_names[meta_state.slot] != NULL;
+             ++meta_state.slot) {
+            tablename = meta_state.partial_backup_names[meta_state.slot];
             WT_PREFIX_SKIP_REQUIRED(session, tablename, "table:");
             WT_ERR(__wt_snprintf(filename, file_len, "file:%s.wt", tablename));
             WT_ERR(__wt_metadata_search(session, filename, &metadata_conf));
             WT_ERR(__wt_config_getones(session, metadata_conf, "id", &cval));
-            conn->partial_backup_remove_ids[md_state.slot] = (uint32_t)cval.val;
+            conn->partial_backup_remove_ids[meta_state.slot] = (uint32_t)cval.val;
 
             WT_WITH_SCHEMA_LOCK(session,
               WT_WITH_TABLE_WRITE_LOCK(session,
                 ret = __wt_schema_drop(
-                  session, md_state.partial_backup_names[md_state.slot], drop_cfg)));
+                  session, meta_state.partial_backup_names[meta_state.slot], drop_cfg)));
             WT_ERR(ret);
             __wt_free(session, metadata_conf);
         }
@@ -259,11 +259,11 @@ err:
      * Free the partial backup names list. The backup id list is used in recovery to truncate the
      * history store entries that do not exist as part of the database anymore.
      */
-    if (md_state.partial_backup_names != NULL) {
-        for (md_state.slot = 0; md_state.partial_backup_names[md_state.slot] != NULL;
-             ++md_state.slot)
-            __wt_free(session, md_state.partial_backup_names[md_state.slot]);
-        __wt_free(session, md_state.partial_backup_names);
+    if (meta_state.partial_backup_names != NULL) {
+        for (meta_state.slot = 0; meta_state.partial_backup_names[meta_state.slot] != NULL;
+             ++meta_state.slot)
+            __wt_free(session, meta_state.partial_backup_names[meta_state.slot]);
+        __wt_free(session, meta_state.partial_backup_names);
     }
 
     return (ret);
