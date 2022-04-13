@@ -527,6 +527,7 @@ __wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
     cursor = &cbt->iface;
     session = CUR2S(cbt);
     conn = S2C(session);
+
     /*
      * Try to evict the page and then reposition the cursor back to the page for operations with
      * snapshot isolation and for pages that require urgent eviction. Snapshot isolation level

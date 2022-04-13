@@ -182,7 +182,7 @@ class test_hs30(wttest.WiredTigerTestCase):
         stat_cursor.close()
 
         if self.do_evict:
-            # Should have atleast read nrows twice.
+            # Should have at least read nrows twice.
             self.assertGreaterEqual(hs_read, nrows * 2)
         else:
             # Apparently even if we checkpoint, without an explicit evict the old in-memory
