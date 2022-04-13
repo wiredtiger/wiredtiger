@@ -1007,12 +1007,12 @@ __get_uri_suffix(WT_SESSION_IMPL *session, const char *uri, const char **suffix)
 }
 
 /*
- * __metadata_entry_worker --
+ * __create_meta_entry_worker --
  *     Worker function for metadata file reader procedure. The function populates the import list
  *     with entries related to the import URI.
  */
 static int
-__metadata_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, void *state)
+__create_meta_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, void *state)
 {
     WT_IMPORT_LIST *import_list;
     const char *meta_key, *meta_key_suffix, *meta_value;
@@ -1048,22 +1048,22 @@ __metadata_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, 
 }
 
 /*
- * __schema_parse_wt_export --
+ * __create_parse_export --
  *     Parse export metadata file and populate array of name/config entries related to uri. The
  *     array is sorted by entry name. Caller is responsible to free any memory allocated for the
  *     import list.
  */
 static int
-__schema_parse_wt_export(
+__create_parse_export(
   WT_SESSION_IMPL *session, const char *export_file, WT_IMPORT_LIST *import_list)
 {
     bool exist;
 
     exist = false;
 
-    /* Open the metadata export file and iterate over the key value pairs. */
-    WT_RET(
-      __wt_read_metadata_file(session, export_file, __metadata_entry_worker, import_list, &exist));
+    /* Open the specified metadata file and iterate over the key value pairs. */
+    WT_RET(__wt_read_metadata_file(
+      session, export_file, __create_meta_entry_worker, import_list, &exist));
     if (!exist)
         return (0);
 
@@ -1112,7 +1112,7 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
             WT_ERR(__wt_strndup(session, cval.str, cval.len, &export_file));
             import_list.uri = uri;
             WT_ERR(__get_uri_suffix(session, uri, &import_list.uri_suffix));
-            WT_ERR(__schema_parse_wt_export(session, export_file, &import_list));
+            WT_ERR(__create_parse_export(session, export_file, &import_list));
         }
     }
 
