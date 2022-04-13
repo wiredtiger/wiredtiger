@@ -14,7 +14,7 @@ typedef struct {
     char *config;
 } WT_IMPORT_ENTRY;
 
-/* Array of metadata entries used in the import from metadata file process. */
+/* Array of metadata entries used when importing from a metadata file. */
 typedef struct {
     size_t entries_allocated; /* allocated */
     size_t entries_next;      /* next slot */
@@ -755,7 +755,7 @@ __create_table(
     WT_DECL_RET;
     WT_TABLE *table;
     size_t len;
-    int ncolgroups, num_keys;
+    int ncolgroups, nkeys;
     char *cgcfg, *cgname, *filecfg, *filename, *importcfg, *tablecfg;
     const char *cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
     const char *tablename;
@@ -792,9 +792,9 @@ __create_table(
          */
         if (!import_repair) {
             __wt_config_init(session, &conf, config);
-            for (num_keys = 0; (ret = __wt_config_next(&conf, &ckey, &cval)) == 0; num_keys++)
+            for (nkeys = 0; (ret = __wt_config_next(&conf, &ckey, &cval)) == 0; nkeys++)
                 ;
-            if (num_keys == 1)
+            if (nkeys == 1)
                 WT_ERR_MSG(session, EINVAL,
                   "%s: import requires that the table configuration is specified or the "
                   "'repair' option is provided",
@@ -978,11 +978,11 @@ __create_data_source(
 }
 
 /*
- * __import_entry_cmp --
+ * __create_import_cmp --
  *     Qsort function: sort the import entries array by name.
  */
 static int WT_CDECL
-__import_entry_cmp(const void *a, const void *b)
+__create_import_cmp(const void *a, const void *b)
 {
     WT_IMPORT_ENTRY *ae, *be;
 
@@ -1008,8 +1008,8 @@ __get_uri_suffix(WT_SESSION_IMPL *session, const char *uri, const char **suffix)
 
 /*
  * __metadata_entry_worker --
- *     Worker function for metadata file reader procedure. The function populates import list with
- *     entries related to the import URI.
+ *     Worker function for metadata file reader procedure. The function populates the import list
+ *     with entries related to the import URI.
  */
 static int
 __metadata_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, void *state)
@@ -1061,15 +1061,15 @@ __schema_parse_wt_export(
 
     exist = false;
 
-    /* Open metadata backup file and iterate over the key value pairs. */
+    /* Open the metadata export file and iterate over the key value pairs. */
     WT_RET(
       __wt_read_metadata_file(session, export_file, __metadata_entry_worker, import_list, &exist));
     if (!exist)
         return (0);
 
     /* Sort the array by name. We will use binary search later to get config string. */
-    __wt_qsort(
-      import_list->entries, import_list->entries_next, sizeof(WT_IMPORT_ENTRY), __import_entry_cmp);
+    __wt_qsort(import_list->entries, import_list->entries_next, sizeof(WT_IMPORT_ENTRY),
+      __create_import_cmp);
 
     return (0);
 }

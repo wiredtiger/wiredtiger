@@ -106,7 +106,7 @@ __wt_read_metadata_file(WT_SESSION_IMPL *session, const char *file,
     WT_DECL_RET;
     WT_FSTREAM *fs;
 
-    /* Look for a metadata export file: if we find it, load it. */
+    /* Look for the given filename. If it exists, load it. */
     WT_RET(__wt_fs_exist(session, file, file_exist));
     if (!(*file_exist))
         return (0);
@@ -136,8 +136,8 @@ err:
 
 /*
  * __metadata_entry_worker --
- *     Worker function for metadata file reader procedure. The function populates partial backup
- *     names array and updates the metadata of database with the new entries read from the file.
+ *     Worker function for metadata file reader procedure. The function populates the partial backup
+ *     names array and updates the metadata of the database with the new entries read from the file.
  */
 static int
 __metadata_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, void *state)
@@ -152,7 +152,7 @@ __metadata_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, 
     meta_state = (WT_METADATA_FILE_WALK_STATE *)state;
 
     /*
-     * When performing partial backup restore, generate a list of tables that is not part of the
+     * When performing partial backup restore, generate a list of tables that are not part of the
      * target uri list so that we can drop all entries later. To do this, parse through all the
      * table metadata entries and check if the metadata entry exists in the target uri hash table.
      * If the metadata entry doesn't exist in the hash table, append the table name to the partial
@@ -172,8 +172,8 @@ __metadata_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, 
             if (key->size > meta_state->max_len)
                 meta_state->max_len = key->size;
 
-            WT_RET(__wt_realloc_def(
-              session, &meta_state->allocated, meta_state->slot + 2, &meta_state->partial_backup_names));
+            WT_RET(__wt_realloc_def(session, &meta_state->allocated, meta_state->slot + 2,
+              &meta_state->partial_backup_names));
             p = &meta_state->partial_backup_names[meta_state->slot];
             p[0] = p[1] = NULL;
 
@@ -216,7 +216,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_BACKUPHASH *backuphash)
     WT_CLEAR(meta_state);
     meta_state.backuphash = backuphash;
 
-    /* Open metadata backup file and iterate over the key value pairs. */
+    /* Open the metadata backup file and iterate over the key value pairs. */
     WT_ERR(__wt_read_metadata_file(
       session, WT_METADATA_BACKUP, __metadata_entry_worker, &meta_state, &exist));
     if (!exist)
