@@ -242,6 +242,10 @@ __tiered_flush_older_objects(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     const char *obj_name, *obj_uri, *obj_val;
     bool exist;
 
+    /* If this is a new table and there are no objects there is nothing to do. */
+    if (tiered->current_id == 0)
+        return (0);
+
     /*
      * Work our way backwards through all earlier objects and look at each object's flush_time
      * configuration setting. If it is zero that means the object is not flushed and a work unit
