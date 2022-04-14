@@ -24,6 +24,13 @@ __key_return(WT_CURSOR_BTREE *cbt)
     cursor = &cbt->iface;
 
     if (page->type == WT_PAGE_ROW_LEAF) {
+        /* If the cursor references a WT_INSERT item, take its key. */
+        if (cbt->ins != NULL) {
+            cursor->key.data = WT_INSERT_KEY(cbt->ins);
+            cursor->key.size = WT_INSERT_KEY_SIZE(cbt->ins);
+            return (0);
+        }
+
         /*
          * If there's an exact match, the row-store search function built the key we want to return
          * in the cursor's temporary buffer. Swap the cursor's search-key and temporary buffers so
@@ -38,14 +45,6 @@ __key_return(WT_CURSOR_BTREE *cbt)
 
             cursor->key.data = cbt->row_key->data;
             cursor->key.size = cbt->row_key->size;
-            return (0);
-        }
-
-        /* If the cursor references a WT_INSERT item, take its key. */
-        if (cbt->ins != NULL) {
-            WT_ASSERT(CUR2S(cbt), cbt->compare != 0);
-            cursor->key.data = WT_INSERT_KEY(cbt->ins);
-            cursor->key.size = WT_INSERT_KEY_SIZE(cbt->ins);
             return (0);
         }
 
