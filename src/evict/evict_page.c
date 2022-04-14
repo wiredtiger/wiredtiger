@@ -156,7 +156,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
      * example, we find a page with active children), quit. Make this check for clean pages, too:
      * while unlikely eviction would choose an internal page with children, it's not disallowed.
      */
-    WT_ERR(__evict_review(session, ref, flags, &inmem_split));
+    WT_WITH_PAGE_INDEX(session, ret = __evict_review(session, ref, flags, &inmem_split));
+    WT_ERR(ret);
 
     /*
      * If there was an in-memory split, the tree has been left in the state we want: there is
