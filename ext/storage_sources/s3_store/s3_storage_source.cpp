@@ -106,6 +106,103 @@ const uint64_t partSize = 8 * 1024 * 1024; // 8 MB.
 
 // Setting SDK options.
 Aws::SDKOptions options;
+int init = 0;
+
+// AWSInitializer
+class AWSInitializer {
+    public:
+    static AWSInitializer &
+    Get()
+    {
+        return s_Instance;
+    }
+
+    AWSInitializer(const AWSInitializer &) = delete;
+
+    static void
+    Init()
+    {
+        return Get().InitInternal();
+    }
+
+    static void
+    Terminate()
+    {
+        return Get().TerminateInternal();
+    }
+
+    private:
+    AWSInitializer()
+    {
+        refCount = 0;
+    }
+
+    void
+    InitInternal()
+    {
+        std::cout << "SingletonInit: refCount = " << refCount << std::endl;
+        if (refCount == 0) {
+            Aws::InitAPI(options);
+        }
+        refCount++;
+    }
+
+    void
+    TerminateInternal()
+    {
+        refCount--;
+        std::cout << "SingletonTerminate: refCount = " << refCount << std::endl;
+        if (refCount == 0) {
+            Aws::ShutdownAPI(options);
+        }
+    }
+
+    static AWSInitializer s_Instance;
+    int refCount;
+};
+
+AWSInitializer AWSInitializer::s_Instance;
+
+// Class for initiliasing AWS SDK
+// class AWSInit {
+//     public:
+//         AWSInit(){
+//             const size_t origCount = count++;
+
+//             if (origCount == 0) {
+//                 Aws::InitAPI(options);
+//             }
+//         }
+//         ~AWSInit(){
+//             const size_t newCount = --count;
+
+//             if (newCount == 0) {
+//                 Aws::ShutdownAPI(options);
+//             }
+//         }
+//         AWSInit(const AWSInit& ) = delete;
+//         AWSInit& operator=(const AWSInit& ) = delete;
+
+//     private:
+//     const Aws::SDKOptions options;
+//     static std::atomic<size_t> count;
+// };
+
+// AWSInit::Initialize(){
+//     const size_t origCount = count++;
+
+//     if (origCount == 0) {
+//         Aws::InitAPI(options);
+//     }
+// }
+
+// AWSInit::~Initialize(){
+//     const size_t newCount = --count;
+
+//     if (newCount == 0) {
+//         Aws::ShutdownAPI(options);
+//     }
+// }
 
 static int S3GetDirectory(
   const S3Storage &, const std::string &, const std::string &, bool, std::string &);
@@ -732,6 +829,8 @@ S3Terminate(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session)
 {
     S3Storage *s3 = (S3Storage *)storageSource;
 
+    s3->log->LogDebugMessage("S3Terminate: terminating s3.");
+
     if (--s3->referenceCount != 0)
         return (0);
 
@@ -754,7 +853,7 @@ S3Terminate(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session)
     S3LogStatistics(*s3);
 
     Aws::Utils::Logging::ShutdownAWSLogging();
-    Aws::ShutdownAPI(options);
+    AWSInitializer::Terminate();
 
     s3->log->LogDebugMessage("S3Terminate: Terminated S3 storage source.");
     delete (s3);
@@ -773,8 +872,16 @@ S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *f
     bool nativeExist;
     FS2S3(fileSystem)->statistics.putObjectCount++;
 
+    s3->log->LogDebugMessage("S3Flush: Flush to S3 Store using AWS SDK C++ PutObject");
+
     // Confirm that the file exists on the native filesystem.
-    if ((ret = wtFileSystem->fs_exist(wtFileSystem, session, source, &nativeExist)) != 0) {
+    std::string homeDir = session->connection->get_home(session->connection);
+    std::string path = source;
+
+    if (homeDir != ".")
+        path = homeDir + "/" + source;
+
+    if ((ret = wtFileSystem->fs_exist(wtFileSystem, session, path.c_str(), &nativeExist)) != 0) {
         s3->log->LogErrorMessage("S3Flush: Failed to check for the existence of " +
           std::string(source) + " on the native filesystem.");
         return (ret);
@@ -784,8 +891,10 @@ S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *f
         return (ENOENT);
     }
 
+    s3->log->LogDebugMessage(
+      "S3Flush: Uploading object: " + std::string(object) + "into bucket using PutObject");
     // Upload the object into the bucket.
-    if (ret = (fs->connection->PutObject(object, source)) != 0)
+    if (ret = (fs->connection->PutObject(object, path)) != 0)
         s3->log->LogErrorMessage("S3Flush: PutObject request to S3 failed.");
     else
         s3->log->LogDebugMessage("S3Flush: Uploaded object to S3.");
@@ -874,9 +983,8 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     // Set up statistics.
     s3->statistics = {0};
 
-    // Initialize the AWS SDK.
+    AWSInitializer::Init();
     Aws::Utils::Logging::InitializeAWSLogging(s3->log);
-    Aws::InitAPI(options);
 
     // Allocate a S3 storage structure, with a WT_STORAGE structure as the first field, allowing us
     // to treat references to either type of structure as a reference to the other type.
@@ -889,6 +997,8 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     // The first reference is implied by the call to add_storage_source.
     s3->referenceCount = 1;
 
+    s3->log->LogDebugMessage("wiredtiger_extension_init: Allocated s3 storage structure.");
+
     // Load the storage
     if ((ret = connection->add_storage_source(
            connection, "s3_store", &s3->storageSource, nullptr)) != 0) {
@@ -898,6 +1008,8 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         Aws::ShutdownAPI(options);
         delete (s3);
     }
+
+    s3->log->LogDebugMessage("wiredtiger_extension_init: Storage loaded.");
 
     return (ret);
 }
