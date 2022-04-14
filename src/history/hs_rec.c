@@ -484,8 +484,10 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
 
             prev_upd = upd;
 
-            /* No need to continue if we found a first self contained value that is globally
-             * visible. */
+            /*
+             * No need to continue if we found a first self contained value that is globally
+             * visible.
+             */
             if (__wt_txn_upd_visible_all(session, upd) && WT_UPDATE_DATA_VALUE(upd))
                 break;
 
