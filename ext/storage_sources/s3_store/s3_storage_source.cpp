@@ -104,17 +104,13 @@ struct S3FileHandle {
 const double throughputTargetGbps = 5;
 const uint64_t partSize = 8 * 1024 * 1024; // 8 MB.
 
-// Setting SDK options.
-Aws::SDKOptions options;
-int init = 0;
-
-// AWSInitializer
+// Wrapper singleton class for initializing and terminating the AWS SDK.
 class AWSInitializer {
     public:
     static AWSInitializer &
     Get()
     {
-        return s_Instance;
+        return aws_instance;
     }
 
     AWSInitializer(const AWSInitializer &) = delete;
@@ -157,52 +153,12 @@ class AWSInitializer {
         }
     }
 
-    static AWSInitializer s_Instance;
+    static AWSInitializer aws_instance;
+    Aws::SDKOptions options;
     int refCount;
 };
 
-AWSInitializer AWSInitializer::s_Instance;
-
-// Class for initiliasing AWS SDK
-// class AWSInit {
-//     public:
-//         AWSInit(){
-//             const size_t origCount = count++;
-
-//             if (origCount == 0) {
-//                 Aws::InitAPI(options);
-//             }
-//         }
-//         ~AWSInit(){
-//             const size_t newCount = --count;
-
-//             if (newCount == 0) {
-//                 Aws::ShutdownAPI(options);
-//             }
-//         }
-//         AWSInit(const AWSInit& ) = delete;
-//         AWSInit& operator=(const AWSInit& ) = delete;
-
-//     private:
-//     const Aws::SDKOptions options;
-//     static std::atomic<size_t> count;
-// };
-
-// AWSInit::Initialize(){
-//     const size_t origCount = count++;
-
-//     if (origCount == 0) {
-//         Aws::InitAPI(options);
-//     }
-// }
-
-// AWSInit::~Initialize(){
-//     const size_t newCount = --count;
-
-//     if (newCount == 0) {
-//         Aws::ShutdownAPI(options);
-//     }
-// }
+AWSInitializer AWSInitializer::aws_instance;
 
 static int S3GetDirectory(
   const S3Storage &, const std::string &, const std::string &, bool, std::string &);
@@ -1005,7 +961,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         s3->log->LogErrorMessage(
           "wiredtiger_extension_init: Could not load S3 storage source, shutting down.");
         Aws::Utils::Logging::ShutdownAWSLogging();
-        Aws::ShutdownAPI(options);
+        AWSInitializer::Terminate();
         delete (s3);
     }
 
