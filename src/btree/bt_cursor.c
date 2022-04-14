@@ -321,6 +321,19 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
         if (cbt->ins != NULL)
             return (0);
 
+        /* Paranoia. */
+        WT_ASSERT(session, recno == WT_RECNO_OOB);
+
+        /*
+         * The key can be NULL only when we didn't find an exact match, copy the search found key
+         * into the temporary buffer for further use.
+         */
+        if (key == NULL) {
+            WT_RET(__wt_row_leaf_key(
+              session, cbt->ref->page, &cbt->ref->page->pg_row[cbt->slot], cbt->tmp, true));
+            key = cbt->tmp;
+        }
+
         /* Check for an update. */
         WT_RET(__wt_txn_read(session, cbt, key, WT_RECNO_OOB,
           (page->modify != NULL && page->modify->mod_row_update != NULL) ?
@@ -662,10 +675,14 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
          * better match. This test is simplistic as we're ignoring append lists (there may be no
          * page slots or we might be legitimately positioned after the last page slot). Ignore those
          * cases, it makes things too complicated.
+         *
+         * If there's an exact match, the row-store search function built the key in the cursor's
+         * temporary buffer.
          */
         if (leaf_found &&
           (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)))
-            WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+            WT_ERR(
+              __wt_cursor_valid(cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, &valid));
     }
     if (!valid) {
         WT_ERR(__wt_cursor_func_init(cbt, true));
@@ -676,7 +693,12 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
          */
         if (btree->type == BTREE_ROW) {
             WT_ERR(__cursor_row_search(cbt, true, NULL, NULL));
-            WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+            /*
+             * If there's an exact match, the row-store search function built the key in the
+             * cursor's temporary buffer.
+             */
+            WT_ERR(
+              __wt_cursor_valid(cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, &valid));
         } else {
             WT_ERR(__cursor_col_search(cbt, NULL, NULL));
             WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
@@ -1099,117 +1121,126 @@ retry:
     WT_ERR(__wt_cursor_func_init(cbt, true));
 
     if (btree->type == BTREE_ROW) {
-        WT_ERR_NOTFOUND_OK(__cursor_row_search(cbt, false, NULL, NULL), true);
-        if (ret == WT_NOTFOUND)
-            goto search_notfound;
-
-        /* Check whether an update would conflict. */
-        WT_ERR(__curfile_update_check(cbt));
-
-        if (cbt->compare != 0)
-            goto search_notfound;
-        WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
-        WT_ERR(ret);
-        if (!valid)
-            goto search_notfound;
-
-        ret = __cursor_row_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
-    } else {
-        WT_ERR_NOTFOUND_OK(__cursor_col_search(cbt, NULL, NULL), true);
-        if (ret == WT_NOTFOUND)
-            goto search_notfound;
-
-        /*
-         * If we find a matching record, check whether an update would conflict. Do this before
-         * checking if the update is visible in __wt_cursor_valid, or we can miss conflict.
-         */
-        WT_ERR(__curfile_update_check(cbt));
-
-        /* Remove the record if it exists. */
-        valid = false;
+        WT_ERR(__cursor_row_search(cbt, false, NULL, NULL));
         if (cbt->compare == 0) {
-            WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
-            WT_ERR(ret);
-        }
-        if (cbt->compare != 0 || !valid) {
-            if (!__cursor_fix_implicit(btree, cbt))
-                goto search_notfound;
             /*
-             * Creating a record past the end of the tree in a fixed-length column-store implicitly
-             * fills the gap with empty records. Return success in that case, the record was deleted
-             * successfully.
-             *
-             * Correct the btree cursor's location: the search will have pointed us at the
-             * previous/next item, and that's not correct.
+             * If we find a matching record, check whether an update would conflict. Do this before
+             * checking if the update is visible in __wt_cursor_valid, or we can miss conflicts.
              */
-            cbt->recno = cursor->recno;
-        } else
-            ret = __cursor_col_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
-    }
+            WT_ERR(__curfile_update_check(cbt));
+            WT_WITH_UPDATE_VALUE_SKIP_BUF(
+              ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+            WT_ERR(ret);
+            if (!valid)
+                WT_ERR(WT_NOTFOUND);
+
+            if (cbt->compare != 0)
+                goto search_notfound;
+            WT_WITH_UPDATE_VALUE_SKIP_BUF(
+              ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+            WT_ERR(ret);
+            if (!valid)
+                goto search_notfound;
+
+            ret = __cursor_row_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
+        } else {
+            WT_ERR_NOTFOUND_OK(__cursor_col_search(cbt, NULL, NULL), true);
+            if (ret == WT_NOTFOUND)
+                goto search_notfound;
+
+            /*
+             * If we find a matching record, check whether an update would conflict. Do this before
+             * checking if the update is visible in __wt_cursor_valid, or we can miss conflict.
+             */
+            WT_ERR(__curfile_update_check(cbt));
+
+            /* Remove the record if it exists. */
+            valid = false;
+            if (cbt->compare == 0) {
+                WT_WITH_UPDATE_VALUE_SKIP_BUF(
+                  ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
+                WT_ERR(ret);
+            }
+            if (cbt->compare != 0 || !valid) {
+                if (!__cursor_fix_implicit(btree, cbt))
+                    goto search_notfound;
+                /*
+                 * Creating a record past the end of the tree in a fixed-length column-store
+                 * implicitly fills the gap with empty records. Return success in that case, the
+                 * record was deleted successfully.
+                 *
+                 * Correct the btree cursor's location: the search will have pointed us at the
+                 * previous/next item, and that's not correct.
+                 */
+                cbt->recno = cursor->recno;
+            } else
+                ret = __cursor_col_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
+        }
 
 err:
-    if (ret == WT_RESTART) {
-        __cursor_restart(session, &yield_count, &sleep_usecs);
-        goto retry;
-    }
-
-    if (ret == 0) {
-        /*
-         * If positioned originally, but we had to do a search, acquire a position so we can return
-         * success.
-         *
-         * If not positioned originally, leave it that way, clear any key and reset the cursor.
-         */
-        if (positioned) {
-            if (searched)
-                WT_TRET(__wt_key_return(cbt));
-        } else {
-            F_CLR(cursor, WT_CURSTD_KEY_SET);
-            WT_TRET(__cursor_reset(cbt));
+        if (ret == WT_RESTART) {
+            __cursor_restart(session, &yield_count, &sleep_usecs);
+            goto retry;
         }
 
-        /*
-         * Check the return status again as we might have encountered an error setting the return
-         * key or resetting the cursor after an otherwise successful remove.
-         */
-        if (ret != 0) {
+        if (ret == 0) {
+            /*
+             * If positioned originally, but we had to do a search, acquire a position so we can
+             * return success.
+             *
+             * If not positioned originally, leave it that way, clear any key and reset the cursor.
+             */
+            if (positioned) {
+                if (searched)
+                    WT_TRET(__wt_key_return(cbt));
+            } else {
+                F_CLR(cursor, WT_CURSTD_KEY_SET);
+                WT_TRET(__cursor_reset(cbt));
+            }
+
+            /*
+             * Check the return status again as we might have encountered an error setting the
+             * return key or resetting the cursor after an otherwise successful remove.
+             */
+            if (ret != 0) {
+                WT_TRET(__cursor_reset(cbt));
+                __cursor_state_restore(cursor, &state);
+            }
+        } else {
+            /*
+             * If the cursor is configured for overwrite and search returned not-found, that is what
+             * we want, try to return success. We can do that as long as it's not an iterating or
+             * positioned cursor. (Iterating or positioned cursors would have been forced to give up
+             * any pinned page, and when the search failed we've lost the cursor position. Since no
+             * subsequent iteration can succeed, we cannot return success.)
+             */
+            if (0) {
+search_notfound:
+                ret = WT_NOTFOUND;
+                if (!iterating && !positioned && F_ISSET(cursor, WT_CURSTD_OVERWRITE))
+                    ret = 0;
+            }
+
+            /*
+             * Reset the cursor and restore the original cursor key: done after clearing the return
+             * value in the clause immediately above so we don't lose an error value if cursor reset
+             * fails.
+             */
             WT_TRET(__cursor_reset(cbt));
             __cursor_state_restore(cursor, &state);
         }
-    } else {
-        /*
-         * If the cursor is configured for overwrite and search returned not-found, that is what we
-         * want, try to return success. We can do that as long as it's not an iterating or
-         * positioned cursor. (Iterating or positioned cursors would have been forced to give up any
-         * pinned page, and when the search failed we've lost the cursor position. Since no
-         * subsequent iteration can succeed, we cannot return success.)
-         */
-        if (0) {
-search_notfound:
-            ret = WT_NOTFOUND;
-            if (!iterating && !positioned && F_ISSET(cursor, WT_CURSTD_OVERWRITE))
-                ret = 0;
-        }
-
-        /*
-         * Reset the cursor and restore the original cursor key: done after clearing the return
-         * value in the clause immediately above so we don't lose an error value if cursor reset
-         * fails.
-         */
-        WT_TRET(__cursor_reset(cbt));
-        __cursor_state_restore(cursor, &state);
-    }
 
 done:
-    /*
-     * Upper level cursor removes don't expect the cursor value to be set after a successful remove
-     * (and check in diagnostic mode). Error handling may have converted failure to a success, do a
-     * final check.
-     */
-    if (ret == 0)
-        F_CLR(cursor, WT_CURSTD_VALUE_SET);
+        /*
+         * Upper level cursor removes don't expect the cursor value to be set after a successful
+         * remove (and check in diagnostic mode). Error handling may have converted failure to a
+         * success, do a final check.
+         */
+        if (ret == 0)
+            F_CLR(cursor, WT_CURSTD_VALUE_SET);
 
-    return (ret);
+        return (ret);
+    }
 }
 
 /*
