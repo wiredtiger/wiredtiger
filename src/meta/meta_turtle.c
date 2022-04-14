@@ -93,8 +93,8 @@ __metadata_backup_target_uri_search(
 
 /*
  * __wt_read_metadata_file --
- *     Open metadata file and iterate over the key value pairs calling the worker function for each
- *     of them.
+ *     Open a text-based metadata file and iterate over the key value pairs calling the worker
+ *     function for each of them.
  */
 int
 __wt_read_metadata_file(WT_SESSION_IMPL *session, const char *file,
