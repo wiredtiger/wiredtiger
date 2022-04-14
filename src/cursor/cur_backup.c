@@ -298,10 +298,8 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
         if (!F_ISSET(S2C(session), WT_CONN_INCR_BACKUP))
             WT_RET_MSG(session, EINVAL, "Incremental backup is not configured");
         F_SET(cb, WT_CURBACKUP_QUERYID);
-    }
-
-    /* Special backup cursor for export operation. */
-    if (WT_STRING_MATCH("backup:export", uri, strlen("backup:export")))
+    } else if (WT_STRING_MATCH("backup:export", uri, strlen("backup:export")))
+        /* Special backup cursor for export operation. */
         F_SET(cb, WT_CURBACKUP_EXPORT);
 
     /*
