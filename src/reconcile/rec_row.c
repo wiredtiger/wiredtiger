@@ -290,7 +290,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_PAGE *child;
     WT_REC_KV *key, *val;
     WT_REF *ref;
-    WT_TIME_AGGREGATE ta;
+    WT_TIME_AGGREGATE ft_ta, ta;
     size_t size;
     bool hazard;
     const void *p;
@@ -298,6 +298,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     btree = S2BT(session);
     child = NULL;
     hazard = false;
+    WT_TIME_AGGREGATE_INIT(&ft_ta);
 
     key = &r->k;
     kpack = &_kpack;
@@ -418,6 +419,19 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             }
             WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
         }
+
+        /*
+         * The fast-truncate is a stop time window and has to be considered in the internal page's
+         * aggregate information for RTS to find it.
+         */
+        if (state == WT_CHILD_PROXY) {
+            ft_ta.newest_start_durable_ts = ta.newest_start_durable_ts;
+            ft_ta.newest_stop_durable_ts = ref->ft_info.del->durable_timestamp;
+            ft_ta.oldest_start_ts = ta.oldest_start_ts;
+            ft_ta.newest_txn = ref->ft_info.del->txnid;
+            ft_ta.newest_stop_ts = ref->ft_info.del->timestamp;
+            ft_ta.newest_stop_txn = ref->ft_info.del->txnid;
+        }
         WT_CHILD_RELEASE_ERR(session, hazard, ref);
 
         /* Build key cell. Truncate any 0th key, internal pages don't need 0th keys. */
@@ -434,6 +448,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /* Copy the key and value onto the page. */
         __wt_rec_image_copy(session, r, key);
         __wt_rec_image_copy(session, r, val);
+        if (state == WT_CHILD_PROXY)
+            WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ft_ta);
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ta);
 
         /* Update compression state. */
