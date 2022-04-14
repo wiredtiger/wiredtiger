@@ -491,10 +491,13 @@ restart_read_page:
             return (WT_NOTFOUND);
         }
 
+<<<<<<< HEAD
         /*
          * Read the on-disk value and/or history. Pass an update list: the update list may contain
          * the base update for a modify chain after rollback-to-stable, required for correctness.
          */
+=======
+>>>>>>> 1e26b59bc... WT-9096 Fix search near returning wrong key/value sometimes when key doesn't exist (#7777)
         WT_RET(
           __wt_txn_read(session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip)));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
