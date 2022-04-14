@@ -523,8 +523,10 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
 
 /*
  * __wt_txn_visible_all --
- *     Check if a given transaction is "globally visible". This is, if all sessions in the system
- *     will see the transaction ID including the ID that belongs to a running checkpoint.
+ *     Check if a given time window is "globally visible" or "obsolete". This is, if all sessions in
+ *     the system will see the time window and it is durable. The timestamp passed to this function
+ *     is primarily the "durable timestamp" instead of a "commit timestamp" of an update/page to
+ *     check durability of an update/page whether it is "globally visible" or "obsolete".
  */
 static inline bool
 __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp)
