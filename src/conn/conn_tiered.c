@@ -189,8 +189,6 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
     uint64_t now;
     const char *object;
 
-    printf("REMOVE LOCAL\n");
-
     entry = NULL;
     for (;;) {
         /* Check if we're quitting or being reconfigured. */
@@ -199,10 +197,9 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
 
         __wt_seconds(session, &now);
         __wt_tiered_get_drop_local(session, now, &entry);
-        if (entry == NULL) {
-            __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: no entry at time %" PRId64 "", now);
+        if (entry == NULL)
             break;
-        }
+
         WT_ERR(__wt_tiered_name(
           session, &entry->tiered->iface, entry->id, WT_TIERED_NAME_OBJECT, &object));
 

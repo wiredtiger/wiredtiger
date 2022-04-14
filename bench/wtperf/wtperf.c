@@ -923,7 +923,8 @@ populate_thread(void *arg)
     }
 
     /* Do bulk loads if populate is single-threaded. */
-    cursor_config = (opts->populate_threads == 1 && !opts->index) ? "bulk" : NULL;
+//    cursor_config = (opts->populate_threads == 1 && !opts->index) ? "bulk" : NULL;
+    cursor_config = NULL;
     /* Create the cursors. */
     cursors = dcalloc(total_table_count, sizeof(WT_CURSOR *));
     for (i = 0; i < total_table_count; i++) {
@@ -1016,6 +1017,7 @@ populate_thread(void *arg)
     /* Notify our caller we failed and shut the system down. */
     if (0) {
 err:
+        printf("ERROR!!!!!!!!!!!!!!!!!!!!!!!!\n");
         wtperf->error = wtperf->stop = true;
     }
     free(cursors);
@@ -1553,8 +1555,8 @@ execute_populate(WTPERF *wtperf)
     if (opts->tiered_flush_interval != 0) {
          /* Start the checkpoint thread. */
         if (opts->checkpoint_threads != 0) {
-            lprintf(
-                wtperf, 0, 1, "Starting %" PRIu32 " checkpoint thread(s)", opts->checkpoint_threads);
+            lprintf(wtperf, 0, 1, "Starting %" PRIu32 " checkpoint thread(s)",
+                    opts->checkpoint_threads);
             wtperf->ckptthreads = dcalloc(opts->checkpoint_threads, sizeof(WTPERF_THREAD));
             start_threads(
                 wtperf, NULL, wtperf->ckptthreads, opts->checkpoint_threads, checkpoint_worker);
@@ -1601,6 +1603,7 @@ execute_populate(WTPERF *wtperf)
           wtperf->totalsec);
         last_ops = wtperf->insert_ops;
     }
+    printf("I'M DONE!!!!!!!!!!\n");
     stop = __wt_clock(NULL);
 
     /*

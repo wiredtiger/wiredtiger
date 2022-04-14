@@ -1,4 +1,4 @@
-conn_config="cache_size=8G,log=(enabled=true),tiered_storage=(bucket=/Users/sasha/BUCKET,bucket_prefix=pfx,local_retention=10,name=dir_store)"
+conn_config="cache_size=8G,log=(enabled=true),tiered_storage=(bucket=/Users/sasha/BUCKET,bucket_prefix=pfx,local_retention=10,name=dir_store),eviction=(threads_max=1)"
 pareto=20
 table_config="type=file"
 tiered="dir_store"
@@ -7,7 +7,7 @@ checkpoint_interval=10
 tiered_flush_interval=10
 key_sz=100
 value_sz=1024
-icount=120000000
+icount=36000000
 #run_time=120
 run_time=0
 threads=((count=1,reads=1))
