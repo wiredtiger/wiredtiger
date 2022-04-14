@@ -792,7 +792,7 @@ __backup_start(
         WT_ERR(__wt_fopen(session, WT_LOGINCR_SRC, WT_FS_OPEN_CREATE, WT_STREAM_WRITE, &srcfs));
         WT_ERR(__backup_list_append(session, cb, dest));
     } else {
-        dest = (F_ISSET(cb, WT_CURBACKUP_EXPORT)) ? WT_EXPORT_BACKUP : WT_METADATA_BACKUP;
+        dest = F_ISSET(cb, WT_CURBACKUP_EXPORT) ? WT_EXPORT_BACKUP : WT_METADATA_BACKUP;
 
         WT_ERR(__backup_list_append(session, cb, dest));
         WT_ERR(__wt_fs_exist(session, WT_BASECONFIG, &exist));
