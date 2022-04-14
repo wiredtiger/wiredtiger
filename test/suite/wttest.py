@@ -330,7 +330,7 @@ class WiredTigerTestCase(unittest.TestCase):
         finished = False
         method = getattr(self, self._savedTestMethodName)
         WiredTigerTestCase._testsRun += 1
-        while not finished and rollbacksAllowed > 0:
+        while not finished and rollbacksAllowed >= 0:
             try:
                 method()
                 finished = True

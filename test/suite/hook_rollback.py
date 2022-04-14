@@ -61,10 +61,10 @@ def session_end_transaction_notify(ret, session, *args):
 
 # Here we patch a deficiency of our SWIG setup.  When a cursor is created via
 # a session.open_cursor() call, a unique Cursor python object is created.
-# However, that particular 'cursor' object doesn't know that 'session' created it,
-# only that there is a property 'session' that maps to the pointer WT_CURSOR->session
-# pointer.  The upshot is that cursor.session will not give us the same Python object
-# that created the cursor, though it will be a wrapper around the same C WT_SESSION.
+# However, that particular 'cursor' object doesn't know what 'session' object created it,
+# only that there is a property 'session' that maps to the WT_CURSOR->session pointer.
+# The upshot is that cursor.session will not give us the same Python object that
+# created the cursor, though it will be a wrapper around the same C WT_SESSION.
 #
 # To fix this, we change the Cursor.session property, it was originally managed by SWIG,
 # now it just returns a session field, that we set immediately after the open_cursor.
@@ -86,7 +86,7 @@ def cursor_notify_for_rollback(cursor, creator):
     if (hasattr(s, 'in_transaction') and s.in_transaction):
         if creator.do_retry():
             # Add something to stdout, we want to make sure it is cleaned up on a test retry.
-            print('stuff in stdout')
+            print('retry transaction rollback error')
             raise wiredtiger.WiredTigerRollbackError('retryable rollback error')
 
 # Every hook file must have one or more classes descended from WiredTigerHook
