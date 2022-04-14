@@ -258,13 +258,17 @@ __tiered_flush_older_objects(WT_SESSION_IMPL *session, WT_TIERED *tiered)
         obj_name = obj_uri;
         WT_PREFIX_SKIP_REQUIRED(session, obj_name, "object:");
         WT_ERR(__wt_fs_exist(session, obj_name, &exist));
-        /* We only need to worry about objects that exist locally. */
+        /*
+         * We only need to worry about objects that exist locally. As soon as we find an object that
+         * does not exist, it means that it, and all earlier objects have been flushed.
+         */
         if (exist) {
             WT_ERR(__wt_metadata_search(session, obj_uri, (char **)&obj_val));
             WT_ERR(__wt_config_getones(session, obj_val, "flush_time", &cval));
             if (cval.val == 0)
                 WT_ERR(__wt_tiered_put_flush(session, tiered, i));
-        }
+        } else
+            break;
         __wt_free(session, obj_uri);
         __wt_free(session, obj_val);
     }
