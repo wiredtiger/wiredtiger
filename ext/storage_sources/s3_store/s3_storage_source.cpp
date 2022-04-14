@@ -142,7 +142,6 @@ static int S3ObjectSize(WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *
 static std::string
 S3Path(const std::string &dir, const std::string &name)
 {
-    std::cout << "S3Path: Name: " + name + "   ::dir:" + dir << std::endl; 
     // Skip over "./" and variations (".//", ".///./././//") at the beginning of the name.
     int i = 0;
     while (name[i] == '.') {
@@ -153,7 +152,6 @@ S3Path(const std::string &dir, const std::string &name)
             i++;
     }
     std::string strippedName = name.substr(i, name.length() - i);
-    std::cout << "S3Path: Stripped: " + strippedName << std::endl; 
     return (dir + "/" + strippedName);
 }
 
@@ -806,7 +804,7 @@ S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *f
     std::string srcPath = S3Path(fs->homeDir, source);
     std::string destPath = S3Path(fs->cacheDir, object);
 
-    // Converting S3 object name to cache directory strcture to link the cache file with local file. 
+    // Converting S3 object name to cache directory strcture to link the cache file with local file.
     std::filesystem::create_directories(std::filesystem::path(destPath).parent_path());
 
     // Linking file with the local file.
