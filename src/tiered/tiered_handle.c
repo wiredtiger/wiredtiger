@@ -260,11 +260,13 @@ __tiered_flush_older_objects(WT_SESSION_IMPL *session, WT_TIERED *tiered)
         WT_ERR(__wt_fs_exist(session, obj_name, &exist));
         /*
          * We only need to worry about objects that exist locally. As soon as we find an object that
-         * does not exist, it means that it, and all earlier objects have been flushed.
+         * does not exist, that means that it, and all earlier objects, have been flushed.
          */
         if (exist) {
             WT_ERR(__wt_metadata_search(session, obj_uri, (char **)&obj_val));
             WT_ERR(__wt_config_getones(session, obj_val, "flush_time", &cval));
+            __wt_verbose(session, WT_VERB_TIERED,
+              "OLDER_OBJECTS: local object %s has flush time %d", obj_uri, (int)cval.val);
             if (cval.val == 0)
                 WT_ERR(__wt_tiered_put_flush(session, tiered, i));
         } else

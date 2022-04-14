@@ -105,7 +105,7 @@ static uint32_t flush_calls = 1;
     ENV_CONFIG_DEF                                        \
     ",eviction_dirty_target=20,eviction_dirty_trigger=90" \
     ",transaction_sync=(enabled,method=none)"
-#define ENV_CONFIG_REC "log=(recover=on,remove=false)"
+#define ENV_CONFIG_REC "log=(recover=on,remove=false),debug_mode=(flush_checkpoint)"
 
 /*
  * A minimum width of 10, along with zero filling, means that all the keys sort according to their
@@ -756,6 +756,9 @@ main(int argc, char *argv[])
     testutil_check(session->open_cursor(session, buf, NULL, NULL, &cur_local));
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s:%s", table_pfx, uri_oplog));
     testutil_check(session->open_cursor(session, buf, NULL, NULL, &cur_oplog));
+
+    /* Call flush_tier after crash to run code to restart object copying. */
+    testutil_check(session->flush_tier(session, "force=true"));
 
     /* Find the biggest stable timestamp value that was saved. */
     stable_val = 0;
