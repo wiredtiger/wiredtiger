@@ -1012,7 +1012,12 @@ __create_meta_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *valu
     WT_ASSERT(session, meta_key_suffix != NULL && meta_key_suffix[1] != '\0');
     ++meta_key_suffix;
 
-    /* Skip unrelated entries. */
+    /*
+     * We want to skip unrelated entries. We have stripped out the URI prefixes and want to get all
+     * the entries that match the URI. This check will match overlapping entries (i.e. if we're
+     * importing table:name but name123 also exists) but should reduce the resources needed for the
+     * list of possible entries.
+     */
     if (!WT_PREFIX_MATCH(meta_key_suffix, import_list->uri_suffix))
         return (0);
 
