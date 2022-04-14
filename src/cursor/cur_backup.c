@@ -671,7 +671,7 @@ __backup_start(
     WT_DECL_RET;
     WT_FSTREAM *srcfs;
     const char *dest;
-    bool exist, export_backup, is_dup, log_only, target_list;
+    bool exist, is_dup, log_only, target_list;
 
     conn = S2C(session);
     srcfs = NULL;
@@ -794,11 +794,7 @@ __backup_start(
         WT_ERR(__wt_fopen(session, WT_LOGINCR_SRC, WT_FS_OPEN_CREATE, WT_STREAM_WRITE, &srcfs));
         WT_ERR(__backup_list_append(session, cb, dest));
     } else {
-        export_backup = F_ISSET(cb, WT_CURBACKUP_EXPORT);
-        if (export_backup)
-            dest = WT_EXPORT_BACKUP;
-        else
-            dest = WT_METADATA_BACKUP;
+        dest = (F_ISSET(cb, WT_CURBACKUP_EXPORT)) ? WT_EXPORT_BACKUP : WT_METADATA_BACKUP;
 
         WT_ERR(__backup_list_append(session, cb, dest));
         WT_ERR(__wt_fs_exist(session, WT_BASECONFIG, &exist));
