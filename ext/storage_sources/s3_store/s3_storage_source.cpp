@@ -32,6 +32,7 @@
 #include <list>
 #include <errno.h>
 #include <filesystem>
+#include <mutex>
 
 #include "s3_connection.h"
 #include "s3_log_system.h"
@@ -39,8 +40,6 @@
 #include <aws/auth/credentials.h>
 #include <aws/core/Aws.h>
 #include <aws/core/utils/logging/AWSLogging.h>
-
-#include <mutex>
 
 #define UNUSED(x) (void)(x)
 #define FS2S3(fs) (((S3FileSystem *)(fs))->storage)
@@ -833,7 +832,6 @@ S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *f
     bool nativeExist;
     FS2S3(fileSystem)->statistics.putObjectCount++;
 
-    s3->log->LogDebugMessage("S3Flush: Flush to S3 Store using AWS SDK C++ PutObject");
 
     // Confirm that the file exists on the native filesystem.
     std::string srcPath = S3Path(fs->homeDir, source);
