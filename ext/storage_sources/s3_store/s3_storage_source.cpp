@@ -136,7 +136,6 @@ class AWSInitializer {
     void
     InitInternal()
     {
-        std::cout << "SingletonInit: refCount = " << refCount << std::endl;
         if (refCount == 0) {
             Aws::InitAPI(options);
         }
@@ -147,7 +146,6 @@ class AWSInitializer {
     TerminateInternal()
     {
         refCount--;
-        std::cout << "SingletonTerminate: refCount = " << refCount << std::endl;
         if (refCount == 0) {
             Aws::ShutdownAPI(options);
         }
@@ -831,13 +829,9 @@ S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *f
     s3->log->LogDebugMessage("S3Flush: Flush to S3 Store using AWS SDK C++ PutObject");
 
     // Confirm that the file exists on the native filesystem.
-    std::string homeDir = session->connection->get_home(session->connection);
-    std::string path = source;
+    std::string srcPath = S3Path(fs->homeDir, source);
 
-    if (homeDir != ".")
-        path = homeDir + "/" + source;
-
-    if ((ret = wtFileSystem->fs_exist(wtFileSystem, session, path.c_str(), &nativeExist)) != 0) {
+    if ((ret = wtFileSystem->fs_exist(wtFileSystem, session, srcPath.c_str(), &nativeExist)) != 0) {
         s3->log->LogErrorMessage("S3Flush: Failed to check for the existence of " +
           std::string(source) + " on the native filesystem.");
         return (ret);
@@ -850,7 +844,7 @@ S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *f
     s3->log->LogDebugMessage(
       "S3Flush: Uploading object: " + std::string(object) + "into bucket using PutObject");
     // Upload the object into the bucket.
-    if (ret = (fs->connection->PutObject(object, path)) != 0)
+    if (ret = (fs->connection->PutObject(object, srcPath)) != 0)
         s3->log->LogErrorMessage("S3Flush: PutObject request to S3 failed.");
     else
         s3->log->LogDebugMessage("S3Flush: Uploaded object to S3.");
