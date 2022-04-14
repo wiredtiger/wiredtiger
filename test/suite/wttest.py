@@ -299,9 +299,9 @@ class WiredTigerTestCase(unittest.TestCase):
 
     def simpleName(self):
         # Prefer the _savedTestMethodName, it's the real name.
-        try:
+        if hasattr(self, '_savedTestMethodName'):
             methodName = self._savedTestMethodName
-        except:
+        else:
             methodName = self._testMethodName
         return "%s.%s.%s" %  (self.__module__, self.className(), methodName)
 
