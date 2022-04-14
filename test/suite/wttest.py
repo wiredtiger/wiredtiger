@@ -298,7 +298,7 @@ class WiredTigerTestCase(unittest.TestCase):
         return self.simpleName() + ret_str
 
     def simpleName(self):
-        # Prefer the _savedTestMethodName, it's the real name.
+        # Prefer the saved method name, it's always correct if set.
         if hasattr(self, '_savedTestMethodName'):
             methodName = self._savedTestMethodName
         else:
@@ -317,7 +317,10 @@ class WiredTigerTestCase(unittest.TestCase):
     def run(self, result=None):
         self._savedTestMethodName = self._testMethodName
         self._testMethodName = "runTestMethod"
-        super(WiredTigerTestCase, self).run(result)
+        try:
+            super(WiredTigerTestCase, self).run(result)
+        finally:
+            self._testMethodName = self._savedTestMethodName
 
     # This function is called in advance of every test method
     # invocation.  It retries the test method whenever
@@ -326,10 +329,6 @@ class WiredTigerTestCase(unittest.TestCase):
         rollbacksAllowed = self._rollbacksAllowedPerTest
         finished = False
         method = getattr(self, self._savedTestMethodName)
-
-        # Set the method name back before starting the test.
-        # If we get a failure, we'll want to see the original method name.
-        self._testMethodName = self._savedTestMethodName
         WiredTigerTestCase._testsRun += 1
         while not finished and rollbacksAllowed > 0:
             try:
