@@ -351,11 +351,11 @@ done:
 }
 
 /*
- * __wt_hazard_check_more_than_one --
- *     Return if there are more than one hazard pointers to the page in the system.
+ * __wt_hazard_check_count_one --
+ *     Return true if there is one hazard pointer to the page in the system.
  */
 bool
-__wt_hazard_check_more_than_one(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_hazard_check_count_one(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_CONNECTION_IMPL *conn;
     WT_HAZARD *hp;
@@ -413,7 +413,7 @@ done:
     /* Leave the current resource generation. */
     __wt_session_gen_leave(session, WT_GEN_HAZARD);
 
-    return (count > 1);
+    return (count == 1);
 }
 
 /*
