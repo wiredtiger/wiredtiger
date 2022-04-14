@@ -2068,8 +2068,13 @@ __wt_txn_init_checkpoint_cursor(
      * code for reading the snapshot allocates the snapshot list itself; copying it serves no
      * purpose, and twisting up the read code to allow controlling the allocation from here is not
      * worthwhile.
+     *
+     * Allocate a byte at the end so that __snapshot (at the end of the struct) doesn't point at an
+     * adjacent malloc block; we'd like to be able to assert that in checkpoint cursor transactions
+     * snapshot doesn't point at __snapshot, to make sure an ordinary transaction doesn't flow to
+     * the checkpoint cursor close function. If an adjacent malloc block, that might not be true.
      */
-    WT_RET(__wt_calloc_one(session, &txn));
+    WT_RET(__wt_calloc(session, 1, sizeof(WT_TXN) + 1, &txn));
 
     /* We have no transaction ID and won't gain one, being read-only. */
     txn->id = WT_TXN_NONE;
