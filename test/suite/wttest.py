@@ -338,8 +338,10 @@ class WiredTigerTestCase(unittest.TestCase):
                     raise
                 else:
                     self.pr('rollback error, restarting test.')
-                    self.cleanStdout()
-                    self.cleanStderr()
+                    self.tearDown(True)
+                    if WiredTigerTestCase._verbose > 2:
+                        print("%{}: restarting after rollback error".format(self))
+                    self.setUp()
                     rollbacksAllowed -= 1
 
     # Construct the expected filename for an extension library and return
@@ -562,7 +564,7 @@ class WiredTigerTestCase(unittest.TestCase):
             for f in files:
                 os.chmod(os.path.join(root, f), 0o666)
 
-    def tearDown(self):
+    def tearDown(self, dueToRetry=False):
         # This approach works for all our support Python versions and
         # is suggested by one of the answers in:
         # https://stackoverflow.com/questions/4414234/getting-pythons-unittest-results-in-a-teardown-method
@@ -595,8 +597,9 @@ class WiredTigerTestCase(unittest.TestCase):
         self._connections = []
         try:
             self.fdTearDown()
-            self.captureout.check(self)
-            self.captureerr.check(self)
+            if not dueToRetry:
+                self.captureout.check(self)
+                self.captureerr.check(self)
         finally:
             # always get back to original directory
             os.chdir(self.origcwd)
