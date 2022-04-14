@@ -40,6 +40,8 @@
 #include <aws/core/Aws.h>
 #include <aws/core/utils/logging/AWSLogging.h>
 
+#include <mutex>
+
 #define UNUSED(x) (void)(x)
 #define FS2S3(fs) (((S3FileSystem *)(fs))->storage)
 
@@ -105,6 +107,7 @@ const double throughputTargetGbps = 5;
 const uint64_t partSize = 8 * 1024 * 1024; // 8 MB.
 
 // Wrapper singleton class for initializing and terminating the AWS SDK.
+
 class AWSInitializer {
     public:
     static AWSInitializer &
@@ -136,6 +139,7 @@ class AWSInitializer {
     void
     InitInternal()
     {
+        std::lock_guard<std::mutex> lock(InitGuard);
         if (refCount == 0) {
             Aws::InitAPI(options);
         }
@@ -145,6 +149,7 @@ class AWSInitializer {
     void
     TerminateInternal()
     {
+        std::lock_guard<std::mutex> lock(InitGuard);
         refCount--;
         if (refCount == 0) {
             Aws::ShutdownAPI(options);
@@ -154,8 +159,10 @@ class AWSInitializer {
     static AWSInitializer aws_instance;
     Aws::SDKOptions options;
     int refCount;
+    static std::mutex InitGuard;
 };
 
+std::mutex AWSInitializer::InitGuard{};
 AWSInitializer AWSInitializer::aws_instance;
 
 static int S3GetDirectory(
@@ -933,6 +940,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     // Set up statistics.
     s3->statistics = {0};
 
+    // Initialize the AWS SDK.
     AWSInitializer::Init();
     Aws::Utils::Logging::InitializeAWSLogging(s3->log);
 
