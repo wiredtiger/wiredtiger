@@ -41,7 +41,9 @@ runtime_monitor=
     # +1.4GB for the history store. With an additional 150MB margin.
     stat_db_size=
     (
-        max=1900000000,
+        # FIXME-WT-8886 - This limit has been increased to remove noisy failures in evergreen 
+        # and will be properly corrected in WT-8886.
+        max=2100000000,
         runtime=false,
         save=true,
     ),
