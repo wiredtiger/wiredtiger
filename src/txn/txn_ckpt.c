@@ -162,8 +162,8 @@ __checkpoint_apply_operation(
 
     if (!target_list && op != NULL) {
         /*
-         * If the checkpoint is named or we're dropping checkpoints, we checkpoint both open and
-         * closed files; else, only checkpoint open files.
+         * If the checkpoint is named or forced, or we're dropping checkpoints, we checkpoint both
+         * open and closed files; else, only checkpoint open files.
          *
          * XXX We don't optimize unnamed checkpoints of a list of targets, we open the targets and
          * checkpoint them even if they are quiescent and don't need a checkpoint, believing
@@ -173,6 +173,10 @@ __checkpoint_apply_operation(
         if (!ckpt_closed) {
             WT_ERR(__wt_config_gets(session, cfg, "drop", &cval));
             ckpt_closed = cval.len != 0;
+        }
+        if (!ckpt_closed) {
+            WT_ERR(__wt_config_gets_def(session, cfg, "force", 0, &cval));
+            ckpt_closed = cval.val != 0;
         }
         WT_ERR(ckpt_closed ? __wt_meta_apply_all(session, op, NULL, cfg) :
                              __wt_conn_btree_apply(session, NULL, op, NULL, cfg));
