@@ -876,12 +876,6 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 
     prev_op_durable_ts = upd->prev_durable_ts;
 
-    /*
-     * Assert that there are no out-of-order timestamps. WT allows only order or mixed-mode
-     * timestamps.
-     */
-    WT_ASSERT(session, prev_op_durable_ts <= op_ts || op_ts == WT_TS_NONE);
-
     /* Ordered key consistency requires all updates use timestamps, once they are first used. */
     if (LF_ISSET(WT_DHANDLE_TS_ORDERED) && !txn_has_ts && prev_op_durable_ts != WT_TS_NONE) {
         __wt_err(session, EINVAL,
