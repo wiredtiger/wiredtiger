@@ -256,7 +256,7 @@ class WiredTigerTestCase(unittest.TestCase):
         # quantity of failures above 3.
         totalTestsRun = WiredTigerTestCase._testsRun
         totalRetries = WiredTigerTestCase._retriesAfterRollback
-        if totalRetries / totalTestsRun > 0.01 and totalRetries >= 3:
+        if totalTestsRun > 0 and totalRetries / totalTestsRun > 0.01 and totalRetries >= 3:
             raise Exception('Retries from WT_ROLLBACK in test suite: {}/{}, see {} for stack traces'.format(
                 totalRetries, totalTestsRun, WiredTigerTestCase._resultFileName))
 
@@ -313,10 +313,7 @@ class WiredTigerTestCase(unittest.TestCase):
     def run(self, result=None):
         self._savedTestMethodName = self._testMethodName
         self._testMethodName = "runTestMethod"
-        try:
-            super(WiredTigerTestCase, self).run(result)
-        finally:
-            self._testMethodName = self._savedTestMethodName
+        super(WiredTigerTestCase, self).run(result)
 
     # This function is called in advance of every test method
     # invocation.  It retries the test method whenever
@@ -325,6 +322,10 @@ class WiredTigerTestCase(unittest.TestCase):
         rollbacksAllowed = self._rollbacksAllowedPerTest
         finished = False
         method = getattr(self, self._savedTestMethodName)
+
+        # Set the method name back before starting the test.
+        # If we get a failure, we'll want to see the original method name.
+        self._testMethodName = self._savedTestMethodName
         WiredTigerTestCase._testsRun += 1
         while not finished and rollbacksAllowed > 0:
             try:
