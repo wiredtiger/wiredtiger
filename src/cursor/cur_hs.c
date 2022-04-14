@@ -24,36 +24,17 @@ __curhs_file_cursor_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR *
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    size_t len;
-    char *tmp;
-    const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL};
-
-    if (WT_READING_CHECKPOINT(session)) {
-        /*
-         * Propagate the checkpoint setting to the history cursor. Use the indicated history store
-         * checkpoint. If that's null, it means there is no history store checkpoint to read and we
-         * aren't supposed to come here.
-         */
-        WT_ASSERT(session, session->hs_checkpoint != NULL);
-        len = strlen("checkpoint=") + strlen(session->hs_checkpoint) + 1;
-        WT_RET(__wt_malloc(session, len, &tmp));
-        WT_ERR(__wt_snprintf(tmp, len, "checkpoint=%s", session->hs_checkpoint));
-        open_cursor_cfg[1] = tmp;
-    } else
-        tmp = NULL;
+    const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
 
     WT_WITHOUT_DHANDLE(
       session, ret = __wt_open_cursor(session, WT_HS_URI, owner, open_cursor_cfg, &cursor));
-    WT_ERR(ret);
+    WT_RET(ret);
 
     /* History store cursors should always ignore tombstones. */
     F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
 
     *cursorp = cursor;
-
-err:
-    __wt_free(session, tmp);
-    return (ret);
+    return (0);
 }
 
 /*
@@ -195,7 +176,8 @@ __curhs_search(WT_CURSOR_BTREE *hs_cbt, bool insert)
       ret = __wt_row_search(hs_cbt, &hs_cbt->iface.key, insert, NULL, false, NULL));
 
 #ifdef HAVE_DIAGNOSTIC
-    WT_TRET(__wt_cursor_key_order_init(hs_cbt));
+    if (ret == 0)
+        WT_TRET(__wt_cursor_key_order_init(hs_cbt));
 #endif
 
 err:
@@ -449,12 +431,9 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
 
         /*
          * If the stop time pair on the tombstone in the history store is already globally visible
-         * we can skip it. But only if we aren't reading from a checkpoint. If we're reading from a
-         * checkpoint, we need to see the world as of the checkpoint, and visible-all checks refer
-         * to the current world.
+         * we can skip it.
          */
-        if (!WT_READING_CHECKPOINT(session) &&
-          __wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
+        if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
             WT_STAT_CONN_DATA_INCR(session, cursor_prev_hs_tombstone);
             continue;
         }
@@ -548,12 +527,9 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
 
         /*
          * If the stop time pair on the tombstone in the history store is already globally visible
-         * we can skip it. But only if we aren't reading from a checkpoint. If we're reading from a
-         * checkpoint, we need to see the world as of the checkpoint, and visible-all checks refer
-         * to the current world.
+         * we can skip it.
          */
-        if (!WT_READING_CHECKPOINT(session) &&
-          __wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
+        if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
             WT_STAT_CONN_DATA_INCR(session, cursor_next_hs_tombstone);
             continue;
         }
@@ -911,6 +887,9 @@ __curhs_insert(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_UPDATE *hs_tombstone, *hs_upd;
+#ifdef HAVE_DIAGNOSTIC
+    int exact;
+#endif
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
@@ -963,10 +942,9 @@ __curhs_insert(WT_CURSOR *cursor)
 
 #ifdef HAVE_DIAGNOSTIC
     /* Do a search again and call next to check the key order. */
-    WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, false));
-    WT_ASSERT(session, ret == 0);
-    if (cbt->compare == 0)
-        WT_ERR_NOTFOUND_OK(__curhs_file_cursor_next(session, file_cursor), false);
+    ret = __curhs_file_cursor_search_near(session, file_cursor, &exact);
+    WT_ASSERT(session, ret == 0 && exact == 0);
+    WT_ERR_NOTFOUND_OK(__curhs_file_cursor_next(session, file_cursor), false);
 #endif
 
     /* Insert doesn't maintain a position across calls, clear resources. */
