@@ -298,8 +298,12 @@ class WiredTigerTestCase(unittest.TestCase):
         return self.simpleName() + ret_str
 
     def simpleName(self):
-        return "%s.%s.%s" %  (self.__module__,
-                              self.className(), self._testMethodName)
+        # Prefer the _savedTestMethodName, it's the real name.
+        try:
+            methodName = self._savedTestMethodName
+        except:
+            methodName = self._testMethodName
+        return "%s.%s.%s" %  (self.__module__, self.className(), methodName)
 
     def buildDirectory(self):
         return self._builddir
