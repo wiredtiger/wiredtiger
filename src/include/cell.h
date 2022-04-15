@@ -132,7 +132,7 @@
  */
 struct __wt_cell {
     /*
-     * Maximum of 99 bytes:
+     * Maximum of 98 bytes:
      *  1: cell descriptor byte
      *  1: prefix compression count
      *  1: secondary descriptor byte
