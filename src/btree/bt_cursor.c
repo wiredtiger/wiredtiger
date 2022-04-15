@@ -298,6 +298,11 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
         /*
          * Check for an update. For column store, modifications are handled with insert lists, so an
          * insert can have the same key as an on-page or history store object.
+         *
+         * Checking the update chain twice (both here, and above if the insert list is set), isn't a
+         * mistake. In the case of a modify chain, if rollback-to-stable recovers a history store
+         * record into the update list, the base update may be in the update list and we must use it
+         * rather than falling back to the on-disk value as the base update.
          */
         upd = cbt->ins ? cbt->ins->upd : NULL;
         break;
