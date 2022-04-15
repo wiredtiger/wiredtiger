@@ -61,7 +61,7 @@ class test_rollback_to_stable33(wttest.WiredTigerTestCase):
         c[ds.key(11)] = ds.value(101)
         c[ds.key(12)] = ds.value(102)
         self.session.commit_transaction('commit_timestamp=30');
-        c.close
+        c.close()
 
         # Set stable to 20 and rollback.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
