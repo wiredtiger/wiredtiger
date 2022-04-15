@@ -34,13 +34,8 @@ import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# Test assert always/never settings when associated with write_timestamp_usage.
-class test_timestamp26_always_never(wttest.WiredTigerTestCase):
-    conn_config = 'debug_mode=(corruption_abort=false)'
-    assert_ts = [
-        ('on', dict(assert_ts='on')),
-        ('off', dict(assert_ts='off')),
-    ]
+# Test write_timestamp_usage never setting.
+class test_timestamp26_wtu_never(wttest.WiredTigerTestCase):
     commit_ts = [
         ('yes', dict(commit_ts=True)),
         ('no', dict(commit_ts=False)),
@@ -49,18 +44,14 @@ class test_timestamp26_always_never(wttest.WiredTigerTestCase):
         ('yes', dict(with_ts=True)),
         ('no', dict(with_ts=False)),
     ]
-    write_timestamp = [
-        ('always', dict(write_timestamp='always')),
-        ('never', dict(write_timestamp='never')),
-    ]
     types = [
         ('fix', dict(key_format='r', value_format='8t')),
         ('row', dict(key_format='S', value_format='S')),
         ('var', dict(key_format='r', value_format='S')),
     ]
-    scenarios = make_scenarios(types, assert_ts, commit_ts, with_ts, write_timestamp)
+    scenarios = make_scenarios(types, commit_ts, with_ts)
 
-    def test_always_never(self):
+    def test_wtu_never(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
 
@@ -72,8 +63,7 @@ class test_timestamp26_always_never(wttest.WiredTigerTestCase):
         uri = 'table:ts'
         self.session.create(uri,
             'key_format={},value_format={}'.format(self.key_format, self.value_format) +
-            ',write_timestamp_usage=' + self.write_timestamp + ',' +
-            ',assert=(write_timestamp=' + self.assert_ts + ')')
+            ',write_timestamp_usage=never')
 
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
@@ -87,19 +77,13 @@ class test_timestamp26_always_never(wttest.WiredTigerTestCase):
                 self.session.timestamp_transaction(commit_ts)
                 commit_ts = ''
 
-            if self.assert_ts == 'off' or self.write_timestamp == 'always':
-                self.session.commit_transaction(commit_ts)
-            else:
-                with self.expectedStderrPattern('set when disallowed'):
-                    self.session.commit_transaction(commit_ts)
+            msg = '/set when disallowed/'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.commit_transaction(commit_ts), msg)
 
         # Commit without a timestamp.
         else:
-            if self.assert_ts == 'off' or self.write_timestamp == 'never':
-                self.session.commit_transaction()
-            else:
-                with self.expectedStderrPattern('timestamp required by table'):
-                        self.session.commit_transaction()
+            self.session.commit_transaction()
 
 # Test assert read timestamp settings.
 class test_timestamp26_read_timestamp(wttest.WiredTigerTestCase):
@@ -123,7 +107,7 @@ class test_timestamp26_read_timestamp(wttest.WiredTigerTestCase):
         ds = SimpleDataSet(
             self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
 
-        # Open the object, configuring timestamp usage.
+        # Open the object, configuring read timestamp usage.
         uri = 'table:ts'
         self.session.create(uri,
             'key_format={},value_format={}'.format(self.key_format, self.value_format) +
@@ -143,53 +127,35 @@ class test_timestamp26_read_timestamp(wttest.WiredTigerTestCase):
         # Try reading without a timestamp.
         self.session.begin_transaction()
         c.set_key(key)
-        msg = 'read timestamps required and none set'
         if self.read_ts != 'always':
             self.assertEquals(c.search(), 0)
             self.assertEqual(c.get_value(), value)
         else:
-            with self.expectedStderrPattern(msg):
-                self.assertEquals(c.search(), 0)
+            msg = '/read timestamps required and none set/'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: c.search(), msg)
+
         self.session.rollback_transaction()
 
         # Try reading with a timestamp.
         self.session.begin_transaction()
         self.session.timestamp_transaction('read_timestamp=20')
         c.set_key(key)
-        msg = 'read timestamps disallowed'
         if self.read_ts != 'never':
             self.assertEquals(c.search(), 0)
             self.assertEqual(c.get_value(), value)
         else:
-            with self.expectedStderrPattern(msg):
-                self.assertEquals(c.search(), 0)
+            msg = '/read timestamps disallowed/'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: c.search(), msg)
         self.session.rollback_transaction()
 
 # Test alter of timestamp settings.
 class test_timestamp26_alter(wttest.WiredTigerTestCase):
-    start = [
-        ('always', dict(init_always=True)),
-        ('never', dict(init_always=False)),
-    ]
     types = [
         ('fix', dict(key_format='r', value_format='8t')),
         ('row', dict(key_format='S', value_format='S')),
         ('var', dict(key_format='r', value_format='S')),
     ]
-    scenarios = make_scenarios(types, start)
-
-    # Perform and operation and check the result for failure.
-    def check(self, ds, uri, willfail):
-        c = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        c[ds.key(10)] = ds.value(10)
-        if willfail:
-            msg = 'timestamp required by table configuration'
-            with self.expectedStderrPattern(msg):
-                self.session.commit_transaction()
-        else:
-            self.session.commit_transaction()
-        c.close()
+    scenarios = make_scenarios(types)
 
     def test_alter(self):
         if wiredtiger.diagnostic_build():
@@ -199,27 +165,38 @@ class test_timestamp26_alter(wttest.WiredTigerTestCase):
         ds = SimpleDataSet(
             self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
 
-        if self.init_always:
-            start = 'always'
-            switch = 'never'
-        else:
-            start = 'never'
-            switch = 'always'
-
-        # Open the object, configuring the initial timestamp usage.
+        # Open the object, configuring "never" timestamp usage.
         # Check it.
-        # Switch the object to the opposite usage.
+        # Switch the object to "ordered" usage.
         # Check it.
         uri = 'table:ts'
         self.session.create(uri,
             'key_format={},value_format={}'.format(self.key_format, self.value_format) +
-            ',' + 'write_timestamp_usage={}'.format(start) + ',assert=(write_timestamp=on)')
-        self.check(ds, uri, self.init_always)
-        self.session.alter(uri, 'write_timestamp_usage={}'.format(switch))
-        self.check(ds, uri, not self.init_always)
+            ',write_timestamp_usage=never')
 
-# Test timestamp settings with inconsistent updates.
-class test_timestamp26_inconsistent(wttest.WiredTigerTestCase):
+        c = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        c[ds.key(10)] = ds.value(10)
+        msg = '/set when disallowed by table configuration/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10)),
+            msg)
+        c.close()
+
+        self.session.alter(uri, 'write_timestamp_usage=ordered')
+
+        c = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        c[ds.key(10)] = ds.value(10)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(11))
+        self.session.begin_transaction()
+        c[ds.key(10)] = ds.value(10)
+        msg = '/always use timestamps/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(), msg)
+
+# Test timestamp settings with alter and inconsistent updates.
+class test_timestamp26_alter_inconsistent_update(wttest.WiredTigerTestCase):
     types = [
         ('fix', dict(key_format='r', value_format='8t')),
         ('row', dict(key_format='S', value_format='S')),
@@ -227,7 +204,7 @@ class test_timestamp26_inconsistent(wttest.WiredTigerTestCase):
     ]
     scenarios = make_scenarios(types)
 
-    def test_ordered(self):
+    def test_alter_inconsistent_update(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
 
@@ -265,9 +242,8 @@ class test_timestamp26_inconsistent(wttest.WiredTigerTestCase):
         self.session.commit_transaction()
 
         self.session.begin_transaction()
-        self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(2))
         c[key] = ds.value(13)
-        self.session.commit_transaction()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
 
         self.session.begin_transaction()
         c[key] = ds.value(14)
@@ -277,8 +253,7 @@ class test_timestamp26_inconsistent(wttest.WiredTigerTestCase):
         # timestamp forward in order to alter, otherwise alter will fail with EBUSY.
         c.close()
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
-        config = 'assert=(write_timestamp=on)'
-        self.session.alter(uri, 'write_timestamp_usage=ordered,' + config)
+        self.session.alter(uri, 'write_timestamp_usage=ordered')
 
         c = self.session.open_cursor(uri)
         key = ds.key(15)
@@ -288,39 +263,22 @@ class test_timestamp26_inconsistent(wttest.WiredTigerTestCase):
         c[key] = ds.value(15)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(15))
 
-        msg = 'with an older timestamp'
+        msg = '/with an older timestamp/'
         self.session.begin_transaction()
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(14))
         c[key] = ds.value(16)
-        with self.expectedStderrPattern(msg):
-            self.session.commit_transaction()
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(), msg)
 
         # Detect not using a timestamp.
-        msg = 'use timestamps once they are first used'
+        msg = '/use timestamps once they are first used/'
         self.session.begin_transaction()
         c[key] = ds.value(17)
-        with self.expectedStderrPattern(msg):
-            self.session.commit_transaction()
-
-        # Now alter the setting again and detection is off.
-        c.close()
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(20))
-        self.session.alter(uri, 'assert=(write_timestamp=off)')
-        c = self.session.open_cursor(uri)
-        key = ds.key(18)
-
-        # Detection is off we can successfully change the same key with then without a timestamp.
-        self.session.begin_transaction()
-        c[key] = ds.value(18)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(21))
-
-        self.session.begin_transaction()
-        c[key] = ds.value(19)
-        self.session.commit_transaction()
-        c.close()
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(), msg)
 
 # Test timestamp settings with inconsistent updates.
-class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
+class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
     types = [
         ('fix', dict(key_format='r', value_format='8t')),
         ('row', dict(key_format='S', value_format='S')),
@@ -328,7 +286,7 @@ class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
     ]
     scenarios = make_scenarios(types)
 
-    def test_timestamp_inconsistent(self):
+    def test_timestamp_inconsistent_update(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
 
@@ -342,7 +300,7 @@ class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
         uri = 'table:ts'
         self.session.create(uri,
             'key_format={},value_format={}'.format(self.key_format, self.value_format) +
-            ',write_timestamp_usage=ordered,assert=(write_timestamp=on)')
+            ',write_timestamp_usage=ordered')
 
         c = self.session.open_cursor(uri)
         key = ds.key(1)
@@ -356,8 +314,9 @@ class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(1))
         c[key] = ds.value(2)
-        with self.expectedStderrPattern('updates a value with an older timestamp'):
-                self.session.commit_transaction()
+        msg = '/updates a value with an older timestamp/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(), msg)
 
         # Make sure we can successfully add a different key at timestamp 1.
         self.session.begin_transaction()
@@ -380,10 +339,9 @@ class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(13))
         c[key1] = ds.value(5)
         c[key2] = ds.value(6)
-        with self.expectedStderrPattern('updates a value with an older timestamp'):
-            self.session.commit_transaction()
-        self.assertEquals(c[key1], ds.value(5))
-        self.assertEquals(c[key2], ds.value(6))
+        msg = '/updates a value with an older timestamp/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(), msg)
 
     # Try to update a key previously used with timestamps without one. We should get the
     # inconsistent usage error/message.
@@ -401,7 +359,7 @@ class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
         uri = 'table:ts'
         self.session.create(uri,
             'key_format={},value_format={}'.format(self.key_format, self.value_format) +
-            ',write_timestamp_usage=ordered,assert=(write_timestamp=on)')
+            ',write_timestamp_usage=ordered')
 
         c = self.session.open_cursor(uri)
         key = ds.key(5)
@@ -412,10 +370,9 @@ class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
 
         self.session.begin_transaction()
         c[key] = ds.value(12)
-        msg_usage ='configured to always use timestamps once they are first used'
-        with self.expectedStderrPattern(msg_usage):
-            self.session.commit_transaction()
-        self.assertEquals(c[key], ds.value(12))
+        msg ='/configured to always use timestamps once they are first used/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(), msg)
 
     # Smoke test setting the timestamp at various points in the transaction.
     def test_timestamp_ts_order(self):
@@ -432,7 +389,7 @@ class test_timestamp26_ts_inconsistent(wttest.WiredTigerTestCase):
         uri = 'table:ts'
         self.session.create(uri,
             'key_format={},value_format={}'.format(self.key_format, self.value_format) +
-            ',write_timestamp_usage=ordered,assert=(write_timestamp=on)')
+            ',write_timestamp_usage=ordered')
 
         c = self.session.open_cursor(uri)
         key1 = ds.key(6)
@@ -499,8 +456,7 @@ class test_timestamp26_log_ts(wttest.WiredTigerTestCase):
         config = ',write_timestamp_usage='
         config += 'always' if self.always else 'never'
         self.session.create(uri,
-            'key_format={},value_format={}'.format(self.key_format, self.value_format) +
-            config + ',assert=(write_timestamp=on)')
+            'key_format={},value_format={}'.format(self.key_format, self.value_format) + config)
 
         c = self.session.open_cursor(uri)
 
@@ -514,7 +470,6 @@ class test_timestamp26_log_ts(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         c[ds.key(2)] = ds.value(2)
         self.session.commit_transaction()
-
 
 # Test that timestamps are ignored in in-memory configurations and that object configurations always
 # override.
@@ -558,8 +513,7 @@ class test_timestamp26_in_memory_ts(wttest.WiredTigerTestCase):
         uri = 'table:ts'
         config = ',' + self.obj_config
         config += ',write_timestamp_usage='
-        config += 'always' if self.always else 'never'
-        config += ',assert=(write_timestamp=on)'
+        config += 'ordered' if self.always else 'never'
         self.session.breakpoint()
         self.session.create(uri,
             'key_format={},value_format={}'.format(self.key_format, self.value_format) + config)
@@ -572,17 +526,25 @@ class test_timestamp26_in_memory_ts(wttest.WiredTigerTestCase):
         if self.always == True or self.obj_ignore == True:
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(1))
         else:
-            with self.expectedStderrPattern('unexpected timestamp usage'):
-                self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(1))
+            msg = '/unexpected timestamp usage/'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(1)),
+                msg)
 
-        # Commit without a timestamp.
+        # Commit without a timestamp (but first with a timestamp if in ordered mode so we get
+        # a failure).
+        if self.always:
+            self.session.begin_transaction()
+            c[ds.key(2)] = ds.value(2)
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
         self.session.begin_transaction()
         c[ds.key(2)] = ds.value(2)
         if self.always == False or self.obj_ignore == True:
             self.session.commit_transaction()
         else:
-            with self.expectedStderrPattern('unexpected timestamp usage'):
-                self.session.commit_transaction()
+            msg = '/no timestamp provided/'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.commit_transaction(), msg)
 
 if __name__ == '__main__':
     wttest.run()
