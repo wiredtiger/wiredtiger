@@ -50,7 +50,6 @@ class test_rollback_to_stable33(wttest.WiredTigerTestCase):
     def test_rollback_to_stable33(self):
         uri = "table:rollback_to_stable33"
         ds_config = ',log=(enabled=true)' if self.logged else ',log=(enabled=false)'
-        self.session.breakpoint()
         ds = SimpleDataSet(self, uri, 500,
             key_format=self.key_format, value_format=self.value_format, config=ds_config)
         ds.populate()
