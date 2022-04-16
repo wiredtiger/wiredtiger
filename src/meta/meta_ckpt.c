@@ -1582,6 +1582,7 @@ __wt_meta_read_checkpoint_snapshot(WT_SESSION_IMPL *session, const char *ckpt_na
     char *sys_config;
 
     conn = S2C(session);
+    write_gen = 0;
     counter = 0;
     sys_config = NULL;
 
