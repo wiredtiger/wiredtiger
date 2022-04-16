@@ -34,33 +34,34 @@ WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency, 100)
  * specific checkpoint and we got that checkpoint's write generation from the global checkpoint
  * metadata, not from per-tree information.
  */
-#define WT_WITH_CHECKPOINT(session, cbt, op)                                                    \
-    do {                                                                                        \
-        WT_TXN *__saved_txn;                                                                    \
-        uint64_t __saved_write_gen;                                                             \
-                                                                                                \
-        if ((cbt)->checkpoint_txn != NULL) {                                                    \
-            __saved_txn = (session)->txn;                                                       \
-            if (F_ISSET(__saved_txn, WT_TXN_IS_CHECKPOINT)) {                                   \
-                WT_ASSERT(session, cbt->checkpoint_write_gen == session->checkpoint_write_gen); \
-                __saved_txn = NULL;                                                             \
-            } else {                                                                            \
-                (session)->txn = (cbt)->checkpoint_txn;                                         \
-                if ((cbt)->checkpoint_hs_dhandle != NULL) {                                     \
-                    WT_ASSERT(session, session->hs_checkpoint == NULL);                         \
-                    session->hs_checkpoint = (cbt)->checkpoint_hs_dhandle->checkpoint;          \
-                }                                                                               \
-                __saved_write_gen = session->checkpoint_write_gen;                              \
-                session->checkpoint_write_gen = cbt->checkpoint_write_gen;                      \
-            }                                                                                   \
-        } else                                                                                  \
-            __saved_txn = NULL;                                                                 \
-        op;                                                                                     \
-        if (__saved_txn != NULL) {                                                              \
-            (session)->txn = __saved_txn;                                                       \
-            session->hs_checkpoint = NULL;                                                      \
-            session->checkpoint_write_gen = __saved_write_gen;                                  \
-        }                                                                                       \
+#define WT_WITH_CHECKPOINT(session, cbt, op)                                                \
+    do {                                                                                    \
+        WT_TXN *__saved_txn;                                                                \
+        uint64_t __saved_write_gen = (session)->checkpoint_write_gen;                       \
+                                                                                            \
+        if ((cbt)->checkpoint_txn != NULL) {                                                \
+            __saved_txn = (session)->txn;                                                   \
+            if (F_ISSET(__saved_txn, WT_TXN_IS_CHECKPOINT)) {                               \
+                WT_ASSERT(                                                                  \
+                  session, (cbt)->checkpoint_write_gen == (session)->checkpoint_write_gen); \
+                __saved_txn = NULL;                                                         \
+            } else {                                                                        \
+                (session)->txn = (cbt)->checkpoint_txn;                                     \
+                if ((cbt)->checkpoint_hs_dhandle != NULL) {                                 \
+                    WT_ASSERT(session, (session)->hs_checkpoint == NULL);                   \
+                    (session)->hs_checkpoint = (cbt)->checkpoint_hs_dhandle->checkpoint;    \
+                }                                                                           \
+                __saved_write_gen = (session)->checkpoint_write_gen;                        \
+                (session)->checkpoint_write_gen = (cbt)->checkpoint_write_gen;              \
+            }                                                                               \
+        } else                                                                              \
+            __saved_txn = NULL;                                                             \
+        op;                                                                                 \
+        if (__saved_txn != NULL) {                                                          \
+            (session)->txn = __saved_txn;                                                   \
+            (session)->hs_checkpoint = NULL;                                                \
+            (session)->checkpoint_write_gen = __saved_write_gen;                            \
+        }                                                                                   \
     } while (0)
 
 /*
