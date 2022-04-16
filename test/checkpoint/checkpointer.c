@@ -142,6 +142,7 @@ checkpointer(void *arg)
 
     testutil_check(__wt_thread_str(tid, sizeof(tid)));
     printf("checkpointer thread starting: tid: %s\n", tid);
+    fflush(stdout);
 
     (void)real_checkpointer();
     return (WT_THREAD_RET_VALUE);
@@ -196,7 +197,7 @@ real_checkpointer(void)
 
         if (g.use_timestamps) {
             testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable_timestamp"));
-            testutil_timestamp_parse(timestamp_buf, &stable_ts);
+            stable_ts = testutil_timestamp_parse(timestamp_buf);
             oldest_ts = g.ts_oldest;
             if (stable_ts <= oldest_ts)
                 verify_ts = stable_ts;
@@ -357,6 +358,7 @@ verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts)
     /* There's no way to verify LSM-only runs. */
     if (cursors[reference_table] == NULL) {
         printf("LSM-only, skipping checkpoint verification\n");
+        fflush(stdout);
         goto err;
     }
 
@@ -494,6 +496,7 @@ mismatch:
     printf("Key/value mismatch: %" PRIu64 "/%s (%" PRIu8 ") from a %s table is not %" PRIu64
            "/%s (%" PRIu8 ") from a %s table\n",
       key1, strval1, fixval1, type_to_string(type1), key2, strval2, fixval2, type_to_string(type2));
+    fflush(stdout);
 
     return (ret);
 
