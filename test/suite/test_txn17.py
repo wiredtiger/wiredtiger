@@ -27,29 +27,27 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_txn17.py
-#   API: Test that API tagged requires_transaction errors out if called without
-#   a running transaction and the ones tagged requires_notransaction errors out
-#   if called with a running transaction.
+#   Test API functionality only allowed in, or disallowed in, a running transaction.
 #
 
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
+# Test API functionality only allowed in, or disallowed in, a running transaction.
 class test_txn17(wttest.WiredTigerTestCase, suite_subprocess):
     def test_txn_api(self):
-        # Test API functionality tagged as requires_transaction.
-        # Cannot set a timestamp on a non-running transaction.
+        # Cannot set a timestamp without a running transaction.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction(
-                'commit_timestamp=' + self.timestamp_str(1 << 5000)),
+                'commit_timestamp=' + self.timestamp_str(10)),
                 '/only permitted in a running/')
 
-        # Cannot call commit on a non-running transaction.
+        # Cannot call commit without a running transaction.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(),
                 '/only permitted in a running transaction/')
 
-        # Cannot call rollback on a non-running transaction.
+        # Cannot call rollback without a running transaction.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.rollback_transaction(),
                 '/only permitted in a running transaction/')
