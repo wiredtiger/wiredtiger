@@ -468,7 +468,7 @@ __recovery_set_checkpoint_snapshot(WT_SESSION_IMPL *session)
      * Read the system checkpoint information from the metadata file and save the snapshot related
      * details of the last checkpoint in the connection for later query.
      */
-    return (__wt_meta_read_checkpoint_snapshot(session, NULL, &conn->recovery_ckpt_snap_min,
+    return (__wt_meta_read_checkpoint_snapshot(session, NULL, NULL, &conn->recovery_ckpt_snap_min,
       &conn->recovery_ckpt_snap_max, &conn->recovery_ckpt_snapshot,
       &conn->recovery_ckpt_snapshot_count, NULL));
 }

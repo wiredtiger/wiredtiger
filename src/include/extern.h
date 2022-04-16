@@ -1073,8 +1073,8 @@ extern int __wt_meta_ckptlist_update_config(WT_SESSION_IMPL *session, WT_CKPT *c
 extern int __wt_meta_read_checkpoint_oldest(WT_SESSION_IMPL *session, const char *ckpt_name,
   wt_timestamp_t *timestampp, uint64_t *ckpttime) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_meta_read_checkpoint_snapshot(WT_SESSION_IMPL *session, const char *ckpt_name,
-  uint64_t *snap_min, uint64_t *snap_max, uint64_t **snapshot, uint32_t *snapshot_count,
-  uint64_t *ckpttime) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  uint64_t *snap_write_gen, uint64_t *snap_min, uint64_t *snap_max, uint64_t **snapshot,
+  uint32_t *snapshot_count, uint64_t *ckpttime) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_meta_read_checkpoint_timestamp(WT_SESSION_IMPL *session, const char *ckpt_name,
   wt_timestamp_t *timestampp, uint64_t *ckpttime) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_meta_sysinfo_clear(WT_SESSION_IMPL *session, const char *name, size_t namelen)

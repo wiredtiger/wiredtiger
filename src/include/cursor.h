@@ -197,12 +197,14 @@ struct __wt_cursor_btree {
 
     /*
      * Bits used by checkpoint cursor: a private transaction, used to provide the proper read
-     * snapshot, and a reference to the corresponding history store checkpoint, which keeps it from
+     * snapshot; a reference to the corresponding history store checkpoint, which keeps it from
      * disappearing under us if it's unnamed and also tracks its identity for use in history store
-     * accesses.
+     * accesses; and a write generation, used to override the tree's base write generation in the
+     * unpacking cleanup code.
      */
     WT_TXN *checkpoint_txn;
     WT_DATA_HANDLE *checkpoint_hs_dhandle;
+    uint64_t checkpoint_write_gen;
 
     /*
      * Fixed-length column-store items are a single byte, and it's simpler and cheaper to allocate

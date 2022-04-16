@@ -1360,7 +1360,8 @@ __meta_print_snapshot(WT_SESSION_IMPL *session, WT_ITEM *buf)
     }
 
     WT_RET(__wt_buf_catfmt(session, buf,
-      "," WT_SYSTEM_TS_TIME "=%" PRIu64 "," WT_SYSTEM_TS_WRITE_GEN "=%" PRIu64,
+      "," WT_SYSTEM_CKPT_SNAPSHOT_TIME "=%" PRIu64 "," WT_SYSTEM_CKPT_SNAPSHOT_WRITE_GEN
+      "=%" PRIu64,
       session->current_ckpt_sec, S2C(session)->base_write_gen));
 
     return (0);
@@ -1567,8 +1568,8 @@ err:
  */
 int
 __wt_meta_read_checkpoint_snapshot(WT_SESSION_IMPL *session, const char *ckpt_name,
-  uint64_t *snap_min, uint64_t *snap_max, uint64_t **snapshot, uint32_t *snapshot_count,
-  uint64_t *ckpttime)
+  uint64_t *snap_write_gen, uint64_t *snap_min, uint64_t *snap_max, uint64_t **snapshot,
+  uint32_t *snapshot_count, uint64_t *ckpttime)
 {
     WT_CONFIG list;
     WT_CONFIG_ITEM cval;
@@ -1576,6 +1577,7 @@ __wt_meta_read_checkpoint_snapshot(WT_SESSION_IMPL *session, const char *ckpt_na
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    uint64_t write_gen;
     uint32_t counter;
     char *sys_config;
 
@@ -1593,10 +1595,14 @@ __wt_meta_read_checkpoint_snapshot(WT_SESSION_IMPL *session, const char *ckpt_na
      */
 
     /* Initialize to an empty snapshot. */
+    if (snap_write_gen != NULL)
+        *snap_write_gen = 0;
     *snap_min = WT_TXN_NONE;
     *snap_max = WT_TXN_NONE;
     *snapshot = NULL;
     *snapshot_count = 0;
+    if (ckpttime != NULL)
+        *ckpttime = 0;
 
     /* Fetch the metadata string. */
     if (ckpt_name == NULL)
@@ -1631,13 +1637,21 @@ __wt_meta_read_checkpoint_snapshot(WT_SESSION_IMPL *session, const char *ckpt_na
                 (*snapshot)[counter++] = (uint64_t)k.val;
         }
 
+        /* If the write generation isn't there, use 0; that'll use the btree's write generation. */
+        cval.val = 0;
+        WT_ERR_NOTFOUND_OK(
+          __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_WRITE_GEN, &cval),
+          false);
+        if (cval.val != 0)
+            write_gen = (uint64_t)cval.val;
+        if (snap_write_gen != NULL)
+            *snap_write_gen = write_gen;
+
         if (ckpttime != NULL) {
-            /* If the write generation is current, extract the checkpoint time. Otherwise we use 0.
+            /*
+             * If the write generation is current, extract the checkpoint time. Otherwise we use 0.
              */
-            WT_ERR_NOTFOUND_OK(
-              __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_WRITE_GEN, &cval),
-              false);
-            if (cval.val != 0 && (uint64_t)cval.val >= conn->base_write_gen) {
+            if (cval.val != 0 && write_gen >= conn->base_write_gen) {
                 WT_ERR_NOTFOUND_OK(
                   __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_TIME, &cval),
                   false);

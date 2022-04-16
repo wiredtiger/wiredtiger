@@ -23,35 +23,44 @@ WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency, 100)
  *
  * If there's a checkpoint transaction, it means we're a checkpoint cursor. In that case we
  * substitute the transaction into the session, and also stick the checkpoint name of the history
- * store dhandle in the session for when the history store is opened. After the operation completes
- * we then undo it all.
+ * store dhandle in the session for when the history store is opened. And store the base write
+ * generation we got from the global checkpoint metadata in the session for use in the unpacking
+ * cleanup code. After the operation completes we then undo it all.
  *
  * If the current transaction is _already_ a checkpoint cursor dummy transaction, however, do
  * nothing. This happens when the history store logic opens history store cursors inside checkpoint
- * cursor operations on the data store. In that case we want to keep the existing state.
+ * cursor operations on the data store. In that case we want to keep the existing state. Note that
+ * in this case we know that the checkpoint write generation is the same -- we are reading some
+ * specific checkpoint and we got that checkpoint's write generation from the global checkpoint
+ * metadata, not from per-tree information.
  */
-#define WT_WITH_CHECKPOINT(session, cbt, op)                                           \
-    do {                                                                               \
-        WT_TXN *__saved_txn;                                                           \
-                                                                                       \
-        if ((cbt)->checkpoint_txn != NULL) {                                           \
-            __saved_txn = (session)->txn;                                              \
-            if (F_ISSET(__saved_txn, WT_TXN_IS_CHECKPOINT))                            \
-                __saved_txn = NULL;                                                    \
-            else {                                                                     \
-                (session)->txn = (cbt)->checkpoint_txn;                                \
-                if ((cbt)->checkpoint_hs_dhandle != NULL) {                            \
-                    WT_ASSERT(session, session->hs_checkpoint == NULL);                \
-                    session->hs_checkpoint = (cbt)->checkpoint_hs_dhandle->checkpoint; \
-                }                                                                      \
-            }                                                                          \
-        } else                                                                         \
-            __saved_txn = NULL;                                                        \
-        op;                                                                            \
-        if (__saved_txn != NULL) {                                                     \
-            (session)->txn = __saved_txn;                                              \
-            session->hs_checkpoint = NULL;                                             \
-        }                                                                              \
+#define WT_WITH_CHECKPOINT(session, cbt, op)                                                    \
+    do {                                                                                        \
+        WT_TXN *__saved_txn;                                                                    \
+        uint64_t __saved_write_gen;                                                             \
+                                                                                                \
+        if ((cbt)->checkpoint_txn != NULL) {                                                    \
+            __saved_txn = (session)->txn;                                                       \
+            if (F_ISSET(__saved_txn, WT_TXN_IS_CHECKPOINT)) {                                   \
+                WT_ASSERT(session, cbt->checkpoint_write_gen == session->checkpoint_write_gen); \
+                __saved_txn = NULL;                                                             \
+            } else {                                                                            \
+                (session)->txn = (cbt)->checkpoint_txn;                                         \
+                if ((cbt)->checkpoint_hs_dhandle != NULL) {                                     \
+                    WT_ASSERT(session, session->hs_checkpoint == NULL);                         \
+                    session->hs_checkpoint = (cbt)->checkpoint_hs_dhandle->checkpoint;          \
+                }                                                                               \
+                __saved_write_gen = session->checkpoint_write_gen;                              \
+                session->checkpoint_write_gen = cbt->checkpoint_write_gen;                      \
+            }                                                                                   \
+        } else                                                                                  \
+            __saved_txn = NULL;                                                                 \
+        op;                                                                                     \
+        if (__saved_txn != NULL) {                                                              \
+            (session)->txn = __saved_txn;                                                       \
+            session->hs_checkpoint = NULL;                                                      \
+            session->checkpoint_write_gen = __saved_write_gen;                                  \
+        }                                                                                       \
     } while (0)
 
 /*
@@ -822,6 +831,16 @@ __curfile_setup_checkpoint(WT_CURSOR_BTREE *cbt, const char *cfg[], WT_DATA_HAND
 
     /* We should always have snapshot data, though it might be degenerate. */
     WT_ASSERT(session, ckpt_snapshot != NULL);
+
+    /*
+     * Remember the write generation so we can use it in preference to the btree's own write
+     * generation. This comes into play when the btree-level checkpoint is from an earlier run than
+     * the global checkpoint metadata: the unpack code hides old transaction ids, and we need to
+     * have it show us exactly the transaction ids that correspond to the snapshot we're using. The
+     * write generation we get might be 0 if the global checkpoint is old and didn't contain the
+     * information; in that case we'll ignore it.
+     */
+    cbt->checkpoint_write_gen = ckpt_snapshot->snapshot_write_gen;
 
     /*
      * Override the read timestamp if explicitly provided. Otherwise it's the stable timestamp from

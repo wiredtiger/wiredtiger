@@ -177,6 +177,7 @@ struct __wt_ckpt {
 struct __wt_ckpt_snapshot {
     uint64_t oldest_ts;
     uint64_t stable_ts;
+    uint64_t snapshot_write_gen;
     uint64_t snapshot_min;
     uint64_t snapshot_max;
     uint64_t *snapshot_txns;

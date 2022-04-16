@@ -299,9 +299,9 @@ __session_fetch_checkpoint_meta(WT_SESSION_IMPL *session, const char *ckpt_name,
       __wt_meta_read_checkpoint_oldest(session, ckpt_name, &info_ret->oldest_ts, oldest_time_ret));
 
     /* Get the snapshot. */
-    WT_RET(__wt_meta_read_checkpoint_snapshot(session, ckpt_name, &info_ret->snapshot_min,
-      &info_ret->snapshot_max, &info_ret->snapshot_txns, &info_ret->snapshot_count,
-      snapshot_time_ret));
+    WT_RET(__wt_meta_read_checkpoint_snapshot(session, ckpt_name, &info_ret->snapshot_write_gen,
+      &info_ret->snapshot_min, &info_ret->snapshot_max, &info_ret->snapshot_txns,
+      &info_ret->snapshot_count, snapshot_time_ret));
 
     /*
      * If we successfully read a null snapshot, set the min and max to WT_TXN_MAX so everything is
@@ -374,6 +374,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
     if (ckpt_snapshot != NULL) {
         ckpt_snapshot->oldest_ts = WT_TS_NONE;
         ckpt_snapshot->stable_ts = WT_TS_NONE;
+        ckpt_snapshot->snapshot_write_gen = 0;
         ckpt_snapshot->snapshot_min = WT_TXN_MAX;
         ckpt_snapshot->snapshot_max = WT_TXN_MAX;
         ckpt_snapshot->snapshot_txns = NULL;
