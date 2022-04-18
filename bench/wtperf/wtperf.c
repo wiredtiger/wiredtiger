@@ -1341,6 +1341,7 @@ checkpoint_worker(void *arg)
         if (wtperf->stop)
             break;
 
+        printf("CHECKPOINT START\n");
         wtperf->ckpt = true;
         if ((ret = session->checkpoint(session, NULL)) != 0) {
             lprintf(wtperf, ret, 0, "Checkpoint failed.");
@@ -1398,6 +1399,7 @@ flush_tier_worker(void *arg)
         if (wtperf->stop)
             break;
 
+        printf("FLUSH_TIER START\n");
         wtperf->flush = true;
         if ((ret = session->flush_tier(session, NULL)) != 0) {
             lprintf(wtperf, ret, 0, "Flush_tier failed.");
