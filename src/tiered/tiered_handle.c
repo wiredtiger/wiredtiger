@@ -247,20 +247,23 @@ __tiered_flush_older_objects(WT_SESSION_IMPL *session, WT_TIERED *tiered)
         return (0);
 
     /*
-     * Work our way backwards through all earlier objects and look at each object's flush_time
-     * configuration setting. If it is zero that means the object is not flushed and a work unit
-     * will be pushed for that object.
+     * Work our way through all earlier objects and look at each object's flush_time configuration
+     * setting. If it is zero that means the object is not flushed and a work unit will be pushed
+     * for that object.
      */
     obj_name = obj_uri = obj_val = NULL;
     exist = false;
-    for (i = tiered->current_id - 1; i > 0; --i) {
+    for (i = tiered->oldest_id; i < tiered->current_id; ++i) {
         WT_ERR(__wt_tiered_name(session, &tiered->iface, i, WT_TIERED_NAME_OBJECT, &obj_uri));
         obj_name = obj_uri;
         WT_PREFIX_SKIP_REQUIRED(session, obj_name, "object:");
         WT_ERR(__wt_fs_exist(session, obj_name, &exist));
         /*
-         * We only need to worry about objects that exist locally. As soon as we find an object that
-         * does not exist, that means that it, and all earlier objects, have been flushed.
+         * We only need to worry about objects that exist locally. Most earlier objects should not
+         * exist. Skip over them. We're working forward through the objects. Even if we went
+         * backward we cannot guarantee that the work is queued and processed and the metadata
+         * flushed in order to stop at the first flushed object in the face of multiple crashes. So
+         * check all objects that exist locally.
          */
         if (exist) {
             WT_ERR(__wt_metadata_search(session, obj_uri, (char **)&obj_val));
@@ -269,10 +272,9 @@ __tiered_flush_older_objects(WT_SESSION_IMPL *session, WT_TIERED *tiered)
               "OLDER_OBJECTS: local object %s has flush time %d", obj_uri, (int)cval.val);
             if (cval.val == 0)
                 WT_ERR(__wt_tiered_put_flush(session, tiered, i));
-        } else
-            break;
+            __wt_free(session, obj_val);
+        }
         __wt_free(session, obj_uri);
-        __wt_free(session, obj_val);
     }
 err:
     __wt_free(session, obj_uri);
