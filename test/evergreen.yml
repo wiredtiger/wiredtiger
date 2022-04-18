@@ -4006,8 +4006,7 @@ buildvariants:
   run_on:
   - ubuntu2004-arm64-large
   expansions:
-    # Use half number of vCPU to avoid OOM kill failure
-    smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
       LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libeatmydata.so
