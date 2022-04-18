@@ -922,9 +922,11 @@ populate_thread(void *arg)
         goto err;
     }
 
-    /* Do bulk loads if populate is single-threaded. */
-    //    cursor_config = (opts->populate_threads == 1 && !opts->index) ? "bulk" : NULL;
+    /* Do bulk loads if populate is single-threaded and not running with tiered storage. */
     cursor_config = NULL;
+    if (opts->populate_threads == 1 && !opts->index && opts->tiered_flush_interval == 0)
+        cursor_config = "bulk";
+
     /* Create the cursors. */
     cursors = dcalloc(total_table_count, sizeof(WT_CURSOR *));
     for (i = 0; i < total_table_count; i++) {
@@ -1337,8 +1339,11 @@ checkpoint_worker(void *arg)
             if (wtperf->stop)
                 break;
         }
-        /* If the workers are done, don't bother with a final call. */
-        if (wtperf->stop)
+        /*
+         * If the workers are done, don't bother with a final call unless the flush tier worker
+         * needs to a final checkpoint to complete.
+         */
+        if (wtperf->stop !!!wtperf->flush)
             break;
 
         printf("CHECKPOINT START\n");
@@ -1644,11 +1649,11 @@ execute_populate(WTPERF *wtperf)
       "load ops/sec: %" PRIu64,
       print_secs, print_ops_sec);
 
+    wtperf->stop = true;
     /* Stop cycling idle tables. */
     stop_idle_table_cycle(wtperf, idle_table_cycle_thread);
 
     /* Stop the flush and checkpoint threads if we used them during populate */
-    wtperf->stop = true;
     if (wtperf->flushthreads != NULL) {
         stop_threads(1, wtperf->flushthreads);
         free(wtperf->flushthreads);
