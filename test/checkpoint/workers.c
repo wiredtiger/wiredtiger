@@ -131,6 +131,7 @@ start_workers(void)
     (void)gettimeofday(&stop, NULL);
     seconds = (stop.tv_sec - start.tv_sec) + (stop.tv_usec - start.tv_usec) * 1e-6;
     printf("Ran workers for: %f seconds\n", seconds);
+    fflush(stdout);
 
 err:
     free(tids);
@@ -214,6 +215,16 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
                 return (WT_ROLLBACK);
             return (log_print_err("cursor.search_near", ret, 1));
         }
+
+        /* Retry the result of search_near again to confirm the result. */
+        if (new_val % 2 == 0) {
+            if ((ret = cursor->search(cursor)) != 0) {
+                if (ret == WT_ROLLBACK)
+                    return (WT_ROLLBACK);
+                return (log_print_err("cursor.search", ret, 1));
+            }
+        }
+
         if (cmp < 0) {
             /* Advance to the next key that exists. */
             if ((ret = cursor->next(cursor)) != 0) {
@@ -329,6 +340,7 @@ worker(void *arg)
 
     testutil_check(__wt_thread_str(tid, sizeof(tid)));
     printf("worker thread starting: tid: %s\n", tid);
+    fflush(stdout);
 
     (void)real_worker();
     return (WT_THREAD_RET_VALUE);
