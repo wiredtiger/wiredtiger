@@ -923,7 +923,7 @@ populate_thread(void *arg)
     }
 
     /* Do bulk loads if populate is single-threaded. */
-//    cursor_config = (opts->populate_threads == 1 && !opts->index) ? "bulk" : NULL;
+    //    cursor_config = (opts->populate_threads == 1 && !opts->index) ? "bulk" : NULL;
     cursor_config = NULL;
     /* Create the cursors. */
     cursors = dcalloc(total_table_count, sizeof(WT_CURSOR *));
@@ -1548,21 +1548,21 @@ execute_populate(WTPERF *wtperf)
     max_key = (uint64_t)opts->icount + (uint64_t)opts->scan_icount;
 
     /*
-     * If this is going to be a tiered workload, start the checkpoint threads and
-     * the flush threads during the populate phase so that the tiers are created
-     * as we populate the database.
+     * If this is going to be a tiered workload, start the checkpoint threads and the flush threads
+     * during the populate phase so that the tiers are created as we populate the database.
      */
     if (opts->tiered_flush_interval != 0) {
-         /* Start the checkpoint thread. */
+        /* Start the checkpoint thread. */
         if (opts->checkpoint_threads != 0) {
-            lprintf(wtperf, 0, 1, "Starting %" PRIu32 " checkpoint thread(s)",
-                    opts->checkpoint_threads);
+            lprintf(
+              wtperf, 0, 1, "Starting %" PRIu32 " checkpoint thread(s)", opts->checkpoint_threads);
             wtperf->ckptthreads = dcalloc(opts->checkpoint_threads, sizeof(WTPERF_THREAD));
             start_threads(
-                wtperf, NULL, wtperf->ckptthreads, opts->checkpoint_threads, checkpoint_worker);
+              wtperf, NULL, wtperf->ckptthreads, opts->checkpoint_threads, checkpoint_worker);
         } else {
-            lprintf(wtperf, 0, 1, "Running a flush-tier thread without checkpoint threads "
-                    "on populate may hang the flush thread.");
+            lprintf(wtperf, 0, 1,
+              "Running a flush-tier thread without checkpoint threads "
+              "on populate may hang the flush thread.");
         }
 
         lprintf(wtperf, 0, 1, "Starting 1 flush_tier thread");
@@ -2069,7 +2069,7 @@ wtperf_free(WTPERF *wtperf)
     if (wtperf->backupthreads != NULL)
         free(wtperf->backupthreads);
 
-        free(wtperf->ckptthreads);
+    free(wtperf->ckptthreads);
     if (wtperf->flushthreads != NULL)
         free(wtperf->flushthreads);
     if (wtperf->scanthreads != NULL)

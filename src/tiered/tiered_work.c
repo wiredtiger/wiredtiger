@@ -176,7 +176,7 @@ __wt_tiered_put_drop_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t
     /* Put a work unit in the queue with the time this object expires. */
     entry->op_val = now + tiered->bstorage->retain_secs;
     entry->tiered = tiered;
-    __wt_verbose(session, WT_VERB_TIERED, "PUT DROP LOCAL: for time %" PRId64 "",  entry->op_val );
+    __wt_verbose(session, WT_VERB_TIERED, "PUT DROP LOCAL: for time %" PRId64 "", entry->op_val);
     __wt_tiered_push_work(session, entry);
     return (0);
 }

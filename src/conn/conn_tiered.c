@@ -150,9 +150,10 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
                 /* If nothing has changed, there's nothing to do. */
                 if (ckpt_time == 0 || (uint64_t)cval.val > ckpt_time) {
                     WT_STAT_CONN_INCR(session, flush_tier_skipped);
-                    __wt_verbose(session, WT_VERB_TIERED, "FLUSH_TIER_ONCE: skipped: "
-                                 "ckpt_time=%" PRIu64 ", flush_time=%" PRIu64 "",
-                                 ckpt_time, cval.val);
+                    __wt_verbose(session, WT_VERB_TIERED,
+                      "FLUSH_TIER_ONCE: skipped: "
+                      "ckpt_time=%" PRIu64 ", flush_time=%" PRIu64 "",
+                      ckpt_time, cval.val);
                     continue;
                 }
             }
