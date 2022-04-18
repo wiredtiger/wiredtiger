@@ -1405,6 +1405,7 @@ flush_tier_worker(void *arg)
         }
         wtperf->flush = false;
         ++thread->flush.ops;
+        printf("FLUSH_TIER DONE\n");
     }
 
     if (session != NULL && ((ret = session->close(session, NULL)) != 0)) {
