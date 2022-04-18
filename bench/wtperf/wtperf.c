@@ -1343,7 +1343,7 @@ checkpoint_worker(void *arg)
          * If the workers are done, don't bother with a final call unless the flush tier worker
          * needs to a final checkpoint to complete.
          */
-        if (wtperf->stop !!!wtperf->flush)
+        if (wtperf->stop && !wtperf->flush)
             break;
 
         printf("CHECKPOINT START\n");
