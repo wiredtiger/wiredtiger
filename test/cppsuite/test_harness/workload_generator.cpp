@@ -50,14 +50,14 @@ std::function<void(test_harness::thread_context *)>
 operation_config::get_func(database_operation *dbo)
 {
     switch (type) {
+    case thread_type::CUSTOM:
+        return (std::bind(&database_operation::custom_operation, dbo, std::placeholders::_1));
     case thread_type::INSERT:
         return (std::bind(&database_operation::insert_operation, dbo, std::placeholders::_1));
     case thread_type::READ:
         return (std::bind(&database_operation::read_operation, dbo, std::placeholders::_1));
     case thread_type::UPDATE:
         return (std::bind(&database_operation::update_operation, dbo, std::placeholders::_1));
-    case thread_type::USER:
-        return (std::bind(&database_operation::custom_operation, dbo, std::placeholders::_1));
     default:
         /* This may cause a separate testutil_die in type_string but that should be okay. */
         testutil_die(EINVAL, "unexpected thread_type: %s", type_string(type).c_str());
@@ -88,13 +88,13 @@ workload_generator::run()
 
     /* Retrieve useful parameters from the test configuration. */
     operation_configs.push_back(
+      operation_config(_config->get_subconfig(CUSTOM_CONFIG), thread_type::CUSTOM));
+    operation_configs.push_back(
       operation_config(_config->get_subconfig(INSERT_CONFIG), thread_type::INSERT));
     operation_configs.push_back(
       operation_config(_config->get_subconfig(READ_CONFIG), thread_type::READ));
     operation_configs.push_back(
       operation_config(_config->get_subconfig(UPDATE_CONFIG), thread_type::UPDATE));
-    operation_configs.push_back(
-      operation_config(_config->get_subconfig(CUSTOM_CONFIG), thread_type::USER));
     populate_config = _config->get_subconfig(POPULATE_CONFIG);
 
     /* Populate the database. */

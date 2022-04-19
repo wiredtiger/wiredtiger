@@ -124,6 +124,13 @@ database_operation::populate(
 }
 
 void
+database_operation::custom_operation(thread_context *tc)
+{
+    logger::log_msg(
+      LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+}
+
+void
 database_operation::insert_operation(thread_context *tc)
 {
     logger::log_msg(
@@ -294,13 +301,6 @@ database_operation::update_operation(thread_context *tc)
     /* Make sure the last operation is rolled back now the work is finished. */
     if (tc->transaction.active())
         tc->transaction.rollback();
-}
-
-void
-database_operation::custom_operation(thread_context *tc)
-{
-    logger::log_msg(
-      LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 }
 
 } // namespace test_harness

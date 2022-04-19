@@ -47,6 +47,7 @@ extern const std::string CACHE_SIZE_MB;
 extern const std::string CC_PAGES_REMOVED;
 extern const std::string COLLECTION_COUNT;
 extern const std::string COMPRESSION_ENABLED;
+extern const std::string CUSTOM_CONFIG;
 extern const std::string DURATION_SECONDS;
 extern const std::string ENABLED;
 extern const std::string ENABLE_LOGGING;
@@ -71,7 +72,6 @@ extern const std::string STATISTICS_CONFIG;
 extern const std::string THREAD_COUNT;
 extern const std::string TYPE;
 extern const std::string UPDATE_CONFIG;
-extern const std::string CUSTOM_CONFIG;
 extern const std::string VALUE_SIZE;
 
 /* WiredTiger API consts. */

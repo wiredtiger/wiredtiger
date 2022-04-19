@@ -40,14 +40,14 @@ const std::string
 type_string(thread_type type)
 {
     switch (type) {
+    case thread_type::CUSTOM:
+        return ("custom");
     case thread_type::INSERT:
         return ("insert");
     case thread_type::READ:
         return ("read");
     case thread_type::UPDATE:
         return ("update");
-    case thread_type::USER:
-        return ("user");
     default:
         testutil_die(EINVAL, "unexpected thread_type: %d", static_cast<int>(type));
     }
