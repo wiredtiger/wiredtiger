@@ -971,7 +971,7 @@ retry:
     WT_ASSERT(session, cbt->upd_value->type == WT_UPDATE_INVALID);
 
     /* If there is no ondisk value, there can't be anything in the history store either. */
-    if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX) {
+    if (cbt->ref->page->dsk == NULL) {
         cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
         return (0);
     }
@@ -1263,7 +1263,7 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
  * __wt_txn_search_check --
  *     Check if a search by the current transaction violates timestamp rules.
  */
-static inline void
+static inline int
 __wt_txn_search_check(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
@@ -1276,11 +1276,11 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
 
     /* Timestamps are ignored on logged files. */
     if (F_ISSET(S2BT(session), WT_BTREE_LOGGED))
-        return;
+        return (0);
 
     /* Skip checks during recovery. */
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
-        return;
+        return (0);
 
     /* Verify if the table should always or never use a read timestamp. */
     if (LF_ISSET(WT_DHANDLE_TS_ASSERT_READ_ALWAYS) && !F_ISSET(txn, WT_TXN_SHARED_TS_READ)) {
@@ -1288,6 +1288,9 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
           "%s: " WT_TS_VERBOSE_PREFIX "read timestamps required and none set", name);
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
+#endif
+#ifdef WT_STANDALONE_BUILD
+        return (EINVAL);
 #endif
     }
 
@@ -1297,7 +1300,11 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
+#ifdef WT_STANDALONE_BUILD
+        return (EINVAL);
+#endif
     }
+    return (0);
 }
 
 /*
