@@ -57,7 +57,7 @@ operation_config::get_func(database_operation *dbo)
     case thread_type::UPDATE:
         return (std::bind(&database_operation::update_operation, dbo, std::placeholders::_1));
     case thread_type::USER:
-        return (std::bind(&database_operation::user_operation, dbo, std::placeholders::_1));
+        return (std::bind(&database_operation::custom_operation, dbo, std::placeholders::_1));
     default:
         /* This may cause a separate testutil_die in type_string but that should be okay. */
         testutil_die(EINVAL, "unexpected thread_type: %s", type_string(type).c_str());
@@ -94,7 +94,7 @@ workload_generator::run()
     operation_configs.push_back(
       operation_config(_config->get_subconfig(UPDATE_CONFIG), thread_type::UPDATE));
     operation_configs.push_back(
-      operation_config(_config->get_subconfig(USER_CONFIG), thread_type::USER));
+      operation_config(_config->get_subconfig(CUSTOM_CONFIG), thread_type::USER));
     populate_config = _config->get_subconfig(POPULATE_CONFIG);
 
     /* Populate the database. */

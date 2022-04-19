@@ -57,7 +57,7 @@ class database_operation {
     virtual void update_operation(thread_context *tc);
 
     /* User defined operation without a default implementation. */
-    virtual void user_operation(thread_context *tc);
+    virtual void custom_operation(thread_context *tc);
 
     virtual ~database_operation() = default;
 };

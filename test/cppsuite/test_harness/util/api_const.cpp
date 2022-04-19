@@ -44,6 +44,7 @@ const std::string CACHE_SIZE_MB = "cache_size_mb";
 const std::string CC_PAGES_REMOVED = "cc_pages_removed";
 const std::string COLLECTION_COUNT = "collection_count";
 const std::string COMPRESSION_ENABLED = "compression_enabled";
+const std::string CUSTOM_CONFIG = "custom_config";
 const std::string DURATION_SECONDS = "duration_seconds";
 const std::string ENABLED = "enabled";
 const std::string ENABLE_LOGGING = "enable_logging";
@@ -68,7 +69,6 @@ const std::string STATISTICS_CONFIG = "statistics_config";
 const std::string THREAD_COUNT = "thread_count";
 const std::string TYPE = "type";
 const std::string UPDATE_CONFIG = "update_config";
-const std::string USER_CONFIG = "user_config";
 const std::string VALUE_SIZE = "value_size";
 
 /* WiredTiger API consts. */

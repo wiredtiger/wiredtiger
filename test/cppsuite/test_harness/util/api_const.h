@@ -71,7 +71,7 @@ extern const std::string STATISTICS_CONFIG;
 extern const std::string THREAD_COUNT;
 extern const std::string TYPE;
 extern const std::string UPDATE_CONFIG;
-extern const std::string USER_CONFIG;
+extern const std::string CUSTOM_CONFIG;
 extern const std::string VALUE_SIZE;
 
 /* WiredTiger API consts. */

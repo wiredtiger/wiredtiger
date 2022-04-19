@@ -72,7 +72,7 @@ workload_generator=
         thread_count=10,
         value_size=20
     ),
-    user_config=
+    custom_config=
     (
         thread_count=1
     )
