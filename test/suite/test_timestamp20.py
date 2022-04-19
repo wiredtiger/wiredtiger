@@ -59,7 +59,7 @@ class test_timestamp20(wttest.WiredTigerTestCase):
 
     def test_timestamp20_standard(self):
         uri = 'table:test_timestamp20'
-        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        format = 'key_format={},value_format={},write_timestamp_usage=mixed_mode'.format(self.key_format, self.value_format)
         self.session.create(uri, format)
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(uri)
@@ -127,7 +127,7 @@ class test_timestamp20(wttest.WiredTigerTestCase):
             return
 
         uri = 'table:test_timestamp20'
-        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        format = 'key_format={},value_format={},write_timestamp_usage=mixed_mode'.format(self.key_format, self.value_format)
         self.session.create(uri, format)
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(uri)

@@ -55,7 +55,7 @@ class test_hs24(wttest.WiredTigerTestCase):
     numrows = 2000
 
     def moresetup(self):
-        self.format = 'key_format={},value_format={}'. format(self.key_format, self.value_format)
+        self.format = 'key_format={},value_format={},write_timestamp_usage=mixed_mode'. format(self.key_format, self.value_format)
         if self.value_format == '8t':
             self.value1 = 97
             self.value2 = 98
