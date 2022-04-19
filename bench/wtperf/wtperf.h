@@ -182,13 +182,14 @@ struct __wtperf {         /* Per-database structure */
     uint64_t insert_key;         /* insert key */
     uint64_t log_like_table_key; /* used to allocate IDs for log table */
 
-    volatile bool backup;    /* backup in progress */
-    volatile bool ckpt;      /* checkpoint in progress */
-    volatile bool flush;     /* flush_tier in progress */
-    volatile bool scan;      /* scan in progress */
-    volatile bool error;     /* thread error */
-    volatile bool stop;      /* notify threads to stop */
-    volatile bool in_warmup; /* running warmup phase */
+    volatile bool backup;               /* backup in progress */
+    volatile bool ckpt;                 /* checkpoint in progress */
+    volatile bool flush;                /* flush_tier in progress */
+    volatile bool flush_worker_running; /* flush thread running */
+    volatile bool scan;                 /* scan in progress */
+    volatile bool error;                /* thread error */
+    volatile bool stop;                 /* notify threads to stop */
+    volatile bool in_warmup;            /* running warmup phase */
 
     volatile bool idle_cycle_run; /* Signal for idle cycle thread */
 

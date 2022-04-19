@@ -1341,25 +1341,23 @@ checkpoint_worker(void *arg)
         }
         /*
          * If the workers are done, don't bother with a final call unless the flush tier worker
-         * needs to a final checkpoint to complete.
+         * needs to a final checkpoint to complete. The checkpoint thread keeps running as long as
+         * there is a flush tier worker thread running.
          */
-        if (wtperf->stop && !wtperf->flush)
+        if (wtperf->stop && !wtperf->flush_worker_running)
             break;
-
-        if (wtperf->stop && wtperf->flush)
-            printf("CHECKPOINT START for running FLUSH_TIER\n");
-
-        printf("CHECKPOINT START\n");
         wtperf->ckpt = true;
+        fprintf(stderr, "CHECKPOINT START\n");
         if ((ret = session->checkpoint(session, NULL)) != 0) {
             lprintf(wtperf, ret, 0, "Checkpoint failed.");
             goto err;
         }
         wtperf->ckpt = false;
         ++thread->ckpt.ops;
-        printf("CHECKPOINT DONE\n");
+        fprintf(stderr, "CHECKPOINT DONE\n");
     }
 
+    fprintf(stderr, "CHECKPOINT SHUTDOWN\n");
     if (session != NULL && ((ret = session->close(session, NULL)) != 0)) {
         lprintf(wtperf, ret, 0, "Error closing session in checkpoint worker.");
         goto err;
@@ -1396,6 +1394,7 @@ flush_tier_worker(void *arg)
         goto err;
     }
 
+    wtperf->flush_worker_running = true;
     while (!wtperf->stop) {
         /* Break the sleep up, so we notice interrupts faster. */
         for (i = 0; i < opts->tiered_flush_interval; i++) {
@@ -1407,17 +1406,19 @@ flush_tier_worker(void *arg)
         if (wtperf->stop)
             break;
 
-        printf("FLUSH_TIER START\n");
         wtperf->flush = true;
+        fprintf(stderr, "FLUSH_TIER START\n");
         if ((ret = session->flush_tier(session, NULL)) != 0) {
             lprintf(wtperf, ret, 0, "Flush_tier failed.");
             goto err;
         }
         wtperf->flush = false;
         ++thread->flush.ops;
-        printf("FLUSH_TIER DONE\n");
+        fprintf(stderr, "FLUSH_TIER DONE\n");
     }
 
+    fprintf(stderr, "FLUSH_TIER SHUTDOWN\n");
+    wtperf->flush_worker_running = false;
     if (session != NULL && ((ret = session->close(session, NULL)) != 0)) {
         lprintf(wtperf, ret, 0, "Error closing session in flush_tier worker.");
         goto err;
@@ -1614,7 +1615,7 @@ execute_populate(WTPERF *wtperf)
           wtperf->totalsec);
         last_ops = wtperf->insert_ops;
     }
-    printf("I'M DONE!!!!!!!!!!\n");
+    fprintf(stderr, "I'M DONE!!!!!!!!!!\n");
     stop = __wt_clock(NULL);
 
     /*
