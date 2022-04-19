@@ -145,7 +145,6 @@ class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
 
         # The information for the third table should exist in the WiredTiger.export file
         # but the information for the second table should not exist in the file.
-
         with open(self.dir + "/WiredTiger.export", "r") as export_file:
             export_file_string = export_file.read()
             self.assertFalse("exportb" in export_file_string)
