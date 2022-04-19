@@ -549,6 +549,7 @@ struct __wt_connection_stats {
     int64_t cursor_skip_hs_cur_position;
     int64_t cursor_search_near_prefix_fast_paths;
     int64_t cursor_reposition_failed;
+    int64_t cursor_reposition;
     int64_t cursor_cached_count;
     int64_t cursor_insert_bulk;
     int64_t cursor_cache;
@@ -569,7 +570,6 @@ struct __wt_connection_stats {
     int64_t cursor_prev_skip_lt_100;
     int64_t cursor_remove;
     int64_t cursor_remove_bytes;
-    int64_t cursor_reposition;
     int64_t cursor_reserve;
     int64_t cursor_reset;
     int64_t cursor_search;
@@ -1006,6 +1006,7 @@ struct __wt_dsrc_stats {
     int64_t cursor_skip_hs_cur_position;
     int64_t cursor_search_near_prefix_fast_paths;
     int64_t cursor_reposition_failed;
+    int64_t cursor_reposition;
     int64_t cursor_insert_bulk;
     int64_t cursor_reopen;
     int64_t cursor_cache;
@@ -1016,7 +1017,6 @@ struct __wt_dsrc_stats {
     int64_t cursor_prev_hs_tombstone;
     int64_t cursor_prev_skip_ge_100;
     int64_t cursor_prev_skip_lt_100;
-    int64_t cursor_reposition;
     int64_t cursor_insert;
     int64_t cursor_insert_bytes;
     int64_t cursor_modify;

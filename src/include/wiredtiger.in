@@ -5687,60 +5687,60 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS	1215
 /*! cursor: Total number of times cursor fails to reposition */
 #define	WT_STAT_CONN_CURSOR_REPOSITION_FAILED		1216
+/*! cursor: Total number of times the cursor tried to reposition itself */
+#define	WT_STAT_CONN_CURSOR_REPOSITION			1217
 /*! cursor: cached cursor count */
-#define	WT_STAT_CONN_CURSOR_CACHED_COUNT		1217
+#define	WT_STAT_CONN_CURSOR_CACHED_COUNT		1218
 /*! cursor: cursor bulk loaded cursor insert calls */
-#define	WT_STAT_CONN_CURSOR_INSERT_BULK			1218
+#define	WT_STAT_CONN_CURSOR_INSERT_BULK			1219
 /*! cursor: cursor close calls that result in cache */
-#define	WT_STAT_CONN_CURSOR_CACHE			1219
+#define	WT_STAT_CONN_CURSOR_CACHE			1220
 /*! cursor: cursor create calls */
-#define	WT_STAT_CONN_CURSOR_CREATE			1220
+#define	WT_STAT_CONN_CURSOR_CREATE			1221
 /*! cursor: cursor insert calls */
-#define	WT_STAT_CONN_CURSOR_INSERT			1221
+#define	WT_STAT_CONN_CURSOR_INSERT			1222
 /*! cursor: cursor insert key and value bytes */
-#define	WT_STAT_CONN_CURSOR_INSERT_BYTES		1222
+#define	WT_STAT_CONN_CURSOR_INSERT_BYTES		1223
 /*! cursor: cursor modify calls */
-#define	WT_STAT_CONN_CURSOR_MODIFY			1223
+#define	WT_STAT_CONN_CURSOR_MODIFY			1224
 /*! cursor: cursor modify key and value bytes affected */
-#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES		1224
+#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES		1225
 /*! cursor: cursor modify value bytes modified */
-#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES_TOUCH		1225
+#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES_TOUCH		1226
 /*! cursor: cursor next calls */
-#define	WT_STAT_CONN_CURSOR_NEXT			1226
+#define	WT_STAT_CONN_CURSOR_NEXT			1227
 /*!
  * cursor: cursor next calls that skip due to a globally visible history
  * store tombstone
  */
-#define	WT_STAT_CONN_CURSOR_NEXT_HS_TOMBSTONE		1227
+#define	WT_STAT_CONN_CURSOR_NEXT_HS_TOMBSTONE		1228
 /*!
  * cursor: cursor next calls that skip greater than or equal to 100
  * entries
  */
-#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_GE_100		1228
+#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_GE_100		1229
 /*! cursor: cursor next calls that skip less than 100 entries */
-#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100		1229
+#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100		1230
 /*! cursor: cursor operation restarted */
-#define	WT_STAT_CONN_CURSOR_RESTART			1230
+#define	WT_STAT_CONN_CURSOR_RESTART			1231
 /*! cursor: cursor prev calls */
-#define	WT_STAT_CONN_CURSOR_PREV			1231
+#define	WT_STAT_CONN_CURSOR_PREV			1232
 /*!
  * cursor: cursor prev calls that skip due to a globally visible history
  * store tombstone
  */
-#define	WT_STAT_CONN_CURSOR_PREV_HS_TOMBSTONE		1232
+#define	WT_STAT_CONN_CURSOR_PREV_HS_TOMBSTONE		1233
 /*!
  * cursor: cursor prev calls that skip greater than or equal to 100
  * entries
  */
-#define	WT_STAT_CONN_CURSOR_PREV_SKIP_GE_100		1233
+#define	WT_STAT_CONN_CURSOR_PREV_SKIP_GE_100		1234
 /*! cursor: cursor prev calls that skip less than 100 entries */
-#define	WT_STAT_CONN_CURSOR_PREV_SKIP_LT_100		1234
+#define	WT_STAT_CONN_CURSOR_PREV_SKIP_LT_100		1235
 /*! cursor: cursor remove calls */
-#define	WT_STAT_CONN_CURSOR_REMOVE			1235
+#define	WT_STAT_CONN_CURSOR_REMOVE			1236
 /*! cursor: cursor remove key bytes removed */
-#define	WT_STAT_CONN_CURSOR_REMOVE_BYTES		1236
-/*! cursor: cursor reposition */
-#define	WT_STAT_CONN_CURSOR_REPOSITION			1237
+#define	WT_STAT_CONN_CURSOR_REMOVE_BYTES		1237
 /*! cursor: cursor reserve calls */
 #define	WT_STAT_CONN_CURSOR_RESERVE			1238
 /*! cursor: cursor reset calls */
@@ -6871,40 +6871,40 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS	2146
 /*! cursor: Total number of times cursor fails to reposition */
 #define	WT_STAT_DSRC_CURSOR_REPOSITION_FAILED		2147
+/*! cursor: Total number of times the cursor tried to reposition itself */
+#define	WT_STAT_DSRC_CURSOR_REPOSITION			2148
 /*! cursor: bulk loaded cursor insert calls */
-#define	WT_STAT_DSRC_CURSOR_INSERT_BULK			2148
+#define	WT_STAT_DSRC_CURSOR_INSERT_BULK			2149
 /*! cursor: cache cursors reuse count */
-#define	WT_STAT_DSRC_CURSOR_REOPEN			2149
+#define	WT_STAT_DSRC_CURSOR_REOPEN			2150
 /*! cursor: close calls that result in cache */
-#define	WT_STAT_DSRC_CURSOR_CACHE			2150
+#define	WT_STAT_DSRC_CURSOR_CACHE			2151
 /*! cursor: create calls */
-#define	WT_STAT_DSRC_CURSOR_CREATE			2151
+#define	WT_STAT_DSRC_CURSOR_CREATE			2152
 /*!
  * cursor: cursor next calls that skip due to a globally visible history
  * store tombstone
  */
-#define	WT_STAT_DSRC_CURSOR_NEXT_HS_TOMBSTONE		2152
+#define	WT_STAT_DSRC_CURSOR_NEXT_HS_TOMBSTONE		2153
 /*!
  * cursor: cursor next calls that skip greater than or equal to 100
  * entries
  */
-#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_GE_100		2153
+#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_GE_100		2154
 /*! cursor: cursor next calls that skip less than 100 entries */
-#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_LT_100		2154
+#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_LT_100		2155
 /*!
  * cursor: cursor prev calls that skip due to a globally visible history
  * store tombstone
  */
-#define	WT_STAT_DSRC_CURSOR_PREV_HS_TOMBSTONE		2155
+#define	WT_STAT_DSRC_CURSOR_PREV_HS_TOMBSTONE		2156
 /*!
  * cursor: cursor prev calls that skip greater than or equal to 100
  * entries
  */
-#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_GE_100		2156
+#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_GE_100		2157
 /*! cursor: cursor prev calls that skip less than 100 entries */
-#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_LT_100		2157
-/*! cursor: cursor reposition */
-#define	WT_STAT_DSRC_CURSOR_REPOSITION			2158
+#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_LT_100		2158
 /*! cursor: insert calls */
 #define	WT_STAT_DSRC_CURSOR_INSERT			2159
 /*! cursor: insert key and value bytes */
