@@ -26,7 +26,12 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#
+# test_export01.py
+#   Tests basic export functionality.
+#   - Test that the WiredTiger.export file is correctly created and removed.
+#   - Test that the WiredTiger.export file contains the correct contents
+#     after performing operations on the home directory, creating a backup
+#     directory, and then performing operation on the backup directory.
 
 from helper import copy_wiredtiger_home
 from helper_tiered import TieredConfigMixin, tiered_storage_sources
@@ -42,7 +47,6 @@ class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(tiered_storage_sources, types)
 
-    # Test that the WiredTiger.export file is correctly created and removed.
     def test_export(self):
         uri_a = self.type + "exporta"
         uri_b = self.type + "exportb"
@@ -86,9 +90,6 @@ class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
         # The export file should exist in the backup directory.
         self.assertTrue(os.path.isfile(self.dir + "/WiredTiger.export"))
 
-    # Test that the WiredTiger.export file contains the correct contents
-    # after performing operations on the home directory, creating a backup
-    # directory, and then performing operations on the backup directory.
     def test_export_restart(self):
         uri_a = self.type + "exporta"
         uri_b = self.type + "exportb"
