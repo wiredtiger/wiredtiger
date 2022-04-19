@@ -60,7 +60,7 @@ class test_hs_evict_race01(wttest.WiredTigerTestCase):
     value4 = 'ddddd'
 
     def test_out_of_order_ts(self):
-        self.session.create(self.uri, 'key_format={},value_format=S'.format(self.key_format))
+        self.session.create(self.uri, 'key_format={},value_format=S,write_timestamp_usage=mixed_mode'.format(self.key_format))
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
         # Insert a value at timestamp 4
