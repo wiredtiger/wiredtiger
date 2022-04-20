@@ -735,8 +735,6 @@ S3Terminate(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session)
 {
     S3Storage *s3 = (S3Storage *)storageSource;
 
-    s3->log->LogDebugMessage("S3Terminate: terminating s3.");
-
     if (--s3->referenceCount != 0)
         return (0);
 
@@ -898,8 +896,6 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     // The first reference is implied by the call to add_storage_source.
     s3->referenceCount = 1;
 
-    s3->log->LogDebugMessage("wiredtiger_extension_init: Allocated s3 storage structure.");
-
     // Load the storage
     if ((ret = connection->add_storage_source(
            connection, "s3_store", &s3->storageSource, nullptr)) != 0) {
@@ -909,8 +905,6 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         AwsManager::Terminate();
         delete (s3);
     }
-
-    s3->log->LogDebugMessage("wiredtiger_extension_init: Storage loaded.");
 
     return (ret);
 }

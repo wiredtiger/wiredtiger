@@ -42,7 +42,6 @@ class test_tiered10(wttest.WiredTigerTestCase):
             prefix1 = '1_',
             prefix2 = '2_',
             ss_name = 'dir_store')),
-        # simultaneous WT connection is created. Enable once we have fixed this issue.
         ('s3', dict(auth_token = get_auth_token('s3_store'),
            bucket = get_bucket1_name('s3_store'),
            prefix1 = generate_s3_prefix(),
