@@ -1128,6 +1128,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
      */
     ckpt_snapshot.oldest_ts = WT_TS_NONE;
     ckpt_snapshot.stable_ts = WT_TS_NONE;
+    ckpt_snapshot.snapshot_write_gen = 0;
     ckpt_snapshot.snapshot_max = WT_TXN_MAX;
     ckpt_snapshot.snapshot_min = WT_TXN_MAX;
     ckpt_snapshot.snapshot_txns = NULL;
