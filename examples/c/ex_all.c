@@ -930,7 +930,7 @@ transaction_ops(WT_SESSION *session_arg)
     }
 
     /*! [set durable timestamp] */
-    error_check(conn->set_timestamp(conn, "durable_timestamp=2a"));
+    error_check(conn->set_timestamp(conn, "durable_timestamp=2b"));
     /*! [set durable timestamp] */
 
     /*! [set oldest timestamp] */
