@@ -34,8 +34,10 @@
 
 namespace test_harness {
 /*
- * A component is a class that defines 3 unique stages in its life-cycle, the stages must be run in
- * the following order: load, run, finish.
+ * A component is a class that defines 4 unique stages in its life-cycle, the stages must be run in
+ * the following order: load, run, end_run, finish.
+ *
+ * end_run informs the component that is no longer running which closes out its run loop.
  */
 class component {
     public:
@@ -60,6 +62,8 @@ class component {
      * If a component does not wish to use the standard run function, it can be overloaded.
      */
     virtual void run();
+
+    void end_run();
 
     virtual void do_work();
 
