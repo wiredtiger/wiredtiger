@@ -450,15 +450,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                 enable_reverse_modify = false;
             }
 
-            /*
-             * Save the first non timestamped update in the update chain. This is used to reset all
-             * the following update timestamps in the chain.
-             */
-            if (non_ts_upd == NULL && upd->start_ts == WT_TS_NONE) {
-                WT_ASSERT(session, upd->durable_ts == WT_TS_NONE);
-                non_ts_upd = upd;
-            }
-
             WT_ERR(__wt_update_vector_push(&updates, upd));
 
             /*
@@ -506,6 +497,17 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
              */
             if (upd->type == WT_UPDATE_STANDARD && F_ISSET(upd, WT_UPDATE_HS))
                 break;
+
+            /*
+             * Save the first non timestamped update in the update chain. This is used to reset all
+             * the following update timestamps in the chain. Do not save if it is the last update in
+             * the chain. While inserting this last update, all the existing history store updates
+             * will reinsert after correcting their timestamps.
+             */
+            if (non_ts_upd == NULL && upd->start_ts == WT_TS_NONE && upd->next != NULL) {
+                WT_ASSERT(session, upd->durable_ts == WT_TS_NONE);
+                non_ts_upd = upd;
+            }
         }
 
         prev_upd = upd = NULL;
@@ -598,7 +600,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
              * Reset the non timestamped update pointer once all the previous updates are inserted
              * into the history store.
              */
-            if (prev_upd == non_ts_upd)
+            if (prev_upd == non_ts_upd || upd == non_ts_upd)
                 non_ts_upd = NULL;
 
             WT_ERR(
