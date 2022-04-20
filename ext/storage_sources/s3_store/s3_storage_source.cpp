@@ -36,6 +36,7 @@
 
 #include "s3_connection.h"
 #include "s3_log_system.h"
+#include "s3_aws_manager.h"
 
 #include <aws/auth/credentials.h>
 #include <aws/core/Aws.h>
@@ -105,64 +106,9 @@ struct S3FileHandle {
 const double throughputTargetGbps = 5;
 const uint64_t partSize = 8 * 1024 * 1024; // 8 MB.
 
-// Wrapper singleton class for initializing and terminating the AWS SDK.
-
-class AWSInitializer {
-    public:
-    static AWSInitializer &
-    Get()
-    {
-        return aws_instance;
-    }
-
-    AWSInitializer(const AWSInitializer &) = delete;
-
-    static void
-    Init()
-    {
-        return Get().InitInternal();
-    }
-
-    static void
-    Terminate()
-    {
-        return Get().TerminateInternal();
-    }
-
-    private:
-    AWSInitializer()
-    {
-        refCount = 0;
-    }
-
-    void
-    InitInternal()
-    {
-        std::lock_guard<std::mutex> lock(InitGuard);
-        if (refCount == 0) {
-            Aws::InitAPI(options);
-        }
-        refCount++;
-    }
-
-    void
-    TerminateInternal()
-    {
-        std::lock_guard<std::mutex> lock(InitGuard);
-        refCount--;
-        if (refCount == 0) {
-            Aws::ShutdownAPI(options);
-        }
-    }
-
-    static AWSInitializer aws_instance;
-    Aws::SDKOptions options;
-    int refCount;
-    static std::mutex InitGuard;
-};
-
-std::mutex AWSInitializer::InitGuard{};
-AWSInitializer AWSInitializer::aws_instance;
+// Define the AwsManager class
+std::mutex AwsManager::InitGuard;
+AwsManager AwsManager::aws_instance;
 
 static int S3GetDirectory(
   const S3Storage &, const std::string &, const std::string &, bool, std::string &);
@@ -813,7 +759,7 @@ S3Terminate(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session)
     S3LogStatistics(*s3);
 
     Aws::Utils::Logging::ShutdownAWSLogging();
-    AWSInitializer::Terminate();
+    AwsManager::Terminate();
 
     s3->log->LogDebugMessage("S3Terminate: Terminated S3 storage source.");
     delete (s3);
@@ -831,7 +777,6 @@ S3Flush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *f
     int ret;
     bool nativeExist;
     FS2S3(fileSystem)->statistics.putObjectCount++;
-
 
     // Confirm that the file exists on the native filesystem.
     std::string srcPath = S3Path(fs->homeDir, source);
@@ -938,8 +883,8 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     // Set up statistics.
     s3->statistics = {0};
 
-    // Initialize the AWS SDK.
-    AWSInitializer::Init();
+    // Initialize the AWS SDK and logging.
+    AwsManager::Init();
     Aws::Utils::Logging::InitializeAWSLogging(s3->log);
 
     // Allocate a S3 storage structure, with a WT_STORAGE structure as the first field, allowing us
@@ -961,7 +906,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         s3->log->LogErrorMessage(
           "wiredtiger_extension_init: Could not load S3 storage source, shutting down.");
         Aws::Utils::Logging::ShutdownAWSLogging();
-        AWSInitializer::Terminate();
+        AwsManager::Terminate();
         delete (s3);
     }
 
