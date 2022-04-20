@@ -747,7 +747,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
          * case because we cannot discard any update until they are obsolete. Add them to the size.
          */
         if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && onpage_upd != NULL) {
-            for (upd = onpage_upd->next; upd != NULL; upd = upd->next) {
+            for (upd = onpage_upd; upd != NULL; upd = upd->next) {
                 if (upd->txnid == WT_TXN_ABORTED)
                     continue;
                 upd_memsize += WT_UPDATE_MEMSIZE(upd);
