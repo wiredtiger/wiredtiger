@@ -27,6 +27,8 @@ struct __wt_process {
     double tsc_nsec_ratio; /* rdtsc ticks to nanoseconds */
     bool use_epochtime;    /* use expensive time */
 
+    bool fast_truncate_2022; /* fast-truncate fix run-time configuration */
+
     WT_CACHE_POOL *cache_pool; /* shared cache information */
 };
 extern WT_PROCESS __wt_process;
@@ -653,7 +655,8 @@ struct __wt_connection_impl {
 #define WT_CONN_RECONFIGURING 0x080000u
 #define WT_CONN_RECOVERING 0x100000u
 #define WT_CONN_SALVAGE 0x200000u
-#define WT_CONN_WAS_BACKUP 0x400000u
+#define WT_CONN_TIERED_FIRST_FLUSH 0x400000u
+#define WT_CONN_WAS_BACKUP 0x800000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
