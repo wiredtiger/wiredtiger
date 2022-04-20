@@ -31,7 +31,7 @@
 #include <mutex>
 #include <aws/core/Aws.h>
 
-// The AWS SDK must only be intialized once and must call initialization and shutdown in the correct
+// The AWS SDK must only be initialized once and must call initialization and shutdown in the correct
 // order. The AwsManager handles multiple calls from the S3 extension initialization and uses a
 // reference counter to check how many instances of the S3 extension are using the SDK.  The first
 // call to the extension will initiate the SDK while subsequent calls will increment the reference
