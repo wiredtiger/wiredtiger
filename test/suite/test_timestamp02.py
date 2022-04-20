@@ -100,13 +100,16 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
         # Everything up to and including timestamp 200 has been committed.
         self.assertTimestampsEqual(self.conn.query_timestamp(), self.timestamp_str(200))
 
-        # Test that we can manually move the durable timestamp back
-        self.conn.set_timestamp('durable_timestamp=' + self.timestamp_str(150))
-        self.assertTimestampsEqual(self.conn.query_timestamp(), self.timestamp_str(150))
-        self.conn.set_timestamp('durable_timestamp=' + self.timestamp_str(200))
-
         # Now the stable timestamp before we read.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(200))
+
+        # Test that we can manually move the durable timestamp forward and backward
+        self.conn.set_timestamp('durable_timestamp=' + self.timestamp_str(250))
+        self.assertTimestampsEqual(self.conn.query_timestamp(), self.timestamp_str(250))
+        self.conn.set_timestamp('durable_timestamp=' + self.timestamp_str(300))
+        self.assertTimestampsEqual(self.conn.query_timestamp(), self.timestamp_str(300))
+        self.conn.set_timestamp('durable_timestamp=' + self.timestamp_str(250))
+        self.assertTimestampsEqual(self.conn.query_timestamp(), self.timestamp_str(250))
 
         for i, t in enumerate(orig_keys):
             self.check(self.session, 'read_timestamp=' + self.timestamp_str(t + 100),
@@ -148,14 +151,14 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         self.assertTimestampsEqual\
             (self.conn.query_timestamp("get=oldest_timestamp"), self.timestamp_str(200))
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(295))
         self.assertTimestampsEqual(\
             self.conn.query_timestamp("get=stable_timestamp"), self.timestamp_str(300))
 
         # An error to set oldest ahead of stable.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(301)),
-                '/oldest timestamp \(0, 301\) must not be later than stable timestamp \(0, 300\)/')
+                '/oldest timestamp \(0, 301\) must not be after the stable timestamp \(0, 300\)/')
         self.assertTimestampsEqual(\
             self.conn.query_timestamp("get=oldest_timestamp"), self.timestamp_str(200))
 
@@ -176,7 +179,7 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
             self.conn.query_timestamp("get=stable_timestamp"), self.timestamp_str(301))
 
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(202) +
-            ',stable_timestamp=' + self.timestamp_str(1))
+            ',stable_timestamp=' + self.timestamp_str(295))
         self.assertTimestampsEqual(\
             self.conn.query_timestamp("get=oldest_timestamp"), self.timestamp_str(202))
         self.assertTimestampsEqual(\
@@ -185,7 +188,7 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(302) +
                 ',stable_timestamp=' + self.timestamp_str(1)),
-                '/oldest timestamp \(0, 302\) must not be later than stable timestamp \(0, 301\)/')
+                '/oldest timestamp .* must not be after the stable timestamp/')
         self.assertTimestampsEqual(\
             self.conn.query_timestamp("get=oldest_timestamp"), self.timestamp_str(202))
         self.assertTimestampsEqual(\

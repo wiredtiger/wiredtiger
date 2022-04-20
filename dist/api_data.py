@@ -1967,29 +1967,27 @@ methods = {
 
 'WT_CONNECTION.set_timestamp' : Method([
     Config('durable_timestamp', '', r'''
-        reset the maximum durable timestamp tracked by WiredTiger.  This causes future calls to
-        WT_CONNECTION::query_timestamp to ignore durable timestamps greater than the specified
+        reset the maximum durable timestamp tracked by WiredTiger. This causes future calls to
+        WT_CONNECTION::query_timestamp to ignore durable timestamps after the specified
         value until the next durable timestamp moves the tracked durable timestamp forwards.
         This is only intended for use where the application is rolling back locally committed
         transactions. The value must be after the current stable timestamp.  See @ref
         timestamp_global_api'''),
     Config('force', 'false', r'''
-        set timestamps even if they violate normal ordering requirements.
-        For example allow the \c oldest_timestamp to move backwards''',
-        type='boolean'),
+        set the oldest and stable timestamps even if they violate normal ordering requirements,
+        allowing them to move backwards, as long as they don't violate ordering constraints
+        such as the oldest timestamp never being after the stable timestamp)''',
+        type='boolean', undoc=True),
     Config('oldest_timestamp', '', r'''
-        future commits and queries will be no earlier than the specified
-        timestamp. Values must be monotonically increasing, any
-        attempt to set the value to older than the current is silently ignored.
-        The value must not be newer than the current
-        stable timestamp.  See @ref timestamp_global_api'''),
+        future queries will not be before the specified timestamp. Values must be monotonically
+        increasing, any attempt to set the value to before the current oldest timestamp is
+        silently ignored. The value must not be after the current stable timestamp (if a stable
+        timestamp has been set). See @ref timestamp_global_api'''),
     Config('stable_timestamp', '', r'''
-        checkpoints will not include commits that are newer than the specified
-        timestamp in tables configured with \c "log=(enabled=false)".
-        Values must be monotonically increasing, any attempt to set the value to
-        older than the current is silently ignored.  The value must
-        not be older than the current oldest timestamp.  See
-        @ref timestamp_global_api'''),
+        checkpoints will not include commits after the specified timestamp in tables configured
+        with \c "log=(enabled=false)". Values must be monotonically increasing, any attempt
+        to set the value to before the current stable timestamp is silently ignored. The value
+        must not be before the current oldest timestamp.  See @ref timestamp_global_api'''),
 ]),
 
 'WT_CONNECTION.rollback_to_stable' : Method([]),

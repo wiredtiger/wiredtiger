@@ -310,149 +310,141 @@ int
 __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
-    WT_CONFIG_ITEM durable_cval, oldest_cval, stable_cval;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t durable_ts, oldest_ts, stable_ts;
-    wt_timestamp_t last_oldest_ts, last_stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool force, has_durable, has_oldest, has_stable;
+    bool force, set_durable_ts, set_oldest_ts, set_stable_ts;
 
     txn_global = &S2C(session)->txn_global;
 
     WT_STAT_CONN_INCR(session, txn_set_ts);
 
-    WT_RET(__wt_config_gets_def(session, cfg, "durable_timestamp", 0, &durable_cval));
-    has_durable = durable_cval.len != 0;
-    if (has_durable)
+    durable_ts = 0;
+    WT_RET(__wt_config_gets_def(session, cfg, "durable_timestamp", 0, &cval));
+    if (cval.len != 0) {
         WT_STAT_CONN_INCR(session, txn_set_ts_durable);
+        WT_RET(__wt_txn_parse_timestamp(session, "durable", &durable_ts, &cval));
+    }
 
-    WT_RET(__wt_config_gets_def(session, cfg, "oldest_timestamp", 0, &oldest_cval));
-    has_oldest = oldest_cval.len != 0;
-    if (has_oldest)
+    oldest_ts = 0;
+    WT_RET(__wt_config_gets_def(session, cfg, "oldest_timestamp", 0, &cval));
+    if (cval.len != 0) {
         WT_STAT_CONN_INCR(session, txn_set_ts_oldest);
+        WT_RET(__wt_txn_parse_timestamp(session, "oldest", &oldest_ts, &cval));
+    }
 
-    WT_RET(__wt_config_gets_def(session, cfg, "stable_timestamp", 0, &stable_cval));
-    has_stable = stable_cval.len != 0;
-    if (has_stable)
+    stable_ts = 0;
+    WT_RET(__wt_config_gets_def(session, cfg, "stable_timestamp", 0, &cval));
+    if (cval.len != 0) {
         WT_STAT_CONN_INCR(session, txn_set_ts_stable);
+        WT_RET(__wt_txn_parse_timestamp(session, "stable", &stable_ts, &cval));
+    }
 
-    /* If no timestamp was supplied, there's nothing to do. */
-    if (!has_durable && !has_oldest && !has_stable)
+    /* If no timestamp is being set, there's nothing to do. */
+    if (durable_ts == 0 && oldest_ts == 0 && stable_ts == 0)
         return (0);
 
-    /*
-     * Parsing will initialize the timestamp to zero even if it is not configured.
-     */
-    WT_RET(__wt_txn_parse_timestamp(session, "durable", &durable_ts, &durable_cval));
-    WT_RET(__wt_txn_parse_timestamp(session, "oldest", &oldest_ts, &oldest_cval));
-    WT_RET(__wt_txn_parse_timestamp(session, "stable", &stable_ts, &stable_cval));
-
+    /* Check if we're allowing timestamps to move backwards. */
     WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
     force = cval.val != 0;
 
-    if (force)
-        goto set;
-
-    __wt_readlock(session, &txn_global->rwlock);
-
-    last_oldest_ts = txn_global->oldest_timestamp;
-    last_stable_ts = txn_global->stable_timestamp;
-
-    /* It is a no-op to set the oldest or stable timestamps behind the global values. */
-    if (has_oldest && txn_global->has_oldest_timestamp && oldest_ts <= last_oldest_ts)
-        has_oldest = false;
-
-    if (has_stable && txn_global->has_stable_timestamp && stable_ts <= last_stable_ts)
-        has_stable = false;
+    /*
+     * This method can be called from multiple threads, lock to ensure we are moving the global
+     * timestamps forwards and the relationships are always maintained.
+     */
+    __wt_writelock(session, &txn_global->rwlock);
 
     /*
-     * First do error checking on the timestamp values. The oldest timestamp must always be less
-     * than or equal to the stable timestamp. If we're only setting one then compare against the
-     * system timestamp. If we're setting both then compare the passed in values.
+     * First, figure out our target timestamp state.
+     *
+     * It is a no-op to set the stable timestamp behind the global value unless force is set. Apply
+     * the no-op test before checking constraints, that's historic practice and means the arguments
+     * might be illegal and we won't fail, all we care about is the final state.
      */
-    if (!has_durable && txn_global->has_durable_timestamp)
-        durable_ts = txn_global->durable_timestamp;
-    if (!has_oldest && txn_global->has_oldest_timestamp)
-        oldest_ts = last_oldest_ts;
-    if (!has_stable && txn_global->has_stable_timestamp)
-        stable_ts = last_stable_ts;
+    set_stable_ts = stable_ts != 0 && (stable_ts > txn_global->stable_timestamp || force);
+    if (!set_stable_ts)
+        stable_ts = txn_global->stable_timestamp;
 
     /*
-     * If a durable timestamp was supplied, check that it is no older than either the stable
-     * timestamp or the oldest timestamp.
+     * It is a no-op to set the oldest timestamp behind the global value unless force is set. Apply
+     * the no-op test before checking constraints, that's historic practice and means the arguments
+     * might be illegal and we won't fail, all we care about is the final state.
      */
-    if (has_durable && (has_oldest || txn_global->has_oldest_timestamp) && oldest_ts > durable_ts) {
-        __wt_readunlock(session, &txn_global->rwlock);
+    set_oldest_ts = oldest_ts != 0 && (oldest_ts > txn_global->oldest_timestamp || force);
+    if (!set_oldest_ts)
+        oldest_ts = txn_global->oldest_timestamp;
+
+    /*
+     * Unlike oldest and stable, the durable timestamp can move backwards. (In fact, it only makes
+     * sense to explicitly move it backwards as it otherwise tracks the largest durable_timestamp so
+     * it moves forward when transactions are assigned timestamps. Regardless, allow both forward
+     * and backward movement.)
+     */
+    set_durable_ts = durable_ts != 0;
+
+    /*
+     * Second, we have a target timestamp state, check it doesn't violate constraints.
+     *
+     * Durable cannot be set unless stable is also set. Note that durable can move to before stable
+     * during normal operations (by setting stable without setting durable), but you cannot set it
+     * that way explicitly.
+     */
+    if (set_durable_ts && (stable_ts == 0 || durable_ts <= stable_ts)) {
+        __wt_writeunlock(session, &txn_global->rwlock);
         WT_RET_MSG(session, EINVAL,
-          "set_timestamp: oldest timestamp %s must not be later than durable timestamp %s",
-          __wt_timestamp_to_string(oldest_ts, ts_string[0]),
-          __wt_timestamp_to_string(durable_ts, ts_string[1]));
+          "set_timestamp: durable timestamp %s must be after the stable timestamp %s",
+          __wt_timestamp_to_string(durable_ts, ts_string[0]),
+          __wt_timestamp_to_string(stable_ts, ts_string[1]));
     }
 
-    if (has_durable && (has_stable || txn_global->has_stable_timestamp) && stable_ts > durable_ts) {
-        __wt_readunlock(session, &txn_global->rwlock);
-        WT_RET_MSG(session, EINVAL,
-          "set_timestamp: stable timestamp %s must not be later than durable timestamp %s",
-          __wt_timestamp_to_string(stable_ts, ts_string[0]),
-          __wt_timestamp_to_string(durable_ts, ts_string[1]));
-    }
-
     /*
-     * The oldest and stable timestamps must always satisfy the condition that oldest <= stable.
+     * The ordering constraints around oldest and stable are strongly fixed, once stable is set: you
+     * you can set oldest as you like until stable is also set, at which time oldest must always be
+     * before stable.
      */
-    if ((has_oldest || has_stable) && (has_oldest || txn_global->has_oldest_timestamp) &&
-      (has_stable || txn_global->has_stable_timestamp) && oldest_ts > stable_ts) {
-        __wt_readunlock(session, &txn_global->rwlock);
+    if (stable_ts != 0 && oldest_ts > stable_ts) {
+        __wt_writeunlock(session, &txn_global->rwlock);
         WT_RET_MSG(session, EINVAL,
-          "set_timestamp: oldest timestamp %s must not be later than stable timestamp %s",
+          "set_timestamp: oldest timestamp %s must not be after the stable timestamp %s",
           __wt_timestamp_to_string(oldest_ts, ts_string[0]),
           __wt_timestamp_to_string(stable_ts, ts_string[1]));
     }
 
-    __wt_readunlock(session, &txn_global->rwlock);
-
-    /* Check if we are actually updating anything. */
-    if (!has_durable && !has_oldest && !has_stable)
-        return (0);
-
-set:
-    __wt_writelock(session, &txn_global->rwlock);
-    /*
-     * This method can be called from multiple threads, check that we are moving the global
-     * timestamps forwards.
-     *
-     * The exception is the durable timestamp, where the application can move it backwards (in fact,
-     * it only really makes sense to explicitly move it backwards because it otherwise tracks the
-     * largest durable_timestamp so it moves forward whenever transactions are assigned timestamps).
-     */
-    if (has_durable) {
-        txn_global->durable_timestamp = durable_ts;
+    /* Third, the final state is acceptable, set the timestamps. */
+    if (set_durable_ts) {
         txn_global->has_durable_timestamp = true;
+        txn_global->durable_timestamp = durable_ts;
+    }
+    if (set_oldest_ts) {
+        txn_global->has_oldest_timestamp = true;
+        txn_global->oldest_timestamp = oldest_ts;
+        txn_global->oldest_is_pinned = false;
+    }
+    if (set_stable_ts) {
+        txn_global->has_stable_timestamp = true;
+        txn_global->stable_timestamp = stable_ts;
+        txn_global->stable_is_pinned = false;
+    }
+
+    __wt_writeunlock(session, &txn_global->rwlock);
+
+    /* Lock has been released, update the pinned timestamp. */
+    if (set_oldest_ts || set_stable_ts)
+        __wt_txn_update_pinned_timestamp(session, force);
+
+    /* Lock has been released, update statistics, log verbose messages. */
+    if (set_durable_ts) {
         WT_STAT_CONN_INCR(session, txn_set_ts_durable_upd);
         __wt_verbose_timestamp(session, durable_ts, "Updated global durable timestamp");
     }
-
-    if (has_oldest &&
-      (!txn_global->has_oldest_timestamp || force || oldest_ts > txn_global->oldest_timestamp)) {
-        txn_global->oldest_timestamp = oldest_ts;
+    if (set_oldest_ts) {
         WT_STAT_CONN_INCR(session, txn_set_ts_oldest_upd);
-        txn_global->has_oldest_timestamp = true;
-        txn_global->oldest_is_pinned = false;
         __wt_verbose_timestamp(session, oldest_ts, "Updated global oldest timestamp");
     }
-
-    if (has_stable &&
-      (!txn_global->has_stable_timestamp || force || stable_ts > txn_global->stable_timestamp)) {
-        txn_global->stable_timestamp = stable_ts;
+    if (set_stable_ts) {
         WT_STAT_CONN_INCR(session, txn_set_ts_stable_upd);
-        txn_global->has_stable_timestamp = true;
-        txn_global->stable_is_pinned = false;
         __wt_verbose_timestamp(session, stable_ts, "Updated global stable timestamp");
     }
-    __wt_writeunlock(session, &txn_global->rwlock);
-
-    if (has_oldest || has_stable)
-        __wt_txn_update_pinned_timestamp(session, force);
 
     return (0);
 }

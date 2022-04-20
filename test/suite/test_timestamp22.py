@@ -317,17 +317,15 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         # It is unexpected if "ts" is before the "before" timestamp.
         # The "before" timestamp could be updated during this call
         # with value "before_arg", if not, use the global value for "before".
-        def expected_newer(expected, ts, before_arg, before_global):
+        def expected_newer(expected, ts, before_arg, before_global, equalok):
             if expected and ts >= 0:
                 if before_arg >= 0:
-                    if before_arg > ts:
+                    if before_arg > ts or before_arg == ts and not equalok:
                         expected = self.FAILURE
                 else:
-                    if before_global > ts:
+                    if before_global > ts or before_global == ts and not equalok:
                         expected = self.FAILURE
             return expected
-
-        expected = self.SUCCESS
 
         # It is a no-op to provide oldest or stable behind the global values. If provided ahead, we
         # will treat the values as if not provided at all.
@@ -336,11 +334,14 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         if stable <= self.stable_ts:
             stable = -1
 
-        if oldest >= 0 and stable < 0:
-            expected = expected_newer(expected, self.stable_ts, oldest, self.oldest_ts)
-        expected = expected_newer(expected, stable, oldest, self.oldest_ts)
-        expected = expected_newer(expected, durable, oldest, self.oldest_ts)
-        expected = expected_newer(expected, durable, stable, self.stable_ts)
+        expected = self.SUCCESS
+        # Oldest must be <= stable if stable is set.
+        if oldest > 0 and stable < 0:
+            expected = expected_newer(expected, self.stable_ts, oldest, self.oldest_ts, True)
+        # Stable must be >= oldest.
+        expected = expected_newer(expected, stable, oldest, self.oldest_ts, True)
+        # Durable must be > stable.
+        expected = expected_newer(expected, durable, stable, self.stable_ts, False)
 
         return expected
 
