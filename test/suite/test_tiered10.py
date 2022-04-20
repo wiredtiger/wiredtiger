@@ -29,7 +29,6 @@
 from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
 from wtscenario import make_scenarios
 import os, wiredtiger, wttest
-import time
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered10.py
