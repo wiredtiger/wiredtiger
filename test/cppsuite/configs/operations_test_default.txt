@@ -65,7 +65,7 @@ workload_generator=
         ops_per_transaction=(max=100,min=50),
         thread_count=10
     ),
-     remove_config=
+    remove_config=
     (
         op_rate=500ms,
         ops_per_transaction=(max=100,min=0),
