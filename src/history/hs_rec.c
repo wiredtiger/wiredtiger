@@ -9,8 +9,8 @@
 #include "wt_internal.h"
 
 static int __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
-  uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool ooo_tombstone,
-  bool error_on_ooo_ts, uint64_t *hs_counter);
+  uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool mm_tombstone,
+  bool error_on_mm_ts, uint64_t *hs_counter);
 
 /*
  * __hs_verbose_cache_stats --
@@ -66,7 +66,7 @@ __hs_verbose_cache_stats(WT_SESSION_IMPL *session, WT_BTREE *btree)
  */
 static int
 __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree, const WT_ITEM *key,
-  const uint8_t type, const WT_ITEM *hs_value, WT_TIME_WINDOW *tw, bool error_on_ooo_ts)
+  const uint8_t type, const WT_ITEM *hs_value, WT_TIME_WINDOW *tw, bool error_on_mm_ts)
 {
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_ITEM(hs_key);
@@ -203,7 +203,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
 
     /*
      * It is possible to insert a globally visible update into the history store with larger
-     * timestamps ahead of it. An example would be a mixed-mode update getting moved to the history
+     * timestamps ahead of it. An example would be a mixed mode update getting moved to the history
      * store. This scenario can avoid detection earlier in reconciliation and result in an EBUSY
      * being returned as it detects out-of-order timestamps. To prevent this we allow globally
      * visible updates to fix history store content even if eviction is running concurrently with a
@@ -214,13 +214,13 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
      * visible to checkpoint and the modifications it makes to the history store will be the same as
      * what checkpoint would've done.
      */
-    if (error_on_ooo_ts && __wt_txn_tw_start_visible_all(session, tw)) {
-        error_on_ooo_ts = false;
+    if (error_on_mm_ts && __wt_txn_tw_start_visible_all(session, tw)) {
+        error_on_mm_ts = false;
     }
 
     if (ret == 0)
         WT_ERR(__hs_delete_reinsert_from_pos(session, cursor, btree->id, key, tw->start_ts + 1,
-          true, false, error_on_ooo_ts, &counter));
+          true, false, error_on_mm_ts, &counter));
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -311,7 +311,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_UPDATE_VECTOR updates;
     WT_SAVE_UPD *list;
-    WT_UPDATE *newest_hs, *oldest_upd, *prev_upd, *ref_upd, *tombstone, *upd;
+    WT_UPDATE *newest_hs, *non_ts_upd, *oldest_upd, *prev_upd, *ref_upd, *tombstone, *upd;
     WT_TIME_WINDOW tw;
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size, modify_cnt;
@@ -319,14 +319,14 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     uint32_t i;
     uint8_t *p;
     int nentries;
-    bool enable_reverse_modify, error_on_ooo_ts, hs_inserted, squashed;
+    bool enable_reverse_modify, error_on_mm_ts, hs_inserted, squashed;
 
     r->cache_write_hs = false;
     btree = S2BT(session);
     prev_upd = NULL;
     WT_TIME_WINDOW_INIT(&tw);
     insert_cnt = 0;
-    error_on_ooo_ts = F_ISSET(r, WT_REC_CHECKPOINT_RUNNING);
+    error_on_mm_ts = F_ISSET(r, WT_REC_CHECKPOINT_RUNNING);
     cache_hs_insert_full_update = cache_hs_insert_reverse_modify = cache_hs_write_squash = 0;
 
     WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
@@ -385,7 +385,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             WT_ERR(__wt_illegal_value(session, r->page->type));
         }
 
-        newest_hs = NULL;
+        non_ts_upd = newest_hs = NULL;
         ref_upd = list->onpage_upd;
 
         __wt_update_vector_clear(&updates);
@@ -429,7 +429,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
 
-            /* Detect any mixed mode timestamp update. */
+            /* Detect any out of order timestamp update. */
             if (prev_upd != NULL && prev_upd->start_ts < upd->start_ts) {
                 WT_ASSERT(session, prev_upd->start_ts == WT_TS_NONE);
                 /*
@@ -437,7 +437,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                  * We cannot modify the history store to fix the out of order timestamp updates as
                  * it may make the history store checkpoint inconsistent.
                  */
-                if (error_on_ooo_ts) {
+                if (error_on_mm_ts) {
                     ret = EBUSY;
                     WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_out_of_order_ts);
                     goto err;
@@ -448,6 +448,15 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                  * timestamp update.
                  */
                 enable_reverse_modify = false;
+            }
+
+            /*
+             * Save the first non timestamped update in the update chain. This is used to reset all
+             * the following update timestamps in the chain.
+             */
+            if (non_ts_upd == NULL && upd->start_ts == WT_TS_NONE) {
+                WT_ASSERT(session, upd->durable_ts == WT_TS_NONE);
+                non_ts_upd = upd;
             }
 
             WT_ERR(__wt_update_vector_push(&updates, upd));
@@ -508,17 +517,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
           oldest_upd->type == WT_UPDATE_STANDARD || oldest_upd->type == WT_UPDATE_TOMBSTONE);
 
         /*
-         * Fix the history store record here if the oldest update is a tombstone because we don't
-         * have the cursor placed at the correct place to fix the history store records when
-         * inserting the first update and it may be skipped if there is nothing to insert to the
-         * history store.
+         * Fix the history store record here if the oldest update is a mixed mode tombstone. This
+         * situation is possible only when the tombstone is globally visible. Delete any updates of
+         * the key in the history store with higher timestamp.
          */
-        if (oldest_upd->type == WT_UPDATE_TOMBSTONE && !F_ISSET(oldest_upd, WT_UPDATE_FIXED_HS)) {
-            /* Delete and reinsert any update of the key with a higher timestamp. */
-            WT_ERR(__wt_hs_delete_key_from_ts(session, hs_cursor, btree->id, key,
-              oldest_upd->start_ts + 1, true, false, error_on_ooo_ts));
-            F_SET(oldest_upd, WT_UPDATE_FIXED_HS);
-        }
+        if (oldest_upd->type == WT_UPDATE_TOMBSTONE && oldest_upd->start_ts == WT_TS_NONE)
+            WT_ERR(__wt_hs_delete_key_from_ts(
+              session, hs_cursor, btree->id, key, false, error_on_mm_ts));
 
         /* Skip if we have nothing to insert to the history store. */
         if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_HS)) {
@@ -548,10 +553,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             tombstone = NULL;
             __wt_update_vector_peek(&updates, &prev_upd);
 
-            if (prev_upd->start_ts < upd->start_ts) {
-                WT_ASSERT(session, prev_upd->start_ts == WT_TS_NONE);
-                tw.durable_start_ts = prev_upd->durable_ts;
-                tw.start_ts = prev_upd->start_ts;
+            if (non_ts_upd != NULL) {
+                tw.durable_start_ts = WT_TS_NONE;
+                tw.start_ts = WT_TS_NONE;
             } else {
                 tw.durable_start_ts = upd->durable_ts;
                 tw.start_ts = upd->start_ts;
@@ -577,13 +581,25 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                  */
                 WT_ASSERT(session, prev_upd->start_ts <= prev_upd->durable_ts);
 
-                tw.durable_stop_ts = prev_upd->durable_ts;
-                tw.stop_ts = prev_upd->start_ts;
+                if (non_ts_upd != NULL) {
+                    tw.durable_stop_ts = WT_TS_NONE;
+                    tw.stop_ts = WT_TS_NONE;
+                } else {
+                    tw.durable_stop_ts = prev_upd->durable_ts;
+                    tw.stop_ts = prev_upd->start_ts;
+                }
                 tw.stop_txn = prev_upd->txnid;
 
                 if (prev_upd->type == WT_UPDATE_TOMBSTONE)
                     tombstone = prev_upd;
             }
+
+            /*
+             * Reset the non timestamped update pointer once all the previous updates are inserted
+             * into the history store.
+             */
+            if (prev_upd == non_ts_upd)
+                non_ts_upd = NULL;
 
             WT_ERR(
               __hs_next_upd_full_value(session, &updates, full_value, prev_full_value, &prev_upd));
@@ -647,14 +663,14 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                 entries, &nentries) == 0) {
                 WT_ERR(__wt_modify_pack(hs_cursor, entries, nentries, &modify_value));
                 WT_ERR(__hs_insert_record(session, hs_cursor, btree, key, WT_UPDATE_MODIFY,
-                  modify_value, &tw, error_on_ooo_ts));
+                  modify_value, &tw, error_on_mm_ts));
                 ++cache_hs_insert_reverse_modify;
                 __wt_scr_free(session, &modify_value);
                 ++modify_cnt;
             } else {
                 modify_cnt = 0;
                 WT_ERR(__hs_insert_record(session, hs_cursor, btree, key, WT_UPDATE_STANDARD,
-                  full_value, &tw, error_on_ooo_ts));
+                  full_value, &tw, error_on_mm_ts));
                 ++cache_hs_insert_full_update;
             }
 
@@ -718,7 +734,7 @@ err:
  */
 int
 __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
-  const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool ooo_tombstone, bool error_on_ooo_ts)
+  const WT_ITEM *key, bool reinsert, bool error_on_mm_ts)
 {
     WT_DECL_RET;
     WT_ITEM hs_key;
@@ -727,15 +743,9 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
     uint32_t hs_btree_id;
     bool hs_read_all_flag;
 
-    /*
-     * If we delete all the updates of the key from the history store, we should not reinsert any
-     * update except when an out-of-order tombstone is not globally visible yet.
-     */
-    WT_ASSERT(session, ooo_tombstone || ts > WT_TS_NONE || !reinsert);
-
     hs_read_all_flag = F_ISSET(hs_cursor, WT_CURSTD_HS_READ_ALL);
 
-    hs_cursor->set_key(hs_cursor, 3, btree_id, key, ts);
+    hs_cursor->set_key(hs_cursor, 3, btree_id, key, WT_TS_NONE);
     /*
      * Setting the flag WT_CURSTD_HS_READ_ALL before searching the history store optimizes the
      * search routine as we do not skip globally visible tombstones during the search.
@@ -751,8 +761,8 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
         ++hs_counter;
     }
 
-    WT_ERR(__hs_delete_reinsert_from_pos(session, hs_cursor, btree_id, key, ts, reinsert,
-      ooo_tombstone, error_on_ooo_ts, &hs_counter));
+    WT_ERR(__hs_delete_reinsert_from_pos(
+      session, hs_cursor, btree_id, key, WT_TS_NONE, reinsert, true, error_on_mm_ts, &hs_counter));
 
 done:
 err:
@@ -770,7 +780,7 @@ err:
  */
 static int
 __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
-  const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool ooo_tombstone, bool error_on_ooo_ts,
+  const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool mm_tombstone, bool error_on_mm_ts,
   uint64_t *counter)
 {
     WT_CURSOR *hs_insert_cursor;
@@ -799,9 +809,9 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
 
     /*
      * If we delete all the updates of the key from the history store, we should not reinsert any
-     * update except when an out-of-order tombstone is not globally visible yet.
+     * update except when a mixed mode tombstone is not globally visible yet.
      */
-    WT_ASSERT(session, ooo_tombstone || ts > WT_TS_NONE || !reinsert);
+    WT_ASSERT(session, mm_tombstone || ts > WT_TS_NONE || !reinsert);
 
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
         /* Ignore records that are obsolete. */
@@ -834,7 +844,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
      * flag. We cannot modify the history store to fix the out of order timestamp updates as it may
      * make the history store checkpoint inconsistent.
      */
-    if (error_on_ooo_ts) {
+    if (error_on_mm_ts) {
         ret = EBUSY;
         WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_out_of_order_ts);
         goto err;
@@ -942,7 +952,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
              * to the new update.
              */
             if (hs_cbt->upd_value->tw.start_ts >= ts)
-                hs_insert_tw.start_ts = hs_insert_tw.durable_start_ts = ooo_tombstone ? ts : ts - 1;
+                hs_insert_tw.start_ts = hs_insert_tw.durable_start_ts = mm_tombstone ? ts : ts - 1;
             else {
                 hs_insert_tw.start_ts = hs_cbt->upd_value->tw.start_ts;
                 hs_insert_tw.durable_start_ts = hs_cbt->upd_value->tw.durable_start_ts;
@@ -954,7 +964,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
              * another moved update OR the update itself triggered the correction. In either case,
              * we should preserve the stop transaction id.
              */
-            hs_insert_tw.stop_ts = hs_insert_tw.durable_stop_ts = ooo_tombstone ? ts : ts - 1;
+            hs_insert_tw.stop_ts = hs_insert_tw.durable_stop_ts = mm_tombstone ? ts : ts - 1;
             hs_insert_tw.stop_txn = hs_cbt->upd_value->tw.stop_txn;
 
             /* Extract the underlying value for reinsertion. */
@@ -962,7 +972,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
               hs_cursor, &tw.durable_stop_ts, &tw.durable_start_ts, &hs_upd_type, &hs_value));
 
             /* Reinsert the update with corrected timestamps. */
-            if (ooo_tombstone && hs_ts == ts)
+            if (mm_tombstone && hs_ts == ts)
                 *counter = hs_counter;
 
             /* Insert the value back with different timestamps. */

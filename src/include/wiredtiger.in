@@ -5301,25 +5301,25 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache: eviction empty score */
 #define	WT_STAT_CONN_CACHE_EVICTION_EMPTY_SCORE		1063
 /*!
- * cache: eviction gave up due to detecting an out of order on disk value
+ * cache: eviction gave up due to detecting a mixed mode on disk value
  * behind the last update on the chain
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_OOO_CHECKPOINT_RACE_1	1064
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_MM_CHECKPOINT_RACE_1	1064
 /*!
- * cache: eviction gave up due to detecting an out of order tombstone
- * ahead of the selected on disk update
+ * cache: eviction gave up due to detecting a mixed mode tombstone ahead
+ * of the selected on disk update
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_OOO_CHECKPOINT_RACE_2	1065
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_MM_CHECKPOINT_RACE_2	1065
 /*!
- * cache: eviction gave up due to detecting an out of order tombstone
- * ahead of the selected on disk update after validating the update chain
+ * cache: eviction gave up due to detecting a mixed mode tombstone ahead
+ * of the selected on disk update after validating the update chain
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_OOO_CHECKPOINT_RACE_3	1066
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_MM_CHECKPOINT_RACE_3	1066
 /*!
- * cache: eviction gave up due to detecting out of order timestamps on
- * the update chain after the selected on disk update
+ * cache: eviction gave up due to detecting mixed mode timestamps on the
+ * update chain after the selected on disk update
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_OOO_CHECKPOINT_RACE_4	1067
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_MM_CHECKPOINT_RACE_4	1067
 /*! cache: eviction passes of a file */
 #define	WT_STAT_CONN_CACHE_EVICTION_WALK_PASSES		1068
 /*! cache: eviction server candidate queue empty when topping up */
@@ -6558,25 +6558,25 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache: data source pages selected for eviction unable to be evicted */
 #define	WT_STAT_DSRC_CACHE_EVICTION_FAIL		2051
 /*!
- * cache: eviction gave up due to detecting an out of order on disk value
+ * cache: eviction gave up due to detecting a mixed mode on disk value
  * behind the last update on the chain
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_OOO_CHECKPOINT_RACE_1	2052
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_MM_CHECKPOINT_RACE_1	2052
 /*!
- * cache: eviction gave up due to detecting an out of order tombstone
- * ahead of the selected on disk update
+ * cache: eviction gave up due to detecting a mixed mode tombstone ahead
+ * of the selected on disk update
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_OOO_CHECKPOINT_RACE_2	2053
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_MM_CHECKPOINT_RACE_2	2053
 /*!
- * cache: eviction gave up due to detecting an out of order tombstone
- * ahead of the selected on disk update after validating the update chain
+ * cache: eviction gave up due to detecting a mixed mode tombstone ahead
+ * of the selected on disk update after validating the update chain
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_OOO_CHECKPOINT_RACE_3	2054
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_MM_CHECKPOINT_RACE_3	2054
 /*!
- * cache: eviction gave up due to detecting out of order timestamps on
- * the update chain after the selected on disk update
+ * cache: eviction gave up due to detecting mixed mode timestamps on the
+ * update chain after the selected on disk update
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_OOO_CHECKPOINT_RACE_4	2055
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_MM_CHECKPOINT_RACE_4	2055
 /*! cache: eviction walk passes of a file */
 #define	WT_STAT_DSRC_CACHE_EVICTION_WALK_PASSES		2056
 /*! cache: eviction walk target pages histogram - 0-9 */

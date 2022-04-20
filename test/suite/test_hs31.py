@@ -60,7 +60,7 @@ class test_hs31(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return val
 
-    def test_ooo_tombstone_clear_hs(self):
+    def test_mm_tombstone_clear_hs(self):
         uri = 'file:test_hs31'
         create_params = 'key_format={},value_format={},write_timestamp_usage=mixed_mode'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)

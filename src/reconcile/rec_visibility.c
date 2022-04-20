@@ -287,7 +287,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      */
     if (select_tw->stop_ts < select_tw->start_ts) {
         WT_ASSERT(session, select_tw->stop_ts == WT_TS_NONE);
-        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_ooo_checkpoint_race_2);
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_mm_checkpoint_race_2);
         return (EBUSY);
     }
 
@@ -318,7 +318,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         /* Validate that the updates older than us have older timestamps. */
         if (prev_upd->start_ts < upd->start_ts) {
             WT_ASSERT(session, prev_upd->start_ts == WT_TS_NONE);
-            WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_ooo_checkpoint_race_4);
+            WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_mm_checkpoint_race_4);
             return (EBUSY);
         }
 
@@ -361,7 +361,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         if (prev_upd->start_ts < vpack->tw.start_ts ||
           (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prev_upd->start_ts < vpack->tw.stop_ts)) {
             WT_ASSERT(session, prev_upd->start_ts == WT_TS_NONE);
-            WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_ooo_checkpoint_race_1);
+            WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_mm_checkpoint_race_1);
             return (EBUSY);
         }
     }
@@ -391,7 +391,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
      */
     upd_select->upd = NULL;
     upd_select->upd_saved = false;
-    upd_select->ooo_tombstone = false;
+    upd_select->mm_tombstone = false;
     select_tw = &upd_select->tw;
     WT_TIME_WINDOW_INIT(select_tw);
 
@@ -685,8 +685,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     WT_RET(__rec_validate_upd_chain(session, r, onpage_upd, select_tw, vpack));
 
     /*
-     * Set the flag if the selected tombstone is an out-of-order or mixed mode to an update. Based
-     * on this flag, the caller functions perform the history store truncation for this key.
+     * Set the flag if the selected tombstone is a mixed mode to an update. Based on this flag, the
+     * caller functions perform the history store truncation for this key.
      */
     if (!is_hs_page && tombstone != NULL &&
       !F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS)) {
@@ -695,7 +695,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         /*
          * The selected update can be the tombstone itself when the tombstone is globally visible.
          * Compare the tombstone's timestamp with either the next update in the update list or the
-         * on-disk cell timestamp to determine if the tombstone is an out-of-order or mixed mode.
+         * on-disk cell timestamp to determine if the tombstone is a mixed mode.
          */
         if (tombstone == upd) {
             upd = upd->next;
@@ -707,7 +707,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
 
         if ((upd != NULL && upd->start_ts > tombstone->start_ts) ||
           (vpack != NULL && vpack->tw.start_ts > tombstone->start_ts))
-            upd_select->ooo_tombstone = true;
+            upd_select->mm_tombstone = true;
     }
 
     /*
@@ -720,7 +720,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     if (__timestamp_out_of_order_fix(session, select_tw) && F_ISSET(r, WT_REC_HS) &&
       F_ISSET(r, WT_REC_CHECKPOINT_RUNNING)) {
         /* Catch this case in diagnostic builds. */
-        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_ooo_checkpoint_race_3);
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_mm_checkpoint_race_3);
         WT_ASSERT(session, false);
         WT_RET(EBUSY);
     }
