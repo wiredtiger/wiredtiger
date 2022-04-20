@@ -929,17 +929,17 @@ transaction_ops(WT_SESSION *session_arg)
         error_check(session->commit_transaction(session, NULL));
     }
 
-    /*! [set durable timestamp] */
-    error_check(conn->set_timestamp(conn, "durable_timestamp=2b"));
-    /*! [set durable timestamp] */
+    /*! [set stable timestamp] */
+    error_check(conn->set_timestamp(conn, "stable_timestamp=2a"));
+    /*! [set stable timestamp] */
 
     /*! [set oldest timestamp] */
     error_check(conn->set_timestamp(conn, "oldest_timestamp=2a"));
     /*! [set oldest timestamp] */
 
-    /*! [set stable timestamp] */
-    error_check(conn->set_timestamp(conn, "stable_timestamp=2a"));
-    /*! [set stable timestamp] */
+    /*! [set durable timestamp] */
+    error_check(conn->set_timestamp(conn, "durable_timestamp=2b"));
+    /*! [set durable timestamp] */
 
     /* WT_CONNECTION.rollback_to_stable requires a timestamped checkpoint. */
     error_check(session->checkpoint(session, NULL));
