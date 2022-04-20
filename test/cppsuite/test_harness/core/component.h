@@ -37,7 +37,7 @@ namespace test_harness {
  * A component is a class that defines 4 unique stages in its life-cycle, the stages must be run in
  * the following order: load, run, end_run, finish.
  *
- * end_run informs the component that is no longer running which closes out its run loop.
+ *
  */
 class component {
     public:
@@ -63,10 +63,16 @@ class component {
      */
     virtual void run();
 
+    /* end_run informs the component that is no longer running which closes out its run loop. */
     void end_run();
 
+    /*
+     * do_work is called every X seconds as defined by the throttle. Generally most components
+     * should do their "operation" in the do_work function.
+     */
     virtual void do_work();
 
+    /* Gets the value of the _enabled variable. */
     bool enabled() const;
 
     /*
