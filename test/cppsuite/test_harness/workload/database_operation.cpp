@@ -253,9 +253,9 @@ database_operation::remove_operation(thread_context *tc)
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
     /*
-     * We need two types of cursors. One cursor is a random cursor to randomly select a key and
-     * the other one is a standard cursor to remove the random key. This is required as the
-     * random cursor does not support the remove operation.
+     * We need two types of cursors. One cursor is a random cursor to randomly select a key and the
+     * other one is a standard cursor to remove the random key. This is required as the random
+     * cursor does not support the remove operation.
      */
     std::map<uint64_t, scoped_cursor> rnd_cursors, cursors;
 
