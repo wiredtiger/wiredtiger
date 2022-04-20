@@ -507,8 +507,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
 
         /*
          * We only need to walk the whole update chain if we are evicting metadata as it is written
-         * with read uncommitted isolation and we may see an uncommitted update follows a committed
-         * update.
+         * with read uncommitted isolation and we may see a committed update followed by uncommitted
+         * updates
          */
         if (!F_ISSET(r, WT_REC_EVICT) || !WT_IS_METADATA(session->dhandle))
             break;
