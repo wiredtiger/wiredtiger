@@ -418,8 +418,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         if ((txnid = upd->txnid) == WT_TXN_ABORTED)
             continue;
 
-        upd_memsize += WT_UPDATE_MEMSIZE(upd);
-
         /*
          * Track the first update in the chain that is not aborted and the maximum transaction ID.
          */
@@ -432,6 +430,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
          * Special handling for application threads evicting their own updates.
          */
         if (!is_hs_page && F_ISSET(r, WT_REC_APP_EVICTION_SNAPSHOT) && txnid == session_txnid) {
+            upd_memsize += WT_UPDATE_MEMSIZE(upd);
             has_newer_updates = true;
             continue;
         }
@@ -469,6 +468,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
                 return (__wt_set_return(session, EBUSY));
             }
 
+            upd_memsize += WT_UPDATE_MEMSIZE(upd);
             has_newer_updates = true;
             continue;
         }
@@ -478,6 +478,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
             WT_ASSERT(session, upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid);
             if (F_ISSET(r, WT_REC_CHECKPOINT)) {
+                upd_memsize += WT_UPDATE_MEMSIZE(upd);
                 has_newer_updates = true;
                 if (upd->start_ts > max_ts)
                     max_ts = upd->start_ts;
@@ -741,6 +742,17 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         supd_restore = F_ISSET(r, WT_REC_EVICT) &&
           (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
 
+        /*
+         * The total update size only contains uncommitted updates. This is wrong for the in memory
+         * case because we cannot discard any update until they are obsolete. Add them to the size.
+         */
+        if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && onpage_upd != NULL) {
+            for (upd = onpage_upd->next; upd != NULL; upd = upd->next) {
+                if (upd->txnid == WT_TXN_ABORTED)
+                    continue;
+                upd_memsize += WT_UPDATE_MEMSIZE(upd);
+            }
+        }
         WT_RET(__rec_update_save(
           session, r, ins, rip, onpage_upd, tombstone, supd_restore, upd_memsize));
 
