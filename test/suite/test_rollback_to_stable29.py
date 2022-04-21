@@ -26,13 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, threading, time
-from wtthread import checkpoint_thread
-import wiredtiger
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
-from helper import copy_wiredtiger_home, simulate_crash_restart
+from helper import simulate_crash_restart
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 
 # test_rollback_to_stable29.py
@@ -64,7 +61,7 @@ class test_rollback_to_stable29(test_rollback_to_stable_base):
             value_d = 'd' * 100
 
         # Create our table.
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format, config="write_timestamp_usage=mixed_mode")
         ds.populate()
 
         # Pin oldest and stable to timestamp 1.

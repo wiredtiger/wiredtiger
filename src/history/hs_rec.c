@@ -561,6 +561,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             tombstone = NULL;
             __wt_update_vector_peek(&updates, &prev_upd);
 
+            /*
+             * Reset the non timestamped update pointer once all the previous updates are inserted
+             * into the history store.
+             */
+            if (upd == non_ts_upd)
+                non_ts_upd = NULL;
+
             if (non_ts_upd != NULL) {
                 tw.durable_start_ts = WT_TS_NONE;
                 tw.start_ts = WT_TS_NONE;
@@ -606,7 +613,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
              * Reset the non timestamped update pointer once all the previous updates are inserted
              * into the history store.
              */
-            if (prev_upd == non_ts_upd || upd == non_ts_upd)
+            if (prev_upd == non_ts_upd)
                 non_ts_upd = NULL;
 
             WT_ERR(
