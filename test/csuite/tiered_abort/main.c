@@ -601,9 +601,9 @@ verify_tiered(WT_SESSION *session)
             testutil_check(__wt_tiered_name_str(
               (WT_SESSION_IMPL *)session, key, last, WT_TIERED_NAME_ONLY, &name));
             testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, name));
-	    ret = stat(buf, &sb);
-            fprintf(stderr, "VERIFY_TIERED: last %d oldest %d most recent: %s ret(0) %d\n", (int)last,
-              (int)oldest, buf, ret);
+            ret = stat(buf, &sb);
+            fprintf(stderr, "VERIFY_TIERED: last %d oldest %d most recent: %s ret(0) %d\n",
+              (int)last, (int)oldest, buf, ret);
             testutil_assert(ret == 0);
             free((void *)name);
             for (i = oldest; i < last; ++i) {
@@ -613,7 +613,8 @@ verify_tiered(WT_SESSION *session)
                 ret = stat(buf, &sb);
                 fprintf(stderr, "VERIFY_TIERED: object: %s local ret(-1) %d\n", buf, ret);
                 testutil_assert(ret != 0);
-                testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s/%s%s", home, BUCKET, BUCKET_PFX, name));
+                testutil_check(
+                  __wt_snprintf(buf, sizeof(buf), "%s/%s/%s%s", home, BUCKET, BUCKET_PFX, name));
                 fprintf(stderr, "VERIFY_TIERED: object: %s bucket ret(0) %d\n", buf, ret);
                 ret = stat(buf, &sb);
                 testutil_assert(ret == 0);
