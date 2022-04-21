@@ -26,10 +26,11 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, re
+import os, re, wttest 
 from helper_tiered import tiered_storage_sources
-import wtscenario, wttest
 from wtdataset import SimpleDataSet
+from wtscenario import make_scenarios, quick_scenarios
+
 
 # test_tiered03.py
 #    Test block-log-structured tree configuration options.
@@ -43,9 +44,9 @@ class test_tiered03(wttest.WiredTigerTestCase):
     uri = 'file:test_tiered03'
 
     # Occasionally add a lot of records to vary the amount of work flush does.
-    record_count_scenarios = wtscenario.quick_scenarios(
+    record_count_scenarios = quick_scenarios(
         'nrecs', [10, 10000], [0.9, 0.1])
-    scenarios = wtscenario.make_scenarios(tiered_storage_sources[:2], record_count_scenarios, prune=100, prunelong=500)
+    scenarios = make_scenarios(tiered_storage_sources[:2], record_count_scenarios, prune=100, prunelong=500)
 
     absolute_bucket_dir = None  # initialied in conn_config to an absolute path
 

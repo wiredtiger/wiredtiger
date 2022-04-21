@@ -27,8 +27,9 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import inspect, os, wiredtiger, wttest
-from wtscenario import make_scenarios
 from helper_tiered import tiered_storage_sources
+from wtscenario import make_scenarios
+
 FileSystem = wiredtiger.FileSystem  # easy access to constants
 
 # test_tiered06.py

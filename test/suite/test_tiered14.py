@@ -26,9 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import os, random, wttest
 from helper_tiered import tiered_storage_sources
-import os, random, wttest, wtscenario
 from wtdataset import TrackedSimpleDataSet, TrackedComplexDataSet
+from wtscenario import make_scenarios
 
 # test_tiered14.py
 #    Test somewhat arbitrary combinations of flush_tier, checkpoint, restarts,
@@ -56,7 +57,7 @@ class test_tiered14(wttest.WiredTigerTestCase):
         ('simple', dict(dataset='simple')),
         #('complex', dict(dataset='complex', long_only=True)),
     ]
-    scenarios = wtscenario.make_scenarios(multiplier, keyfmt, dataset, tiered_storage_sources[:2])
+    scenarios = make_scenarios(multiplier, keyfmt, dataset, tiered_storage_sources[:2])
 
     def conn_config(self):
         if self.ss_name == 'dir_store' and not os.path.exists(self.bucket):

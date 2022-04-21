@@ -29,10 +29,10 @@
 # test_tiered13.py
 # Check that importing tiered tables returns an error.
 
-from helper_tiered import tiered_storage_sources
-from wtscenario import make_scenarios
 import os, shutil, wiredtiger
+from helper_tiered import tiered_storage_sources
 from test_import01 import test_import_base
+from wtscenario import make_scenarios
 
 class test_tiered13(test_import_base):
     # Make scenarios for different cloud service providers

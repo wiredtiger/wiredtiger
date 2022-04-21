@@ -26,9 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper_tiered import tiered_storage_sources
 import os, time, wiredtiger, wttest
+from helper_tiered import tiered_storage_sources
 from wtscenario import make_scenarios
+
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered05.py

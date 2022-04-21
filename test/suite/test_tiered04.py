@@ -30,6 +30,7 @@ import os, time, wiredtiger, wttest
 from wiredtiger import stat
 from helper_tiered import tiered_storage_sources
 from wtscenario import make_scenarios
+
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered04.py

@@ -31,11 +31,13 @@
 # tiered_storage:flush_tier
 # [END_TAGS]
 #
-from helper_tiered import tiered_storage_sources
-from wtscenario import make_scenarios
+
 import os, threading, time, wttest
+from helper_tiered import tiered_storage_sources
 from wiredtiger import stat
 from wtthread import checkpoint_thread, flush_tier_thread
+from wtscenario import make_scenarios
+
 
 # test_tiered08.py
 #   Run background checkpoints and flush_tier operations while inserting
