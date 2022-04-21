@@ -152,3 +152,57 @@ timestamp_teardown(WT_SESSION *session)
      */
     timestamp_once(session, false, true);
 }
+
+/*
+ * set_oldest_timestamp --
+ *     Query the oldest timestamp from wiredtiger and set it as our global oldest timestamp. This
+ *     should only be called on runs for pre existing databases.
+ */
+void
+set_oldest_timestamp(void)
+{
+    static const char *oldest_timestamp_str = "oldest_timestamp=";
+
+    WT_CONNECTION *conn;
+    WT_DECL_RET;
+    uint64_t oldest_ts;
+    char buf[WT_TS_HEX_STRING_SIZE * 2 + 64], tsbuf[WT_TS_HEX_STRING_SIZE];
+
+    conn = g.wts_conn;
+
+    if ((ret = conn->query_timestamp(conn, tsbuf, "get=oldest_timestamp")) == 0) {
+        oldest_ts = testutil_timestamp_parse(tsbuf);
+        g.timestamp = oldest_ts;
+        testutil_check(
+          __wt_snprintf(buf, sizeof(buf), "%s%" PRIx64, oldest_timestamp_str, g.oldest_timestamp));
+    } else if (ret != WT_NOTFOUND)
+        /*
+         * Its possible there may not be an oldest timestamp as such we could get not found. This
+         * should be okay assuming timestamps are not configured if they are, it's still okay as we
+         * could have configured timestamps after not running with timestamps. As such only error if
+         * we get a non not found error. If we were supposed to fail with not found we'll see an
+         * error later on anyway.
+         */
+        testutil_die(ret, "unable to query oldest timestamp");
+}
+
+/*
+ * maximum_read_ts --
+ *     Return the largest safe read timestamp.
+ */
+uint64_t
+maximum_read_ts(void)
+{
+    TINFO **tlp;
+    uint64_t ts;
+
+    /*
+     *  We can't use a read timestamp that's ahead of a commit timestamp. Find the maximum safe read
+     * timestamp.
+     */
+    for (ts = g.timestamp, tlp = tinfo_list; *tlp != NULL; ++tlp)
+        ts = WT_MIN(ts, (*tlp)->commit_ts);
+    if (ts != 0)
+        --ts;
+    return (ts);
+}
