@@ -26,10 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wttest
+import os, wttest, wtscenario
 from helper_tiered import tiered_storage_sources
 from wtdataset import SimpleDataSet, ComplexDataSet
-from wtscenario import make_scenarios
 
 # test_tiered02.py
 #    Test tiered tree
@@ -43,7 +42,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
     ]
 
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(tiered_storage_sources[:2], complex_dataset)
+    scenarios = wtscenario.make_scenarios(tiered_storage_sources[:2], complex_dataset)
 
     uri = "table:test_tiered02"
 

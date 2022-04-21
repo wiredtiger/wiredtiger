@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
+from helper_tiered import tiered_storage_sources
 from wtscenario import make_scenarios
 import os, wiredtiger, wttest
 StorageSource = wiredtiger.StorageSource  # easy access to constants
@@ -35,20 +35,8 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Test tiered storage with simultaneous connections using different
 # prefixes to the same bucket directory but different local databases.
 class test_tiered10(wttest.WiredTigerTestCase):
-    storage_sources = [
-        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
-            bucket = get_bucket1_name('dir_store'),
-            prefix1 = '1_',
-            prefix2 = '2_',
-            ss_name = 'dir_store')),
-        ('s3', dict(auth_token = get_auth_token('s3_store'),
-           bucket = get_bucket1_name('s3_store'),
-           prefix1 = generate_s3_prefix(),
-           prefix2 = generate_s3_prefix(),
-           ss_name = 's3_store')),
-    ]
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(storage_sources)
+    scenarios = make_scenarios(tiered_storage_sources[:2])
 
     # If the 'uri' changes all the other names must change with it.
     base = 'test_tiered10-000000000'
@@ -115,10 +103,10 @@ class test_tiered10(wttest.WiredTigerTestCase):
         # We open two connections manually so that they both have the same relative
         # pathnames. The standard connection is just a dummy for this test.
         ext = self.extensionsConfig()
-        conn1_params = self.saved_conn + ext + ',tiered_storage=(bucket_prefix=%s)' % self.prefix1
+        conn1_params = self.saved_conn + ext + ',tiered_storage=(bucket_prefix=%s)' % self.bucket_prefix
         conn1 = self.wiredtiger_open(self.conn1_dir, conn1_params)
         session1 = conn1.open_session()
-        conn2_params = self.saved_conn + ext + ',tiered_storage=(bucket_prefix=%s)' % self.prefix2
+        conn2_params = self.saved_conn + ext + ',tiered_storage=(bucket_prefix=%s)' % self.bucket_prefix1
         conn2 = self.wiredtiger_open(self.conn2_dir, conn2_params)
         session2 = conn2.open_session()
 
@@ -138,8 +126,8 @@ class test_tiered10(wttest.WiredTigerTestCase):
         session1.flush_tier(None)
         session2.checkpoint()
         session2.flush_tier(None)
-        conn1_obj1 = os.path.join(self.bucket, self.prefix1 + self.obj1file)
-        conn2_obj1 = os.path.join(self.bucket, self.prefix2 + self.obj1file)
+        conn1_obj1 = os.path.join(self.bucket, self.bucket_prefix + self.obj1file)
+        conn2_obj1 = os.path.join(self.bucket, self.bucket_prefix1 + self.obj1file)
 
         if self.ss_name == 'dir_store':
             self.assertTrue(os.path.exists(conn1_obj1))

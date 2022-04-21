@@ -26,9 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name, tiered_storage_sources
-from wtscenario import make_scenarios
-import os, random, wtscenario, wttest
+from helper_tiered import tiered_storage_sources
+import os, random, wttest, wtscenario
 from wtdataset import TrackedSimpleDataSet, TrackedComplexDataSet
 
 # test_tiered14.py
@@ -56,18 +55,6 @@ class test_tiered14(wttest.WiredTigerTestCase):
     dataset = [
         ('simple', dict(dataset='simple')),
         #('complex', dict(dataset='complex', long_only=True)),
-    ]
-    storage_sources = [
-        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
-            bucket = get_bucket1_name('dir_store'),
-            bucket_prefix = "pfx_",
-            num_ops = 100,
-            ss_name = 'dir_store',)),
-        ('s3', dict(auth_token = get_auth_token('s3_store'),
-            bucket = get_bucket1_name('s3_store'),
-            bucket_prefix = generate_s3_prefix(),
-            num_ops = 20,
-            ss_name = 's3_store')),
     ]
     scenarios = wtscenario.make_scenarios(multiplier, keyfmt, dataset, tiered_storage_sources[:2])
 

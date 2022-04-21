@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
+from helper_tiered import tiered_storage_sources
 from wtscenario import make_scenarios
 import os, wiredtiger, wttest
 StorageSource = wiredtiger.StorageSource  # easy access to constants
@@ -34,22 +34,8 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 # test_tiered09.py
 #    Test tiered storage with sequential connections with different prefixes.
 class test_tiered09(wttest.WiredTigerTestCase):
-    storage_sources = [
-        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
-            bucket = get_bucket1_name('dir_store'),
-            prefix1 = '1_',
-            prefix2 = '2_',
-            prefix3 = '3_',
-            ss_name = 'dir_store')),
-        ('s3', dict(auth_token = get_auth_token('s3_store'),
-            bucket = get_bucket1_name('s3_store'),
-            prefix1 = generate_s3_prefix(),
-            prefix2 = generate_s3_prefix(),
-            prefix3 = generate_s3_prefix(),
-            ss_name = 's3_store')),
-    ]
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(storage_sources)
+    scenarios = make_scenarios(tiered_storage_sources[:2])
 
     # If the 'uri' changes all the other names must change with it.
     base = 'test_tiered09-000000000'
@@ -70,7 +56,7 @@ class test_tiered09(wttest.WiredTigerTestCase):
           'statistics=(all),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
-          'bucket_prefix=%s,' % self.prefix1 + \
+          'bucket_prefix=%s,' % self.bucket_prefix + \
           'local_retention=%d,' % self.retention + \
           'name=%s)' % self.ss_name 
         return self.saved_conn
@@ -121,7 +107,7 @@ class test_tiered09(wttest.WiredTigerTestCase):
         # For directory store, check that the expected files exist.
         if self.ss_name == 'dir_store':
             self.assertTrue(os.path.exists(self.obj2file))
-            bucket_obj = os.path.join(self.bucket, self.prefix1 + self.obj1file)
+            bucket_obj = os.path.join(self.bucket, self.bucket_prefix + self.obj1file)
             self.assertTrue(os.path.exists(bucket_obj))
 
         # Since we've closed and reopened the connection we lost the work units
@@ -132,7 +118,7 @@ class test_tiered09(wttest.WiredTigerTestCase):
             os.remove(localobj)
 
         # Reopen the connection with a different prefix this time.
-        conn_params = self.saved_conn + ',tiered_storage=(bucket_prefix=%s)' % self.prefix2
+        conn_params = self.saved_conn + ',tiered_storage=(bucket_prefix=%s)' % self.bucket_prefix1
         self.conn = self.wiredtiger_open('.', conn_params)
         self.session = self.conn.open_session()
         # Add a second table created while the second prefix is used for the connection.
@@ -154,9 +140,9 @@ class test_tiered09(wttest.WiredTigerTestCase):
 
         # For directory store, Check each table was created with the correct prefix.
         if self.ss_name == 'dir_store':
-            bucket_obj = os.path.join(self.bucket, self.prefix2 + self.obj1second)
+            bucket_obj = os.path.join(self.bucket, self.bucket_prefix1 + self.obj1second)
             self.assertTrue(os.path.exists(bucket_obj))
-            bucket_obj = os.path.join(self.bucket, self.prefix1 + self.obj2file)
+            bucket_obj = os.path.join(self.bucket, self.bucket_prefix + self.obj2file)
             self.assertTrue(os.path.exists(bucket_obj))
 
         # Since we've closed and reopened the connection we lost the work units
@@ -172,7 +158,7 @@ class test_tiered09(wttest.WiredTigerTestCase):
         # Reopen with the other prefix and check all data. Even though we're using the
         # other prefix, we should find all the data in the object with the original
         # prefix.
-        conn_params = self.saved_conn + ',tiered_storage=(bucket_prefix=%s)' % self.prefix3
+        conn_params = self.saved_conn + ',tiered_storage=(bucket_prefix=%s)' % self.bucket_prefix2
         self.conn = self.wiredtiger_open('.', conn_params)
         self.session = self.conn.open_session()
         c = self.session.open_cursor(self.uri)

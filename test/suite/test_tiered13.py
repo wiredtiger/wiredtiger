@@ -29,24 +29,14 @@
 # test_tiered13.py
 # Check that importing tiered tables returns an error.
 
-from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
+from helper_tiered import tiered_storage_sources
 from wtscenario import make_scenarios
 import os, shutil, wiredtiger
 from test_import01 import test_import_base
 
 class test_tiered13(test_import_base):
-    storage_sources = [
-        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
-            bucket = get_bucket1_name('dir_store'),
-            bucket_prefix = "pfx_",
-            ss_name = 'dir_store')),
-        ('s3', dict(auth_token = get_auth_token('s3_store'),
-            bucket = get_bucket1_name('s3_store'),
-            bucket_prefix = generate_s3_prefix(),
-            ss_name = 's3_store')),
-    ]
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(storage_sources)
+    scenarios = make_scenarios(tiered_storage_sources[:2])
 
     # If the 'uri' changes all the other names must change with it.
     base = 'test_tiered13-000000000'
