@@ -186,6 +186,8 @@ class test_timestamp22(wttest.WiredTigerTestCase):
             commit_config += ',durable_timestamp=' + self.timestamp_str(durable_ts)
         cursor = session.open_cursor(self.uri)
         prepare_ts = self.gen_ts(commit_ts)
+        if prepare_ts < self.last_durable:
+            prepare_ts = self.last_durable + 1
         if prepare_ts < self.last_commit_ts:
             prepare_ts = self.last_commit_ts + 1
         prepare_config = 'prepare_timestamp=' + self.timestamp_str(prepare_ts)
