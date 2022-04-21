@@ -109,7 +109,7 @@ static uint32_t flush_calls = 1;
     ",eviction_dirty_target=20,eviction_dirty_trigger=90" \
     ",transaction_sync=(enabled,method=none)"
 /* Set the flush_checkpoint debug mode so that the parent can call flush_tier alone. */
-#define ENV_CONFIG_REC "log=(recover=on,remove=false),debug_mode=(flush_checkpoint)"
+#define ENV_CONFIG_REC "log=(recover=on,remove=false),debug_mode=(flush_checkpoint),verbose=(tiered)"
 
 /*
  * A minimum width of 10, along with zero filling, means that all the keys sort according to their
@@ -825,8 +825,10 @@ main(int argc, char *argv[])
      * what objects are where. No older objects should exist in the local database and all earlier
      * objects should exist in the bucket.
      */
+    fprintf(stderr, "============== Call flush tier ============\n");
     testutil_check(session->flush_tier(session, "force=true"));
-    sleep(INTERVAL + 1);
+    fprintf(stderr, "============== Done flush tier ============\n");
+    sleep(LOCAL_RETENTION + 1);
     verify_tiered(session);
 
     /* Find the biggest stable timestamp value that was saved. */

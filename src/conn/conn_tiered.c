@@ -648,6 +648,7 @@ __tiered_server(void *arg)
          *  - Perform any shared storage processing after flushing.
          *  - Remove any cached objects that are aged out.
          */
+        __wt_verbose(session, WT_VERB_TIERED, "T_SRV: timediff %d interval %d sig %d", (int)timediff, (int)conn->tiered_interval, signalled);
         if (timediff >= conn->tiered_interval || signalled) {
             WT_ERR(__tier_storage_copy(session));
             WT_ERR(__tier_storage_finish(session));

@@ -44,6 +44,9 @@ __tiered_common_config(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STO
 
     if (bstorage == NULL)
         return (0);
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.interval", &cval));
+    S2C(session)->tiered_interval = (uint64_t)cval.val;
+
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.local_retention", &cval));
     bstorage->retain_secs = (uint64_t)cval.val;
 
