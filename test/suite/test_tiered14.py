@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
+from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name, tiered_storage_sources
 from wtscenario import make_scenarios
 import os, random, wtscenario, wttest
 from wtdataset import TrackedSimpleDataSet, TrackedComplexDataSet
@@ -69,7 +69,7 @@ class test_tiered14(wttest.WiredTigerTestCase):
             num_ops = 20,
             ss_name = 's3_store')),
     ]
-    scenarios = wtscenario.make_scenarios(multiplier, keyfmt, dataset, storage_sources)
+    scenarios = wtscenario.make_scenarios(multiplier, keyfmt, dataset, tiered_storage_sources[:2])
 
     def conn_config(self):
         if self.ss_name == 'dir_store' and not os.path.exists(self.bucket):

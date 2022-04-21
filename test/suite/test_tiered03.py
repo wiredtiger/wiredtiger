@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, re
-from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
+from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name, tiered_storage_sources
 import wtscenario, wttest
 from wtdataset import SimpleDataSet
 
@@ -42,20 +42,10 @@ class test_tiered03(wttest.WiredTigerTestCase):
     # sharing would probably need to be reworked.
     uri = 'file:test_tiered03'
 
-    storage_sources = [
-        ('dirstore', dict(auth_token = get_auth_token('dir_store'),
-            bucket = get_bucket1_name('dir_store'),
-            bucket_prefix = "pfx_",
-            ss_name = 'dir_store')),
-        ('s3', dict(auth_token = get_auth_token('s3_store'),
-           bucket = get_bucket1_name('s3_store'),
-           bucket_prefix = generate_s3_prefix(),
-           ss_name = 's3_store')),
-    ]
     # Occasionally add a lot of records to vary the amount of work flush does.
     record_count_scenarios = wtscenario.quick_scenarios(
         'nrecs', [10, 10000], [0.9, 0.1])
-    scenarios = wtscenario.make_scenarios(storage_sources, record_count_scenarios, prune=100, prunelong=500)
+    scenarios = wtscenario.make_scenarios(tiered_storage_sources[:2], record_count_scenarios, prune=100, prunelong=500)
 
     absolute_bucket_dir = None  # initialied in conn_config to an absolute path
 
