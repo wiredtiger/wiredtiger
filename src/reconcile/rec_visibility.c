@@ -214,17 +214,17 @@ __rec_need_save_upd(
 }
 
 /*
- * __timestamp_out_of_order_fix --
+ * __timestamp_mm_fix --
  *     If we found a tombstone with a time point earlier than the update it applies to, which can
- *     happen if the application performs operations with timestamps out-of-order, make it invisible
+ *     happen if the application performs operations with timestamps mixed mode, make it invisible
  *     by making the start time point match the stop time point of the tombstone. We don't guarantee
  *     that older readers will be able to continue reading content that has been made invisible by
- *     out-of-order updates. Note that we carefully don't take this path when the stop time point is
+ *     mixed mode updates. Note that we carefully don't take this path when the stop time point is
  *     equal to the start time point. While unusual, it is permitted for a single transaction to
  *     insert and then remove a record. We don't want to generate a warning in that case.
  */
 static inline bool
-__timestamp_out_of_order_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
+__timestamp_mm_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
 {
     char time_string[WT_TIME_STRING_SIZE];
 
@@ -237,7 +237,7 @@ __timestamp_out_of_order_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw
     if (select_tw->stop_ts < select_tw->start_ts) {
         WT_ASSERT(session, select_tw->stop_ts == WT_TS_NONE);
         __wt_verbose(session, WT_VERB_TIMESTAMP,
-          "Warning: fixing out-of-order timestamps remove earlier than value; time window %s",
+          "Warning: fixing mixed mode timestamps remove earlier than value; time window %s",
           __wt_time_window_to_string(select_tw, time_string));
 
         select_tw->durable_start_ts = select_tw->durable_stop_ts;
@@ -267,15 +267,15 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         return (0);
 
     /*
-     * No need to check out of order timestamps for any reconciliation that doesn't involve history
+     * No need to check mixed mode timestamps for any reconciliation that doesn't involve history
      * store (in-memory database, metadata, and history store reconciliation itself).
      */
     if (!F_ISSET(r, WT_REC_HS))
         return (0);
 
     /*
-     * If eviction reconciliation starts before checkpoint, it is fine to evict out of order
-     * timestamp updates.
+     * If eviction reconciliation starts before checkpoint, it is fine to evict mixed mode timestamp
+     * updates.
      */
     if (!F_ISSET(r, WT_REC_CHECKPOINT_RUNNING))
         return (0);
@@ -340,7 +340,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     }
 
     /*
-     * Check that the on-page time window isn't out-of-order. Don't check against ondisk prepared
+     * Check that the on-page time window isn't mixed mode. Don't check against ondisk prepared
      * update. It is either committed or rolled back if we are here. If we haven't seen an update
      * with the flag WT_UPDATE_RESTORED_FROM_DS we check against the ondisk value.
      *
@@ -701,13 +701,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     }
 
     /*
-     * Fixup any out of order timestamps, assert that checkpoint wasn't running when this round of
+     * Fixup any mixed mode timestamps, assert that checkpoint wasn't running when this round of
      * reconciliation started.
      *
      * Returning EBUSY here is okay as the previous call to validate the update chain wouldn't have
      * caught the situation where only a tombstone is selected.
      */
-    if (__timestamp_out_of_order_fix(session, select_tw) && F_ISSET(r, WT_REC_HS) &&
+    if (__timestamp_mm_fix(session, select_tw) && F_ISSET(r, WT_REC_HS) &&
       F_ISSET(r, WT_REC_CHECKPOINT_RUNNING)) {
         /* Catch this case in diagnostic builds. */
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_mm_checkpoint_race_3);

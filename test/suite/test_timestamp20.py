@@ -30,7 +30,7 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 # test_timestamp20.py
-# Exercise fixing up of out-of-order updates in the history store.
+# Exercise fixing up of mixed mode updates in the history store.
 class test_timestamp20(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
 
@@ -96,7 +96,7 @@ class test_timestamp20(wttest.WiredTigerTestCase):
         old_reader_cursor = old_reader_session.open_cursor(uri)
         old_reader_session.begin_transaction('read_timestamp=' + self.timestamp_str(20))
 
-        # Now put two updates out of order. no timestamp will go to the history store and will trigger a
+        # Now put two updates mixed mode. no timestamp will go to the history store and will trigger a
         # correction to the existing contents.
         for i in range(1, 10000):
             self.session.begin_transaction()
@@ -171,7 +171,7 @@ class test_timestamp20(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.modify([wiredtiger.Modify('D', 300, 1)]), 0)
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(40))
 
-        # Now put two updates out of order. no timestamp will go to the history store and will trigger a
+        # Now put two updates mixed mode. no timestamp will go to the history store and will trigger a
         # correction to the existing contents.
         for i in range(1, 10000):
             self.session.begin_transaction()

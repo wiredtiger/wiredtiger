@@ -854,7 +854,7 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 
     /*
      * Do not check for timestamp usage in recovery. We don't expect recovery to be using timestamps
-     * when applying commits, and it is possible that timestamps may be out of order in log replay.
+     * when applying commits, and it is possible that timestamps may be mixed mode in log replay.
      */
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
         return (0);

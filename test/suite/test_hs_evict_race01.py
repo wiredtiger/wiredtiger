@@ -31,16 +31,16 @@ import wttest, threading
 from helper import simulate_crash_restart
 from wtscenario import make_scenarios
 
-# Test a bug that can occur when an out of order update gets insert after a checkpoint begins
+# Test a bug that can occur when a mixed mode update gets insert after a checkpoint begins
 # but before the checkpoint processes the btree. Evict that update before checkpoint but fail the
-# eviction due to out of order timestamps.
+# eviction due to mixed mode timestamps.
 #
 # Without the related change this test would fail as a result of an inconsistent checkpoint. Due to
 # a flag being set on an update incorrectly. Specific ordering is required to reproduce:
 # 1. Start a checkpoint, sleep the checkpoint after it takes it snapshot and before it
 #    processes our btree.
-# 2. Insert the out of order update.
-# 3. Evict the out of order update.
+# 2. Insert the mixed mode update.
+# 3. Evict the mixed mode update.
 # 4. Complete the checkpoint.
 # 5. Simulate a crash.
 # 6. Read the value and see if it matches the expected value.
@@ -59,7 +59,7 @@ class test_hs_evict_race01(wttest.WiredTigerTestCase):
     value3 = 'ccccc'
     value4 = 'ddddd'
 
-    def test_out_of_order_ts(self):
+    def test_mm_ts(self):
         self.session.create(self.uri, 'key_format={},value_format=S,write_timestamp_usage=mixed_mode'.format(self.key_format))
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)

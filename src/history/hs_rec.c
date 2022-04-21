@@ -189,8 +189,8 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
      */
     if (ret == 0) {
         /*
-         * Check if the current history store update's stop timestamp is out of order with respect
-         * to the update to be inserted before before moving onto the next record.
+         * Check if the current history store update's stop timestamp is less than with respect to
+         * the update to be inserted before before moving onto the next record.
          */
         if (hs_cbt->upd_value->tw.stop_ts <= tw->start_ts)
             WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
@@ -205,8 +205,8 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
      * It is possible to insert a globally visible update into the history store with larger
      * timestamps ahead of it. An example would be a mixed mode update getting moved to the history
      * store. This scenario can avoid detection earlier in reconciliation and result in an EBUSY
-     * being returned as it detects out-of-order timestamps. To prevent this we allow globally
-     * visible updates to fix history store content even if eviction is running concurrently with a
+     * being returned as it detects mixed mode timestamps. To prevent this we allow globally visible
+     * updates to fix history store content even if eviction is running concurrently with a
      * checkpoint.
      *
      * This is safe because global visibility considers the checkpoint transaction id and timestamp
@@ -429,23 +429,23 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
 
-            /* Detect any out of order timestamp update. */
+            /* Detect any mixed mode timestamp updates. */
             if (prev_upd != NULL && prev_upd->start_ts < upd->start_ts) {
                 WT_ASSERT(session, prev_upd->start_ts == WT_TS_NONE);
                 /*
-                 * Fail the eviction if we detect out of order timestamps and the error flag is set.
-                 * We cannot modify the history store to fix the out of order timestamp updates as
-                 * it may make the history store checkpoint inconsistent.
+                 * Fail the eviction if we detect mixed mode timestamps and the error flag is set.
+                 * We cannot modify the history store to fix the mixed mode timestamp updates as it
+                 * may make the history store checkpoint inconsistent.
                  */
                 if (error_on_mm_ts) {
                     ret = EBUSY;
-                    WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_out_of_order_ts);
+                    WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_mm_ts);
                     goto err;
                 }
 
                 /*
-                 * Always insert full update to the history store if we detect out of order
-                 * timestamp update.
+                 * Always insert full update to the history store if we detect mixed mode timestamp
+                 * update.
                  */
                 enable_reverse_modify = false;
             }
@@ -500,11 +500,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
 
             /*
              * Save the first non timestamped update in the update chain. This is used to reset all
-             * the following update timestamps in the chain. Do not save if it is the last update in
-             * the chain. While inserting this last update, all the existing history store updates
-             * will reinsert after correcting their timestamps.
+             * the following update timestamps in the chain.
              */
-            if (non_ts_upd == NULL && upd->start_ts == WT_TS_NONE && upd->next != NULL) {
+            if (non_ts_upd == NULL && upd->start_ts == WT_TS_NONE) {
                 WT_ASSERT(session, upd->durable_ts == WT_TS_NONE);
                 non_ts_upd = upd;
             }
@@ -523,9 +521,17 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
          * situation is possible only when the tombstone is globally visible. Delete any updates of
          * the key in the history store with higher timestamp.
          */
-        if (oldest_upd->type == WT_UPDATE_TOMBSTONE && oldest_upd->start_ts == WT_TS_NONE)
+        if (oldest_upd->type == WT_UPDATE_TOMBSTONE && oldest_upd->start_ts == WT_TS_NONE) {
             WT_ERR(__wt_hs_delete_key_from_ts(
               session, hs_cursor, btree->id, key, false, error_on_mm_ts));
+
+            /*
+             * Reset the non timestamp update if it is the last update in the chain. Inserting this
+             * update to the history store will reset any higher timestamps of the key.
+             */
+            if (oldest_upd == non_ts_upd)
+                non_ts_upd = NULL;
+        }
 
         /* Skip if we have nothing to insert to the history store. */
         if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_HS)) {
@@ -842,37 +848,24 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     WT_ERR(ret);
 
     /*
-     * Fail the eviction if we detect out of order timestamps when we've passed the error return
-     * flag. We cannot modify the history store to fix the out of order timestamp updates as it may
-     * make the history store checkpoint inconsistent.
+     * Fail the eviction if we detect mixed mode timestamps when we've passed the error return flag.
+     * We cannot modify the history store to fix the mixed mode timestamp updates as it may make the
+     * history store checkpoint inconsistent.
      */
     if (error_on_mm_ts) {
         ret = EBUSY;
-        WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_out_of_order_ts);
+        WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_mm_ts);
         goto err;
     }
 
     /*
-     * The goal of this function is to move out-of-order content to maintain ordering in the
+     * The goal of this function is to move mixed mode timestamp content to maintain ordering in the
      * history store. We do this by removing content with higher timestamps and reinserting it
-     * behind (from search's point of view) the newly inserted update. Even though these updates
-     * will all have the same timestamp, they cannot be discarded since older readers may need to
-     * see them after they've been moved due to their transaction id.
+     * with zero timestamp (from search's point of view) the newly inserted update. Even though
+     * these updates will all have the same timestamp, they cannot be discarded since older readers
+     * may need to see them after they've been moved due to their transaction id.
      *
-     * For example, if we're inserting an update at timestamp 3 with value ddd:
-     * btree key ts counter value stop_ts
-     * 2     foo 5  0       aaa     6
-     * 2     foo 6  0       bbb     7
-     * 2     foo 7  0       ccc     8
-     *
-     * We want to end up with this:
-     * btree key ts counter value stop_ts
-     * 2     foo 3  0       aaa    3
-     * 2     foo 3  1       bbb    3
-     * 2     foo 3  2       ccc    3
-     * 2     foo 3  3       ddd    3
-     *
-     * Another example, if we're inserting an update at timestamp 0 with value ddd:
+     * For example, if we're inserting an update at timestamp 0 with value ddd:
      * btree key ts counter value stop_ts
      * 2     foo 5  0       aaa    6
      * 2     foo 6  0       bbb    7
@@ -885,19 +878,19 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
      * 2     foo 0  2       ccc    0
      * 2     foo 0  3       ddd    0
      *
-     * Another example, if we're inserting an update at timestamp 3 with value ddd
-     * that is an out of order with a stop timestamp of 6:
+     * Another example, if we're inserting an update at timestamp 0 with value ddd
+     * that is an mixed mode update with a stop timestamp of 6:
      * btree key ts counter value stop_ts
-     * 2     foo 1  0       aaa     6
+     * 2     foo 0  0       aaa     6
      * 2     foo 6  0       bbb     7
      * 2     foo 7  0       ccc     8
      *
      * We want to end up with this:
      * btree key ts counter value stop_ts
-     * 2     foo 1  1       aaa    3
-     * 2     foo 3  2       bbb    3
-     * 2     foo 3  3       ccc    3
-     * 2     foo 3  4       ddd    3
+     * 2     foo 0  1       aaa    0
+     * 2     foo 0  2       bbb    0
+     * 2     foo 0  3       ccc    0
+     * 2     foo 0  4       ddd    0
      */
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
         /* We shouldn't have crossed the btree and user key search space. */
@@ -908,14 +901,14 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
         WT_ASSERT(session, cmp == 0);
 #endif
         /*
-         * If we got here, we've got out-of-order updates in the history store.
+         * If we got here, we've got mixed mode updates in the history store.
          *
          * Our strategy to rectify this is to remove all records for the same key with a timestamp
-         * higher or equal than the specified timestamp and reinsert them at the smaller timestamp,
+         * higher or equal than the specified timestamp and reinsert them at the zero timestamp,
          * which is the timestamp of the update we are about to insert to the history store.
          *
          * It is possible that the cursor next call can find an update that was reinserted when it
-         * had an out of order tombstone with respect to the new update. Continue the search by
+         * had an mixed mode tombstone with respect to the new update. Continue the search by
          * ignoring them.
          */
         __wt_hs_upd_time_window(hs_cursor, &twp);
@@ -940,7 +933,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
                 ++cache_hs_order_lose_durable_timestamp;
 
             __wt_verbose(session, WT_VERB_TIMESTAMP,
-              "fixing existing out-of-order updates by moving them; start_ts=%s, "
+              "fixing existing mixed mode updates by moving them; start_ts=%s, "
               "durable_start_ts=%s, "
               "stop_ts=%s, durable_stop_ts=%s, new_ts=%s",
               __wt_timestamp_to_string(hs_cbt->upd_value->tw.start_ts, ts_string[0]),
@@ -950,8 +943,8 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
               __wt_timestamp_to_string(ts, ts_string[4]));
 
             /*
-             * Use the original start time window's timestamps if it isn't out of order with respect
-             * to the new update.
+             * Use the original start time window's timestamps if it's timestamp is less than to the
+             * mixed mode new update.
              */
             if (hs_cbt->upd_value->tw.start_ts >= ts)
                 hs_insert_tw.start_ts = hs_insert_tw.durable_start_ts = mm_tombstone ? ts : ts - 1;
@@ -988,7 +981,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
             ++cache_hs_order_reinsert;
         }
 
-        /* Delete the out-of-order entry. */
+        /* Delete the mixed mode entry. */
         WT_ERR(hs_cursor->remove(hs_cursor));
         ++cache_hs_order_remove;
     }

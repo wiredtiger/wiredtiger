@@ -453,9 +453,9 @@ struct __wt_connection_stats {
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
     int64_t cache_hs_ondisk_max;
-    int64_t cache_hs_ondisk;
     int64_t cache_hs_order_lose_durable_timestamp;
     int64_t cache_hs_order_reinsert;
+    int64_t cache_hs_ondisk;
     int64_t cache_hs_read;
     int64_t cache_hs_read_miss;
     int64_t cache_hs_read_squash;
@@ -498,7 +498,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_fail;
     int64_t cache_eviction_fail_active_children_on_an_internal_page;
     int64_t cache_eviction_fail_in_reconciliation;
-    int64_t cache_eviction_fail_checkpoint_out_of_order_ts;
+    int64_t cache_eviction_fail_checkpoint_mm_ts;
     int64_t cache_eviction_walk;
     int64_t cache_write;
     int64_t cache_write_restore;
