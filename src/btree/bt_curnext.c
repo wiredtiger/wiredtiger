@@ -897,6 +897,10 @@ err:
         WT_TRET(__cursor_reset(cbt));
     }
     F_CLR(cbt, WT_CBT_ITERATE_RETRY_PREV);
+
+    if (ret == 0)
+        WT_RET(__wt_btcur_evict_reposition(cbt));
+
     return (ret);
 }
 
@@ -905,12 +909,7 @@ err:
  *     Move to the next record in the tree.
  */
 int
-__wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating, bool evict_reposition)
+__wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 {
-    WT_RET(__wt_btcur_next_prefix(cbt, NULL, truncating));
-
-    if (evict_reposition)
-        WT_RET(__wt_btcur_evict_reposition(cbt));
-
-    return (0);
+    return (__wt_btcur_next_prefix(cbt, NULL, truncating));
 }

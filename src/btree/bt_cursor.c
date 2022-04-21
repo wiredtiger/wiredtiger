@@ -545,7 +545,7 @@ __cursor_reposition_timing_stress(WT_SESSION_IMPL *session)
       __wt_random(&session->rnd) % 10 == 0)
         return (true);
 
-    return (false);
+    return (true);
 }
 
 /*
@@ -562,6 +562,10 @@ __wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
     cursor = &cbt->iface;
     session = CUR2S(cbt);
 
+    /* It's not always OK to release the cursor position */
+    if (!F_ISSET(cursor, WT_CURSTD_EVICT_REPOSITION))
+        return (0);
+
     /*
      * Try to evict the page and then reposition the cursor back to the page for operations with
      * snapshot isolation and for pages that require urgent eviction. Snapshot isolation level
@@ -576,15 +580,21 @@ __wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
         WT_STAT_CONN_DATA_INCR(session, cursor_reposition);
         WT_ERR(__wt_cursor_localkey(cursor));
         WT_ERR(__cursor_reset(cbt));
-        WT_ERR(__wt_btcur_search(cbt, false));
+
+        /*
+         * Clear the evict reposition flag here, as we should not reposition as part of this search.
+         */
+        F_CLR(cursor, WT_CURSTD_EVICT_REPOSITION);
+
+        WT_ERR(__wt_btcur_search(cbt));
     }
 
 err:
     if (ret != 0) {
         WT_STAT_CONN_DATA_INCR(session, cursor_reposition_failed);
         /*
-         * If we got a WT_ROLLBACK it is because there is a lot of cache pressure and the transaction is
-         * being killed - don't panic in that case.
+         * If we got a WT_ROLLBACK it is because there is a lot of cache pressure and the
+         * transaction is being killed - don't panic in that case.
          */
         if (ret != WT_ROLLBACK)
             WT_RET_PANIC(session, ret, "failed to reposition the cursor");
@@ -598,7 +608,7 @@ err:
  *     Search for a matching record in the tree.
  */
 int
-__wt_btcur_search(WT_CURSOR_BTREE *cbt, bool evict_reposition)
+__wt_btcur_search(WT_CURSOR_BTREE *cbt)
 {
     WT_BTREE *btree;
     WT_CURFILE_STATE state;
@@ -696,7 +706,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt, bool evict_reposition)
         WT_ERR(__wt_cursor_key_order_init(cbt));
 #endif
 
-    if (ret == 0 && evict_reposition)
+    if (ret == 0)
         WT_ERR(__wt_btcur_evict_reposition(cbt));
 
 err:
@@ -837,6 +847,14 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     } else {
+
+        /*
+         * The evict reposition cursor flag may be set, however, since we do not wish to reposition
+         * the cursor in the next and prev calls within search near, it is better to clear the flag
+         * and restore it at a later stage.
+         */
+        WT_CLEAR_CURSTD_EVICT_REPOSITION(cursor);
+
         /*
          * We didn't find an exact match: try after the search key, then before. We have to loop
          * here because at low isolation levels, new records could appear as we are stepping through
@@ -867,7 +885,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         /*
          * We walked to the end of the tree without finding a match. Walk backwards instead.
          */
-        while ((ret = __wt_btcur_prev(cbt, false, false)) != WT_NOTFOUND) {
+        while ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND) {
             WT_ERR(ret);
             if (btree->type == BTREE_ROW)
                 WT_ERR(__wt_compare(session, btree->collator, &cursor->key, &state.key, &exact));
@@ -876,6 +894,9 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
             if (exact <= 0)
                 goto done;
         }
+
+        /* Restore the evict reposition flag here. */
+        WT_RESTORE_CURSTD_EVICT_REPOSITION(cursor);
     }
 
 done:
@@ -1598,7 +1619,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
         WT_ERR_MSG(session, ENOTSUP, "not supported in implicit transactions");
 
     if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT))
-        WT_ERR(__wt_btcur_search(cbt, false));
+        WT_ERR(__wt_btcur_search(cbt));
 
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
 
@@ -1829,7 +1850,7 @@ __cursor_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
  * the end cursor, so we know that page is pinned in memory and we can proceed without concern.
  */
 retry:
-    WT_ERR(__wt_btcur_search(start, false));
+    WT_ERR(__wt_btcur_search(start));
     WT_ASSERT(session, F_MASK((WT_CURSOR *)start, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
 
     for (;;) {
@@ -1838,7 +1859,7 @@ retry:
         if (stop != NULL && __cursor_equals(start, stop))
             return (0);
 
-        if ((ret = __wt_btcur_next(start, true, false)) == WT_NOTFOUND)
+        if ((ret = __wt_btcur_next(start, true)) == WT_NOTFOUND)
             return (0);
         WT_ERR(ret);
 
@@ -1886,7 +1907,7 @@ __cursor_truncate_fix(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
  * full search to refresh the page's modification information.
  */
 retry:
-    WT_ERR(__wt_btcur_search(start, false));
+    WT_ERR(__wt_btcur_search(start));
     WT_ASSERT(session, F_MASK((WT_CURSOR *)start, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
 
     for (;;) {
@@ -1897,7 +1918,7 @@ retry:
         if (stop != NULL && __cursor_equals(start, stop))
             return (0);
 
-        if ((ret = __wt_btcur_next(start, true, false)) == WT_NOTFOUND)
+        if ((ret = __wt_btcur_next(start, true)) == WT_NOTFOUND)
             return (0);
         WT_ERR(ret);
 

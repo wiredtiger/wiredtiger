@@ -316,10 +316,10 @@ __random_leaf(WT_CURSOR_BTREE *cbt)
     cbt->slot = 0;
     next = true; /* Forward from the beginning of the page. */
     for (i = __wt_random(&session->rnd) % WT_RANDOM_CURSOR_MOVE;;) {
-        ret = next ? __wt_btcur_next(cbt, false, false) : __wt_btcur_prev(cbt, false, false);
+        ret = next ? __wt_btcur_next(cbt, false) : __wt_btcur_prev(cbt, false);
         if (ret == WT_NOTFOUND) {
             next = !next; /* Reverse direction. */
-            ret = next ? __wt_btcur_next(cbt, false, false) : __wt_btcur_prev(cbt, false, false);
+            ret = next ? __wt_btcur_next(cbt, false) : __wt_btcur_prev(cbt, false);
         }
         WT_RET(ret);
 
@@ -580,7 +580,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
      * random entry from the first page in the tree that has anything at all.
      */
     if (cbt->ref == NULL)
-        WT_ERR(__wt_btcur_next(cbt, false, false));
+        WT_ERR(__wt_btcur_next(cbt, false));
 
     /* Select a random entry from the leaf page. */
     WT_ERR(__random_leaf(cbt));

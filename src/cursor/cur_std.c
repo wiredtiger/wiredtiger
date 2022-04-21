@@ -1139,7 +1139,7 @@ __wt_cursor_largest_key(WT_CURSOR *cursor)
     F_SET(cursor, WT_CURSTD_KEY_ONLY);
 
     /* Call btree cursor prev to get the largest key. */
-    WT_ERR(__wt_btcur_prev(cbt, false, false));
+    WT_ERR(__wt_btcur_prev(cbt, false));
 
     /* Copy the key as we will reset the cursor after that. */
     WT_ERR(__wt_buf_set(session, key, cursor->key.data, cursor->key.size));
