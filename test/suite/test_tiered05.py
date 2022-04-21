@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
+from helper_tiered import tiered_storage_sources
 import os, time, wiredtiger, wttest
 from wtscenario import make_scenarios
 StorageSource = wiredtiger.StorageSource  # easy access to constants
@@ -34,18 +34,8 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 # test_tiered05.py
 #    Basic tiered storage API test error for tiered manager and flush_tier.
 class test_tiered05(wttest.WiredTigerTestCase):
-    storage_sources = [
-        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
-            bucket = get_bucket1_name('dir_store'),
-            bucket_prefix = "pfx_",
-            ss_name = 'dir_store')),
-        ('s3', dict(auth_token = get_auth_token('s3_store'),
-            bucket = get_bucket1_name('s3_store'),
-            bucket_prefix = generate_s3_prefix(),
-            ss_name = 's3_store')),
-    ]
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(storage_sources)
+    scenarios = make_scenarios(tiered_storage_sources[:2])
 
     uri = "table:test_tiered05"
     wait = 2

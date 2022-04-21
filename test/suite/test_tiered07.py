@@ -34,6 +34,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 # test_tiered07.py
 #    Basic tiered storage API for schema operations.
 class test_tiered07(wttest.WiredTigerTestCase):
+    # TODO: Remove this section and use common function when WT-8897 is solved. 
     storage_sources = [
         ('dir_store', dict(auth_token = get_auth_token('dir_store'),
             bucket = get_bucket1_name('dir_store'),

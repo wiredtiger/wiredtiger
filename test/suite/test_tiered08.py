@@ -31,7 +31,7 @@
 # tiered_storage:flush_tier
 # [END_TAGS]
 #
-from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
+from helper_tiered import tiered_storage_sources
 from wtscenario import make_scenarios
 import os, threading, time, wttest
 from wiredtiger import stat
@@ -41,18 +41,8 @@ from wtthread import checkpoint_thread, flush_tier_thread
 #   Run background checkpoints and flush_tier operations while inserting
 #   data into a table from another thread.
 class test_tiered08(wttest.WiredTigerTestCase):
-    storage_sources = [
-        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
-            bucket = get_bucket1_name('dir_store'),
-            bucket_prefix = "pfx_",
-            ss_name = 'dir_store')),
-        ('s3', dict(auth_token = get_auth_token('s3_store'),
-            bucket = get_bucket1_name('s3_store'),
-            bucket_prefix = generate_s3_prefix(),
-            ss_name = 's3_store'))
-    ]
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(storage_sources)
+    scenarios = make_scenarios(tiered_storage_sources)
 
     batch_size = 100000
 

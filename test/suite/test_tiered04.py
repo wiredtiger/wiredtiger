@@ -28,31 +28,15 @@
 
 import os, time, wiredtiger, wttest
 from wiredtiger import stat
-from helper_tiered import generate_s3_prefix, get_auth_token
-from helper_tiered import get_bucket1_name, get_bucket2_name
+from helper_tiered import tiered_storage_sources
 from wtscenario import make_scenarios
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered04.py
 #    Basic tiered storage API test.
 class test_tiered04(wttest.WiredTigerTestCase):
-    storage_sources = [
-        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
-            bucket = get_bucket1_name('dir_store'),
-            bucket1 = get_bucket2_name('dir_store'),
-            prefix = "pfx_",
-            prefix1 = "pfx1_",
-            ss_name = 'dir_store')),
-        ('s3', dict(auth_token = get_auth_token('s3_store'),
-            bucket = get_bucket1_name('s3_store'),
-            bucket1 = get_bucket2_name('s3_store'),
-            prefix = generate_s3_prefix(),
-            # Test that object name with "/" are processed. 
-            prefix1 = generate_s3_prefix() + "/s3/source/",
-            ss_name = 's3_store')),
-    ]
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(storage_sources)
+    scenarios = make_scenarios(tiered_storage_sources[:2])
 
     # If the 'uri' changes all the other names must change with it.
     base = 'test_tiered04-000000000'
@@ -81,7 +65,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
           'statistics=(all),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
-          'bucket_prefix=%s,' % self.prefix + \
+          'bucket_prefix=%s,' % self.bucket_prefix + \
           'local_retention=%d,' % self.retention + \
           'name=%s,' % self.ss_name + \
           'object_target_size=%s)' % self.object_sys
@@ -135,7 +119,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
         conf = \
           ',tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket1 + \
-          'bucket_prefix=%s,' % self.prefix1 + \
+          'bucket_prefix=%s,' % self.bucket_prefix1 + \
           'local_retention=%d,' % self.retention1 + \
           'name=%s,' % self.ss_name + \
           'object_target_size=%s)' % self.object_uri

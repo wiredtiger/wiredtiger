@@ -28,8 +28,7 @@
 
 import inspect, os, wiredtiger, wttest
 from wtscenario import make_scenarios
-from helper_tiered import generate_s3_prefix, get_auth_token
-from helper_tiered import get_bucket1_name, get_bucket2_name
+from helper_tiered import tiered_storage_sources
 FileSystem = wiredtiger.FileSystem  # easy access to constants
 
 # test_tiered06.py
@@ -38,20 +37,8 @@ FileSystem = wiredtiger.FileSystem  # easy access to constants
 # However, it is useful to do tests of this API independently.
 
 class test_tiered06(wttest.WiredTigerTestCase):
-    storage_sources = [
-        ('dir_store', dict(auth_token = get_auth_token('dir_store'),
-            bucket1 = get_bucket1_name('dir_store'),
-            bucket2 = get_bucket2_name('dir_store'),
-            bucket_prefix_base = "pfx_",
-            ss_name = 'dir_store')),
-        ('s3', dict(auth_token = get_auth_token('s3_store'),
-            bucket1 = get_bucket1_name('s3_store'),
-            bucket2 = get_bucket2_name('s3_store'),
-            bucket_prefix_base = generate_s3_prefix(),
-            ss_name = 's3_store')),
-    ]
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(storage_sources)
+    scenarios = make_scenarios(tiered_storage_sources)
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):
