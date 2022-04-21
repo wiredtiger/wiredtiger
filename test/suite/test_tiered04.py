@@ -237,7 +237,6 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.check_metadata(self.tiereduri, last)
         self.check_metadata(self.tiereduri, oldest)
         self.check_metadata(fileuri, intl_page)
-        self.check_metadata(fileuri, intl_page)
         self.check_metadata(self.objuri, intl_page)
 
         # Check for the correct tiered_object setting for both tiered and not tiered tables.
