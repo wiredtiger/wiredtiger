@@ -178,6 +178,8 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.pr(self.obj1file)
         self.assertTrue(os.path.exists(self.obj1file))
         self.assertTrue(os.path.exists(self.obj2file))
+
+        remove1 = self.get_stat(stat.conn.local_objects_removed, None)
         time.sleep(self.retention + 1)
         # We call flush_tier here because otherwise the internal thread that
         # processes the work units won't run for a while. This call will signal
@@ -190,6 +192,8 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.pr("Check removal of ")
         self.pr(self.obj1file)
         self.assertFalse(os.path.exists(self.obj1file))
+        remove2 = self.get_stat(stat.conn.local_objects_removed, None)
+        self.assertTrue(remove2 > remove1)
 
         c = self.session.open_cursor(self.uri)
         c["1"] = "1"
@@ -232,22 +236,6 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.check_metadata(self.tiereduri, oldest)
         self.check_metadata(fileuri, intl_page)
         self.check_metadata(self.objuri, intl_page)
-
-        #self.pr("verify stats")
-        # Verify the table settings.
-        #obj = self.get_stat(stat.dsrc.tiered_object_size, self.uri)
-        #self.assertEqual(obj, self.object_sys_val)
-        #obj = self.get_stat(stat.dsrc.tiered_object_size, self.uri1)
-        #self.assertEqual(obj, self.object_uri_val)
-        #obj = self.get_stat(stat.dsrc.tiered_object_size, self.uri_none)
-        #self.assertEqual(obj, 0)
-
-        #retain = self.get_stat(stat.dsrc.tiered_retention, self.uri)
-        #self.assertEqual(retain, self.retention)
-        #retain = self.get_stat(stat.dsrc.tiered_retention, self.uri1)
-        #self.assertEqual(retain, self.retention1)
-        #retain = self.get_stat(stat.dsrc.tiered_retention, self.uri_none)
-        #self.assertEqual(retain, 0)
 
         # Now test some connection statistics with operations.
         retain = self.get_stat(stat.conn.tiered_retention, None)
@@ -308,11 +296,24 @@ class test_tiered04(wttest.WiredTigerTestCase):
         # Manually reopen the connection because the default function above tries to
         # make the bucket directories.
         self.reopen_conn(config = self.saved_conn)
+        remove1 = self.get_stat(stat.conn.local_objects_removed, None)
         skip1 = self.get_stat(stat.conn.flush_tier_skipped, None)
         switch1 = self.get_stat(stat.conn.flush_tier_switched, None)
         self.session.flush_tier(None)
         skip2 = self.get_stat(stat.conn.flush_tier_skipped, None)
         switch2 = self.get_stat(stat.conn.flush_tier_switched, None)
+
+        # The first flush_tier after restart should have queued removal work units
+        # for other objects. Sleep and then force a flush tier to signal the internal
+        # thread and make sure that some objects were removed.
+        time.sleep(self.retention + 1)
+        self.session.flush_tier('force=true')
+
+        # Sleep to give the internal thread time to run and process.
+        time.sleep(1)
+        self.assertFalse(os.path.exists(self.obj1file))
+        remove2 = self.get_stat(stat.conn.local_objects_removed, None)
+        self.assertTrue(remove2 > remove1)
         #
         # Due to the above modification, we should skip the 'other' table while
         # switching the main tiered table. Therefore, both the skip and switch

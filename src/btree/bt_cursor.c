@@ -545,7 +545,7 @@ __cursor_reposition_timing_stress(WT_SESSION_IMPL *session)
       __wt_random(&session->rnd) % 10 == 0)
         return (true);
 
-    return (true);
+    return (false);
 }
 
 /*
