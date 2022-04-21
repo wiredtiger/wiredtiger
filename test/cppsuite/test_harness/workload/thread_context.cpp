@@ -109,6 +109,20 @@ transaction_context::commit(const std::string &config)
 {
     WT_DECL_RET;
     testutil_assert(_in_txn && !_needs_rollback);
+
+    /*
+     * We may have set the commit ts to a value that is now older than the current stable
+     * timestamp, we need to rollback as it is an invalid transaction.
+     * TODO - Should we have this check here or in the different operations defined in the
+     * database_operation class?
+     */
+    if(_timestamp_manager->get_stable_ts() > ((WT_SESSION_IMPL *)_session)->txn->commit_timestamp) {
+        logger::log_msg(LOG_WARN,
+          "Failed to commit transaction in commit due to invalid ts");
+        rollback();
+        return false;
+    }
+
     ret = _session->commit_transaction(_session, config.empty() ? nullptr : config.c_str());
     testutil_assert(ret == 0 || ret == WT_ROLLBACK);
     if (ret != 0)

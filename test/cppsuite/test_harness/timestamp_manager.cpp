@@ -132,6 +132,12 @@ timestamp_manager::get_oldest_ts() const
     return (_oldest_ts);
 }
 
+wt_timestamp_t
+timestamp_manager::get_stable_ts() const
+{
+    return (_stable_ts);
+}
+
 uint64_t
 timestamp_manager::get_time_now_s() const
 {
