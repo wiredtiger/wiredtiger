@@ -26,8 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+from distutils.sysconfig import get_config_h_filename
 import os, time, wiredtiger, wttest
-from helper_tiered import tiered_storage_sources
+from helper_tiered import get_conn_config, tiered_storage_sources
 from wtscenario import make_scenarios
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
@@ -39,7 +40,7 @@ class test_tiered05(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(tiered_storage_sources[:2])
 
     uri = "table:test_tiered05"
-    wait = 2
+    wait = 2 
 
     def conn_extensions(self, extlist):
         config = ''
@@ -57,13 +58,9 @@ class test_tiered05(wttest.WiredTigerTestCase):
     def conn_config(self):
         if self.ss_name == 'dir_store' and not os.path.exists(self.bucket):
             os.mkdir(self.bucket)
-        return \
-          'tiered_manager=(wait=%d),' % self.wait + \
-          'tiered_storage=(auth_token=%s,' % self.auth_token + \
-          'bucket=%s,' % self.bucket + \
-          'bucket_prefix=%s,' % self.bucket_prefix + \
-          'name=%s,' % self.ss_name + \
-          'object_target_size=20M)'
+        return get_conn_config(self) + 'object_target_size=20M)' + \
+            ',tiered_manager=(wait=%d)' % self.wait 
+        
 
     # Test calling the flush_tier API with a tiered manager. Should get an error.
     def test_tiered(self):

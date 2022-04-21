@@ -28,7 +28,7 @@
 
 import os, wiredtiger, wttest
 from helper_tiered import get_auth_token, get_bucket1_name
-from wtscenario import make_scenarios
+from wtscenario import make_scenarios, get_conn_config
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
@@ -76,13 +76,7 @@ class test_tiered07(wttest.WiredTigerTestCase):
             os.mkdir(self.bucket)
         #  'verbose=(tiered),' + \
 
-        return \
-          'debug_mode=(flush_checkpoint=true),' + \
-          'tiered_storage=(auth_token=%s,' % self.auth_token + \
-          'bucket=%s,' % self.bucket + \
-          'bucket_prefix=%s,' % self.bucket_prefix + \
-          'name=%s,' % self.ss_name + \
-          'object_target_size=20M)'
+        return get_conn_config(self) + 'object_target_size=20M)'
 
     def check(self, tc, n):
         for i in range(0, n):

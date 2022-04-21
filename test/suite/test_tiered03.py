@@ -26,11 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, re, wttest 
-from helper_tiered import tiered_storage_sources
+import os, re
+from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name, get_conn_config
+import wtscenario, wttest
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios, quick_scenarios
-
 
 # test_tiered03.py
 #    Test block-log-structured tree configuration options.
@@ -43,10 +42,20 @@ class test_tiered03(wttest.WiredTigerTestCase):
     # sharing would probably need to be reworked.
     uri = 'file:test_tiered03'
 
+    storage_sources = [
+        ('dirstore', dict(auth_token = get_auth_token('dir_store'),
+            bucket = get_bucket1_name('dir_store'),
+            bucket_prefix = "pfx_",
+            ss_name = 'dir_store')),
+        ('s3', dict(auth_token = get_auth_token('s3_store'),
+           bucket = get_bucket1_name('s3_store'),
+           bucket_prefix = generate_s3_prefix(),
+           ss_name = 's3_store')),
+    ]
     # Occasionally add a lot of records to vary the amount of work flush does.
-    record_count_scenarios = quick_scenarios(
+    record_count_scenarios = wtscenario.quick_scenarios(
         'nrecs', [10, 10000], [0.9, 0.1])
-    scenarios = make_scenarios(tiered_storage_sources[:2], record_count_scenarios, prune=100, prunelong=500)
+    scenarios = wtscenario.make_scenarios(storage_sources, record_count_scenarios, prune=100, prunelong=500)
 
     absolute_bucket_dir = None  # initialied in conn_config to an absolute path
 
@@ -70,13 +79,7 @@ class test_tiered03(wttest.WiredTigerTestCase):
                 self.absolute_bucket_dir = os.path.join(os.getcwd(), self.bucket)
                 os.mkdir(self.absolute_bucket_dir)
             bucket_ret = self.absolute_bucket_dir
-        return \
-          'debug_mode=(flush_checkpoint=true),' + \
-          'tiered_storage=(auth_token=%s,' % self.auth_token + \
-          'bucket=%s,' % bucket_ret  + \
-          'cache_directory=%s,' % cache_dir + \
-          'bucket_prefix=%s,' % self.bucket_prefix + \
-          'name=%s)' % self.ss_name
+        return get_conn_config(self) + 'cache_directory=%s)' % cache_dir
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):

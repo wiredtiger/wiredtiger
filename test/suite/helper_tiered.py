@@ -71,6 +71,26 @@ def get_bucket2_name(storage_source):
         return local_buckets[1]
     return None
 
+# Set up configuration
+def get_conn_config(storage_source):
+    return \
+        'debug_mode=(flush_checkpoint=true),' + \
+        'statistics=(all),' + \
+        'tiered_storage=(auth_token=%s,' % storage_source.auth_token + \
+        'bucket=%s,' % storage_source.bucket + \
+        'bucket_prefix=%s,' % storage_source.bucket_prefix + \
+        'name=%s,' % storage_source.ss_name  
+         
+# def conn_config(storage_source):
+#         if storage_source.ss_name == 'dir_store' and not os.path.exists(storage_source.bucket):
+#             os.mkdir(storage_source.bucket)
+#         return \
+#           'debug_mode=(flush_checkpoint=true),' + \
+#           'tiered_storage=(auth_token=%s,' % storage_source.auth_token + \
+#           'bucket=%s,' % storage_source.bucket + \
+#           'bucket_prefix=%s,' % storage_source.bucket_prefix + \
+#           'name=%s),tiered_manager=(wait=0)' % storage_source.ss_name
+
 # Generate a unique object prefix for the S3 store. 
 def generate_s3_prefix(test_name = ''):
     # Generates a unique prefix to be used with the object keys, eg:

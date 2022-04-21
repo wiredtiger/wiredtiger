@@ -36,7 +36,7 @@ import os, threading, time, wttest
 from helper_tiered import tiered_storage_sources
 from wiredtiger import stat
 from wtthread import checkpoint_thread, flush_tier_thread
-from wtscenario import make_scenarios
+from wtscenario import make_scenarios, get_conn_config 
 
 
 # test_tiered08.py
@@ -56,14 +56,8 @@ class test_tiered08(wttest.WiredTigerTestCase):
     def conn_config(self):
         if self.ss_name == 'dir_store' and not os.path.exists(self.bucket):
             os.mkdir(self.bucket)
-        return \
-          'debug_mode=(flush_checkpoint=true),' + \
-          'statistics=(fast),' + \
-          'tiered_storage=(auth_token=%s,' % self.auth_token + \
-          'bucket=%s,' % self.bucket + \
-          'bucket_prefix=%s,' % self.bucket_prefix + \
-          'name=%s),tiered_manager=(wait=0)' % self.ss_name
-
+        return get_conn_config(self) + 'tiered_manager=(wait=0)'
+        
     # Load the storage store extension.
     def conn_extensions(self, extlist):
         config = ''
