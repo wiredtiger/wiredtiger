@@ -297,7 +297,8 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
 
         /*
          * Check for an update. For column store, modifications are handled with insert lists, so an
-         * insert can have the same key as an on-page or history store object.
+         * insert can have the same key as an on-page or history store object. Setting update here,
+         * even after checking the insert list above, is correct, see the comment below for details.
          */
         upd = cbt->ins ? cbt->ins->upd : NULL;
         break;
@@ -321,6 +322,16 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
         /* Paranoia. */
         WT_ASSERT(session, recno == WT_RECNO_OOB);
 
+        /*
+         * The key can be NULL only when we didn't find an exact match, copy the search found key
+         * into the temporary buffer for further use.
+         */
+        if (key == NULL) {
+            WT_RET(__wt_row_leaf_key(
+              session, cbt->ref->page, &cbt->ref->page->pg_row[cbt->slot], cbt->tmp, true));
+            key = cbt->tmp;
+        }
+
         /* Check for an update. */
         upd = (page->modify != NULL && page->modify->mod_row_update != NULL) ?
           page->modify->mod_row_update[cbt->slot] :
@@ -328,7 +339,14 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
         break;
     }
 
-    /* Check for a value on disk or in the history store. Pass in any update. */
+    /*
+     * Check for a value on disk or in the history store, passing in any update.
+     *
+     * Potentially checking an update chain twice (both here, and above if the insert list is set in
+     * the case of column-store), isn't a mistake. In a modify chain, if rollback-to-stable recovers
+     * a history store record into the update list, the base update may be in the update list and we
+     * must use it rather than falling back to the on-disk value as the base update.
+     */
     WT_RET(__wt_txn_read(session, cbt, key, recno, upd));
     if (cbt->upd_value->type != WT_UPDATE_INVALID) {
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
@@ -532,7 +550,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_search);
 
-    __wt_txn_search_check(session);
+    WT_RET(__wt_txn_search_check(session));
     __cursor_state_save(cursor, &state);
 
     /*
@@ -653,7 +671,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_search_near);
 
-    __wt_txn_search_check(session);
+    WT_RET(__wt_txn_search_check(session));
     __cursor_state_save(cursor, &state);
 
     /*
@@ -689,10 +707,14 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
          * better match. This test is simplistic as we're ignoring append lists (there may be no
          * page slots or we might be legitimately positioned after the last page slot). Ignore those
          * cases, it makes things too complicated.
+         *
+         * If there's an exact match, the row-store search function built the key in the cursor's
+         * temporary buffer.
          */
         if (leaf_found &&
           (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)))
-            WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+            WT_ERR(
+              __wt_cursor_valid(cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, &valid));
     }
     if (!valid) {
         WT_ERR(__wt_cursor_func_init(cbt, true));
@@ -703,7 +725,12 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
          */
         if (btree->type == BTREE_ROW) {
             WT_ERR(__cursor_row_search(cbt, true, NULL, NULL));
-            WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+            /*
+             * If there's an exact match, the row-store search function built the key in the
+             * cursor's temporary buffer.
+             */
+            WT_ERR(
+              __wt_cursor_valid(cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, &valid));
         } else {
             WT_ERR(__cursor_col_search(cbt, NULL, NULL));
             WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
@@ -1144,7 +1171,6 @@ retry:
              * checking if the update is visible in __wt_cursor_valid, or we can miss conflicts.
              */
             WT_ERR(__curfile_update_check(cbt));
-
             WT_WITH_UPDATE_VALUE_SKIP_BUF(
               ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
             WT_ERR(ret);

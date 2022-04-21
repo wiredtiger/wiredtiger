@@ -195,7 +195,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
  */
 static inline size_t
 __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, uint64_t recno,
-  WT_TIME_AGGREGATE *ta, size_t size)
+  WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, size_t size)
 {
     uint8_t *p;
 
@@ -205,6 +205,18 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
 
     __cell_pack_addr_validity(session, &p, ta);
 
+    /*
+     * If passed fast-delete information, append the fast-delete information after the aggregated
+     * timestamp information.
+     */
+    if (page_del != NULL && __wt_process.fast_truncate_2022) {
+        WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL);
+
+        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
+        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->timestamp));
+        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->durable_timestamp));
+    }
+
     if (recno == WT_RECNO_OOB)
         cell->__chunk[0] |= (uint8_t)cell_type; /* Type */
     else {
@@ -212,6 +224,7 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
         /* Record number */
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, recno));
     }
+
     /* Length */
     WT_IGNORE_RET(__wt_vpack_uint(&p, 0, (uint64_t)size));
     return (WT_PTRDIFF(p, cell));
@@ -670,6 +683,7 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
         WT_TIME_WINDOW tw;
     } copy;
     WT_CELL_UNPACK_COMMON *unpack;
+    WT_PAGE_DELETED *page_del;
     WT_TIME_AGGREGATE *ta;
     WT_TIME_WINDOW *tw;
     uint64_t v;
@@ -767,6 +781,7 @@ copy_cell_restart:
         if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
             break;
         flags = *p++; /* skip second descriptor byte */
+        WT_CELL_LEN_CHK(p, 0);
 
         if (LF_ISSET(WT_CELL_PREPARE))
             ta->prepare = 1;
@@ -810,6 +825,7 @@ copy_cell_restart:
         if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
             break;
         flags = *p++; /* skip second descriptor byte */
+        WT_CELL_LEN_CHK(p, 0);
 
         if (LF_ISSET(WT_CELL_PREPARE))
             tw->prepare = 1;
@@ -843,6 +859,24 @@ copy_cell_restart:
 
         WT_RET(__cell_check_value_validity(session, tw, end != NULL));
         break;
+    }
+
+    /* Unpack any fast-truncate information. */
+    if (unpack->raw == WT_CELL_ADDR_DEL && F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
+        page_del = &unpack_addr->page_del;
+        WT_RET(__wt_vunpack_uint(
+          &p, end == NULL ? 0 : WT_PTRDIFF(end, p), (uint64_t *)&page_del->txnid));
+        WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->timestamp));
+        WT_RET(__wt_vunpack_uint(
+          &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->durable_timestamp));
+        page_del->prepare_state = 0;                /* No prepare can have been in progress. */
+        page_del->previous_ref_state = WT_REF_DISK; /* The leaf page is on disk. */
+        page_del->committed = true;                 /* There is no running transaction. */
+
+        /* Avoid a stale transaction ID on restart. */
+        if (dsk->write_gen <= S2BT(session)->base_write_gen &&
+          !F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID))
+            page_del->txnid = WT_TXN_NONE;
     }
 
     /*
@@ -1016,6 +1050,8 @@ static inline void
 __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
   WT_CELL_UNPACK_ADDR *unpack_addr, WT_CELL_UNPACK_KV *unpack_kv)
 {
+    uint64_t write_gen;
+
     /*
      * If the page came from a previous run, reset the transaction ids to "none" and timestamps to 0
      * as appropriate. Transaction ids shouldn't persist between runs so these are always set to
@@ -1035,8 +1071,23 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
      * No delete              txnid=MAX, ts=MAX,            txnid=MAX, ts=MAX,
      *                        durable_ts=NONE               durable_ts=NONE
      */
+
+    if (WT_READING_CHECKPOINT(session) && session->checkpoint_write_gen != 0) {
+        /*
+         * When reading a checkpoint, override the tree's base write generation with the write
+         * generation from the global metadata, which might be newer. This comes into play if the
+         * tree checkpoint is from an older database run than the global checkpoint, which can
+         * happen if checkpointing skips the tree at the right points. Bypass this logic if the
+         * checkpoint write generation isn't set because the checkpoint is from an older version of
+         * WiredTiger; in that case we use the tree's write generation and hope for the best.
+         */
+        write_gen = session->checkpoint_write_gen;
+        WT_ASSERT(session, write_gen >= S2BT(session)->base_write_gen);
+    } else
+        write_gen = S2BT(session)->base_write_gen;
+
     WT_ASSERT(session, dsk->write_gen != 0);
-    if (dsk->write_gen > S2BT(session)->base_write_gen)
+    if (dsk->write_gen > write_gen)
         return;
 
     if (F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID))

@@ -267,7 +267,10 @@ restart_read:
         /* Check the update list. */
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
     if (cbt->upd_value->type == WT_UPDATE_INVALID)
-        /* Nope. Read the on-disk value and/or history. */
+        /*
+         * Read the on-disk value and/or history. Pass an update list: the update list may contain
+         * the base update for a modify chain after rollback-to-stable, required for correctness.
+         */
         WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins ? cbt->ins->upd : NULL));
     if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE || cbt->upd_value->type == WT_UPDATE_INVALID) {
         /*
@@ -467,6 +470,10 @@ restart_read:
         if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
             return (0);
 
+        /*
+         * Read the on-disk value and/or history. Pass an update list: the update list may contain
+         * the base update for a modify chain after rollback-to-stable, required for correctness.
+         */
         WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins ? cbt->ins->upd : NULL));
         if (cbt->upd_value->type == WT_UPDATE_INVALID ||
           cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
@@ -483,10 +490,16 @@ restart_read:
          * Note: it's important that we're checking the on-disk value for global visibility, and not
          * whatever __wt_txn_read returned, which might be something else. (If it's something else,
          * we can't cache it; but in that case the on-disk value cannot be globally visible.)
+         *
+         * If we're reading from a checkpoint, it's sufficient to check visibility against the
+         * checkpoint's snapshot. Don't check global visibility, because that checks the current
+         * state of the world rather than the checkpoint state.
          */
         cbt->cip_saved = cip;
         if (rle > 1 &&
-          __wt_txn_visible_all(session, unpack.tw.start_txn, unpack.tw.durable_start_ts)) {
+          (WT_READING_CHECKPOINT(session) ?
+              __wt_txn_visible(session, unpack.tw.start_txn, unpack.tw.durable_start_ts) :
+              __wt_txn_visible_all(session, unpack.tw.start_txn, unpack.tw.durable_start_ts))) {
             /*
              * Copy the value into cbt->tmp to cache it. This is perhaps unfortunate, because
              * copying isn't free, but it's currently necessary. The memory we're copying might be
@@ -619,11 +632,19 @@ restart_read_insert:
         cbt->slot = cbt->row_iteration_slot / 2 - 1;
 restart_read_page:
         rip = &page->pg_row[cbt->slot];
+        /*
+         * The saved cursor key from the slot is used later to get the value from the history store
+         * if the on-disk data is not visible.
+         */
         WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack));
 
         if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
             return (0);
 
+        /*
+         * Read the on-disk value and/or history. Pass an update list: the update list may contain
+         * the base update for a modify chain after rollback-to-stable, required for correctness.
+         */
         WT_RET(
           __wt_txn_read(session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip)));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {

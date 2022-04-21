@@ -29,12 +29,48 @@
 #include "test_harness/test.h"
 
 /*
- * The "base test" that the framework uses, because its not overloading any of the database
- * operation methods it will perform as they are defined and is therefore the "base".
- *
- * Can be used to create stress tests in various ways.
+ * Class that defines operations that do nothing as an example. This shows how database operations
+ * can be overridden and customized.
  */
-class base_test : public test_harness::test {
+class test_template : public test_harness::test {
     public:
-    base_test(const test_harness::test_args &args) : test(args) {}
+    test_template(const test_harness::test_args &args) : test(args) {}
+
+    void
+    run() override final
+    {
+        /* You can remove the call to the base class to fully customized your test. */
+        test::run();
+    }
+
+    void
+    populate(test_harness::database &, test_harness::timestamp_manager *,
+      test_harness::configuration *, test_harness::workload_tracking *) override final
+    {
+        std::cout << "populate: nothing done." << std::endl;
+    }
+
+    void
+    custom_operation(test_harness::thread_context *) override final
+    {
+        std::cout << "custom_operation: nothing done." << std::endl;
+    }
+
+    void
+    insert_operation(test_harness::thread_context *) override final
+    {
+        std::cout << "insert_operation: nothing done." << std::endl;
+    }
+
+    void
+    read_operation(test_harness::thread_context *) override final
+    {
+        std::cout << "read_operation: nothing done." << std::endl;
+    }
+
+    void
+    update_operation(test_harness::thread_context *) override final
+    {
+        std::cout << "update_operation: nothing done." << std::endl;
+    }
 };

@@ -524,7 +524,6 @@ struct __wt_connection_stats {
     int64_t capacity_time_evict;
     int64_t capacity_time_log;
     int64_t capacity_time_read;
-    int64_t cc_pages_read;
     int64_t cc_pages_evict;
     int64_t cc_pages_removed;
     int64_t cc_pages_walk_skipped;
@@ -828,6 +827,7 @@ struct __wt_connection_stats {
     int64_t txn_checkpoint_prep_min;
     int64_t txn_checkpoint_prep_recent;
     int64_t txn_checkpoint_prep_total;
+    int64_t txn_checkpoint_prep_wait;
     int64_t txn_checkpoint_scrub_target;
     int64_t txn_checkpoint_scrub_time;
     int64_t txn_checkpoint_time_total;
@@ -982,7 +982,6 @@ struct __wt_dsrc_stats {
     int64_t cache_state_refs_skipped;
     int64_t cache_state_root_size;
     int64_t cache_state_pages;
-    int64_t cc_pages_read;
     int64_t cc_pages_evict;
     int64_t cc_pages_removed;
     int64_t cc_pages_walk_skipped;
@@ -1071,10 +1070,6 @@ struct __wt_dsrc_stats {
     int64_t rec_time_window_stop_ts;
     int64_t rec_time_window_stop_txn;
     int64_t session_compact;
-    int64_t tiered_work_units_dequeued;
-    int64_t tiered_work_units_created;
-    int64_t tiered_retention;
-    int64_t tiered_object_size;
     int64_t txn_read_race_prepare_update;
     int64_t txn_rts_hs_stop_older_than_newer_start;
     int64_t txn_rts_inconsistent_ckpt;

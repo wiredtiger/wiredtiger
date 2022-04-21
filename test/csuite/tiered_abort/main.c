@@ -100,12 +100,12 @@ static uint32_t flush_calls = 1;
     "eviction_updates_target=20,eviction_updates_trigger=90," \
     "log=(enabled,file_max=10M,remove=true),session_max=%d,"  \
     "statistics=(fast),statistics_log=(wait=1,json=true),"    \
-    "tiered_storage=(bucket=%s,bucket_prefix=pfx,local_retention=%d,name=dir_store)"
+    "tiered_storage=(bucket=%s,bucket_prefix=pfx-,local_retention=%d,name=dir_store)"
 #define ENV_CONFIG_TXNSYNC                                \
     ENV_CONFIG_DEF                                        \
     ",eviction_dirty_target=20,eviction_dirty_trigger=90" \
     ",transaction_sync=(enabled,method=none)"
-#define ENV_CONFIG_REC "log=(recover=on,remove=false)"
+#define ENV_CONFIG_REC "log=(recover=on,remove=false),debug_mode=(flush_checkpoint)"
 
 /*
  * A minimum width of 10, along with zero filling, means that all the keys sort according to their
@@ -165,25 +165,26 @@ thread_ts_run(void *arg)
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
     /* Update the oldest timestamp every 1 millisecond. */
-    for (;;) {
+    for (;; __wt_sleep(0, 1000)) {
         /*
          * We get the last committed timestamp periodically in order to update the oldest timestamp,
-         * that requires locking out transactional ops that set or query a timestamp.
+         * that requires locking out transactional ops that set or query a timestamp. If there is no
+         * work to do, all-durable will be 0 and we just wait.
          */
         testutil_check(pthread_rwlock_wrlock(&ts_lock));
         ret = td->conn->query_timestamp(td->conn, ts_string, "get=all_durable");
         testutil_check(pthread_rwlock_unlock(&ts_lock));
-        testutil_assert(ret == 0 || ret == WT_NOTFOUND);
-        if (ret == 0) {
-            /*
-             * Set both the oldest and stable timestamp so that we don't need to maintain read
-             * availability at older timestamps.
-             */
-            testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
-              "oldest_timestamp=%s,stable_timestamp=%s", ts_string, ts_string));
-            testutil_check(td->conn->set_timestamp(td->conn, tscfg));
-        }
-        __wt_sleep(0, 1000);
+        testutil_assert(ret == 0);
+        if (testutil_timestamp_parse(ts_string) == 0)
+            continue;
+
+        /*
+         * Set both the oldest and stable timestamp so that we don't need to maintain read
+         * availability at older timestamps.
+         */
+        testutil_check(__wt_snprintf(
+          tscfg, sizeof(tscfg), "oldest_timestamp=%s,stable_timestamp=%s", ts_string, ts_string));
+        testutil_check(td->conn->set_timestamp(td->conn, tscfg));
     }
     /* NOTREACHED */
 }
@@ -756,6 +757,9 @@ main(int argc, char *argv[])
     testutil_check(session->open_cursor(session, buf, NULL, NULL, &cur_local));
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s:%s", table_pfx, uri_oplog));
     testutil_check(session->open_cursor(session, buf, NULL, NULL, &cur_oplog));
+
+    /* Call flush_tier after crash to run code to restart object copying. */
+    testutil_check(session->flush_tier(session, "force=true"));
 
     /* Find the biggest stable timestamp value that was saved. */
     stable_val = 0;

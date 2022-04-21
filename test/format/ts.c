@@ -29,20 +29,6 @@
 #include "format.h"
 
 /*
- * timestamp_parse --
- *     Parse a timestamp to an integral value.
- */
-static void
-timestamp_parse(const char *p, uint64_t *tsp)
-{
-    char *endptr;
-
-    errno = 0;
-    *tsp = __wt_strtouq(p, &endptr, 16);
-    testutil_assert(errno == 0 && endptr[0] == '\0');
-}
-
-/*
  * query_ts --
  *     Query a timestamp.
  */
@@ -55,7 +41,7 @@ query_ts(const char *query, uint64_t *tsp)
     conn = g.wts_conn;
 
     testutil_check(conn->query_timestamp(conn, tsbuf, query));
-    timestamp_parse(tsbuf, tsp);
+    *tsp = testutil_timestamp_parse(tsbuf);
 }
 
 /*
@@ -91,7 +77,7 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
         g.oldest_timestamp = g.stable_timestamp = ++g.timestamp;
     else {
         if ((ret = conn->query_timestamp(conn, buf, "get=all_durable")) == 0)
-            testutil_timestamp_parse(buf, &all_durable);
+            all_durable = testutil_timestamp_parse(buf);
         else {
             testutil_assert(ret == WT_NOTFOUND);
             lock_writeunlock(session, &g.ts_lock);
