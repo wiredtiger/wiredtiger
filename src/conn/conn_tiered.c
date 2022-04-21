@@ -628,7 +628,7 @@ __tiered_server(void *arg)
     WT_CLEAR(tmp);
 
     /* Condition timeout is in microseconds. */
-    cond_time = WT_MINUTE * WT_MILLION;
+    cond_time = conn->tiered_interval * WT_MILLION;
     time_start = __wt_clock(session);
     signalled = false;
     for (;;) {
@@ -648,7 +648,7 @@ __tiered_server(void *arg)
          *  - Perform any shared storage processing after flushing.
          *  - Remove any cached objects that are aged out.
          */
-        if (timediff >= WT_MINUTE || signalled) {
+        if (timediff >= conn->tiered_interval || signalled) {
             WT_ERR(__tier_storage_copy(session));
             WT_ERR(__tier_storage_finish(session));
             WT_ERR(__tier_storage_remove(session, false));

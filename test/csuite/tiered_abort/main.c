@@ -55,11 +55,13 @@ static char home[1024]; /* Program working dir */
  * Also each worker thread creates its own textual records file that records the data it
  * inserted and it records the timestamp that was used for that insertion.
  */
+#define INTERVAL 1                   /* Internal thread interval */
 #define LOCAL_RETENTION 2            /* Local retention time */
 #define MIN_TIME LOCAL_RETENTION * 8 /* Make sure checkpoint and flush_tier run enough */
 #define MAX_TIME MIN_TIME * 4
 
 #define BUCKET "bucket"
+#define BUCKET_PFX "pfx-"
 #define INVALID_KEY UINT64_MAX
 #define MAX_CKPT_INVL LOCAL_RETENTION * 3  /* Maximum interval between checkpoints */
 #define MAX_FLUSH_INVL LOCAL_RETENTION * 2 /* Maximum interval between flush_tier calls */
@@ -100,11 +102,13 @@ static uint32_t flush_calls = 1;
     "eviction_updates_target=20,eviction_updates_trigger=90," \
     "log=(enabled,file_max=10M,remove=true),session_max=%d,"  \
     "statistics=(fast),statistics_log=(wait=1,json=true),"    \
-    "tiered_storage=(bucket=%s,bucket_prefix=pfx-,local_retention=%d,name=dir_store)"
+    "tiered_storage=(bucket=%s,bucket_prefix=%s,"             \
+    "local_retention=%d,interval=%d,name=dir_store)"
 #define ENV_CONFIG_TXNSYNC                                \
     ENV_CONFIG_DEF                                        \
     ",eviction_dirty_target=20,eviction_dirty_trigger=90" \
     ",transaction_sync=(enabled,method=none)"
+/* Set the flush_checkpoint debug mode so that the parent can call flush_tier alone. */
 #define ENV_CONFIG_REC "log=(recover=on,remove=false),debug_mode=(flush_checkpoint)"
 
 /*
@@ -452,7 +456,7 @@ run_workload(uint32_t nth, const char *build_dir)
     cache_mb = ((32 * WT_KILOBYTE * 10) * nth) / WT_MEGABYTE + 20;
 
     testutil_check(__wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_TXNSYNC, cache_mb,
-      SESSION_MAX, BUCKET, LOCAL_RETENTION));
+      SESSION_MAX, BUCKET, BUCKET_PFX, LOCAL_RETENTION, INTERVAL));
 
     testutil_check(__wt_snprintf(extconf, sizeof(extconf), ",extensions=(%s/%s=(early_load=true))",
       build_dir, WT_STORAGE_LIB));
@@ -562,6 +566,62 @@ handler(int sig)
     pid = wait(NULL);
     /* The core file will indicate why the child exited. Choose EINVAL here. */
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
+}
+
+/*
+ * verify_tiered --
+ *     Verify the expected locations of tiered objects.
+ */
+static void
+verify_tiered(WT_SESSION *session)
+{
+    struct stat sb;
+    WT_CONFIG_ITEM cval;
+    WT_CURSOR *metac;
+    uint32_t i, last, oldest;
+    int ret;
+    char buf[256], *key, *value;
+    const char *name;
+
+    testutil_check(session->open_cursor(session, "metadata:", NULL, NULL, &metac));
+    while ((ret = metac->next(metac)) != WT_NOTFOUND) {
+        testutil_check(ret);
+        testutil_check(metac->get_key(metac, &key));
+        if (WT_PREFIX_SKIP(key, "tiered:")) {
+            /*
+             * We have a top level entry for a tiered table. Get its configuration string and find
+             * the last id allocated (that should be in the local directory) and all others down to
+             * oldest should only exist in the bucket directory.
+             */
+            testutil_check(metac->get_value(metac, &value));
+            testutil_check(__wt_config_getones((WT_SESSION_IMPL *)session, value, "last", &cval));
+            last = (uint32_t)cval.val;
+            testutil_check(__wt_config_getones((WT_SESSION_IMPL *)session, value, "oldest", &cval));
+            oldest = (uint32_t)cval.val;
+            testutil_check(__wt_tiered_name_str(
+              (WT_SESSION_IMPL *)session, key, last, WT_TIERED_NAME_ONLY, &name));
+            testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, name));
+	    ret = stat(buf, &sb);
+            fprintf(stderr, "VERIFY_TIERED: last %d oldest %d most recent: %s ret(0) %d\n", (int)last,
+              (int)oldest, buf, ret);
+            testutil_assert(ret == 0);
+            free((void *)name);
+            for (i = oldest; i < last; ++i) {
+                testutil_check(__wt_tiered_name_str(
+                  (WT_SESSION_IMPL *)session, key, i, WT_TIERED_NAME_ONLY, &name));
+                testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, name));
+                ret = stat(buf, &sb);
+                fprintf(stderr, "VERIFY_TIERED: object: %s local ret(-1) %d\n", buf, ret);
+                testutil_assert(ret != 0);
+                testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s/%s%s", home, BUCKET, BUCKET_PFX, name));
+                fprintf(stderr, "VERIFY_TIERED: object: %s bucket ret(0) %d\n", buf, ret);
+                ret = stat(buf, &sb);
+                testutil_assert(ret == 0);
+                free((void *)name);
+            }
+        }
+    }
+    testutil_check(metac->close(metac));
 }
 
 /*
@@ -758,8 +818,15 @@ main(int argc, char *argv[])
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s:%s", table_pfx, uri_oplog));
     testutil_check(session->open_cursor(session, buf, NULL, NULL, &cur_oplog));
 
-    /* Call flush_tier after crash to run code to restart object copying. */
+    /*
+     * Call flush_tier after crash to run code to restart object copying. Then sleep for the
+     * interval to let the internal thread remove cached objects. By doing that we can then verify
+     * what objects are where. No older objects should exist in the local database and all earlier
+     * objects should exist in the bucket.
+     */
     testutil_check(session->flush_tier(session, "force=true"));
+    sleep(INTERVAL + 1);
+    verify_tiered(session);
 
     /* Find the biggest stable timestamp value that was saved. */
     stable_val = 0;
