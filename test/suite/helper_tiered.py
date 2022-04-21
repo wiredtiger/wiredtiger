@@ -90,7 +90,7 @@ def generate_s3_prefix(test_name = ''):
 
     return prefix
 
-# Storage sources.
+# Storage sources used for scenarios in non-tiered tests 
 tiered_storage_sources = [
     ('dirstore', dict(is_tiered = True,
         is_local_storage = True,
@@ -106,6 +106,18 @@ tiered_storage_sources = [
         ss_name = 's3_store')),
     ('non_tiered', dict(is_tiered = False)),            
 ]
+
+# Storage sources used for scenarios in tiered tests 
+storage_sources = [
+        ('dirstore', dict(auth_token = get_auth_token('dir_store'),
+            bucket = get_bucket1_name('dir_store'),
+            bucket_prefix = "pfx_",
+            ss_name = 'dir_store')),
+        ('s3', dict(auth_token = get_auth_token('s3_store'),
+            bucket = get_bucket1_name('s3_store'),
+            bucket_prefix = generate_s3_prefix(),
+            ss_name = 's3_store')),
+    ]
 
 # This mixin class provides tiered storage configuration methods.
 class TieredConfigMixin:

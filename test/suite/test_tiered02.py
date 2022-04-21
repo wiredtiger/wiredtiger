@@ -27,24 +27,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wttest
-from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name
+from helper_tiered import generate_s3_prefix, get_auth_token, get_bucket1_name, storage_sources
 from wtdataset import SimpleDataSet, ComplexDataSet
 from wtscenario import make_scenarios
 
 # test_tiered02.py
 #    Test tiered tree
 class test_tiered02(wttest.WiredTigerTestCase):
-    storage_sources = [
-        ('dirstore', dict(auth_token = get_auth_token('dir_store'),
-            bucket = get_bucket1_name('dir_store'),
-            bucket_prefix = "pfx_",
-            ss_name = 'dir_store')),
-        ('s3', dict(auth_token = get_auth_token('s3_store'),
-            bucket = get_bucket1_name('s3_store'),
-            bucket_prefix = generate_s3_prefix(),
-            ss_name = 's3_store')),
-    ]
-
     complex_dataset = [
         ('simple_ds', dict(complex_dataset=False)),
         
