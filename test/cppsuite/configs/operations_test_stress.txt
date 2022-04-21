@@ -53,7 +53,7 @@ workload_generator=
     remove_config=
     (
         op_rate=100ms,
-        ops_per_transaction=(max=20,min=10),
+        ops_per_transaction=(max=100,min=150),
         thread_count=5
     ),
     update_config=
