@@ -188,10 +188,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
      * timestamp.
      */
     if (ret == 0) {
-        /*
-         * Check if the current history store update's stop timestamp is less than with respect to
-         * the update to be inserted before before moving onto the next record.
-         */
+        /* Check if the current history store update's stop timestamp is less than the update. */
         if (hs_cbt->upd_value->tw.stop_ts <= tw->start_ts)
             WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
         else
