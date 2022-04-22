@@ -167,20 +167,22 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
             self.conn.query_timestamp('get=oldest_reader'), self.timestamp_str(6))
         self.session.commit_transaction()
 
-    # Check setting oldest/durable timestamps without first setting stable.
-    def test_timestamp_global_stable_first(self):
-        # Durable cannot be set if stable hasn't been set.
+    # Check setting durable timestamp without first setting stable.
+    def test_timestamp_global_durable_first(self):
+        # Durable can be set if stable hasn't been set.
+        self.conn.set_timestamp('durable_timestamp=' + self.timestamp_str(4))
+        self.conn.set_timestamp('durable_timestamp=' + self.timestamp_str(5))
+        self.conn.set_timestamp('durable_timestamp=' + self.timestamp_str(6))
+
+        # But once stable is set, durable must be after stable.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(8))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.conn.set_timestamp('durable_timestamp=' +
-                self.timestamp_str(4)),
+                self.timestamp_str(7)),
                 '/durable timestamp .* must be after the stable timestamp/')
 
-        # Force doesn't matter.
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.conn.set_timestamp('force=true,durable_timestamp=' +
-                self.timestamp_str(4)),
-                '/durable timestamp .* must be after the stable timestamp/')
-
+    # Check setting oldest timestamp without first setting stable.
+    def test_timestamp_global_oldest_first(self):
         # Oldest can be set if stable hasn't been set.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(4))
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5))

@@ -385,10 +385,11 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * Second, we have a target timestamp state, check it doesn't violate constraints.
      *
-     * Durable can move to before stable during normal operations (by setting stable without setting
-     * durable), but you cannot set it that way explicitly.
+     * The ordering constraints around durable and stable are fixed, once stable is set: you can set
+     * durable as you like until stable is also set, then any durable set must be before stable, but
+     * any previously existing value can be before or after the current stable.
      */
-    if (set_durable_ts && durable_ts <= stable_ts) {
+    if (set_durable_ts && stable_ts != 0 && durable_ts <= stable_ts) {
         __wt_writeunlock(session, &txn_global->rwlock);
         WT_RET_MSG(session, EINVAL,
           "set_timestamp: durable timestamp %s must be after the stable timestamp %s",
@@ -398,8 +399,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * The ordering constraints around oldest and stable are strongly fixed, once stable is set: you
-     * you can set oldest as you like until stable is also set, at which time oldest must always be
-     * before stable.
+     * can set oldest as you like until stable is also set, then oldest must be before stable.
      */
     if (stable_ts != 0 && oldest_ts > stable_ts) {
         __wt_writeunlock(session, &txn_global->rwlock);
