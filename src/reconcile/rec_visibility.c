@@ -743,10 +743,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
           (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
 
         /*
-         * The total update size only contains uncommitted updates. This is wrong for the in memory
-         * case because we cannot discard any update until they are obsolete. Add them to the size.
+         * The total update size only contains uncommitted updates. Add the size for the rest of the
+         * chain.
          */
-        if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && onpage_upd != NULL) {
+        if (onpage_upd != NULL) {
             for (upd = tombstone != NULL ? tombstone : onpage_upd; upd != NULL; upd = upd->next)
                 if (upd->txnid != WT_TXN_ABORTED)
                     upd_memsize += WT_UPDATE_MEMSIZE(upd);
