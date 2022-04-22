@@ -17,6 +17,10 @@ define_test_variants(test_checkpoint
         "test_checkpoint_4_mixed_sweep;-t m -T 4 -W 3 -r 2 -n 100000 -k 100000 -s 1"
         "test_checkpoint_4_mixed_timestamps;-t m -T 4 -W 3 -r 2 -x -n 100000 -k 100000"
 
+        # 1a. Mixed tables with 1/10 the ops and 10x the runs.
+        "test_checkpoint_4_runs_sweep;-t m -T 4 -W 3 -r 20 -n 1000 -s 1"
+        "test_checkpoint_4_runs_timestamps;-t m -T 4 -W 3 -r 20 -x -n 1000"
+
         # 2. FLCS cases.
         "test_checkpoint_6_fixed;-t f -T 6"
         "test_checkpoint_6_fixed_named;-t f -T 6 -c TeSt"
