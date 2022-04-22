@@ -376,8 +376,8 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Unlike oldest and stable, the durable timestamp can move backwards. (In fact, it only makes
-     * sense to explicitly move it backwards as it otherwise tracks the largest durable_timestamp so
-     * it moves forward when transactions are assigned timestamps. Regardless, allow both forward
+     * sense to explicitly move it backwards as it otherwise tracks the largest durable_timestamp
+     * and moves forward when transactions are assigned timestamps. Regardless, allow both forward
      * and backward movement.)
      */
     set_durable_ts = durable_ts != 0;
@@ -385,11 +385,10 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * Second, we have a target timestamp state, check it doesn't violate constraints.
      *
-     * Durable cannot be set unless stable is also set. Note that durable can move to before stable
-     * during normal operations (by setting stable without setting durable), but you cannot set it
-     * that way explicitly.
+     * Durable can move to before stable during normal operations (by setting stable without setting
+     * durable), but you cannot set it that way explicitly.
      */
-    if (set_durable_ts && (stable_ts == 0 || durable_ts <= stable_ts)) {
+    if (set_durable_ts && durable_ts <= stable_ts) {
         __wt_writeunlock(session, &txn_global->rwlock);
         WT_RET_MSG(session, EINVAL,
           "set_timestamp: durable timestamp %s must be after the stable timestamp %s",
