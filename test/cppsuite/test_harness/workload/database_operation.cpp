@@ -295,8 +295,14 @@ database_operation::remove_operation(thread_context *tc)
         int ret = rnd_cursor->next(rnd_cursor.get());
         /* It is possible not to find anything if the collection is empty. */
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
-        if (ret == WT_NOTFOUND)
+        if (ret == WT_NOTFOUND) {
+            /*
+             * If we cannot find any record, finish the current transaction as we might be able to
+             * see new records after starting a new one.
+             */
+            WT_IGNORE_RET_BOOL(tc->transaction.commit());
             continue;
+        }
         testutil_check(rnd_cursor->get_key(rnd_cursor.get(), &key_str));
         if (!tc->remove(cursor, coll.id, key_str)) {
             tc->transaction.rollback();
