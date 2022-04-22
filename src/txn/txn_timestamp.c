@@ -507,22 +507,27 @@ __wt_txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *com
     commit_ts = *commit_tsp;
 
     if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE)) {
-        /* For non-prepared transactions the commit timestamp must be after the stable timestamp. */
-        stable_ts = txn_global->has_stable_timestamp ? txn_global->stable_timestamp : WT_TS_NONE;
+        /* Compare against the first commit timestamp of the current transaction. */
+        if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
+            if (commit_ts < txn->first_commit_timestamp)
+                WT_RET_MSG(session, EINVAL,
+                  "commit timestamp %s older than the first commit timestamp %s for this "
+                  "transaction",
+                  __wt_timestamp_to_string(commit_ts, ts_string[0]),
+                  __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[1]));
+
+            commit_ts = txn->first_commit_timestamp;
+        }
+
+        /*
+         * For non-prepared transactions the first commit timestamp must be after the stable
+         * timestamp.
+         */
+        stable_ts = txn_global->has_stable_timestamp ? txn_global->stable_timestamp : 0;
         if (commit_ts <= stable_ts)
             WT_RET_MSG(session, EINVAL, "commit timestamp %s must be after the stable timestamp %s",
               __wt_timestamp_to_string(commit_ts, ts_string[0]),
               __wt_timestamp_to_string(stable_ts, ts_string[1]));
-
-        /*
-         * Compare against the commit timestamp of the current transaction. Return an error if the
-         * given timestamp is older than the first commit timestamp.
-         */
-        if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) && commit_ts < txn->first_commit_timestamp)
-            WT_RET_MSG(session, EINVAL,
-              "commit timestamp %s older than the first commit timestamp %s for this transaction",
-              __wt_timestamp_to_string(commit_ts, ts_string[0]),
-              __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[1]));
 
         WT_RET(__txn_assert_after_reads(session, "commit", commit_ts));
     } else {

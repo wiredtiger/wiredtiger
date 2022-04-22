@@ -55,5 +55,17 @@ class test_timestamp28(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(), '/must be after/')
 
+        # Confirm the earliest commit time is tested.
+        self.session.begin_transaction()
+        c[5] = 'xxx'
+        self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(70))
+        c[6] = 'xxx'
+        self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(71))
+        c[7] = 'xxx'
+        self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(75))
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(
+            'commit_timestamp=' + self.timestamp_str(80)), '/must be after/')
+
 if __name__ == '__main__':
     wttest.run()
