@@ -339,9 +339,6 @@ wts_verify_checkpoint(WT_CONNECTION *conn, const char *checkpoint)
 {
     u_int i;
 
-    /* XXX checkpoint cursors don't work. Don't use for now. */
-    return;
-
     if (GV(OPS_VERIFY) == 0)
         return;
 
