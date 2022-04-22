@@ -61,7 +61,7 @@ __wt_txn_parse_timestamp(
 {
     WT_RET(__wt_txn_parse_timestamp_raw(session, name, timestamp, cval));
     if (cval->len != 0 && *timestamp == WT_TS_NONE)
-        WT_RET_MSG(session, EINVAL, "Failed to parse %s timestamp '%.*s': zero not permitted", name,
+        WT_RET_MSG(session, EINVAL, "illegal %s timestamp '%.*s': zero not permitted", name,
           (int)cval->len, cval->str);
 
     return (0);
@@ -81,7 +81,7 @@ __txn_get_read_timestamp(WT_TXN_SHARED *txn_shared, wt_timestamp_t *read_timesta
  * __wt_txn_get_pinned_timestamp --
  *     Calculate the current pinned timestamp.
  */
-int
+void
 __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uint32_t flags)
 {
     WT_CONNECTION_IMPL *conn;
@@ -96,8 +96,11 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
     include_oldest = LF_ISSET(WT_TXN_TS_INCLUDE_OLDEST);
     txn_has_write_lock = LF_ISSET(WT_TXN_TS_ALREADY_LOCKED);
 
-    if (include_oldest && !txn_global->has_oldest_timestamp)
-        return (WT_NOTFOUND);
+    /* If including oldest and there's none set, we're done, nothing else matters. */
+    if (include_oldest && !txn_global->has_oldest_timestamp) {
+        *tsp = 0;
+        return;
+    }
 
     if (!txn_has_write_lock)
         __wt_readlock(session, &txn_global->rwlock);
@@ -111,9 +114,7 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
 
     /* Walk the array of concurrent transactions. */
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
-        WT_STAT_CONN_INCR(session, txn_sessions_walked);
         __txn_get_read_timestamp(s, &tmp_read_ts);
         /*
          * A zero timestamp is possible here only when the oldest timestamp is not accounted for.
@@ -125,11 +126,10 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
     if (!txn_has_write_lock)
         __wt_readunlock(session, &txn_global->rwlock);
 
-    if (!include_oldest && tmp_ts == 0)
-        return (WT_NOTFOUND);
-    *tsp = tmp_ts;
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+    WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
 
-    return (0);
+    *tsp = tmp_ts;
 }
 
 /*
@@ -162,53 +162,40 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
     WT_STAT_CONN_INCR(session, txn_query_ts);
     WT_RET(__wt_config_gets(session, cfg, "get", &cval));
     if (WT_STRING_MATCH("all_durable", cval.str, cval.len)) {
-        if (!txn_global->has_durable_timestamp)
-            return (WT_NOTFOUND);
-        ts = txn_global->durable_timestamp;
-        WT_ASSERT(session, ts != WT_TS_NONE);
+        ts = txn_global->has_durable_timestamp ? txn_global->durable_timestamp : 0;
 
         __wt_readlock(session, &txn_global->rwlock);
 
         /* Walk the array of concurrent transactions. */
         WT_ORDERED_READ(session_cnt, conn->session_cnt);
-        WT_STAT_CONN_INCR(session, txn_walk_sessions);
         for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
-            WT_STAT_CONN_INCR(session, txn_sessions_walked);
             __txn_get_durable_timestamp(s, &tmpts);
-            if (tmpts != WT_TS_NONE && --tmpts < ts)
+            if (tmpts != 0 && (ts == 0 || --tmpts < ts))
                 ts = tmpts;
         }
 
         __wt_readunlock(session, &txn_global->rwlock);
 
-        /*
-         * If a transaction is committing with a durable timestamp of 1, we could return zero here,
-         * which is unexpected. Fail instead.
-         */
-        if (ts == WT_TS_NONE)
-            return (WT_NOTFOUND);
+        WT_STAT_CONN_INCR(session, txn_walk_sessions);
+        WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
     } else if (WT_STRING_MATCH("last_checkpoint", cval.str, cval.len)) {
         /* Read-only value forever. Make sure we don't used a cached version. */
         WT_BARRIER();
         ts = txn_global->last_ckpt_timestamp;
     } else if (WT_STRING_MATCH("oldest_timestamp", cval.str, cval.len) ||
       WT_STRING_MATCH("oldest", cval.str, cval.len)) {
-        if (!txn_global->has_oldest_timestamp)
-            return (WT_NOTFOUND);
-        ts = txn_global->oldest_timestamp;
+        ts = txn_global->has_oldest_timestamp ? txn_global->oldest_timestamp : 0;
     } else if (WT_STRING_MATCH("oldest_reader", cval.str, cval.len))
-        WT_RET(__wt_txn_get_pinned_timestamp(session, &ts, WT_TXN_TS_INCLUDE_CKPT));
+        __wt_txn_get_pinned_timestamp(session, &ts, WT_TXN_TS_INCLUDE_CKPT);
     else if (WT_STRING_MATCH("pinned", cval.str, cval.len))
-        WT_RET(__wt_txn_get_pinned_timestamp(
-          session, &ts, WT_TXN_TS_INCLUDE_CKPT | WT_TXN_TS_INCLUDE_OLDEST));
+        __wt_txn_get_pinned_timestamp(
+          session, &ts, WT_TXN_TS_INCLUDE_CKPT | WT_TXN_TS_INCLUDE_OLDEST);
     else if (WT_STRING_MATCH("recovery", cval.str, cval.len))
         /* Read-only value forever. No lock needed. */
         ts = txn_global->recovery_timestamp;
     else if (WT_STRING_MATCH("stable_timestamp", cval.str, cval.len) ||
       WT_STRING_MATCH("stable", cval.str, cval.len)) {
-        if (!txn_global->has_stable_timestamp)
-            return (WT_NOTFOUND);
-        ts = txn_global->stable_timestamp;
+        ts = txn_global->has_stable_timestamp ? txn_global->stable_timestamp : 0;
     } else
         WT_RET_MSG(session, EINVAL, "unknown timestamp query %.*s", (int)cval.len, cval.str);
 
@@ -231,8 +218,6 @@ __txn_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, const char 
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
     WT_STAT_CONN_INCR(session, session_query_ts);
-    if (!F_ISSET(txn, WT_TXN_RUNNING))
-        return (WT_NOTFOUND);
 
     WT_RET(__wt_config_gets(session, cfg, "get", &cval));
     if (WT_STRING_MATCH("commit", cval.str, cval.len))
@@ -273,10 +258,9 @@ __wt_txn_query_timestamp(
  *     Update the pinned timestamp (the oldest timestamp that has to be maintained for current or
  *     future readers).
  */
-int
+void
 __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
 {
-    WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t last_pinned_timestamp, pinned_timestamp;
 
@@ -284,18 +268,18 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
 
     /* Skip locking and scanning when the oldest timestamp is pinned. */
     if (txn_global->oldest_is_pinned)
-        return (0);
+        return;
 
     /* Scan to find the global pinned timestamp. */
-    if ((ret = __wt_txn_get_pinned_timestamp(
-           session, &pinned_timestamp, WT_TXN_TS_INCLUDE_OLDEST)) != 0)
-        return (ret == WT_NOTFOUND ? 0 : ret);
+    __wt_txn_get_pinned_timestamp(session, &pinned_timestamp, WT_TXN_TS_INCLUDE_OLDEST);
+    if (pinned_timestamp == 0)
+        return;
 
     if (txn_global->has_pinned_timestamp && !force) {
         last_pinned_timestamp = txn_global->pinned_timestamp;
 
         if (pinned_timestamp <= last_pinned_timestamp)
-            return (0);
+            return;
     }
 
     __wt_writelock(session, &txn_global->rwlock);
@@ -303,14 +287,12 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
      * Scan the global pinned timestamp again, it's possible that it got changed after the previous
      * scan.
      */
-    if ((ret = __wt_txn_get_pinned_timestamp(
-           session, &pinned_timestamp, WT_TXN_TS_ALREADY_LOCKED | WT_TXN_TS_INCLUDE_OLDEST)) != 0) {
-        __wt_writeunlock(session, &txn_global->rwlock);
-        return (ret == WT_NOTFOUND ? 0 : ret);
-    }
+    __wt_txn_get_pinned_timestamp(
+      session, &pinned_timestamp, WT_TXN_TS_ALREADY_LOCKED | WT_TXN_TS_INCLUDE_OLDEST);
 
-    if (!txn_global->has_pinned_timestamp || force ||
-      txn_global->pinned_timestamp < pinned_timestamp) {
+    if (pinned_timestamp != 0 &&
+      (!txn_global->has_pinned_timestamp || force ||
+        txn_global->pinned_timestamp < pinned_timestamp)) {
         txn_global->pinned_timestamp = pinned_timestamp;
         txn_global->has_pinned_timestamp = true;
         txn_global->oldest_is_pinned = txn_global->pinned_timestamp == txn_global->oldest_timestamp;
@@ -318,8 +300,6 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
         __wt_verbose_timestamp(session, pinned_timestamp, "Updated pinned timestamp");
     }
     __wt_writeunlock(session, &txn_global->rwlock);
-
-    return (0);
 }
 
 /*
@@ -472,7 +452,7 @@ set:
     __wt_writeunlock(session, &txn_global->rwlock);
 
     if (has_oldest || has_stable)
-        WT_RET(__wt_txn_update_pinned_timestamp(session, force));
+        __wt_txn_update_pinned_timestamp(session, force);
 
     return (0);
 }
@@ -520,27 +500,24 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
 }
 
 /*
- * __wt_txn_set_commit_timestamp --
+ * __wt_txn_validate_commit_timestamp --
  *     Validate the commit timestamp of a transaction.
  */
 int
-__wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts)
+__wt_txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit_tsp)
 {
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t oldest_ts, stable_ts;
+    wt_timestamp_t commit_ts, oldest_ts, stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool has_oldest_ts, has_stable_ts;
 
     txn = session->txn;
     txn_global = &S2C(session)->txn_global;
+    commit_ts = *commit_tsp;
 
     /* Added this redundant initialization to circumvent build failure. */
     oldest_ts = stable_ts = WT_TS_NONE;
-
-    if (txn->isolation != WT_ISO_SNAPSHOT)
-        WT_RET_MSG(session, EINVAL,
-          "setting a commit_timestamp requires a transaction running at snapshot isolation");
 
     /*
      * Compare against the oldest and the stable timestamp. Return an error if the given timestamp
@@ -595,16 +572,40 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts
                   "commit timestamp %s is less than the prepare timestamp %s for this transaction",
                   __wt_timestamp_to_string(commit_ts, ts_string[0]),
                   __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[1]));
-            commit_ts = txn->prepare_timestamp;
+
+            /* Update the caller's value. */
+            *commit_tsp = txn->prepare_timestamp;
         }
         if (!F_ISSET(txn, WT_TXN_PREPARE))
             WT_RET_MSG(
               session, EINVAL, "commit timestamp must not be set before transaction is prepared");
     }
 
-    WT_ASSERT(session,
-      !F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) || txn->durable_timestamp == txn->commit_timestamp);
+    return (0);
+}
+
+/*
+ * __wt_txn_set_commit_timestamp --
+ *     Set the commit timestamp of a transaction.
+ */
+int
+__wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    if (txn->isolation != WT_ISO_SNAPSHOT)
+        WT_RET_MSG(session, EINVAL,
+          "setting a commit_timestamp requires a transaction running at snapshot isolation");
+
+    /*
+     * In scenarios where the prepare timestamp is greater than the provided commit timestamp, the
+     * validate function returns the new commit timestamp based on the configuration.
+     */
+    WT_RET(__wt_txn_validate_commit_timestamp(session, &commit_ts));
     txn->commit_timestamp = commit_ts;
+
     /*
      * First time copy the commit timestamp to the first commit timestamp.
      */
@@ -624,11 +625,11 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts
 }
 
 /*
- * __wt_txn_set_durable_timestamp --
+ * __wt_txn_validate_durable_timestamp --
  *     Validate the durable timestamp of a transaction.
  */
 int
-__wt_txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
+__wt_txn_validate_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
 {
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
@@ -641,13 +642,6 @@ __wt_txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_
 
     /* Added this redundant initialization to circumvent build failure. */
     oldest_ts = stable_ts = 0;
-
-    if (!F_ISSET(txn, WT_TXN_PREPARE))
-        WT_RET_MSG(session, EINVAL,
-          "durable timestamp should not be specified for non-prepared transaction");
-
-    if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
-        WT_RET_MSG(session, EINVAL, "commit timestamp is needed before the durable timestamp");
 
     /*
      * Compare against the oldest and the stable timestamp. Return an error if the given timestamp
@@ -677,6 +671,29 @@ __wt_txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_
           __wt_timestamp_to_string(durable_ts, ts_string[0]),
           __wt_timestamp_to_string(txn->commit_timestamp, ts_string[1]));
 
+    return (0);
+}
+
+/*
+ * __wt_txn_set_durable_timestamp --
+ *     Set the durable timestamp of a transaction.
+ */
+int
+__wt_txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    if (!F_ISSET(txn, WT_TXN_PREPARE))
+        WT_RET_MSG(session, EINVAL,
+          "durable timestamp should not be specified for non-prepared transaction");
+
+    if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+        WT_RET_MSG(
+          session, EINVAL, "a commit timestamp is required before setting a durable timestamp");
+
+    WT_RET(__wt_txn_validate_durable_timestamp(session, durable_ts));
     txn->durable_timestamp = durable_ts;
     F_SET(txn, WT_TXN_HAS_TS_DURABLE);
 
@@ -869,51 +886,58 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
  *     Parse a request to set a timestamp in a transaction.
  */
 int
-__wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
 {
     WT_CONFIG cparser;
     WT_CONFIG_ITEM ckey, cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    WT_TXN *txn;
     wt_timestamp_t commit_ts, durable_ts, prepare_ts, read_ts;
     bool set_ts;
 
     conn = S2C(session);
-    commit_ts = durable_ts = prepare_ts = read_ts = WT_TS_NONE;
+    txn = session->txn;
     set_ts = false;
 
     WT_RET(__wt_txn_context_check(session, true));
 
     /*
-     * If the API received no configuration string, or we just have the base configuration, there's
-     * nothing to do.
+     * If no commit or durable timestamp is set here, set to any previously set values and validate
+     * them, the stable timestamp might have moved forward since they were successfully set.
      */
-    if (cfg == NULL || cfg[0] == NULL || cfg[1] == NULL)
-        return (0);
+    commit_ts = durable_ts = prepare_ts = read_ts = WT_TS_NONE;
+    if (commit && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+        commit_ts = txn->commit_timestamp;
+    if (commit && F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
+        durable_ts = txn->durable_timestamp;
 
     /*
-     * We take a shortcut in parsing that works because we're only given a base configuration and a
-     * user configuration.
+     * If the API received no configuration string, or we just have the base configuration, there
+     * are no strings to parse. Additionally, take a shortcut in parsing that works because we're
+     * only given a base configuration and a user configuration.
      */
-    WT_ASSERT(session, cfg[0] != NULL && cfg[1] != NULL && cfg[2] == NULL);
-    __wt_config_init(session, &cparser, cfg[1]);
-    while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0) {
-        WT_ASSERT(session, ckey.str != NULL);
-        if (WT_STRING_MATCH("commit_timestamp", ckey.str, ckey.len)) {
-            WT_RET(__wt_txn_parse_timestamp(session, "commit", &commit_ts, &cval));
-            set_ts = true;
-        } else if (WT_STRING_MATCH("durable_timestamp", ckey.str, ckey.len)) {
-            WT_RET(__wt_txn_parse_timestamp(session, "durable", &durable_ts, &cval));
-            set_ts = true;
-        } else if (WT_STRING_MATCH("prepare_timestamp", ckey.str, ckey.len)) {
-            WT_RET(__wt_txn_parse_timestamp(session, "prepare", &prepare_ts, &cval));
-            set_ts = true;
-        } else if (WT_STRING_MATCH("read_timestamp", ckey.str, ckey.len)) {
-            WT_RET(__wt_txn_parse_timestamp(session, "read", &read_ts, &cval));
-            set_ts = true;
+    if (cfg != NULL && cfg[0] != NULL && cfg[1] != NULL) {
+        WT_ASSERT(session, cfg[2] == NULL);
+        __wt_config_init(session, &cparser, cfg[1]);
+        while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0) {
+            WT_ASSERT(session, ckey.str != NULL);
+            if (WT_STRING_MATCH("commit_timestamp", ckey.str, ckey.len)) {
+                WT_RET(__wt_txn_parse_timestamp(session, "commit", &commit_ts, &cval));
+                set_ts = true;
+            } else if (WT_STRING_MATCH("durable_timestamp", ckey.str, ckey.len)) {
+                WT_RET(__wt_txn_parse_timestamp(session, "durable", &durable_ts, &cval));
+                set_ts = true;
+            } else if (WT_STRING_MATCH("prepare_timestamp", ckey.str, ckey.len)) {
+                WT_RET(__wt_txn_parse_timestamp(session, "prepare", &prepare_ts, &cval));
+                set_ts = true;
+            } else if (WT_STRING_MATCH("read_timestamp", ckey.str, ckey.len)) {
+                WT_RET(__wt_txn_parse_timestamp(session, "read", &read_ts, &cval));
+                set_ts = true;
+            }
         }
+        WT_RET_NOTFOUND_OK(ret);
     }
-    WT_RET_NOTFOUND_OK(ret);
 
     /* Look for a commit timestamp. */
     if (commit_ts != WT_TS_NONE)
@@ -952,10 +976,30 @@ int
 __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_timestamp_t ts)
 {
     WT_CONNECTION_IMPL *conn;
+    const char *name;
 
     WT_RET(__wt_txn_context_check(session, true));
 
     conn = S2C(session);
+
+    if (ts == 0) {
+        name = "unknown";
+        switch (which) {
+        case WT_TS_TXN_TYPE_COMMIT:
+            name = "commit";
+            break;
+        case WT_TS_TXN_TYPE_DURABLE:
+            name = "durable";
+            break;
+        case WT_TS_TXN_TYPE_PREPARE:
+            name = "prepare";
+            break;
+        case WT_TS_TXN_TYPE_READ:
+            name = "read";
+            break;
+        }
+        WT_RET_MSG(session, EINVAL, "illegal %s timestamp: zero not permitted", name);
+    }
 
     switch (which) {
     case WT_TS_TXN_TYPE_COMMIT:
@@ -964,11 +1008,11 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
     case WT_TS_TXN_TYPE_DURABLE:
         WT_RET(__wt_txn_set_durable_timestamp(session, ts));
         break;
-    case WT_TS_TXN_TYPE_READ:
-        WT_RET(__wt_txn_set_read_timestamp(session, ts));
-        break;
     case WT_TS_TXN_TYPE_PREPARE:
         WT_RET(__wt_txn_set_prepare_timestamp(session, ts));
+        break;
+    case WT_TS_TXN_TYPE_READ:
+        WT_RET(__wt_txn_set_read_timestamp(session, ts));
         break;
     }
     __wt_txn_publish_durable_timestamp(session);
@@ -1005,7 +1049,8 @@ __wt_txn_publish_durable_timestamp(WT_SESSION_IMPL *session)
          * If we know for a fact that this is a prepared transaction and we only have a commit
          * timestamp, don't add to the durable queue. If we poll all_durable after setting the
          * commit timestamp of a prepared transaction, that prepared transaction should NOT be
-         * visible.
+         * visible. Note: this only happens when the commit timestamp is set in advance with
+         * timestamp_transaction; at commit time a durable timestamp is required.
          */
         if (F_ISSET(txn, WT_TXN_PREPARE))
             return;
@@ -1059,4 +1104,51 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
         F_CLR(txn, WT_TXN_SHARED_TS_READ);
     }
     txn_shared->read_timestamp = WT_TS_NONE;
+}
+
+/*
+ * __wt_txn_checkpoint_cannot_start --
+ *     Return true if there's a transaction we need to wait for. This means transactions that have
+ *     begun committing with durable timestamp at or before the checkpoint timestamp, but have not
+ *     yet finished.
+ */
+bool
+__wt_txn_checkpoint_cannot_start(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_TXN_GLOBAL *txn_global;
+    WT_TXN_SHARED *txn_shared;
+    wt_timestamp_t durable_ts;
+    uint32_t i, session_count;
+
+    conn = S2C(session);
+    txn_global = &conn->txn_global;
+
+    /* We're going to scan the table: wait for the lock. */
+    __wt_readlock(session, &txn_global->rwlock);
+
+    /* Walk the array of concurrent transactions. */
+    WT_ORDERED_READ(session_count, conn->session_cnt);
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+    for (i = 0, txn_shared = txn_global->txn_shared_list; i < session_count; i++, txn_shared++) {
+        WT_STAT_CONN_INCR(session, txn_sessions_walked);
+
+        if (txn_shared->id == WT_TXN_NONE)
+            continue;
+
+        /*
+         * FUTURE: there is currently no way to tell if a transaction has started committing, or has
+         * only been assigned a durable or commit timestamp with timestamp_transaction(). It would
+         * be better not to wait for transactions that haven't actually started committing yet.
+         */
+        __txn_get_durable_timestamp(txn_shared, &durable_ts);
+
+        if (durable_ts != WT_TXN_NONE && durable_ts <= txn_global->meta_ckpt_timestamp) {
+            __wt_readunlock(session, &txn_global->rwlock);
+            return (true);
+        }
+    }
+
+    __wt_readunlock(session, &txn_global->rwlock);
+    return (false);
 }

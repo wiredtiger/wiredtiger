@@ -26,45 +26,60 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "test_harness/test.h"
+#include "component.h"
+#include "test_harness/util/api_const.h"
 
-/*
- * Class that defines operations that do nothing as an example. This shows how database operations
- * can be overridden and customized.
- */
-class example_test : public test_harness::test {
-    public:
-    example_test(const test_harness::test_args &args) : test(args) {}
+namespace test_harness {
+component::component(const std::string &name, configuration *config) : _config(config), _name(name)
+{
+}
 
-    void
-    run() override final
-    {
-        /* You can remove the call to the base class to fully customized your test. */
-        test::run();
+component::~component()
+{
+    delete _config;
+}
+
+void
+component::load()
+{
+    logger::log_msg(LOG_INFO, "Loading component: " + _name);
+    _enabled = _config->get_optional_bool(ENABLED, true);
+    _throttle = throttle(_config);
+    /* If we're not enabled we shouldn't be running. */
+    _running = _enabled;
+}
+
+void
+component::run()
+{
+    logger::log_msg(LOG_INFO, "Running component: " + _name);
+    while (_enabled && _running) {
+        do_work();
+        _throttle.sleep();
     }
+}
 
-    void
-    populate(test_harness::database &, test_harness::timestamp_manager *,
-      test_harness::configuration *, test_harness::workload_tracking *) override final
-    {
-        std::cout << "populate: nothing done." << std::endl;
-    }
+void
+component::do_work()
+{
+    /* Not implemented. */
+}
 
-    void
-    insert_operation(test_harness::thread_context *) override final
-    {
-        std::cout << "insert_operation: nothing done." << std::endl;
-    }
+bool
+component::enabled() const
+{
+    return (_enabled);
+}
 
-    void
-    read_operation(test_harness::thread_context *) override final
-    {
-        std::cout << "read_operation: nothing done." << std::endl;
-    }
+void
+component::end_run()
+{
+    _running = false;
+}
 
-    void
-    update_operation(test_harness::thread_context *) override final
-    {
-        std::cout << "update_operation: nothing done." << std::endl;
-    }
-};
+void
+component::finish()
+{
+    logger::log_msg(LOG_INFO, "Running finish stage of component: " + _name);
+}
+} // namespace test_harness

@@ -17,6 +17,7 @@ ASAN
 ASM
 AUS
 AWS
+AWS's
 Addr
 Ailamaki
 Alakuijala
@@ -28,6 +29,7 @@ AsyncOp
 Athanassoulis
 Athlon
 Aws
+AwsManager
 Axxx
 BBBBB
 BBBBBB
@@ -99,6 +101,7 @@ Coverity
 CreateFileMapping
 CreateFileMappingW
 CreateFileW
+Crt
 Crummey
 CustomersPhone
 DAX
@@ -268,6 +271,7 @@ LibFuzzer
 LmRrSVv
 LoadLoad
 LockFile
+LogSystemInterface
 Lookaside
 Lookup
 MADV
@@ -392,6 +396,7 @@ RocksDB
 Rogerio
 Runtime
 SDK
+SDK's
 SDKOptions
 SIMD
 SLIST
@@ -606,6 +611,7 @@ bt
 btcur
 btmem
 btree
+btree's
 btrees
 bucketName
 buf
@@ -686,6 +692,7 @@ compressStream
 compressibility
 concat
 cond
+conditionalize
 conf
 confchk
 config
@@ -1345,7 +1352,6 @@ recurse
 refp
 regionp
 reinitialization
-reinstantiate
 relocked
 repl
 resizable

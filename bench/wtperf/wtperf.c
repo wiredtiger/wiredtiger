@@ -923,7 +923,10 @@ populate_thread(void *arg)
     }
 
     /* Do bulk loads if populate is single-threaded. */
-    cursor_config = (opts->populate_threads == 1 && !opts->index) ? "bulk" : NULL;
+    cursor_config = NULL;
+    if (opts->populate_threads == 1 && !opts->index && opts->tiered_flush_interval == 0)
+        cursor_config = "bulk";
+
     /* Create the cursors. */
     cursors = dcalloc(total_table_count, sizeof(WT_CURSOR *));
     for (i = 0; i < total_table_count; i++) {
@@ -1136,13 +1139,13 @@ monitor(void *arg)
         cur_updates = (updates - last_updates) / opts->sample_interval;
 
         (void)fprintf(fp,
-          "%s,%" PRIu32 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%c,%c,%c%" PRIu32
+          "%s,%" PRIu32 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%c,%c,%c,%c%" PRIu32
           ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32
           ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "\n",
           buf, wtperf->totalsec, cur_inserts, cur_modifies, cur_reads, cur_updates,
-          wtperf->backup ? 'Y' : 'N', wtperf->ckpt ? 'Y' : 'N', wtperf->scan ? 'Y' : 'N',
-          insert_avg, insert_min, insert_max, modify_avg, modify_min, modify_max, read_avg,
-          read_min, read_max, update_avg, update_min, update_max);
+          wtperf->backup ? 'Y' : 'N', wtperf->ckpt ? 'Y' : 'N', wtperf->flush ? 'Y' : 'N',
+          wtperf->scan ? 'Y' : 'N', insert_avg, insert_min, insert_max, modify_avg, modify_min,
+          modify_max, read_avg, read_min, read_max, update_avg, update_min, update_max);
         if (jfp != NULL) {
             buf_size = strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &localt);
             testutil_assert(buf_size != 0);
@@ -1328,15 +1331,19 @@ checkpoint_worker(void *arg)
         goto err;
     }
 
-    while (!wtperf->stop) {
+    while (!wtperf->stop || wtperf->flushthreads != NULL) {
         /* Break the sleep up, so we notice interrupts faster. */
         for (i = 0; i < opts->checkpoint_interval; i++) {
             sleep(1);
             if (wtperf->stop)
                 break;
         }
-        /* If the workers are done, don't bother with a final call. */
-        if (wtperf->stop)
+        /*
+         * If the workers are done, don't bother with a final call unless the flush tier worker
+         * needs to a final checkpoint to complete. The checkpoint thread keeps running as long as
+         * there is a flush tier worker thread running.
+         */
+        if (wtperf->stop && wtperf->flushthreads == NULL)
             break;
 
         wtperf->ckpt = true;
@@ -1350,6 +1357,62 @@ checkpoint_worker(void *arg)
 
     if (session != NULL && ((ret = session->close(session, NULL)) != 0)) {
         lprintf(wtperf, ret, 0, "Error closing session in checkpoint worker.");
+        goto err;
+    }
+
+    /* Notify our caller we failed and shut the system down. */
+    if (0) {
+err:
+        wtperf->error = wtperf->stop = true;
+    }
+
+    return (WT_THREAD_RET_VALUE);
+}
+
+static WT_THREAD_RET
+flush_tier_worker(void *arg)
+{
+    CONFIG_OPTS *opts;
+    WTPERF *wtperf;
+    WTPERF_THREAD *thread;
+    WT_CONNECTION *conn;
+    WT_SESSION *session;
+    uint32_t i;
+    int ret;
+
+    thread = (WTPERF_THREAD *)arg;
+    wtperf = thread->wtperf;
+    opts = wtperf->opts;
+    conn = wtperf->conn;
+    session = NULL;
+
+    if ((ret = conn->open_session(conn, NULL, opts->sess_config, &session)) != 0) {
+        lprintf(wtperf, ret, 0, "open_session failed in flush_tier thread.");
+        goto err;
+    }
+
+    while (!wtperf->stop) {
+        /* Break the sleep up, so we notice interrupts faster. */
+        for (i = 0; i < opts->tiered_flush_interval; i++) {
+            sleep(1);
+            if (wtperf->stop)
+                break;
+        }
+        /* If the workers are done, don't bother with a final call. */
+        if (wtperf->stop)
+            break;
+
+        wtperf->flush = true;
+        if ((ret = session->flush_tier(session, NULL)) != 0) {
+            lprintf(wtperf, ret, 0, "Flush_tier failed.");
+            goto err;
+        }
+        wtperf->flush = false;
+        ++thread->flush.ops;
+    }
+
+    if (session != NULL && ((ret = session->close(session, NULL)) != 0)) {
+        lprintf(wtperf, ret, 0, "Error closing session in flush_tier worker.");
         goto err;
     }
 
@@ -1488,6 +1551,29 @@ execute_populate(WTPERF *wtperf)
     opts = wtperf->opts;
     max_key = (uint64_t)opts->icount + (uint64_t)opts->scan_icount;
 
+    /*
+     * If this is going to be a tiered workload, start the checkpoint threads and the flush threads
+     * during the populate phase so that the tiers are created as we populate the database.
+     */
+    if (opts->tiered_flush_interval != 0) {
+        /* Start the checkpoint thread. */
+        if (opts->checkpoint_threads != 0) {
+            lprintf(
+              wtperf, 0, 1, "Starting %" PRIu32 " checkpoint thread(s)", opts->checkpoint_threads);
+            wtperf->ckptthreads = dcalloc(opts->checkpoint_threads, sizeof(WTPERF_THREAD));
+            start_threads(
+              wtperf, NULL, wtperf->ckptthreads, opts->checkpoint_threads, checkpoint_worker);
+        } else {
+            lprintf(wtperf, 0, 1,
+              "Running a flush-tier thread without checkpoint threads "
+              "on populate may hang the flush thread.");
+        }
+
+        lprintf(wtperf, 0, 1, "Starting 1 flush_tier thread");
+        wtperf->flushthreads = dcalloc(1, sizeof(WTPERF_THREAD));
+        start_threads(wtperf, NULL, wtperf->flushthreads, 1, flush_tier_worker);
+    }
+
     lprintf(wtperf, 0, 1, "Starting %" PRIu32 " populate thread(s) for %" PRIu64 " items",
       opts->populate_threads, max_key);
 
@@ -1560,6 +1646,23 @@ execute_populate(WTPERF *wtperf)
 
     /* Stop cycling idle tables. */
     stop_idle_table_cycle(wtperf, idle_table_cycle_thread);
+    /*
+     * Stop the flush and checkpoint threads if we used them during populate. We must stop the flush
+     * thread before stopping the checkpoint thread as the flush thread depends on a later
+     * checkpoint running.
+     */
+    wtperf->stop = true;
+    if (wtperf->flushthreads != NULL) {
+        stop_threads(1, wtperf->flushthreads);
+        free(wtperf->flushthreads);
+        wtperf->flushthreads = NULL;
+    }
+    if (wtperf->ckptthreads != NULL) {
+        stop_threads(1, wtperf->ckptthreads);
+        free(wtperf->ckptthreads);
+        wtperf->ckptthreads = NULL;
+    }
+    wtperf->stop = false;
 
     return (0);
 }
@@ -1605,7 +1708,7 @@ execute_workload(WTPERF *wtperf)
     WT_CONNECTION *conn;
     WT_SESSION **sessions;
     wt_thread_t idle_table_cycle_thread;
-    uint64_t last_backup, last_ckpts, last_scans;
+    uint64_t last_backup, last_ckpts, last_flushes, last_scans;
     uint64_t last_inserts, last_reads, last_truncates;
     uint64_t last_modifies, last_updates;
     uint32_t interval, run_ops, run_time;
@@ -1618,7 +1721,7 @@ execute_workload(WTPERF *wtperf)
     wtperf->insert_ops = wtperf->read_ops = wtperf->truncate_ops = 0;
     wtperf->modify_ops = wtperf->update_ops = 0;
 
-    last_backup = last_ckpts = last_scans = 0;
+    last_backup = last_ckpts = last_flushes = last_scans = 0;
     last_inserts = last_reads = last_truncates = 0;
     last_modifies = last_updates = 0;
     ret = 0;
@@ -1683,6 +1786,7 @@ execute_workload(WTPERF *wtperf)
 
         /* Sum the operations we've done. */
         wtperf->ckpt_ops = sum_ckpt_ops(wtperf);
+        wtperf->flush_ops = sum_flush_ops(wtperf);
         wtperf->scan_ops = sum_scan_ops(wtperf);
         wtperf->insert_ops = sum_insert_ops(wtperf);
         wtperf->modify_ops = sum_modify_ops(wtperf);
@@ -1705,18 +1809,19 @@ execute_workload(WTPERF *wtperf)
         lprintf(wtperf, 0, 1,
           "%" PRIu64 " inserts, %" PRIu64 " modifies, %" PRIu64 " reads, %" PRIu64
           " truncates, %" PRIu64 " updates, %" PRIu64 " backups, %" PRIu64 " checkpoints, %" PRIu64
-          " scans in %" PRIu32 " secs (%" PRIu32 " total secs)",
+          " flush_tiers, %" PRIu64 " scans in %" PRIu32 " secs (%" PRIu32 " total secs)",
           wtperf->insert_ops - last_inserts, wtperf->modify_ops - last_modifies,
           wtperf->read_ops - last_reads, wtperf->truncate_ops - last_truncates,
           wtperf->update_ops - last_updates, wtperf->backup_ops - last_backup,
-          wtperf->ckpt_ops - last_ckpts, wtperf->scan_ops - last_scans, opts->report_interval,
-          wtperf->totalsec);
+          wtperf->ckpt_ops - last_ckpts, wtperf->flush_ops - last_flushes,
+          wtperf->scan_ops - last_scans, opts->report_interval, wtperf->totalsec);
         last_inserts = wtperf->insert_ops;
         last_modifies = wtperf->modify_ops;
         last_reads = wtperf->read_ops;
         last_truncates = wtperf->truncate_ops;
         last_updates = wtperf->update_ops;
         last_ckpts = wtperf->ckpt_ops;
+        last_flushes = wtperf->flush_ops;
         last_scans = wtperf->scan_ops;
         last_backup = wtperf->backup_ops;
     }
@@ -1924,6 +2029,7 @@ wtperf_copy(const WTPERF *src, WTPERF **retp)
 
     dest->backupthreads = NULL;
     dest->ckptthreads = NULL;
+    dest->flushthreads = NULL;
     dest->scanthreads = NULL;
     dest->popthreads = NULL;
 
@@ -1968,6 +2074,7 @@ wtperf_free(WTPERF *wtperf)
 
     free(wtperf->backupthreads);
     free(wtperf->ckptthreads);
+    free(wtperf->flushthreads);
     free(wtperf->scanthreads);
     free(wtperf->popthreads);
 
@@ -2018,6 +2125,49 @@ config_compress(WTPERF *wtperf)
     } else {
         fprintf(stderr, "invalid compression configuration: %s\n", s);
         ret = EINVAL;
+    }
+    return (ret);
+}
+
+/*
+ * config_tiered --
+ *     Parse the tiered extension configuration
+ */
+static int
+config_tiered(WTPERF *wtperf)
+{
+    CONFIG_OPTS *opts;
+    int ret;
+    const char *s;
+
+    opts = wtperf->opts;
+    ret = 0;
+
+    s = opts->tiered;
+    if (strcmp(s, "none") == 0) {
+        wtperf->tiered_ext = NULL;
+        return (0);
+    }
+    if (strcmp(s, "dir_store") != 0 && strcmp(s, "s3") != 0) {
+        fprintf(stderr, "invalid tiered extension configuration: %s\n", s);
+        return (EINVAL);
+    }
+    if (opts->tiered_flush_interval == 0) {
+        fprintf(stderr, "tiered_flush_interval must be non-zero for tiered extension: %s\n", s);
+        return (EINVAL);
+    }
+    if (strcmp(s, "dir_store") == 0) {
+        if (strstr(opts->conn_config, "dir_store") == NULL) {
+            fprintf(stderr, "tiered extension name not found in connection configuration: %s\n", s);
+            ret = EINVAL;
+        } else
+            wtperf->tiered_ext = DIR_EXT;
+    } else if (strcmp(s, "s3") == 0) {
+        if (strstr(opts->conn_config, "s3") == NULL) {
+            fprintf(stderr, "tiered extension name not found in connection configuration: %s\n", s);
+            ret = EINVAL;
+        } else
+            wtperf->tiered_ext = S3_EXT;
     }
     return (ret);
 }
@@ -2160,6 +2310,12 @@ start_run(WTPERF *wtperf)
             start_threads(
               wtperf, NULL, wtperf->ckptthreads, opts->checkpoint_threads, checkpoint_worker);
         }
+        /* Start the flush_tier thread. */
+        if (opts->tiered_flush_interval != 0) {
+            lprintf(wtperf, 0, 1, "Starting 1 flush_tier thread");
+            wtperf->flushthreads = dcalloc(1, sizeof(WTPERF_THREAD));
+            start_threads(wtperf, NULL, wtperf->flushthreads, 1, flush_tier_worker);
+        }
         /* Start the scan thread. */
         if (opts->scan_interval != 0) {
             lprintf(wtperf, 0, 1, "Starting 1 scan thread");
@@ -2181,6 +2337,7 @@ start_run(WTPERF *wtperf)
         wtperf->update_ops = sum_update_ops(wtperf);
         wtperf->backup_ops = sum_backup_ops(wtperf);
         wtperf->ckpt_ops = sum_ckpt_ops(wtperf);
+        wtperf->flush_ops = sum_flush_ops(wtperf);
         wtperf->scan_ops = sum_scan_ops(wtperf);
         total_ops = wtperf->insert_ops + wtperf->modify_ops + wtperf->read_ops + wtperf->update_ops;
 
@@ -2206,6 +2363,7 @@ start_run(WTPERF *wtperf)
           wtperf->update_ops / run_time);
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " backup operations", wtperf->backup_ops);
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " checkpoint operations", wtperf->ckpt_ops);
+        lprintf(wtperf, 0, 1, "Executed %" PRIu64 " flush_tier operations", wtperf->flush_ops);
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " scan operations", wtperf->scan_ops);
 
         latency_print(wtperf);
@@ -2221,6 +2379,8 @@ err:
     wtperf->stop = true;
 
     stop_threads(1, wtperf->backupthreads);
+    /* We must stop the flush thread before the checkpoint thread. */
+    stop_threads(1, wtperf->flushthreads);
     stop_threads(1, wtperf->ckptthreads);
     stop_threads(1, wtperf->scanthreads);
 
@@ -2372,6 +2532,9 @@ main(int argc, char *argv[])
     if ((ret = config_compress(wtperf)) != 0)
         goto err;
 
+    if ((ret = config_tiered(wtperf)) != 0)
+        goto err;
+
     /* You can't have truncate on a random collection. */
     if (F_ISSET(wtperf, CFG_TRUNCATE) && opts->random_range) {
         lprintf(wtperf, 1, 0, "Cannot run truncate and random_range\n");
@@ -2389,9 +2552,10 @@ main(int argc, char *argv[])
 
     /* Concatenate non-default configuration strings. */
     if (user_cconfig != NULL || opts->session_count_idle > 0 || wtperf->compress_ext != NULL ||
-      opts->in_memory) {
+      opts->in_memory || wtperf->tiered_ext != NULL) {
         req_len = 20;
         req_len += wtperf->compress_ext != NULL ? strlen(wtperf->compress_ext) : 0;
+        req_len += wtperf->tiered_ext != NULL ? strlen(wtperf->tiered_ext) : 0;
         if (opts->session_count_idle > 0) {
             sreq_len = strlen("session_max=") + 6;
             req_len += sreq_len;
@@ -2408,6 +2572,11 @@ main(int argc, char *argv[])
         if (wtperf->compress_ext != NULL && strlen(wtperf->compress_ext) != 0) {
             testutil_check(__wt_snprintf_len_incr(
               cc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, wtperf->compress_ext));
+            append_comma = ",";
+        }
+        if (wtperf->tiered_ext != NULL && strlen(wtperf->tiered_ext) != 0) {
+            testutil_check(__wt_snprintf_len_incr(
+              cc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, wtperf->tiered_ext));
             append_comma = ",";
         }
         if (opts->in_memory) {
@@ -2557,11 +2726,12 @@ start_threads(WTPERF *wtperf, WORKLOAD *workp, WTPERF_THREAD *base, u_int num,
          * Every thread gets tracking information and is initialized for latency measurements, for
          * the same reason.
          */
-        thread->ckpt.min_latency = thread->scan.min_latency = thread->insert.min_latency =
-          thread->modify.min_latency = thread->read.min_latency = thread->update.min_latency =
-            UINT32_MAX;
-        thread->ckpt.max_latency = thread->scan.max_latency = thread->insert.max_latency =
-          thread->modify.max_latency = thread->read.max_latency = thread->update.max_latency = 0;
+        thread->backup.min_latency = thread->ckpt.min_latency = thread->flush.min_latency =
+          thread->scan.min_latency = thread->insert.min_latency = thread->modify.min_latency =
+            thread->read.min_latency = thread->update.min_latency = UINT32_MAX;
+        thread->backup.max_latency = thread->ckpt.max_latency = thread->flush.max_latency =
+          thread->scan.max_latency = thread->insert.max_latency = thread->modify.max_latency =
+            thread->read.max_latency = thread->update.max_latency = 0;
     }
 
     /* Start the threads. */

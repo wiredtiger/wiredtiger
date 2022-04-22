@@ -138,7 +138,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cache_walk: Refs skipped during cache traversal",
   "cache_walk: Size of the root page",
   "cache_walk: Total number of pages currently in cache",
-  "checkpoint-cleanup: obsolete pages read in for cleanup",
   "checkpoint-cleanup: pages added for eviction",
   "checkpoint-cleanup: pages removed",
   "checkpoint-cleanup: pages skipped during tree walk",
@@ -227,10 +226,6 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: records written including a stop timestamp",
   "reconciliation: records written including a stop transaction ID",
   "session: object compaction",
-  "session: tiered operations dequeued and processed",
-  "session: tiered operations scheduled",
-  "session: tiered storage local retention time (secs)",
-  "session: tiered storage object size",
   "transaction: race to read prepared update retry",
   "transaction: rollback to stable history store records with stop timestamps older than newer "
   "records",
@@ -411,7 +406,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     /* not clearing cache_state_refs_skipped */
     /* not clearing cache_state_root_size */
     /* not clearing cache_state_pages */
-    stats->cc_pages_read = 0;
     stats->cc_pages_evict = 0;
     stats->cc_pages_removed = 0;
     stats->cc_pages_walk_skipped = 0;
@@ -500,10 +494,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_time_window_stop_ts = 0;
     stats->rec_time_window_stop_txn = 0;
     stats->session_compact = 0;
-    stats->tiered_work_units_dequeued = 0;
-    stats->tiered_work_units_created = 0;
-    /* not clearing tiered_retention */
-    /* not clearing tiered_object_size */
     stats->txn_read_race_prepare_update = 0;
     stats->txn_rts_hs_stop_older_than_newer_start = 0;
     stats->txn_rts_inconsistent_ckpt = 0;
@@ -672,7 +662,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_state_refs_skipped += from->cache_state_refs_skipped;
     to->cache_state_root_size += from->cache_state_root_size;
     to->cache_state_pages += from->cache_state_pages;
-    to->cc_pages_read += from->cc_pages_read;
     to->cc_pages_evict += from->cc_pages_evict;
     to->cc_pages_removed += from->cc_pages_removed;
     to->cc_pages_walk_skipped += from->cc_pages_walk_skipped;
@@ -762,10 +751,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_time_window_stop_ts += from->rec_time_window_stop_ts;
     to->rec_time_window_stop_txn += from->rec_time_window_stop_txn;
     to->session_compact += from->session_compact;
-    to->tiered_work_units_dequeued += from->tiered_work_units_dequeued;
-    to->tiered_work_units_created += from->tiered_work_units_created;
-    to->tiered_retention += from->tiered_retention;
-    to->tiered_object_size += from->tiered_object_size;
     to->txn_read_race_prepare_update += from->txn_read_race_prepare_update;
     to->txn_rts_hs_stop_older_than_newer_start += from->txn_rts_hs_stop_older_than_newer_start;
     to->txn_rts_inconsistent_ckpt += from->txn_rts_inconsistent_ckpt;
@@ -934,7 +919,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_state_refs_skipped += WT_STAT_READ(from, cache_state_refs_skipped);
     to->cache_state_root_size += WT_STAT_READ(from, cache_state_root_size);
     to->cache_state_pages += WT_STAT_READ(from, cache_state_pages);
-    to->cc_pages_read += WT_STAT_READ(from, cc_pages_read);
     to->cc_pages_evict += WT_STAT_READ(from, cc_pages_evict);
     to->cc_pages_removed += WT_STAT_READ(from, cc_pages_removed);
     to->cc_pages_walk_skipped += WT_STAT_READ(from, cc_pages_walk_skipped);
@@ -1031,10 +1015,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_time_window_stop_ts += WT_STAT_READ(from, rec_time_window_stop_ts);
     to->rec_time_window_stop_txn += WT_STAT_READ(from, rec_time_window_stop_txn);
     to->session_compact += WT_STAT_READ(from, session_compact);
-    to->tiered_work_units_dequeued += WT_STAT_READ(from, tiered_work_units_dequeued);
-    to->tiered_work_units_created += WT_STAT_READ(from, tiered_work_units_created);
-    to->tiered_retention += WT_STAT_READ(from, tiered_retention);
-    to->tiered_object_size += WT_STAT_READ(from, tiered_object_size);
     to->txn_read_race_prepare_update += WT_STAT_READ(from, txn_read_race_prepare_update);
     to->txn_rts_hs_stop_older_than_newer_start +=
       WT_STAT_READ(from, txn_rts_hs_stop_older_than_newer_start);
@@ -1257,7 +1237,6 @@ static const char *const __stats_connection_desc[] = {
   "capacity: time waiting during eviction (usecs)",
   "capacity: time waiting during logging (usecs)",
   "capacity: time waiting during read (usecs)",
-  "checkpoint-cleanup: obsolete pages read in for cleanup",
   "checkpoint-cleanup: pages added for eviction",
   "checkpoint-cleanup: pages removed",
   "checkpoint-cleanup: pages skipped during tree walk",
@@ -1564,6 +1543,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transaction checkpoint prepare min time (msecs)",
   "transaction: transaction checkpoint prepare most recent time (msecs)",
   "transaction: transaction checkpoint prepare total time (msecs)",
+  "transaction: transaction checkpoint prepare wait time (msecs)",
   "transaction: transaction checkpoint scrub dirty target",
   "transaction: transaction checkpoint scrub time (msecs)",
   "transaction: transaction checkpoint total time (msecs)",
@@ -1818,7 +1798,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->capacity_time_evict = 0;
     stats->capacity_time_log = 0;
     stats->capacity_time_read = 0;
-    stats->cc_pages_read = 0;
     stats->cc_pages_evict = 0;
     stats->cc_pages_removed = 0;
     stats->cc_pages_walk_skipped = 0;
@@ -2122,6 +2101,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing txn_checkpoint_prep_min */
     /* not clearing txn_checkpoint_prep_recent */
     /* not clearing txn_checkpoint_prep_total */
+    /* not clearing txn_checkpoint_prep_wait */
     /* not clearing txn_checkpoint_scrub_target */
     /* not clearing txn_checkpoint_scrub_time */
     /* not clearing txn_checkpoint_time_total */
@@ -2380,7 +2360,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->capacity_time_evict += WT_STAT_READ(from, capacity_time_evict);
     to->capacity_time_log += WT_STAT_READ(from, capacity_time_log);
     to->capacity_time_read += WT_STAT_READ(from, capacity_time_read);
-    to->cc_pages_read += WT_STAT_READ(from, cc_pages_read);
     to->cc_pages_evict += WT_STAT_READ(from, cc_pages_evict);
     to->cc_pages_removed += WT_STAT_READ(from, cc_pages_removed);
     to->cc_pages_walk_skipped += WT_STAT_READ(from, cc_pages_walk_skipped);
@@ -2700,6 +2679,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_checkpoint_prep_min += WT_STAT_READ(from, txn_checkpoint_prep_min);
     to->txn_checkpoint_prep_recent += WT_STAT_READ(from, txn_checkpoint_prep_recent);
     to->txn_checkpoint_prep_total += WT_STAT_READ(from, txn_checkpoint_prep_total);
+    to->txn_checkpoint_prep_wait += WT_STAT_READ(from, txn_checkpoint_prep_wait);
     to->txn_checkpoint_scrub_target += WT_STAT_READ(from, txn_checkpoint_scrub_target);
     to->txn_checkpoint_scrub_time += WT_STAT_READ(from, txn_checkpoint_scrub_time);
     to->txn_checkpoint_time_total += WT_STAT_READ(from, txn_checkpoint_time_total);
