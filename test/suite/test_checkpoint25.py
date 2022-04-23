@@ -52,10 +52,22 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         #('column', dict(key_format='r', value_format='S', extraconfig='')),
     ]
     name_values = [
-        ('named', dict(first_checkpoint='first_checkpoint')),
-        ('unnamed', dict(first_checkpoint=None)),
+        # Reopening and unnamed checkpoints will not work as intended because the reopen makes
+        # a new checkpoint.
+        ('named', dict(first_checkpoint='first_checkpoint', do_reopen=False)),
+        ('named_reopen', dict(first_checkpoint='first_checkpoint', do_reopen=True)),
+        ('unnamed', dict(first_checkpoint=None, do_reopen=False)),
     ]
-    scenarios = make_scenarios(format_values, name_values)
+    advance_oldest_values = [
+        ('no_advance_oldest', dict(advance_oldest=False)),
+        ('advance_oldest', dict(advance_oldest=True)),
+    ]
+    advance_stable_values = [
+        ('no_advance_stable', dict(advance_stable=False)),
+        ('advance_stable', dict(advance_stable=True)),
+    ]
+    scenarios = make_scenarios(
+        format_values, name_values, advance_oldest_values, advance_stable_values)
         
 
     def large_updates(self, uri, ds, nrows, value, ts):
@@ -150,6 +162,13 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
         # Take a checkpoint.
         self.do_checkpoint(self.first_checkpoint)
+
+        if self.advance_oldest:
+            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(20))
+        if self.advance_stable:
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
+        if self.do_reopen:
+            self.reopen_conn()
 
         # Read the checkpoint.
         nonzeros = nrows // 2

@@ -52,8 +52,11 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         #('column', dict(key_format='r', value_format='S', extraconfig='')),
     ]
     name_values = [
-        ('named', dict(first_checkpoint='first_checkpoint')),
-        ('unnamed', dict(first_checkpoint=None)),
+        # Reopening and unnamed checkpoints will not work as intended because the reopen makes
+        # a new checkpoint.
+        ('named', dict(first_checkpoint='first_checkpoint', do_reopen=False)),
+        ('named_reopen', dict(first_checkpoint='first_checkpoint', do_reopen=True)),
+        ('unnamed', dict(first_checkpoint=None, do_reopen=False)),
     ]
     scenarios = make_scenarios(format_values, name_values)
         
@@ -138,6 +141,9 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
         # Take a checkpoint.
         self.do_checkpoint(self.first_checkpoint)
+
+        if self.do_reopen:
+            self.reopen_conn()
 
         # Read the checkpoint.
         nonzeros = nrows // 2
