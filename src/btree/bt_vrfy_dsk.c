@@ -250,10 +250,10 @@ __verify_dsk_addr_page_del(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
     char time_string[WT_TIME_STRING_SIZE];
 
     /* The durable timestamp in the page_delete info should not be before its commit timestamp. */
-    if (unpack->page_del.durable_timestamp > unpack->page_del.timestamp)
+    if (unpack->page_del.durable_timestamp < unpack->page_del.timestamp)
         WT_RET_VRFY(session,
-          "fast-delete cell %" PRIu32 " on page at %s durable timestamp %" PRIu64
-          " after its commit timestamp %" PRIu64,
+          "fast-delete cell %" PRIu32 " on page at %s has durable timestamp %" PRIu64
+          " before its commit timestamp %" PRIu64,
           cell_num - 1, tag, unpack->page_del.durable_timestamp, unpack->page_del.timestamp);
 
     /*
