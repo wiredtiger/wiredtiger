@@ -317,13 +317,13 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         # It is unexpected if "ts" is before the "before" timestamp.
         # The "before" timestamp could be updated during this call
         # with value "before_arg", if not, use the global value for "before".
-        def expected_newer(expected, ts, before_arg, before_global, equalok):
+        def expected_newer(expected, ts, before_arg, before_global):
             if expected and ts >= 0:
                 if before_arg >= 0:
-                    if before_arg > ts or before_arg == ts and not equalok:
+                    if before_arg > ts:
                         expected = self.FAILURE
                 else:
-                    if before_global > ts or before_global == ts and not equalok:
+                    if before_global > ts:
                         expected = self.FAILURE
             return expected
 
@@ -337,11 +337,11 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         expected = self.SUCCESS
         # Oldest must be <= stable if stable is set.
         if oldest > 0 and stable < 0:
-            expected = expected_newer(expected, self.stable_ts, oldest, self.oldest_ts, True)
+            expected = expected_newer(expected, self.stable_ts, oldest, self.oldest_ts)
         # Stable must be >= oldest.
-        expected = expected_newer(expected, stable, oldest, self.oldest_ts, True)
-        # Durable must be > stable.
-        expected = expected_newer(expected, durable, stable, self.stable_ts, False)
+        expected = expected_newer(expected, stable, oldest, self.oldest_ts)
+        # Durable must be >= stable.
+        expected = expected_newer(expected, durable, stable, self.stable_ts)
 
         return expected
 

@@ -179,7 +179,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.conn.set_timestamp('durable_timestamp=' +
                 self.timestamp_str(7)),
-                '/durable timestamp .* must be after the stable timestamp/')
+                '/durable timestamp .* must not be before the stable timestamp/')
 
     # Check setting oldest timestamp without first setting stable.
     def test_timestamp_global_oldest_first(self):
@@ -219,7 +219,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.conn.set_timestamp('durable_timestamp=' +
                 self.timestamp_str(6)),
-                '/durable timestamp .* must be after the stable timestamp/')
+                '/durable timestamp .* must not be before the stable timestamp/')
 
         # Confirm durable can move both forward and backward, freely.
         self.conn.set_timestamp('durable_timestamp=' + self.timestamp_str(20))

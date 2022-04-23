@@ -386,13 +386,25 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
      * Second, we have a target timestamp state, check it doesn't violate constraints.
      *
      * The ordering constraints around durable and stable are fixed, once stable is set: you can set
-     * durable as you like until stable is also set, then any durable set must be before stable, but
-     * any previously existing value can be before or after the current stable.
+     * durable as you like until stable is also set, then any durable set must be equal to or after
+     * stable, but any previously existing value can be before or after the current stable, and as
+     * stable is not validated against durable when stable is set, there is never any relationship
+     * guaranteed between durable and stable.
+     *
+     * The requirement durable be equal to or after stable is historic and isn't necessary: durable
+     * is read-only for WiredTiger, it's the application's input into the all_durable query. The
+     * possibilities would be for WiredTiger to allow durable be set to any value the application
+     * likes, or to require durable be greater than stable, matching the per-transaction limits on
+     * setting the durable timestamp, but historic code enforced equal to or greater than stable,
+     * and we've left it alone to avoid requiring MongoDB server changes.
+     *
+     * If we ever change this to not enforce any particular relationship when durable is set, then
+     * there should be no reason to hold the global lock around setting it.
      */
-    if (set_durable_ts && stable_ts != 0 && durable_ts <= stable_ts) {
+    if (set_durable_ts && stable_ts != 0 && durable_ts < stable_ts) {
         __wt_writeunlock(session, &txn_global->rwlock);
         WT_RET_MSG(session, EINVAL,
-          "set_timestamp: durable timestamp %s must be after the stable timestamp %s",
+          "set_timestamp: durable timestamp %s must not be before the stable timestamp %s",
           __wt_timestamp_to_string(durable_ts, ts_string[0]),
           __wt_timestamp_to_string(stable_ts, ts_string[1]));
     }
