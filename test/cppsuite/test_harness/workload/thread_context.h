@@ -135,10 +135,8 @@ class thread_context {
      * Return true if the operation was successful, a return value of false implies the transaction
      * needs to be rolled back.
      */
-    bool insert(
-      scoped_cursor &cursor, uint64_t collection_id, uint64_t key_id);
-    bool insert(
-      scoped_cursor &cursor, uint64_t collection_id, const std::string &key);
+    bool insert(scoped_cursor &cursor, uint64_t collection_id, uint64_t key_id);
+    bool insert(scoped_cursor &cursor, uint64_t collection_id, const std::string &key);
 
     /*
      * Generic remove function, takes a collection_id and key and will delete the key if it exists.
