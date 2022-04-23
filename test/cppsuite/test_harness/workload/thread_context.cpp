@@ -220,13 +220,13 @@ bool
 thread_context::update(scoped_cursor &cursor, uint64_t collection_id, const std::string &key)
 {
     WT_DECL_RET;
-    std::string value;
-    wt_timestamp_t ts = tsm->get_next_ts();
+
     testutil_assert(tracking != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
+    wt_timestamp_t ts = tsm->get_next_ts();
     transaction.set_commit_timestamp(ts);
-    value = random_generator::instance().generate_pseudo_random_string(value_size);
+    std::string value = random_generator::instance().generate_pseudo_random_string(value_size);
     cursor->set_key(cursor.get(), key.c_str());
     cursor->set_value(cursor.get(), value.c_str());
     ret = cursor->update(cursor.get());
@@ -263,14 +263,14 @@ thread_context::insert(
   scoped_cursor &cursor, uint64_t collection_id, const std::string &key)
 {
     WT_DECL_RET;
-    std::string value;
+
     testutil_assert(tracking != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
     transaction.set_commit_timestamp(ts);
 
-    value = random_generator::instance().generate_pseudo_random_string(value_size);
+    std::string value = random_generator::instance().generate_pseudo_random_string(value_size);
 
     cursor->set_key(cursor.get(), key.c_str());
     cursor->set_value(cursor.get(), value.c_str());
