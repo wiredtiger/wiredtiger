@@ -1984,7 +1984,7 @@ methods = {
         WT_CONNECTION::query_timestamp to ignore durable timestamps after the specified
         value until the next durable timestamp moves the tracked durable timestamp forwards.
         This is only intended for use where the application is rolling back locally committed
-        transactions. The value must be after the current stable timestamp.  See @ref
+        transactions. The value must not be after the current stable timestamp.  See @ref
         timestamp_global_api'''),
     Config('force', 'false', r'''
         set the oldest and stable timestamps even if they violate normal ordering requirements,
