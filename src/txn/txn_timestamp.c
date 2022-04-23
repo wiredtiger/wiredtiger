@@ -411,7 +411,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * The ordering constraints around oldest and stable are strongly fixed, once stable is set: you
-     * can set oldest as you like until stable is also set, then oldest must be before stable.
+     * can set oldest as you like until stable is also set, then oldest must not be after stable.
      */
     if (stable_ts != 0 && oldest_ts > stable_ts) {
         __wt_writeunlock(session, &txn_global->rwlock);
