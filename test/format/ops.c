@@ -971,11 +971,8 @@ ops(void *arg)
             if (i < TV(OPS_PCT_DELETE)) {
                 op = REMOVE;
                 if (TV(OPS_TRUNCATE) && tinfo->ops > truncate_op) {
-                    /*
-                     * Limit test runs to a maximum of 2 truncation operations at a time, more than
-                     * that can lead to serious thrashing.
-                     */
-                    if (__wt_atomic_addv64(&g.truncate_cnt, 1) > 2)
+                    /* Limit test runs to a maximum of 4 truncation operations at a time. */
+                    if (__wt_atomic_addv64(&g.truncate_cnt, 1) > 4)
                         (void)__wt_atomic_subv64(&g.truncate_cnt, 1);
                     else
                         op = TRUNCATE;
@@ -1005,8 +1002,10 @@ ops(void *arg)
         /*
          * If the operation is a truncate, select a range.
          *
-         * Truncate up to 5% of the table. If the range overlaps the beginning/end of the table, set
-         * the key to 0 (the truncate function then sets a cursor to NULL so that code is tested).
+         * Truncate up to 2% of the table (keep truncate ranges relatively short so they complete
+         * without colliding with other operations, but still cross page boundaries. If the range
+         * overlaps the beginning/end of the table, set the key to 0 (the truncate function then
+         * sets a cursor to NULL so that code is tested).
          *
          * This gets tricky: there are 2 directions (truncating from lower keys to the current
          * position or from the current position to higher keys), and collation order (truncating
@@ -1015,7 +1014,7 @@ ops(void *arg)
         if (op == TRUNCATE) {
             tinfo->last = tinfo->keyno = mmrand(&tinfo->rnd, 1, (u_int)max_rows);
             greater_than = mmrand(&tinfo->rnd, 0, 1) == 1;
-            range = max_rows < 20 ? 0 : mmrand(&tinfo->rnd, 0, (u_int)max_rows / 20);
+            range = max_rows < 20 ? 0 : mmrand(&tinfo->rnd, 0, (u_int)max_rows / 50);
             if (greater_than) {
                 if (TV(BTREE_REVERSE)) {
                     if (tinfo->keyno <= range)
