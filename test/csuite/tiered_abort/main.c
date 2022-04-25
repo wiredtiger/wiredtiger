@@ -825,6 +825,16 @@ main(int argc, char *argv[])
     strcat(envconf, extconf);
     testutil_check(wiredtiger_open(home, NULL, envconf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    /*
+     * Call flush_tier after crash to run code to restart object copying. Then sleep for the
+     * interval to let the internal thread remove cached objects. By doing that we can then verify
+     * what objects are where.
+     */
+    testutil_check(session->flush_tier(session, "force=true"));
+    /* Sleep long enough to let the retention period expire and be noticed by the thread. */
+    sleep(LOCAL_RETENTION + INTERVAL + 1);
+    verify_tiered(session);
+
     /* Open a cursor on all the tables. */
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s:%s", table_pfx, uri_collection));
     testutil_check(session->open_cursor(session, buf, NULL, NULL, &cur_coll));
@@ -834,17 +844,6 @@ main(int argc, char *argv[])
     testutil_check(session->open_cursor(session, buf, NULL, NULL, &cur_local));
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s:%s", table_pfx, uri_oplog));
     testutil_check(session->open_cursor(session, buf, NULL, NULL, &cur_oplog));
-
-    /*
-     * Call flush_tier after crash to run code to restart object copying. Then sleep for the
-     * interval to let the internal thread remove cached objects. By doing that we can then verify
-     * what objects are where. No older objects should exist in the local database and all earlier
-     * objects should exist in the bucket.
-     */
-    testutil_check(session->flush_tier(session, "force=true"));
-    /* Sleep long enough to let the retention period expire and be noticed by the thread. */
-    sleep(LOCAL_RETENTION + INTERVAL + 1);
-    verify_tiered(session);
 
     /* Find the biggest stable timestamp value that was saved. */
     stable_val = 0;
