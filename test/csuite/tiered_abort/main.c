@@ -598,7 +598,8 @@ verify_tiered(WT_SESSION *session)
             last = (uint32_t)cval.val;
             testutil_check(__wt_config_getones((WT_SESSION_IMPL *)session, value, "oldest", &cval));
             oldest = (uint32_t)cval.val;
-            fprintf(stderr, "VERIFY_TIERED: %s last %" PRIu32 " oldest %" PRIu32 "\n", key, last, oldest);
+            fprintf(
+              stderr, "VERIFY_TIERED: %s last %" PRIu32 " oldest %" PRIu32 "\n", key, last, oldest);
             testutil_check(__wt_tiered_name_str(
               (WT_SESSION_IMPL *)session, key, last, WT_TIERED_NAME_ONLY, &name));
             testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, name));
@@ -616,7 +617,8 @@ verify_tiered(WT_SESSION *session)
                  * return that indicates the file exists, verify it is one of those tables.
                  */
                 if (i == last - 1 && ret == 0)
-                    testutil_assert(WT_PREFIX_MATCH(name, uri_local) || WT_PREFIX_MATCH(name, uri_oplog));
+                    testutil_assert(
+                      WT_PREFIX_MATCH(name, uri_local) || WT_PREFIX_MATCH(name, uri_oplog));
                 else
                     testutil_assert(ret != 0);
                 testutil_check(
