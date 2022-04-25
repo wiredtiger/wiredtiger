@@ -89,7 +89,7 @@ table_mirror_row_next(TABLE *table, WT_CURSOR *cursor, WT_ITEM *key, uint64_t *k
 static void
 table_mirror_fail_msg(WT_SESSION *session, const char *checkpoint, TABLE *base, uint64_t base_keyno,
   WT_ITEM *base_key, WT_ITEM *base_value, TABLE *table, uint64_t table_keyno, WT_ITEM *table_key,
-  WT_ITEM *table_value)
+  WT_ITEM *table_value, uint64_t last_match)
 {
     trace_msg(session,
       "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s}, %s: {%.*s}/{%.*s}%s%s%s\n",
@@ -99,6 +99,7 @@ table_mirror_fail_msg(WT_SESSION *session, const char *checkpoint, TABLE *base, 
       table->type == ROW ? (char *)table_key->data : "#", (int)table_value->size,
       (char *)table_value->data, checkpoint ? " (checkpoint" : "", checkpoint ? checkpoint : "",
       checkpoint ? ")" : "");
+    trace_msg(session, "last successful match was %" PRIu64 "\n", last_match);
     fprintf(stderr,
       "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s}, %s: {%.*s}/{%.*s}%s%s%s\n",
       base_keyno, table_keyno, base->uri, base->type == ROW ? (int)base_key->size : 1,
@@ -107,6 +108,7 @@ table_mirror_fail_msg(WT_SESSION *session, const char *checkpoint, TABLE *base, 
       table->type == ROW ? (char *)table_key->data : "#", (int)table_value->size,
       (char *)table_value->data, checkpoint ? " (checkpoint" : "", checkpoint ? checkpoint : "",
       checkpoint ? ")" : "");
+    fprintf(stderr, "last successful match was %" PRIu64 "\n", last_match);
 }
 
 /*
@@ -144,7 +146,7 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
     WT_CURSOR *base_cursor, *table_cursor;
     WT_ITEM base_key, base_value, table_key, table_value;
     WT_SESSION *session;
-    uint64_t base_keyno, table_keyno, rows;
+    uint64_t base_keyno, last_match, table_keyno, rows;
     uint8_t base_bitv, table_bitv;
     u_int failures;
     int base_ret, table_ret;
@@ -153,6 +155,7 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
     base_keyno = table_keyno = 0;             /* -Wconditional-uninitialized */
     base_bitv = table_bitv = FIX_VALUE_WRONG; /* -Wconditional-uninitialized */
     base_ret = table_ret = 0;
+    last_match = 0;
 
     memset(&sap, 0, sizeof(sap));
     wiredtiger_open_session(conn, &sap, NULL, &session);
@@ -262,7 +265,7 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
             if (base_keyno != table_keyno || base_value.size != table_value.size ||
               memcmp(base_value.data, table_value.data, base_value.size) != 0) {
                 table_mirror_fail_msg(session, checkpoint, base, base_keyno, &base_key, &base_value,
-                  table, table_keyno, &table_key, &table_value);
+                  table, table_keyno, &table_key, &table_value, last_match);
 
                 /* Dump the cursor pages for the first failure. */
                 if (++failures == 1) {
@@ -281,6 +284,7 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
         /* Report progress (unless verifying checkpoints which happens during live operations). */
         if (checkpoint == NULL && ((rows < 5000 && rows % 10 == 0) || rows % 5000 == 0))
             track(buf, rows);
+        last_match = base_keyno;
     }
     testutil_assert(failures == 0);
 
