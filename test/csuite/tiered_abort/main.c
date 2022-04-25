@@ -591,7 +591,8 @@ verify_tiered(WT_SESSION *session)
             /*
              * We have a top level entry for a tiered table. Get its configuration string and find
              * the last id allocated (that should be in the local directory) and all others down to
-             * oldest should only exist in the bucket directory.
+             * oldest should exist in the bucket directory. With minor exceptions, objects in the
+             * bucket directory should be removed from the local directory.
              */
             testutil_check(metac->get_value(metac, &value));
             testutil_check(__wt_config_getones((WT_SESSION_IMPL *)session, value, "last", &cval));
@@ -602,11 +603,18 @@ verify_tiered(WT_SESSION *session)
               stderr, "VERIFY_TIERED: %s last %" PRIu32 " oldest %" PRIu32 "\n", key, last, oldest);
             testutil_check(__wt_tiered_name_str(
               (WT_SESSION_IMPL *)session, key, last, WT_TIERED_NAME_ONLY, &name));
+            /* Verify the latest object is in the local directory. */
             testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, name));
             ret = stat(buf, &sb);
             testutil_assert(ret == 0);
+            /* Verify the latest object is not in the bucket directory. */
+            testutil_check(
+              __wt_snprintf(buf, sizeof(buf), "%s/%s/%s%s", home, BUCKET, BUCKET_PFX, name));
+            ret = stat(buf, &sb);
+            testutil_assert(ret != 0);
             free((void *)name);
             for (i = oldest; i < last; ++i) {
+                /* Verify earlier objects and their existence in the local directory. */
                 testutil_check(__wt_tiered_name_str(
                   (WT_SESSION_IMPL *)session, key, i, WT_TIERED_NAME_ONLY, &name));
                 testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, name));
@@ -621,6 +629,7 @@ verify_tiered(WT_SESSION *session)
                       WT_PREFIX_MATCH(name, uri_local) || WT_PREFIX_MATCH(name, uri_oplog));
                 else
                     testutil_assert(ret != 0);
+                /* Verify earlier objects exist in the bucket directory. */
                 testutil_check(
                   __wt_snprintf(buf, sizeof(buf), "%s/%s/%s%s", home, BUCKET, BUCKET_PFX, name));
                 ret = stat(buf, &sb);
