@@ -429,7 +429,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 
     /* Try to move the pinned timestamp forward. */
     if (strict)
-        WT_RET(__wt_txn_update_pinned_timestamp(session, false));
+        __wt_txn_update_pinned_timestamp(session, false);
 
     /*
      * For pure read-only workloads, or if the update isn't forced and the oldest ID isn't too far
@@ -831,7 +831,7 @@ done:
  * __txn_timestamp_usage_check --
  *     Check if a commit will violate timestamp rules.
  */
-static inline void
+static inline int
 __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *upd)
 {
     WT_BTREE *btree;
@@ -848,33 +848,25 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
     name = btree->dhandle->name;
     txn_has_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_DURABLE);
 
-    /* Skip timestamp usage checks unless both assert and usage configurations are set. */
-    if (!LF_ISSET(WT_DHANDLE_TS_ASSERT_WRITE))
-        return;
-    if (!LF_ISSET(WT_DHANDLE_TS_ALWAYS | WT_DHANDLE_TS_MIXED_MODE | WT_DHANDLE_TS_NEVER |
-          WT_DHANDLE_TS_ORDERED))
-        return;
+    /*
+     * Skip timestamp usage checks unless a usage configuration is set.
+     *
+     * FIXME: WT-9055 Once WT-9055 goes in, there are no more cases where usage configurations are
+     * not set, as ordered will be the default.
+     */
+    if (!LF_ISSET(WT_DHANDLE_TS_MIXED_MODE | WT_DHANDLE_TS_NEVER | WT_DHANDLE_TS_ORDERED))
+        return (0);
 
     /* Timestamps are ignored on logged files. */
     if (F_ISSET(btree, WT_BTREE_LOGGED))
-        return;
+        return (0);
 
     /*
      * Do not check for timestamp usage in recovery. We don't expect recovery to be using timestamps
      * when applying commits, and it is possible that timestamps may be out of order in log replay.
      */
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
-        return;
-
-    /* Check for required timestamps. */
-    if (LF_ISSET(WT_DHANDLE_TS_ALWAYS) && !txn_has_ts && txn->mod_count != 0) {
-        __wt_err(session, EINVAL,
-          "%s: " WT_TS_VERBOSE_PREFIX "timestamp required by table configuration and none set",
-          name);
-#ifdef HAVE_DIAGNOSTIC
-        __wt_abort(session);
-#endif
-    }
+        return (0);
 
     op_ts = upd->start_ts != WT_TS_NONE ? upd->start_ts : txn->commit_timestamp;
 
@@ -885,6 +877,9 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
           name, __wt_timestamp_to_string(op_ts, ts_string[0]));
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
+#endif
+#ifdef WT_STANDALONE_BUILD
+        return (EINVAL);
 #endif
     }
 
@@ -899,6 +894,9 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
           name);
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
+#endif
+#ifdef WT_STANDALONE_BUILD
+        return (EINVAL);
 #endif
     }
 
@@ -915,7 +913,12 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
+#ifdef WT_STANDALONE_BUILD
+        return (EINVAL);
+#endif
     }
+
+    return (0);
 }
 
 /*
@@ -1255,7 +1258,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
     /* A prepared operation that is rolled back will not have a timestamp worth asserting on. */
     if (commit)
-        __txn_timestamp_usage_check(session, op, upd);
+        WT_RET(__txn_timestamp_usage_check(session, op, upd));
 
     for (first_committed_upd = upd; first_committed_upd != NULL &&
          (first_committed_upd->txnid == WT_TXN_ABORTED ||
@@ -1607,7 +1610,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                     break;
 
                 __wt_txn_op_set_timestamp(session, op);
-                __txn_timestamp_usage_check(session, op, upd);
+                WT_ERR(__txn_timestamp_usage_check(session, op, upd));
             } else {
                 /*
                  * If an operation has the key repeated flag set, skip resolving prepared updates as
@@ -1663,7 +1666,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         if (op->type == WT_TXN_OP_REF_DELETE) {
             WT_REF_LOCK(session, op->u.ref, &previous_state);
             if (previous_state == WT_REF_DELETED)
-                op->u.ref->ft_info.del->committed = 1;
+                op->u.ref->ft_info.del->committed = true;
             else
                 __wt_free(session, op->u.ref->ft_info.update);
             WT_REF_UNLOCK(op->u.ref, previous_state);
@@ -2029,7 +2032,6 @@ int
 __wt_txn_rollback_required(WT_SESSION_IMPL *session, const char *reason)
 {
     session->txn->rollback_reason = reason;
-    __wt_verbose_debug(session, WT_VERB_TRANSACTION, "Rollback reason: %s", reason);
     return (WT_ROLLBACK);
 }
 
@@ -2060,6 +2062,102 @@ __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
 
     txn->isolation = session_ret->isolation;
     return (0);
+}
+
+/*
+ * __wt_txn_init_checkpoint_cursor --
+ *     Create a transaction object for a checkpoint cursor. On success, takes charge of the snapshot
+ *     array passed down, which should have been allocated separately, and nulls the pointer. (On
+ *     failure, the caller must destroy it.)
+ */
+int
+__wt_txn_init_checkpoint_cursor(
+  WT_SESSION_IMPL *session, WT_CKPT_SNAPSHOT *snapinfo, WT_TXN **txn_ret)
+{
+    WT_TXN *txn;
+
+    /*
+     * Allocate the WT_TXN structure. Don't use the variable-length array at the end, because the
+     * code for reading the snapshot allocates the snapshot list itself; copying it serves no
+     * purpose, and twisting up the read code to allow controlling the allocation from here is not
+     * worthwhile.
+     *
+     * Allocate a byte at the end so that __snapshot (at the end of the struct) doesn't point at an
+     * adjacent malloc block; we'd like to be able to assert that in checkpoint cursor transactions
+     * snapshot doesn't point at __snapshot, to make sure an ordinary transaction doesn't flow to
+     * the checkpoint cursor close function. If an adjacent malloc block, that might not be true.
+     */
+    WT_RET(__wt_calloc(session, 1, sizeof(WT_TXN) + 1, &txn));
+
+    /* We have no transaction ID and won't gain one, being read-only. */
+    txn->id = WT_TXN_NONE;
+
+    /* Use snapshot isolation. */
+    txn->isolation = WT_ISO_SNAPSHOT;
+
+    /* Save the snapshot data. */
+    txn->snap_min = snapinfo->snapshot_min;
+    txn->snap_max = snapinfo->snapshot_max;
+    txn->snapshot = snapinfo->snapshot_txns;
+    txn->snapshot_count = snapinfo->snapshot_count;
+
+    /*
+     * At this point we have taken charge of the snapshot's transaction list; it has been moved to
+     * the dummy transaction. Null the caller's copy so it doesn't get freed twice if something
+     * above us fails after we return.
+     */
+    snapinfo->snapshot_txns = NULL;
+
+    /* Set the read timestamp.  */
+    txn->checkpoint_read_timestamp = snapinfo->stable_ts;
+
+    /* Set the flag that indicates if we have a timestamp. */
+    if (txn->checkpoint_read_timestamp != WT_TS_NONE)
+        F_SET(txn, WT_TXN_SHARED_TS_READ);
+
+    /*
+     * Set other relevant flags. Always ignore prepared values; they can get into checkpoints.
+     *
+     * Prepared values don't get written out by checkpoints by default, but can appear if pages get
+     * evicted. So whether any given prepared value from any given prepared but yet-uncommitted
+     * transaction shows up or not is arbitrary and unpredictable. Therefore, failing on it serves
+     * no data integrity purpose and will only make the system flaky.
+     *
+     * There is a problem, however. Prepared transactions are allowed to commit before stable if
+     * stable moves forward, as long as the durable timestamp is after stable. Such transactions can
+     * therefore be committed after (in execution time) the checkpoint is taken but with a commit
+     * timestamp less than the checkpoint's stable timestamp. They will then exist in the live
+     * database and be visible if read as of the checkpoint timestamp, but not exist in the
+     * checkpoint, which is inconsistent. There is probably nothing that can be done about this
+     * without making prepared transactions durable in prepared state, which is a Big Deal, so
+     * applications using prepared transactions and using this commit leeway need to be cognizant of
+     * the issue.
+     */
+    F_SET(txn,
+      WT_TXN_HAS_SNAPSHOT | WT_TXN_IS_CHECKPOINT | WT_TXN_READONLY | WT_TXN_RUNNING |
+        WT_TXN_IGNORE_PREPARE);
+
+    *txn_ret = txn;
+    return (0);
+}
+
+/*
+ * __wt_txn_close_checkpoint_cursor --
+ *     Dispose of the private transaction object in a checkpoint cursor.
+ */
+void
+__wt_txn_close_checkpoint_cursor(WT_SESSION_IMPL *session, WT_TXN **txn_arg)
+{
+    WT_TXN *txn;
+
+    txn = *txn_arg;
+    *txn_arg = NULL;
+
+    /* The snapshot list isn't at the end of the transaction structure here; free it explicitly. */
+    WT_ASSERT(session, txn->snapshot != txn->__snapshot);
+    __wt_free(session, txn->snapshot);
+
+    __wt_free(session, txn);
 }
 
 /*
@@ -2096,13 +2194,14 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     WT_STAT_SET(session, stats, txn_pinned_timestamp_oldest,
       durable_timestamp - txn_global->oldest_timestamp);
 
-    if (__wt_txn_get_pinned_timestamp(session, &oldest_active_read_timestamp, 0) == 0) {
+    __wt_txn_get_pinned_timestamp(session, &oldest_active_read_timestamp, 0);
+    if (oldest_active_read_timestamp == 0) {
+        WT_STAT_SET(session, stats, txn_timestamp_oldest_active_read, 0);
+        WT_STAT_SET(session, stats, txn_pinned_timestamp_reader, 0);
+    } else {
         WT_STAT_SET(session, stats, txn_timestamp_oldest_active_read, oldest_active_read_timestamp);
         WT_STAT_SET(session, stats, txn_pinned_timestamp_reader,
           durable_timestamp - oldest_active_read_timestamp);
-    } else {
-        WT_STAT_SET(session, stats, txn_timestamp_oldest_active_read, 0);
-        WT_STAT_SET(session, stats, txn_pinned_timestamp_reader, 0);
     }
 
     WT_STAT_SET(session, stats, txn_pinned_checkpoint_range,

@@ -113,6 +113,8 @@ struct __wt_cell_unpack_kv;
 typedef struct __wt_cell_unpack_kv WT_CELL_UNPACK_KV;
 struct __wt_ckpt;
 typedef struct __wt_ckpt WT_CKPT;
+struct __wt_ckpt_snapshot;
+typedef struct __wt_ckpt_snapshot WT_CKPT_SNAPSHOT;
 struct __wt_col;
 typedef struct __wt_col WT_COL;
 struct __wt_col_fix_auxiliary_header;
@@ -380,9 +382,7 @@ typedef uint64_t wt_timestamp_t;
 /*******************************************
  * WiredTiger internal include files.
  *******************************************/
-#if defined(_lint)
-#include "lint.h"
-#elif defined(__GNUC__)
+#if defined(__GNUC__)
 #include "gcc.h"
 #elif defined(_MSC_VER)
 #include "msvc.h"
