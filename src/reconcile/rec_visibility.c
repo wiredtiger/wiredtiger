@@ -745,6 +745,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         /*
          * The total update size only contains uncommitted updates. Add the size for the rest of the
          * chain.
+         *
+         * FIXME-WT-9182: figure out what should be included in the calculation of the size of the
+         * saved update chains.
          */
         if (onpage_upd != NULL) {
             for (upd = tombstone != NULL ? tombstone : onpage_upd; upd != NULL; upd = upd->next)
