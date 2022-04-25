@@ -598,12 +598,11 @@ verify_tiered(WT_SESSION *session)
             last = (uint32_t)cval.val;
             testutil_check(__wt_config_getones((WT_SESSION_IMPL *)session, value, "oldest", &cval));
             oldest = (uint32_t)cval.val;
+            fprintf(stderr, "VERIFY_TIERED: %s last %" PRIu32 " oldest %" PRIu32 "\n", key, last, oldest);
             testutil_check(__wt_tiered_name_str(
               (WT_SESSION_IMPL *)session, key, last, WT_TIERED_NAME_ONLY, &name));
             testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, name));
             ret = stat(buf, &sb);
-            fprintf(stderr, "VERIFY_TIERED: last %d oldest %d most recent: %s ret(0) %d\n",
-              (int)last, (int)oldest, buf, ret);
             testutil_assert(ret == 0);
             free((void *)name);
             for (i = oldest; i < last; ++i) {
@@ -831,9 +830,7 @@ main(int argc, char *argv[])
      * what objects are where. No older objects should exist in the local database and all earlier
      * objects should exist in the bucket.
      */
-    fprintf(stderr, "============== Call flush tier ============\n");
     testutil_check(session->flush_tier(session, "force=true"));
-    fprintf(stderr, "============== Done flush tier ============\n");
     /* Sleep long enough to let the retention period expire and be noticed by the thread. */
     sleep(LOCAL_RETENTION + INTERVAL + 1);
     verify_tiered(session);
