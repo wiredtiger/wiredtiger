@@ -109,8 +109,7 @@ static uint32_t flush_calls = 1;
     ",eviction_dirty_target=20,eviction_dirty_trigger=90" \
     ",transaction_sync=(enabled,method=none)"
 /* Set the flush_checkpoint debug mode so that the parent can call flush_tier alone. */
-#define ENV_CONFIG_REC \
-    "log=(recover=on,remove=false),debug_mode=(flush_checkpoint)"
+#define ENV_CONFIG_REC "log=(recover=on,remove=false),debug_mode=(flush_checkpoint)"
 
 /*
  * A minimum width of 10, along with zero filling, means that all the keys sort according to their
@@ -613,7 +612,15 @@ verify_tiered(WT_SESSION *session)
                 testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, name));
                 ret = stat(buf, &sb);
                 fprintf(stderr, "VERIFY_TIERED: object: %s local ret(-1) %d\n", buf, ret);
-                testutil_assert(ret != 0);
+                /*
+                 * Logged tables, i.e. "oplog" or "local" may be unable to remove the last object
+                 * from before the restart due to recovery applying log records. So if we get a stat
+                 * return that indicates the file exists, verify it is one of those tables.
+                 */
+                if (i == last - 1 && ret == 0)
+                    testutil_assert(WT_PREFIX_MATCH(name, uri_local) || WT_PREFIX_MATCH(name, uri_oplog));
+                else
+                    testutil_assert(ret != 0);
                 testutil_check(
                   __wt_snprintf(buf, sizeof(buf), "%s/%s/%s%s", home, BUCKET, BUCKET_PFX, name));
                 ret = stat(buf, &sb);
@@ -829,8 +836,8 @@ main(int argc, char *argv[])
     fprintf(stderr, "============== Call flush tier ============\n");
     testutil_check(session->flush_tier(session, "force=true"));
     fprintf(stderr, "============== Done flush tier ============\n");
-    sleep(LOCAL_RETENTION + 1);
-    fprintf(stderr, "============== Done sleep %d. Verify ============\n", LOCAL_RETENTION + 1);
+    /* Sleep long enough to let the retention period expire and be noticed by the thread. */
+    sleep(LOCAL_RETENTION + INTERVAL + 1);
     verify_tiered(session);
 
     /* Find the biggest stable timestamp value that was saved. */
