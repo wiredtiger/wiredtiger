@@ -611,7 +611,6 @@ verify_tiered(WT_SESSION *session)
                   (WT_SESSION_IMPL *)session, key, i, WT_TIERED_NAME_ONLY, &name));
                 testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, name));
                 ret = stat(buf, &sb);
-                fprintf(stderr, "VERIFY_TIERED: object: %s local ret(-1) %d\n", buf, ret);
                 /*
                  * Logged tables, i.e. "oplog" or "local" may be unable to remove the last object
                  * from before the restart due to recovery applying log records. So if we get a stat
@@ -624,7 +623,6 @@ verify_tiered(WT_SESSION *session)
                 testutil_check(
                   __wt_snprintf(buf, sizeof(buf), "%s/%s/%s%s", home, BUCKET, BUCKET_PFX, name));
                 ret = stat(buf, &sb);
-                fprintf(stderr, "VERIFY_TIERED: object: %s bucket ret(0) %d\n", buf, ret);
                 testutil_assert(ret == 0);
                 free((void *)name);
             }
