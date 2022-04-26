@@ -614,7 +614,7 @@ verify_tiered(WT_SESSION *session)
             testutil_assert(ret != 0);
             free((void *)name);
             for (i = oldest; i < last; ++i) {
-                /* Verify earlier objects and their existence in the local directory. */
+                /* Verify earlier objects and their (lack of) existence in the local directory. */
                 testutil_check(__wt_tiered_name_str(
                   (WT_SESSION_IMPL *)session, key, i, WT_TIERED_NAME_ONLY, &name));
                 testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, name));
