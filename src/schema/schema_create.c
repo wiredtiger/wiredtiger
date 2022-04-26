@@ -980,8 +980,10 @@ __schema_create_config_check(
      * If tiered storage is configured at the connection level and the user has not configured
      * tiered_storage.name to be none, then the object being created is a tiered object.
      */
-    tiered_name = __wt_config_getones(session, config, "tiered_storage.name", &cval) == 0 && cval.len != 0;
-    is_tiered = S2C(session)->bstorage != NULL && (!tiered_name || !WT_STRING_MATCH("none", cval.str, cval.len));
+    tiered_name =
+      __wt_config_getones(session, config, "tiered_storage.name", &cval) == 0 && cval.len != 0;
+    is_tiered = S2C(session)->bstorage != NULL &&
+      (!tiered_name || !WT_STRING_MATCH("none", cval.str, cval.len));
 
     /*
      * If the type configuration is set to anything else but "file" while using tiered storage we
