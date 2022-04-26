@@ -92,7 +92,7 @@ table_mirror_fail_msg(WT_SESSION *session, const char *checkpoint, TABLE *base, 
   WT_ITEM *table_value, uint64_t last_match)
 {
     trace_msg(session,
-      "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s}, %s: {%.*s}/{%.*s}%s%s%s\n",
+      "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s}, %s: {%.*s}/{%.*s} %s%s%s\n",
       base_keyno, table_keyno, base->uri, base->type == ROW ? (int)base_key->size : 1,
       base->type == ROW ? (char *)base_key->data : "#", (int)base_value->size,
       (char *)base_value->data, table->uri, table->type == ROW ? (int)table_key->size : 1,
@@ -101,7 +101,7 @@ table_mirror_fail_msg(WT_SESSION *session, const char *checkpoint, TABLE *base, 
       checkpoint ? ")" : "");
     trace_msg(session, "last successful match was %" PRIu64 "\n", last_match);
     fprintf(stderr,
-      "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s}, %s: {%.*s}/{%.*s}%s%s%s\n",
+      "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s}, %s: {%.*s}/{%.*s} %s%s%s\n",
       base_keyno, table_keyno, base->uri, base->type == ROW ? (int)base_key->size : 1,
       base->type == ROW ? (char *)base_key->data : "#", (int)base_value->size,
       (char *)base_value->data, table->uri, table->type == ROW ? (int)table_key->size : 1,
@@ -122,13 +122,13 @@ table_mirror_fail_msg_flcs(WT_SESSION *session, const char *checkpoint, TABLE *b
 {
     testutil_assert(table->type == FIX);
     trace_msg(session,
-      "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s} [%#x], %s: {#}/{%#x}%s%s%s\n",
+      "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s} [%#x], %s: {#}/{%#x} %s%s%s\n",
       base_keyno, table_keyno, base->uri, base->type == ROW ? (int)base_key->size : 1,
       base->type == ROW ? (char *)base_key->data : "#", (int)base_value->size,
       (char *)base_value->data, base_bitv, table->uri, table_bitv, checkpoint ? " (checkpoint" : "",
       checkpoint ? checkpoint : "", checkpoint ? ")" : "");
     fprintf(stderr,
-      "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s} [%#x], %s: {#}/{%#x}%s%s%s\n",
+      "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s} [%#x], %s: {#}/{%#x} %s%s%s\n",
       base_keyno, table_keyno, base->uri, base->type == ROW ? (int)base_key->size : 1,
       base->type == ROW ? (char *)base_key->data : "#", (int)base_value->size,
       (char *)base_value->data, base_bitv, table->uri, table_bitv, checkpoint ? " (checkpoint" : "",
