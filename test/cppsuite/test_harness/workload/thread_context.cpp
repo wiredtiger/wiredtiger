@@ -115,7 +115,7 @@ transaction_context::commit(const std::string &config)
     ret = _session->commit_transaction(_session, config.empty() ? nullptr : config.c_str());
     /*
      * FIXME-WT-9198
-     * Now we are accepting the error code EINVAL, we want to make sure this is due to invalid
+     * Now we are accepting the error code EINVAL because of possible invalid
      * timestamps as we know it can happen due to the nature of the framework. The framework may
      * set the stable/oldest timestamps to a more recent date than the commit timestamp of the
      * transaction which makes the transaction invalid. We only need to check against the stable
