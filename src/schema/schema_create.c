@@ -962,19 +962,15 @@ __create_data_source(
 }
 
 /*
- * __schema_create --
- *     Process a WT_SESSION::create operation for all supported types.
+ * __schema_create_config_check --
+ *     Detects any invalid config combinations for schema create.
  */
 static int
-__schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
+__schema_create_config_check(
+  WT_SESSION_IMPL *session, const char *uri, const char *config, bool import)
 {
     WT_CONFIG_ITEM cval;
-    WT_DATA_SOURCE *dsrc;
-    WT_DECL_RET;
-    bool exclusive, import, is_tiered;
-
-    exclusive = __wt_config_getones(session, config, "exclusive", &cval) == 0 && cval.val != 0;
-    import = __wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0;
+    bool is_tiered, tiered_name;
 
     if (import && !WT_PREFIX_MATCH(uri, "file:") && !WT_PREFIX_MATCH(uri, "table:"))
         WT_RET_MSG(session, ENOTSUP,
@@ -984,18 +980,37 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
      * If tiered storage is configured at the connection level and the user has not configured
      * tiered_storage.name to be none, then the object being created is a tiered object.
      */
-    is_tiered = S2C(session)->bstorage != NULL &&
-      !((ret = __wt_config_getones(session, config, "tiered_storage.name", &cval)) == 0 &&
-        cval.len != 0 && WT_STRING_MATCH("none", cval.str, cval.len));
+    tiered_name = __wt_config_getones(session, config, "tiered_storage.name", &cval) == 0 && cval.len != 0;
+    is_tiered = S2C(session)->bstorage != NULL && (!tiered_name || !WT_STRING_MATCH("none", cval.str, cval.len));
 
     /*
      * If the type configuration is set to anything else but "file" while using tiered storage we
      * must fail the operation.
      */
-    if (is_tiered && (ret = __wt_config_getones(session, config, "type", &cval)) == 0 &&
+    if (is_tiered && __wt_config_getones(session, config, "type", &cval) == 0 &&
       !WT_STRING_MATCH("file", cval.str, cval.len))
         WT_RET_MSG(
           session, ENOTSUP, "unsupported type configuration: type must be file for tiered storage");
+
+    return (0);
+}
+
+/*
+ * __schema_create --
+ *     Process a WT_SESSION::create operation for all supported types.
+ */
+static int
+__schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DATA_SOURCE *dsrc;
+    WT_DECL_RET;
+    bool exclusive, import;
+
+    exclusive = __wt_config_getones(session, config, "exclusive", &cval) == 0 && cval.val != 0;
+    import = __wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0;
+
+    WT_RET(__schema_create_config_check(session, uri, config, import));
 
     /*
      * We track create operations: if we fail in the middle of creating a complex object, we want to
