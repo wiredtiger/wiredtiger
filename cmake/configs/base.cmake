@@ -276,7 +276,7 @@ if(WT_WIN)
     endif()
 endif()
 
-if(NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Release")
+if(NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Release" AND NOT "${CMAKE_BUILD_TYPE}" STREQUAL "RelWithDebInfo")
     # Don't use the optimization level if we have specified a release config.
     # CMakes Release config sets compilation to the highest optimization level
     # by default.
