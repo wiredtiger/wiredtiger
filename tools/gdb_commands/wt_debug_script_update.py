@@ -2,6 +2,12 @@ import gdb
 import bson
 from pprint import pprint
 
+# Usage examples:
+# coll_dh = get_data_handle(conn, 'file:collection-5550--7194480883124807592.wt')
+# dump_handle(coll_dh)
+# index_dh = get_data_handle(conn, 'file:index-5558--7194480883124807592.wt')
+# dump_handle(index_dh)
+
 def dbg(ident, var):
     print('----------')
     if type(var) == gdb.Value:
@@ -142,8 +148,3 @@ def dump_handle(dhandle):
     #dbg('leaf', leaf_page)
     dump_disk(leaf_page)
     dump_modified(leaf_page)
-
-coll_dh = get_data_handle(conn, 'file:collection-5550--7194480883124807592.wt')
-dump_handle(coll_dh)
-index_dh = get_data_handle(conn, 'file:index-5558--7194480883124807592.wt')
-dump_handle(index_dh)

@@ -1,3 +1,6 @@
+# A helper script to dump row store internal page keys.
+# Usage: dump_row_int_keys <page>
+
 # Dump keys from a row store internal page.
 # Has one argument which is the page.
 define dump_row_int_keys
