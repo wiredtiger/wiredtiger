@@ -64,14 +64,15 @@ struct __wt_cursor_backup {
 #define WT_CURBACKUP_CKPT_FAKE 0x001u   /* Object has fake checkpoint */
 #define WT_CURBACKUP_CONSOLIDATE 0x002u /* Consolidate returned info on this object */
 #define WT_CURBACKUP_DUP 0x004u         /* Duplicated backup cursor */
-#define WT_CURBACKUP_FORCE_FULL 0x008u  /* Force full file copy for this cursor */
-#define WT_CURBACKUP_FORCE_STOP 0x010u  /* Force stop incremental backup */
-#define WT_CURBACKUP_HAS_CB_INFO 0x020u /* Object has checkpoint backup info */
-#define WT_CURBACKUP_INCR 0x040u        /* Incremental backup cursor */
-#define WT_CURBACKUP_INCR_INIT 0x080u   /* Cursor traversal initialized */
-#define WT_CURBACKUP_LOCKER 0x100u      /* Hot-backup started */
-#define WT_CURBACKUP_QUERYID 0x200u     /* Backup cursor for incremental ids */
-#define WT_CURBACKUP_RENAME 0x400u      /* Object had a rename */
+#define WT_CURBACKUP_EXPORT 0x008u      /* Special backup cursor for export operation */
+#define WT_CURBACKUP_FORCE_FULL 0x010u  /* Force full file copy for this cursor */
+#define WT_CURBACKUP_FORCE_STOP 0x020u  /* Force stop incremental backup */
+#define WT_CURBACKUP_HAS_CB_INFO 0x040u /* Object has checkpoint backup info */
+#define WT_CURBACKUP_INCR 0x080u        /* Incremental backup cursor */
+#define WT_CURBACKUP_INCR_INIT 0x100u   /* Cursor traversal initialized */
+#define WT_CURBACKUP_LOCKER 0x200u      /* Hot-backup started */
+#define WT_CURBACKUP_QUERYID 0x400u     /* Backup cursor for incremental ids */
+#define WT_CURBACKUP_RENAME 0x800u      /* Object had a rename */
                                         /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
@@ -196,6 +197,17 @@ struct __wt_cursor_btree {
     WT_UPDATE_VALUE *upd_value, _upd_value;
 
     /*
+     * Bits used by checkpoint cursor: a private transaction, used to provide the proper read
+     * snapshot; a reference to the corresponding history store checkpoint, which keeps it from
+     * disappearing under us if it's unnamed and also tracks its identity for use in history store
+     * accesses; and a write generation, used to override the tree's base write generation in the
+     * unpacking cleanup code.
+     */
+    WT_TXN *checkpoint_txn;
+    WT_DATA_HANDLE *checkpoint_hs_dhandle;
+    uint64_t checkpoint_write_gen;
+
+    /*
      * Fixed-length column-store items are a single byte, and it's simpler and cheaper to allocate
      * the space for it now than keep checking to see if we need to grow the buffer.
      */
@@ -223,11 +235,9 @@ struct __wt_cursor_btree {
 #define WT_CBT_ITERATE_PREV 0x010u       /* Prev iteration configuration */
 #define WT_CBT_ITERATE_RETRY_NEXT 0x020u /* Prepare conflict by next. */
 #define WT_CBT_ITERATE_RETRY_PREV 0x040u /* Prepare conflict by prev. */
-#define WT_CBT_NO_TRACKING 0x080u        /* Non tracking cursor. */
-#define WT_CBT_NO_TXN 0x100u             /* Non-txn cursor (e.g. a checkpoint) */
-#define WT_CBT_READ_ONCE 0x200u          /* Page in with WT_READ_WONT_NEED */
-#define WT_CBT_SEARCH_SMALLEST 0x400u    /* Row-store: small-key insert list */
-#define WT_CBT_VAR_ONPAGE_MATCH 0x800u   /* Var-store: on-page recno match */
+#define WT_CBT_READ_ONCE 0x080u          /* Page in with WT_READ_WONT_NEED */
+#define WT_CBT_SEARCH_SMALLEST 0x100u    /* Row-store: small-key insert list */
+#define WT_CBT_VAR_ONPAGE_MATCH 0x200u   /* Var-store: on-page recno match */
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 #define WT_CBT_POSITION_MASK /* Flags associated with position */                      \

@@ -823,9 +823,6 @@ struct __wt_session {
 	 *
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.flush_tier, see dist/api_data.py}
-	 * @config{flush_timestamp, flush objects to all storage sources using the specified
-	 * timestamp.  The value must not be older than the current oldest timestamp and it must not
-	 * be newer than the stable timestamp., a string; default empty.}
 	 * @config{force, force sharing of all data., a boolean flag; default \c false.}
 	 * @config{lock_wait, wait for locks\, if \c lock_wait=false\, fail if any required locks
 	 * are not available immediately., a boolean flag; default \c true.}
@@ -911,8 +908,8 @@ struct __wt_session {
 	 * Bulk-loaded bitmap values must end on a byte boundary relative to the bit count (except
 	 * for the last set of values loaded)., a string; default \c false.}
 	 * @config{checkpoint, the name of a checkpoint to open (the reserved name
-	 * "WiredTigerCheckpoint" opens the most recent internal checkpoint taken for the object).
-	 * The cursor does not support data modification., a string; default empty.}
+	 * "WiredTigerCheckpoint" opens the most recent checkpoint taken for the object). The cursor
+	 * does not support data modification., a string; default empty.}
 	 * @config{debug = (, configure debug specific behavior on a cursor.  Generally only used
 	 * for internal testing purposes., a set of related configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;dump_version, open a version cursor\, which is a debug
@@ -1035,18 +1032,13 @@ struct __wt_session {
 	 * "sequential"; default \c none.}
 	 * @config{app_metadata, application-owned metadata for this object., a string; default
 	 * empty.}
-	 * @config{assert = (, enable enhanced timestamp checking with error messages and optional
-	 * core dump., a set of related configuration options defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read_timestamp, check timestamps are \c always or \c
-	 * never used on reads with this table\, writing an error message if policy is violated.  If
-	 * the library was built in diagnostic mode\, drop core at the failing check.  Should be set
-	 * to \c none if mixed read use is allowed., a string\, chosen from the following options:
-	 * \c "always"\, \c "never"\, \c "none"; default \c none.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-	 * write_timestamp, check timestamps are used consistently with the configured \c
-	 * write_timestamp_usage option for this table\, writing an error message if policy is
-	 * violated.  If the library was built in diagnostic mode\, drop core at the failing check.,
-	 * a string\, chosen from the following options: \c "off"\, \c "on"; default \c off.}
+	 * @config{assert = (, declare timestamp usage., a set of related configuration options
+	 * defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read_timestamp, check timestamps are \c
+	 * always or \c never used on reads with this table\, writing an error message if policy is
+	 * violated.  If the library was built in diagnostic mode\, drop core at the failing check.
+	 * Should be set to \c none if mixed read use is allowed., a string\, chosen from the
+	 * following options: \c "always"\, \c "never"\, \c "none"; default \c none.}
 	 * @config{ ),,}
 	 * @config{cache_resident, do not ever evict the object's pages from cache.  Not compatible
 	 * with LSM tables; see @ref tuning_cache_resident for more information., a boolean flag;
@@ -1107,18 +1099,13 @@ struct __wt_session {
 	 * an integer between 512B and 128MB; default \c 4KB.}
 	 * @config{app_metadata, application-owned metadata for this object., a string; default
 	 * empty.}
-	 * @config{assert = (, enable enhanced timestamp checking with error messages and optional
-	 * core dump., a set of related configuration options defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read_timestamp, check timestamps are \c always or \c
-	 * never used on reads with this table\, writing an error message if policy is violated.  If
-	 * the library was built in diagnostic mode\, drop core at the failing check.  Should be set
-	 * to \c none if mixed read use is allowed., a string\, chosen from the following options:
-	 * \c "always"\, \c "never"\, \c "none"; default \c none.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-	 * write_timestamp, check timestamps are used consistently with the configured \c
-	 * write_timestamp_usage option for this table\, writing an error message if policy is
-	 * violated.  If the library was built in diagnostic mode\, drop core at the failing check.,
-	 * a string\, chosen from the following options: \c "off"\, \c "on"; default \c off.}
+	 * @config{assert = (, declare timestamp usage., a set of related configuration options
+	 * defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read_timestamp, check timestamps are \c
+	 * always or \c never used on reads with this table\, writing an error message if policy is
+	 * violated.  If the library was built in diagnostic mode\, drop core at the failing check.
+	 * Should be set to \c none if mixed read use is allowed., a string\, chosen from the
+	 * following options: \c "always"\, \c "never"\, \c "none"; default \c none.}
 	 * @config{ ),,}
 	 * @config{block_allocation, configure block allocation.  Permitted values are \c "best" or
 	 * \c "first"; the \c "best" configuration uses a best-fit algorithm\, the \c "first"
@@ -1839,13 +1826,13 @@ struct __wt_session {
 	 * @config{get, specify which timestamp to query: \c commit returns the most recently set
 	 * commit_timestamp; \c first_commit returns the first set commit_timestamp; \c prepare
 	 * returns the timestamp used in preparing a transaction; \c read returns the timestamp at
-	 * which the transaction is reading at.  See @ref timestamp_txn_api., a string\, chosen from
+	 * which the transaction is reading.  See @ref timestamp_txn_api., a string\, chosen from
 	 * the following options: \c "commit"\, \c "first_commit"\, \c "prepare"\, \c "read";
 	 * default \c read.}
 	 * @configend
+	 *
+	 * A timestamp of 0 is returned if the timestamp is not available or has not been set.
 	 * @errors
-	 * ::WT_NOTFOUND is returned if the session is not in a transaction or there is no matching
-	 * timestamp.
 	 */
 	int __F(query_timestamp)(
 	    WT_SESSION *session, char *hex_timestamp, const char *config);
@@ -1889,18 +1876,19 @@ struct __wt_session {
 	int __F(timestamp_transaction)(WT_SESSION *session, const char *config);
 
 	/*!
-	 * Set a timestamp on a transaction numerically.  Prefer this over @ref
-	 * timestamp_transaction when the string parsing done in that method becomes a bottleneck.
+	 * Set a timestamp on a transaction numerically.  Prefer this method over
+	 * WT_SESSION::timestamp_transaction if the hexadecimal string parsing done in that method
+	 * becomes a bottleneck.
 	 *
-	 * The WT_SESSION.timestamp_transaction_uint method can only be used at snapshot
-	 * isolation.
+	 * The WT_SESSION.timestamp_transaction_uint method can only be used at snapshot isolation.
+	 *
+	 * @snippet ex_all.c transaction timestamp_uint
 	 *
 	 * @requires_transaction
 	 *
 	 * @param session the session handle
-	 * @param which the timestamp you wish to set. See @ref WT_TS_TXN_TYPE for available
-	 * options, and @ref timestamp_transaction for constraints on when timestamps can be
-	 * set.
+	 * @param which the timestamp being set (see ::WT_TS_TXN_TYPE for available options, and
+	 * WT_SESSION::timestamp_transaction for constraints on the timestamps).
 	 * @param ts the timestamp.
 	 * @errors
 	 */
@@ -2516,8 +2504,9 @@ struct __wt_connection {
 	 * "oldest_reader"\, \c "oldest_timestamp"\, \c "pinned"\, \c "recovery"\, \c "stable"\, \c
 	 * "stable_timestamp"; default \c all_durable.}
 	 * @configend
+	 *
+	 * A timestamp of 0 is returned if the timestamp is not available or has not been set.
 	 * @errors
-	 * ::WT_NOTFOUND is returned if there is no matching timestamp.
 	 */
 	int __F(query_timestamp)(
 	    WT_CONNECTION *connection, char *hex_timestamp, const char *config);
@@ -7058,43 +7047,35 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TXN		2212
 /*! session: object compaction */
 #define	WT_STAT_DSRC_SESSION_COMPACT			2213
-/*! session: tiered operations dequeued and processed */
-#define	WT_STAT_DSRC_TIERED_WORK_UNITS_DEQUEUED		2214
-/*! session: tiered operations scheduled */
-#define	WT_STAT_DSRC_TIERED_WORK_UNITS_CREATED		2215
-/*! session: tiered storage local retention time (secs) */
-#define	WT_STAT_DSRC_TIERED_RETENTION			2216
-/*! session: tiered storage object size */
-#define	WT_STAT_DSRC_TIERED_OBJECT_SIZE			2217
 /*! transaction: race to read prepared update retry */
-#define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_UPDATE	2218
+#define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_UPDATE	2214
 /*!
  * transaction: rollback to stable history store records with stop
  * timestamps older than newer records
  */
-#define	WT_STAT_DSRC_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	2219
+#define	WT_STAT_DSRC_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	2215
 /*! transaction: rollback to stable inconsistent checkpoint */
-#define	WT_STAT_DSRC_TXN_RTS_INCONSISTENT_CKPT		2220
+#define	WT_STAT_DSRC_TXN_RTS_INCONSISTENT_CKPT		2216
 /*! transaction: rollback to stable keys removed */
-#define	WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED		2221
+#define	WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED		2217
 /*! transaction: rollback to stable keys restored */
-#define	WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED		2222
+#define	WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED		2218
 /*! transaction: rollback to stable restored tombstones from history store */
-#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES	2223
+#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES	2219
 /*! transaction: rollback to stable restored updates from history store */
-#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES		2224
+#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES		2220
 /*! transaction: rollback to stable skipping delete rle */
-#define	WT_STAT_DSRC_TXN_RTS_DELETE_RLE_SKIPPED		2225
+#define	WT_STAT_DSRC_TXN_RTS_DELETE_RLE_SKIPPED		2221
 /*! transaction: rollback to stable skipping stable rle */
-#define	WT_STAT_DSRC_TXN_RTS_STABLE_RLE_SKIPPED		2226
+#define	WT_STAT_DSRC_TXN_RTS_STABLE_RLE_SKIPPED		2222
 /*! transaction: rollback to stable sweeping history store keys */
-#define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS		2227
+#define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS		2223
 /*! transaction: rollback to stable updates removed from history store */
-#define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED			2228
+#define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED			2224
 /*! transaction: transaction checkpoints due to obsolete pages */
-#define	WT_STAT_DSRC_TXN_CHECKPOINT_OBSOLETE_APPLIED	2229
+#define	WT_STAT_DSRC_TXN_CHECKPOINT_OBSOLETE_APPLIED	2225
 /*! transaction: update conflicts */
-#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2230
+#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2226
 
 /*!
  * @}

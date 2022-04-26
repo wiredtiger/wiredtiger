@@ -29,6 +29,7 @@ AsyncOp
 Athanassoulis
 Athlon
 Aws
+AwsManager
 Axxx
 BBBBB
 BBBBBB
@@ -610,6 +611,7 @@ bt
 btcur
 btmem
 btree
+btree's
 btrees
 bucketName
 buf
@@ -690,6 +692,7 @@ compressStream
 compressibility
 concat
 cond
+conditionalize
 conf
 confchk
 config
