@@ -112,23 +112,17 @@ transaction_context::commit(const std::string &config)
     WT_DECL_RET;
     testutil_assert(_in_txn && !_needs_rollback);
 
-    /*
-     * A transaction is considered as invalid if its commit timestamp is before the oldest or the
-     * stable timestamp. Due to the nature of the framework, we may have moved those timestamps to
-     * a more recent date than the commit timestamp of the transaction, hence we need to check if
-     * the transaction is still valid. We only need to check against the stable timestamp as, by
-     * definition, the oldest timestamp is older than the stable timestamp.
-     */
-    if (_timestamp_manager->get_stable_ts() >
-      ((WT_SESSION_IMPL *)_session)->txn->commit_timestamp) {
-        logger::log_msg(
-          LOG_WARN, "Rolling back transaction as its commit_ts is less than stable_ts");
-        rollback();
-        return false;
-    }
-
     ret = _session->commit_transaction(_session, config.empty() ? nullptr : config.c_str());
-    testutil_assert(ret == 0 || ret == WT_ROLLBACK);
+    /*
+     * FIXME-WT-9198
+     * Now we are accepting the error code EINVAL, we want to make sure this is due to invalid
+     * timestamps as we know it can happen due to the nature of the framework. The framework may
+     * set the stable/oldest timestamps to a more recent date than the commit timestamp of the
+     * transaction which makes the transaction invalid. We only need to check against the stable
+     * timestamp as, by definition, the oldest timestamp is older than the stable one.
+     */
+    testutil_assert(ret == 0 || ret == EINVAL || ret == WT_ROLLBACK);
+
     if (ret != 0)
         logger::log_msg(LOG_WARN,
           "Failed to commit transaction in commit, received error code: " + std::to_string(ret));
