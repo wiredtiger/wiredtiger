@@ -9,7 +9,8 @@
 #include "wt_internal.h"
 
 /*
- * Structure to hold state for metadata entry worker procedure.
+ * Structure to hold state for metadata entry worker procedure. It is only used during restore after
+ * partial backup.
  */
 typedef struct {
     WT_BACKUPHASH *backuphash; /* queue of target URI entries */
@@ -203,7 +204,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_BACKUPHASH *backuphash)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_METADATA_FILE_WALK_STATE meta_state;
-    size_t file_len;
+    size_t file_len, i;
     char *filename, *metadata_conf, *tablename;
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "remove_files=false", NULL};
     bool exist;
@@ -233,19 +234,17 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_BACKUPHASH *backuphash)
          * remove all linked references. At the same time generate a list of btree ids to be used in
          * recovery to truncate all the history store records.
          */
-        for (meta_state.slot = 0; meta_state.partial_backup_names[meta_state.slot] != NULL;
-             ++meta_state.slot) {
-            tablename = meta_state.partial_backup_names[meta_state.slot];
+        for (i = 0; i < meta_state.slot; ++i) {
+            tablename = meta_state.partial_backup_names[i];
             WT_PREFIX_SKIP_REQUIRED(session, tablename, "table:");
             WT_ERR(__wt_snprintf(filename, file_len, "file:%s.wt", tablename));
             WT_ERR(__wt_metadata_search(session, filename, &metadata_conf));
             WT_ERR(__wt_config_getones(session, metadata_conf, "id", &cval));
-            conn->partial_backup_remove_ids[meta_state.slot] = (uint32_t)cval.val;
+            conn->partial_backup_remove_ids[i] = (uint32_t)cval.val;
 
             WT_WITH_SCHEMA_LOCK(session,
               WT_WITH_TABLE_WRITE_LOCK(session,
-                ret = __wt_schema_drop(
-                  session, meta_state.partial_backup_names[meta_state.slot], drop_cfg)));
+                ret = __wt_schema_drop(session, meta_state.partial_backup_names[i], drop_cfg)));
             WT_ERR(ret);
             __wt_free(session, metadata_conf);
         }
@@ -260,9 +259,8 @@ err:
      * history store entries that do not exist as part of the database anymore.
      */
     if (meta_state.partial_backup_names != NULL) {
-        for (meta_state.slot = 0; meta_state.partial_backup_names[meta_state.slot] != NULL;
-             ++meta_state.slot)
-            __wt_free(session, meta_state.partial_backup_names[meta_state.slot]);
+        for (i = 0; i < meta_state.slot; ++i)
+            __wt_free(session, meta_state.partial_backup_names[i]);
         __wt_free(session, meta_state.partial_backup_names);
     }
 
