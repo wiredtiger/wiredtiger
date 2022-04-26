@@ -174,8 +174,8 @@ __wt_tiered_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
     __wt_verbose(
       session, WT_VERB_TIERED, "TIERED_CONFIG: prefix %s", conn->bstorage->bucket_prefix);
 
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.interval", &cval));
-    S2C(session)->tiered_interval = (uint64_t)cval.val;
+    WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.interval", &cval));
+    conn->tiered_interval = (uint64_t)cval.val;
 
     WT_ASSERT(session, conn->bstorage != NULL);
     WT_STAT_CONN_SET(session, tiered_object_size, conn->bstorage->object_size);
