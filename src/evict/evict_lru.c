@@ -2408,9 +2408,6 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
                   session, WT_VERB_TRANSACTION, "Rollback reason: %s", "Cache full");
                 --cache->evict_aggressive_score;
                 WT_STAT_CONN_INCR(session, txn_fail_cache);
-                if (app_thread)
-                    __wt_verbose_notice(
-                      session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
             }
             WT_ERR(ret);
         }
@@ -2588,8 +2585,8 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session, uint64_t *total_bytesp,
     dhandle = session->dhandle;
     btree = dhandle->handle;
     WT_RET(__wt_msg(session, "%s(%s%s)%s%s:", dhandle->name,
-      dhandle->checkpoint != NULL ? "checkpoint=" : "",
-      dhandle->checkpoint != NULL ? dhandle->checkpoint : "<live>",
+      WT_DHANDLE_IS_CHECKPOINT(dhandle) ? "checkpoint=" : "",
+      WT_DHANDLE_IS_CHECKPOINT(dhandle) ? dhandle->checkpoint : "<live>",
       btree->evict_disabled != 0 ? " eviction disabled" : "",
       btree->evict_disabled_open ? " at open" : ""));
 

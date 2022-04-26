@@ -46,7 +46,7 @@ common_runtime_config = [
     Config('app_metadata', '', r'''
         application-owned metadata for this object'''),
     Config('assert', '', r'''
-        enable enhanced timestamp checking with error messages and optional core dump''',
+        declare timestamp usage''',
         type='category', subconfig= [
         Config('commit_timestamp', 'none', r'''
             this option is no longer supported, retained for backward compatibility''',
@@ -65,27 +65,21 @@ common_runtime_config = [
             \c write_timestamp_usage option for this table, writing
             an error message if policy is violated. If the library was
             built in diagnostic mode, drop core at the failing check''',
-            choices=['off', 'on']),
+            choices=['off', 'on'], undoc=True),
         ]),
     Config('verbose', '[]', r'''
         this option is no longer supported, retained for backward compatibility''',
         type='list', choices=['write_timestamp'], undoc=True),
     Config('write_timestamp_usage', 'none', r'''
-        describe how timestamps are expected to be used on modifications
-        to the table. This option should be used in conjunction with the
-        corresponding \c write_timestamp configuration under the \c assert
-        option to provide logging and assertions for incorrect timestamp
-        usage. The choices are \c always which ensures a timestamp is used
-        for every operation on a table, \c ordered which ensures that once
-        timestamps are used for a key, they are always used, and also that
-        subsequent updates to each key must use increasing timestamps,
-        \c mixed_mode is like \c ordered except that updates with no timestamp
-        are allowed at any time, \c never enforces that timestamps are never
-        used for a table and \c none does not enforce any expectation on
-        timestamp usage meaning that no log message or assertions will be
-        produced regardless of the corresponding \c assert setting. (The
-        \c key_consistent choice is no longer supported, retained for
-        backward compatibility.)''',
+        describe how timestamps are expected to be used on table modifications. This option should
+        be used in conjunction with the corresponding \c write_timestamp configuration under the
+        \c assert option to provide errors and assertions for incorrect timestamp usage. The
+        choices are the default, which ensures that once timestamps are used for a key, they are
+        always used, and also that multiple updates to a key never use decreasing timestamps,
+        \c mixed_mode, which additionally allows updates with no timestamp even after timestamps
+        are first used, and \c never which enforces that timestamps are never used for a table.
+        (The \c always, \c key_consistent and \c ordered choices should not be used, and are
+        retained for backward compatibility.)''',
         choices=['always', 'key_consistent', 'mixed_mode', 'never', 'none', 'ordered']),
 ]
 
@@ -279,10 +273,6 @@ file_runtime_config = common_runtime_config + [
         the file is read-only. All methods that may modify a file are
         disabled. See @ref readonly for more information''',
         type='boolean'),
-    Config('tiered_object', 'false', r'''
-        this file is a tiered object. When opened on its own, it is marked as
-        readonly and may be restricted in other ways''',
-        type='boolean', undoc=True),
 ]
 
 # Per-file configuration
@@ -446,6 +436,10 @@ file_meta = file_config + [
         LSN of the last checkpoint'''),
     Config('id', '', r'''
         the file's ID number'''),
+    Config('tiered_object', 'false', r'''
+        this file is a tiered object. When opened on its own, it is marked as
+        readonly and may be restricted in other ways''',
+        type='boolean', undoc=True),
     Config('version', '(major=0,minor=0)', r'''
         the file version'''),
 ]
@@ -473,6 +467,7 @@ tiered_meta = file_meta + tiered_config + [
 ]
 
 tier_meta = file_meta + tiered_tree_config
+
 # Objects need to have the readonly setting set and bucket_prefix.
 # The file_meta already contains those pieces.
 object_meta = file_meta + [
@@ -840,24 +835,6 @@ connection_runtime_config = [
         @ref statistics for more information''',
         type='list',
         choices=['all', 'cache_walk', 'fast', 'none', 'clear', 'tree_walk']),
-    Config('tiered_manager', '', r'''
-        tiered storage manager configuration options''',
-        type='category', undoc=True, subconfig=[
-            Config('threads_max', '8', r'''
-                maximum number of threads WiredTiger will start to help manage
-                tiered storage maintenance. Each worker thread uses a session
-                from the configured session_max''',
-                min=1, max=20),
-            Config('threads_min', '1', r'''
-                minimum number of threads WiredTiger will start to help manage
-                tiered storage maintenance.''',
-                min=1, max=20),
-            Config('wait', '0', r'''
-                seconds to wait between each periodic housekeeping of
-                tiered storage. Setting this value above 0 configures periodic
-                management inside WiredTiger''',
-                min='0', max='100000'),
-            ]),
     Config('timing_stress_for_test', '', r'''
         enable code that interrupts the usual timing of operations with a goal
         of uncovering race conditions and unexpected blocking. This option is
@@ -1521,9 +1498,16 @@ methods = {
         to the bit count (except for the last set of values loaded)'''),
     Config('checkpoint', '', r'''
         the name of a checkpoint to open (the reserved name
-        "WiredTigerCheckpoint" opens the most recent internal
+        "WiredTigerCheckpoint" opens the most recent
         checkpoint taken for the object).  The cursor does not
         support data modification'''),
+    Config('checkpoint_use_history', 'true', r'''
+        when opening a checkpoint cursor, open history store cursors and retrieve
+        snapshot and timestamp information from the checkpoint. This is in general
+        required for correct reads; if setting it to false the caller must ensure
+        that the checkpoint is self-contained in the data store: timestamps are not
+        in use and the object was quiescent when the checkpoint was taken''',
+        type='boolean', undoc=True),
     Config('checkpoint_wait', 'true', r'''
         wait for the checkpoint lock, if \c checkpoint_wait=false, open the
         cursor without taking a lock, returning EBUSY if the operation
@@ -1533,6 +1517,11 @@ methods = {
         configure debug specific behavior on a cursor. Generally only
         used for internal testing purposes''',
         type='category', subconfig=[
+        Config('checkpoint_read_timestamp', '', r'''
+            read the checkpoint using the specified timestamp. The supplied value
+            must not be older than the checkpoint's oldest timestamp. Ignored if
+            not reading from a checkpoint''',
+            undoc=True),
         Config('dump_version', 'false', r'''
             open a version cursor, which is a debug cursor on a table that
             enables iteration through the history of values for a given key.''',
@@ -1650,11 +1639,11 @@ methods = {
 
 'WT_SESSION.query_timestamp' : Method([
     Config('get', 'read', r'''
-        specify which timestamp to query: \c commit returns the most recently
-        set commit_timestamp; \c first_commit returns the first set
-        commit_timestamp; \c prepare returns the timestamp used in preparing a
-        transaction; \c read returns the timestamp at which the transaction is
-        reading at. See @ref timestamp_txn_api''',
+        specify which timestamp to query: \c commit returns the most
+        recently set commit_timestamp; \c first_commit returns the first set
+        commit_timestamp; \c prepare returns the timestamp used in preparing
+        a transaction; \c read returns the timestamp at which the transaction
+        is reading. See @ref timestamp_txn_api''',
         choices=['commit', 'first_commit', 'prepare', 'read']),
 ]),
 
@@ -1669,10 +1658,6 @@ methods = {
 ]),
 
 'WT_SESSION.flush_tier' : Method([
-    Config('flush_timestamp', '', r'''
-        flush objects to all storage sources using the specified timestamp.
-        The value must not be older than the current oldest timestamp and it must
-        not be newer than the stable timestamp'''),
     Config('force', 'false', r'''
         force sharing of all data''',
         type='boolean'),
@@ -1826,6 +1811,7 @@ methods = {
         be newer than the current stable timestamp. See @ref timestamp_prepare'''),
 ]),
 
+'WT_SESSION.timestamp_transaction_uint' : Method([]),
 'WT_SESSION.timestamp_transaction' : Method([
     Config('commit_timestamp', '', r'''
         set the commit timestamp for the current transaction. For non-prepared transactions,
@@ -1965,8 +1951,8 @@ methods = {
         recent \c oldest_timestamp set with WT_CONNECTION::set_timestamp; \c oldest_reader
         returns the minimum of the read timestamps of all active readers; \c pinned returns
         the minimum of the \c oldest_timestamp and the read timestamps of all active readers;
-        \c recovery returns the timestamp of the most recent stable checkpoint taken prior to a
-        shutdown; \c stable_timestamp returns the most recent \c stable_timestamp set with
+        \c recovery returns the timestamp of the most recent stable checkpoint taken prior
+        to a shutdown; \c stable_timestamp returns the most recent \c stable_timestamp set with
         WT_CONNECTION::set_timestamp. (The \c oldest and \c stable arguments are deprecated
         short-hand for \c oldest_timestamp and \c stable_timestamp, respectively.) See @ref
         timestamp_global_api''',
