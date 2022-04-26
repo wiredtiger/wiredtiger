@@ -185,6 +185,7 @@ struct __wtperf {         /* Per-database structure */
     volatile bool backup;    /* backup in progress */
     volatile bool ckpt;      /* checkpoint in progress */
     volatile bool flush;     /* flush_tier in progress */
+	volatile bool flushthread_notdone; /* flush thread not done */
     volatile bool scan;      /* scan in progress */
     volatile bool error;     /* thread error */
     volatile bool stop;      /* notify threads to stop */
