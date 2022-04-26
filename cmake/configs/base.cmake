@@ -248,7 +248,7 @@ config_string(
     DEFAULT "\"${WT_VERSION_STRING}\""
 )
 
-if(HAVE_DIAGNOSTIC AND (NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug"))
+if(HAVE_DIAGNOSTIC AND (NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug" AND NOT "${CMAKE_BUILD_TYPE}" STREQUAL "RelWithDebInfo"))
     # Avoid setting diagnostic flags if we are building with Debug mode.
     # CMakes Debug config sets compilation with debug symbols by default.
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
