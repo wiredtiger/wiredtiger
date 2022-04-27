@@ -146,7 +146,7 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
     WT_CURSOR *base_cursor, *table_cursor;
     WT_ITEM base_key, base_value, table_key, table_value;
     WT_SESSION *session;
-    uint64_t base_keyno, last_match, table_keyno, rows;
+    uint64_t base_id, base_keyno, last_match, table_id, table_keyno, rows;
     uint8_t base_bitv, table_bitv;
     u_int failures;
     int base_ret, table_ret;
@@ -163,8 +163,25 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
     /* Optionally open a checkpoint to verify. */
     if (checkpoint != NULL)
         testutil_check(__wt_snprintf(buf, sizeof(buf), "checkpoint=%s", checkpoint));
-    wiredtiger_open_cursor(session, base->uri, checkpoint == NULL ? NULL : buf, &base_cursor);
-    wiredtiger_open_cursor(session, table->uri, checkpoint == NULL ? NULL : buf, &table_cursor);
+
+    /*
+     * If opening a checkpoint, retry if the cursor checkpoint IDs don't match, it just means that a
+     * checkpoint happened between the two open calls.
+     */
+    for (;;) {
+        wiredtiger_open_cursor(session, base->uri, checkpoint == NULL ? NULL : buf, &base_cursor);
+        base_id = base_cursor->checkpoint_id(base_cursor);
+        wiredtiger_open_cursor(session, table->uri, checkpoint == NULL ? NULL : buf, &table_cursor);
+        table_id = table_cursor->checkpoint_id(table_cursor);
+
+        testutil_assert((checkpoint == NULL && base_id == 0 && table_id == 0) ||
+          (checkpoint != NULL && base_id != 0 && table_id != 0));
+
+        if (checkpoint == NULL || base_id == table_id)
+            break;
+        testutil_check(base_cursor->close(base_cursor));
+        testutil_check(table_cursor->close(table_cursor));
+    }
 
     testutil_check(__wt_snprintf(buf, sizeof(buf),
       "table %u %s%s"
