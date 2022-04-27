@@ -1968,9 +1968,8 @@ methods = {
         value until a subsequent transaction commit advances the maximum durable timestamp, or
         rollback-to-stable resets the value. See @ref timestamp_global_api'''),
     Config('force', 'false', r'''
-        set timestamps even if they violate normal ordering requirements.
-        For example allow the \c oldest_timestamp to move backwards''',
-        type='boolean'),
+        set the oldest and stable timestamps even if it violates normal ordering constraints.''',
+        type='boolean', undoc=True),
     Config('oldest_timestamp', '', r'''
         future commits and queries will be no earlier than the specified
         timestamp. Values must be monotonically increasing, any
