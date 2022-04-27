@@ -186,7 +186,7 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
     testutil_check(__wt_snprintf(buf, sizeof(buf),
       "table %u %s%s"
       "mirror verify",
-      table->id, checkpoint == NULL ? "" : checkpoint, checkpoint == NULL ? "" : "checkpoint "));
+      table->id, checkpoint == NULL ? "" : checkpoint, checkpoint == NULL ? "" : " checkpoint "));
     trace_msg(session, "%s: start", buf);
 
     for (failures = 0, rows = 1; rows <= TV(RUNS_ROWS); ++rows) {
@@ -316,7 +316,6 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
 void
 wts_verify(WT_CONNECTION *conn, bool mirror_check)
 {
-    WT_DECL_RET;
     WT_SESSION *session;
     u_int i;
 
@@ -328,8 +327,7 @@ wts_verify(WT_CONNECTION *conn, bool mirror_check)
      * EBUSY from the following verify calls.
      */
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    ret = session->checkpoint(session, NULL);
-    testutil_assert(ret == 0 || ret == EBUSY);
+    testutil_check(session->checkpoint(session, NULL));
     testutil_check(session->close(session, NULL));
     tables_apply(table_verify, conn);
 

@@ -67,7 +67,7 @@ checkpoint(void *arg)
     WT_SESSION *session;
     u_int counter, secs;
     char config_buf[64];
-    const char *ckpt_config;
+    const char *ckpt_config, *ckpt_vrfy_name;
     bool backup_locked, named_checkpoints;
 
     (void)arg;
@@ -93,14 +93,14 @@ checkpoint(void *arg)
          * when we can't drop the previous one.
          */
         ckpt_config = NULL;
+        ckpt_vrfy_name = "WiredTigerCheckpoint";
         backup_locked = false;
         if (named_checkpoints)
             switch (mmrand(NULL, 1, 20)) {
             case 1:
                 /*
-                 * 5% create a named snapshot. Rotate between a
-                 * few names to test multiple named snapshots in
-                 * the system.
+                 * 5% create a named snapshot. Rotate between a few names to test multiple named
+                 * snapshots in the system.
                  */
                 ret = lock_try_writelock(session, &g.backup_lock);
                 if (ret == 0) {
@@ -108,6 +108,7 @@ checkpoint(void *arg)
                     testutil_check(__wt_snprintf(
                       config_buf, sizeof(config_buf), "name=mine.%" PRIu32, mmrand(NULL, 1, 4)));
                     ckpt_config = config_buf;
+                    ckpt_vrfy_name = config_buf + strlen("name=");
                 } else if (ret != EBUSY)
                     testutil_check(ret);
                 break;
@@ -135,7 +136,7 @@ checkpoint(void *arg)
             lock_writeunlock(session, &g.backup_lock);
 
         /* Verify the checkpoints. */
-        wts_verify_checkpoint(conn, "WiredTigerCheckpoint");
+        wts_verify_checkpoint(conn, ckpt_vrfy_name);
 
         secs = mmrand(NULL, 5, 40);
     }
