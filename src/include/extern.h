@@ -37,8 +37,6 @@ extern bool __wt_rwlock_islocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern bool __wt_txn_checkpoint_cannot_start(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern char *__wt_time_aggregate_to_string(WT_TIME_AGGREGATE *ta, char *ta_string)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern char *__wt_time_point_to_string(wt_timestamp_t ts, wt_timestamp_t durable_ts,
@@ -1215,6 +1213,9 @@ extern int __wt_raw_to_esc_hex(WT_SESSION_IMPL *session, const uint8_t *from, si
   WT_ITEM *to) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_raw_to_hex(WT_SESSION_IMPL *session, const uint8_t *from, size_t size, WT_ITEM *to)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_read_metadata_file(WT_SESSION_IMPL *session, const char *file,
+  int (*meta_entry_worker_func)(WT_SESSION_IMPL *, WT_ITEM *, WT_ITEM *, void *), void *state,
+  bool *file_exist) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_realloc(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret,
   size_t bytes_to_allocate, void *retp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_realloc_aligned(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret,
@@ -1492,6 +1493,8 @@ extern int __wt_tiered_discard(WT_SESSION_IMPL *session, WT_TIERED *tiered)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_name(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint32_t id,
   uint32_t flags, const char **retp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_tiered_name_str(WT_SESSION_IMPL *session, const char *name, uint32_t id,
+  uint32_t flags, const char **retp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_put_drop_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id)
@@ -1504,7 +1507,7 @@ extern int __wt_tiered_put_flush_finish(WT_SESSION_IMPL *session, WT_TIERED *tie
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_set_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_ITEM *buf)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[])
+extern int __wt_tiered_storage_create(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1671,6 +1674,8 @@ extern uint32_t __wt_random(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_DECL_
 extern uint32_t __wt_rduppo2(uint32_t n, uint32_t po2)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint32_t __wt_split_page_size(int split_pct, uint32_t maxpagesize, uint32_t allocsize)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern uint64_t __wt_cursor_checkpoint_id(WT_CURSOR *cursor)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint64_t __wt_gen(WT_SESSION_IMPL *session, int which)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

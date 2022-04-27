@@ -52,6 +52,12 @@ workload_generator=
         ops_per_transaction=(max=100,min=50),
         thread_count=20
     ),
+    remove_config=
+    (
+        op_rate=100ms,
+        ops_per_transaction=(max=100,min=50),
+        thread_count=5
+    ),
     update_config=
     (
         op_rate=10ms,
@@ -62,7 +68,9 @@ workload_generator=
 ),
 workload_tracking=
 (
-    enabled=true,
+    # FIXME-WT-8640 Enable the tracking again once we have moved to a different host or modified the
+    # workload.
+    enabled=false,
     # Run after checkpoint most of the time.
     op_rate=40s
 )
