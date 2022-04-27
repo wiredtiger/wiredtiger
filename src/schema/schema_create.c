@@ -1099,8 +1099,8 @@ __schema_create_config_check(
       !WT_STRING_MATCH("file", cval.str, cval.len))
         WT_RET_MSG(
           session, ENOTSUP, "unsupported type configuration: type must be file for tiered storage");
-   
-    return (0);  
+
+    return (0);
 }
 
 /*
