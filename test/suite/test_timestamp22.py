@@ -148,10 +148,13 @@ class test_timestamp22(wttest.WiredTigerTestCase):
                     # It's possible this will succeed, we'll check below.
                     this_commit_ts = self.gen_ts(commit_ts)
 
-                    # OOO is not allowed. Hence, the commit ts should always be
-                    # greater than the last commit ts.
-                    if this_commit_ts < self.last_commit_ts:
+                    # OOO is not allowed. Hence, the commit ts should be greater than
+                    # the last commit and last durable.
+                    if this_commit_ts <= self.last_commit_ts:
                         this_commit_ts = self.last_commit_ts + 1
+
+                    if this_commit_ts <= self.last_durable:
+                        this_commit_ts = self.last_durable + 1
 
                 config += ',commit_timestamp=' + self.timestamp_str(this_commit_ts)
 
