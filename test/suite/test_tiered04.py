@@ -61,15 +61,13 @@ class test_tiered04(wttest.WiredTigerTestCase):
     obj2file = base + '2.wtobj'
     objuri = 'object:' + base + '1.wtobj'
     tiereduri = "tiered:test_tiered04"
+    tieruri = "tier:test_tiered04"
     uri = "table:test_tiered04"
 
     uri1 = "table:test_other_tiered04"
     uri_none = "table:test_local04"
+    file_none = "file:test_local04.wt"
 
-    object_sys = "9M"
-    object_sys_val = 9 * 1024 * 1024
-    object_uri = "15M"
-    object_uri_val = 15 * 1024 * 1024
     retention = 3
     retention1 = 600
     def conn_config(self):
@@ -83,8 +81,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
           'bucket=%s,' % self.bucket + \
           'bucket_prefix=%s,' % self.prefix + \
           'local_retention=%d,' % self.retention + \
-          'name=%s,' % self.ss_name + \
-          'object_target_size=%s)' % self.object_sys
+          'name=%s)' % self.ss_name 
         return self.saved_conn
 
     # Load the storage store extension.
@@ -137,8 +134,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
           'bucket=%s,' % self.bucket1 + \
           'bucket_prefix=%s,' % self.prefix1 + \
           'local_retention=%d,' % self.retention1 + \
-          'name=%s,' % self.ss_name + \
-          'object_target_size=%s)' % self.object_uri
+          'name=%s)' % self.ss_name
         self.pr("create non-sys tiered")
         self.session.create(self.uri1, base_create + conf)
         conf = ',tiered_storage=(name=none)'
@@ -221,8 +217,6 @@ class test_tiered04(wttest.WiredTigerTestCase):
 
         calls = self.get_stat(stat.conn.flush_tier, None)
         self.assertEqual(calls, flush)
-        obj = self.get_stat(stat.conn.tiered_object_size, None)
-        self.assertEqual(obj, self.object_sys_val)
 
         # As we flush each object, the next object exists, but our first flush was a no-op.
         # So the value for the last file: object should be 'flush'.
@@ -237,21 +231,14 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.check_metadata(fileuri, intl_page)
         self.check_metadata(self.objuri, intl_page)
 
-        #self.pr("verify stats")
-        # Verify the table settings.
-        #obj = self.get_stat(stat.dsrc.tiered_object_size, self.uri)
-        #self.assertEqual(obj, self.object_sys_val)
-        #obj = self.get_stat(stat.dsrc.tiered_object_size, self.uri1)
-        #self.assertEqual(obj, self.object_uri_val)
-        #obj = self.get_stat(stat.dsrc.tiered_object_size, self.uri_none)
-        #self.assertEqual(obj, 0)
+        # Check for the correct tiered_object setting for both tiered and not tiered tables.
+        tiered_false = 'tiered_object=false'
+        tiered_true = 'tiered_object=true'
+        self.check_metadata(fileuri, tiered_true)
+        self.check_metadata(self.objuri, tiered_true)
+        self.check_metadata(self.tieruri, tiered_true)
 
-        #retain = self.get_stat(stat.dsrc.tiered_retention, self.uri)
-        #self.assertEqual(retain, self.retention)
-        #retain = self.get_stat(stat.dsrc.tiered_retention, self.uri1)
-        #self.assertEqual(retain, self.retention1)
-        #retain = self.get_stat(stat.dsrc.tiered_retention, self.uri_none)
-        #self.assertEqual(retain, 0)
+        self.check_metadata(self.file_none, tiered_false)
 
         # Now test some connection statistics with operations.
         retain = self.get_stat(stat.conn.tiered_retention, None)

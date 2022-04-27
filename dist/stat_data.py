@@ -540,6 +540,9 @@ conn_stats = [
     StorageStat('flush_tier_switched', 'flush_tier tables switched'),
     StorageStat('local_objects_inuse', 'attempts to remove a local object and the object is in use'),
     StorageStat('local_objects_removed', 'local objects removed'),
+    StorageStat('tiered_retention', 'tiered storage local retention time (secs)', 'no_clear,no_scale,size'),
+    StorageStat('tiered_work_units_created', 'tiered operations scheduled'),
+    StorageStat('tiered_work_units_dequeued', 'tiered operations dequeued and processed'),
 
     ##########################################
     # Thread Count statistics
@@ -568,7 +571,6 @@ conn_stats = [
     TxnStat('txn_checkpoint_prep_recent', 'transaction checkpoint prepare most recent time (msecs)', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_prep_running', 'transaction checkpoint prepare currently running', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_prep_total', 'transaction checkpoint prepare total time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_prep_wait', 'transaction checkpoint prepare wait time (msecs)', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_running', 'transaction checkpoint currently running', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_running_hs', 'transaction checkpoint currently running for history store file', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_scrub_target', 'transaction checkpoint scrub dirty target', 'no_clear,no_scale'),
@@ -913,14 +915,6 @@ conn_dsrc_stats = [
     RecStat('rec_time_window_start_txn', 'records written including a start transaction ID'),
     RecStat('rec_time_window_stop_ts', 'records written including a stop timestamp'),
     RecStat('rec_time_window_stop_txn', 'records written including a stop transaction ID'),
-
-    ##########################################
-    # Tiered storage statistics
-    ##########################################
-    StorageStat('tiered_object_size', 'tiered storage object size', 'no_clear,no_scale,size'),
-    StorageStat('tiered_retention', 'tiered storage local retention time (secs)', 'no_clear,no_scale,size'),
-    StorageStat('tiered_work_units_created', 'tiered operations scheduled'),
-    StorageStat('tiered_work_units_dequeued', 'tiered operations dequeued and processed'),
 
     ##########################################
     # Transaction statistics

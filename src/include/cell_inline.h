@@ -206,28 +206,15 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
     __cell_pack_addr_validity(session, &p, ta);
 
     /*
-     * If passed fast-delete information, override the cell type and append the fast-delete
-     * information after the aggregated timestamp information.
+     * If passed fast-delete information, append the fast-delete information after the aggregated
+     * timestamp information.
      */
-    if (page_del != NULL) {
-        /*
-         * We only fast-truncate leaf pages without overflow items, however, we can write a proxy
-         * cell for a page, evict and then read the internal page, and then checkpoint is writing it
-         * again.
-         */
-        WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL || cell_type == WT_CELL_ADDR_LEAF_NO);
-        cell_type = WT_CELL_ADDR_DEL;
+    if (page_del != NULL && __wt_process.fast_truncate_2022) {
+        WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL);
 
-        /* We should never be in an in-progress prepared state. */
-        WT_ASSERT(session,
-          page_del->prepare_state == WT_PREPARE_INIT ||
-            page_del->prepare_state == WT_PREPARE_RESOLVED);
-
-        if (__wt_process.fast_truncate_2022) {
-            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
-            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->timestamp));
-            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->durable_timestamp));
-        }
+        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
+        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->timestamp));
+        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->durable_timestamp));
     }
 
     if (recno == WT_RECNO_OOB)
@@ -1063,6 +1050,8 @@ static inline void
 __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
   WT_CELL_UNPACK_ADDR *unpack_addr, WT_CELL_UNPACK_KV *unpack_kv)
 {
+    uint64_t write_gen;
+
     /*
      * If the page came from a previous run, reset the transaction ids to "none" and timestamps to 0
      * as appropriate. Transaction ids shouldn't persist between runs so these are always set to
@@ -1082,8 +1071,23 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
      * No delete              txnid=MAX, ts=MAX,            txnid=MAX, ts=MAX,
      *                        durable_ts=NONE               durable_ts=NONE
      */
+
+    if (WT_READING_CHECKPOINT(session) && session->checkpoint_write_gen != 0) {
+        /*
+         * When reading a checkpoint, override the tree's base write generation with the write
+         * generation from the global metadata, which might be newer. This comes into play if the
+         * tree checkpoint is from an older database run than the global checkpoint, which can
+         * happen if checkpointing skips the tree at the right points. Bypass this logic if the
+         * checkpoint write generation isn't set because the checkpoint is from an older version of
+         * WiredTiger; in that case we use the tree's write generation and hope for the best.
+         */
+        write_gen = session->checkpoint_write_gen;
+        WT_ASSERT(session, write_gen >= S2BT(session)->base_write_gen);
+    } else
+        write_gen = S2BT(session)->base_write_gen;
+
     WT_ASSERT(session, dsk->write_gen != 0);
-    if (dsk->write_gen > S2BT(session)->base_write_gen)
+    if (dsk->write_gen > write_gen)
         return;
 
     if (F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID))

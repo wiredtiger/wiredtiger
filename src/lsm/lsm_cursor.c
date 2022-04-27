@@ -452,7 +452,7 @@ __clsm_open_cursors(WT_CURSOR_LSM *clsm, bool update, u_int start_chunk, uint32_
         return (0);
 
     ckpt_cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
-    ckpt_cfg[1] = "checkpoint=" WT_CHECKPOINT ",raw";
+    ckpt_cfg[1] = "checkpoint=" WT_CHECKPOINT ",raw,checkpoint_use_history=false";
     ckpt_cfg[2] = NULL;
 
     /*
@@ -1693,6 +1693,7 @@ __wt_clsm_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, cons
       __wt_cursor_notsup,                             /* largest_key */
       __wt_cursor_notsup,                             /* cache */
       __wt_cursor_reopen_notsup,                      /* reopen */
+      __wt_cursor_checkpoint_id,                      /* checkpoint ID */
       __wt_clsm_close);                               /* close */
     WT_CURSOR *cursor;
     WT_CURSOR_LSM *clsm;
