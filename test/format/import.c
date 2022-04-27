@@ -109,12 +109,12 @@ import(void *arg)
         else
             testutil_check(__wt_snprintf(buf, sizeof(buf),
               "%s,import=(enabled,repair=false,file_metadata=(%s))", table_config, file_config));
-	testutil_check(session->create(session, IMPORT_URI, buf));
+        testutil_check(session->create(session, IMPORT_URI, buf));
 
         verify_import(session);
 
         /* Drop import table, so we can import the table again */
-	testutil_drop(session, IMPORT_URI, NULL);
+        testutil_drop(session, IMPORT_URI, NULL);
 
         period = mmrand(NULL, 1, 10);
         while (period > 0 && !g.workers_finished) {
