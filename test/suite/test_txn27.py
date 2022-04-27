@@ -89,7 +89,7 @@ class test_txn27(wttest.WiredTigerTestCase):
         # Fill the cache with updates, applications should be forced into eviction when eviction
         # updates trigger limit is reached. Keep filling the cache past that point.
         session1.begin_transaction()
-        for i in range(1, 200):
+        for i in range(1, 100):
             cursor1.set_key(ds.key(i))
             cursor1.set_value("a"*1024)
             cursor1.insert()
