@@ -97,7 +97,7 @@ table_mirror_fail_msg(WT_SESSION *session, const char *checkpoint, TABLE *base, 
       base->type == ROW ? (char *)base_key->data : "#", (int)base_value->size,
       (char *)base_value->data, table->uri, table->type == ROW ? (int)table_key->size : 1,
       table->type == ROW ? (char *)table_key->data : "#", (int)table_value->size,
-      (char *)table_value->data, checkpoint ? " (checkpoint" : "", checkpoint ? checkpoint : "",
+      (char *)table_value->data, checkpoint ? " (checkpoint " : "", checkpoint ? checkpoint : "",
       checkpoint ? ")" : "");
     trace_msg(session, "last successful match was %" PRIu64 "\n", last_match);
     fprintf(stderr,
@@ -106,7 +106,7 @@ table_mirror_fail_msg(WT_SESSION *session, const char *checkpoint, TABLE *base, 
       base->type == ROW ? (char *)base_key->data : "#", (int)base_value->size,
       (char *)base_value->data, table->uri, table->type == ROW ? (int)table_key->size : 1,
       table->type == ROW ? (char *)table_key->data : "#", (int)table_value->size,
-      (char *)table_value->data, checkpoint ? " (checkpoint" : "", checkpoint ? checkpoint : "",
+      (char *)table_value->data, checkpoint ? " (checkpoint " : "", checkpoint ? checkpoint : "",
       checkpoint ? ")" : "");
     fprintf(stderr, "last successful match was %" PRIu64 "\n", last_match);
 }
@@ -125,14 +125,14 @@ table_mirror_fail_msg_flcs(WT_SESSION *session, const char *checkpoint, TABLE *b
       "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s} [%#x], %s: {#}/{%#x} %s%s%s\n",
       base_keyno, table_keyno, base->uri, base->type == ROW ? (int)base_key->size : 1,
       base->type == ROW ? (char *)base_key->data : "#", (int)base_value->size,
-      (char *)base_value->data, base_bitv, table->uri, table_bitv, checkpoint ? " (checkpoint" : "",
-      checkpoint ? checkpoint : "", checkpoint ? ")" : "");
+      (char *)base_value->data, base_bitv, table->uri, table_bitv,
+      checkpoint ? " (checkpoint " : "", checkpoint ? checkpoint : "", checkpoint ? ")" : "");
     fprintf(stderr,
       "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s} [%#x], %s: {#}/{%#x} %s%s%s\n",
       base_keyno, table_keyno, base->uri, base->type == ROW ? (int)base_key->size : 1,
       base->type == ROW ? (char *)base_key->data : "#", (int)base_value->size,
-      (char *)base_value->data, base_bitv, table->uri, table_bitv, checkpoint ? " (checkpoint" : "",
-      checkpoint ? checkpoint : "", checkpoint ? ")" : "");
+      (char *)base_value->data, base_bitv, table->uri, table_bitv,
+      checkpoint ? " (checkpoint " : "", checkpoint ? checkpoint : "", checkpoint ? ")" : "");
 }
 
 /*
