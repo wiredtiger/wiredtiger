@@ -124,8 +124,10 @@ class TieredConfigMixin:
             return ''
 
         # Setup directories structure for local tiered storage.
-        if self.is_local_storage and not os.path.exists(self.bucket):
-            os.mkdir(self.bucket)
+        if self.is_local_storage:
+            bucket_full_path = os.path.join(self.home, self.bucket)
+            if not os.path.exists(bucket_full_path):
+                os.mkdir(bucket_full_path)
 
         # Build tiered storage connection string.
         return \
@@ -133,7 +135,7 @@ class TieredConfigMixin:
             'tiered_storage=(auth_token=%s,' % self.auth_token + \
             'bucket=%s,' % self.bucket + \
             'bucket_prefix=%s,' % self.bucket_prefix + \
-            'name=%s),tiered_manager=(wait=0)' % self.ss_name
+            'name=%s),' % self.ss_name
 
     # Load the storage sources extension.
     def conn_extensions(self, extlist):

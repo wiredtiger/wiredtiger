@@ -758,7 +758,6 @@ struct __wt_connection_stats {
     int64_t tiered_work_units_dequeued;
     int64_t tiered_work_units_created;
     int64_t tiered_retention;
-    int64_t tiered_object_size;
     int64_t thread_fsync_active;
     int64_t thread_read_active;
     int64_t thread_write_active;
@@ -829,7 +828,6 @@ struct __wt_connection_stats {
     int64_t txn_checkpoint_prep_min;
     int64_t txn_checkpoint_prep_recent;
     int64_t txn_checkpoint_prep_total;
-    int64_t txn_checkpoint_prep_wait;
     int64_t txn_checkpoint_scrub_target;
     int64_t txn_checkpoint_scrub_time;
     int64_t txn_checkpoint_time_total;
