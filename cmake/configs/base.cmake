@@ -276,9 +276,21 @@ if(WT_WIN)
     endif()
 endif()
 
-if(NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Release" AND NOT "${CMAKE_BUILD_TYPE}" STREQUAL "RelWithDebInfo")
+if(NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Release")
     # Don't use the optimization level if we have specified a release config.
     # CMakes Release config sets compilation to the highest optimization level
     # by default.
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CC_OPTIMIZE_LEVEL}")
+endif()
+
+# For the RelWithDebInfo build, the optimisation level is set to 02 by default, we want to remove it
+# as we want to use CC_OPTIMIZE_LEVEL instead.
+if("${CMAKE_BUILD_TYPE}" STREQUAL "RelWithDebInfo")
+    if("${WT_OS}" STREQUAL "windows")
+        string(REPLACE "/O2" "" CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELWITHDEBINFO})
+        string(REPLACE "/O2" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+    else()
+        string(REPLACE "-O2" "" CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELWITHDEBINFO})
+        string(REPLACE "-O2" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+    endif()
 endif()
