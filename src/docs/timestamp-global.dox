@@ -42,22 +42,26 @@ WT_CONNECTION::set_timestamp method, including constraints.
 
 | Timestamp | Constraints | Description |
 |-----------|-------------|-------------|
-| durable_timestamp | <= oldest | Reset the maximum durable timestamp (see @ref timestamp_prepare for discussion of the durable timestamp). |
+| durable_timestamp | none | temporarily set the system's maximum durable timestamp, bounding the timestamp returned by \c all_durable. |
 | oldest_timestamp | <= stable; may not move backward, set to the value as of the last checkpoint during recovery | Inform the system future reads and writes will never be earlier than the specified timestamp. |
-| stable_timestamp | may not move backward, set to the recovery timestamp during recovery | Inform the system checkpoints should not include commits newer than the specified timestamp. |
+| stable_timestamp | may not move backward, set to the recovery timestamp during recovery and the specified timestamp during rollback-to-stable | Inform the system checkpoints should not include commits newer than the specified timestamp. |
 
 @subsection timestamp_global_set_api_durable_timestamp Setting the global "durable_timestamp" timestamp
 
-The global \c durable_timestamp functions as application input into the
-timestamp returned by querying the \c all_durable timestamp (see below).
-It is not otherwise used; in particular, moving it forward does not force
-data to disk.
-To force data to disk, advance the stable timestamp as desired and
-take a checkpoint.
+The global \c durable_timestamp temporarily sets the system's maximum durable
+timestamp, bounding the timestamp returned when querying the \c all_durable
+timestamp (see below). Note that the "system's maximum durable timestamp" is
+the maximum durable timestamp of any committed transaction, and \b not the
+timestamp of data changes which have made it to stable storage.
 
-\warning The \c durable_timestamp is not changed when the application calls the
-WT_CONNECTION::rollback_to_stable method, and should be reset by the application
-in that case.
+The \c durable_timestamp is advanced to the transaction's durable timestamp
+by any transaction commit with a durable timestamp after the current value.
+
+The \c durable_timestamp is set to the stable timestamp whenever the
+WT_CONNECTION::rollback_to_stable method is called.
+
+\warning The \c durable timestamp is used by the MongoDB server and is
+generally not expected to be useful to other applications.
 
 @subsection timestamp_global_set_api_oldest_timestamp Setting the "oldest_timestamp" timestamp
 
@@ -134,7 +138,7 @@ or \c oldest_reader if there are no active transactions.
 
 | Timestamp | Constraints | Description |
 |-----------|-------------|-------------|
-| all_durable | None | The largest timestamp such that all timestamps up to that value have been made durable (see @ref timestamp_prepare for discussion of the durable timestamp). |
+| all_durable | None | The largest timestamp such that all timestamps up to that value have been made durable, bounded by the \c durable timestamp. |
 | last_checkpoint | <= stable | The stable timestamp at which the last checkpoint ran. |
 | oldest_reader | None | The timestamp of the oldest currently active read transaction. |
 | oldest_timestamp | <= stable | The current application-set \c oldest_timestamp value. |
@@ -144,33 +148,39 @@ or \c oldest_reader if there are no active transactions.
 
 @subsection timestamp_global_query_api_all_durable Reading the "all_durable" timestamp
 
-<!--
-    XXX Given the constraints on transactional durable timestamps, it
-    seems like all_durable must always be >= stable, no?
-
-    Also, this could use clarification. My understanding from what's
-    here is that it's a scheme for tracking what has committed
-    recently, and has no direct relationship to what's checkpointed on
-    disk and thus _actually_ durable (that's last_checkpoint)... but I
-    am not clear on what one does with it if you need to have your own
-    application-level locks in order to read it usefully. A description
-    of how to use it would be helpful, but I don't know what to write.
-    Also, if there are no running transactions, does it reflect the
-    durable timestamps of committed transactions, reset to 0, or
-    something else?
--->
-
 The \c all_durable timestamp is the minimum of the global \c durable_timestamp
-(as set by the application), and the durable timestamps of all currently running
-transactions in the system.
+value and a durable timestamp before any unresolved transaction in the system.
+
+For example:
+- If a transaction commits with a durable timestamp of 50 and there are no
+running transactions in the system, \c all_durable will return 50.
+- If a transaction commits with a durable timestamp of 50, and there is
+a running transaction with a durable timestamp of 40, \c all_durable will
+return 39.
+- If a transaction commits with a durable timestamp of 50 and there
+are no running transactions in the system and the application sets
+\c durable_timestamp to 30, \c all_durable will return 30.
+- If a transaction commits with a durable timestamp of 50, and there is a
+running transaction with a durable timestamp of 20 and the application sets
+\c durable_timestamp to 30, \c all_durable will return 19.
+- If the application sets \c durable_timestamp to 30, and a transaction then
+commits with a durable timestamp of 50, \c all_durable will return 50.
+
+\warning It is possible for the \c all_durable value read by the application
+to be obsolete by the time the application receives it and applications using
+this value to make operational decisions are responsible for coordinating their
+own actions (for example by using high-level locks) to ensure its validity.
+Specifically, any transaction commit with a durable timestamp larger than than
+the current \c durable_timestamp value will set the \c durable_timestamp to the
+transaction's durable timestamp. Calling the WT_CONNECTION::rollback_to_stable
+method will reset the \c durable_timestamp to the stable timestamp.
 
 \warning Reading the \c all_durable timestamp does not prevent additional
-prepared but uncommitted transactions from appearing. In particular it is
-possible for the \c all_durable value read by the application to be obsolete
-by the time the application receives it, if a transaction prepares
-setting an earlier durable timestamp. Applications using this value
-to make operational decisions are responsible for coordinating their own actions
-(for example by using high-level locks) to ensure its validity.
+prepared but uncommitted transactions from appearing if a transaction prepares,
+setting an earlier durable timestamp.
+
+\warning The \c all_durable query is used by the MongoDB server and is
+generally not expected to be useful to other applications.
 
 The \c all_durable timestamp is read-only.
 
