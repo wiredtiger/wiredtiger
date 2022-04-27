@@ -35,14 +35,14 @@ import wiredtiger, wttest
 
 class test_tiered15(TieredConfigMixin, wttest.WiredTigerTestCase):
     types = [
-        ('file', dict(type='file', tiered_err=False, non_tiered_err=False, tiered_errmsg=None, non_tiered_errmsg=None)),
-        ('table', dict(type='table', tiered_err=True, non_tiered_err=False, tiered_errmsg="/Operation not supported/", non_tiered_errmsg=None)),
-        ('tier', dict(type='tier', tiered_err=True, non_tiered_err=False, tiered_errmsg="/Operation not supported/", non_tiered_errmsg=None)),
-        ('tiered', dict(type='tiered', tiered_err=True, non_tiered_err=True, tiered_errmsg="/Operation not supported/", non_tiered_errmsg="/Invalid argument/")),
-        ('colgroup', dict(type='colgroup', tiered_err=True, non_tiered_err=True, tiered_errmsg="/Operation not supported/", non_tiered_errmsg=None)),
-        ('index', dict(type='index', tiered_err=True, non_tiered_err=True, tiered_errmsg="/Operation not supported/", non_tiered_errmsg="/Invalid argument/")),
-        ('lsm', dict(type='lsm', tiered_err=True, non_tiered_err=False, tiered_errmsg="/Operation not supported/", non_tiered_errmsg=None)),
-        ('backup', dict(type='backup', tiered_err=True, non_tiered_err=False, tiered_errmsg="/Operation not supported/", non_tiered_errmsg="/Operation not supported/")),
+        ('file', dict(type='file', tiered_err=False, non_tiered_err=False, non_tiered_errmsg=None)),
+        ('table', dict(type='table', tiered_err=True, non_tiered_err=False, non_tiered_errmsg=None)),
+        ('tier', dict(type='tier', tiered_err=True, non_tiered_err=False, non_tiered_errmsg=None)),
+        ('tiered', dict(type='tiered', tiered_err=True, non_tiered_err=True, non_tiered_errmsg="/Invalid argument/")),
+        ('colgroup', dict(type='colgroup', tiered_err=True, non_tiered_err=True, non_tiered_errmsg=None)),
+        ('index', dict(type='index', tiered_err=True, non_tiered_err=True, non_tiered_errmsg="/Invalid argument/")),
+        ('lsm', dict(type='lsm', tiered_err=True, non_tiered_err=False, non_tiered_errmsg=None)),
+        ('backup', dict(type='backup', tiered_err=True, non_tiered_err=False, non_tiered_errmsg="/Operation not supported/")),
     ]
 
     # This is different to the self.is_tiered_scenario() value - that one configures tiered
@@ -67,7 +67,8 @@ class test_tiered15(TieredConfigMixin, wttest.WiredTigerTestCase):
             if self.type == "file":
                 self.session.create(uri, "type=" + self.type)
             else:
-                self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(uri, "type=" + self.type), self.tiered_errmsg)
+                tiered_errmsg = "/Operation not supported/"
+                self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(uri, "type=" + self.type), tiered_errmsg)
         else:
             # Creating a non-tiered table within a connection configured with tiered storage should allow the type
             # configuration to be set to some other types besides "file".

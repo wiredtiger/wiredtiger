@@ -970,7 +970,7 @@ __schema_create_config_check(
   WT_SESSION_IMPL *session, const char *uri, const char *config, bool import)
 {
     WT_CONFIG_ITEM cval;
-    bool is_tiered, tiered_name;
+    bool is_tiered, tiered_name_set;
 
     if (import && !WT_PREFIX_MATCH(uri, "file:") && !WT_PREFIX_MATCH(uri, "table:"))
         WT_RET_MSG(session, ENOTSUP,
@@ -980,14 +980,14 @@ __schema_create_config_check(
      * If tiered storage is configured at the connection level and the user has not configured
      * tiered_storage.name to be none, then the object being created is a tiered object.
      */
-    tiered_name =
+    tiered_name_set =
       __wt_config_getones(session, config, "tiered_storage.name", &cval) == 0 && cval.len != 0;
     is_tiered = S2C(session)->bstorage != NULL &&
-      (!tiered_name || !WT_STRING_MATCH("none", cval.str, cval.len));
+      (!tiered_name_set || !WT_STRING_MATCH("none", cval.str, cval.len));
 
     /*
-     * If the type configuration is set to anything else but "file" while using tiered storage we
-     * must fail the operation.
+     * If the type configuration is set to anything but "file" while using tiered storage we must
+     * fail the operation.
      */
     if (is_tiered && __wt_config_getones(session, config, "type", &cval) == 0 &&
       !WT_STRING_MATCH("file", cval.str, cval.len))
