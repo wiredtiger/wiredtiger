@@ -50,8 +50,9 @@ timestamp (see below). Note that the "system's maximum durable timestamp" is
 the maximum durable timestamp of any committed transaction, and \b not the
 timestamp of data changes which have made it to stable storage.
 
-The \c durable_timestamp is advanced to the transaction's durable timestamp
-by any transaction commit with a durable timestamp after the current value.
+The \c durable_timestamp is advanced to the transaction's durable timestamp (or
+the transaction's commit timestamp, if no durable timestamp was set), by any
+transaction commit with a durable (commit) timestamp after the current value.
 
 The \c durable_timestamp is set to the stable timestamp whenever the
 WT_CONNECTION::rollback_to_stable method is called.
@@ -148,9 +149,10 @@ commits with a durable timestamp of 50, \c all_durable will return 50.
 to be obsolete by the time the application receives it and applications using
 this value to make operational decisions are responsible for coordinating their
 own actions (for example by using high-level locks) to ensure its validity.
-Specifically, any transaction commit with a durable timestamp larger than than
-the current \c durable_timestamp value will set the \c durable_timestamp to the
-transaction's durable timestamp. Calling the WT_CONNECTION::rollback_to_stable
+Specifically, any transaction commit with a durable timestamp (or a commit
+timestamp if no durable timestamp was set), larger than than the current
+\c durable_timestamp value will set the \c durable_timestamp to the transaction's
+durable (commit) timestamp. Calling the WT_CONNECTION::rollback_to_stable
 method will reset the \c durable_timestamp to the stable timestamp.
 
 \warning Reading the \c all_durable timestamp does not prevent additional
