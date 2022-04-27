@@ -446,6 +446,60 @@ __cursor_restart(WT_SESSION_IMPL *session, uint64_t *yield_count, uint64_t *slee
 }
 
 /*
+ * __cursor_search_neighbouring --
+ *     Try after the search key, then before. At low isolation levels, new records could appear as
+ *     we are stepping through the tree.
+ */
+static int
+__cursor_search_neighbouring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *exact)
+{
+    WT_BTREE *btree;
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    btree = CUR2BT(cbt);
+    cursor = &cbt->iface;
+    session = CUR2S(cbt);
+
+    while ((ret = __wt_btcur_next_prefix(cbt, &state->key, false)) != WT_NOTFOUND) {
+        WT_RET(ret);
+        if (btree->type == BTREE_ROW)
+            WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state->key, exact));
+        else
+            *exact = cbt->recno < state->recno ? -1 : cbt->recno == state->recno ? 0 : 1;
+        if (*exact >= 0)
+            return (ret);
+    }
+
+    /*
+     * It is not necessary to go backwards when search_near is used with a prefix, as cursor row
+     * search places us on the first key of the prefix range. All the entries before the key we were
+     * placed on will not match the prefix.
+     *
+     * For example, if we search with the prefix "b", the cursor will be positioned at the first key
+     * starting with "b". All the entries before this one will start with "a", hence not matching
+     * the prefix.
+     */
+    if (F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH))
+        return (ret);
+
+    /*
+     * We walked to the end of the tree without finding a match. Walk backwards instead.
+     */
+    while ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND) {
+        WT_RET(ret);
+        if (btree->type == BTREE_ROW)
+            WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state->key, exact));
+        else
+            *exact = cbt->recno < state->recno ? -1 : cbt->recno == state->recno ? 0 : 1;
+        if (*exact <= 0)
+            return (ret);
+    }
+    return (ret);
+}
+
+/*
  * __wt_btcur_reset --
  *     Invalidate the cursor position.
  */
@@ -579,13 +633,8 @@ __wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
         WT_STAT_CONN_DATA_INCR(session, cursor_reposition);
         WT_ERR(__wt_cursor_localkey(cursor));
         WT_ERR(__cursor_reset(cbt));
-
-        /*
-         * Clear the evict reposition flag here, as we should not reposition as part of this search.
-         */
-        F_CLR(cursor, WT_CURSTD_EVICT_REPOSITION);
-
-        WT_ERR(__wt_btcur_search(cbt));
+        WT_WITHOUT_EVICT_REPOSITION(ret = __wt_btcur_search(cbt));
+        WT_ERR(ret);
     }
 
 err:
@@ -846,56 +895,9 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     } else {
-
-        /*
-         * The evict reposition cursor flag may be set, however, since we do not wish to reposition
-         * the cursor in the next and prev calls within search near, it is better to clear the flag
-         * and restore it at a later stage.
-         */
-        WT_CLEAR_CURSTD_EVICT_REPOSITION(cursor);
-
-        /*
-         * We didn't find an exact match: try after the search key, then before. We have to loop
-         * here because at low isolation levels, new records could appear as we are stepping through
-         * the tree.
-         */
-        while ((ret = __wt_btcur_next_prefix(cbt, &state.key, false)) != WT_NOTFOUND) {
-            WT_ERR(ret);
-            if (btree->type == BTREE_ROW)
-                WT_ERR(__wt_compare(session, btree->collator, &cursor->key, &state.key, &exact));
-            else
-                exact = cbt->recno < state.recno ? -1 : cbt->recno == state.recno ? 0 : 1;
-            if (exact >= 0)
-                goto done;
-        }
-
-        /*
-         * It is not necessary to go backwards when search_near is used with a prefix, as cursor row
-         * search places us on the first key of the prefix range. All the entries before the key we
-         * were placed on will not match the prefix.
-         *
-         * For example, if we search with the prefix "b", the cursor will be positioned at the first
-         * key starting with "b". All the entries before this one will start with "a", hence not
-         * matching the prefix.
-         */
-        if (F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH))
-            goto done;
-
-        /*
-         * We walked to the end of the tree without finding a match. Walk backwards instead.
-         */
-        while ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND) {
-            WT_ERR(ret);
-            if (btree->type == BTREE_ROW)
-                WT_ERR(__wt_compare(session, btree->collator, &cursor->key, &state.key, &exact));
-            else
-                exact = cbt->recno < state.recno ? -1 : cbt->recno == state.recno ? 0 : 1;
-            if (exact <= 0)
-                goto done;
-        }
-
-        /* Restore the evict reposition flag here. */
-        WT_RESTORE_CURSTD_EVICT_REPOSITION(cursor);
+        /* We didn't find an exact match, try to find the nearest one. */
+        WT_WITHOUT_EVICT_REPOSITION(ret = __cursor_search_neighbouring(cbt, &state, &exact));
+        WT_ERR(ret);
     }
 
 done:

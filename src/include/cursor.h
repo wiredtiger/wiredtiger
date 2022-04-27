@@ -35,19 +35,15 @@
       0                      /* uint32_t flags */                                               \
     }
 
-/*
- * Clear the evict reposition cursor flag, however, save the state of the flag to restore it later.
- */
-#define WT_CLEAR_CURSTD_EVICT_REPOSITION(cursor)                                    \
+/* Call a function without the evict reposition cursor flag, restore afterwards. */
+#define WT_WITHOUT_EVICT_REPOSITION(e)                                              \
     do {                                                                            \
         bool __evict_reposition_flag = F_ISSET(cursor, WT_CURSTD_EVICT_REPOSITION); \
-        F_CLR(cursor, WT_CURSTD_EVICT_REPOSITION);
-
-#define WT_RESTORE_CURSTD_EVICT_REPOSITION(cursor) \
-    if (__evict_reposition_flag)                   \
-        F_SET(cursor, WT_CURSTD_EVICT_REPOSITION); \
-    }                                              \
-    while (0)
+        F_CLR(cursor, WT_CURSTD_EVICT_REPOSITION);                                  \
+        e;                                                                          \
+        if (__evict_reposition_flag)                                                \
+            F_SET(cursor, WT_CURSTD_EVICT_REPOSITION);                              \
+    } while (0)
 
 struct __wt_cursor_backup {
     WT_CURSOR iface;
