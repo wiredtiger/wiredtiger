@@ -189,10 +189,14 @@ class test_timestamp22(wttest.WiredTigerTestCase):
             commit_config += ',durable_timestamp=' + self.timestamp_str(durable_ts)
         cursor = session.open_cursor(self.uri)
         prepare_ts = self.gen_ts(commit_ts)
-        if prepare_ts < self.last_durable:
+
+        # OOO is not allowed. Hence, the prepare ts should be greater than
+        # the last commit and last durable.
+        if prepare_ts <= self.last_durable:
             prepare_ts = self.last_durable + 1
-        if prepare_ts < self.last_commit_ts:
+        if prepare_ts <= self.last_commit_ts:
             prepare_ts = self.last_commit_ts + 1
+
         prepare_config = 'prepare_timestamp=' + self.timestamp_str(prepare_ts)
         begin_config = '' if read_ts < 0 else 'read_timestamp=' + self.timestamp_str(read_ts)
 
