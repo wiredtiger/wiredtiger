@@ -1966,8 +1966,7 @@ methods = {
         by WT_CONNECTION::query_timestamp with the \c all_durable configuration. Calls to
         WT_CONNECTION::query_timestamp will ignore durable timestamps greater than the specified
         value until a subsequent transaction commit advances the maximum durable timestamp, or
-        rollback-to-stable resets the value.
-        See @ref timestamp_global_api'''),
+        rollback-to-stable resets the value. See @ref timestamp_global_api'''),
     Config('force', 'false', r'''
         set timestamps even if they violate normal ordering requirements.
         For example allow the \c oldest_timestamp to move backwards''',
