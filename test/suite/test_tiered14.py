@@ -86,7 +86,7 @@ class test_tiered14(wttest.WiredTigerTestCase):
         config = ''
         # S3 store is built as an optional loadable extension, not all test environments build S3.
         if self.ss_name == 's3_store':
-            # config = '=(config=\"(verbose=[api:1,version,tiered:-3])\")'
+            #config = '=(config=\"(verbose=[api:1,version,tiered:-3])\")'
             extlist.skip_if_missing = True
         #if self.ss_name == 'dir_store':
             #config = '=(config=\"(verbose=1,delay_ms=200,force_delay=3)\")'
