@@ -40,7 +40,7 @@ WT_CONNECTION::set_timestamp method, including constraints.
 |-----------|-------------|-------------|
 | durable_timestamp | none | temporarily set the system's maximum durable timestamp, bounding the timestamp returned by \c all_durable. |
 | oldest_timestamp | <= stable; may not move backward, set to the value as of the last checkpoint during recovery | Inform the system future reads and writes will never be earlier than the specified timestamp. |
-| stable_timestamp | may not move backward, set to the recovery timestamp during recovery and the specified timestamp during rollback-to-stable | Inform the system checkpoints should not include commits newer than the specified timestamp. |
+| stable_timestamp | may not move backward, set to the stable timestamp during rollback-to-stable and recovery | Inform the system checkpoints should not include commits newer than the specified timestamp. |
 
 @subsection timestamp_global_set_api_durable_timestamp Setting the global "durable_timestamp" timestamp
 
