@@ -59,6 +59,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         # S3 store is built as an optional loadable extension, not all test environments build S3.
         if self.ss_name == 's3_store':
             #config = '=(config=\"(verbose=1)\")'
+            # config = '=(config=\"(verbose=[api:1,version,tiered:-3])\")'
             extlist.skip_if_missing = True
         #if self.ss_name == 'dir_store':
             #config = '=(config=\"(verbose=1,delay_ms=200,force_delay=3)\")'
@@ -105,8 +106,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
 
         # The object doesn't exist yet.
         if self.ss_name == 's3_store':
-            with self.expectedStderrPattern('.*HTTP response code: 404.*'):
-                self.assertFalse(fs.fs_exist(session, 'foobar'))
+            self.assertFalse(fs.fs_exist(session, 'foobar'))
         else:
             self.assertFalse(fs.fs_exist(session, 'foobar'))
 
@@ -116,8 +116,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
 
         # The object still doesn't exist yet.
         if self.ss_name == 's3_store':
-            with self.expectedStderrPattern('.*HTTP response code: 404.*'):
-                self.assertFalse(fs.fs_exist(session, 'foobar'))
+            self.assertFalse(fs.fs_exist(session, 'foobar'))
         else:
             self.assertFalse(fs.fs_exist(session, 'foobar'))
 
