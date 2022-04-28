@@ -446,12 +446,12 @@ __cursor_restart(WT_SESSION_IMPL *session, uint64_t *yield_count, uint64_t *slee
 }
 
 /*
- * __cursor_search_neighbouring --
+ * __cursor_search_neighboring --
  *     Try after the search key, then before. At low isolation levels, new records could appear as
  *     we are stepping through the tree.
  */
 static int
-__cursor_search_neighbouring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *exact)
+__cursor_search_neighboring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *exact)
 {
     WT_BTREE *btree;
     WT_CURSOR *cursor;
@@ -896,7 +896,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     } else {
         /* We didn't find an exact match, try to find the nearest one. */
-        WT_WITHOUT_EVICT_REPOSITION(ret = __cursor_search_neighbouring(cbt, &state, &exact));
+        WT_WITHOUT_EVICT_REPOSITION(ret = __cursor_search_neighboring(cbt, &state, &exact));
         WT_ERR(ret);
     }
 
