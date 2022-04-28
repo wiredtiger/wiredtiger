@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wiredtiger, wttest
-from helper_tiered import tiered_storage_sources
+from helper_tiered import get_conn_config, tiered_storage_sources
 from wtscenario import make_scenarios
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
@@ -48,8 +48,6 @@ class test_tiered10(wttest.WiredTigerTestCase):
     retention = 1
     saved_conn = ''
     def conn_config(self):
-        if self.ss_name == 'dir_store' and not os.path.exists(self.bucket):
-            os.mkdir(self.bucket)
         os.mkdir(self.conn1_dir)
         os.mkdir(self.conn2_dir)
         # Use this to create the directories and set up for the others.
@@ -60,14 +58,8 @@ class test_tiered10(wttest.WiredTigerTestCase):
         if self.ss_name == 'dir_store':
             bucket = '../'
         bucket += self.bucket
-
-        self.saved_conn = \
-          'debug_mode=(flush_checkpoint=true),' + \
-          'create,statistics=(all),' + \
-          'tiered_storage=(auth_token=%s,' % self.auth_token + \
-          'bucket=%s,' % bucket + \
-          'local_retention=%d,' % self.retention + \
-          'name=%s),' % self.ss_name 
+        self.saved_conn = get_conn_config(self) + 'bucket=%s,' % bucket + \
+          'local_retention=%d),create' % self.retention
         return dummy_conn
 
     # Load the storage store extension.

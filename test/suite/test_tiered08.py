@@ -33,10 +33,10 @@
 #
 
 import os, threading, time, wttest
-from helper_tiered import tiered_storage_sources
+from helper_tiered import tiered_storage_sources, get_conn_config 
 from wiredtiger import stat
 from wtthread import checkpoint_thread, flush_tier_thread
-from wtscenario import make_scenarios, get_conn_config 
+from wtscenario import make_scenarios
 
 
 # test_tiered08.py
@@ -44,7 +44,7 @@ from wtscenario import make_scenarios, get_conn_config
 #   data into a table from another thread.
 class test_tiered08(wttest.WiredTigerTestCase):
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(tiered_storage_sources)
+    scenarios = make_scenarios(tiered_storage_sources[:2])
 
     batch_size = 100000
 
@@ -54,9 +54,7 @@ class test_tiered08(wttest.WiredTigerTestCase):
     uri = "table:test_tiered08"
 
     def conn_config(self):
-        if self.ss_name == 'dir_store' and not os.path.exists(self.bucket):
-            os.mkdir(self.bucket)
-        return get_conn_config(self) + 'tiered_manager=(wait=0)'
+        return get_conn_config(self) + '), tiered_manager=(wait=0)'
         
     # Load the storage store extension.
     def conn_extensions(self, extlist):

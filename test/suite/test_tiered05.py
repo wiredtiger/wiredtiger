@@ -56,8 +56,6 @@ class test_tiered05(wttest.WiredTigerTestCase):
         extlist.extension('storage_sources', self.ss_name + config)
 
     def conn_config(self):
-        if self.ss_name == 'dir_store' and not os.path.exists(self.bucket):
-            os.mkdir(self.bucket)
         return get_conn_config(self) + 'object_target_size=20M)' + \
             ',tiered_manager=(wait=%d)' % self.wait 
         

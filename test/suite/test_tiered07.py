@@ -27,8 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wiredtiger, wttest
-from helper_tiered import get_auth_token, get_bucket1_name
-from wtscenario import make_scenarios, get_conn_config
+from helper_tiered import get_auth_token, get_bucket1_name, get_conn_config
+from wtscenario import make_scenarios
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
@@ -72,10 +72,7 @@ class test_tiered07(wttest.WiredTigerTestCase):
         extlist.extension('storage_sources', self.ss_name + config)
 
     def conn_config(self):
-        if self.ss_name == 'dir_store' and not os.path.exists(self.bucket):
-            os.mkdir(self.bucket)
         #  'verbose=(tiered),' + \
-
         return get_conn_config(self) + 'object_target_size=20M)'
 
     def check(self, tc, n):

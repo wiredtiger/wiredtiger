@@ -48,8 +48,6 @@ class test_tiered02(wttest.WiredTigerTestCase):
     uri = "table:test_tiered02"
 
     def conn_config(self):
-        if self.ss_name == 'dir_store' and not os.path.exists(self.bucket):
-            os.mkdir(self.bucket)
         return get_conn_config(self) + '),tiered_manager=(wait=0)'
 
     # Load the storage store extension.
