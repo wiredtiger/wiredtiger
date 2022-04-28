@@ -65,6 +65,8 @@ def get_bucket_name(storage_source, i):
 
 # Set up configuration
 def get_conn_config(storage_source):
+    if not storage_source.is_tiered_scenario():
+            return ''
     if storage_source.ss_name == 'dir_store' and not os.path.exists(storage_source.bucket):
             os.mkdir(storage_source.bucket)
     return \

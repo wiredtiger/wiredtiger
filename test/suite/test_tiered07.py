@@ -54,10 +54,8 @@ class test_tiered07(wttest.WiredTigerTestCase, TieredConfigMixin):
         TieredConfigMixin.conn_extensions(self, extlist)
     
     def conn_config(self):
-        #  'verbose=(tiered),' + \
-        return get_conn_config(self) 
-        # + 'object_target_size=20M)'
-
+        return TieredConfigMixin.conn_config(self)
+        
     def check(self, tc, base, n):
         get_check(self, tc, 0, n)
 

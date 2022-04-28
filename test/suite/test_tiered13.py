@@ -53,7 +53,7 @@ class test_tiered13(test_import_base, TieredConfigMixin):
         TieredConfigMixin.conn_extensions(self, extlist)
 
     def conn_config(self):
-        self.saved_conn = get_conn_config(self) + 'object_target_size=20M),create'
+        self.saved_conn = get_conn_config(self) + '),create'
         return self.saved_conn
 
     def test_tiered13(self):

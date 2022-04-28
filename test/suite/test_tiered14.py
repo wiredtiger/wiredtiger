@@ -60,7 +60,7 @@ class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
     scenarios = make_scenarios(multiplier, keyfmt, dataset, tiered_storage_sources[:2])
 
     def conn_config(self):
-        return get_conn_config(self) + '),tiered_manager=(wait=0)'
+        return TieredConfigMixin.conn_config(self)
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):

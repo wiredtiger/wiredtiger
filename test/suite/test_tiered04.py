@@ -60,9 +60,8 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         if self.ss_name == 'dir_store':
             os.mkdir(self.bucket)
             os.mkdir(self.bucket1)
-        self.saved_conn = get_conn_config(self) + 'local_retention=%d,'\
+        self.saved_conn = get_conn_config(self) + 'local_retention=%d)'\
              % self.retention 
-            #  + 'object_target_size=%s)' % self.object_sys
         return self.saved_conn
    
     # Load the storage store extension.
