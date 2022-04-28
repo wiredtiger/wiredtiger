@@ -249,7 +249,7 @@ config_string(
 )
 
 # Diagnostic mode requires diagnostic flags. These are set by default in debug mode, otherwise set
-# set them manually.
+# them manually.
 if(HAVE_DIAGNOSTIC AND NOT "${CMAKE_BUILD_TYPE}" MATCHES "^(Debug|RelWithDebInfo)$")
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
         # Produce full symbolic debugging information.
