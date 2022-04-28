@@ -1429,6 +1429,10 @@ methods = {
     Config('remove_files', 'true', r'''
         if the underlying files should be removed''',
         type='boolean'),
+    Config('remove_shared', 'false', r'''
+        to force the removal of any shared objects. This can only be set if
+        drop is configured to remove the underlying files''',
+        type='boolean', undoc=True),
 ]),
 
 'WT_SESSION.join' : Method([

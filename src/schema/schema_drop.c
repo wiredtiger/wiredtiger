@@ -273,10 +273,17 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
     WT_CONFIG_ITEM cval;
     WT_DATA_SOURCE *dsrc;
     WT_DECL_RET;
-    bool force;
+    bool force, remove_files, remove_shared;
 
     WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
     force = cval.val != 0;
+    WT_RET(__wt_config_gets(session, cfg, "remove_files", &cval));
+    remove_files = cval.val != 0;
+    WT_RET(__wt_config_gets(session, cfg, "remove_shared", &cval));
+    remove_shared = cval.val != 0;
+
+    if (!remove_files && remove_shared)
+        WT_RET(EINVAL);
 
     WT_RET(__wt_meta_track_on(session));
 
