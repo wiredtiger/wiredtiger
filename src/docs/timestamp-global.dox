@@ -110,7 +110,7 @@ possible data.
 @section timestamp_global_querying_timestamps Querying global timestamps
 
 The following table lists the global timestamps an application can query using
-the WT_CONNECTION::set_timestamp method, including constraints. In all cases,
+the WT_CONNECTION::query_timestamp method, including constraints. In all cases,
 a timestamp of 0 is returned if the timestamp is not available or has not been
 set, for example, the \c last_checkpoint timestamp if no checkpoints have run,
 or \c oldest_reader if there are no active transactions.
