@@ -370,32 +370,10 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
      * than or equal to the stable timestamp. If we're only setting one then compare against the
      * system timestamp. If we're setting both then compare the passed in values.
      */
-    if (!has_durable && txn_global->has_durable_timestamp)
-        durable_ts = txn_global->durable_timestamp;
     if (!has_oldest && txn_global->has_oldest_timestamp)
         oldest_ts = last_oldest_ts;
     if (!has_stable && txn_global->has_stable_timestamp)
         stable_ts = last_stable_ts;
-
-    /*
-     * If a durable timestamp was supplied, check that it is no older than either the stable
-     * timestamp or the oldest timestamp.
-     */
-    if (has_durable && (has_oldest || txn_global->has_oldest_timestamp) && oldest_ts > durable_ts) {
-        __wt_readunlock(session, &txn_global->rwlock);
-        WT_RET_MSG(session, EINVAL,
-          "set_timestamp: oldest timestamp %s must not be later than durable timestamp %s",
-          __wt_timestamp_to_string(oldest_ts, ts_string[0]),
-          __wt_timestamp_to_string(durable_ts, ts_string[1]));
-    }
-
-    if (has_durable && (has_stable || txn_global->has_stable_timestamp) && stable_ts > durable_ts) {
-        __wt_readunlock(session, &txn_global->rwlock);
-        WT_RET_MSG(session, EINVAL,
-          "set_timestamp: stable timestamp %s must not be later than durable timestamp %s",
-          __wt_timestamp_to_string(stable_ts, ts_string[0]),
-          __wt_timestamp_to_string(durable_ts, ts_string[1]));
-    }
 
     /*
      * The oldest and stable timestamps must always satisfy the condition that oldest <= stable.
@@ -1018,7 +996,7 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
     __wt_txn_publish_durable_timestamp(session);
 
     /* Timestamps are only logged in debugging mode. */
-    if (ts != WT_TS_NONE && FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE) &&
+    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE) &&
       FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) && !F_ISSET(conn, WT_CONN_RECOVERING))
         WT_RET(__wt_txn_ts_log(session));
 

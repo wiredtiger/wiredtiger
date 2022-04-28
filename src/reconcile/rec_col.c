@@ -210,18 +210,16 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     WT_ADDR *addr;
     WT_BTREE *btree;
     WT_CELL_UNPACK_ADDR *vpack, _vpack;
-    WT_CHILD_STATE state;
+    WT_CHILD_MODIFY_STATE cms;
     WT_DECL_RET;
     WT_PAGE *child, *page;
     WT_REC_KV *val;
     WT_REF *ref;
     WT_TIME_AGGREGATE ta;
-    bool hazard;
 
     btree = S2BT(session);
     page = pageref->page;
     child = NULL;
-    hazard = false;
     WT_TIME_AGGREGATE_INIT(&ta);
 
     val = &r->v;
@@ -239,14 +237,14 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
          * Modified child. The page may be emptied or internally created during a split.
          * Deleted/split pages are merged into the parent and discarded.
          */
-        WT_ERR(__wt_rec_child_modify(session, r, ref, &hazard, &state));
+        WT_ERR(__wt_rec_child_modify(session, r, ref, &cms));
         addr = NULL;
         child = ref->page;
 
-        switch (state) {
+        switch (cms.state) {
         case WT_CHILD_IGNORE:
             /* Ignored child. */
-            WT_CHILD_RELEASE_ERR(session, hazard, ref);
+            WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
             continue;
 
         case WT_CHILD_MODIFIED:
@@ -260,11 +258,11 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
                  * chunk of the name space. The exceptions are pages created when the tree is
                  * created, and never filled.
                  */
-                WT_CHILD_RELEASE_ERR(session, hazard, ref);
+                WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
                 continue;
             case WT_PM_REC_MULTIBLOCK:
                 WT_ERR(__rec_col_merge(session, r, child));
-                WT_CHILD_RELEASE_ERR(session, hazard, ref);
+                WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
                 continue;
             case WT_PM_REC_REPLACE:
                 addr = &child->modify->mod_replace;
@@ -280,7 +278,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             /*
              * Deleted child where we write a proxy cell, not yet supported for column-store.
              */
-            WT_ERR(__wt_illegal_value(session, state));
+            WT_ERR(__wt_illegal_value(session, cms.state));
         }
 
         /*
@@ -308,7 +306,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             __wt_rec_cell_build_addr(session, r, addr, NULL, ref->ref_recno, NULL);
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
         }
-        WT_CHILD_RELEASE_ERR(session, hazard, ref);
+        WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, val->len))
@@ -324,7 +322,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     return (__wt_rec_split_finish(session, r));
 
 err:
-    WT_CHILD_RELEASE(session, hazard, ref);
+    WT_CHILD_RELEASE(session, cms.hazard, ref);
     return (ret);
 }
 
@@ -766,12 +764,11 @@ __wt_rec_col_fix(
 
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             /*
-             * When an out-of-order or mixed-mode tombstone is getting written to disk, remove any
-             * historical versions that are greater in the history store for this key.
+             * When a mixed mode tombstone is getting written to disk, remove any historical
+             * versions that are greater in the history store for this key.
              */
-            if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
-                WT_ERR(__wt_rec_hs_clear_on_tombstone(
-                  session, r, upd_select.tw.durable_stop_ts, recno, NULL, false));
+            if (upd_select.mm_tombstone && r->hs_clear_on_tombstone)
+                WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, recno, NULL, false));
 
             val = 0;
 
@@ -784,12 +781,11 @@ __wt_rec_col_fix(
             /* Write the time window. */
             if (!WT_TIME_WINDOW_IS_EMPTY(&upd_select.tw)) {
                 /*
-                 * When an out-of-order or mixed-mode tombstone is getting written to disk, remove
-                 * any historical versions that are greater in the history store for this key.
+                 * When a mixed mode tombstone is getting written to disk, remove any historical
+                 * versions that are greater in the history store for this key.
                  */
-                if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
-                    WT_ERR(__wt_rec_hs_clear_on_tombstone(
-                      session, r, upd_select.tw.durable_stop_ts, recno, NULL, true));
+                if (upd_select.mm_tombstone && r->hs_clear_on_tombstone)
+                    WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, recno, NULL, true));
 
                 WT_ERR(__wt_rec_col_fix_addtw(
                   session, r, (uint32_t)(recno - curstartrecno), &upd_select.tw));
@@ -1424,24 +1420,20 @@ record_loop:
                     data = upd->data;
                     size = upd->size;
                     /*
-                     * When an out-of-order or mixed-mode tombstone is getting written to disk,
-                     * remove any historical versions that are greater in the history store for this
-                     * key.
+                     * When a mixed mode tombstone is getting written to disk, remove any historical
+                     * versions that are greater in the history store for this key.
                      */
-                    if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
-                        WT_ERR(__wt_rec_hs_clear_on_tombstone(
-                          session, r, twp->durable_stop_ts, src_recno, NULL, true));
+                    if (upd_select.mm_tombstone && r->hs_clear_on_tombstone)
+                        WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, src_recno, NULL, true));
 
                     break;
                 case WT_UPDATE_TOMBSTONE:
                     /*
-                     * When an out-of-order or mixed-mode tombstone is getting written to disk,
-                     * remove any historical versions that are greater in the history store for this
-                     * key.
+                     * When a mixed mode tombstone is getting written to disk, remove any historical
+                     * versions that are greater in the history store for this key.
                      */
-                    if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
-                        WT_ERR(__wt_rec_hs_clear_on_tombstone(
-                          session, r, twp->durable_stop_ts, src_recno, NULL, false));
+                    if (upd_select.mm_tombstone && r->hs_clear_on_tombstone)
+                        WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, src_recno, NULL, false));
 
                     deleted = true;
                     twp = &clear_tw;
