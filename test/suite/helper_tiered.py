@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-import datetime, inspect, os, random 
+import datetime, inspect, os, random, wiredtiger
 
 # These routines help run the various storage sources. They are required to manage
 # generation of storage source specific configurations.
@@ -55,20 +55,12 @@ s3_buckets = ['s3testext-us;us-east-2', 's3testext;ap-southeast-2']
 # Local buckets do not have a region
 local_buckets = ['bucket1', 'bucket2']
 
-# Get name of the first bucket in the list.
-def get_bucket1_name(storage_source):
+# Get name of the bucket at specified index in the list.
+def get_bucket_name(storage_source, i):
     if storage_source == 's3_store':
-        return s3_buckets[0]
+        return s3_buckets[i]
     if storage_source == 'dir_store':
-        return local_buckets[0]
-    return None
-
-# Get name of the second bucket in the list.
-def get_bucket2_name(storage_source):
-    if storage_source == 's3_store':
-        return s3_buckets[1]
-    if storage_source == 'dir_store':
-        return local_buckets[1]
+        return local_buckets[i]
     return None
 
 # Set up configuration
@@ -81,17 +73,13 @@ def get_conn_config(storage_source):
         'tiered_storage=(auth_token=%s,' % storage_source.auth_token + \
         'bucket=%s,' % storage_source.bucket + \
         'bucket_prefix=%s,' % storage_source.bucket_prefix + \
-        'name=%s,' % storage_source.ss_name  
-         
-# def conn_config(storage_source):
-#         if storage_source.ss_name == 'dir_store' and not os.path.exists(storage_source.bucket):
-#             os.mkdir(storage_source.bucket)
-#         return \
-#           'debug_mode=(flush_checkpoint=true),' + \
-#           'tiered_storage=(auth_token=%s,' % storage_source.auth_token + \
-#           'bucket=%s,' % storage_source.bucket + \
-#           'bucket_prefix=%s,' % storage_source.bucket_prefix + \
-#           'name=%s),tiered_manager=(wait=0)' % storage_source.ss_name
+        'name=%s,' % storage_source.ss_name
+
+def get_check(storage_source, tc, base, n):
+    for i in range(base, n):
+        storage_source.assertEqual(tc[str(i)], str(i))
+    tc.set_key(str(n))
+    storage_source.assertEquals(tc.search(), wiredtiger.WT_NOTFOUND)
 
 # Generate a unique object prefix for the S3 store. 
 def generate_s3_prefix(test_name = ''):
@@ -109,7 +97,6 @@ def generate_s3_prefix(test_name = ''):
     if not test_name:
         test_name = inspect.stack()[1][3]
     prefix += test_name + '--'
-
     return prefix
 
 # Storage sources
@@ -117,8 +104,8 @@ tiered_storage_sources = [
     ('dirstore', dict(is_tiered = True,
         is_local_storage = True,
         auth_token = get_auth_token('dir_store'),
-        bucket = get_bucket1_name('dir_store'),
-        bucket1 = get_bucket2_name('dir_store'),
+        bucket = get_bucket_name('dir_store', 0),
+        bucket1 = get_bucket_name('dir_store', 1),
         bucket_prefix = "pfx_",
         bucket_prefix1 = "pfx1_",
         bucket_prefix2 = 'pfx2_',
@@ -127,8 +114,8 @@ tiered_storage_sources = [
     ('s3', dict(is_tiered = True,
         is_local_storage = False,
         auth_token = get_auth_token('s3_store'),
-        bucket = get_bucket1_name('s3_store'),
-        bucket1 = get_bucket2_name('s3_store'),
+        bucket = get_bucket_name('s3_store', 0),
+        bucket1 = get_bucket_name('s3_store', 1),
         bucket_prefix = generate_s3_prefix(),
         bucket_prefix1 = generate_s3_prefix(),
         bucket_prefix2 = generate_s3_prefix(),

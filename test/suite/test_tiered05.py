@@ -26,40 +26,29 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from distutils.sysconfig import get_config_h_filename
 import os, time, wiredtiger, wttest
-from helper_tiered import get_conn_config, tiered_storage_sources
+from helper_tiered import TieredConfigMixin, tiered_storage_sources, get_conn_config
 from wtscenario import make_scenarios
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered05.py
 #    Basic tiered storage API test error for tiered manager and flush_tier.
-class test_tiered05(wttest.WiredTigerTestCase):
+class test_tiered05(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(tiered_storage_sources[:2])
 
     uri = "table:test_tiered05"
     wait = 2 
-
+    
+    # Load the storage store extension.
     def conn_extensions(self, extlist):
-        config = ''
-        # S3 store is built as an optional loadable extension, not all test environments build S3.
-        if self.ss_name == 's3_store':
-            #config = '=(config=\"(verbose=1)\")'
-            extlist.skip_if_missing = True
-        #if self.ss_name == 'dir_store':
-            #config = '=(config=\"(verbose=1,delay_ms=200,force_delay=3)\")'
-        # Windows doesn't support dynamically loaded extension libraries.
-        if os.name == 'nt':
-            extlist.skip_if_missing = True
-        extlist.extension('storage_sources', self.ss_name + config)
+        TieredConfigMixin.conn_extensions(self, extlist)
 
     def conn_config(self):
         return get_conn_config(self) + 'object_target_size=20M)' + \
             ',tiered_manager=(wait=%d)' % self.wait 
         
-
     # Test calling the flush_tier API with a tiered manager. Should get an error.
     def test_tiered(self):
         self.session.create(self.uri, 'key_format=S')

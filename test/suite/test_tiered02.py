@@ -27,13 +27,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wttest
-from helper_tiered import tiered_storage_sources, get_conn_config
+from helper_tiered import TieredConfigMixin, tiered_storage_sources, get_conn_config
 from wtdataset import SimpleDataSet, ComplexDataSet
 from wtscenario import make_scenarios
 
 # test_tiered02.py
 #    Test tiered tree
-class test_tiered02(wttest.WiredTigerTestCase):
+class test_tiered02(wttest.WiredTigerTestCase, TieredConfigMixin):
     complex_dataset = [
         ('simple_ds', dict(complex_dataset=False)),
         
@@ -52,17 +52,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):
-        config = ''
-        # S3 store is built as an optional loadable extension, not all test environments build S3.
-        if self.ss_name == 's3_store':
-            #config = '=(config=\"(verbose=1)\")'
-            extlist.skip_if_missing = True
-        #if self.ss_name == 'dir_store':
-            #config = '=(config=\"(verbose=1,delay_ms=200,force_delay=3)\")'
-        # Windows doesn't support dynamically loaded extension libraries.
-        if os.name == 'nt':
-            extlist.skip_if_missing = True
-        extlist.extension('storage_sources', self.ss_name + config)
+        TieredConfigMixin.conn_extensions(self, extlist)
 
     def progress(self, s):
         self.verbose(3, s)

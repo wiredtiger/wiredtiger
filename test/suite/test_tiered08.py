@@ -33,7 +33,7 @@
 #
 
 import os, threading, time, wttest
-from helper_tiered import tiered_storage_sources, get_conn_config 
+from helper_tiered import TieredConfigMixin, tiered_storage_sources, get_conn_config
 from wiredtiger import stat
 from wtthread import checkpoint_thread, flush_tier_thread
 from wtscenario import make_scenarios
@@ -42,7 +42,7 @@ from wtscenario import make_scenarios
 # test_tiered08.py
 #   Run background checkpoints and flush_tier operations while inserting
 #   data into a table from another thread.
-class test_tiered08(wttest.WiredTigerTestCase):
+class test_tiered08(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(tiered_storage_sources[:2])
 
@@ -58,17 +58,7 @@ class test_tiered08(wttest.WiredTigerTestCase):
         
     # Load the storage store extension.
     def conn_extensions(self, extlist):
-        config = ''
-        # S3 store is built as an optional loadable extension, not all test environments build S3.
-        if self.ss_name == 's3_store':
-            #config = '=(config=\"(verbose=1)\")'
-            extlist.skip_if_missing = True
-        #if self.ss_name == 'dir_store':
-            #config = '=(config=\"(verbose=1,delay_ms=200,force_delay=3)\")'
-        # Windows doesn't support dynamically loaded extension libraries.
-        if os.name == 'nt':
-            extlist.skip_if_missing = True
-        extlist.extension('storage_sources', self.ss_name + config)
+        TieredConfigMixin.conn_extensions(self, extlist)
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')

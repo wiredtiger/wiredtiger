@@ -27,14 +27,14 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, random, wttest
-from helper_tiered import tiered_storage_sources
+from helper_tiered import TieredConfigMixin, get_conn_config, tiered_storage_sources
 from wtdataset import TrackedSimpleDataSet, TrackedComplexDataSet
 from wtscenario import make_scenarios
 
 # test_tiered14.py
 #    Test somewhat arbitrary combinations of flush_tier, checkpoint, restarts,
 #    data additions and updates.
-class test_tiered14(wttest.WiredTigerTestCase):
+class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
     uri = "table:test_tiered14-{}"   # format for subtests
 
     # FIXME-WT-7833: enable the commented scenarios and run the
@@ -60,29 +60,12 @@ class test_tiered14(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(multiplier, keyfmt, dataset, tiered_storage_sources[:2])
 
     def conn_config(self):
-        if self.ss_name == 'dir_store' and not os.path.exists(self.bucket):
-            os.mkdir(self.bucket)
-        return \
-          'debug_mode=(flush_checkpoint=true),' + \
-          'tiered_storage=(auth_token=%s,' % self.auth_token + \
-          'bucket=%s,' % self.bucket + \
-          'bucket_prefix=%s,' % self.bucket_prefix + \
-          'name=%s),tiered_manager=(wait=0)' % self.ss_name
+        return get_conn_config(self) + '),tiered_manager=(wait=0)'
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):
-        config = ''
-        # S3 store is built as an optional loadable extension, not all test environments build S3.
-        if self.ss_name == 's3_store':
-            #config = '=(config=\"(verbose=1)\")'
-            extlist.skip_if_missing = True
-        #if self.ss_name == 'dir_store':
-            #config = '=(config=\"(verbose=1,delay_ms=200,force_delay=3)\")'
-        # Windows doesn't support dynamically loaded extension libraries.
-        if os.name == 'nt':
-            extlist.skip_if_missing = True
-        extlist.extension('storage_sources', self.ss_name + config)
-
+        TieredConfigMixin.conn_extensions(self, extlist)
+    
     def progress(self, s):
         outstr = "testnum {}, position {}: {}".format(self.testnum, self.position, s)
         self.verbose(3, outstr)

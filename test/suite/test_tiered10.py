@@ -27,14 +27,14 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wiredtiger, wttest
-from helper_tiered import get_conn_config, tiered_storage_sources
+from helper_tiered import TieredConfigMixin, tiered_storage_sources, get_conn_config, get_check
 from wtscenario import make_scenarios
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered10.py
 #    Test tiered storage with simultaneous connections using different
 # prefixes to the same bucket directory but different local databases.
-class test_tiered10(wttest.WiredTigerTestCase):
+class test_tiered10(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(tiered_storage_sources[:2])
 
@@ -47,6 +47,7 @@ class test_tiered10(wttest.WiredTigerTestCase):
     conn2_dir = "second_dir"
     retention = 1
     saved_conn = ''
+
     def conn_config(self):
         os.mkdir(self.conn1_dir)
         os.mkdir(self.conn2_dir)
@@ -64,24 +65,11 @@ class test_tiered10(wttest.WiredTigerTestCase):
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):
-        config = ''
-        # S3 store is built as an optional loadable extension, not all test environments build S3.
-        if self.ss_name == 's3_store':
-            # config = '=(config=\"(verbose=[api:1,version,tiered:1])\")'
-            extlist.skip_if_missing = True
-        # if self.ss_name == 'dir_store':
-            #config = '=(config=\"(verbose=1,delay_ms=200,force_delay=3)\")'
-        # Windows doesn't support dynamically loaded extension libraries.
-        if os.name == 'nt':
-            extlist.skip_if_missing = True
-        extlist.extension('storage_sources', self.ss_name + config)
+        TieredConfigMixin.conn_extensions(self, extlist)
 
     def check(self, tc, base, n):
-        for i in range(base, n):
-            self.assertEqual(tc[str(i)], str(i))
-        tc.set_key(str(n))
-        self.assertEquals(tc.search(), wiredtiger.WT_NOTFOUND)
-
+        get_check(self, tc, base, n)
+    
     # Test calling the flush_tier API.
     def test_tiered(self):
         # Have two connections running in different directories, but sharing
