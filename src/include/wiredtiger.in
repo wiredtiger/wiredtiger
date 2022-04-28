@@ -5683,27 +5683,30 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_READ_IO				1210
 /*! connection: total write I/Os */
 #define	WT_STAT_CONN_WRITE_IO				1211
-/*!
- * cursor: Cursor temporarily released pinned page to encourage eviction
- * of hot or large page
- */
-#define	WT_STAT_CONN_CURSOR_REPOSITION			1212
 /*! cursor: Total number of entries skipped by cursor next calls */
-#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_TOTAL		1213
+#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_TOTAL		1212
 /*! cursor: Total number of entries skipped by cursor prev calls */
-#define	WT_STAT_CONN_CURSOR_PREV_SKIP_TOTAL		1214
+#define	WT_STAT_CONN_CURSOR_PREV_SKIP_TOTAL		1213
 /*!
  * cursor: Total number of entries skipped to position the history store
  * cursor
  */
-#define	WT_STAT_CONN_CURSOR_SKIP_HS_CUR_POSITION	1215
+#define	WT_STAT_CONN_CURSOR_SKIP_HS_CUR_POSITION	1214
 /*!
  * cursor: Total number of times a search near has exited due to prefix
  * config
  */
-#define	WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS	1216
-/*! cursor: Total number of times cursor fails to reposition */
-#define	WT_STAT_CONN_CURSOR_REPOSITION_FAILED		1217
+#define	WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS	1215
+/*!
+ * cursor: Total number of times cursor fails to temporarily release
+ * pinned page to encourage eviction of hot or large page
+ */
+#define	WT_STAT_CONN_CURSOR_REPOSITION_FAILED		1216
+/*!
+ * cursor: Total number of times cursor temporarily releases pinned page
+ * to encourage eviction of hot or large page
+ */
+#define	WT_STAT_CONN_CURSOR_REPOSITION			1217
 /*! cursor: cached cursor count */
 #define	WT_STAT_CONN_CURSOR_CACHED_COUNT		1218
 /*! cursor: cursor bulk loaded cursor insert calls */
@@ -6866,27 +6869,30 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_COMPRESS_WRITE_FAIL		2141
 /*! compression: page written was too small to compress */
 #define	WT_STAT_DSRC_COMPRESS_WRITE_TOO_SMALL		2142
-/*!
- * cursor: Cursor temporarily released pinned page to encourage eviction
- * of hot or large page
- */
-#define	WT_STAT_DSRC_CURSOR_REPOSITION			2143
 /*! cursor: Total number of entries skipped by cursor next calls */
-#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_TOTAL		2144
+#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_TOTAL		2143
 /*! cursor: Total number of entries skipped by cursor prev calls */
-#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_TOTAL		2145
+#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_TOTAL		2144
 /*!
  * cursor: Total number of entries skipped to position the history store
  * cursor
  */
-#define	WT_STAT_DSRC_CURSOR_SKIP_HS_CUR_POSITION	2146
+#define	WT_STAT_DSRC_CURSOR_SKIP_HS_CUR_POSITION	2145
 /*!
  * cursor: Total number of times a search near has exited due to prefix
  * config
  */
-#define	WT_STAT_DSRC_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS	2147
-/*! cursor: Total number of times cursor fails to reposition */
-#define	WT_STAT_DSRC_CURSOR_REPOSITION_FAILED		2148
+#define	WT_STAT_DSRC_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS	2146
+/*!
+ * cursor: Total number of times cursor fails to temporarily release
+ * pinned page to encourage eviction of hot or large page
+ */
+#define	WT_STAT_DSRC_CURSOR_REPOSITION_FAILED		2147
+/*!
+ * cursor: Total number of times cursor temporarily releases pinned page
+ * to encourage eviction of hot or large page
+ */
+#define	WT_STAT_DSRC_CURSOR_REPOSITION			2148
 /*! cursor: bulk loaded cursor insert calls */
 #define	WT_STAT_DSRC_CURSOR_INSERT_BULK			2149
 /*! cursor: cache cursors reuse count */
