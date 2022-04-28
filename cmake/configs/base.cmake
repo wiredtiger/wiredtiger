@@ -248,9 +248,9 @@ config_string(
     DEFAULT "\"${WT_VERSION_STRING}\""
 )
 
+# Diagnostic mode requires diagnostic flags. These are set by default in debug mode, otherwise set
+# set them manually.
 if(HAVE_DIAGNOSTIC AND NOT "${CMAKE_BUILD_TYPE}" MATCHES "^(Debug|RelWithDebInfo)$")
-    # Avoid setting diagnostic flags if we are building with Debug mode.
-    # CMakes Debug config sets compilation with debug symbols by default.
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
         # Produce full symbolic debugging information.
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /Z7")
