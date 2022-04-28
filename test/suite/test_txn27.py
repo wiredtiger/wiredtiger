@@ -65,7 +65,7 @@ class test_txn27(wttest.WiredTigerTestCase):
         session1.begin_transaction()
         cursor1.set_key(ds.key(1))
         cursor1.set_value("a"*1024*5000)
-        cursor1.update()
+        self.assertEqual(0, cursor1.update())
 
         # Let WiredTiger's accounting catch up.
         time.sleep(2)
@@ -78,37 +78,10 @@ class test_txn27(wttest.WiredTigerTestCase):
         # This is the message that we expect to be raised when a thread is rolled back due to
         # cache pressure.
         msg2 = 'oldest pinned transaction ID rolled back for eviction'
-        # Expect stdout to give us the true reason for the rollback.
-        with self.expectedStdoutPattern(msg2):
-            # This reason is the default reason for WT_ROLLBACK errors so we need to catch it.
-            self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor1.update(), msg1)
+        # This reason is the default reason for WT_ROLLBACK errors so we need to catch it.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor1.update(), msg1)
         # Expect the rollback reason to give us the true reason for the rollback.
         self.assertEquals(session1.get_rollback_reason(), msg2)
-        session1.rollback_transaction()
-
-        # Fill the cache with updates, applications should be forced into eviction when eviction
-        # updates trigger limit is reached. Keep filling the cache past that point.
-        session1.begin_transaction()
-        for i in range(1, 100):
-            cursor1.set_key(ds.key(i))
-            cursor1.set_value("a"*1024)
-            cursor1.insert()
-
-        # Open another session to insert data. We are past the eviction threshold and all the
-        # data is uncommitted. Unless we configure a maximum wait duration the opertation will
-        # block forever for the cache to be cleared. Let it fail after the configured time span.
-        session3 = self.conn.open_session("cache_max_wait_ms=1")
-        cursor2 = session3.open_cursor(uri)
-        cursor2.set_key(ds.key(201))
-        cursor2.set_value("a"*20)
-
-        msg3 = 'transaction rolled back because of cache overflow'
-        # Expect stdout to give us the true reason for the rollback.
-        with self.expectedStdoutPattern(msg3):
-            # This reason is the default reason for WT_ROLLBACK errors so we need to catch it.
-            self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor2.insert(), msg1)
-        # Expect the rollback reason to give us the true reason for the rollback.
-        self.assertEquals(session3.get_rollback_reason(), msg3)
 
 if __name__ == '__main__':
     wttest.run()
