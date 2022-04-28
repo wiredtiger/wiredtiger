@@ -219,10 +219,6 @@ tiered_config = [
             time in seconds to retain data on tiered storage on the local tier
             for faster read access''',
             min='0', max='10000'),
-        Config('object_target_size', '10M', r'''
-            the approximate size of objects before creating them on the
-            tiered storage tier''',
-            min='100K', max='10TB'),
         ]),
 ]
 
@@ -273,10 +269,6 @@ file_runtime_config = common_runtime_config + [
         the file is read-only. All methods that may modify a file are
         disabled. See @ref readonly for more information''',
         type='boolean'),
-    Config('tiered_object', 'false', r'''
-        this file is a tiered object. When opened on its own, it is marked as
-        readonly and may be restricted in other ways''',
-        type='boolean', undoc=True),
 ]
 
 # Per-file configuration
@@ -440,6 +432,10 @@ file_meta = file_config + [
         LSN of the last checkpoint'''),
     Config('id', '', r'''
         the file's ID number'''),
+    Config('tiered_object', 'false', r'''
+        this file is a tiered object. When opened on its own, it is marked as
+        readonly and may be restricted in other ways''',
+        type='boolean', undoc=True),
     Config('version', '(major=0,minor=0)', r'''
         the file version'''),
 ]
@@ -467,6 +463,7 @@ tiered_meta = file_meta + tiered_config + [
 ]
 
 tier_meta = file_meta + tiered_tree_config
+
 # Objects need to have the readonly setting set and bucket_prefix.
 # The file_meta already contains those pieces.
 object_meta = file_meta + [
@@ -834,24 +831,6 @@ connection_runtime_config = [
         @ref statistics for more information''',
         type='list',
         choices=['all', 'cache_walk', 'fast', 'none', 'clear', 'tree_walk']),
-    Config('tiered_manager', '', r'''
-        tiered storage manager configuration options''',
-        type='category', undoc=True, subconfig=[
-            Config('threads_max', '8', r'''
-                maximum number of threads WiredTiger will start to help manage
-                tiered storage maintenance. Each worker thread uses a session
-                from the configured session_max''',
-                min=1, max=20),
-            Config('threads_min', '1', r'''
-                minimum number of threads WiredTiger will start to help manage
-                tiered storage maintenance.''',
-                min=1, max=20),
-            Config('wait', '0', r'''
-                seconds to wait between each periodic housekeeping of
-                tiered storage. Setting this value above 0 configures periodic
-                management inside WiredTiger''',
-                min='0', max='100000'),
-            ]),
     Config('timing_stress_for_test', '', r'''
         enable code that interrupts the usual timing of operations with a goal
         of uncovering race conditions and unexpected blocking. This option is
@@ -1073,6 +1052,9 @@ wiredtiger_open_tiered_storage_configuration = [
             a directory to store locally cached versions of files in the storage source.  By
             default, it is named with \c "-cache" appended to the bucket name.  A relative
             directory name is relative to the home directory'''),
+        Config('interval', '60', r'''
+            interval in seconds at which to check for tiered storage related work to
+            perform''', min=1, max=1000),
         Config('name', 'none', r'''
             Permitted values are \c "none"
             or custom storage name created with

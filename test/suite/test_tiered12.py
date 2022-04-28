@@ -32,7 +32,7 @@ from wtscenario import make_scenarios
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered12.py
-#    Test tiered storage with tiered flush finish timing delay.
+#    Basic tiered storage API test error for tiered manager and flush_tier.
 class test_tiered12(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(tiered_storage_sources[:2])

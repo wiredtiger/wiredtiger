@@ -46,15 +46,13 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
     obj2file = base + '2.wtobj'
     objuri = 'object:' + base + '1.wtobj'
     tiereduri = "tiered:test_tiered04"
+    tieruri = "tier:test_tiered04"
     uri = "table:test_tiered04"
 
     uri1 = "table:test_other_tiered04"
     uri_none = "table:test_local04"
+    file_none = "file:test_local04.wt"
 
-    object_sys = "9M"
-    object_sys_val = 9 * 1024 * 1024
-    object_uri = "15M"
-    object_uri_val = 15 * 1024 * 1024
     retention = 3
     retention1 = 600
 
@@ -63,7 +61,8 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
             os.mkdir(self.bucket)
             os.mkdir(self.bucket1)
         self.saved_conn = get_conn_config(self) + 'local_retention=%d,'\
-             % self.retention + 'object_target_size=%s)' % self.object_sys
+             % self.retention 
+            #  + 'object_target_size=%s)' % self.object_sys
         return self.saved_conn
    
     # Load the storage store extension.
@@ -103,8 +102,7 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
           'bucket=%s,' % self.bucket1 + \
           'bucket_prefix=%s,' % self.bucket_prefix1 + \
           'local_retention=%d,' % self.retention1 + \
-          'name=%s,' % self.ss_name + \
-          'object_target_size=%s)' % self.object_uri
+          'name=%s)' % self.ss_name
         self.pr("create non-sys tiered")
         self.session.create(self.uri1, base_create + conf)
         conf = ',tiered_storage=(name=none)'
@@ -187,8 +185,6 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
 
         calls = self.get_stat(stat.conn.flush_tier, None)
         self.assertEqual(calls, flush)
-        obj = self.get_stat(stat.conn.tiered_object_size, None)
-        self.assertEqual(obj, self.object_sys_val)
 
         # As we flush each object, the next object exists, but our first flush was a no-op.
         # So the value for the last file: object should be 'flush'.
@@ -202,6 +198,15 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.check_metadata(self.tiereduri, oldest)
         self.check_metadata(fileuri, intl_page)
         self.check_metadata(self.objuri, intl_page)
+
+        # Check for the correct tiered_object setting for both tiered and not tiered tables.
+        tiered_false = 'tiered_object=false'
+        tiered_true = 'tiered_object=true'
+        self.check_metadata(fileuri, tiered_true)
+        self.check_metadata(self.objuri, tiered_true)
+        self.check_metadata(self.tieruri, tiered_true)
+
+        self.check_metadata(self.file_none, tiered_false)
 
         # Now test some connection statistics with operations.
         retain = self.get_stat(stat.conn.tiered_retention, None)
