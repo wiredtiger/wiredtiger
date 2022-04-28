@@ -134,13 +134,13 @@ For example:
 - If a transaction commits with a durable timestamp of 50 and there are no
 running transactions in the system, \c all_durable will return 50.
 - If a transaction commits with a durable timestamp of 50, and there is
-a running transaction with a durable timestamp of 40, \c all_durable will
+an unresolved transaction with a durable timestamp of 40, \c all_durable will
 return 39.
 - If a transaction commits with a durable timestamp of 50 and there
 are no running transactions in the system and the application sets
 \c durable_timestamp to 30, \c all_durable will return 30.
-- If a transaction commits with a durable timestamp of 50, and there is a
-running transaction with a durable timestamp of 20 and the application sets
+- If a transaction commits with a durable timestamp of 50, and there is an
+unresolved transaction with a durable timestamp of 20 and the application sets
 \c durable_timestamp to 30, \c all_durable will return 19.
 - If the application sets \c durable_timestamp to 30, and a transaction then
 commits with a durable timestamp of 50, \c all_durable will return 50.
