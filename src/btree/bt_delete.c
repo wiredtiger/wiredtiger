@@ -363,7 +363,8 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                 WT_SKIP_FOREACH (ins, insert)
                     ++count;
         }
-        WT_RET(__wt_calloc_def(session, count + 1, &update_list));
+        if (!WT_READING_CHECKPOINT(session))
+            WT_RET(__wt_calloc_def(session, count + 1, &update_list));
     }
 
     /* Walk the page entries, giving each one a tombstone. */
