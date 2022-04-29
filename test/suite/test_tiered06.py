@@ -58,7 +58,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         config = ''
         # S3 store is built as an optional loadable extension, not all test environments build S3.
         if self.ss_name == 's3_store':
-            #config = '=(config=\"(verbose=1)\")'
+            # config = '=(config=\"(verbose=[api:1,version,tiered:1])\")'
             extlist.skip_if_missing = True
         #if self.ss_name == 'dir_store':
             #config = '=(config=\"(verbose=1,delay_ms=200,force_delay=3)\")'
@@ -149,6 +149,14 @@ class test_tiered06(wttest.WiredTigerTestCase):
         fh.fh_lock(session, True)
         fh.fh_lock(session, False)
         fh.close(session)
+
+        # Attempt to open a file with incorrect name.
+        if self.ss_name == 's3_store':
+            msg = 'No such file or directory'
+            with self.expectedStderrPattern('.*HTTP response code: 404.*'):
+                self.assertRaisesException(wiredtiger.WiredTigerError, 
+                    lambda: fs.fs_open_file(session, 'foobar2', FileSystem.open_file_type_data, 
+                        FileSystem.open_readonly), msg)
 
         # Files that have been flushed cannot be manipulated.
         with self.expectedStderrPattern('foobar: rename of file not supported'):

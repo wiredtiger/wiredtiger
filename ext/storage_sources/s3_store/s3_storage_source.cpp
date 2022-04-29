@@ -312,7 +312,6 @@ S3FileOpen(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
             s3->log->LogErrorMessage("S3FileOpen: GetObject request to S3 failed.");
             return (ret);
         }
-    }
 
     // Use WiredTiger's native file handle open.
     WT_FILE_SYSTEM *wtFileSystem = fs->wtFileSystem;
@@ -404,11 +403,11 @@ S3ObjectSize(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, 
     int ret;
 
     s3->statistics.objectExistsCount++;
-    if ((ret = fs->connection->ObjectExists(name, exists, objectSize)) != 0) {
-        s3->log->LogDebugMessage(
-          "S3ObjectSize: Found S3 object size to be " + std::to_string(objectSize) + " bytes.");
+    if ((ret = fs->connection->ObjectExists(name, exists, objectSize)) != 0) 
         return (ret);
-    }
+
+    s3->log->LogDebugMessage(
+      "S3ObjectSize: Found S3 object size to be " + std::to_string(objectSize) + " bytes.");
     *sizep = objectSize;
     return (ret);
 }

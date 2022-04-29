@@ -37,6 +37,12 @@
 #include <string>
 #include <vector>
 
+static const std::map<Aws::Http::HttpResponseCode, int32_t> errorCodeMapping = {
+  {Aws::Http::HttpResponseCode::NOT_FOUND, ENOENT},
+  {Aws::Http::HttpResponseCode::FORBIDDEN, EACCES}, {Aws::Http::HttpResponseCode::CONFLICT, EBUSY},
+  {Aws::Http::HttpResponseCode::BAD_REQUEST, EINVAL},
+  {Aws::Http::HttpResponseCode::INTERNAL_SERVER_ERROR, EAGAIN}};
+
 // This class represents an active connection to the AWS S3 endpoint and allows for interaction with
 // S3-Crt client. The S3Connection exposes an API to list the bucket contents filtered by a
 // directory and a prefix, check for an object's existence in the bucket, put an object to the
@@ -73,5 +79,6 @@ class S3Connection {
     static inline const char *const s3AllocationTag = "s3-source";
 
     int BucketExists(bool &exists) const;
+    // int ConnectionError() const;
 };
 #endif
