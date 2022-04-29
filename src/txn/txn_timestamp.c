@@ -370,32 +370,10 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
      * than or equal to the stable timestamp. If we're only setting one then compare against the
      * system timestamp. If we're setting both then compare the passed in values.
      */
-    if (!has_durable && txn_global->has_durable_timestamp)
-        durable_ts = txn_global->durable_timestamp;
     if (!has_oldest && txn_global->has_oldest_timestamp)
         oldest_ts = last_oldest_ts;
     if (!has_stable && txn_global->has_stable_timestamp)
         stable_ts = last_stable_ts;
-
-    /*
-     * If a durable timestamp was supplied, check that it is no older than either the stable
-     * timestamp or the oldest timestamp.
-     */
-    if (has_durable && (has_oldest || txn_global->has_oldest_timestamp) && oldest_ts > durable_ts) {
-        __wt_readunlock(session, &txn_global->rwlock);
-        WT_RET_MSG(session, EINVAL,
-          "set_timestamp: oldest timestamp %s must not be later than durable timestamp %s",
-          __wt_timestamp_to_string(oldest_ts, ts_string[0]),
-          __wt_timestamp_to_string(durable_ts, ts_string[1]));
-    }
-
-    if (has_durable && (has_stable || txn_global->has_stable_timestamp) && stable_ts > durable_ts) {
-        __wt_readunlock(session, &txn_global->rwlock);
-        WT_RET_MSG(session, EINVAL,
-          "set_timestamp: stable timestamp %s must not be later than durable timestamp %s",
-          __wt_timestamp_to_string(stable_ts, ts_string[0]),
-          __wt_timestamp_to_string(durable_ts, ts_string[1]));
-    }
 
     /*
      * The oldest and stable timestamps must always satisfy the condition that oldest <= stable.
@@ -1018,7 +996,7 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
     __wt_txn_publish_durable_timestamp(session);
 
     /* Timestamps are only logged in debugging mode. */
-    if (ts != WT_TS_NONE && FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE) &&
+    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE) &&
       FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) && !F_ISSET(conn, WT_CONN_RECOVERING))
         WT_RET(__wt_txn_ts_log(session));
 
@@ -1049,8 +1027,7 @@ __wt_txn_publish_durable_timestamp(WT_SESSION_IMPL *session)
          * If we know for a fact that this is a prepared transaction and we only have a commit
          * timestamp, don't add to the durable queue. If we poll all_durable after setting the
          * commit timestamp of a prepared transaction, that prepared transaction should NOT be
-         * visible. Note: this only happens when the commit timestamp is set in advance with
-         * timestamp_transaction; at commit time a durable timestamp is required.
+         * visible.
          */
         if (F_ISSET(txn, WT_TXN_PREPARE))
             return;
@@ -1104,51 +1081,4 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
         F_CLR(txn, WT_TXN_SHARED_TS_READ);
     }
     txn_shared->read_timestamp = WT_TS_NONE;
-}
-
-/*
- * __wt_txn_checkpoint_cannot_start --
- *     Return true if there's a transaction we need to wait for. This means transactions that have
- *     begun committing with durable timestamp at or before the checkpoint timestamp, but have not
- *     yet finished.
- */
-bool
-__wt_txn_checkpoint_cannot_start(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_TXN_GLOBAL *txn_global;
-    WT_TXN_SHARED *txn_shared;
-    wt_timestamp_t durable_ts;
-    uint32_t i, session_count;
-
-    conn = S2C(session);
-    txn_global = &conn->txn_global;
-
-    /* We're going to scan the table: wait for the lock. */
-    __wt_readlock(session, &txn_global->rwlock);
-
-    /* Walk the array of concurrent transactions. */
-    WT_ORDERED_READ(session_count, conn->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_sessions);
-    for (i = 0, txn_shared = txn_global->txn_shared_list; i < session_count; i++, txn_shared++) {
-        WT_STAT_CONN_INCR(session, txn_sessions_walked);
-
-        if (txn_shared->id == WT_TXN_NONE)
-            continue;
-
-        /*
-         * FUTURE: there is currently no way to tell if a transaction has started committing, or has
-         * only been assigned a durable or commit timestamp with timestamp_transaction(). It would
-         * be better not to wait for transactions that haven't actually started committing yet.
-         */
-        __txn_get_durable_timestamp(txn_shared, &durable_ts);
-
-        if (durable_ts != WT_TXN_NONE && durable_ts <= txn_global->meta_ckpt_timestamp) {
-            __wt_readunlock(session, &txn_global->rwlock);
-            return (true);
-        }
-    }
-
-    __wt_readunlock(session, &txn_global->rwlock);
-    return (false);
 }

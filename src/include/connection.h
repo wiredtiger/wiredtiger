@@ -42,7 +42,6 @@ struct __wt_bucket_storage {
     const char *bucket_prefix;         /* Bucket prefix */
     const char *cache_directory;       /* Locally cached file location */
     int owned;                         /* Storage needs to be terminated */
-    uint64_t object_size;              /* Tiered object size */
     uint64_t retain_secs;              /* Tiered period */
     const char *auth_token;            /* Tiered authentication cookie */
     WT_FILE_SYSTEM *file_system;       /* File system for bucket */
@@ -438,26 +437,17 @@ struct __wt_connection_impl {
     const char *stat_stamp; /* Statistics log entry timestamp */
     uint64_t stat_usecs;    /* Statistics log period */
 
-    uint64_t tiered_retention;       /* Earliest time to check to remove local overlap copies */
     WT_SESSION_IMPL *tiered_session; /* Tiered thread session */
     wt_thread_t tiered_tid;          /* Tiered thread */
     bool tiered_tid_set;             /* Tiered thread set */
     WT_CONDVAR *flush_cond;          /* Flush wait mutex */
     WT_CONDVAR *tiered_cond;         /* Tiered wait mutex */
+    uint64_t tiered_interval;        /* Tiered work interval */
     bool tiered_server_running;      /* Internal tiered server operating */
     bool flush_ckpt_complete;        /* Checkpoint after flush completed */
     uint64_t flush_most_recent;      /* Clock value of last flush_tier */
     uint32_t flush_state;            /* State of last flush tier */
     wt_timestamp_t flush_ts;         /* Timestamp of most recent flush_tier */
-
-    WT_TIERED_MANAGER tiered_mgr;        /* Tiered manager thread information */
-    WT_SESSION_IMPL *tiered_mgr_session; /* Tiered manager thread session */
-    wt_thread_t tiered_mgr_tid;          /* Tiered manager thread */
-    bool tiered_mgr_tid_set;             /* Tiered manager thread set */
-    WT_CONDVAR *tiered_mgr_cond;         /* Tiered manager wait mutex */
-
-    uint32_t tiered_threads_max; /* Max tiered threads */
-    uint32_t tiered_threads_min; /* Min tiered threads */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CONN_LOG_CONFIG_ENABLED 0x001u  /* Logging is configured */
@@ -628,7 +618,6 @@ struct __wt_connection_impl {
 #define WT_CONN_SERVER_STATISTICS 0x10u
 #define WT_CONN_SERVER_SWEEP 0x20u
 #define WT_CONN_SERVER_TIERED 0x40u
-#define WT_CONN_SERVER_TIERED_MGR 0x80u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t server_flags;
 

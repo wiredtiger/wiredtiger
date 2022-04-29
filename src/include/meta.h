@@ -18,6 +18,7 @@
  * Backup related WiredTiger files.
  */
 #define WT_BACKUP_TMP "WiredTiger.backup.tmp"  /* Backup tmp file */
+#define WT_EXPORT_BACKUP "WiredTiger.export"   /* Export backup file */
 #define WT_METADATA_BACKUP "WiredTiger.backup" /* Hot backup file */
 #define WT_LOGINCR_BACKUP "WiredTiger.ibackup" /* Log incremental backup */
 #define WT_LOGINCR_SRC "WiredTiger.isrc"       /* Log incremental source */
@@ -175,6 +176,7 @@ struct __wt_ckpt {
  *     Snapshot and timestamp information associated with a checkpoint.
  */
 struct __wt_ckpt_snapshot {
+    uint64_t ckpt_id;
     uint64_t oldest_ts;
     uint64_t stable_ts;
     uint64_t snapshot_write_gen;
