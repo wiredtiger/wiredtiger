@@ -1144,7 +1144,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
      * and furthermore any internally opened history store cursors come through here, so this case
      * does matter.)
      *
-     * This initalization is repeated when opening the underlying data handle, which is ugly, but
+     * This initialization is repeated when opening the underlying data handle, which is ugly, but
      * cleanup requires the initialization have happened even if not opening a checkpoint handle.
      */
     ckpt_snapshot.ckpt_id = 0;
