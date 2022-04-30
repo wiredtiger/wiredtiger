@@ -1143,17 +1143,9 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
      * history store. (This is not normally done by applications; but it is done by a couple tests,
      * and furthermore any internally opened history store cursors come through here, so this case
      * does matter.)
+     *
+     * Get the handle and lock it while the cursor is using it.
      */
-    ckpt_snapshot.ckpt_id = 0;
-    ckpt_snapshot.oldest_ts = WT_TS_NONE;
-    ckpt_snapshot.stable_ts = WT_TS_NONE;
-    ckpt_snapshot.snapshot_write_gen = 0;
-    ckpt_snapshot.snapshot_max = WT_TXN_MAX;
-    ckpt_snapshot.snapshot_min = WT_TXN_MAX;
-    ckpt_snapshot.snapshot_txns = NULL;
-    ckpt_snapshot.snapshot_count = 0;
-
-    /* Get the handle and lock it while the cursor is using it. */
     if (LF_ISSET(WT_DHANDLE_EXCLUSIVE) && checkpoint_wait)
         WT_WITH_CHECKPOINT_LOCK(
           session, ret = __wt_session_get_btree_ckpt(session, uri, cfg, flags, NULL, NULL));
