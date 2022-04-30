@@ -366,11 +366,9 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
     checkpoint = NULL;
     hs_checkpoint = NULL;
 
-    /*
-     * Initialize the history store data handle and checkpoint snapshot. Asking for only one of them
-     * doesn't make sense.
-     */
+    /* These should only be set together. Asking for only one doesn't make sense. */
     WT_ASSERT(session, (hs_dhandlep == NULL) == (ckpt_snapshot == NULL));
+
     if (hs_dhandlep != NULL)
         *hs_dhandlep = NULL;
     if (ckpt_snapshot != NULL) {
