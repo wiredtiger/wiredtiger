@@ -2056,6 +2056,7 @@ __wt_btcur_skip_page(
   WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
     WT_ADDR_COPY addr;
+    WT_PAGE_DELETED *page_del;
     uint8_t previous_state;
 
     WT_UNUSED(context);
@@ -2087,8 +2088,12 @@ __wt_btcur_skip_page(
         return (0);
 
     WT_REF_LOCK(session, ref, &previous_state);
-    if ((previous_state == WT_REF_DISK || previous_state == WT_REF_DELETED ||
-          (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))) &&
+
+    if ((page_del = ref->ft_info.del) != NULL &&
+      __wt_txn_visible(session, page_del->txnid, page_del->timestamp))
+        *skipp = true;
+    else if ((previous_state == WT_REF_DISK ||
+               (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))) &&
       __wt_ref_addr_copy(session, ref, &addr) && addr.ta.newest_stop_txn != WT_TXN_MAX &&
       addr.ta.newest_stop_ts != WT_TS_MAX &&
       __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts))
