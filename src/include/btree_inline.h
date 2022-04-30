@@ -1687,7 +1687,6 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 static inline bool
 __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 {
-    WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     bool modified;
@@ -1695,16 +1694,14 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     if (inmem_splitp != NULL)
         *inmem_splitp = false;
 
-    btree = S2BT(session);
     page = ref->page;
     mod = page->modify;
 
-    /*
-     * Never modified pages can always be evicted. Additionally, test for readonly trees (modify
-     * structures are created in readonly trees when instantiating fast-truncate pages).
-     */
-    if (mod == NULL || F_ISSET(btree, WT_BTREE_READONLY))
+    /* Pages without modify structures can always be evicted, it's just discarding a disk image. */
+    if (mod == NULL)
         return (true);
+
+    modified = __wt_page_is_modified(page);
 
     /*
      * If a fast-truncate page is subsequently instantiated, it can become an eviction candidate. If
@@ -1712,7 +1709,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * created, which will be discarded as part of transaction resolution. Don't attempt to evict a
      * fast-truncate page until any update list has been removed.
      */
-    if (ref->ft_info.update != NULL)
+    if (modified && ref->ft_info.update != NULL)
         return (false);
 
     /*
@@ -1736,8 +1733,6 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
             *inmem_splitp = true;
         return (true);
     }
-
-    modified = __wt_page_is_modified(page);
 
     /*
      * If the file is being checkpointed, other threads can't evict dirty pages: if a page is
@@ -1766,7 +1761,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
         return (false);
 
     /* If the metadata page is clean but has modifications that appear too new to evict, skip it. */
-    if (WT_IS_METADATA(btree->dhandle) && !modified &&
+    if (WT_IS_METADATA(S2BT(session)->dhandle) && !modified &&
       !__wt_txn_visible_all(session, mod->rec_max_txn, mod->rec_max_timestamp))
         return (false);
 
