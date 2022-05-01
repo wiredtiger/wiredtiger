@@ -68,6 +68,12 @@ use the same operation numbers, so you should grep for the session ID followed b
 
 And that gives you the complete transaction.
 
+Or, something like:
+
+    % grep -w 224868 | sort -t: -k2,3 LOG
+
+will list all of the operations ID appearances in the log, sorted by session ID.
+
 When format detects a mismatch in the row that's about to be returned and the row the read
 expected, it will dump the cursor page that was the source of the row that didn't match the
 expected value, as well as the history store. The dumps are in format's run directory, in files
