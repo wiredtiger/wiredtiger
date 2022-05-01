@@ -70,6 +70,22 @@ struct __wt_table {
     u_int ncolgroups, nindices, nkey_columns;
 };
 
+/* Holds metadata entry name and the associated config string. */
+struct __wt_import_entry {
+    const char *uri;    /* metadata key */
+    const char *config; /* metadata value */
+};
+
+/* Array of metadata entries used when importing from a metadata file. */
+struct __wt_import_list {
+    const char *uri;        /* entries in the list will be related to this uri */
+    const char *uri_suffix; /* suffix of the URI */
+
+    size_t entries_allocated; /* allocated */
+    size_t entries_next;      /* next slot */
+    WT_IMPORT_ENTRY *entries; /* import metadata entries */
+};
+
 /*
  * Tables without explicit column groups have a single default column group containing all of the
  * columns.

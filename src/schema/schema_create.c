@@ -8,22 +8,6 @@
 
 #include "wt_internal.h"
 
-/* Holds metadata entry name and the associated config string. */
-typedef struct {
-    char *name;
-    char *config;
-} WT_IMPORT_ENTRY;
-
-/* Array of metadata entries used when importing from a metadata file. */
-typedef struct {
-    size_t entries_allocated; /* allocated */
-    size_t entries_next;      /* next slot */
-    const char *uri;          /* entries in the list will be related to this uri */
-    const char *uri_suffix;   /* suffix of the URI */
-
-    WT_IMPORT_ENTRY *entries;
-} WT_IMPORT_LIST;
-
 /*
  * __wt_direct_io_size_check --
  *     Return a size from the configuration, complaining if it's insufficient for direct I/O.
@@ -373,6 +357,42 @@ __wt_schema_colgroup_source(
 }
 
 /*
+ * __create_import_cmp --
+ *     Qsort function: sort the import entries array by uri.
+ */
+static int WT_CDECL
+__create_import_cmp(const void *a, const void *b)
+{
+    WT_IMPORT_ENTRY *ae, *be;
+
+    ae = (WT_IMPORT_ENTRY *)a;
+    be = (WT_IMPORT_ENTRY *)b;
+
+    return strcmp(ae->uri, be->uri);
+}
+
+/*
+ * __wt_find_import_metadata --
+ *     Find metadata entry by URI in session's import list. Returns NULL if not found or there is no
+ *     import list in this session.
+ */
+const char *
+__wt_find_import_metadata(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_IMPORT_ENTRY entry, *result;
+
+    if (session->import_list == NULL)
+        return NULL;
+
+    entry.uri = uri;
+    entry.config = NULL;
+    result = bsearch(&entry, session->import_list->entries, session->import_list->entries_next,
+      sizeof(WT_IMPORT_ENTRY), __create_import_cmp);
+
+    return (result == NULL ? NULL : result->config);
+}
+
+/*
  * __create_colgroup --
  *     Create a column group.
  */
@@ -386,7 +406,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
     size_t tlen;
     char *cgconf, *origconf;
     const char **cfgp, *cfg[4] = {WT_CONFIG_BASE(session, colgroup_meta), config, NULL, NULL};
-    const char *cgname, *source, *sourceconf, *tablename;
+    const char *cgname, *source, *sourceconf, *tablename, *meta_import;
     const char *sourcecfg[] = {config, NULL, NULL};
     bool exists, tracked;
 
@@ -396,6 +416,9 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
     WT_CLEAR(confbuf);
     WT_CLEAR(namebuf);
     exists = tracked = false;
+
+    if ((meta_import = __wt_find_import_metadata(session, name)) != NULL)
+        cfg[1] = meta_import;
 
     tablename = name;
     WT_PREFIX_SKIP_REQUIRED(session, tablename, "colgroup:");
@@ -458,7 +481,12 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
         WT_ERR(__wt_buf_catfmt(session, &fmt, ",value_format="));
         WT_ERR(__wt_struct_reformat(session, table, cval.str, cval.len, NULL, true, &fmt));
     }
-    sourcecfg[1] = fmt.data;
+
+    if ((meta_import = __wt_find_import_metadata(session, source)) != NULL)
+        sourcecfg[0] = meta_import;
+    else
+        sourcecfg[1] = fmt.data;
+
     WT_ERR(__wt_config_merge(session, sourcecfg, NULL, &sourceconf));
     WT_ERR(__wt_schema_create(session, source, sourceconf));
 
@@ -758,7 +786,7 @@ __create_table(
     int ncolgroups, nkeys;
     char *cgcfg, *cgname, *filecfg, *filename, *importcfg, *tablecfg;
     const char *cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
-    const char *tablename;
+    const char *tablename, *meta_import;
     bool import_repair;
 
     import_repair = false;
@@ -790,7 +818,9 @@ __create_table(
          * If this is an import but not a repair, check that the exported table metadata is provided
          * in the config.
          */
-        if (!import_repair) {
+        if ((meta_import = __wt_find_import_metadata(session, uri)) != NULL)
+            cfg[1] = meta_import;
+        else if (!import_repair) {
             __wt_config_init(session, &conf, config);
             for (nkeys = 0; (ret = __wt_config_next(&conf, &ckey, &cval)) == 0; nkeys++)
                 ;
@@ -898,10 +928,12 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
     char *meta_value;
     const char *cfg[5] = {WT_CONFIG_BASE(session, tiered_meta), NULL, NULL, NULL, NULL};
     const char *metadata;
+    bool free_metadata;
 
     conn = S2C(session);
     metadata = NULL;
     tiered = NULL;
+    free_metadata = true;
 
     /* Check if the tiered table already exists. */
     if ((ret = __wt_metadata_search(session, uri, &meta_value)) != WT_NOTFOUND) {
@@ -916,22 +948,28 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
      * cause us to create our first file or tiered object.
      */
     if (!F_ISSET(conn, WT_CONN_READONLY)) {
-        WT_RET(__wt_scr_alloc(session, 0, &tmp));
-        /*
-         * By default use the connection level bucket and prefix. Then we add in any user
-         * configuration that may override the system one.
-         */
-        WT_ERR(__wt_buf_fmt(session, tmp,
-          ",tiered_storage=(bucket=%s,bucket_prefix=%s)"
-          ",id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=",
-          conn->bstorage->bucket, conn->bstorage->bucket_prefix, ++conn->next_file_id,
-          WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
-        cfg[1] = tmp->data;
-        cfg[2] = config;
-        cfg[3] = "tiers=()";
-        WT_ERR(__wt_config_merge(session, cfg, NULL, &metadata));
+        if ((metadata = __wt_find_import_metadata(session, uri)) != NULL) {
+            free_metadata = false;
+        } else {
+            WT_RET(__wt_scr_alloc(session, 0, &tmp));
+            /*
+             * By default use the connection level bucket and prefix. Then we add in any user
+             * configuration that may override the system one.
+             */
+            WT_ERR(__wt_buf_fmt(session, tmp,
+              ",tiered_storage=(bucket=%s,bucket_prefix=%s)"
+              ",id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=",
+              conn->bstorage->bucket, conn->bstorage->bucket_prefix, ++conn->next_file_id,
+              WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
+            cfg[1] = tmp->data;
+            cfg[2] = config;
+            cfg[3] = "tiers=()";
+            WT_ERR(__wt_config_merge(session, cfg, NULL, &metadata));
+        }
+
         WT_ERR(__wt_metadata_insert(session, uri, metadata));
     }
+
     WT_ERR(__wt_schema_get_tiered_uri(session, uri, WT_DHANDLE_EXCLUSIVE, &tiered));
     if (WT_META_TRACKING(session)) {
         WT_WITH_DHANDLE(session, &tiered->iface, ret = __wt_meta_track_handle_lock(session, true));
@@ -943,7 +981,10 @@ err:
     WT_TRET(__wt_schema_release_tiered(session, &tiered));
     __wt_scr_free(session, &tmp);
     __wt_free(session, meta_value);
-    __wt_free(session, metadata);
+
+    if (free_metadata)
+        __wt_free(session, metadata);
+
     return (ret);
 }
 
@@ -975,21 +1016,6 @@ __create_data_source(
         WT_RET_MSG(session, EINVAL, "WT_DATA_SOURCE objects do not support WT_COLLATOR ordering");
 
     return (dsrc->create(dsrc, &session->iface, uri, (WT_CONFIG_ARG *)cfg));
-}
-
-/*
- * __create_import_cmp --
- *     Qsort function: sort the import entries array by name.
- */
-static int WT_CDECL
-__create_import_cmp(const void *a, const void *b)
-{
-    WT_IMPORT_ENTRY *ae, *be;
-
-    ae = (WT_IMPORT_ENTRY *)a;
-    be = (WT_IMPORT_ENTRY *)b;
-
-    return strcmp(ae->name, be->name);
 }
 
 /*
@@ -1032,7 +1058,7 @@ __create_meta_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *valu
 
     /* Populate the next entry. */
     WT_RET(__wt_strndup(
-      session, meta_key, key->size, &import_list->entries[import_list->entries_next].name));
+      session, meta_key, key->size, &import_list->entries[import_list->entries_next].uri));
     WT_RET(__wt_strndup(
       session, meta_value, value->size, &import_list->entries[import_list->entries_next].config));
     import_list->entries_next++;
@@ -1088,7 +1114,8 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     exclusive = __wt_config_getones(session, config, "exclusive", &cval) == 0 && cval.val != 0;
     import = __wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0;
 
-    if (import && !WT_PREFIX_MATCH(uri, "file:") && !WT_PREFIX_MATCH(uri, "table:"))
+    if (import && session->import_list == NULL && !WT_PREFIX_MATCH(uri, "file:") &&
+      !WT_PREFIX_MATCH(uri, "table:"))
         WT_RET_MSG(session, ENOTSUP,
           "%s: import is only supported for 'file' and 'table' data sources", uri);
 
@@ -1100,7 +1127,8 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     if (import) {
         F_SET(session, WT_SESSION_IMPORT);
 
-        if (__wt_config_getones(session, config, "import.metadata_file", &cval) == 0 &&
+        if (session->import_list == NULL &&
+          __wt_config_getones(session, config, "import.metadata_file", &cval) == 0 &&
           cval.len != 0 && (cval.type == WT_CONFIG_ITEM_STRING || cval.type == WT_CONFIG_ITEM_ID)) {
             WT_ERR(__wt_strndup(session, cval.str, cval.len, &export_file));
             import_list.uri = uri;
@@ -1111,6 +1139,9 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
             ++import_list.uri_suffix;
 
             WT_ERR(__create_parse_export(session, export_file, &import_list));
+
+            WT_ASSERT(session, session->import_list == NULL);
+            session->import_list = &import_list;
         }
     }
 
@@ -1141,8 +1172,11 @@ err:
     F_CLR(session, WT_SESSION_IMPORT);
     WT_TRET(__wt_meta_track_off(session, true, ret != 0));
 
+    if (import_list.entries_allocated > 0)
+        session->import_list = NULL;
+
     for (i = 0; i < import_list.entries_next; ++i) {
-        __wt_free(session, import_list.entries[i].name);
+        __wt_free(session, import_list.entries[i].uri);
         __wt_free(session, import_list.entries[i].config);
     }
 
