@@ -1106,10 +1106,11 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     WT_IMPORT_LIST import_list;
     size_t i;
     char *export_file;
-    bool exclusive, import;
+    bool exclusive, import, import_flag_set;
 
     WT_CLEAR(import_list);
     export_file = NULL;
+    import_flag_set = false;
 
     exclusive = __wt_config_getones(session, config, "exclusive", &cval) == 0 && cval.val != 0;
     import = __wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0;
@@ -1125,7 +1126,10 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
      */
     WT_RET(__wt_meta_track_on(session));
     if (import) {
-        F_SET(session, WT_SESSION_IMPORT);
+        if (!F_ISSET(session, WT_SESSION_IMPORT)) {
+            F_SET(session, WT_SESSION_IMPORT);
+            import_flag_set = true;
+        }
 
         if (session->import_list == NULL &&
           __wt_config_getones(session, config, "import.metadata_file", &cval) == 0 &&
@@ -1169,7 +1173,11 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
 
 err:
     session->dhandle = NULL;
-    F_CLR(session, WT_SESSION_IMPORT);
+    
+    /* This method is called recursively. Clear the flag only in the call that set it. */
+    if (import_flag_set)
+        F_CLR(session, WT_SESSION_IMPORT);
+
     WT_TRET(__wt_meta_track_off(session, true, ret != 0));
 
     if (import_list.entries_allocated > 0)
