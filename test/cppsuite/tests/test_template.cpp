@@ -29,9 +29,15 @@
 #include "test_harness/test.h"
 
 /* Class that specifies what to write into the tracking table. */
+namespace test_harness {
 class tracking_table_template : public test_harness::workload_tracking {
 
-    using workload_tracking::workload_tracking;
+    public:
+    tracking_table_template(
+      configuration *config, const bool use_compression, timestamp_manager &tsm)
+        : workload_tracking(config, use_compression, tsm)
+    {
+    }
 
     void
     populate_tracking_cursor(const tracking_operation &operation, const uint64_t &collection_id,
@@ -110,3 +116,5 @@ class test_template : public test_harness::test {
         std::cout << "validate: nothing done." << std::endl;
     }
 };
+
+}

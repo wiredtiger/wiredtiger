@@ -57,7 +57,7 @@ enum class tracking_operation { CREATE_COLLECTION, DELETE_COLLECTION, DELETE_KEY
 /* Class used to track operations performed on collections */
 class workload_tracking : public component {
     public:
-    explicit workload_tracking(
+    workload_tracking(
       configuration *_config, const bool use_compression, timestamp_manager &tsm);
     virtual ~workload_tracking() = default;
 
