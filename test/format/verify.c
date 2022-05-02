@@ -263,7 +263,17 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
             if (base_keyno != table_keyno || base_bitv != table_bitv) {
                 table_mirror_fail_msg_flcs(session, checkpoint, base, base_keyno, &base_key,
                   &base_value, base_bitv, table, table_keyno, table_bitv);
+                goto page_dump;
+            }
+        } else {
+            testutil_check(table_cursor->get_value(table_cursor, &table_value));
 
+            if (base_keyno != table_keyno || base_value.size != table_value.size ||
+              memcmp(base_value.data, table_value.data, base_value.size) != 0) {
+                table_mirror_fail_msg(session, checkpoint, base, base_keyno, &base_key, &base_value,
+                  table, table_keyno, &table_key, &table_value, last_match);
+
+page_dump:
                 /* Dump the cursor pages for the first failure. */
                 if (++failures == 1) {
                     cursor_dump_page(base_cursor, "mirror error: base cursor");
@@ -275,26 +285,6 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
                  * failures, up to 20.
                  */
                 testutil_assert(base_keyno == table_keyno && g.trace_mirror_fail && failures < 20);
-            }
-        } else {
-            testutil_check(table_cursor->get_value(table_cursor, &table_value));
-
-            if (base_keyno != table_keyno || base_value.size != table_value.size ||
-              memcmp(base_value.data, table_value.data, base_value.size) != 0) {
-                table_mirror_fail_msg(session, checkpoint, base, base_keyno, &base_key, &base_value,
-                  table, table_keyno, &table_key, &table_value, last_match);
-
-                /* Dump the cursor pages for the first failure. */
-                if (++failures == 1) {
-                    cursor_dump_page(base_cursor, "mirror error: base cursor");
-                    cursor_dump_page(table_cursor, "mirror error: table cursor");
-                }
-
-                /*
-                 * We can't continue if the keys don't match, otherwise, optionally continue showing
-                 * failures, up to 20.
-                 */
-                testutil_assert(table_keyno == base_keyno && g.trace_mirror_fail && failures < 20);
             }
         }
 
