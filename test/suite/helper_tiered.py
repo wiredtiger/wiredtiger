@@ -126,6 +126,9 @@ tiered_storage_sources = [
     ('non_tiered', dict(is_tiered = False)),            
 ]
 
+# Sublist to use for the tiered test scenarios as last item on list is not a scenario.  
+storage_sources = tiered_storage_sources[:2]
+
 # This mixin class provides tiered storage configuration methods.
 class TieredConfigMixin:
     # Returns True if the current scenario is tiered.

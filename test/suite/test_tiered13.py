@@ -30,13 +30,13 @@
 # Check that importing tiered tables returns an error.
 
 import os, shutil, wiredtiger
-from helper_tiered import get_conn_config, tiered_storage_sources, TieredConfigMixin
+from helper_tiered import get_conn_config, storage_sources, TieredConfigMixin
 from test_import01 import test_import_base
 from wtscenario import make_scenarios
 
 class test_tiered13(test_import_base, TieredConfigMixin):
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(tiered_storage_sources[:2])
+    scenarios = make_scenarios(storage_sources)
 
     # If the 'uri' changes all the other names must change with it.
     base = 'test_tiered13-000000000'

@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wiredtiger, wttest
-from helper_tiered import *
+from helper_tiered import  TieredConfigMixin, storage_sources, get_check
 from wtscenario import make_scenarios
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
@@ -40,7 +40,8 @@ class test_tiered07(wttest.WiredTigerTestCase, TieredConfigMixin):
     # is interpreting a directory to end in a '/', whereas the code in the tiered storage doesn't 
     # expect that. Enable when fixed.
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(tiered_storage_sources[:1])
+    tiered_storage_dirstore_source = storage_sources[:1]
+    scenarios = make_scenarios(tiered_storage_dirstore_source)
 
     uri = "table:abc"
     uri2 = "table:ab"

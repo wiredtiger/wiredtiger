@@ -33,7 +33,7 @@
 #
 
 import os, threading, time, wttest
-from helper_tiered import TieredConfigMixin, tiered_storage_sources, get_conn_config
+from helper_tiered import TieredConfigMixin, storage_sources, get_conn_config
 from wiredtiger import stat
 from wtthread import checkpoint_thread, flush_tier_thread
 from wtscenario import make_scenarios
@@ -44,7 +44,7 @@ from wtscenario import make_scenarios
 #   data into a table from another thread.
 class test_tiered08(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(tiered_storage_sources[:2])
+    scenarios = make_scenarios(storage_sources)
 
     batch_size = 100000
 

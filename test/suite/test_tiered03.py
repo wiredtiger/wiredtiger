@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, re
-from helper_tiered import TieredConfigMixin, tiered_storage_sources, get_conn_config
+from helper_tiered import TieredConfigMixin, storage_sources, get_conn_config
 import wtscenario, wttest
 from wtdataset import SimpleDataSet
 
@@ -45,7 +45,7 @@ class test_tiered03(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Occasionally add a lot of records to vary the amount of work flush does.
     record_count_scenarios = wtscenario.quick_scenarios(
         'nrecs', [10, 10000], [0.9, 0.1])
-    scenarios = wtscenario.make_scenarios(tiered_storage_sources[:2], record_count_scenarios,\
+    scenarios = wtscenario.make_scenarios(storage_sources, record_count_scenarios,\
          prune=100, prunelong=500)
 
     absolute_bucket_dir = None  # initialied in conn_config to an absolute path

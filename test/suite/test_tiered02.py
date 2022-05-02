@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wttest
-from helper_tiered import TieredConfigMixin, tiered_storage_sources, get_conn_config
+from helper_tiered import TieredConfigMixin, storage_sources
 from wtdataset import SimpleDataSet, ComplexDataSet
 from wtscenario import make_scenarios
 
@@ -43,7 +43,7 @@ class test_tiered02(wttest.WiredTigerTestCase, TieredConfigMixin):
     ]
 
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(tiered_storage_sources[:2], complex_dataset)
+    scenarios = make_scenarios(storage_sources, complex_dataset)
 
     uri = "table:test_tiered02"
 

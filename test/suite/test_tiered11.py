@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wiredtiger, wttest
-from helper_tiered import get_conn_config, tiered_storage_sources, TieredConfigMixin
+from helper_tiered import get_conn_config, storage_sources, TieredConfigMixin
 from wtscenario import make_scenarios
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
@@ -35,7 +35,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Test flush time and flush timestamp in metadata.
 class test_tiered11(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(tiered_storage_sources[:2])
+    scenarios = make_scenarios(storage_sources)
 
     # If the 'uri' changes all the other names must change with it.
     base = 'test_tiered11-000000000'

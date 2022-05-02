@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, random, wttest
-from helper_tiered import TieredConfigMixin, get_conn_config, tiered_storage_sources
+from helper_tiered import TieredConfigMixin, storage_sources
 from wtdataset import TrackedSimpleDataSet, TrackedComplexDataSet
 from wtscenario import make_scenarios
 
@@ -57,7 +57,7 @@ class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
         ('simple', dict(dataset='simple')),
         #('complex', dict(dataset='complex', long_only=True)),
     ]
-    scenarios = make_scenarios(multiplier, keyfmt, dataset, tiered_storage_sources[:2])
+    scenarios = make_scenarios(multiplier, keyfmt, dataset, storage_sources)
 
     def conn_config(self):
         return TieredConfigMixin.conn_config(self)
