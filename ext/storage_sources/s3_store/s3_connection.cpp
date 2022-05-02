@@ -80,8 +80,8 @@ S3Connection::ListObjects(const std::string &prefix, std::vector<std::string> &o
     listSingle ? request.SetMaxKeys(1) : request.SetMaxKeys(batchSize);
 
     Aws::S3Crt::Model::ListObjectsV2Outcome outcomes = _s3CrtClient.ListObjectsV2(request);
-    Aws::Http::HttpResponseCode resCode = outcomes.GetError().GetResponseCode();
     if (!outcomes.IsSuccess()) {
+        Aws::Http::HttpResponseCode resCode = outcomes.GetError().GetResponseCode();
         if (toErrno.find(resCode) != toErrno.end())
             return (toErrno.at(resCode));
         else
@@ -102,6 +102,7 @@ S3Connection::ListObjects(const std::string &prefix, std::vector<std::string> &o
         request.SetContinuationToken(continuationToken);
         outcomes = _s3CrtClient.ListObjectsV2(request);
         if (!outcomes.IsSuccess()) {
+            Aws::Http::HttpResponseCode resCode = outcomes.GetError().GetResponseCode();
             if (toErrno.find(resCode) != toErrno.end())
                 return (toErrno.at(resCode));
             else
@@ -129,12 +130,14 @@ S3Connection::PutObject(const std::string &objectKey, const std::string &fileNam
     request.SetBody(inputData);
 
     Aws::S3Crt::Model::PutObjectOutcome outcome = _s3CrtClient.PutObject(request);
-    Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
 
     if (outcome.IsSuccess())
         return (0);
-    else if (toErrno.find(resCode) != toErrno.end())
-        return (toErrno.at(resCode));
+    else {
+        Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
+        if (toErrno.find(resCode) != toErrno.end())
+            return (toErrno.at(resCode));
+    }
 
     return (-1);
 }
@@ -153,8 +156,11 @@ S3Connection::DeleteObject(const std::string &objectKey) const
 
     if (outcome.IsSuccess())
         return (0);
-    else if (toErrno.find(resCode) != toErrno.end())
-        return (toErrno.at(resCode));
+    else {
+        Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
+        if (toErrno.find(resCode) != toErrno.end())
+            return (toErrno.at(resCode));
+    }
 
     return (-1);
 }
@@ -181,8 +187,11 @@ S3Connection::GetObject(const std::string &objectKey, const std::string &path) c
     // succeed.
     if (outcome.IsSuccess())
         return (0);
-    else if (toErrno.find(resCode) != toErrno.end())
-        return (toErrno.at(resCode));
+    else {
+        Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
+        if (toErrno.find(resCode) != toErrno.end())
+            return (toErrno.at(resCode));
+    }
 
     return (-1);
 }
@@ -208,10 +217,13 @@ S3Connection::ObjectExists(const std::string &objectKey, bool &exists, size_t &o
         exists = true;
         objectSize = outcome.GetResult().GetContentLength();
         return (0);
-    } else if (resCode == Aws::Http::HttpResponseCode::NOT_FOUND)
-        return (0);
-    else if (toErrno.find(resCode) != toErrno.end())
-        return (toErrno.at(resCode));
+    } else {
+        Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
+        if (resCode == Aws::Http::HttpResponseCode::NOT_FOUND)
+            return (0);
+        else if (toErrno.find(resCode) != toErrno.end())
+            return (toErrno.at(resCode));
+    }
 
     return (-1);
 }
@@ -233,10 +245,13 @@ S3Connection::BucketExists(bool &exists) const
     if (outcome.IsSuccess()) {
         exists = true;
         return (0);
-    } else if (resCode == Aws::Http::HttpResponseCode::NOT_FOUND)
-        return (0);
-    else if (toErrno.find(resCode) != toErrno.end())
-        return (toErrno.at(resCode));
+    } else {
+        Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
+        if (resCode == Aws::Http::HttpResponseCode::NOT_FOUND)
+            return (0);
+        else if (toErrno.find(resCode) != toErrno.end())
+            return (toErrno.at(resCode));
+    }
 
     return (-1);
 }
