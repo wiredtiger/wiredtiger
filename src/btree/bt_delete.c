@@ -315,13 +315,15 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_STAT_CONN_DATA_INCR(session, cache_read_deleted_prepared);
 
     /*
-     * Give the page a modify structure. If the tree is already dirty and so will be written, mark
-     * the page dirty. (We want to free the deleted pages, but if the handle is read-only or if the
-     * application never modifies the tree, we're not able to do so.)
+     * Give the page a modify structure and mark the page dirty if the tree isn't read-only. If the
+     * tree can be written, the page must be marked dirty because if we discard it as a clean page,
+     * then read it back into memory, we'll have the same problem as when instantiating deleted
+     * pages in read-only trees, re-reading the page won't re-create the fast-truncate information.
+     * If the tree cannot be written (checked in page-modify-set), we don't dirty page and we don't
+     * free the ft_info.del field below.
      */
     WT_RET(__wt_page_modify_init(session, page));
-    if (btree->modified)
-        __wt_page_modify_set(session, page);
+    __wt_page_modify_set(session, page);
 
     /* Allocate the per-page update array if one doesn't already exist. */
     if (page->entries != 0 && page->modify->mod_row_update == NULL)
@@ -362,8 +364,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                 WT_SKIP_FOREACH (ins, insert)
                     ++count;
         }
-        if (!WT_READING_CHECKPOINT(session))
-            WT_RET(__wt_calloc_def(session, count + 1, &update_list));
+        WT_RET(__wt_calloc_def(session, count + 1, &update_list));
     }
 
     /* Walk the page entries, giving each one a tombstone. */
