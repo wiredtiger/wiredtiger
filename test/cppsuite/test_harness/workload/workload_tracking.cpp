@@ -96,6 +96,10 @@ workload_tracking::do_work()
     char *sweep_key;
     bool globally_visible_update_found;
 
+    /* Skip if custom tracking. */
+    if (_custom_tracking)
+        return;
+
     key = sweep_key = nullptr;
     globally_visible_update_found = false;
 
