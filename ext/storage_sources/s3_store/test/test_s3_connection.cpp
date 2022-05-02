@@ -35,6 +35,9 @@ const Aws::String region = Aws::Region::AP_SOUTHEAST_2;
 const double throughputTargetGbps = 5;
 const uint64_t partSize = 8 * 1024 * 1024;  // 8 MB.
 static std::string bucketName("s3testext"); // Can be overridden with environment variables.
+
+// Objects with the prefex pattern "s3test/*" are deleted after a certain period of time according
+// to the lifecycle rule on the S3 bucket.
 static std::string objPrefix("s3test/");    // To be concatenated with a random string.
 } // namespace TestDefaults
 
@@ -55,9 +58,7 @@ int TestBadBucket(const Aws::S3Crt::ClientConfiguration &config);
     } while (0)
 
 // Concatenates a random suffix to the prefix being used for the test object keys. Example of
-// generated test prefix: "s3test/unit_" 2022-31-01-16-34-10_623843294/"
-// Objects with the prefex pattern "s3test/*" are deleted after a certain period of time according
-// to the lifecycle rule on the S3 bucket.
+// generated test prefix: "s3test/unit_" 2022-31-01-16-34-10_623843294/".
 static int
 randomizeTestPrefix()
 {
