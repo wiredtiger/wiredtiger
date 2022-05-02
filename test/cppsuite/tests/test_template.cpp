@@ -116,4 +116,4 @@ class test_template : public test_harness::test {
     }
 };
 
-}
+} // namespace test_harness

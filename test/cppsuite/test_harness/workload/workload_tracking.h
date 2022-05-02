@@ -57,8 +57,7 @@ enum class tracking_operation { CREATE_COLLECTION, DELETE_COLLECTION, DELETE_KEY
 /* Class used to track operations performed on collections */
 class workload_tracking : public component {
     public:
-    workload_tracking(
-      configuration *_config, const bool use_compression, timestamp_manager &tsm);
+    workload_tracking(configuration *_config, const bool use_compression, timestamp_manager &tsm);
     virtual ~workload_tracking() = default;
 
     const std::string &get_schema_table_name() const;
@@ -76,13 +75,14 @@ class workload_tracking : public component {
       const tracking_operation &operation, const uint64_t &collection_id, wt_timestamp_t ts);
 
     virtual void populate_tracking_cursor(const tracking_operation &operation,
-      const uint64_t &collection_id, const std::string &key, const std::string &value, wt_timestamp_t ts,
-      scoped_cursor &op_track_cursor);
+      const uint64_t &collection_id, const std::string &key, const std::string &value,
+      wt_timestamp_t ts, scoped_cursor &op_track_cursor);
 
     // FIXME - This is no longer a template function as populate_tracking_cursor is virtual and
     // needs to be concrete. To investigate how to make template again.
     int save_operation(const tracking_operation &operation, const uint64_t &collection_id,
-      const std::string &key, const std::string &value, wt_timestamp_t ts, scoped_cursor &op_track_cursor);
+      const std::string &key, const std::string &value, wt_timestamp_t ts,
+      scoped_cursor &op_track_cursor);
 
     private:
     scoped_session _session;
