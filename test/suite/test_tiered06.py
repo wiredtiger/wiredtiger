@@ -44,7 +44,7 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Load the storage store extension.
     def conn_extensions(self, extlist):
         TieredConfigMixin.conn_extensions(self, extlist)
-
+  
     def breakpoint(self):
         import pdb, sys
         sys.stdin = open('/dev/tty', 'r')
@@ -82,22 +82,14 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
             self.get_fs_config(prefix))
 
         # The object doesn't exist yet.
-        if self.ss_name == 's3_store':
-            with self.expectedStderrPattern('.*HTTP response code: 404.*'):
-                self.assertFalse(fs.fs_exist(session, 'foobar'))
-        else:
-            self.assertFalse(fs.fs_exist(session, 'foobar'))
+        self.assertFalse(fs.fs_exist(session, 'foobar'))
 
         # We cannot use the file system to create files, it is readonly.
         # So use python I/O to build up the file.
         f = open('foobar', 'wb')
 
         # The object still doesn't exist yet.
-        if self.ss_name == 's3_store':
-            with self.expectedStderrPattern('.*HTTP response code: 404.*'):
-                self.assertFalse(fs.fs_exist(session, 'foobar'))
-        else:
-            self.assertFalse(fs.fs_exist(session, 'foobar'))
+        self.assertFalse(fs.fs_exist(session, 'foobar'))
 
         outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
         f.write(outbytes)
