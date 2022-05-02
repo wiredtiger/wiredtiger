@@ -78,8 +78,6 @@ class workload_tracking : public component {
       const uint64_t &collection_id, const std::string &key, const std::string &value,
       wt_timestamp_t ts, scoped_cursor &op_track_cursor);
 
-    // FIXME - This is no longer a template function as populate_tracking_cursor is virtual and
-    // needs to be concrete. To investigate how to make template again.
     int save_operation(const tracking_operation &operation, const uint64_t &collection_id,
       const std::string &key, const std::string &value, wt_timestamp_t ts,
       scoped_cursor &op_track_cursor);

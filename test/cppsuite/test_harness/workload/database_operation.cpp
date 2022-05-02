@@ -386,7 +386,7 @@ database_operation::validate(bool custom_tracking_table, const std::string &oper
     if (custom_tracking_table)
         testutil_die(EINVAL,
           "Attempting to perform default validation on a test with a user-defined tracking "
-          "table. Please define custom validation for your test.");
+          "table. Please define custom validation for your test");
 
     workload_validation wv;
     wv.validate(operation_table_name, schema_table_name, known_collection_ids);

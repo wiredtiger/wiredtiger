@@ -97,6 +97,7 @@ class test : public database_operation {
     timestamp_manager *_timestamp_manager = nullptr;
     workload_tracking *_workload_tracking = nullptr;
 
+    private:
     std::shared_ptr<scoped_connection> _scoped_conn;
     database _database;
 };

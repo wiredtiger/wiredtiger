@@ -28,8 +28,8 @@
 
 #include "test_harness/test.h"
 
-/* Class that specifies what to write into the tracking table. */
 namespace test_harness {
+/* Defines what data is written to the tracking table for use in custom validation. */
 class tracking_table_template : public test_harness::workload_tracking {
 
     public:
