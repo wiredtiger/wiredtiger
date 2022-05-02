@@ -28,11 +28,8 @@
 
 import argparse
 import itertools
-import os
-import re
-import subprocess
-import sys
-from shutil import which
+import os, re, subprocess, sys
+from shutil import which, copyfile
 
 
 def border_msg(msg: str):
@@ -51,16 +48,19 @@ class LLDBDumper:
         """Find the installed debugger."""
         return which(debugger)
 
-    def dump(self, exe_path: str, core_path: str, dump_all: bool, output_file: str):
+    def dump(self, exe_path: str, core_path: str, lib_path: str, dump_all: bool, output_file: str):
         """Dump stack trace."""
         if self.dbg is None:
             sys.exit("Debugger lldb not found,"
                      "skipping dumping of {}".format(core_path))
 
+        cmds = []
+        if lib_path:
+            cmds.append("target modules add " + lib_path + "/libwiredtiger.10.0.2.dylib")
         if dump_all:
-            cmds.append("thread apply all backtrace -c 30")
+            cmds.append("thread backtrace all -c 30")
         else:
-            cmds.append("backtrace -c 30")
+            cmds.append("thread backtrace -c 30")
         cmds.append("quit")
 
         output = None
@@ -137,13 +137,16 @@ def main():
     
     regex = None
     if (args.format):
-        regex = re.compile(r'dump_t.*core', re.IGNORECASE)
+        regex = re.compile(r'\"?dump_t.*core\"?', re.IGNORECASE)
     elif (args.unit_test):
-        regex = re.compile(r'dump.*python.*core', re.IGNORECASE)
+        regex = re.compile(r'\"?dump.*python.*core\"?', re.IGNORECASE)
 
     for root, _, files in os.walk(args.core_path):
         for file in files:
             if regex.match(file):
+                if (sys.platform.startswith('darwin')):
+                    copyfile(os.path.join(root, file), os.path.join(root, file.strip('"')))
+                    file = file.strip('"')
                 core_files.append(os.path.join(root, file))
 
     for core_file_path in core_files:
@@ -155,6 +158,9 @@ def main():
         # Extract the filename from the core file path, to create a stacktrace output file.
         file_name, _ = os.path.splitext(os.path.basename(core_file_path))
         dbg.dump(args.executable_path, core_file_path, args.lib_path, True, file_name + ".stacktrace.txt")
+
+        if (sys.platform.startswith('darwin')):
+            os.remove(core_file_path)
         
 
 if __name__ == "__main__":

@@ -295,7 +295,7 @@ operations(u_int ops_seconds, bool lastrun)
     for (;;) {
         /* Clear out the totals each pass. */
         memset(&total, 0, sizeof(total));
-        for (i = 0, running = false; i < GV(RUNS_THREADS); ++i) {
+        for (i = 0, running = false; i < GV(RUNS_THREADS);) {
             tinfo = tinfo_list[i];
             total.commit += tinfo->commit;
             total.insert += tinfo->insert;
@@ -330,6 +330,7 @@ operations(u_int ops_seconds, bool lastrun)
                     random_failure();
                 tinfo->quit = true;
             }
+           __wt_abort(NULL);
         }
         track_ops(&total);
         if (!running)

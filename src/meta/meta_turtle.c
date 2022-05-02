@@ -249,7 +249,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_BACKUPHASH *backuphash)
             __wt_free(session, metadata_conf);
         }
     }
-
+    __wt_abort(NULL);
 err:
     __wt_free(session, metadata_conf);
     __wt_free(session, filename);
