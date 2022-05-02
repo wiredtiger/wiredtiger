@@ -172,8 +172,11 @@ class test_import11(test_import_base):
 
         import_config = 'import=(enabled,repair=false,metadata_file="WiredTiger.export")'
 
-        # Import the file.
+        # Import the files.
         self.session.create(self.uri_a, import_config)
+        self.checkpoint_and_flush_tier()
+
+        self.session.create(self.uri_b, import_config)
         self.checkpoint_and_flush_tier()
 
         # Remove WiredTiger.export file.
@@ -186,6 +189,7 @@ class test_import11(test_import_base):
 
         # Check that the previously inserted values survived the import.
         self.check(self.uri_a, self.keys[:max_idx], self.values[:max_idx])
+        self.check(self.uri_b, self.keys[:max_idx], self.values[:max_idx])
 
         # Add some data and check that the table operates as usual after importing.
         min_idx = max_idx
