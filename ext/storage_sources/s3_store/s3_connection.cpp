@@ -68,7 +68,7 @@ S3Connection::S3Connection(const Aws::S3Crt::ClientConfiguration &config,
 
 // Builds a list of object names, with prefix matching, from an S3 bucket into a vector. The
 // batchSize parameter specifies the maximum number of objects returned in each AWS response, up
-// to 1000. Return an errno value given an HTTP response code if the aws request does not 
+// to 1000. Return an errno value given an HTTP response code if the aws request does not
 // succeed.
 int
 S3Connection::ListObjects(const std::string &prefix, std::vector<std::string> &objects,
@@ -115,7 +115,7 @@ S3Connection::ListObjects(const std::string &prefix, std::vector<std::string> &o
     return (0);
 }
 
-// Puts an object into an S3 bucket. Return an errno value given an HTTP response code if 
+// Puts an object into an S3 bucket. Return an errno value given an HTTP response code if
 // the aws request does not succeed.
 int
 S3Connection::PutObject(const std::string &objectKey, const std::string &fileName) const
@@ -139,7 +139,7 @@ S3Connection::PutObject(const std::string &objectKey, const std::string &fileNam
     return (1);
 }
 
-// Deletes an object from S3 bucket. Return an errno value given an HTTP response code if 
+// Deletes an object from S3 bucket. Return an errno value given an HTTP response code if
 // the aws request does not succeed.
 int
 S3Connection::DeleteObject(const std::string &objectKey) const
@@ -177,7 +177,7 @@ S3Connection::GetObject(const std::string &objectKey, const std::string &path) c
     Aws::S3Crt::Model::GetObjectOutcome outcome = _s3CrtClient.GetObject(request);
     Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
 
-    // Return an errno value given an HTTP response code if the aws request does not 
+    // Return an errno value given an HTTP response code if the aws request does not
     // succeed.
     if (outcome.IsSuccess())
         return (0);
@@ -202,7 +202,7 @@ S3Connection::ObjectExists(const std::string &objectKey, bool &exists, size_t &o
     Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
 
     // If an object with the given key does not exist the HEAD request will return a 404.
-    // Do not fail in this case. Otherwise return an errno value for any other HTTP 
+    // Do not fail in this case. Otherwise return an errno value for any other HTTP
     // response code.
     if (outcome.IsSuccess()) {
         exists = true;
@@ -228,7 +228,7 @@ S3Connection::BucketExists(bool &exists) const
     Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
 
     // If an object with the given key does not exist the HEAD request will return a 404.
-    // Do not fail in this case. Otherwise return an errno value for any other HTTP 
+    // Do not fail in this case. Otherwise return an errno value for any other HTTP
     // response code.
     if (outcome.IsSuccess()) {
         exists = true;

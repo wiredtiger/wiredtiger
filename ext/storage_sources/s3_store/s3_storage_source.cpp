@@ -404,7 +404,7 @@ S3ObjectSize(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, 
     int ret;
 
     s3->statistics.objectExistsCount++;
-    if ((ret = fs->connection->ObjectExists(name, exists, objectSize)) != 0) 
+    if ((ret = fs->connection->ObjectExists(name, exists, objectSize)) != 0)
         return (ret);
 
     s3->log->LogDebugMessage(
