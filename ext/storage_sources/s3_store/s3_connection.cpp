@@ -202,8 +202,8 @@ S3Connection::ObjectExists(const std::string &objectKey, bool &exists, size_t &o
     Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
 
     // If an object with the given key does not exist the HEAD request will return a 404.
-    // Do not fail in this case as it is an expected response. Otherwise return an errno value 
-    // for any other HTTP response code. 
+    // Do not fail in this case as it is an expected response. Otherwise return an errno value
+    // for any other HTTP response code.
     if (outcome.IsSuccess()) {
         exists = true;
         objectSize = outcome.GetResult().GetContentLength();
@@ -228,8 +228,8 @@ S3Connection::BucketExists(bool &exists) const
     Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
 
     // If an object with the given key does not exist the HEAD request will return a 404.
-    // Do not fail in this case as it is an expected response. Otherwise return an errno value 
-    // for any other HTTP response code. 
+    // Do not fail in this case as it is an expected response. Otherwise return an errno value
+    // for any other HTTP response code.
     if (outcome.IsSuccess()) {
         exists = true;
         return (0);
