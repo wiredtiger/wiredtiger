@@ -37,7 +37,9 @@
 #include <string>
 #include <vector>
 
-static const std::map<Aws::Http::HttpResponseCode, int32_t> errorCodeMapping = {
+// Mapping between HTTP response codes and corresponding errno values to be used by the S3 
+// connection methods to return errno values expected by the filesystem interface.
+static const std::map<Aws::Http::HttpResponseCode, int32_t> toErrno = {
   {Aws::Http::HttpResponseCode::NOT_FOUND, ENOENT},
   {Aws::Http::HttpResponseCode::FORBIDDEN, EACCES}, {Aws::Http::HttpResponseCode::CONFLICT, EBUSY},
   {Aws::Http::HttpResponseCode::BAD_REQUEST, EINVAL},

@@ -145,7 +145,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         # Attempt to open a file with incorrect name.
         if self.ss_name == 's3_store':
             msg = 'No such file or directory'
-            with self.expectedStderrPattern('.*HTTP response code: 404.*'):
+            with self.expectedStderrPattern('.*request to S3 failed.*'):
                 self.assertRaisesException(wiredtiger.WiredTigerError, 
                     lambda: fs.fs_open_file(session, 'foobar2', FileSystem.open_file_type_data, 
                         FileSystem.open_readonly), msg)

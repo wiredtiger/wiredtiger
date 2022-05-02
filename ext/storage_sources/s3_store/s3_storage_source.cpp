@@ -312,6 +312,7 @@ S3FileOpen(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
             s3->log->LogErrorMessage("S3FileOpen: GetObject request to S3 failed.");
             return (ret);
         }
+    }
 
     // Use WiredTiger's native file handle open.
     WT_FILE_SYSTEM *wtFileSystem = fs->wtFileSystem;
