@@ -85,7 +85,7 @@ S3Connection::ListObjects(const std::string &prefix, std::vector<std::string> &o
         if (toErrno.find(resCode) != toErrno.end())
             return (toErrno.at(resCode));
         else
-            return (1);
+            return (-1);
     }
     auto result = outcomes.GetResult();
 
@@ -105,7 +105,7 @@ S3Connection::ListObjects(const std::string &prefix, std::vector<std::string> &o
             if (toErrno.find(resCode) != toErrno.end())
                 return (toErrno.at(resCode));
             else
-                return (1);
+                return (-1);
         }
         result = outcomes.GetResult();
         for (const auto &object : result.GetContents())
@@ -136,7 +136,7 @@ S3Connection::PutObject(const std::string &objectKey, const std::string &fileNam
     else if (toErrno.find(resCode) != toErrno.end())
         return (toErrno.at(resCode));
 
-    return (1);
+    return (-1);
 }
 
 // Deletes an object from S3 bucket. Return an errno value given an HTTP response code if
@@ -156,7 +156,7 @@ S3Connection::DeleteObject(const std::string &objectKey) const
     else if (toErrno.find(resCode) != toErrno.end())
         return (toErrno.at(resCode));
 
-    return (1);
+    return (-1);
 }
 
 // Retrieves an object from S3. The object is downloaded to disk at the specified location.
@@ -184,7 +184,7 @@ S3Connection::GetObject(const std::string &objectKey, const std::string &path) c
     else if (toErrno.find(resCode) != toErrno.end())
         return (toErrno.at(resCode));
 
-    return (1);
+    return (-1);
 }
 
 // Checks whether an object with the given key exists in the S3 bucket and also retrieves
@@ -202,8 +202,8 @@ S3Connection::ObjectExists(const std::string &objectKey, bool &exists, size_t &o
     Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
 
     // If an object with the given key does not exist the HEAD request will return a 404.
-    // Do not fail in this case. Otherwise return an errno value for any other HTTP
-    // response code.
+    // Do not fail in this case as it is an expected response. Otherwise return an errno value 
+    // for any other HTTP response code. 
     if (outcome.IsSuccess()) {
         exists = true;
         objectSize = outcome.GetResult().GetContentLength();
@@ -213,7 +213,7 @@ S3Connection::ObjectExists(const std::string &objectKey, bool &exists, size_t &o
     else if (toErrno.find(resCode) != toErrno.end())
         return (toErrno.at(resCode));
 
-    return (1);
+    return (-1);
 }
 
 // Checks whether the bucket configured for the class is accessible to us or not.
@@ -228,8 +228,8 @@ S3Connection::BucketExists(bool &exists) const
     Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
 
     // If an object with the given key does not exist the HEAD request will return a 404.
-    // Do not fail in this case. Otherwise return an errno value for any other HTTP
-    // response code.
+    // Do not fail in this case as it is an expected response. Otherwise return an errno value 
+    // for any other HTTP response code. 
     if (outcome.IsSuccess()) {
         exists = true;
         return (0);
@@ -238,5 +238,5 @@ S3Connection::BucketExists(bool &exists) const
     else if (toErrno.find(resCode) != toErrno.end())
         return (toErrno.at(resCode));
 
-    return (1);
+    return (-1);
 }

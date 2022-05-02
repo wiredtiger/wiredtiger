@@ -81,6 +81,5 @@ class S3Connection {
     static inline const char *const s3AllocationTag = "s3-source";
 
     int BucketExists(bool &exists) const;
-    // int ConnectionError() const;
 };
 #endif
