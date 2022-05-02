@@ -74,11 +74,11 @@ def get_bucket2_name(storage_source):
 # Generate a unique object prefix for the S3 store. 
 def generate_s3_prefix(test_name = ''):
     # Generates a unique prefix to be used with the object keys, eg:
-    # "s3test_artefacts/python_2022-31-01-16-34-10_623843294/"
-    prefix = 's3test_artefacts--python_'
+    # "s3test/2022-31-01-16-34-10_623843294/"
+    prefix = 's3test/'
     prefix += datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     # Range upto int32_max, matches that of C++'s std::default_random_engine
-    prefix += '_' + str(random.randrange(1, 2147483646)) + '--'
+    prefix += '/' + str(random.randrange(1, 2147483646)) + '--'
 
     # If the calling function has not provided a name, extract it from the stack.
     # It is important to generate unique prefixes for different tests in the same class,
@@ -124,8 +124,10 @@ class TieredConfigMixin:
             return ''
 
         # Setup directories structure for local tiered storage.
-        if self.is_local_storage and not os.path.exists(self.bucket):
-            os.mkdir(self.bucket)
+        if self.is_local_storage:
+            bucket_full_path = os.path.join(self.home, self.bucket)
+            if not os.path.exists(bucket_full_path):
+                os.mkdir(bucket_full_path)
 
         # Build tiered storage connection string.
         return \
@@ -133,7 +135,7 @@ class TieredConfigMixin:
             'tiered_storage=(auth_token=%s,' % self.auth_token + \
             'bucket=%s,' % self.bucket + \
             'bucket_prefix=%s,' % self.bucket_prefix + \
-            'name=%s),tiered_manager=(wait=0)' % self.ss_name
+            'name=%s),' % self.ss_name
 
     # Load the storage sources extension.
     def conn_extensions(self, extlist):

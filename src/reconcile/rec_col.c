@@ -187,7 +187,7 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Build the value cell. */
         addr = &multi->addr;
-        __wt_rec_cell_build_addr(session, r, addr, NULL, false, r->recno);
+        __wt_rec_cell_build_addr(session, r, addr, NULL, r->recno, NULL);
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, val->len))
@@ -210,18 +210,16 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     WT_ADDR *addr;
     WT_BTREE *btree;
     WT_CELL_UNPACK_ADDR *vpack, _vpack;
-    WT_CHILD_STATE state;
+    WT_CHILD_MODIFY_STATE cms;
     WT_DECL_RET;
     WT_PAGE *child, *page;
     WT_REC_KV *val;
     WT_REF *ref;
     WT_TIME_AGGREGATE ta;
-    bool hazard;
 
     btree = S2BT(session);
     page = pageref->page;
     child = NULL;
-    hazard = false;
     WT_TIME_AGGREGATE_INIT(&ta);
 
     val = &r->v;
@@ -239,14 +237,14 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
          * Modified child. The page may be emptied or internally created during a split.
          * Deleted/split pages are merged into the parent and discarded.
          */
-        WT_ERR(__wt_rec_child_modify(session, r, ref, &hazard, &state));
+        WT_ERR(__wt_rec_child_modify(session, r, ref, &cms));
         addr = NULL;
         child = ref->page;
 
-        switch (state) {
+        switch (cms.state) {
         case WT_CHILD_IGNORE:
             /* Ignored child. */
-            WT_CHILD_RELEASE_ERR(session, hazard, ref);
+            WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
             continue;
 
         case WT_CHILD_MODIFIED:
@@ -260,11 +258,11 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
                  * chunk of the name space. The exceptions are pages created when the tree is
                  * created, and never filled.
                  */
-                WT_CHILD_RELEASE_ERR(session, hazard, ref);
+                WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
                 continue;
             case WT_PM_REC_MULTIBLOCK:
                 WT_ERR(__rec_col_merge(session, r, child));
-                WT_CHILD_RELEASE_ERR(session, hazard, ref);
+                WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
                 continue;
             case WT_PM_REC_REPLACE:
                 addr = &child->modify->mod_replace;
@@ -280,7 +278,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             /*
              * Deleted child where we write a proxy cell, not yet supported for column-store.
              */
-            WT_ERR(__wt_illegal_value(session, state));
+            WT_ERR(__wt_illegal_value(session, cms.state));
         }
 
         /*
@@ -296,7 +294,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
             if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
                 /* Need to rebuild the cell with the updated time info. */
-                __wt_rec_cell_build_addr(session, r, NULL, vpack, false, ref->ref_recno);
+                __wt_rec_cell_build_addr(session, r, NULL, vpack, ref->ref_recno, NULL);
             } else {
                 val->buf.data = ref->addr;
                 val->buf.size = __wt_cell_total_len(vpack);
@@ -305,10 +303,10 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             }
             WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
         } else {
-            __wt_rec_cell_build_addr(session, r, addr, NULL, false, ref->ref_recno);
+            __wt_rec_cell_build_addr(session, r, addr, NULL, ref->ref_recno, NULL);
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
         }
-        WT_CHILD_RELEASE_ERR(session, hazard, ref);
+        WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, val->len))
@@ -324,7 +322,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     return (__wt_rec_split_finish(session, r));
 
 err:
-    WT_CHILD_RELEASE(session, hazard, ref);
+    WT_CHILD_RELEASE(session, cms.hazard, ref);
     return (ret);
 }
 
@@ -766,12 +764,11 @@ __wt_rec_col_fix(
 
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             /*
-             * When an out-of-order or mixed-mode tombstone is getting written to disk, remove any
-             * historical versions that are greater in the history store for this key.
+             * When a mixed mode tombstone is getting written to disk, remove any historical
+             * versions that are greater in the history store for this key.
              */
-            if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
-                WT_ERR(__wt_rec_hs_clear_on_tombstone(
-                  session, r, upd_select.tw.durable_stop_ts, recno, NULL, false));
+            if (upd_select.mm_tombstone && r->hs_clear_on_tombstone)
+                WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, recno, NULL, false));
 
             val = 0;
 
@@ -784,12 +781,11 @@ __wt_rec_col_fix(
             /* Write the time window. */
             if (!WT_TIME_WINDOW_IS_EMPTY(&upd_select.tw)) {
                 /*
-                 * When an out-of-order or mixed-mode tombstone is getting written to disk, remove
-                 * any historical versions that are greater in the history store for this key.
+                 * When a mixed mode tombstone is getting written to disk, remove any historical
+                 * versions that are greater in the history store for this key.
                  */
-                if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
-                    WT_ERR(__wt_rec_hs_clear_on_tombstone(
-                      session, r, upd_select.tw.durable_stop_ts, recno, NULL, true));
+                if (upd_select.mm_tombstone && r->hs_clear_on_tombstone)
+                    WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, recno, NULL, true));
 
                 WT_ERR(__wt_rec_col_fix_addtw(
                   session, r, (uint32_t)(recno - curstartrecno), &upd_select.tw));
@@ -1103,10 +1099,13 @@ __wt_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, uint32_t entries,
  */
 static int
 __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKIE *salvage,
-  WT_ITEM *value, WT_TIME_WINDOW *tw, uint64_t rle, bool deleted, bool overflow_type)
+  WT_ITEM *value, WT_TIME_WINDOW *tw, uint64_t rle, bool deleted, bool *ovfl_usedp)
 {
     WT_BTREE *btree;
     WT_REC_KV *val;
+
+    if (ovfl_usedp != NULL)
+        *ovfl_usedp = false;
 
     btree = S2BT(session);
     val = &r->v;
@@ -1146,12 +1145,13 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
         val->buf.data = NULL;
         val->buf.size = 0;
         val->len = val->cell_len;
-    } else if (overflow_type) {
+    } else if (ovfl_usedp != NULL) {
         val->cell_len =
           __wt_cell_pack_ovfl(session, &val->cell, WT_CELL_VALUE_OVFL, tw, rle, value->size);
         val->buf.data = value->data;
         val->buf.size = value->size;
         val->len = val->cell_len + value->size;
+        *ovfl_usedp = true;
     } else
         WT_RET(__wt_rec_cell_build_val(session, r, value->data, value->size, tw, rle));
 
@@ -1160,7 +1160,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
         WT_RET(__wt_rec_split_crossing_bnd(session, r, val->len));
 
     /* Copy the value onto the page. */
-    if (!deleted && !overflow_type && btree->dictionary)
+    if (!deleted && ovfl_usedp == NULL && btree->dictionary)
         WT_RET(__wt_rec_dict_replace(session, r, tw, rle, val));
     __wt_rec_image_copy(session, r, val);
     WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, tw);
@@ -1199,7 +1199,7 @@ __wt_rec_col_var(
     WT_UPDATE_SELECT upd_select;
     uint64_t n, nrepeat, repeat_count, rle, skip, src_recno;
     uint32_t i, size;
-    bool deleted, orig_deleted, orig_stale, update_no_copy;
+    bool deleted, orig_deleted, orig_stale, ovfl_used, update_no_copy;
     const void *data;
 
     btree = S2BT(session);
@@ -1247,7 +1247,7 @@ __wt_rec_col_var(
             salvage->take += salvage->missing;
         } else
             WT_ERR(__rec_col_var_helper(
-              session, r, NULL, NULL, &clear_tw, salvage->missing, true, false));
+              session, r, NULL, NULL, &clear_tw, salvage->missing, true, NULL));
     }
 
     /*
@@ -1366,19 +1366,23 @@ record_loop:
                      */
                     if (rle != 0) {
                         WT_ERR(__rec_col_var_helper(
-                          session, r, salvage, last.value, &last.tw, rle, last.deleted, false));
+                          session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL));
                         rle = 0;
                     }
 
                     last.value->data = vpack->data;
                     last.value->size = vpack->size;
                     WT_ERR(__rec_col_var_helper(
-                      session, r, salvage, last.value, twp, repeat_count, false, true));
+                      session, r, salvage, last.value, twp, repeat_count, false, &ovfl_used));
 
-                    /* Track if page has overflow items. */
-                    r->ovfl_items = true;
-
-                    ovfl_state = OVFL_USED;
+                    /*
+                     * Salvage may have caused us to skip the overflow item, only update overflow
+                     * items we use.
+                     */
+                    if (ovfl_used) {
+                        r->ovfl_items = true; /* Track if page has overflow items. */
+                        ovfl_state = OVFL_USED;
+                    }
                     continue;
                 case OVFL_USED:
                     /*
@@ -1415,24 +1419,20 @@ record_loop:
                     data = upd->data;
                     size = upd->size;
                     /*
-                     * When an out-of-order or mixed-mode tombstone is getting written to disk,
-                     * remove any historical versions that are greater in the history store for this
-                     * key.
+                     * When a mixed mode tombstone is getting written to disk, remove any historical
+                     * versions that are greater in the history store for this key.
                      */
-                    if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
-                        WT_ERR(__wt_rec_hs_clear_on_tombstone(
-                          session, r, twp->durable_stop_ts, src_recno, NULL, true));
+                    if (upd_select.mm_tombstone && r->hs_clear_on_tombstone)
+                        WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, src_recno, NULL, true));
 
                     break;
                 case WT_UPDATE_TOMBSTONE:
                     /*
-                     * When an out-of-order or mixed-mode tombstone is getting written to disk,
-                     * remove any historical versions that are greater in the history store for this
-                     * key.
+                     * When a mixed mode tombstone is getting written to disk, remove any historical
+                     * versions that are greater in the history store for this key.
                      */
-                    if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
-                        WT_ERR(__wt_rec_hs_clear_on_tombstone(
-                          session, r, twp->durable_stop_ts, src_recno, NULL, false));
+                    if (upd_select.mm_tombstone && r->hs_clear_on_tombstone)
+                        WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, src_recno, NULL, false));
 
                     deleted = true;
                     twp = &clear_tw;
@@ -1463,7 +1463,7 @@ compare:
                     continue;
                 }
                 WT_ERR(__rec_col_var_helper(
-                  session, r, salvage, last.value, &last.tw, rle, last.deleted, false));
+                  session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL));
             }
 
             /*
@@ -1609,7 +1609,7 @@ compare:
                     goto next;
                 }
                 WT_ERR(__rec_col_var_helper(
-                  session, r, salvage, last.value, &last.tw, rle, last.deleted, false));
+                  session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL));
             }
 
             /*
@@ -1652,8 +1652,8 @@ next:
 
     /* If we were tracking a record, write it. */
     if (rle != 0)
-        WT_ERR(__rec_col_var_helper(
-          session, r, salvage, last.value, &last.tw, rle, last.deleted, false));
+        WT_ERR(
+          __rec_col_var_helper(session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL));
 
     /* Write the remnant page. */
     ret = __wt_rec_split_finish(session, r);

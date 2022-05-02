@@ -523,8 +523,15 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
 
 /*
  * __wt_txn_visible_all --
- *     Check if a given transaction is "globally visible". This is, if all sessions in the system
- *     will see the transaction ID including the ID that belongs to a running checkpoint.
+ *     Check whether a given time window is either globally visible or obsolete. For global
+ *     visibility checks, the commit times are checked against the oldest possible readers in the
+ *     system. If all possible readers could always see the time window - it is globally visible.
+ *     For obsolete checks callers should generally pass in the durable timestamp, since it is
+ *     guaranteed to be newer than or equal to the commit time, and content needs to be retained
+ *     (not become obsolete) until both the commit and durable times are obsolete. If the commit
+ *     time is used for this check, it's possible that a transaction is committed with a durable
+ *     time and made obsolete before it can be included in a checkpoint - which leads to bugs in
+ *     checkpoint correctness.
  */
 static inline bool
 __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp)
@@ -697,8 +704,8 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
     if (txn->isolation == WT_ISO_READ_UNCOMMITTED)
         return (true);
 
-    /* Otherwise, we should be called with a snapshot or we are in a checkpoint cursor. */
-    WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) || session->dhandle->checkpoint != NULL);
+    /* Otherwise, we should be called with a snapshot. */
+    WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_SNAPSHOT));
 
     return (__wt_txn_visible_id_snapshot(
       id, txn->snap_min, txn->snap_max, txn->snapshot, txn->snapshot_count));
@@ -727,6 +734,9 @@ __wt_txn_visible(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp
     /* Timestamp check. */
     if (!F_ISSET(txn, WT_TXN_SHARED_TS_READ) || timestamp == WT_TS_NONE)
         return (true);
+
+    if (WT_READING_CHECKPOINT(session))
+        return (timestamp <= txn->checkpoint_read_timestamp);
 
     return (timestamp <= txn_shared->read_timestamp);
 }
@@ -969,7 +979,7 @@ retry:
     WT_ASSERT(session, cbt->upd_value->type == WT_UPDATE_INVALID);
 
     /* If there is no ondisk value, there can't be anything in the history store either. */
-    if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX) {
+    if (cbt->ref->page->dsk == NULL) {
         cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
         return (0);
     }
@@ -1261,7 +1271,7 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
  * __wt_txn_search_check --
  *     Check if a search by the current transaction violates timestamp rules.
  */
-static inline void
+static inline int
 __wt_txn_search_check(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
@@ -1274,11 +1284,11 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
 
     /* Timestamps are ignored on logged files. */
     if (F_ISSET(S2BT(session), WT_BTREE_LOGGED))
-        return;
+        return (0);
 
     /* Skip checks during recovery. */
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
-        return;
+        return (0);
 
     /* Verify if the table should always or never use a read timestamp. */
     if (LF_ISSET(WT_DHANDLE_TS_ASSERT_READ_ALWAYS) && !F_ISSET(txn, WT_TXN_SHARED_TS_READ)) {
@@ -1286,6 +1296,9 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
           "%s: " WT_TS_VERBOSE_PREFIX "read timestamps required and none set", name);
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
+#endif
+#ifdef WT_STANDALONE_BUILD
+        return (EINVAL);
 #endif
     }
 
@@ -1295,7 +1308,11 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
+#ifdef WT_STANDALONE_BUILD
+        return (EINVAL);
+#endif
     }
+    return (0);
 }
 
 /*

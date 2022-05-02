@@ -252,10 +252,12 @@ __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile)
     WT_ERR(__wt_scr_alloc(session, 512, &ds->t2));
 
     /*
-     * Set up history store support, opening a history store cursor on demand. Return error if that
-     * doesn't work, except while running in-memory configuration.
+     * Set up history store support, opening a history store cursor on demand, except while running
+     * in-memory configuration, or when reading a checkpoint that has no corresponding history store
+     * checkpoint.
      */
-    if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !WT_IS_HS(session->dhandle))
+    if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !WT_IS_HS(session->dhandle) &&
+      !(WT_READING_CHECKPOINT(session) && session->hs_checkpoint == NULL))
         WT_ERR(__wt_curhs_open(session, NULL, &ds->hs_cursor));
 
     if (ds->hs_cursor != NULL) {
@@ -983,11 +985,27 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    bool did_hs_checkpoint;
 
     cbt = cursor_arg;
     session = CUR2S(cursor_arg);
+    did_hs_checkpoint = false;
+
+    /*
+     * If the cursor is a checkpoint cursor and we don't already have a history store checkpoint
+     * name in the session, substitute the one from this cursor. This allows the dump to print from
+     * the history store, which otherwise will get skipped.
+     */
+    if (cbt->checkpoint_hs_dhandle != NULL && session->hs_checkpoint == NULL) {
+        session->hs_checkpoint = cbt->checkpoint_hs_dhandle->checkpoint;
+        did_hs_checkpoint = true;
+    }
 
     WT_WITH_BTREE(session, CUR2BT(cbt), ret = __wt_debug_page(session, NULL, cbt->ref, ofile));
+
+    if (did_hs_checkpoint)
+        session->hs_checkpoint = NULL;
+
     return (ret);
 }
 

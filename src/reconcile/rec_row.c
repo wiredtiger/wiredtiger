@@ -256,7 +256,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         r->cell_zero = false;
 
         addr = &multi->addr;
-        __wt_rec_cell_build_addr(session, r, addr, NULL, false, WT_RECNO_OOB);
+        __wt_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, NULL);
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, key->len + val->len))
@@ -284,20 +284,20 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_BTREE *btree;
     WT_CELL *cell;
     WT_CELL_UNPACK_ADDR *kpack, _kpack, *vpack, _vpack;
-    WT_CHILD_STATE state;
+    WT_CHILD_MODIFY_STATE cms;
     WT_DECL_RET;
     WT_IKEY *ikey;
     WT_PAGE *child;
+    WT_PAGE_DELETED *page_del;
     WT_REC_KV *key, *val;
     WT_REF *ref;
-    WT_TIME_AGGREGATE ta;
+    WT_TIME_AGGREGATE ft_ta, *source_ta, ta;
     size_t size;
-    bool hazard;
     const void *p;
 
     btree = S2BT(session);
     child = NULL;
-    hazard = false;
+    WT_TIME_AGGREGATE_INIT(&ft_ta);
 
     key = &r->k;
     kpack = &_kpack;
@@ -350,16 +350,16 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 WT_ERR(__wt_ovfl_discard_add(session, page, kpack->cell));
         }
 
-        WT_ERR(__wt_rec_child_modify(session, r, ref, &hazard, &state));
+        WT_ERR(__wt_rec_child_modify(session, r, ref, &cms));
         addr = ref->addr;
         child = ref->page;
 
-        switch (state) {
+        switch (cms.state) {
         case WT_CHILD_IGNORE:
             /*
              * Ignored child.
              */
-            WT_CHILD_RELEASE_ERR(session, hazard, ref);
+            WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
             continue;
 
         case WT_CHILD_MODIFIED:
@@ -368,11 +368,11 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
              */
             switch (child->modify->rec_result) {
             case WT_PM_REC_EMPTY:
-                WT_CHILD_RELEASE_ERR(session, hazard, ref);
+                WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
                 continue;
             case WT_PM_REC_MULTIBLOCK:
                 WT_ERR(__rec_row_merge(session, r, child));
-                WT_CHILD_RELEASE_ERR(session, hazard, ref);
+                WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
                 continue;
             case WT_PM_REC_REPLACE:
                 /*
@@ -388,41 +388,60 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             /* Original child. */
             break;
         case WT_CHILD_PROXY:
-            /* Deleted child where we write a proxy cell. */
+            /* Fast-delete child where we write a proxy cell. */
             break;
         }
 
         /*
          * Build the value cell, the child page's address. Addr points to an on-page cell or an
-         * off-page WT_ADDR structure. There's a special cell type in the case of page deletion
-         * requiring a proxy cell, otherwise use the information from the addr or original cell.
+         * off-page WT_ADDR structure.
          */
+        page_del = NULL;
         if (__wt_off_page(page, addr)) {
-            __wt_rec_cell_build_addr(session, r, addr, NULL, state == WT_CHILD_PROXY, WT_RECNO_OOB);
-            WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
+            page_del = cms.state == WT_CHILD_PROXY ? &cms.del : NULL;
+            __wt_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, page_del);
+            source_ta = &addr->ta;
+        } else if (cms.state == WT_CHILD_PROXY) {
+            /* Proxy cells require additional information in the address cell. */
+            __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
+            page_del = &cms.del;
+            __wt_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
+            source_ta = &vpack->ta;
         } else {
+            /*
+             * The transaction ids are cleared after restart. Repack the cell with new validity
+             * information to flush cleared transaction ids. Proxy cells require additional
+             * information in the address cell, be sure to propagate the original fast-truncate
+             * information.
+             */
+            WT_ASSERT(session, cms.state == WT_CHILD_ORIGINAL);
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
             if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
-                /*
-                 * The transaction ids are cleared after restart. Repack the cell with new validity
-                 * to flush the cleared transaction ids.
-                 */
-                __wt_rec_cell_build_addr(
-                  session, r, NULL, vpack, state == WT_CHILD_PROXY, WT_RECNO_OOB);
-            } else if (state == WT_CHILD_PROXY) {
-                WT_ERR(__wt_buf_set(session, &val->buf, ref->addr, __wt_cell_total_len(vpack)));
-                __wt_cell_type_reset(session, val->buf.mem, 0, WT_CELL_ADDR_DEL);
-                val->cell_len = 0;
-                val->len = val->buf.size;
+                page_del = vpack->type == WT_CELL_ADDR_DEL ? &vpack->page_del : NULL;
+                __wt_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
             } else {
                 val->buf.data = ref->addr;
                 val->buf.size = __wt_cell_total_len(vpack);
                 val->cell_len = 0;
                 val->len = val->buf.size;
             }
-            WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
+            source_ta = &vpack->ta;
         }
-        WT_CHILD_RELEASE_ERR(session, hazard, ref);
+
+        /*
+         * Track the time window. The fast-truncate is a stop time window and has to be considered
+         * in the internal page's aggregate information for RTS to find it.
+         */
+        WT_TIME_AGGREGATE_COPY(&ta, source_ta);
+        if (page_del != NULL) {
+            ft_ta.newest_start_durable_ts = ta.newest_start_durable_ts;
+            ft_ta.newest_stop_durable_ts = page_del->durable_timestamp;
+            ft_ta.oldest_start_ts = ta.oldest_start_ts;
+            ft_ta.newest_txn = page_del->txnid;
+            ft_ta.newest_stop_ts = page_del->timestamp;
+            ft_ta.newest_stop_txn = page_del->txnid;
+        }
+        WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
 
         /* Build key cell. Truncate any 0th key, internal pages don't need 0th keys. */
         __wt_ref_key(page, ref, &p, &size);
@@ -438,6 +457,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /* Copy the key and value onto the page. */
         __wt_rec_image_copy(session, r, key);
         __wt_rec_image_copy(session, r, val);
+        if (page_del != NULL)
+            WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ft_ta);
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ta);
 
         /* Update compression state. */
@@ -449,7 +470,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     return (__wt_rec_split_finish(session, r));
 
 err:
-    WT_CHILD_RELEASE(session, hazard, ref);
+    WT_CHILD_RELEASE(session, cms.hazard, ref);
     return (ret);
 }
 
@@ -808,13 +829,12 @@ __wt_rec_row_leaf(
                 /* Take the value from the update. */
                 WT_ERR(__wt_rec_cell_build_val(session, r, upd->data, upd->size, twp, 0));
                 /*
-                 * When an out-of-order or mixed-mode tombstone is getting written to disk, remove
-                 * any historical versions that are greater in the history store for that key.
+                 * When a mixed mode tombstone is getting written to disk, remove any historical
+                 * versions that are greater in the history store for that key.
                  */
-                if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone) {
+                if (upd_select.mm_tombstone && r->hs_clear_on_tombstone) {
                     WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
-                    WT_ERR(__wt_rec_hs_clear_on_tombstone(
-                      session, r, twp->durable_stop_ts, WT_RECNO_OOB, tmpkey, true));
+                    WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, WT_RECNO_OOB, tmpkey, true));
                 }
                 dictionary = true;
                 break;
@@ -840,13 +860,12 @@ __wt_rec_row_leaf(
                 }
 
                 /*
-                 * When an out-of-order or mixed-mode tombstone is getting written to disk, remove
-                 * any historical versions that are greater in the history store for this key.
+                 * When a mixed mode tombstone is getting written to disk, remove any historical
+                 * versions that are greater in the history store for this key.
                  */
-                if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone) {
+                if (upd_select.mm_tombstone && r->hs_clear_on_tombstone) {
                     WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
-                    WT_ERR(__wt_rec_hs_clear_on_tombstone(
-                      session, r, twp->durable_stop_ts, WT_RECNO_OOB, tmpkey, false));
+                    WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, WT_RECNO_OOB, tmpkey, false));
                 }
 
                 /*

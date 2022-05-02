@@ -51,6 +51,12 @@ class test_template : public test_harness::test {
     }
 
     void
+    custom_operation(test_harness::thread_context *) override final
+    {
+        std::cout << "custom_operation: nothing done." << std::endl;
+    }
+
+    void
     insert_operation(test_harness::thread_context *) override final
     {
         std::cout << "insert_operation: nothing done." << std::endl;
@@ -63,8 +69,20 @@ class test_template : public test_harness::test {
     }
 
     void
+    remove_operation(test_harness::thread_context *) override final
+    {
+        std::cout << "remove_operation: nothing done." << std::endl;
+    }
+
+    void
     update_operation(test_harness::thread_context *) override final
     {
         std::cout << "update_operation: nothing done." << std::endl;
+    }
+
+    void
+    validate(const std::string &, const std::string &, const std::vector<uint64_t> &) override final
+    {
+        std::cout << "validate: nothing done." << std::endl;
     }
 };

@@ -396,10 +396,10 @@ struct __wt_connection_stats {
     int64_t cache_eviction_get_ref_empty2;
     int64_t cache_eviction_aggressive_set;
     int64_t cache_eviction_empty_score;
-    int64_t cache_eviction_blocked_ooo_checkpoint_race_1;
-    int64_t cache_eviction_blocked_ooo_checkpoint_race_2;
-    int64_t cache_eviction_blocked_ooo_checkpoint_race_3;
-    int64_t cache_eviction_blocked_ooo_checkpoint_race_4;
+    int64_t cache_eviction_blocked_mm_checkpoint_race_1;
+    int64_t cache_eviction_blocked_mm_checkpoint_race_2;
+    int64_t cache_eviction_blocked_mm_checkpoint_race_3;
+    int64_t cache_eviction_blocked_mm_checkpoint_race_4;
     int64_t cache_eviction_walk_passes;
     int64_t cache_eviction_queue_empty;
     int64_t cache_eviction_queue_not_empty;
@@ -453,9 +453,9 @@ struct __wt_connection_stats {
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
     int64_t cache_hs_ondisk_max;
-    int64_t cache_hs_ondisk;
     int64_t cache_hs_order_lose_durable_timestamp;
     int64_t cache_hs_order_reinsert;
+    int64_t cache_hs_ondisk;
     int64_t cache_hs_read;
     int64_t cache_hs_read_miss;
     int64_t cache_hs_read_squash;
@@ -498,7 +498,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_fail;
     int64_t cache_eviction_fail_active_children_on_an_internal_page;
     int64_t cache_eviction_fail_in_reconciliation;
-    int64_t cache_eviction_fail_checkpoint_out_of_order_ts;
+    int64_t cache_eviction_fail_checkpoint_mm_ts;
     int64_t cache_eviction_walk;
     int64_t cache_write;
     int64_t cache_write_restore;
@@ -756,7 +756,6 @@ struct __wt_connection_stats {
     int64_t tiered_work_units_dequeued;
     int64_t tiered_work_units_created;
     int64_t tiered_retention;
-    int64_t tiered_object_size;
     int64_t thread_fsync_active;
     int64_t thread_read_active;
     int64_t thread_write_active;
@@ -827,7 +826,6 @@ struct __wt_connection_stats {
     int64_t txn_checkpoint_prep_min;
     int64_t txn_checkpoint_prep_recent;
     int64_t txn_checkpoint_prep_total;
-    int64_t txn_checkpoint_prep_wait;
     int64_t txn_checkpoint_scrub_target;
     int64_t txn_checkpoint_scrub_time;
     int64_t txn_checkpoint_time_total;
@@ -908,10 +906,10 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t cache_eviction_fail;
-    int64_t cache_eviction_blocked_ooo_checkpoint_race_1;
-    int64_t cache_eviction_blocked_ooo_checkpoint_race_2;
-    int64_t cache_eviction_blocked_ooo_checkpoint_race_3;
-    int64_t cache_eviction_blocked_ooo_checkpoint_race_4;
+    int64_t cache_eviction_blocked_mm_checkpoint_race_1;
+    int64_t cache_eviction_blocked_mm_checkpoint_race_2;
+    int64_t cache_eviction_blocked_mm_checkpoint_race_3;
+    int64_t cache_eviction_blocked_mm_checkpoint_race_4;
     int64_t cache_eviction_walk_passes;
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;
@@ -1070,10 +1068,6 @@ struct __wt_dsrc_stats {
     int64_t rec_time_window_stop_ts;
     int64_t rec_time_window_stop_txn;
     int64_t session_compact;
-    int64_t tiered_work_units_dequeued;
-    int64_t tiered_work_units_created;
-    int64_t tiered_retention;
-    int64_t tiered_object_size;
     int64_t txn_read_race_prepare_update;
     int64_t txn_rts_hs_stop_older_than_newer_start;
     int64_t txn_rts_inconsistent_ckpt;

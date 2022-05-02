@@ -251,7 +251,12 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_WITH_PAGE_INDEX(session, ret = __wt_rec_row_int(session, r, page));
         break;
     case WT_PAGE_ROW_LEAF:
-        ret = __wt_rec_row_leaf(session, r, ref, salvage);
+        /*
+         * It's important we wrap this call in a page index guard, the ikey on the ref may still be
+         * pointing into the internal page's memory. We want to prevent eviction of the internal
+         * page for the duration.
+         */
+        WT_WITH_PAGE_INDEX(session, ret = __wt_rec_row_leaf(session, r, ref, salvage));
         break;
     default:
         ret = __wt_illegal_value(session, page->type);
@@ -1862,16 +1867,17 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
     dsk->type = page->type;
 
     dsk->flags = 0;
-
-    /* Set the zero-length value flag in the page header. */
+    /* Set the all/none zero-length value flags. */
     if (page->type == WT_PAGE_ROW_LEAF) {
-        F_CLR(dsk, WT_PAGE_EMPTY_V_ALL | WT_PAGE_EMPTY_V_NONE);
-
         if (chunk->entries != 0 && r->all_empty_value)
             F_SET(dsk, WT_PAGE_EMPTY_V_ALL);
         if (chunk->entries != 0 && !r->any_empty_value)
             F_SET(dsk, WT_PAGE_EMPTY_V_NONE);
     }
+
+    /* Set the fast-truncate proxy cell information flag. */
+    if (page->type == WT_PAGE_ROW_INT && __wt_process.fast_truncate_2022)
+        F_SET(dsk, WT_PAGE_FT_UPDATE);
 
     dsk->unused = 0;
     dsk->version = WT_PAGE_VERSION_TS;
@@ -2711,8 +2717,8 @@ err:
  *     history store contents associated with that key.
  */
 int
-__wt_rec_hs_clear_on_tombstone(WT_SESSION_IMPL *session, WT_RECONCILE *r, wt_timestamp_t ts,
-  uint64_t recno, WT_ITEM *rowkey, bool reinsert)
+__wt_rec_hs_clear_on_tombstone(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, uint64_t recno, WT_ITEM *rowkey, bool reinsert)
 {
     WT_BTREE *btree;
     WT_ITEM hs_recno_key, *key;
@@ -2740,13 +2746,12 @@ __wt_rec_hs_clear_on_tombstone(WT_SESSION_IMPL *session, WT_RECONCILE *r, wt_tim
     /*
      * From WT_TS_NONE delete/reinsert all the history store content of the key. The test of
      * WT_REC_CHECKPOINT_RUNNING asks the function to fail with EBUSY if we are trying to evict an
-     * out of order or mixed-mode update while a checkpoint is in progress; such eviction can race
-     * with the checkpoint itself and lead to history store inconsistency. (Note:
-     * WT_REC_CHECKPOINT_RUNNING is set only during evictions, and never in the checkpoint thread
-     * itself.)
+     * mixed-mode update while a checkpoint is in progress; such eviction can race with the
+     * checkpoint itself and lead to history store inconsistency. (Note: WT_REC_CHECKPOINT_RUNNING
+     * is set only during evictions, and never in the checkpoint thread itself.)
      */
-    WT_RET(__wt_hs_delete_key_from_ts(session, r->hs_cursor, btree->id, key, ts, reinsert, true,
-      F_ISSET(r, WT_REC_CHECKPOINT_RUNNING)));
+    WT_RET(__wt_hs_delete_key_from_ts(
+      session, r->hs_cursor, btree->id, key, reinsert, F_ISSET(r, WT_REC_CHECKPOINT_RUNNING)));
 
     /* Fail 0.01% of the time. */
     if (F_ISSET(r, WT_REC_EVICT) &&
