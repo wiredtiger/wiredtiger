@@ -39,6 +39,16 @@ workload_tracking::workload_tracking(
       _schema_table_config(SCHEMA_TRACKING_TABLE_CONFIG), _schema_table_name(TABLE_SCHEMA_TRACKING),
       _custom_tracking(_config->get_bool(IS_CUSTOM)), _use_compression(use_compression), _tsm(tsm)
 {
+    if (not _config->get_bool(IS_CUSTOM)) {
+        if (_config->get_string(TRACKING_KEY_FORMAT) != OPERATION_TRACKING_KEY_FORMAT)
+            testutil_die(EINVAL,
+              "Tracking table has a custom key format, but tracking table is not marked as custom");
+        if (_config->get_string(TRACKING_VALUE_FORMAT) != OPERATION_TRACKING_VALUE_FORMAT)
+            testutil_die(EINVAL,
+              "Tracking table has a custom value format, but tracking table is not marked as "
+              "custom");
+    }
+
     _operation_table_config = "key_format=" + _config->get_string(TRACKING_KEY_FORMAT) +
       ",value_format=" + _config->get_string(TRACKING_VALUE_FORMAT) +
       ",log=(enabled=true),write_timestamp_usage=mixed_mode";

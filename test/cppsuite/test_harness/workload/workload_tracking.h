@@ -34,6 +34,13 @@
 #include "../util/scoped_types.h"
 
 /*
+ * Default schema for tracking operations on collections (key_format: Collection id / Key /
+ * Timestamp, value_format: Operation type / Value)
+ */
+#define OPERATION_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(QSQ)
+#define OPERATION_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(iS)
+
+/*
  * Default schema for tracking schema operations on collections (key_format: Collection id /
  * Timestamp, value_format: Operation type)
  */
