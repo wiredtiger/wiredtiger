@@ -88,7 +88,8 @@ def generate_s3_prefix(test_name = ''):
     # Generates a unique prefix to be used with the object keys, eg:
     # "s3test_artefacts--python_2022-31-01-16-34-10_623843294/".
     # Objects with the prefex pattern "s3test/*" are deleted after a certain period of time 
-    # according to the lifecycle rule on the S3 bucket. 
+    # according to the lifecycle rule on the S3 bucket. Should you wish to make any changes to the
+    # prefix pattern or lifecycle of the object, please speak to the release manager. 
     prefix = 's3test/python/'
     prefix += datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     # Range upto int32_max, matches that of C++'s std::default_random_engine
