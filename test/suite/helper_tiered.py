@@ -87,10 +87,12 @@ def get_check(storage_source, tc, base, n):
 def generate_s3_prefix(test_name = ''):
     # Generates a unique prefix to be used with the object keys, eg:
     # "s3test_artefacts--python_2022-31-01-16-34-10_623843294/"
-    prefix = 's3test_artefacts--python_'
+    # Objects with the prefex pattern "s3test/*" are deleted after a certain period of time 
+    # according to the lifecycle rule on the S3 bucket. 
+    prefix = 's3test/python/'
     prefix += datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     # Range upto int32_max, matches that of C++'s std::default_random_engine
-    prefix += '_' + str(random.randrange(1, 2147483646)) + '--'
+    prefix += '/' + str(random.randrange(1, 2147483646)) + '--'
 
     # If the calling function has not provided a name, extract it from the stack.
     # It is important to generate unique prefixes for different tests in the same class,
