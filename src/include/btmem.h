@@ -980,9 +980,9 @@ struct __wt_ref {
      * Doing anything other than testing if WT_REF.ft_info.del/update is non-NULL (which eviction
      * does), requires the WT_REF be locked.
      *
-     * If the locked WT_REF's previous state was WT_REF_DELETED, WT_REF.del is valid;
-     * If the state was disk or in-memory, from a read-only tree, WT_REF.del is valid or NULL;
-     * If the state was in-memory NOT from a readonly tree, WT_REF.update is valid or NULL.
+     * If the locked WT_REF's previous state was WT_REF_DELETED, WT_REF.del is valid; If the state
+     * was disk or in-memory, from a read-only tree, WT_REF.del is valid or NULL; If the state was
+     * in-memory NOT from a readonly tree, WT_REF.update is valid or NULL.
      */
     union {
         WT_PAGE_DELETED *del; /* Page not instantiated, page-deleted structure */
