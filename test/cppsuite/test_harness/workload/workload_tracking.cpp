@@ -179,4 +179,39 @@ workload_tracking::save_schema_operation(
         testutil_die(EINVAL, error_message.c_str());
     }
 }
+
+int
+workload_tracking::save_operation(const tracking_operation &operation,
+  const uint64_t &collection_id, const char *key, const char *value,
+  wt_timestamp_t ts, scoped_cursor &op_track_cursor)
+{
+    WT_DECL_RET;
+    std::string error_message;
+
+    if (!_enabled)
+        return (0);
+
+    testutil_assert(op_track_cursor.get() != nullptr);
+
+    if (operation == tracking_operation::CREATE_COLLECTION ||
+      operation == tracking_operation::DELETE_COLLECTION) {
+        error_message =
+          "save_operation: invalid operation " + std::to_string(static_cast<int>(operation));
+        testutil_die(EINVAL, error_message.c_str());
+    } else {
+        populate_tracking_cursor(operation, collection_id, key, value, ts, op_track_cursor);
+        ret = op_track_cursor->insert(op_track_cursor.get());
+    }
+    return (ret);
+}
+
+int
+workload_tracking::populate_tracking_cursor(const tracking_operation &operation,
+  const uint64_t &collection_id, const char *key, const char *value,
+  wt_timestamp_t ts, scoped_cursor &op_track_cursor)
+{
+    op_track_cursor->set_key(op_track_cursor.get(), collection_id, key, ts);
+    op_track_cursor->set_value(op_track_cursor.get(), static_cast<int>(operation), value);
+}
+
 } // namespace test_harness
