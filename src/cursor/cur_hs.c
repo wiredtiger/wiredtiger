@@ -970,7 +970,7 @@ __curhs_insert(WT_CURSOR *cursor)
     ret = __curhs_file_cursor_search_near(session, file_cursor, &exact);
     WT_ASSERT(session, ret == 0);
     /* FIXME: WT-9164 Figure out whether we need to assert exact. */
-    if(exact == 0)
+    if (exact == 0)
         WT_ERR_NOTFOUND_OK(__curhs_file_cursor_next(session, file_cursor), false);
 #endif
 
