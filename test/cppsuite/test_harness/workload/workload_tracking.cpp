@@ -192,7 +192,7 @@ workload_tracking::save_schema_operation(
 
 int
 workload_tracking::save_operation(const tracking_operation &operation,
-  const uint64_t &collection_id, const char *key, const char *value, wt_timestamp_t ts,
+  const uint64_t &collection_id, const std::string &key, const std::string &value, wt_timestamp_t ts,
   scoped_cursor &op_track_cursor)
 {
     WT_DECL_RET;
@@ -217,11 +217,11 @@ workload_tracking::save_operation(const tracking_operation &operation,
 
 int
 workload_tracking::populate_tracking_cursor(const tracking_operation &operation,
-  const uint64_t &collection_id, const char *key, const char *value, wt_timestamp_t ts,
+  const uint64_t &collection_id, const std::string &key, const std::string &value, wt_timestamp_t ts,
   scoped_cursor &op_track_cursor)
 {
-    op_track_cursor->set_key(op_track_cursor.get(), collection_id, key, ts);
-    op_track_cursor->set_value(op_track_cursor.get(), static_cast<int>(operation), value);
+    op_track_cursor->set_key(op_track_cursor.get(), collection_id, key.c_str(), ts);
+    op_track_cursor->set_value(op_track_cursor.get(), static_cast<int>(operation), value.c_str());
 }
 
 } // namespace test_harness
