@@ -220,7 +220,7 @@ rollback_to_stable(WT_SESSION *session)
      * debugging the race.
      */
     query_ts("get=stable", &g.stable_timestamp);
-    trace_msg(session, "rollback-to-stable stable timestamp %" PRIu64, g.stable_timestamp);
+    trace_msg(session, "rollback-to-stable: stable timestamp %" PRIu64, g.stable_timestamp);
 
     /* Check the saved snap operations for consistency. */
     snap_repeat_rollback(session, tinfo_list, GV(RUNS_THREADS));
@@ -1070,8 +1070,8 @@ ops(void *arg)
          * If modify, build a modify change vector. FLCS operations do updates instead of modifies,
          * if we're not in a mirrored group, generate a bit value for the FLCS table. If we are in a
          * mirrored group or not modifying an FLCS table, we'll need a change vector and we will
-         * have to modify a ROW/VLCS table first first to get a new value from which we can derive
-         * the FLCS value.
+         * have to modify a ROW/VLCS table first to get a new value from which we can derive the
+         * FLCS value.
          */
         if (op == MODIFY) {
             if (table->type != FIX || table->mirror)
