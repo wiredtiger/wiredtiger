@@ -161,7 +161,8 @@ test::run()
 
     /* Validation stage. */
     if (_workload_tracking->enabled())
-        this->validate(_workload_tracking->get_operation_table_name(),
+        this->validate(_config->get_subconfig(WORKLOAD_TRACKING)->get_bool("is_custom"),
+          _workload_tracking->get_operation_table_name(),
           _workload_tracking->get_schema_table_name(),
           _workload_generator->get_database().get_collection_ids());
 

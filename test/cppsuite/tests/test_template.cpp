@@ -81,7 +81,7 @@ class test_template : public test_harness::test {
     }
 
     void
-    validate(const std::string &, const std::string &, const std::vector<uint64_t> &) override final
+    validate(bool custom_tracking_table, const std::string &, const std::string &, const std::vector<uint64_t> &) override final
     {
         std::cout << "validate: nothing done." << std::endl;
     }
