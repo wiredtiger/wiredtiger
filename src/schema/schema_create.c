@@ -1173,7 +1173,7 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
 
 err:
     session->dhandle = NULL;
-    
+
     /* This method is called recursively. Clear the flag only in the call that set it. */
     if (import_flag_set)
         F_CLR(session, WT_SESSION_IMPORT);
