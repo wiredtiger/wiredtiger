@@ -343,9 +343,8 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * crashed and recovered or we're running inside a checkpoint, and now we're being forced to
      * read that page.
      *
-     * If there's a page-deleted structure that's not yet globally visible, get a reference and
-     * migrate transaction ID and timestamp information to the updates (globally visible means the
-     * updates don't require that information).
+     * If there's a not yet globally visible page-deleted structure (or reading in a checkpoint),
+     * get a reference and migrate transaction ID and timestamp information to the updates.
      *
      * If the truncate operation is not yet resolved, link updates in the page-deleted structure so
      * they can be found when the transaction is aborted or committed, even if they have moved to
@@ -363,7 +362,8 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                 WT_SKIP_FOREACH (ins, insert)
                     ++count;
         }
-        WT_RET(__wt_calloc_def(session, count + 1, &update_list));
+        if (!WT_READING_CHECKPOINT(session))
+            WT_RET(__wt_calloc_def(session, count + 1, &update_list));
     }
 
     /* Walk the page entries, giving each one a tombstone. */
