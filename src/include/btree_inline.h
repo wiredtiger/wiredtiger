@@ -2106,11 +2106,12 @@ __wt_btcur_skip_page(
 
     WT_REF_LOCK(session, ref, &previous_state);
 
-    if ((page_del = ref->ft_info.del) != NULL &&
-      __wt_txn_visible(session, page_del->txnid, page_del->timestamp))
-        *skipp = true;
-    else if ((previous_state == WT_REF_DISK ||
-               (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))) &&
+    if (previous_state == WT_REF_DELETED) {
+        page_del = ref->ft_info.del;
+        if (__wt_txn_visible(session, page_del->txnid, page_del->timestamp))
+            *skipp = true;
+    } else if ((previous_state == WT_REF_DISK ||
+                 (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))) &&
       __wt_ref_addr_copy(session, ref, &addr) && addr.ta.newest_stop_txn != WT_TXN_MAX &&
       addr.ta.newest_stop_ts != WT_TS_MAX &&
       __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts))
