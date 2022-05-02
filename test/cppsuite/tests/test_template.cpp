@@ -72,46 +72,45 @@ class test_template : public test_harness::test {
     }
 
     void
-    populate(test_harness::database &database, test_harness::timestamp_manager *tsm,
-      test_harness::configuration *config, test_harness::workload_tracking *tracking) override final
+    populate(test_harness::database &, test_harness::timestamp_manager *,
+      test_harness::configuration *, test_harness::workload_tracking *) override final
     {
         std::cout << "populate: nothing done." << std::endl;
     }
 
     void
-    custom_operation(test_harness::thread_context *tc) override final
+    custom_operation(test_harness::thread_context *) override final
     {
         std::cout << "custom_operation: nothing done." << std::endl;
     }
 
     void
-    insert_operation(test_harness::thread_context *tc) override final
+    insert_operation(test_harness::thread_context *) override final
     {
         std::cout << "insert_operation: nothing done." << std::endl;
     }
 
     void
-    read_operation(test_harness::thread_context *tc) override final
+    read_operation(test_harness::thread_context *) override final
     {
         std::cout << "read_operation: nothing done." << std::endl;
     }
 
     void
-    remove_operation(test_harness::thread_context *tc) override final
+    remove_operation(test_harness::thread_context *) override final
     {
         std::cout << "remove_operation: nothing done." << std::endl;
     }
 
     void
-    update_operation(test_harness::thread_context *tc) override final
+    update_operation(test_harness::thread_context *) override final
     {
         std::cout << "update_operation: nothing done." << std::endl;
     }
 
     void
-    validate(bool custom_tracking_table, const std::string &operation_table_name,
-      const std::string &schema_table_name,
-      const std::vector<uint64_t> &known_collection_ids) override final
+    validate(bool custom_tracking_table, const std::string &, const std::string &,
+      const std::vector<uint64_t> &) override final
     {
         std::cout << "validate: nothing done." << std::endl;
     }
