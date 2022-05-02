@@ -37,10 +37,10 @@ workload_tracking::workload_tracking(
   configuration *_config, const bool use_compression, timestamp_manager &tsm)
     : component("workload_tracking", _config), _operation_table_name(TABLE_OPERATION_TRACKING),
       _schema_table_config(SCHEMA_TRACKING_TABLE_CONFIG), _schema_table_name(TABLE_SCHEMA_TRACKING),
-      _custom_tracking(_config->get_bool("is_custom")), _use_compression(use_compression), _tsm(tsm)
+      _custom_tracking(_config->get_bool(IS_CUSTOM)), _use_compression(use_compression), _tsm(tsm)
 {
-    _operation_table_config = "key_format=" + _config->get_string("tracking_key_format") +
-      ",value_format=" + _config->get_string("tracking_value_format") +
+    _operation_table_config = "key_format=" + _config->get_string(TRACKING_KEY_FORMAT) +
+      ",value_format=" + _config->get_string(TRACKING_VALUE_FORMAT) +
       ",log=(enabled=true),write_timestamp_usage=mixed_mode";
 }
 
