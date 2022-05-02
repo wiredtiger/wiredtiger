@@ -113,7 +113,7 @@ __tiered_dhandle_setup(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t i, 
     if (session->dhandle->type == WT_DHANDLE_TYPE_BTREE)
         ((WT_BTREE *)session->dhandle->handle)->bstorage = tiered->bstorage;
 err:
-    WT_TRET(__wt_session_release_dhandle(session));
+    WT_RET(__wt_session_release_dhandle(session));
     return (ret);
 }
 
