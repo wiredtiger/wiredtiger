@@ -34,16 +34,6 @@
 #include "../util/scoped_types.h"
 
 /*
- * Default schema for tracking operations on collections (key_format: Collection id / Key /
- * Timestamp, value_format: Operation type / Value)
- */
-#define OPERATION_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(QSQ)
-#define OPERATION_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(iS)
-#define OPERATION_TRACKING_TABLE_CONFIG                                                          \
-    "key_format=" OPERATION_TRACKING_KEY_FORMAT ",value_format=" OPERATION_TRACKING_VALUE_FORMAT \
-    ",log=(enabled=true),write_timestamp_usage=mixed_mode"
-
-/*
  * Default schema for tracking schema operations on collections (key_format: Collection id /
  * Timestamp, value_format: Operation type)
  */
@@ -60,9 +50,8 @@ enum class tracking_operation { CREATE_COLLECTION, DELETE_COLLECTION, DELETE_KEY
 /* Class used to track operations performed on collections */
 class workload_tracking : public component {
     public:
-    explicit workload_tracking(configuration *_config, const std::string &operation_table_config,
-      const std::string &operation_table_name, const std::string &schema_table_config,
-      const std::string &schema_table_name, const bool use_compression, timestamp_manager &tsm);
+    explicit workload_tracking(
+      configuration *_config, const bool use_compression, timestamp_manager &tsm);
     virtual ~workload_tracking() = default;
 
     const std::string &get_schema_table_name() const;
@@ -110,10 +99,11 @@ class workload_tracking : public component {
     scoped_session _sweep_session;
     scoped_cursor _schema_track_cursor;
     scoped_cursor _sweep_cursor;
-    const std::string _operation_table_config;
+    std::string _operation_table_config;
     const std::string _operation_table_name;
     const std::string _schema_table_config;
     const std::string _schema_table_name;
+    const bool _custom_tracking;
     const bool _use_compression;
     timestamp_manager &_tsm;
 };

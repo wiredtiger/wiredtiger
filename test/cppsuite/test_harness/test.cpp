@@ -48,8 +48,7 @@ test::test(const test_args &args) : _args(args)
       new runtime_monitor(args.test_name, _config->get_subconfig(RUNTIME_MONITOR), _database);
     _timestamp_manager = new timestamp_manager(_config->get_subconfig(TIMESTAMP_MANAGER));
     _workload_tracking = new workload_tracking(_config->get_subconfig(WORKLOAD_TRACKING),
-      OPERATION_TRACKING_TABLE_CONFIG, TABLE_OPERATION_TRACKING, SCHEMA_TRACKING_TABLE_CONFIG,
-      TABLE_SCHEMA_TRACKING, _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager);
+      _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager);
     _workload_generator = new workload_generator(_config->get_subconfig(WORKLOAD_GENERATOR), this,
       _timestamp_manager, _workload_tracking, _database);
     _thread_manager = new thread_manager();

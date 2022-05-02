@@ -28,18 +28,20 @@
 
 #include "../connection_manager.h"
 #include "../core/configuration.h"
+#include "../util/api_const.h"
 #include "../util/scoped_types.h"
 #include "workload_tracking.h"
 
 namespace test_harness {
-workload_tracking::workload_tracking(configuration *_config,
-  const std::string &operation_table_config, const std::string &operation_table_name,
-  const std::string &schema_table_config, const std::string &schema_table_name,
-  const bool use_compression, timestamp_manager &tsm)
-    : component("workload_tracking", _config), _operation_table_config(operation_table_config),
-      _operation_table_name(operation_table_name), _schema_table_config(schema_table_config),
-      _schema_table_name(schema_table_name), _use_compression(use_compression), _tsm(tsm)
+workload_tracking::workload_tracking(
+  configuration *_config, const bool use_compression, timestamp_manager &tsm)
+    : component("workload_tracking", _config), _operation_table_name(TABLE_OPERATION_TRACKING),
+      _schema_table_config(SCHEMA_TRACKING_TABLE_CONFIG), _schema_table_name(TABLE_SCHEMA_TRACKING),
+      _custom_tracking(_config->get_bool("is_custom")), _use_compression(use_compression), _tsm(tsm)
 {
+    _operation_table_config = "key_format=" + _config->get_string("tracking_key_format") +
+      ",value_format=" + _config->get_string("tracking_value_format") +
+      ",log=(enabled=true),write_timestamp_usage=mixed_mode";
 }
 
 const std::string &
