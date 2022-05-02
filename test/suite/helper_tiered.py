@@ -86,7 +86,7 @@ def get_check(storage_source, tc, base, n):
 # Generate a unique object prefix for the S3 store. 
 def generate_s3_prefix(test_name = ''):
     # Generates a unique prefix to be used with the object keys, eg:
-    # "s3test_artefacts--python_2022-31-01-16-34-10_623843294/".
+    # "s3test/python/2022-31-01-16-34-10/623843294--".
     # Objects with the prefex pattern "s3test/*" are deleted after a certain period of time 
     # according to the lifecycle rule on the S3 bucket. Should you wish to make any changes to the
     # prefix pattern or lifecycle of the object, please speak to the release manager. 
