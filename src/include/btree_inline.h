@@ -1533,6 +1533,10 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
     WT_PAGE_DELETED *page_del;
     uint8_t prepare_state;
 
+    /*
+     * Our caller should have already locked the WT_REF and confirmed that the previous state was
+     * WT_REF_DELETED.
+     */
     WT_ASSERT(session, ref->state == WT_REF_LOCKED);
 
     if ((page_del = ref->ft_info.del) == NULL)
