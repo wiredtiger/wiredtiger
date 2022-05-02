@@ -973,7 +973,7 @@ struct __wt_ref {
      * after the truncate operation commits but before the truncate becomes globally visible
      * in the live tree it's the same, except that no WT_REF.ft_info.update array is allocated. If
      * the page must be instantiated in a read-only tree (such as a checkpoint cursor), it's the
-     * same except that not only is no WT_REF.ft_info.udpate array allocated, the WT_REF.ft_info.del
+     * same except that not only is no WT_REF.ft_info.update array allocated, the WT_REF.ft_info.del
      * field is left in place so the read and instantiation can be repeated as necessary.
      *
      * Doing anything other than testing if WT_REF.ft_info.del/update is non-NULL (which eviction
