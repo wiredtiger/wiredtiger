@@ -1338,7 +1338,8 @@ checkpoint_worker(void *arg)
             if (wtperf->ckpt_stop || wtperf->error)
                 break;
         }
-        if (wtperf->ckpt_stop || wtperf->error)
+        /* If tiered storage is enabled we want a final checkpoint. */
+        if (wtperf->error || (wtperf->ckpt_stop && opts->tiered_flush_interval == 0))
             break;
 
         wtperf->ckpt = true;
@@ -1348,6 +1349,9 @@ checkpoint_worker(void *arg)
         }
         wtperf->ckpt = false;
         ++thread->ckpt.ops;
+
+        if (wtperf->ckpt_stop || wtperf->error)
+            break;
     }
 
     if (session != NULL && ((ret = session->close(session, NULL)) != 0)) {
@@ -1390,13 +1394,12 @@ flush_tier_worker(void *arg)
         /* Break the sleep up, so we notice interrupts faster. */
         for (i = 0; i < opts->tiered_flush_interval; i++) {
             sleep(1);
-            if (wtperf->stop)
+            if (wtperf->stop || wtperf->error)
                 break;
         }
-        /* If the workers are done, don't bother with a final call. */
-        if (wtperf->stop)
+        /* If workers are done, do a final call to flush that last data. */
+        if (wtperf->error)
             break;
-
         wtperf->flush = true;
         if ((ret = session->flush_tier(session, NULL)) != 0) {
             lprintf(wtperf, ret, 0, "Flush_tier failed.");
@@ -1404,6 +1407,8 @@ flush_tier_worker(void *arg)
         }
         wtperf->flush = false;
         ++thread->flush.ops;
+        if (wtperf->stop)
+            break;
     }
 
     if (session != NULL && ((ret = session->close(session, NULL)) != 0)) {
@@ -1682,7 +1687,7 @@ close_reopen(WTPERF *wtperf)
      * LSM, where the merge algorithm is more aggressive for read-only trees.
      */
     /* wtperf->conn is released no matter the return value from close(). */
-    ret = wtperf->conn->close(wtperf->conn, NULL);
+    ret = wtperf->conn->close(wtperf->conn, "final_flush=true");
     wtperf->conn = NULL;
     if (ret != 0) {
         lprintf(wtperf, ret, 0, "Closing the connection failed");
@@ -2385,7 +2390,7 @@ err:
         testutil_check(__wt_thread_join(NULL, &monitor_thread));
 
     if (wtperf->conn != NULL && opts->close_conn &&
-      (t_ret = wtperf->conn->close(wtperf->conn, NULL)) != 0) {
+      (t_ret = wtperf->conn->close(wtperf->conn, "final_flush=true")) != 0) {
         lprintf(wtperf, t_ret, 0, "Error closing connection to %s", wtperf->home);
         if (ret == 0)
             ret = t_ret;

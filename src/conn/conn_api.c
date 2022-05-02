@@ -1178,6 +1178,10 @@ err:
         F_SET(conn, WT_CONN_PANIC);
     }
 
+    WT_TRET(__wt_config_gets(session, cfg, "final_flush", &cval));
+    if (cval.val != 0)
+        F_SET(conn, WT_CONN_FINAL_FLUSH);
+
     /*
      * Now that the final checkpoint is complete, the shutdown process should not allocate a
      * significant amount of new memory. If a user configured leaking memory on shutdown, we will
