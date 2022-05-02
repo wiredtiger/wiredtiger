@@ -33,7 +33,7 @@ class tracking_table_template : public test_harness::workload_tracking {
 
     using workload_tracking::workload_tracking;
 
-    int
+    void
     populate_tracking_cursor(const tracking_operation &operation, const uint64_t &collection_id,
       const std::string &key, const std::string &value, wt_timestamp_t ts,
       scoped_cursor &op_track_cursor) override final

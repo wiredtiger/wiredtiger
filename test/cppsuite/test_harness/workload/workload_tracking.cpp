@@ -39,7 +39,7 @@ workload_tracking::workload_tracking(
       _schema_table_config(SCHEMA_TRACKING_TABLE_CONFIG), _schema_table_name(TABLE_SCHEMA_TRACKING),
       _custom_tracking(_config->get_bool(IS_CUSTOM)), _use_compression(use_compression), _tsm(tsm)
 {
-    if (not _config->get_bool(IS_CUSTOM)) {
+    if (!_config->get_bool(IS_CUSTOM)) {
         if (_config->get_string(TRACKING_KEY_FORMAT) != OPERATION_TRACKING_KEY_FORMAT)
             testutil_die(EINVAL,
               "Tracking table has a custom key format, but tracking table is not marked as custom");
@@ -215,7 +215,7 @@ workload_tracking::save_operation(const tracking_operation &operation,
     return (ret);
 }
 
-int
+void
 workload_tracking::populate_tracking_cursor(const tracking_operation &operation,
   const uint64_t &collection_id, const std::string &key, const std::string &value, wt_timestamp_t ts,
   scoped_cursor &op_track_cursor)
