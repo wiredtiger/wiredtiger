@@ -50,8 +50,12 @@ workload_validation::validate(const std::string &operation_table_name,
     scoped_session session = connection_manager::instance().create_session();
     scoped_cursor cursor = session.open_scoped_cursor(operation_table_name);
 
-    std::string key_format(cursor->key_format);
-    std::string value_format(cursor->value_format);
+    /*
+     * Default validation depends on specific fields being present in the tracking table. If the
+     * tracking table schema has been modified the user must define their own validation.
+     */
+    const std::string key_format(cursor->key_format);
+    const std::string value_format(cursor->value_format);
     if (key_format != OPERATION_TRACKING_KEY_FORMAT ||
       value_format != OPERATION_TRACKING_VALUE_FORMAT) {
         testutil_die(EINVAL,

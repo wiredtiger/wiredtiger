@@ -100,8 +100,8 @@ workload_tracking::do_work()
      * This function prunes old data from the tracking table as the default validation logic doesn't
      * use it. User-defined validation may need this data, so don't allow it to be removed.
      */
-    std::string key_format(_sweep_cursor->key_format);
-    std::string value_format(_sweep_cursor->value_format);
+    const std::string key_format(_sweep_cursor->key_format);
+    const std::string value_format(_sweep_cursor->value_format);
     if (key_format != OPERATION_TRACKING_KEY_FORMAT ||
       value_format != OPERATION_TRACKING_VALUE_FORMAT)
         return;
@@ -192,7 +192,6 @@ workload_tracking::save_operation(const tracking_operation &operation,
   wt_timestamp_t ts, scoped_cursor &op_track_cursor)
 {
     WT_DECL_RET;
-    std::string error_message;
 
     if (!_enabled)
         return (0);
@@ -201,7 +200,7 @@ workload_tracking::save_operation(const tracking_operation &operation,
 
     if (operation == tracking_operation::CREATE_COLLECTION ||
       operation == tracking_operation::DELETE_COLLECTION) {
-        error_message =
+        const std::string error_message =
           "save_operation: invalid operation " + std::to_string(static_cast<int>(operation));
         testutil_die(EINVAL, error_message.c_str());
     } else {
