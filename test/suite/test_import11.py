@@ -151,8 +151,8 @@ class test_import11(test_import_base):
         self.reopen_conn(newdir)
 
         # Make a bunch of files and fill them with data.
-        #self.populate(self.ntables, self.nrows)
-        #self.checkpoint_and_flush_tier()
+        self.populate(self.ntables, self.nrows)
+        self.checkpoint_and_flush_tier()
 
         # Bring forward the oldest to be past or equal to the timestamps we'll be importing.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.ts[max_idx]))

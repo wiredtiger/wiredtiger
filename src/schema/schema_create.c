@@ -474,8 +474,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
     if ((meta_import = __wt_find_import_metadata(session, source)) != NULL) {
         /* Use the import configuration, it should have key and value format configurations. */
         sourcecfg[0] = meta_import;
-    }
-    else {
+    } else {
         /* Calculate the key/value formats: these go into the source config. */
         WT_ERR(__wt_buf_fmt(session, &fmt, "key_format=%s", table->key_format));
         if (cgname == NULL)
