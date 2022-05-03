@@ -131,9 +131,6 @@ class test_import11(test_import_base):
         return max_idx
 
     def test_file_import(self):
-        if not self.is_tiered_scenario():
-            self.skipTest('Skip non-tiered cases.')
-            
         # Create and populate two tables
         max_idx = self.create_and_populate(self.uri_a)
         max_idx = self.create_and_populate(self.uri_b)

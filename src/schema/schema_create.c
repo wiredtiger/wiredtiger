@@ -198,10 +198,12 @@ __create_file(
      */
     if (import) {
         /*
-         * FIXME-WT-7735: Importing a tiered table is not yet allowed.
+         * Create the file for tiered storage. It is required because we switched to a new file
+         * during the import process.
          */
-        if (WT_SUFFIX_MATCH(filename, ".wtobj"))
-            WT_ERR_MSG(session, ENOTSUP, "%s: import not supported on tiered files", uri);
+        if (session->import_list != NULL && WT_SUFFIX_MATCH(filename, ".wtobj"))
+            WT_ERR(__create_file_block_manager(session, uri, filename, allocsize));
+
         /* First verify that the data to import exists on disk. */
         WT_IGNORE_RET(__wt_fs_exist(session, filename, &exists));
         if (!exists)
@@ -235,15 +237,15 @@ __create_file(
                  */
                 WT_ERR(__wt_reset_blkmod(session, config, buf));
                 filecfg[3] = buf->mem;
-            } else {
+            } else if (session->import_list == NULL) {
                 /*
                  * If there is no file metadata provided, the user should be specifying a "repair".
                  * To prevent mistakes with API usage, we should return an error here rather than
                  * inferring a repair.
                  */
                 WT_ERR_MSG(session, EINVAL,
-                  "%s: import requires that 'file_metadata' is specified or the 'repair' option is "
-                  "provided",
+                  "%s: import requires that 'file_metadata' or 'metadata_file' is specified or the "
+                  "'repair' option is provided",
                   uri);
             }
         }
@@ -277,7 +279,7 @@ __create_file(
          * Ensure that the timestamps in the imported data file are not in the future relative to
          * the configured global timestamp.
          */
-        if (import) {
+        if (session->import_list == NULL && import) {
             against_stable =
               __wt_config_getones(session, config, "import.compare_timestamp", &cval) == 0 &&
               (WT_STRING_MATCH("stable", cval.str, cval.len) ||
@@ -295,7 +297,7 @@ __create_file(
      */
     WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
 
-    if (import)
+    if (session->import_list == NULL && import)
         __wt_btree_disable_bulk(session);
 
     if (WT_META_TRACKING(session))
@@ -1189,7 +1191,8 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     clear_import_flag = false;
 
     exclusive = __wt_config_getones(session, config, "exclusive", &cval) == 0 && cval.val != 0;
-    import = __wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0;
+    import = session->import_list != NULL ||
+      (__wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0);
 
     if (import && session->import_list == NULL && !WT_PREFIX_MATCH(uri, "file:") &&
       !WT_PREFIX_MATCH(uri, "table:"))
