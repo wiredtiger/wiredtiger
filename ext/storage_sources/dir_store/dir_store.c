@@ -1090,15 +1090,18 @@ dir_store_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *f
 
 /*
  * dir_store_remove --
- *     POSIX remove, not supported for cloud objects.
+ *     Calls the corresponding remove method of the file system behind our dir_store storage source
  */
 static int
 dir_store_remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, uint32_t flags)
 {
-    (void)flags; /* unused */
+    DIR_STORE_FILE_SYSTEM *dir_store_fs;
+    WT_FILE_SYSTEM *wt_fs;
 
-    return (dir_store_err(
-      FS2DS(file_system), session, ENOTSUP, "%s: remove of file not supported", name));
+    dir_store_fs = (DIR_STORE_FILE_SYSTEM *)file_system;
+    wt_fs = dir_store_fs->wt_fs;
+
+    return (wt_fs->fs_remove(wt_fs, session, name, flags));
 }
 
 /*
