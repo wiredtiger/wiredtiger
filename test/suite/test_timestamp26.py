@@ -261,7 +261,7 @@ class test_timestamp26_alter_inconsistent_update(wttest.WiredTigerTestCase):
         c[key] = ds.value(15)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(15))
 
-        msg = '/with an older timestamp/'
+        msg = '/before the previous update/'
         self.session.begin_transaction()
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(14))
         c[key] = ds.value(16)
@@ -312,7 +312,7 @@ class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(1))
         c[key] = ds.value(2)
-        msg = '/updates a value with an older timestamp/'
+        msg = '/before the previous update/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(), msg)
 
@@ -337,7 +337,7 @@ class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(13))
         c[key1] = ds.value(5)
         c[key2] = ds.value(6)
-        msg = '/updates a value with an older timestamp/'
+        msg = '/before the previous update/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(), msg)
 
