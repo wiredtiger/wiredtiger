@@ -845,7 +845,7 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
     uint32_t flags;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     const char *name;
-    bool txn_has_ts;
+    bool no_ts_ok, txn_has_ts;
 
     btree = op->btree;
     txn = session->txn;
@@ -859,7 +859,7 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 
     /*
      * Do not check for timestamp usage in recovery. We don't expect recovery to be using timestamps
-     * when applying commits, and it is possible that timestamps may be mixed mode in log replay.
+     * when applying commits, and it is possible that timestamps may be out-of-order in log replay.
      */
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
         return (0);
@@ -888,7 +888,8 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
      * Ordered consistency requires all updates use timestamps, once they are first used, but this
      * test can be turned off on a per-transaction basis.
      */
-    if (!txn_has_ts && prev_op_durable_ts != WT_TS_NONE && !F_ISSET(txn, WT_TXN_TS_NOT_SET)) {
+    no_ts_ok = LF_ISSET(WT_DHANDLE_TS_MIXED_MODE) || F_ISSET(txn, WT_TXN_TS_NOT_SET);
+    if (!txn_has_ts && prev_op_durable_ts != WT_TS_NONE && !no_ts_ok) {
         __wt_err(session, EINVAL,
           "%s: " WT_TS_VERBOSE_PREFIX
           "no timestamp provided for an update to a table configured to always use timestamps "
@@ -906,11 +907,9 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
     if (txn_has_ts && prev_op_durable_ts > op_ts) {
         __wt_err(session, EINVAL,
           "%s: " WT_TS_VERBOSE_PREFIX
-          "committing a transaction that updates a value with an older timestamp %s than is "
-          "associated with the previous update %s on a table configured for %s",
+          "updating a value with a timestamp %s before the previous update %s",
           name, __wt_timestamp_to_string(op_ts, ts_string[0]),
-          __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1]),
-          LF_ISSET(WT_DHANDLE_TS_MIXED_MODE) ? "mixed mode" : "strict ordering");
+          __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1]));
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
