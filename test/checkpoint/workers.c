@@ -162,7 +162,7 @@ modify_build(WT_MODIFY *entries, int *nentriesp, u_int seed)
 
 /*
  * worker_no_ts_delete --
- *     Delete a key with a mixed mode timestamp.
+ *     Delete a key without setting a timestamp.
  */
 static inline int
 worker_no_ts_delete(WT_CURSOR *cursor, uint64_t keyno)
