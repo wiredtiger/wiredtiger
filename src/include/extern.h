@@ -1867,6 +1867,7 @@ extern void __wt_stat_session_init_single(WT_SESSION_STATS *stats);
 extern void __wt_thread_group_start_one(
   WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, bool is_locked);
 extern void __wt_thread_group_stop_one(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group);
+extern void __wt_tiered_flush_work_wait(WT_SESSION_IMPL *session, uint32_t timeout);
 extern void __wt_tiered_get_drop_local(
   WT_SESSION_IMPL *session, uint64_t now, WT_TIERED_WORK_UNIT **entryp);
 extern void __wt_tiered_get_drop_shared(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp);
