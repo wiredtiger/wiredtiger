@@ -157,7 +157,7 @@ timestamp_manager = enabled_config_true + component_config +  [
         The duration between the latest and stable timestamps''', min=0, max=1000000),
 ]
 
-custom_tracking_config = [
+tracking_config = [
     Config('tracking_key_format', 'QSQ', r'''
         Key format for the tracking table. By default, the collection id, key and timestamp are
         stored.'''),
@@ -169,7 +169,7 @@ custom_tracking_config = [
 #
 # Configuration that applies to the workload tracking component.
 #
-workload_tracking = enabled_config_true + component_config + custom_tracking_config
+workload_tracking = enabled_config_true + component_config + tracking_config
 
 #
 # Configuration that applies to the workload_generator component.

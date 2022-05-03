@@ -35,7 +35,7 @@
 namespace test_harness {
 workload_tracking::workload_tracking(
   configuration *_config, const bool use_compression, timestamp_manager &tsm)
-    : component("workload_tracking", _config), _operation_table_name(TABLE_OPERATION_TRACKING),
+    : component(WORKLOAD_TRACKING, _config), _operation_table_name(TABLE_OPERATION_TRACKING),
       _schema_table_config(SCHEMA_TRACKING_TABLE_CONFIG), _schema_table_name(TABLE_SCHEMA_TRACKING),
       _use_compression(use_compression), _tsm(tsm)
 {
@@ -98,7 +98,7 @@ workload_tracking::do_work()
 
     /*
      * This function prunes old data from the tracking table as the default validation logic doesn't
-     * use it. Custom user-defined validation may need this data, so don't allow it to be removed.
+     * use it. User-defined validation may need this data, so don't allow it to be removed.
      */
     std::string key_format(_sweep_cursor->key_format);
     std::string value_format(_sweep_cursor->value_format);
@@ -205,14 +205,14 @@ workload_tracking::save_operation(const tracking_operation &operation,
           "save_operation: invalid operation " + std::to_string(static_cast<int>(operation));
         testutil_die(EINVAL, error_message.c_str());
     } else {
-        populate_tracking_cursor(operation, collection_id, key, value, ts, op_track_cursor);
+        set_tracking_cursor(operation, collection_id, key, value, ts, op_track_cursor);
         ret = op_track_cursor->insert(op_track_cursor.get());
     }
     return (ret);
 }
 
 void
-workload_tracking::populate_tracking_cursor(const tracking_operation &operation,
+workload_tracking::set_tracking_cursor(const tracking_operation &operation,
   const uint64_t &collection_id, const std::string &key, const std::string &value,
   wt_timestamp_t ts, scoped_cursor &op_track_cursor)
 {
