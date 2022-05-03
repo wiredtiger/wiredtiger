@@ -852,7 +852,7 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     /* Remove any backup specific file. */
     WT_TRET(__wt_backup_file_remove(session));
 
-    /* Remove WiredTiger.export file only when we close the cursor. */
+    /* Remove the export file only when we close the backup cursor. */
     WT_TRET(__wt_remove_if_exists(session, WT_EXPORT_BACKUP, true));
 
     /* Checkpoint deletion and next hot backup can proceed. */

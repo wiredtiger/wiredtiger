@@ -134,7 +134,7 @@ __tiered_init_tiers(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_CONFIG_ITEM 
 
     if (session->import_list != NULL) {
         /* Insert metadata for all tiered objects. */
-        for (object_id = 1; object_id < tiered->current_id; object_id++) {
+        for (object_id = tiered->oldest_id; object_id < tiered->current_id; object_id++) {
             WT_RET(
               __wt_tiered_name(session, &tiered->iface, object_id, WT_TIERED_NAME_OBJECT, &name));
             if ((cfg = __wt_find_import_metadata(session, name)) != NULL)
@@ -727,6 +727,7 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     /* Open tiers if we have them, otherwise initialize. */
     if (tiered->current_id != WT_TIERED_OBJECTID_NONE) {
         WT_ERR(__tiered_init_tiers(session, tiered, &tierconf));
+        /* Switch to the next object if we are importing a table. */
         if (session->import_list != NULL)
             WT_ERR(__wt_tiered_switch(session, config));
     } else {

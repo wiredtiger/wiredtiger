@@ -42,12 +42,7 @@ class test_import_base(TieredConfigMixin, wttest.WiredTigerTestCase):
     def update(self, uri, key, value, ts):
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        if type(value) in [list, tuple]:
-            cursor.set_key(key)
-            cursor.set_value(*value)
-            cursor.insert()
-        else:
-            cursor[key] = value
+        cursor[key] = value
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
         cursor.close()
 
@@ -70,10 +65,7 @@ class test_import_base(TieredConfigMixin, wttest.WiredTigerTestCase):
     # Verify a range of records/timestamps.
     def check(self, uri, keys, values):
         for i in range(len(keys)):
-            if type(values[i]) in [tuple]:
-                self.check_record(uri, keys[i], list(values[i]))
-            else:
-                self.check_record(uri, keys[i], values[i])
+            self.check_record(uri, keys[i], values[i])
 
     # Populate a database with N tables, each having M rows.
     def populate(self, ntables, nrows):
@@ -159,8 +151,8 @@ class test_import11(test_import_base):
         self.reopen_conn(newdir)
 
         # Make a bunch of files and fill them with data.
-        self.populate(self.ntables, self.nrows)
-        self.checkpoint_and_flush_tier()
+        #self.populate(self.ntables, self.nrows)
+        #self.checkpoint_and_flush_tier()
 
         # Bring forward the oldest to be past or equal to the timestamps we'll be importing.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.ts[max_idx]))

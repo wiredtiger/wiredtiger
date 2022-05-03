@@ -406,7 +406,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
     size_t tlen;
     char *cgconf, *origconf;
     const char **cfgp, *cfg[4] = {WT_CONFIG_BASE(session, colgroup_meta), config, NULL, NULL};
-    const char *cgname, *source, *sourceconf, *tablename, *meta_import;
+    const char *cgname, *meta_import, *source, *sourceconf, *tablename;
     const char *sourcecfg[] = {config, NULL, NULL};
     bool exists, tracked;
 
@@ -471,21 +471,24 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
         *cfgp++ = confbuf.data;
     }
 
-    /* Calculate the key/value formats: these go into the source config. */
-    WT_ERR(__wt_buf_fmt(session, &fmt, "key_format=%s", table->key_format));
-    if (cgname == NULL)
-        WT_ERR(__wt_buf_catfmt(session, &fmt, ",value_format=%s", table->value_format));
-    else {
-        if (__wt_config_getones(session, config, "columns", &cval) != 0)
-            WT_ERR_MSG(session, EINVAL, "No 'columns' configuration for '%s'", name);
-        WT_ERR(__wt_buf_catfmt(session, &fmt, ",value_format="));
-        WT_ERR(__wt_struct_reformat(session, table, cval.str, cval.len, NULL, true, &fmt));
-    }
-
-    if ((meta_import = __wt_find_import_metadata(session, source)) != NULL)
+    if ((meta_import = __wt_find_import_metadata(session, source)) != NULL) {
+        /* Use the import configuration, it should have key and value format configurations. */
         sourcecfg[0] = meta_import;
-    else
+    }
+    else {
+        /* Calculate the key/value formats: these go into the source config. */
+        WT_ERR(__wt_buf_fmt(session, &fmt, "key_format=%s", table->key_format));
+        if (cgname == NULL)
+            WT_ERR(__wt_buf_catfmt(session, &fmt, ",value_format=%s", table->value_format));
+        else {
+            if (__wt_config_getones(session, config, "columns", &cval) != 0)
+                WT_ERR_MSG(session, EINVAL, "No 'columns' configuration for '%s'", name);
+            WT_ERR(__wt_buf_catfmt(session, &fmt, ",value_format="));
+            WT_ERR(__wt_struct_reformat(session, table, cval.str, cval.len, NULL, true, &fmt));
+        }
+
         sourcecfg[1] = fmt.data;
+    }
 
     WT_ERR(__wt_config_merge(session, sourcecfg, NULL, &sourceconf));
     WT_ERR(__wt_schema_create(session, source, sourceconf));
@@ -786,7 +789,7 @@ __create_table(
     int ncolgroups, nkeys;
     char *cgcfg, *cgname, *filecfg, *filename, *importcfg, *tablecfg;
     const char *cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
-    const char *tablename, *meta_import;
+    const char *meta_import, *tablename;
     bool import_repair;
 
     import_repair = false;
@@ -969,7 +972,6 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
 
         WT_ERR(__wt_metadata_insert(session, uri, metadata));
     }
-
     WT_ERR(__wt_schema_get_tiered_uri(session, uri, WT_DHANDLE_EXCLUSIVE, &tiered));
     if (WT_META_TRACKING(session)) {
         WT_WITH_DHANDLE(session, &tiered->iface, ret = __wt_meta_track_handle_lock(session, true));
@@ -981,7 +983,6 @@ err:
     WT_TRET(__wt_schema_release_tiered(session, &tiered));
     __wt_scr_free(session, &tmp);
     __wt_free(session, meta_value);
-
     if (free_metadata)
         __wt_free(session, metadata);
 
@@ -1106,11 +1107,11 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     WT_IMPORT_LIST import_list;
     size_t i;
     char *export_file;
-    bool exclusive, import, import_flag_set;
+    bool clear_import_flag, exclusive, import;
 
     WT_CLEAR(import_list);
     export_file = NULL;
-    import_flag_set = false;
+    clear_import_flag = false;
 
     exclusive = __wt_config_getones(session, config, "exclusive", &cval) == 0 && cval.val != 0;
     import = __wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0;
@@ -1128,7 +1129,8 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     if (import) {
         if (!F_ISSET(session, WT_SESSION_IMPORT)) {
             F_SET(session, WT_SESSION_IMPORT);
-            import_flag_set = true;
+            /* This method is called recursively. Clear the flag only in the call that set it. */
+            clear_import_flag = true;
         }
 
         if (session->import_list == NULL &&
@@ -1173,9 +1175,7 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
 
 err:
     session->dhandle = NULL;
-
-    /* This method is called recursively. Clear the flag only in the call that set it. */
-    if (import_flag_set)
+    if (clear_import_flag)
         F_CLR(session, WT_SESSION_IMPORT);
 
     WT_TRET(__wt_meta_track_off(session, true, ret != 0));
