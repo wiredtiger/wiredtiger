@@ -162,11 +162,11 @@ __wt_cursor_search_near_notsup(WT_CURSOR *cursor, int *exact)
 }
 
 /*
- * __wt_cursor_reconfigure_notsup --
- *     Unsupported cursor reconfiguration.
+ * __wt_cursor_config_notsup --
+ *     Unsupported cursor API call which takes config.
  */
 int
-__wt_cursor_reconfigure_notsup(WT_CURSOR *cursor, const char *config)
+__wt_cursor_config_notsup(WT_CURSOR *cursor, const char *config)
 {
     WT_UNUSED(config);
 
@@ -1154,6 +1154,23 @@ err:
     __wt_scr_free(session, &key);
     if (ret != 0)
         WT_TRET(cursor->reset(cursor));
+    API_END_RET(session, ret);
+}
+
+/*
+ * __wt_cursor_bound --
+ *     WT_CURSOR->bound default implementation.
+ */
+int
+__wt_cursor_bound(WT_CURSOR *cursor, const char *config)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    CURSOR_API_CALL_CONF(cursor, session, bound, config, cfg, NULL);
+
+err:
     API_END_RET(session, ret);
 }
 

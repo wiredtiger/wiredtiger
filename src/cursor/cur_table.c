@@ -101,8 +101,9 @@ __wt_apply_single_idx(WT_SESSION_IMPL *session, WT_INDEX *idx, WT_CURSOR *cur,
       __wt_cursor_notsup,                             /* update */
       __wt_cursor_notsup,                             /* remove */
       __wt_cursor_notsup,                             /* reserve */
-      __wt_cursor_reconfigure_notsup,                 /* reconfigure */
+      __wt_cursor_config_notsup,                      /* reconfigure */
       __wt_cursor_notsup,                             /* largest_key */
+      __wt_cursor_config_notsup,                      /* bound */
       __wt_cursor_notsup,                             /* cache */
       __wt_cursor_reopen_notsup,                      /* reopen */
       __wt_cursor_checkpoint_id,                      /* checkpoint ID */
@@ -820,6 +821,24 @@ err:
 }
 
 /*
+ * __curtable_bound --
+ *     WT_CURSOR->bound method for the table cursor type.
+ *
+ */
+static int
+__curtable_bound(WT_CURSOR *cursor, const char *config)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    CURSOR_API_CALL_CONF(cursor, session, bound, config, cfg, NULL);
+
+err:
+    API_END_RET(session, ret);
+}
+
+/*
  * __curtable_close --
  *     WT_CURSOR->close method for the table cursor type.
  */
@@ -1000,6 +1019,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
       __curtable_reserve,                               /* reserve */
       __wt_cursor_reconfigure,                          /* reconfigure */
       __curtable_largest_key,                           /* largest_key */
+      __curtable_bound,                                 /* bound */
       __wt_cursor_notsup,                               /* cache */
       __wt_cursor_reopen_notsup,                        /* reopen */
       __wt_cursor_checkpoint_id,                        /* checkpoint ID */
