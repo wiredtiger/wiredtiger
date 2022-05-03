@@ -1110,20 +1110,23 @@ __create_fix_file_ids(WT_SESSION_IMPL *session, WT_IMPORT_LIST *import_list)
     new_file_id = prev_file_id = -1;
     conn = S2C(session);
 
-    /* First of, we need to sort the array of entries by file ID. */
+    /* Sort the array of entries by file ID. */
     __wt_qsort(import_list->entries, import_list->entries_next, sizeof(WT_IMPORT_ENTRY),
       __create_import_cmp_id);
 
-    /* Now iterate over the array and assign a new ID to each entry. */
+    /* Iterate over the array and assign a new ID to each entry. */
     for (i = 0; i < import_list->entries_next; ++i) {
+        /* Skip entries without file id. */
         if (import_list->entries[i].file_id < 0)
             continue;
 
+        /* Generate a new file ID. */
         if (import_list->entries[i].file_id != prev_file_id) {
             prev_file_id = import_list->entries[i].file_id;
             new_file_id = ++conn->next_file_id;
         }
 
+        /* Update config with the new file ID. */
         WT_RET(__wt_snprintf(fileid_cfg, sizeof(fileid_cfg), "id=%" PRIu32, (uint32_t)new_file_id));
         cfg[0] = import_list->entries[i].config;
         cfg[1] = fileid_cfg;
