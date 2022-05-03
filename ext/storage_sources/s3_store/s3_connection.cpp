@@ -214,7 +214,7 @@ S3Connection::ObjectExists(const std::string &objectKey, bool &exists, size_t &o
     Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
     if (resCode == Aws::Http::HttpResponseCode::NOT_FOUND)
         return (0);
-    else if (toErrno.find(resCode) != toErrno.end())
+    if (toErrno.find(resCode) != toErrno.end())
         return (toErrno.at(resCode));
 
     return (-1);
@@ -241,7 +241,7 @@ S3Connection::BucketExists(bool &exists) const
     Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
     if (resCode == Aws::Http::HttpResponseCode::NOT_FOUND)
         return (0);
-    else if (toErrno.find(resCode) != toErrno.end())
+    if (toErrno.find(resCode) != toErrno.end())
         return (toErrno.at(resCode));
 
     return (-1);
