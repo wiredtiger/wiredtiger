@@ -357,11 +357,11 @@ __wt_schema_colgroup_source(
 }
 
 /*
- * __create_import_cmp --
+ * __create_import_cmp_uri --
  *     Qsort function: sort the import entries array by uri.
  */
 static int WT_CDECL
-__create_import_cmp(const void *a, const void *b)
+__create_import_cmp_uri(const void *a, const void *b)
 {
     WT_IMPORT_ENTRY *ae, *be;
 
@@ -369,6 +369,21 @@ __create_import_cmp(const void *a, const void *b)
     be = (WT_IMPORT_ENTRY *)b;
 
     return strcmp(ae->uri, be->uri);
+}
+
+/*
+ * __create_import_cmp_id --
+ *     Qsort function: sort the import entries array by file id.
+ */
+static int WT_CDECL
+__create_import_cmp_id(const void *a, const void *b)
+{
+    WT_IMPORT_ENTRY *ae, *be;
+
+    ae = (WT_IMPORT_ENTRY *)a;
+    be = (WT_IMPORT_ENTRY *)b;
+
+    return (ae->file_id - be->file_id);
 }
 
 /*
@@ -387,7 +402,7 @@ __wt_find_import_metadata(WT_SESSION_IMPL *session, const char *uri)
     entry.uri = uri;
     entry.config = NULL;
     result = bsearch(&entry, session->import_list->entries, session->import_list->entries_next,
-      sizeof(WT_IMPORT_ENTRY), __create_import_cmp);
+      sizeof(WT_IMPORT_ENTRY), __create_import_cmp_uri);
 
     return (result == NULL ? NULL : result->config);
 }
@@ -1026,6 +1041,8 @@ __create_data_source(
 static int
 __create_meta_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, void *state)
 {
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
     WT_IMPORT_LIST *import_list;
     const char *meta_key, *meta_key_suffix, *meta_value;
 
@@ -1061,7 +1078,60 @@ __create_meta_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *valu
       session, meta_key, key->size, &import_list->entries[import_list->entries_next].uri));
     WT_RET(__wt_strndup(
       session, meta_value, value->size, &import_list->entries[import_list->entries_next].config));
+
+    ret = __wt_config_getones(
+      session, import_list->entries[import_list->entries_next].config, "id", &cval);
+    WT_RET_NOTFOUND_OK(ret);
+    if (ret == WT_NOTFOUND || cval.len == 0)
+        import_list->entries[import_list->entries_next].file_id = -1;
+    else
+        import_list->entries[import_list->entries_next].file_id = cval.val;
+
     import_list->entries_next++;
+
+    return (0);
+}
+
+/*
+ * __create_fix_file_ids --
+ *     Update file IDs in the import list according to the session's next file ID field. Certain
+ *     entries in the import list have same file ID and we need to preserve this relationships.
+ */
+static int
+__create_fix_file_ids(WT_SESSION_IMPL *session, WT_IMPORT_LIST *import_list)
+{
+    WT_CONNECTION_IMPL *conn;
+    size_t i;
+    int64_t new_file_id, prev_file_id;
+    char fileid_cfg[64], *config_tmp;
+    const char *cfg[3] = {NULL, NULL, NULL};
+
+    config_tmp = NULL;
+    new_file_id = prev_file_id = -1;
+    conn = S2C(session);
+
+    /* First of, we need to sort the array of entries by file ID. */
+    __wt_qsort(import_list->entries, import_list->entries_next, sizeof(WT_IMPORT_ENTRY),
+      __create_import_cmp_id);
+
+    /* Now iterate over the array and assign a new ID to each entry. */
+    for (i = 0; i < import_list->entries_next; ++i) {
+        if (import_list->entries[i].file_id < 0)
+            continue;
+
+        if (import_list->entries[i].file_id != prev_file_id) {
+            prev_file_id = import_list->entries[i].file_id;
+            new_file_id = ++conn->next_file_id;
+        }
+
+        WT_RET(__wt_snprintf(fileid_cfg, sizeof(fileid_cfg), "id=%" PRIu32, (uint32_t)new_file_id));
+        cfg[0] = import_list->entries[i].config;
+        cfg[1] = fileid_cfg;
+        WT_RET(__wt_config_collapse(session, cfg, &config_tmp));
+        __wt_free(session, import_list->entries[i].config);
+        import_list->entries[i].config = config_tmp;
+        import_list->entries[i].file_id = new_file_id;
+    }
 
     return (0);
 }
@@ -1086,9 +1156,12 @@ __create_parse_export(
     if (!exist)
         return (0);
 
+    /* Fix file IDs so that they fit into the recipient system. */
+    WT_RET(__create_fix_file_ids(session, import_list));
+
     /* Sort the array by name. We will use binary search later to get config string. */
     __wt_qsort(import_list->entries, import_list->entries_next, sizeof(WT_IMPORT_ENTRY),
-      __create_import_cmp);
+      __create_import_cmp_uri);
 
     return (0);
 }

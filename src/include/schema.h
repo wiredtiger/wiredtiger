@@ -74,6 +74,7 @@ struct __wt_table {
 struct __wt_import_entry {
     const char *uri;    /* metadata key */
     const char *config; /* metadata value */
+    int64_t file_id;    /* id config value */
 };
 
 /* Array of metadata entries used when importing from a metadata file. */
