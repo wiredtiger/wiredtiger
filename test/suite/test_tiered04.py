@@ -63,7 +63,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
           'bucket=%s,' % self.bucket + \
           'bucket_prefix=%s,' % self.prefix + \
           'local_retention=%d,' % self.retention + \
-          'name=%s)' % self.ss_name 
+          'name=%s)' % self.extension_name 
         return self.saved_conn
 
     # Load the local store extension.
@@ -109,7 +109,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
           'bucket=%s,' % self.bucket1 + \
           'bucket_prefix=%s,' % self.prefix1 + \
           'local_retention=%d,' % self.retention1 + \
-          'name=%s)' % self.ss_name
+          'name=%s)' % self.extension_name
         self.pr("create non-sys tiered")
         self.session.create(self.uri1, base_create + conf)
         conf = ',tiered_storage=(name=none)'
