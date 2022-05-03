@@ -37,18 +37,8 @@ workload_tracking::workload_tracking(
   configuration *_config, const bool use_compression, timestamp_manager &tsm)
     : component("workload_tracking", _config), _operation_table_name(TABLE_OPERATION_TRACKING),
       _schema_table_config(SCHEMA_TRACKING_TABLE_CONFIG), _schema_table_name(TABLE_SCHEMA_TRACKING),
-      _custom_tracking(_config->get_bool(IS_CUSTOM)), _use_compression(use_compression), _tsm(tsm)
+      _use_compression(use_compression), _tsm(tsm)
 {
-    if (!_config->get_bool(IS_CUSTOM)) {
-        if (_config->get_string(TRACKING_KEY_FORMAT) != OPERATION_TRACKING_KEY_FORMAT)
-            testutil_die(EINVAL,
-              "Tracking table has a custom key format, but tracking table is not marked as custom");
-        if (_config->get_string(TRACKING_VALUE_FORMAT) != OPERATION_TRACKING_VALUE_FORMAT)
-            testutil_die(EINVAL,
-              "Tracking table has a custom value format, but tracking table is not marked as "
-              "custom");
-    }
-
     _operation_table_config = "key_format=" + _config->get_string(TRACKING_KEY_FORMAT) +
       ",value_format=" + _config->get_string(TRACKING_VALUE_FORMAT) +
       ",log=(enabled=true),write_timestamp_usage=mixed_mode";
@@ -110,7 +100,10 @@ workload_tracking::do_work()
      * This function prunes old data from the tracking table as the default validation logic doesn't
      * use it. Custom user-defined validation may need this data, so don't allow it to be removed.
      */
-    if (_custom_tracking)
+    std::string key_format(_sweep_cursor->key_format);
+    std::string value_format(_sweep_cursor->value_format);
+    if (key_format != OPERATION_TRACKING_KEY_FORMAT ||
+      value_format != OPERATION_TRACKING_VALUE_FORMAT)
         return;
 
     key = sweep_key = nullptr;

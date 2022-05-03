@@ -91,7 +91,6 @@ class workload_tracking : public component {
     const std::string _operation_table_name;
     const std::string _schema_table_config;
     const std::string _schema_table_name;
-    const bool _custom_tracking;
     const bool _use_compression;
     timestamp_manager &_tsm;
 };

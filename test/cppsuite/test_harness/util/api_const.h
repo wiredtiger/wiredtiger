@@ -52,7 +52,6 @@ extern const std::string DURATION_SECONDS;
 extern const std::string ENABLED;
 extern const std::string ENABLE_LOGGING;
 extern const std::string INSERT_OP_CONFIG;
-extern const std::string IS_CUSTOM;
 extern const std::string KEY_COUNT_PER_COLLECTION;
 extern const std::string KEY_SIZE;
 extern const std::string LIMIT;

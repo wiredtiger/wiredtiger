@@ -158,9 +158,6 @@ timestamp_manager = enabled_config_true + component_config +  [
 ]
 
 custom_tracking_config = [
-    Config('is_custom', 'false', r'''
-        Whether the tracking is customized.''',
-        type='boolean'),
     Config('tracking_key_format', 'QSQ', r'''
         Key format for the tracking table. By default, the collection id, key and timestamp are
         stored.'''),
