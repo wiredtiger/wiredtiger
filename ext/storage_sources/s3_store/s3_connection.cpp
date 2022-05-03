@@ -84,8 +84,7 @@ S3Connection::ListObjects(const std::string &prefix, std::vector<std::string> &o
         Aws::Http::HttpResponseCode resCode = outcomes.GetError().GetResponseCode();
         if (toErrno.find(resCode) != toErrno.end())
             return (toErrno.at(resCode));
-        else
-            return (-1);
+        return (-1);
     }
     auto result = outcomes.GetResult();
 
@@ -105,8 +104,7 @@ S3Connection::ListObjects(const std::string &prefix, std::vector<std::string> &o
             Aws::Http::HttpResponseCode resCode = outcomes.GetError().GetResponseCode();
             if (toErrno.find(resCode) != toErrno.end())
                 return (toErrno.at(resCode));
-            else
-                return (-1);
+            return (-1);
         }
         result = outcomes.GetResult();
         for (const auto &object : result.GetContents())
@@ -133,11 +131,10 @@ S3Connection::PutObject(const std::string &objectKey, const std::string &fileNam
 
     if (outcome.IsSuccess())
         return (0);
-    else {
-        Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
-        if (toErrno.find(resCode) != toErrno.end())
-            return (toErrno.at(resCode));
-    }
+
+    Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
+    if (toErrno.find(resCode) != toErrno.end())
+        return (toErrno.at(resCode));
 
     return (-1);
 }
@@ -152,15 +149,13 @@ S3Connection::DeleteObject(const std::string &objectKey) const
     request.SetKey(_objectPrefix + objectKey);
 
     Aws::S3Crt::Model::DeleteObjectOutcome outcome = _s3CrtClient.DeleteObject(request);
-    Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
 
     if (outcome.IsSuccess())
         return (0);
-    else {
-        Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
-        if (toErrno.find(resCode) != toErrno.end())
-            return (toErrno.at(resCode));
-    }
+
+    Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
+    if (toErrno.find(resCode) != toErrno.end())
+        return (toErrno.at(resCode));
 
     return (-1);
 }
@@ -181,17 +176,15 @@ S3Connection::GetObject(const std::string &objectKey, const std::string &path) c
     });
 
     Aws::S3Crt::Model::GetObjectOutcome outcome = _s3CrtClient.GetObject(request);
-    Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
 
     // Return an errno value given an HTTP response code if the aws request does not
     // succeed.
     if (outcome.IsSuccess())
         return (0);
-    else {
-        Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
-        if (toErrno.find(resCode) != toErrno.end())
-            return (toErrno.at(resCode));
-    }
+
+    Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
+    if (toErrno.find(resCode) != toErrno.end())
+        return (toErrno.at(resCode));
 
     return (-1);
 }
@@ -208,7 +201,6 @@ S3Connection::ObjectExists(const std::string &objectKey, bool &exists, size_t &o
     request.SetBucket(_bucketName);
     request.SetKey(_objectPrefix + objectKey);
     Aws::S3Crt::Model::HeadObjectOutcome outcome = _s3CrtClient.HeadObject(request);
-    Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
 
     // If an object with the given key does not exist the HEAD request will return a 404.
     // Do not fail in this case as it is an expected response. Otherwise return an errno value
@@ -217,13 +209,13 @@ S3Connection::ObjectExists(const std::string &objectKey, bool &exists, size_t &o
         exists = true;
         objectSize = outcome.GetResult().GetContentLength();
         return (0);
-    } else {
-        Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
-        if (resCode == Aws::Http::HttpResponseCode::NOT_FOUND)
-            return (0);
-        else if (toErrno.find(resCode) != toErrno.end())
-            return (toErrno.at(resCode));
     }
+
+    Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
+    if (resCode == Aws::Http::HttpResponseCode::NOT_FOUND)
+        return (0);
+    else if (toErrno.find(resCode) != toErrno.end())
+        return (toErrno.at(resCode));
 
     return (-1);
 }
@@ -237,7 +229,6 @@ S3Connection::BucketExists(bool &exists) const
     Aws::S3Crt::Model::HeadBucketRequest request;
     request.WithBucket(_bucketName);
     Aws::S3Crt::Model::HeadBucketOutcome outcome = _s3CrtClient.HeadBucket(request);
-    Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
 
     // If an object with the given key does not exist the HEAD request will return a 404.
     // Do not fail in this case as it is an expected response. Otherwise return an errno value
@@ -245,13 +236,13 @@ S3Connection::BucketExists(bool &exists) const
     if (outcome.IsSuccess()) {
         exists = true;
         return (0);
-    } else {
-        Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
-        if (resCode == Aws::Http::HttpResponseCode::NOT_FOUND)
-            return (0);
-        else if (toErrno.find(resCode) != toErrno.end())
-            return (toErrno.at(resCode));
     }
+
+    Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
+    if (resCode == Aws::Http::HttpResponseCode::NOT_FOUND)
+        return (0);
+    else if (toErrno.find(resCode) != toErrno.end())
+        return (toErrno.at(resCode));
 
     return (-1);
 }
