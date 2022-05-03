@@ -222,12 +222,14 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_DECL_RET;
     WT_PAGE *page;
     WT_RECONCILE *r;
+    bool ebusy_from_hs;
 #ifdef HAVE_DIAGNOSTIC
     void *addr;
 #endif
 
     btree = S2BT(session);
     page = ref->page;
+    ebusy_from_hs = false;
 
     /* Save the eviction state. */
     __reconcile_save_evict_state(session, ref, flags);
@@ -303,8 +305,13 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         return (ret);
     }
 
-    /* Wrap up the page reconciliation. Panic on failure. */
-    WT_ERR(__rec_write_wrapup(session, r, page));
+    /*
+     * Wrap up the page reconciliation. Panic on failure except the EBUSY error returned when moving
+     * the updates to the history store.
+     */
+    ret = __rec_write_wrapup(session, r, page);
+    ebusy_from_hs = ret == EBUSY;
+    WT_ERR(ret);
     __rec_write_page_status(session, r);
     WT_ERR(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
 
@@ -327,7 +334,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_ERR(__wt_page_parent_modify_set(session, ref, true));
 
 err:
-    if (ret != 0)
+    if (ret != 0 && !ebusy_from_hs)
         WT_RET_PANIC(session, ret, "reconciliation failed after building the disk image");
     return (ret);
 }
