@@ -1999,8 +1999,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_prepare_transaction_readonly, __session_reset_snapshot,
         __session_rollback_transaction, __session_timestamp_transaction,
         __session_timestamp_transaction_uint, __session_query_timestamp,
-        __session_checkpoint_readonly, __session_transaction_pinned_range,
-        __wt_session_breakpoint};
+        __session_checkpoint_readonly, __session_transaction_pinned_range, __wt_session_breakpoint};
     WT_DECL_RET;
     WT_SESSION_IMPL *session, *session_ret;
     uint32_t i;
