@@ -31,29 +31,63 @@
 
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
+from wtscenario import make_scenarios
 
 # Timestamps: smoke test that commit is tested at both commit and set time.
 class test_timestamp28(wttest.WiredTigerTestCase):
+    timestamps = [
+        ('stable', dict(timestamp='stable_timestamp')),
+        ('oldest', dict(timestamp='oldest_timestamp')),
+    ]
+    scenarios = make_scenarios(timestamps)
+
     def test_timestamp28(self):
         uri = 'table:timestamp28'
         ds = SimpleDataSet(self, uri, 50, key_format='i', value_format='S')
         ds.populate()
         c = self.session.open_cursor(uri)
 
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
+        self.conn.set_timestamp(self.timestamp + '=' + self.timestamp_str(30))
         self.session.begin_transaction()
         c[5] = 'xxx'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.commit_transaction(
-            'commit_timestamp=' + self.timestamp_str(20)), '/must be after/')
 
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
+        if self.timestamp == 'stable_timestamp':
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(20)), '/must be after/')
+        else:
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(20)), '/is less than/')
+
+        self.conn.set_timestamp(self.timestamp + '=' + self.timestamp_str(40))
         self.session.begin_transaction()
         c[5] = 'xxx'
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(50))
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(60))
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.commit_transaction(), '/must be after/')
+        self.conn.set_timestamp(self.timestamp + '=' + self.timestamp_str(60))
+        if self.timestamp == 'stable_timestamp':
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.commit_transaction(), '/must be after/')
+        else:
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.commit_transaction(), '/is less than/')
+
+        # Confirm the earliest commit time is tested.
+        self.session.begin_transaction()
+        c[5] = 'xxx'
+        self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(70))
+        c[6] = 'xxx'
+        self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(71))
+        c[7] = 'xxx'
+        self.conn.set_timestamp(self.timestamp + "=" + self.timestamp_str(75))
+        if self.timestamp == 'stable_timestamp':
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(80)), '/must be after/')
+        else:
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(80)), '/is less than/')
 
 if __name__ == '__main__':
     wttest.run()
