@@ -85,7 +85,7 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.begin_transaction()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 5),
-                '/after the stable timestamp/')
+                '/less than the stable timestamp/')
         self.session.rollback_transaction()
 
         # When explicitly set, commit timestamp for a transaction can be earlier
@@ -108,14 +108,9 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         # Read timestamp >= oldest timestamp
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(7) +
             ',stable_timestamp=' + self.timestamp_str(7))
-        if wiredtiger.standalone_build():
+        with self.expectedStdoutPattern('less than the oldest timestamp'):
             self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
                 self.session.begin_transaction('read_timestamp=' + self.timestamp_str(6)))
-        else:
-            # This is a MongoDB message, not written in standalone builds.
-            with self.expectedStdoutPattern('less than the oldest timestamp'):
-                self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
-                    self.session.begin_transaction('read_timestamp=' + self.timestamp_str(6)))
 
         # c[8] is not visible at read_timestamp < 8
         self.session.begin_transaction()
@@ -137,16 +132,10 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
 
         # We can move the oldest timestamp backwards with "force"
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5) + ',force')
-        if wiredtiger.standalone_build():
-            self.session.begin_transaction()
+        self.session.begin_transaction()
+        with self.expectedStdoutPattern('less than the oldest timestamp'):
             self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
                 self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_READ, 4))
-        else:
-            # This is a MongoDB message, not written in standalone builds.
-            self.session.begin_transaction()
-            with self.expectedStdoutPattern('less than the oldest timestamp'):
-                self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
-                    self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_READ, 4))
         self.session.rollback_transaction()
 
         self.session.begin_transaction()
