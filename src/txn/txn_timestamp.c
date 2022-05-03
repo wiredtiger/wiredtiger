@@ -854,7 +854,6 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     bool set_ts;
 
     set_ts = false;
-
     WT_RET(__wt_txn_context_check(session, true));
 
     /* Look for a commit timestamp. */
