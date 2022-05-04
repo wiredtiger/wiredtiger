@@ -973,11 +973,11 @@ done:
  *     Clean up addr cells loaded from a previous run.
  */
 static inline void
-__cell_addr_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unpack_addr)
+__cell_addr_window_cleanup(
+  WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unpack_addr)
 {
     WT_PAGE_DELETED *page_del;
     WT_TIME_AGGREGATE *ta;
-
 
     /* Tell reconciliation we cleared the transaction ids and the cell needs to be rebuilt. */
     if (unpack_addr != NULL) {
