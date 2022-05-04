@@ -124,7 +124,14 @@ workload_tracking::do_work()
                         ", collection_id=" + std::to_string(collection_id) +
                         ", timestamp=" + std::to_string(ts) +
                         ", oldest_timestamp=" + std::to_string(oldest_ts) + ", value=" + value);
+                /*
+                 * Wrap the removal in a transaction as we need to specify we aren't using a
+                 * timestamp on purpose.
+                 */
+                testutil_check(
+                  _sweep_session->begin_transaction(_sweep_session.get(), "no_timestamp=true"));
                 testutil_check(_sweep_cursor->remove(_sweep_cursor.get()));
+                testutil_check(_sweep_session->commit_transaction(_sweep_session.get(), nullptr));
             } else if (static_cast<tracking_operation>(op_type) == tracking_operation::INSERT) {
                 if (logger::trace_level == LOG_TRACE)
                     logger::log_msg(LOG_TRACE,

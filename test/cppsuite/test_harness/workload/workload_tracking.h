@@ -41,7 +41,7 @@
 #define OPERATION_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(iS)
 #define OPERATION_TRACKING_TABLE_CONFIG                                                          \
     "key_format=" OPERATION_TRACKING_KEY_FORMAT ",value_format=" OPERATION_TRACKING_VALUE_FORMAT \
-    ",log=(enabled=true),write_timestamp_usage=mixed_mode"
+    ",log=(enabled=true)"
 
 /*
  * Default schema for tracking schema operations on collections (key_format: Collection id /
@@ -51,7 +51,7 @@
 #define SCHEMA_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(i)
 #define SCHEMA_TRACKING_TABLE_CONFIG                                                       \
     "key_format=" SCHEMA_TRACKING_KEY_FORMAT ",value_format=" SCHEMA_TRACKING_VALUE_FORMAT \
-    ",log=(enabled=true),write_timestamp_usage=mixed_mode"
+    ",log=(enabled=true)"
 
 namespace test_harness {
 /* Tracking operations. */
