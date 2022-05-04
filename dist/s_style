@@ -59,11 +59,11 @@ else
 
 	# Finding paired typos in the comments of different file types and excluding invalid edge cases.
 	if [ "${fname##*.}" = "py" ]; then
-		egrep '#.*\b\s([a-zA-Z]+)\s\1(?\s|\.)' $f > $t
+		egrep '#.*\b\s([a-zA-Z]+)\ \1\b[[:space:]\.]' $f > $t
 	elif [ "${fname##*.}" = "c" ] || [ "${fname##*.}" = "h" ]; then
-		egrep '/?*.*\b\s([a-zA-Z]+)\s\1(?\s|\.)' $f | egrep -v -e "@" -e "long long" > $t
+		egrep '/?\*.* \b([a-zA-Z]+) \1\b[[:space:]\.]' $f | egrep -v -e "@" -e "long long" > $t
 	else
-		egrep '\b\s([a-zA-Z]+)\s\1(?\s|\.)' $f | egrep -v -e "@" -e "^\(" > $t
+		egrep '\b\s([a-zA-Z]+)\ \1\b[[:space:]\.]' $f | egrep -v -e "@" -e "^\(" > $t
 	fi
 
 	test -s $t && {
