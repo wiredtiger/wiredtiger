@@ -1323,7 +1323,7 @@ cursor_bound_config = [
         relevant to the given bound must have been set prior to the call using
         WT_CURSOR::set_key''',
         choices=['clear','set']),
-    Config('inclusive', 'false', r'''
+    Config('inclusive', 'true', r'''
         configures whether the given bound is inclusive or not.''',
         type='boolean'),
     Config('bound', '', r'''
