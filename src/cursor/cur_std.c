@@ -1176,7 +1176,7 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
         if (cval.len == 0)
             WT_ERR_MSG(session, EINVAL, "setting bounds must require the bound configuration set");
     } else if (WT_STRING_MATCH("clear", cval.str, cval.len)) {
-        /* inclusive is not compatible with the action clear configuration. */
+        /* Inclusive should not be supplied from the application the action clear configuration. */
         if (__wt_config_getones(session, config, "inclusive", &cval) != WT_NOTFOUND)
             WT_ERR_MSG(session, EINVAL,
               "clearing bounds is not compatible with the inclusive configuration");
