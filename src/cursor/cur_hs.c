@@ -952,6 +952,10 @@ __curhs_insert(WT_CURSOR *cursor)
         hs_tombstone->durable_ts = hs_cursor->time_window.durable_stop_ts;
         hs_tombstone->txnid = hs_cursor->time_window.stop_txn;
 
+        WT_ASSERT(session,
+          hs_tombstone->start_ts >= hs_upd->start_ts &&
+            hs_tombstone->durable_ts >= hs_upd->durable_ts);
+
         hs_tombstone->next = hs_upd;
         hs_upd = hs_tombstone;
     }
@@ -968,8 +972,14 @@ __curhs_insert(WT_CURSOR *cursor)
 #ifdef HAVE_DIAGNOSTIC
     /* Do a search again and call next to check the key order. */
     ret = __curhs_file_cursor_search_near(session, file_cursor, &exact);
-    WT_ASSERT(session, ret == 0 && exact == 0);
-    WT_ERR_NOTFOUND_OK(__curhs_file_cursor_next(session, file_cursor), false);
+    WT_ASSERT(session, ret == 0);
+    /*
+     * If a globally visible tombstone is inserted and the page is evicted during search_near then
+     * the key would be removed. Hence, a search_near would return a non-zero exact value.
+     * Therefore, check that exact is zero before calling next.
+     */
+    if (exact == 0)
+        WT_ERR_NOTFOUND_OK(__curhs_file_cursor_next(session, file_cursor), false);
 #endif
 
     /* Insert doesn't maintain a position across calls, clear resources. */
@@ -1081,6 +1091,9 @@ __curhs_update(WT_CURSOR *cursor)
     hs_upd->start_ts = hs_cursor->time_window.start_ts;
     hs_upd->durable_ts = hs_cursor->time_window.durable_start_ts;
     hs_upd->txnid = hs_cursor->time_window.start_txn;
+
+    WT_ASSERT(session,
+      hs_tombstone->start_ts >= hs_upd->start_ts && hs_tombstone->durable_ts >= hs_upd->durable_ts);
 
     /* Connect the tombstone to the update. */
     hs_tombstone->next = hs_upd;

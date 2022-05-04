@@ -55,13 +55,13 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: checkpoint blocked page eviction",
   "cache: checkpoint of history store file blocked non-history store page eviction",
   "cache: data source pages selected for eviction unable to be evicted",
-  "cache: eviction gave up due to detecting an out of order on disk value behind the last update "
-  "on the chain",
-  "cache: eviction gave up due to detecting an out of order tombstone ahead of the selected on "
-  "disk update",
-  "cache: eviction gave up due to detecting an out of order tombstone ahead of the selected on "
-  "disk update after validating the update chain",
-  "cache: eviction gave up due to detecting out of order timestamps on the update chain after the "
+  "cache: eviction gave up due to detecting a mixed mode on disk value behind the last update on "
+  "the chain",
+  "cache: eviction gave up due to detecting a mixed mode tombstone ahead of the selected on disk "
+  "update",
+  "cache: eviction gave up due to detecting a mixed mode tombstone ahead of the selected on disk "
+  "update after validating the update chain",
+  "cache: eviction gave up due to detecting mixed mode timestamps on the update chain after the "
   "selected on disk update",
   "cache: eviction walk passes of a file",
   "cache: eviction walk target pages histogram - 0-9",
@@ -81,9 +81,9 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: hazard pointer blocked page eviction",
   "cache: history store table insert calls",
   "cache: history store table insert calls that returned restart",
-  "cache: history store table out-of-order resolved updates that lose their durable timestamp",
-  "cache: history store table out-of-order updates that were fixed up by reinserting with the "
-  "fixed timestamp",
+  "cache: history store table mixed mode resolved updates that lose their durable timestamp",
+  "cache: history store table mixed mode updates that were fixed up by reinserting with the fixed "
+  "timestamp",
   "cache: history store table reads",
   "cache: history store table reads missed",
   "cache: history store table reads requiring squashed modifies",
@@ -92,7 +92,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: history store table truncation to remove an update",
   "cache: history store table truncation to remove range of updates due to key being removed from "
   "the data page during reconciliation",
-  "cache: history store table truncation to remove range of updates due to out-of-order timestamp "
+  "cache: history store table truncation to remove range of updates due to mixed mode timestamp "
   "update on data page",
   "cache: history store table writes requiring squashed modifies",
   "cache: in-memory page passed criteria to be split",
@@ -159,6 +159,10 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: Total number of entries skipped by cursor prev calls",
   "cursor: Total number of entries skipped to position the history store cursor",
   "cursor: Total number of times a search near has exited due to prefix config",
+  "cursor: Total number of times cursor fails to temporarily release pinned page to encourage "
+  "eviction of hot or large page",
+  "cursor: Total number of times cursor temporarily releases pinned page to encourage eviction of "
+  "hot or large page",
   "cursor: bulk loaded cursor insert calls",
   "cursor: cache cursors reuse count",
   "cursor: close calls that result in cache",
@@ -332,10 +336,10 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_checkpoint = 0;
     stats->cache_eviction_blocked_checkpoint_hs = 0;
     stats->cache_eviction_fail = 0;
-    stats->cache_eviction_blocked_ooo_checkpoint_race_1 = 0;
-    stats->cache_eviction_blocked_ooo_checkpoint_race_2 = 0;
-    stats->cache_eviction_blocked_ooo_checkpoint_race_3 = 0;
-    stats->cache_eviction_blocked_ooo_checkpoint_race_4 = 0;
+    stats->cache_eviction_blocked_mm_checkpoint_race_1 = 0;
+    stats->cache_eviction_blocked_mm_checkpoint_race_2 = 0;
+    stats->cache_eviction_blocked_mm_checkpoint_race_3 = 0;
+    stats->cache_eviction_blocked_mm_checkpoint_race_4 = 0;
     stats->cache_eviction_walk_passes = 0;
     stats->cache_eviction_target_page_lt10 = 0;
     stats->cache_eviction_target_page_lt32 = 0;
@@ -427,6 +431,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_prev_skip_total = 0;
     stats->cursor_skip_hs_cur_position = 0;
     stats->cursor_search_near_prefix_fast_paths = 0;
+    stats->cursor_reposition_failed = 0;
+    stats->cursor_reposition = 0;
     stats->cursor_insert_bulk = 0;
     stats->cursor_reopen = 0;
     stats->cursor_cache = 0;
@@ -584,14 +590,14 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_checkpoint += from->cache_eviction_checkpoint;
     to->cache_eviction_blocked_checkpoint_hs += from->cache_eviction_blocked_checkpoint_hs;
     to->cache_eviction_fail += from->cache_eviction_fail;
-    to->cache_eviction_blocked_ooo_checkpoint_race_1 +=
-      from->cache_eviction_blocked_ooo_checkpoint_race_1;
-    to->cache_eviction_blocked_ooo_checkpoint_race_2 +=
-      from->cache_eviction_blocked_ooo_checkpoint_race_2;
-    to->cache_eviction_blocked_ooo_checkpoint_race_3 +=
-      from->cache_eviction_blocked_ooo_checkpoint_race_3;
-    to->cache_eviction_blocked_ooo_checkpoint_race_4 +=
-      from->cache_eviction_blocked_ooo_checkpoint_race_4;
+    to->cache_eviction_blocked_mm_checkpoint_race_1 +=
+      from->cache_eviction_blocked_mm_checkpoint_race_1;
+    to->cache_eviction_blocked_mm_checkpoint_race_2 +=
+      from->cache_eviction_blocked_mm_checkpoint_race_2;
+    to->cache_eviction_blocked_mm_checkpoint_race_3 +=
+      from->cache_eviction_blocked_mm_checkpoint_race_3;
+    to->cache_eviction_blocked_mm_checkpoint_race_4 +=
+      from->cache_eviction_blocked_mm_checkpoint_race_4;
     to->cache_eviction_walk_passes += from->cache_eviction_walk_passes;
     to->cache_eviction_target_page_lt10 += from->cache_eviction_target_page_lt10;
     to->cache_eviction_target_page_lt32 += from->cache_eviction_target_page_lt32;
@@ -683,6 +689,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_prev_skip_total += from->cursor_prev_skip_total;
     to->cursor_skip_hs_cur_position += from->cursor_skip_hs_cur_position;
     to->cursor_search_near_prefix_fast_paths += from->cursor_search_near_prefix_fast_paths;
+    to->cursor_reposition_failed += from->cursor_reposition_failed;
+    to->cursor_reposition += from->cursor_reposition;
     to->cursor_insert_bulk += from->cursor_insert_bulk;
     to->cursor_reopen += from->cursor_reopen;
     to->cursor_cache += from->cursor_cache;
@@ -835,14 +843,14 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_blocked_checkpoint_hs +=
       WT_STAT_READ(from, cache_eviction_blocked_checkpoint_hs);
     to->cache_eviction_fail += WT_STAT_READ(from, cache_eviction_fail);
-    to->cache_eviction_blocked_ooo_checkpoint_race_1 +=
-      WT_STAT_READ(from, cache_eviction_blocked_ooo_checkpoint_race_1);
-    to->cache_eviction_blocked_ooo_checkpoint_race_2 +=
-      WT_STAT_READ(from, cache_eviction_blocked_ooo_checkpoint_race_2);
-    to->cache_eviction_blocked_ooo_checkpoint_race_3 +=
-      WT_STAT_READ(from, cache_eviction_blocked_ooo_checkpoint_race_3);
-    to->cache_eviction_blocked_ooo_checkpoint_race_4 +=
-      WT_STAT_READ(from, cache_eviction_blocked_ooo_checkpoint_race_4);
+    to->cache_eviction_blocked_mm_checkpoint_race_1 +=
+      WT_STAT_READ(from, cache_eviction_blocked_mm_checkpoint_race_1);
+    to->cache_eviction_blocked_mm_checkpoint_race_2 +=
+      WT_STAT_READ(from, cache_eviction_blocked_mm_checkpoint_race_2);
+    to->cache_eviction_blocked_mm_checkpoint_race_3 +=
+      WT_STAT_READ(from, cache_eviction_blocked_mm_checkpoint_race_3);
+    to->cache_eviction_blocked_mm_checkpoint_race_4 +=
+      WT_STAT_READ(from, cache_eviction_blocked_mm_checkpoint_race_4);
     to->cache_eviction_walk_passes += WT_STAT_READ(from, cache_eviction_walk_passes);
     to->cache_eviction_target_page_lt10 += WT_STAT_READ(from, cache_eviction_target_page_lt10);
     to->cache_eviction_target_page_lt32 += WT_STAT_READ(from, cache_eviction_target_page_lt32);
@@ -943,6 +951,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_skip_hs_cur_position += WT_STAT_READ(from, cursor_skip_hs_cur_position);
     to->cursor_search_near_prefix_fast_paths +=
       WT_STAT_READ(from, cursor_search_near_prefix_fast_paths);
+    to->cursor_reposition_failed += WT_STAT_READ(from, cursor_reposition_failed);
+    to->cursor_reposition += WT_STAT_READ(from, cursor_reposition);
     to->cursor_insert_bulk += WT_STAT_READ(from, cursor_insert_bulk);
     to->cursor_reopen += WT_STAT_READ(from, cursor_reopen);
     to->cursor_cache += WT_STAT_READ(from, cursor_cache);
@@ -1097,13 +1107,13 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction calls to get a page found queue empty after locking",
   "cache: eviction currently operating in aggressive mode",
   "cache: eviction empty score",
-  "cache: eviction gave up due to detecting an out of order on disk value behind the last update "
-  "on the chain",
-  "cache: eviction gave up due to detecting an out of order tombstone ahead of the selected on "
-  "disk update",
-  "cache: eviction gave up due to detecting an out of order tombstone ahead of the selected on "
-  "disk update after validating the update chain",
-  "cache: eviction gave up due to detecting out of order timestamps on the update chain after the "
+  "cache: eviction gave up due to detecting a mixed mode on disk value behind the last update on "
+  "the chain",
+  "cache: eviction gave up due to detecting a mixed mode tombstone ahead of the selected on disk "
+  "update",
+  "cache: eviction gave up due to detecting a mixed mode tombstone ahead of the selected on disk "
+  "update after validating the update chain",
+  "cache: eviction gave up due to detecting mixed mode timestamps on the update chain after the "
   "selected on disk update",
   "cache: eviction passes of a file",
   "cache: eviction server candidate queue empty when topping up",
@@ -1161,10 +1171,10 @@ static const char *const __stats_connection_desc[] = {
   "cache: history store table insert calls",
   "cache: history store table insert calls that returned restart",
   "cache: history store table max on-disk size",
+  "cache: history store table mixed mode resolved updates that lose their durable timestamp",
+  "cache: history store table mixed mode updates that were fixed up by reinserting with the fixed "
+  "timestamp",
   "cache: history store table on-disk size",
-  "cache: history store table out-of-order resolved updates that lose their durable timestamp",
-  "cache: history store table out-of-order updates that were fixed up by reinserting with the "
-  "fixed timestamp",
   "cache: history store table reads",
   "cache: history store table reads missed",
   "cache: history store table reads requiring squashed modifies",
@@ -1173,7 +1183,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: history store table truncation to remove an update",
   "cache: history store table truncation to remove range of updates due to key being removed from "
   "the data page during reconciliation",
-  "cache: history store table truncation to remove range of updates due to out-of-order timestamp "
+  "cache: history store table truncation to remove range of updates due to mixed mode timestamp "
   "update on data page",
   "cache: history store table writes requiring squashed modifies",
   "cache: in-memory page passed criteria to be split",
@@ -1211,7 +1221,7 @@ static const char *const __stats_connection_desc[] = {
   "internal page",
   "cache: pages selected for eviction unable to be evicted because of failure in reconciliation",
   "cache: pages selected for eviction unable to be evicted because of race between checkpoint and "
-  "out of order timestamps handling",
+  "mixed mode timestamps handling",
   "cache: pages walked for eviction",
   "cache: pages written from cache",
   "cache: pages written requiring in-memory restoration",
@@ -1261,6 +1271,10 @@ static const char *const __stats_connection_desc[] = {
   "cursor: Total number of entries skipped by cursor prev calls",
   "cursor: Total number of entries skipped to position the history store cursor",
   "cursor: Total number of times a search near has exited due to prefix config",
+  "cursor: Total number of times cursor fails to temporarily release pinned page to encourage "
+  "eviction of hot or large page",
+  "cursor: Total number of times cursor temporarily releases pinned page to encourage eviction of "
+  "hot or large page",
   "cursor: cached cursor count",
   "cursor: cursor bulk loaded cursor insert calls",
   "cursor: cursor close calls that result in cache",
@@ -1668,10 +1682,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_get_ref_empty2 = 0;
     /* not clearing cache_eviction_aggressive_set */
     /* not clearing cache_eviction_empty_score */
-    stats->cache_eviction_blocked_ooo_checkpoint_race_1 = 0;
-    stats->cache_eviction_blocked_ooo_checkpoint_race_2 = 0;
-    stats->cache_eviction_blocked_ooo_checkpoint_race_3 = 0;
-    stats->cache_eviction_blocked_ooo_checkpoint_race_4 = 0;
+    stats->cache_eviction_blocked_mm_checkpoint_race_1 = 0;
+    stats->cache_eviction_blocked_mm_checkpoint_race_2 = 0;
+    stats->cache_eviction_blocked_mm_checkpoint_race_3 = 0;
+    stats->cache_eviction_blocked_mm_checkpoint_race_4 = 0;
     stats->cache_eviction_walk_passes = 0;
     stats->cache_eviction_queue_empty = 0;
     stats->cache_eviction_queue_not_empty = 0;
@@ -1725,9 +1739,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_hs_insert = 0;
     stats->cache_hs_insert_restart = 0;
     /* not clearing cache_hs_ondisk_max */
-    /* not clearing cache_hs_ondisk */
     stats->cache_hs_order_lose_durable_timestamp = 0;
     stats->cache_hs_order_reinsert = 0;
+    /* not clearing cache_hs_ondisk */
     stats->cache_hs_read = 0;
     stats->cache_hs_read_miss = 0;
     stats->cache_hs_read_squash = 0;
@@ -1770,7 +1784,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_fail = 0;
     stats->cache_eviction_fail_active_children_on_an_internal_page = 0;
     stats->cache_eviction_fail_in_reconciliation = 0;
-    stats->cache_eviction_fail_checkpoint_out_of_order_ts = 0;
+    stats->cache_eviction_fail_checkpoint_mm_ts = 0;
     stats->cache_eviction_walk = 0;
     stats->cache_write = 0;
     stats->cache_write_restore = 0;
@@ -1820,6 +1834,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_prev_skip_total = 0;
     stats->cursor_skip_hs_cur_position = 0;
     stats->cursor_search_near_prefix_fast_paths = 0;
+    stats->cursor_reposition_failed = 0;
+    stats->cursor_reposition = 0;
     /* not clearing cursor_cached_count */
     stats->cursor_insert_bulk = 0;
     stats->cursor_cache = 0;
@@ -2200,14 +2216,14 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_get_ref_empty2 += WT_STAT_READ(from, cache_eviction_get_ref_empty2);
     to->cache_eviction_aggressive_set += WT_STAT_READ(from, cache_eviction_aggressive_set);
     to->cache_eviction_empty_score += WT_STAT_READ(from, cache_eviction_empty_score);
-    to->cache_eviction_blocked_ooo_checkpoint_race_1 +=
-      WT_STAT_READ(from, cache_eviction_blocked_ooo_checkpoint_race_1);
-    to->cache_eviction_blocked_ooo_checkpoint_race_2 +=
-      WT_STAT_READ(from, cache_eviction_blocked_ooo_checkpoint_race_2);
-    to->cache_eviction_blocked_ooo_checkpoint_race_3 +=
-      WT_STAT_READ(from, cache_eviction_blocked_ooo_checkpoint_race_3);
-    to->cache_eviction_blocked_ooo_checkpoint_race_4 +=
-      WT_STAT_READ(from, cache_eviction_blocked_ooo_checkpoint_race_4);
+    to->cache_eviction_blocked_mm_checkpoint_race_1 +=
+      WT_STAT_READ(from, cache_eviction_blocked_mm_checkpoint_race_1);
+    to->cache_eviction_blocked_mm_checkpoint_race_2 +=
+      WT_STAT_READ(from, cache_eviction_blocked_mm_checkpoint_race_2);
+    to->cache_eviction_blocked_mm_checkpoint_race_3 +=
+      WT_STAT_READ(from, cache_eviction_blocked_mm_checkpoint_race_3);
+    to->cache_eviction_blocked_mm_checkpoint_race_4 +=
+      WT_STAT_READ(from, cache_eviction_blocked_mm_checkpoint_race_4);
     to->cache_eviction_walk_passes += WT_STAT_READ(from, cache_eviction_walk_passes);
     to->cache_eviction_queue_empty += WT_STAT_READ(from, cache_eviction_queue_empty);
     to->cache_eviction_queue_not_empty += WT_STAT_READ(from, cache_eviction_queue_not_empty);
@@ -2270,10 +2286,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_hs_insert += WT_STAT_READ(from, cache_hs_insert);
     to->cache_hs_insert_restart += WT_STAT_READ(from, cache_hs_insert_restart);
     to->cache_hs_ondisk_max += WT_STAT_READ(from, cache_hs_ondisk_max);
-    to->cache_hs_ondisk += WT_STAT_READ(from, cache_hs_ondisk);
     to->cache_hs_order_lose_durable_timestamp +=
       WT_STAT_READ(from, cache_hs_order_lose_durable_timestamp);
     to->cache_hs_order_reinsert += WT_STAT_READ(from, cache_hs_order_reinsert);
+    to->cache_hs_ondisk += WT_STAT_READ(from, cache_hs_ondisk);
     to->cache_hs_read += WT_STAT_READ(from, cache_hs_read);
     to->cache_hs_read_miss += WT_STAT_READ(from, cache_hs_read_miss);
     to->cache_hs_read_squash += WT_STAT_READ(from, cache_hs_read_squash);
@@ -2329,8 +2345,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, cache_eviction_fail_active_children_on_an_internal_page);
     to->cache_eviction_fail_in_reconciliation +=
       WT_STAT_READ(from, cache_eviction_fail_in_reconciliation);
-    to->cache_eviction_fail_checkpoint_out_of_order_ts +=
-      WT_STAT_READ(from, cache_eviction_fail_checkpoint_out_of_order_ts);
+    to->cache_eviction_fail_checkpoint_mm_ts +=
+      WT_STAT_READ(from, cache_eviction_fail_checkpoint_mm_ts);
     to->cache_eviction_walk += WT_STAT_READ(from, cache_eviction_walk);
     to->cache_write += WT_STAT_READ(from, cache_write);
     to->cache_write_restore += WT_STAT_READ(from, cache_write_restore);
@@ -2381,6 +2397,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_skip_hs_cur_position += WT_STAT_READ(from, cursor_skip_hs_cur_position);
     to->cursor_search_near_prefix_fast_paths +=
       WT_STAT_READ(from, cursor_search_near_prefix_fast_paths);
+    to->cursor_reposition_failed += WT_STAT_READ(from, cursor_reposition_failed);
+    to->cursor_reposition += WT_STAT_READ(from, cursor_reposition);
     to->cursor_cached_count += WT_STAT_READ(from, cursor_cached_count);
     to->cursor_insert_bulk += WT_STAT_READ(from, cursor_insert_bulk);
     to->cursor_cache += WT_STAT_READ(from, cursor_cache);

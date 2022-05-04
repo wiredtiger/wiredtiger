@@ -365,6 +365,7 @@ Prepend
 Prepending
 Prev
 QQQS
+QSQ
 Qsort
 RCS
 RDNOLOCK
@@ -1187,6 +1188,7 @@ nd
 needkey
 needvalue
 negint
+neighboring
 nentries
 nentriesp
 newbar
