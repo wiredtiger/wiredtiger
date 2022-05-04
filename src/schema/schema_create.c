@@ -403,23 +403,26 @@ __create_import_cmp_id(const void *a, const void *b)
 
 /*
  * __wt_find_import_metadata --
- *     Find metadata entry by URI in session's import list. Returns NULL if not found or there is no
- *     import list in this session.
+ *     Find metadata entry by URI in session's import list. The list must already be sorted by uri.
  */
-const char *
-__wt_find_import_metadata(WT_SESSION_IMPL *session, const char *uri)
+int
+__wt_find_import_metadata(WT_SESSION_IMPL *session, const char *uri, const char **config)
 {
     WT_IMPORT_ENTRY entry, *result;
 
-    if (session->import_list == NULL)
-        return NULL;
+    WT_ASSERT(session, session->import_list != NULL);
 
     entry.uri = uri;
     entry.config = NULL;
     result = bsearch(&entry, session->import_list->entries, session->import_list->entries_next,
       sizeof(WT_IMPORT_ENTRY), __create_import_cmp_uri);
 
-    return (result == NULL ? NULL : result->config);
+    if (result == NULL)
+        WT_RET_MSG(session, WT_NOTFOUND, "failed to find metadata for %s", uri);
+
+    *config = result->config;
+
+    return (0);
 }
 
 /*
@@ -436,7 +439,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
     size_t tlen;
     char *cgconf, *origconf;
     const char **cfgp, *cfg[4] = {WT_CONFIG_BASE(session, colgroup_meta), config, NULL, NULL};
-    const char *cgname, *meta_import, *source, *sourceconf, *tablename;
+    const char *cgname, *source, *sourceconf, *tablename;
     const char *sourcecfg[] = {config, NULL, NULL};
     bool exists, tracked;
 
@@ -447,8 +450,8 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
     WT_CLEAR(namebuf);
     exists = tracked = false;
 
-    if ((meta_import = __wt_find_import_metadata(session, name)) != NULL)
-        cfg[1] = meta_import;
+    if (session->import_list != NULL)
+        WT_RET(__wt_find_import_metadata(session, name, &cfg[1]));
 
     tablename = name;
     WT_PREFIX_SKIP_REQUIRED(session, tablename, "colgroup:");
@@ -501,10 +504,10 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
         *cfgp++ = confbuf.data;
     }
 
-    if ((meta_import = __wt_find_import_metadata(session, source)) != NULL) {
+    if (session->import_list != NULL)
         /* Use the import configuration, it should have key and value format configurations. */
-        sourcecfg[0] = meta_import;
-    } else {
+        WT_ERR(__wt_find_import_metadata(session, source, &sourcecfg[0]));
+    else {
         /* Calculate the key/value formats: these go into the source config. */
         WT_ERR(__wt_buf_fmt(session, &fmt, "key_format=%s", table->key_format));
         if (cgname == NULL)
@@ -817,7 +820,7 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
     int ncolgroups, nkeys;
     char *cgcfg, *cgname, *filecfg, *filename, *importcfg, *tablecfg;
     const char *cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
-    const char *meta_import, *tablename;
+    const char *tablename;
     bool import, import_repair;
 
     import = F_ISSET(session, WT_SESSION_IMPORT);
@@ -850,8 +853,8 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
          * If this is an import but not a repair, check that the exported table metadata is provided
          * in the config.
          */
-        if ((meta_import = __wt_find_import_metadata(session, uri)) != NULL)
-            cfg[1] = meta_import;
+        if (session->import_list != NULL)
+            WT_ERR(__wt_find_import_metadata(session, uri, &cfg[1]));
         else if (!import_repair) {
             __wt_config_init(session, &conf, config);
             for (nkeys = 0; (ret = __wt_config_next(&conf, &ckey, &cval)) == 0; nkeys++)
@@ -979,7 +982,8 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
      * cause us to create our first file or tiered object.
      */
     if (!F_ISSET(conn, WT_CONN_READONLY)) {
-        if ((metadata = __wt_find_import_metadata(session, uri)) != NULL) {
+        if (session->import_list != NULL) {
+            WT_RET(__wt_find_import_metadata(session, uri, &metadata));
             free_metadata = false;
         } else {
             WT_RET(__wt_scr_alloc(session, 0, &tmp));

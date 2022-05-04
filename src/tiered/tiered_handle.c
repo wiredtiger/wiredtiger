@@ -137,7 +137,13 @@ __tiered_init_tiers(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_CONFIG_ITEM 
         for (object_id = tiered->oldest_id; object_id < tiered->current_id; object_id++) {
             WT_RET(
               __wt_tiered_name(session, &tiered->iface, object_id, WT_TIERED_NAME_OBJECT, &name));
-            if ((cfg = __wt_find_import_metadata(session, name)) != NULL)
+            ret = __wt_find_import_metadata(session, name, &cfg);
+            /*
+             * It's OK if some of the objects are not there. They may have been dropped before
+             * export.
+             */
+            WT_RET_NOTFOUND_OK(ret);
+            if (ret != WT_NOTFOUND)
                 WT_RET(__wt_metadata_insert(session, name, cfg));
         }
     }
@@ -150,8 +156,10 @@ __tiered_init_tiers(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_CONFIG_ITEM 
         __wt_verbose(
           session, WT_VERB_TIERED, "INIT_TIERS: tiered URI dhandle %s", (char *)tmp->data);
 
-        if ((cfg = __wt_find_import_metadata(session, (const char *)tmp->data)) != NULL)
+        if (session->import_list != NULL) {
+            WT_ERR(__wt_find_import_metadata(session, (const char *)tmp->data, &cfg));
             WT_ERR(__wt_metadata_insert(session, (const char *)tmp->data, cfg));
+        }
 
         WT_SAVE_DHANDLE(session,
           ret = __tiered_dhandle_setup(
@@ -358,9 +366,10 @@ __tiered_create_tier_tree(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 
     /* Create tier:example for the new tiered tree. */
     WT_ERR(__wt_tiered_name(session, &tiered->iface, 0, WT_TIERED_NAME_SHARED, &name));
-    if ((config = __wt_find_import_metadata(session, name)) != NULL)
+    if (session->import_list != NULL) {
+        WT_ERR(__wt_find_import_metadata(session, name, &config));
         free_config = false;
-    else {
+    } else {
         cfg[0] = WT_CONFIG_BASE(session, tier_meta);
         WT_ASSERT(session, tiered->bstorage != NULL);
         WT_ERR(__wt_buf_fmt(session, tmp,
