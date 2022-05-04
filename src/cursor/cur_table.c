@@ -828,12 +828,17 @@ err:
 static int
 __curtable_bound(WT_CURSOR *cursor, const char *config)
 {
-    WT_CONFIG_ITEM cval;
+    WT_CURSOR *primary;
+    WT_CURSOR_TABLE *ctable;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    CURSOR_API_CALL_CONF(cursor, session, bound, config, cfg, NULL);
+    ctable = (WT_CURSOR_TABLE *)cursor;
+    JOINABLE_CURSOR_API_CALL(cursor, session, bound, NULL);
 
+    /* Split out the first next, it retrieves the random record. */
+    primary = *ctable->cg_cursors;
+    WT_ERR(primary->bound(primary, config));
 err:
     API_END_RET(session, ret);
 }

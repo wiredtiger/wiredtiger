@@ -1167,8 +1167,21 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-
     CURSOR_API_CALL_CONF(cursor, session, bound, config, cfg, NULL);
+
+    WT_ERR(__wt_config_gets(session, cfg, "action", &cval));
+    if (WT_STRING_MATCH("set", cval.str, cval.len)) {
+        /* Check that bound is set with action set configuration. */
+        WT_ERR(__wt_config_gets(session, cfg, "bound", &cval));
+        if (cval.len == 0)
+            WT_ERR_MSG(
+              session, EINVAL, "setting bounds must require the bound configuration set");
+    } else if (WT_STRING_MATCH("clear", cval.str, cval.len)) {
+        /* inclusive is not compatible with the action clear configuration. */
+        if (__wt_config_getones(session, config, "inclusive", &cval) != WT_NOTFOUND)
+            WT_ERR_MSG(
+              session, EINVAL, "clearing bounds is not compatible with the inclusive configuration");
+    }
 
 err:
     API_END_RET(session, ret);
