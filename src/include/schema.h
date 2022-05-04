@@ -72,9 +72,18 @@ struct __wt_table {
 
 /* Holds metadata entry name and the associated config string. */
 struct __wt_import_entry {
+
     const char *uri;    /* metadata key */
     const char *config; /* metadata value */
-    int64_t file_id;    /* id config value */
+
+/* Invalid file id for import operation. It is used to sort import entries by file id. */
+#define WT_IMPORT_INVALID_FILE_ID -1
+
+    /*
+     * Actual value of file ID is uint_32. We use int64_t here to store invalid file id that is
+     * defined above.
+     */
+    int64_t file_id; /* id config value */
 };
 
 /* Array of metadata entries used when importing from a metadata file. */

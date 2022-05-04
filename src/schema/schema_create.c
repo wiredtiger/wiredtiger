@@ -380,12 +380,20 @@ __create_import_cmp_uri(const void *a, const void *b)
 static int WT_CDECL
 __create_import_cmp_id(const void *a, const void *b)
 {
+    int64_t res;
+
     WT_IMPORT_ENTRY *ae, *be;
 
     ae = (WT_IMPORT_ENTRY *)a;
     be = (WT_IMPORT_ENTRY *)b;
 
-    return (ae->file_id - be->file_id);
+    res = ae->file_id - be->file_id;
+    if (res < 0)
+        return -1;
+    else if (res > 0)
+        return 1;
+    else
+        return 0;
 }
 
 /*
@@ -1085,7 +1093,7 @@ __create_meta_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *valu
       session, import_list->entries[import_list->entries_next].config, "id", &cval);
     WT_RET_NOTFOUND_OK(ret);
     if (ret == WT_NOTFOUND || cval.len == 0)
-        import_list->entries[import_list->entries_next].file_id = -1;
+        import_list->entries[import_list->entries_next].file_id = WT_IMPORT_INVALID_FILE_ID;
     else
         import_list->entries[import_list->entries_next].file_id = cval.val;
 
@@ -1119,7 +1127,7 @@ __create_fix_file_ids(WT_SESSION_IMPL *session, WT_IMPORT_LIST *import_list)
     /* Iterate over the array and assign a new ID to each entry. */
     for (i = 0; i < import_list->entries_next; ++i) {
         /* Skip entries without file id. */
-        if (import_list->entries[i].file_id < 0)
+        if (import_list->entries[i].file_id == WT_IMPORT_INVALID_FILE_ID)
             continue;
 
         /* Generate a new file ID. */
