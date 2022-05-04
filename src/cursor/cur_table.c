@@ -836,7 +836,7 @@ __curtable_bound(WT_CURSOR *cursor, const char *config)
     ctable = (WT_CURSOR_TABLE *)cursor;
     JOINABLE_CURSOR_API_CALL(cursor, session, bound, NULL);
 
-    /* Split out the first next, it retrieves the random record. */
+    /* Grab the primary cursor and call bound function. */
     primary = *ctable->cg_cursors;
     WT_ERR(primary->bound(primary, config));
 err:
