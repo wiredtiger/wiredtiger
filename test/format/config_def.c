@@ -6,9 +6,6 @@ CONFIG configuration_list[] = {
   {"assert.read_timestamp", "assert read_timestamp",
     C_BOOL, 2, 0, 0, V_GLOBAL_ASSERT_READ_TIMESTAMP},
 
-  {"assert.write_timestamp", "set write_timestamp_usage and assert write_timestamp",
-    C_BOOL, 2, 0, 0, V_GLOBAL_ASSERT_WRITE_TIMESTAMP},
-
   {"backup", "configure backups",
     C_BOOL, 20, 0, 0, V_GLOBAL_BACKUP},
 

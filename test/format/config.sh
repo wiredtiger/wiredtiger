@@ -73,8 +73,6 @@ done<<END_OF_INPUT>$fc
 CONFIG configuration_list[] = {
 {"assert.read_timestamp", "assert read_timestamp", C_BOOL, 2, 0, 0}
 
-{"assert.write_timestamp", "set write_timestamp_usage and assert write_timestamp", C_BOOL, 2, 0, 0}
-
 {"backup", "configure backups", C_BOOL, 20, 0, 0}
 
 {"backup.incremental", "backup type (off | block | log)", C_IGNORE | C_STRING, 0, 0, 0}

@@ -393,9 +393,6 @@ create_object(TABLE *table, void *arg)
     if (GV(ASSERT_READ_TIMESTAMP))
         CONFIG_APPEND(
           p, ",assert=(read_timestamp=%s)", g.transaction_timestamps_config ? "none" : "never");
-    if (GV(ASSERT_WRITE_TIMESTAMP))
-        CONFIG_APPEND(p, ",assert=(write_timestamp=on),write_timestamp_usage=%s",
-          g.transaction_timestamps_config ? "always" : "never");
 
     /* Configure LSM. */
     if (DATASOURCE(table, "lsm")) {

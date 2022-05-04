@@ -92,7 +92,7 @@ table_mirror_fail_msg(WT_SESSION *session, const char *checkpoint, TABLE *base, 
   WT_ITEM *table_value, uint64_t last_match)
 {
     if (checkpoint != NULL)
-	trace_msg(session, "checkpoint %s\n", checkpoint);
+        trace_msg(session, "checkpoint %s\n", checkpoint);
     trace_msg(session,
       "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s}, %s: {%.*s}/{%.*s}\n",
       base_keyno, table_keyno, base->uri, base->type == ROW ? (int)base_key->size : 1,
@@ -102,7 +102,7 @@ table_mirror_fail_msg(WT_SESSION *session, const char *checkpoint, TABLE *base, 
       (char *)table_value->data);
     trace_msg(session, "last successful match was %" PRIu64 "\n", last_match);
     if (checkpoint != NULL)
-	fprintf(stderr, "checkpoint %s\n", checkpoint);
+        fprintf(stderr, "checkpoint %s\n", checkpoint);
     fprintf(stderr,
       "mirror: %" PRIu64 "/%" PRIu64 " mismatch: %s: {%.*s}/{%.*s}, %s: {%.*s}/{%.*s}\n",
       base_keyno, table_keyno, base->uri, base->type == ROW ? (int)base_key->size : 1,
