@@ -40,8 +40,7 @@ workload_tracking::workload_tracking(
       _use_compression(use_compression), _tsm(tsm)
 {
     _operation_table_config = "key_format=" + _config->get_string(TRACKING_KEY_FORMAT) +
-      ",value_format=" + _config->get_string(TRACKING_VALUE_FORMAT) +
-      ",log=(enabled=true)";
+      ",value_format=" + _config->get_string(TRACKING_VALUE_FORMAT) + ",log=(enabled=true)";
 }
 
 const std::string &

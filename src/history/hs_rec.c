@@ -556,8 +556,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             __wt_update_vector_peek(&updates, &prev_upd);
 
             /*
-             * Reset the update without a timestamp pointer once all the previous updates are inserted
-             * into the history store.
+             * Reset the update without a timestamp pointer once all the previous updates are
+             * inserted into the history store.
              */
             if (upd == no_ts_upd)
                 no_ts_upd = NULL;
