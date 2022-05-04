@@ -140,8 +140,7 @@ __create_file_block_manager(
  *     Create a new 'file:' object.
  */
 static int
-__create_file(
-  WT_SESSION_IMPL *session, const char *uri, bool exclusive, bool import, const char *config)
+__create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_ITEM(buf);
@@ -151,9 +150,10 @@ __create_file(
       *filecfg[] = {WT_CONFIG_BASE(session, file_meta), config, NULL, NULL, NULL, NULL};
     char *fileconf, *filemeta;
     uint32_t allocsize;
-    bool against_stable, exists, import_repair, is_metadata;
+    bool against_stable, exists, import, import_repair, is_metadata;
 
     fileconf = filemeta = NULL;
+    import = F_ISSET(session, WT_SESSION_IMPORT);
 
     import_repair = false;
     is_metadata = strcmp(uri, WT_METAFILE_URI) == 0;
@@ -201,8 +201,13 @@ __create_file(
          * Create the file for tiered storage. It is required because we switched to a new file
          * during the import process.
          */
-        if (session->import_list != NULL && WT_SUFFIX_MATCH(filename, ".wtobj"))
-            WT_ERR(__create_file_block_manager(session, uri, filename, allocsize));
+        if (WT_SUFFIX_MATCH(filename, ".wtobj")) {
+            if (session->import_list != NULL)
+                WT_ERR(__create_file_block_manager(session, uri, filename, allocsize));
+            else
+                WT_ERR_MSG(session, ENOTSUP,
+                  "%s: import without metadata_file not supported on tiered files", uri);
+        }
 
         /* First verify that the data to import exists on disk. */
         WT_IGNORE_RET(__wt_fs_exist(session, filename, &exists));
@@ -802,8 +807,7 @@ err:
  *     Create a table.
  */
 static int
-__create_table(
-  WT_SESSION_IMPL *session, const char *uri, bool exclusive, bool import, const char *config)
+__create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
 {
     WT_CONFIG conf;
     WT_CONFIG_ITEM cgkey, cgval, ckey, cval;
@@ -814,8 +818,9 @@ __create_table(
     char *cgcfg, *cgname, *filecfg, *filename, *importcfg, *tablecfg;
     const char *cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
     const char *meta_import, *tablename;
-    bool import_repair;
+    bool import, import_repair;
 
+    import = F_ISSET(session, WT_SESSION_IMPORT);
     import_repair = false;
 
     cgcfg = filecfg = importcfg = tablecfg = NULL;
@@ -933,10 +938,9 @@ __create_object(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
  */
 int
 __wt_tiered_tree_create(
-  WT_SESSION_IMPL *session, const char *uri, bool exclusive, bool import, const char *config)
+  WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
 {
     WT_UNUSED(exclusive);
-    WT_UNUSED(import);
     WT_RET(__wt_metadata_insert(session, uri, config));
     return (0);
 }
@@ -1240,7 +1244,7 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     if (WT_PREFIX_MATCH(uri, "colgroup:"))
         ret = __create_colgroup(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "file:"))
-        ret = __create_file(session, uri, exclusive, import, config);
+        ret = __create_file(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "lsm:"))
         ret = __wt_lsm_tree_create(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "index:"))
@@ -1248,9 +1252,9 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     else if (WT_PREFIX_MATCH(uri, "object:"))
         ret = __create_object(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "table:"))
-        ret = __create_table(session, uri, exclusive, import, config);
+        ret = __create_table(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "tier:"))
-        ret = __wt_tiered_tree_create(session, uri, exclusive, import, config);
+        ret = __wt_tiered_tree_create(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "tiered:"))
         ret = __create_tiered(session, uri, exclusive, config);
     else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
