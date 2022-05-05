@@ -95,9 +95,33 @@ class cache_resize : public test_harness::test {
     }
 
     void
-    insert_operation(test_harness::thread_context *) override final
+    insert_operation(test_harness::thread_context *tc) override final
     {
-        std::cout << "insert_operation: nothing done." << std::endl;
+        uint64_t coll_id = 0;
+        collection &coll = tc->db.get_collection(coll_id);
+        scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+
+        while (tc->running()) {
+
+            tc->transaction.try_begin();
+
+            /* Insert a random value. */
+            const std::string value =
+              random_generator::instance().generate_pseudo_random_string(tc->value_size);
+            bool ret = tc->insert(cursor, coll.id, value);
+
+            if (!ret) {
+                tc->transaction.rollback();
+            } else if (tc->transaction.can_commit()) {
+                testutil_assert(tc->transaction.commit());
+            }
+
+            tc->sleep();
+        }
+
+        /* Make sure the last transaction is rolled back now the work is finished. */
+        if (tc->transaction.active())
+            tc->transaction.rollback();
     }
 
     void

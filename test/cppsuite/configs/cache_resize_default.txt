@@ -8,6 +8,10 @@ workload_generator=
     (
         thread_count=1
     ),
+    insert_config=
+    (
+        thread_count=1,
+    ),
     populate_config=
     (
         # Only one empty collection is required.
