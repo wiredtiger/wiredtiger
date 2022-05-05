@@ -278,7 +278,8 @@ __rec_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ROW *rip, uint
         WT_ERR(__wt_vpack_uint(&p, 0, recno));
         hs_recno_key.data = hs_recno_key_buf;
         hs_recno_key.size = WT_PTRDIFF(p, hs_recno_key_buf);
-        r->hs_cursor->set_key(r->hs_cursor, 4, S2BT(session)->id, &hs_recno_key, WT_TS_MAX, UINT64_MAX);
+        r->hs_cursor->set_key(
+          r->hs_cursor, 4, S2BT(session)->id, &hs_recno_key, WT_TS_MAX, UINT64_MAX);
     }
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, r->hs_cursor), true);
     /* It's possible the value in the history store is already obsolete. */
@@ -289,11 +290,10 @@ __rec_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ROW *rip, uint
 
 #ifdef HAVE_DIAGNOSTIC
     __wt_hs_upd_time_window(r->hs_cursor, &hs_tw);
-    WT_ASSERT(
-      session, hs_tw->start_txn == WT_TXN_NONE || hs_tw->start_txn == onpage_upd->txnid);
+    WT_ASSERT(session, hs_tw->start_txn == WT_TXN_NONE || hs_tw->start_txn == onpage_upd->txnid);
     WT_ASSERT(session, hs_tw->start_ts == WT_TS_NONE || hs_tw->start_ts == onpage_upd->start_ts);
-    WT_ASSERT(
-      session, hs_tw->durable_start_ts == WT_TS_NONE || hs_tw->durable_start_ts == onpage_upd->durable_ts);
+    WT_ASSERT(session,
+      hs_tw->durable_start_ts == WT_TS_NONE || hs_tw->durable_start_ts == onpage_upd->durable_ts);
     WT_ASSERT(session, hs_tw->stop_txn == WT_TXN_NONE || hs_tw->stop_txn == tombstone->txnid);
     WT_ASSERT(session, hs_tw->stop_ts == WT_TS_NONE || hs_tw->stop_ts == tombstone->start_ts);
     WT_ASSERT(session,
