@@ -45,7 +45,7 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
         create_params = 'value_format=S,key_format=i'
         self.session.create(uri, create_params)
         cursor = self.session.open_cursor(uri)
-        # LSM format is not support with range cursors.
+        # LSM format is not supported with range cursors.
         if self.uri == 'lsm:':
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower"),
                 '/Unsupported cursor operation/')
