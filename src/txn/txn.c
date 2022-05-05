@@ -1016,10 +1016,27 @@ __txn_fixup_prepared_update(
                     WT_STAT_CONN_INCR(
                       session, txn_prepare_rollback_fix_hs_update_with_ckpt_reserved_txnid);
                 }
-            } else
+
+                /* Clear the WT_UPDATE_HS flag as we should have removed it from the history store.
+                 */
+                F_CLR(fix_upd, WT_UPDATE_HS);
+            } else {
+                /* Set the flag to delete the value from the history store later. */
+                F_SET(fix_upd, WT_UPDATE_TO_DELETE_FROM_HS);
+                /* We must find a full update following the tombstone. */
+                for (fix_upd = fix_upd->next; fix_upd != NULL; fix_upd = fix_upd->next)
+                    if (fix_upd->txnid != WT_TXN_ABORTED)
+                        break;
+                WT_ASSERT(session,
+                  fix_upd != NULL && F_ISSET(fix_upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_HS));
+                F_SET(fix_upd, WT_UPDATE_TO_DELETE_FROM_HS);
                 WT_STAT_CONN_INCR(session, txn_prepare_rollback_do_not_remove_hs_update);
-        } else
+            }
+        } else {
             WT_ERR(hs_cursor->remove(hs_cursor));
+            /* Clear the WT_UPDATE_HS flag as we should have removed it from the history store. */
+            F_CLR(fix_upd, WT_UPDATE_HS);
+        }
     }
 
 err:
@@ -1369,12 +1386,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * prepared updates are written to the data store. When the page is read back into memory, there
      * will be only one uncommitted prepared update.
      */
-    if (fix_upd != NULL) {
+    if (fix_upd != NULL)
         WT_ERR(__txn_fixup_prepared_update(session, hs_cursor, fix_upd, commit));
-        /* Clear the WT_UPDATE_HS flag as we should have removed it from the history store. */
-        if (first_committed_upd_in_hs && !commit)
-            F_CLR(first_committed_upd, WT_UPDATE_HS);
-    }
 
 prepare_verify:
 #ifdef HAVE_DIAGNOSTIC

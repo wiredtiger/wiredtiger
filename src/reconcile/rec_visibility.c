@@ -247,6 +247,71 @@ __timestamp_mm_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
     return (false);
 }
 
+/* __rec_delete_hs_upd
+ *     Delete the value left in the history store
+ */
+static int
+__rec_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ROW *rip, uint64_t recno,
+  WT_UPDATE *onpage_upd, WT_UPDATE *tombstone)
+{
+    WT_DECL_ITEM(key);
+    WT_DECL_RET;
+    WT_ITEM hs_recno_key;
+    uint8_t *p, hs_recno_key_buf[WT_INTPACK64_MAXSIZE];
+    bool hs_read_committed_set;
+
+#ifdef HAVE_DIAGNOSTIC
+    WT_TIME_WINDOW *hs_tw;
+#endif
+
+    /* Open a history store cursor if we don't yet have one. */
+    if (r->hs_cursor == NULL)
+        WT_RET(__wt_curhs_open(session, NULL, &r->hs_cursor));
+    hs_read_committed_set = F_ISSET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    F_SET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    if (r->page->type == WT_PAGE_ROW_LEAF) {
+        WT_ERR(__wt_scr_alloc(session, 0, &key));
+        WT_ERR(__wt_row_leaf_key(session, r->page, rip, key, true));
+        r->hs_cursor->set_key(r->hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
+    } else {
+        p = hs_recno_key_buf;
+        WT_ERR(__wt_vpack_uint(&p, 0, recno));
+        hs_recno_key.data = hs_recno_key_buf;
+        hs_recno_key.size = WT_PTRDIFF(p, hs_recno_key_buf);
+        r->hs_cursor->set_key(r->hs_cursor, 4, S2BT(session)->id, &hs_recno_key, WT_TS_MAX, UINT64_MAX);
+    }
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, r->hs_cursor), true);
+    /* It's possible the value in the history store is already obsolete. */
+    if (ret == WT_NOTFOUND) {
+        ret = 0;
+        goto done;
+    }
+
+#ifdef HAVE_DIAGNOSTIC
+    __wt_hs_upd_time_window(r->hs_cursor, &hs_tw);
+    WT_ASSERT(
+      session, hs_tw->start_txn == WT_TXN_NONE || hs_tw->start_txn == onpage_upd->txnid);
+    WT_ASSERT(session, hs_tw->start_ts == WT_TS_NONE || hs_tw->start_ts == onpage_upd->start_ts);
+    WT_ASSERT(
+      session, hs_tw->durable_start_ts == WT_TS_NONE || hs_tw->durable_start_ts == onpage_upd->durable_ts);
+    WT_ASSERT(session, hs_tw->stop_txn == WT_TXN_NONE || hs_tw->stop_txn == tombstone->txnid);
+    WT_ASSERT(session, hs_tw->stop_ts == WT_TS_NONE || hs_tw->stop_ts == tombstone->start_ts);
+    WT_ASSERT(session,
+      hs_tw->durable_stop_ts == WT_TS_NONE || hs_tw->durable_stop_ts == tombstone->durable_ts);
+#endif
+
+    WT_ERR(r->hs_cursor->remove(r->hs_cursor));
+done:
+    F_CLR(onpage_upd, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
+    F_CLR(tombstone, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
+
+err:
+    __wt_scr_free(session, &key);
+    if (!hs_read_committed_set)
+        F_CLR(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    return (ret);
+}
+
 /*
  * __rec_validate_upd_chain --
  *     Check the update chain for conditions that would prevent its insertion into the history
@@ -279,6 +344,13 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      */
     if (!F_ISSET(r, WT_REC_CHECKPOINT_RUNNING))
         return (0);
+
+    /*
+     * Cannot write an update also in the history store to the data store when checkpoint is running
+     * because we cannot delete the history store value.
+     */
+    if (F_ISSET(select_upd, WT_UPDATE_TO_DELETE_FROM_HS))
+        return (EBUSY);
 
     /*
      * The selected time window may contain information that isn't visible given the selected
@@ -374,8 +446,8 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
  *     Return the update in a list that should be written (or NULL if none can be written).
  */
 int
-__wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
-  WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
+__wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint64_t recno, WT_INSERT *ins,
+  WT_ROW *rip, WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
 {
     WT_PAGE *page;
     WT_TIME_WINDOW *select_tw;
@@ -689,6 +761,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
 
     /* Check the update chain for conditions that could prevent it's eviction. */
     WT_RET(__rec_validate_upd_chain(session, r, onpage_upd, select_tw, vpack));
+
+    /* Delete the value in the history store before we write it to the data store. */
+    if (onpage_upd != NULL && F_ISSET(onpage_upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
+        WT_ASSERT(session, F_ISSET(tombstone, WT_UPDATE_TO_DELETE_FROM_HS));
+        WT_RET(__rec_delete_hs_upd(session, r, rip, recno, onpage_upd, tombstone));
+    }
 
     /*
      * Set the flag if the selected tombstone is a mixed mode to an update. Based on this flag, the
