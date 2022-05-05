@@ -719,7 +719,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 static int
 __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *page,
   WT_UPDATE *chain, bool commit, WT_UPDATE **fix_updp, bool *upd_appended,
-  bool first_committed_upd_in_hs)
+  WT_UPDATE *first_committed_upd, bool first_committed_upd_in_hs)
 {
     WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
@@ -752,12 +752,15 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
     if (hs_stop_durable_ts != WT_TS_MAX && commit)
         goto done;
 
-    __wt_hs_upd_time_window(hs_cursor, &hs_tw);
-    WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, &size));
-    upd->txnid = hs_tw->start_txn;
-    upd->durable_ts = hs_tw->durable_start_ts;
-    upd->start_ts = hs_tw->start_ts;
-    *fix_updp = upd;
+    if (!first_committed_upd_in_hs) {
+        __wt_hs_upd_time_window(hs_cursor, &hs_tw);
+        WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, &size));
+        upd->txnid = hs_tw->start_txn;
+        upd->durable_ts = hs_tw->durable_start_ts;
+        upd->start_ts = hs_tw->start_ts;
+        *fix_updp = upd;
+    } else
+        *fix_updp = first_committed_upd;
 
     /*
      * When the prepared update is getting committed or the history store update is still on the
@@ -770,7 +773,7 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
      * Set the flag to indicate that this update has been restored from history store for the
      * rollback of a prepared transaction.
      */
-    F_SET(upd, WT_UPDATE_RESTORED_FROM_HS);
+    F_SET(upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS);
     total_size += size;
 
     __wt_verbose(session, WT_VERB_TRANSACTION,
@@ -790,7 +793,7 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
          * Set the flag to indicate that this update has been restored from history store for the
          * rollback of a prepared transaction.
          */
-        F_SET(tombstone, WT_UPDATE_RESTORED_FROM_HS);
+        F_SET(tombstone, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS);
         total_size += size;
 
         __wt_verbose(session, WT_VERB_TRANSACTION,
@@ -927,7 +930,6 @@ __txn_fixup_prepared_update(
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     uint32_t txn_flags;
-    uint8_t flags;
 #ifdef HAVE_DIAGNOSTIC
     uint64_t hs_upd_type;
     wt_timestamp_t hs_durable_ts, hs_stop_durable_ts;
@@ -1018,46 +1020,14 @@ __txn_fixup_prepared_update(
                       session, txn_prepare_rollback_fix_hs_update_with_ckpt_reserved_txnid);
                 }
 
-                /* Clear the history store flag. */
-                F_CLR(fix_upd, WT_UPDATE_HS);
-            } else {
-                flags = fix_upd->flags;
-                /* Set the flag to delete the value from the history store later. */
-                LF_SET(WT_UPDATE_TO_DELETE_FROM_HS);
-                /* Clear the history store flag and mark it to be deleted from the history store. */
-                LF_CLR(WT_UPDATE_HS);
-                /*
-                 * We need to set and clear the flags atomically otherwise the compiler may reorder
-                 * the code to first clear the history store flag. That may cause the checkpoint to
-                 * write that value again to the history store if we are interrupted between.
-                 */
-                fix_upd->flags = flags;
-                /* We may not find a full update following the tombstone if it is obsolete. */
-                for (fix_upd = fix_upd->next; fix_upd != NULL; fix_upd = fix_upd->next)
-                    if (fix_upd->txnid != WT_TXN_ABORTED)
-                        break;
-                if (fix_upd != NULL) {
-                    WT_ASSERT(session, F_ISSET(fix_upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_HS));
-                    flags = fix_upd->flags;
-                    /* Set the flag to delete the value from the history store later. */
-                    LF_SET(WT_UPDATE_TO_DELETE_FROM_HS);
-                    /* Clear the history store flag and mark it to be deleted from the history
-                     * store. */
-                    LF_CLR(WT_UPDATE_HS);
-                    /*
-                     * We need to set and clear the flags atomically otherwise the compiler may
-                     * reorder the code to first clear the history store flag. That may cause the
-                     * checkpoint to write that value again to the history store if we are
-                     * interrupted between.
-                     */
-                    fix_upd->flags = flags;
-                }
+                /* The update can be inserted to the history store again. */
+                F_CLR(fix_upd, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
+            } else
                 WT_STAT_CONN_INCR(session, txn_prepare_rollback_do_not_remove_hs_update);
-            }
         } else {
             WT_ERR(hs_cursor->remove(hs_cursor));
-            /* Clear the history store flag. */
-            F_CLR(fix_upd, WT_UPDATE_HS);
+            /* The update can be inserted to the history store again. */
+            F_CLR(fix_upd, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
             if (fix_upd->type == WT_UPDATE_TOMBSTONE) {
                 /* We may not find a full update following the tombstone if it is obsolete. */
                 for (fix_upd = fix_upd->next; fix_upd != NULL; fix_upd = fix_upd->next)
@@ -1065,8 +1035,8 @@ __txn_fixup_prepared_update(
                         break;
                 if (fix_upd != NULL) {
                     WT_ASSERT(session, F_ISSET(fix_upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_HS));
-                    /* Clear the history store flag. */
-                    F_CLR(fix_upd, WT_UPDATE_HS);
+                    /* The update can be inserted to the history store again. */
+                    F_CLR(fix_upd, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
                 }
             }
         }
@@ -1337,6 +1307,23 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
           upd->txnid == upd->next->txnid && upd->start_ts == upd->next->start_ts));
     first_committed_upd_in_hs =
       first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS);
+
+    /* Set the flag to delete the value in history store. */
+    if (first_committed_upd_in_hs && !commit) {
+        if (first_committed_upd->type == WT_UPDATE_TOMBSTONE) {
+            /* We may not find a full update following the tombstone if it is obsolete. */
+            for (upd = upd->next; upd != NULL; upd = upd->next)
+                if (upd->txnid != WT_TXN_ABORTED)
+                    break;
+            if (upd != NULL) {
+                WT_ASSERT(session, F_ISSET(upd, WT_UPDATE_HS));
+                F_SET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS);
+                F_SET(upd, WT_UPDATE_TO_DELETE_FROM_HS);
+            }
+        } else
+            F_SET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS);
+    }
+
     if (prepare_on_disk || first_committed_upd_in_hs) {
         btree = S2BT(session);
 
@@ -1367,8 +1354,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
              */
             WT_ERR(__txn_append_tombstone(session, op, cbt));
         } else if (ret == 0)
-            WT_ERR(__txn_locate_hs_record(
-              session, hs_cursor, page, upd, commit, &fix_upd, &upd_appended, first_committed_upd));
+            WT_ERR(__txn_locate_hs_record(session, hs_cursor, page, upd, commit, &fix_upd,
+              &upd_appended, first_committed_upd, first_committed_upd_in_hs));
         else
             ret = 0;
     } else if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !commit && first_committed_upd == NULL) {
