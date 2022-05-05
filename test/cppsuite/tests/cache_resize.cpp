@@ -53,8 +53,9 @@ class tracking_table_cache_resize : public test_harness::workload_tracking {
 };
 
 /*
- * This test modifies the cache size periodically. The transactions that are executed by the insert
- * threads can only be successful when the cache size if large enough.
+ * This test continuously writes 2MB transactions into the database, while switching the
+ * connection cache size between 1MB and 500MB. When transactions are larger than the cache size
+ * they are rejected, so only transactions made when cache size if 500MB will be allowed.
  */
 class cache_resize : public test_harness::test {
     public:
@@ -106,6 +107,11 @@ class cache_resize : public test_harness::test {
             if (!ret) {
                 tc->transaction.rollback();
             } else if (tc->transaction.can_commit()) {
+                /*
+                 * The transaction can fit in the current cache size and is ready to be committed.
+                 * This means the tracking table will contain a new record to represent this
+                 * transaction which will be used during the validation stage.
+                 */
                 testutil_assert(tc->transaction.commit());
             }
 
