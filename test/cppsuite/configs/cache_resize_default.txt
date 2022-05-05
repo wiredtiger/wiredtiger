@@ -1,16 +1,21 @@
 # Configuration for cache_resize.
 # need to be defined.
-duration_seconds=5,
+duration_seconds=20,
 cache_size_mb=1,
 workload_generator=
 (
     custom_config=
     (
+        op_rate=5s,
         thread_count=1
     ),
     insert_config=
     (
+        key_size=10000,
+        op_rate=1s,
+        ops_per_transaction=(min=2,max=2),
         thread_count=1,
+        value_size=1000000
     ),
     populate_config=
     (
