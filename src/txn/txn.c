@@ -732,6 +732,7 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
 
     WT_ASSERT(session, chain != NULL);
 
+    hs_tw = NULL;
     *fix_updp = NULL;
     *upd_appended = false;
     size = total_size = 0;
