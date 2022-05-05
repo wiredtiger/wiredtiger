@@ -8,4 +8,9 @@ workload_generator=
     (
         thread_count=1
     ),
+),
+workload_tracking=
+(
+    tracking_key_format=QSQ,
+    tracking_value_format=QQ
 )
