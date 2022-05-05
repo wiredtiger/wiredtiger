@@ -1026,9 +1026,11 @@ __txn_fixup_prepared_update(
                 LF_SET(WT_UPDATE_TO_DELETE_FROM_HS);
                 /* Clear the history store flag and mark it to be deleted from the history store. */
                 LF_CLR(WT_UPDATE_HS);
-                /* We need to flip the flags atomically otherwise the compiler may reorder the code
-                 * to first clear the history store flag. That may cause the checkpoint to write
-                 * that value again to the history store if we are interrupted between. */
+                /*
+                 * We need to set and clear the flags atomically otherwise the compiler may reorder
+                 * the code to first clear the history store flag. That may cause the checkpoint to
+                 * write that value again to the history store if we are interrupted between.
+                 */
                 fix_upd->flags = flags;
                 /* We may not find a full update following the tombstone if it is obsolete. */
                 for (fix_upd = fix_upd->next; fix_upd != NULL; fix_upd = fix_upd->next)
@@ -1042,9 +1044,12 @@ __txn_fixup_prepared_update(
                     /* Clear the history store flag and mark it to be deleted from the history
                      * store. */
                     LF_CLR(WT_UPDATE_HS);
-                    /* We need to flip the flags atomically otherwise the compiler may reorder the
-                     * code to first clear the history store flag. That may cause the checkpoint to
-                     * write that value again to the history store if we are interrupted between. */
+                    /*
+                     * We need to set and clear the flags atomically otherwise the compiler may
+                     * reorder the code to first clear the history store flag. That may cause the
+                     * checkpoint to write that value again to the history store if we are
+                     * interrupted between.
+                     */
                     fix_upd->flags = flags;
                 }
                 WT_STAT_CONN_INCR(session, txn_prepare_rollback_do_not_remove_hs_update);

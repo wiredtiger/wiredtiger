@@ -247,7 +247,8 @@ __timestamp_mm_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
     return (false);
 }
 
-/* __rec_delete_hs_upd
+/*
+ * __rec_delete_hs_upd --
  *     Delete the value left in the history store
  */
 static int
