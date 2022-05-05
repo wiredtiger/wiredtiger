@@ -1510,7 +1510,7 @@ extern int __wt_tiered_set_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered,
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_storage_create(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
+extern int __wt_tiered_storage_destroy(WT_SESSION_IMPL *session, bool final_flush)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_switch(WT_SESSION_IMPL *session, const char *config)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

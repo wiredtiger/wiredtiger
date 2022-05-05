@@ -659,7 +659,7 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session)
     if (0) {
 err:
         FLD_CLR(conn->server_flags, WT_CONN_SERVER_TIERED);
-        WT_TRET(__wt_tiered_storage_destroy(session));
+        WT_TRET(__wt_tiered_storage_destroy(session, false));
     }
     return (ret);
 }
@@ -669,7 +669,7 @@ err:
  *     Destroy the tiered storage server thread.
  */
 int
-__wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
+__wt_tiered_storage_destroy(WT_SESSION_IMPL *session, bool final_flush)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -683,7 +683,7 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
      */
     if (conn->flush_cond != NULL)
         __wt_cond_signal(session, conn->flush_cond);
-    if (F_ISSET(conn, WT_CONN_FINAL_FLUSH) && conn->tiered_cond != NULL) {
+    if (final_flush && conn->tiered_cond != NULL) {
         __wt_cond_signal(session, conn->tiered_cond);
         __wt_tiered_flush_work_wait(session, 30);
     }

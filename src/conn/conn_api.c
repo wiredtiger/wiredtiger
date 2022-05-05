@@ -1167,20 +1167,18 @@ err:
 
     /* Perform a final checkpoint and shut down the global transaction state. */
     WT_TRET(__wt_txn_global_shutdown(session, cfg));
+
     /*
-     * Tiered storage needs to flush any work after the final checkpoint which happens when the
-     * global transaction state is shut down. So this shutdown must come after.
+     * See if close should wait for tiered storage to finish any flushing after the final
+     * checkpoint.
      */
-    WT_TRET(__wt_tiered_storage_destroy(session));
+    WT_TRET(__wt_config_gets(session, cfg, "final_flush", &cval));
+    WT_TRET(__wt_tiered_storage_destroy(session, cval.val));
 
     if (ret != 0) {
         __wt_err(session, ret, "failure during close, disabling further writes");
         F_SET(conn, WT_CONN_PANIC);
     }
-
-    WT_TRET(__wt_config_gets(session, cfg, "final_flush", &cval));
-    if (cval.val != 0)
-        F_SET(conn, WT_CONN_FINAL_FLUSH);
 
     /*
      * Now that the final checkpoint is complete, the shutdown process should not allocate a
