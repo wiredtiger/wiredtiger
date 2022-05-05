@@ -918,8 +918,8 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
  *     status.
  */
 static int
-__txn_fixup_prepared_update(
-  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_UPDATE *fix_upd, bool commit)
+__txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_UPDATE *fix_upd,
+  bool commit, bool first_committed_upd_in_hs)
 {
     WT_DECL_RET;
     WT_ITEM hs_value;
@@ -984,7 +984,7 @@ __txn_fixup_prepared_update(
          * Remove the history store entry if a checkpoint is not running, otherwise place a
          * tombstone in front of the history store entry if it doesn't have a stop timestamp.
          */
-        if (txn_global->checkpoint_running) {
+        if (txn_global->checkpoint_running || !first_committed_upd_in_hs) {
             /* Don't update the history store entry if the entry already has a stop timestamp. */
             if (fix_upd->type != WT_UPDATE_TOMBSTONE) {
                 /*
@@ -1016,35 +1016,39 @@ __txn_fixup_prepared_update(
                     WT_STAT_CONN_INCR(
                       session, txn_prepare_rollback_fix_hs_update_with_ckpt_reserved_txnid);
                 }
-
-                /* 
-                 * Clear the WT_UPDATE_HS flag as we should have removed it from the history store.
-                 */
-                F_CLR(fix_upd, WT_UPDATE_HS);
             } else {
                 /* Set the flag to delete the value from the history store later. */
                 F_SET(fix_upd, WT_UPDATE_TO_DELETE_FROM_HS);
-                /* We must find a full update following the tombstone. */
+                /* We may not find a full update following the tombstone if the tombstone is
+                 * obsolete. */
                 for (fix_upd = fix_upd->next; fix_upd != NULL; fix_upd = fix_upd->next)
                     if (fix_upd->txnid != WT_TXN_ABORTED)
                         break;
-                WT_ASSERT(session,
-                  fix_upd != NULL && F_ISSET(fix_upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_HS));
-                F_SET(fix_upd, WT_UPDATE_TO_DELETE_FROM_HS);
+                if (fix_upd != NULL) {
+                    WT_ASSERT(session, F_ISSET(fix_upd, WT_UPDATE_RESTORED_FROM_HS));
+                    F_SET(fix_upd, WT_UPDATE_TO_DELETE_FROM_HS);
+                }
+
                 WT_STAT_CONN_INCR(session, txn_prepare_rollback_do_not_remove_hs_update);
             }
         } else {
             WT_ERR(hs_cursor->remove(hs_cursor));
-            /* Clear the WT_UPDATE_HS flag as we should have removed it from the history store. */
-            F_CLR(fix_upd, WT_UPDATE_HS);
-            if (fix_upd->type == WT_UPDATE_TOMBSTONE) {
-                /* We must find a full update following the tombstone. */
-                for (fix_upd = fix_upd->next; fix_upd != NULL; fix_upd = fix_upd->next)
-                    if (fix_upd->txnid != WT_TXN_ABORTED)
-                        break;
-                WT_ASSERT(session,
-                  fix_upd != NULL && F_ISSET(fix_upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_HS));
+            if (first_committed_upd_in_hs) {
+                /*
+                 * Clear the WT_UPDATE_HS flag as we should have removed it from the history store.
+                 */
                 F_CLR(fix_upd, WT_UPDATE_HS);
+                if (fix_upd->type == WT_UPDATE_TOMBSTONE) {
+                    /* We may not find a full update following the tombstone if the tombstone is
+                     * obsolete. */
+                    for (fix_upd = fix_upd->next; fix_upd != NULL; fix_upd = fix_upd->next)
+                        if (fix_upd->txnid != WT_TXN_ABORTED)
+                            break;
+                    if (fix_upd != NULL) {
+                        WT_ASSERT(session, F_ISSET(fix_upd, WT_UPDATE_HS));
+                        F_CLR(fix_upd, WT_UPDATE_HS);
+                    }
+                }
             }
         }
     }
@@ -1397,7 +1401,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * will be only one uncommitted prepared update.
      */
     if (fix_upd != NULL)
-        WT_ERR(__txn_fixup_prepared_update(session, hs_cursor, fix_upd, commit));
+        WT_ERR(__txn_fixup_prepared_update(session, hs_cursor, fix_upd, commit, first_committed_upd_in_hs));
 
 prepare_verify:
 #ifdef HAVE_DIAGNOSTIC
