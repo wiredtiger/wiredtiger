@@ -1317,17 +1317,19 @@ wiredtiger_open = wiredtiger_open_common + [
 
 cursor_bound_config = [
     Config('action', 'set', r'''
-        configures whether this call into the api will set or clear range bound on the given cursor,
+        configures whether this call into the api will set or clear range bounds on the given cursor,
         it takes two values "set" or "clear". If "set" is specified then "bound" must also be
         specified. If "clear" is specified without any bounds then both will be cleared. The keys
-        relevant to the given bound must have been set prior to the call using
-        WT_CURSOR::set_key''',
+        relevant to the given bound must have been set prior to the call using WT_CURSOR::set_key.
+        This configuration is currently a work in progress and should not be used.''',
         choices=['clear','set']),
     Config('inclusive', 'true', r'''
-        configures whether the given bound is inclusive or not.''',
+        configures whether the given bound is inclusive or not. This configuration is currently a
+        work in progress and should not be used.''',
         type='boolean'),
     Config('bound', '', r'''
-        configures which bound is being operated on, it takes two values "lower" and "upper".''',
+        configures which bound is being operated on, it takes two values "lower" and "upper".
+        This configuration is currently a work in progress and should not be used.''',
         choices=['lower','upper']),
 ]
 
