@@ -157,7 +157,7 @@ main(int argc, char *argv[])
 {
     std::string cfg, config_filename, current_cfg, current_test_name, test_name, wt_open_config;
     int64_t error_code = 0;
-    const std::vector<std::string> all_tests = {"cache_resize", "burst_inserts", "hs_cleanup",
+    const std::vector<std::string> all_tests = {"burst_inserts", "cache_resize", "hs_cleanup",
       "operations_test", "search_near_01", "search_near_02", "search_near_03", "test_template"};
 
     /* Set the program name for error messages. */
