@@ -1,4 +1,47 @@
-# Configuration for cursor_bound_01.
-# need to be defined.
-duration_seconds=5,
-cache_size_mb=250
+# Configuration for cursor_bound_01 default test.
+# The configuration creates:
+# - threads that continuously insert random keys and values.
+# - threads that continuously perform prefix search_near calls on random keys.
+duration_seconds=60,
+cache_size_mb=500,
+timestamp_manager=
+(
+    # This will let us randomly pick a read timestamp in a bigger range to trigger visibility
+    # checks.
+    oldest_lag=50,
+),
+workload_generator=
+(
+    populate_config=
+    (
+        collection_count=10,
+        thread_count=10,
+    ),
+    insert_config=
+    (
+        key_size=10,
+        op_rate=10ms,
+        thread_count=5,
+        value_size=20
+    ),
+    read_config=
+    (
+        op_rate=3ms,
+        thread_count=10
+    ),
+    remove_config=
+    (
+        op_rate=500ms,
+        thread_count=1
+    ),
+    update_config=
+    (
+        op_rate=15ms,
+        thread_count=10,
+        value_size=20
+    ),
+    custom_config=
+    (
+        thread_count=1
+    )
+),

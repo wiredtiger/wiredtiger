@@ -41,28 +41,82 @@ using namespace test_harness;
  * call with bounds set is verified against the default search_near.
  *  - O threads will continously remove random keys
  *  - P threads will continously update random keys
- *  - Q threads will utilise the custom operation and will execute next() or prev() calls with bounds set using random bounds. Each next() 
- * or prev() with bounds set is verified against the default cursor next() and prev() calls. 
+ *  - Q threads will utilise the custom operation and will execute next() or prev() calls with
+ * bounds set using random bounds. Each next() or prev() with bounds set is verified against the
+ * default cursor next() and prev() calls.
  */
 
 namespace test_harness {
 
 class cursor_bound_01 : public test_harness::test {
     const uint64_t MAX_ROLLBACKS = 100;
-    /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
-    struct collection_cursor {
-        collection &coll;
-        scoped_cursor cursor;
-
-        collection_cursor(collection &coll, scoped_cursor &&cursor)
-            : coll(coll), cursor(std::move(cursor))
-        {
-        }
-    };
 
     public:
     cursor_bound_01(const test_harness::test_args &args) : test(args) {}
-    
+
+    /*
+     * This function acts as a helper function for both the remove and update operation. The run_operation function
+     * runs in a loop, performing:
+     *  1. Generate random key of set key size
+     *  2. Perform search near, to get a valid key from collection
+     *  3. Grab the nearest key's record
+     *  4. Perform either remove or update on the key.
+     */
+    void
+    run_operation(test_harness::thread_context *tc, bool (test_harness::thread_context::*op_func)(scoped_cursor &, uint64_t, const std::string &))
+    {
+        std::string random_key;
+        uint32_t rollback_retries = 0;
+
+        while (tc->running()) {
+
+            collection &coll = tc->db.get_random_collection();
+            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+            tc->transaction.begin();
+
+            while (tc->transaction.active() && tc->running()) {
+
+                /* Generate a random key. */
+                random_key = random_generator::instance().generate_random_string(tc->key_size);
+
+                /* Call search near to position cursor. */
+                int exact;
+                cursor->set_key(cursor.get(), random_key);
+                int ret = cursor->search_near(cursor.get(), &exact);
+                if (ret == WT_NOTFOUND)
+                    continue;
+
+                /* Retrieve the key the cursor is pointing at. */
+                const char *key;
+                testutil_check(cursor->get_key(cursor.get(), &key));
+
+                /* Perform the operation on the key. */
+                if ((tc->*op_func)(cursor, coll.id, key)) {
+                    if (tc->transaction.can_commit()) {
+                        /* We are not checking the result of commit as it is not necessary. */
+                        if (tc->transaction.commit())
+                            rollback_retries = 0;
+                        else
+                            ++rollback_retries;
+                    }
+                } else {
+                    tc->transaction.rollback();
+                    ++rollback_retries;
+                }
+                testutil_assert(rollback_retries < MAX_ROLLBACKS);
+
+                /* Sleep the duration defined by the configuration. */
+                tc->sleep();
+            }
+
+            /* Rollback any transaction that could not commit before the end of the test. */
+            if (tc->transaction.active())
+                tc->transaction.rollback();
+
+            /* Reset our cursor to avoid pinning content. */
+            testutil_check(cursor->reset(cursor.get()));
+        }
+    }
 
     void
     populate(test_harness::database &database, test_harness::timestamp_manager *,
@@ -90,27 +144,13 @@ class cursor_bound_01 : public test_harness::test {
         logger::log_msg(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
-        /* Collection cursor vector. */
-        std::vector<collection_cursor> ccv;
-        int64_t collection_count = tc->db.get_collection_count();
-        int64_t collections_per_thread = collection_count / tc->thread_count;
-
-        /* Must have unique collections for each thread. */
-        testutil_assert(collection_count % tc->thread_count == 0);
-        const uint64_t thread_offset = tc->id * collections_per_thread;
-        for (uint64_t i = thread_offset;
-             i < thread_offset + collections_per_thread && tc->running(); ++i) {
-            collection &coll = tc->db.get_collection(i);
-            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
-            ccv.push_back({coll, std::move(cursor)});
-        }
-
         std::string key;
-        uint64_t counter = 0;
         uint32_t rollback_retries = 0;
+
         while (tc->running()) {
 
-            auto &cc = ccv[counter];
+            collection &coll = tc->db.get_random_collection();
+            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
             tc->transaction.begin();
 
             while (tc->transaction.active() && tc->running()) {
@@ -119,7 +159,7 @@ class cursor_bound_01 : public test_harness::test {
                 key = random_generator::instance().generate_random_string(tc->key_size);
 
                 /* Insert a key value pair. */
-                if (tc->insert(cc.cursor, cc.coll.id, key)) {
+                if (tc->insert(cursor, coll.id, key)) {
                     if (tc->transaction.can_commit()) {
                         /* We are not checking the result of commit as it is not necessary. */
                         if (tc->transaction.commit())
@@ -142,67 +182,7 @@ class cursor_bound_01 : public test_harness::test {
                 tc->transaction.rollback();
 
             /* Reset our cursor to avoid pinning content. */
-            testutil_check(cc.cursor->reset(cc.cursor.get()));
-            if (++counter == ccv.size())
-                counter = 0;
-            testutil_assert(counter < collections_per_thread);
-        }
-    }
-
-    void run_operation(test_harness::thread_context *tc, std::vector<collection_cursor> &ccv,  
-        int64_t collections_per_thread, bool (test_harness::thread_context::*op_func)(scoped_cursor &,uint64_t, const std::string &)) {
-        std::string random_key;
-        uint64_t counter = 0;
-        uint32_t rollback_retries = 0;
-        while (tc->running()) {
-
-            auto &cc = ccv[counter];
-            tc->transaction.begin();
-
-            while (tc->transaction.active() && tc->running()) {
-
-                /* Generate a random key. */
-                random_key = random_generator::instance().generate_random_string(tc->key_size);
-
-                /* Call search near to position cursor. */
-                int exact;
-                cc.cursor->set_key(cc.cursor.get(), random_key);
-                int ret = cc.cursor->search_near(cc.cursor.get(), &exact);
-                if (ret == WT_NOTFOUND)
-                    continue;
-
-                /* Retrieve the key the cursor is pointing at. */
-                const char *key;
-                testutil_check(cc.cursor->get_key(cc.cursor.get(), &key));
-
-                /* Perform remove on the key */
-                if ((tc->*op_func)(cc.cursor, cc.coll.id, key)) {
-                    if (tc->transaction.can_commit()) {
-                        /* We are not checking the result of commit as it is not necessary. */
-                        if (tc->transaction.commit())
-                            rollback_retries = 0;
-                        else
-                            ++rollback_retries;
-                    }
-                } else {
-                    tc->transaction.rollback();
-                    ++rollback_retries;
-                }
-                testutil_assert(rollback_retries < MAX_ROLLBACKS);
-
-                /* Sleep the duration defined by the configuration. */
-                tc->sleep();
-            }
-
-            /* Rollback any transaction that could not commit before the end of the test. */
-            if (tc->transaction.active())
-                tc->transaction.rollback();
-
-            /* Reset our cursor to avoid pinning content. */
-            testutil_check(cc.cursor->reset(cc.cursor.get()));
-            if (++counter == ccv.size())
-                counter = 0;
-            testutil_assert(counter < collections_per_thread);
+            testutil_check(cursor->reset(cursor.get()));
         }
     }
 
@@ -213,23 +193,8 @@ class cursor_bound_01 : public test_harness::test {
         logger::log_msg(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
-        /* Collection cursor vector. */
-        std::vector<collection_cursor> ccv;
-        int64_t collection_count = tc->db.get_collection_count();
-        int64_t collections_per_thread = collection_count / tc->thread_count;
-
-        /* Must have unique collections for each thread. */
-        testutil_assert(collection_count % tc->thread_count == 0);
-        const uint64_t thread_offset = tc->id * collections_per_thread;
-        for (uint64_t i = thread_offset;
-             i < thread_offset + collections_per_thread && tc->running(); ++i) {
-            collection &coll = tc->db.get_collection(i);
-            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
-            ccv.push_back({coll, std::move(cursor)});
-        }
-
-        run_operation(tc, ccv, collections_per_thread, &test_harness::thread_context::remove);
-     }
+        run_operation(tc, &test_harness::thread_context::remove);
+    }
 
     void
     update_operation(test_harness::thread_context *tc) override final
@@ -237,38 +202,89 @@ class cursor_bound_01 : public test_harness::test {
         /* Each update operation will update existing keys in the collections. */
         logger::log_msg(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+       
+        run_operation(tc, &test_harness::thread_context::update);
+    }
 
-        /* Collection cursor vector. */
-        std::vector<collection_cursor> ccv;
-        int64_t collection_count = tc->db.get_collection_count();
-        int64_t collections_per_thread = collection_count / tc->thread_count;
+    void
+    read_operation(test_harness::thread_context *tc) override final
+    {
+        /* Each read operation will read and validate existing keys in the collections. */
+        logger::log_msg(
+          LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
-        /* Must have unique collections for each thread. */
-        testutil_assert(collection_count % tc->thread_count == 0);
-        const uint64_t thread_offset = tc->id * collections_per_thread;
-        for (uint64_t i = thread_offset;
-             i < thread_offset + collections_per_thread && tc->running(); ++i) {
-            collection &coll = tc->db.get_collection(i);
-            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
-            ccv.push_back({coll, std::move(cursor)});
+    }
+
+    void
+    custom_operation(test_harness::thread_context *tc) override final
+    {
+        /* Each read operation will update existing keys in the collections. */
+        logger::log_msg(
+          LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+        
+        const char *key_prefix;
+        int exact_prefix, ret;
+        int64_t key_size;
+        std::map<uint64_t, scoped_cursor> cursors;
+        std::string lower_key, upper_key, key_prefix_str;
+
+        while (tc->running()) {
+            /* Get a random collection to work on. */
+            collection &coll = tc->db.get_random_collection();
+
+            /* Find a cached cursor or create one if none exists. */
+            if (cursors.find(coll.id) == cursors.end()) {
+                cursors.emplace(coll.id, std::move(tc->session.open_scoped_cursor(coll.name)));
+                auto &cursor = cursors[coll.id];
+            }
+
+            auto &cursor = cursors[coll.id];
+
+            /*
+             * Pick a random timestamp between the oldest and now. Get rid of the last 32 bits as
+             * they represent an increment for uniqueness.
+             */
+            wt_timestamp_t ts = random_generator::instance().generate_integer(
+              (tc->tsm->get_oldest_ts() >> 32), (tc->tsm->get_next_ts() >> 32));
+            /* Put back the timestamp in the correct format. */
+            ts <<= 32;
+
+            /*
+             * The oldest timestamp might move ahead and the reading timestamp might become invalid.
+             * To tackle this issue, we round the timestamp to the oldest timestamp value.
+             */
+            tc->transaction.begin(
+              "roundup_timestamps=(read=true),read_timestamp=" + tc->tsm->decimal_to_hex(ts));
+
+            while (tc->transaction.active() && tc->running()) {
+                /*
+                 * Generate a random prefix. For this, we start by generating a random size and then
+                 * its value.
+                 */
+                key_size = random_generator::instance().generate_integer(
+                  static_cast<int64_t>(1), tc->key_size);
+                lower_key = random_generator::instance().generate_random_string(
+                  key_size, characters_type::ALPHABET);
+
+                key_size = random_generator::instance().generate_integer(
+                  static_cast<int64_t>(1), tc->key_size);
+                upper_key = random_generator::instance().generate_random_string(
+                  key_size, characters_type::ALPHABET);
+
+                /* Perform validation here. */
+                //cursor->bound(cursor.get(), key.c_str());
+
+                
+                tc->transaction.add_op();
+                tc->transaction.try_rollback();
+                tc->sleep();
+            }
+            testutil_check(cursor->reset(cursor.get()));
         }
-
-        run_operation(tc, ccv, collections_per_thread, &test_harness::thread_context::update);
+        /* Roll back the last transaction if still active now the work is finished. */
+        if (tc->transaction.active())
+            tc->transaction.rollback();
     }
-
-
-    void
-    read_operation(test_harness::thread_context *) override final
-    {
-        std::cout << "read_operation: nothing done." << std::endl;
-    }
-
-    void
-    custom_operation(test_harness::thread_context *) override final
-    {
-        std::cout << "custom_operation: nothing done." << std::endl;
-    }
-
 };
 
 } // namespace test_harness
