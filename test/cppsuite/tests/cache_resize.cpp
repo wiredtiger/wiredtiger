@@ -40,13 +40,13 @@ class tracking_table_cache_resize : public test_harness::workload_tracking {
     }
 
     void
-    set_tracking_cursor(const tracking_operation &operation, const uint64_t &collection_id,
-      const std::string &key, const std::string &value, wt_timestamp_t ts,
-      scoped_cursor &op_track_cursor) override final
+    set_tracking_cursor(scoped_session &tc_session, const tracking_operation &operation,
+      const uint64_t &collection_id, const std::string &key, const std::string &value,
+      wt_timestamp_t ts, scoped_cursor &op_track_cursor) override final
     {
         /* You can replace this call to define your own tracking table contents. */
         workload_tracking::set_tracking_cursor(
-          operation, collection_id, key, value, ts, op_track_cursor);
+          tc_session, operation, collection_id, key, value, ts, op_track_cursor);
     }
 };
 
