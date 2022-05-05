@@ -179,13 +179,17 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     WT_CONFIG_ITEM cval;
     WT_DATA_HANDLE *tier;
     WT_DECL_RET;
+    WT_FILE_SYSTEM *bucket_fs;
     WT_TIERED *tiered;
-    u_int i;
-    const char *filename, *name;
-    bool exist, remove_files;
+    u_int i, obj_count;
+    char **obj_files;
+    const char *filename, *name, *tiered_name;
+    bool exist, remove_files, remove_shared;
 
     WT_RET(__wt_config_gets(session, cfg, "remove_files", &cval));
     remove_files = cval.val != 0;
+    WT_RET(__wt_config_gets(session, cfg, "remove_shared", &cval));
+    remove_shared = cval.val != 0;
 
     name = NULL;
     /* Get the tiered data handle. */
@@ -258,6 +262,23 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
 
     __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove tiered table %s from metadata", uri);
     ret = __wt_metadata_remove(session, uri);
+
+    /*
+     * If a drop operation on tiered storage is configured to force removal of shared objects, we
+     * want to remove these files after the drop operation is successful.
+     */
+    bucket_fs = tiered->bstorage->file_system;
+    if (WT_PREFIX_MATCH(uri, "tiered:") && remove_shared) {
+        tiered_name = tiered->iface.name;
+        WT_PREFIX_SKIP(tiered_name, "tiered:");
+
+        WT_RET(bucket_fs->fs_directory_list(bucket_fs, (WT_SESSION *)session,
+          tiered->bstorage->bucket_prefix, tiered_name, &obj_files, &obj_count));
+
+        for (i = 0; i < obj_count; ++i)
+            WT_ERR(__wt_meta_track_drop_object(session, tiered->bstorage, obj_files[i]));
+    }
+
 err:
     __wt_free(session, name);
     return (ret);
@@ -272,14 +293,7 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
     WT_DATA_SOURCE *dsrc;
-    WT_DECL_ITEM(tmp);
-    WT_DECL_ITEM(tmp1);
     WT_DECL_RET;
-    WT_FILE_SYSTEM *bucket_fs;
-    WT_TIERED *tiered;
-    u_int i, obj_count;
-    char **obj_files;
-    const char *name;
     bool force, remove_files, remove_shared;
 
     WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
@@ -293,13 +307,6 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
         WT_RET(EINVAL);
 
     WT_RET(__wt_meta_track_on(session));
-
-    /* Get the tiered data handle before the handle is cleared. */
-    if (WT_PREFIX_MATCH(uri, "tiered:")) {
-        WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
-        tiered = (WT_TIERED *)session->dhandle;
-    } else
-        tiered = NULL;
 
     /* Paranoia: clear any handle from our caller. */
     session->dhandle = NULL;
@@ -334,49 +341,6 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
     else
         WT_TRET(__wt_meta_track_off(session, true, ret != 0));
 
-    WT_RET(__wt_scr_alloc(session, 0, &tmp));
-    WT_RET(__wt_scr_alloc(session, 0, &tmp1));
-
-    /*
-     * If a drop operation on tiered storage is configured to force removal of shared objects, we
-     * want to remove these files after the drop operation is successful.
-     */
-    bucket_fs = tiered->bstorage->file_system;
-    if (WT_PREFIX_MATCH(uri, "tiered:") && remove_shared) {
-        name = tiered->iface.name;
-        WT_PREFIX_SKIP(name, "tiered:");
-
-        WT_RET(bucket_fs->fs_directory_list(bucket_fs, (WT_SESSION *)session,
-          tiered->bstorage->bucket_prefix, name, &obj_files, &obj_count));
-
-        for (i = 0; i < obj_count; ++i) {
-            /* Generate the path to the shared object file in the bucket directory. */
-            WT_ERR(__wt_buf_fmt(session, tmp, "%s/%s%s", tiered->bstorage->bucket,
-              tiered->bstorage->bucket_prefix, obj_files[i]));
-            WT_WITH_BUCKET_STORAGE(
-              tiered->bstorage, session, ret = __wt_fs_remove(session, tmp->data, false));
-
-            /*
-             * Generate the path to the shared object file in the cache directory. If a cache
-             * directory is not specified, try to remove objects from the default cache directory,
-             * which is "cache-" appended to the bucket name.
-             */
-            if (strlen(tiered->bstorage->cache_directory) == 0) {
-                WT_ERR(__wt_buf_fmt(session, tmp1, "%s%s", "cache-", tiered->bstorage->bucket));
-                WT_ERR(__wt_buf_fmt(session, tmp, "%s/%s%s", (char *)tmp1->data,
-                  tiered->bstorage->bucket_prefix, obj_files[i]));
-            } else
-                WT_ERR(__wt_buf_fmt(session, tmp, "%s/%s%s", tiered->bstorage->cache_directory,
-                  tiered->bstorage->bucket_prefix, obj_files[i]));
-
-            WT_WITH_BUCKET_STORAGE(
-              tiered->bstorage, session, ret = __wt_fs_remove(session, tmp->data, false));
-        }
-    }
-
-err:
-    __wt_scr_free(session, &tmp);
-    __wt_scr_free(session, &tmp1);
     return (ret);
 }
 

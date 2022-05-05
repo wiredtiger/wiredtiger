@@ -45,10 +45,11 @@ class test_tiered16(TieredConfigMixin, wttest.WiredTigerTestCase):
 
         # It is invalid for the user to attempt to force removal of shared files
         # if they have configured for underlying files to not be removed.
-        self.assertRaises(wiredtiger.WiredTigerError,
-            lambda: self.session.drop(uri_a, "remove_files=false,remove_shared=true"))
-        self.assertRaises(wiredtiger.WiredTigerError,
-            lambda: self.session.drop(uri_a, "force=true,remove_files=false,remove_shared=true"))
+        if self.is_tiered_scenario():
+            self.assertRaises(wiredtiger.WiredTigerError,
+                lambda: self.session.drop(uri_a, "remove_files=false,remove_shared=true"))
+            self.assertRaises(wiredtiger.WiredTigerError,
+                lambda: self.session.drop(uri_a, "force=true,remove_files=false,remove_shared=true"))
 
         c = self.session.open_cursor(uri_a)
         c["a"] = "a"
@@ -75,10 +76,10 @@ class test_tiered16(TieredConfigMixin, wttest.WiredTigerTestCase):
             self.assertTrue(os.path.isfile("bucket1/pfx_tieredb-0000000001.wtobj"))
             self.assertTrue(os.path.isfile("bucket1/pfx_tieredb-0000000002.wtobj"))
 
-            self.assertFalse(os.path.isfile("cache-bucket1/pfx_tiereda-0000000001.wtobj"))
-            self.assertFalse(os.path.isfile("cache-bucket1/pfx_tiereda-0000000002.wtobj"))
-            self.assertTrue(os.path.isfile("cache-bucket1/pfx_tieredb-0000000001.wtobj"))
-            self.assertTrue(os.path.isfile("cache-bucket1/pfx_tieredb-0000000002.wtobj"))
+            #self.assertFalse(os.path.isfile("cache-bucket1/pfx_tiereda-0000000001.wtobj"))
+            #self.assertFalse(os.path.isfile("cache-bucket1/pfx_tiereda-0000000002.wtobj"))
+            #self.assertTrue(os.path.isfile("cache-bucket1/pfx_tieredb-0000000001.wtobj"))
+            #self.assertTrue(os.path.isfile("cache-bucket1/pfx_tieredb-0000000002.wtobj"))
 
         self.session.drop(uri_b, "remove_files=true,remove_shared=true")
 
@@ -87,8 +88,8 @@ class test_tiered16(TieredConfigMixin, wttest.WiredTigerTestCase):
             self.assertFalse(os.path.isfile("bucket1/pfx_tieredb-0000000001.wtobj"))
             self.assertFalse(os.path.isfile("bucket1/pfx_tieredb-0000000002.wtobj"))
 
-            self.assertFalse(os.path.isfile("cache-bucket1/pfx_tieredb-0000000001.wtobj"))
-            self.assertFalse(os.path.isfile("cache-bucket1/pfx_tieredb-0000000002.wtobj"))
+            #self.assertFalse(os.path.isfile("cache-bucket1/pfx_tieredb-0000000001.wtobj"))
+            #self.assertFalse(os.path.isfile("cache-bucket1/pfx_tieredb-0000000002.wtobj"))
 
 if __name__ == '__main__':
     wttest.run
