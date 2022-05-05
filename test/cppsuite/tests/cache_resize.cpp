@@ -126,9 +126,22 @@ class cache_resize : public test_harness::test {
     }
 
     void
-    validate(const std::string &, const std::string &, const std::vector<uint64_t> &) override final
+    validate(const std::string &operation_table_name, const std::string &,
+      const std::vector<uint64_t> &) override final
     {
-        std::cout << "validate: nothing done." << std::endl;
+        WT_DECL_RET;
+        uint64_t tracked_cache_size, tracked_txn_id;
+
+        scoped_session session = connection_manager::instance().create_session();
+        scoped_cursor cursor = session.open_scoped_cursor(operation_table_name);
+
+        uint64_t num_records = 0;
+        while ((ret = cursor->next(cursor.get())) == 0) {
+            testutil_check(cursor->get_value(cursor.get(), &tracked_cache_size, &tracked_txn_id));
+            testutil_assert(tracked_cache_size >= 524288000);
+            ++num_records;
+        }
+        testutil_assert(num_records > 0);
     }
 };
 
