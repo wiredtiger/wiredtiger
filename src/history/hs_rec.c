@@ -850,7 +850,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
 
     /*
      * Fail the eviction if we detect any timestamp ordering issue and the error flag is set. We
-     * cannot modify the history store to fix the updates' timestamps as it may make the history
+     * cannot modify the history store to fix the update's timestamps as it may make the history
      * store checkpoint inconsistent.
      */
     if (error_on_ts_ordering) {
