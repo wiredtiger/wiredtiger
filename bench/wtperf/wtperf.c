@@ -1319,29 +1319,34 @@ checkpoint_worker(void *arg)
     WT_SESSION *session;
     uint32_t i;
     int ret;
+    bool stop;
 
     thread = (WTPERF_THREAD *)arg;
     wtperf = thread->wtperf;
     opts = wtperf->opts;
     conn = wtperf->conn;
     session = NULL;
+    stop = false;
 
     if ((ret = conn->open_session(conn, NULL, opts->sess_config, &session)) != 0) {
         lprintf(wtperf, ret, 0, "open_session failed in checkpoint thread.");
         goto err;
     }
 
-    while (!wtperf->ckpt_stop && !wtperf->error) {
+    while (!stop && !wtperf->error) {
         /* Break the sleep up, so we notice interrupts faster. */
         for (i = 0; i < opts->checkpoint_interval; i++) {
             sleep(1);
-            if (wtperf->ckpt_stop || wtperf->error)
+            stop = wtperf->ckpt_stop;
+            if (stop || wtperf->error)
                 break;
         }
         /* If tiered storage is enabled we want a final checkpoint. */
-        if (wtperf->error || (wtperf->ckpt_stop && opts->tiered_flush_interval == 0))
+        if (wtperf->error || (stop && opts->tiered_flush_interval == 0))
             break;
 
+        if (stop)
+            lprintf(wtperf, 0, 1, "Last call before stopping checkpoint");
         wtperf->ckpt = true;
         if ((ret = session->checkpoint(session, NULL)) != 0) {
             lprintf(wtperf, ret, 0, "Checkpoint failed.");
@@ -1350,7 +1355,7 @@ checkpoint_worker(void *arg)
         wtperf->ckpt = false;
         ++thread->ckpt.ops;
 
-        if (wtperf->ckpt_stop || wtperf->error)
+        if (stop || wtperf->error)
             break;
     }
 
@@ -1378,6 +1383,7 @@ flush_tier_worker(void *arg)
     WT_SESSION *session;
     uint32_t i;
     int ret;
+    bool stop;
 
     thread = (WTPERF_THREAD *)arg;
     wtperf = thread->wtperf;
@@ -1390,16 +1396,33 @@ flush_tier_worker(void *arg)
         goto err;
     }
 
-    while (!wtperf->stop) {
+    stop = false;
+    while (!stop) {
         /* Break the sleep up, so we notice interrupts faster. */
         for (i = 0; i < opts->tiered_flush_interval; i++) {
             sleep(1);
-            if (wtperf->stop || wtperf->error)
+            /*
+             * We need to know if we stop before the call to flush_tier. Don't keep rereading the
+             * global value.
+             */
+            stop = wtperf->stop;
+            if (stop || wtperf->error)
                 break;
         }
         /* If workers are done, do a final call to flush that last data. */
         if (wtperf->error)
             break;
+        /*
+         * In order to get all the data into the last object when the work is done, we need to call
+         * checkpoint to get all the data into this object before calling flush_tier.
+         */
+        if (stop) {
+            lprintf(wtperf, 0, 1, "Last call before stopping flush_tier");
+            if ((ret = session->checkpoint(session, NULL)) != 0) {
+                lprintf(wtperf, ret, 0, "Checkpoint failed.");
+                goto err;
+            }
+        }
         wtperf->flush = true;
         if ((ret = session->flush_tier(session, NULL)) != 0) {
             lprintf(wtperf, ret, 0, "Flush_tier failed.");
@@ -1407,7 +1430,7 @@ flush_tier_worker(void *arg)
         }
         wtperf->flush = false;
         ++thread->flush.ops;
-        if (wtperf->stop)
+        if (stop)
             break;
     }
 
