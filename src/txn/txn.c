@@ -1017,7 +1017,8 @@ __txn_fixup_prepared_update(
                       session, txn_prepare_rollback_fix_hs_update_with_ckpt_reserved_txnid);
                 }
 
-                /* Clear the WT_UPDATE_HS flag as we should have removed it from the history store.
+                /* 
+                 * Clear the WT_UPDATE_HS flag as we should have removed it from the history store.
                  */
                 F_CLR(fix_upd, WT_UPDATE_HS);
             } else {

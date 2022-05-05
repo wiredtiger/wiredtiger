@@ -764,7 +764,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint64_t recno, W
 
     /* Delete the value in the history store before we write it to the data store. */
     if (onpage_upd != NULL && F_ISSET(onpage_upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
-        WT_ASSERT(session, F_ISSET(tombstone, WT_UPDATE_TO_DELETE_FROM_HS));
+        WT_ASSERT(session, tombstone != NULL && F_ISSET(tombstone, WT_UPDATE_TO_DELETE_FROM_HS));
         WT_RET(__rec_delete_hs_upd(session, r, rip, recno, onpage_upd, tombstone));
     }
 
