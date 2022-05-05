@@ -79,9 +79,24 @@ class cache_resize : public test_harness::test {
     }
 
     void
-    custom_operation(test_harness::thread_context *) override final
+    custom_operation(test_harness::thread_context *tc) override final
     {
-        std::cout << "custom_operation: nothing done." << std::endl;
+        bool increase_cache = true;
+        const std::string small_cache_size("cache_size=1MB");
+        const std::string big_cache_size("cache_size=500MB");
+
+        uint64_t prev_cache_size;
+        while (tc->running()) {
+            tc->sleep();
+            WT_CONNECTION *conn = connection_manager::instance().get_connection();
+            prev_cache_size = ((WT_CONNECTION_IMPL *)conn)->cache_size;
+            testutil_check(conn->reconfigure(
+              conn, increase_cache ? big_cache_size.c_str() : small_cache_size.c_str()));
+            increase_cache = !increase_cache;
+            logger::log_msg(LOG_INFO,
+              "The cache size was updated from " + std::to_string(prev_cache_size) + " to " +
+                std::to_string(((WT_CONNECTION_IMPL *)conn)->cache_size));
+        }
     }
 
     void

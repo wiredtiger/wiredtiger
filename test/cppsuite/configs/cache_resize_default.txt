@@ -1,4 +1,11 @@
 # Configuration for cache_resize.
 # need to be defined.
 duration_seconds=5,
-cache_size_mb=250
+cache_size_mb=1,
+workload_generator=
+(
+    custom_config=
+    (
+        thread_count=1
+    ),
+)
