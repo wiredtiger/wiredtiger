@@ -1037,6 +1037,15 @@ __txn_fixup_prepared_update(
             WT_ERR(hs_cursor->remove(hs_cursor));
             /* Clear the WT_UPDATE_HS flag as we should have removed it from the history store. */
             F_CLR(fix_upd, WT_UPDATE_HS);
+            if (fix_upd->type == WT_UPDATE_TOMBSTONE) {
+                /* We must find a full update following the tombstone. */
+                for (fix_upd = fix_upd->next; fix_upd != NULL; fix_upd = fix_upd->next)
+                    if (fix_upd->txnid != WT_TXN_ABORTED)
+                        break;
+                WT_ASSERT(session,
+                  fix_upd != NULL && F_ISSET(fix_upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_HS));
+                F_CLR(fix_upd, WT_UPDATE_HS);
+            }
         }
     }
 
