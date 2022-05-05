@@ -74,13 +74,6 @@ class cache_resize : public test_harness::test {
     }
 
     void
-    populate(test_harness::database &, test_harness::timestamp_manager *,
-      test_harness::configuration *, test_harness::workload_tracking *) override final
-    {
-        std::cout << "populate: nothing done." << std::endl;
-    }
-
-    void
     custom_operation(test_harness::thread_context *tc) override final
     {
         bool increase_cache = true;
