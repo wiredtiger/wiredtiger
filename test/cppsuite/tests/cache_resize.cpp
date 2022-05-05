@@ -53,8 +53,8 @@ class tracking_table_cache_resize : public test_harness::workload_tracking {
 };
 
 /*
- * Class that defines operations that do nothing as an example. This shows how database operations
- * can be overridden and customized.
+ * This test modifies the cache size periodically. The transactions that are executed by the insert
+ * threads can only be successful when the cache size if large enough.
  */
 class cache_resize : public test_harness::test {
     public:
@@ -64,13 +64,6 @@ class cache_resize : public test_harness::test {
         this->_workload_tracking =
           new tracking_table_cache_resize(_config->get_subconfig(WORKLOAD_TRACKING),
             _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager);
-    }
-
-    void
-    run() override final
-    {
-        /* You can remove the call to the base class to fully customize your test. */
-        test::run();
     }
 
     void
@@ -125,24 +118,6 @@ class cache_resize : public test_harness::test {
     }
 
     void
-    read_operation(test_harness::thread_context *) override final
-    {
-        std::cout << "read_operation: nothing done." << std::endl;
-    }
-
-    void
-    remove_operation(test_harness::thread_context *) override final
-    {
-        std::cout << "remove_operation: nothing done." << std::endl;
-    }
-
-    void
-    update_operation(test_harness::thread_context *) override final
-    {
-        std::cout << "update_operation: nothing done." << std::endl;
-    }
-
-    void
     validate(const std::string &operation_table_name, const std::string &,
       const std::vector<uint64_t> &) override final
     {
@@ -155,6 +130,10 @@ class cache_resize : public test_harness::test {
         uint64_t num_records = 0;
         while ((ret = cursor->next(cursor.get())) == 0) {
             testutil_check(cursor->get_value(cursor.get(), &tracked_cache_size, &tracked_txn_id));
+            /*
+             * Only transactions that were executed under a large enough cache should have been
+             * recorded.
+             */
             testutil_assert(tracked_cache_size >= 524288000);
             ++num_records;
         }
