@@ -927,6 +927,7 @@ __txn_fixup_prepared_update(
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     uint32_t txn_flags;
+    uint8_t flags;
 #ifdef HAVE_DIAGNOSTIC
     uint64_t hs_upd_type;
     wt_timestamp_t hs_durable_ts, hs_stop_durable_ts;
@@ -1020,23 +1021,33 @@ __txn_fixup_prepared_update(
                 /* Clear the history store flag. */
                 F_CLR(fix_upd, WT_UPDATE_HS);
             } else {
-                /* Clear the history store flag and mark it to be deleted from the history store. */
-                F_CLR(fix_upd, WT_UPDATE_HS);
+                flags = fix_upd->flags;
                 /* Set the flag to delete the value from the history store later. */
-                F_SET(fix_upd, WT_UPDATE_TO_DELETE_FROM_HS);
+                LF_SET(WT_UPDATE_TO_DELETE_FROM_HS);
+                /* Clear the history store flag and mark it to be deleted from the history store. */
+                LF_CLR(WT_UPDATE_HS);
+                /* We need to flip the flags atomically otherwise the compiler may reorder the code
+                 * to first clear the history store flag. That may cause the checkpoint to write
+                 * that value again to the history store if we are interrupted between. */
+                fix_upd->flags = flags;
                 /* We may not find a full update following the tombstone if it is obsolete. */
                 for (fix_upd = fix_upd->next; fix_upd != NULL; fix_upd = fix_upd->next)
                     if (fix_upd->txnid != WT_TXN_ABORTED)
                         break;
                 if (fix_upd != NULL) {
                     WT_ASSERT(session, F_ISSET(fix_upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_HS));
+                    flags = fix_upd->flags;
+                    /* Set the flag to delete the value from the history store later. */
+                    LF_SET(WT_UPDATE_TO_DELETE_FROM_HS);
                     /* Clear the history store flag and mark it to be deleted from the history
                      * store. */
-                    F_CLR(fix_upd, WT_UPDATE_HS);
-                    /* Set the flag to delete the value from the history store later. */
-                    F_SET(fix_upd, WT_UPDATE_TO_DELETE_FROM_HS);
-                    WT_STAT_CONN_INCR(session, txn_prepare_rollback_do_not_remove_hs_update);
+                    LF_CLR(WT_UPDATE_HS);
+                    /* We need to flip the flags atomically otherwise the compiler may reorder the
+                     * code to first clear the history store flag. That may cause the checkpoint to
+                     * write that value again to the history store if we are interrupted between. */
+                    fix_upd->flags = flags;
                 }
+                WT_STAT_CONN_INCR(session, txn_prepare_rollback_do_not_remove_hs_update);
             }
         } else {
             WT_ERR(hs_cursor->remove(hs_cursor));
