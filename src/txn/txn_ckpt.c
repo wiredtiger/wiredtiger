@@ -1150,6 +1150,11 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         WT_WITH_DHANDLE(session, WT_SESSION_META_DHANDLE(session),
           ret = __wt_txn_checkpoint_log(session, false, WT_TXN_LOG_CKPT_SYNC, NULL));
 
+    WT_STAT_CONN_SET(session, txn_checkpoint_running_timing_stress_stop, 1);
+    /* Wait prior to flush the checkpoint stop log record. */
+    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_STOP, &tsp);
+    WT_STAT_CONN_SET(session, txn_checkpoint_running_timing_stress_stop, 0);
+
     /*
      * Now that the metadata is stable, re-open the metadata file for regular eviction by clearing
      * the checkpoint_pinned flag.
