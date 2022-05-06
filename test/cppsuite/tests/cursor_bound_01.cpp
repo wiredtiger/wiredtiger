@@ -45,7 +45,6 @@ using namespace test_harness;
  * bounds set using random bounds. Each next() or prev() with bounds set is verified against the
  * default cursor next() and prev() calls.
  */
-
 namespace test_harness {
 
 class cursor_bound_01 : public test_harness::test {
@@ -116,6 +115,25 @@ class cursor_bound_01 : public test_harness::test {
             /* Reset our cursor to avoid pinning content. */
             testutil_check(cursor->reset(cursor.get()));
         }
+    }
+
+    void set_random_bounds() {
+        /*
+         * Generate a random prefix. For this, we start by generating a random size and then
+         * its value.
+         */
+        key_size = random_generator::instance().generate_integer(
+            static_cast<int64_t>(1), tc->key_size);
+        lower_key = random_generator::instance().generate_random_string(
+            key_size, characters_type::ALPHABET);
+
+        key_size = random_generator::instance().generate_integer(
+            static_cast<int64_t>(1), tc->key_size);
+        upper_key = random_generator::instance().generate_random_string(
+            key_size, characters_type::ALPHABET);
+
+        /* Perform validation here. */
+        //range_cursor->bound(range_cursor.get(), key.c_str());
     }
 
     void
@@ -223,7 +241,7 @@ class cursor_bound_01 : public test_harness::test {
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
         
         const char *key_prefix;
-        int exact_prefix, ret;
+        int exact_prefix, normal_ret, range_ret;
         int64_t key_size;
         std::map<uint64_t, scoped_cursor> cursors;
         std::string lower_key, upper_key, key_prefix_str;
@@ -233,13 +251,11 @@ class cursor_bound_01 : public test_harness::test {
             collection &coll = tc->db.get_random_collection();
 
             /* Find a cached cursor or create one if none exists. */
-            if (cursors.find(coll.id) == cursors.end()) {
+            if (cursors.find(coll.id) == cursors.end())
                 cursors.emplace(coll.id, std::move(tc->session.open_scoped_cursor(coll.name)));
-                auto &cursor = cursors[coll.id];
-            }
 
-            auto &cursor = cursors[coll.id];
-
+            auto &range_cursor = cursors[coll.id];
+            scoped_cursor normal_cursor = tc->session.open_scoped_cursor(coll.name);
             /*
              * Pick a random timestamp between the oldest and now. Get rid of the last 32 bits as
              * they represent an increment for uniqueness.
@@ -257,29 +273,44 @@ class cursor_bound_01 : public test_harness::test {
               "roundup_timestamps=(read=true),read_timestamp=" + tc->tsm->decimal_to_hex(ts));
 
             while (tc->transaction.active() && tc->running()) {
-                /*
-                 * Generate a random prefix. For this, we start by generating a random size and then
-                 * its value.
-                 */
-                key_size = random_generator::instance().generate_integer(
-                  static_cast<int64_t>(1), tc->key_size);
-                lower_key = random_generator::instance().generate_random_string(
-                  key_size, characters_type::ALPHABET);
 
-                key_size = random_generator::instance().generate_integer(
-                  static_cast<int64_t>(1), tc->key_size);
-                upper_key = random_generator::instance().generate_random_string(
-                  key_size, characters_type::ALPHABET);
-
-                /* Perform validation here. */
-                //cursor->bound(cursor.get(), key.c_str());
-
+                /* Call search near to position cursor. */
+                int exact;
+                normal_cursor->set_key(normal_cursor.get(), lower_key);
+                normal_ret = normal_cursor->search_near(normal_cursor.get(), &exact);
+                if (normal_ret == WT_NOTFOUND)
+                    continue;
+                if (exact < 0)
+                    testutil_assert(normal_cursor->next(cursor_default.get()) == 0);
                 
+                /* Retrieve the key the cursor is pointing at. */
+                const char *normal_key, *range_key;
+                testutil_check(normal_cursor->get_key(cursor.get(), &normal_key));
+                testutil_check(range_key->get_key(cursor.get(), &range_key));
+                testutil_assert(strcmp(range_key, normal_key) == 0);
+                while (true) {
+                    normal_ret = normal_cursor->next(normal_cursor.get());
+                    range_ret = range_cursor->next(range_cursor.get());
+                    testutil_assert(normal_ret == 0 || normal_ret == WT_NOTFOUND);
+                    testutil_assert(range_ret == 0 || range_ret == WT_NOTFOUND);
+                    if (range_ret == WT_NOTFOUND && normal_ret == WT_NOTFOUND)
+                        break;
+                    else if (range_ret == WT_NOTFOUND && normal_ret == 0) {
+                        testutil_assert(upper_key.length != 0);
+                        testutil_check(normal_cursor->get_key(cursor.get(), &normal_key));
+                        testutil_assert(strcmp(normal_key, upper_key) > 0);
+                    }
+
+                    testutil_check(normal_cursor->get_key(cursor.get(), &normal_key));
+                    testutil_check(range_key->get_key(cursor.get(), &range_key));
+                    testutil_assert(strcmp(range_key, normal_key) == 0);
+
+                }
                 tc->transaction.add_op();
                 tc->transaction.try_rollback();
                 tc->sleep();
             }
-            testutil_check(cursor->reset(cursor.get()));
+            testutil_check(range_cursor->reset(range_cursor.get()));
         }
         /* Roll back the last transaction if still active now the work is finished. */
         if (tc->transaction.active())
