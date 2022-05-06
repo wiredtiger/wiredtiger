@@ -40,9 +40,9 @@ class tracking_table_cache_resize : public test_harness::workload_tracking {
     }
 
     void
-    set_tracking_cursor(scoped_session &tc_session, const tracking_operation &,
-      const uint64_t &, const std::string &, const std::string &,
-      wt_timestamp_t ts, scoped_cursor &op_track_cursor) override final
+    set_tracking_cursor(scoped_session &tc_session, const tracking_operation &, const uint64_t &,
+      const std::string &, const std::string &, wt_timestamp_t ts,
+      scoped_cursor &op_track_cursor) override final
     {
         uint64_t cache_size =
           ((WT_CONNECTION_IMPL *)connection_manager::instance().get_connection())->cache_size;
@@ -53,9 +53,9 @@ class tracking_table_cache_resize : public test_harness::workload_tracking {
 };
 
 /*
- * This test continuously writes 2MB transactions into the database, while switching the
- * connection cache size between 1MB and 500MB. When transactions are larger than the cache size
- * they are rejected, so only transactions made when cache size is 500MB will be allowed.
+ * This test continuously writes 2MB transactions into the database, while switching the connection
+ * cache size between 1MB and 500MB. When transactions are larger than the cache size they are
+ * rejected, so only transactions made when cache size is 500MB will be allowed.
  */
 class cache_resize : public test_harness::test {
     public:
