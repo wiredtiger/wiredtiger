@@ -36,8 +36,7 @@ __wt_block_manager_drop_object(
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     /* Generate the name of the shared object file with the bucket prefix. */
-    WT_ERR(
-      __wt_buf_fmt(session, tmp, "%s%s", bstorage->bucket_prefix, filename));
+    WT_ERR(__wt_buf_fmt(session, tmp, "%s%s", bstorage->bucket_prefix, filename));
     WT_WITH_BUCKET_STORAGE(bstorage, session, ret = __wt_fs_remove(session, tmp->data, false));
     WT_ERR(ret);
 

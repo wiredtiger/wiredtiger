@@ -76,10 +76,10 @@ class test_tiered16(TieredConfigMixin, wttest.WiredTigerTestCase):
             self.assertTrue(os.path.isfile("bucket1/pfx_tieredb-0000000001.wtobj"))
             self.assertTrue(os.path.isfile("bucket1/pfx_tieredb-0000000002.wtobj"))
 
-            #self.assertFalse(os.path.isfile("cache-bucket1/pfx_tiereda-0000000001.wtobj"))
-            #self.assertFalse(os.path.isfile("cache-bucket1/pfx_tiereda-0000000002.wtobj"))
-            #self.assertTrue(os.path.isfile("cache-bucket1/pfx_tieredb-0000000001.wtobj"))
-            #self.assertTrue(os.path.isfile("cache-bucket1/pfx_tieredb-0000000002.wtobj"))
+            self.assertFalse(os.path.isfile("cache-bucket1/pfx_tiereda-0000000001.wtobj"))
+            self.assertFalse(os.path.isfile("cache-bucket1/pfx_tiereda-0000000002.wtobj"))
+            self.assertTrue(os.path.isfile("cache-bucket1/pfx_tieredb-0000000001.wtobj"))
+            self.assertTrue(os.path.isfile("cache-bucket1/pfx_tieredb-0000000002.wtobj"))
 
         self.session.drop(uri_b, "remove_files=true,remove_shared=true")
 
@@ -88,8 +88,8 @@ class test_tiered16(TieredConfigMixin, wttest.WiredTigerTestCase):
             self.assertFalse(os.path.isfile("bucket1/pfx_tieredb-0000000001.wtobj"))
             self.assertFalse(os.path.isfile("bucket1/pfx_tieredb-0000000002.wtobj"))
 
-            #self.assertFalse(os.path.isfile("cache-bucket1/pfx_tieredb-0000000001.wtobj"))
-            #self.assertFalse(os.path.isfile("cache-bucket1/pfx_tieredb-0000000002.wtobj"))
+            self.assertFalse(os.path.isfile("cache-bucket1/pfx_tieredb-0000000001.wtobj"))
+            self.assertFalse(os.path.isfile("cache-bucket1/pfx_tieredb-0000000002.wtobj"))
 
 if __name__ == '__main__':
     wttest.run

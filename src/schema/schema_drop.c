@@ -189,6 +189,9 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     WT_RET(__wt_config_gets(session, cfg, "remove_shared", &cval));
     remove_shared = cval.val != 0;
 
+    if (!remove_files && remove_shared)
+        WT_RET(EINVAL);
+
     name = NULL;
     /* Get the tiered data handle. */
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
@@ -247,8 +250,8 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
                 WT_ERR(__wt_meta_track_drop(session, filename));
 
             /*
-             * If a drop operation on tiered storage is configured to force removal of shared objects, we
-             * want to remove these files after the drop operation is successful.
+             * If a drop operation on tiered storage is configured to force removal of shared
+             * objects, we want to remove these files after the drop operation is successful.
              */
             if (remove_shared)
                 WT_ERR(__wt_meta_track_drop_object(session, tiered->bstorage, filename));
@@ -283,17 +286,10 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
     WT_CONFIG_ITEM cval;
     WT_DATA_SOURCE *dsrc;
     WT_DECL_RET;
-    bool force, remove_files, remove_shared;
+    bool force;
 
     WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
     force = cval.val != 0;
-    WT_RET(__wt_config_gets(session, cfg, "remove_files", &cval));
-    remove_files = cval.val != 0;
-    WT_RET(__wt_config_gets(session, cfg, "remove_shared", &cval));
-    remove_shared = cval.val != 0;
-
-    if (!remove_files && remove_shared)
-        WT_RET(EINVAL);
 
     WT_RET(__wt_meta_track_on(session));
 
