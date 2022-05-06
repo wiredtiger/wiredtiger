@@ -228,7 +228,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
          ;) {
         switch (current_state = ref->state) {
         case WT_REF_DELETED:
-            if (LF_ISSET(WT_READ_NO_WAIT))
+            /* Optionally limit reads to cache-only. */
+            if (LF_ISSET(WT_READ_CACHE | WT_READ_NO_WAIT))
                 return (WT_NOTFOUND);
             if (LF_ISSET(WT_READ_SKIP_DELETED) &&
               __wt_delete_page_skip(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)))
