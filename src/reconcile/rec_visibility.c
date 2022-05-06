@@ -668,8 +668,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint64_t recno, W
      * stable.
      */
     if (upd != NULL) {
-        /* We cannot select a prepare that is being rolled back because eviction needs exclusive
-         * access and checkpoint never selects prepared update. */
+        /*
+         * We cannot select a prepare that is being rolled back because eviction needs exclusive
+         * access and checkpoint never selects prepared update.
+         */
         WT_ASSERT(session, upd->prepare_state != WT_PREPARE_ROLLBACK_INPROGRESS);
         /*
          * Mark the prepare flag if the selected update is an uncommitted prepare. As tombstone

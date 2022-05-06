@@ -1200,7 +1200,7 @@ __txn_resolve_prepared_update_chain(
 
     if (!commit) {
         if (rollback_in_progress)
-            WT_PUBLISH(upd->prepare_state, WT_PREPARE_ROLLBACK_INPROGRESS);
+            upd->prepare_state = WT_PREPARE_ROLLBACK_INPROGRESS;
         else {
             upd->txnid = WT_TXN_ABORTED;
             WT_STAT_CONN_INCR(session, txn_prepared_updates_rolledback);
