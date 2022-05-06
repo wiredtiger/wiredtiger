@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, random, wttest
-from helper_tiered import TieredConfigMixin, storage_sources
+from helper_tiered import TieredConfigMixin, gen_storage_sources
 from wtdataset import TrackedSimpleDataSet, TrackedComplexDataSet
 from wtscenario import make_scenarios
 
@@ -35,6 +35,7 @@ from wtscenario import make_scenarios
 #    Test somewhat arbitrary combinations of flush_tier, checkpoint, restarts,
 #    data additions and updates.
 class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
+    storage_sources = gen_storage_sources()
     uri = "table:test_tiered14-{}"   # format for subtests
 
     # FIXME-WT-7833: enable the commented scenarios and run the
@@ -60,6 +61,10 @@ class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
     scenarios = make_scenarios(multiplier, keyfmt, dataset, storage_sources)
 
     def conn_config(self):
+        # if self.ss_name == 's3_store':
+        #     self.bucket_prefix += self._random_prefix + '/test_tiered14/'
+        #     self.bucket_prefix1 += self._random_prefix + '/test_tiered14/'
+        #     self.bucket_prefix2 += self._random_prefix + '/test_tiered14/'
         return TieredConfigMixin.conn_config(self)
 
     # Load the storage store extension.
@@ -67,6 +72,11 @@ class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
         TieredConfigMixin.conn_extensions(self, extlist)
     
     def progress(self, s):
+        # if self.ss_name == 's3_store':
+        #     self.bucket_prefix += self._random_prefix + '/test_tiered14/'
+        #     self.bucket_prefix1 += self._random_prefix + '/test_tiered14/'
+        #     self.bucket_prefix2 += self._random_prefix + '/test_tiered14/'
+
         outstr = "testnum {}, position {}: {}".format(self.testnum, self.position, s)
         self.verbose(3, outstr)
         self.pr(outstr)
@@ -133,6 +143,11 @@ class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     # Test tiered storage with checkpoints and flush_tier calls.
     def test_tiered(self):
+        if self.ss_name == 's3_store':
+            self.bucket_prefix += self._random_prefix + '/test_tiered14/'
+            self.bucket_prefix1 += self._random_prefix + '/test_tiered14/'
+            self.bucket_prefix2 += self._random_prefix + '/test_tiered14/'
+
         random.seed(0)
 
         # Get started with a fixed sequence of basic operations.

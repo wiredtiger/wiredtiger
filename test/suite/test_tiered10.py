@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wiredtiger, wttest
-from helper_tiered import TieredConfigMixin, storage_sources, get_conn_config, get_check
+from helper_tiered import TieredConfigMixin, gen_storage_sources, get_conn_config, get_check
 from wtscenario import make_scenarios
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
@@ -35,6 +35,10 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Test tiered storage with simultaneous connections using different
 # prefixes to the same bucket directory but different local databases.
 class test_tiered10(wttest.WiredTigerTestCase, TieredConfigMixin):
+
+    storage_sources = gen_storage_sources()
+
+    # storage_sources[1][1]['bucket_prefix'] += 'test_tiered10/'
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)
 
@@ -49,6 +53,11 @@ class test_tiered10(wttest.WiredTigerTestCase, TieredConfigMixin):
     saved_conn = ''
 
     def conn_config(self):
+        if self.ss_name == 's3_store':
+            self.bucket_prefix += self._random_prefix + '/test_tiered10/'
+            self.bucket_prefix1 += self._random_prefix + '/test_tiered10/'
+            self.bucket_prefix2 += self._random_prefix + '/test_tiered10/'
+
         os.mkdir(self.conn1_dir)
         os.mkdir(self.conn2_dir)
         # Use this to create the directories and set up for the others.

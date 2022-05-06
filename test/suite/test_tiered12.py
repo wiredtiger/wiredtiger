@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, time, wiredtiger, wttest
-from helper_tiered import TieredConfigMixin, storage_sources, get_conn_config, get_check
+from helper_tiered import TieredConfigMixin, gen_storage_sources, get_conn_config, get_check
 from wtscenario import make_scenarios
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
@@ -35,6 +35,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Basic tiered storage API test error for tiered manager and flush_tier.
 class test_tiered12(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
+    storage_sources = gen_storage_sources()
     scenarios = make_scenarios(storage_sources)
 
     # If the 'uri' changes all the other names must change with it.
@@ -45,6 +46,11 @@ class test_tiered12(wttest.WiredTigerTestCase, TieredConfigMixin):
     retention = 1
     saved_conn = ''
     def conn_config(self):
+        if self.ss_name == 's3_store':
+            self.bucket_prefix += self._random_prefix + '/test_tiered12/'
+            self.bucket_prefix1 += self._random_prefix + '/test_tiered12/'
+            self.bucket_prefix2 += self._random_prefix + '/test_tiered12/'
+
         self.saved_conn = get_conn_config(self) + 'local_retention=%d),' \
             % self.retention + 'timing_stress_for_test=(tiered_flush_finish)'
         return self.saved_conn

@@ -27,7 +27,9 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import inspect, os, wiredtiger, wttest
-from helper_tiered import TieredConfigMixin, storage_sources
+from helper_tiered import TieredConfigMixin
+from helper_tiered import generate_s3_prefix, gen_storage_sources
+# from helper_tiered import delete_objects, download_objects
 from wtscenario import make_scenarios
 
 FileSystem = wiredtiger.FileSystem  # easy access to constants
@@ -38,6 +40,8 @@ FileSystem = wiredtiger.FileSystem  # easy access to constants
 # However, it is useful to do tests of this API independently.
 
 class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
+
+    storage_sources = gen_storage_sources()
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)
 
@@ -67,8 +71,14 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         # Test some basic functionality of the storage source API, calling
         # each supported method in the API at least once.
 
+        # print(self._random_prefix) 
+        # self._random_prefix
+
         session = self.session
         ss = self.get_storage_source()
+
+        # if self.ss_name == 's3_store':
+        #     self.bucket_prefix = generate_s3_prefix('test_tiered06')
 
         # Since this class has multiple tests, append test name to the prefix to
         # avoid namespace collison. 0th element on the stack is the current function.
@@ -143,11 +153,18 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         fs.terminate(session)
         ss.terminate(session)
 
+        # delete_objects(prefix)
+        # if self.ss_name == 's3_store':
+        #     download_objects(prefix)
+
     def test_ss_write_read(self):
         # Write and read to a file non-sequentially.
 
         session = self.session
         ss = self.get_storage_source()
+
+        # if self.ss_name == 's3_store':
+        #     self.bucket_prefix = generate_s3_prefix('test_tiered06')
 
         # Since this class has multiple tests, append test name to the prefix to
         # avoid namespace collison. 0th element on the stack is the current function.
@@ -229,6 +246,9 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
 
         ss.terminate(session)
 
+        # if self.ss_name == 's3_store':
+        #     download_objects(prefix)
+
     def create_with_fs(self, fs, fname):
         session = self.session
         f = open(fname, 'wb')
@@ -289,6 +309,9 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         # Test using various buckets, hosts.
         session = self.session
         ss = self.get_storage_source()
+
+        # if self.ss_name == 's3_store':
+        #     self.bucket_prefix = generate_s3_prefix('test_tiered06')
 
         # Since this class has multiple tests, append test name to the prefix to
         # avoid namespace collison. 0th element on the stack is the current function.
@@ -403,6 +426,9 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         # all the file systems we created.
         fs1.terminate(session)
         ss.terminate(session)
+
+        # if self.ss_name == 's3_store':
+        #     download_objects(prefix)
 
 if __name__ == '__main__':
     wttest.run()
