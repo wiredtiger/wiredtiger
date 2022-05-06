@@ -1411,20 +1411,20 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * not do any significant thing as part of "txn_op2".
      *
      * If we are rolling back the update, first mark it as WT_PREPARE_ROLLBACK_IN_PROGRESS to block
-     *any more updates being committed on this key until we have fixed all the history store record.
-     *Therefore, if checkpoint races with us, it will always write the restored update to the data
-     *store not the history store. Otherwise, if checkpoint starts after we have removed the history
-     *store record but before we clear the WT_UPDATE_TO_DELETE_FROM_HS flag, it may skip writing
-     *this update to the history store again if that update is chosen to be written to the history
-     *store.
+     * any more updates being committed on this key until we have fixed all the history store
+     * record. Therefore, if checkpoint races with us, it will always write the restored update to
+     * the data store not the history store. Otherwise, if checkpoint starts after we have removed
+     * the history store record but before we clear the WT_UPDATE_TO_DELETE_FROM_HS flag, it may
+     * skip writing this update to the history store again if that update is chosen to be written to
+     * the history store.
      *
      * We also cannot skip this step and mark the prepared update as aborted at the end because we
-     *may race with a reader that starts to read this key before the rollback starts. In this case,
-     *the reader will see the prepared update and directly goto the history store. Then the rollback
-     *then starts and deletes the record in the history store. Once the reader resumes and it will
-     *find a record missing. In addition, he also cannot detect that there is a prepared rollback
-     *going on in this case to retry the read as the prepared state remains as
-     *WT_PREPARE_INPROGRESS.
+     * may race with a reader that starts to read this key before the rollback starts. In this case,
+     * the reader will see the prepared update and directly goto the history store. Then the
+     * rollback then starts and deletes the record in the history store. Once the reader resumes and
+     * it will find a record missing. In addition, he also cannot detect that there is a prepared
+     * rollback going on in this case to retry the read as the prepared state remains as
+     * WT_PREPARE_INPROGRESS.
      */
     __txn_resolve_prepared_update_chain(session, upd, commit, !commit);
 
