@@ -1421,9 +1421,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * We also cannot skip this step and mark the prepared update as aborted at the end because we
      * may race with a reader that starts to read this key before the rollback starts. In this case,
      * the reader will see the prepared update and directly goto the history store. Then the
-     * rollback then starts and deletes the record in the history store. Once the reader resumes and
-     * it will find a record missing. In addition, he also cannot detect that there is a prepared
-     * rollback going on in this case to retry the read as the prepared state remains as
+     * rollback starts and deletes the record in the history store. Once the reader resumes,
+     * he will find a record missing. In addition, he cannot detect that there is a prepared
+     * rollback going on concurrently to retry the read as the prepared state remains as
      * WT_PREPARE_INPROGRESS.
      */
     __txn_resolve_prepared_update_chain(session, upd, commit, !commit);
