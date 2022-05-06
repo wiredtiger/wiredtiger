@@ -203,12 +203,12 @@ __wt_txn_unmodify(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_op_apply_prepare_state --
+ * __wt_txn_op_delete_apply_prepare_state --
  *     Apply the correct prepare state and the timestamp to the ref and to any updates in the page
  *     del update list.
  */
 static inline void
-__wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool commit)
+__wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool commit)
 {
     WT_TXN *txn;
     WT_UPDATE **updp;
@@ -231,6 +231,15 @@ __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool comm
     /*
      * Timestamps and prepare state are in the page deleted structure for truncates, or in the
      * updates in the case of instantiated pages.
+     *
+     * Only two cases are possible. First: the state is WT_REF_DELETED. In this case ft_info.del
+     * cannot be NULL yet because an uncommitted operation cannot have reached global visibility.
+     * Otherwise: there is an uncommitted delete operation we're handling, so the page can't be in a
+     * non-deleted state, and the tree can't be readonly. Therefore the page must have been
+     * instantiated, the state must be WT_REF_MEM, and there should be an update list in
+     * ft_info.update. (But just in case, allow the update list to be null. Perhaps the page was
+     * truncated when all items on it were already deleted, so no tombstones were created during
+     * instantiation.)
      */
     if (previous_state == WT_REF_DELETED) {
         ref->ft_info.del->timestamp = ts;
@@ -271,6 +280,15 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
     /*
      * Timestamps are in the page deleted structure for truncates, or in the updates in the case of
      * instantiated pages. Both commit and durable timestamps need to be updated.
+     *
+     * Only two cases are possible. First: the state is WT_REF_DELETED. In this case ft_info.del
+     * cannot be NULL yet because an uncommitted operation cannot have reached global visibility.
+     * Otherwise: there is an uncommitted delete operation we're handling, so the page can't be in a
+     * non-deleted state, and the tree can't be readonly. Therefore the page must have been
+     * instantiated, the state must be WT_REF_MEM, and there should be an update list in
+     * ft_info.update. (But just in case, allow the update list to be null. Perhaps the page was
+     * truncated when all items on it were already deleted, so no tombstones were created during
+     * instantiation.)
      */
     if (previous_state == WT_REF_DELETED) {
         if (ref->ft_info.del->timestamp == WT_TS_NONE) {
@@ -317,7 +335,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
          * transaction commit call.
          */
         if (op->type == WT_TXN_OP_REF_DELETE)
-            __wt_txn_op_apply_prepare_state(session, op->u.ref, true);
+            __wt_txn_op_delete_apply_prepare_state(session, op->u.ref, true);
         else {
             upd = op->u.op_upd;
 
@@ -400,7 +418,10 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
     op->type = WT_TXN_OP_REF_DELETE;
     op->u.ref = ref;
 
-    /* This access to the WT_PAGE_DELETED structure is safe, caller has the WT_REF locked. */
+    /*
+     * This access to the WT_PAGE_DELETED structure is safe; caller has the WT_REF locked, and in
+     * fact just allocated the structure to fill in.
+     */
     ref->ft_info.del->txnid = txn->id;
     __wt_txn_op_set_timestamp(session, op);
 

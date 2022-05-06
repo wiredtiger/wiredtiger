@@ -155,8 +155,15 @@ skip_read:
     /*
      * In the case of a fast delete, move all of the page's records to a deleted state based on the
      * fast-delete information. Skip for special commands that don't care about an in-memory state.
+     *
+     * Note: there are three possible cases - the state was WT_REF_DELETED and ft_info.del was NULL;
+     * the state was WT_REF_DELETED and ft_info.del was non-NULL; and the state was WT_REF_DISK and
+     * ft_info.del was non-NULL. The last is only valid in a readonly tree.
      */
-    if (ref->ft_info.del != NULL &&
+    WT_ASSERT(session,
+      previous_state != WT_REF_DISK || ref->ft_info.del == NULL ||
+        F_ISSET(S2BT(session), WT_BTREE_READONLY));
+    if ((previous_state == WT_REF_DELETED || ref->ft_info.del != NULL) &&
       !F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY))
         WT_ERR(__wt_delete_page_instantiate(session, ref));
 

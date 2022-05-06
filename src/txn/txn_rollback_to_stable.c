@@ -1240,9 +1240,11 @@ __rollback_to_stable_page_skip(
     *skipp = false; /* Default to reading */
 
     /*
-     * Skip fast-truncate operations durable at or before the RTS timestamp (reading the page will
-     * delete it). A page without fast-truncate timestamp information is an old format page: skip
-     * them as there's no way to get correct behavior, and skipping them matches historic behavior.
+     * Skip pages truncated at or before the RTS timestamp. (We could read the page, but that would
+     * unnecessarily instantiate it). If the page has no fast-delete information, that means either
+     * it was discarded because the delete is globally visible, or the internal page holding the
+     * cell was an old format page so none was loaded. In the latter case we should skip the page as
+     * there's no way to get correct behavior and skipping matches the historic behavior.
      */
     if (ref->state == WT_REF_DELETED) {
         page_del = ref->ft_info.del;

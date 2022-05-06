@@ -95,8 +95,9 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     /*
      * There should be no previous page-delete information: if the previous fast-truncate didn't
      * instantiate the page, then we'd never get here to do another delete; if the previous fast-
-     * truncate did instantiate the page, then any fast-truncate information was removed at that
-     * point and/or when the fast-truncate transaction was resolved.
+     * truncate did instantiate the page, then (for a read-write tree; we can't get here in a
+     * readonly tree) any fast-truncate information was removed at that point and/or when the
+     * fast-truncate transaction was resolved.
      */
     WT_ASSERT(session, ref->ft_info.del == NULL);
 
@@ -146,11 +147,11 @@ err:
 }
 
 /*
- * __wt_delete_page_rollback --
- *     Abort fast-truncate operations.
+ * __wt_delete_page_abort --
+ *     Transaction abort for a fast-truncate operation.
  */
 int
-__wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_delete_page_abort(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_UPDATE **updp;
     uint64_t sleep_usecs, yield_count;
@@ -185,16 +186,27 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     /*
-     * If the page is still "deleted", it's as we left it, simply reset the state. Otherwise, the
-     * page is in an in-memory state, which means it was instantiated at some point. Walk any list
-     * of update structures and abort them. We can't use the normal read path to get the pages with
-     * updates (the original page may have split, so there many be more than one page), because the
-     * session may have closed the cursor, we no longer have the reference to the tree required for
-     * a hazard pointer. We're safe since pages with unresolved transactions aren't going anywhere.
+     * There are two possible cases:
+     *
+     * 1. The state is WT_REF_DELETED. In this case ft_info.del cannot be null, because the
+     * operation cannot reach global visibility while its transaction remains uncommitted. The page
+     * itself is as we left it, so we can just reset the state.
+     *
+     * 2. The state is WT_REF_MEM. In this case the tree must be read-write (since readonly trees
+     * can't have uncommitted write operations), and it's been instantiated, so we check
+     * ft_info.update for a list of updates to abort. Allow the update list to be null to be
+     * conservative.
      */
     if (current_state == WT_REF_DELETED)
         current_state = ref->ft_info.del->previous_ref_state;
     else if ((updp = ref->ft_info.update) != NULL)
+        /*
+         * Walk any list of update structures and abort them. We can't use the normal read path to
+         * get the pages with updates (the original page may have split, so there many be more than
+         * one page), because the session may have closed the cursor, and we no longer have the
+         * reference to the tree required for a hazard pointer. We're safe since pages with
+         * unresolved transactions aren't going anywhere.
+         */
         for (; *updp != NULL; ++updp)
             (*updp)->txnid = WT_TXN_ABORTED;
 
@@ -242,6 +254,9 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
      * The fast-truncate structure can be freed as soon as the delete is stable: it is only read
      * when the ref state is locked. It is worth checking every time we come through because once
      * this is freed, we no longer need synchronization to check the ref.
+     *
+     * Note that if the visible_all flag is set, skip already reflects the visible_all result so we
+     * don't need to do it twice.
      *
      * If we are reading from a checkpoint, we can't do the visible_all check (it checks the current
      * state of the world and not the checkpoint) but also, because the checkpoint is immutable the

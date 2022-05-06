@@ -1525,7 +1525,11 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 
 /*
  * __wt_page_del_active --
- *     Return if a truncate operation is active.
+ *     Return if a truncate operation is active. "active" means approximately that the truncate is
+ *     still in progress, that is, that the underlying original page may still be required. This
+ *     function in practice is actually a visibility test (it returns whether the truncate is *not*
+ *     visible) and should be renamed and have its sense flipped to be more consistent with the rest
+ *     of the system.
  */
 static inline bool
 __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
@@ -1535,7 +1539,9 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 
     /*
      * Our caller should have already locked the WT_REF and confirmed that the previous state was
-     * WT_REF_DELETED.
+     * WT_REF_DELETED. Consequently there are two possible cases: either ft_info.del is NULL (in
+     * which case the page is firmly deleted and no longer accessible, so the deletion is always
+     * visible) or it is not, in which case the information in ft_info.del gives us the visibility.
      */
     WT_ASSERT(session, ref->state == WT_REF_LOCKED);
 
@@ -1546,8 +1552,9 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
     /*
      * If we are reading from a checkpoint, visible_all checks don't work (they check the current
      * state of the world and not the checkpoint) so operate under the assumption that if the
-     * truncate operation appears in the checkpoint, it must have been visible to somebody, and
-     * because the checkpoint is immutable, that won't ever change.
+     * truncate operation appears in the checkpoint, it must have been invisible to somebody at the
+     * time the checkpoint was taken. (Otherwise the page wouldn't have been kept.) Because the
+     * checkpoint is immutable, that won't ever change.
      */
     if (WT_READING_CHECKPOINT(session) && visible_all)
         return (true);
@@ -1738,10 +1745,18 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     modified = __wt_page_is_modified(page);
 
     /*
-     * If a fast-truncate page is subsequently instantiated, it can become an eviction candidate. If
-     * the fast-truncate itself has not resolved when the page is instantiated, a list of updates is
-     * created, which will be discarded as part of transaction resolution. Don't attempt to evict a
-     * fast-truncate page until any update list has been removed.
+     * Check the fast-truncate information. Pages with an uncommitted truncate cannot be evicted.
+     *
+     * Because the page is in memory, there are three possible cases, and because ft_info is a union
+     * we must be careful to access the correct member. If the tree is read-only, the page is freely
+     * evictable. ft_info.del may be non-null, but we needn't look at it. If the tree is read-write,
+     * however, we need to check ft_info.update; if it is not null, there's an uncommitted truncate
+     * and we must not evict the page. We can just check if the page is modified before testing
+     * ft_info.update; while instantiated truncate pages in read-only trees have a modify structure
+     * and updates are present in it, they are not tagged as modified.
+     *
+     * The list of updates in ft_info.update will be discarded when the transaction they belong to
+     * is resolved.
      */
     if (modified && ref->ft_info.update != NULL)
         return (false);
@@ -2113,17 +2128,26 @@ __wt_btcur_skip_page(
     /*
      * Check the fast-truncate information, there are 3 cases:
      *
-     * (1) a fast-truncate page in the WT_REF_DELETED state (known to have ft_info.del information);
-     * (2) an on-disk page in the WT_REF_DISK state (read-only pages where a leaf page was first
-     *     instantiated, then evicted, and then read back in);
-     * (3) an in-memory page in the WT_REF_MEM state (read-only pages that have been instantiated).
+     * (1) The page is in the WT_REF_DELETED state and ft_info.del is NULL. The page is deleted.
+     * (2) The page is in the WT_REF_DELETED state and ft_info.del is not NULL. The page is deleted
+     *     if the truncate operation described by ft_info.del is visible.
+     * (3) The page is in the WT_REF_DISK state, the tree is readonly, and ft_info.del is not NULL.
+     *     This is the same as case 2.
+     * (4) The page is in memory (WT_REF_MEM), the tree is readonly, and ft_info.del is not NULL.
+     *     We can use the information ft_info.del to make a fast skip decision.
      *
-     * #2 and #3 may have ft_info.del set, but it may be NULL, so we check.
+     * Note that in the WT_REF_MEM case we must check for a readonly tree before examining
+     * ft_info.del, because ft_info is a union and in a read-write tree the other union member is in
+     * use. See btmem.h for a complete description of the cases.
      */
     page_del = NULL;
-    if (previous_state == WT_REF_DELETED)
+    if (previous_state == WT_REF_DELETED) {
         page_del = ref->ft_info.del;
-    if (F_ISSET(btree, WT_BTREE_READONLY) &&
+        if (page_del == NULL) {
+            *skipp = true;
+            goto unlock;
+        }
+    } else if (F_ISSET(btree, WT_BTREE_READONLY) &&
       (previous_state == WT_REF_DISK || previous_state == WT_REF_MEM))
         page_del = ref->ft_info.del;
     if (page_del != NULL && __wt_txn_visible(session, page_del->txnid, page_del->timestamp)) {

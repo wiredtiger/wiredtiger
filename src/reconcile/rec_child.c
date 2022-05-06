@@ -25,8 +25,9 @@ __rec_child_deleted(
     txn = session->txn;
 
     /*
-     * The complicated case is a fast-delete which may not be visible or stable. Otherwise, discard
-     * any underlying disk blocks and don't write anything.
+     * Because the ref state is WT_REF_DELETED, there are only two cases here. The complicated case
+     * is a fast-delete which may not be visible or stable, where ft_info.del isn't NULL. Otherwise,
+     * discard any underlying disk blocks and don't write anything.
      */
     page_del = ref->ft_info.del;
     if (page_del == NULL)
@@ -125,6 +126,8 @@ __wt_rec_child_modify(
         case WT_REF_DISK:
             /* On disk, not modified by definition. */
             WT_ASSERT(session, ref->addr != NULL);
+            /* DISK pages can only have FT info in a readonly tree, shouldn't come here */
+            WT_ASSERT(session, ref->ft_info.del == NULL);
             goto done;
 
         case WT_REF_DELETED:
