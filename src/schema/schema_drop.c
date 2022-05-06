@@ -179,11 +179,9 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     WT_CONFIG_ITEM cval;
     WT_DATA_HANDLE *tier;
     WT_DECL_RET;
-    WT_FILE_SYSTEM *bucket_fs;
     WT_TIERED *tiered;
-    u_int i, obj_count;
-    char **obj_files;
-    const char *filename, *name, *tiered_name;
+    u_int i;
+    const char *filename, *name;
     bool exist, remove_files, remove_shared;
 
     WT_RET(__wt_config_gets(session, cfg, "remove_files", &cval));
@@ -247,6 +245,13 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
             WT_ERR(__wt_fs_exist(session, filename, &exist));
             if (exist)
                 WT_ERR(__wt_meta_track_drop(session, filename));
+
+            /*
+             * If a drop operation on tiered storage is configured to force removal of shared objects, we
+             * want to remove these files after the drop operation is successful.
+             */
+            if (remove_shared)
+                WT_ERR(__wt_meta_track_drop_object(session, tiered->bstorage, filename));
         }
         __wt_free(session, name);
     }
@@ -262,22 +267,6 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
 
     __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove tiered table %s from metadata", uri);
     ret = __wt_metadata_remove(session, uri);
-
-    /*
-     * If a drop operation on tiered storage is configured to force removal of shared objects, we
-     * want to remove these files after the drop operation is successful.
-     */
-    bucket_fs = tiered->bstorage->file_system;
-    if (WT_PREFIX_MATCH(uri, "tiered:") && remove_shared) {
-        tiered_name = tiered->iface.name;
-        WT_PREFIX_SKIP(tiered_name, "tiered:");
-
-        WT_RET(bucket_fs->fs_directory_list(bucket_fs, (WT_SESSION *)session,
-          tiered->bstorage->bucket_prefix, tiered_name, &obj_files, &obj_count));
-
-        for (i = 0; i < obj_count; ++i)
-            WT_ERR(__wt_meta_track_drop_object(session, tiered->bstorage, obj_files[i]));
-    }
 
 err:
     __wt_free(session, name);
