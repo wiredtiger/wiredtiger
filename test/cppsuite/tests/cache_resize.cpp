@@ -55,7 +55,7 @@ class tracking_table_cache_resize : public test_harness::workload_tracking {
 /*
  * This test continuously writes 2MB transactions into the database, while switching the
  * connection cache size between 1MB and 500MB. When transactions are larger than the cache size
- * they are rejected, so only transactions made when cache size if 500MB will be allowed.
+ * they are rejected, so only transactions made when cache size is 500MB will be allowed.
  */
 class cache_resize : public test_harness::test {
     public:

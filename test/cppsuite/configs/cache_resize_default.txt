@@ -1,6 +1,6 @@
 # Configuration for cache_resize:
 # - Defines a thread that uses the custom operation to resize the cache during runtime.
-# - Defines several insert threads are defined to perform large transactions.
+# - Defines several insert threads are used to perform large transactions.
 # - Defines custom tracking to save the transaction id and cache size as values. Keys are
 # timestamps.
 duration_seconds=20,
