@@ -565,7 +565,8 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
 static inline bool
 __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-    if (upd->prepare_state == WT_PREPARE_LOCKED || upd->prepare_state == WT_PREPARE_INPROGRESS)
+    if (upd->prepare_state == WT_PREPARE_LOCKED || upd->prepare_state == WT_PREPARE_INPROGRESS ||
+      upd->prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS)
         return (false);
 
     /*
@@ -779,7 +780,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     if (!upd_visible)
         return (WT_VISIBLE_FALSE);
 
-    if (prepare_state == WT_PREPARE_INPROGRESS)
+    if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS)
         return (WT_VISIBLE_PREPARE);
 
     return (WT_VISIBLE_TRUE);
@@ -857,7 +858,7 @@ __wt_upd_alloc_tombstone(WT_SESSION_IMPL *session, WT_UPDATE **updp, size_t *siz
  */
 static inline int
 __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd,
-  WT_UPDATE **prepare_updp, WT_UPDATE **restored_updp)
+  WT_UPDATE **prepare_updp, WT_UPDATE **restored_updp, uint8_t *prepare_statep)
 {
     WT_VISIBLE_TYPE upd_visible;
     uint8_t prepare_state, type;
@@ -866,6 +867,8 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
         *prepare_updp = NULL;
     if (restored_updp != NULL)
         *restored_updp = NULL;
+    if (prepare_statep != NULL)
+        *prepare_statep = WT_PREPARE_INIT;
     __wt_upd_value_clear(cbt->upd_value);
 
     for (; upd != NULL; upd = upd->next) {
@@ -887,8 +890,8 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
             cbt->upd_value->tw.durable_stop_ts = upd->durable_ts;
             cbt->upd_value->tw.stop_ts = upd->start_ts;
             cbt->upd_value->tw.stop_txn = upd->txnid;
-            cbt->upd_value->tw.prepare =
-              prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
+            cbt->upd_value->tw.prepare = prepare_state == WT_PREPARE_INPROGRESS ||
+              prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
             continue;
         }
 
@@ -901,10 +904,14 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
          * Save the prepared update to help us detect if we race with prepared commit or rollback
          * irrespective of update visibility.
          */
-        if ((prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) &&
+        if ((prepare_state == WT_PREPARE_INPROGRESS ||
+              prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS ||
+              prepare_state == WT_PREPARE_LOCKED) &&
           prepare_updp != NULL && *prepare_updp == NULL &&
-          F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS))
+          F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)) {
             *prepare_updp = upd;
+            *prepare_statep = prepare_state;
+        }
 
         /*
          * Save the restored update to use it as base value update in case if we need to reach
@@ -950,7 +957,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
 static inline int
 __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
-    return __wt_txn_read_upd_list_internal(session, cbt, upd, NULL, NULL);
+    return __wt_txn_read_upd_list_internal(session, cbt, upd, NULL, NULL, NULL);
 }
 
 /*
@@ -966,13 +973,15 @@ __wt_txn_read(
 {
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd, *restored_upd;
+    uint8_t prepare_state, pre_prepare_state;
     bool have_stop_tw, retry;
 
     prepare_upd = restored_upd = NULL;
     retry = true;
 
 retry:
-    WT_RET(__wt_txn_read_upd_list_internal(session, cbt, upd, &prepare_upd, &restored_upd));
+    WT_RET(__wt_txn_read_upd_list_internal(
+      session, cbt, upd, &prepare_upd, &restored_upd, &pre_prepare_state));
     if (WT_UPDATE_DATA_VALUE(cbt->upd_value) ||
       (cbt->upd_value->type == WT_UPDATE_MODIFY && cbt->upd_value->skip_buf))
         return (0);
@@ -1065,9 +1074,12 @@ retry:
      */
     if (prepare_upd != NULL) {
         WT_ASSERT(session, F_ISSET(prepare_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
+        WT_ORDERED_READ(prepare_state, upd->prepare_state);
         if (retry &&
-          (prepare_upd->txnid == WT_TXN_ABORTED ||
-            prepare_upd->prepare_state == WT_PREPARE_RESOLVED)) {
+          (prepare_upd->txnid == WT_TXN_ABORTED || prepare_state == WT_PREPARE_RESOLVED ||
+            ((pre_prepare_state == WT_PREPARE_INPROGRESS ||
+               pre_prepare_state == WT_PREPARE_LOCKED) &&
+              prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS))) {
             retry = false;
             /* Clean out any stale value before performing the retry. */
             __wt_upd_value_clear(cbt->upd_value);
@@ -1413,7 +1425,8 @@ __wt_txn_modify_block(
              * is an in-progress prepared update.
              */
             WT_ASSERT(session,
-              upd->durable_ts >= upd->start_ts || upd->prepare_state == WT_PREPARE_INPROGRESS);
+              upd->durable_ts >= upd->start_ts || upd->prepare_state == WT_PREPARE_INPROGRESS ||
+                upd->prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS);
             *prev_tsp = upd->durable_ts;
         } else if (tw_found)
             *prev_tsp = WT_TIME_WINDOW_HAS_STOP(&tw) ? tw.durable_stop_ts : tw.durable_start_ts;
@@ -1578,14 +1591,16 @@ __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
         upd_value->tw.durable_stop_ts = upd->durable_ts;
         upd_value->tw.stop_ts = upd->start_ts;
         upd_value->tw.stop_txn = upd->txnid;
-        upd_value->tw.prepare =
-          upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED;
+        upd_value->tw.prepare = upd->prepare_state == WT_PREPARE_INPROGRESS ||
+          upd->prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS ||
+          upd->prepare_state == WT_PREPARE_LOCKED;
     } else {
         upd_value->tw.durable_start_ts = upd->durable_ts;
         upd_value->tw.start_ts = upd->start_ts;
         upd_value->tw.start_txn = upd->txnid;
-        upd_value->tw.prepare =
-          upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED;
+        upd_value->tw.prepare = upd->prepare_state == WT_PREPARE_INPROGRESS ||
+          upd->prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS ||
+          upd->prepare_state == WT_PREPARE_LOCKED;
     }
     upd_value->type = upd->type;
 }

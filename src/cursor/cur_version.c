@@ -221,6 +221,7 @@ __curversion_next_int(WT_CURSOR *cursor)
                 F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
             } else {
                 if (upd->prepare_state == WT_PREPARE_INPROGRESS ||
+                  upd->prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS ||
                   upd->prepare_state == WT_PREPARE_LOCKED)
                     version_prepare_state = 1;
                 else
@@ -323,6 +324,7 @@ __curversion_next_int(WT_CURSOR *cursor)
 
         if (tombstone != NULL &&
           (tombstone->prepare_state == WT_PREPARE_INPROGRESS ||
+            tombstone->prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS ||
             tombstone->prepare_state == WT_PREPARE_LOCKED))
             version_prepare_state = 1;
         else

@@ -783,15 +783,18 @@ struct __wt_page {
  * WT_PREPARE_RESOLVED:
  *	Represents the commit state of the prepared update.
  *
+ * WT_PREPARE_ROLLBACK_INPROGRESS
+ *  Update is in prepare rollback phase.
+ *
  * State Transition:
  * 	From uncommitted -> prepare -> commit:
  * 	INIT --> INPROGRESS --> LOCKED --> RESOLVED
  * 	LOCKED will be a momentary phase during timestamp update.
  *
  * 	From uncommitted -> prepare -> rollback:
- * 	INIT --> INPROGRESS
- * 	Prepare state will not be updated during rollback and will continue to
- * 	have the state as INPROGRESS.
+ * 	INIT --> INPROGRESS -> ROLLBACK_INPROGRESS
+ * 	Prepare state will be updated to ROLLBACK_INPROGRESS after we have restores the history
+ *store record to the update chain
  */
 #define WT_PREPARE_INIT              \
     0 /* Must be 0, as structures    \
@@ -800,6 +803,7 @@ struct __wt_page {
 #define WT_PREPARE_INPROGRESS 1
 #define WT_PREPARE_LOCKED 2
 #define WT_PREPARE_RESOLVED 3
+#define WT_PREPARE_ROLLBACK_INPROGRESS 4
 
 /*
  * Page state.

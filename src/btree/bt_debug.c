@@ -1568,6 +1568,9 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
         case WT_PREPARE_RESOLVED:
             prepare_state = "resolved";
             break;
+        case WT_PREPARE_ROLLBACK_INPROGRESS:
+            prepare_state = "rollback-in-progress";
+            break;
         }
         if (prepare_state != NULL)
             WT_RET(ds->f(ds, ", prepare %s", prepare_state));

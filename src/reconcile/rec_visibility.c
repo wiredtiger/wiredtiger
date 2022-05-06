@@ -387,6 +387,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         /* If we have a prepared update, durable timestamp cannot be out of order. */
         WT_ASSERT(session,
           prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
+            prev_upd->prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS ||
             prev_upd->start_ts == prev_upd->durable_ts || prev_upd->durable_ts >= upd->durable_ts);
 
         /* Validate that the updates older than us have older timestamps. */
@@ -426,10 +427,12 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         /* If we have a prepared update, durable timestamp cannot be out of order. */
         WT_ASSERT(session,
           prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
+            prev_upd->prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS ||
             prev_upd->start_ts == prev_upd->durable_ts ||
             prev_upd->durable_ts >= vpack->tw.durable_start_ts);
         WT_ASSERT(session,
           prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
+            prev_upd->prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS ||
             prev_upd->start_ts == prev_upd->durable_ts || !WT_TIME_WINDOW_HAS_STOP(&vpack->tw) ||
             prev_upd->durable_ts >= vpack->tw.durable_stop_ts);
         if (prev_upd->start_ts < vpack->tw.start_ts ||
@@ -577,7 +580,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint64_t recno, W
 
         /* Ignore prepared updates if it is checkpoint. */
         if (upd->prepare_state == WT_PREPARE_LOCKED ||
-          upd->prepare_state == WT_PREPARE_INPROGRESS) {
+          upd->prepare_state == WT_PREPARE_INPROGRESS ||
+          upd->prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS) {
             WT_ASSERT(session, upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid);
             if (F_ISSET(r, WT_REC_CHECKPOINT)) {
                 upd_memsize += WT_UPDATE_MEMSIZE(upd);
@@ -664,6 +668,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint64_t recno, W
      * stable.
      */
     if (upd != NULL) {
+        /* We cannot select a prepare that is being rolled back because eviction needs exclusive
+         * access and checkpoint never selects prepared update. */
+        WT_ASSERT(session, upd->prepare_state != WT_PREPARE_ROLLBACK_INPROGRESS);
         /*
          * Mark the prepare flag if the selected update is an uncommitted prepare. As tombstone
          * updates are never returned to write, set this flag before we move into the previous

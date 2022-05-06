@@ -1171,7 +1171,8 @@ err:
  *     (see WT-6778).
  */
 static void
-__txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool commit)
+__txn_resolve_prepared_update_chain(
+  WT_SESSION_IMPL *session, WT_UPDATE *upd, bool commit, bool rollback_in_progress)
 {
 
     /* If we've reached the end of the chain, we're done looking. */
@@ -1183,7 +1184,7 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
      * due to a reserved update. As such we should skip over these updates entirely.
      */
     if (upd->txnid == WT_TXN_ABORTED) {
-        __txn_resolve_prepared_update_chain(session, upd->next, commit);
+        __txn_resolve_prepared_update_chain(session, upd->next, commit, rollback_in_progress);
         return;
     }
 
@@ -1195,11 +1196,15 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
         return;
 
     /* Go down the chain. Do the resolves on the way back up. */
-    __txn_resolve_prepared_update_chain(session, upd->next, commit);
+    __txn_resolve_prepared_update_chain(session, upd->next, commit, rollback_in_progress);
 
     if (!commit) {
-        upd->txnid = WT_TXN_ABORTED;
-        WT_STAT_CONN_INCR(session, txn_prepared_updates_rolledback);
+        if (rollback_in_progress)
+            WT_PUBLISH(upd->prepare_state, WT_PREPARE_ROLLBACK_INPROGRESS);
+        else {
+            upd->txnid = WT_TXN_ABORTED;
+            WT_STAT_CONN_INCR(session, txn_prepared_updates_rolledback);
+        }
         return;
     }
 
@@ -1404,8 +1409,24 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      *
      * In the above example, we will resolve "u2" and "u1" as part of resolving "txn_op1" and will
      * not do any significant thing as part of "txn_op2".
+     *
+     * If we are rolling back the update, first mark it as WT_PREPARE_ROLLBACK_IN_PROGRESS to block
+     *any more updates being committed on this key until we have fixed all the history store record.
+     *Therefore, if checkpoint races with us, it will always write the restored update to the data
+     *store not the history store. Otherwise, if checkpoint starts after we have removed the history
+     *store record but before we clear the WT_UPDATE_TO_DELETE_FROM_HS flag, it may skip writing
+     *this update to the history store again if that update is chosen to be written to the history
+     *store.
+     *
+     * We also cannot skip this step and mark the prepared update as aborted at the end because we
+     *may race with a reader that starts to read this key before the rollback starts. In this case,
+     *the reader will see the prepared update and directly goto the history store. Then the rollback
+     *then starts and deletes the record in the history store. Once the reader resumes and it will
+     *find a record missing. In addition, he also cannot detect that there is a prepared rollback
+     *going on in this case to retry the read as the prepared state remains as
+     *WT_PREPARE_INPROGRESS.
      */
-    __txn_resolve_prepared_update_chain(session, upd, commit);
+    __txn_resolve_prepared_update_chain(session, upd, commit, !commit);
 
     /* Mark the page dirty once the prepared updates are resolved. */
     __wt_page_modify_set(session, page);
@@ -1418,6 +1439,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      */
     if (fix_upd != NULL)
         WT_ERR(__txn_fixup_prepared_update(session, hs_cursor, fix_upd, commit));
+
+    if (!commit)
+        __txn_resolve_prepared_update_chain(session, upd, false, false);
 
 prepare_verify:
 #ifdef HAVE_DIAGNOSTIC
