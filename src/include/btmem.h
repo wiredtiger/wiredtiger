@@ -983,18 +983,24 @@ struct __wt_ref {
      * Because this is a union it is important to always access the correct field. It is also vital
      * to interpret the state correctly and consider all the possible cases.
      *
+     * The union access should be ft_info.del if the state is WT_REF_DELETED or WT_REF_DISK (states
+     * 1-4 below); should also be ft_info.del if the state is WT_REF_MEM and the tree is readonly
+     * (state 7 below); and should be ft_info.update if the state is WT_REF_MEM and the tree is
+     * read-write (states 5-6 below).
+     *
      * These are the possible cases:
      *
      * 1. The WT_REF state is WT_REF_DELETED and ft_info.del is NULL. The page is on disk only, is
-     * deleted, is no longer accessible, and the on-disk page (if any) can be discarded freely.
+     * deleted, is no longer accessible (the deletion has become globally visible), and the on-disk
+     * page (if any) can be discarded freely.
      *
      * 2. The WT_REF state is WT_REF_DELETED and ft_info.del is not NULL. The page is on disk only,
-     * and is deleted, but the deletion may not yet be globally visible. ft_info.del describes the
-     * delete operation. If it is necessary to read the page on behalf of someone who cannot see the
-     * deletion, the page must be instantiated as described above.
+     * and is deleted, but the deletion may not yet be globally visible (or visible to any given
+     * reader either). ft_info.del describes the delete operation. If it is necessary to read the
+     * page on behalf of someone who cannot see the deletion, the page must be instantiated as
+     * described above.
      *
-     * 3. The WT_REF state is WT_REF_DISK and ft_info.del is NULL. This is an ordinary on-disk
-     * page.
+     * 3. The WT_REF state is WT_REF_DISK and ft_info.del is NULL. This is an ordinary on-disk page.
      *
      * 4. The WT_REF state is WT_REF_DISK and ft_info.del is not NULL. This is only permissible in
      * readonly trees. The page is on disk only, and is deleted, but the deletion may not yet be
@@ -1002,35 +1008,26 @@ struct __wt_ref {
      * state is not set back to WT_REF_DELETED when an instantiated truncated page in a readonly
      * tree is discarded by eviction.
      *
-     * 5. The WT_REF state is WT_REF_MEM and the tree is read-write, and ft_info.update (not
-     * ft_info.del) is NULL. This is an ordinary in-memory page. It might have been previously
-     * deleted and then instantiated, or not, but the difference no longer matters.
+     * 5. The WT_REF state is WT_REF_MEM and the tree is read-write, and ft_info.update is NULL.
+     * This is an ordinary in-memory page. It might have been previously deleted and then
+     * instantiated, or not, but the difference no longer matters.
      *
-     * 6. The WT_REF state is WT_REF_MEM and the tree is read-write, and ft_info.update (not
-     * ft_info.del) is not NULL. This is a deleted page that was instantiated when the delete
-     * transaction was not yet committed. ft_info.update is the list of updates created by the
-     * instantiation, which is used to commit or abort them as needed and then cleared. It is not
-     * possible to get to this state if the truncate information was read from disk; uncommitted
-     * (including prepared) truncates are not evicted or checkpointed.
+     * 6. The WT_REF state is WT_REF_MEM and the tree is read-write, and ft_info.update is not NULL.
+     * This is a deleted page that was instantiated when the delete transaction was not yet
+     * committed. ft_info.update is the list of updates created by the instantiation, which is used
+     * to commit or abort them as needed and then cleared. It is not possible to get to this state
+     * if the truncate information was read from disk; uncommitted (including prepared) truncates
+     * are not evicted or checkpointed.
      *
-     * 7. The WT_REF state is WT_REF_MEM and the tree is readonly, and ft_info.del (not
-     * ft_info.update) is not NULL. This is a deleted page that has been instantiated. The delete
-     * information is kept so that the page can be instantiated correctly again if it is discarded
-     * by eviction and read back in. Because the tree is readonly, it is safe to use the delete
-     * information when reading, e.g. to skip the page; no newer updates can be applied to the page.
-     *
-     * 8. The WT_REF state is WT_REF_SPLIT. This should, as far as I know, never happen to a deleted
-     * page, so ft_info.del should always be NULL.
+     * 7. The WT_REF state is WT_REF_MEM and the tree is readonly, and ft_info.del is not NULL. This
+     * is a deleted page that has been instantiated. The delete information is kept so that the page
+     * can be instantiated correctly again if it is discarded by eviction and read back in. Because
+     * the tree is readonly, it is safe to use the delete information when reading, e.g. to skip the
+     * page; no newer updates can be applied to the page.
      *
      * Note that because the ref must be locked to do anything other than test the pointer for NULL,
-     * these states refer to the pre-locking state. The state when examining the ref will always be
+     * these states refer to the pre-locking state. The state while examining the ref will always be
      * WT_REF_LOCKED.
-     *
-     * Also note that for the moment at least we assume that it's safe to test either union member
-     * for NULL. Pragmatically, this ought to be safe. Formally, however, it is at least debatable
-     * (especially for older versions of the C standard) and there's some risk of running afoul of
-     * pointer provenance logic in static analyzers or runtime sanitizers. For this reason, where
-     * possible please test the correct member according to the surrounding state.
      */
     union {
         WT_PAGE_DELETED *del; /* Page not instantiated, page-deleted structure */

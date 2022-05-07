@@ -147,11 +147,11 @@ err:
 }
 
 /*
- * __wt_delete_page_abort --
- *     Transaction abort for a fast-truncate operation.
+ * __wt_delete_page_rollback --
+ *     Transaction rollback for a fast-truncate operation.
  */
 int
-__wt_delete_page_abort(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_UPDATE **updp;
     uint64_t sleep_usecs, yield_count;
@@ -202,7 +202,7 @@ __wt_delete_page_abort(WT_SESSION_IMPL *session, WT_REF *ref)
     else if ((updp = ref->ft_info.update) != NULL)
         /*
          * Walk any list of update structures and abort them. We can't use the normal read path to
-         * get the pages with updates (the original page may have split, so there many be more than
+         * get the pages with updates (the original page may have split, so there may be more than
          * one page), because the session may have closed the cursor, and we no longer have the
          * reference to the tree required for a hazard pointer. We're safe since pages with
          * unresolved transactions aren't going anywhere.
