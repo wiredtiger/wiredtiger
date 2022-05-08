@@ -1077,9 +1077,8 @@ retry:
         WT_ORDERED_READ(prepare_state, upd->prepare_state);
         if (retry &&
           (prepare_upd->txnid == WT_TXN_ABORTED || prepare_state == WT_PREPARE_RESOLVED ||
-            ((pre_prepare_state == WT_PREPARE_INPROGRESS ||
-               pre_prepare_state == WT_PREPARE_LOCKED) &&
-              prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS))) {
+            (pre_prepare_state == WT_PREPARE_INPROGRESS &&
+              prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS)) {
             retry = false;
             /* Clean out any stale value before performing the retry. */
             __wt_upd_value_clear(cbt->upd_value);
