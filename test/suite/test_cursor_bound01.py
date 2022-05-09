@@ -34,17 +34,30 @@ from wtscenario import make_scenarios
 class test_cursor_bound01(wttest.WiredTigerTestCase):
     file_name = 'test_cursor_bound01'
 
-    scenarios = make_scenarios([
-        ('file', dict(uri='file:')),
-        ('table', dict(uri='table:')),
-        ('lsm', dict(uri='lsm:'))
-    ])
+    types = [
+        ('file', dict(uri='file:', use_index = False)),
+        ('table', dict(uri='table:', use_index = False)),
+        ('lsm', dict(uri='lsm:', use_index = False)),
+        ('index', dict(uri='table:', use_index = True)), 
+    ]
+
+    scenarios = make_scenarios(types)
 
     def test_bound_api(self):
         uri = self.uri + self.file_name
         create_params = 'value_format=S,key_format=i'
+        if self.use_index:
+            create_params += ",columns=(k,v)"
         self.session.create(uri, create_params)
-        cursor = self.session.open_cursor(uri)
+        cursor = None
+        if self.use_index:
+            # Test Index Cursors bound API support.
+            suburi = "index:" + self.file_name + ":i0"
+            self.session.create(suburi, "columns=(k,v)")
+            cursor = self.session.open_cursor("index:" + self.file_name + ":i0")
+        else:
+            cursor = self.session.open_cursor(uri)
+
         # LSM format is not supported with range cursors.
         if self.uri == 'lsm:':
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower"),
