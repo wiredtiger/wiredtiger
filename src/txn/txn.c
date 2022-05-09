@@ -1236,7 +1236,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_PAGE *page;
     WT_TIME_WINDOW tw;
     WT_TXN *txn;
-    WT_UPDATE *first_committed_upd, *fix_upd, *upd, upd_followed_tombstone;
+    WT_UPDATE *first_committed_upd, *fix_upd, *upd, *upd_followed_tombstone;
 #ifdef HAVE_DIAGNOSTIC
     WT_UPDATE *head_upd;
 #endif
