@@ -125,6 +125,7 @@ Decrypt
 DeleteFileW
 Destructor
 Deterministically
+DmpvXx
 EACCES
 EAGAIN
 EB
@@ -365,6 +366,7 @@ Prepend
 Prepending
 Prev
 QQQS
+QSQ
 Qsort
 RCS
 RDNOLOCK
