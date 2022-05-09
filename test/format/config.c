@@ -959,16 +959,20 @@ config_mirrors(void)
 {
     u_int i, mirrors;
     char buf[100];
-    bool explicit_mirror;
+    bool already_set, explicit_mirror;
 
-    /* On reopen, check if mirroring is configured; the first mirrored table is the base table. */
-    if (g.reopen) {
-        for (i = 1; i <= ntables; ++i)
-            if (NTV(tables[i], RUNS_MIRROR)) {
-                tables[i]->mirror = true;
-                if (g.base_mirror == NULL)
-                    g.base_mirror = tables[i];
-            }
+    /*
+     *
+     */
+    for (already_set = false, i = 1; i <= ntables; ++i)
+        if (NTV(tables[i], RUNS_MIRROR)) {
+            already_set = tables[i]->mirror = true;
+            if (g.base_mirror == NULL && tables[i]->type != FIX)
+                g.base_mirror = tables[i];
+        }
+    if (already_set) {
+        if (g.base_mirror == NULL)
+            testutil_die(EINVAL, "no table configured that can act as the base mirror");
         return;
     }
 
