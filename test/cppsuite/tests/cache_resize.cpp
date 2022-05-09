@@ -58,10 +58,8 @@ class cache_resize : public test_harness::test {
     public:
     cache_resize(const test_harness::test_args &args) : test(args)
     {
-        delete this->_workload_tracking;
-        this->_workload_tracking =
-          new tracking_table_cache_resize(_config->get_subconfig(WORKLOAD_TRACKING),
-            _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager);
+        init_tracking(new tracking_table_cache_resize(_config->get_subconfig(WORKLOAD_TRACKING),
+          _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager));
     }
 
     void
