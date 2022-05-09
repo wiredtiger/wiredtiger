@@ -52,7 +52,7 @@
 
 namespace test_harness {
 /* Tracking operations. */
-enum class tracking_operation { CREATE_COLLECTION, DELETE_COLLECTION, DELETE_KEY, INSERT };
+enum class tracking_operation { CREATE_COLLECTION, CUSTOM, DELETE_COLLECTION, DELETE_KEY, INSERT };
 
 /* Class used to track operations performed on collections */
 class workload_tracking : public component {
