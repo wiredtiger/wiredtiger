@@ -155,7 +155,8 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
     "\"checkpoint_reserved_txnid_delay\",\"checkpoint_slow\","
-    "\"compact_slow\",\"failpoint_history_store_delete_key_from_ts\","
+    "\"compact_slow\",\"evict_reposition\","
+    "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
@@ -227,7 +228,8 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_begin_transaction[] = {
     "choices=[\"read-uncommitted\",\"read-committed\","
     "\"snapshot\"]",
     NULL, 0},
-  {"name", "string", NULL, NULL, NULL, 0}, {"operation_timeout_ms", "int", NULL, "min=1", NULL, 0},
+  {"name", "string", NULL, NULL, NULL, 0}, {"no_timestamp", "boolean", NULL, NULL, NULL, 0},
+  {"operation_timeout_ms", "int", NULL, "min=1", NULL, 0},
   {"priority", "int", NULL, "min=-100,max=100", NULL, 0},
   {"read_timestamp", "string", NULL, NULL, NULL, 0},
   {"roundup_timestamps", "category", NULL, NULL,
@@ -892,7 +894,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
     "\"checkpoint_reserved_txnid_delay\",\"checkpoint_slow\","
-    "\"compact_slow\",\"failpoint_history_store_delete_key_from_ts\","
+    "\"compact_slow\",\"evict_reposition\","
+    "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
@@ -974,7 +977,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
     "\"checkpoint_reserved_txnid_delay\",\"checkpoint_slow\","
-    "\"compact_slow\",\"failpoint_history_store_delete_key_from_ts\","
+    "\"compact_slow\",\"evict_reposition\","
+    "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
@@ -1054,7 +1058,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
     "\"checkpoint_reserved_txnid_delay\",\"checkpoint_slow\","
-    "\"compact_slow\",\"failpoint_history_store_delete_key_from_ts\","
+    "\"compact_slow\",\"evict_reposition\","
+    "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
@@ -1132,7 +1137,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
     "\"checkpoint_reserved_txnid_delay\",\"checkpoint_slow\","
-    "\"compact_slow\",\"failpoint_history_store_delete_key_from_ts\","
+    "\"compact_slow\",\"evict_reposition\","
+    "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
@@ -1221,10 +1227,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "write_timestamp_usage=none",
     confchk_WT_SESSION_alter, 12},
   {"WT_SESSION.begin_transaction",
-    "ignore_prepare=false,isolation=,name=,operation_timeout_ms=0,"
-    "priority=0,read_timestamp=,roundup_timestamps=(prepared=false,"
-    "read=false),sync=",
-    confchk_WT_SESSION_begin_transaction, 8},
+    "ignore_prepare=false,isolation=,name=,no_timestamp=false,"
+    "operation_timeout_ms=0,priority=0,read_timestamp=,"
+    "roundup_timestamps=(prepared=false,read=false),sync=",
+    confchk_WT_SESSION_begin_transaction, 9},
   {"WT_SESSION.checkpoint", "drop=,force=false,name=,target=,use_timestamp=true",
     confchk_WT_SESSION_checkpoint, 5},
   {"WT_SESSION.close", "", NULL, 0},

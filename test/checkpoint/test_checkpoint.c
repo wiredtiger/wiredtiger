@@ -67,11 +67,12 @@ main(int argc, char *argv[])
     g.nops = 100000;
     g.ntables = 3;
     g.nworkers = 1;
+    g.evict_reposition_timing_stress = false;
     g.sweep_stress = g.use_timestamps = false;
     g.failpoint_hs_delete_key_from_ts = false;
     g.hs_checkpoint_timing_stress = g.reserved_txnid_timing_stress = false;
     g.checkpoint_slow_timing_stress = false;
-    g.mixed_mode_deletes = false;
+    g.no_ts_deletes = false;
     runs = 1;
     verify_only = false;
 
@@ -99,7 +100,7 @@ main(int argc, char *argv[])
             }
             break;
         case 'm':
-            g.mixed_mode_deletes = true;
+            g.no_ts_deletes = true;
             break;
         case 'n': /* operations */
             g.nops = (u_int)atoi(__wt_optarg);
@@ -126,6 +127,9 @@ main(int argc, char *argv[])
                 break;
             case '5':
                 g.checkpoint_slow_timing_stress = true;
+                break;
+            case '6':
+                g.evict_reposition_timing_stress = true;
                 break;
             default:
                 return (usage());
@@ -270,11 +274,14 @@ wt_connect(const char *config_open)
 
     fast_eviction = false;
     timing_stress = false;
-    if (g.sweep_stress || g.failpoint_hs_delete_key_from_ts || g.hs_checkpoint_timing_stress ||
-      g.reserved_txnid_timing_stress || g.checkpoint_slow_timing_stress) {
+    if (g.evict_reposition_timing_stress || g.sweep_stress || g.failpoint_hs_delete_key_from_ts ||
+      g.hs_checkpoint_timing_stress || g.reserved_txnid_timing_stress ||
+      g.checkpoint_slow_timing_stress) {
         timing_stress = true;
         testutil_check(__wt_snprintf(timing_stress_config, sizeof(timing_stress_config),
-          ",timing_stress_for_test=[%s%s%s%s%s]", g.sweep_stress ? "aggressive_sweep" : "",
+          ",timing_stress_for_test=[%s%s%s%s%s%s]",
+          g.evict_reposition_timing_stress ? "evict_reposition" : "",
+          g.sweep_stress ? "aggressive_sweep" : "",
           g.failpoint_hs_delete_key_from_ts ? "failpoint_history_store_delete_key_from_ts" : "",
           g.hs_checkpoint_timing_stress ? "history_store_checkpoint_delay" : "",
           g.reserved_txnid_timing_stress ? "checkpoint_reserved_txnid_delay" : "",
@@ -580,8 +587,9 @@ static int
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s [-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys]\n\t[-l log] [-m] "
-      "[-n ops] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t f|r|v]\n\t[-W workers]\n",
+      "usage: %s\n"
+      "    [-DmpvXx] [-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys] [-l log]\n"
+      "    [-n ops] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t f|r|v] [-W workers]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-C specify wiredtiger_open configuration arguments\n"
@@ -590,7 +598,7 @@ usage(void)
       "\t-h set a database home directory\n"
       "\t-k set number of keys to load\n"
       "\t-l specify a log file\n"
-      "\t-m run with mixed mode delete operations\n"
+      "\t-m perform delete operations without timestamps\n"
       "\t-n set number of operations each thread does\n"
       "\t-p use prepare\n"
       "\t-r set number of runs (0 for continuous)\n"
@@ -604,7 +612,7 @@ usage(void)
       "\t-t set a file type ( col | mix | row | lsm )\n"
       "\t-v verify only\n"
       "\t-W set number of worker threads\n"
-      "\t-x use timestamps\n"
-      "\t-X race timestamp updates with checkpoints\n");
+      "\t-X race timestamp updates with checkpoints\n"
+      "\t-x use timestamps\n");
     return (EXIT_FAILURE);
 }

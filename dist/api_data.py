@@ -58,8 +58,7 @@ common_runtime_config = [
             check timestamps are \c always or \c never used on reads with
             this table, writing an error message if policy is violated.
             If the library was built in diagnostic mode, drop core at the
-            failing check. Should be set to \c none if mixed read use is
-            allowed''', choices=['always', 'never', 'none']),
+            failing check''', choices=['always', 'never', 'none']),
         Config('write_timestamp', 'off', r'''
             check timestamps are used consistently with the configured
             \c write_timestamp_usage option for this table, writing
@@ -71,16 +70,13 @@ common_runtime_config = [
         this option is no longer supported, retained for backward compatibility''',
         type='list', choices=['write_timestamp'], undoc=True),
     Config('write_timestamp_usage', 'none', r'''
-        describe how timestamps are expected to be used on table modifications. This option should
-        be used in conjunction with the corresponding \c write_timestamp configuration under the
-        \c assert option to provide errors and assertions for incorrect timestamp usage. The
-        choices are the default, which ensures that once timestamps are used for a key, they are
-        always used, and also that multiple updates to a key never use decreasing timestamps,
-        \c mixed_mode, which additionally allows updates with no timestamp even after timestamps
-        are first used, and \c never which enforces that timestamps are never used for a table.
-        (The \c always, \c key_consistent and \c ordered choices should not be used, and are
-        retained for backward compatibility.)''',
-        choices=['always', 'key_consistent', 'mixed_mode', 'never', 'none', 'ordered']),
+        describe how timestamps are expected to be used on table modifications.  The choices are
+        the default, which ensures that once timestamps are used for a key, they are always used,
+        and also that multiple updates to a key never use decreasing timestamps and \c never which
+        enforces that timestamps are never used for a table.  (The \c always, \c key_consistent,
+        \c mixed_mode and \c ordered choices should not be used, and are retained for backward
+        compatibility.)''', choices=['always', 'key_consistent', 'mixed_mode', 'never', 'none',
+        'ordered']),
 ]
 
 # Metadata shared by all schema objects
@@ -838,7 +834,7 @@ connection_runtime_config = [
         type='list', undoc=True,
         choices=[
         'aggressive_sweep', 'backup_rename', 'checkpoint_reserved_txnid_delay', 'checkpoint_slow',
-        'compact_slow', 'failpoint_history_store_delete_key_from_ts',
+        'compact_slow', 'evict_reposition', 'failpoint_history_store_delete_key_from_ts',
         'history_store_checkpoint_delay', 'history_store_search', 'history_store_sweep_race',
         'prepare_checkpoint_delay', 'split_1', 'split_2', 'split_3', 'split_4', 'split_5',
         'split_6', 'split_7', 'tiered_flush_finish']),
@@ -1741,6 +1737,10 @@ methods = {
         choices=['read-uncommitted', 'read-committed', 'snapshot']),
     Config('name', '', r'''
         name of the transaction for tracing and debugging'''),
+    Config('no_timestamp', 'false', r'''
+        allow a commit without a timestamp, creating a value that has "always existed" and is
+        visible regardless of timestamp. See @ref timestamp_txn_api''',
+        type='boolean'),
     Config('operation_timeout_ms', '0', r'''
         when non-zero, a requested limit on the time taken to complete operations in this
         transaction. Time is measured in real time milliseconds from the start of each WiredTiger
@@ -1950,14 +1950,15 @@ methods = {
 
 'WT_CONNECTION.query_timestamp' : Method([
     Config('get', 'all_durable', r'''
-        specify which timestamp to query: \c all_durable returns the largest timestamp such that
-        all timestamps up to that value have been made durable; \c last_checkpoint returns the
+        specify which timestamp to query: \c all_durable returns the largest timestamp such
+        that all timestamps up to and including that value have been committed (possibly
+        bounded by the application-set \c durable timestamp); \c last_checkpoint returns the
         timestamp of the most recent stable checkpoint; \c oldest_timestamp returns the most
         recent \c oldest_timestamp set with WT_CONNECTION::set_timestamp; \c oldest_reader
         returns the minimum of the read timestamps of all active readers; \c pinned returns
         the minimum of the \c oldest_timestamp and the read timestamps of all active readers;
-        \c recovery returns the timestamp of the most recent stable checkpoint taken prior
-        to a shutdown; \c stable_timestamp returns the most recent \c stable_timestamp set with
+        \c recovery returns the timestamp of the most recent stable checkpoint taken prior to
+        a shutdown; \c stable_timestamp returns the most recent \c stable_timestamp set with
         WT_CONNECTION::set_timestamp. (The \c oldest and \c stable arguments are deprecated
         short-hand for \c oldest_timestamp and \c stable_timestamp, respectively.) See @ref
         timestamp_global_api''',
@@ -1967,17 +1968,14 @@ methods = {
 
 'WT_CONNECTION.set_timestamp' : Method([
     Config('durable_timestamp', '', r'''
-        reset the maximum durable timestamp tracked by WiredTiger.  This will
-        cause future calls to WT_CONNECTION::query_timestamp to ignore durable
-        timestamps greater than the specified value until the next durable
-        timestamp moves the tracked durable timestamp forwards.  This is only
-        intended for use where the application is rolling back locally committed
-        transactions. The value must not be older than the current
-        oldest and stable timestamps.  See @ref timestamp_global_api'''),
+        temporarily set the system's maximum durable timestamp, bounding the timestamp returned
+        by WT_CONNECTION::query_timestamp with the \c all_durable configuration. Calls to
+        WT_CONNECTION::query_timestamp will ignore durable timestamps greater than the specified
+        value until a subsequent transaction commit advances the maximum durable timestamp, or
+        rollback-to-stable resets the value. See @ref timestamp_global_api'''),
     Config('force', 'false', r'''
-        set timestamps even if they violate normal ordering requirements.
-        For example allow the \c oldest_timestamp to move backwards''',
-        type='boolean'),
+        set the oldest and stable timestamps even if it violates normal ordering constraints.''',
+        type='boolean', undoc=True),
     Config('oldest_timestamp', '', r'''
         future commits and queries will be no earlier than the specified
         timestamp. Values must be monotonically increasing, any

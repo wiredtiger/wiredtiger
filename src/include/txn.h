@@ -19,7 +19,9 @@
  * the session get rollback reason API call. Users of the API could have a dependency on the format
  * of these messages so changing them must be done with care.
  */
-#define WT_TXN_ROLLBACK_REASON_CACHE "oldest pinned transaction ID rolled back for eviction"
+#define WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION \
+    "oldest pinned transaction ID rolled back for eviction"
+#define WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW "transaction rolled back because of cache overflow"
 #define WT_TXN_ROLLBACK_REASON_CONFLICT "conflict between concurrent operations"
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -346,9 +348,10 @@ struct __wt_txn {
 #define WT_TXN_SHARED_TS_DURABLE 0x02000u
 #define WT_TXN_SHARED_TS_READ 0x04000u
 #define WT_TXN_SYNC_SET 0x08000u
-#define WT_TXN_TS_ROUND_PREPARED 0x10000u
-#define WT_TXN_TS_ROUND_READ 0x20000u
-#define WT_TXN_UPDATE 0x40000u
+#define WT_TXN_TS_NOT_SET 0x10000u
+#define WT_TXN_TS_ROUND_PREPARED 0x20000u
+#define WT_TXN_TS_ROUND_READ 0x40000u
+#define WT_TXN_UPDATE 0x80000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 

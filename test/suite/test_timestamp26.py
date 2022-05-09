@@ -212,9 +212,8 @@ class test_timestamp26_alter_inconsistent_update(wttest.WiredTigerTestCase):
         ds = SimpleDataSet(
             self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
 
-        # Create the table without the key consistency checking turned on.
-        # Create a few items breaking the rules. Then alter the setting and
-        # verify the inconsistent usage is detected.
+        # Create the table and create a few items with and without timestamps. Then alter the
+        # setting and verify the inconsistent usage is detected.
         uri = 'table:ts'
         self.session.create(uri,
             'key_format={},value_format={}'.format(self.key_format, self.value_format))
@@ -228,9 +227,8 @@ class test_timestamp26_alter_inconsistent_update(wttest.WiredTigerTestCase):
         c[key] = ds.value(10)
         self.session.commit_transaction()
 
-        # Update the data item at timestamp 1.
-        self.session.begin_transaction()
-        self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(1))
+        # Update the data item with no timestamp.
+        self.session.begin_transaction('no_timestamp=true')
         c[key] = ds.value(11)
         self.session.commit_transaction()
 
@@ -245,7 +243,7 @@ class test_timestamp26_alter_inconsistent_update(wttest.WiredTigerTestCase):
         c[key] = ds.value(13)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
 
-        self.session.begin_transaction()
+        self.session.begin_transaction('no_timestamp=true')
         c[key] = ds.value(14)
         self.session.commit_transaction()
 
@@ -263,7 +261,7 @@ class test_timestamp26_alter_inconsistent_update(wttest.WiredTigerTestCase):
         c[key] = ds.value(15)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(15))
 
-        msg = '/with an older timestamp/'
+        msg = '/before the previous update/'
         self.session.begin_transaction()
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(14))
         c[key] = ds.value(16)
@@ -314,7 +312,7 @@ class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(1))
         c[key] = ds.value(2)
-        msg = '/updates a value with an older timestamp/'
+        msg = '/before the previous update/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(), msg)
 
@@ -339,7 +337,7 @@ class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(13))
         c[key1] = ds.value(5)
         c[key2] = ds.value(6)
-        msg = '/updates a value with an older timestamp/'
+        msg = '/before the previous update/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(), msg)
 

@@ -482,22 +482,16 @@ __conn_dhandle_config_parse_ts(WT_SESSION_IMPL *session)
      * Timestamp usage configuration: Ignore the "always", "key_consistent" and "ordered" keywords:
      * "always" and "key_consistent" were never written into databases in the wild, and the default
      * behavior is the same as "ordered".
-     *
-     * FIXME: WT-9055 MongoDB builds for the 6.0 release use ordered as the default behavior, while
-     * WiredTiger standalone still uses out-of-order as the default.
      */
     WT_RET(__wt_config_gets(session, cfg, "write_timestamp_usage", &cval));
-    if (WT_STRING_MATCH("mixed_mode", cval.str, cval.len))
-        LF_SET(WT_DHANDLE_TS_MIXED_MODE);
-    else if (WT_STRING_MATCH("never", cval.str, cval.len))
+    if (WT_STRING_MATCH("never", cval.str, cval.len))
         LF_SET(WT_DHANDLE_TS_NEVER);
-#ifdef WT_STANDALONE_BUILD
-    else if (WT_STRING_MATCH("ordered", cval.str, cval.len))
-        LF_SET(WT_DHANDLE_TS_ORDERED);
-#else
+#ifndef WT_STANDALONE_BUILD
+    else if (WT_STRING_MATCH("mixed_mode", cval.str, cval.len))
+        LF_SET(WT_DHANDLE_TS_MIXED_MODE);
+#endif
     else
         LF_SET(WT_DHANDLE_TS_ORDERED);
-#endif
 
     /* Reset the flags. */
     dhandle->ts_flags = flags;
@@ -795,7 +789,7 @@ __conn_dhandle_close_one(
 
 /*
  * __wt_conn_dhandle_close_all --
- *     Close all data handles handles with matching name (including all checkpoint handles).
+ *     Close all data handles with matching name (including all checkpoint handles).
  */
 int
 __wt_conn_dhandle_close_all(WT_SESSION_IMPL *session, const char *uri, bool removed, bool mark_dead)

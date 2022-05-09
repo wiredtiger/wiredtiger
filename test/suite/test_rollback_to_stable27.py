@@ -71,7 +71,7 @@ class test_rollback_to_stable27(test_rollback_to_stable_base):
         uri = "table:rollback_to_stable27"
         ds_config = ',log=(enabled=false)' if self.in_memory else ''
         ds = SimpleDataSet(self, uri, 0,
-            key_format=self.key_format, value_format="S", config=ds_config)
+            key_format=self.key_format, value_format="S", config = ds_config)
         ds.populate()
 
         value_a = "aaaaa" * 10
@@ -91,7 +91,7 @@ class test_rollback_to_stable27(test_rollback_to_stable_base):
         # if not the rest of the work isn't going to do much good. Maybe via stats...?
 
         cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction()
+        self.session.begin_transaction('no_timestamp=true')
         cursor[7] = value_b
         self.session.commit_transaction()
         cursor.close()

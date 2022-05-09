@@ -281,9 +281,9 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     F_SET(session, WT_SESSION_EVICTION);
 
     /*
-     * Cache a history store cursor to avoid deadlock: if an eviction thread thread marks a file
-     * busy and then opens a different file (in this case, the HS file), it can deadlock with a
-     * thread waiting for the first file to drain from the eviction queue. See WT-5946 for details.
+     * Cache a history store cursor to avoid deadlock: if an eviction thread marks a file busy and
+     * then opens a different file (in this case, the HS file), it can deadlock with a thread
+     * waiting for the first file to drain from the eviction queue. See WT-5946 for details.
      */
     WT_ERR(__wt_curhs_cache(session));
     if (conn->evict_server_running && __wt_spin_trylock(session, &cache->evict_pass_lock) == 0) {
@@ -2404,10 +2404,10 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
         if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_cache_stuck(session)) {
             ret = __wt_txn_is_blocking(session);
             if (ret == WT_ROLLBACK) {
-                __wt_verbose_debug(
-                  session, WT_VERB_TRANSACTION, "Rollback reason: %s", "Cache full");
                 --cache->evict_aggressive_score;
                 WT_STAT_CONN_INCR(session, txn_fail_cache);
+                __wt_verbose_debug(
+                  session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
             }
             WT_ERR(ret);
         }
@@ -2472,8 +2472,10 @@ err:
         WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
         session->cache_wait_us += elapsed;
         if (cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
-            WT_TRET(WT_CACHE_FULL);
+            WT_TRET(__wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW));
+            --cache->evict_aggressive_score;
             WT_STAT_CONN_INCR(session, cache_timed_out_ops);
+            __wt_verbose_notice(session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
         }
     }
 

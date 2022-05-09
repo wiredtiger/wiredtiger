@@ -86,12 +86,14 @@ class test_hs11(wttest.WiredTigerTestCase):
 
         # Apply an update without timestamp.
         for i in range(1, self.nrows):
+            self.session.begin_transaction('no_timestamp=true')
             if i % 2 == 0:
                 if self.update_type == 'deletion':
                     cursor.set_key(self.create_key(i))
                     cursor.remove()
                 else:
                     cursor[self.create_key(i)] = value2
+            self.session.commit_transaction()
 
         # Reconcile and remove the obsolete entries.
         self.session.checkpoint()

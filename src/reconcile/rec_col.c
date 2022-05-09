@@ -706,8 +706,8 @@ __wt_rec_col_fix(
              * do that explicitly because we need to act on it. So there are three cases: (a) the
              * value has a globally visible stop time, in which case we should delete the value and
              * drop the time window; (b) the time window may have changed but remains nonempty, in
-             * which case we leave the value and write write the time window to the new page; or (c)
-             * the time window has become empty, in which case we leave the value and drop the time
+             * which case we leave the value and write the time window to the new page; or (c) the
+             * time window has become empty, in which case we leave the value and drop the time
              * window, which amounts to doing nothing at all.
              */
 
@@ -764,12 +764,11 @@ __wt_rec_col_fix(
 
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             /*
-             * When an out-of-order or mixed-mode tombstone is getting written to disk, remove any
-             * historical versions that are greater in the history store for this key.
+             * When a tombstone without a timestamp is written to disk, remove any historical
+             * versions that are greater in the history store for this key.
              */
-            if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
-                WT_ERR(__wt_rec_hs_clear_on_tombstone(
-                  session, r, upd_select.tw.durable_stop_ts, recno, NULL, false));
+            if (upd_select.no_ts_tombstone && r->hs_clear_on_tombstone)
+                WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, recno, NULL, false));
 
             val = 0;
 
@@ -782,12 +781,11 @@ __wt_rec_col_fix(
             /* Write the time window. */
             if (!WT_TIME_WINDOW_IS_EMPTY(&upd_select.tw)) {
                 /*
-                 * When an out-of-order or mixed-mode tombstone is getting written to disk, remove
-                 * any historical versions that are greater in the history store for this key.
+                 * When a tombstone without a timestamp is written to disk, remove any historical
+                 * versions that are greater in the history store for this key.
                  */
-                if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
-                    WT_ERR(__wt_rec_hs_clear_on_tombstone(
-                      session, r, upd_select.tw.durable_stop_ts, recno, NULL, true));
+                if (upd_select.no_ts_tombstone && r->hs_clear_on_tombstone)
+                    WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, recno, NULL, true));
 
                 WT_ERR(__wt_rec_col_fix_addtw(
                   session, r, (uint32_t)(recno - curstartrecno), &upd_select.tw));
@@ -830,10 +828,9 @@ __wt_rec_col_fix(
     }
 
     /*
-     * Figure out how much more space is left. This is how many more entries will fit in in the
-     * bitmap data. We have to accommodate the auxiliary data for those entries, even if it becomes
-     * large. We can't split based on the auxiliary image size, at least not without a major
-     * rewrite.
+     * Figure out how much more space is left. This is how many more entries will fit in the bitmap
+     * data. We have to accommodate the auxiliary data for those entries, even if it becomes large.
+     * We can't split based on the auxiliary image size, at least not without a major rewrite.
      */
     nrecs = maxrecs - entry;
     r->recno += entry;
@@ -1422,24 +1419,20 @@ record_loop:
                     data = upd->data;
                     size = upd->size;
                     /*
-                     * When an out-of-order or mixed-mode tombstone is getting written to disk,
-                     * remove any historical versions that are greater in the history store for this
-                     * key.
+                     * When a tombstone without a timestamp is written to disk, remove any
+                     * historical versions that are greater in the history store for this key.
                      */
-                    if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
-                        WT_ERR(__wt_rec_hs_clear_on_tombstone(
-                          session, r, twp->durable_stop_ts, src_recno, NULL, true));
+                    if (upd_select.no_ts_tombstone && r->hs_clear_on_tombstone)
+                        WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, src_recno, NULL, true));
 
                     break;
                 case WT_UPDATE_TOMBSTONE:
                     /*
-                     * When an out-of-order or mixed-mode tombstone is getting written to disk,
-                     * remove any historical versions that are greater in the history store for this
-                     * key.
+                     * When a tombstone without a timestamp is written to disk, remove any
+                     * historical versions that are greater in the history store for this key.
                      */
-                    if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
-                        WT_ERR(__wt_rec_hs_clear_on_tombstone(
-                          session, r, twp->durable_stop_ts, src_recno, NULL, false));
+                    if (upd_select.no_ts_tombstone && r->hs_clear_on_tombstone)
+                        WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, src_recno, NULL, false));
 
                     deleted = true;
                     twp = &clear_tw;
