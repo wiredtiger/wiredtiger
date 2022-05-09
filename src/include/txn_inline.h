@@ -1071,6 +1071,10 @@ retry:
      * have a prepared update with timestamp 30 and a history store record with timestamp 20,
      * committing the prepared update will cause the stop timestamp of the history store record
      * being updated to 30 and the reader not seeing it.
+     *
+     * No need to retry if we see WT_PREPARE_ROLLBACK_INPROGRESS state when we walk the update chain
+     * because we have already restored the prepared update from the history store at this stage.
+     * The reader cannot miss it.
      */
     if (prepare_upd != NULL) {
         WT_ASSERT(session, F_ISSET(prepare_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
