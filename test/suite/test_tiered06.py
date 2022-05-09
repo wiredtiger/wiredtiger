@@ -157,10 +157,8 @@ class test_tiered06(wttest.WiredTigerTestCase):
         self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
 
         # Files that have been flushed cannot be manipulated through the custom file system.
-        with self.expectedStderrPattern('foobar: remove of file not supported'):
-            self.assertRaisesException(wiredtiger.WiredTigerError,
-                lambda: fs.fs_remove(session, 'foobar', 0))
-        self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
+        fs.fs_remove(session, 'foobar', 0)
+        self.assertEquals(fs.fs_directory_list(session, '', ''), [])
 
         fs.terminate(session)
         ss.terminate(session)
