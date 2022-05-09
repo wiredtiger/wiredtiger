@@ -875,9 +875,9 @@ __wt_rec_col_fix(
             /* We shouldn't ever get appends during salvage. */
             WT_ASSERT(session, salvage == NULL);
 
-            WT_ERR(__wt_rec_upd_select(session, r, WT_RECNO_OOB, ins, NULL, NULL, &upd_select));
-            upd = upd_select.upd;
             recno = WT_INSERT_RECNO(ins);
+            WT_ERR(__wt_rec_upd_select(session, r, recno, ins, NULL, NULL, &upd_select));
+            upd = upd_select.upd;
             /*
              * Currently __wt_col_modify assumes that all restored updates are updates rather than
              * appends. Therefore, if we see an invisible update, we need to write a value under it
