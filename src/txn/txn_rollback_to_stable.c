@@ -91,8 +91,10 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
-        /* Rollback to stable needs exclusive access to the database and thus cannot see a prepared
-         * update being rolled back. */
+        /*
+         * Rollback to stable needs exclusive access to the database and thus cannot see a prepared
+         * update being rolled back.
+         */
         WT_ASSERT(session, upd->prepare_state != WT_PREPARE_ROLLBACK_INPROGRESS);
         if (rollback_timestamp < upd->durable_ts || upd->prepare_state == WT_PREPARE_INPROGRESS) {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
