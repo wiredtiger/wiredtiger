@@ -53,7 +53,7 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
         if self.use_index:
             # Test Index Cursors bound API support.
             suburi = "index:" + self.file_name + ":i0"
-            self.session.create(suburi, "columns=(k,v)")
+            self.session.create(suburi, "columns=(v)")
             cursor = self.session.open_cursor("index:" + self.file_name + ":i0")
         else:
             cursor = self.session.open_cursor(uri)
