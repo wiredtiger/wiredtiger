@@ -17,7 +17,7 @@ workload_generator=
         key_size=10000,
         op_rate=5s,
         ops_per_transaction=(min=1,max=1),
-        thread_count=3,
+        thread_count=10,
         value_size=2000000
     ),
     populate_config=
