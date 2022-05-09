@@ -386,16 +386,10 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     total_size = size = 0;
     count = 0;
     upd_array = page->modify->mod_row_update;
-    if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
-        WT_SKIP_FOREACH (ins, insert) {
-            WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size));
-            total_size += size;
-            upd->next = ins->upd;
-            ins->upd = upd;
 
-            if (update_list != NULL)
-                update_list[count++] = upd;
-        }
+    /* We just read the page and it's still locked. The insert lists should be empty. */
+    WT_ASSERT(session, WT_ROW_INSERT_SMALLEST(page) == NULL);
+
     WT_ROW_FOREACH (page, rip, i) {
         /*
          * Retrieve the stop time point from the page's row. If we find an existing stop time point
@@ -410,18 +404,10 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
             if (update_list != NULL)
                 update_list[count++] = upd;
-
-            if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
-                WT_SKIP_FOREACH (ins, insert) {
-                    WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size));
-                    total_size += size;
-                    upd->next = ins->upd;
-                    ins->upd = upd;
-
-                    if (update_list != NULL)
-                        update_list[count++] = upd;
-                }
         }
+
+        /* We just read the page and it's still locked. The insert lists should be empty. */
+        WT_ASSERT(session, WT_ROW_INSERT(page, rip) == NULL);
     }
     __wt_cache_page_inmem_incr(session, page, total_size);
 
