@@ -1075,7 +1075,7 @@ retry:
     if (prepare_upd != NULL) {
         WT_ASSERT(session, F_ISSET(prepare_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
         WT_ORDERED_READ(prepare_state, upd->prepare_state);
-        if (retry &&
+        if (retry && pre_prepare_state != WT_PREPARE_ROLLBACK_INPROGRESS &&
           (prepare_upd->txnid == WT_TXN_ABORTED || prepare_state == WT_PREPARE_RESOLVED ||
             (pre_prepare_state == WT_PREPARE_INPROGRESS &&
               prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS))) {
