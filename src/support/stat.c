@@ -63,6 +63,8 @@ static const char *const __stats_dsrc_desc[] = {
   "on disk update after validating the update chain",
   "cache: eviction gave up due to detecting update chain entries without timestamps after the "
   "selected on disk update",
+  "cache: eviction gave up due to needing to remove a record from the history store but checkpoint "
+  "is running",
   "cache: eviction walk passes of a file",
   "cache: eviction walk target pages histogram - 0-9",
   "cache: eviction walk target pages histogram - 10-31",
@@ -341,6 +343,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_blocked_no_ts_checkpoint_race_2 = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_3 = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_4 = 0;
+    stats->cache_eviction_blocked_remove_hs_race_with_checkpoint = 0;
     stats->cache_eviction_walk_passes = 0;
     stats->cache_eviction_target_page_lt10 = 0;
     stats->cache_eviction_target_page_lt32 = 0;
@@ -599,6 +602,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->cache_eviction_blocked_no_ts_checkpoint_race_3;
     to->cache_eviction_blocked_no_ts_checkpoint_race_4 +=
       from->cache_eviction_blocked_no_ts_checkpoint_race_4;
+    to->cache_eviction_blocked_remove_hs_race_with_checkpoint +=
+      from->cache_eviction_blocked_remove_hs_race_with_checkpoint;
     to->cache_eviction_walk_passes += from->cache_eviction_walk_passes;
     to->cache_eviction_target_page_lt10 += from->cache_eviction_target_page_lt10;
     to->cache_eviction_target_page_lt32 += from->cache_eviction_target_page_lt32;
@@ -852,6 +857,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_READ(from, cache_eviction_blocked_no_ts_checkpoint_race_3);
     to->cache_eviction_blocked_no_ts_checkpoint_race_4 +=
       WT_STAT_READ(from, cache_eviction_blocked_no_ts_checkpoint_race_4);
+    to->cache_eviction_blocked_remove_hs_race_with_checkpoint +=
+      WT_STAT_READ(from, cache_eviction_blocked_remove_hs_race_with_checkpoint);
     to->cache_eviction_walk_passes += WT_STAT_READ(from, cache_eviction_walk_passes);
     to->cache_eviction_target_page_lt10 += WT_STAT_READ(from, cache_eviction_target_page_lt10);
     to->cache_eviction_target_page_lt32 += WT_STAT_READ(from, cache_eviction_target_page_lt32);
@@ -1116,6 +1123,8 @@ static const char *const __stats_connection_desc[] = {
   "on disk update after validating the update chain",
   "cache: eviction gave up due to detecting update chain entries without timestamps after the "
   "selected on disk update",
+  "cache: eviction gave up due to needing to remove a record from the history store but checkpoint "
+  "is running",
   "cache: eviction passes of a file",
   "cache: eviction server candidate queue empty when topping up",
   "cache: eviction server candidate queue not empty when topping up",
@@ -1688,6 +1697,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_blocked_no_ts_checkpoint_race_2 = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_3 = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_4 = 0;
+    stats->cache_eviction_blocked_remove_hs_race_with_checkpoint = 0;
     stats->cache_eviction_walk_passes = 0;
     stats->cache_eviction_queue_empty = 0;
     stats->cache_eviction_queue_not_empty = 0;
@@ -2226,6 +2236,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, cache_eviction_blocked_no_ts_checkpoint_race_3);
     to->cache_eviction_blocked_no_ts_checkpoint_race_4 +=
       WT_STAT_READ(from, cache_eviction_blocked_no_ts_checkpoint_race_4);
+    to->cache_eviction_blocked_remove_hs_race_with_checkpoint +=
+      WT_STAT_READ(from, cache_eviction_blocked_remove_hs_race_with_checkpoint);
     to->cache_eviction_walk_passes += WT_STAT_READ(from, cache_eviction_walk_passes);
     to->cache_eviction_queue_empty += WT_STAT_READ(from, cache_eviction_queue_empty);
     to->cache_eviction_queue_not_empty += WT_STAT_READ(from, cache_eviction_queue_not_empty);

@@ -351,8 +351,10 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      * Cannot write an update also in the history store to the data store when checkpoint is running
      * because we cannot delete the history store value.
      */
-    if (F_ISSET(select_upd, WT_UPDATE_TO_DELETE_FROM_HS))
+    if (F_ISSET(select_upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_remove_hs_race_with_checkpoint);
         return (EBUSY);
+    }
 
     /*
      * The selected time window may contain information that isn't visible given the selected
