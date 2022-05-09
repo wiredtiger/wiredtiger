@@ -1043,11 +1043,10 @@ __txn_fixup_prepared_update(
                 for (fix_upd = fix_upd->next; fix_upd != NULL; fix_upd = fix_upd->next)
                     if (fix_upd->txnid != WT_TXN_ABORTED)
                         break;
-                if (fix_upd != NULL) {
-                    WT_ASSERT(session, F_ISSET(fix_upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_HS));
-                    /* The update can be inserted to the history store again. */
-                    F_CLR(fix_upd, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
-                }
+                WT_ASSERT(session,
+                  fix_upd != NULL && F_ISSET(fix_upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_HS));
+                /* The update can be inserted to the history store again. */
+                F_CLR(fix_upd, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
             }
         }
     }
@@ -1330,11 +1329,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
             for (upd = upd->next; upd != NULL; upd = upd->next)
                 if (upd->txnid != WT_TXN_ABORTED)
                     break;
-            if (upd != NULL) {
-                WT_ASSERT(session, F_ISSET(upd, WT_UPDATE_HS));
-                F_SET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS);
-                F_SET(upd, WT_UPDATE_TO_DELETE_FROM_HS);
-            }
+            WT_ASSERT(session, upd != NULL && F_ISSET(upd, WT_UPDATE_HS));
+            F_SET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS);
+            F_SET(upd, WT_UPDATE_TO_DELETE_FROM_HS);
         } else
             F_SET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS);
     }
