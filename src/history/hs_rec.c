@@ -450,11 +450,17 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             WT_ERR(__wt_update_vector_push(&updates, upd));
 
             /*
+             * We should not see a prepared update that is being rolled back. Eviction has exclusive
+             * access to the page, therefore prepare rollback cannot happen concurrently. Checkpoint
+             * doesn't write a prepared update to the data store.
+             */
+            WT_ASSERT(session, upd->prepare_state != WT_PREPARE_ROLLBACK_INPROGRESS);
+
+            /*
              * Always insert full update to the history store if we write a prepared update to the
              * data store.
              */
-            if (upd->prepare_state == WT_PREPARE_INPROGRESS ||
-              upd->prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS)
+            if (upd->prepare_state == WT_PREPARE_INPROGRESS)
                 enable_reverse_modify = false;
 
             /* Always insert full update to the history store if we need to squash the updates. */
@@ -551,10 +557,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             /* We should never insert the onpage value to the history store. */
             WT_ASSERT(session, upd != list->onpage_upd);
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
+
             /* We should never insert prepared updates to the history store. */
-            WT_ASSERT(session,
-              upd->prepare_state != WT_PREPARE_INPROGRESS &&
-                upd->prepare_state != WT_PREPARE_ROLLBACK_INPROGRESS);
+            WT_ASSERT(session, upd->prepare_state != WT_PREPARE_INPROGRESS);
 
             tombstone = NULL;
             __wt_update_vector_peek(&updates, &prev_upd);
@@ -575,12 +580,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             }
             tw.start_txn = upd->txnid;
 
-            /*
-             * The update cannot be in rollback in progress state. Eviction has exclusive access so
-             * prepare rollback cannot happen. Checkpoint doesn't write prepared update to the data
-             * store.
-             */
-            WT_ASSERT(session, prev_upd->prepare_state != WT_PREPARE_ROLLBACK_INPROGRESS);
             /*
              * For any uncommitted prepared updates written to disk, the stop timestamp of the last
              * update moved into the history store should be with max visibility to protect its
@@ -637,11 +636,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                       "clear the history store data newer than it.");
                 continue;
             }
-
-            /* We should never write a prepared update to the history store. */
-            WT_ASSERT(session,
-              upd->prepare_state != WT_PREPARE_INPROGRESS &&
-                upd->prepare_state != WT_PREPARE_LOCKED);
 
             /*
              * Ensure all the updates inserted to the history store are committed.

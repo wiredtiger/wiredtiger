@@ -59,8 +59,9 @@ __rec_child_deleted(
      * in a prepared state, so it's an error to see that during eviction.
      */
     WT_ORDERED_READ(prepare_state, page_del->prepare_state);
-    if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS ||
-      prepare_state == WT_PREPARE_LOCKED) {
+    /* Prepared fast truncated are directly marked as aborted. */
+    WT_ASSERT(session, prepare_state != WT_PREPARE_ROLLBACK_INPROGRESS);
+    if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
         WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
 
         cmsp->state = WT_CHILD_ORIGINAL;

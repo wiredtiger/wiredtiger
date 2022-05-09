@@ -600,6 +600,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint64_t recno, W
                   F_ISSET(r, WT_REC_EVICT) ||
                     (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
                       F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)));
+                /* We should not see prepare rollback in progress state in eviction as prepare
+                 * rollback cannot happen concurrently. */
                 WT_ASSERT(session, upd->prepare_state == WT_PREPARE_INPROGRESS);
             }
         }
@@ -669,8 +671,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint64_t recno, W
      */
     if (upd != NULL) {
         /*
-         * We cannot select a prepare that is being rolled back because eviction needs exclusive
-         * access and checkpoint never selects prepared update.
+         * We should not select a prepared update that is being rolled back because eviction needs
+         * exclusive access and checkpoint never selects a prepared update.
          */
         WT_ASSERT(session, upd->prepare_state != WT_PREPARE_ROLLBACK_INPROGRESS);
         /*

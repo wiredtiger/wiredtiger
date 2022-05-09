@@ -1548,8 +1548,9 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
     if (WT_READING_CHECKPOINT(session) && visible_all)
         return (true);
     WT_ORDERED_READ(prepare_state, page_del->prepare_state);
-    if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_ROLLBACK_INPROGRESS ||
-      prepare_state == WT_PREPARE_LOCKED)
+    /* Prepared fast truncated are directly marked as aborted. */
+    WT_ASSERT(session, prepare_state != WT_PREPARE_ROLLBACK_INPROGRESS);
+    if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
         return (true);
     return (visible_all ?
         !__wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp) :
