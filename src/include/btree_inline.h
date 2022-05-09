@@ -1488,18 +1488,13 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     /* If on-page, the pointer references a cell. */
     __wt_cell_unpack_addr(session, page->dsk, (WT_CELL *)addr, unpack);
     WT_TIME_AGGREGATE_COPY(&copy->ta, &unpack->ta);
-    copy->type = 0; /* Avoid static analyzer uninitialized value complaints. */
-    switch (unpack->raw) {
-    case WT_CELL_ADDR_INT:
+
+    copy->type = WT_ADDR_LEAF_NO;
+    if (unpack->raw == WT_CELL_ADDR_INT)
         copy->type = WT_ADDR_INT;
-        break;
-    case WT_CELL_ADDR_LEAF:
+    else if (unpack->raw == WT_CELL_ADDR_LEAF)
         copy->type = WT_ADDR_LEAF;
-        break;
-    case WT_CELL_ADDR_LEAF_NO:
-        copy->type = WT_ADDR_LEAF_NO;
-        break;
-    }
+
     memcpy(copy->addr, unpack->data, copy->size = (uint8_t)unpack->size);
     return (true);
 }
