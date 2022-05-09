@@ -29,7 +29,7 @@
 import inspect, os, wiredtiger, wttest
 from helper_tiered import TieredConfigMixin
 from helper_tiered import generate_s3_prefix, gen_storage_sources
-# from helper_tiered import delete_objects, download_objects
+from helper_tiered import delete_objects, download_objects
 from wtscenario import make_scenarios
 
 FileSystem = wiredtiger.FileSystem  # easy access to constants
@@ -76,6 +76,9 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
 
         session = self.session
         ss = self.get_storage_source()
+
+        if self.ss_name == 's3_store':
+            self.bucket_prefix += self._random_prefix + '/test_tiered06/'
 
         # if self.ss_name == 's3_store':
         #     self.bucket_prefix = generate_s3_prefix('test_tiered06')
@@ -153,9 +156,9 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         fs.terminate(session)
         ss.terminate(session)
 
-        # delete_objects(prefix)
-        # if self.ss_name == 's3_store':
-        #     download_objects(prefix)
+        if self.ss_name == 's3_store':
+            download_objects(prefix)
+            delete_objects(prefix)
 
     def test_ss_write_read(self):
         # Write and read to a file non-sequentially.
@@ -165,6 +168,9 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
 
         # if self.ss_name == 's3_store':
         #     self.bucket_prefix = generate_s3_prefix('test_tiered06')
+
+        if self.ss_name == 's3_store':
+            self.bucket_prefix += self._random_prefix + '/test_tiered06/'
 
         # Since this class has multiple tests, append test name to the prefix to
         # avoid namespace collison. 0th element on the stack is the current function.
@@ -312,6 +318,9 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
 
         # if self.ss_name == 's3_store':
         #     self.bucket_prefix = generate_s3_prefix('test_tiered06')
+
+        if self.ss_name == 's3_store':
+            self.bucket_prefix += self._random_prefix + '/test_tiered06/'
 
         # Since this class has multiple tests, append test name to the prefix to
         # avoid namespace collison. 0th element on the stack is the current function.

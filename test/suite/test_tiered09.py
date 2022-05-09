@@ -70,9 +70,9 @@ class test_tiered09(wttest.WiredTigerTestCase, TieredConfigMixin):
             # print(self.bucket_prefix)
             # print(self.bucket_prefix1)
             # print(self.bucket_prefix2)
-            self.bucket_prefix = self._random_prefix + '/test_tiered09/'
-            self.bucket_prefix1 = self._random_prefix + '/test_tiered09/'
-            self.bucket_prefix2 = self._random_prefix + '/test_tiered09/'
+            self.bucket_prefix += self._random_prefix + '/test_tiered09/'
+            self.bucket_prefix1 += self._random_prefix + '/test_tiered09/'
+            self.bucket_prefix2 += self._random_prefix + '/test_tiered09/'
 
             
         self.saved_conn = get_conn_config(self) + 'local_retention=%d)' % self.retention

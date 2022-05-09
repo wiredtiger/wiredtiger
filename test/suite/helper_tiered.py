@@ -214,11 +214,16 @@ def download_objects(prefix):
     if not os.path.exists(s3_object_files_path):
         os.makedirs(s3_object_files_path)
 
+    # print(os.path.dirname(os.path.dirname(os.getcwd())))
+    # path = os.path.dirname(os.path.dirname(os.getcwd())) + '/s3_files/'
+    # if not os.path.exists(path):
+    #     os.makedirs(path)
+
 
     for o in objects:
         path_list = o.key.split('/')
         filename = s3_object_files_path + '/' + o.key.split('/')[-1]
-        # print(filename)
+        print('Downloading ' + filename)
         bucket.download_file(o.key, filename)
 
 # This mixin class provides tiered storage configuration methods.

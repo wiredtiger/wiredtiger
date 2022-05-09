@@ -2185,23 +2185,29 @@ tasks:
         params:
           working_dir: "wiredtiger/cmake_build"
           shell: bash
-          silent: true
+          # silent: true
           script: |
             set -o errexit
             export AWS_ACCESS_KEY_ID=${aws_sdk_s3_ext_access_key}
             export AWS_SECRET_ACCESS_KEY=${aws_sdk_s3_ext_secret_key}
 
+            echo "=== exported aws key ==="
+
             # Only set verbose after having put the AWS access credentials into the environment.
             set -o verbose
+
+            echo "=== creating python venv ==="
 
             virtualenv -p python3 venv
             source venv/bin/activate
             pip3 install boto3
 
+            echo "=== created python venv ==="
+
             # Run S3 extension unit testing
             ext/storage_sources/s3_store/test/run_s3_unit_tests
             # Run Python testing for all tiered tests
-            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py -j $(nproc) tiered
+            ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered
 
   - name: tiered-test-small
     tags: ["pull_request"]
@@ -2214,7 +2220,7 @@ tasks:
         params:
           working_dir: "wiredtiger/cmake_build"
           shell: bash
-          silent: true
+          # silent: true
           script: |
             set -o errexit
             export AWS_ACCESS_KEY_ID=${aws_sdk_s3_ext_access_key}
@@ -2230,7 +2236,7 @@ tasks:
             # Run S3 extension unit testing
             ext/storage_sources/s3_store/test/run_s3_unit_tests
             # Run Python testing for tiered06 
-            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py -j $(nproc) tiered06
+            ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered06
 
 
   - name: spinlock-gcc-test
