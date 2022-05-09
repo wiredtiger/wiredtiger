@@ -1575,7 +1575,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
          * Checkpoint commit transaction must perform log sync irrespective of connection level
          * setting.
          */
-        if (WT_SESSION_IS_CHECKPOINT(session))
+        if (!FLD_ISSET(txn->txn_logsync, WT_LOG_DSYNC | WT_LOG_FSYNC) &&
+          WT_SESSION_IS_CHECKPOINT(session))
             txn->txn_logsync = WT_LOG_FSYNC;
 
         /*
