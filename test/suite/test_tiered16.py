@@ -51,45 +51,46 @@ class test_tiered16(TieredConfigMixin, wttest.WiredTigerTestCase):
             self.assertRaises(wiredtiger.WiredTigerError,
                 lambda: self.session.drop(uri_a, "force=true,remove_files=false,remove_shared=true"))
 
-        c = self.session.open_cursor(uri_a)
-        c["a"] = "a"
-        c["b"] = "b"
-        c.close()
-        self.session.checkpoint()
-        self.session.flush_tier(None)
+        if self.ss_name == 'dir_store':
+            c = self.session.open_cursor(uri_a)
+            c["a"] = "a"
+            c["b"] = "b"
+            c.close()
+            self.session.checkpoint()
+            self.session.flush_tier(None)
 
-        c2 = self.session.open_cursor(uri_b)
-        c2["c"] = "c"
-        c2["d"] = "d"
-        c2.close()
-        self.session.checkpoint()
-        self.session.flush_tier(None)
+            c2 = self.session.open_cursor(uri_b)
+            c2["c"] = "c"
+            c2["d"] = "d"
+            c2.close()
+            self.session.checkpoint()
+            self.session.flush_tier(None)
 
-        self.session.drop(uri_a, "remove_files=true,remove_shared=true")
+            self.session.drop(uri_a, "remove_files=true,remove_shared=true")
 
-        # The shared object files corresponding to the first table should have been removed from
-        # both the bucket and cache directories but the shared object files corresponding to the
-        # second table should still remain.
-        if self.is_tiered_scenario():
-            self.assertFalse(os.path.isfile("bucket1/pfx_tiereda-0000000001.wtobj"))
-            self.assertFalse(os.path.isfile("bucket1/pfx_tiereda-0000000002.wtobj"))
-            self.assertTrue(os.path.isfile("bucket1/pfx_tieredb-0000000001.wtobj"))
-            self.assertTrue(os.path.isfile("bucket1/pfx_tieredb-0000000002.wtobj"))
+            # The shared object files corresponding to the first table should have been removed from
+            # both the bucket and cache directories but the shared object files corresponding to the
+            # second table should still remain.
+            if self.is_tiered_scenario():
+                self.assertFalse(os.path.isfile("bucket1/pfx_tiereda-0000000001.wtobj"))
+                self.assertFalse(os.path.isfile("bucket1/pfx_tiereda-0000000002.wtobj"))
+                self.assertTrue(os.path.isfile("bucket1/pfx_tieredb-0000000001.wtobj"))
+                self.assertTrue(os.path.isfile("bucket1/pfx_tieredb-0000000002.wtobj"))
 
-            self.assertFalse(os.path.isfile("cache-bucket1/pfx_tiereda-0000000001.wtobj"))
-            self.assertFalse(os.path.isfile("cache-bucket1/pfx_tiereda-0000000002.wtobj"))
-            self.assertTrue(os.path.isfile("cache-bucket1/pfx_tieredb-0000000001.wtobj"))
-            self.assertTrue(os.path.isfile("cache-bucket1/pfx_tieredb-0000000002.wtobj"))
+                self.assertFalse(os.path.isfile("cache-bucket1/pfx_tiereda-0000000001.wtobj"))
+                self.assertFalse(os.path.isfile("cache-bucket1/pfx_tiereda-0000000002.wtobj"))
+                self.assertTrue(os.path.isfile("cache-bucket1/pfx_tieredb-0000000001.wtobj"))
+                self.assertTrue(os.path.isfile("cache-bucket1/pfx_tieredb-0000000002.wtobj"))
 
-        self.session.drop(uri_b, "remove_files=true,remove_shared=true")
+            self.session.drop(uri_b, "remove_files=true,remove_shared=true")
 
-        # The shared object files corresponding to the second table should have been removed.
-        if self.is_tiered_scenario():
-            self.assertFalse(os.path.isfile("bucket1/pfx_tieredb-0000000001.wtobj"))
-            self.assertFalse(os.path.isfile("bucket1/pfx_tieredb-0000000002.wtobj"))
+            # The shared object files corresponding to the second table should have been removed.
+            if self.is_tiered_scenario():
+                self.assertFalse(os.path.isfile("bucket1/pfx_tieredb-0000000001.wtobj"))
+                self.assertFalse(os.path.isfile("bucket1/pfx_tieredb-0000000002.wtobj"))
 
-            self.assertFalse(os.path.isfile("cache-bucket1/pfx_tieredb-0000000001.wtobj"))
-            self.assertFalse(os.path.isfile("cache-bucket1/pfx_tieredb-0000000002.wtobj"))
+                self.assertFalse(os.path.isfile("cache-bucket1/pfx_tieredb-0000000001.wtobj"))
+                self.assertFalse(os.path.isfile("cache-bucket1/pfx_tieredb-0000000002.wtobj"))
 
 if __name__ == '__main__':
     wttest.run
