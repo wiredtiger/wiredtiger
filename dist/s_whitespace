@@ -1,7 +1,6 @@
 #! /bin/sh
 
-# Single space and remove trailing whitespace from source files.
-# Add a newline to the end of source files if newline is absent.
+# Single space, newline at the end of file, and remove trailing whitespace from source files.
 t=__wt.$$
 trap 'rm -f $t' 0 1 2 3 13 15
 
