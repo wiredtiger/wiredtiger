@@ -40,15 +40,12 @@ class tracking_table_cache_resize : public test_harness::workload_tracking {
     }
 
     void
-    set_tracking_cursor(scoped_session &tc_session, const tracking_operation &, const uint64_t &,
-      const std::string &, const std::string &, wt_timestamp_t ts,
+    set_tracking_cursor(scoped_session &tc_session, const tracking_operation &operation,
+      const uint64_t &, const std::string &, const std::string &, wt_timestamp_t ts,
       scoped_cursor &op_track_cursor) override final
     {
-        uint64_t cache_size =
-          ((WT_CONNECTION_IMPL *)connection_manager::instance().get_connection())->cache_size;
-        uint64_t txn_id = ((WT_SESSION_IMPL *)tc_session.get())->txn->id;
         op_track_cursor->set_key(op_track_cursor.get(), ts);
-        op_track_cursor->set_value(op_track_cursor.get(), cache_size, txn_id);
+        op_track_cursor->set_value(op_track_cursor.get(), operation);
     }
 };
 
@@ -70,21 +67,41 @@ class cache_resize : public test_harness::test {
     void
     custom_operation(test_harness::thread_context *tc) override final
     {
-        bool increase_cache = true;
+        bool increase_cache = false;
         const std::string small_cache_size("cache_size=1MB");
         const std::string big_cache_size("cache_size=500MB");
-
         uint64_t prev_cache_size;
+
         while (tc->running()) {
             tc->sleep();
+
             WT_CONNECTION *conn = connection_manager::instance().get_connection();
             prev_cache_size = ((WT_CONNECTION_IMPL *)conn)->cache_size;
+
             testutil_check(conn->reconfigure(
               conn, increase_cache ? big_cache_size.c_str() : small_cache_size.c_str()));
-            increase_cache = !increase_cache;
             logger::log_msg(LOG_INFO,
               "The cache size was updated from " + std::to_string(prev_cache_size) + " to " +
                 std::to_string(((WT_CONNECTION_IMPL *)conn)->cache_size));
+
+            /*
+             * We can only track the operation when the cache size is big enough other it will be
+             * rolled back.
+             */
+            if (increase_cache) {
+                /*
+                 * Those information are required by the API but useless in our case. We can use
+                 * dummy data.
+                 */
+                const uint64_t collection_id = 0;
+                const std::string key = "";
+                const std::string value = "";
+                tc->transaction.begin();
+                testutil_check(tc->tracking->save_operation(tc->session, tracking_operation::CUSTOM,
+                  collection_id, key, value, tc->tsm->get_next_ts(), tc->op_track_cursor));
+                testutil_assert(tc->transaction.commit());
+            }
+            increase_cache = !increase_cache;
         }
     }
 
@@ -128,19 +145,54 @@ class cache_resize : public test_harness::test {
       const std::vector<uint64_t> &) override final
     {
         WT_DECL_RET;
-        uint64_t tracked_cache_size, tracked_txn_id;
+        int tracked_op_type;
+        tracking_operation op_type;
+        uint64_t num_records = 0;
+        wt_timestamp_t prev_ts = 0, tracked_ts;
 
+        /* Open a cursor on the tracking table to read it. */
         scoped_session session = connection_manager::instance().create_session();
         scoped_cursor cursor = session.open_scoped_cursor(operation_table_name);
 
-        uint64_t num_records = 0;
+        /* Parse the tracking table. */
         while ((ret = cursor->next(cursor.get())) == 0) {
-            testutil_check(cursor->get_value(cursor.get(), &tracked_cache_size, &tracked_txn_id));
-            /*
-             * Only transactions that were executed under a large enough cache should have been
-             * recorded.
-             */
-            testutil_assert(tracked_cache_size >= 524288000);
+            testutil_check(cursor->get_key(cursor.get(), &tracked_ts));
+            testutil_check(cursor->get_value(cursor.get(), &tracked_op_type));
+
+            /* There are only two types of operations in this test. */
+            op_type = static_cast<tracking_operation>(tracked_op_type);
+            testutil_assert(
+              op_type == tracking_operation::INSERT || op_type == tracking_operation::CUSTOM);
+
+            if (num_records > 0) {
+                /* Difference in time between two consecutive records. */
+                wt_timestamp_t diff_ts = ((tracked_ts >> 32) - (prev_ts >> 32));
+
+                /*
+                 * If the cursor is positioned on an insert, the time difference cannot be more than
+                 * 10 seconds.
+                 */
+                if (op_type == tracking_operation::INSERT) {
+                    testutil_assert(diff_ts < 10);
+                }
+                /*
+                 * Otherwise the cursor is positioned on a record that indicates a cache size change
+                 * which occurs every 10 seconds. Note that we only save those events when the cache
+                 * size is changed to a high value hence we expect at least a 10 second gap with the
+                 * previous record.
+                 */
+                else {
+                    testutil_assert(diff_ts >= 10 && diff_ts < 20);
+                }
+            } else {
+                /*
+                 * This is the first record and it has to be an insert as the cache size is large
+                 * enough at the beginning of the test.
+                 */
+                testutil_assert(op_type == tracking_operation::INSERT);
+            }
+
+            prev_ts = tracked_ts;
             ++num_records;
         }
         testutil_assert(num_records > 0);

@@ -1,24 +1,23 @@
 # Configuration for cache_resize:
 # - Defines a thread that uses the custom operation to resize the cache during runtime.
 # - Defines several insert threads are used to perform large transactions.
-# - Defines custom tracking to save the transaction id and cache size as values. Keys are
-# timestamps.
-duration_seconds=20,
-cache_size_mb=1,
+# - Defines custom tracking to save the operations and their timestamps.
+duration_seconds=30,
+cache_size_mb=500,
 workload_generator=
 (
     custom_config=
     (
-        op_rate=5s,
+        op_rate=10s,
         thread_count=1
     ),
     insert_config=
     (
         key_size=10000,
-        op_rate=1s,
-        ops_per_transaction=(min=2,max=2),
-        thread_count=1,
-        value_size=1000000
+        op_rate=5s,
+        ops_per_transaction=(min=1,max=1),
+        thread_count=3,
+        value_size=2000000
     ),
     populate_config=
     (
@@ -28,6 +27,8 @@ workload_generator=
 ),
 workload_tracking=
 (
+    # Timestamp
     tracking_key_format=Q,
-    tracking_value_format=QQ
+    # Operation type
+    tracking_value_format=i
 )
