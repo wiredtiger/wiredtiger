@@ -51,7 +51,7 @@ class test_tiered16(TieredConfigMixin, wttest.WiredTigerTestCase):
             self.assertRaises(wiredtiger.WiredTigerError,
                 lambda: self.session.drop(uri_a, "force=true,remove_files=false,remove_shared=true"))
 
-        if self.ss_name == 'dir_store':
+        if self.is_tiered_scenario() and self.ss_name == 'dir_store':
             c = self.session.open_cursor(uri_a)
             c["a"] = "a"
             c["b"] = "b"
