@@ -1129,7 +1129,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * view of the data, make sure that all the logs are flushed to disk before the checkpoint is
      * complete.
      */
-    WT_ERR(__wt_log_flush(session, WT_LOG_FSYNC));
+    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
+        WT_ERR(__wt_log_flush(session, WT_LOG_FSYNC));
 
     /*
      * Ensure that the metadata changes are durable before the checkpoint is resolved. Do this by
