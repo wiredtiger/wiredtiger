@@ -1572,14 +1572,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         }
 
         /*
-         * Checkpoint commit transaction must perform log sync irrespective of connection level
-         * setting.
-         */
-        if (!FLD_ISSET(txn->txn_logsync, WT_LOG_DSYNC | WT_LOG_FSYNC) &&
-          WT_SESSION_IS_CHECKPOINT(session))
-            txn->txn_logsync = WT_LOG_FSYNC;
-
-        /*
          * We hold the visibility lock for reading from the time we write our log record until the
          * time we release our transaction so that the LSN any checkpoint gets will always reflect
          * visible data.

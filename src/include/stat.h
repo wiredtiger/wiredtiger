@@ -811,7 +811,6 @@ struct __wt_connection_stats {
     int64_t txn_set_ts_stable_upd;
     int64_t txn_begin;
     int64_t txn_checkpoint_running;
-    int64_t txn_checkpoint_running_timing_stress_stop;
     int64_t txn_checkpoint_running_hs;
     int64_t txn_checkpoint_generation;
     int64_t txn_hs_ckpt_duration;
@@ -831,6 +830,7 @@ struct __wt_connection_stats {
     int64_t txn_checkpoint_prep_total;
     int64_t txn_checkpoint_scrub_target;
     int64_t txn_checkpoint_scrub_time;
+    int64_t txn_checkpoint_stop_stress_active;
     int64_t txn_checkpoint_time_total;
     int64_t txn_checkpoint;
     int64_t txn_checkpoint_obsolete_applied;

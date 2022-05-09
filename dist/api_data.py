@@ -969,9 +969,10 @@ wiredtiger_open_log_configuration = [
             min='100KB',    # !!! Must match WT_LOG_FILE_MIN
             max='2GB'),    # !!! Must match WT_LOG_FILE_MAX
         Config('force_write_wait', '0', r'''
-            seconds to wait between each log force write; setting this value
-            above 0 configures periodic log force writes''',
-            min='1', max='60'),
+            enable code that interrupts the usual timing of flushing the log from
+            the internal log server thread with a goal of uncovering race conditions.
+            This option is intended for use with internal stress testing of WiredTiger.''',
+            min='1', max='60', undoc=True),
         Config('path', '"."', r'''
             the name of a directory into which log files are written. The
             directory must already exist. If the value is not an absolute path,

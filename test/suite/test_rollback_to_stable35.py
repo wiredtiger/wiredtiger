@@ -140,7 +140,7 @@ class test_rollback_to_stable35(test_rollback_to_stable_base):
             while not ckpt_stop_timing_stress:
                 time.sleep(1)
                 stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_stop_timing_stress = stat_cursor[stat.conn.txn_checkpoint_running_timing_stress_stop][2]
+                ckpt_stop_timing_stress = stat_cursor[stat.conn.txn_checkpoint_stop_stress_active][2]
                 stat_cursor.close()
 
             copy_wiredtiger_home(self, '.', "RESTART")

@@ -3058,29 +3058,23 @@ struct __wt_connection {
  * subsystem., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_max, the
  * maximum size of log files., an integer between 100KB and 2GB; default \c 100MB.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;force_write_wait, seconds to wait between each log force write;
- * setting this value above 0 configures periodic log force writes., an integer between 1 and 60;
- * default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system buffer
- * cache usage\, as a percentage of the log's \c file_max.  If non-zero\, schedule writes for dirty
- * blocks belonging to the log in the system buffer cache after that percentage of the log has been
- * written into the buffer cache without an intervening file sync., an integer between 0 and 100;
- * default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the name of a directory into which log files
- * are written.  The directory must already exist.  If the value is not an absolute path\, the path
- * is relative to the database home (see @ref absolute_path for more information)., a string;
- * default \c ".".}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc, pre-allocate log files., a boolean
- * flag; default \c true.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;recover, run recovery or error if
- * recovery needs to run after an unclean shutdown., a string\, chosen from the following options:
- * \c "error"\, \c "on"; default \c on.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;remove, automatically
- * remove unneeded log files., a boolean flag; default \c true.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * zero_fill, manually write zeroes into log files., a boolean flag; default \c false.}
- * @config{
- * ),,}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system buffer cache usage\, as
+ * a percentage of the log's \c file_max.  If non-zero\, schedule writes for dirty blocks belonging
+ * to the log in the system buffer cache after that percentage of the log has been written into the
+ * buffer cache without an intervening file sync., an integer between 0 and 100; default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the name of a directory into which log files are written.
+ * The directory must already exist.  If the value is not an absolute path\, the path is relative to
+ * the database home (see @ref absolute_path for more information)., a string; default \c ".".}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc, pre-allocate log files., a boolean flag; default \c
+ * true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;recover, run recovery or error if recovery needs to run
+ * after an unclean shutdown., a string\, chosen from the following options: \c "error"\, \c "on";
+ * default \c on.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;remove, automatically remove unneeded log files.,
+ * a boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write
+ * zeroes into log files., a boolean flag; default \c false.}
+ * @config{ ),,}
  * @config{lsm_manager = (, configure database wide options for LSM tree management.  The LSM
  * manager is started automatically the first time an LSM tree is opened.  The LSM manager uses a
  * session from the configured session_max., a set of related configuration options defined below.}
@@ -6320,63 +6314,60 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! transaction: transaction checkpoint currently running */
 #define	WT_STAT_CONN_TXN_CHECKPOINT_RUNNING		1478
 /*!
- * transaction: transaction checkpoint currently running at checkpoint
- * stop timing stress
- */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_RUNNING_TIMING_STRESS_STOP	1479
-/*!
  * transaction: transaction checkpoint currently running for history
  * store file
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_RUNNING_HS		1480
+#define	WT_STAT_CONN_TXN_CHECKPOINT_RUNNING_HS		1479
 /*! transaction: transaction checkpoint generation */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_GENERATION		1481
+#define	WT_STAT_CONN_TXN_CHECKPOINT_GENERATION		1480
 /*!
  * transaction: transaction checkpoint history store file duration
  * (usecs)
  */
-#define	WT_STAT_CONN_TXN_HS_CKPT_DURATION		1482
+#define	WT_STAT_CONN_TXN_HS_CKPT_DURATION		1481
 /*! transaction: transaction checkpoint max time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MAX		1483
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MAX		1482
 /*! transaction: transaction checkpoint min time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MIN		1484
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MIN		1483
 /*!
  * transaction: transaction checkpoint most recent duration for gathering
  * all handles (usecs)
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION	1485
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION	1484
 /*!
  * transaction: transaction checkpoint most recent duration for gathering
  * applied handles (usecs)
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION_APPLY	1486
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION_APPLY	1485
 /*!
  * transaction: transaction checkpoint most recent duration for gathering
  * skipped handles (usecs)
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION_SKIP	1487
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION_SKIP	1486
 /*! transaction: transaction checkpoint most recent handles applied */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_APPLIED	1488
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_APPLIED	1487
 /*! transaction: transaction checkpoint most recent handles skipped */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_SKIPPED	1489
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_SKIPPED	1488
 /*! transaction: transaction checkpoint most recent handles walked */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_WALKED	1490
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_WALKED	1489
 /*! transaction: transaction checkpoint most recent time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_RECENT		1491
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_RECENT		1490
 /*! transaction: transaction checkpoint prepare currently running */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_RUNNING	1492
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_RUNNING	1491
 /*! transaction: transaction checkpoint prepare max time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_MAX		1493
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_MAX		1492
 /*! transaction: transaction checkpoint prepare min time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_MIN		1494
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_MIN		1493
 /*! transaction: transaction checkpoint prepare most recent time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_RECENT		1495
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_RECENT		1494
 /*! transaction: transaction checkpoint prepare total time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_TOTAL		1496
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_TOTAL		1495
 /*! transaction: transaction checkpoint scrub dirty target */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TARGET	1497
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TARGET	1496
 /*! transaction: transaction checkpoint scrub time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TIME		1498
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TIME		1497
+/*! transaction: transaction checkpoint stop timing stress active */
+#define	WT_STAT_CONN_TXN_CHECKPOINT_STOP_STRESS_ACTIVE	1498
 /*! transaction: transaction checkpoint total time (msecs) */
 #define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_TOTAL		1499
 /*! transaction: transaction checkpoints */

@@ -312,7 +312,7 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
 
     WT_RET(__wt_config_gets(session, cfg, "log.force_write_wait", &cval));
     if (cval.val != 0)
-        conn->txn_log_force_write_wait = (uint32_t)cval.val;
+        conn->log_force_write_wait = (uint32_t)cval.val;
 
     /*
      * Note it's meaningless to reconfigure this value during runtime, it only matters on create
@@ -874,8 +874,8 @@ __log_server(void *arg)
          * buffer may need to wait for the write_lsn to advance in the case of a synchronous buffer.
          * We end up with a hang.
          */
-        if (conn->txn_log_force_write_wait == 0 ||
-          force_write_timediff >= conn->txn_log_force_write_wait * WT_THOUSAND) {
+        if (conn->log_force_write_wait == 0 ||
+          force_write_timediff >= conn->log_force_write_wait * WT_THOUSAND) {
             WT_ERR_ERROR_OK(__wt_log_force_write(session, 0, &did_work), EBUSY, false);
             force_write_time_start = __wt_clock(session);
         }
