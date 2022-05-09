@@ -1004,8 +1004,8 @@ struct __wt_ref {
      *
      * 4. The WT_REF state is WT_REF_DISK and ft_info.del is not NULL. This is only permissible in
      * readonly trees. The page is on disk only, and is deleted, but the deletion may not yet be
-     * globally visible. This differs from the case where the state is WT_REF_DISK only because the
-     * state is not set back to WT_REF_DELETED when an instantiated truncated page in a readonly
+     * globally visible. This differs from the case where the state is WT_REF_DELETED only because
+     * the state is not set back to WT_REF_DELETED when an instantiated truncated page in a readonly
      * tree is discarded by eviction.
      *
      * 5. The WT_REF state is WT_REF_MEM and the tree is read-write, and ft_info.update is NULL.
