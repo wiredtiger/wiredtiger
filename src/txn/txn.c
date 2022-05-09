@@ -1041,6 +1041,8 @@ __txn_fixup_prepared_update(
             if (fix_upd->type == WT_UPDATE_TOMBSTONE) {
                 /* We may not find a full update following the tombstone if it is obsolete. */
                 for (fix_upd = fix_upd->next; fix_upd != NULL; fix_upd = fix_upd->next)
+                    /* We may see aborted update in between if the updates are not restored from the
+                     * history store. */
                     if (fix_upd->txnid != WT_TXN_ABORTED)
                         break;
                 WT_ASSERT(session,
@@ -1322,7 +1324,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     first_committed_upd_in_hs =
       first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS);
 
-    /* Set the flag to delete the value in history store. */
+    /* Marked the update older than the prepared update that is already in the history store to be
+     * deleted from the history store. */
     if (first_committed_upd_in_hs && !commit) {
         if (first_committed_upd->type == WT_UPDATE_TOMBSTONE) {
             /* We may not find a full update following the tombstone if it is obsolete. */
