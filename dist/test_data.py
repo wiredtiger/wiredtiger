@@ -214,6 +214,8 @@ test_config = [
         type='category', subconfig=workload_tracking),
 
 # Non component top level configuration.
+    Config('cache_max_wait_ms', 0, r'''
+        The strict equivalent of cache_max_wait_ms defined in wiredtiger.''', min=0),
     Config('cache_size_mb', 0, r'''
         The cache size that wiredtiger will be configured to run with''', min=0, max=100000000000),
     Config('compression_enabled', 'false', r'''

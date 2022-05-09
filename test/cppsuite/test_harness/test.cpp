@@ -88,7 +88,7 @@ test::~test()
 void
 test::run()
 {
-    int64_t cache_size_mb, duration_seconds;
+    int64_t cache_max_wait_ms, cache_size_mb, duration_seconds;
     bool enable_logging, statistics_logging;
     configuration *statistics_config;
     std::string statistics_type;
@@ -115,6 +115,10 @@ test::run()
     /* Enable or disable write ahead logging. */
     enable_logging = _config->get_bool(ENABLE_LOGGING);
     db_create_config += ",log=(enabled=" + std::string(enable_logging ? "true" : "false") + ")";
+
+    /* Maximum waiting time for the cache to get unstuck. */
+    cache_max_wait_ms = _config->get_int(CACHE_MAX_WAIT_MS);
+    db_create_config += ",cache_max_wait_ms=" + std::to_string(cache_max_wait_ms);
 
     /* Add the user supplied wiredtiger open config. */
     db_create_config += _args.wt_open_config;
