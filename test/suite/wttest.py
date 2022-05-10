@@ -203,7 +203,7 @@ class WiredTigerTestCase(unittest.TestCase):
     @staticmethod
     def globalSetup(preserveFiles = False, removeAtStart = True, useTimestamp = False,
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
-                    longtest = False, zstdtest = False, ignoreStdout = False, seedw = 0, seedz = 0, hookmgr = None, random_prefix = 0):
+                    longtest = False, zstdtest = False, ignoreStdout = False, seedw = 0, seedz = 0, hookmgr = None, random_prefix = 0, task_id = None):
         WiredTigerTestCase._preserveFiles = preserveFiles
         d = 'WT_TEST' if dirarg == None else dirarg
         if useTimestamp:
@@ -230,6 +230,8 @@ class WiredTigerTestCase(unittest.TestCase):
         WiredTigerTestCase._seeds = [521288629, 362436069]
         WiredTigerTestCase._randomseed = False
         WiredTigerTestCase._random_prefix = random_prefix
+        WiredTigerTestCase._task_id = task_id
+
         if hookmgr == None:
             hookmgr = wthooks.WiredTigerHookManager()
         WiredTigerTestCase._hookmgr = hookmgr
@@ -935,6 +937,12 @@ def islongtest():
 
 def getseed():
     return WiredTigerTestCase._seeds
+
+def getrandom_prefix():
+    return WiredTigerTestCase._random_prefix
+
+def gettask_id():
+    return WiredTigerTestCase._task_id
 
 def runsuite(suite, parallel):
     suite_to_run = suite

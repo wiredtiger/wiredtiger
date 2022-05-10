@@ -30,6 +30,7 @@ import os, time, wiredtiger, wttest
 from wiredtiger import stat
 from helper_tiered import TieredConfigMixin, gen_storage_sources, get_conn_config, get_check
 from wtscenario import make_scenarios
+from helper_tiered import download_objects
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
@@ -37,7 +38,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Basic tiered storage API test.
 class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
-    storage_sources = gen_storage_sources()
+    storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered04')
     scenarios = make_scenarios(storage_sources)
 
     # If the 'uri' changes all the other names must change with it.
@@ -61,11 +62,6 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         if self.ss_name == 'dir_store':
             os.mkdir(self.bucket)
             os.mkdir(self.bucket1)
-        if self.ss_name == 's3_store':
-            self.bucket_prefix += self._random_prefix + '/test_tiered04/'
-            self.bucket_prefix1 += self._random_prefix + '/test_tiered04/'
-            self.bucket_prefix2 += self._random_prefix + '/test_tiered04/'
-
         self.saved_conn = get_conn_config(self) + 'local_retention=%d)'\
              % self.retention 
         return self.saved_conn
@@ -95,12 +91,6 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     # Test calling the flush_tier API.
     def test_tiered(self):
-
-        if self.ss_name == 's3_store':
-            self.bucket_prefix += self._random_prefix + '/test_tiered04/'
-            self.bucket_prefix1 += self._random_prefix + '/test_tiered04/'
-            self.bucket_prefix2 += self._random_prefix + '/test_tiered04/'
-
         # Create three tables. One using the system tiered storage, one
         # specifying its own bucket and object size and one using no
         # tiered storage. Use stats to verify correct setup.
@@ -302,6 +292,9 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         # values should increase by one.
         self.assertEqual(skip2, skip1 + 1)
         self.assertEqual(switch2, switch1 + 1)
+
+        if self.ss_name == 's3_store':
+            download_objects(self.bucket_prefix)
 
 if __name__ == '__main__':
     wttest.run()

@@ -29,13 +29,14 @@
 import os, wiredtiger, wttest
 from helper_tiered import get_conn_config, gen_storage_sources, TieredConfigMixin
 from wtscenario import make_scenarios
+from helper_tiered import download_objects
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered11.py
 #    Test flush time and flush timestamp in metadata.
 class test_tiered11(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
-    storage_sources = gen_storage_sources()
+    storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered11')
     scenarios = make_scenarios(storage_sources)
 
     # If the 'uri' changes all the other names must change with it.
@@ -46,11 +47,6 @@ class test_tiered11(wttest.WiredTigerTestCase, TieredConfigMixin):
     uri = "table:test_tiered11"
 
     def conn_config(self):
-        if self.ss_name == 's3_store':
-            self.bucket_prefix += self._random_prefix + '/test_tiered11/'
-            self.bucket_prefix1 += self._random_prefix + '/test_tiered11/'
-            self.bucket_prefix2 += self._random_prefix + '/test_tiered11/'
-
         self.saved_conn = get_conn_config(self) + ')'
         return self.saved_conn
 
@@ -113,6 +109,9 @@ class test_tiered11(wttest.WiredTigerTestCase, TieredConfigMixin):
         time_str = "flush_time=0"
         self.check_metadata(self.tiereduri, time_str, False)
         self.check_metadata(self.objuri, time_str, False)
+
+        if self.ss_name == 's3_store':
+            download_objects(self.bucket_prefix)
 
 if __name__ == '__main__':
     wttest.run()

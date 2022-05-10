@@ -31,12 +31,13 @@
 
 import os, shutil, wiredtiger
 from helper_tiered import get_conn_config, gen_storage_sources, TieredConfigMixin
+from helper_tiered import download_objects
 from test_import01 import test_import_base
 from wtscenario import make_scenarios
+import wttest 
 
 class test_tiered13(test_import_base, TieredConfigMixin):
-    storage_sources = gen_storage_sources()
-    # storage_sources[1][1]['bucket_prefix'] += 'test_tiered13/'
+    storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered13')
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)
 
@@ -55,19 +56,10 @@ class test_tiered13(test_import_base, TieredConfigMixin):
         TieredConfigMixin.conn_extensions(self, extlist)
 
     def conn_config(self):
-        if self.ss_name == 's3_store':
-            self.bucket_prefix += self._random_prefix + '/test_tiered13/'
-            self.bucket_prefix1 += self._random_prefix + '/test_tiered13/'
-            self.bucket_prefix2 += self._random_prefix + '/test_tiered13/'
         self.saved_conn = get_conn_config(self) + '),create'
         return self.saved_conn
 
     def test_tiered13(self):
-        # if self.ss_name == 's3_store':
-        #     self.bucket_prefix += self._random_prefix + '/test_tiered13/'
-        #     self.bucket_prefix1 += self._random_prefix + '/test_tiered13/'
-        #     self.bucket_prefix2 += self._random_prefix + '/test_tiered13/'
-
         # Create a new tiered table.
         self.session.create(self.uri, 'key_format=S,value_format=S,')
         # Add first data. Checkpoint, flush and close the connection.
@@ -163,3 +155,6 @@ class test_tiered13(test_import_base, TieredConfigMixin):
         # Try to import via a renamed object with metadata.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.create(self.otheruri, import_meta), msg)
+
+        if self.ss_name == 's3_store':
+            download_objects(self.bucket_prefix)

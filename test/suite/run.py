@@ -349,6 +349,7 @@ if __name__ == '__main__':
     testargs = []
     hook_names = []
     random_prefix = str(random.randrange(1, 2147483646))
+    task_id = None
 
     while len(args) > 0:
         arg = args.pop(0)
@@ -481,6 +482,13 @@ if __name__ == '__main__':
                     usage()
                     sys.exit(2)
                 continue
+            if option == '-id' or option == 'u':
+                if task_id != None or len(args) == 0:
+                    print('wrong arg')
+                    usage()
+                    sys.exit(2)
+                task_id = args.pop(0)
+                continue
             print('unknown arg: ' + arg)
             usage()
             sys.exit(2)
@@ -569,7 +577,7 @@ if __name__ == '__main__':
     # That way, verbose printing can be done at the class definition level.
     wttest.WiredTigerTestCase.globalSetup(preserve, removeAtStart, timestamp, gdbSub, lldbSub,
                                           verbose, wt_builddir, dirarg, longtest, zstdtest,
-                                          ignoreStdout, seedw, seedz, hookmgr, random_prefix)
+                                          ignoreStdout, seedw, seedz, hookmgr, random_prefix, task_id)
 
     # Without any tests listed as arguments, do discovery
     if len(testargs) == 0:

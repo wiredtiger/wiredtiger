@@ -29,6 +29,7 @@
 import os, wiredtiger, wttest
 from helper_tiered import  TieredConfigMixin, gen_storage_sources, get_check
 from wtscenario import make_scenarios
+from helper_tiered import download_objects
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
@@ -36,7 +37,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Basic tiered storage API for schema operations.
 class test_tiered07(wttest.WiredTigerTestCase, TieredConfigMixin):
 
-    storage_sources = gen_storage_sources()
+    storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered07')
 
     # FIXME-WT-8897 Disabled S3 (only indexing dirstore in storage sources) as S3 directory listing 
     # is interpreting a directory to end in a '/', whereas the code in the tiered storage doesn't 
@@ -146,6 +147,9 @@ class test_tiered07(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.session.create(self.uri4, 'key_format=S,value_format=S')
         self.session.drop(self.uri4, 'remove_files=false')
         self.assertTrue(os.path.isfile("abcde-0000000001.wtobj"))
+
+        if self.ss_name == 's3_store':
+            download_objects(self.bucket_prefix)
 
 if __name__ == '__main__':
     wttest.run()

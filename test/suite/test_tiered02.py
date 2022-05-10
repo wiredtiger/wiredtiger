@@ -30,6 +30,7 @@ import os, wttest
 from helper_tiered import TieredConfigMixin, gen_storage_sources
 from wtdataset import SimpleDataSet, ComplexDataSet
 from wtscenario import make_scenarios
+from helper_tiered import download_objects
 
 # test_tiered02.py
 #    Test tiered tree
@@ -43,22 +44,16 @@ class test_tiered02(wttest.WiredTigerTestCase, TieredConfigMixin):
     ]
 
     # Make scenarios for different cloud service providers
-    storage_sources = gen_storage_sources()
+    storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered02')
     scenarios = make_scenarios(storage_sources, complex_dataset)
 
     uri = "table:test_tiered02"
 
     def conn_config(self):
-        if self.ss_name == 's3_store':
-            self.bucket_prefix += self._random_prefix + '/test_tiered02/'
-            self.bucket_prefix1 += self._random_prefix + '/test_tiered02/'
-            self.bucket_prefix2 += self._random_prefix + '/test_tiered02/'
-
         return TieredConfigMixin.conn_config(self)
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):
-
         TieredConfigMixin.conn_extensions(self, extlist)
 
     def progress(self, s):
@@ -104,12 +99,6 @@ class test_tiered02(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     # Test tiered storage with checkpoints and flush_tier calls.
     def test_tiered(self):
-
-        # if self.ss_name == 's3_store':
-        #     self.bucket_prefix += self._random_prefix + '/test_tiered02/'
-        #     self.bucket_prefix1 += self._random_prefix + '/test_tiered02/'
-        #     self.bucket_prefix2 += self._random_prefix + '/test_tiered02/'
-
         self.flushed_objects = 0
 
         self.pr("create sys")
@@ -188,6 +177,9 @@ class test_tiered02(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.session.checkpoint()
         self.confirm_flush(increase=False)
         self.progress('END TEST')
+
+        if self.ss_name == 's3_store':
+            download_objects(self.bucket_prefix)
 
 if __name__ == '__main__':
     wttest.run()

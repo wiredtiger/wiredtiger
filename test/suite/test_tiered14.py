@@ -28,14 +28,17 @@
 
 import os, random, wttest
 from helper_tiered import TieredConfigMixin, gen_storage_sources
+from helper_tiered import download_objects
 from wtdataset import TrackedSimpleDataSet, TrackedComplexDataSet
 from wtscenario import make_scenarios
+from helper_tiered import storage_sources
 
 # test_tiered14.py
 #    Test somewhat arbitrary combinations of flush_tier, checkpoint, restarts,
 #    data additions and updates.
 class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
-    storage_sources = gen_storage_sources()
+    storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered14')
+
     uri = "table:test_tiered14-{}"   # format for subtests
 
     # FIXME-WT-7833: enable the commented scenarios and run the
@@ -61,10 +64,6 @@ class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
     scenarios = make_scenarios(multiplier, keyfmt, dataset, storage_sources)
 
     def conn_config(self):
-        # if self.ss_name == 's3_store':
-        #     self.bucket_prefix += self._random_prefix + '/test_tiered14/'
-        #     self.bucket_prefix1 += self._random_prefix + '/test_tiered14/'
-        #     self.bucket_prefix2 += self._random_prefix + '/test_tiered14/'
         return TieredConfigMixin.conn_config(self)
 
     # Load the storage store extension.
@@ -72,11 +71,6 @@ class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
         TieredConfigMixin.conn_extensions(self, extlist)
     
     def progress(self, s):
-        # if self.ss_name == 's3_store':
-        #     self.bucket_prefix += self._random_prefix + '/test_tiered14/'
-        #     self.bucket_prefix1 += self._random_prefix + '/test_tiered14/'
-        #     self.bucket_prefix2 += self._random_prefix + '/test_tiered14/'
-
         outstr = "testnum {}, position {}: {}".format(self.testnum, self.position, s)
         self.verbose(3, outstr)
         self.pr(outstr)
@@ -143,11 +137,6 @@ class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     # Test tiered storage with checkpoints and flush_tier calls.
     def test_tiered(self):
-        if self.ss_name == 's3_store':
-            self.bucket_prefix += self._random_prefix + '/test_tiered14/'
-            self.bucket_prefix1 += self._random_prefix + '/test_tiered14/'
-            self.bucket_prefix2 += self._random_prefix + '/test_tiered14/'
-
         random.seed(0)
 
         # Get started with a fixed sequence of basic operations.
@@ -166,6 +155,9 @@ class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
             # Generate a sequence of operations that is has a greater mix of 'operational' functions.
             s = ''.join(random.choices('aufcr.', k=self.num_ops))
             self.playback(testnum, s)
+
+        if self.ss_name == 's3_store':
+            download_objects(self.bucket_prefix)
 
 if __name__ == '__main__':
     wttest.run()

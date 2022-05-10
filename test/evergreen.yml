@@ -2236,7 +2236,8 @@ tasks:
             # Run S3 extension unit testing
             ext/storage_sources/s3_store/test/run_s3_unit_tests
             # Run Python testing for tiered06 
-            ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered06
+            # ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered06
+            ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered06 --id '${task_id}'
 
 
   - name: spinlock-gcc-test

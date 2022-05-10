@@ -34,20 +34,9 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 # test_tiered09.py
 #    Test tiered storage with sequential connections with different prefixes.
 class test_tiered09(wttest.WiredTigerTestCase, TieredConfigMixin):
-
-    # storage_sources[1][1]['bucket_prefix'] = generate_s3_prefix('test_tiered09')
-    # storage_sources[1][1]['bucket_prefix1'] = generate_s3_prefix('test_tiered09')
-    # storage_sources[1][1]['bucket_prefix2'] = generate_s3_prefix('test_tiered09')
-
-    # storage_sources[1][1]['bucket_prefix'] += 'test_tiered09/'
-    # storage_sources[1][1]['bucket_prefix1'] += 'test_tiered09/'
-    # storage_sources[1][1]['bucket_prefix2'] += 'test_tiered09/'
-
-
-    # print(storage_sources[1][1]['bucket_prefix'])
     # Make scenarios for different cloud service providers
 
-    storage_sources = gen_storage_sources()
+    storage_sources = gen_storage_sources(wttest.WiredTigerTestCase._random_prefix, 'test_tiered09')
 
     scenarios = make_scenarios(storage_sources)
 
@@ -63,18 +52,6 @@ class test_tiered09(wttest.WiredTigerTestCase, TieredConfigMixin):
     retention = 1
     saved_conn = ''
     def conn_config(self):
-        if self.ss_name == 's3_store':
-            # self.bucket_prefix = generate_s3_prefix('test_tiered09')
-            # self.bucket_prefix1 = generate_s3_prefix('test_tiered09')
-            # self.bucket_prefix2 = generate_s3_prefix('test_tiered09')
-            # print(self.bucket_prefix)
-            # print(self.bucket_prefix1)
-            # print(self.bucket_prefix2)
-            self.bucket_prefix += self._random_prefix + '/test_tiered09/'
-            self.bucket_prefix1 += self._random_prefix + '/test_tiered09/'
-            self.bucket_prefix2 += self._random_prefix + '/test_tiered09/'
-
-            
         self.saved_conn = get_conn_config(self) + 'local_retention=%d)' % self.retention
         return self.saved_conn
 
@@ -87,9 +64,6 @@ class test_tiered09(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     # Test calling the flush_tier API.
     def test_tiered(self):
-        
-
-
         # Create a table. Add some data. Checkpoint and flush tier.
         # Close the connection. Then we want to reopen the connection
         # with a different bucket prefix and repeat. Then reopen the
@@ -175,11 +149,8 @@ class test_tiered09(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.check(c, 0, 1)
         c.close()
 
-        # print(self.testdir)
-
-        if self.ss_name == 's3_store' and self._preserveFiles:
-            # print(self.testdir)
-            download_objects(self.bucket_prefix, self.testdir)
+        if self.ss_name == 's3_store':
+            download_objects(self.bucket_prefix)
 
 if __name__ == '__main__':
     wttest.run()
