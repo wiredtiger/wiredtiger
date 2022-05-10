@@ -27,10 +27,10 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_truncate11.py
-#   Check for fast-truncate after checkpoint has started.
+#   Check for checkpoint not reading the deleted pages that are marked by
+#   a fast-truncate which is not visible to the checkpoint.
 
 import threading, time, wttest
-from helper import copy_wiredtiger_home, simulate_crash_restart
 from wtdataset import simple_key, simple_value
 from wtscenario import make_scenarios
 from wiredtiger import stat
@@ -39,11 +39,12 @@ from wtthread import checkpoint_thread
 class test_truncate11(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(all),statistics_log=(json,on_close,wait=1),timing_stress_for_test=[checkpoint_slow]'
 
-    # We don't test FLCS, missing records return as 0 values.
     format_values = [
-        ('column', dict(key_format='r')),
-        ('row_integer', dict(key_format='i')),
+        ('column', dict(key_format='r', value_format='S')),
+        ('column_fix', dict(key_format='r', value_format='8t')),
+        ('row_integer', dict(key_format='i', value_format='S')),
     ]
+
     scenarios = make_scenarios(format_values)
 
     def test_truncate11(self):
@@ -111,17 +112,6 @@ class test_truncate11(wttest.WiredTigerTestCase):
         read_deleted = stat_cursor[stat.conn.cache_read_deleted][2]
         self.assertLess(read_deleted, 10)
         stat_cursor.close()
-
-        # Restart, testing RTS on the copy.
-        simulate_crash_restart(self, ".", "RESTART")
-
-        # Search for a key in the truncated range which is not stabilised, hence should find it.
-        cursor = self.session.open_cursor(uri)
-        cursor.set_key(simple_key(cursor, 30000))
-        self.assertEqual(cursor.search(), 0)
-
-        cursor.set_key(simple_key(cursor, 60000))
-        self.assertEqual(cursor.search(), 0)
 
 if __name__ == '__main__':
     wttest.run()
