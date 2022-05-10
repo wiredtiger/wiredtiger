@@ -1542,8 +1542,10 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 
     if ((page_del = ref->ft_info.del) == NULL)
         return (false);
-    if (page_del->txnid == WT_TXN_ABORTED)
-        return (false);
+
+    /* We discard page_del on transaction abort, so should never see an aborted one. */
+    WT_ASSERT(session, page_del->txnid != WT_TXN_ABORTED);
+
     /*
      * If we are reading from a checkpoint, visible_all checks don't work (they check the current
      * state of the world and not the checkpoint) so operate under the assumption that if the
