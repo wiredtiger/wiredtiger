@@ -160,7 +160,7 @@ class cache_resize : public test_harness::test {
             op_type = static_cast<tracking_operation>(tracked_op_type);
             testutil_assert(
               op_type == tracking_operation::INSERT || op_type == tracking_operation::CUSTOM);
-            /* Only operations when the cache size was big enough were succesful. */
+            /* Only operations when the cache size was big enough were successful. */
             testutil_assert(cache_size > 500000000);
             ++num_records;
         }
