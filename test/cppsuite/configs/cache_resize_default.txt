@@ -2,7 +2,7 @@
 # - Defines a thread that uses the custom operation to resize the cache during runtime.
 # - Defines several insert threads are used to perform large transactions.
 # - Defines custom tracking to save the operations and their timestamps.
-cache_max_wait_ms=500,
+cache_max_wait_ms=50,
 cache_size_mb=500,
 duration_seconds=30,
 workload_generator=
