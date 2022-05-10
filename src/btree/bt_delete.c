@@ -308,8 +308,6 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
-    WT_INSERT *ins;
-    WT_INSERT_HEAD *insert;
     WT_PAGE *page;
     WT_PAGE_DELETED *page_del;
     WT_ROW *rip;
@@ -370,15 +368,8 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     page_del = __wt_page_del_active(session, ref, true) ? ref->ft_info.del : NULL;
     if (page_del != NULL && !page_del->committed) {
         count = 0;
-        if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
-            WT_SKIP_FOREACH (ins, insert)
-                ++count;
-        WT_ROW_FOREACH (page, rip, i) {
+        WT_ROW_FOREACH (page, rip, i)
             ++count;
-            if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
-                WT_SKIP_FOREACH (ins, insert)
-                    ++count;
-        }
         WT_RET(__wt_calloc_def(session, count + 1, &update_list));
     }
 
