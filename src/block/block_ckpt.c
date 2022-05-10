@@ -42,6 +42,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
     WT_BLOCK_CKPT *ci, _ci;
     WT_DECL_RET;
     uint8_t *endp;
+    bool live_open;
 
     /*
      * Sometimes we don't find a root page (we weren't given a checkpoint, or the checkpoint was
@@ -63,16 +64,18 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
         ci = &_ci;
         WT_ERR(__wt_block_ckpt_init(session, ci, "checkpoint"));
     } else {
-#ifdef HAVE_DIAGNOSTIC
         /*
          * We depend on the btree level for locking: things will go bad fast if we open the live
          * system in two handles, or salvage, truncate or verify the live/running file.
          */
         __wt_spin_lock(session, &block->live_lock);
-        WT_ASSERT(session, block->live_open == false);
+        live_open = block->live_open;
         block->live_open = true;
         __wt_spin_unlock(session, &block->live_lock);
-#endif
+        WT_ASSERT(session, live_open == false);
+        if (live_open)
+            WT_ERR_MSG(session, WT_ERROR, "%s: already open", block->name);
+
         ci = &block->live;
         WT_ERR(__wt_block_ckpt_init(session, ci, "live"));
     }

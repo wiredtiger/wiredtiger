@@ -232,9 +232,12 @@ struct __wt_block {
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
     bool linked;
 
+    WT_SPINLOCK cache_lock;   /* Block cache layer lock */
     WT_BLOCK **related;       /* Related objects */
     size_t related_allocated; /* Size of related object array */
     u_int related_next;       /* Next open slot */
+
+    WT_BLOCK *ckpt_drain; /* Draining concurrent writers to the next checkpoint */
 
     WT_FH *fh;            /* Backing file handle */
     wt_off_t size;        /* File size */
@@ -258,11 +261,8 @@ struct __wt_block {
      */
     WT_SPINLOCK live_lock; /* Live checkpoint lock */
     WT_BLOCK_CKPT live;    /* Live checkpoint */
-#ifdef HAVE_DIAGNOSTIC
-    bool live_open; /* Live system is open */
-#endif
-    /* Live checkpoint status */
-    enum {
+    bool live_open;        /* Live system is open */
+    enum {                 /* Live checkpoint status */
         WT_CKPT_NONE = 0,
         WT_CKPT_INPROGRESS,
         WT_CKPT_PANIC_ON_FAILURE,
