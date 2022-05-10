@@ -30,6 +30,6 @@ workload_tracking=
 (
     # Timestamp
     tracking_key_format=Q,
-    # Operation type
-    tracking_value_format=i
+    # Operation type, cache size
+    tracking_value_format=iQ
 )
