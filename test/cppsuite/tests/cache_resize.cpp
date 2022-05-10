@@ -40,9 +40,8 @@ class tracking_table_cache_resize : public test_harness::workload_tracking {
     }
 
     void
-    set_tracking_cursor(scoped_session &, const tracking_operation &operation,
-      const uint64_t &, const std::string &, const std::string &, wt_timestamp_t ts,
-      scoped_cursor &op_track_cursor) override final
+    set_tracking_cursor(const tracking_operation &operation, const uint64_t &, const std::string &,
+      const std::string &, wt_timestamp_t ts, scoped_cursor &op_track_cursor) override final
     {
         uint64_t cache_size =
           ((WT_CONNECTION_IMPL *)connection_manager::instance().get_connection())->cache_size;
@@ -97,7 +96,7 @@ class cache_resize : public test_harness::test {
                 const std::string key = "";
                 const std::string value = "";
                 tc->transaction.begin();
-                testutil_check(tc->tracking->save_operation(tc->session, tracking_operation::CUSTOM,
+                testutil_check(tc->tracking->save_operation(tracking_operation::CUSTOM,
                   collection_id, key, value, tc->tsm->get_next_ts(), tc->op_track_cursor));
                 testutil_assert(tc->transaction.commit());
             }

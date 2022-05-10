@@ -187,7 +187,7 @@ workload_tracking::save_schema_operation(
 }
 
 int
-workload_tracking::save_operation(scoped_session &tc_session, const tracking_operation &operation,
+workload_tracking::save_operation(const tracking_operation &operation,
   const uint64_t &collection_id, const std::string &key, const std::string &value,
   wt_timestamp_t ts, scoped_cursor &op_track_cursor)
 {
@@ -204,16 +204,16 @@ workload_tracking::save_operation(scoped_session &tc_session, const tracking_ope
           "save_operation: invalid operation " + std::to_string(static_cast<int>(operation));
         testutil_die(EINVAL, error_message.c_str());
     } else {
-        set_tracking_cursor(tc_session, operation, collection_id, key, value, ts, op_track_cursor);
+        set_tracking_cursor(operation, collection_id, key, value, ts, op_track_cursor);
         ret = op_track_cursor->insert(op_track_cursor.get());
     }
     return (ret);
 }
 
 void
-workload_tracking::set_tracking_cursor(scoped_session &tc_session,
-  const tracking_operation &operation, const uint64_t &collection_id, const std::string &key,
-  const std::string &value, wt_timestamp_t ts, scoped_cursor &op_track_cursor)
+workload_tracking::set_tracking_cursor(const tracking_operation &operation,
+  const uint64_t &collection_id, const std::string &key, const std::string &value,
+  wt_timestamp_t ts, scoped_cursor &op_track_cursor)
 {
     op_track_cursor->set_key(op_track_cursor.get(), collection_id, key.c_str(), ts);
     op_track_cursor->set_value(op_track_cursor.get(), static_cast<int>(operation), value.c_str());
