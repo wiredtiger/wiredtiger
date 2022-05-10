@@ -341,6 +341,12 @@ __sync_page_skip(
 
     *skipp = false; /* Default to reading */
 
+    /* Skip all deleted pages as they are no longer required for the checkpoint. */
+    if (ref->state == WT_REF_DELETED) {
+        *skipp = true;
+        return (0);
+    }
+
     /* If the page is in-memory, we want to look at it. */
     if (ref->state != WT_REF_DISK)
         return (0);
