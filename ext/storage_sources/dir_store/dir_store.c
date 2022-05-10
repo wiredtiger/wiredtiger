@@ -1096,55 +1096,57 @@ static int
 dir_store_remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, uint32_t flags)
 {
     DIR_STORE_FILE_SYSTEM *dir_store_fs;
-    size_t bucket_file_len, cache_file_len;
     WT_FILE_SYSTEM *wt_fs;
-    bool existp;
     int ret;
-    char *bucket_filename, *cache_filename;
+    char *bucket_path, *cache_path;
+    struct stat sb;
 
-    existp = false;
-    ret = 0;
+    bucket_path = cache_path = NULL;
     dir_store_fs = (DIR_STORE_FILE_SYSTEM *)file_system;
     wt_fs = dir_store_fs->wt_fs;
+    ret = 0;
 
-    /* Skip over "./" and variations at the beginning of the name. */
-    while (*name == '.') {
-        if (name[1] != '/')
-            break;
-        name += 2;
-        while (*name == '/')
-            name++;
+    /* Check to see if the file exists in the cache directory before attempting to remove it. */
+    if ((ret = dir_store_cache_path(file_system, name, &cache_path)) != 0)
+        goto err;
+    ret = stat(cache_path, &sb);
+
+    if (ret != 0) {
+        if (errno != ENOENT) {
+            ret = dir_store_err(
+              dir_store_fs->dir_store, session, errno, "%s: dir_store_remove stat", cache_path);
+            goto err;
+        }
+    } else {
+        if ((ret = wt_fs->fs_remove(wt_fs, session, cache_path, flags)) != 0) {
+            ret = dir_store_err(
+              dir_store_fs->dir_store, session, errno, "%s: dir_store_remove", cache_path);
+            goto err;
+        }
     }
 
-    /* Generate the paths to the shared object files in the bucket and cache directories. */
-    bucket_file_len = strlen(dir_store_fs->bucket_dir) + strlen(name) + 2;
-    if ((bucket_filename = calloc(bucket_file_len, sizeof(char))) == NULL)
-        return (dir_store_err(FS2DS(file_system), session, ENOMEM, "dir_store_remove"));
-    if (snprintf(bucket_filename, bucket_file_len, "%s/%s", dir_store_fs->bucket_dir, name) >=
-      (int)bucket_file_len)
-        return (dir_store_err(FS2DS(file_system), session, EINVAL, "overflow sprintf"));
+    /* Check to see if the file exists in the bucket directory before attempting to remove it. */
+    if ((ret = dir_store_bucket_path(file_system, name, &bucket_path)) != 0)
+        goto err;
+    ret = stat(bucket_path, &sb);
 
-    cache_file_len = strlen(dir_store_fs->cache_dir) + strlen(name) + 2;
-    if ((cache_filename = calloc(cache_file_len, sizeof(char))) == NULL)
-        return (dir_store_err(FS2DS(file_system), session, ENOMEM, "dir_store_remove"));
-    if (snprintf(cache_filename, cache_file_len, "%s/%s", dir_store_fs->cache_dir, name) >=
-      (int)cache_file_len)
-        return (dir_store_err(FS2DS(file_system), session, EINVAL, "overflow sprintf"));
-
-    dir_store_exist(file_system, session, name, &existp);
-    if (existp) {
-        ret = wt_fs->fs_remove(wt_fs, session, bucket_filename, flags);
-        if (ret != 0 && ret != ENOENT)
+    if (ret != 0) {
+        if (errno != ENOENT) {
+            ret = dir_store_err(
+              dir_store_fs->dir_store, session, errno, "%s: dir_store_remove stat", bucket_path);
             goto err;
-
-        ret = wt_fs->fs_remove(wt_fs, session, cache_filename, flags);
-        if (ret != 0 && ret != ENOENT)
+        }
+    } else {
+        if ((ret = wt_fs->fs_remove(wt_fs, session, bucket_path, flags)) != 0) {
+            ret = dir_store_err(
+              dir_store_fs->dir_store, session, errno, "%s: dir_store_remove", bucket_path);
             goto err;
+        }
     }
 
 err:
-    free(bucket_filename);
-    free(cache_filename);
+    free(bucket_path);
+    free(cache_path);
     return (ret);
 }
 

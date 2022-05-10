@@ -190,7 +190,9 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     remove_shared = cval.val != 0;
 
     if (!remove_files && remove_shared)
-        WT_RET(EINVAL);
+        WT_RET_MSG(session, EINVAL,
+          "drop for tiered storage object must configure removal of underlying files "
+          "if forced removal of shared objects is enabled");
 
     name = NULL;
     /* Get the tiered data handle. */

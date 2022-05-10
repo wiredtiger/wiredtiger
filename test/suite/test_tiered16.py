@@ -36,9 +36,23 @@ import os, wiredtiger, wttest
 class test_tiered16(TieredConfigMixin, wttest.WiredTigerTestCase):
     scenarios = make_scenarios(tiered_storage_sources)
 
+    def check_cache(self, cache_dir, expect1):
+        got = sorted(list(os.listdir(cache_dir)))
+        expect = sorted(expect1)
+        self.assertEquals(got, expect)
+
+    def check_bucket(self, expect1):
+        got = sorted(list(os.listdir(self.bucket)))
+        expect = sorted(expect1)
+        self.assertEquals(got, expect)
+
     def test_remove_shared(self):
         uri_a = "table:tiereda"
+
         uri_b = "table:tieredb"
+        base_b = "tieredb-000000000"
+        obj1file_b = base_b + "1.wtobj"
+        obj2file_b = base_b + "2.wtobj"
 
         self.session.create(uri_a, "key_format=S,value_format=S")
         self.session.create(uri_b, "key_format=S,value_format=S")
@@ -46,12 +60,19 @@ class test_tiered16(TieredConfigMixin, wttest.WiredTigerTestCase):
         # It is invalid for the user to attempt to force removal of shared files
         # if they have configured for underlying files to not be removed.
         if self.is_tiered_scenario():
-            self.assertRaises(wiredtiger.WiredTigerError,
-                lambda: self.session.drop(uri_a, "remove_files=false,remove_shared=true"))
-            self.assertRaises(wiredtiger.WiredTigerError,
-                lambda: self.session.drop(uri_a, "force=true,remove_files=false,remove_shared=true"))
+            msg = '/drop for tiered storage object must configure removal of underlying files/'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.drop(uri_a, "remove_files=false,remove_shared=true"), msg)
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.drop(uri_a, "force=true,remove_files=false,remove_shared=true"), msg)
 
+        # Currently we are only running the test with dir_store because the remove_shared configuration
+        # is not yet implemented for the S3 storage source.
         if self.is_tiered_scenario() and self.ss_name == 'dir_store':
+            # If a cache directory is not provided, the default cache directory is "cache-" appended to
+            # the bucket directory.
+            cache_dir = "cache-" + self.bucket
+
             c = self.session.open_cursor(uri_a)
             c["a"] = "a"
             c["b"] = "b"
@@ -71,26 +92,14 @@ class test_tiered16(TieredConfigMixin, wttest.WiredTigerTestCase):
             # The shared object files corresponding to the first table should have been removed from
             # both the bucket and cache directories but the shared object files corresponding to the
             # second table should still remain.
-            if self.is_tiered_scenario():
-                self.assertFalse(os.path.isfile("bucket1/pfx_tiereda-0000000001.wtobj"))
-                self.assertFalse(os.path.isfile("bucket1/pfx_tiereda-0000000002.wtobj"))
-                self.assertTrue(os.path.isfile("bucket1/pfx_tieredb-0000000001.wtobj"))
-                self.assertTrue(os.path.isfile("bucket1/pfx_tieredb-0000000002.wtobj"))
-
-                self.assertFalse(os.path.isfile("cache-bucket1/pfx_tiereda-0000000001.wtobj"))
-                self.assertFalse(os.path.isfile("cache-bucket1/pfx_tiereda-0000000002.wtobj"))
-                self.assertTrue(os.path.isfile("cache-bucket1/pfx_tieredb-0000000001.wtobj"))
-                self.assertTrue(os.path.isfile("cache-bucket1/pfx_tieredb-0000000002.wtobj"))
+            self.check_cache(cache_dir, [self.bucket_prefix + obj1file_b, self.bucket_prefix + obj2file_b])
+            self.check_bucket([self.bucket_prefix + obj1file_b, self.bucket_prefix + obj2file_b])
 
             self.session.drop(uri_b, "remove_files=true,remove_shared=true")
 
             # The shared object files corresponding to the second table should have been removed.
-            if self.is_tiered_scenario():
-                self.assertFalse(os.path.isfile("bucket1/pfx_tieredb-0000000001.wtobj"))
-                self.assertFalse(os.path.isfile("bucket1/pfx_tieredb-0000000002.wtobj"))
-
-                self.assertFalse(os.path.isfile("cache-bucket1/pfx_tieredb-0000000001.wtobj"))
-                self.assertFalse(os.path.isfile("cache-bucket1/pfx_tieredb-0000000002.wtobj"))
+            self.check_cache(cache_dir, [])
+            self.check_bucket([])
 
 if __name__ == '__main__':
     wttest.run
