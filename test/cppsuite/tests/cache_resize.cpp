@@ -83,13 +83,13 @@ class cache_resize : public test_harness::test {
                 std::to_string(((WT_CONNECTION_IMPL *)conn)->cache_size));
 
             /*
-             * We can only track the operation when the cache size is big enough other it will be
-             * rolled back.
+             * We can only track the operation when the cache size is big enough otherwise it will
+             * be rolled back.
              */
             if (increase_cache) {
                 /*
-                 * Those information are required by the API but useless in our case. We can use
-                 * dummy data.
+                 * These dummy fields are required by the save_operation API but not needed for this
+                 * test.
                  */
                 const uint64_t collection_id = 0;
                 const std::string key = "";
