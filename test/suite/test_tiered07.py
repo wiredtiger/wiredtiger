@@ -101,8 +101,8 @@ class test_tiered07(wttest.WiredTigerTestCase, TieredConfigMixin):
             self.session.checkpoint()
         self.pr('After data, call flush_tier')
         self.session.flush_tier(None)
-        self.pr('After flush 1 checkpoint')
-        self.session.checkpoint()
+        if (not self.first_ckpt):
+            self.session.checkpoint()
 
         # Drop table.
         self.pr('call drop')
