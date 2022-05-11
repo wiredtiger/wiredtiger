@@ -810,16 +810,6 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
             }
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
 
-            /*
-             * If the tree is already dirty and so will be written, mark the page dirty. (We want to
-             * free the deleted pages, but if the handle is read-only or if the application never
-             * modifies the tree, we're not able to do so.)
-             */
-            if (btree->modified) {
-                WT_ERR(__wt_page_modify_init(session, page));
-                __wt_page_only_modify_set(session, page);
-            }
-
             ref->addr = unpack.cell;
             ++refp;
             break;
