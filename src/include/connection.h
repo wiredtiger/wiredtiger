@@ -481,11 +481,11 @@ struct __wt_connection_impl {
     uint32_t log_cursors;                  /* Log cursor count */
     wt_off_t log_dirty_max;                /* Log dirty system cache max size */
     wt_off_t log_file_max;                 /* Log file max size */
+    uint32_t log_force_write_wait;         /* Log force write wait configuration */
     const char *log_path;                  /* Logging path format */
     uint32_t log_prealloc;                 /* Log file pre-allocation */
     uint16_t log_req_max;                  /* Max required log version */
     uint16_t log_req_min;                  /* Min required log version */
-    uint32_t log_force_write_wait;         /* Log force write wait configuration */
     uint32_t txn_logsync;                  /* Log sync configuration */
 
     WT_SESSION_IMPL *meta_ckpt_session;     /* Metadata checkpoint session */
