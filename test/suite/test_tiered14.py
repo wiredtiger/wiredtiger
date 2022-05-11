@@ -30,7 +30,7 @@ import os, random, wttest
 from helper_tiered import TieredConfigMixin, gen_storage_sources
 from wtdataset import TrackedSimpleDataSet, TrackedComplexDataSet
 from wtscenario import make_scenarios
-from helper_tiered import storage_sources
+# from helper_tiered import storage_sources
 
 # test_tiered14.py
 #    Test somewhat arbitrary combinations of flush_tier, checkpoint, restarts,

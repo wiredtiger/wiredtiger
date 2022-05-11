@@ -46,6 +46,8 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered06')
     # storage_sources = TieredConfigMixin.get_tiered_storage_sources()
+    # s3_prefix_name = 'test_tiered06'
+    # TieredConfigMixin.get_tiered_storage_sources()
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)
@@ -75,8 +77,6 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
     def test_ss_basic(self):
         # Test some basic functionality of the storage source API, calling
         # each supported method in the API at least once.
-
-        # print(wttest.gettask_id())
 
         session = self.session
         ss = self.get_storage_source()

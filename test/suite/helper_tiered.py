@@ -27,10 +27,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
+# try:
+#     import boto3
+# except ImportError:
+#     pass
+
 import datetime, inspect, os, random, wiredtiger
 import boto3
-import pprint
-from botocore.config import Config
 
 # These routines help run the various storage sources. They are required to manage
 # generation of storage source specific configurations.
@@ -92,31 +95,26 @@ def generate_s3_prefix(random_prefix = '', test_name = ''):
     # "s3test/python/2022-31-01-16-34-10/623843294--".
     # Objects with the prefix pattern "s3test/*" are deleted after a certain period of time 
     # according to the lifecycle rule on the S3 bucket. Should you wish to make any changes to the
-    # prefix pattern or lifecycle of the object, please speak to the release manager. 
+    # prefix pattern or lifecycle of the object, please speak to the release manager.
+    # Group all the python test objects under s3test/python/ 
     prefix = 's3test/python/'
-    prefix += random_prefix + '--' + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M') + '/' + test_name
+    # Group each test run together by random number and date. If a random prefix isn't provided
+    # generate a new one now.
+    if random_prefix is None:
+        random_prefix = str(random.randrange(1, 2147483646))
+    prefix += datetime.datetime.now().strftime('%Y-%m-%d-%H-%M') + '--' + random_prefix +'/'
+    # Group all scenarios from the same test under the same test name.
+    prefix += test_name + '/'
 
-    # Range upto int32_max, matches that of C++'s std::default_random_engine
-    prefix += '/' + str(random.randrange(1, 2147483646)) + '--'
-
-    # If the calling function has not provided a name, extract it from the stack.
-    # It is important to generate unique prefixes for different tests in the same class,
+    # Generate a random number to differentiate object files for tests that use multiple bucket
+    # prefixes. It is important to generate unique prefixes for different tests in the same class,
     # so that the database namespace do not collide.
-    # 0th element on the stack is the current function. 1st element is the calling function.
-    # if not test_name:
-    #     test_name = inspect.stack()[1][3]
-    # prefix += test_name + '--'
-
-    # pp = pprint.PrettyPrinter(indent=4)
-    # pp.pprint(inspect.stack())
-
-    # print('function = ' + inspect.stack()[-12][3])
-    # print(inspect.stack())
-    # prefix += test_name + '--'
+    # Range up to int32_max, matches that of C++'s std::default_random_engine
+    prefix += str(random.randrange(1, 2147483646)) + '--'
 
     return prefix
 
-def gen_storage_sources(random_prefix, test_name):
+def gen_storage_sources(random_prefix='', test_name=''):
     tiered_storage_sources = [
         ('dirstore', dict(is_tiered = True,
             is_local_storage = True,
@@ -138,71 +136,19 @@ def gen_storage_sources(random_prefix, test_name):
             bucket_prefix2 = generate_s3_prefix(random_prefix, test_name),
             num_ops=20,
             ss_name = 's3_store')),
-        ('non_tiered', dict(is_tiered = False)),            
+        ('non_tiered', dict(is_tiered = False)),
     ]
 
+    # Return a sublist to use for the tiered test scenarios as last item on list is not a scenario.  
     return tiered_storage_sources[:2]
 
-# def gen_storage_sources(random_prefix, test_name):
-#     tiered_storage_sources[1][1]['bucket_prefix'] = generate_s3_prefix(random_prefix, test_name)
-
-tiered_storage_sources = [
-    ('dirstore', dict(is_tiered = True,
-        is_local_storage = True,
-        auth_token = get_auth_token('dir_store'),
-        bucket = get_bucket_name('dir_store', 0),
-        bucket1 = get_bucket_name('dir_store', 1),
-        bucket_prefix = "pfx_",
-        bucket_prefix1 = "pfx1_",
-        bucket_prefix2 = 'pfx2_',
-        num_ops=100,
-        ss_name = 'dir_store')),
-    ('s3', dict(is_tiered = True,
-        is_local_storage = False,
-        auth_token = get_auth_token('s3_store'),
-        bucket = get_bucket_name('s3_store', 0),
-        bucket1 = get_bucket_name('s3_store', 1),
-        bucket_prefix = generate_s3_prefix(),
-        bucket_prefix1 = generate_s3_prefix(),
-        bucket_prefix2 = generate_s3_prefix(),
-        num_ops=20,
-        ss_name = 's3_store')),
-    ('non_tiered', dict(is_tiered = False)),            
-]
-
-# Sublist to use for the tiered test scenarios as last item on list is not a scenario.  
-storage_sources = tiered_storage_sources[:2]
-
-def delete_objects(prefix):
-    s3 = boto3.resource('s3')
-    s3_client = boto3.client('s3')
-
-    response = s3_client.list_objects_v2(Bucket='s3testext-us', Prefix=prefix)
-
-    bucket = s3.Bucket('s3testext-us')
-    objects = list(bucket.objects.filter(Prefix=prefix))
-    keys = []
-    for o in objects:
-        # print(o.key)
-        keys.append(o.key)
-
-    for key in keys:
-        response = bucket.delete_objects(Delete={'Objects': [{'Key': key}]})
+tiered_storage_sources = gen_storage_sources()
 
 def download_objects(prefix):
-    access_key = os.getenv('AWS_ACCESS_KEY_ID')
-    secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
-    
-    session = boto3.Session(aws_access_key_id=access_key, aws_secret_access_key=secret_key)
-
-    s3 = session.resource('s3', use_ssl=False, verify=False)
-
-    my_config = Config(region_name='us-east-2', signature_version='v4')
-    s3_client = boto3.client('s3', config=my_config, aws_access_key_id=access_key, aws_secret_access_key=secret_key)
+    s3 = boto3.resource('s3')
 
     bucket = s3.Bucket('s3testext-us')
     objects = list(bucket.objects.filter(Prefix=prefix))
-    keys = []
 
     s3_object_files_path = 's3_files/'
     if not os.path.exists(s3_object_files_path):
@@ -211,85 +157,10 @@ def download_objects(prefix):
     for o in objects:
         path_list = o.key.split('/')
         filename = s3_object_files_path + '/' + o.key.split('/')[-1]
-        # print('Downloading ' + filename)
         bucket.download_file(o.key, filename)
-
-        # response = s3_client.generate_presigned_url('get_object',
-        #                                                 Params={'Bucket': 's3testext-us',
-        #                                                         'Key': filename},
-        #                                                 ExpiresIn=3600)
-
-        # print(response)
 
 # This mixin class provides tiered storage configuration methods.
 class TieredConfigMixin:
-    # Generate a unique object prefix for the S3 store. 
-    # def generate_s3_prefix(self, random_prefix = '', test_name = ''):
-    #     # Generates a unique prefix to be used with the object keys, eg:
-    #     # "s3test/python/2022-31-01-16-34-10/623843294--".
-    #     # Objects with the prefix pattern "s3test/*" are deleted after a certain period of time 
-    #     # according to the lifecycle rule on the S3 bucket. Should you wish to make any changes to the
-    #     # prefix pattern or lifecycle of the object, please speak to the release manager. 
-    #     prefix = 's3test/python/'
-    #     prefix += random_prefix + '--' + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M') + '/' + test_name
-
-    #     # Range upto int32_max, matches that of C++'s std::default_random_engine
-    #     prefix += '/' + str(random.randrange(1, 2147483646)) + '--'
-
-    #     print(self.simpleName())
-
-    #     return prefix
-
-    # tiered_storage_sources = [
-    #     ('dirstore', dict(is_tiered = True,
-    #         is_local_storage = True,
-    #         auth_token = get_auth_token('dir_store'),
-    #         bucket = get_bucket_name('dir_store', 0),
-    #         bucket1 = get_bucket_name('dir_store', 1),
-    #         bucket_prefix = "pfx_",
-    #         bucket_prefix1 = "pfx1_",
-    #         bucket_prefix2 = 'pfx2_',
-    #         num_ops=100,
-    #         ss_name = 'dir_store')),
-    #     ('s3', dict(is_tiered = True,
-    #         is_local_storage = False,
-    #         auth_token = get_auth_token('s3_store'),
-    #         bucket = get_bucket_name('s3_store', 0),
-    #         bucket1 = get_bucket_name('s3_store', 1),
-    #         bucket_prefix = generate_s3_prefix(),
-    #         bucket_prefix1 = generate_s3_prefix(),
-    #         bucket_prefix2 = generate_s3_prefix(),
-    #         num_ops=20,
-    #         ss_name = 's3_store')),
-    #     ('non_tiered', dict(is_tiered = False)),            
-    # ]
-
-    # def get_tiered_storage_sources(self):
-    #     tiered_storage_sources = [
-    #         ('dirstore', dict(is_tiered = True,
-    #             is_local_storage = True,
-    #             auth_token = get_auth_token('dir_store'),
-    #             bucket = get_bucket_name('dir_store', 0),
-    #             bucket1 = get_bucket_name('dir_store', 1),
-    #             bucket_prefix = "pfx_",
-    #             bucket_prefix1 = "pfx1_",
-    #             bucket_prefix2 = 'pfx2_',
-    #             num_ops=100,
-    #             ss_name = 'dir_store')),
-    #         ('s3', dict(is_tiered = True,
-    #             is_local_storage = False,
-    #             auth_token = get_auth_token('s3_store'),
-    #             bucket = get_bucket_name('s3_store', 0),
-    #             bucket1 = get_bucket_name('s3_store', 1),
-    #             bucket_prefix = generate_s3_prefix(),
-    #             bucket_prefix1 = generate_s3_prefix(),
-    #             bucket_prefix2 = generate_s3_prefix(),
-    #             num_ops=20,
-    #             ss_name = 's3_store')),
-    #         ('non_tiered', dict(is_tiered = False)),            
-    #     ]
-    #     return tiered_storage_sources
-
     # Returns True if the current scenario is tiered.
     def is_tiered_scenario(self):
         return hasattr(self, 'is_tiered') and self.is_tiered

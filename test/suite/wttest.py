@@ -44,7 +44,7 @@ except ImportError:
 from contextlib import contextmanager
 import errno, glob, os, re, shutil, sys, time, traceback
 import wiredtiger, wtscenario, wthooks
-from helper_tiered import download_objects
+# from helper_tiered import download_objects
 
 def shortenWithEllipsis(s, maxlen):
     if len(s) > maxlen:
@@ -204,7 +204,7 @@ class WiredTigerTestCase(unittest.TestCase):
     @staticmethod
     def globalSetup(preserveFiles = False, removeAtStart = True, useTimestamp = False,
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
-                    longtest = False, zstdtest = False, ignoreStdout = False, seedw = 0, seedz = 0, hookmgr = None, random_prefix = 0, task_id = None):
+                    longtest = False, zstdtest = False, ignoreStdout = False, seedw = 0, seedz = 0, hookmgr = None, random_prefix = 0):
         WiredTigerTestCase._preserveFiles = preserveFiles
         d = 'WT_TEST' if dirarg == None else dirarg
         if useTimestamp:
@@ -231,7 +231,6 @@ class WiredTigerTestCase(unittest.TestCase):
         WiredTigerTestCase._seeds = [521288629, 362436069]
         WiredTigerTestCase._randomseed = False
         WiredTigerTestCase._random_prefix = random_prefix
-        WiredTigerTestCase._task_id = task_id
 
         if hookmgr == None:
             hookmgr = wthooks.WiredTigerHookManager()
@@ -552,9 +551,11 @@ class WiredTigerTestCase(unittest.TestCase):
 
         # Download the files from the S3 bucket for tiered tests if the test fails or preserve is
         # turned on.
-        if ((not passed and not self.skipped) or (WiredTigerTestCase._preserveFiles)) and self.ss_name == 's3_store':
-            download_objects(self.bucket_prefix)
-            self.pr('downloading s3 files')
+        if hasattr(self, 'ss_name'):
+            if ((not passed and not self.skipped) or (WiredTigerTestCase._preserveFiles)) and self.ss_name == 's3_store':
+                from helper_tiered import download_objects
+                download_objects(self.bucket_prefix)
+                self.pr('downloading s3 files')
 
         self.pr('finishing')
 
@@ -947,9 +948,6 @@ def getseed():
 
 def getrandom_prefix():
     return WiredTigerTestCase._random_prefix
-
-def gettask_id():
-    return WiredTigerTestCase._task_id
 
 def runsuite(suite, parallel):
     suite_to_run = suite
