@@ -29,7 +29,6 @@
 import os, wiredtiger, wttest
 from helper_tiered import TieredConfigMixin, gen_storage_sources, get_conn_config, get_check
 from wtscenario import make_scenarios
-from helper_tiered import download_objects
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered10.py
@@ -140,9 +139,6 @@ class test_tiered10(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.check(c2, 20, 1)
         c1.close()
         c2.close()
-
-        if self.ss_name == 's3_store':
-            download_objects(self.bucket_prefix)
 
 if __name__ == '__main__':
     wttest.run()

@@ -31,7 +31,6 @@
 
 import os, shutil, wiredtiger
 from helper_tiered import get_conn_config, gen_storage_sources, TieredConfigMixin
-from helper_tiered import download_objects
 from test_import01 import test_import_base
 from wtscenario import make_scenarios
 import wttest 
@@ -156,5 +155,3 @@ class test_tiered13(test_import_base, TieredConfigMixin):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.create(self.otheruri, import_meta), msg)
 
-        if self.ss_name == 's3_store':
-            download_objects(self.bucket_prefix)

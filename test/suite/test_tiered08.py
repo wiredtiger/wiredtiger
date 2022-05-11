@@ -37,7 +37,6 @@ from helper_tiered import TieredConfigMixin, gen_storage_sources, get_conn_confi
 from wiredtiger import stat
 from wtthread import checkpoint_thread, flush_tier_thread
 from wtscenario import make_scenarios
-from helper_tiered import download_objects
 
 
 # test_tiered08.py
@@ -135,9 +134,6 @@ class test_tiered08(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.reopen_conn()
 
         self.verify(key_count)
-
-        if self.ss_name == 's3_store':
-            download_objects(self.bucket_prefix)
-
+        
 if __name__ == '__main__':
     wttest.run()

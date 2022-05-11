@@ -28,7 +28,6 @@
 
 import os, random, wttest
 from helper_tiered import TieredConfigMixin, gen_storage_sources
-from helper_tiered import download_objects
 from wtdataset import TrackedSimpleDataSet, TrackedComplexDataSet
 from wtscenario import make_scenarios
 from helper_tiered import storage_sources
@@ -155,9 +154,6 @@ class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
             # Generate a sequence of operations that is has a greater mix of 'operational' functions.
             s = ''.join(random.choices('aufcr.', k=self.num_ops))
             self.playback(testnum, s)
-
-        if self.ss_name == 's3_store':
-            download_objects(self.bucket_prefix)
 
 if __name__ == '__main__':
     wttest.run()

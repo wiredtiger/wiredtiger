@@ -30,7 +30,6 @@ import os, re
 from helper_tiered import TieredConfigMixin, gen_storage_sources, get_conn_config
 import wtscenario, wttest
 from wtdataset import SimpleDataSet
-from helper_tiered import download_objects
 
 # test_tiered03.py
 #    Test block-log-structured tree configuration options.
@@ -127,9 +126,6 @@ class test_tiered03(wttest.WiredTigerTestCase, TieredConfigMixin):
         # Check that we can see the new data
         cursor2 = session2.open_cursor(uri2)
         newds.check_cursor(cursor2)
-
-        if self.ss_name == 's3_store':
-            download_objects(self.bucket_prefix)
 
 if __name__ == '__main__':
     wttest.run()

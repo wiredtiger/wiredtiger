@@ -30,7 +30,6 @@ import os, time, wiredtiger, wttest
 from wiredtiger import stat
 from helper_tiered import TieredConfigMixin, gen_storage_sources, get_conn_config, get_check
 from wtscenario import make_scenarios
-from helper_tiered import download_objects
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
@@ -292,9 +291,6 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         # values should increase by one.
         self.assertEqual(skip2, skip1 + 1)
         self.assertEqual(switch2, switch1 + 1)
-
-        if self.ss_name == 's3_store':
-            download_objects(self.bucket_prefix)
 
 if __name__ == '__main__':
     wttest.run()

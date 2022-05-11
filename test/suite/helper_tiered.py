@@ -30,6 +30,7 @@
 import datetime, inspect, os, random, wiredtiger
 import boto3
 import pprint
+from botocore.config import Config
 
 # These routines help run the various storage sources. They are required to manage
 # generation of storage source specific configurations.
@@ -189,30 +190,23 @@ def delete_objects(prefix):
         response = bucket.delete_objects(Delete={'Objects': [{'Key': key}]})
 
 def download_objects(prefix):
-    s3 = boto3.resource('s3')
-    s3_client = boto3.client('s3')
+    access_key = os.getenv('AWS_ACCESS_KEY_ID')
+    secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+    
+    session = boto3.Session(aws_access_key_id=access_key, aws_secret_access_key=secret_key)
+
+    s3 = session.resource('s3', use_ssl=False, verify=False)
+
+    my_config = Config(region_name='us-east-2', signature_version='v4')
+    s3_client = boto3.client('s3', config=my_config, aws_access_key_id=access_key, aws_secret_access_key=secret_key)
 
     bucket = s3.Bucket('s3testext-us')
-    print(f'Finding objects with prefix: {prefix}')
     objects = list(bucket.objects.filter(Prefix=prefix))
     keys = []
-
-    # env_builddir = os.getenv('WT_BUILDDIR')
-    # s3_object_files_path = os.getenv('WT_BUILDDIR') + '/WT_TEST/s3_files/' + prefix
-    # if not os.path.exists(s3_object_files_path):
-    #     os.makedirs(s3_object_files_path)
-
-    # print(dest)
 
     s3_object_files_path = 's3_files/'
     if not os.path.exists(s3_object_files_path):
         os.makedirs(s3_object_files_path)
-
-    # print(os.path.dirname(os.path.dirname(os.getcwd())))
-    # path = os.path.dirname(os.path.dirname(os.getcwd())) + '/s3_files/'
-    # if not os.path.exists(path):
-    #     os.makedirs(path)
-
 
     for o in objects:
         path_list = o.key.split('/')
@@ -220,13 +214,32 @@ def download_objects(prefix):
         # print('Downloading ' + filename)
         bucket.download_file(o.key, filename)
 
-    # response = s3_client.generate_presigned_url('get_object',
-    #                                                 Params={'Bucket': 's3testext-us',
-    #                                                         'Key': object_name},
-    #                                                 ExpiresIn=expiration)
+        # response = s3_client.generate_presigned_url('get_object',
+        #                                                 Params={'Bucket': 's3testext-us',
+        #                                                         'Key': filename},
+        #                                                 ExpiresIn=3600)
+
+        # print(response)
 
 # This mixin class provides tiered storage configuration methods.
 class TieredConfigMixin:
+    # Generate a unique object prefix for the S3 store. 
+    # def generate_s3_prefix(self, random_prefix = '', test_name = ''):
+    #     # Generates a unique prefix to be used with the object keys, eg:
+    #     # "s3test/python/2022-31-01-16-34-10/623843294--".
+    #     # Objects with the prefix pattern "s3test/*" are deleted after a certain period of time 
+    #     # according to the lifecycle rule on the S3 bucket. Should you wish to make any changes to the
+    #     # prefix pattern or lifecycle of the object, please speak to the release manager. 
+    #     prefix = 's3test/python/'
+    #     prefix += random_prefix + '--' + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M') + '/' + test_name
+
+    #     # Range upto int32_max, matches that of C++'s std::default_random_engine
+    #     prefix += '/' + str(random.randrange(1, 2147483646)) + '--'
+
+    #     print(self.simpleName())
+
+    #     return prefix
+
     # tiered_storage_sources = [
     #     ('dirstore', dict(is_tiered = True,
     #         is_local_storage = True,
@@ -250,23 +263,6 @@ class TieredConfigMixin:
     #         ss_name = 's3_store')),
     #     ('non_tiered', dict(is_tiered = False)),            
     # ]
-
-    # # Generate a unique object prefix for the S3 store. 
-    # def generate_s3_prefix(self, random_prefix = '', test_name = ''):
-    #     # Generates a unique prefix to be used with the object keys, eg:
-    #     # "s3test/python/2022-31-01-16-34-10/623843294--".
-    #     # Objects with the prefix pattern "s3test/*" are deleted after a certain period of time 
-    #     # according to the lifecycle rule on the S3 bucket. Should you wish to make any changes to the
-    #     # prefix pattern or lifecycle of the object, please speak to the release manager. 
-    #     prefix = 's3test/python/'
-    #     prefix += random_prefix + '--' + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M') + '/' + test_name
-
-    #     # Range upto int32_max, matches that of C++'s std::default_random_engine
-    #     prefix += '/' + str(random.randrange(1, 2147483646)) + '--'
-
-    #     print(self.simpleName())
-
-    #     return prefix
 
     # def get_tiered_storage_sources(self):
     #     tiered_storage_sources = [

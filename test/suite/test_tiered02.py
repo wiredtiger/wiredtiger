@@ -30,7 +30,6 @@ import os, wttest
 from helper_tiered import TieredConfigMixin, gen_storage_sources
 from wtdataset import SimpleDataSet, ComplexDataSet
 from wtscenario import make_scenarios
-from helper_tiered import download_objects
 
 # test_tiered02.py
 #    Test tiered tree
@@ -177,9 +176,6 @@ class test_tiered02(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.session.checkpoint()
         self.confirm_flush(increase=False)
         self.progress('END TEST')
-
-        if self.ss_name == 's3_store':
-            download_objects(self.bucket_prefix)
 
 if __name__ == '__main__':
     wttest.run()

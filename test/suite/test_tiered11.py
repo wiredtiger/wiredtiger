@@ -29,7 +29,6 @@
 import os, wiredtiger, wttest
 from helper_tiered import get_conn_config, gen_storage_sources, TieredConfigMixin
 from wtscenario import make_scenarios
-from helper_tiered import download_objects
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered11.py
@@ -109,9 +108,6 @@ class test_tiered11(wttest.WiredTigerTestCase, TieredConfigMixin):
         time_str = "flush_time=0"
         self.check_metadata(self.tiereduri, time_str, False)
         self.check_metadata(self.objuri, time_str, False)
-
-        if self.ss_name == 's3_store':
-            download_objects(self.bucket_prefix)
 
 if __name__ == '__main__':
     wttest.run()

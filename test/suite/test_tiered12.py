@@ -29,7 +29,6 @@
 import os, time, wiredtiger, wttest
 from helper_tiered import TieredConfigMixin, gen_storage_sources, get_conn_config, get_check
 from wtscenario import make_scenarios
-from helper_tiered import download_objects
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered12.py
@@ -95,9 +94,6 @@ class test_tiered12(wttest.WiredTigerTestCase, TieredConfigMixin):
         # After sleeping, the internal thread should have created the cached object.
         cache_obj = os.path.join(cache, self.bucket_prefix + self.obj1file)
         self.assertTrue(os.path.exists(cache_obj))
-
-        if self.ss_name == 's3_store':
-            download_objects(self.bucket_prefix)
 
 if __name__ == '__main__':
     wttest.run()
