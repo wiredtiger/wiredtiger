@@ -91,6 +91,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_DECL_RET;
     WT_ITEM tmp;
     WT_PAGE *notused;
+    WT_PAGE_DELETED *del;
     uint32_t page_flags;
     uint8_t previous_state;
     bool prepare;
@@ -100,6 +101,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * memory of the appropriate size.
      */
     WT_CLEAR(tmp);
+    del = NULL;
 
     /* Lock the WT_REF. */
     switch (previous_state = ref->state) {
@@ -157,14 +159,23 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      *
      * Note: there are three possible cases - the state was WT_REF_DELETED and ft_info.del was NULL;
      * the state was WT_REF_DELETED and ft_info.del was non-NULL; and the state was WT_REF_DISK and
-     * ft_info.del was non-NULL. The last is only valid in a readonly tree.
+     * the parent page cell was a WT_CELL_ADDR_DEL cell. The last is only valid in a readonly tree.
+     *
+     * ft_info.del gets cleared and set to NULL if the deletion is found to be globally visible;
+     * this can happen in any of several places.
      */
-    WT_ASSERT(session,
-      previous_state != WT_REF_DISK || ref->ft_info.del == NULL ||
-        F_ISSET(S2BT(session), WT_BTREE_READONLY));
-    if ((previous_state == WT_REF_DELETED || ref->ft_info.del != NULL) &&
+    if (previous_state == WT_REF_DISK) {
+        WT_ASSERT(session, ref->ft_info.del == NULL);
+        if (addr.del_set) {
+            WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_READONLY));
+            del = &addr.del;
+        }
+    } else
+        del = ref->ft_info.del;
+
+    if ((previous_state == WT_REF_DELETED || del != NULL) &&
       !F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY))
-        WT_ERR(__wt_delete_page_instantiate(session, ref));
+        WT_ERR(__wt_delete_page_instantiate(session, ref, del));
 
 skip_read:
     F_CLR(ref, WT_REF_FLAG_READING);

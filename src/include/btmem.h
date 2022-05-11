@@ -150,20 +150,6 @@ struct __wt_addr {
 };
 
 /*
- * WT_ADDR_COPY --
- *	We have to lock the WT_REF to look at a WT_ADDR: a structure we can use to quickly get a
- * copy of the WT_REF address information.
- */
-struct __wt_addr_copy {
-    WT_TIME_AGGREGATE ta;
-
-    uint8_t type;
-
-    uint8_t addr[255 /* WT_BTREE_MAX_ADDR_COOKIE */];
-    uint8_t size;
-};
-
-/*
  * Overflow tracking for reuse: When a page is reconciled, we write new K/V overflow items. If pages
  * are reconciled multiple times, we need to know if we've already written a particular overflow
  * record (so we don't write it again), as well as if we've modified an overflow record previously
@@ -962,72 +948,69 @@ struct __wt_ref {
     /*
      * Fast-truncate information, written-to/read-from disk as necessary in the internal page's
      * deleted page proxy cell. When a WT_REF first becomes part of a fast-truncate operation, the
-     * WT_REF.del field is allocated and initialized.
+     * ft_info.del field is allocated and initialized.
      *
-     * If the page must be instantiated before the truncate commits: (1) WT_UPDATE structures are
-     * created for the page entries, (2) the transaction information from WT_REF.del is copied to
-     * those WT_UPDATE structures (making them a match for the truncate operation), and (3) the
-     * WT_REF.del field is freed and replaced by WT_REF.update, an array of references to the
-     * WT_UPDATE structures (needed for subsequent transaction commit/abort). Additionally, the
-     * WT_REF.state switches to WT_REF_MEM.
+     * Fast-truncate pages might have to be instantiated if a thread for which the operation isn't
+     * visible accesses the page. This can happen if the operation hasn't committed yet; it can also
+     * happen if an older read transaction visits the page; and it can happen if the fast-truncate
+     * operation is included in a checkpoint and then seen later, after a restart or via a
+     * checkpoint cursor.
      *
-     * If the page must be instantiated after the truncate operation commits but before the truncate
-     * becomes globally visible in the live tree it's the same, except that no WT_REF.update array
-     * is allocated. If the page must be instantiated in a read-only tree (such as a checkpoint
-     * cursor), it's the same except that not only is no WT_REF.update array allocated, the
-     * WT_REF.del field is left in place so the read and instantiation can be repeated as necessary.
+     * If the page must be instantiated for any reason: (1) WT_UPDATE structures are created for the
+     * page entries, (2) the transaction information from ft_info.del is copied to those WT_UPDATE
+     * structures (making them a match for the truncate operation), (3) the ft_info.del field is
+     * discarded, and (4) the WT_REF state switches to WT_REF_MEM.
      *
-     * Doing anything other than testing if WT_REF.ft_info.del/update is non-NULL (which eviction
-     * does), requires the WT_REF be locked.
+     * If the fast-truncate operation has not yet committed, additionally the ft_info.update field
+     * is created, which is an array of references to the WT_UPDATE structures, for subsequent
+     * transaction commit/abort. (The page can split, so there needs to be some way to find all of
+     * the update structures.)
      *
-     * Because this is a union it is important to always access the correct field. It is also vital
-     * to interpret the state correctly and consider all the possible cases.
+     * Doing anything other than testing if ft_info.del or ft_info.update is non-NULL (which
+     * eviction does) requires the WT_REF be locked.
      *
-     * The union access should be ft_info.del if the state is WT_REF_DELETED or WT_REF_DISK (states
-     * 1-4 below); should also be ft_info.del if the state is WT_REF_MEM and the tree is readonly
-     * (state 7 below); and should be ft_info.update if the state is WT_REF_MEM and the tree is
-     * read-write (states 5-6 below).
+     * Because ft_info is a union it is important to always access the correct field. It is also
+     * vital to interpret the state correctly and consider all the possible cases.
      *
-     * These are the possible cases:
+     * The union access should be ft_info.del if the state is WT_REF_DELETED (states 1 and 2 below),
+     * and should be ft_info.update if the state is WT_REF_MEM (states 5-6 below). Otherwise,
+     * neither field is valid and the pointer should always be NULL.
      *
-     * 1. The WT_REF state is WT_REF_DELETED and ft_info.del is NULL. The page is on disk only, is
-     * deleted, is no longer accessible (the deletion has become globally visible), and the on-disk
-     * page (if any) can be discarded freely.
+     * These are the possible states:
      *
-     * 2. The WT_REF state is WT_REF_DELETED and ft_info.del is not NULL. The page is on disk only,
-     * and is deleted, but the deletion may not yet be globally visible (or visible to any given
-     * reader either). ft_info.del describes the delete operation. If it is necessary to read the
-     * page on behalf of someone who cannot see the deletion, the page must be instantiated as
-     * described above.
+     * 1. The WT_REF state is WT_REF_DELETED and ft_info.del is NULL. This means the page is deleted
+     * and the deletion is globally visible. Any on-disk page has been or will be discarded.
      *
-     * 3. The WT_REF state is WT_REF_DISK and ft_info.del is NULL. This is an ordinary on-disk page.
+     * 2. The WT_REF state is WT_REF_DELETED and ft_info.del is not NULL. The page is on disk, and
+     * is deleted, but the deletion may not yet be globally visible (or visible to any given reader
+     * either). ft_info.del describes the delete operation. If it is necessary to read the page on
+     * behalf of a thread that cannot see the deletion, the page must be instantiated as described
+     * above.
      *
-     * 4. The WT_REF state is WT_REF_DISK and ft_info.del is not NULL. This is only permissible in
-     * readonly trees. The page is on disk only, and is deleted, but the deletion may not yet be
-     * globally visible. This differs from the case where the state is WT_REF_DELETED only because
-     * the state is not set back to WT_REF_DELETED when an instantiated truncated page in a readonly
-     * tree is discarded by eviction.
+     * 3. The WT_REF state is WT_REF_DISK, and the parent page's address cell is a deleted-address
+     * cell. ft_info is not valid; ft_info.del should read as NULL. The page is on disk, and
+     * deleted; the deletion may not yet be globally visible. Because the time aggregate stored in
+     * the parent internal page includes the deletion time, tree walks will skip the page as
+     * appropriate without needing the fast-delete information. This state can only happen in
+     * readonly trees; it is a result of the page being read in and instantiated, but not marked
+     * dirty, then discarded by eviction. (In principle eviction should set the state back to
+     * WT_REF_DELETED in this case; however, this turns out to be awkward.) The only time this state
+     * arises is when reading in the page, at which point we can check the address cell and retrieve
+     * the fast-delete information. Otherwise, it is indistinguishable from state 4.
      *
-     * 5. The WT_REF state is WT_REF_MEM and the tree is read-write, and ft_info.update is NULL.
-     * This is an ordinary in-memory page. It might have been previously deleted and then
-     * instantiated, or not, but the difference no longer matters.
+     * 4. The WT_REF state is WT_REF_DISK, and the parent page's address cell is not a
+     * deleted-address cell. ft_info is not valid; ft_info.del should read as NULL. This is an
+     * ordinary on-disk page.
      *
-     * 6. The WT_REF state is WT_REF_MEM and the tree is read-write, and ft_info.update is not NULL.
+     * 5. The WT_REF state is WT_REF_MEM, and ft_info.update is NULL. This is an ordinary in-memory
+     * page.
+     *
+     * 6. The WT_REF state is WT_REF_MEM, and ft_info.update is not NULL.
      * This is a deleted page that was instantiated when the delete transaction was not yet
      * committed. ft_info.update is the list of updates created by the instantiation, which is used
      * to commit or abort them as needed and then cleared. It is not possible to get to this state
      * if the truncate information was read from disk; uncommitted (including prepared) truncates
      * are not evicted or checkpointed.
-     *
-     * 7. The WT_REF state is WT_REF_MEM and the tree is readonly, and ft_info.del is not NULL. This
-     * is a deleted page that has been instantiated. The delete information is kept so that the page
-     * can be instantiated correctly again if it is discarded by eviction and read back in. Because
-     * the tree is readonly, it is safe to use the delete information when reading, e.g. to skip the
-     * page; no newer updates can be applied to the page.
-     *
-     * Note that because the ref must be locked to do anything other than test the pointer for NULL,
-     * these states refer to the pre-locking state. The state while examining the ref will always be
-     * WT_REF_LOCKED.
      */
     union {
         WT_PAGE_DELETED *del; /* Page not instantiated, page-deleted structure */

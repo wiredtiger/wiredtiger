@@ -192,10 +192,8 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
      * operation cannot reach global visibility while its transaction remains uncommitted. The page
      * itself is as we left it, so we can just reset the state.
      *
-     * 2. The state is WT_REF_MEM. In this case the tree must be read-write (since readonly trees
-     * can't have uncommitted write operations), and it's been instantiated, so we check
-     * ft_info.update for a list of updates to abort. Allow the update list to be null to be
-     * conservative.
+     * 2. The state is WT_REF_MEM. We check ft_info.update for a list of updates to abort. Allow the
+     * update list to be null to be conservative.
      */
     if (current_state == WT_REF_DELETED)
         current_state = ref->ft_info.del->previous_ref_state;
@@ -304,36 +302,55 @@ __tombstone_update_alloc(
  *     Instantiate an entirely deleted row-store leaf page.
  */
 int
-__wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *page_del)
 {
-    WT_BTREE *btree;
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_PAGE_DELETED *page_del;
     WT_ROW *rip;
     WT_TIME_WINDOW tw;
     WT_UPDATE **upd_array, **update_list, *upd;
     size_t size, total_size;
     uint32_t count, i;
 
-    btree = S2BT(session);
+    /*
+     * An operation is accessing a "deleted" page, and we're building an in-memory version of the
+     * page (making it look like all entries in the page were individually updated by a remove
+     * operation). We end up here if a transaction used a truncate call to delete the page without
+     * reading it, and something else that can't yet see the truncation decided to read the page.
+     *
+     * This can happen after the truncate transaction resolves, but it can also happen before. In
+     * the latter case, we need to keep track of the updates we populate the page with, so they can
+     * be found when the transaction resolves. The page we're loading might split, in which case
+     * finding the updates any other way would become a problem.
+     *
+     * The page_del structure passed in is either ref->ft_info.del, or under certain circumstances
+     * when that's unavailable, one extracted from the parent page's address cell.
+     */
+
     page = ref->page;
-    page_del = NULL;
     update_list = NULL;
+
+    /* For now fast-truncate is only supported for row-store. */
+    WT_ASSERT(session, page->type == WT_PAGE_ROW_LEAF);
 
     WT_STAT_CONN_DATA_INCR(session, cache_read_deleted);
 
     /* Track the prepared, fast-truncate pages we've had to instantiate. */
-    if (ref->ft_info.del != NULL && ref->ft_info.del->prepare_state != WT_PREPARE_INIT)
+    if (page_del != NULL && page_del->prepare_state != WT_PREPARE_INIT)
         WT_STAT_CONN_DATA_INCR(session, cache_read_deleted_prepared);
 
     /*
      * Give the page a modify structure and mark the page dirty if the tree isn't read-only. If the
-     * tree can be written, the page must be marked dirty because if we discard it as a clean page,
-     * then read it back into memory, we'll have the same problem as when instantiating deleted
-     * pages in read-only trees, re-reading the page won't re-create the fast-truncate information.
-     * If the tree cannot be written (checked in page-modify-set), we don't dirty page and we don't
-     * free the ft_info.del field below.
+     * tree can be written, the page must be marked dirty: otherwise it can be discarded, and that
+     * will lose the truncate information if the parent page hasn't been reconciled since the
+     * truncation happened.
+     *
+     * If the tree cannot be written (checked in page-modify-set), we won't dirty the page. In this
+     * case the truncate information must have been read from the parent page's on-disk cell, so we
+     * can fetch it again if we discard the page and then reread it.
+     *
+     * Truncates can appear in read-only trees (whether a read-only open of the live database or via
+     * a checkpoint cursor) if they were not yet globally visible when the tree was checkpointed.
      */
     WT_RET(__wt_page_modify_init(session, page));
     __wt_page_modify_set(session, page);
@@ -344,28 +361,13 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
           session, page, page->modify->mod_row_update, upd_array, page->entries);
 
     /*
-     * An operation is accessing a "deleted" page, and we're building an in-memory version of the
-     * page (making it look like all entries in the page were individually updated by a remove
-     * operation). There are two cases where we end up here:
-     *
-     * First, a running transaction used a truncate call to delete the page without reading it, in
-     * which case the page reference includes a structure with a transaction ID; the page we're
-     * building might split in the future, so we update that structure to include references to all
-     * of the update structures we create, so the transaction can abort.
-     *
-     * Second, a truncate call deleted a page and the truncate resolved, but an older transaction or
-     * the stable timestamp forced us to keep the old version of the page around, and then we
-     * crashed and recovered or we're running inside a checkpoint, and now we're being forced to
-     * read that page.
-     *
-     * If there's a not yet globally visible page-deleted structure (or reading in a checkpoint),
-     * get a reference and migrate transaction ID and timestamp information to the updates.
+     * Copy the page-deleted structure's timestamp information into an update for each row on the
+     * page. If the page-deleted structure is NULL, that means the truncate is globally visible, and
+     * therefore committed.
      *
      * If the truncate operation is not yet resolved, link updates in the page-deleted structure so
-     * they can be found when the transaction is aborted or committed, even if they have moved to
-     * other pages.
+     * they can be found when the transaction is resolved, even if they have moved to other pages.
      */
-    page_del = __wt_page_del_active(session, ref, true) ? ref->ft_info.del : NULL;
     if (page_del != NULL && !page_del->committed) {
         count = 0;
         WT_ROW_FOREACH (page, rip, i)
@@ -373,7 +375,6 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_RET(__wt_calloc_def(session, count + 1, &update_list));
     }
 
-    /* Walk the page entries, giving each one a tombstone. */
     total_size = size = 0;
     count = 0;
     upd_array = page->modify->mod_row_update;
@@ -381,10 +382,12 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     /* We just read the page and it's still locked. The insert lists should be empty. */
     WT_ASSERT(session, WT_ROW_INSERT_SMALLEST(page) == NULL);
 
+    /* Walk the page entries, giving each one a tombstone. */
     WT_ROW_FOREACH (page, rip, i) {
         /*
          * Retrieve the stop time point from the page's row. If we find an existing stop time point
-         * we don't need to append a tombstone.
+         * we don't need to append a tombstone. Such rows would not have been visible to the
+         * original truncate operation and were, logically, skipped over rather than re-deleted.
          */
         __wt_read_row_time_window(session, page, rip, &tw);
         if (!WT_TIME_WINDOW_HAS_STOP(&tw)) {
@@ -400,22 +403,19 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
         /* We just read the page and it's still locked. The insert lists should be empty. */
         WT_ASSERT(session, WT_ROW_INSERT(page, rip) == NULL);
     }
-    __wt_cache_page_inmem_incr(session, page, total_size);
 
     /*
      * We no longer need the WT_PAGE_DELETED structure, all of its information should have been
      * transferred to the list of WT_UPDATE structures (if any).
      *
-     * Except when the tree is read-only; in a read-only tree, eviction will just discard the
-     * instantiated page instead of saving it, so instead of this being a permanent transition we
-     * need to be able to regenerate the instantiated page arbitrarily many times. Note that keeping
-     * the structure around would cause horrible things to happen in reconciliation if we ever
-     * reached that code; but we won't.
+     * Note: in the cases where the page_del passed in isn't the one in the ref, there should be
+     * none in the ref.
      */
-    if (!F_ISSET(btree, WT_BTREE_READONLY))
-        __wt_overwrite_and_free(session, ref->ft_info.del);
-    if (update_list != NULL)
-        ref->ft_info.update = update_list;
+    WT_ASSERT(session, page_del == ref->ft_info.del || ref->ft_info.del == NULL);
+    __wt_overwrite_and_free(session, ref->ft_info.del);
+    ref->ft_info.update = update_list;
+
+    __wt_cache_page_inmem_incr(session, page, total_size);
 
     return (0);
 
