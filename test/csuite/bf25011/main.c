@@ -51,9 +51,10 @@ main(int argc, char *argv[])
     testutil_make_work_dir(opts->home);
 
     // Open connection
-    // TODO - need to enable indexing?
     testutil_check(wiredtiger_open(opts->home, NULL,
-      "create,cache_size=4G, log=(enabled,file_max=10M,remove=true)", &opts->conn));
+      "create,cache_size=4G, log=(enabled,file_max=10M,remove=true), "
+      "timing_stress_for_test=[checkpoint_slow]",
+      &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
     // Spawn threads
@@ -61,13 +62,13 @@ main(int argc, char *argv[])
     testutil_check(pthread_create(&create_thread, NULL, create_table_and_verify, opts));
     sleep(1); // hack -> wait for threads to spin up
 
-    // Run for 5 then shutdown
-    printf("Running for 5 seconds\n");
-    sleep(5);
+    // Run for 15 then shutdown
+    printf("Running for 15 seconds\n");
+    sleep(15);
     test_running = false;
 
     printf("Stopping\n");
-    sleep(1);
+    sleep(2);
     testutil_check(pthread_join(ckpt_thread, NULL));
     testutil_check(pthread_join(create_thread, NULL));
 
@@ -83,29 +84,80 @@ main(int argc, char *argv[])
 WT_THREAD_RET
 create_table_and_verify(void *arg)
 {
-    printf("Start create_coll\n");
-
     TEST_OPTS *opts;
     WT_SESSION *session;
+    uint64_t i;
+    char collection_uri[32];
+    char index_uri[32];
+
+    printf("Start create thread\n");
 
     opts = (TEST_OPTS *)arg;
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
-    uint64_t i = 0;
+    i = 0;
     while (test_running) {
-        // printf("    create_table_and_verify\n");
+        WT_CURSOR *cursor;
 
-        // Create name
-        char table_uri[32];
-        testutil_check(__wt_snprintf(table_uri, 32, "table:T%" PRIu64, i++));
+        // printf("Creating %lu\n", i);
 
+        // Mongo doesn't use WT's indexing and instead performs their own. Attempt to emulate that
+        // here.
+        // 1. Create the collection table
+        // 2. Create the index table
+        // 3. Write a single key into both tables at the same time
+        // 4. Check that both tables contain said key.
+        //    a. This step requries further checking as to how Mongo performs validation.
+
+        // Create names
+        testutil_check(__wt_snprintf(collection_uri, 64, "table:collection_%" PRIu64, i));
+        testutil_check(__wt_snprintf(index_uri, 64, "table:index_%" PRIu64, i));
+        i += 1;
+
+        // Create collection
+        testutil_check(session->begin_transaction(session, NULL));
+        testutil_check(session->create(
+          session, collection_uri, "key_format=Q,value_format=Q,log=(enabled=true)"));
+        testutil_check(session->commit_transaction(session, NULL));
+
+        // Create index
+        testutil_check(session->begin_transaction(session, NULL));
         testutil_check(
-          session->create(session, table_uri, "key_format=S,value_format=u,log=(enabled=false)"));
+          session->create(session, index_uri, "key_format=Q,value_format=Q,log=(enabled=true)"));
+        testutil_check(session->commit_transaction(session, NULL));
 
-        // TODO - comment from orig file:
-        /* Reopen connection for WT_SESSION::verify. It requires exclusive access to the file. */
-        testutil_check(session->verify(session, table_uri, NULL));
+        // Write to both tables in a single txn as per the printlog
+        testutil_check(session->begin_transaction(session, NULL));
+
+        testutil_check(session->open_cursor(session, collection_uri, NULL, NULL, &cursor));
+        cursor->set_key(cursor, i);
+        cursor->set_value(cursor, 2 * i);
+        testutil_check(cursor->insert(cursor));
+        testutil_check(cursor->close(cursor));
+
+        testutil_check(session->open_cursor(session, index_uri, NULL, NULL, &cursor));
+        cursor->set_key(cursor, i);
+        cursor->set_value(cursor, 2 * i);
+        testutil_check(cursor->insert(cursor));
+        testutil_check(cursor->close(cursor));
+
+        testutil_check(session->commit_transaction(session, NULL));
+
+        // For the purpose of this test just check that both tables are populated.
+        // The error we're seeing is one table is empty when Mongo validates.
+        // TODO - do we need to look on disk for mongo verify?
+        testutil_check(session->open_cursor(session, collection_uri, NULL, NULL, &cursor));
+        cursor->set_key(cursor, i);
+        testutil_assert(cursor->search(cursor) == 0);
+        testutil_check(cursor->close(cursor));
+
+        testutil_check(session->open_cursor(session, index_uri, NULL, NULL, &cursor));
+        cursor->set_key(cursor, i);
+        testutil_assert(cursor->search(cursor) == 0);
+        testutil_check(cursor->close(cursor));
     }
+
+    printf("END create thread\n");
 
     return (NULL);
 }
@@ -117,7 +169,6 @@ create_table_and_verify(void *arg)
 WT_THREAD_RET
 thread_checkpoint(void *arg)
 {
-    printf("Start ckpt\n");
 
     TEST_OPTS *opts;
     WT_SESSION *session;
@@ -126,9 +177,13 @@ thread_checkpoint(void *arg)
 
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     while (test_running) {
-        // printf("    ckpting\n");
+        // TODO - slow checkpoints means not many chances to test this issue
+        printf("    Start ckpt\n");
         testutil_check(session->checkpoint(session, NULL));
+        printf("    End ckpt\n");
     }
+
+    printf("END ckpt thread\n");
 
     return (NULL);
 }
