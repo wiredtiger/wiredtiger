@@ -52,9 +52,7 @@ main(int argc, char *argv[])
 
     // Open connection
     testutil_check(wiredtiger_open(opts->home, NULL,
-      "create,cache_size=4G, log=(enabled,file_max=10M,remove=true), "
-      "timing_stress_for_test=[checkpoint_slow]",
-      &opts->conn));
+      "create,cache_size=4G, log=(enabled,file_max=10M,remove=true)", &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
     // Spawn threads
@@ -164,7 +162,7 @@ create_table_and_verify(void *arg)
 
 /*
  * thread_checkpoint --
- *     Run ckpts and verify in a loop.
+ *     Run ckpts in a loop.
  */
 WT_THREAD_RET
 thread_checkpoint(void *arg)
@@ -177,7 +175,6 @@ thread_checkpoint(void *arg)
 
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     while (test_running) {
-        // TODO - slow checkpoints means not many chances to test this issue
         printf("    Start ckpt\n");
         testutil_check(session->checkpoint(session, NULL));
         printf("    End ckpt\n");
