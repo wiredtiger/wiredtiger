@@ -509,7 +509,6 @@ __wt_txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *com
         stable_ts = txn_global->stable_timestamp;
 
     if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE)) {
-
         /* Compare against the first commit timestamp of the current transaction. */
         if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
             if (commit_ts < txn->first_commit_timestamp)

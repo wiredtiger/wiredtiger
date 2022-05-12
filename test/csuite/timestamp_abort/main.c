@@ -81,6 +81,7 @@ static const char *const ckpt_file = "checkpoint_done";
 
 static bool columns, compat, inmem, stress, use_ts;
 static volatile uint64_t global_ts = 1;
+static volatile uint64_t *ts_data;
 
 /*
  * The configuration sets the eviction update and dirty targets at 20% so that on average, each
@@ -154,8 +155,8 @@ thread_ts_run(void *arg)
     WT_RAND_STATE rnd;
     WT_SESSION *session;
     THREAD_DATA *td;
-    wt_timestamp_t all_dur_ts, prev_all_dur_ts;
-    uint32_t rand_op;
+    wt_timestamp_t all_dur_ts, oldest_commit, prev_all_dur_ts;
+    uint32_t i, rand_op;
     int dbg;
     char tscfg[64], ts_string[WT_TS_HEX_STRING_SIZE];
     bool first;
@@ -187,23 +188,31 @@ thread_ts_run(void *arg)
             continue;
         prev_all_dur_ts = all_dur_ts;
 
+        /* Ensure the durable ts doesn't move equal to or beyond the oldest non-committed transaction. */
+        oldest_commit = all_dur_ts;
+        for (i = 0; i < td->info; i++)
+            oldest_commit = WT_MIN(oldest_commit, ts_data[i]);
+        if (oldest_commit == 0)
+            continue;
+        --oldest_commit;
+
         rand_op = __wt_random(&rnd) % 4;
         /*
          * Periodically let the oldest timestamp lag. Other times set the stable and oldest
          * timestamps as separate API calls. The rest of the time set them both as one call.
          */
         if (rand_op == 0) {
-            testutil_check(__wt_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%s", ts_string));
+            testutil_check(__wt_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%lx", oldest_commit));
             testutil_check(td->conn->set_timestamp(td->conn, tscfg));
-            testutil_check(__wt_snprintf(tscfg, sizeof(tscfg), "oldest_timestamp=%s", ts_string));
+            testutil_check(__wt_snprintf(tscfg, sizeof(tscfg), "oldest_timestamp=%lx", oldest_commit));
             testutil_check(td->conn->set_timestamp(td->conn, tscfg));
         } else {
             if (!first && rand_op == 1)
                 testutil_check(
-                  __wt_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%s", ts_string));
+                  __wt_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%lx", oldest_commit));
             else
                 testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
-                  "oldest_timestamp=%s,stable_timestamp=%s", ts_string, ts_string));
+                  "oldest_timestamp=%lx,stable_timestamp=%lx", oldest_commit, oldest_commit));
             testutil_check(td->conn->set_timestamp(td->conn, tscfg));
         }
         first = false;
@@ -368,7 +377,12 @@ thread_run(void *arg)
 
         if (use_ts) {
             testutil_check(pthread_rwlock_rdlock(&ts_lock));
+            /*
+             * TODO I don't think we can use ts_data[tid] as we can increment it between
+             * here and committing a transaction
+             */
             active_ts = __wt_atomic_addv64(&global_ts, 2);
+            ts_data[td->info] = active_ts;
             testutil_check(
               __wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, active_ts));
             /*
@@ -499,6 +513,9 @@ run_workload(uint32_t nth)
 
     thr = dcalloc(nth + 2, sizeof(*thr));
     td = dcalloc(nth + 2, sizeof(THREAD_DATA));
+    ts_data = dcalloc(nth + 2, sizeof(uint64_t));
+    for (i = 0; i < nth; i++)
+        ts_data[i] = 0;
 
     /*
      * Size the cache appropriately for the number of threads. Each thread adds keys sequentially to
