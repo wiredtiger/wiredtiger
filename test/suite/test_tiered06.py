@@ -27,13 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import inspect, os, wiredtiger, wttest
-from helper_tiered import TieredConfigMixin
-from helper_tiered import generate_s3_prefix
-from helper_tiered import gen_storage_sources
+from helper_tiered import TieredConfigMixin, gen_storage_sources
 from wtscenario import make_scenarios
-from suite_random import suite_random
-# from helper_tiered import gen_storage_sources
-# from helper_tiered import storage_sources
 
 FileSystem = wiredtiger.FileSystem  # easy access to constants
 
@@ -45,9 +40,6 @@ FileSystem = wiredtiger.FileSystem  # easy access to constants
 class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered06')
-    # storage_sources = TieredConfigMixin.get_tiered_storage_sources()
-    # s3_prefix_name = 'test_tiered06'
-    # TieredConfigMixin.get_tiered_storage_sources()
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)

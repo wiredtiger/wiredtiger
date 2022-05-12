@@ -34,8 +34,10 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 # test_tiered11.py
 #    Test flush time and flush timestamp in metadata.
 class test_tiered11(wttest.WiredTigerTestCase, TieredConfigMixin):
-    # Make scenarios for different cloud service providers
+
     storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered11')
+
+    # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)
 
     # If the 'uri' changes all the other names must change with it.
