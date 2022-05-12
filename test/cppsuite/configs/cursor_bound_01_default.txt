@@ -15,7 +15,8 @@ workload_generator=
     populate_config=
     (
         collection_count=10,
-        thread_count=10,
+        key_count_per_collection=0,
+        thread_count=0,
     ),
     insert_config=
     (

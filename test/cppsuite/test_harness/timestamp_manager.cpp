@@ -33,6 +33,7 @@
 #include "connection_manager.h"
 #include "core/configuration.h"
 #include "timestamp_manager.h"
+#include "workload/random_generator.h"
 #include "util/api_const.h"
 #include "workload/random_generator.h"
 
@@ -125,6 +126,16 @@ timestamp_manager::get_next_ts()
     uint64_t increment = _increment_ts.fetch_add(1);
     current_time |= (increment & 0x00000000FFFFFFFF);
     return (current_time);
+}
+
+wt_timestamp_t
+timestamp_manager::get_random_ts()
+{
+    wt_timestamp_t ts = random_generator::instance().generate_integer(
+      (_oldest_ts >> 32), (this->get_next_ts() >> 32));
+    /* Put back the timestamp in the correct format. */
+    ts <<= 32;
+    return (ts);
 }
 
 wt_timestamp_t

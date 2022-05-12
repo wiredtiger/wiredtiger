@@ -34,13 +34,13 @@
 #include "test_harness/test.h"
 
 #include "burst_inserts.cpp"
+#include "cursor_bound_01.cpp"
 #include "hs_cleanup.cpp"
 #include "operations_test.cpp"
 #include "search_near_01.cpp"
 #include "search_near_02.cpp"
 #include "search_near_03.cpp"
 #include "test_template.cpp"
-#include "cursor_bound_01.cpp"
 
 /* Declarations to avoid the error raised by -Werror=missing-prototypes. */
 const std::string parse_configuration_from_file(const std::string &filename);
@@ -123,6 +123,8 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         hs_cleanup(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "burst_inserts")
         burst_inserts(test_harness::test_args{config, test_name, wt_open_config}).run();
+    else if (test_name == "cursor_bound_01")
+        cursor_bound_01(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "operations_test")
         operations_test(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "search_near_01")
@@ -133,8 +135,6 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         search_near_03(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "test_template")
         test_template(test_harness::test_args{config, test_name, wt_open_config}).run();
-    else if (test_name == "cursor_bound_01")
-        cursor_bound_01(test_harness::test_args{config, test_name, wt_open_config}).run();
     else {
         test_harness::logger::log_msg(LOG_ERROR, "Test not found: " + test_name);
         error_code = -1;
@@ -157,7 +157,7 @@ main(int argc, char *argv[])
 {
     std::string cfg, config_filename, current_cfg, current_test_name, test_name, wt_open_config;
     int64_t error_code = 0;
-    const std::vector<std::string> all_tests = {"cursor_bound_01", "burst_inserts", "hs_cleanup",
+    const std::vector<std::string> all_tests = {"burst_inserts", "cursor_bound_01", "hs_cleanup",
       "operations_test", "search_near_01", "search_near_02", "search_near_03", "test_template"};
 
     /* Set the program name for error messages. */
