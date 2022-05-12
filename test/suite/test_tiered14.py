@@ -44,7 +44,7 @@ class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
     # test with the --long option.
 
     # The multiplier makes the size of keys and values progressively larger.
-    # A multipler of 0 makes the keys and values a single length.
+    # A multiplier of 0 makes the keys and values a single length.
     multiplier = [
         ('0', dict(multiplier=0)),
         ('S', dict(multiplier=1)),

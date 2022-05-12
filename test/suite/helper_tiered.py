@@ -27,13 +27,12 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-# try:
-#     import boto3
-# except ImportError:
-#     pass
+try:
+    import boto3
+except ImportError:
+    pass
 
 import datetime, inspect, os, random, wiredtiger
-import boto3
 
 # These routines help run the various storage sources. They are required to manage
 # generation of storage source specific configurations.
@@ -144,18 +143,23 @@ def gen_storage_sources(random_prefix='', test_name=''):
 
 tiered_storage_sources = gen_storage_sources()
 
-def download_objects(prefix):
+def download_objects(bucket_name, prefix):
+    # The bucket from the storage source is expected to be a name and a region, separated by a 
+    # semi-colon. eg: 'abcd;ap-southeast-2'.
+    bucket_name, region = bucket_name.split(';')
+    
+    # Get the bucket resource and list the objects within that bucket that match the prefix for a
+    # given test.
     s3 = boto3.resource('s3')
-
-    bucket = s3.Bucket('s3testext-us')
+    bucket = s3.Bucket(bucket_name)
     objects = list(bucket.objects.filter(Prefix=prefix))
 
-    s3_object_files_path = 's3_files/'
+    # Create a directory within the test directory to download the objects to.
+    s3_object_files_path = 's3_objects/'
     if not os.path.exists(s3_object_files_path):
         os.makedirs(s3_object_files_path)
 
     for o in objects:
-        path_list = o.key.split('/')
         filename = s3_object_files_path + '/' + o.key.split('/')[-1]
         bucket.download_file(o.key, filename)
 

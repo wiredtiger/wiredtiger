@@ -37,7 +37,7 @@ class test_tiered02(wttest.WiredTigerTestCase, TieredConfigMixin):
     complex_dataset = [
         ('simple_ds', dict(complex_dataset=False)),
         
-        # Commented out compplex dataset that tests column groups and indexes because it crashes
+        # Commented out complex dataset that tests column groups and indexes because it crashes
         # in the middle of the test. FIXME: WT-9001
         #('complex_ds', dict(complex_dataset=True)),
     ]

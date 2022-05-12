@@ -302,7 +302,7 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         ss = self.get_storage_source()
 
         # Since this class has multiple tests, append test name to the prefix to
-        # avoid namespace collison. 0th element on the stack is the current function.
+        # avoid namespace colison. 0th element on the stack is the current function.
         prefix = self.bucket_prefix + inspect.stack()[0][3] + '/'
 
         # Directory store needs the bucket created as a directory on the filesystem.

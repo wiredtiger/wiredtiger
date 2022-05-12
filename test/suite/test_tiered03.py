@@ -55,7 +55,7 @@ class test_tiered03(wttest.WiredTigerTestCase, TieredConfigMixin):
     def conn_config(self):
         bucket_ret = self.bucket
 
-        # The bucket format for the S3 store is the name and the region separataed by a semi-colon.
+        # The bucket format for the S3 store is the name and the region separated by a semi-colon.
         if self.ss_name == 's3_store':
             cache_dir = self.bucket[:self.bucket.find(';')] + '-cache'
         else:
