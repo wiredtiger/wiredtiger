@@ -133,14 +133,19 @@ class test_alter04(TieredConfigMixin, wttest.WiredTigerTestCase):
         # for all allowed settings.
         for a in self.cache_alter:
             alter_param = '%s=%s' % (self.setting, a)
-            self.alter(uri, alter_param)
+            self.session.alter(uri, alter_param)
             if self.reopen:
                 self.reopen_conn()
+
+                # FIXME without flush_tier call WT_TIERED::tiers are not initialized and
+                # alter doesn't modify metadata for file: and tier:.
+                self.session.flush_tier(None)
+
             special = self.use_cg or self.use_index
             if not special:
                 self.verify_metadata(alter_param)
             else:
-                self.alter(suburi, alter_param)
+                self.session.alter(suburi, alter_param)
                 self.verify_metadata(alter_param)
 
 if __name__ == '__main__':

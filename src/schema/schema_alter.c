@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 static int __schema_alter(WT_SESSION_IMPL *, const char *, const char *[]);
+static int __alter_apply(WT_SESSION_IMPL *, const char *, const char *[], const char *);
 
 /*
  * __alter_apply --
@@ -72,10 +73,12 @@ __alter_file(WT_SESSION_IMPL *session, const char *newcfg[])
      * it and the next open will see the updated metadata.
      */
     uri = session->dhandle->name;
-    if (!WT_PREFIX_MATCH(uri, "file:"))
-        return (__wt_unexpected_object_type(session, uri, "file:"));
+    if (!WT_PREFIX_MATCH(uri, "file:") && !WT_PREFIX_MATCH(uri, "tier:"))
+        return (__wt_unexpected_object_type(session, uri, "file: or tier:"));
 
-    return (__alter_apply(session, uri, newcfg, WT_CONFIG_BASE(session, file_meta)));
+    return (__alter_apply(session, uri, newcfg,
+      WT_PREFIX_MATCH(uri, "file:") ? WT_CONFIG_BASE(session, file_meta) :
+                                      WT_CONFIG_BASE(session, tier_meta)));
 }
 
 /*
@@ -89,6 +92,35 @@ __alter_object(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
         return (__wt_unexpected_object_type(session, uri, "object:"));
 
     return (__alter_apply(session, uri, newcfg, WT_CONFIG_BASE(session, object_meta)));
+}
+
+/*
+ * __alter_tiered --
+ *     Alter a tiered metadata.
+ */
+static int
+__alter_tiered(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[], uint32_t flags)
+{
+    WT_DECL_RET;
+
+    if (!WT_PREFIX_MATCH(uri, "tiered:"))
+        return (__wt_unexpected_object_type(session, uri, "tiered:"));
+
+    /*
+     * If the operation requires exclusive access, close any open file handles, including
+     * checkpoints.
+     */
+    if (FLD_ISSET(flags, WT_DHANDLE_EXCLUSIVE)) {
+        WT_WITH_HANDLE_LIST_WRITE_LOCK(
+          session, ret = __wt_conn_dhandle_close_all(session, uri, false, false));
+        WT_RET(ret);
+    }
+
+    WT_RET(__wt_schema_tiered_worker(session, uri, __alter_file, NULL, newcfg, flags));
+
+    WT_RET(__alter_apply(session, uri, newcfg, WT_CONFIG_BASE(session, tiered_meta)));
+
+    return (0);
 }
 
 /*
@@ -237,8 +269,7 @@ __schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
     if (WT_PREFIX_MATCH(uri, "table:"))
         return (__alter_table(session, uri, newcfg, exclusive_refreshed));
     if (WT_PREFIX_MATCH(uri, "tiered:"))
-        return (__wt_schema_tiered_worker(session, uri, __alter_file, NULL, newcfg, flags));
-
+        return __alter_tiered(session, uri, newcfg, flags);
     return (__wt_bad_object_type(session, uri));
 }
 

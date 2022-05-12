@@ -49,13 +49,6 @@ __wt_schema_tiered_worker(WT_SESSION_IMPL *session, const char *uri,
     WT_TIERED *tiered;
     u_int i;
 
-    /*
-     * If this was an alter operation, we need to alter the configuration for the overall tree and
-     * then reread it so it isn't out of date. TODO not yet supported.
-     */
-    if (FLD_ISSET(open_flags, WT_BTREE_ALTER))
-        WT_RET(ENOTSUP);
-
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, open_flags));
     tiered = (WT_TIERED *)session->dhandle;
 
@@ -63,7 +56,7 @@ __wt_schema_tiered_worker(WT_SESSION_IMPL *session, const char *uri,
         dhandle = tiered->tiers[i].tier;
         if (dhandle == NULL)
             continue;
-        WT_SAVE_DHANDLE(session,
+        WT_WITH_DHANDLE(session, NULL,
           ret = __wt_schema_worker(session, dhandle->name, file_func, name_func, cfg, open_flags));
         WT_ERR(ret);
     }
@@ -156,6 +149,9 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
                 WT_ERR(
                   __wt_schema_worker(session, idx->source, file_func, name_func, cfg, open_flags));
         }
+    } else if (WT_PREFIX_MATCH(uri, "tier:")) {
+        if (file_func != NULL)
+            WT_ERR(__wt_exclusive_handle_operation(session, uri, file_func, cfg, open_flags));
     } else if (WT_PREFIX_MATCH(uri, "tiered:")) {
         WT_ERR(__wt_schema_tiered_worker(session, uri, file_func, name_func, cfg, open_flags));
     } else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL) {
