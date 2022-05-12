@@ -35,8 +35,8 @@ from wtscenario import make_scenarios
 #    Test somewhat arbitrary combinations of flush_tier, checkpoint, restarts,
 #    data additions and updates.
 class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
-    
-    storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered14')
+
+    storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered14', tiered_only=True)
 
     uri = "table:test_tiered14-{}"   # format for subtests
 

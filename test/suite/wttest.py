@@ -44,7 +44,6 @@ except ImportError:
 from contextlib import contextmanager
 import errno, glob, os, re, shutil, sys, time, traceback
 import wiredtiger, wtscenario, wthooks
-from helper_tiered import download_objects
 
 def shortenWithEllipsis(s, maxlen):
     if len(s) > maxlen:
@@ -583,8 +582,7 @@ class WiredTigerTestCase(unittest.TestCase):
         # turned on.
         if hasattr(self, 'ss_name') and self.ss_name == 's3_store' and \
             ((not passed and not self.skipped) or (WiredTigerTestCase._preserveFiles)):
-                # print(self.bucket)
-                download_objects(self.bucket, self.bucket_prefix)
+                self.download_objects(self.bucket, self.bucket_prefix)
                 self.pr('downloading s3 files')
 
         self.pr('finishing')

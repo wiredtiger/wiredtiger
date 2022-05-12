@@ -35,7 +35,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Basic tiered storage API test error for tiered manager and flush_tier.
 class test_tiered12(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
-    storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered12')
+    storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered12', tiered_only=True)
     scenarios = make_scenarios(storage_sources)
 
     # If the 'uri' changes all the other names must change with it.

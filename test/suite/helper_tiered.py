@@ -113,7 +113,7 @@ def generate_s3_prefix(random_prefix = '', test_name = ''):
 
     return prefix
 
-def gen_storage_sources(random_prefix='', test_name=''):
+def gen_storage_sources(random_prefix='', test_name='', tiered_only=False):
     tiered_storage_sources = [
         ('dirstore', dict(is_tiered = True,
             is_local_storage = True,
@@ -138,30 +138,14 @@ def gen_storage_sources(random_prefix='', test_name=''):
         ('non_tiered', dict(is_tiered = False)),
     ]
 
-    # Return a sublist to use for the tiered test scenarios as last item on list is not a scenario.  
-    return tiered_storage_sources[:2]
+    # Return a sublist to use for the tiered test scenarios as last item on list is not a scenario
+    # for the tiered tests.  
+    if tiered_only:
+        return tiered_storage_sources[:2]
+
+    return tiered_storage_sources
 
 tiered_storage_sources = gen_storage_sources()
-
-def download_objects(bucket_name, prefix):
-    # The bucket from the storage source is expected to be a name and a region, separated by a 
-    # semi-colon. eg: 'abcd;ap-southeast-2'.
-    bucket_name, region = bucket_name.split(';')
-    
-    # Get the bucket resource and list the objects within that bucket that match the prefix for a
-    # given test.
-    s3 = boto3.resource('s3')
-    bucket = s3.Bucket(bucket_name)
-    objects = list(bucket.objects.filter(Prefix=prefix))
-
-    # Create a directory within the test directory to download the objects to.
-    s3_object_files_path = 's3_objects/'
-    if not os.path.exists(s3_object_files_path):
-        os.makedirs(s3_object_files_path)
-
-    for o in objects:
-        filename = s3_object_files_path + '/' + o.key.split('/')[-1]
-        bucket.download_file(o.key, filename)
 
 # This mixin class provides tiered storage configuration methods.
 class TieredConfigMixin:
@@ -225,3 +209,23 @@ class TieredConfigMixin:
                 self.skipTest('Tiered storage does not fully support alter operation.')
             else:
                 raise    
+
+    def download_objects(self, bucket_name, prefix):
+        # The bucket from the storage source is expected to be a name and a region, separated by a 
+        # semi-colon. eg: 'abcd;ap-southeast-2'.
+        bucket_name, region = bucket_name.split(';')
+        
+        # Get the bucket resource and list the objects within that bucket that match the prefix for a
+        # given test.
+        s3 = boto3.resource('s3')
+        bucket = s3.Bucket(bucket_name)
+        objects = list(bucket.objects.filter(Prefix=prefix))
+
+        # Create a directory within the test directory to download the objects to.
+        s3_object_files_path = 's3_objects/'
+        if not os.path.exists(s3_object_files_path):
+            os.makedirs(s3_object_files_path)
+
+        for o in objects:
+            filename = s3_object_files_path + '/' + o.key.split('/')[-1]
+            bucket.download_file(o.key, filename)

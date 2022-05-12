@@ -36,7 +36,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 # prefixes to the same bucket directory but different local databases.
 class test_tiered10(wttest.WiredTigerTestCase, TieredConfigMixin):
 
-    storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered10')
+    storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered10', tiered_only=True)
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)

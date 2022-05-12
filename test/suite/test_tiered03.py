@@ -42,7 +42,7 @@ class test_tiered03(wttest.WiredTigerTestCase, TieredConfigMixin):
     # sharing would probably need to be reworked.
     uri = 'file:test_tiered03'
 
-    storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered03')
+    storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered03', tiered_only=True)
 
     # Occasionally add a lot of records to vary the amount of work flush does.
     record_count_scenarios = wtscenario.quick_scenarios(
