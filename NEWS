@@ -1,7 +1,7 @@
 Ticket reference tags refer to tickets in the MongoDB JIRA tracking system:
 https://jira.mongodb.org
 
-WiredTiger release 11.0.1, 2022-XX-XX
+WiredTiger release 11.0.0, 2022-05-12
 ------------------------------------
 
 The WiredTiger 11.0 release is a complete refresh of the WiredTiger storage engine.
