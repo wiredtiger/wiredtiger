@@ -834,10 +834,10 @@ connection_runtime_config = [
         type='list', undoc=True,
         choices=[
         'aggressive_sweep', 'backup_rename', 'checkpoint_reserved_txnid_delay', 'checkpoint_slow',
-        'compact_slow', 'evict_reposition', 'failpoint_history_store_delete_key_from_ts',
-        'history_store_checkpoint_delay', 'history_store_search', 'history_store_sweep_race',
-        'prepare_checkpoint_delay', 'split_1', 'split_2', 'split_3', 'split_4', 'split_5',
-        'split_6', 'split_7', 'tiered_flush_finish']),
+        'checkpoint_stop', 'compact_slow', 'evict_reposition',
+        'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
+        'history_store_search', 'history_store_sweep_race', 'prepare_checkpoint_delay', 'split_1',
+        'split_2', 'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
@@ -968,6 +968,11 @@ wiredtiger_open_log_configuration = [
             the maximum size of log files''',
             min='100KB',    # !!! Must match WT_LOG_FILE_MIN
             max='2GB'),    # !!! Must match WT_LOG_FILE_MAX
+        Config('force_write_wait', '0', r'''
+            enable code that interrupts the usual timing of flushing the log from
+            the internal log server thread with a goal of uncovering race conditions.
+            This option is intended for use with internal stress testing of WiredTiger.''',
+            min='1', max='60', undoc=True),
         Config('path', '"."', r'''
             the name of a directory into which log files are written. The
             directory must already exist. If the value is not an absolute path,
@@ -1310,6 +1315,26 @@ wiredtiger_open = wiredtiger_open_common + [
         type='boolean'),
 ]
 
+
+cursor_bound_config = [
+    Config('action', 'set', r'''
+        configures whether this call into the api will set or clear range bounds on the given
+        cursor, it takes two values "set" or "clear". If "set" is specified then "bound" must also
+        be specified. If "clear" is specified without any bounds then both will be cleared. The
+        keys relevant to the given bound must have been set prior to the call using
+        WT_CURSOR::set_key. This configuration is currently a work in progress and should not be
+        used.''',
+        choices=['clear','set']),
+    Config('inclusive', 'true', r'''
+        configures whether the given bound is inclusive or not. This configuration is currently a
+        work in progress and should not be used.''',
+        type='boolean'),
+    Config('bound', '', r'''
+        configures which bound is being operated on, it takes two values "lower" and "upper".
+        This configuration is currently a work in progress and should not be used.''',
+        choices=['lower','upper']),
+]
+
 cursor_runtime_config = [
     Config('append', 'false', r'''
         append the value as a new record, creating a new record
@@ -1354,6 +1379,8 @@ methods = {
 'WT_CURSOR.close' : Method([]),
 
 'WT_CURSOR.reconfigure' : Method(cursor_runtime_config),
+
+'WT_CURSOR.bound' : Method(cursor_bound_config),
 
 'WT_SESSION.alter' : Method(file_runtime_config + [
     Config('checkpoint', '', r'''
