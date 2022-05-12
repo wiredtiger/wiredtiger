@@ -163,8 +163,7 @@ static int dir_store_fs_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 static int dir_store_open(WT_FILE_SYSTEM *, WT_SESSION *, const char *,
   WT_FS_OPEN_FILE_TYPE file_type, uint32_t, WT_FILE_HANDLE **);
 static int dir_store_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *, uint32_t);
-static int dir_store_remove_if_exists(
-  WT_FILE_SYSTEM *file_system, WT_SESSION *session, char *file_path, uint32_t flags);
+static int dir_store_remove_if_exists(WT_FILE_SYSTEM *, WT_SESSION *, char *, uint32_t);
 static int dir_store_rename(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, uint32_t);
 static int dir_store_size(WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *);
 
