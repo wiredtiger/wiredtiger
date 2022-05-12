@@ -296,7 +296,8 @@ in_memory:
         }
 
         /* Check now if the deletion is globally visible; if so we can flush the page. */
-        if (!__wt_txn_visible_all(session, mod->page_del->txnid, mod->page_del->durable_timestamp)) {
+        if (!__wt_txn_visible_all(
+              session, mod->page_del->txnid, mod->page_del->durable_timestamp)) {
             WT_RET(__wt_ref_block_free(session, ref));
             cmsp->state = WT_CHILD_IGNORE;
             WT_CHILD_RELEASE(session, cmsp->hazard, ref);
