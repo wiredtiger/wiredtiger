@@ -261,10 +261,6 @@ file_runtime_config = common_runtime_config + [
         system buffer cache after that many bytes from this object are
         written into the buffer cache''',
         min=0),
-    Config('readonly', 'false', r'''
-        the file is read-only. All methods that may modify a file are
-        disabled. See @ref readonly for more information''',
-        type='boolean'),
 ]
 
 # Per-file configuration
