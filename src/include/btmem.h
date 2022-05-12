@@ -443,6 +443,10 @@ struct __wt_page_modify {
     /* Overflow record tracking for reconciliation. */
     WT_OVFL_TRACK *ovfl_track;
 
+    /* Cached page-delete information for newly instantiated deleted pages. */
+    WT_PAGE_DELETED *page_del; /* Deletion information; NULL if globally visible. */
+    bool instantiated;         /* True if this is a newly instantiated page. */
+
 #define WT_PAGE_LOCK(s, p) __wt_spin_lock((s), &(p)->modify->page_lock)
 #define WT_PAGE_TRYLOCK(s, p) __wt_spin_trylock((s), &(p)->modify->page_lock)
 #define WT_PAGE_UNLOCK(s, p) __wt_spin_unlock((s), &(p)->modify->page_lock)
@@ -1011,6 +1015,12 @@ struct __wt_ref {
      * to commit or abort them as needed and then cleared. It is not possible to get to this state
      * if the truncate information was read from disk; uncommitted (including prepared) truncates
      * are not evicted or checkpointed.
+     *
+     * In both states 5 and 6, the page will have a modify structure to hold the instantiated
+     * tombstones. If the tree is read-write, the page will be marked dirty. Until it is reconciled,
+     * modify->instantiated will also be set to true, and modify->page_del will hold the page-delete
+     * information used for the instantiation, if any. This is needed under some circumstances
+     * for checkpointing internal pages.
      */
     union {
         WT_PAGE_DELETED *del; /* Page not instantiated, page-deleted structure */

@@ -410,6 +410,12 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         else
             WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
     }
+
+    /* If the page has post-instantiation delete information, we don't need it any more. */
+    if (mod->instantiated) {
+        mod->instantiated = false;
+        __wt_free(session, mod->page_del);
+    }
 }
 
 /*
