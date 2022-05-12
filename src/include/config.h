@@ -14,6 +14,7 @@ struct __wt_config {
 
     int depth, top;
     const int8_t *go;
+    bool raw_quote;
 };
 
 struct __wt_config_check {

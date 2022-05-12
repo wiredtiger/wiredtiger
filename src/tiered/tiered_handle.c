@@ -190,6 +190,8 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
      */
     WT_ERR(__wt_scr_alloc(session, 1024, &build));
     __wt_config_init(session, &cparser, config);
+    /* Include the quotes around string keys/values. */
+    cparser.raw_quote = true;
     while ((ret = __wt_config_next(&cparser, &ck, &cv)) == 0) {
         if (!WT_STRING_MATCH("checkpoint", ck.str, ck.len))
             /* Append the entry to the new buffer. */

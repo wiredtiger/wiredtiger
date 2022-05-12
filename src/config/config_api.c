@@ -52,6 +52,26 @@ __config_parser_next(WT_CONFIG_PARSER *wt_config_parser, WT_CONFIG_ITEM *key, WT
 }
 
 /*
+ * __config_parser_set_flags --
+ *     WT_CONFIG_PARSER->set_flags method.
+ */
+static int
+__config_parser_set_flags(WT_CONFIG_PARSER *wt_config_parser, uint32_t mask, uint32_t values)
+{
+    WT_CONFIG_PARSER_IMPL *config_parser;
+
+    config_parser = (WT_CONFIG_PARSER_IMPL *)wt_config_parser;
+    if ((mask & ~WT_CONFIG_FLAG_RAW_QUOTE) != 0)
+        return (EINVAL);
+
+    if (FLD_ISSET(values, WT_CONFIG_FLAG_RAW_QUOTE))
+        config_parser->config.raw_quote = true;
+    else
+        config_parser->config.raw_quote = false;
+    return (0);
+}
+
+/*
  * wiredtiger_config_parser_open --
  *     Create a configuration parser.
  */
@@ -60,7 +80,7 @@ wiredtiger_config_parser_open(
   WT_SESSION *wt_session, const char *config, size_t len, WT_CONFIG_PARSER **config_parserp)
 {
     static const WT_CONFIG_PARSER stds = {
-      __config_parser_close, __config_parser_next, __config_parser_get};
+      __config_parser_close, __config_parser_next, __config_parser_get, __config_parser_set_flags};
     WT_CONFIG_ITEM config_item = {config, len, 0, WT_CONFIG_ITEM_STRING};
     WT_CONFIG_PARSER_IMPL *config_parser;
     WT_SESSION_IMPL *session;

@@ -3696,9 +3696,26 @@ struct __wt_config_parser {
 	 */
 	int __F(get)(WT_CONFIG_PARSER *config_parser,
 	    const char *key, WT_CONFIG_ITEM *value);
+
+	/*!
+	 * Set flags that govern the behavior of the parser.
+	 *
+	 * @param config_parser the configuration parser handle
+	 * @param mask flags to set or unset
+	 * @param values of the flags
+	 * @errors
+	 *
+	 */
+	int __F(set_flags)(WT_CONFIG_PARSER *config_parser,
+	    uint32_t mask, uint32_t values);
 };
 
 /*! @} */
+
+/* Values for WT_CONFIG_PARSER->set_flags */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define	WT_CONFIG_FLAG_RAW_QUOTE	0x1u
+/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /*!
  * @name Support functions

@@ -33,6 +33,7 @@ __wt_config_initn(WT_SESSION_IMPL *session, WT_CONFIG *conf, const char *str, si
     conf->depth = 0;
     conf->top = -1;
     conf->go = NULL;
+    conf->raw_quote = false;
 }
 
 /*
@@ -342,12 +343,12 @@ __config_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
                 break;
 
         case A_QDOWN:
-            CAP(-1);
+            CAP(conf->raw_quote ? 0 : -1);
             conf->go = gostruct;
             break;
 
         case A_QUP:
-            PUSH(1, WT_CONFIG_ITEM_STRING);
+            PUSH(conf->raw_quote ? 0 : 1, WT_CONFIG_ITEM_STRING);
             conf->go = gostring;
             break;
 
@@ -559,7 +560,7 @@ __config_getraw(WT_CONFIG *cparser, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value, 
  */
 int
 __wt_config_get(
-  WT_SESSION_IMPL *session, const char **cfg_arg, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
+  WT_SESSION_IMPL *session, const char **cfg_arg, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value, bool raw_quote)
 {
     WT_CONFIG cparser;
     WT_DECL_RET;
@@ -578,6 +579,8 @@ __wt_config_get(
         --cfg;
 
         __wt_config_init(session, &cparser, *cfg);
+        if (raw_quote)
+            cparser.raw_quote = true;
         if ((ret = __config_getraw(&cparser, key, value, true)) == 0)
             return (0);
         WT_RET_NOTFOUND_OK(ret);
@@ -596,7 +599,7 @@ __wt_config_gets(WT_SESSION_IMPL *session, const char **cfg, const char *key, WT
 {
     WT_CONFIG_ITEM key_item = {key, strlen(key), 0, WT_CONFIG_ITEM_STRING};
 
-    return (__wt_config_get(session, cfg, &key_item, value));
+    return (__wt_config_get(session, cfg, &key_item, value, false));
 }
 
 /*
