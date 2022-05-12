@@ -182,10 +182,17 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     WT_TIERED *tiered;
     u_int i;
     const char *filename, *name;
-    bool exist, remove_files;
+    bool exist, remove_files, remove_shared;
 
     WT_RET(__wt_config_gets(session, cfg, "remove_files", &cval));
     remove_files = cval.val != 0;
+    WT_RET(__wt_config_gets(session, cfg, "remove_shared", &cval));
+    remove_shared = cval.val != 0;
+
+    if (!remove_files && remove_shared)
+        WT_RET_MSG(session, EINVAL,
+          "drop for tiered storage object must configure removal of underlying files "
+          "if forced removal of shared objects is enabled");
 
     name = NULL;
     /* Get the tiered data handle. */
@@ -210,6 +217,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
             WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
             WT_ERR(__wt_meta_track_drop(session, filename));
         }
+        tiered->tiers[WT_TIERED_INDEX_LOCAL].tier = NULL;
     }
 
     /* Close any dhandle and remove any tier: entry from metadata. */
@@ -221,6 +229,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
             session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force)));
         WT_ERR(ret);
         WT_ERR(__wt_metadata_remove(session, tier->name));
+        tiered->tiers[WT_TIERED_INDEX_SHARED].tier = NULL;
     }
 
     /*
@@ -241,6 +250,13 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
             WT_ERR(__wt_fs_exist(session, filename, &exist));
             if (exist)
                 WT_ERR(__wt_meta_track_drop(session, filename));
+
+            /*
+             * If a drop operation on tiered storage is configured to force removal of shared
+             * objects, we want to remove these files after the drop operation is successful.
+             */
+            if (remove_shared)
+                WT_ERR(__wt_meta_track_drop_object(session, tiered->bstorage, filename));
         }
         __wt_free(session, name);
     }
@@ -256,6 +272,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
 
     __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove tiered table %s from metadata", uri);
     ret = __wt_metadata_remove(session, uri);
+
 err:
     __wt_free(session, name);
     return (ret);
