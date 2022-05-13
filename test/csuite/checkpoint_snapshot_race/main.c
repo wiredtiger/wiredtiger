@@ -74,7 +74,8 @@ main(int argc, char *argv[])
 
     // Open connection
     testutil_check(wiredtiger_open(opts->home, NULL,
-      "create,cache_size=4G,log=(enabled,file_max=10M,remove=true),debug_mode=(table_logging)", &opts->conn));
+      "create,cache_size=4G,log=(enabled,file_max=10M,remove=true),debug_mode=(table_logging)",
+      &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
     /* Setup globaal transaction IDs. */
@@ -174,7 +175,8 @@ create_table_and_verify(void *arg)
         // Write to both tables in a single txn as per the printlog
         testutil_check(session->begin_transaction(session, NULL));
 
-        testutil_check(session->open_cursor(session, collection_uri, NULL, NULL, &collection_cursor));
+        testutil_check(session->open_cursor(session,
+                    collection_uri, NULL, NULL, &collection_cursor));
         collection_cursor->set_key(collection_cursor, i);
         collection_cursor->set_value(collection_cursor, 2 * i);
         testutil_check(collection_cursor->insert(collection_cursor));
@@ -239,10 +241,14 @@ thread_validate(void *arg)
     while (test_running) {
         usleep(1000000);
         testutil_check(session->begin_transaction(session, NULL));
-        /* Iterate through the set of tables in reverse (so we inspect newer tables first to encourage races */
+        /*
+         * Iterate through the set of tables in reverse (so we inspect newer tables first to
+         * encourage races).
+        */
         while ((ret = catalog_cursor->prev(catalog_cursor)) == 0) {
             catalog_cursor->get_value(catalog_cursor, &collection_uri, &index_uri);
-            testutil_check(session->open_cursor(session, collection_uri, NULL, NULL, &collection_cursor));
+            testutil_check(session->open_cursor(session,
+                        collection_uri, NULL, NULL, &collection_cursor));
             testutil_check(session->open_cursor(session, index_uri, NULL, NULL, &index_cursor));
 
             while ((ret = collection_cursor->next(collection_cursor)) == 0) {
@@ -293,6 +299,7 @@ thread_checkpoint(void *arg)
         testutil_check(__wt_snprintf(ts_string, 64,
             "stable_timestamp=%" PRIu64 ",oldest_timestamp=%" PRIu64,
             collection_count - 2, collection_count - 3));
+        /* Hack to ensure global timestamps don't go backward at startup */
         if (collection_count > 12)
             opts->conn->set_timestamp(opts->conn, ts_string);
         printf("    Start ckpt, timestamps: %s\n", ts_string);

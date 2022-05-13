@@ -358,9 +358,9 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_bf25011
-    SOURCES bf25011/main.c
-    DIR_NAME bf25011
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_bf25011>/WT_HOME>
+    TARGET test_checkpoint_snapshot_race
+    SOURCES checkpoint_snapshot_race/main.c
+    DIR_NAME checkpoint_snapshot_race
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_checkpoint_snapshot_race>/WT_HOME>
     DEPENDS "WT_POSIX"
 )
