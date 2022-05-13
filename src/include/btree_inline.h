@@ -1556,20 +1556,57 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
+ * __wt_page_del_visible --
+ *     Return if a truncate operation is visible to the caller.
+ */
+static inline bool
+__wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool visible_all)
+{
+    uint8_t prepare_state;
+
+    /*
+     * In general usage, a NULL WT_PAGE_DELETED is a truncate operation whose details were discarded
+     * when it became globally visible.
+     */
+    if (page_del == NULL)
+        return (true);
+
+    /* We discard page_del on transaction abort, so should never see an aborted one. */
+    WT_ASSERT(session, page_del->txnid != WT_TXN_ABORTED);
+
+    /*
+     * Visible_all checks don't work when reading from a checkpoint (they check the current state of
+     * the world and not the checkpoint) so operate under the assumption that if the truncate
+     * operation appears in the checkpoint, it must have been invisible to somebody at the time the
+     * checkpoint was taken. (Otherwise the page wouldn't have been kept.) Because the checkpoint is
+     * immutable, that won't ever change.
+     */
+    if (visible_all && WT_READING_CHECKPOINT(session))
+        return (false);
+
+    WT_ORDERED_READ(prepare_state, page_del->prepare_state);
+    if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
+        return (false);
+
+    return (visible_all ?
+        __wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp) :
+        __wt_txn_visible(session, page_del->txnid, page_del->timestamp));
+}
+
+/*
  * __wt_page_del_active --
- *     Return if a truncate operation is active. "active" means approximately that the truncate is
- *     still in progress, that is, that the underlying original page may still be required. This
- *     function in practice is actually a visibility test (it returns whether the truncate is *not*
- *     visible) and should be renamed and have its sense flipped to be more consistent with the rest
- *     of the system.
+ *     Return if a truncate operation is active.
  */
 static inline bool
 __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 {
-    WT_PAGE_DELETED *page_del;
-    uint8_t prepare_state;
-
     /*
+     * Return if a truncate operation is active: "active" means approximately that the truncate is
+     * still in progress, that is, that the underlying original page may still be required. This
+     * function in practice is actually a visibility test (it returns whether the truncate is *not*
+     * visible) and should be renamed and have its sense flipped to be more consistent with the rest
+     * of the system.
+     *
      * Our caller should have already locked the WT_REF and confirmed that the previous state was
      * WT_REF_DELETED. Consequently there are two possible cases: either ft_info.del is NULL (in
      * which case the page is firmly deleted and no longer accessible, so the deletion is always
@@ -1577,27 +1614,7 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
      */
     WT_ASSERT(session, ref->state == WT_REF_LOCKED);
 
-    if ((page_del = ref->ft_info.del) == NULL)
-        return (false);
-
-    /* We discard page_del on transaction abort, so should never see an aborted one. */
-    WT_ASSERT(session, page_del->txnid != WT_TXN_ABORTED);
-
-    /*
-     * If we are reading from a checkpoint, visible_all checks don't work (they check the current
-     * state of the world and not the checkpoint) so operate under the assumption that if the
-     * truncate operation appears in the checkpoint, it must have been invisible to somebody at the
-     * time the checkpoint was taken. (Otherwise the page wouldn't have been kept.) Because the
-     * checkpoint is immutable, that won't ever change.
-     */
-    if (WT_READING_CHECKPOINT(session) && visible_all)
-        return (true);
-    WT_ORDERED_READ(prepare_state, page_del->prepare_state);
-    if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
-        return (true);
-    return (visible_all ?
-        !__wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp) :
-        !__wt_txn_visible(session, page_del->txnid, page_del->timestamp));
+    return (!__wt_page_del_visible(session, ref->ft_info.del, visible_all));
 }
 
 /*
