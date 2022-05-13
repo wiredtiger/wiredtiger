@@ -136,6 +136,7 @@ testutil_parse_opts(int argc, char *const *argv, TEST_OPTS *opts)
     len = strlen(opts->home) + 20;
     opts->progress_file_name = dmalloc(len);
     testutil_check(__wt_snprintf(opts->progress_file_name, len, "%s/progress.txt", opts->home));
+    opts->progress_msg_len = sizeof(opts->progress_msg);
 
     /* Setup the default URI string */
     len = strlen("table:") + strlen(opts->progname) + 10;

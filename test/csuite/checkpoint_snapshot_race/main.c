@@ -36,7 +36,7 @@ typedef struct {
     pthread_cond_t ckpt_go_cond;
     /* This is a proxy for timestamps as well. */
     volatile uint64_t collection_count;
-} BF25011_OPTS;
+} CHECKPOINT_RACE_OPTS;
 
 // threads
 void *thread_checkpoint(void *);
@@ -50,16 +50,16 @@ void *create_table_and_verify(void *);
 int
 main(int argc, char *argv[])
 {
-    BF25011_OPTS *bfopts, _bfopts;
+    CHECKPOINT_RACE_OPTS *cr_opts, _cr_opts;
     TEST_OPTS *opts, _opts;
     WT_SESSION *session;
     pthread_t create_thread, ckpt_thread, validate_thread;
 
-    bfopts = &_bfopts;
+    cr_opts = &_cr_opts;
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
-    memset(bfopts, 0, sizeof(*bfopts));
-    bfopts->opts = opts;
+    memset(cr_opts, 0, sizeof(*cr_opts));
+    cr_opts->opts = opts;
 
     testutil_check(testutil_parse_opts(argc, argv, opts));
     testutil_make_work_dir(opts->home);
@@ -68,13 +68,13 @@ main(int argc, char *argv[])
      * Start collection counter at 10, since it's used as a proxy for timestamps as well which
      * makes it better to avoid 0.
      */
-    bfopts->collection_count = 10;
-    testutil_check(pthread_mutex_init(&bfopts->ckpt_go_cond_mutex, NULL));
-    testutil_check(pthread_cond_init(&bfopts->ckpt_go_cond, NULL));
+    cr_opts->collection_count = 10;
+    testutil_check(pthread_mutex_init(&cr_opts->ckpt_go_cond_mutex, NULL));
+    testutil_check(pthread_cond_init(&cr_opts->ckpt_go_cond, NULL));
 
     // Open connection
     testutil_check(wiredtiger_open(opts->home, NULL,
-      "create,cache_size=4G,log=(enabled,file_max=10M,remove=true),debug_mode=(table_logging)",
+      "create,cache_size=100MB,log=(enabled,file_max=10M,remove=true),debug_mode=(table_logging)",
       &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
@@ -87,16 +87,16 @@ main(int argc, char *argv[])
     testutil_check(session->commit_transaction(session, NULL));
 
     // Spawn threads
-    testutil_check(pthread_create(&ckpt_thread, NULL, thread_checkpoint, bfopts));
-    testutil_check(pthread_create(&create_thread, NULL, create_table_and_verify, bfopts));
-    testutil_check(pthread_create(&validate_thread, NULL, thread_validate, bfopts));
+    testutil_check(pthread_create(&ckpt_thread, NULL, thread_checkpoint, cr_opts));
+    testutil_check(pthread_create(&create_thread, NULL, create_table_and_verify, cr_opts));
+    testutil_check(pthread_create(&validate_thread, NULL, thread_validate, cr_opts));
     usleep(200); // hack -> wait for threads to spin up
 
-    printf("Running for 2 seconds\n");
+    testutil_progress(opts, "Running for 2 seconds\n");
     sleep(5);
     test_running = false;
 
-    printf("Stopping\n");
+    testutil_progress(opts, "Stopping\n");
     sleep(2);
     testutil_check(pthread_join(ckpt_thread, NULL));
     testutil_check(pthread_join(create_thread, NULL));
@@ -114,17 +114,17 @@ main(int argc, char *argv[])
 WT_THREAD_RET
 create_table_and_verify(void *arg)
 {
-    BF25011_OPTS *bfopts;
+    CHECKPOINT_RACE_OPTS *cr_opts;
     TEST_OPTS *opts;
     WT_CURSOR *catalog_cursor, *collection_cursor, *index_cursor;
     WT_SESSION *ckpt_session, *session;
     uint64_t i;
     char collection_uri[64], index_uri[64], ts_string[64];
 
-    printf("Start create thread\n");
+    cr_opts = (CHECKPOINT_RACE_OPTS *)arg;
+    opts = cr_opts->opts;
 
-    bfopts = (BF25011_OPTS *)arg;
-    opts = bfopts->opts;
+    testutil_progress(opts, "Start create thread\n");
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &ckpt_session));
     testutil_check(session->open_cursor(session, CATALOG_URI, NULL, NULL, &catalog_cursor));
@@ -145,7 +145,7 @@ create_table_and_verify(void *arg)
         testutil_check(__wt_snprintf(collection_uri, 64, "table:collection_%" PRIu64, i));
         testutil_check(__wt_snprintf(index_uri, 64, "table:index_%" PRIu64, i));
 
-        i = __atomic_fetch_add(&bfopts->collection_count, 1, __ATOMIC_SEQ_CST);
+        i = __atomic_fetch_add(&cr_opts->collection_count, 1, __ATOMIC_SEQ_CST);
         snprintf(ts_string, 64, "commit_timestamp=%" PRIu64, i);
 
         // Create collection
@@ -160,9 +160,11 @@ create_table_and_verify(void *arg)
          * Wake the checkpoint thread - to encourage the transaction ID associated with the
          * following put being included in the checkpoints snapshot.
          */
-        testutil_check(pthread_mutex_lock(&bfopts->ckpt_go_cond_mutex));
-        testutil_check(pthread_cond_signal(&bfopts->ckpt_go_cond));
-        testutil_check(pthread_mutex_unlock(&bfopts->ckpt_go_cond_mutex));
+        if (i % 5 == 0) {
+            testutil_check(pthread_mutex_lock(&cr_opts->ckpt_go_cond_mutex));
+            testutil_check(pthread_cond_signal(&cr_opts->ckpt_go_cond));
+            testutil_check(pthread_mutex_unlock(&cr_opts->ckpt_go_cond_mutex));
+        }
 
         /* Add the new tables to the catalog */
         testutil_check(session->begin_transaction(session, NULL));
@@ -209,7 +211,7 @@ create_table_and_verify(void *arg)
     }
 
     testutil_check(catalog_cursor->close(catalog_cursor));
-    printf("END create thread\n");
+    testutil_progress(opts, "END create thread\n");
 
     return (NULL);
 }
@@ -222,24 +224,28 @@ WT_THREAD_RET
 thread_validate(void *arg)
 {
 
-    BF25011_OPTS *bfopts;
+    CHECKPOINT_RACE_OPTS *cr_opts;
     TEST_OPTS *opts;
     WT_CURSOR *catalog_cursor, *collection_cursor, *index_cursor;
+    WT_RAND_STATE rnd;
     WT_SESSION *session;
     uint64_t collection_value, index_value, validated_values, validation_passes;
-    char *collection_uri, *index_uri;
+    uint64_t i, rnd_val;
+    char *collection_uri, *index_uri, *verify_uri;
     int ret;
 
-    bfopts = (BF25011_OPTS *)arg;
-    opts = bfopts->opts;
+    cr_opts = (CHECKPOINT_RACE_OPTS *)arg;
+    opts = cr_opts->opts;
 
+    validated_values = validation_passes = 0;
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     testutil_check(session->open_cursor(session, CATALOG_URI, NULL, NULL, &catalog_cursor));
-    validated_values = validation_passes = 0;
-    sleep(1);
+    __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
+
+    sleep(3);
 
     while (test_running) {
-        usleep(1000000);
+        usleep(100000);
         testutil_check(session->begin_transaction(session, NULL));
         /*
          * Iterate through the set of tables in reverse (so we inspect newer tables first to
@@ -265,11 +271,39 @@ thread_validate(void *arg)
         testutil_check(session->commit_transaction(session, NULL));
         testutil_check(catalog_cursor->reset(catalog_cursor));
         ++validation_passes;
+        /* Occasionally run WiredTiger verify as well */
+        if (validation_passes % 3 == 0) {
+            i = 0;
+            rnd_val = (uint64_t)__wt_random(&rnd) % 10;
+            while ((ret = catalog_cursor->prev(catalog_cursor)) == 0) {
+                if (i == 0)
+                    i = rnd_val;
+                else
+                    i--;
+                /* Only verify some tables. */
+                if (i % rnd_val != 0)
+                    continue;
+                verify_uri = rnd_val % 2 == 0 ? collection_uri : index_uri;
+                catalog_cursor->get_value(catalog_cursor, &collection_uri, &index_uri);
+                ret = session->verify(session, verify_uri, NULL);
+                if (ret == EBUSY)
+                    snprintf(opts->progress_msg, opts->progress_msg_len,
+                            "Verifying got busy on %s\n", verify_uri);
+                else {
+                    testutil_assert(ret == 0);
+                    snprintf(opts->progress_msg, opts->progress_msg_len,
+                            "Verifying complete on %s\n", verify_uri);
+                }
+                testutil_progress(opts, opts->progress_msg);
+            }
+        }
     }
 
     testutil_check(catalog_cursor->close(catalog_cursor));
-    printf("END validate thread, validation_passes: %" PRIu64 ", validated_values: %" PRIu64 "\n",
+    snprintf(opts->progress_msg, opts->progress_msg_len,
+            "END validate thread, validation_passes: %" PRIu64 ", validated_values: %" PRIu64 "\n",
             validation_passes, validated_values);
+    testutil_progress(opts, opts->progress_msg);
 
     return (NULL);
 }
@@ -281,7 +315,7 @@ thread_validate(void *arg)
 WT_THREAD_RET
 thread_checkpoint(void *arg)
 {
-    BF25011_OPTS *bfopts;
+    CHECKPOINT_RACE_OPTS *cr_opts;
     TEST_OPTS *opts;
     WT_SESSION *session;
     struct timespec ts;
@@ -289,34 +323,34 @@ thread_checkpoint(void *arg)
     char ts_string[64];
     int ret;
 
-    bfopts = (BF25011_OPTS *)arg;
-    opts = bfopts->opts;
+    cr_opts = (CHECKPOINT_RACE_OPTS *)arg;
+    opts = cr_opts->opts;
 
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     while (test_running) {
         /* Update global timestamp state */
-        collection_count = __atomic_load_n(&bfopts->collection_count, __ATOMIC_SEQ_CST);
+        collection_count = __atomic_load_n(&cr_opts->collection_count, __ATOMIC_SEQ_CST);
         testutil_check(__wt_snprintf(ts_string, 64,
             "stable_timestamp=%" PRIu64 ",oldest_timestamp=%" PRIu64,
             collection_count - 2, collection_count - 3));
         /* Hack to ensure global timestamps don't go backward at startup */
         if (collection_count > 12)
             opts->conn->set_timestamp(opts->conn, ts_string);
-        printf("    Start ckpt, timestamps: %s\n", ts_string);
+        snprintf(opts->progress_msg, opts->progress_msg_len, "Checkpoint: %s\n", ts_string);
+        testutil_progress(opts, opts->progress_msg);
 
         /* Checkpoint once per second or when woken */
-        testutil_check(pthread_mutex_lock(&bfopts->ckpt_go_cond_mutex));
+        testutil_check(pthread_mutex_lock(&cr_opts->ckpt_go_cond_mutex));
         clock_gettime(CLOCK_REALTIME, &ts);
         ts.tv_sec += 1;
-        ret = pthread_cond_timedwait(&bfopts->ckpt_go_cond, &bfopts->ckpt_go_cond_mutex, &ts);
+        ret = pthread_cond_timedwait(&cr_opts->ckpt_go_cond, &cr_opts->ckpt_go_cond_mutex, &ts);
         testutil_assert(ret != EINVAL && ret != EPERM);
-        testutil_check(pthread_mutex_unlock(&bfopts->ckpt_go_cond_mutex));
+        testutil_check(pthread_mutex_unlock(&cr_opts->ckpt_go_cond_mutex));
 
         testutil_check(session->checkpoint(session, NULL));
-        printf("    End ckpt\n");
     }
 
-    printf("END ckpt thread\n");
+    testutil_progress(opts, "END ckpt thread\n");
 
     return (NULL);
 }
