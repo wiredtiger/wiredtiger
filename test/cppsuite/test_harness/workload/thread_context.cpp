@@ -249,12 +249,6 @@ thread_context::update(scoped_cursor &cursor, uint64_t collection_id, const std:
 }
 
 bool
-thread_context::insert(scoped_cursor &cursor, uint64_t collection_id, uint64_t key_id)
-{
-    return insert(cursor, collection_id, key_to_string(key_id));
-}
-
-bool
 thread_context::insert(scoped_cursor &cursor, uint64_t collection_id, const std::string &key)
 {
     WT_DECL_RET;

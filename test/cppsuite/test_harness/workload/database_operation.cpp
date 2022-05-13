@@ -53,7 +53,7 @@ populate_worker(thread_context *tc)
         uint64_t j = 0;
         while (j < tc->key_count) {
             tc->transaction.begin();
-            if (tc->insert(cursor, coll.id, j)) {
+            if (tc->insert(cursor, coll.id, tc->key_to_string(j))) {
                 if (tc->transaction.commit()) {
                     ++j;
                 }
@@ -171,7 +171,7 @@ database_operation::insert_operation(thread_context *tc)
         auto &cc = ccv[counter];
         while (tc->transaction.active() && tc->running()) {
             /* Insert a key value pair, rolling back the transaction if required. */
-            if (!tc->insert(cc.cursor, cc.coll.id, start_key + added_count)) {
+            if (!tc->insert(cc.cursor, cc.coll.id, tc->key_to_string(start_key + added_count))) {
                 added_count = 0;
                 tc->transaction.rollback();
             } else {

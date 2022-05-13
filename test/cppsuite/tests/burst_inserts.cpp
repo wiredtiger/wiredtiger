@@ -100,7 +100,8 @@ class burst_inserts : public test {
                 cc.write_cursor->search(cc.write_cursor.get());
 
                 /* A return value of true implies the insert was successful. */
-                if (!tc->insert(cc.write_cursor, cc.coll.id, start_key + added_count)) {
+                if (!tc->insert(
+                      cc.write_cursor, cc.coll.id, tc->key_to_string(start_key + added_count))) {
                     tc->transaction.rollback();
                     added_count = 0;
                     continue;
