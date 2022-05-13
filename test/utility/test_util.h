@@ -81,6 +81,7 @@ typedef struct {
     uint64_t n_append_threads; /* Number of append threads */
     uint64_t n_read_threads;   /* Number of read threads */
     uint64_t n_write_threads;  /* Number of write threads */
+    uint64_t runtime;          /* Runtime for test application */
 
     /*
      * Fields commonly shared within a test program. The test cleanup function will attempt to

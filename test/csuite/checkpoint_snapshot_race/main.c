@@ -41,7 +41,7 @@ typedef struct {
 // threads
 void *thread_checkpoint(void *);
 void *thread_validate(void *);
-void *create_table_and_verify(void *);
+void *create_and_populate_tables(void *);
 
 /*
  * main --
@@ -63,6 +63,10 @@ main(int argc, char *argv[])
 
     testutil_check(testutil_parse_opts(argc, argv, opts));
     testutil_make_work_dir(opts->home);
+
+    /* Default to 15 seconds */
+    if (opts->runtime == 0)
+        opts->runtime = 15;
 
     /*
      * Start collection counter at 10, since it's used as a proxy for timestamps as well which
@@ -88,12 +92,14 @@ main(int argc, char *argv[])
 
     // Spawn threads
     testutil_check(pthread_create(&ckpt_thread, NULL, thread_checkpoint, cr_opts));
-    testutil_check(pthread_create(&create_thread, NULL, create_table_and_verify, cr_opts));
+    testutil_check(pthread_create(&create_thread, NULL, create_and_populate_tables, cr_opts));
     testutil_check(pthread_create(&validate_thread, NULL, thread_validate, cr_opts));
     usleep(200); // hack -> wait for threads to spin up
 
-    testutil_progress(opts, "Running for 2 seconds\n");
-    sleep(5);
+    snprintf(opts->progress_msg, opts->progress_msg_len,
+            "Running for %"PRIu64 " seconds\n", opts->runtime);
+    testutil_progress(opts, opts->progress_msg);
+    sleep(opts->runtime);
     test_running = false;
 
     testutil_progress(opts, "Stopping\n");
@@ -108,18 +114,20 @@ main(int argc, char *argv[])
 }
 
 /*
- * create_table_and_verify --
+ * create_and_populate_tables --
  *     Create new collections and populate(?).
  */
 WT_THREAD_RET
-create_table_and_verify(void *arg)
+create_and_populate_tables(void *arg)
 {
     CHECKPOINT_RACE_OPTS *cr_opts;
     TEST_OPTS *opts;
     WT_CURSOR *catalog_cursor, *collection_cursor, *index_cursor;
+    WT_RAND_STATE rnd;
     WT_SESSION *ckpt_session, *session;
-    uint64_t i;
+    uint64_t i, rnd_val;
     char collection_uri[64], index_uri[64], ts_string[64];
+    char collection_config_str[64], index_config_str[64];
 
     cr_opts = (CHECKPOINT_RACE_OPTS *)arg;
     opts = cr_opts->opts;
@@ -127,6 +135,7 @@ create_table_and_verify(void *arg)
     testutil_progress(opts, "Start create thread\n");
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &ckpt_session));
+    __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
     testutil_check(session->open_cursor(session, CATALOG_URI, NULL, NULL, &catalog_cursor));
 
     while (test_running) {
@@ -177,8 +186,20 @@ create_table_and_verify(void *arg)
         // Write to both tables in a single txn as per the printlog
         testutil_check(session->begin_transaction(session, NULL));
 
+        /* Occasionally force the newly updated page to be evicted */
+        rnd_val = (uint64_t)__wt_random(&rnd);
+        snprintf(collection_config_str, sizeof(collection_config_str),
+            "%s", rnd_val % 12 == 0 ? "debug=(release_evict)" : "");
+        rnd_val = (uint64_t)__wt_random(&rnd);
+        snprintf(index_config_str, sizeof(index_config_str),
+            "%s", rnd_val % 12 == 0 ? "debug=(release_evict)" : "");
         testutil_check(session->open_cursor(session,
                     collection_uri, NULL, NULL, &collection_cursor));
+
+        snprintf(opts->progress_msg, opts->progress_msg_len,
+               "Creating collection/index: %s\n", collection_uri);
+        testutil_progress(opts, opts->progress_msg);
+
         collection_cursor->set_key(collection_cursor, i);
         collection_cursor->set_value(collection_cursor, 2 * i);
         testutil_check(collection_cursor->insert(collection_cursor));
@@ -218,7 +239,7 @@ create_table_and_verify(void *arg)
 
 /*
  * thread_validate --
- *     Run ckpts in a loop.
+ *     Periodically validate the content of the database.
  */
 WT_THREAD_RET
 thread_validate(void *arg)
@@ -275,6 +296,7 @@ thread_validate(void *arg)
         if (validation_passes % 3 == 0) {
             i = 0;
             rnd_val = (uint64_t)__wt_random(&rnd) % 10;
+            rnd_val++; /* Avoid divide by zero in modulo calculation */
             while ((ret = catalog_cursor->prev(catalog_cursor)) == 0) {
                 if (i == 0)
                     i = rnd_val;
@@ -347,7 +369,7 @@ thread_checkpoint(void *arg)
         testutil_assert(ret != EINVAL && ret != EPERM);
         testutil_check(pthread_mutex_unlock(&cr_opts->ckpt_go_cond_mutex));
 
-        testutil_check(session->checkpoint(session, NULL));
+        testutil_check(session->checkpoint(session, "use_timestamp=true"));
     }
 
     testutil_progress(opts, "END ckpt thread\n");
