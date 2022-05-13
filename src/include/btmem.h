@@ -956,7 +956,7 @@ struct __wt_ref {
      *
      * Fast-truncate pages might have to be instantiated if a thread for which the operation isn't
      * visible accesses the page. This can happen if the operation hasn't committed yet; it can also
-     * happen if an older read transaction visits the page; and it can happen if the fast-truncate
+     * happen if an older read transaction visits the page, and it can happen if the fast-truncate
      * operation is included in a checkpoint and then seen later, after a restart or via a
      * checkpoint cursor.
      *
@@ -985,11 +985,11 @@ struct __wt_ref {
      * 1. The WT_REF state is WT_REF_DELETED and ft_info.del is NULL. This means the page is deleted
      * and the deletion is globally visible. Any on-disk page has been or will be discarded.
      *
-     * 2. The WT_REF state is WT_REF_DELETED and ft_info.del is not NULL. The page is on disk, and
-     * is deleted, but the deletion may not yet be globally visible (or visible to any given reader
-     * either). ft_info.del describes the delete operation. If it is necessary to read the page on
-     * behalf of a thread that cannot see the deletion, the page must be instantiated as described
-     * above.
+     * 2. The WT_REF state is WT_REF_DELETED and ft_info.del is not NULL. The page is deleted, but
+     * but the deletion may not yet be globally visible (or visible to any given reader either.) The
+     * on-disk page remains in case we need it to satisfy reads. ft_info.del describes the delete
+     * operation. If it is necessary to read the page on behalf of a thread that cannot see the
+     * deletion, the page must be instantiated as described above.
      *
      * 3. The WT_REF state is WT_REF_DISK, and the parent page's address cell is a deleted-address
      * cell. ft_info is not valid; ft_info.del should read as NULL. The page is on disk, and
@@ -998,9 +998,11 @@ struct __wt_ref {
      * appropriate without needing the fast-delete information. This state can only happen in
      * readonly trees; it is a result of the page being read in and instantiated, but not marked
      * dirty, then discarded by eviction. (In principle eviction should set the state back to
-     * WT_REF_DELETED in this case; however, this turns out to be awkward.) The only time this state
-     * arises is when reading in the page, at which point we can check the address cell and retrieve
-     * the fast-delete information. Otherwise, it is indistinguishable from state 4.
+     * WT_REF_DELETED in this case; however, this turns out to be awkward and we work around it
+     * instead.) This state only arises in two places: when reading in the page, and in some cases
+     * of skipping over the page; both cases already need to unpack the address cell, so we can use
+     * it to retrieve the fast-delete information. Other than these considerations, this state is
+     * indistinguishable from state 4.
      *
      * 4. The WT_REF state is WT_REF_DISK, and the parent page's address cell is not a
      * deleted-address cell. ft_info is not valid; ft_info.del should read as NULL. This is an
@@ -1009,12 +1011,11 @@ struct __wt_ref {
      * 5. The WT_REF state is WT_REF_MEM, and ft_info.update is NULL. This is an ordinary in-memory
      * page.
      *
-     * 6. The WT_REF state is WT_REF_MEM, and ft_info.update is not NULL.
-     * This is a deleted page that was instantiated when the delete transaction was not yet
-     * committed. ft_info.update is the list of updates created by the instantiation, which is used
-     * to commit or abort them as needed and then cleared. It is not possible to get to this state
-     * if the truncate information was read from disk; uncommitted (including prepared) truncates
-     * are not evicted or checkpointed.
+     * 6. The WT_REF state is WT_REF_MEM, and ft_info.update is not NULL. This is a deleted page
+     * that was instantiated when the delete transaction was not yet resolved. ft_info.update is the
+     * list of updates created by the instantiation, which is used to commit or abort them as needed
+     * and then cleared. It is not possible to get to this state if the truncate information was
+     * read from disk; uncommitted (including prepared) truncates are not evicted or checkpointed.
      *
      * In both states 5 and 6, the page will have a modify structure to hold the instantiated
      * tombstones. If the tree is read-write, the page will be marked dirty. Until it is reconciled,

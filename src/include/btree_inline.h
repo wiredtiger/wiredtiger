@@ -1609,8 +1609,8 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
      *
      * Our caller should have already locked the WT_REF and confirmed that the previous state was
      * WT_REF_DELETED. Consequently there are two possible cases: either ft_info.del is NULL (in
-     * which case the page is firmly deleted and no longer accessible, so the deletion is always
-     * visible) or it is not, in which case the information in ft_info.del gives us the visibility.
+     * which case the deletion is globally visible and cannot be rolled back) or it is not, in which
+     * case the information in ft_info.del gives us the visibility.
      */
     WT_ASSERT(session, ref->state == WT_REF_LOCKED);
 

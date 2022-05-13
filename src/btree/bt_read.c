@@ -101,7 +101,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * memory of the appropriate size.
      */
     WT_CLEAR(tmp);
-    del = NULL;
 
     /* Lock the WT_REF. */
     switch (previous_state = ref->state) {
@@ -164,6 +163,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * ft_info.del gets cleared and set to NULL if the deletion is found to be globally visible;
      * this can happen in any of several places.
      */
+    del = NULL;
     if (previous_state == WT_REF_DISK) {
         WT_ASSERT(session, ref->ft_info.del == NULL);
         if (addr.del_set) {

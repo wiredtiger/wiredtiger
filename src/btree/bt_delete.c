@@ -407,19 +407,15 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELE
     /*
      * Move the WT_PAGE_DELETED structure to page->modify; all of its information has been copied to
      * the list of WT_UPDATE structures (if any), but we may still need it for internal page
-     * reconciliation if the tree is read-write.
+     * reconciliation.
      *
      * Note: in the cases where the page_del passed in isn't the one in the ref, there should be
      * none in the ref.
      */
     WT_ASSERT(session, page_del == ref->ft_info.del || ref->ft_info.del == NULL);
-    if (F_ISSET(S2BT(session), WT_BTREE_READONLY))
-        __wt_overwrite_and_free(session, ref->ft_info.del);
-    else {
-        page->modify->instantiated = true;
-        page->modify->page_del = ref->ft_info.del;
-        /* We don't need to null ft_info.del because assigning ft_info.update overwrites it. */
-    }
+    page->modify->instantiated = true;
+    page->modify->page_del = ref->ft_info.del;
+    /* We don't need to null ft_info.del because assigning ft_info.update overwrites it. */
     ref->ft_info.update = update_list;
 
     __wt_cache_page_inmem_incr(session, page, total_size);
