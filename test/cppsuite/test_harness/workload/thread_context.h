@@ -142,8 +142,7 @@ class thread_context {
      * Return true if the operation was successful, a return value of false implies the transaction
      * needs to be rolled back.
      */
-    bool remove(
-      scoped_cursor &cursor, uint64_t collection_id, const std::string &key, wt_timestamp_t ts = 0);
+    bool remove(scoped_cursor &cursor, uint64_t collection_id, const std::string &key);
     void sleep();
     bool running() const;
 

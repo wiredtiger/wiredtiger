@@ -286,19 +286,13 @@ thread_context::insert(scoped_cursor &cursor, uint64_t collection_id, const std:
 }
 
 bool
-thread_context::remove(
-  scoped_cursor &cursor, uint64_t collection_id, const std::string &key, wt_timestamp_t ts)
+thread_context::remove(scoped_cursor &cursor, uint64_t collection_id, const std::string &key)
 {
     WT_DECL_RET;
     testutil_assert(tracking != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
-    /*
-     * When no timestamp is specified, get one to apply for the deletion. We still do this even if
-     * the timestamp manager is not enabled as it will return a value for the tracking table.
-     */
-    if (ts == 0)
-        ts = tsm->get_next_ts();
+    wt_timestamp_t ts = tsm->get_next_ts();
     transaction.set_commit_timestamp(ts);
 
     cursor->set_key(cursor.get(), key.c_str());
