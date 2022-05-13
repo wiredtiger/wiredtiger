@@ -43,6 +43,8 @@ static void
 populate_worker(thread_context *tc)
 {
     uint64_t collections_per_thread = tc->collection_count / tc->thread_count;
+    std::string value;
+
     for (int64_t i = 0; i < collections_per_thread; ++i) {
         collection &coll = tc->db.get_collection((tc->id * collections_per_thread) + i);
         /*
@@ -53,7 +55,8 @@ populate_worker(thread_context *tc)
         uint64_t j = 0;
         while (j < tc->key_count) {
             tc->transaction.begin();
-            if (tc->insert(cursor, coll.id, tc->key_to_string(j))) {
+            value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
+            if (tc->insert(cursor, coll.id, tc->key_to_string(j), value)) {
                 if (tc->transaction.commit()) {
                     ++j;
                 }
@@ -162,6 +165,7 @@ database_operation::insert_operation(thread_context *tc)
     }
 
     uint64_t counter = 0;
+    std::string value;
     while (tc->running()) {
         uint64_t start_key = ccv[counter].coll.get_key_count();
         uint64_t added_count = 0;
@@ -171,7 +175,9 @@ database_operation::insert_operation(thread_context *tc)
         auto &cc = ccv[counter];
         while (tc->transaction.active() && tc->running()) {
             /* Insert a key value pair, rolling back the transaction if required. */
-            if (!tc->insert(cc.cursor, cc.coll.id, tc->key_to_string(start_key + added_count))) {
+            value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
+            if (!tc->insert(
+                  cc.cursor, cc.coll.id, tc->key_to_string(start_key + added_count), value)) {
                 added_count = 0;
                 tc->transaction.rollback();
             } else {

@@ -94,7 +94,7 @@ class search_near_02 : public test_harness::test {
             ccv.push_back({coll, std::move(cursor)});
         }
 
-        std::string key;
+        std::string key, value;
         const uint64_t MAX_ROLLBACKS = 100;
         uint64_t counter = 0;
         uint32_t rollback_retries = 0;
@@ -106,11 +106,12 @@ class search_near_02 : public test_harness::test {
 
             while (tc->transaction.active() && tc->running()) {
 
-                /* Generate a random key. */
+                /* Generate a random key/value pair. */
                 key = random_generator::instance().generate_random_string(tc->key_size);
+                value = random_generator::instance().generate_random_string(tc->value_size);
 
                 /* Insert a key value pair. */
-                if (tc->insert(cc.cursor, cc.coll.id, key)) {
+                if (tc->insert(cc.cursor, cc.coll.id, key, value)) {
                     if (tc->transaction.can_commit()) {
                         /* We are not checking the result of commit as it is not necessary. */
                         if (tc->transaction.commit())

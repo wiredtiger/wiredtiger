@@ -62,12 +62,13 @@ class search_near_03 : public test_harness::test {
     perform_unique_index_insertions(
       thread_context *tc, scoped_cursor &cursor, collection &coll, std::string &prefix_key)
     {
-        std::string ret_key;
+        std::string ret_key, value;
         const char *key_tmp;
         int exact_prefix, ret;
 
         /* Insert the prefix. */
-        if (!tc->insert(cursor, coll.id, prefix_key))
+        value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
+        if (!tc->insert(cursor, coll.id, prefix_key, value))
             return false;
 
         /* Remove the prefix. */
@@ -91,7 +92,8 @@ class search_near_03 : public test_harness::test {
         }
 
         /* Now insert the key with prefix and id. Use thread id to guarantee uniqueness. */
-        return tc->insert(cursor, coll.id, prefix_key + "," + std::to_string(tc->id));
+        value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
+        return tc->insert(cursor, coll.id, prefix_key + "," + std::to_string(tc->id), value);
     }
 
     static void
