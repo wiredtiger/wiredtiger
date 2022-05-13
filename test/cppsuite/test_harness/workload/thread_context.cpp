@@ -214,7 +214,8 @@ thread_context::key_to_string(uint64_t key_id)
 }
 
 bool
-thread_context::update(scoped_cursor &cursor, uint64_t collection_id, const std::string &key)
+thread_context::update(
+  scoped_cursor &cursor, uint64_t collection_id, const std::string &key, const std::string &value)
 {
     WT_DECL_RET;
 
@@ -223,10 +224,11 @@ thread_context::update(scoped_cursor &cursor, uint64_t collection_id, const std:
 
     wt_timestamp_t ts = tsm->get_next_ts();
     transaction.set_commit_timestamp(ts);
-    std::string value = random_generator::instance().generate_pseudo_random_string(value_size);
+
     cursor->set_key(cursor.get(), key.c_str());
     cursor->set_value(cursor.get(), value.c_str());
     ret = cursor->update(cursor.get());
+
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
             transaction.set_needs_rollback(true);

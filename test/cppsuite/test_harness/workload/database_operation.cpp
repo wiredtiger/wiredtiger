@@ -335,6 +335,7 @@ database_operation::update_operation(thread_context *tc)
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
     /* Cursor map. */
     std::map<uint64_t, scoped_cursor> cursors;
+    std::string value;
 
     /*
      * Loop while the test is running.
@@ -369,7 +370,8 @@ database_operation::update_operation(thread_context *tc)
         testutil_assert(coll.get_key_count() != 0);
         uint64_t key_id =
           random_generator::instance().generate_integer<uint64_t>(0, coll.get_key_count() - 1);
-        if (!tc->update(cursor, coll.id, tc->key_to_string(key_id))) {
+        value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
+        if (!tc->update(cursor, coll.id, tc->key_to_string(key_id), value)) {
             tc->transaction.rollback();
         }
 

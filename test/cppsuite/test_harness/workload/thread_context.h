@@ -121,12 +121,13 @@ class thread_context {
     std::string key_to_string(uint64_t key_id);
 
     /*
-     * Generic update function, takes a collection_id and key, will generate the value.
+     * Generic update function, takes a collection_id, key and value.
      *
      * Return true if the operation was successful, a return value of false implies the transaction
      * needs to be rolled back.
      */
-    bool update(scoped_cursor &cursor, uint64_t collection_id, const std::string &key);
+    bool update(scoped_cursor &cursor, uint64_t collection_id, const std::string &key,
+      const std::string &value);
 
     /*
      * Generic insert function, takes a collection_id, key and value.
