@@ -1474,6 +1474,16 @@ __session_truncate(
     WT_STAT_CONN_INCR(session, cursor_truncate);
 
     /*
+     * All historical versions must be removed when a key is updated with no timestamp, but that
+     * isn't possible in fast truncate operations. Disallow fast truncate in transactions configured
+     * to commit without a timestamp.
+     */
+    if (F_ISSET(session->txn, WT_TXN_TS_NOT_SET))
+        WT_ERR_MSG(session, EINVAL,
+          "truncate operations may not be included in transactions that can commit without a "
+          "timestamp");
+
+    /*
      * If the URI is specified, we don't need a start/stop, if start/stop is specified, we don't
      * need a URI. One exception is the log URI which may remove log files for a backup cursor.
      *

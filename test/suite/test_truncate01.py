@@ -80,6 +80,18 @@ class test_truncate_arguments(wttest.WiredTigerTestCase):
         c1.close()
         c2.close()
 
+    # Test truncation without a timestamp, expecct errors.
+    def test_truncate_txn_no_ts(self):
+        uri = self.type + self.name
+        msg = '/truncate operations may not be included/'
+
+        ds = SimpleDataSet(self, uri, 100)
+        ds.populate()
+
+        self.session.begin_transaction("no_timestamp=true")
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.truncate(None, None, None, None), msg)
+
 # Test truncation of an object using its URI.
 class test_truncate_uri(wttest.WiredTigerTestCase):
     name = 'test_truncate'
