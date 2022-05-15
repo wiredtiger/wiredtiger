@@ -51,7 +51,6 @@ class hs_cleanup : public test {
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         const char *key_tmp;
-        std::string value;
         const uint64_t MAX_ROLLBACKS = 100;
         uint32_t rollback_retries = 0;
 
@@ -94,6 +93,8 @@ class hs_cleanup : public test {
              * API doesn't guarantee our buffer will still be valid once it is called, as such we
              * copy the buffer and then pass it into the API.
              */
+            std::string value =
+              random_generator::instance().generate_pseudo_random_string(tc->value_size);
             if (tc->update(cursor, coll.id, key_tmp, value)) {
                 if (tc->transaction.can_commit()) {
                     if (tc->transaction.commit())

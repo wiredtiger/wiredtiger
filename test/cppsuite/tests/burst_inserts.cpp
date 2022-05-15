@@ -86,7 +86,6 @@ class burst_inserts : public test {
         }
 
         uint64_t counter = 0;
-        std::string value;
         while (tc->running()) {
             uint64_t start_key = ccv[counter].coll.get_key_count();
             uint64_t added_count = 0;
@@ -101,7 +100,8 @@ class burst_inserts : public test {
                 cc.write_cursor->search(cc.write_cursor.get());
 
                 /* A return value of true implies the insert was successful. */
-                value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
+                std::string value =
+                  random_generator::instance().generate_pseudo_random_string(tc->value_size);
                 if (!tc->insert(cc.write_cursor, cc.coll.id,
                       tc->key_to_string(start_key + added_count), value)) {
                     tc->transaction.rollback();
