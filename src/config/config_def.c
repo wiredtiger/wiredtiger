@@ -539,6 +539,7 @@ static const WT_CONFIG_CHECK confchk_file_meta[] = {
   {"os_cache_max", "int", NULL, "min=0", NULL, 0},
   {"prefix_compression", "boolean", NULL, NULL, NULL, 0},
   {"prefix_compression_min", "int", NULL, "min=0", NULL, 0},
+  {"readonly", "boolean", NULL, NULL, NULL, 0},
   {"split_deepen_min_child", "int", NULL, NULL, NULL, 0},
   {"split_deepen_per_child", "int", NULL, NULL, NULL, 0},
   {"split_pct", "int", NULL, "min=50,max=100", NULL, 0},
@@ -606,6 +607,7 @@ static const WT_CONFIG_CHECK confchk_lsm_meta[] = {
   {"os_cache_max", "int", NULL, "min=0", NULL, 0},
   {"prefix_compression", "boolean", NULL, NULL, NULL, 0},
   {"prefix_compression_min", "int", NULL, "min=0", NULL, 0},
+  {"readonly", "boolean", NULL, NULL, NULL, 0},
   {"split_deepen_min_child", "int", NULL, NULL, NULL, 0},
   {"split_deepen_per_child", "int", NULL, NULL, NULL, 0},
   {"split_pct", "int", NULL, "min=50,max=100", NULL, 0},
@@ -657,6 +659,7 @@ static const WT_CONFIG_CHECK confchk_object_meta[] = {
   {"os_cache_max", "int", NULL, "min=0", NULL, 0},
   {"prefix_compression", "boolean", NULL, NULL, NULL, 0},
   {"prefix_compression_min", "int", NULL, "min=0", NULL, 0},
+  {"readonly", "boolean", NULL, NULL, NULL, 0},
   {"split_deepen_min_child", "int", NULL, NULL, NULL, 0},
   {"split_deepen_per_child", "int", NULL, NULL, NULL, 0},
   {"split_pct", "int", NULL, "min=50,max=100", NULL, 0},
@@ -725,6 +728,7 @@ static const WT_CONFIG_CHECK confchk_tier_meta[] = {
   {"os_cache_max", "int", NULL, "min=0", NULL, 0},
   {"prefix_compression", "boolean", NULL, NULL, NULL, 0},
   {"prefix_compression_min", "int", NULL, "min=0", NULL, 0},
+  {"readonly", "boolean", NULL, NULL, NULL, 0},
   {"split_deepen_min_child", "int", NULL, NULL, NULL, 0},
   {"split_deepen_per_child", "int", NULL, NULL, NULL, 0},
   {"split_pct", "int", NULL, "min=50,max=100", NULL, 0},
@@ -778,6 +782,7 @@ static const WT_CONFIG_CHECK confchk_tiered_meta[] = {
   {"os_cache_max", "int", NULL, "min=0", NULL, 0},
   {"prefix_compression", "boolean", NULL, NULL, NULL, 0},
   {"prefix_compression_min", "int", NULL, "min=0", NULL, 0},
+  {"readonly", "boolean", NULL, NULL, NULL, 0},
   {"split_deepen_min_child", "int", NULL, NULL, NULL, 0},
   {"split_deepen_per_child", "int", NULL, NULL, NULL, 0},
   {"split_pct", "int", NULL, "min=50,max=100", NULL, 0},
@@ -1350,12 +1355,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "leaf_key_max=0,leaf_page_max=32KB,leaf_value_max=0,"
     "log=(enabled=true),memory_page_image_max=0,memory_page_max=5MB,"
     "os_cache_dirty_max=0,os_cache_max=0,prefix_compression=false,"
-    "prefix_compression_min=4,split_deepen_min_child=0,"
-    "split_deepen_per_child=0,split_pct=90,tiered_object=false,"
+    "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
+    ",split_deepen_per_child=0,split_pct=90,tiered_object=false,"
     "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
     "cache_directory=,local_retention=300,name=),value_format=u,"
     "verbose=[],version=(major=0,minor=0),write_timestamp_usage=none",
-    confchk_file_meta, 46},
+    confchk_file_meta, 47},
   {"index.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
@@ -1381,11 +1386,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "suffix=),merge_max=15,merge_min=0),memory_page_image_max=0,"
     "memory_page_max=5MB,old_chunks=,os_cache_dirty_max=0,"
     "os_cache_max=0,prefix_compression=false,prefix_compression_min=4"
-    ",split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
+    ",readonly=false,split_deepen_min_child=0,"
+    "split_deepen_per_child=0,split_pct=90,"
     "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
     "cache_directory=,local_retention=300,name=),value_format=u,"
     "verbose=[],write_timestamp_usage=none",
-    confchk_lsm_meta, 44},
+    confchk_lsm_meta, 45},
   {"object.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
@@ -1400,12 +1406,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "leaf_key_max=0,leaf_page_max=32KB,leaf_value_max=0,"
     "log=(enabled=true),memory_page_image_max=0,memory_page_max=5MB,"
     "os_cache_dirty_max=0,os_cache_max=0,prefix_compression=false,"
-    "prefix_compression_min=4,split_deepen_min_child=0,"
-    "split_deepen_per_child=0,split_pct=90,tiered_object=false,"
+    "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
+    ",split_deepen_per_child=0,split_pct=90,tiered_object=false,"
     "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
     "cache_directory=,local_retention=300,name=),value_format=u,"
     "verbose=[],version=(major=0,minor=0),write_timestamp_usage=none",
-    confchk_object_meta, 48},
+    confchk_object_meta, 49},
   {"table.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
@@ -1426,13 +1432,13 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
     "leaf_value_max=0,log=(enabled=true),memory_page_image_max=0,"
     "memory_page_max=5MB,os_cache_dirty_max=0,os_cache_max=0,"
-    "prefix_compression=false,prefix_compression_min=4,"
-    "split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
+    "prefix_compression=false,prefix_compression_min=4,readonly=false"
+    ",split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
     "tiered_object=false,tiered_storage=(auth_token=,bucket=,"
     "bucket_prefix=,cache_directory=,local_retention=300,name=),"
     "value_format=u,verbose=[],version=(major=0,minor=0),"
     "write_timestamp_usage=none",
-    confchk_tier_meta, 49},
+    confchk_tier_meta, 50},
   {"tiered.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
@@ -1448,12 +1454,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "leaf_value_max=0,log=(enabled=true),memory_page_image_max=0,"
     "memory_page_max=5MB,oldest=1,os_cache_dirty_max=0,os_cache_max=0"
     ",prefix_compression=false,prefix_compression_min=4,"
-    "split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
-    "tiered_object=false,tiered_storage=(auth_token=,bucket=,"
-    "bucket_prefix=,cache_directory=,local_retention=300,name=),"
-    "tiers=,value_format=u,verbose=[],version=(major=0,minor=0),"
-    "write_timestamp_usage=none",
-    confchk_tiered_meta, 51},
+    "readonly=false,split_deepen_min_child=0,split_deepen_per_child=0"
+    ",split_pct=90,tiered_object=false,tiered_storage=(auth_token=,"
+    "bucket=,bucket_prefix=,cache_directory=,local_retention=300,"
+    "name=),tiers=,value_format=u,verbose=[],version=(major=0,"
+    "minor=0),write_timestamp_usage=none",
+    confchk_tiered_meta, 52},
   {"wiredtiger_open",
     "backup_restore_target=,"
     "block_cache=(blkcache_eviction_aggression=1800,"
