@@ -188,7 +188,8 @@ thread_ts_run(void *arg)
             continue;
         prev_all_dur_ts = all_dur_ts;
 
-        /* Ensure the durable ts doesn't move equal to or beyond the oldest non-committed transaction. */
+        /* Ensure the durable ts doesn't move equal to or beyond the oldest non-committed
+         * transaction. */
         oldest_commit = WT_TS_MAX;
         for (i = 0; i < td->info; i++)
             oldest_commit = WT_MIN(oldest_commit, ts_data[i]);
@@ -202,9 +203,11 @@ thread_ts_run(void *arg)
          * timestamps as separate API calls. The rest of the time set them both as one call.
          */
         if (rand_op == 0) {
-            testutil_check(__wt_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%lx", oldest_commit));
+            testutil_check(
+              __wt_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%lx", oldest_commit));
             testutil_check(td->conn->set_timestamp(td->conn, tscfg));
-            testutil_check(__wt_snprintf(tscfg, sizeof(tscfg), "oldest_timestamp=%lx", oldest_commit));
+            testutil_check(
+              __wt_snprintf(tscfg, sizeof(tscfg), "oldest_timestamp=%lx", oldest_commit));
             testutil_check(td->conn->set_timestamp(td->conn, tscfg));
         } else {
             if (!first && rand_op == 1)
