@@ -794,7 +794,7 @@ struct __wt_page {
  * 	From uncommitted -> prepare -> rollback:
  * 	INIT --> INPROGRESS -> ROLLBACK_INPROGRESS
  * 	Prepare state will be updated to ROLLBACK_INPROGRESS after we have restores the history
- *store record to the update chain
+ *  store record to the update chain
  */
 #define WT_PREPARE_INIT              \
     0 /* Must be 0, as structures    \

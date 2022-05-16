@@ -612,8 +612,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint64_t recno, W
                   F_ISSET(r, WT_REC_EVICT) ||
                     (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
                       F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)));
-                /* We should not see prepare rollback in progress state in eviction as prepare
-                 * rollback cannot happen concurrently. */
+                /*
+                 * We should not see prepare rollback in progress state in eviction as prepare
+                 * rollback cannot happen concurrently.
+                 */
                 WT_ASSERT(session, upd->prepare_state == WT_PREPARE_INPROGRESS);
             }
         }
@@ -900,8 +902,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint64_t recno, W
      * Paranoia: check that we didn't choose an update that has since been rolled back.
      */
     WT_ASSERT(session, upd_select->upd == NULL || upd_select->upd->txnid != WT_TXN_ABORTED);
-    /* We should never select an update that has been written to the history store except checkpoint
-     * writes the update that is older than a prepared update. */
+    /*
+     * We should never select an update that has been written to the history store except checkpoint
+     * writes the update that is older than a prepared update.
+     */
     WT_ASSERT(session,
       upd_select->upd == NULL || !F_ISSET(upd_select->upd, WT_UPDATE_HS) ||
         (!F_ISSET(r, WT_REC_EVICT) && seen_prepare));
