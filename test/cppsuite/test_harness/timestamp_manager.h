@@ -59,6 +59,9 @@ class timestamp_manager : public component {
     /* Get a unique timestamp. */
     wt_timestamp_t get_next_ts();
 
+    /* Generate a random timestamp between the oldest timestamp and now. */
+    wt_timestamp_t get_random_ts();
+
     /* Get oldest timestamp. */
     wt_timestamp_t get_oldest_ts() const;
 
