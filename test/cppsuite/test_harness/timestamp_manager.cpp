@@ -33,8 +33,8 @@
 #include "connection_manager.h"
 #include "core/configuration.h"
 #include "timestamp_manager.h"
-#include "workload/random_generator.h"
 #include "util/api_const.h"
+#include "workload/random_generator.h"
 
 namespace test_harness {
 const std::string
