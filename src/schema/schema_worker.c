@@ -149,9 +149,6 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
                 WT_ERR(
                   __wt_schema_worker(session, idx->source, file_func, name_func, cfg, open_flags));
         }
-    } else if (WT_PREFIX_MATCH(uri, "tier:")) {
-        if (file_func != NULL)
-            WT_ERR(__wt_exclusive_handle_operation(session, uri, file_func, cfg, open_flags));
     } else if (WT_PREFIX_MATCH(uri, "tiered:")) {
         WT_ERR(__wt_schema_tiered_worker(session, uri, file_func, name_func, cfg, open_flags));
     } else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL) {
