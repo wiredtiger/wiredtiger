@@ -33,8 +33,8 @@
 #include "connection_manager.h"
 #include "core/configuration.h"
 #include "timestamp_manager.h"
-#include "workload/random_generator.h"
 #include "util/api_const.h"
+#include "workload/random_generator.h"
 
 namespace test_harness {
 const std::string
@@ -128,10 +128,10 @@ timestamp_manager::get_next_ts()
 }
 
 wt_timestamp_t
-timestamp_manager::get_random_ts()
+timestamp_manager::get_random_ts() const
 {
-    return random_generator::instance().generate_integer(
-      static_cast<uint64_t>(_oldest_ts), get_time_now_s());
+    return random_generator::instance().generate_integer<wt_timestamp_t>(
+      _oldest_ts, static_cast<wt_timestamp_t>(get_time_now_s()));
 }
 
 wt_timestamp_t
