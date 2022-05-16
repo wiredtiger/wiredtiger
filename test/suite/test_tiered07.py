@@ -36,7 +36,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Basic tiered storage API for schema operations.
 class test_tiered07(wttest.WiredTigerTestCase, TieredConfigMixin):
 
-    storage_sources = gen_tiered_storage_sources(wttest.getrandom_prefix(), 'test_tiered07', tiered_only=True)
+    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered07', tiered_only=True)
 
     # FIXME-WT-8897 Disabled S3 (only indexing dirstore in storage sources) as S3 directory listing 
     # is interpreting a directory to end in a '/', whereas the code in the tiered storage doesn't 

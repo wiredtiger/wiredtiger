@@ -36,7 +36,7 @@ from wtscenario import make_scenarios
 #    data additions and updates.
 class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
 
-    storage_sources = gen_tiered_storage_sources(wttest.getrandom_prefix(), 'test_tiered14', tiered_only=True)
+    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered14', tiered_only=True)
 
     uri = "table:test_tiered14-{}"   # format for subtests
 

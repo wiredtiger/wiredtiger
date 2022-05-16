@@ -36,7 +36,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 class test_tiered09(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
 
-    storage_sources = gen_tiered_storage_sources(wttest.WiredTigerTestCase._random_prefix, 'test_tiered09', tiered_only=True)
+    storage_sources = gen_tiered_storage_sources(wttest.WiredTigerTestCase._ss_random_prefix, 'test_tiered09', tiered_only=True)
 
     scenarios = make_scenarios(storage_sources)
 

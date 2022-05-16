@@ -44,7 +44,7 @@ from wtscenario import make_scenarios
 #   data into a table from another thread.
 class test_tiered08(wttest.WiredTigerTestCase, TieredConfigMixin):
 
-    storage_sources = gen_tiered_storage_sources(wttest.getrandom_prefix(), 'test_tiered08', tiered_only=True)
+    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered08', tiered_only=True)
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)
