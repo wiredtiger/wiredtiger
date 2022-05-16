@@ -121,7 +121,14 @@ __alter_tiered(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[], 
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     WT_TIERED *tiered;
+    uint32_t object_id;
     u_int i;
+    char *md_value;
+    const char *name;
+
+    dhandle = NULL;
+    md_value = NULL;
+    name = NULL;
 
     if (!WT_PREFIX_MATCH(uri, "tiered:"))
         return (__wt_unexpected_object_type(session, uri, "tiered:"));
@@ -146,6 +153,18 @@ __alter_tiered(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[], 
 
         WT_WITH_DHANDLE(session, NULL, ret = __schema_alter(session, dhandle->name, newcfg));
         WT_ERR(ret);
+    }
+
+    /* Alter all objects. */
+    for (object_id = tiered->oldest_id; object_id < tiered->current_id; object_id++) {
+        WT_ERR(__wt_tiered_name(session, &tiered->iface, object_id, WT_TIERED_NAME_OBJECT, &name));
+        ret = __wt_metadata_search(session, name, &md_value);
+        __wt_free(session, md_value);
+        WT_ERR_NOTFOUND_OK(ret, true);
+        if (ret == 0) {
+            WT_WITH_DHANDLE(session, NULL, ret = __schema_alter(session, name, newcfg));
+            WT_ERR(ret);
+        }
     }
 
     /* Apply change to the tiered metadata. */
