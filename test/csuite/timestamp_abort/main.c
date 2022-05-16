@@ -377,10 +377,6 @@ thread_run(void *arg)
 
         if (use_ts) {
             testutil_check(pthread_rwlock_rdlock(&ts_lock));
-            /*
-             * TODO I don't think we can use ts_data[tid] as we can increment it between
-             * here and committing a transaction
-             */
             active_ts = __wt_atomic_addv64(&global_ts, 2);
             ts_data[td->info] = active_ts;
             testutil_check(
@@ -513,9 +509,9 @@ run_workload(uint32_t nth)
 
     thr = dcalloc(nth + 2, sizeof(*thr));
     td = dcalloc(nth + 2, sizeof(THREAD_DATA));
-    ts_data = dcalloc(nth + 2, sizeof(uint64_t));
+    ts_data = dcalloc(nth, sizeof(uint64_t));
     for (i = 0; i < nth; i++)
-        ts_data[i] = 0;
+        ts_data[i] = WT_TS_NONE;
 
     /*
      * Size the cache appropriately for the number of threads. Each thread adds keys sequentially to
