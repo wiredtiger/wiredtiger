@@ -70,7 +70,9 @@ class search_near_03 : public test_harness::test {
         int exact_prefix, ret;
 
         /* Insert the prefix. */
-        if (!tc->insert(cursor, coll.id, prefix_key))
+        std::string value =
+          random_generator::instance().generate_pseudo_random_string(tc->value_size);
+        if (!tc->insert(cursor, coll.id, prefix_key, value))
             return false;
 
         /* Remove the prefix. */
@@ -94,7 +96,8 @@ class search_near_03 : public test_harness::test {
         }
 
         /* Now insert the key with prefix and id. Use thread id to guarantee uniqueness. */
-        return tc->insert(cursor, coll.id, prefix_key + "," + std::to_string(tc->id));
+        value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
+        return tc->insert(cursor, coll.id, prefix_key + "," + std::to_string(tc->id), value);
     }
 
     static void
@@ -243,6 +246,7 @@ class search_near_03 : public test_harness::test {
              * Grab a random existing prefix and perform unique index insertion. We expect it to
              * fail to insert, because it should already exist.
              */
+            testutil_assert(prefixes_map.at(coll.id).size() != 0);
             random_index = random_generator::instance().generate_integer(
               static_cast<size_t>(0), prefixes_map.at(coll.id).size() - 1);
             prefix_key = get_prefix_from_key(prefixes_map.at(coll.id).at(random_index));

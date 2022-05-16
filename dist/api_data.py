@@ -58,8 +58,7 @@ common_runtime_config = [
             check timestamps are \c always or \c never used on reads with
             this table, writing an error message if policy is violated.
             If the library was built in diagnostic mode, drop core at the
-            failing check. Should be set to \c none if mixed read use is
-            allowed''', choices=['always', 'never', 'none']),
+            failing check''', choices=['always', 'never', 'none']),
         Config('write_timestamp', 'off', r'''
             check timestamps are used consistently with the configured
             \c write_timestamp_usage option for this table, writing
@@ -71,16 +70,13 @@ common_runtime_config = [
         this option is no longer supported, retained for backward compatibility''',
         type='list', choices=['write_timestamp'], undoc=True),
     Config('write_timestamp_usage', 'none', r'''
-        describe how timestamps are expected to be used on table modifications. This option should
-        be used in conjunction with the corresponding \c write_timestamp configuration under the
-        \c assert option to provide errors and assertions for incorrect timestamp usage. The
-        choices are the default, which ensures that once timestamps are used for a key, they are
-        always used, and also that multiple updates to a key never use decreasing timestamps,
-        \c mixed_mode, which additionally allows updates with no timestamp even after timestamps
-        are first used, and \c never which enforces that timestamps are never used for a table.
-        (The \c always, \c key_consistent and \c ordered choices should not be used, and are
-        retained for backward compatibility.)''',
-        choices=['always', 'key_consistent', 'mixed_mode', 'never', 'none', 'ordered']),
+        describe how timestamps are expected to be used on table modifications.  The choices are
+        the default, which ensures that once timestamps are used for a key, they are always used,
+        and also that multiple updates to a key never use decreasing timestamps and \c never which
+        enforces that timestamps are never used for a table.  (The \c always, \c key_consistent,
+        \c mixed_mode and \c ordered choices should not be used, and are retained for backward
+        compatibility.)''', choices=['always', 'key_consistent', 'mixed_mode', 'never', 'none',
+        'ordered']),
 ]
 
 # Metadata shared by all schema objects
@@ -838,10 +834,10 @@ connection_runtime_config = [
         type='list', undoc=True,
         choices=[
         'aggressive_sweep', 'backup_rename', 'checkpoint_reserved_txnid_delay', 'checkpoint_slow',
-        'compact_slow', 'evict_reposition', 'failpoint_history_store_delete_key_from_ts',
-        'history_store_checkpoint_delay', 'history_store_search', 'history_store_sweep_race',
-        'prepare_checkpoint_delay', 'split_1', 'split_2', 'split_3', 'split_4', 'split_5',
-        'split_6', 'split_7', 'tiered_flush_finish']),
+        'checkpoint_stop', 'compact_slow', 'evict_reposition',
+        'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
+        'history_store_search', 'history_store_sweep_race', 'prepare_checkpoint_delay', 'split_1',
+        'split_2', 'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
@@ -972,6 +968,11 @@ wiredtiger_open_log_configuration = [
             the maximum size of log files''',
             min='100KB',    # !!! Must match WT_LOG_FILE_MIN
             max='2GB'),    # !!! Must match WT_LOG_FILE_MAX
+        Config('force_write_wait', '0', r'''
+            enable code that interrupts the usual timing of flushing the log from
+            the internal log server thread with a goal of uncovering race conditions.
+            This option is intended for use with internal stress testing of WiredTiger.''',
+            min='1', max='60', undoc=True),
         Config('path', '"."', r'''
             the name of a directory into which log files are written. The
             directory must already exist. If the value is not an absolute path,
@@ -1314,6 +1315,26 @@ wiredtiger_open = wiredtiger_open_common + [
         type='boolean'),
 ]
 
+
+cursor_bound_config = [
+    Config('action', 'set', r'''
+        configures whether this call into the api will set or clear range bounds on the given
+        cursor, it takes two values "set" or "clear". If "set" is specified then "bound" must also
+        be specified. If "clear" is specified without any bounds then both will be cleared. The
+        keys relevant to the given bound must have been set prior to the call using
+        WT_CURSOR::set_key. This configuration is currently a work in progress and should not be
+        used.''',
+        choices=['clear','set']),
+    Config('inclusive', 'true', r'''
+        configures whether the given bound is inclusive or not. This configuration is currently a
+        work in progress and should not be used.''',
+        type='boolean'),
+    Config('bound', '', r'''
+        configures which bound is being operated on, it takes two values "lower" and "upper".
+        This configuration is currently a work in progress and should not be used.''',
+        choices=['lower','upper']),
+]
+
 cursor_runtime_config = [
     Config('append', 'false', r'''
         append the value as a new record, creating a new record
@@ -1358,6 +1379,8 @@ methods = {
 'WT_CURSOR.close' : Method([]),
 
 'WT_CURSOR.reconfigure' : Method(cursor_runtime_config),
+
+'WT_CURSOR.bound' : Method(cursor_bound_config),
 
 'WT_SESSION.alter' : Method(file_runtime_config + [
     Config('checkpoint', '', r'''
@@ -1429,6 +1452,12 @@ methods = {
     Config('remove_files', 'true', r'''
         if the underlying files should be removed''',
         type='boolean'),
+    Config('remove_shared', 'false', r'''
+        to force the removal of any shared objects. This is intended for tiered
+        tables, and can only be set if the drop operation is configured to remove
+        the underlying files. Ignore this configuration if it is set for non-tiered
+        tables''',
+        type='boolean', undoc=True),
 ]),
 
 'WT_SESSION.join' : Method([
@@ -1735,6 +1764,10 @@ methods = {
         choices=['read-uncommitted', 'read-committed', 'snapshot']),
     Config('name', '', r'''
         name of the transaction for tracing and debugging'''),
+    Config('no_timestamp', 'false', r'''
+        allow a commit without a timestamp, creating a value that has "always existed" and is
+        visible regardless of timestamp. See @ref timestamp_txn_api''',
+        type='boolean'),
     Config('operation_timeout_ms', '0', r'''
         when non-zero, a requested limit on the time taken to complete operations in this
         transaction. Time is measured in real time milliseconds from the start of each WiredTiger

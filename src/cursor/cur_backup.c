@@ -107,7 +107,6 @@ __wt_backup_file_remove(WT_SESSION_IMPL *session)
      * there's any chance of an incremental backup file existing.
      */
     WT_TRET(__wt_remove_if_exists(session, WT_BACKUP_TMP, true));
-    WT_TRET(__wt_remove_if_exists(session, WT_EXPORT_BACKUP, true));
     WT_TRET(__wt_remove_if_exists(session, WT_LOGINCR_BACKUP, true));
     WT_TRET(__wt_remove_if_exists(session, WT_LOGINCR_SRC, true));
     WT_TRET(__wt_remove_if_exists(session, WT_METADATA_BACKUP, true));
@@ -268,8 +267,9 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
       __wt_cursor_notsup,                             /* update */
       __wt_cursor_notsup,                             /* remove */
       __wt_cursor_notsup,                             /* reserve */
-      __wt_cursor_reconfigure_notsup,                 /* reconfigure */
+      __wt_cursor_config_notsup,                      /* reconfigure */
       __wt_cursor_notsup,                             /* largest_key */
+      __wt_cursor_config_notsup,                      /* bound */
       __wt_cursor_notsup,                             /* cache */
       __wt_cursor_reopen_notsup,                      /* reopen */
       __wt_cursor_checkpoint_id,                      /* checkpoint ID */
@@ -852,6 +852,9 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
 
     /* Remove any backup specific file. */
     WT_TRET(__wt_backup_file_remove(session));
+
+    /* Remove the export file only when we close the backup cursor. */
+    WT_TRET(__wt_remove_if_exists(session, WT_EXPORT_BACKUP, true));
 
     /* Checkpoint deletion and next hot backup can proceed. */
     WT_WITH_HOTBACKUP_WRITE_LOCK(session, conn->hot_backup_start = 0);

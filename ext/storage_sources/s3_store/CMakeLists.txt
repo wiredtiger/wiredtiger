@@ -11,6 +11,12 @@ target_include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+target_compile_options(
+    aws_bucket_util
+    PUBLIC -std=c++17
+    PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
+)
+
 target_link_libraries(
     aws_bucket_util
     PUBLIC
@@ -27,6 +33,12 @@ target_include_directories(
         ${CMAKE_BINARY_DIR}/include
         ${CMAKE_BINARY_DIR}/config
         ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_compile_options(
+    wiredtiger_s3_store
+    PUBLIC -std=c++17
+    PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 
 target_link_libraries(
