@@ -98,11 +98,12 @@ test::run()
 
     /* Enable snappy compression or reverse collator if required. */
     if (_config->get_bool(COMPRESSION_ENABLED) || _config->get_bool(REVERSE_COLLATOR)) {
-        db_create_config += EXTENSIONS_START;
+        db_create_config += ",extensions=[";
         db_create_config +=
           _config->get_bool(COMPRESSION_ENABLED) ? std::string(SNAPPY_PATH) + "," : "";
-        db_create_config += _config->get_bool(REVERSE_COLLATOR) ? std::string(REVERSE_PATH) : "";
-        db_create_config += EXTENSIONS_STOP;
+        db_create_config +=
+          _config->get_bool(REVERSE_COLLATOR) ? std::string(REVERSE_COLLATOR_PATH) : "";
+        db_create_config += "]";
     }
 
     /* Get the cache size. */

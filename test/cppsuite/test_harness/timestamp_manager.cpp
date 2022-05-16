@@ -133,7 +133,6 @@ timestamp_manager::get_oldest_ts() const
     return (_oldest_ts);
 }
 
-
 wt_timestamp_t
 timestamp_manager::get_random_ts() const
 {
