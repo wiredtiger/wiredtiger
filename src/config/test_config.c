@@ -119,7 +119,6 @@ static const WT_CONFIG_CHECK confchk_cursor_bound_01[] = {
   {"cache_size_mb", "int", NULL, "min=0,max=100000000000", NULL, 0},
   {"checkpoint_manager", "category", NULL, NULL, confchk_checkpoint_manager_subconfigs, 2},
   {"compression_enabled", "boolean", NULL, NULL, NULL, 0},
-  {"count_reverse_tables", "string", NULL, NULL, NULL, 0},
   {"duration_seconds", "int", NULL, "min=0,max=1000000", NULL, 0},
   {"enable_logging", "boolean", NULL, NULL, NULL, 0},
   {"reverse_collator", "boolean", NULL, NULL, NULL, 0},
@@ -245,8 +244,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     confchk_burst_inserts, 12},
   {"cursor_bound_01",
     "cache_size_mb=0,checkpoint_manager=(enabled=false,op_rate=1s),"
-    "compression_enabled=false,count_reverse_tables=,"
-    "duration_seconds=0,enable_logging=false,reverse_collator=false,"
+    "compression_enabled=false,duration_seconds=0,"
+    "enable_logging=false,reverse_collator=false,"
     "runtime_monitor=(cache_hs_insert=(max=1,min=0,postrun=false,"
     "runtime=false,save=false),cc_pages_removed=(max=1,min=0,"
     "postrun=false,runtime=false,save=false),enabled=true,op_rate=1s,"
@@ -268,7 +267,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5)),"
     "workload_tracking=(enabled=true,op_rate=1s,"
     "tracking_key_format=QSQ,tracking_value_format=iS)",
-    confchk_cursor_bound_01, 12},
+    confchk_cursor_bound_01, 11},
   {"hs_cleanup",
     "cache_size_mb=0,checkpoint_manager=(enabled=false,op_rate=1s),"
     "compression_enabled=false,duration_seconds=0,"

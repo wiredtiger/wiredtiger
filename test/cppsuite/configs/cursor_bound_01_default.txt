@@ -4,7 +4,7 @@
 # - threads that continuously perform prefix search_near calls on random keys.
 duration_seconds=600,
 cache_size_mb=500,
-count_reverse_tables=5,
+reverse_collator=true,
 timestamp_manager=
 (
     # This will let us randomly pick a read timestamp in a bigger range to trigger visibility

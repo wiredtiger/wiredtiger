@@ -51,15 +51,16 @@ namespace test_harness {
 class cursor_bound_01 : public test_harness::test {
     const uint64_t MAX_ROLLBACKS = 100;
     enum bounds { NO_BOUNDS, LOWER_BOUND_SET, UPPER_BOUND_SET, ALL_BOUNDS_SET };
+    bool reverse_collator_enabled = false;
 
     public:
     cursor_bound_01(const test_harness::test_args &args) : test(args) {}
 
     bool
-    custom_lexicographical_compare(const std::string &first_key, const std::string &second_key,
-      bool reverse_collator, bool inclusive)
+    custom_lexicographical_compare(
+      const std::string &first_key, const std::string &second_key, bool inclusive)
     {
-        if (reverse_collator)
+        if (this->reverse_collator_enabled)
             if (!inclusive)
                 return first_key.compare(second_key) > 0;
             else
@@ -68,70 +69,6 @@ class cursor_bound_01 : public test_harness::test {
             return first_key.compare(second_key) < 0;
         else
             return first_key.compare(second_key) <= 0;
-    }
-    /*
-     * This function acts as a helper function for both the remove and update operation. The
-     * run_operation function runs in a loop, performing:
-     *  1. Generate random key of set key size
-     *  2. Perform search near, to get a valid key from collection
-     *  3. Grab the nearest key's record
-     *  4. Perform either remove or update on the key.
-     */
-    void
-    run_operation(test_harness::thread_context *tc,
-      bool (test_harness::thread_context::*op_func)(scoped_cursor &, uint64_t, const std::string &))
-    {
-        std::string random_key;
-        uint32_t rollback_retries = 0;
-
-        while (tc->running()) {
-
-            collection &coll = tc->db.get_random_collection();
-            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
-            tc->transaction.begin();
-
-            while (tc->transaction.active() && tc->running()) {
-
-                /* Generate a random key. */
-                random_key = random_generator::instance().generate_random_string(tc->key_size);
-
-                /* Call search near to position cursor. */
-                int exact;
-                cursor->set_key(cursor.get(), random_key.c_str());
-                int ret = cursor->search_near(cursor.get(), &exact);
-                if (ret == WT_NOTFOUND)
-                    continue;
-
-                /* Retrieve the key the cursor is pointing at. */
-                const char *key;
-                testutil_check(cursor->get_key(cursor.get(), &key));
-
-                /* Perform the operation on the key. */
-                if ((tc->*op_func)(cursor, coll.id, key)) {
-                    if (tc->transaction.can_commit()) {
-                        /* We are not checking the result of commit as it is not necessary. */
-                        if (tc->transaction.commit())
-                            rollback_retries = 0;
-                        else
-                            ++rollback_retries;
-                    }
-                } else {
-                    tc->transaction.rollback();
-                    ++rollback_retries;
-                }
-                testutil_assert(rollback_retries < MAX_ROLLBACKS);
-
-                /* Sleep the duration defined by the configuration. */
-                tc->sleep();
-            }
-
-            /* Rollback any transaction that could not commit before the end of the test. */
-            if (tc->transaction.active())
-                tc->transaction.rollback();
-
-            /* Reset our cursor to avoid pinning content. */
-            testutil_check(cursor->reset(cursor.get()));
-        }
     }
 
     void
@@ -201,12 +138,12 @@ class cursor_bound_01 : public test_harness::test {
                 /*  Make sure that normal cursor returns a key that is outside of the range. */
                 if (next) {
                     testutil_assert(upper_bound_pair.first.length() != 0);
-                    testutil_assert(custom_lexicographical_compare(normal_key_str,
-                                      upper_bound_pair.first, false, true) == false);
+                    testutil_assert(custom_lexicographical_compare(
+                                      normal_key_str, upper_bound_pair.first, true) == false);
                 } else {
                     testutil_assert(lower_bound_pair.first.length() != 0);
-                    testutil_assert(custom_lexicographical_compare(normal_key_str,
-                                      lower_bound_pair.first, false, false) == true);
+                    testutil_assert(custom_lexicographical_compare(
+                                      normal_key_str, lower_bound_pair.first, false) == true);
                 }
                 break;
             }
@@ -214,10 +151,10 @@ class cursor_bound_01 : public test_harness::test {
             std::string range_key_str = range_key;
             if (next && upper_bound_pair.first.length() != 0)
                 testutil_assert(custom_lexicographical_compare(range_key_str,
-                                  upper_bound_pair.first, false, upper_bound_pair.second) == true);
+                                  upper_bound_pair.first, upper_bound_pair.second) == true);
             else if (!next && lower_bound_pair.first.length() != 0)
                 testutil_assert(custom_lexicographical_compare(lower_bound_pair.first,
-                                  range_key_str, false, lower_bound_pair.second) == true);
+                                  range_key_str, lower_bound_pair.second) == true);
             /* Make sure that records match between both cursors. */
             testutil_check(normal_cursor->get_key(normal_cursor.get(), &normal_key));
             testutil_check(range_cursor->get_key(range_cursor.get(), &range_key));
@@ -298,19 +235,19 @@ class cursor_bound_01 : public test_harness::test {
             /* Assert that the range cursor has returned a key inside the bounded range. */
             above_lower_key = lower_bound_pair.first.length() == 0 ||
               custom_lexicographical_compare(
-                lower_bound_pair.first, key_str, false, lower_bound_pair.second);
+                lower_bound_pair.first, key_str, lower_bound_pair.second);
             below_upper_key = upper_bound_pair.first.length() == 0 ||
               custom_lexicographical_compare(
-                key_str, upper_bound_pair.first, false, upper_bound_pair.second);
+                key_str, upper_bound_pair.first, upper_bound_pair.second);
             testutil_assert(above_lower_key && below_upper_key);
 
             /* Decide whether the search key is inside or outside the bounded range. */
             above_lower_key = lower_bound_pair.first.length() == 0 ||
               custom_lexicographical_compare(
-                lower_bound_pair.first, search_key, false, lower_bound_pair.second);
+                lower_bound_pair.first, search_key, lower_bound_pair.second);
             below_upper_key = upper_bound_pair.first.length() == 0 ||
               custom_lexicographical_compare(
-                search_key, upper_bound_pair.first, false, upper_bound_pair.second);
+                search_key, upper_bound_pair.first, upper_bound_pair.second);
             search_key_inside_range = above_lower_key && below_upper_key;
 
             normal_cursor->set_key(normal_cursor.get(), key);
@@ -354,8 +291,7 @@ class cursor_bound_01 : public test_harness::test {
              * a prev() should be less than the search key. */
         }
         if (range_exact > 0) {
-            testutil_assert(
-              custom_lexicographical_compare(key_str, search_key, false, true) == false);
+            testutil_assert(custom_lexicographical_compare(key_str, search_key, true) == false);
 
             /* Check that the previous key is less than the search key. */
             ret = normal_cursor->prev(normal_cursor.get());
@@ -364,13 +300,11 @@ class cursor_bound_01 : public test_harness::test {
                 return;
             testutil_check(normal_cursor->get_key(normal_cursor.get(), &key));
             key_str = key;
-            testutil_assert(
-              custom_lexicographical_compare(key_str, search_key, false, false) == true);
+            testutil_assert(custom_lexicographical_compare(key_str, search_key, false) == true);
             /* When exact < 0, the returned key should be less than the search key and performing a
              * next() should be greater than the search key. */
         } else if (range_exact < 0) {
-            testutil_assert(
-              custom_lexicographical_compare(key_str, search_key, false, false) == true);
+            testutil_assert(custom_lexicographical_compare(key_str, search_key, false) == true);
 
             /* Check that the next key is greater than the search key. */
             ret = normal_cursor->next(normal_cursor.get());
@@ -379,8 +313,7 @@ class cursor_bound_01 : public test_harness::test {
                 return;
             testutil_check(normal_cursor->get_key(normal_cursor.get(), &key));
             key_str = key;
-            testutil_assert(
-              custom_lexicographical_compare(key_str, search_key, false, true) == false);
+            testutil_assert(custom_lexicographical_compare(key_str, search_key, true) == false);
         }
     }
 
@@ -412,11 +345,9 @@ class cursor_bound_01 : public test_harness::test {
         /* Assert that the next() or prev() call has placed the normal cursor outside of the bounded
          * range. */
         above_lower_key = lower_bound_pair.first.length() == 0 ||
-          custom_lexicographical_compare(
-            lower_bound_pair.first, key_str, false, lower_bound_pair.second);
+          custom_lexicographical_compare(lower_bound_pair.first, key_str, lower_bound_pair.second);
         below_upper_key = upper_bound_pair.first.length() == 0 ||
-          custom_lexicographical_compare(
-            key_str, upper_bound_pair.first, false, upper_bound_pair.second);
+          custom_lexicographical_compare(key_str, upper_bound_pair.first, upper_bound_pair.second);
         testutil_assert(!(above_lower_key && below_upper_key));
     }
 
@@ -461,10 +392,10 @@ class cursor_bound_01 : public test_harness::test {
             /* Asserted that the traversed key is not within the range bound. */
             above_lower_key = lower_bound_pair.first.length() == 0 ||
               custom_lexicographical_compare(
-                lower_bound_pair.first, key_str, false, lower_bound_pair.second);
+                lower_bound_pair.first, key_str, lower_bound_pair.second);
             below_upper_key = upper_bound_pair.first.length() == 0 ||
               custom_lexicographical_compare(
-                key_str, upper_bound_pair.first, false, upper_bound_pair.second);
+                key_str, upper_bound_pair.first, upper_bound_pair.second);
             testutil_assert(!(above_lower_key && below_upper_key));
 
             /*
@@ -498,6 +429,9 @@ class cursor_bound_01 : public test_harness::test {
         testutil_assert(key_size > 0);
         /* Keys must be unique. */
         testutil_assert(key_count <= pow(10, key_size));
+
+        /* Track reverse_collator value as it is required for the custom comparator. */
+        this->reverse_collator_enabled = _config->get_bool(REVERSE_COLLATOR);
 
         logger::log_msg(
           LOG_INFO, "Populate: creating " + std::to_string(collection_count) + " collections.");
@@ -535,9 +469,10 @@ class cursor_bound_01 : public test_harness::test {
 
                 /* Generate a random key. */
                 key = random_generator::instance().generate_random_string(tc->key_size);
-
+                std::string value =
+                  random_generator::instance().generate_random_string(tc->value_size);
                 /* Insert a key/value pair. */
-                if (tc->insert(cursor, coll.id, key)) {
+                if (tc->insert(cursor, coll.id, key, value)) {
                     if (tc->transaction.can_commit()) {
                         /* We are not checking the result of commit as it is not necessary. */
                         if (tc->transaction.commit())
@@ -565,23 +500,65 @@ class cursor_bound_01 : public test_harness::test {
     }
 
     void
-    remove_operation(test_harness::thread_context *tc) override final
-    {
-        /* Each remove operation will remove existing keys in the collections. */
-        logger::log_msg(
-          LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
-
-        run_operation(tc, &test_harness::thread_context::remove);
-    }
-
-    void
     update_operation(test_harness::thread_context *tc) override final
     {
         /* Each update operation will update existing keys in the collections. */
         logger::log_msg(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
-        run_operation(tc, &test_harness::thread_context::update);
+        std::string random_key;
+        uint32_t rollback_retries = 0;
+
+        while (tc->running()) {
+
+            collection &coll = tc->db.get_random_collection();
+            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+            tc->transaction.begin();
+
+            while (tc->transaction.active() && tc->running()) {
+
+                /* Generate a random key. */
+                random_key = random_generator::instance().generate_random_string(tc->key_size);
+
+                /* Call search near to position cursor. */
+                int exact;
+                cursor->set_key(cursor.get(), random_key.c_str());
+                int ret = cursor->search_near(cursor.get(), &exact);
+                if (ret == WT_NOTFOUND)
+                    continue;
+
+                /* Retrieve the key the cursor is pointing at. */
+                const char *key;
+                testutil_check(cursor->get_key(cursor.get(), &key));
+
+                /* Update the found key with a randomized value. */
+                std::string value =
+                  random_generator::instance().generate_random_string(tc->value_size);
+                if (tc->update(cursor, coll.id, key, value)) {
+                    if (tc->transaction.can_commit()) {
+                        /* We are not checking the result of commit as it is not necessary. */
+                        if (tc->transaction.commit())
+                            rollback_retries = 0;
+                        else
+                            ++rollback_retries;
+                    }
+                } else {
+                    tc->transaction.rollback();
+                    ++rollback_retries;
+                }
+                testutil_assert(rollback_retries < MAX_ROLLBACKS);
+
+                /* Sleep the duration defined by the configuration. */
+                tc->sleep();
+            }
+
+            /* Rollback any transaction that could not commit before the end of the test. */
+            if (tc->transaction.active())
+                tc->transaction.rollback();
+
+            /* Reset our cursor to avoid pinning content. */
+            testutil_check(cursor->reset(cursor.get()));
+        }
     }
 
     void
