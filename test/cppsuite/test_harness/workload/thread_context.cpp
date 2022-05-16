@@ -307,9 +307,9 @@ thread_context::remove(
         ts = tsm->get_next_ts();
 
     /*
-     * We're concurrently doing a transaction that contains a bunch of operations while moving the
-     * stable timestamp. Eat the occasional EINVAL from the transaction's first commit timestamp
-     * being earlier than the stable timestamp.
+     * FIXME: WT-9198 We're concurrently doing a transaction that contains a bunch of operations
+     * while moving the stable timestamp. Eat the occasional EINVAL from the transaction's first
+     * commit timestamp being earlier than the stable timestamp.
      */
     ret = transaction.set_commit_timestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
