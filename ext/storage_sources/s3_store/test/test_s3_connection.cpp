@@ -87,7 +87,7 @@ setupTestDefaults()
     return (0);
 }
 
-TEST_CASE("Testing S3 Connection", "something")
+TEST_CASE("Testing class S3Connection", "s3-connection")
 {
     // Setup the test environment.
     REQUIRE(setupTestDefaults() == 0);
