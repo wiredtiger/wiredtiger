@@ -80,7 +80,7 @@ __alter_file(WT_SESSION_IMPL *session, const char *newcfg[])
 
 /*
  * __alter_tier --
- *     Alter tier.
+ *     Alter a tier.
  */
 static int
 __alter_tier(WT_SESSION_IMPL *session, const char *newcfg[])
@@ -304,7 +304,7 @@ __schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
     if (WT_PREFIX_MATCH(uri, "tier:"))
         return (__wt_exclusive_handle_operation(session, uri, __alter_tier, newcfg, flags));
     if (WT_PREFIX_MATCH(uri, "tiered:"))
-        return __alter_tiered(session, uri, newcfg, flags);
+        return (__alter_tiered(session, uri, newcfg, flags));
     return (__wt_bad_object_type(session, uri));
 }
 
