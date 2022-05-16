@@ -29,6 +29,7 @@
 
 bool test_running = true;
 #define CATALOG_URI "table:catalog"
+#define LOAD_TABLE_URI "table:load_table"
 
 typedef struct {
     TEST_OPTS *opts;
@@ -41,7 +42,8 @@ typedef struct {
 // threads
 void *thread_checkpoint(void *);
 void *thread_validate(void *);
-void *create_and_populate_tables(void *);
+void *thread_create_table_race(void *);
+void *thread_add_load(void *);
 
 /*
  * main --
@@ -85,14 +87,17 @@ main(int argc, char *argv[])
     /* Setup globaal transaction IDs. */
     opts->conn->set_timestamp(opts->conn, "oldest_timestamp=1,stable_timestamp=1");
 
-    testutil_check(session->begin_transaction(session, NULL));
+    /* Create the catalogue table. */
     testutil_check(session->create(
         session, CATALOG_URI, "key_format=Q,value_format=SS,log=(enabled=false)"));
-    testutil_check(session->commit_transaction(session, NULL));
+    /* Create a table that is used to add load to the cache/database. */
+    testutil_check(session->create(
+        session, LOAD_TABLE_URI, "key_format=Q,value_format=SS,log=(enabled=false)"));
 
     // Spawn threads
     testutil_check(pthread_create(&ckpt_thread, NULL, thread_checkpoint, cr_opts));
-    testutil_check(pthread_create(&create_thread, NULL, create_and_populate_tables, cr_opts));
+    testutil_check(pthread_create(&create_thread, NULL, thread_create_table_race, cr_opts));
+    testutil_check(pthread_create(&create_thread, NULL, thread_add_load, cr_opts));
     testutil_check(pthread_create(&validate_thread, NULL, thread_validate, cr_opts));
     usleep(200); // hack -> wait for threads to spin up
 
@@ -114,27 +119,27 @@ main(int argc, char *argv[])
 }
 
 /*
- * create_and_populate_tables --
+ * thread_create_table_race --
  *     Create new collections and populate(?).
  */
 WT_THREAD_RET
-create_and_populate_tables(void *arg)
+thread_create_table_race(void *arg)
 {
     CHECKPOINT_RACE_OPTS *cr_opts;
     TEST_OPTS *opts;
     WT_CURSOR *catalog_cursor, *collection_cursor, *index_cursor;
     WT_RAND_STATE rnd;
-    WT_SESSION *ckpt_session, *session;
+    WT_SESSION *session;
     uint64_t i, rnd_val;
     char collection_uri[64], index_uri[64], ts_string[64];
     char collection_config_str[64], index_config_str[64];
+    int ret;
 
     cr_opts = (CHECKPOINT_RACE_OPTS *)arg;
     opts = cr_opts->opts;
 
     testutil_progress(opts, "Start create thread\n");
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
-    testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &ckpt_session));
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
     testutil_check(session->open_cursor(session, CATALOG_URI, NULL, NULL, &catalog_cursor));
 
@@ -205,8 +210,20 @@ create_and_populate_tables(void *arg)
         testutil_check(collection_cursor->insert(collection_cursor));
         testutil_check(collection_cursor->reset(collection_cursor));
 
+#if 0
+        rnd_val = (uint64_t)__wt_random(&rnd) % 1000;
+        if (rnd_val != 0)
+            usleep(rnd_val * 10);
+#else
+        ret = 10; /* Compiler warning */
         usleep(10);
-        testutil_check(session->open_cursor(session, index_uri, NULL, NULL, &index_cursor));
+#endif
+        while ((ret = session->open_cursor(session, index_uri, NULL, NULL, &index_cursor)) != 0) {
+            snprintf(opts->progress_msg, opts->progress_msg_len,
+                    "Error returned opening index cursor: %s\n", wiredtiger_strerror(ret));
+            testutil_progress(opts, opts->progress_msg);
+            usleep(10);
+        }
         index_cursor->set_key(index_cursor, i);
         index_cursor->set_value(index_cursor, 2 * i);
         testutil_check(index_cursor->insert(index_cursor));
@@ -236,6 +253,104 @@ create_and_populate_tables(void *arg)
 
     return (NULL);
 }
+
+const char *data_string =
+    "A man of literary taste and culture, familiar with the classics, a facile writer of Latin "
+    "verses' as well as of Ciceronian prose, he was as anxious that the Roman clergy should unite "
+    "human science and literature with their theological studies as that the laity should be "
+    "educated in the principles of religion; and to this end he established in Rome a kind of "
+    "voluntary school board, with members both lay and clerical; and the rivalry of the schools "
+    "thus founded ultimately obliged the state to include religious teaching in its curriculum."
+    "If we wish to know what Wagner means, we must fight our way through his drama to his music; "
+    "and we must not expect to find that each phrase in the mouth of the actor corresponds word "
+    "for note with the music. That sort of correspondence Wagner leaves to his imitators; and his "
+    "views on Leit-motifhunting, as expressed in his prose writings and conversation, are "
+    "contemptuously tolerant.";
+
+/*
+ * thread_add_load --
+ *     Create a collection and add content to it to generate other database load
+ */
+WT_THREAD_RET
+thread_add_load(void *arg)
+{
+    CHECKPOINT_RACE_OPTS *cr_opts;
+    TEST_OPTS *opts;
+    WT_CURSOR *catalog_cursor, *load_cursor;
+    WT_RAND_STATE rnd;
+    WT_SESSION *session;
+    size_t data_offset, raw_data_str_len;
+    uint64_t i, table_timestamp, us_sleep;
+    bool transaction_running;
+    char collection_uri[64], index_uri[64], ts_string[64];
+    char load_data[256];
+    int ret;
+
+    cr_opts = (CHECKPOINT_RACE_OPTS *)arg;
+    opts = cr_opts->opts;
+
+    raw_data_str_len = strlen(data_string);
+    us_sleep = 100;
+
+    testutil_progress(opts, "Start load generation thread\n");
+    testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
+    __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
+    testutil_check(session->open_cursor(session, LOAD_TABLE_URI, NULL, NULL, &load_cursor));
+    testutil_check(session->open_cursor(session, CATALOG_URI, NULL, NULL, &catalog_cursor));
+
+    for (i = 0, transaction_running = false; test_running; i++) {
+        if (!transaction_running) {
+            testutil_check(session->begin_transaction(session, NULL));
+            transaction_running = true;
+            if ((ret = catalog_cursor->prev(catalog_cursor)) == 0) {
+                catalog_cursor->get_key(catalog_cursor, &table_timestamp);
+                catalog_cursor->get_value(catalog_cursor, &collection_uri, &index_uri);
+            } else {
+                /* The catalog is empty at first, so use some dummy values */
+                testutil_assert(ret == WT_NOTFOUND);
+                table_timestamp = 10;
+                snprintf(collection_uri, sizeof(collection_uri), "%s", "startup");
+            }
+        }
+        load_cursor->set_key(load_cursor, i);
+        data_offset = (uint64_t)__wt_random(&rnd) % (raw_data_str_len - sizeof(load_data));
+        snprintf(load_data, sizeof(load_data), "%s", data_string + data_offset);
+        load_cursor->set_value(load_cursor, collection_uri, load_data);
+        testutil_check(load_cursor->insert(load_cursor));
+
+        if (i % 20 == 0) {
+            /*
+             * The logged table count is being used as a mechanism for assigning timestamps in
+             * this application as well. It's assumed that once a table is included in a
+             * checkpoint the timestamp associated with that is behind stable. It's unlikely
+             * that ten tables can be created in the span of a single transaction here, so
+             * set the timestamp for this commit that far ahead. Don't add too much buffer, since
+             * it's important that the content being written to the database as part of this
+             * operation is included in checkpoints.
+             */
+            snprintf(ts_string, 64, "commit_timestamp=%" PRIu64, table_timestamp + 10);
+            testutil_check(session->commit_transaction(session, ts_string));
+            transaction_running = false;
+            testutil_check(catalog_cursor->reset(catalog_cursor));
+            testutil_check(load_cursor->reset(load_cursor));
+            /*
+             * Slow down inserts as the workload runs longer - we want to generate load, but
+             * not so much that it interferes with the rest of the application.
+             */
+            if (us_sleep < 50000 && i % 10000 == 0)
+                us_sleep += us_sleep;
+            usleep(us_sleep);
+        }
+
+    }
+    if (transaction_running)
+        testutil_check(session->commit_transaction(session, NULL));
+
+    testutil_check(catalog_cursor->close(catalog_cursor));
+    testutil_check(load_cursor->close(load_cursor));
+    return (NULL);
+}
+
 
 /*
  * thread_validate --
