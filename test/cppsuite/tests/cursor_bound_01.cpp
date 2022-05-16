@@ -52,7 +52,10 @@ class cursor_bound_01 : public test_harness::test {
     bool reverse_collator_enabled = false;
 
     public:
-    cursor_bound_01(const test_harness::test_args &args) : test(args) {}
+    cursor_bound_01(const test_harness::test_args &args) : test(args) {
+        /* Track reverse_collator value as it is required for the custom comparator. */
+        this->reverse_collator_enabled = _config->get_bool(REVERSE_COLLATOR);
+    }
 
     bool
     custom_lexicographical_compare(
@@ -415,46 +418,6 @@ class cursor_bound_01 : public test_harness::test {
 
             ret = normal_cursor->next(normal_cursor.get());
         }
-    }
-
-    void
-    populate(database &database, timestamp_manager *tsm, configuration *config,
-      workload_tracking *tracking)
-    {
-        int64_t collection_count, key_count, key_size, thread_count, value_size;
-        std::vector<thread_context *> workers;
-        std::string collection_name;
-        thread_manager tm;
-
-        /* Validate our config. */
-        collection_count = config->get_int(COLLECTION_COUNT);
-        key_count = config->get_int(KEY_COUNT_PER_COLLECTION);
-        value_size = config->get_int(VALUE_SIZE);
-        thread_count = config->get_int(THREAD_COUNT);
-        testutil_assert(thread_count == 0 || collection_count % thread_count == 0);
-        testutil_assert(value_size > 0);
-        key_size = config->get_int(KEY_SIZE);
-        testutil_assert(key_size > 0);
-        /* Keys must be unique. */
-        testutil_assert(key_count <= pow(10, key_size));
-
-        /* Track reverse_collator value as it is required for the custom comparator. */
-        this->reverse_collator_enabled = _config->get_bool(REVERSE_COLLATOR);
-
-        logger::log_msg(
-          LOG_INFO, "Populate: creating " + std::to_string(collection_count) + " collections.");
-
-        /* Create n collections as per the configuration. */
-        for (int64_t i = 0; i < collection_count; ++i)
-            /*
-             * The database model will call into the API and create the collection, with its own
-             * session.
-             */
-            database.add_collection(key_count);
-        logger::log_msg(
-          LOG_INFO, "Populate: " + std::to_string(collection_count) + " collections created.");
-
-        logger::log_msg(LOG_INFO, "Populate: finished.");
     }
 
     void
