@@ -189,7 +189,7 @@ thread_ts_run(void *arg)
         prev_all_dur_ts = all_dur_ts;
 
         /* Ensure the durable ts doesn't move equal to or beyond the oldest non-committed transaction. */
-        oldest_commit = all_dur_ts;
+        oldest_commit = WT_TS_MAX;
         for (i = 0; i < td->info; i++)
             oldest_commit = WT_MIN(oldest_commit, ts_data[i]);
         if (oldest_commit == 0)
