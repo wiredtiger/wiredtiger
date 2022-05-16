@@ -34,8 +34,7 @@ randomizeTestPrefix()
     char timeStr[100];
     std::time_t t = std::time(nullptr);
 
-    if (std::strftime(timeStr, sizeof(timeStr), "%F-%H-%M-%S", std::localtime(&t)) == 0)
-        return (1);
+    REQUIRE(std::strftime(timeStr, sizeof(timeStr), "%F-%H-%M-%S", std::localtime(&t)) != 0);
 
     TestDefaults::objPrefix += timeStr;
 
@@ -61,14 +60,27 @@ setupTestDefaults()
     std::cerr << "Bucket to be used for testing: " << TestDefaults::bucketName << std::endl;
 
     // Append the prefix to be used for object names by a unique string.
-    if (randomizeTestPrefix() != 0)
-        return (1);
+    REQUIRE(randomizeTestPrefix() == 0);
     std::cerr << "Generated prefix: " << TestDefaults::objPrefix << std::endl;
 
     return (0);
 }
 
-TEST_CASE("something", "something"){
+static int
+CleanupTestListObjects(S3Connection &conn, const int totalObjects, const std::string &prefix,
+  const std::string &fileName)
+{
+    // Delete objects and file at end of test.
+    for (int i = 0; i < totalObjects; i++) {
+        REQUIRE(conn.DeleteObject(prefix + std::to_string(i) + ".txt") == 0);
+    }
+    std::remove(fileName.c_str());
+
+    return (0);
+}
+
+
+TEST_CASE("Testing S3 Connection", "something"){
 
     // Setup the test environment.
     REQUIRE(setupTestDefaults() == 0);
@@ -88,6 +100,7 @@ TEST_CASE("something", "something"){
 
     const std::string objectName = "test_object";
     const std::string fileName = "test_object.txt";
+    const std::string path = "./" + fileName;
 
     std::ofstream File(fileName);
     std::string payload = "Test payload";
@@ -99,11 +112,76 @@ TEST_CASE("something", "something"){
         CHECK(objectSize == 0);
         CHECK((conn.PutObject(objectName, fileName)) == 0);
         CHECK((conn.ObjectExists(objectName, exists, objectSize)) == 0);
+        CHECK(exists);
+        CHECK(objectSize == payload.length());
+        CHECK(conn.DeleteObject(objectName) == 0);
     }
 
-    SECTION( "Factorials of 1 and higher are computed (pass)", "[single-file]" ) {
-        CHECK(0==0);
+    SECTION( "Gets an object from an S3 Bucket", "[single-file]" ) {
+        REQUIRE(conn.PutObject(objectName, fileName) == 0);
+        REQUIRE(std::remove(path.c_str()) == 0); // Delete the local copy of the file.
+        REQUIRE(conn.GetObject(objectName, path) == 0); // Download the file from S3
+        
+        // The file should now be in the current directory.
+        std::ifstream f(path);
+        CHECK(f.good());
+
+        // Clean up test artifacts.
+        CHECK(std::remove(path.c_str()) == 0);
+        CHECK(conn.DeleteObject(objectName) == 0);
     }
+
+    SECTION( "Lists S3 objects under the test bucket.", "[single-file]" ) {
+        std::vector<std::string> objects;
+        
+        // Total objects to insert in the test.
+        const int32_t totalObjects = 20;
+        // Prefix for objects in this test.
+        const std::string prefix = "test_list_objects_";
+        // Parameter for getting single object.
+        const bool listSingle = true;
+        // Number of objects to access per iteration of AWS.
+        int32_t batchSize = 1;
+        // Expected number of matches.
+        int32_t expectedResult = 0;
+
+        // No matching objects.
+        CHECK(conn.ListObjects(prefix, objects) == 0);
+        CHECK(objects.size() == expectedResult);
+
+        // No matching objects with listSingle.
+        CHECK(conn.ListObjects(prefix, objects, batchSize, listSingle) == 0);
+        CHECK(objects.size() == expectedResult);
+
+        // Create file to prepare for test.
+        REQUIRE(static_cast<bool>(std::ofstream(fileName).put('.')));
+
+        // Put objects to prepare for test.
+        // ASK ABOUT HOW TO TURN THIS INTO CHECK / REQUIRE if we need to delete when fails. 
+        for (int i = 0; i < totalObjects; i++) 
+            REQUIRE(conn.PutObject(prefix + std::to_string(i) + ".txt", fileName) == 0);
+            // else --> CleanupTestListObjects(conn, totalObjects, prefix, fileName);
+
+        // List all objects.
+        expectedResult = totalObjects;
+        CHECK(conn.ListObjects(prefix, objects) == 0);
+        // else --> CleanupTestListObjects(conn, totalObjects, prefix, fileName);
+        REQUIRE(objects.size() == expectedResult);
+        // CleanupTestListObjects(conn, totalObjects, prefix, fileName);
+  
+        // List single.
+        objects.clear();
+        expectedResult = 1;
+        CHECK(conn.ListObjects(prefix, objects, batchSize, listSingle) == 0);
+            // CleanupTestListObjects(conn, totalObjects, prefix, fileName);
+        REQUIRE (objects.size() == expectedResult);
+            // CleanupTestListObjects(conn, totalObjects, prefix, fileName);
+    
+
+    
+
+    }
+
 }
 
 int
