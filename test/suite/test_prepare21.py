@@ -144,7 +144,6 @@ class test_prepare21(test_rollback_to_stable_base):
             ckpt.join()
 
         # Verify data is visible and correct.
-        self.session.breakpoint()
         self.check(value_a, uri, nrows, None, 20)
         self.check(value_b, uri, nrows, None, 30)
         self.check(value_d, uri, nrows, None, 60)
