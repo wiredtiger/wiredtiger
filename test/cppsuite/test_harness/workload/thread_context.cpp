@@ -236,18 +236,17 @@ thread_context::update(
         } else
             testutil_die(ret, "unhandled error while trying to update a key");
     }
+
     ret = tracking->save_operation(
       tracking_operation::INSERT, collection_id, key, value, ts, op_track_cursor);
-    if (ret != 0) {
-        if (ret == WT_ROLLBACK) {
-            transaction.set_needs_rollback(true);
-            return (false);
-        } else
-            testutil_die(
-              ret, "unhandled error while trying to save an update to the tracking table");
-    }
-    transaction.add_op();
-    return (true);
+
+    if (ret == 0)
+        transaction.add_op();
+    else if (ret == WT_ROLLBACK)
+        transaction.set_needs_rollback(true);
+    else
+        testutil_die(ret, "unhandled error while trying to save an update to the tracking table");
+    return (ret == 0);
 }
 
 bool
@@ -273,18 +272,17 @@ thread_context::insert(
         } else
             testutil_die(ret, "unhandled error while trying to insert a key");
     }
+
     ret = tracking->save_operation(
       tracking_operation::INSERT, collection_id, key, value, ts, op_track_cursor);
-    if (ret != 0) {
-        if (ret == WT_ROLLBACK) {
-            transaction.set_needs_rollback(true);
-            return (false);
-        } else
-            testutil_die(
-              ret, "unhandled error while trying to save an insert to the tracking table");
-    }
-    transaction.add_op();
-    return (true);
+
+    if (ret == 0)
+        transaction.add_op();
+    else if (ret == WT_ROLLBACK)
+        transaction.set_needs_rollback(true);
+    else
+        testutil_die(ret, "unhandled error while trying to save an insert to the tracking table");
+    return (ret == 0);
 }
 
 bool
@@ -306,18 +304,17 @@ thread_context::remove(scoped_cursor &cursor, uint64_t collection_id, const std:
         } else
             testutil_die(ret, "unhandled error while trying to remove a key");
     }
+
     ret = tracking->save_operation(
       tracking_operation::DELETE_KEY, collection_id, key, "", ts, op_track_cursor);
-    if (ret != 0) {
-        if (ret == WT_ROLLBACK) {
-            transaction.set_needs_rollback(true);
-            return (false);
-        } else
-            testutil_die(
-              ret, "unhandled error while trying to save a remove to the tracking table");
-    }
-    transaction.add_op();
-    return (true);
+
+    if (ret == 0)
+        transaction.add_op();
+    else if (ret == WT_ROLLBACK)
+        transaction.set_needs_rollback(true);
+    else
+        testutil_die(ret, "unhandled error while trying to save a remove to the tracking table");
+    return (ret == 0);
 }
 
 void
