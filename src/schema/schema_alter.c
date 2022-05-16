@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 static int __schema_alter(WT_SESSION_IMPL *, const char *, const char *[]);
-static int __alter_apply(WT_SESSION_IMPL *, const char *, const char *[], const char *);
 
 /*
  * __alter_apply --
@@ -73,12 +72,30 @@ __alter_file(WT_SESSION_IMPL *session, const char *newcfg[])
      * it and the next open will see the updated metadata.
      */
     uri = session->dhandle->name;
-    if (!WT_PREFIX_MATCH(uri, "file:") && !WT_PREFIX_MATCH(uri, "tier:"))
-        return (__wt_unexpected_object_type(session, uri, "file: or tier:"));
+    if (!WT_PREFIX_MATCH(uri, "file:"))
+        return (__wt_unexpected_object_type(session, uri, "file:"));
 
-    return (__alter_apply(session, uri, newcfg,
-      WT_PREFIX_MATCH(uri, "file:") ? WT_CONFIG_BASE(session, file_meta) :
-                                      WT_CONFIG_BASE(session, tier_meta)));
+    return (__alter_apply(session, uri, newcfg, WT_CONFIG_BASE(session, file_meta)));
+}
+
+/*
+ * __alter_tier --
+ *     Alter tier.
+ */
+static int
+__alter_tier(WT_SESSION_IMPL *session, const char *newcfg[])
+{
+    const char *uri;
+
+    /*
+     * We know that we have exclusive access to the tier. So it will be closed after we're done with
+     * it and the next open will see the updated metadata.
+     */
+    uri = session->dhandle->name;
+    if (!WT_PREFIX_MATCH(uri, "tier:"))
+        return (__wt_unexpected_object_type(session, uri, "tier:"));
+
+    return (__alter_apply(session, uri, newcfg, WT_CONFIG_BASE(session, tier_meta)));
 }
 
 /*
@@ -101,14 +118,16 @@ __alter_object(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
 static int
 __alter_tiered(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[], uint32_t flags)
 {
+    WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
+    WT_TIERED *tiered;
+    u_int i;
 
     if (!WT_PREFIX_MATCH(uri, "tiered:"))
         return (__wt_unexpected_object_type(session, uri, "tiered:"));
 
     /*
-     * If the operation requires exclusive access, close any open file handles, including
-     * checkpoints.
+     * If the operation requires exclusive access, close any open handles, including checkpoints.
      */
     if (FLD_ISSET(flags, WT_DHANDLE_EXCLUSIVE)) {
         WT_WITH_HANDLE_LIST_WRITE_LOCK(
@@ -116,11 +135,25 @@ __alter_tiered(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[], 
         WT_RET(ret);
     }
 
-    WT_RET(__wt_schema_tiered_worker(session, uri, __alter_file, NULL, newcfg, flags));
+    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, flags));
+    tiered = (WT_TIERED *)session->dhandle;
 
-    WT_RET(__alter_apply(session, uri, newcfg, WT_CONFIG_BASE(session, tiered_meta)));
+    /* Alter each tier. */
+    for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
+        dhandle = tiered->tiers[i].tier;
+        if (dhandle == NULL)
+            continue;
 
-    return (0);
+        WT_WITH_DHANDLE(session, NULL, ret = __schema_alter(session, dhandle->name, newcfg));
+        WT_ERR(ret);
+    }
+
+    /* Apply change to the tiered metadata. */
+    WT_ERR(__alter_apply(session, uri, newcfg, WT_CONFIG_BASE(session, tiered_meta)));
+
+err:
+    WT_TRET(__wt_session_release_dhandle(session));
+    return (ret);
 }
 
 /*
@@ -268,6 +301,8 @@ __schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
         return (__alter_object(session, uri, newcfg));
     if (WT_PREFIX_MATCH(uri, "table:"))
         return (__alter_table(session, uri, newcfg, exclusive_refreshed));
+    if (WT_PREFIX_MATCH(uri, "tier:"))
+        return (__wt_exclusive_handle_operation(session, uri, __alter_tier, newcfg, flags));
     if (WT_PREFIX_MATCH(uri, "tiered:"))
         return __alter_tiered(session, uri, newcfg, flags);
     return (__wt_bad_object_type(session, uri));
