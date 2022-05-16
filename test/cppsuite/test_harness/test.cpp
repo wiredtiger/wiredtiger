@@ -103,7 +103,6 @@ test::run()
           _config->get_bool(COMPRESSION_ENABLED) ? std::string(SNAPPY_PATH) + "," : "";
         db_create_config += _config->get_bool(REVERSE_COLLATOR) ? std::string(REVERSE_PATH) : "";
         db_create_config += EXTENSIONS_STOP;
-        std::cout << db_create_config << std::endl;
     }
 
     /* Get the cache size. */
