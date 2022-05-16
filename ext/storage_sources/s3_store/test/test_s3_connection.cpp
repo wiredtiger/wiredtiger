@@ -98,9 +98,7 @@ TEST_CASE("Testing S3 Connection", "something")
     awsConfig.throughputTargetGbps = TestDefaults::throughputTargetGbps;
     awsConfig.partSize = TestDefaults::partSize;
 
-    // Set the SDK options and initialize the API.
-    Aws::SDKOptions options;
-    Aws::InitAPI(options);
+    // Initialize the API.
     S3Connection conn(awsConfig, TestDefaults::bucketName, TestDefaults::objPrefix);
     bool exists = false;
     size_t objectSize;
@@ -148,11 +146,9 @@ TEST_CASE("Testing S3 Connection", "something")
         const int32_t totalObjects = 20;
         // Prefix for objects in this test.
         const std::string prefix = "test_list_objects_";
-        // Parameter for getting single object.
         const bool listSingle = true;
         // Number of objects to access per iteration of AWS.
         int32_t batchSize = 1;
-        // Expected number of matches.
 
         S3Cleanup s3cleanup(conn, prefix, fileName);
 
@@ -214,5 +210,12 @@ TEST_CASE("Testing S3 Connection", "something")
 int
 main(int argc, char **argv)
 {
-    return Catch::Session().run(argc, argv);
+    // Set the SDK options
+    Aws::SDKOptions options;
+    Aws::InitAPI(options);
+
+    int ret = Catch::Session().run(argc, argv);
+    Aws::ShutdownAPI(options);
+
+    return ret;
 }

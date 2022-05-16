@@ -36,20 +36,25 @@
 class S3Cleanup {
     public:
     S3Cleanup(S3Connection &conn, const std::string &prefix, const std::string &fileName)
-  :_conn(conn), _prefix(prefix), _fileName(fileName), _totalObjects(0){}
-  void setTotalObjects(int totalObjects){
-      _totalObjects = totalObjects;
-  }
+        : _conn(conn), _prefix(prefix), _fileName(fileName), _totalObjects(0)
+    {
+    }
+    void
+    setTotalObjects(int totalObjects)
+    {
+        _totalObjects = totalObjects;
+    }
 
-  ~S3Cleanup(){
+    ~S3Cleanup()
+    {
         // Delete objects and file at end of test.
         for (int i = 0; i < _totalObjects; i++) {
             REQUIRE(_conn.DeleteObject(_prefix + std::to_string(i) + ".txt") == 0);
         }
         std::remove(_fileName.c_str());
-  }
-  
-  private:
+    }
+
+    private:
     S3Connection &_conn;
     const std::string &_prefix;
     const std::string &_fileName;
