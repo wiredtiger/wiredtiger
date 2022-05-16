@@ -55,17 +55,19 @@ class cursor_bound_01 : public test_harness::test {
     public:
     cursor_bound_01(const test_harness::test_args &args) : test(args) {}
 
-    bool custom_lexicographical_compare(const std::string &first_key, const std::string &second_key, bool reverse_collator, bool inclusive) {
+    bool
+    custom_lexicographical_compare(const std::string &first_key, const std::string &second_key,
+      bool reverse_collator, bool inclusive)
+    {
         if (reverse_collator)
             if (!inclusive)
                 return first_key.compare(second_key) > 0;
             else
                 return first_key.compare(second_key) >= 0;
+        else if (!inclusive)
+            return first_key.compare(second_key) < 0;
         else
-            if (!inclusive)
-                return first_key.compare(second_key) < 0;
-            else
-                return first_key.compare(second_key) <= 0;
+            return first_key.compare(second_key) <= 0;
     }
     /*
      * This function acts as a helper function for both the remove and update operation. The
@@ -132,12 +134,17 @@ class cursor_bound_01 : public test_harness::test {
         }
     }
 
-    void cursor_traversal(scoped_cursor &range_cursor, scoped_cursor &normal_cursor, const std::pair<std::string, bool> &lower_bound_pair, const std::pair<std::string, bool> &upper_bound_pair, bool next) {
+    void
+    cursor_traversal(scoped_cursor &range_cursor, scoped_cursor &normal_cursor,
+      const std::pair<std::string, bool> &lower_bound_pair,
+      const std::pair<std::string, bool> &upper_bound_pair, bool next)
+    {
         int exact, normal_ret, range_ret;
         exact = normal_ret = range_ret = 0;
         if (next) {
             range_ret = range_cursor->next(range_cursor.get());
-            /* If the key exists, position the cursor to the lower key using search near otherwise use prev(). */
+            /* If the key exists, position the cursor to the lower key using search near otherwise
+             * use prev(). */
             if (lower_bound_pair.first.length() != 0) {
                 normal_cursor->set_key(normal_cursor.get(), "0");
                 normal_ret = normal_cursor->search_near(normal_cursor.get(), &exact);
@@ -149,7 +156,8 @@ class cursor_bound_01 : public test_harness::test {
                 normal_ret = normal_cursor->next(normal_cursor.get());
         } else {
             range_ret = range_cursor->prev(range_cursor.get());
-            /* If the key exists, position the cursor to the upper key using search near otherwise use next(). */
+            /* If the key exists, position the cursor to the upper key using search near otherwise
+             * use next(). */
             if (upper_bound_pair.first.length() != 0) {
                 normal_cursor->set_key(normal_cursor.get(), "zzzzzzzzzzz");
                 normal_ret = normal_cursor->search_near(normal_cursor.get(), &exact);
@@ -164,9 +172,8 @@ class cursor_bound_01 : public test_harness::test {
         if (normal_ret == WT_NOTFOUND)
             return;
 
-        testutil_assert(
-            normal_ret == range_ret && (normal_ret == 0 || normal_ret == WT_NOTFOUND));
-            
+        testutil_assert(normal_ret == range_ret && (normal_ret == 0 || normal_ret == WT_NOTFOUND));
+
         /* Retrieve the key the cursor is pointing at. */
         const char *normal_key, *range_key;
         testutil_check(normal_cursor->get_key(normal_cursor.get(), &normal_key));
@@ -178,7 +185,7 @@ class cursor_bound_01 : public test_harness::test {
                 range_ret = range_cursor->next(range_cursor.get());
             } else {
                 normal_ret = normal_cursor->prev(normal_cursor.get());
-                range_ret = range_cursor->prev(range_cursor.get()); 
+                range_ret = range_cursor->prev(range_cursor.get());
             }
             testutil_assert(normal_ret == 0 || normal_ret == WT_NOTFOUND);
             testutil_assert(range_ret == 0 || range_ret == WT_NOTFOUND);
@@ -194,19 +201,23 @@ class cursor_bound_01 : public test_harness::test {
                 /*  Make sure that normal cursor returns a key that is outside of the range. */
                 if (next) {
                     testutil_assert(upper_bound_pair.first.length() != 0);
-                    testutil_assert(custom_lexicographical_compare(normal_key_str, upper_bound_pair.first, false, true) == false);
+                    testutil_assert(custom_lexicographical_compare(normal_key_str,
+                                      upper_bound_pair.first, false, true) == false);
                 } else {
                     testutil_assert(lower_bound_pair.first.length() != 0);
-                    testutil_assert(custom_lexicographical_compare(normal_key_str, lower_bound_pair.first, false, false) == true);
+                    testutil_assert(custom_lexicographical_compare(normal_key_str,
+                                      lower_bound_pair.first, false, false) == true);
                 }
                 break;
             }
 
             std::string range_key_str = range_key;
             if (next && upper_bound_pair.first.length() != 0)
-                testutil_assert(custom_lexicographical_compare(range_key_str, upper_bound_pair.first , false, upper_bound_pair.second) == true);
+                testutil_assert(custom_lexicographical_compare(range_key_str,
+                                  upper_bound_pair.first, false, upper_bound_pair.second) == true);
             else if (!next && lower_bound_pair.first.length() != 0)
-                testutil_assert(custom_lexicographical_compare(lower_bound_pair.first, range_key_str, false, lower_bound_pair.second) == true);
+                testutil_assert(custom_lexicographical_compare(lower_bound_pair.first,
+                                  range_key_str, false, lower_bound_pair.second) == true);
             /* Make sure that records match between both cursors. */
             testutil_check(normal_cursor->get_key(normal_cursor.get(), &normal_key));
             testutil_check(range_cursor->get_key(range_cursor.get(), &range_key));
@@ -230,7 +241,7 @@ class cursor_bound_01 : public test_harness::test {
         set_random_bounds = random_generator::instance().generate_integer(0, 3);
         if (set_random_bounds == LOWER_BOUND_SET || set_random_bounds == ALL_BOUNDS_SET) {
             set_lower_inclusive = random_generator::instance().generate_integer(0, 1);
-            (void) set_lower_inclusive;
+            (void)set_lower_inclusive;
             key_size =
               random_generator::instance().generate_integer(static_cast<int64_t>(1), tc->key_size);
             (void)key_size;
@@ -243,7 +254,7 @@ class cursor_bound_01 : public test_harness::test {
 
         if (set_random_bounds == UPPER_BOUND_SET || set_random_bounds == ALL_BOUNDS_SET) {
             set_upper_inclusive = random_generator::instance().generate_integer(0, 1);
-            (void) set_upper_inclusive;
+            (void)set_upper_inclusive;
             key_size =
               random_generator::instance().generate_integer(static_cast<int64_t>(1), tc->key_size);
             (void)key_size;
@@ -252,10 +263,10 @@ class cursor_bound_01 : public test_harness::test {
             upper_key = std::string(tc->key_size, 'z');
             range_cursor->bound(range_cursor.get(), "bound=upper");
             range_cursor->set_key(range_cursor.get(), upper_key);
-
         }
 
-        return std::make_pair(std::make_pair(lower_key, set_lower_inclusive), std::make_pair(upper_key, set_upper_inclusive));
+        return std::make_pair(std::make_pair(lower_key, set_lower_inclusive),
+          std::make_pair(upper_key, set_upper_inclusive));
     }
 
     /*
@@ -272,7 +283,8 @@ class cursor_bound_01 : public test_harness::test {
      */
     void
     validate_bound_search_near(int range_ret, int range_exact, scoped_cursor &range_cursor,
-      scoped_cursor &normal_cursor, const std::string &search_key, const std::pair<std::string, bool> &lower_bound_pair,
+      scoped_cursor &normal_cursor, const std::string &search_key,
+      const std::pair<std::string, bool> &lower_bound_pair,
       const std::pair<std::string, bool> &upper_bound_pair)
     {
         bool above_lower_key, below_upper_key, search_key_inside_range;
@@ -285,16 +297,20 @@ class cursor_bound_01 : public test_harness::test {
 
             /* Assert that the range cursor has returned a key inside the bounded range. */
             above_lower_key = lower_bound_pair.first.length() == 0 ||
-                custom_lexicographical_compare(lower_bound_pair.first, key_str, false, lower_bound_pair.second);
+              custom_lexicographical_compare(
+                lower_bound_pair.first, key_str, false, lower_bound_pair.second);
             below_upper_key = upper_bound_pair.first.length() == 0 ||
-                custom_lexicographical_compare(key_str, upper_bound_pair.first, false, upper_bound_pair.second);
+              custom_lexicographical_compare(
+                key_str, upper_bound_pair.first, false, upper_bound_pair.second);
             testutil_assert(above_lower_key && below_upper_key);
 
             /* Decide whether the search key is inside or outside the bounded range. */
             above_lower_key = lower_bound_pair.first.length() == 0 ||
-                custom_lexicographical_compare(lower_bound_pair.first, search_key, false, lower_bound_pair.second);
+              custom_lexicographical_compare(
+                lower_bound_pair.first, search_key, false, lower_bound_pair.second);
             below_upper_key = upper_bound_pair.first.length() == 0 ||
-                custom_lexicographical_compare(search_key, upper_bound_pair.first, false, upper_bound_pair.second);
+              custom_lexicographical_compare(
+                search_key, upper_bound_pair.first, false, upper_bound_pair.second);
             search_key_inside_range = above_lower_key && below_upper_key;
 
             normal_cursor->set_key(normal_cursor.get(), key);
@@ -338,7 +354,8 @@ class cursor_bound_01 : public test_harness::test {
              * a prev() should be less than the search key. */
         }
         if (range_exact > 0) {
-            testutil_assert(custom_lexicographical_compare(key_str, search_key, false, true) == false);
+            testutil_assert(
+              custom_lexicographical_compare(key_str, search_key, false, true) == false);
 
             /* Check that the previous key is less than the search key. */
             ret = normal_cursor->prev(normal_cursor.get());
@@ -347,11 +364,13 @@ class cursor_bound_01 : public test_harness::test {
                 return;
             testutil_check(normal_cursor->get_key(normal_cursor.get(), &key));
             key_str = key;
-            testutil_assert(custom_lexicographical_compare(key_str, search_key, false, false) == true);
+            testutil_assert(
+              custom_lexicographical_compare(key_str, search_key, false, false) == true);
             /* When exact < 0, the returned key should be less than the search key and performing a
              * next() should be greater than the search key. */
         } else if (range_exact < 0) {
-            testutil_assert(custom_lexicographical_compare(key_str, search_key, false, false) == true);
+            testutil_assert(
+              custom_lexicographical_compare(key_str, search_key, false, false) == true);
 
             /* Check that the next key is greater than the search key. */
             ret = normal_cursor->next(normal_cursor.get());
@@ -360,7 +379,8 @@ class cursor_bound_01 : public test_harness::test {
                 return;
             testutil_check(normal_cursor->get_key(normal_cursor.get(), &key));
             key_str = key;
-            testutil_assert(custom_lexicographical_compare(key_str, search_key, false, true) == false);
+            testutil_assert(
+              custom_lexicographical_compare(key_str, search_key, false, true) == false);
         }
     }
 
@@ -373,7 +393,8 @@ class cursor_bound_01 : public test_harness::test {
      */
     void
     validate_successful_search_near_outside_range(scoped_cursor &normal_cursor,
-      const std::pair<std::string, bool> &lower_bound_pair, const std::pair<std::string, bool> &upper_bound_pair, bool larger_search_key)
+      const std::pair<std::string, bool> &lower_bound_pair,
+      const std::pair<std::string, bool> &upper_bound_pair, bool larger_search_key)
     {
 
         int ret;
@@ -391,9 +412,11 @@ class cursor_bound_01 : public test_harness::test {
         /* Assert that the next() or prev() call has placed the normal cursor outside of the bounded
          * range. */
         above_lower_key = lower_bound_pair.first.length() == 0 ||
-          custom_lexicographical_compare(lower_bound_pair.first, key_str, false, lower_bound_pair.second);
+          custom_lexicographical_compare(
+            lower_bound_pair.first, key_str, false, lower_bound_pair.second);
         below_upper_key = upper_bound_pair.first.length() == 0 ||
-          custom_lexicographical_compare(key_str, upper_bound_pair.first, false, upper_bound_pair.second);
+          custom_lexicographical_compare(
+            key_str, upper_bound_pair.first, false, upper_bound_pair.second);
         testutil_assert(!(above_lower_key && below_upper_key));
     }
 
@@ -402,8 +425,9 @@ class cursor_bound_01 : public test_harness::test {
      * and that no visible keys exist in the bounded range.
      */
     void
-    validate_search_near_not_found(
-      scoped_cursor &normal_cursor, const std::pair<std::string, bool> &lower_bound_pair, const std::pair<std::string, bool> &upper_bound_pair)
+    validate_search_near_not_found(scoped_cursor &normal_cursor,
+      const std::pair<std::string, bool> &lower_bound_pair,
+      const std::pair<std::string, bool> &upper_bound_pair)
     {
         int ret, exact;
         bool above_lower_key, below_upper_key;
@@ -411,12 +435,13 @@ class cursor_bound_01 : public test_harness::test {
         std::string key_str;
 
         logger::log_msg(LOG_TRACE,
-          "bounded search_near found WT_NOTFOUND on lower bound: " + lower_bound_pair.first + " upper bound: " +
-            upper_bound_pair.first + " traversing range to validate that there are no keys within range.");
+          "bounded search_near found WT_NOTFOUND on lower bound: " + lower_bound_pair.first +
+            " upper bound: " + upper_bound_pair.first +
+            " traversing range to validate that there are no keys within range.");
         if (lower_bound_pair.first.length() != 0) {
             normal_cursor->set_key(normal_cursor.get(), lower_bound_pair.first.c_str());
             ret = normal_cursor->search_near(normal_cursor.get(), &exact);
-        } else 
+        } else
             ret = normal_cursor->next(normal_cursor.get());
 
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
@@ -435,9 +460,11 @@ class cursor_bound_01 : public test_harness::test {
             key_str = key;
             /* Asserted that the traversed key is not within the range bound. */
             above_lower_key = lower_bound_pair.first.length() == 0 ||
-                custom_lexicographical_compare(lower_bound_pair.first, key_str, false, lower_bound_pair.second);
+              custom_lexicographical_compare(
+                lower_bound_pair.first, key_str, false, lower_bound_pair.second);
             below_upper_key = upper_bound_pair.first.length() == 0 ||
-                custom_lexicographical_compare(key_str, upper_bound_pair.first, false, upper_bound_pair.second);
+              custom_lexicographical_compare(
+                key_str, upper_bound_pair.first, false, upper_bound_pair.second);
             testutil_assert(!(above_lower_key && below_upper_key));
 
             /*
@@ -449,6 +476,43 @@ class cursor_bound_01 : public test_harness::test {
 
             ret = normal_cursor->next(normal_cursor.get());
         }
+    }
+
+    void
+    populate(database &database, timestamp_manager *tsm, configuration *config,
+      workload_tracking *tracking)
+    {
+        int64_t collection_count, key_count, key_size, thread_count, value_size;
+        std::vector<thread_context *> workers;
+        std::string collection_name;
+        thread_manager tm;
+
+        /* Validate our config. */
+        collection_count = config->get_int(COLLECTION_COUNT);
+        key_count = config->get_int(KEY_COUNT_PER_COLLECTION);
+        value_size = config->get_int(VALUE_SIZE);
+        thread_count = config->get_int(THREAD_COUNT);
+        testutil_assert(thread_count == 0 || collection_count % thread_count == 0);
+        testutil_assert(value_size > 0);
+        key_size = config->get_int(KEY_SIZE);
+        testutil_assert(key_size > 0);
+        /* Keys must be unique. */
+        testutil_assert(key_count <= pow(10, key_size));
+
+        logger::log_msg(
+          LOG_INFO, "Populate: creating " + std::to_string(collection_count) + " collections.");
+
+        /* Create n collections as per the configuration. */
+        for (int64_t i = 0; i < collection_count; ++i)
+            /*
+             * The database model will call into the API and create the collection, with its own
+             * session.
+             */
+            database.add_collection(key_count);
+        logger::log_msg(
+          LOG_INFO, "Populate: " + std::to_string(collection_count) + " collections created.");
+
+        logger::log_msg(LOG_INFO, "Populate: finished.");
     }
 
     void
@@ -573,8 +637,8 @@ class cursor_bound_01 : public test_harness::test {
                 testutil_assert(ret == 0 || ret == WT_NOTFOUND);
 
                 /* Verify the bound search_near result using the normal cursor. */
-                validate_bound_search_near(
-                  ret, exact, range_cursor, normal_cursor, srch_key, lower_bound_pair, upper_bound_pair);
+                validate_bound_search_near(ret, exact, range_cursor, normal_cursor, srch_key,
+                  lower_bound_pair, upper_bound_pair);
 
                 tc->transaction.add_op();
                 tc->transaction.try_rollback();

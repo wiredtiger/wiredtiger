@@ -131,7 +131,8 @@ timestamp_manager::get_next_ts()
 wt_timestamp_t
 timestamp_manager::get_random_ts()
 {
-    return random_generator::instance().generate_integer(static_cast<uint64_t>(_oldest_ts), get_time_now_s());
+    return random_generator::instance().generate_integer(
+      static_cast<uint64_t>(_oldest_ts), get_time_now_s());
 }
 
 wt_timestamp_t
