@@ -195,11 +195,13 @@ TEST_CASE("Testing S3 Connection", "something")
         REQUIRE(objects.size() == 1);
     }
 
-    SECTION("Connection to a non-existing bucket fails gracefully.", "[s3-connection]")
+    SECTION("Checks if connection to a non-existing bucket fails gracefully.", "[s3-connection]")
     {
+        // Checks if connection fails with an invalid bucket name.
         REQUIRE_THROWS_WITH(S3Connection(awsConfig, "BadBucket", TestDefaults::objPrefix),
           "BadBucket : No such bucket.");
 
+        // Checks if connection fails with dynamic allocation and an invalid bucket name.
         std::unique_ptr<S3Connection> conn2;
         REQUIRE_THROWS_WITH(
           conn2 = std::make_unique<S3Connection>(awsConfig, "BadBucket2", TestDefaults::objPrefix),
