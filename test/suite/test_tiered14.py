@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, random, wttest
-from helper_tiered import TieredConfigMixin, gen_storage_sources
+from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtdataset import TrackedSimpleDataSet, TrackedComplexDataSet
 from wtscenario import make_scenarios
 
@@ -36,7 +36,7 @@ from wtscenario import make_scenarios
 #    data additions and updates.
 class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
 
-    storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered14', tiered_only=True)
+    storage_sources = gen_tiered_storage_sources(wttest.getrandom_prefix(), 'test_tiered14', tiered_only=True)
 
     uri = "table:test_tiered14-{}"   # format for subtests
 

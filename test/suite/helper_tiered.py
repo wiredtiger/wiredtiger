@@ -113,7 +113,7 @@ def generate_s3_prefix(random_prefix = '', test_name = ''):
 
     return prefix
 
-def gen_storage_sources(random_prefix='', test_name='', tiered_only=False):
+def gen_tiered_storage_sources(random_prefix='', test_name='', tiered_only=False):
     tiered_storage_sources = [
         ('dirstore', dict(is_tiered = True,
             is_local_storage = True,
@@ -144,8 +144,6 @@ def gen_storage_sources(random_prefix='', test_name='', tiered_only=False):
         return tiered_storage_sources[:2]
 
     return tiered_storage_sources
-
-tiered_storage_sources = gen_storage_sources()
 
 # This mixin class provides tiered storage configuration methods.
 class TieredConfigMixin:

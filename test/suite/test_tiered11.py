@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wiredtiger, wttest
-from helper_tiered import get_conn_config, gen_storage_sources, TieredConfigMixin
+from helper_tiered import get_conn_config, gen_tiered_storage_sources, TieredConfigMixin
 from wtscenario import make_scenarios
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
@@ -35,7 +35,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Test flush time and flush timestamp in metadata.
 class test_tiered11(wttest.WiredTigerTestCase, TieredConfigMixin):
 
-    storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered11', tiered_only=True)
+    storage_sources = gen_tiered_storage_sources(wttest.getrandom_prefix(), 'test_tiered11', tiered_only=True)
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)

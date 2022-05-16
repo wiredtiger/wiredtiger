@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wiredtiger, wttest
-from helper_tiered import TieredConfigMixin, gen_storage_sources, get_conn_config, get_check
+from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources, get_conn_config, get_check
 from wtscenario import make_scenarios
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
@@ -36,7 +36,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 # prefixes to the same bucket directory but different local databases.
 class test_tiered10(wttest.WiredTigerTestCase, TieredConfigMixin):
 
-    storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered10', tiered_only=True)
+    storage_sources = gen_tiered_storage_sources(wttest.getrandom_prefix(), 'test_tiered10', tiered_only=True)
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)

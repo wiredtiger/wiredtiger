@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, re
-from helper_tiered import TieredConfigMixin, gen_storage_sources, get_conn_config
+from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources, get_conn_config
 import wtscenario, wttest
 from wtdataset import SimpleDataSet
 
@@ -42,7 +42,7 @@ class test_tiered03(wttest.WiredTigerTestCase, TieredConfigMixin):
     # sharing would probably need to be reworked.
     uri = 'file:test_tiered03'
 
-    storage_sources = gen_storage_sources(wttest.getrandom_prefix(), 'test_tiered03', tiered_only=True)
+    storage_sources = gen_tiered_storage_sources(wttest.getrandom_prefix(), 'test_tiered03', tiered_only=True)
 
     # Occasionally add a lot of records to vary the amount of work flush does.
     record_count_scenarios = wtscenario.quick_scenarios(
