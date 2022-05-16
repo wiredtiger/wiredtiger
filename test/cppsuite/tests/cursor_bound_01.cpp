@@ -39,8 +39,8 @@
  * call with bounds set is verified against the default search_near.
  *  - O threads will continuously remove random keys.
  *  - P threads will continuously update random keys.
- *  - Q threads will utilize the custom operation and will execute next() or prev() calls with
- * bounds set using random bounds. Each next() or prev() with bounds set is verified against the
+ *  - Q threads will utilize the custom operation and will execute next() and prev() calls with
+ * random bounds set. Both next() and prev() calls with bounds set is verified against the
  * default cursor next() and prev() calls.
  *
  */
@@ -180,7 +180,7 @@ class cursor_bound_01 : public test_harness::test {
               random_generator::instance().generate_integer(static_cast<int64_t>(1), tc->key_size);
             (void)key_size;
             lower_key = random_generator::instance().generate_random_string(
-                key_size, characters_type::ALPHABET);
+              key_size, characters_type::ALPHABET);
             // Reverse case
             lower_key = std::string(tc->key_size, 'z');
             // Normal case
@@ -195,7 +195,7 @@ class cursor_bound_01 : public test_harness::test {
               random_generator::instance().generate_integer(static_cast<int64_t>(1), tc->key_size);
             (void)key_size;
             upper_key = random_generator::instance().generate_random_string(
-                key_size, characters_type::ALPHABET);
+              key_size, characters_type::ALPHABET);
             // Reverse case
             upper_key = std::string("0");
             // Normal case

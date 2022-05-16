@@ -35,7 +35,6 @@
 #include "timestamp_manager.h"
 #include "workload/random_generator.h"
 #include "util/api_const.h"
-#include "workload/random_generator.h"
 
 namespace test_harness {
 const std::string
@@ -126,13 +125,6 @@ timestamp_manager::get_next_ts()
     uint64_t increment = _increment_ts.fetch_add(1);
     current_time |= (increment & 0x00000000FFFFFFFF);
     return (current_time);
-}
-
-wt_timestamp_t
-timestamp_manager::get_random_ts()
-{
-    return random_generator::instance().generate_integer(
-      static_cast<uint64_t>(_oldest_ts), get_time_now_s());
 }
 
 wt_timestamp_t

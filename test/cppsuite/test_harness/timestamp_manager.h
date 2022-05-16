@@ -59,12 +59,6 @@ class timestamp_manager : public component {
     /* Get a unique timestamp. */
     wt_timestamp_t get_next_ts();
 
-    /*
-     * Get a random timestamp between the oldest and now. Get rid of the last 32 bits as they
-     * represent an increment for uniqueness.
-     */
-    wt_timestamp_t get_random_ts();
-
     /* Get oldest timestamp. */
     wt_timestamp_t get_oldest_ts() const;
 
