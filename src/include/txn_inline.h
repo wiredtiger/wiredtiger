@@ -1101,10 +1101,10 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
     txn = session->txn;
     txn->isolation = session->isolation;
     txn->txn_logsync = S2C(session)->txn_logsync;
-
-    WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
     txn->commit_timestamp = WT_TS_NONE;
     txn->first_commit_timestamp = WT_TS_NONE;
+
+    WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
 
     WT_RET(__wt_txn_config(session, cfg));
 
