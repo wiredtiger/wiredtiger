@@ -2,8 +2,9 @@
 # The configuration creates:
 # - threads that continuously insert random keys and values.
 # - threads that continuously perform prefix search_near calls on random keys.
-duration_seconds=60,
+duration_seconds=600,
 cache_size_mb=500,
+count_reverse_tables=5,
 timestamp_manager=
 (
     # This will let us randomly pick a read timestamp in a bigger range to trigger visibility
@@ -43,6 +44,6 @@ workload_generator=
     ),
     custom_config=
     (
-        thread_count=1
+        thread_count=5
     )
 ),
