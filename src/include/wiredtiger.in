@@ -2582,8 +2582,8 @@ struct __wt_connection {
 	 * No updates made to logged tables or updates made without an associated commit timestamp
 	 * will be discarded. See @ref timestamp_misc.
 	 *
-	 * Applications should close or reset all open cursors before the call, and no other API
-	 * calls should be made for the duration of the call.
+	 * Applications must resolve all running transactions and close or reset all open cursors
+	 * before the call, and no other API calls should be made for the duration of the call.
 	 *
 	 * @snippet ex_all.c rollback to stable
 	 *
