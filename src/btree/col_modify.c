@@ -34,7 +34,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
     wt_timestamp_t prev_upd_ts;
     size_t ins_size, upd_size;
     u_int i, skipdepth;
-    bool append, inserted_to_update_chain, logged;
+    bool append, inserted_to_update_chain, added_to_txn;
 
     btree = CUR2BT(cbt);
     ins = NULL;
@@ -43,7 +43,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
     last_upd = NULL;
     upd = upd_arg;
     prev_upd_ts = WT_TS_NONE;
-    append = inserted_to_update_chain = logged = false;
+    added_to_txn = append = inserted_to_update_chain = false;
 
     /*
      * We should have one of the following:
@@ -135,7 +135,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
             WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
             upd->prev_durable_ts = prev_upd_ts;
             WT_ERR(__wt_txn_modify(session, upd));
-            logged = true;
+            added_to_txn = true;
 
             /* Avoid WT_CURSOR.update data copy. */
             __wt_upd_value_assign(cbt->modify_update, upd);
@@ -216,7 +216,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
             WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
             upd->prev_durable_ts = prev_upd_ts;
             WT_ERR(__wt_txn_modify(session, upd));
-            logged = true;
+            added_to_txn = true;
 
             /* Avoid WT_CURSOR.update data copy. */
             __wt_upd_value_assign(cbt->modify_update, upd);
@@ -257,7 +257,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
     inserted_to_update_chain = true;
 
     /* If the update was successful, add it to the in-memory log. */
-    if (logged && modify_type != WT_UPDATE_RESERVE) {
+    if (added_to_txn && modify_type != WT_UPDATE_RESERVE) {
         if (__wt_log_op(session))
             WT_ERR(__wt_txn_log_op(session, cbt));
 
@@ -279,7 +279,7 @@ err:
             /*
              * Remove the update from the current transaction; don't try to modify it on rollback.
              */
-            if (logged)
+            if (added_to_txn)
                 __wt_txn_unmodify(session);
 
             /* Free any allocated insert list object. */

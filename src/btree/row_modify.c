@@ -60,7 +60,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
     size_t ins_size, upd_size;
     uint32_t ins_slot;
     u_int i, skipdepth;
-    bool inserted_to_update_chain, logged;
+    bool added_to_txn, inserted_to_update_chain;
 
     ins = NULL;
     page = cbt->ref->page;
@@ -68,7 +68,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
     last_upd = NULL;
     upd = upd_arg;
     prev_upd_ts = WT_TS_NONE;
-    inserted_to_update_chain = logged = false;
+    added_to_txn = inserted_to_update_chain = false;
 
     /*
      * We should have one of the following:
@@ -117,7 +117,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
             upd->prev_durable_ts = prev_upd_ts;
             WT_ERR(__wt_txn_modify(session, upd));
-            logged = true;
+            added_to_txn = true;
 
             /* Avoid WT_CURSOR.update data copy. */
             __wt_upd_value_assign(cbt->modify_update, upd);
@@ -203,7 +203,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
         if (upd_arg == NULL) {
             WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
             WT_ERR(__wt_txn_modify(session, upd));
-            logged = true;
+            added_to_txn = true;
 
             /* Avoid a data copy in WT_CURSOR.update. */
             __wt_upd_value_assign(cbt->modify_update, upd);
@@ -251,7 +251,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
     inserted_to_update_chain = true;
 
     /* If the update was successful, add it to the in-memory log. */
-    if (logged && modify_type != WT_UPDATE_RESERVE) {
+    if (added_to_txn && modify_type != WT_UPDATE_RESERVE) {
         if (__wt_log_op(session))
             WT_ERR(__wt_txn_log_op(session, cbt));
 
@@ -272,7 +272,7 @@ err:
             /*
              * Remove the update from the current transaction, don't try to modify it on rollback.
              */
-            if (logged)
+            if (added_to_txn)
                 __wt_txn_unmodify(session);
 
             /* Free any allocated insert list object. */
