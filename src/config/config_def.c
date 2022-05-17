@@ -607,7 +607,6 @@ static const WT_CONFIG_CHECK confchk_lsm_meta[] = {
   {"os_cache_max", "int", NULL, "min=0", NULL, 0},
   {"prefix_compression", "boolean", NULL, NULL, NULL, 0},
   {"prefix_compression_min", "int", NULL, "min=0", NULL, 0},
-  {"readonly", "boolean", NULL, NULL, NULL, 0},
   {"split_deepen_min_child", "int", NULL, NULL, NULL, 0},
   {"split_deepen_per_child", "int", NULL, NULL, NULL, 0},
   {"split_pct", "int", NULL, "min=50,max=100", NULL, 0},
@@ -1386,12 +1385,11 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "suffix=),merge_max=15,merge_min=0),memory_page_image_max=0,"
     "memory_page_max=5MB,old_chunks=,os_cache_dirty_max=0,"
     "os_cache_max=0,prefix_compression=false,prefix_compression_min=4"
-    ",readonly=false,split_deepen_min_child=0,"
-    "split_deepen_per_child=0,split_pct=90,"
+    ",split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
     "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
     "cache_directory=,local_retention=300,name=),value_format=u,"
     "verbose=[],write_timestamp_usage=none",
-    confchk_lsm_meta, 45},
+    confchk_lsm_meta, 44},
   {"object.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"

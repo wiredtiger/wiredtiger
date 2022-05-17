@@ -414,15 +414,8 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         min='50', max='100'),
 ]
 
-readonly_config = [
-    Config('readonly', 'false', r'''
-        the file is read-only. All methods that modify a file are disabled. See @ref
-        readonly for more information''',
-        type='boolean'),
-]
-
 # File metadata, including both configurable and non-configurable (internal)
-file_meta = file_config + readonly_config + [
+file_meta = file_config + [
     Config('checkpoint', '', r'''
         the file checkpoint entries'''),
     Config('checkpoint_backup_info', '', r'''
@@ -431,6 +424,10 @@ file_meta = file_config + readonly_config + [
         LSN of the last checkpoint'''),
     Config('id', '', r'''
         the file's ID number'''),
+    Config('readonly', 'false', r'''
+        the file is read-only. All methods that modify a file are disabled. See @ref
+        readonly for more information''',
+        type='boolean'),
     Config('tiered_object', 'false', r'''
         this file is a tiered object. When opened on its own, it is marked as
         readonly and may be restricted in other ways''',
@@ -439,7 +436,7 @@ file_meta = file_config + readonly_config + [
         the file version'''),
 ]
 
-lsm_meta = file_config + lsm_config + readonly_config + [
+lsm_meta = file_config + lsm_config + [
     Config('last', '0', r'''
         the last allocated chunk ID'''),
     Config('chunks', '', r'''
