@@ -1291,7 +1291,7 @@ struct __wt_session {
 	 * further merges.  This is a soft limit\, and chunks larger than this value can be created.
 	 * Must be larger than chunk_size., an integer between 100MB and 10TB; default \c 5GB.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;chunk_size, the maximum size of the in-memory chunk of an
-	 * LSM tree.  This limit is soft - it is possible for chunks to be temporarily larger than
+	 * LSM tree.  This limit is soft\, it is possible for chunks to be temporarily larger than
 	 * this value.  This overrides the \c memory_page_max setting., an integer between 512K and
 	 * 500MB; default \c 10MB.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;merge_custom = (, configure the
