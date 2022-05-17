@@ -1,12 +1,12 @@
 # Configuration for cache_resize:
 # - Defines a thread that uses the custom operation to resize the cache during runtime.
-# - Defines several insert threads are used to perform large transactions.
-# - Defines custom tracking to save the operations and their timestamps.
+# - Defines several insert threads used to perform transactions larger than 1MB.
+# - Defines custom tracking
 # - Defines a max waiting time before giving up the current operation when the cache is full. This
 # is required as cache stuck issues are likely to happen given the nature of the test.
-cache_max_wait_ms=50,
+cache_max_wait_ms=1,
 cache_size_mb=500,
-duration_seconds=30,
+duration_seconds=15,
 workload_generator=
 (
     custom_config=
@@ -17,10 +17,10 @@ workload_generator=
     insert_config=
     (
         key_size=10000,
-        op_rate=5s,
-        ops_per_transaction=(min=1,max=1),
-        thread_count=10,
-        value_size=2000000
+        op_rate=4s,
+        ops_per_transaction=(min=2,max=2),
+        thread_count=5,
+        value_size=5000000
     ),
     populate_config=
     (
@@ -30,8 +30,8 @@ workload_generator=
 ),
 workload_tracking=
 (
-    # Timestamp
-    tracking_key_format=Q,
+    # Timestamp, transaction id,
+    tracking_key_format=QQ,
     # Operation type, cache size
-    tracking_value_format=iQ
+    tracking_value_format=iS
 )
