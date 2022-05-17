@@ -123,17 +123,17 @@ __alter_tiered(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[], 
     WT_TIERED *tiered;
     uint32_t object_id;
     u_int i;
-    char *md_value;
+    char *value;
     const char *name;
 
     dhandle = NULL;
-    md_value = NULL;
+    value = NULL;
     name = NULL;
 
     if (!WT_PREFIX_MATCH(uri, "tiered:"))
         return (__wt_unexpected_object_type(session, uri, "tiered:"));
 
-    /* Open dhandle, make sure we actually open it, not just acquire a lock. */
+    /* Open dhandle exclusively, make sure we actually open it, not just acquire a lock. */
     LF_CLR(WT_DHANDLE_LOCK_ONLY);
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, flags));
     tiered = (WT_TIERED *)session->dhandle;
@@ -151,8 +151,8 @@ __alter_tiered(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[], 
     /* Alter all objects. */
     for (object_id = tiered->oldest_id; object_id < tiered->current_id; object_id++) {
         WT_ERR(__wt_tiered_name(session, &tiered->iface, object_id, WT_TIERED_NAME_OBJECT, &name));
-        ret = __wt_metadata_search(session, name, &md_value);
-        __wt_free(session, md_value);
+        ret = __wt_metadata_search(session, name, &value);
+        __wt_free(session, value);
         WT_ERR_NOTFOUND_OK(ret, true);
         if (ret == 0) {
             WT_WITH_DHANDLE(session, NULL, ret = __schema_alter(session, name, newcfg));
