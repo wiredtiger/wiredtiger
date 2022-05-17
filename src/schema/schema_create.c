@@ -1193,7 +1193,7 @@ __create_parse_export(
  */
 static int
 __schema_create_config_check(
-  WT_SESSION_IMPL *session, const char *uri, const char *config, bool import)
+  WT_SESSION_IMPL *session, const char *uri, const char *config, bool import, bool file_metadata)
 {
     WT_CONFIG_ITEM cval;
     bool is_tiered, tiered_name_set;
@@ -1211,6 +1211,11 @@ __schema_create_config_check(
       __wt_config_getones(session, config, "tiered_storage.name", &cval) == 0 && cval.len != 0;
     is_tiered = S2C(session)->bstorage != NULL &&
       (!tiered_name_set || !WT_STRING_MATCH("none", cval.str, cval.len));
+
+    /* The import.file_metadata configuration is incompatible with tiered storage. */
+    if (is_tiered && file_metadata)
+        WT_RET_MSG(session, EINVAL,
+          "import for tiered storage is incompatible with the 'file_metadata' setting");
 
     /*
      * If the type configuration is set to anything but "file" while using tiered storage we must
@@ -1237,17 +1242,20 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     WT_IMPORT_LIST import_list;
     size_t i;
     char *export_file;
-    bool clear_import_flag, exclusive, import;
+    bool clear_import_flag, exclusive, file_metadata, import;
 
     WT_CLEAR(import_list);
     export_file = NULL;
     clear_import_flag = false;
 
     exclusive = __wt_config_getones(session, config, "exclusive", &cval) == 0 && cval.val != 0;
+    file_metadata =
+      __wt_config_getones(session, config, "import.file_metadata", &cval) == 0 && cval.val != 0;
+
     import = session->import_list != NULL ||
       (__wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0);
 
-    WT_RET(__schema_create_config_check(session, uri, config, import));
+    WT_RET(__schema_create_config_check(session, uri, config, import, file_metadata));
 
     /*
      * We track create operations: if we fail in the middle of creating a complex object, we want to

@@ -31,7 +31,7 @@
 #
 
 import glob, os, random, re, shutil, string
-import wttest
+import wiredtiger, wttest
 from helper_tiered import TieredConfigMixin, tiered_storage_sources
 from wtscenario import make_scenarios
 
@@ -158,6 +158,12 @@ class test_import11(test_import_base):
         self.copy_files('.', newdir)
         self.copy_files(self.bucket, os.path.join(newdir, self.bucket))
         self.copy_files(self.cache_bucket, os.path.join(newdir, self.cache_bucket))
+
+        # The file_metadata configuration should not be allowed in the tiered storage scenario.
+        if self.is_tiered_scenario():
+            invalid_import_config = 'import=(enabled,repair=false,file_metadata="")'
+            msg = "/import for tiered storage is incompatible with the 'file_metadata' setting/"
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(self.uri_a, invalid_import_config), msg)
 
         import_config = 'import=(enabled,repair=false,metadata_file="WiredTiger.export")'
 
