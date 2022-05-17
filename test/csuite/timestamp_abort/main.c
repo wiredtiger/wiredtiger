@@ -151,51 +151,32 @@ usage(void)
 static WT_THREAD_RET
 thread_ts_run(void *arg)
 {
-    WT_DECL_RET;
     WT_RAND_STATE rnd;
     WT_SESSION *session;
     THREAD_DATA *td;
-    wt_timestamp_t all_dur_ts, oldest_commit, prev_all_dur_ts, ts_temp;
+    wt_timestamp_t oldest_commit, ts_temp;
     uint32_t i, rand_op;
     int dbg;
-    char tscfg[64], ts_string[WT_TS_HEX_STRING_SIZE];
+    char tscfg[64];
     bool first;
-
-    prev_all_dur_ts = WT_TS_NONE;
 
     td = (THREAD_DATA *)arg;
     __wt_random_init(&rnd);
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
     first = true;
-    /* Update the oldest timestamp every 1 millisecond. */
+    /* Update the oldest and stable timestamps every 1 millisecond. */
     for (;; __wt_sleep(0, 1000)) {
         /*
-         * We get the last committed timestamp periodically in order to update the oldest timestamp,
-         * that requires locking out transactional ops that set or query a timestamp. If there is no
-         * work to do, all-durable will be 0 and we just wait.
+         * Ensure the stable ts doesn't move equal to or beyond the oldest non-committed
+         * transaction.
          */
-        testutil_check(pthread_rwlock_wrlock(&ts_lock));
-        ret = td->conn->query_timestamp(td->conn, ts_string, "get=all_durable");
-        testutil_check(pthread_rwlock_unlock(&ts_lock));
-        testutil_assert(ret == 0);
-        /*
-         * All durable can intermittently move backwards, we do not want to set stable and the
-         * oldest timestamps backwards.
-         */
-        all_dur_ts = testutil_timestamp_parse(ts_string);
-        if (all_dur_ts == 0 || all_dur_ts < prev_all_dur_ts)
-            continue;
-        prev_all_dur_ts = all_dur_ts;
-
-        /* Ensure the durable ts doesn't move equal to or beyond the oldest non-committed
-         * transaction. */
         oldest_commit = WT_TS_MAX;
         for (i = 0; i < td->info; i++) {
             WT_ORDERED_READ(ts_temp, ts_data[i]);
             oldest_commit = WT_MIN(oldest_commit, ts_temp);
         }
-        if (oldest_commit == 0)
+        if (oldest_commit == WT_TS_NONE)
             continue;
         --oldest_commit;
 
