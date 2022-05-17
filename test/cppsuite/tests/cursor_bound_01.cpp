@@ -189,7 +189,7 @@ class cursor_bound_01 : public test_harness::test {
             // Normal case
             // lower_key = std::string("0");
             range_cursor->bound(range_cursor.get(), "bound=lower");
-            range_cursor->set_key(range_cursor.get(), lower_key);
+            range_cursor->set_key(range_cursor.get(), lower_key.c_str());
         }
 
         if (set_random_bounds == UPPER_BOUND_SET || set_random_bounds == ALL_BOUNDS_SET) {
@@ -204,7 +204,7 @@ class cursor_bound_01 : public test_harness::test {
             // Normal case
             // upper_key = std::string(tc->key_size, 'z');
             range_cursor->bound(range_cursor.get(), "bound=upper");
-            range_cursor->set_key(range_cursor.get(), upper_key);
+            range_cursor->set_key(range_cursor.get(), upper_key.c_str());
         }
 
         return std::make_pair(std::make_pair(lower_key, set_lower_inclusive),
@@ -609,7 +609,6 @@ class cursor_bound_01 : public test_harness::test {
          */
         logger::log_msg(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
-
         std::map<uint64_t, scoped_cursor> cursors;
         std::pair<std::string, bool> lower_key, upper_key;
         while (tc->running()) {
