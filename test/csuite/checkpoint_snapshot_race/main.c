@@ -37,6 +37,8 @@ typedef struct {
     pthread_cond_t ckpt_go_cond;
     /* This is a proxy for timestamps as well. */
     volatile uint64_t collection_count;
+    uint64_t insert_sleep_min_us;
+    uint64_t insert_sleep_max_us;
 } CHECKPOINT_RACE_OPTS;
 
 /* Thread start points */
@@ -65,6 +67,16 @@ main(int argc, char *argv[])
 
     testutil_check(testutil_parse_opts(argc, argv, opts));
     testutil_make_work_dir(opts->home);
+
+    /* Parse the insertion thread sleep config. */
+    if(opts->insertion_sleep_str != NULL) {
+        if(sscanf(opts->insertion_sleep_str, "%lu-%lu", &cr_opts->insert_sleep_min_us, &cr_opts->insert_sleep_max_us) != 2) {
+            printf("-I arg must be of the format {min_sleep}-{max_sleep}. For example '-Y 100-200'\n");
+            exit(1);
+        } else {
+            testutil_assert(cr_opts->insert_sleep_min_us < cr_opts->insert_sleep_max_us);
+        }
+    }
 
     /* Default to 15 seconds */
     if (opts->runtime == 0)
@@ -107,7 +119,7 @@ main(int argc, char *argv[])
     test_running = false;
 
     testutil_progress(opts, "Stopping\n");
-    sleep(2);
+    sleep(1);
     testutil_check(pthread_join(ckpt_thread, NULL));
     testutil_check(pthread_join(create_thread, NULL));
     testutil_check(pthread_join(validate_thread, NULL));
@@ -136,6 +148,7 @@ thread_create_table_race(void *arg)
 
     cr_opts = (CHECKPOINT_RACE_OPTS *)arg;
     opts = cr_opts->opts;
+    i = 0;
 
     testutil_progress(opts, "Start create thread\n");
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
@@ -209,13 +222,19 @@ thread_create_table_race(void *arg)
         testutil_check(collection_cursor->insert(collection_cursor));
         testutil_check(collection_cursor->reset(collection_cursor));
 
-#if 1
-        rnd_val = (uint64_t)__wt_random(&rnd) % 100;
-        if (rnd_val != 0)
-            usleep(rnd_val * 10);
-#else
-        usleep(1000);
-#endif
+        /* Add some random sleeps in the middle of insertion to increase the chance of a checkpoint beginning during insertion */
+        if(cr_opts->insert_sleep_max_us > 0) {
+            uint64_t sleep_for;
+
+            rnd_val = (uint64_t)__wt_random(&rnd) % (cr_opts->insert_sleep_max_us - cr_opts->insert_sleep_min_us);
+            sleep_for = cr_opts->insert_sleep_min_us + rnd_val;
+            // printf("Insertion sleeping for: %" PRIu64 " us\n", sleep_for);
+
+            snprintf(opts->progress_msg, opts->progress_msg_len, "Insertion sleeping for: %" PRIu64 " us\n", sleep_for);
+            testutil_progress(opts, opts->progress_msg);
+            usleep(sleep_for);
+        }
+
         while ((ret = session->open_cursor(session,
                         index_uri, NULL, index_config_str, &index_cursor)) != 0) {
             snprintf(opts->progress_msg, opts->progress_msg_len,

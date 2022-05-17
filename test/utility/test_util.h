@@ -94,6 +94,7 @@ typedef struct {
     volatile uint64_t next_threadid;
     uint64_t unique_id;
     uint64_t max_inserted_id;
+    char *insertion_sleep_str;
 } TEST_OPTS;
 
 /*
