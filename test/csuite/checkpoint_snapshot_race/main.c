@@ -39,7 +39,7 @@ typedef struct {
     volatile uint64_t collection_count;
 } CHECKPOINT_RACE_OPTS;
 
-// threads
+/* Thread start points */
 void *thread_checkpoint(void *);
 void *thread_validate(void *);
 void *thread_create_table_race(void *);
@@ -78,7 +78,6 @@ main(int argc, char *argv[])
     testutil_check(pthread_mutex_init(&cr_opts->ckpt_go_cond_mutex, NULL));
     testutil_check(pthread_cond_init(&cr_opts->ckpt_go_cond, NULL));
 
-    // Open connection
     testutil_check(wiredtiger_open(opts->home, NULL,
       "create,cache_size=100MB,log=(enabled,file_max=10M,remove=true),debug_mode=(table_logging)",
       &opts->conn));
@@ -94,12 +93,12 @@ main(int argc, char *argv[])
     testutil_check(session->create(
         session, LOAD_TABLE_URI, "key_format=Q,value_format=SS,log=(enabled=false)"));
 
-    // Spawn threads
+    /* Spawn threads */
     testutil_check(pthread_create(&ckpt_thread, NULL, thread_checkpoint, cr_opts));
     testutil_check(pthread_create(&create_thread, NULL, thread_create_table_race, cr_opts));
     testutil_check(pthread_create(&create_thread, NULL, thread_add_load, cr_opts));
     testutil_check(pthread_create(&validate_thread, NULL, thread_validate, cr_opts));
-    usleep(200); // hack -> wait for threads to spin up
+    usleep(200); /* Wait for threads to spin up */
 
     snprintf(opts->progress_msg, opts->progress_msg_len,
             "Running for %"PRIu64 " seconds\n", opts->runtime);
@@ -145,28 +144,27 @@ thread_create_table_race(void *arg)
 
     while (test_running) {
 
-        // printf("Creating %lu\n", i);
+        /*
+         * Mongo doesn't use WT's indexing and instead performs their own. Attempt to emulate that
+         * here.
+         * 1. Create the collection table
+         * 2. Create the index table
+         * 3. Write a single key into both tables at the same time
+         * 4. Check that both tables contain said key.
+         *    a. This step requries further checking as to how Mongo performs validation.
+         */
 
-        // Mongo doesn't use WT's indexing and instead performs their own. Attempt to emulate that
-        // here.
-        // 1. Create the collection table
-        // 2. Create the index table
-        // 3. Write a single key into both tables at the same time
-        // 4. Check that both tables contain said key.
-        //    a. This step requries further checking as to how Mongo performs validation.
-
-        // Create names
         testutil_check(__wt_snprintf(collection_uri, 64, "table:collection_%" PRIu64, i));
         testutil_check(__wt_snprintf(index_uri, 64, "table:index_%" PRIu64, i));
 
         i = __atomic_fetch_add(&cr_opts->collection_count, 1, __ATOMIC_SEQ_CST);
         snprintf(ts_string, 64, "commit_timestamp=%" PRIu64, i);
 
-        // Create collection
+        /* Create collection */
         testutil_check(session->create(
           session, collection_uri, "key_format=Q,value_format=Q,log=(enabled=true)"));
 
-        // Create index
+        /* Create index */
         testutil_check(
           session->create(session, index_uri, "key_format=Q,value_format=Q,log=(enabled=true)"));
 
@@ -188,7 +186,7 @@ thread_create_table_race(void *arg)
         catalog_cursor->reset(catalog_cursor);
         testutil_check(session->commit_transaction(session, ts_string));
 
-        // Write to both tables in a single txn as per the printlog
+        /* Write to both tables in a single txn as per the printlog */
         testutil_check(session->begin_transaction(session, NULL));
 
         /* Occasionally force the newly updated page to be evicted */
@@ -198,8 +196,9 @@ thread_create_table_race(void *arg)
         rnd_val = (uint64_t)__wt_random(&rnd);
         snprintf(index_config_str, sizeof(index_config_str),
             "%s", rnd_val % 12 == 0 ? "debug=(release_evict)" : "");
+
         testutil_check(session->open_cursor(session,
-                    collection_uri, NULL, NULL, &collection_cursor));
+                    collection_uri, NULL, collection_config_str, &collection_cursor));
 
         snprintf(opts->progress_msg, opts->progress_msg_len,
                "Creating collection/index: %s\n", collection_uri);
@@ -210,15 +209,15 @@ thread_create_table_race(void *arg)
         testutil_check(collection_cursor->insert(collection_cursor));
         testutil_check(collection_cursor->reset(collection_cursor));
 
-#if 0
-        rnd_val = (uint64_t)__wt_random(&rnd) % 1000;
+#if 1
+        rnd_val = (uint64_t)__wt_random(&rnd) % 100;
         if (rnd_val != 0)
             usleep(rnd_val * 10);
 #else
-        ret = 10; /* Compiler warning */
-        usleep(10);
+        usleep(1000);
 #endif
-        while ((ret = session->open_cursor(session, index_uri, NULL, NULL, &index_cursor)) != 0) {
+        while ((ret = session->open_cursor(session,
+                        index_uri, NULL, index_config_str, &index_cursor)) != 0) {
             snprintf(opts->progress_msg, opts->progress_msg_len,
                     "Error returned opening index cursor: %s\n", wiredtiger_strerror(ret));
             testutil_progress(opts, opts->progress_msg);
@@ -234,15 +233,19 @@ thread_create_table_race(void *arg)
         /*
          * For the purpose of this test just check that both tables are populated.
          * The error we're seeing is one table is empty when Mongo validates.
-         * TODO - do we need to look on disk for mongo verify?
-        testutil_check(session->begin_transaction(session, NULL));
-        collection_cursor->set_key(collection_cursor, i);
-        testutil_assert(collection_cursor->search(collection_cursor) == 0);
-
-        index_cursor->set_key(index_cursor, i);
-        testutil_assert(index_cursor->search(index_cursor) == 0);
-        testutil_check(session->commit_transaction(session, NULL));
+         * The following read is necessary to get the pages force evicted, since
+         * insert doesn't leave the cursor positioned it won't trigger the eviction.
          */
+        rnd_val = (uint64_t)__wt_random(&rnd) % 4;
+        if (rnd_val == 0) {
+            testutil_check(session->begin_transaction(session, NULL));
+            collection_cursor->set_key(collection_cursor, i);
+            testutil_assert(collection_cursor->search(collection_cursor) == 0);
+
+            index_cursor->set_key(index_cursor, i);
+            testutil_assert(index_cursor->search(index_cursor) == 0);
+            testutil_check(session->commit_transaction(session, NULL));
+        }
 
         testutil_check(collection_cursor->close(collection_cursor));
         testutil_check(index_cursor->close(index_cursor));
@@ -291,6 +294,9 @@ thread_add_load(void *arg)
 
     raw_data_str_len = strlen(data_string);
     us_sleep = 100;
+
+    if (test_running)
+        return (NULL);
 
     testutil_progress(opts, "Start load generation thread\n");
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));

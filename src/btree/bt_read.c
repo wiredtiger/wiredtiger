@@ -91,9 +91,11 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_DECL_RET;
     WT_ITEM tmp;
     WT_PAGE *notused;
-    uint32_t page_flags;
+    uint32_t i, page_flags;
     uint8_t previous_state;
-    bool prepare;
+    bool instantiated_deleted_page, prepare;
+
+    instantiated_deleted_page = false;
 
     /*
      * Don't pass an allocated buffer to the underlying block read function, force allocation of new
@@ -157,11 +159,17 @@ skip_read:
      * fast-delete information. Skip for special commands that don't care about an in-memory state.
      */
     if (previous_state == WT_REF_DELETED &&
-      !F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY))
+      !F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
+        instantiated_deleted_page = true;
         WT_ERR(__wt_delete_page_instantiate(session, ref));
+    }
 
     F_CLR(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, WT_REF_MEM);
+    if (instantiated_deleted_page) {
+        i = __wt_random(&session->rnd) % 1000;
+        __wt_sleep(0, i);
+    }
 
     WT_ASSERT(session, ret == 0);
     return (0);

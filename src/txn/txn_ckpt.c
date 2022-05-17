@@ -665,6 +665,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * timestamp we can end up missing updates in our checkpoint.
      */
     __wt_txn_bump_snapshot(session);
+    /* Now that the snapshot is allocated wait a while for some content to come into the database */
+    __wt_sleep(0, 1000);
 
     /* Assert that our snapshot min didn't somehow move backwards. */
     WT_ASSERT(session, session->txn->snap_min >= original_snap_min);

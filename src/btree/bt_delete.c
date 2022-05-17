@@ -323,6 +323,9 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     if (btree->modified)
         __wt_page_modify_set(session, page);
 
+    /* Hack to get these fast deleted pages scheduled for eviction regularly */
+    __wt_page_evict_soon(session, ref);
+
     /* Allocate the per-page update array if one doesn't already exist. */
     if (page->entries != 0 && page->modify->mod_row_update == NULL)
         WT_PAGE_ALLOC_AND_SWAP(

@@ -46,7 +46,6 @@ run_set_of_tests () {
 for i in `seq 50`
 do
     runtime=`echo "$i*$i+1" | bc`
-    runtime=5
     run_set_of_tests $i 20 $runtime
 done
 
