@@ -264,18 +264,22 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
 
     if (0) {
 err:
-        /* Remove the update from the current transaction, don't try to modify it on rollback. */
-        if (logged)
-            __wt_txn_unmodify(session);
+        if (!inserted_to_update_chain) {
+            /*
+             * Remove the update from the current transaction, don't try to modify it on rollback.
+             */
+            if (logged)
+                __wt_txn_unmodify(session);
 
-        /* Free any allocated insert list object. */
-        __wt_free(session, ins);
+            /* Free any allocated insert list object. */
+            __wt_free(session, ins);
 
-        cbt->ins = NULL;
+            cbt->ins = NULL;
 
-        /* Discard any allocated update, unless we failed after linking it into page memory. */
-        if (upd_arg == NULL && !inserted_to_update_chain)
-            __wt_free(session, upd);
+            /* Discard any allocated update, unless we failed after linking it into page memory. */
+            if (upd_arg == NULL)
+                __wt_free(session, upd);
+        }
 
         /*
          * When prepending a list of updates to an update chain, we link them together; sever that
