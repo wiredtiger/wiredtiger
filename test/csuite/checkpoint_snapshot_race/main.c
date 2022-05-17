@@ -39,6 +39,8 @@ typedef struct {
     volatile uint64_t collection_count;
     uint64_t insert_sleep_min_us;
     uint64_t insert_sleep_max_us;
+    uint64_t checkpoint_delay_min_us;
+    uint64_t checkpoint_delay_max_us;
 } CHECKPOINT_RACE_OPTS;
 
 /* Thread start points */
@@ -65,6 +67,11 @@ main(int argc, char *argv[])
     memset(cr_opts, 0, sizeof(*cr_opts));
     cr_opts->opts = opts;
 
+    cr_opts->insert_sleep_min_us = 0;
+    cr_opts->insert_sleep_max_us = 0;
+    cr_opts->checkpoint_delay_min_us = 0;
+    cr_opts->checkpoint_delay_max_us = 0;
+
     testutil_check(testutil_parse_opts(argc, argv, opts));
     testutil_make_work_dir(opts->home);
 
@@ -75,6 +82,16 @@ main(int argc, char *argv[])
             exit(1);
         } else {
             testutil_assert(cr_opts->insert_sleep_min_us < cr_opts->insert_sleep_max_us);
+        }
+    }
+
+    /* Parse the checkpoint delay thread sleep config. */
+    if(opts->checkpoint_delay_str != NULL) {
+        if(sscanf(opts->checkpoint_delay_str, "%lu-%lu", &cr_opts->checkpoint_delay_min_us, &cr_opts->checkpoint_delay_max_us) != 2) {
+            printf("-C arg must be of the format {min_sleep}-{max_sleep}. For example '-Y 100-200'\n");
+            exit(1);
+        } else {
+            testutil_assert(cr_opts->checkpoint_delay_min_us < cr_opts->checkpoint_delay_max_us);
         }
     }
 
@@ -506,6 +523,24 @@ thread_checkpoint(void *arg)
         clock_gettime(CLOCK_REALTIME, &ts);
         ts.tv_sec += 1;
         ret = pthread_cond_timedwait(&cr_opts->ckpt_go_cond, &cr_opts->ckpt_go_cond_mutex, &ts);
+       
+        /* Add a small delay to when the checkpoint begins to test timing. */
+        if(cr_opts->insert_sleep_max_us > 0) {
+            uint64_t sleep_for;
+            WT_RAND_STATE rnd;
+            uint64_t rnd_val;
+
+            __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
+
+            rnd_val = (uint64_t)__wt_random(&rnd) % (cr_opts->checkpoint_delay_max_us - cr_opts->checkpoint_delay_min_us);
+            sleep_for = cr_opts->checkpoint_delay_min_us + rnd_val;
+            printf("Checkpoint waiting for for: %" PRIu64 " us\n", sleep_for);
+
+            snprintf(opts->progress_msg, opts->progress_msg_len, "Checkpoint waiting for: %" PRIu64 " us\n", sleep_for);
+            testutil_progress(opts, opts->progress_msg);
+            usleep(sleep_for);
+        }
+
         testutil_assert(ret != EINVAL && ret != EPERM);
         testutil_check(pthread_mutex_unlock(&cr_opts->ckpt_go_cond_mutex));
 

@@ -95,6 +95,7 @@ typedef struct {
     uint64_t unique_id;
     uint64_t max_inserted_id;
     char *insertion_sleep_str;
+    char *checkpoint_delay_str;
 } TEST_OPTS;
 
 /*

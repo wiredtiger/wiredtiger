@@ -51,10 +51,13 @@ testutil_parse_opts(int argc, char *const *argv, TEST_OPTS *opts)
 
     testutil_print_command_line(argc, argv);
 
-    while ((ch = __wt_getopt(opts->progname, argc, argv, "A:dh:I:b:n:o:pr:R:T:t:vW:")) != EOF)
+    while ((ch = __wt_getopt(opts->progname, argc, argv, "A:C:dh:I:b:n:o:pr:R:T:t:vW:")) != EOF)
         switch (ch) {
         case 'A': /* Number of append threads */
             opts->n_append_threads = (uint64_t)atoll(__wt_optarg);
+            break;
+        case 'C': /* How long for checkpoint thread to wait before running in checkpoint_snapshot_race */
+            opts->checkpoint_delay_str = dstrdup(__wt_optarg);
             break;
         case 'd': /* Use data in multi-threaded test programs */
             opts->do_data_ops = true;
