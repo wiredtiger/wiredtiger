@@ -295,6 +295,10 @@ runtime_monitor::load()
         /* Open our statistic cursor. */
         _session = connection_manager::instance().create_session();
         _cursor = _session.open_scoped_cursor(STATISTICS_URI);
+
+        _perf_file.open(_test_name + ".json");
+        _perf_file << "[{\"info\":{\"test_name\": \"" + _test_name + "\"},\"metrics\": [";
+        _perf_file.close();
     }
 }
 
@@ -314,8 +318,8 @@ runtime_monitor::finish()
     component::finish();
 
     /* Save stats. */
-    save_stats(_test_name);
-
+    save_stats();
+    
     /* Check the post run statistics now. */
     bool success = true;
     int64_t stat_max, stat_min, stat_value;
@@ -356,10 +360,10 @@ runtime_monitor::finish()
  * be saved as indicated by the configuration file.
  */
 void
-runtime_monitor::save_stats(const std::string &filename)
+runtime_monitor::save_stats()
 {
-    std::string stat_info = "[{\"info\":{\"test_name\": \"" + filename + "\"},\"metrics\": [";
-
+    std::string stat_info;
+    _perf_file.open(_test_name + ".json", std::ios_base::app);
     for (const auto &stat : _stats) {
         if (stat->get_save())
             stat_info += "{\"name\":\"" + stat->get_name() +
@@ -370,9 +374,9 @@ runtime_monitor::save_stats(const std::string &filename)
     if (stat_info.back() == ',')
         stat_info.pop_back();
 
-    std::ofstream file(filename + ".json");
-    file << stat_info << "]}]";
-    file.close();
+    std::cout << "runtime monitor" << std::endl;
+    _perf_file << stat_info << "]}]";
+    _perf_file.close();
 }
 
 } // namespace test_harness

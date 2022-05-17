@@ -29,6 +29,7 @@
 #ifndef RUNTIME_MONITOR_H
 #define RUNTIME_MONITOR_H
 
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -127,7 +128,7 @@ class runtime_monitor : public component {
     void finish() override final;
 
     private:
-    void save_stats(const std::string &filename);
+    void save_stats();
 
     private:
     scoped_session _session;
@@ -135,6 +136,7 @@ class runtime_monitor : public component {
     const std::string _test_name;
     std::vector<std::unique_ptr<statistics>> _stats;
     database &_database;
+    std::ofstream _perf_file;
 };
 } // namespace test_harness
 
