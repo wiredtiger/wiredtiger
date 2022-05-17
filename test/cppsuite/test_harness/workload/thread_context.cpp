@@ -203,14 +203,12 @@ thread_context::finish()
 }
 
 std::string
-thread_context::key_to_string(uint64_t key_id)
+thread_context::left_padding_to_string(uint64_t value, uint64_t size)
 {
-    std::string str, value_str = std::to_string(key_id);
-    testutil_assert(key_size >= value_str.size());
-    uint64_t diff = key_size - value_str.size();
+    const std::string value_str = std::to_string(value);
+    uint64_t diff = size > value_str.size() ? size - value_str.size() : 0;
     std::string s(diff, '0');
-    str = s.append(value_str);
-    return (str);
+    return (s.append(value_str));
 }
 
 bool

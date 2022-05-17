@@ -115,10 +115,10 @@ class thread_context {
     void finish();
 
     /*
-     * Convert a key_id to a string. If the resulting string is less than the given length, padding
+     * Convert a value to a string. If the resulting string is less than the given length, padding
      * of '0' is added.
      */
-    std::string key_to_string(uint64_t key_id);
+    std::string left_padding_to_string(uint64_t value, uint64_t size);
 
     /*
      * Generic update function, takes a collection_id, key and value.
