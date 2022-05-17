@@ -161,9 +161,15 @@ class test_import11(test_import_base):
 
         # The file_metadata configuration should not be allowed in the tiered storage scenario.
         if self.is_tiered_scenario():
-            invalid_import_config = 'import=(enabled,repair=false,file_metadata="")'
+            invalid_import_config1 = 'import=(enabled,repair=false,file_metadata="")'
+            invalid_import_config2 = 'import=(enabled,repair=false,file_metadata="",metadata_file="WiredTiger.export")'
+            invalid_import_config3 = 'import=(enabled,repair=false)'
+        
+            err_msg3 = "/Invalid argument/"
             msg = "/import for tiered storage is incompatible with the 'file_metadata' setting/"
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(self.uri_a, invalid_import_config), msg)
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(self.uri_a, invalid_import_config1), msg)
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(self.uri_a, invalid_import_config2), msg)
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(self.uri_a, invalid_import_config3), err_msg3)
 
         import_config = 'import=(enabled,repair=false,metadata_file="WiredTiger.export")'
 
