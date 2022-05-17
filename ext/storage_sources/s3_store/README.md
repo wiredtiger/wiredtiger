@@ -39,7 +39,7 @@ ninja
 * Setting the `IMPORT_S3_SDK` flag is optional for this build method.
 * `ENABLE_S3` will default to looking for a local installation of the SDK.
 * `CMAKE_CXX_FLAGS="-ggdb"` should be set to enable gdb for debugging information.
-* `HAVE_UNITTEST` should be set to 1 so the Catch2 framework for S3 Unit tests are installed. a
+* `HAVE_UNITTEST` should be set to 1 so the Catch2 framework for S3 Unit tests is installed.
 * `ENABLE_STRICT` should be set to 0.
     This is to to turn off strict compiler warnings so it does not pick up different formatting errors of the 3rd party dependencies.
 
