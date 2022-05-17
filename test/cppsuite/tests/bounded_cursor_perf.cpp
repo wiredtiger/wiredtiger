@@ -32,13 +32,6 @@
 #include <time.h>
 #include "test_harness/core/op_tracker.cpp"
 
-/* TO-DO LIST
- *   1) Add prev support
- *   2) Create op tracker component
- *   3) Aggregate stats and perf
- *   4) Remove overwritten populate, change key generation to generate random number btwn 0 and
- * key_count, pad with zeroes 5)
- */
 namespace test_harness {
 
 /*
@@ -70,8 +63,6 @@ class bounded_cursor_perf : public test {
     {
 
         int exact, ret, range_ret = 0;
-        // Move the range cursor first
-        // range_ret = range_cursor->search(range_cursor.get());
 
         if (operation == "next") {
             // Check if lower bounds have been set, then move the default cursor with search_near
@@ -91,7 +82,6 @@ class bounded_cursor_perf : public test {
         testutil_assert(ret ==  0 || ret == WT_NOTFOUND);
 
         // Realign the range cursor in the event an exact match of lower bound is not found
-        // (search_near randomly places) range_ret = range_cursor->next(range_cursor.get());
         if ((operation == "next" && exact < 0) || (operation == "prev" && exact < 0))
             range_ret = range_cursor->prev(range_cursor.get());
         else if ((operation == "next" && exact > 0) || (operation == "prev" && exact > 0))
@@ -122,10 +112,8 @@ class bounded_cursor_perf : public test {
         testutil_assert(tc->thread_count == 1);
         /*
          * Each read operation performs next() and prev() calls with both normal cursors and bounded
-         * cursors. Each read operation is timed and the performance stats get sent to perf tracking
-         * component [].
-         */
-
+         * cursors. 
+        */  
         int range_ret = 0;
 
         // Initialise the op trackers
@@ -157,9 +145,6 @@ class bounded_cursor_perf : public test {
                 range_cursor->set_key(range_cursor.get(), std::to_string(upper_key).c_str());
             }
 
-            // if (ret == EINVAL)
-            //     continue;
-
             // Position the cursors for next
             cursor_traversal(
               tc, cursor, range_cursor, "next", set_bounds, lower_key, bounded_next, default_next);
@@ -173,4 +158,4 @@ class bounded_cursor_perf : public test {
     }
 
 };
-} // namespace test_harness
+} 
