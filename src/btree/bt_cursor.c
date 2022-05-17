@@ -1970,7 +1970,7 @@ __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
      * to commit without a timestamp (excluding logged objects as timestamps will be ignored).
      */
     if (!F_ISSET(btree, WT_BTREE_LOGGED) && F_ISSET(session->txn, WT_TXN_TS_NOT_SET))
-        WT_ERR_MSG(session, EINVAL,
+        WT_RET_MSG(session, EINVAL,
           "truncate operations may not be included in transactions that can commit without a "
           "timestamp");
 
