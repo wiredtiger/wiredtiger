@@ -290,14 +290,14 @@ err:
             /* Discard any allocated update, unless we failed after linking it into page memory. */
             if (upd_arg == NULL)
                 __wt_free(session, upd);
-        }
 
-        /*
-         * When prepending a list of updates to an update chain, we link them together; sever that
-         * link so our callers list doesn't point into page memory.
-         */
-        if (last_upd != NULL)
-            last_upd->next = NULL;
+            /*
+             * When prepending a list of updates to an update chain, we link them together; sever
+             * that link so our callers list doesn't point into page memory.
+             */
+            if (last_upd != NULL)
+                last_upd->next = NULL;
+        }
     }
 
     return (ret);
