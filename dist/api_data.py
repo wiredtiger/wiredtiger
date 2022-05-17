@@ -420,7 +420,7 @@ tiered_meta = file_meta + tiered_config + [
         the oldest allocated object ID'''),
     Config('tiers', '', r'''
         list of data sources to combine into a tiered storage structure''',
-	type='list'),
+        type='list'),
 ]
 
 tier_meta = file_meta + tiered_tree_config
