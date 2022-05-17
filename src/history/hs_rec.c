@@ -357,7 +357,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             continue;
 
         /* Updates have already been inserted to the history store. */
-        if (F_ISSET(upd, WT_UPDATE_HS))
+        if (F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS))
             continue;
 
         /* History store table key component: source key. */
@@ -492,7 +492,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
              * If we've reached a full update and it's in the history store we don't need to
              * continue as anything beyond this point won't help with calculating deltas.
              */
-            if (upd->type == WT_UPDATE_STANDARD && F_ISSET(upd, WT_UPDATE_HS))
+            if (upd->type == WT_UPDATE_STANDARD &&
+              F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS))
                 break;
 
             /*
@@ -528,7 +529,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
         }
 
         /* Skip if we have nothing to insert to the history store. */
-        if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_HS)) {
+        if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS)) {
             /* The onpage value is squashed. */
             if (newest_hs == NULL && squashed)
                 ++cache_hs_write_squash;
@@ -620,18 +621,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             }
 
             /* Skip updates that are already in the history store. */
-            if (F_ISSET(upd, WT_UPDATE_HS)) {
+            if (F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS)) {
                 if (hs_inserted)
                     WT_ERR_PANIC(session, WT_PANIC,
                       "Reinserting updates to the history store may corrupt the data as it may "
                       "clear the history store data newer than it.");
                 continue;
             }
-
-            /* We should never write a prepared update to the history store. */
-            WT_ASSERT(session,
-              upd->prepare_state != WT_PREPARE_INPROGRESS &&
-                upd->prepare_state != WT_PREPARE_LOCKED);
 
             /*
              * Ensure all the updates inserted to the history store are committed.
