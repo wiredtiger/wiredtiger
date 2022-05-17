@@ -89,10 +89,6 @@ class test_alter02(TieredConfigMixin, wttest.WiredTigerTestCase):
             print("Failed conn at '%s' with config '%s'" % (dir, conn_params))
         self.session = self.conn.open_session()
 
-        # FIXME without flush_tier call WT_TIERED::tiers are not initialized and
-        # alter doesn't modify metadata for file: and tier:.
-        self.session.flush_tier(None)
-
     # Verify the metadata string for this URI and that its setting in the
     # metadata file is correct.
     def verify_metadata(self, metastr):

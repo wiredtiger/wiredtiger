@@ -137,10 +137,6 @@ class test_alter04(TieredConfigMixin, wttest.WiredTigerTestCase):
             if self.reopen:
                 self.reopen_conn()
 
-                # FIXME without flush_tier call WT_TIERED::tiers are not initialized and
-                # alter doesn't modify metadata for file: and tier:.
-                self.session.flush_tier(None)
-
             special = self.use_cg or self.use_index
             if not special:
                 self.verify_metadata(alter_param)

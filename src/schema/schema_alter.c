@@ -133,15 +133,8 @@ __alter_tiered(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[], 
     if (!WT_PREFIX_MATCH(uri, "tiered:"))
         return (__wt_unexpected_object_type(session, uri, "tiered:"));
 
-    /*
-     * If the operation requires exclusive access, close any open handles, including checkpoints.
-     */
-    if (FLD_ISSET(flags, WT_DHANDLE_EXCLUSIVE)) {
-        WT_WITH_HANDLE_LIST_WRITE_LOCK(
-          session, ret = __wt_conn_dhandle_close_all(session, uri, false, false));
-        WT_RET(ret);
-    }
-
+    /* Open dhandle, make sure we actually open it, not just acquire a lock. */
+    LF_CLR(WT_DHANDLE_LOCK_ONLY);
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, flags));
     tiered = (WT_TIERED *)session->dhandle;
 
