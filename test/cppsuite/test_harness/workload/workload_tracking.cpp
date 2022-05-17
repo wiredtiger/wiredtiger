@@ -216,8 +216,9 @@ workload_tracking::save_operation(const uint64_t txn_id, const tracking_operatio
     return (ret);
 }
 
+/* Note that the transaction id is not used in the default implementation of the tracking table. */
 void
-workload_tracking::set_tracking_cursor(const uint64_t, const tracking_operation &operation,
+workload_tracking::set_tracking_cursor(const uint64_t txn_id, const tracking_operation &operation,
   const uint64_t &collection_id, const std::string &key, const std::string &value,
   wt_timestamp_t ts, scoped_cursor &op_track_cursor)
 {
