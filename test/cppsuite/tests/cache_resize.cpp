@@ -204,7 +204,7 @@ class cache_resize : public test_harness::test {
             } else if (prev_txn_id != tracked_txn_id) {
                 /*
                  * We have moved to a new transaction, make sure the cache was big enough when the
-                 * previous transaction was comitted.
+                 * previous transaction was committed.
                  */
                 testutil_assert(cache_size > cache_size_500mb);
             }
