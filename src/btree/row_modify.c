@@ -264,6 +264,10 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
 
     if (0) {
 err:
+        /*
+         * Let the rollback logic to do the cleanup if we have inserted the update to the update
+         * chain.
+         */
         if (!inserted_to_update_chain) {
             /*
              * Remove the update from the current transaction, don't try to modify it on rollback.
