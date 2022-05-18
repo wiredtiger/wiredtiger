@@ -27,11 +27,6 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-try:
-    import boto3
-except ImportError:
-    pass
-
 import datetime, inspect, os, random, wiredtiger
 
 # These routines help run the various storage sources. They are required to manage
@@ -209,6 +204,7 @@ class TieredConfigMixin:
                 raise    
 
     def download_objects(self, bucket_name, prefix):
+        import boto3
         # The bucket from the storage source is expected to be a name and a region, separated by a 
         # semi-colon. eg: 'abcd;ap-southeast-2'.
         bucket_name, region = bucket_name.split(';')
