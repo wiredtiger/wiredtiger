@@ -86,8 +86,8 @@ main(int argc, char *argv[])
         opts->runtime = 15;
 
     /*
-     * Start collection counter at 10, since it's used as a proxy for timestamps as well which
-     * makes it better to avoid 0.
+     * Start collection counter at 10, since it's used as a proxy for timestamps as well which makes
+     * it better to avoid 0.
      */
     cr_opts->collection_count = 10;
     testutil_check(pthread_mutex_init(&cr_opts->ckpt_go_cond_mutex, NULL));
@@ -102,11 +102,11 @@ main(int argc, char *argv[])
     opts->conn->set_timestamp(opts->conn, "oldest_timestamp=1,stable_timestamp=1");
 
     /* Create the catalogue table. */
-    testutil_check(session->create(
-        session, CATALOG_URI, "key_format=Q,value_format=SS,log=(enabled=false)"));
+    testutil_check(
+      session->create(session, CATALOG_URI, "key_format=Q,value_format=SS,log=(enabled=false)"));
     /* Create a table that is used to add load to the cache/database. */
-    testutil_check(session->create(
-        session, LOAD_TABLE_URI, "key_format=Q,value_format=SS,log=(enabled=false)"));
+    testutil_check(
+      session->create(session, LOAD_TABLE_URI, "key_format=Q,value_format=SS,log=(enabled=false)"));
 
     /* Spawn threads */
     testutil_check(pthread_create(&ckpt_thread, NULL, thread_checkpoint, cr_opts));
@@ -115,8 +115,8 @@ main(int argc, char *argv[])
     testutil_check(pthread_create(&validate_thread, NULL, thread_validate, cr_opts));
     usleep(200); /* Wait for threads to spin up */
 
-    snprintf(opts->progress_msg, opts->progress_msg_len,
-            "Running for %"PRIu64 " seconds\n", opts->runtime);
+    snprintf(opts->progress_msg, opts->progress_msg_len, "Running for %" PRIu64 " seconds\n",
+      opts->runtime);
     testutil_progress(opts, opts->progress_msg);
     sleep(opts->runtime);
     test_running = false;
@@ -207,17 +207,17 @@ thread_create_table_race(void *arg)
 
         /* Occasionally force the newly updated page to be evicted */
         rnd_val = (uint64_t)__wt_random(&rnd);
-        snprintf(collection_config_str, sizeof(collection_config_str),
-            "%s", rnd_val % 12 == 0 ? "debug=(release_evict)" : "");
+        snprintf(collection_config_str, sizeof(collection_config_str), "%s",
+          rnd_val % 12 == 0 ? "debug=(release_evict)" : "");
         rnd_val = (uint64_t)__wt_random(&rnd);
-        snprintf(index_config_str, sizeof(index_config_str),
-            "%s", rnd_val % 12 == 0 ? "debug=(release_evict)" : "");
+        snprintf(index_config_str, sizeof(index_config_str), "%s",
+          rnd_val % 12 == 0 ? "debug=(release_evict)" : "");
 
-        testutil_check(session->open_cursor(session,
-                    collection_uri, NULL, collection_config_str, &collection_cursor));
+        testutil_check(session->open_cursor(
+          session, collection_uri, NULL, collection_config_str, &collection_cursor));
 
-        snprintf(opts->progress_msg, opts->progress_msg_len,
-               "Creating collection/index: %s\n", collection_uri);
+        snprintf(opts->progress_msg, opts->progress_msg_len, "Creating collection/index: %s\n",
+          collection_uri);
         testutil_progress(opts, opts->progress_msg);
 
         collection_cursor->set_key(collection_cursor, i);
@@ -225,13 +225,14 @@ thread_create_table_race(void *arg)
         testutil_check(collection_cursor->insert(collection_cursor));
         testutil_check(collection_cursor->reset(collection_cursor));
 
-        /* Add some random sleeps in the middle of insertion to increase the chance of a checkpoint beginning during insertion */
+        /* Add some random sleeps in the middle of insertion to increase the chance of a checkpoint
+         * beginning during insertion */
         sleep_for_us(opts, &rnd, cr_opts->mid_insertion);
 
-        while ((ret = session->open_cursor(session,
-                        index_uri, NULL, index_config_str, &index_cursor)) != 0) {
+        while ((ret = session->open_cursor(
+                  session, index_uri, NULL, index_config_str, &index_cursor)) != 0) {
             snprintf(opts->progress_msg, opts->progress_msg_len,
-                    "Error returned opening index cursor: %s\n", wiredtiger_strerror(ret));
+              "Error returned opening index cursor: %s\n", wiredtiger_strerror(ret));
             testutil_progress(opts, opts->progress_msg);
             usleep(10);
         }
@@ -243,10 +244,10 @@ thread_create_table_race(void *arg)
         testutil_check(session->commit_transaction(session, NULL));
 
         /*
-         * For the purpose of this test just check that both tables are populated.
-         * The error we're seeing is one table is empty when Mongo validates.
-         * The following read is necessary to get the pages force evicted, since
-         * insert doesn't leave the cursor positioned it won't trigger the eviction.
+         * For the purpose of this test just check that both tables are populated. The error we're
+         * seeing is one table is empty when Mongo validates. The following read is necessary to get
+         * the pages force evicted, since insert doesn't leave the cursor positioned it won't
+         * trigger the eviction.
          */
         rnd_val = (uint64_t)__wt_random(&rnd) % 4;
         if (rnd_val == 0) {
@@ -270,17 +271,17 @@ thread_create_table_race(void *arg)
 }
 
 const char *data_string =
-    "A man of literary taste and culture, familiar with the classics, a facile writer of Latin "
-    "verses' as well as of Ciceronian prose, he was as anxious that the Roman clergy should unite "
-    "human science and literature with their theological studies as that the laity should be "
-    "educated in the principles of religion; and to this end he established in Rome a kind of "
-    "voluntary school board, with members both lay and clerical; and the rivalry of the schools "
-    "thus founded ultimately obliged the state to include religious teaching in its curriculum."
-    "If we wish to know what Wagner means, we must fight our way through his drama to his music; "
-    "and we must not expect to find that each phrase in the mouth of the actor corresponds word "
-    "for note with the music. That sort of correspondence Wagner leaves to his imitators; and his "
-    "views on Leit-motifhunting, as expressed in his prose writings and conversation, are "
-    "contemptuously tolerant.";
+  "A man of literary taste and culture, familiar with the classics, a facile writer of Latin "
+  "verses' as well as of Ciceronian prose, he was as anxious that the Roman clergy should unite "
+  "human science and literature with their theological studies as that the laity should be "
+  "educated in the principles of religion; and to this end he established in Rome a kind of "
+  "voluntary school board, with members both lay and clerical; and the rivalry of the schools "
+  "thus founded ultimately obliged the state to include religious teaching in its curriculum."
+  "If we wish to know what Wagner means, we must fight our way through his drama to his music; "
+  "and we must not expect to find that each phrase in the mouth of the actor corresponds word "
+  "for note with the music. That sort of correspondence Wagner leaves to his imitators; and his "
+  "views on Leit-motifhunting, as expressed in his prose writings and conversation, are "
+  "contemptuously tolerant.";
 
 /*
  * thread_add_load --
@@ -338,13 +339,13 @@ thread_add_load(void *arg)
 
         if (i % 20 == 0) {
             /*
-             * The logged table count is being used as a mechanism for assigning timestamps in
-             * this application as well. It's assumed that once a table is included in a
-             * checkpoint the timestamp associated with that is behind stable. It's unlikely
-             * that ten tables can be created in the span of a single transaction here, so
-             * set the timestamp for this commit that far ahead. Don't add too much buffer, since
-             * it's important that the content being written to the database as part of this
-             * operation is included in checkpoints.
+             * The logged table count is being used as a mechanism for assigning timestamps in this
+             * application as well. It's assumed that once a table is included in a checkpoint the
+             * timestamp associated with that is behind stable. It's unlikely that ten tables can be
+             * created in the span of a single transaction here, so set the timestamp for this
+             * commit that far ahead. Don't add too much buffer, since it's important that the
+             * content being written to the database as part of this operation is included in
+             * checkpoints.
              */
             snprintf(ts_string, 64, "commit_timestamp=%" PRIu64, table_timestamp + 10);
             testutil_check(session->commit_transaction(session, ts_string));
@@ -352,14 +353,13 @@ thread_add_load(void *arg)
             testutil_check(catalog_cursor->reset(catalog_cursor));
             testutil_check(load_cursor->reset(load_cursor));
             /*
-             * Slow down inserts as the workload runs longer - we want to generate load, but
-             * not so much that it interferes with the rest of the application.
+             * Slow down inserts as the workload runs longer - we want to generate load, but not so
+             * much that it interferes with the rest of the application.
              */
             if (us_sleep < 50000 && i % 10000 == 0)
                 us_sleep += us_sleep;
             usleep(us_sleep);
         }
-
     }
     if (transaction_running)
         testutil_check(session->commit_transaction(session, NULL));
@@ -368,7 +368,6 @@ thread_add_load(void *arg)
     testutil_check(load_cursor->close(load_cursor));
     return (NULL);
 }
-
 
 /*
  * thread_validate --
@@ -404,11 +403,11 @@ thread_validate(void *arg)
         /*
          * Iterate through the set of tables in reverse (so we inspect newer tables first to
          * encourage races).
-        */
+         */
         while ((ret = catalog_cursor->prev(catalog_cursor)) == 0) {
             catalog_cursor->get_value(catalog_cursor, &collection_uri, &index_uri);
-            testutil_check(session->open_cursor(session,
-                        collection_uri, NULL, NULL, &collection_cursor));
+            testutil_check(
+              session->open_cursor(session, collection_uri, NULL, NULL, &collection_cursor));
             testutil_check(session->open_cursor(session, index_uri, NULL, NULL, &index_cursor));
 
             while ((ret = collection_cursor->next(collection_cursor)) == 0) {
@@ -443,11 +442,11 @@ thread_validate(void *arg)
                 ret = session->verify(session, verify_uri, NULL);
                 if (ret == EBUSY)
                     snprintf(opts->progress_msg, opts->progress_msg_len,
-                            "Verifying got busy on %s\n", verify_uri);
+                      "Verifying got busy on %s\n", verify_uri);
                 else {
                     testutil_assert(ret == 0);
                     snprintf(opts->progress_msg, opts->progress_msg_len,
-                            "Verifying complete on %s\n", verify_uri);
+                      "Verifying complete on %s\n", verify_uri);
                 }
                 testutil_progress(opts, opts->progress_msg);
             }
@@ -456,8 +455,8 @@ thread_validate(void *arg)
 
     testutil_check(catalog_cursor->close(catalog_cursor));
     snprintf(opts->progress_msg, opts->progress_msg_len,
-            "END validate thread, validation_passes: %" PRIu64 ", validated_values: %" PRIu64 "\n",
-            validation_passes, validated_values);
+      "END validate thread, validation_passes: %" PRIu64 ", validated_values: %" PRIu64 "\n",
+      validation_passes, validated_values);
     testutil_progress(opts, opts->progress_msg);
 
     return (NULL);
@@ -487,8 +486,8 @@ thread_checkpoint(void *arg)
     while (test_running) {
         /* Update global timestamp state */
         collection_count = __atomic_load_n(&cr_opts->collection_count, __ATOMIC_SEQ_CST);
-        testutil_check(__wt_snprintf(ts_string, 64,
-            "stable_timestamp=%" PRIu64 ",oldest_timestamp=%" PRIu64,
+        testutil_check(
+          __wt_snprintf(ts_string, 64, "stable_timestamp=%" PRIu64 ",oldest_timestamp=%" PRIu64,
             collection_count - 2, collection_count - 3));
         /* Hack to ensure global timestamps don't go backward at startup */
         if (collection_count > 12)
@@ -501,7 +500,7 @@ thread_checkpoint(void *arg)
         clock_gettime(CLOCK_REALTIME, &ts);
         ts.tv_sec += 1;
         ret = pthread_cond_timedwait(&cr_opts->ckpt_go_cond, &cr_opts->ckpt_go_cond_mutex, &ts);
-       
+
         sleep_for_us(opts, &rnd, cr_opts->checkpoint_start);
 
         testutil_assert(ret != EINVAL && ret != EPERM);
@@ -515,12 +514,14 @@ thread_checkpoint(void *arg)
     return (NULL);
 }
 
-
 /* Parse a config for how long a thread should sleep. */
-void parse_sleep_config(const char *name, char *config_str, SLEEP_CONFIG *cfg) {
-    if(config_str != NULL) {
-        if(sscanf(config_str, "%lu-%lu", &cfg->sleep_min_us, &cfg->sleep_max_us) != 2) {
-            printf("Config must be of the format {min_sleep}-{max_sleep}. For example '-I 100-200'\n");
+void
+parse_sleep_config(const char *name, char *config_str, SLEEP_CONFIG *cfg)
+{
+    if (config_str != NULL) {
+        if (sscanf(config_str, "%lu-%lu", &cfg->sleep_min_us, &cfg->sleep_max_us) != 2) {
+            printf(
+              "Config must be of the format {min_sleep}-{max_sleep}. For example '-I 100-200'\n");
             exit(1);
         } else {
             testutil_assert(cfg->sleep_min_us < cfg->sleep_max_us);
@@ -530,9 +531,11 @@ void parse_sleep_config(const char *name, char *config_str, SLEEP_CONFIG *cfg) {
 }
 
 /* Provided a min/max range, sleep for a random number of microseconds */
-void sleep_for_us(TEST_OPTS *opts, WT_RAND_STATE *rnd, SLEEP_CONFIG cfg) {
+void
+sleep_for_us(TEST_OPTS *opts, WT_RAND_STATE *rnd, SLEEP_CONFIG cfg)
+{
     /* Add a small delay to when the checkpoint begins to test timing. */
-    if(cfg.sleep_max_us > 0) {
+    if (cfg.sleep_max_us > 0) {
         uint64_t sleep_us;
         uint64_t rnd_val;
 
@@ -540,7 +543,8 @@ void sleep_for_us(TEST_OPTS *opts, WT_RAND_STATE *rnd, SLEEP_CONFIG cfg) {
         sleep_us = cfg.sleep_min_us + rnd_val;
         // printf("%s waiting for for: %" PRIu64 " us\n", cfg.name, sleep_us);
 
-        snprintf(opts->progress_msg, opts->progress_msg_len, "%s waiting for: %" PRIu64 " us\n", cfg.name, sleep_us);
+        snprintf(opts->progress_msg, opts->progress_msg_len, "%s waiting for: %" PRIu64 " us\n",
+          cfg.name, sleep_us);
         testutil_progress(opts, opts->progress_msg);
         usleep(sleep_us);
     }
