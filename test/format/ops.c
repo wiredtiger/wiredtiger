@@ -440,10 +440,10 @@ begin_transaction_ts(TINFO *tinfo)
      * Transaction timestamp reads are repeatable, but read timestamps must be before any possible
      * commit timestamp. Without a read timestamp, reads are based on the transaction snapshot,
      * which will include the latest values as of when the snapshot is taken. Test in both modes:
-     * 75% of the time, pick a read timestamp before any commit timestamp in any thread, 25% of
-     * the time don't set a timestamp at all.
+     * 75% of the time, pick a read timestamp before any commit timestamp still in use, 25% of the
+     * time don't set a timestamp at all.
      */
-    ts = mmrand(&tinfo->rnd, 1, 4) == 1 ? 0 : maximum_read_ts();
+    ts = mmrand(&tinfo->rnd, 1, 4) == 1 ? 0 : maximum_committed_ts();
     if (ts != 0) {
         wiredtiger_begin_transaction(session, NULL);
 

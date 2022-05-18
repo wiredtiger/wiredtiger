@@ -29,6 +29,27 @@
 #include "format.h"
 
 /*
+ * maximum_committed_ts --
+ *     Return the largest commit timeestamp that's no longer in use.
+ */
+uint64_t
+maximum_committed_ts(void)
+{
+    TINFO **tlp;
+    uint64_t ts;
+
+    /* Don't use any cached values. */
+    WT_READ_BARRIER();
+
+    /* Walk the worker thread list, return one less than the minimimum in-use timestamp. */
+    for (ts = g.timestamp, tlp = tinfo_list; *tlp != NULL; ++tlp)
+        ts = WT_MIN(ts, (*tlp)->commit_ts);
+    if (ts != 0)
+        --ts;
+    return (ts);
+}
+
+/*
  * query_ts --
  *     Query a timestamp.
  */
@@ -184,25 +205,4 @@ set_oldest_timestamp(void)
          * error later on anyway.
          */
         testutil_die(ret, "unable to query oldest timestamp");
-}
-
-/*
- * maximum_read_ts --
- *     Return the largest safe read timestamp.
- */
-uint64_t
-maximum_read_ts(void)
-{
-    TINFO **tlp;
-    uint64_t ts;
-
-    /*
-     *  We can't use a read timestamp that's ahead of a commit timestamp. Find the maximum safe read
-     * timestamp.
-     */
-    for (ts = g.timestamp, tlp = tinfo_list; *tlp != NULL; ++tlp)
-        ts = WT_MIN(ts, (*tlp)->commit_ts);
-    if (ts != 0)
-        --ts;
-    return (ts);
 }

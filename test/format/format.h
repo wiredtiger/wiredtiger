@@ -398,7 +398,7 @@ void key_gen_teardown(WT_ITEM *);
 void key_init(TABLE *, void *);
 void lock_destroy(WT_SESSION *, RWLOCK *);
 void lock_init(WT_SESSION *, RWLOCK *);
-uint64_t maximum_read_ts(void);
+uint64_t maximum_committed_ts(void);
 void operations(u_int, bool);
 void path_setup(const char *);
 void query_ts(const char *, uint64_t *);

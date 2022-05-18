@@ -670,7 +670,8 @@ snap_repeat_single(TINFO *tinfo)
     u_int v;
     int count;
 
-    ts = maximum_read_ts();
+    /* Repeat an operation that's before any running operation. */
+    ts = maximum_committed_ts();
 
     /*
      * Start at a random spot in the list of operations and look for a read to retry. Stop when
