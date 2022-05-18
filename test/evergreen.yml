@@ -642,6 +642,15 @@ functions:
         set -o verbose
         ${test_env_vars|} test/csuite/${test_binary}/smoke.sh ${test_args|} 2>&1
 
+  "csuite permutations test":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} cmake_build/test/csuite/${test_binary}/permutations.sh 2>&1
+
   "upload test stats":
     - command: perf.send
       params:
@@ -1203,6 +1212,16 @@ tasks:
         vars:
           test_args: cmake_build/test/csuite/random_abort/test_random_abort
           test_binary: random_abort
+
+  - name: csuite-wt-9323-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite permutations test"
+        vars:
+          test_binary: checkpoint_snapshot_race
 
   - name: csuite-random-directio-test
     tags: ["pull_request"]

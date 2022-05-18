@@ -362,6 +362,7 @@ define_c_test(
     SOURCES checkpoint_snapshot_race/main.c
     DIR_NAME checkpoint_snapshot_race
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/checkpoint_snapshot_race/smoke.sh
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/checkpoint_snapshot_race/permutations.sh
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_checkpoint_snapshot_race>/WT_HOME>
     DEPENDS "WT_POSIX"
 )
