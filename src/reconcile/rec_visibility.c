@@ -310,7 +310,7 @@ __rec_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ROW *rip, uint
         WT_ASSERT(
           session, hs_tw->stop_ts == WT_TS_MAX);
         WT_ASSERT(session,
-          hs_tw->durable_stop_ts == WT_TS_MAX);
+          hs_tw->durable_stop_ts == WT_TS_NONE);
     }
 #endif
 
