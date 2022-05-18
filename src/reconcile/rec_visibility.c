@@ -817,7 +817,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint64_t recno, W
                 break;
         }
 
-        if (delete_upd->type == WT_UPDATE_TOMBSTONE) {
+        if (delete_upd != NULL && delete_upd->type == WT_UPDATE_TOMBSTONE) {
             delete_tombstone = delete_upd;
             for (delete_upd = delete_tombstone->next; delete_upd != NULL;
                  delete_upd = delete_upd->next) {
