@@ -250,7 +250,18 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
 
     inserted_to_update_chain = true;
 
-    /* If the update was successful, add it to the in-memory log. */
+    /*
+     * If the update was successful, add it to the in-memory log.
+     *
+     * We will enter this code if we are doing cursor operations (upd_arg == NULL). We may fail
+     * here. However, we have already successfully inserted the updates to the update chain. In this
+     * case, don't free the allocated memory in error handling. Leave them to the rollback logic to
+     * do the cleanup.
+     *
+     * If we are calling for internal purposes (upd_arg != NULL), we skip this code. Therefore, we
+     * cannot fail after we have inserted the updates to the update chain. The caller of this
+     * function can safely free the updates if it receives an error return.
+     */
     if (added_to_txn && modify_type != WT_UPDATE_RESERVE) {
         if (__wt_log_op(session))
             WT_ERR(__wt_txn_log_op(session, cbt));
