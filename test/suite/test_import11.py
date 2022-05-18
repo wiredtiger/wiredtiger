@@ -159,10 +159,18 @@ class test_import11(test_import_base):
         self.copy_files(self.bucket, os.path.join(newdir, self.bucket))
         self.copy_files(self.cache_bucket, os.path.join(newdir, self.cache_bucket))
 
+        # Export the metadata for the current file object 2.
+        table_config=""
+        meta_c = self.session.open_cursor('metadata:', None, None)
+        for k, v in meta_c:
+            if k.startswith(self.uri_a):
+                table_config = cursor[k]
+        meta_c.close()
+
         # The file_metadata configuration should not be allowed in the tiered storage scenario.
         if self.is_tiered_scenario():
-            invalid_import_config1 = 'import=(enabled,repair=false,file_metadata="")'
-            invalid_import_config2 = 'import=(enabled,repair=false,file_metadata="",metadata_file="WiredTiger.export")'
+            invalid_import_config1 = 'import=(enabled,repair=false,file_metadata=(' + table_config + '))' 
+            invalid_import_config2 = 'import=(enabled,repair=false,file_metadata=(' + table_config + '),metadata_file="WiredTiger.export")'
             invalid_import_config3 = 'import=(enabled,repair=false)'
         
             err_msg1 = "/import for tiered storage is incompatible with the 'file_metadata' setting/"
