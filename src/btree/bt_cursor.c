@@ -1971,8 +1971,9 @@ __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
      */
     if (!F_ISSET(btree, WT_BTREE_LOGGED) && F_ISSET(session->txn, WT_TXN_TS_NOT_SET))
         WT_RET_MSG(session, EINVAL,
-          "truncate operations may not be included in transactions that can commit without a "
-          "timestamp");
+          "truncate operations may not yet be included in transactions that can commit without a "
+          "timestamp. If your use case encounters this error, please reach out to the WiredTiger "
+          "team");
 
     WT_RET(__wt_txn_autocommit_check(session));
 
