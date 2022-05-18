@@ -1193,10 +1193,13 @@ __create_parse_export(
  */
 static int
 __schema_create_config_check(
-  WT_SESSION_IMPL *session, const char *uri, const char *config, bool import, bool file_metadata)
+  WT_SESSION_IMPL *session, const char *uri, const char *config, bool import)
 {
     WT_CONFIG_ITEM cval;
-    bool is_tiered, tiered_name_set;
+    bool file_metadata, is_tiered, tiered_name_set;
+
+    file_metadata =
+      __wt_config_getones(session, config, "import.file_metadata", &cval) == 0 && cval.val != 0;
 
     if (import && session->import_list == NULL && !WT_PREFIX_MATCH(uri, "file:") &&
       !WT_PREFIX_MATCH(uri, "table:"))
@@ -1242,20 +1245,17 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     WT_IMPORT_LIST import_list;
     size_t i;
     char *export_file;
-    bool clear_import_flag, exclusive, file_metadata, import;
+    bool clear_import_flag, exclusive, import;
 
     WT_CLEAR(import_list);
     export_file = NULL;
     clear_import_flag = false;
 
     exclusive = __wt_config_getones(session, config, "exclusive", &cval) == 0 && cval.val != 0;
-    file_metadata =
-      __wt_config_getones(session, config, "import.file_metadata", &cval) == 0 && cval.val != 0;
-
     import = session->import_list != NULL ||
       (__wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0);
 
-    WT_RET(__schema_create_config_check(session, uri, config, import, file_metadata));
+    WT_RET(__schema_create_config_check(session, uri, config, import));
 
     /*
      * We track create operations: if we fail in the middle of creating a complex object, we want to

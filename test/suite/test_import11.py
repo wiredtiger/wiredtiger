@@ -165,8 +165,8 @@ class test_import11(test_import_base):
             invalid_import_config2 = 'import=(enabled,repair=false,file_metadata="",metadata_file="WiredTiger.export")'
             invalid_import_config3 = 'import=(enabled,repair=false)'
         
-            err_msg1 = "/Invalid argument/"
-            err_msg2 = "/import for tiered storage is incompatible with the 'file_metadata' setting/"
+            err_msg1 = "/import for tiered storage is incompatible with the 'file_metadata' setting/"
+            err_msg2 = "/Invalid argument/"
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(self.uri_a, invalid_import_config1), err_msg1)
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(self.uri_a, invalid_import_config2), err_msg1)
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(self.uri_a, invalid_import_config3), err_msg2)
