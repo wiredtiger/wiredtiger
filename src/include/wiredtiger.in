@@ -676,6 +676,29 @@ struct __wt_cursor {
 	 */
 	int __F(reconfigure)(WT_CURSOR *cursor, const char *config);
 
+	/*!
+	 * Set range bounds on the cursor.
+	 *
+	 * @param cursor the cursor handle
+	 * @configstart{WT_CURSOR.bound, see dist/api_data.py}
+	 * @config{action, configures whether this call into the api will set or clear range bounds
+	 * on the given cursor\, it takes two values "set" or "clear". If "set" is specified then
+	 * "bound" must also be specified.  If "clear" is specified without any bounds then both
+	 * will be cleared.  The keys relevant to the given bound must have been set prior to the
+	 * call using WT_CURSOR::set_key.  This configuration is currently a work in progress and
+	 * should not be used., a string\, chosen from the following options: \c "clear"\, \c "set";
+	 * default \c set.}
+	 * @config{bound, configures which bound is being operated on\, it takes two values "lower"
+	 * and "upper". This configuration is currently a work in progress and should not be used.,
+	 * a string\, chosen from the following options: \c "lower"\, \c "upper"; default empty.}
+	 * @config{inclusive, configures whether the given bound is inclusive or not.  This
+	 * configuration is currently a work in progress and should not be used., a boolean flag;
+	 * default \c true.}
+	 * @configend
+	 * @errors
+	 */
+	int __F(bound)(WT_CURSOR *cursor, const char *config);
+
 	/*
 	 * Protected fields, only to be used by cursor implementations.
 	 */
@@ -1071,8 +1094,6 @@ struct __wt_session {
 	 * object blocks from the system buffer cache after that many bytes from this object are
 	 * read or written into the buffer cache., an integer greater than or equal to 0; default \c
 	 * 0.}
-	 * @config{readonly, the file is read-only.  All methods that may modify a file are
-	 * disabled.  See @ref readonly for more information., a boolean flag; default \c false.}
 	 * @config{write_timestamp_usage, describe how timestamps are expected to be used on table
 	 * modifications.  The choices are the default\, which ensures that once timestamps are used
 	 * for a key\, they are always used\, and also that multiple updates to a key never use
@@ -1268,7 +1289,7 @@ struct __wt_session {
 	 * further merges.  This is a soft limit\, and chunks larger than this value can be created.
 	 * Must be larger than chunk_size., an integer between 100MB and 10TB; default \c 5GB.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;chunk_size, the maximum size of the in-memory chunk of an
-	 * LSM tree.  This limit is soft - it is possible for chunks to be temporarily larger than
+	 * LSM tree.  This limit is soft\, it is possible for chunks to be temporarily larger than
 	 * this value.  This overrides the \c memory_page_max setting., an integer between 512K and
 	 * 500MB; default \c 10MB.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;merge_custom = (, configure the
@@ -1312,8 +1333,6 @@ struct __wt_session {
 	 * boolean flag; default \c false.}
 	 * @config{prefix_compression_min, minimum gain before prefix compression will be used on
 	 * row-store leaf pages., an integer greater than or equal to 0; default \c 4.}
-	 * @config{readonly, the file is read-only.  All methods that may modify a file are
-	 * disabled.  See @ref readonly for more information., a boolean flag; default \c false.}
 	 * @config{split_pct, the Btree page split size as a percentage of the maximum Btree page
 	 * size\, that is\, when a Btree page is split\, it will be split into smaller pages\, where
 	 * each page is the specified percentage of the maximum Btree page size., an integer between
@@ -2559,8 +2578,8 @@ struct __wt_connection {
 	 * No updates made to logged tables or updates made without an associated commit timestamp
 	 * will be discarded. See @ref timestamp_misc.
 	 *
-	 * Applications should close or reset all open cursors before the call, and no other API
-	 * calls should be made for the duration of the call.
+	 * Applications must resolve all running transactions and close or reset all open cursors
+	 * before the call, and no other API calls should be made for the duration of the call.
 	 *
 	 * @snippet ex_all.c rollback to stable
 	 *
@@ -6366,59 +6385,61 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TARGET	1496
 /*! transaction: transaction checkpoint scrub time (msecs) */
 #define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TIME		1497
+/*! transaction: transaction checkpoint stop timing stress active */
+#define	WT_STAT_CONN_TXN_CHECKPOINT_STOP_STRESS_ACTIVE	1498
 /*! transaction: transaction checkpoint total time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_TOTAL		1498
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_TOTAL		1499
 /*! transaction: transaction checkpoints */
-#define	WT_STAT_CONN_TXN_CHECKPOINT			1499
+#define	WT_STAT_CONN_TXN_CHECKPOINT			1500
 /*! transaction: transaction checkpoints due to obsolete pages */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_OBSOLETE_APPLIED	1500
+#define	WT_STAT_CONN_TXN_CHECKPOINT_OBSOLETE_APPLIED	1501
 /*!
  * transaction: transaction checkpoints skipped because database was
  * clean
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SKIPPED		1501
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SKIPPED		1502
 /*! transaction: transaction failures due to history store */
-#define	WT_STAT_CONN_TXN_FAIL_CACHE			1502
+#define	WT_STAT_CONN_TXN_FAIL_CACHE			1503
 /*!
  * transaction: transaction fsync calls for checkpoint after allocating
  * the transaction ID
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST		1503
+#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST		1504
 /*!
  * transaction: transaction fsync duration for checkpoint after
  * allocating the transaction ID (usecs)
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST_DURATION	1504
+#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST_DURATION	1505
 /*! transaction: transaction range of IDs currently pinned */
-#define	WT_STAT_CONN_TXN_PINNED_RANGE			1505
+#define	WT_STAT_CONN_TXN_PINNED_RANGE			1506
 /*! transaction: transaction range of IDs currently pinned by a checkpoint */
-#define	WT_STAT_CONN_TXN_PINNED_CHECKPOINT_RANGE	1506
+#define	WT_STAT_CONN_TXN_PINNED_CHECKPOINT_RANGE	1507
 /*! transaction: transaction range of timestamps currently pinned */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP		1507
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP		1508
 /*! transaction: transaction range of timestamps pinned by a checkpoint */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_CHECKPOINT	1508
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_CHECKPOINT	1509
 /*!
  * transaction: transaction range of timestamps pinned by the oldest
  * active read timestamp
  */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_READER	1509
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_READER	1510
 /*!
  * transaction: transaction range of timestamps pinned by the oldest
  * timestamp
  */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST	1510
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST	1511
 /*! transaction: transaction read timestamp of the oldest active reader */
-#define	WT_STAT_CONN_TXN_TIMESTAMP_OLDEST_ACTIVE_READ	1511
+#define	WT_STAT_CONN_TXN_TIMESTAMP_OLDEST_ACTIVE_READ	1512
 /*! transaction: transaction rollback to stable currently running */
-#define	WT_STAT_CONN_TXN_ROLLBACK_TO_STABLE_RUNNING	1512
+#define	WT_STAT_CONN_TXN_ROLLBACK_TO_STABLE_RUNNING	1513
 /*! transaction: transaction walk of concurrent sessions */
-#define	WT_STAT_CONN_TXN_WALK_SESSIONS			1513
+#define	WT_STAT_CONN_TXN_WALK_SESSIONS			1514
 /*! transaction: transactions committed */
-#define	WT_STAT_CONN_TXN_COMMIT				1514
+#define	WT_STAT_CONN_TXN_COMMIT				1515
 /*! transaction: transactions rolled back */
-#define	WT_STAT_CONN_TXN_ROLLBACK			1515
+#define	WT_STAT_CONN_TXN_ROLLBACK			1516
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1516
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1517
 
 /*!
  * @}
