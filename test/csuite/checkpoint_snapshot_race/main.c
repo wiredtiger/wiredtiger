@@ -32,15 +32,19 @@ bool test_running = true;
 #define LOAD_TABLE_URI "table:load_table"
 
 typedef struct {
+    const char *name;
+    uint64_t sleep_min_us;
+    uint64_t sleep_max_us;
+} SLEEP_CONFIG;
+
+typedef struct {
     TEST_OPTS *opts;
     pthread_mutex_t ckpt_go_cond_mutex;
     pthread_cond_t ckpt_go_cond;
     /* This is a proxy for timestamps as well. */
     volatile uint64_t collection_count;
-    uint64_t insert_sleep_min_us;
-    uint64_t insert_sleep_max_us;
-    uint64_t checkpoint_delay_min_us;
-    uint64_t checkpoint_delay_max_us;
+    SLEEP_CONFIG mid_insertion;
+    SLEEP_CONFIG checkpoint_start;
 } CHECKPOINT_RACE_OPTS;
 
 /* Thread start points */
@@ -48,6 +52,10 @@ void *thread_checkpoint(void *);
 void *thread_validate(void *);
 void *thread_create_table_race(void *);
 void *thread_add_load(void *);
+
+/* Helpers to seed waits in thread operations */
+void parse_sleep_config(const char *name, char *config_str, SLEEP_CONFIG *cfg);
+void sleep_for_us(TEST_OPTS *opts, WT_RAND_STATE *rnd, SLEEP_CONFIG cfg);
 
 /*
  * main --
@@ -67,33 +75,11 @@ main(int argc, char *argv[])
     memset(cr_opts, 0, sizeof(*cr_opts));
     cr_opts->opts = opts;
 
-    cr_opts->insert_sleep_min_us = 0;
-    cr_opts->insert_sleep_max_us = 0;
-    cr_opts->checkpoint_delay_min_us = 0;
-    cr_opts->checkpoint_delay_max_us = 0;
-
     testutil_check(testutil_parse_opts(argc, argv, opts));
     testutil_make_work_dir(opts->home);
 
-    /* Parse the insertion thread sleep config. */
-    if(opts->insertion_sleep_str != NULL) {
-        if(sscanf(opts->insertion_sleep_str, "%lu-%lu", &cr_opts->insert_sleep_min_us, &cr_opts->insert_sleep_max_us) != 2) {
-            printf("-I arg must be of the format {min_sleep}-{max_sleep}. For example '-Y 100-200'\n");
-            exit(1);
-        } else {
-            testutil_assert(cr_opts->insert_sleep_min_us < cr_opts->insert_sleep_max_us);
-        }
-    }
-
-    /* Parse the checkpoint delay thread sleep config. */
-    if(opts->checkpoint_delay_str != NULL) {
-        if(sscanf(opts->checkpoint_delay_str, "%lu-%lu", &cr_opts->checkpoint_delay_min_us, &cr_opts->checkpoint_delay_max_us) != 2) {
-            printf("-C arg must be of the format {min_sleep}-{max_sleep}. For example '-Y 100-200'\n");
-            exit(1);
-        } else {
-            testutil_assert(cr_opts->checkpoint_delay_min_us < cr_opts->checkpoint_delay_max_us);
-        }
-    }
+    parse_sleep_config("mid_insertion", opts->insertion_sleep_str, &cr_opts->mid_insertion);
+    parse_sleep_config("checkpoint_start", opts->checkpoint_delay_str, &cr_opts->checkpoint_start);
 
     /* Default to 15 seconds */
     if (opts->runtime == 0)
@@ -240,17 +226,7 @@ thread_create_table_race(void *arg)
         testutil_check(collection_cursor->reset(collection_cursor));
 
         /* Add some random sleeps in the middle of insertion to increase the chance of a checkpoint beginning during insertion */
-        if(cr_opts->insert_sleep_max_us > 0) {
-            uint64_t sleep_for;
-
-            rnd_val = (uint64_t)__wt_random(&rnd) % (cr_opts->insert_sleep_max_us - cr_opts->insert_sleep_min_us);
-            sleep_for = cr_opts->insert_sleep_min_us + rnd_val;
-            // printf("Insertion sleeping for: %" PRIu64 " us\n", sleep_for);
-
-            snprintf(opts->progress_msg, opts->progress_msg_len, "Insertion sleeping for: %" PRIu64 " us\n", sleep_for);
-            testutil_progress(opts, opts->progress_msg);
-            usleep(sleep_for);
-        }
+        sleep_for_us(opts, &rnd, cr_opts->mid_insertion);
 
         while ((ret = session->open_cursor(session,
                         index_uri, NULL, index_config_str, &index_cursor)) != 0) {
@@ -501,11 +477,13 @@ thread_checkpoint(void *arg)
     uint64_t collection_count;
     char ts_string[64];
     int ret;
+    WT_RAND_STATE rnd;
 
     cr_opts = (CHECKPOINT_RACE_OPTS *)arg;
     opts = cr_opts->opts;
 
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
+    __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
     while (test_running) {
         /* Update global timestamp state */
         collection_count = __atomic_load_n(&cr_opts->collection_count, __ATOMIC_SEQ_CST);
@@ -524,22 +502,7 @@ thread_checkpoint(void *arg)
         ts.tv_sec += 1;
         ret = pthread_cond_timedwait(&cr_opts->ckpt_go_cond, &cr_opts->ckpt_go_cond_mutex, &ts);
        
-        /* Add a small delay to when the checkpoint begins to test timing. */
-        if(cr_opts->insert_sleep_max_us > 0) {
-            uint64_t sleep_for;
-            WT_RAND_STATE rnd;
-            uint64_t rnd_val;
-
-            __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
-
-            rnd_val = (uint64_t)__wt_random(&rnd) % (cr_opts->checkpoint_delay_max_us - cr_opts->checkpoint_delay_min_us);
-            sleep_for = cr_opts->checkpoint_delay_min_us + rnd_val;
-            printf("Checkpoint waiting for for: %" PRIu64 " us\n", sleep_for);
-
-            snprintf(opts->progress_msg, opts->progress_msg_len, "Checkpoint waiting for: %" PRIu64 " us\n", sleep_for);
-            testutil_progress(opts, opts->progress_msg);
-            usleep(sleep_for);
-        }
+        sleep_for_us(opts, &rnd, cr_opts->checkpoint_start);
 
         testutil_assert(ret != EINVAL && ret != EPERM);
         testutil_check(pthread_mutex_unlock(&cr_opts->ckpt_go_cond_mutex));
@@ -550,4 +513,35 @@ thread_checkpoint(void *arg)
     testutil_progress(opts, "END ckpt thread\n");
 
     return (NULL);
+}
+
+
+/* Parse a config for how long a thread should sleep. */
+void parse_sleep_config(const char *name, char *config_str, SLEEP_CONFIG *cfg) {
+    if(config_str != NULL) {
+        if(sscanf(config_str, "%lu-%lu", &cfg->sleep_min_us, &cfg->sleep_max_us) != 2) {
+            printf("Config must be of the format {min_sleep}-{max_sleep}. For example '-I 100-200'\n");
+            exit(1);
+        } else {
+            testutil_assert(cfg->sleep_min_us < cfg->sleep_max_us);
+            cfg->name = name;
+        }
+    }
+}
+
+/* Provided a min/max range, sleep for a random number of microseconds */
+void sleep_for_us(TEST_OPTS *opts, WT_RAND_STATE *rnd, SLEEP_CONFIG cfg) {
+    /* Add a small delay to when the checkpoint begins to test timing. */
+    if(cfg.sleep_max_us > 0) {
+        uint64_t sleep_us;
+        uint64_t rnd_val;
+
+        rnd_val = (uint64_t)__wt_random(rnd) % (cfg.sleep_max_us - cfg.sleep_min_us);
+        sleep_us = cfg.sleep_min_us + rnd_val;
+        // printf("%s waiting for for: %" PRIu64 " us\n", cfg.name, sleep_us);
+
+        snprintf(opts->progress_msg, opts->progress_msg_len, "%s waiting for: %" PRIu64 " us\n", cfg.name, sleep_us);
+        testutil_progress(opts, opts->progress_msg);
+        usleep(sleep_us);
+    }
 }
