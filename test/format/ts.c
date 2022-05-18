@@ -30,23 +30,29 @@
 
 /*
  * maximum_committed_ts --
- *     Return the largest commit timeestamp that's no longer in use.
+ *     Return the largest timestamp that's no longer in use.
  */
 uint64_t
 maximum_committed_ts(void)
 {
     TINFO **tlp;
-    uint64_t ts;
+    uint64_t commit_ts, ts;
 
-    /* Don't use any cached values. */
-    WT_READ_BARRIER();
+    /*
+     * We advance the timestamp during bulk load to keep the WiredTiger cache happy, increment the
+     * global timestamp to avoid awkward races. A barrier additionally prevents using cache values
+     * here.
+     */
+    ts = __wt_atomic_addv64(&g.timestamp, 1);
+    if (tinfo_list != NULL)
+        for (tlp = tinfo_list; *tlp != NULL; ++tlp) {
+            commit_ts = (*tlp)->commit_ts;
+            if (commit_ts != 0 && commit_ts < ts)
+                ts = commit_ts;
+        }
 
-    /* Walk the worker thread list, return one less than the minimimum in-use timestamp. */
-    for (ts = g.timestamp, tlp = tinfo_list; *tlp != NULL; ++tlp)
-        ts = WT_MIN(ts, (*tlp)->commit_ts);
-    if (ts != 0)
-        --ts;
-    return (ts);
+    /* Return one less than the minimum in-use timestamp. */
+    return (ts - 1);
 }
 
 /*
@@ -67,12 +73,14 @@ query_ts(const char *query, uint64_t *tsp)
 
 /*
  * timestamp_init --
- *     Set the timestamp on open to the database's recovery timestamp.
+ *     Set the timestamp on open to the database's recovery timestamp, or some non-zero value.
  */
 void
 timestamp_init(void)
 {
     query_ts("get=recovery", &g.timestamp);
+    if (g.timestamp == 0)
+        g.timestamp = 5;
 }
 
 /*
@@ -85,45 +93,33 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
     static const char *oldest_timestamp_str = "oldest_timestamp=";
     static const char *stable_timestamp_str = "stable_timestamp=";
     WT_CONNECTION *conn;
-    WT_DECL_RET;
-    uint64_t all_durable;
+    uint64_t oldest_timestamp, stable_timestamp;
     char buf[WT_TS_HEX_STRING_SIZE * 2 + 64];
 
     conn = g.wts_conn;
 
-    /* Lock out transaction timestamp operations. */
-    lock_writelock(session, &g.ts_lock);
-
-    if (final)
-        g.oldest_timestamp = g.stable_timestamp = ++g.timestamp;
-    else {
-        if ((ret = conn->query_timestamp(conn, buf, "get=all_durable")) == 0)
-            all_durable = testutil_timestamp_parse(buf);
-        else {
-            testutil_assert(ret == WT_NOTFOUND);
-            lock_writeunlock(session, &g.ts_lock);
-            return;
-        }
-
+    oldest_timestamp = stable_timestamp = maximum_committed_ts();
+    if (!final) {
         /*
-         * If a lag is permitted, move the oldest timestamp half the way to the current
-         * "all_durable" timestamp. Move the stable timestamp to "all_durable".
+         * If lag is permitted, update the oldest timestamp halfway to the largest timestamp that's
+         * no longer in use, otherwise update the oldest timestamp to that timestamp. Update stable
+         * to the largest timestamp that's no longer in use.
          */
         if (allow_lag)
-            g.oldest_timestamp = (all_durable + g.oldest_timestamp) / 2;
-        else
-            g.oldest_timestamp = all_durable;
-        g.stable_timestamp = all_durable;
+            oldest_timestamp -= (oldest_timestamp - g.oldest_timestamp) / 2;
+        testutil_assert(oldest_timestamp >= g.oldest_timestamp);
+        testutil_assert(stable_timestamp >= g.stable_timestamp);
     }
 
-    lock_writeunlock(session, &g.ts_lock);
-
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%" PRIx64 ",%s%" PRIx64, oldest_timestamp_str,
-      g.oldest_timestamp, stable_timestamp_str, g.stable_timestamp));
+      oldest_timestamp, stable_timestamp_str, stable_timestamp));
 
     lock_writelock(session, &g.prepare_commit_lock);
     testutil_check(conn->set_timestamp(conn, buf));
     lock_writeunlock(session, &g.prepare_commit_lock);
+
+    g.oldest_timestamp = oldest_timestamp;
+    g.stable_timestamp = stable_timestamp;
 
     if (g.trace_timestamp)
         trace_msg(session, "setts oldest=%" PRIu64 ", stable=%" PRIu64, g.oldest_timestamp,

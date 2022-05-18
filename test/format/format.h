@@ -224,15 +224,6 @@ typedef struct {
     uint64_t truncate_cnt; /* truncation operation counter */
 
     /*
-     * Prepare will return an error if the prepare timestamp is less than any active read timestamp.
-     * Lock across allocating prepare and read timestamps.
-     *
-     * We get the last committed timestamp periodically in order to update the oldest timestamp,
-     * that requires locking out transactional ops that set a timestamp.
-     */
-    RWLOCK ts_lock;
-
-    /*
      * Lock to prevent the stable timestamp from moving during the commit of prepared transactions.
      * Otherwise, it may panic if the stable timestamp is moved to greater than or equal to the
      * prepared transaction's durable timestamp when it is committing.

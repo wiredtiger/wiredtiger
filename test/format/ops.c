@@ -503,9 +503,6 @@ commit_transaction(TINFO *tinfo, bool prepared)
         if (prepared)
             lock_readlock(session, &g.prepare_commit_lock);
 
-        /* Lock out the oldest timestamp update. */
-        lock_writelock(session, &g.ts_lock);
-
         ts = __wt_atomic_addv64(&g.timestamp, 1);
         testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
 
@@ -513,15 +510,17 @@ commit_transaction(TINFO *tinfo, bool prepared)
             testutil_check(
               session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_DURABLE, ts));
 
-        lock_writeunlock(session, &g.ts_lock);
         testutil_check(session->commit_transaction(session, NULL));
         if (prepared)
             lock_readunlock(session, &g.prepare_commit_lock);
     } else
         testutil_check(session->commit_transaction(session, NULL));
 
-    /* Remember our oldest commit timestamp. */
-    tinfo->commit_ts = ts;
+    /*
+     * Remember our oldest commit timestamp. Updating the thread's commit timestamp allows read,
+     * oldest and stable timestamps to advance, ensure we don't race.
+     */
+    WT_PUBLISH(tinfo->commit_ts, ts);
 
     trace_uri_op(tinfo, NULL, "commit read-ts=%" PRIu64 ", commit-ts=%" PRIu64, tinfo->read_ts,
       tinfo->commit_ts);
@@ -564,21 +563,12 @@ prepare_transaction(TINFO *tinfo)
      * Prepare timestamps must be less than or equal to the eventual commit timestamp. Set the
      * prepare timestamp to whatever the global value is now. The subsequent commit will increment
      * it, ensuring correctness.
-     *
-     * Prepare returns an error if the prepare timestamp is less than any active read timestamp,
-     * single-thread transaction prepare and begin.
-     *
-     * Lock out the oldest timestamp update.
      */
-    lock_writelock(session, &g.ts_lock);
-
     ts = __wt_atomic_addv64(&g.timestamp, 1);
     testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_PREPARE, ts));
     ret = session->prepare_transaction(session, NULL);
 
     trace_uri_op(tinfo, NULL, "prepare ts=%" PRIu64, ts);
-
-    lock_writeunlock(session, &g.ts_lock);
 
     return (ret);
 }
