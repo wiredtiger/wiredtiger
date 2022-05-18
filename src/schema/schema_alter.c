@@ -117,13 +117,14 @@ __alter_object(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
  */
 static int
 __alter_get_object_id_range(WT_SESSION_IMPL *session, WT_TIERED *tiered, const char *uri,
-  uint32_t *pcurrent_id, uint32_t *poldest_id)
+  uint32_t *current_idp, uint32_t *oldest_idp)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     uint32_t current_id, oldest_id;
     char *value;
 
+    *current_idp = *oldest_idp = WT_TIERED_OBJECTID_NONE;
     value = NULL;
     /*
      * First try to get oldest and current object IDs from the tiered object. If it's not
@@ -141,8 +142,8 @@ __alter_get_object_id_range(WT_SESSION_IMPL *session, WT_TIERED *tiered, const c
         current_id = (uint32_t)cval.val;
     }
 
-    *pcurrent_id = current_id;
-    *poldest_id = oldest_id;
+    *current_idp = current_id;
+    *oldest_idp = oldest_id;
 err:
     __wt_free(session, value);
 
