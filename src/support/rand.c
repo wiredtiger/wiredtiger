@@ -59,9 +59,7 @@ __wt_random_init(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visib
 
 /*
  * __wt_random_init_seed --
- *     Initialize the state of a 32-bit pseudo-random number. Use this, instead of __wt_random_init
- *     if we are running with multiple threads and we want each thread to initialize its own random
- *     state based on a different random seed.
+ *     Initialize the state of a 32-bit pseudo-random number.
  */
 void
 __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_state)
@@ -72,9 +70,13 @@ __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_stat
     uint32_t v;
 
     /*
+     * Use this, instead of __wt_random_init if we need to vary the initial state of the RNG. This
+     * is (currently) only used by test programs, where, for example, an initial set of test data is
+     * created by a single thread, and we want more variability in the initial state of the RNG.
+     *
      * A nanosecond seed only gives us 10^9 bits (assuming it's perfect), so sample it twice and
-     * generate an initial random number, using algorithm "xor" from p. 4 of Marsaglia, "Xorshift
-     * RNGs".
+     * generate an initial random number to use as our seed, using algorithm "xor" from Marsaglia,
+     * "Xorshift RNGs".
      */
     __wt_epoch(session, &ts);
     v = (uint32_t)ts.tv_nsec;
