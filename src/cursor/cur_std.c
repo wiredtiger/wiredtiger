@@ -1166,21 +1166,64 @@ int
 __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
 {
     WT_CONFIG_ITEM cval;
+    WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    int exact;
     CURSOR_API_CALL_CONF(cursor, session, bound, config, cfg, NULL);
 
+    cbt = (WT_CURSOR_BTREE *)cursor;
+
+    WT_RET(__wt_cursor_get_raw_key(cursor, cbt->lower_bound));
     WT_ERR(__wt_config_gets(session, cfg, "action", &cval));
     if (WT_STRING_MATCH("set", cval.str, cval.len)) {
         /* Check that bound is set with action set configuration. */
         WT_ERR(__wt_config_gets(session, cfg, "bound", &cval));
         if (cval.len == 0)
             WT_ERR_MSG(session, EINVAL, "setting bounds must require the bound configuration set");
+
+        if (WT_STRING_MATCH("upper", cval.str, cval.len)) {
+            if (F_ISSET(cbt, WT_CBT_BOUND_LOWER | WT_CBT_BOUND_LOWER_INCLUSIVE)) {
+                WT_ERR(__wt_compare(session, S2BT(session)->collator, &cursor->key, cbt->lower_bound, &exact));
+                if (exact < 0)
+                    WT_ERR_MSG(session, EINVAL, "The upper bounds is not lexicographically greater than the lower bound");
+            }
+            F_SET(cbt, WT_CBT_BOUND_UPPER | WT_CBT_BOUND_UPPER_INCLUSIVE);
+            WT_ERR(__wt_buf_set(session, cbt->upper_bound, cursor->key.data, cursor->key.size));  
+            WT_CLEAR(cursor->key);
+        } else if (WT_STRING_MATCH("lower", cval.str, cval.len)) {
+            if (F_ISSET(cbt, WT_CBT_BOUND_UPPER | WT_CBT_BOUND_UPPER_INCLUSIVE)) {
+                WT_ERR(__wt_compare(session, S2BT(session)->collator, &cursor->key, cbt->upper_bound, &exact));
+                if (exact > 0)
+                    WT_ERR_MSG(session, EINVAL, "The lower bounds is not lexicographically less than the upper bound");
+            }
+            F_SET(cbt, WT_CBT_BOUND_LOWER | WT_CBT_BOUND_LOWER_INCLUSIVE);
+            WT_ERR(__wt_buf_set(session, cbt->lower_bound, cursor->key.data, cursor->key.size)); 
+            WT_CLEAR(cursor->key);
+        } else
+            WT_ERR_MSG(session, EINVAL,
+              "setting bounds only accepts \"upper\" or \"lower\" as the configuration");
+
     } else if (WT_STRING_MATCH("clear", cval.str, cval.len)) {
-        /* Inclusive should not be supplied from the application the action clear configuration. */
+        /* Inclusive should not be supplied from the application with action clear configuration. */
         if (__wt_config_getones(session, config, "inclusive", &cval) != WT_NOTFOUND)
             WT_ERR_MSG(session, EINVAL,
               "clearing bounds is not compatible with the inclusive configuration");
+
+        WT_ERR(__wt_config_gets(session, cfg, "bound", &cval));
+        if (cval.len == 0) {
+            F_CLR(cbt,
+              WT_CBT_BOUND_UPPER | WT_CBT_BOUND_UPPER_INCLUSIVE | WT_CBT_BOUND_LOWER |
+                WT_CBT_BOUND_LOWER_INCLUSIVE);
+            WT_CLEAR(cbt->lower_bound);
+            WT_CLEAR(cbt->upper_bound);
+        } else if (WT_STRING_MATCH("upper", cval.str, cval.len)) {
+            F_CLR(cbt, WT_CBT_BOUND_UPPER | WT_CBT_BOUND_UPPER_INCLUSIVE);
+            WT_CLEAR(cbt->upper_bound);
+        } else if (WT_STRING_MATCH("lower", cval.str, cval.len)) {
+            F_CLR(cbt, WT_CBT_BOUND_LOWER | WT_CBT_BOUND_LOWER_INCLUSIVE);
+            WT_CLEAR(cbt->lower_bound);
+        }
     }
 
 err:
