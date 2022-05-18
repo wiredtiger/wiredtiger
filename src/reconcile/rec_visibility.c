@@ -304,14 +304,8 @@ __rec_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ROW *rip, uint
         WT_ASSERT(session,
           hs_tw->durable_stop_ts == WT_TS_NONE ||
             hs_tw->durable_stop_ts == delete_tombstone->durable_ts);
-    } else {
-        WT_ASSERT(
-          session, hs_tw->stop_txn == WT_TXN_MAX);
-        WT_ASSERT(
-          session, hs_tw->stop_ts == WT_TS_MAX);
-        WT_ASSERT(session,
-          hs_tw->durable_stop_ts == WT_TS_NONE);
-    }
+    } else
+        WT_ASSERT(session, !WT_TIME_WINDOW_HAS_STOP(hs_tw));
 #endif
 
     WT_ERR(r->hs_cursor->remove(r->hs_cursor));
