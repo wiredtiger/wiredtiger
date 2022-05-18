@@ -296,19 +296,29 @@ __rec_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ROW *rip, uint
     WT_ASSERT(session, hs_tw->start_ts == WT_TS_NONE || hs_tw->start_ts == delete_upd->start_ts);
     WT_ASSERT(session,
       hs_tw->durable_start_ts == WT_TS_NONE || hs_tw->durable_start_ts == delete_upd->durable_ts);
-    WT_ASSERT(
-      session, hs_tw->stop_txn == WT_TXN_NONE || hs_tw->stop_txn == delete_tombstone->txnid);
-    WT_ASSERT(
-      session, hs_tw->stop_ts == WT_TS_NONE || hs_tw->stop_ts == delete_tombstone->start_ts);
-    WT_ASSERT(session,
-      hs_tw->durable_stop_ts == WT_TS_NONE ||
-        hs_tw->durable_stop_ts == delete_tombstone->durable_ts);
+    if (delete_tombstone != NULL) {
+        WT_ASSERT(
+          session, hs_tw->stop_txn == WT_TXN_NONE || hs_tw->stop_txn == delete_tombstone->txnid);
+        WT_ASSERT(
+          session, hs_tw->stop_ts == WT_TS_NONE || hs_tw->stop_ts == delete_tombstone->start_ts);
+        WT_ASSERT(session,
+          hs_tw->durable_stop_ts == WT_TS_NONE ||
+            hs_tw->durable_stop_ts == delete_tombstone->durable_ts);
+    } else {
+        WT_ASSERT(
+          session, hs_tw->stop_txn == WT_TXN_MAX);
+        WT_ASSERT(
+          session, hs_tw->stop_ts == WT_TS_MAX);
+        WT_ASSERT(session,
+          hs_tw->durable_stop_ts == WT_TS_MAX);
+    }
 #endif
 
     WT_ERR(r->hs_cursor->remove(r->hs_cursor));
 done:
+    if (delete_tombstone != NULL)
+        F_CLR(delete_tombstone, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
     F_CLR(delete_upd, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
-    F_CLR(delete_tombstone, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
 
 err:
     __wt_scr_free(session, &key);
