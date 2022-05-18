@@ -354,9 +354,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
-        /*
-         * Cannot delete the update from history store when checkpoint is running.
-         */
+        /* Cannot delete the update from history store when checkpoint is running. */
         if (F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
             WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_remove_hs_race_with_checkpoint);
             return (EBUSY);
