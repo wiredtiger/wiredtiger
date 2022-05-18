@@ -29,9 +29,8 @@
 #include "wt_internal.h"
 
 /*
- * This is an implementation of George Marsaglia's multiply-with-carry pseudo- random number
- * generator. Computationally fast, with reasonable randomness properties, and a claimed period of >
- * 2^60.
+ * An implementation of George Marsaglia's multiply-with-carry pseudo-random number generator.
+ * Computationally fast, with reasonable randomness properties, and a claimed period of > 2^60.
  *
  * Be very careful about races here. Multiple threads can call __wt_random concurrently, and it is
  * okay if those concurrent calls get the same return value. What is *not* okay is if
@@ -70,10 +69,26 @@ __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_stat
 {
     struct timespec ts;
     WT_RAND_STATE rnd;
+    uint32_t v;
+
+    /*
+     * A nanosecond seed only gives us 10^9 bits (assuming it's perfect), so sample it twice and
+     * generate an initial random number, using algorithm "xor" from p. 4 of Marsaglia, "Xorshift
+     * RNGs".
+     */
+    __wt_epoch(session, &ts);
+    v = (uint32_t)ts.tv_nsec;
+    v ^= v << 13;
+    v ^= v >> 17;
+    v ^= v << 5;
+    M_W(rnd) = v + 521288629;
 
     __wt_epoch(session, &ts);
-    M_W(rnd) = (uint32_t)(ts.tv_nsec + 521288629);
-    M_Z(rnd) = (uint32_t)(ts.tv_nsec + 362436069);
+    v = (uint32_t)ts.tv_nsec;
+    v ^= v << 13;
+    v ^= v >> 17;
+    v ^= v << 5;
+    M_Z(rnd) = v + 362436069;
 
     *rnd_state = rnd;
 }
