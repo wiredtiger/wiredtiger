@@ -225,7 +225,7 @@ class test_truncate_timestamp(wttest.WiredTigerTestCase):
     # Test truncation without a timestamp, expect errors.
     def test_truncate_no_ts(self):
         uri = self.type + self.name
-        msg = '/truncate operations may not be included/'
+        msg = '/truncate operations may not yet be included/'
 
         ds = SimpleDataSet(self, uri, 100, config='log=(enabled=false)')
         ds.populate()
