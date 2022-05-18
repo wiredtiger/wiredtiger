@@ -112,6 +112,86 @@ __alter_object(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
 }
 
 /*
+ * __alter_get_object_id_range --
+ *     Get current and oldest object IDs for the tiered object.
+ */
+static int
+__alter_get_object_id_range(WT_SESSION_IMPL *session, WT_TIERED *tiered, const char *uri,
+  uint32_t *pcurrent_id, uint32_t *poldest_id)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+    uint32_t current_id, oldest_id;
+    char *value;
+
+    value = NULL;
+    /*
+     * First try to get oldest and current object IDs from the tiered object. If it's not
+     * initialized, get this information from the metadata.
+     */
+    current_id = tiered->current_id;
+    oldest_id = tiered->oldest_id;
+    if (current_id == WT_TIERED_OBJECTID_NONE) {
+        WT_RET(__wt_metadata_search(session, uri, &value));
+
+        WT_ERR(__wt_config_getones(session, value, "oldest", &cval));
+        oldest_id = (uint32_t)cval.val;
+
+        WT_ERR(__wt_config_getones(session, value, "last", &cval));
+        current_id = (uint32_t)cval.val;
+    }
+
+    *pcurrent_id = current_id;
+    *poldest_id = oldest_id;
+err:
+    __wt_free(session, value);
+
+    return ret;
+}
+
+/*
+ * __alter_objects --
+ *     Alter all objects in the oldest-current range.
+ */
+static int
+__alter_objects(WT_SESSION_IMPL *session, WT_TIERED *tiered, const char *newcfg[],
+  uint32_t current_id, uint32_t oldest_id)
+{
+    WT_DECL_RET;
+    uint32_t object_id;
+    char *value;
+    const char *name;
+
+    value = NULL;
+    name = NULL;
+
+    /*
+     * Iterate over all objects in the range oldest-current object IDs and alter metadata of each of
+     * them.
+     */
+    for (object_id = oldest_id; object_id < current_id; object_id++) {
+        WT_ERR(__wt_tiered_name(session, &tiered->iface, object_id, WT_TIERED_NAME_OBJECT, &name));
+
+        /*
+         * Check if this object present in the metadata. Skip it if not found. It is expected for
+         * the range of objects to be not contiguous, because some objects may have been deleted.
+         */
+        ret = __wt_metadata_search(session, name, &value);
+        __wt_free(session, value);
+        WT_ERR_NOTFOUND_OK(ret, true);
+        if (ret == 0) {
+            WT_WITH_DHANDLE(session, NULL, ret = __schema_alter(session, name, newcfg));
+            WT_ERR(ret);
+        }
+        __wt_free(session, name);
+    }
+err:
+    __wt_free(session, name);
+
+    return (ret);
+}
+
+/*
  * __alter_tiered --
  *     Alter a tiered metadata.
  */
@@ -121,7 +201,7 @@ __alter_tiered(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[], 
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     WT_TIERED *tiered;
-    uint32_t object_id;
+    uint32_t current_id, name_flag, oldest_id;
     u_int i;
     char *value;
     const char *name;
@@ -133,38 +213,67 @@ __alter_tiered(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[], 
     if (!WT_PREFIX_MATCH(uri, "tiered:"))
         return (__wt_unexpected_object_type(session, uri, "tiered:"));
 
-    /* Open dhandle exclusively, make sure we actually open it, not just acquire a lock. */
-    LF_CLR(WT_DHANDLE_LOCK_ONLY);
+    /*
+     * If the operation requires exclusive access, close any open handles, including checkpoints.
+     */
+    if (FLD_ISSET(flags, WT_DHANDLE_EXCLUSIVE)) {
+        WT_WITH_HANDLE_LIST_WRITE_LOCK(
+          session, ret = __wt_conn_dhandle_close_all(session, uri, false, false));
+        WT_RET(ret);
+    }
+
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, flags));
     tiered = (WT_TIERED *)session->dhandle;
+
+    WT_ERR(__alter_get_object_id_range(session, tiered, uri, &current_id, &oldest_id));
 
     /* Alter each tier. */
     for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
         dhandle = tiered->tiers[i].tier;
-        if (dhandle == NULL)
-            continue;
+        if (dhandle == NULL) {
+            /*
+             * Tiers may not be initialized because we open tiered handle with lock only flag. In
+             * this case we need to find the names of the tiers manually.
+             */
+            if (i == WT_TIERED_INDEX_LOCAL)
+                name_flag = WT_TIERED_NAME_LOCAL;
+            else if (i == WT_TIERED_INDEX_SHARED)
+                name_flag = WT_TIERED_NAME_SHARED;
+            else
+                continue;
 
-        WT_WITH_DHANDLE(session, NULL, ret = __schema_alter(session, dhandle->name, newcfg));
+            WT_ERR(__wt_tiered_name(session, &tiered->iface, current_id, name_flag, &name));
+
+            /* Check if metadata has entry for this tier. */
+            ret = __wt_metadata_search(session, name, &value);
+            __wt_free(session, value);
+            WT_ERR_NOTFOUND_OK(ret, true);
+            if (ret != 0) {
+                /*
+                 * Not found in the metadata. Skip it. This is expected, for instance, in the
+                 * scenario when tier hasn't been flushed and there's no shared tier yet.
+                 */
+                __wt_free(session, name);
+                continue;
+            }
+        }
+
+        WT_WITH_DHANDLE(session, NULL,
+          ret = __schema_alter(session, name == NULL ? dhandle->name : name, newcfg));
+        __wt_free(session, name);
         WT_ERR(ret);
     }
 
     /* Alter all objects. */
-    for (object_id = tiered->oldest_id; object_id < tiered->current_id; object_id++) {
-        WT_ERR(__wt_tiered_name(session, &tiered->iface, object_id, WT_TIERED_NAME_OBJECT, &name));
-        ret = __wt_metadata_search(session, name, &value);
-        __wt_free(session, value);
-        WT_ERR_NOTFOUND_OK(ret, true);
-        if (ret == 0) {
-            WT_WITH_DHANDLE(session, NULL, ret = __schema_alter(session, name, newcfg));
-            WT_ERR(ret);
-        }
-    }
+    WT_ERR(__alter_objects(session, tiered, newcfg, current_id, oldest_id));
 
     /* Apply change to the tiered metadata. */
     WT_ERR(__alter_apply(session, uri, newcfg, WT_CONFIG_BASE(session, tiered_meta)));
 
 err:
     WT_TRET(__wt_session_release_dhandle(session));
+    __wt_free(session, name);
+
     return (ret);
 }
 
