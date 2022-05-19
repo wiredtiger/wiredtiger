@@ -542,13 +542,13 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
 
     /*
      * When reading from a checkpoint, all readers use the same snapshot, so a transaction is
-     *     globally visible if it is visible in that snapshot. Note that this can cause things that
-     *     were not globally visible yet when the checkpoint is taken to become globally visible in
-     *     the checkpoint. This is expected (it is like all the old running transactions exited) --
-     *     but note that it's important that the inverse change (something globally visible when the
-     *     checkpoint was taken becomes not globally visible in the checkpoint) never happen as this
-     *     violates basic assumptions about visibility. (And, concretely, it can cause stale history
-     *     store entries to come back to life and produce wrong answers.)
+     * globally visible if it is visible in that snapshot. Note that this can cause things that were
+     * not globally visible yet when the checkpoint is taken to become globally visible in the
+     * checkpoint. This is expected (it is like all the old running transactions exited) -- but note
+     * that it's important that the inverse change (something globally visible when the checkpoint
+     * was taken becomes not globally visible in the checkpoint) never happen as this violates basic
+     * assumptions about visibility. (And, concretely, it can cause stale history store entries to
+     * come back to life and produce wrong answers.)
      */
     if (WT_READING_CHECKPOINT(session))
         return (__wt_txn_visible_id_snapshot(
