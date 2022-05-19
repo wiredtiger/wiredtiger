@@ -559,7 +559,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
          * Update the oldest ID to avoid wasted effort should it have fallen behind current.
          */
         if (modified)
-            WT_RET(session, WT_TXN_OLDEST_STRICT));
+            WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT));
 
         if (!__wt_page_can_evict(session, ref, inmem_splitp))
             return (__wt_set_return(session, EBUSY));
