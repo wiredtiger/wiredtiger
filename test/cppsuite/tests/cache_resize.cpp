@@ -165,10 +165,6 @@ class cache_resize : public test_harness::test {
         uint64_t cache_size, num_records = 0, prev_txn_id;
         const uint64_t cache_size_500mb = 500000000;
 
-        /* FIXME-WT-9339. */
-        (void)cache_size;
-        (void)cache_size_500mb;
-
         /* Open a cursor on the tracking table to read it. */
         scoped_session session = connection_manager::instance().create_session();
         scoped_cursor cursor = session.open_scoped_cursor(operation_table_name);
@@ -210,11 +206,8 @@ class cache_resize : public test_harness::test {
                 /*
                  * We have moved to a new transaction, make sure the cache was big enough when the
                  * previous transaction was committed.
-                 *
-                 * FIXME-WT-9339 - Somehow we have some transactions that go through while the cache
-                 * is very low. Enable the check when this is no longer the case.
-                 * testutil_assert(cache_size > cache_size_500mb);.
                  */
+                testutil_assert(cache_size > cache_size_500mb);
             }
             prev_txn_id = tracked_txn_id;
             /* Save the last cache size seen by the transaction. */
@@ -224,11 +217,7 @@ class cache_resize : public test_harness::test {
         /* All records have been parsed, the last one still needs the be checked. */
         testutil_assert(ret == WT_NOTFOUND);
         testutil_assert(num_records > 0);
-        /*
-         * FIXME-WT-9339 - Somehow we have some transactions that go through while the cache is very
-         * low. Enable the check when this is no longer the case. testutil_assert(cache_size >
-         * cache_size_500mb);.
-         */
+        testutil_assert(cache_size > cache_size_500mb);
     }
 };
 
