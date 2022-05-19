@@ -1184,26 +1184,26 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
 
         if (WT_STRING_MATCH("upper", cval.str, cval.len)) {
             if (F_ISSET(cbt, WT_CBT_BOUND_LOWER | WT_CBT_BOUND_LOWER_INCLUSIVE)) {
+                WT_ERR(__wt_cursor_get_raw_key(cursor, &key));
                 WT_ERR(__wt_compare(
-                  session, CUR2BT(cursor)->collator, &cursor->key, cbt->lower_bound, &exact));
+                  session, CUR2BT(cursor)->collator, &key, cbt->lower_bound, &exact));
                 if (exact < 0)
                     WT_ERR_MSG(session, EINVAL,
                       "The upper bounds is not lexicographically greater than the lower bound");
             }
             F_SET(cbt, WT_CBT_BOUND_UPPER | WT_CBT_BOUND_UPPER_INCLUSIVE);
-            WT_ERR(__wt_cursor_get_raw_key(cursor, &key));
             WT_ERR(__wt_buf_set(session, cbt->upper_bound, key.data, key.size));
             WT_CLEAR(cursor->key);
         } else if (WT_STRING_MATCH("lower", cval.str, cval.len)) {
+            WT_ERR(__wt_cursor_get_raw_key(cursor, &key));
             if (F_ISSET(cbt, WT_CBT_BOUND_UPPER | WT_CBT_BOUND_UPPER_INCLUSIVE)) {
                 WT_ERR(__wt_compare(
-                  session, CUR2BT(cursor)->collator, &cursor->key, cbt->upper_bound, &exact));
+                  session, CUR2BT(cursor)->collator, &key, cbt->upper_bound, &exact));
                 if (exact > 0)
                     WT_ERR_MSG(session, EINVAL,
                       "The lower bounds is not lexicographically less than the upper bound");
             }
             F_SET(cbt, WT_CBT_BOUND_LOWER | WT_CBT_BOUND_LOWER_INCLUSIVE);
-            WT_ERR(__wt_cursor_get_raw_key(cursor, &key));
             WT_ERR(__wt_buf_set(session, cbt->lower_bound, key.data, key.size));
             WT_CLEAR(cursor->key);
         } else
