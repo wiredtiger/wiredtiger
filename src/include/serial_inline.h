@@ -284,12 +284,12 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
             /* Try to move the oldest ID forward and re-check. */
             ret = __wt_txn_update_oldest(session, 0);
             /*
-             * We cannot proceed if we fail here as we have inserted the update to the update chain.
-             * Panic instead.
+             * We cannot proceed if we fail here as we have inserted the updates to the update
+             * chain. Panic instead.
              */
             if (ret != NULL)
                 WT_RET(
-                  __wt_panic(session, ret, "fail to update oldest after serialize the updates"));
+                  __wt_panic(session, ret, "fail to update oldest after serializing the updates"));
 
             if (!__wt_txn_visible_all(session, txn, obsolete_timestamp))
                 return (0);
