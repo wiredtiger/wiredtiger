@@ -26,136 +26,92 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <time.h>
+
+#include "test_harness/core/op_tracker.cpp"
 #include "test_harness/test.h"
 #include "test_harness/util/api_const.h"
 #include "test_harness/workload/random_generator.h"
-#include <time.h>
-#include "test_harness/core/op_tracker.cpp"
 
 namespace test_harness {
 
 /*
- * Class that defines operations that do nothing as an example. This shows how database operations
- * can be overridden and customized.
+ * This test performs cursor traversal operations next() and prev() on a collection with both
+ * bounded and normal cursors. The performance of both cursors are tracked and the average time
+ * taken is added to the perf file. The test traverses all keys in the collection.
  */
 class bounded_cursor_perf : public test {
-
-    enum set_bounds { SET_LOWER, SET_UPPER, SET_ALL };
-    std::string test_name;
-
     public:
-    bounded_cursor_perf(const test_args &args) : test(args) {
-        this->test_name = args.test_name;
-    }
+    bounded_cursor_perf(const test_args &args) : test(args) {}
 
     void
-    run() override final
+    run()
     {
         /* You can remove the call to the base class to fully customize your test. */
         test::run();
     }
 
-    /* Ensures that both cursors are positioned at the same place. */
-    void
-    cursor_traversal(thread_context *tc, scoped_cursor &cursor,
-      scoped_cursor &range_cursor, std::string operation, int set_bounds, uint64_t key,
-      op_tracker &bounded, op_tracker &unbounded)
-    {
-
-        int exact, ret, range_ret = 0;
-
-        if (operation == "next") {
-            // Check if lower bounds have been set, then move the default cursor with search_near
-            if (set_bounds == SET_LOWER || set_bounds == SET_ALL) {
-                cursor->set_key(cursor.get(), tc->key_to_string(key).c_str());
-                ret = cursor->search_near(cursor.get(), &exact);
-            } else // If only upper bound set, move the default cursor to the start as well
-                ret = cursor->next(cursor.get());
-        } else {
-            if (set_bounds == SET_UPPER || set_bounds == SET_ALL) {
-                cursor->set_key(cursor.get(), tc->key_to_string(key).c_str());
-                ret = cursor->search_near(cursor.get(), &exact);
-            } else // If only lower bound set, move the default cursor to the end
-                ret = cursor->prev(cursor.get());
-        }
-
-        testutil_assert(ret ==  0 || ret == WT_NOTFOUND);
-
-        // Realign the range cursor in the event an exact match of lower bound is not found
-        if ((operation == "next" && exact < 0) || (operation == "prev" && exact < 0))
-            range_ret = range_cursor->prev(range_cursor.get());
-        else if ((operation == "next" && exact > 0) || (operation == "prev" && exact > 0))
-            range_ret = range_cursor->next(range_cursor.get());
-
-        while (range_ret != WT_NOTFOUND) {
-            testutil_assert(ret == 0 || ret == WT_NOTFOUND);
-            testutil_assert(range_ret == 0 || range_ret == WT_NOTFOUND);
-
-            // Do the timing
-            if (operation == "next") {
-                range_ret = bounded.track(
-                  [&range_cursor]() -> int { return range_cursor->next(range_cursor.get()); });
-                ret = unbounded.track([&cursor]() -> int { cursor->next(cursor.get()); });
-            } else {
-                range_ret = bounded.track(
-                  [&range_cursor]() -> int { return range_cursor->prev(range_cursor.get()); });
-                ret = unbounded.track([&cursor]() -> int { return cursor->prev(cursor.get()); });
-            }
-        }
-    }
-
     void
     read_operation(thread_context *tc) override final
     {
-
         /* This test will only work with one read thread. */
         testutil_assert(tc->thread_count == 1);
         /*
          * Each read operation performs next() and prev() calls with both normal cursors and bounded
-         * cursors. 
-        */  
-        int range_ret = 0;
+         * cursors.
+         */
+        int range_ret_next, range_ret_prev, ret_next, ret_prev;
 
-        // Initialise the op trackers
-        op_tracker bounded_next("bounded_next", this->test_name);
-        op_tracker default_next("default_next", this->test_name);
-        op_tracker bounded_prev("bounded_prev", this->test_name);
-        op_tracker default_prev("default_prev", this->test_name);
+        /* Initialise the op trackers. */
+        op_tracker bounded_next("bounded_next", test::_args.test_name);
+        op_tracker default_next("default_next", test::_args.test_name);
+        op_tracker bounded_prev("bounded_prev", test::_args.test_name);
+        op_tracker default_prev("default_prev", test::_args.test_name);
+
+        /* Get the collection to work on. */
+        collection &coll = tc->db.get_collection(0);
+
+        /* Opening the cursors. */
+        scoped_cursor next_cursor = tc->session.open_scoped_cursor(coll.name);
+        scoped_cursor next_range_cursor = tc->session.open_scoped_cursor(coll.name);
+        scoped_cursor prev_cursor = tc->session.open_scoped_cursor(coll.name);
+        scoped_cursor prev_range_cursor = tc->session.open_scoped_cursor(coll.name);
+
+        /*
+         * The keys in the collection are contiguous from 0 -> key_count -1. Applying the range
+         * cursor bounds outside of the key range for the purpose of this test.
+         */
+        next_range_cursor->set_key(next_range_cursor.get(), tc->key_to_string(0).c_str());
+        next_range_cursor->bound(next_range_cursor.get(), "bound=lower");
+        prev_range_cursor->set_key(prev_range_cursor.get(), tc->key_to_string('0' - 1).c_str());
+        prev_range_cursor->bound(prev_range_cursor.get(), "bound=upper");
 
         while (tc->running()) {
-            /* Get a random collection to work on. */
-            collection &coll = tc->db.get_random_collection();
-            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
-            scoped_cursor range_cursor = tc->session.open_scoped_cursor(coll.name);
+            while (ret_next != WT_NOTFOUND && ret_prev != WT_NOTFOUND && tc->running()) {
+                range_ret_next = bounded_next.track([&next_range_cursor]() -> int {
+                    return next_range_cursor->next(next_range_cursor.get());
+                });
+                ret_next = default_next.track(
+                  [&next_cursor]() -> int { next_cursor->next(next_cursor.get()); });
 
-            int set_bounds = random_generator::instance().generate_integer(0, 2);
-            int ret = 0;
-            uint64_t lower_key, upper_key;
+                range_ret_prev = bounded_prev.track([&prev_range_cursor]() -> int {
+                    return prev_range_cursor->prev(prev_range_cursor.get());
+                });
+                ret_prev = default_prev.track(
+                  [&prev_cursor]() -> int { prev_cursor->prev(prev_cursor.get()); });
 
-            if (set_bounds == SET_LOWER || set_bounds == SET_ALL) {
-                lower_key = random_generator::instance().generate_integer<uint64_t>(
-                  0, coll.get_key_count() - 1);
-                range_cursor->bound(range_cursor.get(), "bound=lower");
-                range_cursor->set_key(range_cursor.get(), std::to_string(lower_key).c_str());
+                int ret = (ret_next == 0 || ret_next == WT_NOTFOUND) &&
+                  (ret_prev == 0 || ret_prev == WT_NOTFOUND);
+                int range_ret = (range_ret_prev == 0 || range_ret_prev == WT_NOTFOUND) &&
+                  (range_ret_next == 0 || range_ret_next == WT_NOTFOUND);
+                testutil_assert(ret == 1);
+                testutil_assert(range_ret == 1);
             }
-            if (set_bounds == SET_UPPER || set_bounds == SET_ALL) {
-                upper_key = random_generator::instance().generate_integer<uint64_t>(
-                  0, coll.get_key_count() - 1);
-                range_cursor->bound(range_cursor.get(), "bound=upper");
-                range_cursor->set_key(range_cursor.get(), std::to_string(upper_key).c_str());
-            }
-
-            // Position the cursors for next
-            cursor_traversal(
-              tc, cursor, range_cursor, "next", set_bounds, lower_key, bounded_next, default_next);
-            cursor_traversal(
-              tc, cursor, range_cursor, "prev", set_bounds, upper_key, bounded_prev, default_prev);
-
-            testutil_assert(ret == 0 || ret == WT_NOTFOUND);
-            testutil_assert(range_ret == 0 || range_ret == WT_NOTFOUND);
-
+            next_range_cursor->set_key(next_range_cursor.get(), tc->key_to_string(0).c_str());
+            next_range_cursor->bound(next_range_cursor.get(), "bound=lower");
+            prev_range_cursor->set_key(prev_range_cursor.get(), tc->key_to_string('0' - 1).c_str());
+            prev_range_cursor->bound(prev_range_cursor.get(), "bound=upper");
         }
     }
-
 };
-} 
+}

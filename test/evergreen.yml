@@ -1180,6 +1180,19 @@ tasks:
         vars:
           test_path: test/cppsuite/search_near_03
 
+  - name: cppsuite-bounded-cursor-perf
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/bounded_cursor_perf_default.txt
+          test_name: bounded_cursor_perf
+      - func: "upload test stats"
+        vars:
+          test_path: test/cppsuite/bounded_cursor_perf
+          
   # End of cppsuite test tasks.
   # Start of csuite test tasks
 

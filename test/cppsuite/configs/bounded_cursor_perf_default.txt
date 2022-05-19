@@ -1,9 +1,8 @@
-# Configuration for search_near_01.
-# The test will generate key_count_per_collection number of keys for each prefix in aaa -> zzz.
-# This config will have a 3 minute duration, with 3 tables of an entry for each prefix.
-#
-# There can only be one read thread in this test, since it manages the creation/deletion of 
-# search_near_threads.
+# Configuration for bounded_cursor_perf.
+# The test will repeatedly call next() and prev() operations and track performance of the operations
+# done with both range cursor and regular cursors. 
+# This config will have a 1 minute duration, with only one read thread. 
+
 duration_seconds=10,
 cache_size_mb=1000,
 workload_generator=

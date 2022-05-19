@@ -319,7 +319,7 @@ runtime_monitor::finish()
 
     /* Save stats. */
     save_stats();
-    
+
     /* Check the post run statistics now. */
     bool success = true;
     int64_t stat_max, stat_min, stat_value;

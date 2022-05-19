@@ -26,25 +26,35 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <string>
+#include <chrono>
 #include <fstream>
 #include <string>
-#include <chrono>
 
 namespace test_harness {
-    class op_tracker {
-        public:
-        explicit op_tracker(const std::string id, const std::string &test_name);
-        virtual ~op_tracker();
 
-        void append_stats();
-        template <typename T> 
-        auto track(T lambda);
+/*
+ * Class that tracks the performance of given operations and appends the stats to the perf file.
+ */
+class op_tracker {
+    public:
+    explicit op_tracker(const std::string id, const std::string &test_name);
+    virtual ~op_tracker();
 
-        private:
-        std::string _id;
-        std::string _test_name;
-        int _it_count;
-        uint64_t _total_time_taken;
-    };
-}
+    /*
+     * Calculates the average time and appends the stat to the perf file.
+     */
+    void append_stats();
+
+    /*
+     * Does timing for a given operation and keeps track of how many operations have been executed
+     * as well as total time taken.
+     */
+    template <typename T> auto track(T lambda);
+
+    private:
+    std::string _id;
+    std::string _test_name;
+    int _it_count;
+    uint64_t _total_time_taken;
+};
+} // namespace test_harness
