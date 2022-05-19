@@ -45,13 +45,6 @@ class bounded_cursor_perf : public test {
     bounded_cursor_perf(const test_args &args) : test(args) {}
 
     void
-    run()
-    {
-        /* You can remove the call to the base class to fully customize your test. */
-        test::run();
-    }
-
-    void
     read_operation(thread_context *tc) override final
     {
         /* This test will only work with one read thread. */
@@ -62,7 +55,7 @@ class bounded_cursor_perf : public test {
          */
         int range_ret_next, range_ret_prev, ret_next, ret_prev;
 
-        /* Initialise the op trackers. */
+        /* Initialize the op trackers. */
         op_tracker bounded_next("bounded_next", test::_args.test_name);
         op_tracker default_next("default_next", test::_args.test_name);
         op_tracker bounded_prev("bounded_prev", test::_args.test_name);
@@ -92,13 +85,13 @@ class bounded_cursor_perf : public test {
                     return next_range_cursor->next(next_range_cursor.get());
                 });
                 ret_next = default_next.track(
-                  [&next_cursor]() -> int { next_cursor->next(next_cursor.get()); });
+                  [&next_cursor]() -> int { return next_cursor->next(next_cursor.get()); });
 
                 range_ret_prev = bounded_prev.track([&prev_range_cursor]() -> int {
                     return prev_range_cursor->prev(prev_range_cursor.get());
                 });
                 ret_prev = default_prev.track(
-                  [&prev_cursor]() -> int { prev_cursor->prev(prev_cursor.get()); });
+                  [&prev_cursor]() -> int { return prev_cursor->prev(prev_cursor.get()); });
 
                 int ret = (ret_next == 0 || ret_next == WT_NOTFOUND) &&
                   (ret_prev == 0 || ret_prev == WT_NOTFOUND);
