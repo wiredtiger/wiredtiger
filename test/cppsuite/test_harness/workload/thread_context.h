@@ -114,11 +114,8 @@ class thread_context {
 
     void finish();
 
-    /*
-     * Convert a value to a string. If the resulting string is less than the given length, padding
-     * of '0' is added.
-     */
-    std::string string_with_padding(const std::string &value, uint64_t size);
+    /* If the value's size is less than the given size, padding of '0' is added to the value. */
+    std::string pad_string(const std::string &value, uint64_t size);
 
     /*
      * Generic update function, takes a collection_id, key and value.

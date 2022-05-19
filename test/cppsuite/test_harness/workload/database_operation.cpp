@@ -56,8 +56,8 @@ populate_worker(thread_context *tc)
             tc->transaction.begin();
             std::string value =
               random_generator::instance().generate_pseudo_random_string(tc->value_size);
-            if (tc->insert(cursor, coll.id,
-                  tc->string_with_padding(std::to_string(j), tc->key_size), value)) {
+            if (tc->insert(
+                  cursor, coll.id, tc->pad_string(std::to_string(j), tc->key_size), value)) {
                 if (tc->transaction.commit()) {
                     ++j;
                 }
@@ -178,8 +178,7 @@ database_operation::insert_operation(thread_context *tc)
             std::string value =
               random_generator::instance().generate_pseudo_random_string(tc->value_size);
             if (!tc->insert(cc.cursor, cc.coll.id,
-                  tc->string_with_padding(std::to_string(start_key + added_count), tc->key_size),
-                  value)) {
+                  tc->pad_string(std::to_string(start_key + added_count), tc->key_size), value)) {
                 added_count = 0;
                 tc->transaction.rollback();
             } else {
@@ -373,8 +372,8 @@ database_operation::update_operation(thread_context *tc)
           random_generator::instance().generate_integer<uint64_t>(0, coll.get_key_count() - 1);
         std::string value =
           random_generator::instance().generate_pseudo_random_string(tc->value_size);
-        if (!tc->update(cursor, coll.id,
-              tc->string_with_padding(std::to_string(key_id), tc->key_size), value)) {
+        if (!tc->update(
+              cursor, coll.id, tc->pad_string(std::to_string(key_id), tc->key_size), value)) {
             tc->transaction.rollback();
         }
 

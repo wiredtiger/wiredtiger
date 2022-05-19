@@ -203,7 +203,7 @@ thread_context::finish()
 }
 
 std::string
-thread_context::string_with_padding(const std::string &value, uint64_t size)
+thread_context::pad_string(const std::string &value, uint64_t size)
 {
     uint64_t diff = size > value.size() ? size - value.size() : 0;
     std::string s(diff, '0');
