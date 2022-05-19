@@ -258,7 +258,7 @@ class cursor_bound_01 : public test {
             const char *key;
             testutil_check(range_cursor->get_key(range_cursor.get(), &key));
 
-            logger::log_msg(LOG_INFO,
+            logger::log_msg(LOG_TRACE,
               "bounded search_near found key: " + std::string(key) +
                 " with lower bound: " + lower_bound.key + " upper bound: " + upper_bound.key);
             /* Assert that the range cursor has returned a key inside the bounded range. */
@@ -307,7 +307,7 @@ class cursor_bound_01 : public test {
         /* Retrieve the key the normal cursor is pointing at. */
         const char *key;
         testutil_check(normal_cursor->get_key(normal_cursor.get(), &key));
-        logger::log_msg(LOG_INFO,
+        logger::log_msg(LOG_TRACE,
           "bounded search_near validating correct returned key with search key inside range as: " +
             search_key + " and exact: " + std::to_string(range_exact));
         /* When exact = 0, the returned key should be equal to the search key. */
