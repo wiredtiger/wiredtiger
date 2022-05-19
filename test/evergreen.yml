@@ -1115,7 +1115,8 @@ tasks:
         vars:
           test_path: test/cppsuite/search_near_03
 
-  - name: cppsuite-bounded-cursor-perf
+  - name: cppsuite-bounded-cursor-perf-default
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
