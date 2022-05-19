@@ -287,7 +287,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
              * We cannot proceed if we fail here as we have inserted the updates to the update
              * chain. Panic instead.
              */
-            if (ret != NULL)
+            if (ret != 0)
                 WT_RET(
                   __wt_panic(session, ret, "fail to update oldest after serializing the updates"));
 
