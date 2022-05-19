@@ -135,7 +135,8 @@ class cache_resize : public test_harness::test {
             const uint64_t cache_size =
               ((WT_CONNECTION_IMPL *)connection_manager::instance().get_connection())->cache_size;
             /* Take into account the value size given in the test configuration file. */
-            const std::string value = tc->left_padding_to_string(cache_size, tc->value_size);
+            const std::string value =
+              tc->string_with_padding(std::to_string(cache_size), tc->value_size);
 
             tc->transaction.try_begin();
             if (!tc->insert(cursor, coll.id, key, value)) {

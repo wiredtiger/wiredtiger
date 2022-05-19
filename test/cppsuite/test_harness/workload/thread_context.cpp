@@ -203,12 +203,11 @@ thread_context::finish()
 }
 
 std::string
-thread_context::left_padding_to_string(uint64_t value, uint64_t size)
+thread_context::string_with_padding(const std::string &value, uint64_t size)
 {
-    const std::string value_str = std::to_string(value);
-    uint64_t diff = size > value_str.size() ? size - value_str.size() : 0;
+    uint64_t diff = size > value.size() ? size - value.size() : 0;
     std::string s(diff, '0');
-    return (s.append(value_str));
+    return (s.append(value));
 }
 
 bool

@@ -97,14 +97,17 @@ class burst_inserts : public test {
                 std::chrono::seconds(_burst_duration)) {
                 tc->transaction.try_begin();
                 cc.write_cursor->set_key(cc.write_cursor.get(),
-                  tc->left_padding_to_string(start_key + added_count, tc->key_size).c_str());
+                  tc->string_with_padding(std::to_string(start_key + added_count), tc->key_size)
+                    .c_str());
                 cc.write_cursor->search(cc.write_cursor.get());
 
                 /* A return value of true implies the insert was successful. */
                 std::string value =
                   random_generator::instance().generate_pseudo_random_string(tc->value_size);
                 if (!tc->insert(cc.write_cursor, cc.coll.id,
-                      tc->left_padding_to_string(start_key + added_count, tc->key_size), value)) {
+                      tc->string_with_padding(
+                        std::to_string(start_key + added_count), tc->key_size),
+                      value)) {
                     tc->transaction.rollback();
                     added_count = 0;
                     continue;
