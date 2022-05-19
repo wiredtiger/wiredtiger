@@ -560,9 +560,9 @@ class cursor_bound_01 : public test {
             auto &range_cursor = cursors[coll.id];
             auto bound_pair = set_random_bounds(tc, range_cursor);
             /* Only update the bounds when the bounds have a key. */
-            if (bound_pair.first.key.empty())
+            if (!bound_pair.first.key.empty())
                 lower_bound = bound_pair.first;
-            if (bound_pair.second.key.empty())
+            if (!bound_pair.second.key.empty())
                 upper_bound = bound_pair.second;
 
             /* Clear all bounds if both bounds doesn't have a key. */
