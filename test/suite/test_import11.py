@@ -169,15 +169,21 @@ class test_import11(test_import_base):
 
         # The file_metadata configuration should not be allowed in the tiered storage scenario.
         if self.is_tiered_scenario():
-            invalid_import_config1 = 'import=(enabled,repair=false,file_metadata=(' + table_config + '))' 
-            invalid_import_config2 = 'import=(enabled,repair=false,file_metadata=(' + table_config + '),metadata_file="WiredTiger.export")'
-            invalid_import_config3 = 'import=(enabled,repair=false)'
-        
-            err_msg1 = "/import for tiered storage is incompatible with the 'file_metadata' setting/"
-            err_msg2 = "/Invalid argument/"
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(self.uri_a, invalid_import_config1), err_msg1)
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(self.uri_a, invalid_import_config2), err_msg1)
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(self.uri_a, invalid_import_config3), err_msg2)
+            msg = "/import for tiered storage is incompatible with the 'file_metadata' setting/"
+
+            # Test we cannot use the file_metadata with a tiered table.
+            invalid_config = 'import=(enabled,repair=false,file_metadata=(' + table_config + '))'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(self.uri_a, invalid_config), msg)
+
+            # Test we cannot use the file_metadata with a tiered table and an export file.
+            invalid_config = 'import=(enabled,repair=false,file_metadata=(' + table_config + '),metadata_file="WiredTiger.export")'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(self.uri_a, invalid_config), msg)
+
+            msg = "/Invalid argument/"
+
+            # Test importing a tiered table with no import configuration.
+            invalid_config = 'import=(enabled,repair=false)'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(self.uri_a, invalid_config), msg)
 
         import_config = 'import=(enabled,repair=false,metadata_file="WiredTiger.export")'
 
