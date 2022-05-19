@@ -94,7 +94,8 @@ class cache_resize : public test_harness::test {
              * save_operation API but not needed for this test.
              */
             const uint64_t collection_id = 0;
-            const std::string key, value = std::to_string(new_cache_size);
+            const std::string key;
+            const std::string value = std::to_string(new_cache_size);
 
             /* Retrieve the current transaction id. */
             uint64_t txn_id = ((WT_SESSION_IMPL *)tc->session.get())->txn->id;
@@ -135,7 +136,7 @@ class cache_resize : public test_harness::test {
             const uint64_t cache_size =
               ((WT_CONNECTION_IMPL *)connection_manager::instance().get_connection())->cache_size;
             /* Take into account the value size given in the test configuration file. */
-            const std::string value = tc->pad_string(std::to_string(cache_size), tc->value_size);
+            const std::string value = std::to_string(cache_size);
 
             tc->transaction.try_begin();
             if (!tc->insert(cursor, coll.id, key, value)) {
