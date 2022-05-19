@@ -154,7 +154,7 @@ thread_ts_run(void *arg)
     WT_RAND_STATE rnd;
     WT_SESSION *session;
     THREAD_DATA *td;
-    wt_timestamp_t oldest_commit, ts_temp;
+    wt_timestamp_t oldest_commit;
     uint32_t i, rand_op;
     int dbg;
     char tscfg[64];
@@ -172,10 +172,8 @@ thread_ts_run(void *arg)
          * transaction.
          */
         oldest_commit = WT_TS_MAX;
-        for (i = 0; i < td->info; i++) {
-            WT_ORDERED_READ(ts_temp, ts_data[i]);
-            oldest_commit = WT_MIN(oldest_commit, ts_temp);
-        }
+        for (i = 0; i < td->info; i++)
+            oldest_commit = WT_MIN(oldest_commit, ts_data[i]);
         if (oldest_commit == WT_TS_NONE)
             continue;
         --oldest_commit;
@@ -364,7 +362,7 @@ thread_run(void *arg)
         if (use_ts) {
             testutil_check(pthread_rwlock_rdlock(&ts_lock));
             active_ts = __wt_atomic_addv64(&global_ts, 2);
-            WT_PUBLISH(ts_data[td->info], active_ts);
+            ts_data[td->info] = active_ts;
             testutil_check(
               __wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, active_ts));
             /*
