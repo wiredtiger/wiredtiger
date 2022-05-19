@@ -9,7 +9,7 @@
 # random bounds.
 duration_seconds=600,
 cache_size_mb=500,
-reverse_collator=true,
+reverse_collator=false,
 timestamp_manager=
 (
     # This will let us randomly pick a read timestamp in a bigger range to trigger visibility
@@ -52,3 +52,7 @@ workload_generator=
         thread_count=5
     )
 ),
+workload_tracking=
+(
+    enabled=false,
+)
