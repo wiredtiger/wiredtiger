@@ -16,11 +16,10 @@ workload_generator=
     ),
     insert_config=
     (
-        key_size=10000,
+        key_size=1000000,
         op_rate=4s,
         ops_per_transaction=(min=2,max=2),
         thread_count=5,
-        value_size=5000000
     ),
     populate_config=
     (
