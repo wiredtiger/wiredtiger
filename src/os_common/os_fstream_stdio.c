@@ -50,7 +50,7 @@ __stdio_printf(WT_SESSION_IMPL *session, WT_FSTREAM *fs, const char *fmt, va_lis
 {
     if (vfprintf(fs->fp, fmt, ap) >= 0)
         return (0);
-    WT_RET_MSG(session, EIO, "%s: printf", fs->name);
+    return(EIO);
 }
 
 /*
