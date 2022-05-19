@@ -48,6 +48,8 @@ __stdio_getline(WT_SESSION_IMPL *session, WT_FSTREAM *fs, WT_ITEM *buf)
 static int
 __stdio_printf(WT_SESSION_IMPL *session, WT_FSTREAM *fs, const char *fmt, va_list ap)
 {
+    WT_UNUSED(session);
+
     if (vfprintf(fs->fp, fmt, ap) >= 0)
         return (0);
     return(EIO);
