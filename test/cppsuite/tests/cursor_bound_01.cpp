@@ -197,13 +197,15 @@ class cursor_bound_01 : public test {
               random_generator::instance().generate_integer(static_cast<int64_t>(1), tc->key_size);
             lower_key = random_generator::instance().generate_random_string(
               key_size, characters_type::ALPHABET);
-            // Reverse case
-            lower_key = std::string(tc->key_size, 'z');
-            // Normal case
-            // lower_key = std::string("0");
+            /* Reverse case. */
+            if (reverse_collator_enabled)
+                lower_key = std::string(tc->key_size, 'z');
+            /* Normal case. */
+            else
+                lower_key = std::string("0");
             range_cursor->set_key(range_cursor.get(), lower_key.c_str());
             ret = range_cursor->bound(range_cursor.get(), "bound=lower");
-            testutil_check(ret == 0 || ret == EINVAL);
+            testutil_assert(ret == 0 || ret == EINVAL);
         }
 
         if (set_random_bounds == UPPER_BOUND_SET || set_random_bounds == ALL_BOUNDS_SET) {
@@ -212,13 +214,16 @@ class cursor_bound_01 : public test {
               random_generator::instance().generate_integer(static_cast<int64_t>(1), tc->key_size);
             upper_key = random_generator::instance().generate_random_string(
               key_size, characters_type::ALPHABET);
-            // Reverse case
-            upper_key = "0";
-            // Normal case
-            // upper_key = std::string(tc->key_size, 'z');
+
+            /* Reverse case. */
+            if (reverse_collator_enabled)
+                upper_key = "0";
+            /* Normal case. */
+            else
+                upper_key = std::string(tc->key_size, 'z');
             range_cursor->set_key(range_cursor.get(), upper_key.c_str());
             ret = range_cursor->bound(range_cursor.get(), "bound=upper");
-            testutil_check(ret == 0 || ret == EINVAL);
+            testutil_assert(ret == 0 || ret == EINVAL);
         }
 
         return std::make_pair(
@@ -247,7 +252,7 @@ class cursor_bound_01 : public test {
             const char *key;
             testutil_check(range_cursor->get_key(range_cursor.get(), &key));
 
-            logger::log_msg(LOG_TRACE,
+            logger::log_msg(LOG_INFO,
               "bounded search_near found key: " + std::string(key) +
                 " with lower bound: " + lower_bound.key + " upper bound: " + upper_bound.key);
             /* Assert that the range cursor has returned a key inside the bounded range. */
@@ -255,7 +260,6 @@ class cursor_bound_01 : public test {
               custom_lexicographical_compare(lower_bound.key, key, lower_bound.inclusive);
             auto below_upper_key = upper_bound.key.empty() ||
               custom_lexicographical_compare(key, upper_bound.key, upper_bound.inclusive);
-
             testutil_assert(above_lower_key && below_upper_key);
 
             /* Decide whether the search key is inside or outside the bounded range. */
