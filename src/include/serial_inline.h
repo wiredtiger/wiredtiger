@@ -281,8 +281,13 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     if ((txn = page->modify->obsolete_check_txn) != WT_TXN_NONE) {
         obsolete_timestamp = page->modify->obsolete_check_timestamp;
         if (!__wt_txn_visible_all(session, txn, obsolete_timestamp)) {
-            /* Try to move the oldest ID forward and re-check. */
-            WT_RET(__wt_txn_update_oldest(session, 0));
+            /*
+             * Try to move the oldest ID forward and re-check. It is OK to fail here. We should not
+             * propagate the error to the caller. Otherwise, the caller would think that we failed
+             * to insert the updates to the update chain, which we actually have succeeded at this
+             * point.
+             */
+            WT_IGNORE_RET(__wt_txn_update_oldest(session, 0));
 
             if (!__wt_txn_visible_all(session, txn, obsolete_timestamp))
                 return (0);
