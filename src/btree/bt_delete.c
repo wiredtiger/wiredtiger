@@ -255,16 +255,11 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
      *
      * Note that if the visible_all flag is set, skip already reflects the visible_all result so we
      * don't need to do it twice.
-     *
-     * If we are reading from a checkpoint, we can't do the visible_all check (it checks the current
-     * state of the world and not the checkpoint) but also, because the checkpoint is immutable the
-     * delete can't ever become fully stable so we should never discard the fast-truncate structure.
      */
     if (skip && ref->ft_info.del != NULL &&
       (visible_all ||
-        (!WT_READING_CHECKPOINT(session) &&
-          __wt_txn_visible_all(
-            session, ref->ft_info.del->txnid, ref->ft_info.del->durable_timestamp))))
+        __wt_txn_visible_all(
+          session, ref->ft_info.del->txnid, ref->ft_info.del->durable_timestamp)))
         __wt_overwrite_and_free(session, ref->ft_info.del);
 
     WT_REF_SET_STATE(ref, WT_REF_DELETED);

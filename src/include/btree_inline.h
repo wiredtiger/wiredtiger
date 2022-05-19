@@ -1574,16 +1574,6 @@ __wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool 
     /* We discard page_del on transaction abort, so should never see an aborted one. */
     WT_ASSERT(session, page_del->txnid != WT_TXN_ABORTED);
 
-    /*
-     * Visible_all checks don't work when reading from a checkpoint (they check the current state of
-     * the world and not the checkpoint) so operate under the assumption that if the truncate
-     * operation appears in the checkpoint, it must have been invisible to somebody at the time the
-     * checkpoint was taken. (Otherwise the page wouldn't have been kept.) Because the checkpoint is
-     * immutable, that won't ever change.
-     */
-    if (visible_all && WT_READING_CHECKPOINT(session))
-        return (false);
-
     WT_ORDERED_READ(prepare_state, page_del->prepare_state);
     if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
         return (false);
