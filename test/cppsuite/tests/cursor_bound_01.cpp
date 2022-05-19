@@ -42,7 +42,6 @@
  *  - Q threads will utilize the custom operation and will execute next() and prev() calls with
  * random bounds set. Both next() and prev() calls with bounds set is verified against the
  * default cursor next() and prev() calls.
- *
  */
 namespace test_harness {
 
@@ -54,17 +53,16 @@ class cursor_bound_01 : public test {
         bool lower_bound;
 
         bound() = default;
-        bound(int64_t key_size_max, bool _lower_bound) : lower_bound(_lower_bound)
+        bound(uint64_t key_size_max, bool _lower_bound) : lower_bound(_lower_bound)
         {
             bool set_inclusive = random_generator::instance().generate_integer(0, 1);
             auto key_size =
-              random_generator::instance().generate_integer(static_cast<int64_t>(1), key_size_max);
+              random_generator::instance().generate_integer(static_cast<uint64_t>(1), key_size_max);
             auto random_key = random_generator::instance().generate_random_string(
               key_size, characters_type::ALPHABET);
             key = random_key;
             inclusive = set_inclusive;
         }
-        ~bound() = default;
 
         std::string
         get_config()
@@ -112,7 +110,7 @@ class cursor_bound_01 : public test {
              * If the key exists, position the cursor to the lower key using search near otherwise
              * use prev().
              */
-            if (lower_bound.key.length() != 0) {
+            if (!lower_bound.key.empty()) {
                 normal_cursor->set_key(normal_cursor.get(), lower_bound.key.c_str());
                 normal_ret = normal_cursor->search_near(normal_cursor.get(), &exact);
                 if (normal_ret == WT_NOTFOUND)
@@ -127,7 +125,7 @@ class cursor_bound_01 : public test {
              * If the key exists, position the cursor to the upper key using search near otherwise
              * use next().
              */
-            if (upper_bound.key.length() != 0) {
+            if (!upper_bound.key.empty()) {
                 normal_cursor->set_key(normal_cursor.get(), upper_bound.key.c_str());
                 normal_ret = normal_cursor->search_near(normal_cursor.get(), &exact);
                 if (normal_ret == WT_NOTFOUND)
@@ -162,27 +160,26 @@ class cursor_bound_01 : public test {
             /* Early exit if we have reached the end of the table. */
             if (range_ret == WT_NOTFOUND && normal_ret == WT_NOTFOUND)
                 break;
-
             /* It is possible that we have reached the end of the bounded range. */
             else if (range_ret == WT_NOTFOUND && normal_ret == 0) {
                 testutil_check(normal_cursor->get_key(normal_cursor.get(), &normal_key));
                 /*  Make sure that normal cursor returns a key that is outside of the range. */
                 if (next) {
-                    testutil_assert(upper_bound.key.length() != 0);
+                    testutil_assert(!upper_bound.key.empty());
                     testutil_assert(
                       custom_lexicographical_compare(normal_key, upper_bound.key, true) == false);
                 } else {
-                    testutil_assert(lower_bound.key.length() != 0);
+                    testutil_assert(!lower_bound.key.empty());
                     testutil_assert(
                       custom_lexicographical_compare(normal_key, lower_bound.key, false) == true);
                 }
                 break;
             }
 
-            if (next && upper_bound.key.length() != 0)
+            if (next && !upper_bound.key.empty())
                 testutil_assert(custom_lexicographical_compare(
                                   range_key, upper_bound.key, upper_bound.inclusive) == true);
-            else if (!next && lower_bound.key.length() != 0)
+            else if (!next && !lower_bound.key.empty())
                 testutil_assert(custom_lexicographical_compare(
                                   lower_bound.key, range_key, lower_bound.inclusive) == true);
             /* Make sure that records match between both cursors. */
@@ -194,13 +191,13 @@ class cursor_bound_01 : public test {
 
     /*
      * Use the random generator either set no bounds, only lower bounds, only upper bounds or both
-     * bounds on the range cursor. The lower and upper bounds are randomly generated strings as
-     * well. The inclusive configuration is also randomly set as well.
+     * bounds on the range cursor. The lower and upper bounds are randomly generated strings and the
+     * inclusive configuration is also randomly set as well.
      */
     std::pair<bound, bound>
     set_random_bounds(thread_context *tc, scoped_cursor &range_cursor)
     {
-        int ret = 0;
+        int ret;
         bound lower_bound, upper_bound;
 
         auto set_random_bounds = random_generator::instance().generate_integer(0, 3);
@@ -387,7 +384,7 @@ class cursor_bound_01 : public test {
           "bounded search_near found WT_NOTFOUND on lower bound: " + lower_bound.key +
             " upper bound: " + upper_bound.key +
             " traversing range to validate that there are no keys within range.");
-        if (lower_bound.key.length() != 0) {
+        if (!lower_bound.key.empty()) {
             normal_cursor->set_key(normal_cursor.get(), lower_bound.key.c_str());
             ret = normal_cursor->search_near(normal_cursor.get(), &exact);
         } else
@@ -445,8 +442,7 @@ class cursor_bound_01 : public test {
 
                 /* Generate a random key. */
                 auto key = random_generator::instance().generate_random_string(tc->key_size);
-                std::string value =
-                  random_generator::instance().generate_random_string(tc->value_size);
+                auto value = random_generator::instance().generate_random_string(tc->value_size);
                 /* Insert a key/value pair. */
                 if (tc->insert(cursor, coll.id, key, value)) {
                     if (tc->transaction.can_commit()) {
@@ -492,7 +488,6 @@ class cursor_bound_01 : public test {
             tc->transaction.begin();
 
             while (tc->transaction.active() && tc->running()) {
-                const char *key;
                 int ret = rnd_cursor->next(rnd_cursor.get());
 
                 /* It is possible not to find anything if the collection is empty. */
@@ -506,11 +501,11 @@ class cursor_bound_01 : public test {
                     continue;
                 }
 
+                const char *key;
                 testutil_check(rnd_cursor->get_key(rnd_cursor.get(), &key));
 
                 /* Update the found key with a randomized value. */
-                std::string value =
-                  random_generator::instance().generate_random_string(tc->value_size);
+                auto value = random_generator::instance().generate_random_string(tc->value_size);
                 if (tc->update(cursor, coll.id, key, value)) {
                     if (tc->transaction.can_commit()) {
                         /* We are not checking the result of commit as it is not necessary. */
@@ -565,9 +560,9 @@ class cursor_bound_01 : public test {
             auto &range_cursor = cursors[coll.id];
             auto bound_pair = set_random_bounds(tc, range_cursor);
             /* Only update the bounds when the bounds have a key. */
-            if (bound_pair.first.key.length() != 0)
+            if (bound_pair.first.key.empty())
                 lower_bound = bound_pair.first;
-            if (bound_pair.second.key.length() != 0)
+            if (bound_pair.second.key.empty())
                 upper_bound = bound_pair.second;
 
             /* Clear all bounds if both bounds doesn't have a key. */
@@ -637,9 +632,9 @@ class cursor_bound_01 : public test {
             auto &range_cursor = cursors[coll.id];
             auto bound_pair = set_random_bounds(tc, range_cursor);
             /* Only update the bounds when the bounds have a key. */
-            if (bound_pair.first.key.length() != 0)
+            if (!bound_pair.first.key.empty())
                 lower_bound = bound_pair.first;
-            if (bound_pair.second.key.length() != 0)
+            if (!bound_pair.second.key.empty())
                 upper_bound = bound_pair.second;
 
             /* Clear all bounds if both bounds doesn't have a key. */
