@@ -49,29 +49,28 @@ static const WT_CONFIG_CHECK confchk_ops_per_transaction_subconfigs[] = {
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_custom_config_subconfigs[] = {
-  {"key_size", "int", NULL, "min=0,max=10000", NULL, 0}, {"op_rate", "string", NULL, NULL, NULL, 0},
+  {"key_size", "int", NULL, "min=1", NULL, 0}, {"op_rate", "string", NULL, NULL, NULL, 0},
   {"ops_per_transaction", "category", NULL, NULL, confchk_ops_per_transaction_subconfigs, 2},
-  {"thread_count", "int", NULL, "min=0", NULL, 0},
-  {"value_size", "int", NULL, "min=0,max=1000000000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
+  {"thread_count", "int", NULL, "min=0", NULL, 0}, {"value_size", "int", NULL, "min=1", NULL, 0},
+  {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_insert_config_subconfigs[] = {
-  {"key_size", "int", NULL, "min=0,max=10000", NULL, 0}, {"op_rate", "string", NULL, NULL, NULL, 0},
+  {"key_size", "int", NULL, "min=1", NULL, 0}, {"op_rate", "string", NULL, NULL, NULL, 0},
   {"ops_per_transaction", "category", NULL, NULL, confchk_ops_per_transaction_subconfigs, 2},
-  {"thread_count", "int", NULL, "min=0", NULL, 0},
-  {"value_size", "int", NULL, "min=0,max=1000000000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
+  {"thread_count", "int", NULL, "min=0", NULL, 0}, {"value_size", "int", NULL, "min=1", NULL, 0},
+  {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_populate_config_subconfigs[] = {
   {"collection_count", "int", NULL, "min=0,max=200000", NULL, 0},
   {"key_count_per_collection", "int", NULL, "min=0,max=1000000", NULL, 0},
-  {"key_size", "int", NULL, "min=0,max=10000", NULL, 0},
-  {"thread_count", "string", NULL, NULL, NULL, 0},
-  {"value_size", "int", NULL, "min=0,max=1000000000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
+  {"key_size", "int", NULL, "min=1", NULL, 0}, {"thread_count", "string", NULL, NULL, NULL, 0},
+  {"value_size", "int", NULL, "min=1", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_read_config_subconfigs[] = {
-  {"key_size", "int", NULL, "min=0,max=10000", NULL, 0}, {"op_rate", "string", NULL, NULL, NULL, 0},
+  {"key_size", "int", NULL, "min=1", NULL, 0}, {"op_rate", "string", NULL, NULL, NULL, 0},
   {"ops_per_transaction", "category", NULL, NULL, confchk_ops_per_transaction_subconfigs, 2},
-  {"thread_count", "int", NULL, "min=0", NULL, 0},
-  {"value_size", "int", NULL, "min=0,max=1000000000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
+  {"thread_count", "int", NULL, "min=0", NULL, 0}, {"value_size", "int", NULL, "min=1", NULL, 0},
+  {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_remove_config_subconfigs[] = {
   {"op_rate", "string", NULL, NULL, NULL, 0},
@@ -79,10 +78,10 @@ static const WT_CONFIG_CHECK confchk_remove_config_subconfigs[] = {
   {"thread_count", "int", NULL, "min=0", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_update_config_subconfigs[] = {
-  {"key_size", "int", NULL, "min=0,max=10000", NULL, 0}, {"op_rate", "string", NULL, NULL, NULL, 0},
+  {"key_size", "int", NULL, "min=1", NULL, 0}, {"op_rate", "string", NULL, NULL, NULL, 0},
   {"ops_per_transaction", "category", NULL, NULL, confchk_ops_per_transaction_subconfigs, 2},
-  {"thread_count", "int", NULL, "min=0", NULL, 0},
-  {"value_size", "int", NULL, "min=0,max=1000000000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
+  {"thread_count", "int", NULL, "min=0", NULL, 0}, {"value_size", "int", NULL, "min=1", NULL, 0},
+  {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_workload_generator_subconfigs[] = {
   {"custom_config", "category", NULL, NULL, confchk_custom_config_subconfigs, 5},

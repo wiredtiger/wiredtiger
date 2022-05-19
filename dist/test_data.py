@@ -55,9 +55,9 @@ throttle_config = [
 #
 record_config = [
     Config('key_size', 5, r'''
-        The size of the keys created''', min=0, max=10000),
+        The size of the keys created''', min=1),
     Config('value_size', 5, r'''
-        The size of the values created''', min=0, max=1000000000),
+        The size of the values created''', min=1),
 ]
 
 #
