@@ -726,7 +726,7 @@ __evict_pass(WT_SESSION_IMPL *session)
          * to prevent the oldest ID falling too far behind. Don't wait to lock the table: with
          * highly threaded workloads, that creates a bottleneck.
          */
-        WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT));
+        WT_IGNORE_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT));
 
         if (!__evict_update_work(session))
             break;
