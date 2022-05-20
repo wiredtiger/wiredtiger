@@ -181,7 +181,7 @@ class cursor_bound_01 : public test {
                 if (next) {
                     testutil_assert(!upper_bound.get_key().empty());
                     testutil_assert(
-                      custom_lexicographical_compare(normal_key, upper_bound.get_key(), true));
+                      !custom_lexicographical_compare(normal_key, upper_bound.get_key(), true));
                 } else {
                     testutil_assert(!lower_bound.get_key().empty());
                     testutil_assert(
@@ -333,7 +333,7 @@ class cursor_bound_01 : public test {
              * a prev() should be less than the search key.
              */
         } else if (range_exact > 0) {
-            testutil_assert(custom_lexicographical_compare(key, search_key, true));
+            testutil_assert(!custom_lexicographical_compare(key, search_key, true));
 
             /* Check that the previous key is less than the search key. */
             ret = normal_cursor->prev(normal_cursor.get());
@@ -355,7 +355,7 @@ class cursor_bound_01 : public test {
             if (ret == WT_NOTFOUND)
                 return;
             testutil_check(normal_cursor->get_key(normal_cursor.get(), &key));
-            testutil_assert(custom_lexicographical_compare(key, search_key, true));
+            testutil_assert(!custom_lexicographical_compare(key, search_key, true));
         }
     }
 
