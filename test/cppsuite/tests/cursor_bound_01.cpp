@@ -122,14 +122,17 @@ class cursor_bound_01 : public test {
     {
         int exact, normal_ret, range_ret;
         exact = normal_ret = range_ret = 0;
+
+        auto lower_key = lower_bound.get_key();
+        auto upper_key = upper_bound.get_key();
         if (next) {
             range_ret = range_cursor->next(range_cursor.get());
             /*
              * If the key exists, position the cursor to the lower key using search near otherwise
              * use prev().
              */
-            if (!lower_bound.get_key().empty()) {
-                normal_cursor->set_key(normal_cursor.get(), lower_bound.get_key().c_str());
+            if (!lower_key.empty()) {
+                normal_cursor->set_key(normal_cursor.get(), lower_key.c_str());
                 normal_ret = normal_cursor->search_near(normal_cursor.get(), &exact);
                 if (normal_ret == WT_NOTFOUND)
                     return;
@@ -143,8 +146,8 @@ class cursor_bound_01 : public test {
              * If the key exists, position the cursor to the upper key using search near otherwise
              * use next().
              */
-            if (!upper_bound.get_key().empty()) {
-                normal_cursor->set_key(normal_cursor.get(), upper_bound.get_key().c_str());
+            if (!upper_key.empty()) {
+                normal_cursor->set_key(normal_cursor.get(), upper_key.c_str());
                 normal_ret = normal_cursor->search_near(normal_cursor.get(), &exact);
                 if (normal_ret == WT_NOTFOUND)
                     return;
@@ -182,23 +185,21 @@ class cursor_bound_01 : public test {
                 testutil_check(normal_cursor->get_key(normal_cursor.get(), &normal_key));
                 /*  Make sure that normal cursor returns a key that is outside of the range. */
                 if (next) {
-                    testutil_assert(!upper_bound.get_key().empty());
-                    testutil_assert(
-                      !custom_lexicographical_compare(normal_key, upper_bound.get_key(), true));
+                    testutil_assert(!upper_key.empty());
+                    testutil_assert(!custom_lexicographical_compare(normal_key, upper_key, true));
                 } else {
-                    testutil_assert(!lower_bound.get_key().empty());
-                    testutil_assert(
-                      custom_lexicographical_compare(normal_key, lower_bound.get_key(), false));
+                    testutil_assert(!lower_key.empty());
+                    testutil_assert(custom_lexicographical_compare(normal_key, lower_key, false));
                 }
                 break;
             }
 
-            if (next && !upper_bound.get_key().empty())
+            if (next && !upper_key.empty())
                 testutil_assert(custom_lexicographical_compare(
-                  range_key, upper_bound.get_key(), upper_bound.get_inclusive()));
-            else if (!next && !lower_bound.get_key().empty())
+                  range_key, upper_key, upper_bound.get_inclusive()));
+            else if (!next && !lower_key.empty())
                 testutil_assert(custom_lexicographical_compare(
-                  lower_bound.get_key(), range_key, lower_bound.get_inclusive()));
+                  lower_key, range_key, lower_bound.get_inclusive()));
             /* Make sure that records match between both cursors. */
             testutil_check(normal_cursor->get_key(normal_cursor.get(), &normal_key));
             testutil_check(range_cursor->get_key(range_cursor.get(), &range_key));
@@ -269,27 +270,28 @@ class cursor_bound_01 : public test {
         /* Range cursor has successfully returned with a key. */
         if (range_ret == 0) {
             const char *key;
+
+            auto lower_key = lower_bound.get_key();
+            auto upper_key = upper_bound.get_key();
+            auto lower_inclusive = lower_bound.get_inclusive();
+            auto upper_inclusive = upper_bound.get_inclusive();
             testutil_check(range_cursor->get_key(range_cursor.get(), &key));
 
             logger::log_msg(LOG_TRACE,
-              "bounded search_near found key: " + std::string(key) + " with lower bound: " +
-                lower_bound.get_key() + " upper bound: " + upper_bound.get_key());
+              "bounded search_near found key: " + std::string(key) +
+                " with lower bound: " + lower_key + " upper bound: " + upper_key);
             /* Assert that the range cursor has returned a key inside the bounded range. */
-            auto above_lower_key = lower_bound.get_key().empty() ||
-              custom_lexicographical_compare(
-                lower_bound.get_key(), key, lower_bound.get_inclusive());
-            auto below_upper_key = upper_bound.get_key().empty() ||
-              custom_lexicographical_compare(
-                key, upper_bound.get_key(), upper_bound.get_inclusive());
+            auto above_lower_key =
+              lower_key.empty() || custom_lexicographical_compare(lower_key, key, lower_inclusive);
+            auto below_upper_key =
+              upper_key.empty() || custom_lexicographical_compare(key, upper_key, upper_inclusive);
             testutil_assert(above_lower_key && below_upper_key);
 
             /* Decide whether the search key is inside or outside the bounded range. */
-            above_lower_key = lower_bound.get_key().empty() ||
-              custom_lexicographical_compare(
-                lower_bound.get_key(), search_key, lower_bound.get_inclusive());
-            below_upper_key = upper_bound.get_key().empty() ||
-              custom_lexicographical_compare(
-                search_key, upper_bound.get_key(), upper_bound.get_inclusive());
+            above_lower_key = lower_key.empty() ||
+              custom_lexicographical_compare(lower_key, search_key, lower_inclusive);
+            below_upper_key = upper_key.empty() ||
+              custom_lexicographical_compare(search_key, upper_key, upper_inclusive);
             auto search_key_inside_range = above_lower_key && below_upper_key;
 
             normal_cursor->set_key(normal_cursor.get(), key);
@@ -374,6 +376,8 @@ class cursor_bound_01 : public test {
     {
         int ret = larger_search_key ? normal_cursor->next(normal_cursor.get()) :
                                       normal_cursor->prev(normal_cursor.get());
+        auto lower_key = lower_bound.get_key();
+        auto upper_key = upper_bound.get_key();
         if (ret == WT_NOTFOUND)
             return;
         testutil_assert(ret == 0);
@@ -384,10 +388,10 @@ class cursor_bound_01 : public test {
          * Assert that the next() or prev() call has placed the normal cursor outside of the bounded
          * range.
          */
-        auto above_lower_key = lower_bound.get_key().empty() ||
-          custom_lexicographical_compare(lower_bound.get_key(), key, lower_bound.get_inclusive());
-        auto below_upper_key = upper_bound.get_key().empty() ||
-          custom_lexicographical_compare(key, upper_bound.get_key(), upper_bound.get_inclusive());
+        auto above_lower_key = lower_key.empty() ||
+          custom_lexicographical_compare(lower_key, key, lower_bound.get_inclusive());
+        auto below_upper_key = upper_key.empty() ||
+          custom_lexicographical_compare(key, upper_key, upper_bound.get_inclusive());
         testutil_assert(!(above_lower_key && below_upper_key));
     }
 
@@ -400,12 +404,13 @@ class cursor_bound_01 : public test {
       scoped_cursor &normal_cursor, const bound &lower_bound, const bound &upper_bound)
     {
         int ret, exact;
+        auto lower_key = lower_bound.get_key();
+        auto upper_key = upper_bound.get_key();
         logger::log_msg(LOG_TRACE,
-          "bounded search_near found WT_NOTFOUND on lower bound: " + lower_bound.get_key() +
-            " upper bound: " + upper_bound.get_key() +
-            " traversing range to validate that there are no keys within range.");
-        if (!lower_bound.get_key().empty()) {
-            normal_cursor->set_key(normal_cursor.get(), lower_bound.get_key().c_str());
+          "bounded search_near found WT_NOTFOUND on lower bound: " + lower_key + " upper bound: " +
+            upper_key + " traversing range to validate that there are no keys within range.");
+        if (!lower_key.empty()) {
+            normal_cursor->set_key(normal_cursor.get(), lower_key.c_str());
             ret = normal_cursor->search_near(normal_cursor.get(), &exact);
         } else
             ret = normal_cursor->next(normal_cursor.get());
@@ -427,12 +432,10 @@ class cursor_bound_01 : public test {
 
             testutil_check(normal_cursor->get_key(normal_cursor.get(), &key));
             /* Asserted that the traversed key is not within the range bound. */
-            auto above_lower_key = lower_bound.get_key().empty() ||
-              custom_lexicographical_compare(
-                lower_bound.get_key(), key, lower_bound.get_inclusive());
-            auto below_upper_key = upper_bound.get_key().empty() ||
-              custom_lexicographical_compare(
-                key, upper_bound.get_key(), upper_bound.get_inclusive());
+            auto above_lower_key = lower_key.empty() ||
+              custom_lexicographical_compare(lower_key, key, lower_bound.get_inclusive());
+            auto below_upper_key = upper_key.empty() ||
+              custom_lexicographical_compare(key, upper_key, upper_bound.get_inclusive());
             testutil_assert(!(above_lower_key && below_upper_key));
 
             /*
