@@ -374,7 +374,6 @@ runtime_monitor::save_stats()
     if (stat_info.back() == ',')
         stat_info.pop_back();
 
-    std::cout << "runtime monitor" << std::endl;
     _perf_file << stat_info << "]}]";
     _perf_file.close();
 }

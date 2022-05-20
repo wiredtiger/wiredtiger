@@ -17,9 +17,9 @@ op_tracker::append_stats()
     uint64_t avg = (uint64_t)_total_time_taken / _it_count;
     auto stat_info = "{\"name\":\"" + _id + "\",\"value\":" + std::to_string(avg) + "},";
 
-    // /* Remove last extra comma. */
-    // if (stat_info.back() == ',')
-    //     stat_info.pop_back();
+    /* Remove last extra comma. */
+    if (stat_info.back() == ',')
+        stat_info.pop_back();
 
     perf_file << stat_info;
     perf_file.close();

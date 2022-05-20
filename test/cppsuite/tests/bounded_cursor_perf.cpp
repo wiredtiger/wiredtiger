@@ -93,12 +93,10 @@ class bounded_cursor_perf : public test {
                 ret_prev = default_prev.track(
                   [&prev_cursor]() -> int { return prev_cursor->prev(prev_cursor.get()); });
 
-                int ret = (ret_next == 0 || ret_next == WT_NOTFOUND) &&
-                  (ret_prev == 0 || ret_prev == WT_NOTFOUND);
-                int range_ret = (range_ret_prev == 0 || range_ret_prev == WT_NOTFOUND) &&
-                  (range_ret_next == 0 || range_ret_next == WT_NOTFOUND);
-                testutil_assert(ret == 1);
-                testutil_assert(range_ret == 1);
+                testutil_assert((ret_next == 0 || ret_next == WT_NOTFOUND) &&
+                  (ret_prev == 0 || ret_prev == WT_NOTFOUND));
+                testutil_assert((range_ret_prev == 0 || range_ret_prev == WT_NOTFOUND) &&
+                  (range_ret_next == 0 || range_ret_next == WT_NOTFOUND));
             }
             next_range_cursor->set_key(next_range_cursor.get(), tc->key_to_string(0).c_str());
             next_range_cursor->bound(next_range_cursor.get(), "bound=lower");
