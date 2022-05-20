@@ -213,7 +213,8 @@ class cache_resize : public test_harness::test {
                  *
                  * FIXME-WT-9339 - Somehow we have some transactions that go through while the cache
                  * is very low. Enable the check when this is no longer the case.
-                 * testutil_assert(cache_size > cache_size_500mb);.
+                 *
+                 * testutil_assert(cache_size > cache_size_500mb);
                  */
             }
             prev_txn_id = tracked_txn_id;
@@ -226,8 +227,9 @@ class cache_resize : public test_harness::test {
         testutil_assert(num_records > 0);
         /*
          * FIXME-WT-9339 - Somehow we have some transactions that go through while the cache is very
-         * low. Enable the check when this is no longer the case. testutil_assert(cache_size >
-         * cache_size_500mb);.
+         * low. Enable the check when this is no longer the case.
+         *
+         * testutil_assert(cache_size > cache_size_500mb);
          */
     }
 };
