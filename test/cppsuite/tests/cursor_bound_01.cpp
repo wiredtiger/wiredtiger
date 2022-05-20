@@ -50,14 +50,17 @@ class cursor_bound_01 : public test {
     class bound {
         public:
         bound() = default;
-        bound(uint64_t key_size_max, bool lower_bound) : _lower_bound(lower_bound)
+        bound(uint64_t key_size_max, bool lower_bound, std::string key)
+            : _lower_bound(lower_bound), _key(key)
         {
             bool set_inclusive = random_generator::instance().generate_integer(0, 1);
-            auto key_size =
-              random_generator::instance().generate_integer(static_cast<uint64_t>(1), key_size_max);
-            auto random_key = random_generator::instance().generate_random_string(
-              key_size, characters_type::ALPHABET);
-            _key = random_key;
+            // FIXME: Use random strings, once bounds are implemented properly.
+            // auto key_size =
+            //   random_generator::instance().generate_integer(static_cast<uint64_t>(1),
+            //   key_size_max);
+            // auto random_key = random_generator::instance().generate_random_string(
+            //   key_size, characters_type::ALPHABET);
+            // _key = random_key;
             _inclusive = set_inclusive;
         }
 
@@ -219,26 +222,25 @@ class cursor_bound_01 : public test {
             range_cursor->bound(range_cursor.get(), "action=clear");
 
         if (set_random_bounds == LOWER_BOUND_SET || set_random_bounds == ALL_BOUNDS_SET) {
-            lower_bound = bound(tc->key_size, true);
             /* Reverse case. */
             if (_reverse_collator_enabled)
-                lower_bound.get_key() = std::string(tc->key_size, 'z');
+                lower_bound = bound(tc->key_size, true, std::string(tc->key_size, 'z'));
             /* Normal case. */
             else
-                lower_bound.get_key() = "0";
+                lower_bound = bound(tc->key_size, true, "0");
             range_cursor->set_key(range_cursor.get(), lower_bound.get_key().c_str());
             ret = range_cursor->bound(range_cursor.get(), lower_bound.get_config().c_str());
             testutil_assert(ret == 0 || ret == EINVAL);
         }
 
         if (set_random_bounds == UPPER_BOUND_SET || set_random_bounds == ALL_BOUNDS_SET) {
-            upper_bound = bound(tc->key_size, false);
+
             /* Reverse case. */
             if (_reverse_collator_enabled)
-                upper_bound.get_key() = "0";
+                upper_bound = bound(tc->key_size, false, "0");
             /* Normal case. */
             else
-                upper_bound.get_key() = std::string(tc->key_size, 'z');
+                upper_bound = bound(tc->key_size, false, std::string(tc->key_size, 'z'));
             range_cursor->set_key(range_cursor.get(), upper_bound.get_key().c_str());
             ret = range_cursor->bound(range_cursor.get(), upper_bound.get_config().c_str());
             testutil_assert(ret == 0 || ret == EINVAL);
