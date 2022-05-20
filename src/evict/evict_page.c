@@ -667,6 +667,10 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
       F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT);
     is_eviction_thread = F_ISSET(session, WT_SESSION_EVICTION);
 
+    /* We better not use an old checkpoint snapshot for eviction - that would be weird. */
+    WT_ASSERT(session, !use_snapshot_for_app_thread ||
+            !F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT));
+
     /* Make sure that both conditions above are not true at the same time. */
     WT_ASSERT(session, !use_snapshot_for_app_thread || !is_eviction_thread);
 

@@ -40,6 +40,8 @@ WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency, 100)
         uint64_t __saved_write_gen = (session)->checkpoint_write_gen;                       \
                                                                                             \
         if ((cbt)->checkpoint_txn != NULL) {                                                \
+           /* Don't ever allow checkpoint reads when generating a new checkpoint. */        \
+            WT_ASSERT(session, !WT_SESSION_IS_CHECKPOINT(session));                         \
             __saved_txn = (session)->txn;                                                   \
             if (F_ISSET(__saved_txn, WT_TXN_IS_CHECKPOINT)) {                               \
                 WT_ASSERT(                                                                  \
