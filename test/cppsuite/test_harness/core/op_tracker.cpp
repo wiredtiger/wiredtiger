@@ -1,4 +1,5 @@
 #include "test_harness/test.h"
+#include "test_harness/util/perf_plotter.h"
 #include "op_tracker.h"
 
 namespace test_harness {
@@ -10,19 +11,9 @@ op_tracker::op_tracker(const std::string id, const std::string &test_name)
 void
 op_tracker::append_stats()
 {
-    std::ofstream perf_file;
-
-    perf_file.open(_test_name + ".json", std::ios_base::app);
-
     uint64_t avg = (uint64_t)_total_time_taken / _it_count;
-    auto stat_info = "{\"name\":\"" + _id + "\",\"value\":" + std::to_string(avg) + "},";
-
-    /* Remove last extra comma. */
-    if (stat_info.back() == ',')
-        stat_info.pop_back();
-
-    perf_file << stat_info;
-    perf_file.close();
+    std::string stat = "{\"name\":\"" + _id + "\",\"value\":" + std::to_string(avg) + "}";
+    perf_plotter::instance().add_stat(stat);
 }
 
 template <typename T>
