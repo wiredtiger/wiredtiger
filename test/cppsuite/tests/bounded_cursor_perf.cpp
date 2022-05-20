@@ -44,6 +44,15 @@ class bounded_cursor_perf : public test {
     public:
     bounded_cursor_perf(const test_args &args) : test(args) {}
 
+    static void
+    set_bounds(scoped_cursor &cursor)
+    {
+        cursor->set_key(cursor.get(), std::string(1, ('0' - 1)).c_str());
+        cursor->bound(cursor.get(), "bound=lower");
+        cursor->set_key(cursor.get(), std::string(1, ('9' + 1)).c_str());
+        cursor->bound(cursor.get(), "bound=upper");
+    }
+
     void
     read_operation(thread_context *tc) override final
     {
@@ -74,10 +83,8 @@ class bounded_cursor_perf : public test {
          * The keys in the collection are contiguous from 0 -> key_count -1. Applying the range
          * cursor bounds outside of the key range for the purpose of this test.
          */
-        next_range_cursor->set_key(next_range_cursor.get(), tc->key_to_string(0).c_str());
-        next_range_cursor->bound(next_range_cursor.get(), "bound=lower");
-        prev_range_cursor->set_key(prev_range_cursor.get(), tc->key_to_string('0' - 1).c_str());
-        prev_range_cursor->bound(prev_range_cursor.get(), "bound=upper");
+        set_bounds(next_range_cursor);
+        set_bounds(prev_range_cursor);
 
         while (tc->running()) {
             while (ret_next != WT_NOTFOUND && ret_prev != WT_NOTFOUND && tc->running()) {
@@ -98,10 +105,8 @@ class bounded_cursor_perf : public test {
                 testutil_assert((range_ret_prev == 0 || range_ret_prev == WT_NOTFOUND) &&
                   (range_ret_next == 0 || range_ret_next == WT_NOTFOUND));
             }
-            next_range_cursor->set_key(next_range_cursor.get(), tc->key_to_string(0).c_str());
-            next_range_cursor->bound(next_range_cursor.get(), "bound=lower");
-            prev_range_cursor->set_key(prev_range_cursor.get(), tc->key_to_string('0' - 1).c_str());
-            prev_range_cursor->bound(prev_range_cursor.get(), "bound=upper");
+            set_bounds(next_range_cursor);
+            set_bounds(prev_range_cursor);
         }
     }
 };
