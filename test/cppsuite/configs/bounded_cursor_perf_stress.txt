@@ -8,8 +8,8 @@ workload_generator=
 (
     populate_config=
     (
-        collection_count=10,
-        key_count_per_collection=1000,
+        collection_count=1,
+        key_count_per_collection=100000,
         key_size=100,
     ),
     read_config=

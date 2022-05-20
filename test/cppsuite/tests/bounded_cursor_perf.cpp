@@ -107,4 +107,4 @@ class bounded_cursor_perf : public test {
         }
     }
 };
-}
+} // namespace test_harness
