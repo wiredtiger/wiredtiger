@@ -180,22 +180,22 @@ class cursor_bound_01 : public test {
                 /*  Make sure that normal cursor returns a key that is outside of the range. */
                 if (next) {
                     testutil_assert(!upper_bound.get_key().empty());
-                    testutil_assert(custom_lexicographical_compare(
-                                      normal_key, upper_bound.get_key(), true) == false);
+                    testutil_assert(
+                      custom_lexicographical_compare(normal_key, upper_bound.get_key(), true));
                 } else {
                     testutil_assert(!lower_bound.get_key().empty());
-                    testutil_assert(custom_lexicographical_compare(
-                                      normal_key, lower_bound.get_key(), false) == true);
+                    testutil_assert(
+                      custom_lexicographical_compare(normal_key, lower_bound.get_key(), false));
                 }
                 break;
             }
 
             if (next && !upper_bound.get_key().empty())
-                testutil_assert(custom_lexicographical_compare(range_key, upper_bound.get_key(),
-                                  upper_bound.get_inclusive()) == true);
+                testutil_assert(custom_lexicographical_compare(
+                  range_key, upper_bound.get_key(), upper_bound.get_inclusive()));
             else if (!next && !lower_bound.get_key().empty())
-                testutil_assert(custom_lexicographical_compare(lower_bound.get_key(), range_key,
-                                  lower_bound.get_inclusive()) == true);
+                testutil_assert(custom_lexicographical_compare(
+                  lower_bound.get_key(), range_key, lower_bound.get_inclusive()));
             /* Make sure that records match between both cursors. */
             testutil_check(normal_cursor->get_key(normal_cursor.get(), &normal_key));
             testutil_check(range_cursor->get_key(range_cursor.get(), &range_key));
@@ -333,7 +333,7 @@ class cursor_bound_01 : public test {
              * a prev() should be less than the search key.
              */
         } else if (range_exact > 0) {
-            testutil_assert(custom_lexicographical_compare(key, search_key, true) == false);
+            testutil_assert(custom_lexicographical_compare(key, search_key, true));
 
             /* Check that the previous key is less than the search key. */
             ret = normal_cursor->prev(normal_cursor.get());
@@ -341,13 +341,13 @@ class cursor_bound_01 : public test {
             if (ret == WT_NOTFOUND)
                 return;
             testutil_check(normal_cursor->get_key(normal_cursor.get(), &key));
-            testutil_assert(custom_lexicographical_compare(key, search_key, false) == true);
+            testutil_assert(custom_lexicographical_compare(key, search_key, false));
             /*
              * When exact < 0, the returned key should be less than the search key and performing a
              * next() should be greater than the search key.
              */
         } else if (range_exact < 0) {
-            testutil_assert(custom_lexicographical_compare(key, search_key, false) == true);
+            testutil_assert(custom_lexicographical_compare(key, search_key, false));
 
             /* Check that the next key is greater than the search key. */
             ret = normal_cursor->next(normal_cursor.get());
@@ -355,7 +355,7 @@ class cursor_bound_01 : public test {
             if (ret == WT_NOTFOUND)
                 return;
             testutil_check(normal_cursor->get_key(normal_cursor.get(), &key));
-            testutil_assert(custom_lexicographical_compare(key, search_key, true) == false);
+            testutil_assert(custom_lexicographical_compare(key, search_key, true));
         }
     }
 
