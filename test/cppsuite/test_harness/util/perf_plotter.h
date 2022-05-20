@@ -30,10 +30,10 @@
 #include <fstream>
 #include <mutex>
 #include <vector>
-namespace test_harness{
+namespace test_harness {
 /*
- * Singleton class owning the perf plot json, provides access to add statistics, and a central
- * call point to output the file.
+ * Singleton class owning the perf plot json, provides access to add statistics, and a central call
+ * point to output the file.
  */
 class perf_plotter {
     public:
@@ -53,7 +53,6 @@ class perf_plotter {
     private:
     perf_plotter();
     std::vector<std::string> _stats;
-    std::ofstream _perf_file;
     std::mutex _stat_mutex;
 };
 } // namespace test_harness

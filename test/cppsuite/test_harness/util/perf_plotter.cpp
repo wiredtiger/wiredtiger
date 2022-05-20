@@ -35,12 +35,23 @@ perf_plotter::add_stat(const std::string &stat_string)
     _stats.push_back(stat_string);
 }
 
-void perf_plotter::output_perf_file(const std::string &test_name)
+void
+perf_plotter::output_perf_file(const std::string &test_name)
 {
-    /* Create a string of the json header. */
-    /* Append the stats which are passed in via add_stats from other components. */
-    /* Add the closing json string. */
-    /* output the file. */
+    std::ofstream perf_file;
+    std::string stat_info = "[{\"info\":{\"test_name\": \"" + test_name + "\"},\"metrics\": [";
+
+    perf_file.open(test_name + ".json");
+
+    for (const auto &stat : _stats)
+        stat_info += stat + ",";
+
+    /* Remove last extra comma. */
+    if (stat_info.back() == ',')
+        stat_info.pop_back();
+
+    perf_file << stat_info << "]}]";
+    perf_file.close();
 }
 
 perf_plotter &

@@ -71,6 +71,7 @@ class bounded_cursor_perf : public test {
         op_tracker default_prev("default_prev", test::_args.test_name);
 
         /* Get the collection to work on. */
+        testutil_assert(tc->db.get_collection_count() == 1);
         collection &coll = tc->db.get_collection(0);
 
         /* Opening the cursors. */
