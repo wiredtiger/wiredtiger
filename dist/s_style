@@ -34,7 +34,7 @@ else
 		exit 1;
 	fi
 
-	# Ignore styling errors of external libraries. 
+	# Ignore styling errors of external libraries.
 	if expr "$f" : 'src/' > /dev/null &&
 	  ! expr "$f" : 'src/os_win/' > /dev/null &&
 	  ! expr "$f" : 'src/docs/' > /dev/null &&
