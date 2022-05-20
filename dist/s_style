@@ -52,7 +52,6 @@ else
 			echo 'Add parentheses to return values indicated below in file '"$f"
 			echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 			cat $t
-			exit 1
 		}
 	fi
 
