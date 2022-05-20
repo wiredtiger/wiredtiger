@@ -43,7 +43,7 @@ maximum_committed_ts(void)
      * global timestamp to avoid awkward races. A barrier additionally prevents using cache values
      * here.
      */
-    ts = __wt_atomic_addv64(&g.timestamp, 1);
+    WT_ORDERED_READ(ts, g.timestamp);
     if (tinfo_list != NULL)
         for (tlp = tinfo_list; *tlp != NULL; ++tlp) {
             commit_ts = (*tlp)->commit_ts;
