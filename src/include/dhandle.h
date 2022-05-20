@@ -12,6 +12,7 @@
 #define WT_WITH_DHANDLE(s, d, e)                        \
     do {                                                \
         WT_DATA_HANDLE *__saved_dhandle = (s)->dhandle; \
+        __wt_session_check_checkpoint_state(s, (d));    \
         (s)->dhandle = (d);                             \
         e;                                              \
         (s)->dhandle = __saved_dhandle;                 \

@@ -842,3 +842,31 @@ err:
     session->dhandle = saved_dhandle;
     return (ret);
 }
+
+/*
+ * __wt_session_check_checkpoint_state --
+ *     Check the state of the checkpoint saved into the session structure - it needs to match the
+ *     dhandle in the current session, and the dhandle that's about to be switched into place.
+ */
+void
+__wt_session_check_checkpoint_state(WT_SESSION_IMPL *session, WT_DATA_HANDLE *new_handle)
+{
+    WT_DATA_HANDLE *old_handle;
+    WT_TXN *txn;
+
+    old_handle = session->dhandle;
+    txn = session->txn;
+
+    if (old_handle != NULL && old_handle->checkpoint != NULL) {
+        /* Ensure checkpoint handles have an associated transaction. */
+        WT_ASSERT(session, F_ISSET(txn, WT_TXN_IS_CHECKPOINT));
+    }
+    if (new_handle->checkpoint != NULL) {
+        /*
+         * If the new handle has a checkpoint, it better match the previous one. TODO: I think the
+         * checkpoint information should travel with the dhandle, not the cursor structure. I don't
+         * think it's OK for a single data handle to service multiple different checkpoints.
+         */
+        WT_ASSERT(session, old_handle != NULL && old_handle->checkpoint != NULL);
+    }
+}

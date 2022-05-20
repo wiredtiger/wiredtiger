@@ -1850,6 +1850,8 @@ extern void __wt_root_ref_init(
 extern void __wt_rwlock_destroy(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern void __wt_schema_destroy_colgroup(WT_SESSION_IMPL *session, WT_COLGROUP **colgroupp);
 extern void __wt_scr_discard(WT_SESSION_IMPL *session);
+extern void __wt_session_check_checkpoint_state(
+  WT_SESSION_IMPL *session, WT_DATA_HANDLE *new_dhandle);
 extern void __wt_session_close_cache(WT_SESSION_IMPL *session);
 extern void __wt_session_gen_enter(WT_SESSION_IMPL *session, int which);
 extern void __wt_session_gen_leave(WT_SESSION_IMPL *session, int which);
