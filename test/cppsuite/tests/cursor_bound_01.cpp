@@ -162,7 +162,7 @@ class cursor_bound_01 : public test {
         const char *normal_key, *range_key;
         testutil_check(normal_cursor->get_key(normal_cursor.get(), &normal_key));
         testutil_check(range_cursor->get_key(range_cursor.get(), &range_key));
-        testutil_assert(std::string(normal_key).compare(std::string(range_key)) == 0);
+        testutil_assert(std::string(normal_key).compare(range_key) == 0);
         while (true) {
             if (next) {
                 normal_ret = normal_cursor->next(normal_cursor.get());
@@ -202,7 +202,7 @@ class cursor_bound_01 : public test {
             /* Make sure that records match between both cursors. */
             testutil_check(normal_cursor->get_key(normal_cursor.get(), &normal_key));
             testutil_check(range_cursor->get_key(range_cursor.get(), &range_key));
-            testutil_assert(std::string(normal_key).compare(std::string(range_key)) == 0);
+            testutil_assert(std::string(normal_key).compare(range_key) == 0);
         }
     }
 
