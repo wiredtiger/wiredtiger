@@ -34,6 +34,10 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref,
      *
      * We expect the page to be clean after reconciliation. If there are invisible updates, abort
      * eviction.
+     *
+     * We must have reconciliation leave the page dirty in this case, because the truncation hasn't
+     * been written to disk yet; if the page gets marked clean it might be discarded and then the
+     * truncation is lost.
      */
     if (!__wt_page_del_visible(session, page_del, !F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))) {
         if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
@@ -41,6 +45,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref,
         if (F_ISSET(r, WT_REC_CLEAN_AFTER_REC))
             return (__wt_set_return(session, EBUSY));
         cmsp->state = WT_CHILD_ORIGINAL;
+        r->leave_dirty = true;
         return (0);
     }
 
@@ -52,12 +57,18 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref,
      * We should never see an in-progress prepare in eviction: when we check to see if an internal
      * page can be evicted, we check for an unresolved fast-truncate, which includes a fast-truncate
      * in a prepared state, so it's an error to see that during eviction.
+     *
+     * As in the previous case, leave the page dirty. This is not strictly necessary as the prepared
+     * truncation will also prevent eviction; but if we don't do it and someone adds the ability to
+     * evict prepared truncates, the page apparently being clean might lead to truncations being
+     * lost in hard-to-debug ways.
      */
     WT_ORDERED_READ(prepare_state, page_del->prepare_state);
     if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
         WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
 
         cmsp->state = WT_CHILD_ORIGINAL;
+        r->leave_dirty = true;
         return (0);
     }
 
