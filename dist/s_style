@@ -46,9 +46,9 @@ else
 		# Camel case style is not allowed.
 		if egrep -r -n '\b[a-z]+[A-Z]' $f | egrep -v ':[     ]+\*|"|UNCHECKED_STRING'; then
 			echo "$f: Styling requires variables that use underscores to separate parts of a name instead of camel casing.";
+		fi
 		
 		# Return values should be wrapped in parentheses.
-		fi
 		egrep -r -n '^[^*/"]*[[:space:]]*return [^(]' $f > $t;
 		test -s $t && {
 			echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
