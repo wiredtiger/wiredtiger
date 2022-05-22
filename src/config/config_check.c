@@ -62,7 +62,9 @@ config_check_search(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_i
             }
         }
 
-    WT_RET_MSG(session, EINVAL, "unknown configuration key: '%.*s'", (int)len, str);
+    __wt_verbose_warning(
+      session, WT_VERB_COMPACT, "unknown configuration key: '%.*s'", (int)len, str);
+    return (EINVAL);
 }
 
 /*
@@ -94,7 +96,11 @@ config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int chec
               session, EINVAL, "Invalid configuration key found: '%.*s'", (int)k.len, k.str);
 
         /* Search for a matching entry. */
-        WT_RET(config_check_search(session, checks, checks_entries, k.str, k.len, &i));
+        ret = config_check_search(session, checks, checks_entries, k.str, k.len, &i);
+        /* EINVAL is returned for an unknown configuration field, ignore and keep parsing. */
+        if (ret == EINVAL)
+            continue;
+        WT_RET(ret);
 
         if (strcmp(checks[i].type, "boolean") == 0) {
             badtype = v.type != WT_CONFIG_ITEM_BOOL &&
