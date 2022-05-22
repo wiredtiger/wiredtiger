@@ -116,6 +116,11 @@ class cursor_bound_01 : public test {
             return first_key.compare(second_key) <= 0;
     }
 
+    /*
+     * Helper function which traverses the tree, given the range cursor and normal cursor. The next
+     * variable decides where we traverse forwards or backwards in the tree. Also perform
+     * lower bound and upper bound checks while walking the tree.
+     */
     void
     cursor_traversal(scoped_cursor &range_cursor, scoped_cursor &normal_cursor,
       const bound &lower_bound, const bound &upper_bound, bool next)
@@ -269,17 +274,17 @@ class cursor_bound_01 : public test {
     {
         /* Range cursor has successfully returned with a key. */
         if (range_ret == 0) {
-            const char *key;
-
             auto lower_key = lower_bound.get_key();
             auto upper_key = upper_bound.get_key();
             auto lower_inclusive = lower_bound.get_inclusive();
             auto upper_inclusive = upper_bound.get_inclusive();
-            testutil_check(range_cursor->get_key(range_cursor.get(), &key));
 
+            const char *key;
+            testutil_check(range_cursor->get_key(range_cursor.get(), &key));
             logger::log_msg(LOG_TRACE,
               "bounded search_near found key: " + std::string(key) +
                 " with lower bound: " + lower_key + " upper bound: " + upper_key);
+
             /* Assert that the range cursor has returned a key inside the bounded range. */
             auto above_lower_key =
               lower_key.empty() || custom_lexicographical_compare(lower_key, key, lower_inclusive);
@@ -298,8 +303,10 @@ class cursor_bound_01 : public test {
             /* Position the normal cursor on the found key from range cursor. */
             testutil_check(normal_cursor->search(normal_cursor.get()));
 
-            /* Call different validation methods depending on whether the search key is inside or
-             * outside the range. */
+            /* 
+             * Call different validation methods depending on whether the search key is inside or
+             * outside the range.
+             */
             if (search_key_inside_range)
                 validate_successful_search_near_inside_range(
                   normal_cursor, range_exact, search_key);
@@ -332,11 +339,11 @@ class cursor_bound_01 : public test {
         /* When exact = 0, the returned key should be equal to the search key. */
         if (range_exact == 0) {
             testutil_assert(std::string(key).compare(search_key) == 0);
+        } else if (range_exact > 0) {
             /*
              * When exact > 0, the returned key should be greater than the search key and performing
              * a prev() should be less than the search key.
              */
-        } else if (range_exact > 0) {
             testutil_assert(!custom_lexicographical_compare(key, search_key, true));
 
             /* Check that the previous key is less than the search key. */
@@ -417,6 +424,10 @@ class cursor_bound_01 : public test {
 
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
 
+        /* 
+         * If search near has positioned the cursor before the lower key, perform a next() to
+         * to place the cursor in the first record in the range.
+         */ 
         if (exact < 0)
             ret = normal_cursor->next(normal_cursor.get());
 
@@ -425,9 +436,7 @@ class cursor_bound_01 : public test {
          * returned.
          */
         const char *key;
-        while (true) {
-            if (ret == WT_NOTFOUND)
-                break;
+        while (ret != WT_NOTFOUND) {
             testutil_assert(ret == 0);
 
             testutil_check(normal_cursor->get_key(normal_cursor.get(), &key));
@@ -564,12 +573,11 @@ class cursor_bound_01 : public test {
         /*
          * Each read operation will perform search nears with a range bounded cursor and a normal
          * cursor without any bounds set. The normal cursor will be used to validate the results
-         * from the range cursor. validate existing keys in the collections.
+         * from the range cursor.
          */
         logger::log_msg(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
-        int ret;
         bound lower_bound, upper_bound;
         std::map<uint64_t, scoped_cursor> cursors;
 
@@ -590,7 +598,7 @@ class cursor_bound_01 : public test {
             if (!bound_pair.second.get_key().empty())
                 upper_bound = bound_pair.second;
 
-            /* Clear all bounds if both bounds doesn't have a key. */
+            /* Clear all bounds if both bounds don't have a key. */
             if (bound_pair.first.get_key().empty() && bound_pair.second.get_key().empty()) {
                 lower_bound = bound_pair.first;
                 upper_bound = bound_pair.second;
@@ -614,7 +622,7 @@ class cursor_bound_01 : public test {
 
                 int exact;
                 range_cursor->set_key(range_cursor.get(), srch_key.c_str());
-                ret = range_cursor->search_near(range_cursor.get(), &exact);
+                auto ret = range_cursor->search_near(range_cursor.get(), &exact);
                 testutil_assert(ret == 0 || ret == WT_NOTFOUND);
 
                 /* Verify the bound search_near result using the normal cursor. */
