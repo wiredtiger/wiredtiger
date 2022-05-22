@@ -118,8 +118,8 @@ class cursor_bound_01 : public test {
 
     /*
      * Helper function which traverses the tree, given the range cursor and normal cursor. The next
-     * variable decides where we traverse forwards or backwards in the tree. Also perform
-     * lower bound and upper bound checks while walking the tree.
+     * variable decides where we traverse forwards or backwards in the tree. Also perform lower
+     * bound and upper bound checks while walking the tree.
      */
     void
     cursor_traversal(scoped_cursor &range_cursor, scoped_cursor &normal_cursor,
@@ -303,7 +303,7 @@ class cursor_bound_01 : public test {
             /* Position the normal cursor on the found key from range cursor. */
             testutil_check(normal_cursor->search(normal_cursor.get()));
 
-            /* 
+            /*
              * Call different validation methods depending on whether the search key is inside or
              * outside the range.
              */
@@ -424,10 +424,10 @@ class cursor_bound_01 : public test {
 
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
 
-        /* 
-         * If search near has positioned the cursor before the lower key, perform a next() to
-         * to place the cursor in the first record in the range.
-         */ 
+        /*
+         * If search near has positioned the cursor before the lower key, perform a next() to to
+         * place the cursor in the first record in the range.
+         */
         if (exact < 0)
             ret = normal_cursor->next(normal_cursor.get());
 
