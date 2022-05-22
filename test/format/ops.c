@@ -503,7 +503,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
         if (prepared)
             lock_readlock(session, &g.prepare_commit_lock);
 
-        ts = __wt_atomic_addv64(&g.timestamp, 1);
+        ts = __wt_atomic_fetch_addv64(&g.timestamp, 1);
         testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
 
         if (prepared)
@@ -564,7 +564,7 @@ prepare_transaction(TINFO *tinfo)
      * prepare timestamp to whatever the global value is now. The subsequent commit will increment
      * it, ensuring correctness.
      */
-    ts = __wt_atomic_addv64(&g.timestamp, 1);
+    ts = __wt_atomic_fetch_addv64(&g.timestamp, 1);
     testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_PREPARE, ts));
     ret = session->prepare_transaction(session, NULL);
 

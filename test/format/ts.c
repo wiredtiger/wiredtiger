@@ -38,11 +38,7 @@ maximum_committed_ts(void)
     TINFO **tlp;
     uint64_t commit_ts, ts;
 
-    /*
-     * We advance the timestamp during bulk load to keep the WiredTiger cache happy, increment the
-     * global timestamp to avoid awkward races. A barrier additionally prevents using cache values
-     * here.
-     */
+    /* A barrier additionally prevents using cache values here. */
     WT_ORDERED_READ(ts, g.timestamp);
     if (tinfo_list != NULL)
         for (tlp = tinfo_list; *tlp != NULL; ++tlp) {
