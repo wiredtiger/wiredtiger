@@ -357,7 +357,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             continue;
 
         /* Updates have already been inserted to the history store. */
-        if (F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS))
+        if (F_ISSET(upd, WT_UPDATE_HS))
             continue;
 
         /* History store table key component: source key. */
@@ -426,6 +426,12 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
 
+            /*
+             * We must have deleted the update restored from the history store from the history
+             * store at this point.
+             */
+            WT_ASSERT(session, !F_ISSET(WT_UPDATE_TO_DELETE_FROM_HS));
+
             /* Detect any update without a timestamp. */
             if (prev_upd != NULL && prev_upd->start_ts < upd->start_ts) {
                 WT_ASSERT(session, prev_upd->start_ts == WT_TS_NONE);
@@ -492,8 +498,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
              * If we've reached a full update and it's in the history store we don't need to
              * continue as anything beyond this point won't help with calculating deltas.
              */
-            if (upd->type == WT_UPDATE_STANDARD &&
-              F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS))
+            if (upd->type == WT_UPDATE_STANDARD && F_ISSET(upd, WT_UPDATE_HS))
                 break;
 
             /*
@@ -529,7 +534,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
         }
 
         /* Skip if we have nothing to insert to the history store. */
-        if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS)) {
+        if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_HS)) {
             /* The onpage value is squashed. */
             if (newest_hs == NULL && squashed)
                 ++cache_hs_write_squash;
@@ -621,7 +626,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             }
 
             /* Skip updates that are already in the history store. */
-            if (F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS)) {
+            if (F_ISSET(upd, WT_UPDATE_HS)) {
                 if (hs_inserted)
                     WT_ERR_PANIC(session, WT_PANIC,
                       "Reinserting updates to the history store may corrupt the data as it may "
