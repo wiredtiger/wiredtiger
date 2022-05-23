@@ -42,6 +42,7 @@
 #include "search_near_03.cpp"
 #include "test_template.cpp"
 #include "cache_resize.cpp"
+#include "bounded_cursor_perf.cpp"
 
 /* Declarations to avoid the error raised by -Werror=missing-prototypes. */
 const std::string parse_configuration_from_file(const std::string &filename);
@@ -138,6 +139,8 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         test_template(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "cache_resize")
         cache_resize(test_harness::test_args{config, test_name, wt_open_config}).run();
+    else if (test_name == "bounded_cursor_perf")
+        bounded_cursor_perf(test_harness::test_args{config, test_name, wt_open_config}).run();
     else {
         test_harness::logger::log_msg(LOG_ERROR, "Test not found: " + test_name);
         error_code = -1;
@@ -160,9 +163,9 @@ main(int argc, char *argv[])
 {
     std::string cfg, config_filename, current_cfg, current_test_name, test_name, wt_open_config;
     int64_t error_code = 0;
-    const std::vector<std::string> all_tests = {"burst_inserts", "cache_resize", "cursor_bound_01",
-      "hs_cleanup", "operations_test", "search_near_01", "search_near_02", "search_near_03",
-      "test_template"};
+    const std::vector<std::string> all_tests = {"bounded_cursor_perf", "burst_inserts",
+      "cache_resize", "cursor_bound_01", "hs_cleanup", "operations_test", "search_near_01",
+      "search_near_02", "search_near_03", "test_template"};
 
     /* Set the program name for error messages. */
     (void)testutil_set_progname(argv);
