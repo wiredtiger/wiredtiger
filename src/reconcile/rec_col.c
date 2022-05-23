@@ -747,7 +747,7 @@ __wt_rec_col_fix(
         unpack.data = &val;
         unpack.size = 1;
 
-        WT_ERR(__wt_rec_upd_select(session, r, recno, ins, NULL, &unpack, &upd_select));
+        WT_ERR(__wt_rec_upd_select(session, r, ins, NULL, &unpack, &upd_select));
         upd = upd_select.upd;
         if (upd == NULL) {
             /*
@@ -875,8 +875,8 @@ __wt_rec_col_fix(
             /* We shouldn't ever get appends during salvage. */
             WT_ASSERT(session, salvage == NULL);
 
+            WT_ERR(__wt_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
             recno = WT_INSERT_RECNO(ins);
-            WT_ERR(__wt_rec_upd_select(session, r, recno, ins, NULL, NULL, &upd_select));
             upd = upd_select.upd;
             /*
              * Currently __wt_col_modify assumes that all restored updates are updates rather than
@@ -1313,7 +1313,7 @@ record_loop:
         for (n = 0; n < nrepeat; n += repeat_count, src_recno += repeat_count) {
             upd = NULL;
             if (ins != NULL && WT_INSERT_RECNO(ins) == src_recno) {
-                WT_ERR(__wt_rec_upd_select(session, r, src_recno, ins, NULL, vpack, &upd_select));
+                WT_ERR(__wt_rec_upd_select(session, r, ins, NULL, vpack, &upd_select));
                 upd = upd_select.upd;
                 ins = WT_SKIP_NEXT(ins);
             }
@@ -1528,8 +1528,8 @@ compare:
 
             upd = NULL;
         } else {
+            WT_ERR(__wt_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
             n = WT_INSERT_RECNO(ins);
-            WT_ERR(__wt_rec_upd_select(session, r, n, ins, NULL, NULL, &upd_select));
             upd = upd_select.upd;
         }
 

@@ -517,7 +517,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
     upd = NULL;
 
     for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
-        WT_RET(__wt_rec_upd_select(session, r, WT_RECNO_OOB, ins, NULL, NULL, &upd_select));
+        WT_RET(__wt_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
         if ((upd = upd_select.upd) == NULL) {
             /*
              * In cases where a page has grown so large we are trying to force evict it (there is
@@ -746,7 +746,7 @@ __wt_rec_row_leaf(
         __wt_row_leaf_value_cell(session, page, rip, vpack);
 
         /* Look for an update. */
-        WT_ERR(__wt_rec_upd_select(session, r, WT_RECNO_OOB, NULL, rip, vpack, &upd_select));
+        WT_ERR(__wt_rec_upd_select(session, r, NULL, rip, vpack, &upd_select));
         upd = upd_select.upd;
 
         /* Take the timestamp from the update or the cell. */

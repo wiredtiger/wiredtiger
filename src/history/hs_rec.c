@@ -61,6 +61,57 @@ __hs_verbose_cache_stats(WT_SESSION_IMPL *session, WT_BTREE *btree)
 }
 
 /*
+ * __hs_delete_record --
+ *     Delete the value left in the history store
+ */
+static int
+__hs_delete_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *key,
+  WT_UPDATE *delete_upd, WT_UPDATE *delete_tombstone)
+{
+    WT_DECL_RET;
+    bool hs_read_committed;
+
+#ifdef HAVE_DIAGNOSTIC
+    WT_TIME_WINDOW *hs_tw;
+#endif
+
+    hs_read_committed = F_ISSET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, hs_cursor), true);
+    /* It's possible the value in the history store is already obsolete. */
+    if (ret == WT_NOTFOUND) {
+        ret = 0;
+        goto done;
+    }
+
+#ifdef HAVE_DIAGNOSTIC
+    __wt_hs_upd_time_window(hs_cursor, &hs_tw);
+    WT_ASSERT(session, hs_tw->start_txn == WT_TXN_NONE || hs_tw->start_txn == delete_upd->txnid);
+    WT_ASSERT(session, hs_tw->start_ts == WT_TS_NONE || hs_tw->start_ts == delete_upd->start_ts);
+    WT_ASSERT(session,
+      hs_tw->durable_start_ts == WT_TS_NONE || hs_tw->durable_start_ts == delete_upd->durable_ts);
+    if (delete_tombstone != NULL) {
+        WT_ASSERT(session, hs_tw->stop_txn == delete_tombstone->txnid);
+        WT_ASSERT(session, hs_tw->stop_ts == delete_tombstone->start_ts);
+        WT_ASSERT(session, hs_tw->durable_stop_ts == delete_tombstone->durable_ts);
+    } else
+        WT_ASSERT(session, !WT_TIME_WINDOW_HAS_STOP(hs_tw));
+#endif
+
+    WT_ERR(hs_cursor->remove(hs_cursor));
+done:
+    if (delete_tombstone != NULL)
+        F_CLR(delete_tombstone, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
+    F_CLR(delete_upd, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
+
+err:
+    if (!hs_read_committed)
+        F_CLR(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    return (ret);
+}
+
+/*
  * __hs_insert_record --
  *     A helper function to insert the record into the history store including stop time point.
  */
@@ -308,7 +359,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_UPDATE_VECTOR updates;
     WT_SAVE_UPD *list;
-    WT_UPDATE *newest_hs, *no_ts_upd, *oldest_upd, *prev_upd, *ref_upd, *tombstone, *upd;
+    WT_UPDATE *delete_tombstone, *delete_upd, *newest_hs, *no_ts_upd, *oldest_upd, *prev_upd,
+      *ref_upd, *tombstone, *upd;
     WT_TIME_WINDOW tw;
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size, modify_cnt;
@@ -384,6 +436,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
 
         no_ts_upd = newest_hs = NULL;
         ref_upd = list->onpage_upd;
+        delete_tombstone = delete_upd = NULL;
 
         __wt_update_vector_clear(&updates);
 
@@ -422,15 +475,24 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
          * 4) We have a single tombstone on the chain, it is simply ignored.
          */
         squashed = false;
-        for (upd = list->onpage_upd, prev_upd = NULL; upd != NULL; upd = upd->next) {
+        for (upd = list->onpage_tombstone != NULL ? list->onpage_tombstone : list->onpage_upd,
+            prev_upd = NULL;
+             upd != NULL; upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
 
-            /*
-             * We must have deleted the update restored from the history store from the history
-             * store at this point.
-             */
-            WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS));
+            /* Delete the update that is both on the update chain and the history store from the
+             * history store. Otherwise, we will trigger out of order fix when the update is
+             * inserted to the history store again. */
+            if (F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
+                if (upd->type == WT_UPDATE_TOMBSTONE)
+                    delete_tombstone = upd;
+                else {
+                    delete_upd = upd;
+                    WT_ERR(
+                      __hs_delete_record(session, hs_cursor, key, delete_upd, delete_tombstone));
+                }
+            }
 
             /* Detect any update without a timestamp. */
             if (prev_upd != NULL && prev_upd->start_ts < upd->start_ts) {
