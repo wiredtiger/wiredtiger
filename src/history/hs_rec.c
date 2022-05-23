@@ -430,7 +430,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
              * We must have deleted the update restored from the history store from the history
              * store at this point.
              */
-            WT_ASSERT(session, !F_ISSET(WT_UPDATE_TO_DELETE_FROM_HS));
+            WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS));
 
             /* Detect any update without a timestamp. */
             if (prev_upd != NULL && prev_upd->start_ts < upd->start_ts) {
