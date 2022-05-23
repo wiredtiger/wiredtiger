@@ -106,6 +106,7 @@ static const WT_CONFIG_CHECK confchk_bounded_cursor_perf[] = {
   {"compression_enabled", "boolean", NULL, NULL, NULL, 0},
   {"duration_seconds", "int", NULL, "min=0,max=1000000", NULL, 0},
   {"enable_logging", "boolean", NULL, NULL, NULL, 0},
+  {"reverse_collator", "boolean", NULL, NULL, NULL, 0},
   {"runtime_monitor", "category", NULL, NULL, confchk_runtime_monitor_subconfigs, 6},
   {"statistics_config", "category", NULL, NULL, confchk_statistics_config_subconfigs, 2},
   {"timestamp_manager", "category", NULL, NULL, confchk_timestamp_manager_subconfigs, 4},
@@ -231,12 +232,13 @@ static const WT_CONFIG_ENTRY config_entries[] = {
   {"bounded_cursor_perf",
     "cache_size_mb=0,checkpoint_manager=(enabled=false,op_rate=1s),"
     "compression_enabled=false,duration_seconds=0,"
-    "enable_logging=false,runtime_monitor=(cache_hs_insert=(max=1,"
-    "min=0,postrun=false,runtime=false,save=false),"
-    "cc_pages_removed=(max=1,min=0,postrun=false,runtime=false,"
-    "save=false),enabled=true,op_rate=1s,stat_cache_size=(max=1,min=0"
-    ",postrun=false,runtime=false,save=false),stat_db_size=(max=1,"
-    "min=0,postrun=false,runtime=false,save=false)),"
+    "enable_logging=false,reverse_collator=false,"
+    "runtime_monitor=(cache_hs_insert=(max=1,min=0,postrun=false,"
+    "runtime=false,save=false),cc_pages_removed=(max=1,min=0,"
+    "postrun=false,runtime=false,save=false),enabled=true,op_rate=1s,"
+    "stat_cache_size=(max=1,min=0,postrun=false,runtime=false,"
+    "save=false),stat_db_size=(max=1,min=0,postrun=false,"
+    "runtime=false,save=false)),"
     "statistics_config=(enable_logging=true,type=all),"
     "timestamp_manager=(enabled=true,oldest_lag=1,op_rate=1s,"
     "stable_lag=1),workload_generator=(custom_config=(key_size=5,"
@@ -252,7 +254,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5)),"
     "workload_tracking=(enabled=true,op_rate=1s,"
     "tracking_key_format=QSQ,tracking_value_format=iS)",
-    confchk_bounded_cursor_perf, 10},
+    confchk_bounded_cursor_perf, 11},
   {"burst_inserts",
     "burst_duration=90,cache_size_mb=0,"
     "checkpoint_manager=(enabled=false,op_rate=1s),"
