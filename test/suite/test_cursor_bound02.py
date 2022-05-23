@@ -36,18 +36,18 @@ class test_cursor_bound02(wttest.WiredTigerTestCase):
     file_name = 'test_cursor_bound02'
 
     types = [
-        ('file', dict(uri='file:', use_index = False)),
-        ('table', dict(uri='table:', use_index = False)),
+        ('file', dict(uri='file:')),
+        ('table', dict(uri='table:')),
     ]
 
     key_format_values = [
-        ('string', dict(key_format='S', value_format='S')),
-        ('var', dict(key_format='r', value_format='S')),
-        ('int', dict(key_format='i', value_format='S')),
-        ('bytes', dict(key_format='u', value_format='S')),
-        ('composite_string', dict(key_format='SSS', value_format='S')),
-        ('composite_int_string', dict(key_format='iS', value_format='S')),
-        ('composite_complex', dict(key_format='iSru', value_format='S')),
+        ('string', dict(key_format='S')),
+        ('var', dict(key_format='r')),
+        ('int', dict(key_format='i')),
+        ('bytes', dict(key_format='u')),
+        ('composite_string', dict(key_format='SSS')),
+        ('composite_int_string', dict(key_format='iS')),
+        ('composite_complex', dict(key_format='iSru')),
     ]
 
     scenarios = make_scenarios(types, key_format_values)
@@ -69,21 +69,58 @@ class test_cursor_bound02(wttest.WiredTigerTestCase):
 
     def test_bound_api(self):
         uri = self.uri + self.file_name
-        create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
+        create_params = 'value_format=S,key_format={}'.format(self.key_format)
         self.session.create(uri, create_params)
         cursor = self.session.open_cursor(uri)
 
-        cursor.set_key(self.gen_key(20))
-        cursor.bound("bound=lower")
+        # Test bound API: Basic usage.
+        cursor.set_key(self.gen_key(40))
+        self.assertEqual(cursor.bound("bound=lower"), 0)
         cursor.set_key(self.gen_key(90))
-        cursor.bound("bound=upper")
+        self.assertEqual(cursor.bound("bound=upper"), 0)
 
-        cursor.set_key(self.gen_key(10))
+        # Test bound API: Upper bound < lower bound.
+        cursor.set_key(self.gen_key(30))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=upper"), '/Invalid argument/')
 
+        # Test bound API: Lower bound > upper bound.
         cursor.set_key(self.gen_key(99))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower"), '/Invalid argument/')
 
-        
+        # Test bound API: Test resetting lower bound to 20, which would succeed setting upper
+        # bound to 25
+        cursor.set_key(self.gen_key(20))
+        self.assertEqual(cursor.bound("bound=lower"), 0)
+        cursor.set_key(self.gen_key(30))
+        self.assertEqual(cursor.bound("bound=upper"), 0)
+
+        # Test bound API: Test that clearing the lower bound works.
+        cursor.set_key(self.gen_key(10))
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=upper"), '/Invalid argument/')
+        self.assertEqual(cursor.bound("action=clear,bound=lower"), 0)
+        cursor.set_key(self.gen_key(10))
+        self.assertEqual(cursor.bound("bound=upper"), 0)
+
+        # Test bound API: Test that clearing the upper bound works. 
+        cursor.set_key(self.gen_key(20))
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower"), '/Invalid argument/')
+        self.assertEqual(cursor.bound("action=clear,bound=upper"), 0)
+        cursor.set_key(self.gen_key(20))
+        self.assertEqual(cursor.bound("bound=lower"), 0)
+    
+        # Test bound API: Test that clearing the both bound works. 
+        cursor.set_key(self.gen_key(50))
+        self.assertEqual(cursor.bound("bound=upper"), 0)
+        self.assertEqual(cursor.bound("action=clear"), 0)
+        cursor.set_key(self.gen_key(90))
+        self.assertEqual(cursor.bound("bound=lower"), 0)
+        cursor.set_key(self.gen_key(99))
+        self.assertEqual(cursor.bound("bound=upper"), 0)
+
+        # Test bound API: No key set.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower"), '/Invalid argument/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=upper"), '/Invalid argument/')
+
+
 if __name__ == '__main__':
     wttest.run()
