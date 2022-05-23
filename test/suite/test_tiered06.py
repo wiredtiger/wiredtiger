@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import inspect, os, wiredtiger, wttest
-from helper_tiered import TieredConfigMixin, storage_sources
+from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtscenario import make_scenarios
 
 FileSystem = wiredtiger.FileSystem  # easy access to constants
@@ -38,6 +38,9 @@ FileSystem = wiredtiger.FileSystem  # easy access to constants
 # However, it is useful to do tests of this API independently.
 
 class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
+
+    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered06', tiered_only=True)
+
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)
 
@@ -134,11 +137,15 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
                 lambda: fs.fs_rename(session, 'foobar', 'barfoo', 0))
         self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
 
-        # Files that have been flushed cannot be manipulated through the custom file system.
-        with self.expectedStderrPattern('foobar: remove of file not supported'):
-            self.assertRaisesException(wiredtiger.WiredTigerError,
-                lambda: fs.fs_remove(session, 'foobar', 0))
-        self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
+        if self.ss_name == 's3_store':
+            # Files that have been flushed cannot be manipulated through the custom file system.
+            with self.expectedStderrPattern('foobar: remove of file not supported'):
+                self.assertRaisesException(wiredtiger.WiredTigerError,
+                    lambda: fs.fs_remove(session, 'foobar', 0))
+            self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
+        else:
+            fs.fs_remove(session, 'foobar', 0)
+            self.assertEquals(fs.fs_directory_list(session, '', ''), [])
 
         fs.terminate(session)
         ss.terminate(session)
