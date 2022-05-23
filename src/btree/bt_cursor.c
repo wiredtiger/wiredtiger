@@ -17,7 +17,7 @@ typedef struct {
     WT_ITEM key;
     WT_ITEM value;
     uint64_t recno;
-    uint32_t flags;
+    uint64_t flags;
 } WT_CURFILE_STATE;
 
 /*
