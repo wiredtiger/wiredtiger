@@ -867,6 +867,6 @@ __wt_session_check_checkpoint_state(WT_SESSION_IMPL *session, WT_DATA_HANDLE *ne
          * checkpoint information should travel with the dhandle, not the cursor structure. I don't
          * think it's OK for a single data handle to service multiple different checkpoints.
          */
-        WT_ASSERT(session, old_handle != NULL && old_handle->checkpoint != NULL);
+        WT_ASSERT(session, old_handle == NULL || old_handle->checkpoint != NULL);
     }
 }
