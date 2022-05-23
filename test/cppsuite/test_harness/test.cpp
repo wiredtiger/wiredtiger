@@ -52,7 +52,6 @@ test::test(const test_args &args) : _args(args)
     _thread_manager = new thread_manager();
 
     _database.set_timestamp_manager(_timestamp_manager);
-    _database.set_workload_tracking(_workload_tracking);
     _database.set_create_config(
       _config->get_bool(COMPRESSION_ENABLED), _config->get_bool(REVERSE_COLLATOR));
 
