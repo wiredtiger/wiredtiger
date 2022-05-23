@@ -44,9 +44,7 @@ class perf_plotter {
     perf_plotter(perf_plotter const &) = delete;
     perf_plotter &operator=(perf_plotter const &) = delete;
 
-    /*
-     * Anyone can get the perf_plotter and add a statistic to it.
-     */
+    /* Anyone can get the perf_plotter and add a statistic to it. */
     void add_stat(const std::string &stat_string);
     void output_perf_file(const std::string &test_name);
 

@@ -40,9 +40,7 @@ class op_tracker {
     explicit op_tracker(const std::string id, const std::string &test_name);
     virtual ~op_tracker();
 
-    /*
-     * Calculates the average time and appends the stat to the perf file.
-     */
+    /* Calculates the average time and appends the stat to the perf file. */
     void append_stats();
 
     /*
