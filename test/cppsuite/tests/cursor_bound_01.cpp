@@ -240,7 +240,6 @@ class cursor_bound_01 : public test {
         }
 
         if (set_random_bounds == UPPER_BOUND_SET || set_random_bounds == ALL_BOUNDS_SET) {
-
             /* Reverse case. */
             if (_reverse_collator_enabled)
                 upper_bound = bound(tc->key_size, false, "0");
