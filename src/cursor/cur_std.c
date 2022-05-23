@@ -1166,14 +1166,11 @@ int
 __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
 {
     WT_CONFIG_ITEM cval;
-    WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_ITEM key;
     WT_SESSION_IMPL *session;
     int exact;
     CURSOR_API_CALL_CONF(cursor, session, bound, config, cfg, NULL);
-
-    cbt = (WT_CURSOR_BTREE *)cursor;
 
     WT_ERR(__wt_config_gets(session, cfg, "action", &cval));
     if (WT_STRING_MATCH("set", cval.str, cval.len)) {
@@ -1183,28 +1180,28 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
             WT_ERR_MSG(session, EINVAL, "setting bounds must require the bound configuration set");
 
         if (WT_STRING_MATCH("upper", cval.str, cval.len)) {
-            if (F_ISSET(cbt, WT_CBT_BOUND_LOWER | WT_CBT_BOUND_LOWER_INCLUSIVE)) {
+            if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER | WT_CURSTD_BOUND_LOWER_INCLUSIVE)) {
                 WT_ERR(__wt_cursor_get_raw_key(cursor, &key));
                 WT_ERR(__wt_compare(
-                  session, CUR2BT(cursor)->collator, &key, cbt->lower_bound, &exact));
+                  session, CUR2BT(cursor)->collator, &key, &cursor->lower_bound, &exact));
                 if (exact < 0)
                     WT_ERR_MSG(session, EINVAL,
                       "The upper bounds is not lexicographically greater than the lower bound");
             }
-            F_SET(cbt, WT_CBT_BOUND_UPPER | WT_CBT_BOUND_UPPER_INCLUSIVE);
-            WT_ERR(__wt_buf_set(session, cbt->upper_bound, key.data, key.size));
+            F_SET(cursor, WT_CURSTD_BOUND_UPPER | WT_CURSTD_BOUND_UPPER_INCLUSIVE);
+            WT_ERR(__wt_buf_set(session, &cursor->upper_bound, key.data, key.size));
             WT_CLEAR(cursor->key);
         } else if (WT_STRING_MATCH("lower", cval.str, cval.len)) {
             WT_ERR(__wt_cursor_get_raw_key(cursor, &key));
-            if (F_ISSET(cbt, WT_CBT_BOUND_UPPER | WT_CBT_BOUND_UPPER_INCLUSIVE)) {
+            if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER | WT_CURSTD_BOUND_UPPER_INCLUSIVE)) {
                 WT_ERR(__wt_compare(
-                  session, CUR2BT(cursor)->collator, &key, cbt->upper_bound, &exact));
+                  session, CUR2BT(cursor)->collator, &key, &cursor->upper_bound, &exact));
                 if (exact > 0)
                     WT_ERR_MSG(session, EINVAL,
                       "The lower bounds is not lexicographically less than the upper bound");
             }
-            F_SET(cbt, WT_CBT_BOUND_LOWER | WT_CBT_BOUND_LOWER_INCLUSIVE);
-            WT_ERR(__wt_buf_set(session, cbt->lower_bound, key.data, key.size));
+            F_SET(cursor, WT_CURSTD_BOUND_LOWER | WT_CURSTD_BOUND_LOWER_INCLUSIVE);
+            WT_ERR(__wt_buf_set(session, &cursor->lower_bound, key.data, key.size));
             WT_CLEAR(cursor->key);
         } else
             WT_ERR_MSG(session, EINVAL,
@@ -1218,17 +1215,17 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
 
         WT_ERR(__wt_config_gets(session, cfg, "bound", &cval));
         if (cval.len == 0) {
-            F_CLR(cbt,
-              WT_CBT_BOUND_UPPER | WT_CBT_BOUND_UPPER_INCLUSIVE | WT_CBT_BOUND_LOWER |
-                WT_CBT_BOUND_LOWER_INCLUSIVE);
-            WT_CLEAR(cbt->lower_bound);
-            WT_CLEAR(cbt->upper_bound);
+            F_CLR(cursor,
+              WT_CURSTD_BOUND_UPPER | WT_CURSTD_BOUND_UPPER_INCLUSIVE | WT_CURSTD_BOUND_LOWER |
+                WT_CURSTD_BOUND_LOWER_INCLUSIVE);
+            WT_CLEAR(cursor->lower_bound);
+            WT_CLEAR(cursor->upper_bound);
         } else if (WT_STRING_MATCH("upper", cval.str, cval.len)) {
-            F_CLR(cbt, WT_CBT_BOUND_UPPER | WT_CBT_BOUND_UPPER_INCLUSIVE);
-            WT_CLEAR(cbt->upper_bound);
+            F_CLR(cursor, WT_CURSTD_BOUND_UPPER | WT_CURSTD_BOUND_UPPER_INCLUSIVE);
+            WT_CLEAR(cursor->upper_bound);
         } else if (WT_STRING_MATCH("lower", cval.str, cval.len)) {
-            F_CLR(cbt, WT_CBT_BOUND_LOWER | WT_CBT_BOUND_LOWER_INCLUSIVE);
-            WT_CLEAR(cbt->lower_bound);
+            F_CLR(cursor, WT_CURSTD_BOUND_LOWER | WT_CURSTD_BOUND_LOWER_INCLUSIVE);
+            WT_CLEAR(cursor->lower_bound);
         }
     }
 

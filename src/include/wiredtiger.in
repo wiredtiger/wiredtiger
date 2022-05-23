@@ -733,41 +733,55 @@ struct __wt_cursor {
 	 */
 	const char *internal_uri;
 
+    /*
+     * Lower bound and upper bound buffers that is used for the bound API. Store the key set for
+     * either the lower bound and upper bound such that cursor operations can limit the returned key
+     * to be within the bounded ranges.
+     */
+	WT_ITEM lower_bound, upper_bound;
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define	WT_CURSTD_APPEND		0x00000001u
-#define	WT_CURSTD_BULK			0x00000002u
-#define	WT_CURSTD_CACHEABLE		0x00000004u
-#define	WT_CURSTD_CACHED		0x00000008u
-#define	WT_CURSTD_DEAD			0x00000010u
-#define	WT_CURSTD_DEBUG_COPY_KEY	0x00000020u
-#define	WT_CURSTD_DEBUG_COPY_VALUE	0x00000040u
-#define	WT_CURSTD_DEBUG_RESET_EVICT	0x00000080u
-#define	WT_CURSTD_DUMP_HEX		0x00000100u
-#define	WT_CURSTD_DUMP_JSON		0x00000200u
-#define	WT_CURSTD_DUMP_PRETTY		0x00000400u
-#define	WT_CURSTD_DUMP_PRINT		0x00000800u
-#define	WT_CURSTD_DUP_NO_VALUE          0x00001000u
-#define	WT_CURSTD_EVICT_REPOSITION     0x00002000u
-#define	WT_CURSTD_HS_READ_ALL		0x00004000u
-#define	WT_CURSTD_HS_READ_COMMITTED	0x00008000u
-#define	WT_CURSTD_IGNORE_TOMBSTONE	0x00010000u
-#define	WT_CURSTD_JOINED		0x00020000u
-#define	WT_CURSTD_KEY_EXT		0x00040000u /* Key points out of tree. */
-#define	WT_CURSTD_KEY_INT		0x00080000u /* Key points into tree. */
-#define	WT_CURSTD_KEY_ONLY		0x00100000u
-#define	WT_CURSTD_META_INUSE		0x00200000u
-#define	WT_CURSTD_OPEN			0x00400000u
-#define	WT_CURSTD_OVERWRITE		0x00800000u
-#define	WT_CURSTD_PREFIX_SEARCH		0x01000000u
-#define	WT_CURSTD_RAW			0x02000000u
-#define	WT_CURSTD_RAW_SEARCH		0x04000000u
-#define	WT_CURSTD_VALUE_EXT		0x08000000u /* Value points out of tree. */
-#define	WT_CURSTD_VALUE_INT		0x10000000u /* Value points into tree. */
-#define WT_CURSTD_VERSION_CURSOR	0x20000000u /* Version cursor. */
-/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+#define	WT_CURSTD_APPEND		0x000000001u
+#define	WT_CURSTD_BULK			0x000000002u
+#define	WT_CURSTD_CACHEABLE		0x000000004u
+#define	WT_CURSTD_CACHED		0x000000008u
+#define	WT_CURSTD_DEAD			0x000000010u
+#define	WT_CURSTD_DEBUG_COPY_KEY	0x000000020u
+#define	WT_CURSTD_DEBUG_COPY_VALUE	0x000000040u
+#define	WT_CURSTD_DEBUG_RESET_EVICT	0x000000080u
+#define	WT_CURSTD_DUMP_HEX		0x000000100u
+#define	WT_CURSTD_DUMP_JSON		0x000000200u
+#define	WT_CURSTD_DUMP_PRETTY		0x000000400u
+#define	WT_CURSTD_DUMP_PRINT		0x000000800u
+#define	WT_CURSTD_DUP_NO_VALUE          0x000001000u
+#define	WT_CURSTD_EVICT_REPOSITION     0x000002000u
+#define	WT_CURSTD_HS_READ_ALL		0x000004000u
+#define	WT_CURSTD_HS_READ_COMMITTED	0x000008000u
+#define	WT_CURSTD_IGNORE_TOMBSTONE	0x000010000u
+#define	WT_CURSTD_JOINED		0x000020000u
+#define	WT_CURSTD_KEY_EXT		0x000040000u /* Key points out of tree. */
+#define	WT_CURSTD_KEY_INT		0x000080000u /* Key points into tree. */
+#define	WT_CURSTD_KEY_ONLY		0x000100000u
+#define	WT_CURSTD_META_INUSE		0x000200000u
+#define	WT_CURSTD_OPEN			0x000400000u
+#define	WT_CURSTD_OVERWRITE		0x000800000u
+#define	WT_CURSTD_PREFIX_SEARCH		0x001000000u
+#define	WT_CURSTD_RAW			0x002000000u
+#define	WT_CURSTD_RAW_SEARCH		0x004000000u
+#define	WT_CURSTD_VALUE_EXT		0x008000000u /* Value points out of tree. */
+#define	WT_CURSTD_VALUE_INT		0x010000000u /* Value points into tree. */
+#define WT_CURSTD_BOUND_LOWER    0x020000000u       /* Lower bound */
+#define WT_CURSTD_BOUND_LOWER_INCLUSIVE 0x040000000u /* Inclusive lower bound */
+#define WT_CURSTD_BOUND_UPPER           0x080000000u /* Upper bound */
+#define WT_CURSTD_BOUND_UPPER_INCLUSIVE 0x100000000u /* Inclusive upper bound */
+#define WT_CURSTD_VERSION_CURSOR	0x200000000u /* Version cursor. */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
 #define	WT_CURSTD_KEY_SET	(WT_CURSTD_KEY_EXT | WT_CURSTD_KEY_INT)
 #define	WT_CURSTD_VALUE_SET	(WT_CURSTD_VALUE_EXT | WT_CURSTD_VALUE_INT)
-	uint32_t flags;
+#define WT_CURSTD_BOUNDS_SET(cursor)                                                 \
+    (F_ISSET(WT_CURSTD_BOUND_LOWER | WT_CURSTD_BOUND_LOWER_INCLUSIVE | WT_CURSTD_BOUND_UPPER | \
+      WT_CURSTD_BOUND_UPPER_INCLUSIVE))
+	uint64_t flags;
 #endif
 };
 

@@ -32,6 +32,8 @@
       {NULL, 0, NULL, 0, 0},                /* WT_ITEM value */                                 \
       0,                                    /* int saved_err */                                 \
       NULL,                                 /* internal_uri */                                  \
+      {NULL, 0, NULL, 0, 0},                /* WT_ITEM lower bound */                           \
+      {NULL, 0, NULL, 0, 0},                /* WT_ITEM upper bound */                           \
       0                                     /* uint32_t flags */                                \
     }
 
@@ -198,13 +200,6 @@ struct __wt_cursor_btree {
     WT_ITEM *tmp, _tmp;
 
     /*
-     * Lower bound and upper bound buffers that is used for the bound API. Store the key set for
-     * either the lower bound and upper bound such that cursor operations can limit the returned key
-     * to be within the bounded ranges.
-     */
-    WT_ITEM *lower_bound, _lower_bound, *upper_bound, _upper_bound;
-
-    /*
      * The update structure allocated by the row- and column-store modify functions, used to avoid a
      * data copy in the WT_CURSOR.update call.
      */
@@ -248,20 +243,16 @@ struct __wt_cursor_btree {
 #endif
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CBT_ACTIVE 0x0001u                /* Active in the tree */
-#define WT_CBT_BOUND_LOWER 0x0002u           /* Lower bound */
-#define WT_CBT_BOUND_LOWER_INCLUSIVE 0x0004u /* Inclusive lower bound */
-#define WT_CBT_BOUND_UPPER 0x0008u           /* Upper bound */
-#define WT_CBT_BOUND_UPPER_INCLUSIVE 0x0010u /* Inclusive upper bound */
-#define WT_CBT_CACHEABLE_RLE_CELL 0x0020u    /* Col-store: value in RLE cell valid for its keys */
-#define WT_CBT_ITERATE_APPEND 0x0040u        /* Col-store: iterating append list */
-#define WT_CBT_ITERATE_NEXT 0x0080u          /* Next iteration configuration */
-#define WT_CBT_ITERATE_PREV 0x0100u          /* Prev iteration configuration */
-#define WT_CBT_ITERATE_RETRY_NEXT 0x0200u    /* Prepare conflict by next. */
-#define WT_CBT_ITERATE_RETRY_PREV 0x0400u    /* Prepare conflict by prev. */
-#define WT_CBT_READ_ONCE 0x0800u             /* Page in with WT_READ_WONT_NEED */
-#define WT_CBT_SEARCH_SMALLEST 0x1000u       /* Row-store: small-key insert list */
-#define WT_CBT_VAR_ONPAGE_MATCH 0x2000u      /* Var-store: on-page recno match */
+#define WT_CBT_ACTIVE 0x001u             /* Active in the tree */
+#define WT_CBT_CACHEABLE_RLE_CELL 0x002u /* Col-store: value in RLE cell valid for its keys */
+#define WT_CBT_ITERATE_APPEND 0x004u     /* Col-store: iterating append list */
+#define WT_CBT_ITERATE_NEXT 0x008u       /* Next iteration configuration */
+#define WT_CBT_ITERATE_PREV 0x010u       /* Prev iteration configuration */
+#define WT_CBT_ITERATE_RETRY_NEXT 0x020u /* Prepare conflict by next. */
+#define WT_CBT_ITERATE_RETRY_PREV 0x040u /* Prepare conflict by prev. */
+#define WT_CBT_READ_ONCE 0x080u          /* Page in with WT_READ_WONT_NEED */
+#define WT_CBT_SEARCH_SMALLEST 0x100u    /* Row-store: small-key insert list */
+#define WT_CBT_VAR_ONPAGE_MATCH 0x200u   /* Var-store: on-page recno match */
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 #define WT_CBT_POSITION_MASK /* Flags associated with position */                      \
@@ -595,7 +586,3 @@ struct __wt_cursor_version {
 
 #define WT_CURSOR_RAW_OK \
     (WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRETTY | WT_CURSTD_DUMP_PRINT | WT_CURSTD_RAW)
-
-#define WT_CURSOR_BOUNDS_SET(cursor)                                                 \
-    (F_ISSET(WT_CBT_BOUND_LOWER | WT_CBT_BOUND_LOWER_INCLUSVE | WT_CBT_BOUND_UPPER | \
-      WT_CBT_BOUND_UPPER_INCLUSIVE))

@@ -2040,8 +2040,6 @@ __wt_btcur_open(WT_CURSOR_BTREE *cbt)
     cbt->tmp = &cbt->_tmp;
     cbt->modify_update = &cbt->_modify_update;
     cbt->upd_value = &cbt->_upd_value;
-    cbt->lower_bound = &cbt->_lower_bound;
-    cbt->upper_bound = &cbt->_upper_bound;
 #ifdef HAVE_DIAGNOSTIC
     cbt->lastkey = &cbt->_lastkey;
     cbt->lastrecno = WT_RECNO_OOB;

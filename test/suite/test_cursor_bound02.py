@@ -29,15 +29,15 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_cursor_bound01.py
-#    Basic cursor bound API validation
-class test_cursor_bound01(wttest.WiredTigerTestCase):
-    file_name = 'test_cursor_bound01'
+# test_cursor_bound02.py
+#    Test that setting bounds of different key formats works in the cursor bound API. Also make
+# sure that WiredTiger complains when the upper and lower bounds overlap.
+class test_cursor_bound02(wttest.WiredTigerTestCase):
+    file_name = 'test_cursor_bound02'
 
     types = [
         ('file', dict(uri='file:', use_index = False)),
         ('table', dict(uri='table:', use_index = False)),
-        #('lsm', dict(uri='lsm:', use_index = False)),
     ]
 
     key_format_values = [
@@ -52,7 +52,7 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(types, key_format_values)
  
-    def genkey(self, i):
+    def gen_key(self, i):
         tuple_key = []
         for key in self.key_format:
             if key == 'S' or key == 'u':
@@ -67,25 +67,23 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
         else:
             return tuple(tuple_key)
 
-
     def test_bound_api(self):
         uri = self.uri + self.file_name
         create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
         self.session.create(uri, create_params)
         cursor = self.session.open_cursor(uri)
 
-        cursor.set_key(self.genkey(20))
+        cursor.set_key(self.gen_key(20))
         cursor.bound("bound=lower")
-        cursor.set_key(self.genkey(90))
+        cursor.set_key(self.gen_key(90))
         cursor.bound("bound=upper")
 
-        cursor.set_key(self.genkey(10))
+        cursor.set_key(self.gen_key(10))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=upper"), '/Invalid argument/')
 
-        cursor.set_key(self.genkey(99))
+        cursor.set_key(self.gen_key(99))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower"), '/Invalid argument/')
 
-        cursor.set_key(self.genkey(20))
         
 if __name__ == '__main__':
     wttest.run()
