@@ -367,7 +367,7 @@ __wt_cursor_set_raw_value(WT_CURSOR *cursor, WT_ITEM *value)
  *     WT_CURSOR->get_key worker function.
  */
 int
-__wt_cursor_get_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
+__wt_cursor_get_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
 {
     WT_DECL_RET;
     WT_ITEM *key;
@@ -415,7 +415,7 @@ err:
  *     WT_CURSOR->set_key default implementation.
  */
 int
-__wt_cursor_set_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
+__wt_cursor_set_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
 {
     WT_DECL_RET;
     WT_ITEM *buf, *item, tmp;
