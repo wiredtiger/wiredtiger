@@ -404,8 +404,12 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELE
      * the list of WT_UPDATE structures (if any), but we may still need it for internal page
      * reconciliation.
      *
-     * Note: in the cases where the page_del passed in isn't the one in the ref, there should be
-     * none in the ref.
+     * Note: when the page_del passed in isn't the one in the ref, there should be none in the ref.
+     * This only happens in readonly trees (see bt_page.c) and is a consequence of it being possible
+     * for a deleted page to be in WT_REF_DISK state if it's already been instantiated once and then
+     * evicted. In this case we can set modify->page_del to NULL regardless of the truncation's
+     * visibility (rather than copying the passed-in information); modify->page_del is only used by
+     * parent-page reconciliation and readonly trees shouldn't ever reach that code.
      */
     WT_ASSERT(session, page_del == ref->ft_info.del || ref->ft_info.del == NULL);
     page->modify->instantiated = true;
