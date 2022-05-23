@@ -194,7 +194,7 @@ __curfile_next(WT_CURSOR *cursor)
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_next);
 }
 
 /*
@@ -224,7 +224,7 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_next_random);
 }
 
 /*
@@ -255,7 +255,7 @@ __curfile_prev(WT_CURSOR *cursor)
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_prev);
 }
 
 /*
@@ -281,7 +281,7 @@ __curfile_reset(WT_CURSOR *cursor)
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_reset);
 }
 
 /*

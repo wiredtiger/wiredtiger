@@ -865,15 +865,19 @@ conn_dsrc_stats = [
     ##########################################
     # Cursor operations
     ##########################################
+    CursorStat('cursor_next_error', 'cursor next calls that return an error'),
+    CursorStat('cursor_next_random_error', 'cursor random next calls that return an error'),
     CursorStat('cursor_next_hs_tombstone', 'cursor next calls that skip due to a globally visible history store tombstone'),
     CursorStat('cursor_next_skip_ge_100', 'cursor next calls that skip greater than or equal to 100 entries'),
     CursorStat('cursor_next_skip_lt_100', 'cursor next calls that skip less than 100 entries'),
     CursorStat('cursor_next_skip_total', 'Total number of entries skipped by cursor next calls'),
     CursorStat('cursor_open_count', 'open cursor count', 'no_clear,no_scale'),
+    CursorStat('cursor_prev_error', 'cursor prev calls that return an error'),
     CursorStat('cursor_prev_hs_tombstone', 'cursor prev calls that skip due to a globally visible history store tombstone'),
     CursorStat('cursor_prev_skip_ge_100', 'cursor prev calls that skip greater than or equal to 100 entries'),
     CursorStat('cursor_prev_skip_lt_100', 'cursor prev calls that skip less than 100 entries'),
     CursorStat('cursor_prev_skip_total', 'Total number of entries skipped by cursor prev calls'),
+    CursorStat('cursor_reset_error', 'cursor reset calls that return an error'),
     CursorStat('cursor_reposition', 'Total number of times cursor temporarily releases pinned page to encourage eviction of hot or large page'),
     CursorStat('cursor_reposition_failed', 'Total number of times cursor fails to temporarily release pinned page to encourage eviction of hot or large page'),
     CursorStat('cursor_search_near_prefix_fast_paths', 'Total number of times a search near has exited due to prefix config'),
