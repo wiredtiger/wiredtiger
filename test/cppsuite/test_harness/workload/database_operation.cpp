@@ -43,6 +43,7 @@ static void
 populate_worker(thread_context *tc)
 {
     uint64_t collections_per_thread = tc->collection_count / tc->thread_count;
+
     for (int64_t i = 0; i < collections_per_thread; ++i) {
         collection &coll = tc->db.get_collection((tc->id * collections_per_thread) + i);
         /*
@@ -53,7 +54,9 @@ populate_worker(thread_context *tc)
         uint64_t j = 0;
         while (j < tc->key_count) {
             tc->transaction.begin();
-            if (tc->insert(cursor, coll.id, j)) {
+            std::string value =
+              random_generator::instance().generate_pseudo_random_string(tc->value_size);
+            if (tc->insert(cursor, coll.id, tc->key_to_string(j), value)) {
                 if (tc->transaction.commit()) {
                     ++j;
                 }
@@ -80,7 +83,7 @@ database_operation::populate(
     key_count = config->get_int(KEY_COUNT_PER_COLLECTION);
     value_size = config->get_int(VALUE_SIZE);
     thread_count = config->get_int(THREAD_COUNT);
-    testutil_assert(collection_count % thread_count == 0);
+    testutil_assert(thread_count == 0 || collection_count % thread_count == 0);
     testutil_assert(value_size > 0);
     key_size = config->get_int(KEY_SIZE);
     testutil_assert(key_size > 0);
@@ -171,7 +174,10 @@ database_operation::insert_operation(thread_context *tc)
         auto &cc = ccv[counter];
         while (tc->transaction.active() && tc->running()) {
             /* Insert a key value pair, rolling back the transaction if required. */
-            if (!tc->insert(cc.cursor, cc.coll.id, start_key + added_count)) {
+            std::string value =
+              random_generator::instance().generate_pseudo_random_string(tc->value_size);
+            if (!tc->insert(
+                  cc.cursor, cc.coll.id, tc->key_to_string(start_key + added_count), value)) {
                 added_count = 0;
                 tc->transaction.rollback();
             } else {
@@ -363,7 +369,9 @@ database_operation::update_operation(thread_context *tc)
         testutil_assert(coll.get_key_count() != 0);
         uint64_t key_id =
           random_generator::instance().generate_integer<uint64_t>(0, coll.get_key_count() - 1);
-        if (!tc->update(cursor, coll.id, tc->key_to_string(key_id))) {
+        std::string value =
+          random_generator::instance().generate_pseudo_random_string(tc->value_size);
+        if (!tc->update(cursor, coll.id, tc->key_to_string(key_id), value)) {
             tc->transaction.rollback();
         }
 
