@@ -43,7 +43,14 @@ maximum_committed_ts(void)
     if (tinfo_list != NULL)
         for (tlp = tinfo_list; *tlp != NULL; ++tlp) {
             commit_ts = (*tlp)->commit_ts;
-            if (commit_ts != 0 && commit_ts < ts)
+            /*
+             * We can't calculate a useful minimum in-use timestamp if a thread hasn't yet set its
+             * last-used commit timestamp, that thread might be about to use a commit timestamp in
+             * the range we'd return.
+             */
+            if (commit_ts == 0)
+                return (0);
+            if (commit_ts < ts)
                 ts = commit_ts;
         }
 
