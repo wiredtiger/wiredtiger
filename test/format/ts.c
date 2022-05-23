@@ -101,7 +101,11 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
 
     conn = g.wts_conn;
 
+    /* Get the maximum not-in-use timestamp, notng that it may not be set. */
     oldest_timestamp = stable_timestamp = maximum_committed_ts();
+    if (oldest_timestamp == 0)
+        return;
+
     if (!final) {
         /*
          * If lag is permitted, update the oldest timestamp halfway to the largest timestamp that's
