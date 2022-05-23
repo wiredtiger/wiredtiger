@@ -481,9 +481,11 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
 
-            /* Delete the update that is both on the update chain and the history store from the
+            /*
+             * Delete the update that is both on the update chain and the history store from the
              * history store. Otherwise, we will trigger out of order fix when the update is
-             * inserted to the history store again. */
+             * inserted to the history store again.
+             */
             if (F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
                 if (upd->type == WT_UPDATE_TOMBSTONE)
                     delete_tombstone = upd;

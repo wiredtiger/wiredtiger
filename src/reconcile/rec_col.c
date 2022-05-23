@@ -876,8 +876,8 @@ __wt_rec_col_fix(
             WT_ASSERT(session, salvage == NULL);
 
             WT_ERR(__wt_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
-            recno = WT_INSERT_RECNO(ins);
             upd = upd_select.upd;
+            recno = WT_INSERT_RECNO(ins);
             /*
              * Currently __wt_col_modify assumes that all restored updates are updates rather than
              * appends. Therefore, if we see an invisible update, we need to write a value under it
@@ -1529,8 +1529,8 @@ compare:
             upd = NULL;
         } else {
             WT_ERR(__wt_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
-            n = WT_INSERT_RECNO(ins);
             upd = upd_select.upd;
+            n = WT_INSERT_RECNO(ins);
         }
 
         while (src_recno <= n) {

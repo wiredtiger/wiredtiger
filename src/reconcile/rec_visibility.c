@@ -415,7 +415,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
 {
     WT_PAGE *page;
     WT_TIME_WINDOW *select_tw;
-    WT_UPDATE *first_txn_upd, *first_upd, *delete_upd, *delete_tombstone, *onpage_upd, *upd,
+    WT_UPDATE *first_txn_upd, *first_upd, *onpage_upd, *upd,
       *last_upd, *tombstone;
     wt_timestamp_t max_ts;
     size_t upd_memsize;
@@ -436,7 +436,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     WT_TIME_WINDOW_INIT(select_tw);
 
     page = r->page;
-    first_txn_upd = delete_upd = delete_tombstone = onpage_upd = upd = last_upd = tombstone = NULL;
+    first_txn_upd = onpage_upd = upd = last_upd = tombstone = NULL;
     upd_memsize = 0;
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
