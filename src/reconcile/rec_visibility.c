@@ -299,11 +299,8 @@ __rec_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ROW *rip, uint
     if (delete_tombstone != NULL) {
         WT_ASSERT(
           session, hs_tw->stop_txn == WT_TXN_NONE || hs_tw->stop_txn == delete_tombstone->txnid);
-        WT_ASSERT(
-          session, hs_tw->stop_ts == WT_TS_NONE || hs_tw->stop_ts == delete_tombstone->start_ts);
-        WT_ASSERT(session,
-          hs_tw->durable_stop_ts == WT_TS_NONE ||
-            hs_tw->durable_stop_ts == delete_tombstone->durable_ts);
+        WT_ASSERT(session, hs_tw->stop_ts == delete_tombstone->start_ts);
+        WT_ASSERT(session, hs_tw->durable_stop_ts == delete_tombstone->durable_ts);
     } else
         WT_ASSERT(session, !WT_TIME_WINDOW_HAS_STOP(hs_tw));
 #endif
