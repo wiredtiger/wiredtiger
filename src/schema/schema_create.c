@@ -504,6 +504,14 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
         *cfgp++ = confbuf.data;
     }
 
+    WT_ERR(__wt_config_collapse(session, cfg, &cgconf));
+
+    if (!exists) {
+        WT_ERR(__wt_metadata_insert(session, name, cgconf));
+        WT_ERR(__wt_schema_open_colgroups(session, table));
+    }
+
+    /* Create source. */
     if (session->import_list != NULL)
         /* Use the import configuration, it should have key and value format configurations. */
         WT_ERR(__wt_find_import_metadata(session, source, &sourcecfg[0]));
@@ -524,13 +532,6 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
 
     WT_ERR(__wt_config_merge(session, sourcecfg, NULL, &sourceconf));
     WT_ERR(__wt_schema_create(session, source, sourceconf));
-
-    WT_ERR(__wt_config_collapse(session, cfg, &cgconf));
-
-    if (!exists) {
-        WT_ERR(__wt_metadata_insert(session, name, cgconf));
-        WT_ERR(__wt_schema_open_colgroups(session, table));
-    }
 
 err:
     __wt_free(session, cgconf);
