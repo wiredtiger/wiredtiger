@@ -1264,15 +1264,16 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      */
     if (first_committed_upd_in_hs && !commit) {
         if (first_committed_upd->type == WT_UPDATE_TOMBSTONE) {
-            /* We may not find a full update following the tombstone if it is obsolete. */
             for (upd_followed_tombstone = first_committed_upd->next; upd_followed_tombstone != NULL;
                  upd_followed_tombstone = upd_followed_tombstone->next)
                 if (upd_followed_tombstone->txnid != WT_TXN_ABORTED)
                     break;
-            WT_ASSERT(session,
-              upd_followed_tombstone != NULL && F_ISSET(upd_followed_tombstone, WT_UPDATE_HS));
-            F_SET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS);
-            F_SET(upd_followed_tombstone, WT_UPDATE_TO_DELETE_FROM_HS);
+            /* We may not find a full update following the tombstone if it is obsolete. */
+            if (upd_followed_tombstone != NULL) {
+                WT_ASSERT(session, F_ISSET(upd_followed_tombstone, WT_UPDATE_HS));
+                F_SET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS);
+                F_SET(upd_followed_tombstone, WT_UPDATE_TO_DELETE_FROM_HS);
+            }
         } else
             F_SET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS);
     }
