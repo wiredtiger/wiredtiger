@@ -139,7 +139,7 @@ __wt_rec_child_modify(
         case WT_REF_DISK:
             /* On disk, not modified by definition. */
             WT_ASSERT(session, ref->addr != NULL);
-            /* DISK pages do not have FT info. */
+            /* DISK pages do not have fast-truncate info. */
             WT_ASSERT(session, ref->ft_info.del == NULL);
             goto done;
 
