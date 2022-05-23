@@ -120,27 +120,28 @@ run_test(const std::string &test_name, const std::string &config, const std::str
     int error_code = 0;
 
     test_harness::logger::log_msg(LOG_TRACE, "Configuration\t:" + config);
+    test_harness::test_args args(config, test_name, wt_open_config);
 
     if (test_name == "bounded_cursor_perf")
-        bounded_cursor_perf(test_harness::test_args{config, test_name, wt_open_config}).run();
+        bounded_cursor_perf(args).run();
     else if (test_name == "burst_inserts")
-        burst_inserts(test_harness::test_args{config, test_name, wt_open_config}).run();
+        burst_inserts(args).run();
     else if (test_name == "cache_resize")
-        cache_resize(test_harness::test_args{config, test_name, wt_open_config}).run();
+        cache_resize(args).run();
     else if (test_name == "cursor_bound_01")
-        cursor_bound_01(test_harness::test_args{config, test_name, wt_open_config}).run();
+        cursor_bound_01(args).run();
     else if (test_name == "hs_cleanup")
-        hs_cleanup(test_harness::test_args{config, test_name, wt_open_config}).run();
+        hs_cleanup(args).run();
     else if (test_name == "operations_test")
-        operations_test(test_harness::test_args{config, test_name, wt_open_config}).run();
+        operations_test(args).run();
     else if (test_name == "search_near_01")
-        search_near_01(test_harness::test_args{config, test_name, wt_open_config}).run();
+        search_near_01(args).run();
     else if (test_name == "search_near_02")
-        search_near_02(test_harness::test_args{config, test_name, wt_open_config}).run();
+        search_near_02(args).run();
     else if (test_name == "search_near_03")
-        search_near_03(test_harness::test_args{config, test_name, wt_open_config}).run();
+        search_near_03(args).run();
     else if (test_name == "test_template")
-        test_template(test_harness::test_args{config, test_name, wt_open_config}).run();
+        test_template(args).run();
     else {
         test_harness::logger::log_msg(LOG_ERROR, "Test not found: " + test_name);
         error_code = -1;
