@@ -673,7 +673,7 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DECL_RET;
     WT_TIERED *tiered;
     WT_TIERED_WORK_UNIT *entry;
-    uint32_t unused;
+    uint32_t i, unused;
     char *metaconf;
     const char *obj_cfg[] = {WT_CONFIG_BASE(session, object_meta), NULL, NULL, NULL};
     const char **tiered_cfg, *config;
@@ -740,6 +740,19 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
         if (session->import_list != NULL)
             WT_ERR(__wt_tiered_switch(session, config));
     } else {
+        /*
+         * Here we expect all elements in tiers to be NULL. In certain scenarios tiered dhandle may
+         * come from the cache with initialized but invalid tiers. Make sure there are no tiers
+         * referenced and and free the memory.
+         */
+        for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
+            if (tiered->tiers[i].tier != NULL)
+                (void)__wt_atomic_subi32(&tiered->tiers[i].tier->session_inuse, 1);
+            __wt_free(session, tiered->tiers[i].name);
+            tiered->tiers[i].tier = NULL;
+            tiered->tiers[i].name = NULL;
+        }
+
         /*
          * The tiered table name does not exist. But now check if any shared storage objects exist
          * for this name. A user could have created a tiered table. Later dropped it, which removes
