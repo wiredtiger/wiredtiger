@@ -20,7 +20,7 @@ __curversion_set_key(WT_CURSOR *cursor, ...)
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint32_t flags;
+    uint64_t flags;
     va_list ap;
 
     session = CUR2S(cursor);
@@ -51,7 +51,7 @@ __curversion_get_key(WT_CURSOR *cursor, ...)
     WT_CURSOR *file_cursor;
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
-    uint32_t flags;
+    uint64_t flags;
     va_list ap;
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
