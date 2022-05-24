@@ -453,11 +453,11 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
 
     txn_global = &S2C(session)->txn_global;
 
-    __wt_readlock(session, &txn_global->rwlock);
-
     WT_ORDERED_READ(session_cnt, S2C(session)->session_cnt);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     WT_STAT_CONN_INCRV(session, txn_sessions_walked, session_cnt);
+
+    __wt_readlock(session, &txn_global->rwlock);
 
     /* Walk the array of concurrent transactions. */
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
@@ -481,7 +481,7 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
     WT_UNUSED(session);
     WT_UNUSED(op);
     WT_UNUSED(ts);
-    return (ret);
+    return (0);
 #endif
 }
 
