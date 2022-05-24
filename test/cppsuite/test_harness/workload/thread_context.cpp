@@ -95,8 +95,6 @@ bool
 thread_context::update(
   scoped_cursor &cursor, uint64_t collection_id, const std::string &key, const std::string &value)
 {
-    WT_DECL_RET;
-
     testutil_assert(tracking != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
@@ -105,7 +103,7 @@ thread_context::update(
 
     cursor->set_key(cursor.get(), key.c_str());
     cursor->set_value(cursor.get(), value.c_str());
-    ret = cursor->update(cursor.get());
+    int ret = cursor->update(cursor.get());
 
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
@@ -132,8 +130,6 @@ bool
 thread_context::insert(
   scoped_cursor &cursor, uint64_t collection_id, const std::string &key, const std::string &value)
 {
-    WT_DECL_RET;
-
     testutil_assert(tracking != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
@@ -142,7 +138,7 @@ thread_context::insert(
 
     cursor->set_key(cursor.get(), key.c_str());
     cursor->set_value(cursor.get(), value.c_str());
-    ret = cursor->insert(cursor.get());
+    int ret = cursor->insert(cursor.get());
 
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
@@ -168,7 +164,6 @@ thread_context::insert(
 bool
 thread_context::remove(scoped_cursor &cursor, uint64_t collection_id, const std::string &key)
 {
-    WT_DECL_RET;
     testutil_assert(tracking != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
@@ -176,7 +171,7 @@ thread_context::remove(scoped_cursor &cursor, uint64_t collection_id, const std:
     transaction.set_commit_timestamp(ts);
 
     cursor->set_key(cursor.get(), key.c_str());
-    ret = cursor->remove(cursor.get());
+    int ret = cursor->remove(cursor.get());
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
             transaction.set_needs_rollback(true);

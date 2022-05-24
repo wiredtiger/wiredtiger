@@ -37,14 +37,6 @@ void
 workload_validation::validate(const std::string &operation_table_name,
   const std::string &schema_table_name, const std::vector<uint64_t> &known_collection_ids)
 {
-    WT_DECL_RET;
-    wt_timestamp_t tracked_timestamp;
-    std::vector<uint64_t> created_collections, deleted_collections;
-    uint64_t tracked_collection_id;
-    const char *tracked_key, *tracked_value;
-    int tracked_op_type;
-    uint64_t current_collection_id = 0;
-
     logger::log_msg(LOG_INFO, "Beginning validation.");
 
     scoped_session session = connection_manager::instance().create_session();
@@ -64,6 +56,7 @@ workload_validation::validate(const std::string &operation_table_name,
     }
 
     /* Retrieve the collections that were created and deleted during the test. */
+    std::vector<uint64_t> created_collections, deleted_collections;
     parse_schema_tracking_table(
       session, schema_table_name, created_collections, deleted_collections);
 
@@ -101,7 +94,16 @@ workload_validation::validate(const std::string &operation_table_name,
 
     /* Parse the tracking table. */
     validation_collection current_collection_records;
+    int ret;
+    uint64_t current_collection_id = 0;
+
     while ((ret = cursor->next(cursor.get())) == 0) {
+
+        wt_timestamp_t tracked_timestamp;
+        uint64_t tracked_collection_id;
+        const char *tracked_key, *tracked_value;
+        int tracked_op_type;
+
         testutil_check(
           cursor->get_key(cursor.get(), &tracked_collection_id, &tracked_key, &tracked_timestamp));
         testutil_check(cursor->get_value(cursor.get(), &tracked_op_type, &tracked_value));
@@ -163,13 +165,12 @@ workload_validation::parse_schema_tracking_table(scoped_session &session,
   const std::string &tracking_table_name, std::vector<uint64_t> &created_collections,
   std::vector<uint64_t> &deleted_collections)
 {
-    wt_timestamp_t key_timestamp;
-    uint64_t key_collection_id;
-    int value_operation_type;
-
     scoped_cursor cursor = session.open_scoped_cursor(tracking_table_name);
 
     while (cursor->next(cursor.get()) == 0) {
+        wt_timestamp_t key_timestamp;
+        uint64_t key_collection_id;
+        int value_operation_type;
         testutil_check(cursor->get_key(cursor.get(), &key_collection_id, &key_timestamp));
         testutil_check(cursor->get_value(cursor.get(), &value_operation_type));
 
@@ -255,17 +256,17 @@ void
 workload_validation::verify_key_value(scoped_session &session, const uint64_t collection_id,
   const std::string &key, const key_state &key_state)
 {
-    WT_DECL_RET;
-    const char *retrieved_value;
-
     scoped_cursor cursor =
       session.open_scoped_cursor(database::build_collection_name(collection_id));
+
     cursor->set_key(cursor.get(), key.c_str());
-    ret = cursor->search(cursor.get());
+    int ret = cursor->search(cursor.get());
+
     testutil_assertfmt(ret == 0 || ret == WT_NOTFOUND,
       "Validation failed: Unexpected error returned %d while searching for a key. Key: %s, "
       "Collection_id: %lu",
       ret, key.c_str(), collection_id);
+
     if (ret == WT_NOTFOUND && key_state.exists)
         testutil_die(LOG_ERROR,
           "Validation failed: Search failed to find key that should exist. Key: %s, "
@@ -281,6 +282,7 @@ workload_validation::verify_key_value(scoped_session &session, const uint64_t co
     if (key_state.exists == false)
         return;
 
+    const char *retrieved_value;
     testutil_check(cursor->get_value(cursor.get(), &retrieved_value));
     if (key_state.value != key_value_t(retrieved_value))
         testutil_die(LOG_ERROR,

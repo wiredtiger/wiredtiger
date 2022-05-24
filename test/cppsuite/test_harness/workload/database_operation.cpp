@@ -73,19 +73,14 @@ void
 database_operation::populate(
   database &database, timestamp_manager *tsm, configuration *config, workload_tracking *tracking)
 {
-    int64_t collection_count, key_count, key_size, thread_count, value_size;
-    std::vector<thread_context *> workers;
-    std::string collection_name;
-    thread_manager tm;
-
     /* Validate our config. */
-    collection_count = config->get_int(COLLECTION_COUNT);
-    key_count = config->get_int(KEY_COUNT_PER_COLLECTION);
-    value_size = config->get_int(VALUE_SIZE);
-    thread_count = config->get_int(THREAD_COUNT);
+    int64_t collection_count = config->get_int(COLLECTION_COUNT);
+    int64_t key_count = config->get_int(KEY_COUNT_PER_COLLECTION);
+    int64_t value_size = config->get_int(VALUE_SIZE);
+    int64_t thread_count = config->get_int(THREAD_COUNT);
     testutil_assert(thread_count == 0 || collection_count % thread_count == 0);
     testutil_assert(value_size > 0);
-    key_size = config->get_int(KEY_SIZE);
+    int64_t key_size = config->get_int(KEY_SIZE);
     testutil_assert(key_size > 0);
     /* Keys must be unique. */
     testutil_assert(key_count <= pow(10, key_size));
@@ -108,6 +103,8 @@ database_operation::populate(
      * Spawn thread_count threads to populate the database, theoretically we should be IO bound
      * here.
      */
+    thread_manager tm;
+    std::vector<thread_context *> workers;
     for (int64_t i = 0; i < thread_count; ++i) {
         thread_context *tc = new thread_context(i, thread_type::INSERT, config,
           connection_manager::instance().create_session(), tsm, tracking, database);

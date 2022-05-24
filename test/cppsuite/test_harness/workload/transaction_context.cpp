@@ -86,10 +86,9 @@ transaction_context::try_begin(const std::string &config)
 bool
 transaction_context::commit(const std::string &config)
 {
-    WT_DECL_RET;
     testutil_assert(_in_txn && !_needs_rollback);
 
-    ret = _session->commit_transaction(_session, config.empty() ? nullptr : config.c_str());
+    int ret = _session->commit_transaction(_session, config.empty() ? nullptr : config.c_str());
     /*
      * FIXME-WT-9198 Now we are accepting the error code EINVAL because of possible invalid
      * timestamps as we know it can happen due to the nature of the framework. The framework may set

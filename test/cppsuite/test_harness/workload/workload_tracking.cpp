@@ -87,14 +87,6 @@ workload_tracking::load()
 void
 workload_tracking::do_work()
 {
-    WT_DECL_RET;
-    wt_timestamp_t ts, oldest_ts;
-    uint64_t collection_id, sweep_collection_id;
-    int op_type;
-    const char *key, *value;
-    char *sweep_key;
-    bool globally_visible_update_found;
-
     /*
      * This function prunes old data from the tracking table as the default validation logic doesn't
      * use it. User-defined validation may need this data, so don't allow it to be removed.
@@ -105,14 +97,18 @@ workload_tracking::do_work()
       value_format != OPERATION_TRACKING_VALUE_FORMAT)
         return;
 
-    key = sweep_key = nullptr;
-    globally_visible_update_found = false;
-
     /* Take a copy of the oldest so that we sweep with a consistent timestamp. */
-    oldest_ts = _tsm.get_oldest_ts();
+    wt_timestamp_t oldest_ts = _tsm.get_oldest_ts();
 
     /* We need to check if the component is still running to avoid unnecessary iterations. */
+    bool globally_visible_update_found = false;
+    char *sweep_key = nullptr;
+    int ret;
+    uint64_t sweep_collection_id;
     while (_running && (ret = _sweep_cursor->prev(_sweep_cursor.get())) == 0) {
+        const char *key, *value;
+        int op_type;
+        uint64_t collection_id, ts;
         testutil_check(_sweep_cursor->get_key(_sweep_cursor.get(), &collection_id, &key, &ts));
         testutil_check(_sweep_cursor->get_value(_sweep_cursor.get(), &op_type, &value));
         /*
@@ -175,8 +171,6 @@ void
 workload_tracking::save_schema_operation(
   const tracking_operation &operation, const uint64_t &collection_id, wt_timestamp_t ts)
 {
-    std::string error_message;
-
     if (!_enabled)
         return;
 
@@ -186,7 +180,7 @@ workload_tracking::save_schema_operation(
         _schema_track_cursor->set_value(_schema_track_cursor.get(), static_cast<int>(operation));
         testutil_check(_schema_track_cursor->insert(_schema_track_cursor.get()));
     } else {
-        error_message =
+        const std::string error_message =
           "save_schema_operation: invalid operation " + std::to_string(static_cast<int>(operation));
         testutil_die(EINVAL, error_message.c_str());
     }
@@ -197,13 +191,12 @@ workload_tracking::save_operation(const uint64_t txn_id, const tracking_operatio
   const uint64_t &collection_id, const std::string &key, const std::string &value,
   wt_timestamp_t ts, scoped_cursor &op_track_cursor)
 {
-    WT_DECL_RET;
-
     if (!_enabled)
         return (0);
 
     testutil_assert(op_track_cursor.get() != nullptr);
 
+    int ret = 0;
     if (operation == tracking_operation::CREATE_COLLECTION ||
       operation == tracking_operation::DELETE_COLLECTION) {
         const std::string error_message =
