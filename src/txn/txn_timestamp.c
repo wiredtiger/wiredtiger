@@ -467,9 +467,7 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
               "%s timestamp %s must be after the latest active read timestamp %s ", op,
               __wt_timestamp_to_string(ts, ts_string[0]),
               __wt_timestamp_to_string(tmp_timestamp, ts_string[1]));
-#ifdef HAVE_DIAGNOSTIC
             __wt_abort(session);
-#endif
             ret = EINVAL;
             break;
         }
