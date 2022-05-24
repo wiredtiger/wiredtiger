@@ -38,11 +38,6 @@ extern "C" {
 #include "../workload/database_model.h"
 #include "transaction_context.h"
 
-/* Forward declarations for classes to reduce compilation time and modules coupling. */
-class configuration;
-class timestamp_manager;
-class workload_tracking;
-
 namespace test_harness {
 enum thread_type { CHECKPOINT, CUSTOM, INSERT, READ, REMOVE, UPDATE };
 

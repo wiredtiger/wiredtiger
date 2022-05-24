@@ -35,9 +35,6 @@
 
 #include "workload_tracking.h"
 
-/* Forward declarations for classes to reduce compilation time and modules coupling. */
-class timestamp_manager;
-
 namespace test_harness {
 /* Key/Value type. */
 typedef std::string key_value_t;

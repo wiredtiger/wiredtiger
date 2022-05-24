@@ -37,11 +37,6 @@
 #include "thread_manager.h"
 #include "workload/database_operation.h"
 
-/* Forward declarations for classes to reduce compilation time and modules coupling. */
-class configuration;
-class database;
-class workload_tracking;
-
 namespace test_harness {
 /*
  * Helper class to enable scalable operation types in the database_operation.

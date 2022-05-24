@@ -34,9 +34,6 @@
 
 #include "core/component.h"
 
-/* Forward declarations for classes to reduce compilation time and modules coupling. */
-class configuration;
-
 namespace test_harness {
 /*
  * The timestamp monitor class manages global timestamp state for all components in the test
