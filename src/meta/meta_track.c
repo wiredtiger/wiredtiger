@@ -309,7 +309,14 @@ err:
         saved_ret = ret;
         ret = 0;
         while (--trk >= trk_orig) {
-            did_drop = did_drop || trk->op == WT_ST_DROP_COMMIT;
+            /*
+             * Tiered handle can be in an invalid state if it was created and then deleted in one
+             * operation. We need to make sure this dhandle gets picked up by the sweep server as
+             * soon as possible.
+             */
+            did_drop = did_drop || trk->op == WT_ST_DROP_COMMIT ||
+              (trk->op == WT_ST_REMOVE && WT_PREFIX_MATCH(trk->a, "tiered:"));
+
             WT_TRET(__meta_track_unroll(session, trk));
         }
     } else
