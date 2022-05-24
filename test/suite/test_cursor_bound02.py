@@ -88,7 +88,7 @@ class test_cursor_bound02(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower"), '/Invalid argument/')
 
         # Test bound API: Test resetting lower bound to 20, which would succeed setting upper
-        # bound to 25
+        # bound to 30
         cursor.set_key(self.gen_key(20))
         self.assertEqual(cursor.bound("bound=lower"), 0)
         cursor.set_key(self.gen_key(30))
