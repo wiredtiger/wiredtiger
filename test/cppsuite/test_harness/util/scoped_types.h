@@ -45,7 +45,7 @@ namespace test_harness {
 class scoped_cursor {
     public:
     scoped_cursor() = default;
-    explicit scoped_cursor(WT_SESSION *session, const std::string &uri, const std::string &cfg);
+    scoped_cursor(WT_SESSION *session, const std::string &uri, const std::string &cfg);
 
     /* Moving is ok but copying is not. */
     scoped_cursor(scoped_cursor &&other);

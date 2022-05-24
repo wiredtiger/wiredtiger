@@ -48,7 +48,7 @@ namespace test_harness {
  */
 class operation_config {
     public:
-    explicit operation_config(configuration *config, thread_type type);
+    operation_config(configuration *config, thread_type type);
 
     /* Returns a function pointer to the member function of the supplied database operation. */
     std::function<void(test_harness::thread_context *)> get_func(database_operation *dbo);
@@ -64,7 +64,7 @@ class operation_config {
  */
 class workload_generator : public component {
     public:
-    explicit workload_generator(configuration *configuration, database_operation *db_operation,
+    workload_generator(configuration *configuration, database_operation *db_operation,
       timestamp_manager *timestamp_manager, database &database);
 
     ~workload_generator();

@@ -42,7 +42,7 @@ namespace test_harness {
 
 class transaction_context {
     public:
-    explicit transaction_context(
+    transaction_context(
       configuration *config, timestamp_manager *timestamp_manager, WT_SESSION *session);
 
     bool active() const;

@@ -48,7 +48,7 @@ namespace test_harness {
 class statistics {
     public:
     statistics() = default;
-    explicit statistics(configuration &config, const std::string &stat_name, int stat_field);
+    statistics(configuration &config, const std::string &stat_name, int stat_field);
     virtual ~statistics() = default;
 
     /* Check that the statistics are within bounds. */
@@ -78,7 +78,7 @@ class statistics {
 
 class cache_limit_statistic : public statistics {
     public:
-    explicit cache_limit_statistic(configuration &config, const std::string &name);
+    cache_limit_statistic(configuration &config, const std::string &name);
     virtual ~cache_limit_statistic() = default;
 
     void check(scoped_cursor &cursor) override final;
@@ -90,7 +90,7 @@ class cache_limit_statistic : public statistics {
 
 class db_size_statistic : public statistics {
     public:
-    explicit db_size_statistic(configuration &config, const std::string &name, database &database);
+    db_size_statistic(configuration &config, const std::string &name, database &database);
     virtual ~db_size_statistic() = default;
 
     /* Don't need the stat cursor for these. */
@@ -114,8 +114,7 @@ class runtime_monitor : public component {
     static void get_stat(scoped_cursor &, int, int64_t *);
 
     public:
-    explicit runtime_monitor(
-      const std::string &test_name, configuration *config, database &database);
+    runtime_monitor(const std::string &test_name, configuration *config, database &database);
     virtual ~runtime_monitor() = default;
 
     /* Delete the copy constructor and the assignment operator. */
