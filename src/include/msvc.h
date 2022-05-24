@@ -47,9 +47,9 @@
     {                                                                                       \
         return (_InterlockedExchangeAdd##s((t *)(vp), -(t)v) - (v));                        \
     }                                                                                       \
-    static inline bool __wt_atomic_cas##name(type *vp, type oldVal, type newVal)                  \
+    static inline bool __wt_atomic_cas##name(type *vp, type old_val, type new_val)          \
     {                                                                                       \
-        return (_InterlockedCompareExchange##s((t *)(vp), (t)(newVal), (t)(oldVal)) == (t)(oldVal)); \
+        return (_InterlockedCompareExchange##s((t *)(vp), (t)(new_val), (t)(old_val)) == (t)(old_val)); \
     }
 
 WT_ATOMIC_FUNC(8, uint8_t, uint8_t, 8, char)
@@ -70,9 +70,9 @@ WT_ATOMIC_FUNC(size, size_t, size_t, 64, __int64)
  *     Pointer compare and swap.
  */
 static inline bool
-__wt_atomic_cas_ptr(void *vp, void *oldVal, void *newVal)
+__wt_atomic_cas_ptr(void *vp, void *old_val, void *new_val)
 {
-    return (_InterlockedCompareExchange64((volatile __int64 *)vp, (int64_t) newVal, (int64_t)oldVal) == ((int64_t)oldVal));
+    return (_InterlockedCompareExchange64((volatile __int64 *)vp, (int64_t)new_val, (int64_t)old_val) == ((int64_t)old_val));
 }
 
 /*
