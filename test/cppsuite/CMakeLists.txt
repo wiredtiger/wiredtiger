@@ -14,6 +14,7 @@ add_library(cppsuite_test_harness STATIC
     test_harness/workload/database_operation.cpp
     test_harness/workload/random_generator.cpp
     test_harness/workload/thread_context.cpp
+    test_harness/workload/transaction_context.cpp
     test_harness/workload/workload_tracking.cpp
     test_harness/workload/workload_validation.cpp
     test_harness/checkpoint_manager.cpp
