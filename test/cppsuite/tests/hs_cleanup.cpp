@@ -42,7 +42,9 @@ using namespace test_harness;
  */
 class hs_cleanup : public test {
     public:
-    hs_cleanup(const test_args &args) : test(args)
+    hs_cleanup(
+      const std::string &config, const std::string &name, const std::string &wt_open_config)
+        : test(config, name, wt_open_config)
     {
         init_tracking();
     }

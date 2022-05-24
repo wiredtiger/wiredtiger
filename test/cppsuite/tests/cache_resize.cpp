@@ -57,7 +57,9 @@ class tracking_table_cache_resize : public test_harness::workload_tracking {
  */
 class cache_resize : public test_harness::test {
     public:
-    cache_resize(const test_harness::test_args &args) : test(args)
+    cache_resize(
+      const std::string &config, const std::string &name, const std::string &wt_open_config)
+        : test(config, name, wt_open_config)
     {
         init_tracking(new tracking_table_cache_resize(_config->get_subconfig(WORKLOAD_TRACKING),
           _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager));

@@ -42,7 +42,9 @@ namespace test_harness {
  */
 class bounded_cursor_perf : public test {
     public:
-    bounded_cursor_perf(const test_args &args) : test(args)
+    bounded_cursor_perf(
+      const std::string &config, const std::string &name, const std::string &wt_open_config)
+        : test(config, name, wt_open_config)
     {
         init_tracking();
     }
@@ -68,10 +70,10 @@ class bounded_cursor_perf : public test {
         int range_ret_next, range_ret_prev, ret_next, ret_prev;
 
         /* Initialize the op trackers. */
-        op_tracker bounded_next("bounded_next", test::_args.test_name);
-        op_tracker default_next("default_next", test::_args.test_name);
-        op_tracker bounded_prev("bounded_prev", test::_args.test_name);
-        op_tracker default_prev("default_prev", test::_args.test_name);
+        op_tracker bounded_next("bounded_next", test_name);
+        op_tracker default_next("default_next", test_name);
+        op_tracker bounded_prev("bounded_prev", test_name);
+        op_tracker default_prev("default_prev", test_name);
 
         /* Get the collection to work on. */
         testutil_assert(tc->collection_count == 1);

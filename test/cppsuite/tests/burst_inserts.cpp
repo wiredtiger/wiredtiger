@@ -38,7 +38,9 @@ using namespace test_harness;
  */
 class burst_inserts : public test {
     public:
-    burst_inserts(const test_args &args) : test(args)
+    burst_inserts(
+      const std::string &config, const std::string &name, const std::string &wt_open_config)
+        : test(config, name, wt_open_config)
     {
         _burst_duration = _config->get_int("burst_duration");
         logger::log_msg(LOG_INFO, "Burst duration set to: " + std::to_string(_burst_duration));

@@ -36,7 +36,9 @@
  */
 class operations_test : public test_harness::test {
     public:
-    operations_test(const test_harness::test_args &args) : test(args)
+    operations_test(
+      const std::string &config, const std::string &name, const std::string &wt_open_config)
+        : test(config, name, wt_open_config)
     {
         init_tracking();
     }

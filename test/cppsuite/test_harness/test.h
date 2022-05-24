@@ -45,23 +45,12 @@ extern "C" {
 #include "workload_generator.h"
 
 namespace test_harness {
-class test_args {
-    public:
-    test_args(const std::string &config, const std::string &name, const std::string &wt_open_config)
-        : test_config(config), test_name(name), wt_open_config(wt_open_config)
-    {
-    }
-    const std::string test_config;
-    const std::string test_name;
-    const std::string wt_open_config;
-};
-
 /*
  * The base class for a test, the standard usage pattern is to just call run().
  */
 class test : public database_operation {
     public:
-    explicit test(const test_args &args);
+    test(const std::string &config, const std::string &name, const std::string &wt_open_config);
     virtual ~test();
 
     /* Delete the copy constructor and the assignment operator. */
@@ -86,7 +75,9 @@ class test : public database_operation {
     thread_manager *get_thread_manager();
 
     protected:
-    const test_args &_args;
+    const std::string test_config;
+    const std::string test_name;
+    const std::string wt_open_config;
     configuration *_config;
     timestamp_manager *_timestamp_manager = nullptr;
     workload_tracking *_workload_tracking = nullptr;

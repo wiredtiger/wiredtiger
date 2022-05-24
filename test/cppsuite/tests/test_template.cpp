@@ -56,7 +56,9 @@ class tracking_table_template : public test_harness::workload_tracking {
  */
 class test_template : public test_harness::test {
     public:
-    test_template(const test_harness::test_args &args) : test(args)
+    test_template(
+      const std::string &config, const std::string &name, const std::string &wt_open_config)
+        : test(config, name, wt_open_config)
     {
         init_tracking(new tracking_table_template(_config->get_subconfig(WORKLOAD_TRACKING),
           _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager));

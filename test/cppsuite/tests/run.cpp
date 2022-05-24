@@ -120,28 +120,27 @@ run_test(const std::string &test_name, const std::string &config, const std::str
     int error_code = 0;
 
     test_harness::logger::log_msg(LOG_TRACE, "Configuration\t:" + config);
-    test_harness::test_args args(config, test_name, wt_open_config);
 
     if (test_name == "bounded_cursor_perf")
-        bounded_cursor_perf(args).run();
+        bounded_cursor_perf(config, test_name, wt_open_config).run();
     else if (test_name == "burst_inserts")
-        burst_inserts(args).run();
+        burst_inserts(config, test_name, wt_open_config).run();
     else if (test_name == "cache_resize")
-        cache_resize(args).run();
+        cache_resize(config, test_name, wt_open_config).run();
     else if (test_name == "cursor_bound_01")
-        cursor_bound_01(args).run();
+        cursor_bound_01(config, test_name, wt_open_config).run();
     else if (test_name == "hs_cleanup")
-        hs_cleanup(args).run();
+        hs_cleanup(config, test_name, wt_open_config).run();
     else if (test_name == "operations_test")
-        operations_test(args).run();
+        operations_test(config, test_name, wt_open_config).run();
     else if (test_name == "search_near_01")
-        search_near_01(args).run();
+        search_near_01(config, test_name, wt_open_config).run();
     else if (test_name == "search_near_02")
-        search_near_02(args).run();
+        search_near_02(config, test_name, wt_open_config).run();
     else if (test_name == "search_near_03")
-        search_near_03(args).run();
+        search_near_03(config, test_name, wt_open_config).run();
     else if (test_name == "test_template")
-        test_template(args).run();
+        test_template(config, test_name, wt_open_config).run();
     else {
         test_harness::logger::log_msg(LOG_ERROR, "Test not found: " + test_name);
         error_code = -1;

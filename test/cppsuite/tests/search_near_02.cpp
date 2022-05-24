@@ -41,7 +41,9 @@ using namespace test_harness;
  */
 class search_near_02 : public test_harness::test {
     public:
-    search_near_02(const test_harness::test_args &args) : test(args)
+    search_near_02(
+      const std::string &config, const std::string &name, const std::string &wt_open_config)
+        : test(config, name, wt_open_config)
     {
         init_tracking();
     }

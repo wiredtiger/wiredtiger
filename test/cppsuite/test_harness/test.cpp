@@ -41,12 +41,13 @@
 #include "util/perf_plotter.h"
 
 namespace test_harness {
-test::test(const test_args &args) : _args(args)
+test::test(const std::string &config, const std::string &name, const std::string &wt_open_config)
+    : test_config(config), test_name(name), wt_open_config(wt_open_config)
 {
-    _config = new configuration(args.test_name, args.test_config);
+    _config = new configuration(test_name, test_config);
     _checkpoint_manager = new checkpoint_manager(_config->get_subconfig(CHECKPOINT_MANAGER));
     _runtime_monitor =
-      new runtime_monitor(args.test_name, _config->get_subconfig(RUNTIME_MONITOR), _database);
+      new runtime_monitor(test_name, _config->get_subconfig(RUNTIME_MONITOR), _database);
     _timestamp_manager = new timestamp_manager(_config->get_subconfig(TIMESTAMP_MANAGER));
     _workload_generator = new workload_generator(
       _config->get_subconfig(WORKLOAD_GENERATOR), this, _timestamp_manager, _database);
@@ -140,7 +141,7 @@ test::run()
     db_create_config += ",cache_max_wait_ms=" + std::to_string(cache_max_wait_ms);
 
     /* Add the user supplied wiredtiger open config. */
-    db_create_config += _args.wt_open_config;
+    db_create_config += wt_open_config;
 
     /*
      * Set up the test environment. A smart pointer is used here so that the connection can
@@ -191,7 +192,7 @@ test::run()
     }
 
     /* Log perf stats. */
-    perf_plotter::instance().output_perf_file(_args.test_name);
+    perf_plotter::instance().output_perf_file(test_name);
 
     logger::log_msg(LOG_INFO, "SUCCESS");
 }

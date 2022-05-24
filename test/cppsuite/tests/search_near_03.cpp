@@ -46,7 +46,9 @@ class search_near_03 : public test_harness::test {
     const std::string ALPHABET{"abcdefghijklmnopqrstuvwxyz"};
 
     public:
-    search_near_03(const test_harness::test_args &args) : test(args)
+    search_near_03(
+      const std::string &config, const std::string &name, const std::string &wt_open_config)
+        : test(config, name, wt_open_config)
     {
         init_tracking();
     }

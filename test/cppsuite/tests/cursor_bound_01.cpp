@@ -95,7 +95,9 @@ class cursor_bound_01 : public test {
     enum bounds { NO_BOUNDS, LOWER_BOUND_SET, UPPER_BOUND_SET, ALL_BOUNDS_SET };
 
     public:
-    cursor_bound_01(const test_args &args) : test(args)
+    cursor_bound_01(
+      const std::string &config, const std::string &name, const std::string &wt_open_config)
+        : test(config, name, wt_open_config)
     {
         /* Track reverse_collator value as it is required for the custom comparator. */
         _reverse_collator_enabled = _config->get_bool(REVERSE_COLLATOR);
