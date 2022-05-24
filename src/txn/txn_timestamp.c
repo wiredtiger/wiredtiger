@@ -440,11 +440,10 @@ set:
  *     Assert that commit and prepare timestamps are greater than the latest active read timestamp,
  *     if any.
  */
-static int
+static void
 __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_t ts)
 {
 #ifdef HAVE_DIAGNOSTIC
-    WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     wt_timestamp_t tmp_timestamp;
@@ -463,23 +462,20 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         __txn_get_read_timestamp(s, &tmp_timestamp);
         if (tmp_timestamp != WT_TS_NONE && tmp_timestamp >= ts) {
-            __wt_err(session, EINVAL,
-              "%s timestamp %s must be after the latest active read timestamp %s ", op,
-              __wt_timestamp_to_string(ts, ts_string[0]),
+            __wt_err(session, EINVAL, "%s timestamp %s must be after all active read timestamps %s",
+              op, __wt_timestamp_to_string(ts, ts_string[0]),
               __wt_timestamp_to_string(tmp_timestamp, ts_string[1]));
+
             __wt_abort(session);
-            ret = EINVAL;
-            break;
+            /* NOTREACHED */
         }
     }
-    __wt_readunlock(session, &txn_global->rwlock);
 
-    return (ret);
+    __wt_readunlock(session, &txn_global->rwlock);
 #else
     WT_UNUSED(session);
     WT_UNUSED(op);
     WT_UNUSED(ts);
-    return (0);
 #endif
 }
 
@@ -539,7 +535,7 @@ __wt_txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *com
               __wt_timestamp_to_string(commit_ts, ts_string[0]),
               __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[1]));
 
-        WT_RET(__txn_assert_after_reads(session, "commit", commit_ts));
+        __txn_assert_after_reads(session, "commit", commit_ts);
     } else {
         /*
          * For a prepared transaction, the commit timestamp should not be less than the prepare
@@ -708,7 +704,7 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
         WT_RET_MSG(session, EINVAL,
           "commit timestamp should not have been set before the prepare timestamp");
 
-    WT_RET(__txn_assert_after_reads(session, "prepare", prepare_ts));
+    __txn_assert_after_reads(session, "prepare", prepare_ts);
 
     /*
      * Check whether the prepare timestamp is less than the stable timestamp.
