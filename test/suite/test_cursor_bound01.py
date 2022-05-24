@@ -38,7 +38,8 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
         ('file', dict(uri='file:', use_index = False)),
         ('table', dict(uri='table:', use_index = False)),
         ('lsm', dict(uri='lsm:', use_index = False)),
-        ('index', dict(uri='table:', use_index = True)), 
+        #FIXME: Turn on once index cursor bound implementation is done.
+        #('index', dict(uri='table:', use_index = True)), 
     ]
 
     scenarios = make_scenarios(types)
@@ -69,7 +70,9 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
             '/Invalid argument/')
 
         # Check that bound configuration works properly.
+        cursor.set_key(0)
         cursor.bound("bound=lower")
+        cursor.set_key(10)
         cursor.bound("bound=upper")
 
         # Clear and inclusive configuration are not compatible with each other. 
