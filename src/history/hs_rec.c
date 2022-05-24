@@ -501,6 +501,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
 
+            /* We must have deleted any update left in the history store. */
+            WT_ASSERT(session, F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS));
+
             /* Detect any update without a timestamp. */
             if (prev_upd != NULL && prev_upd->start_ts < upd->start_ts) {
                 WT_ASSERT(session, prev_upd->start_ts == WT_TS_NONE);
