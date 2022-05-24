@@ -38,14 +38,6 @@ class test_tiered17(TieredConfigMixin, wttest.WiredTigerTestCase):
     tiered_storage_sources = gen_tiered_storage_sources()
     saved_conn = ''
     uri = "table:test_tiered"
-    base = "test_tiered-000000000"
-    obj1file = base + "1.wtobj"
-    obj2file = base + "2.wtobj"
-
-    conn_readonly = [
-        ('conn_readonly', dict(conn_readonly=True)),
-        ('conn_writable', dict(conn_readonly=False)),
-    ]
 
     shutdown = [
         ('clean', dict(clean=True)),
@@ -59,7 +51,15 @@ class test_tiered17(TieredConfigMixin, wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(tiered_storage_sources, shutdown)
 
-    def test_open_readonly_db(self):
+    def get_object_files(self):
+        object_files = []
+        for path, _, files in os.walk('./'):
+            for file in files:
+                if file.endswith('.wtobj'):
+                    object_files.append(os.path.join(path, file))
+        return object_files
+
+    def test_open_readonly_conn(self):
         # Create and populate a table.
         self.session.create(self.uri, "key_format=S,value_format=S")
         c = self.session.open_cursor(self.uri)
@@ -72,36 +72,51 @@ class test_tiered17(TieredConfigMixin, wttest.WiredTigerTestCase):
 
         # Add more data but don't do a checkpoint or flush in the unclean shutdown scenario.
         if not self.clean:
-            c["c"] = "c"
-            c["d"] = "d"
-        
+           c["c"] = "c"
+           c["d"] = "d"
         c.close()
 
-        if self.is_tiered_scenario():
-            self.assertTrue(os.path.isfile(self.obj1file))
-            self.assertTrue(os.path.isfile(self.obj2file))
+        obj_files_orig = self.get_object_files()
 
-        localobj = './' + self.obj1file
-        if os.path.exists(localobj):
-            os.remove(localobj)
-        localobj = './' + self.obj2file
-        if os.path.exists(localobj):
-            os.remove(localobj)
+        # Re-open the connection but in readonly mode.
+        conn_params = 'readonly=true,' + self.saved_conn
+        self.reopen_conn(config = conn_params)
 
-        if self.conn_readonly:
-            # Re-open the connection but in readonly mode.
-            conn_params = 'readonly=true,' + self.saved_conn
-        else:
-            conn_params = self.saved_conn
-            self.reopen_conn(config = conn_params)
-            c2 = self.session.open_cursor(self.uri, None, "readonly=true")
+        obj_files = self.get_object_files()
 
-            if self.is_tiered_scenario():
-                self.assertFalse(os.path.isfile(self.obj1file))
-                self.assertFalse(os.path.isfile(self.obj2file))
+        # Check that no additional object files have been created.
+        self.assertTrue(sorted(obj_files_orig) == sorted(obj_files))
 
-            c2.close()
-            self.close_conn()
+    def test_open_readonly_cursor(self):
+        # Create and populate a table.
+        self.session.create(self.uri, "key_format=S,value_format=S")
+        c = self.session.open_cursor(self.uri)
+        c["a"] = "a"
+        c["b"] = "b"
+
+        # Do a checkpoint and flush operation.
+        self.session.checkpoint()
+        self.session.flush_tier(None)
+
+        # Add more data but don't do a checkpoint or flush in the unclean shutdown scenario.
+        if not self.clean:
+           c["c"] = "c"
+           c["d"] = "d"
+        c.close()
+
+        obj_files_orig = self.get_object_files()
+
+        # Open the database in readonly mode.
+        self.reopen_conn(config = self.saved_conn)
+        c2 = self.session.open_cursor(self.uri, None, "readonly=true")
+
+        obj_files = self.get_object_files()
+
+        # Check that no additional object files have been created.
+        self.assertTrue(sorted(obj_files_orig) == sorted(obj_files))
+
+        c2.close()
+        self.close_conn()
 
 if __name__ == '__main__':
     wttest.run()
