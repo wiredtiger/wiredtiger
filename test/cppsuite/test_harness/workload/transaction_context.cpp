@@ -121,7 +121,7 @@ transaction_context::rollback(const std::string &config)
 void
 transaction_context::try_rollback(const std::string &config)
 {
-    if (can_rollback())
+    if (_in_txn)
         rollback(config);
 }
 
@@ -144,13 +144,7 @@ transaction_context::set_needs_rollback(bool rollback)
 bool
 transaction_context::can_commit()
 {
-    return (!_needs_rollback && can_rollback());
-}
-
-bool
-transaction_context::can_rollback()
-{
-    return (_in_txn && _op_count >= _target_op_count);
+    return (!_needs_rollback && _op_count >= _target_op_count);
 }
 
 } // namespace test_harness

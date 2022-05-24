@@ -81,7 +81,7 @@ class hs_cleanup : public test {
                      * call can happen outside the context of a transaction. Assert that we are in
                      * one if we got a rollback.
                      */
-                    testutil_check(tc->transaction.can_rollback());
+                    testutil_assert(tc->transaction.active());
                     tc->transaction.rollback();
                     continue;
                 }

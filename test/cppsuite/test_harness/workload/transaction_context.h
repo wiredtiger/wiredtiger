@@ -67,11 +67,6 @@ class transaction_context {
      * the transaction.
      */
     bool can_commit();
-    /*
-     * Returns true if a transaction can be rolled back as determined by the op count and the state
-     * of the transaction.
-     */
-    bool can_rollback();
 
     private:
     bool _in_txn = false;
