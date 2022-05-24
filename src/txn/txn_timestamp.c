@@ -444,6 +444,7 @@ static int
 __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_t ts)
 {
 #ifdef HAVE_DIAGNOSTIC
+    WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     wt_timestamp_t tmp_timestamp;
@@ -453,28 +454,35 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
     txn_global = &S2C(session)->txn_global;
 
     __wt_readlock(session, &txn_global->rwlock);
-    /* Walk the array of concurrent transactions. */
+
     WT_ORDERED_READ(session_cnt, S2C(session)->session_cnt);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
+    WT_STAT_CONN_INCRV(session, txn_sessions_walked, session_cnt);
+
+    /* Walk the array of concurrent transactions. */
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
-        WT_STAT_CONN_INCR(session, txn_sessions_walked);
         __txn_get_read_timestamp(s, &tmp_timestamp);
         if (tmp_timestamp != WT_TS_NONE && tmp_timestamp >= ts) {
-            __wt_readunlock(session, &txn_global->rwlock);
-            WT_RET_MSG(session, EINVAL,
-              "%s timestamp %s must be greater than the latest active read timestamp %s ", op,
+            __wt_err(session, EINVAL,
+              "%s timestamp %s must be after the latest active read timestamp %s ", op,
               __wt_timestamp_to_string(ts, ts_string[0]),
               __wt_timestamp_to_string(tmp_timestamp, ts_string[1]));
+#ifdef HAVE_DIAGNOSTIC
+            __wt_abort(session);
+#endif
+            ret = EINVAL;
+            break;
         }
     }
     __wt_readunlock(session, &txn_global->rwlock);
+
+    return (ret);
 #else
     WT_UNUSED(session);
     WT_UNUSED(op);
     WT_UNUSED(ts);
+    return (ret);
 #endif
-
-    return (0);
 }
 
 /*
