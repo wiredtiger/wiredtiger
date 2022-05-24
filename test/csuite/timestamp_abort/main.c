@@ -127,7 +127,6 @@ typedef struct {
     uint32_t info;
 } THREAD_DATA;
 
-/* Lock for transactional ops that set or query a timestamp. */
 static THREAD_DATA *td_list; /* Array of thread structures. */
 static uint32_t nth;         /* Number of threads. */
 
@@ -368,7 +367,7 @@ thread_run(void *arg)
 
         if (use_ts) {
             /* Allocate two timestamps. */
-            active_ts = __wt_atomic_addv64(&global_ts, 2);
+            active_ts = __wt_atomic_fetch_addv64(&global_ts, 2);
             testutil_check(
               __wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, active_ts));
             /*
