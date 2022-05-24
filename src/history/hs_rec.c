@@ -399,19 +399,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
         if (list->onpage_upd == NULL)
             continue;
 
-        /* Skip aborted updates. */
-        for (upd = list->onpage_upd->next; upd != NULL && upd->txnid == WT_TXN_ABORTED;
-             upd = upd->next)
-            ;
-
-        /* No update to insert to history store. */
-        if (upd == NULL)
-            continue;
-
-        /* Updates have already been inserted to the history store. */
-        if (F_ISSET(upd, WT_UPDATE_HS))
-            continue;
-
         /* History store table key component: source key. */
         switch (r->page->type) {
         case WT_PAGE_COL_FIX:
@@ -468,6 +455,19 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             }
         }
 
+        /* Skip aborted updates. */
+        for (upd = list->onpage_upd->next; upd != NULL && upd->txnid == WT_TXN_ABORTED;
+             upd = upd->next)
+            ;
+
+        /* No update to insert to history store. */
+        if (upd == NULL)
+            continue;
+
+        /* Updates have already been inserted to the history store. */
+        if (F_ISSET(upd, WT_UPDATE_HS))
+            continue;
+
         /*
          * The algorithm assumes the oldest update on the update chain in memory is either a full
          * update or a tombstone.
@@ -502,7 +502,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                 continue;
 
             /* We must have deleted any update left in the history store. */
-            WT_ASSERT(session, F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS));
+            WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS));
 
             /* Detect any update without a timestamp. */
             if (prev_upd != NULL && prev_upd->start_ts < upd->start_ts) {
@@ -927,6 +927,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
      * store checkpoint inconsistent.
      */
     if (error_on_ts_ordering) {
+        WT_ASSERT(session, false);
         ret = EBUSY;
         WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_no_ts);
         goto err;
