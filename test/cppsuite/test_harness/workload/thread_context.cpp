@@ -67,11 +67,11 @@ thread_context::thread_context(uint64_t id, thread_type type, configuration *con
       thread_count(config->get_int(THREAD_COUNT)), type(type), id(id), db(dbase),
       session(std::move(created_session)), tsm(timestamp_manager),
       transaction(transaction_context(config, timestamp_manager, session.get())),
-      tracking(tracking), _throttle(config)
+      tracking(tracking), _sleeping_time_ms(config->get_throttle())
+
 {
     if (tracking->enabled())
         op_track_cursor = session.open_scoped_cursor(tracking->get_operation_table_name());
-
     testutil_assert(key_size > 0 && value_size > 0);
 }
 
@@ -199,7 +199,7 @@ thread_context::remove(scoped_cursor &cursor, uint64_t collection_id, const std:
 void
 thread_context::sleep()
 {
-    _throttle.sleep();
+    std::this_thread::sleep_for(std::chrono::milliseconds(_sleeping_time_ms));
 }
 
 bool

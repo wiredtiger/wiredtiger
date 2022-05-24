@@ -84,6 +84,8 @@ class configuration {
     std::vector<std::string> get_list(const std::string &key);
     std::vector<std::string> get_optional_list(const std::string &key);
 
+    uint64_t get_throttle();
+
     private:
     enum class types { BOOL, INT, LIST, STRING, STRUCT };
 

@@ -31,7 +31,6 @@
 
 #include "connection_manager.h"
 #include "core/configuration.h"
-#include "core/throttle.h"
 #include "util/api_const.h"
 #include "workload/database_model.h"
 #include "workload/database_operation.h"

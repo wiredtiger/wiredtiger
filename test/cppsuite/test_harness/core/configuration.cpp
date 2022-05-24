@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <stack>
 
+#include "../util/api_const.h"
 #include "configuration.h"
 
 namespace test_harness {
@@ -301,5 +302,34 @@ configuration::comparator(
   std::pair<std::string, std::string> a, std::pair<std::string, std::string> b)
 {
     return (a.first < b.first);
+}
+
+uint64_t
+configuration::get_throttle()
+{
+    uint64_t multiplier = 0;
+    const std::string throttle_config(get_optional_string(OP_RATE, "1s"));
+    /*
+     * Find the ms, s, or m in the string. Searching for "ms" first as the following two searches
+     * would match as well.
+     */
+    size_t pos = throttle_config.find("ms");
+    if (pos != std::string::npos)
+        multiplier = 1;
+    else {
+        pos = throttle_config.find("s");
+        if (pos != std::string::npos)
+            multiplier = 1000;
+        else {
+            pos = throttle_config.find("m");
+            if (pos != std::string::npos)
+                multiplier = 60 * 1000;
+            else
+                testutil_die(-1, "no rate specifier given");
+        }
+    }
+    const std::string magnitude = throttle_config.substr(0, pos);
+    /* This will throw if it can't cast, which is fine. */
+    return std::stoi(magnitude) * multiplier;
 }
 } // namespace test_harness

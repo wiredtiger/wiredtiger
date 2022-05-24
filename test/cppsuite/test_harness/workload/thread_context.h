@@ -35,7 +35,6 @@ extern "C" {
 #include "test_util.h"
 }
 
-#include "../core/throttle.h"
 #include "../workload/database_model.h"
 #include "transaction_context.h"
 
@@ -109,7 +108,7 @@ class thread_context {
 
     private:
     bool _running = true;
-    throttle _throttle;
+    uint64_t _sleeping_time_ms = 1000;
 };
 } // namespace test_harness
 

@@ -4,7 +4,6 @@ project(cppsuite CXX)
 add_library(cppsuite_test_harness STATIC
     test_harness/core/component.cpp
     test_harness/core/configuration.cpp
-    test_harness/core/throttle.cpp
     test_harness/util/api_const.cpp
     test_harness/util/logger.cpp
     test_harness/util/perf_plotter.cpp
