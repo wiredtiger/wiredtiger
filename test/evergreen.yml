@@ -4353,6 +4353,7 @@ buildvariants:
     - name: make-check-test
     - name: ".unit_test"
     - name: fops
+    - name: unittest-test
 
 - name: macos-1014
   display_name: "OS X 10.14"
