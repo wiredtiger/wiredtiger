@@ -123,15 +123,13 @@ typedef struct {
 typedef struct {
     WT_CONNECTION *conn;
     uint64_t start;
-    uint64_t commit_ts;
     uint32_t info;
 } THREAD_DATA;
 
-static THREAD_DATA *td_list; /* Array of thread structures. */
-static uint32_t nth;         /* Number of threads. */
+static uint32_t nth;                      /* Number of threads. */
+static wt_timestamp_t *active_timestamps; /* Oldest timestamps still in use. */
 
 static void handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
-static uint64_t maximum_committed_ts(void);
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /*
@@ -143,28 +141,6 @@ usage(void)
 {
     fprintf(stderr, "usage: %s [-h dir] [-T threads] [-t time] [-Cmvz]\n", progname);
     exit(EXIT_FAILURE);
-}
-
-/*
- * maximum_committed_ts --
- *     Return the largest timestamp that's no longer in use.
- */
-static uint64_t
-maximum_committed_ts(void)
-{
-    uint64_t commit_ts, ts;
-    uint32_t i;
-
-    for (ts = WT_TS_MAX, i = 0; i < nth; i++) {
-        commit_ts = td_list[i].commit_ts;
-        if (commit_ts == WT_TS_NONE)
-            return (WT_TS_NONE);
-        if (commit_ts < ts)
-            ts = commit_ts;
-    }
-
-    /* Return one less than the earliest in-use timestamp. */
-    return (ts - 1);
 }
 
 /*
@@ -192,7 +168,7 @@ thread_ts_run(void *arg)
     /* Update the oldest/stable timestamps every 1 millisecond. */
     for (last_ts = 0;; __wt_sleep(0, 1000)) {
         /* Get the last committed timestamp periodically in order to update the oldest timestamp. */
-        ts = maximum_committed_ts();
+        ts = maximum_stable_ts(active_timestamps, nth);
         if (ts == last_ts)
             continue;
         last_ts = ts;
@@ -476,7 +452,7 @@ rollback:
 
         /* We're done with the timestamps, allow oldest and stable to move forward. */
         if (use_ts)
-            WT_PUBLISH(td->commit_ts, active_ts);
+            WT_PUBLISH(active_timestamps[td->info], active_ts);
     }
     /* NOTREACHED */
 }
@@ -500,7 +476,8 @@ run_workload(void)
     const char *table_config, *table_config_nolog;
 
     thr = dcalloc(nth + 2, sizeof(*thr));
-    td = td_list = dcalloc(nth + 2, sizeof(THREAD_DATA));
+    td = dcalloc(nth + 2, sizeof(THREAD_DATA));
+    active_timestamps = dcalloc(nth, sizeof(wt_timestamp_t));
 
     /*
      * Size the cache appropriately for the number of threads. Each thread adds keys sequentially to
