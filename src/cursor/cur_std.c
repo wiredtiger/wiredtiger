@@ -787,8 +787,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
     WT_CURSOR *cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
-    uint64_t bucket;
-    uint32_t overwrite_flag;
+    uint64_t bucket, overwrite_flag;
     bool have_config;
 
     if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS))
@@ -1185,7 +1184,8 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
 
         if (WT_STRING_MATCH("upper", cval.str, cval.len)) {
             /*
-             * If the lower bounds are set, make sure that the upper bound is greater than the lower
+             * If the lower bounds are set, make sure that the upper bound is greater than the
+             lower
              * bound.
              */
             WT_ERR(__wt_cursor_get_raw_key(cursor, &key));
@@ -1237,9 +1237,7 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
          */
         WT_ERR(__wt_config_gets(session, cfg, "bound", &cval));
         if (cval.len == 0) {
-            F_CLR(cursor,
-              WT_CURSTD_BOUND_UPPER | WT_CURSTD_BOUND_UPPER_INCLUSIVE | WT_CURSTD_BOUND_LOWER |
-                WT_CURSTD_BOUND_LOWER_INCLUSIVE);
+            F_CLR(cursor, WT_CURSTD_BOUNDS_SET);
             WT_CLEAR(cursor->lower_bound);
             WT_CLEAR(cursor->upper_bound);
         } else if (WT_STRING_MATCH("upper", cval.str, cval.len)) {
@@ -1250,7 +1248,6 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
             WT_CLEAR(cursor->lower_bound);
         }
     }
-
 err:
     API_END_RET_STAT(session, ret, cursor_bound);
 }
@@ -1355,7 +1352,7 @@ __wt_cursor_init(
      */
     WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
     if (cval.len != 0 && owner == NULL) {
-        uint32_t dump_flag;
+        uint64_t dump_flag;
         if (WT_STRING_MATCH("json", cval.str, cval.len))
             dump_flag = WT_CURSTD_DUMP_JSON;
         else if (WT_STRING_MATCH("print", cval.str, cval.len))
