@@ -37,7 +37,6 @@ extern "C" {
 #include "wiredtiger.h"
 }
 
-#include "checkpoint_manager.h"
 #include "connection_manager.h"
 #include "runtime_monitor.h"
 #include "util/scoped_connection.h"
@@ -84,7 +83,6 @@ class test : public database_operation {
 
     private:
     std::vector<component *> _components;
-    checkpoint_manager *_checkpoint_manager = nullptr;
     runtime_monitor *_runtime_monitor = nullptr;
     thread_manager *_thread_manager = nullptr;
     workload_generator *_workload_generator = nullptr;

@@ -79,6 +79,12 @@ class test_template : public test_harness::test {
     }
 
     void
+    checkpoint_operation(test_harness::thread_context *) override final
+    {
+        std::cout << "checkpoint_operation: nothing done." << std::endl;
+    }
+
+    void
     custom_operation(test_harness::thread_context *) override final
     {
         std::cout << "custom_operation: nothing done." << std::endl;

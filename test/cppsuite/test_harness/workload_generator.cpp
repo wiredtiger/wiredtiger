@@ -49,6 +49,8 @@ std::function<void(test_harness::thread_context *)>
 operation_config::get_func(database_operation *dbo)
 {
     switch (type) {
+    case thread_type::CHECKPOINT:
+        return (std::bind(&database_operation::checkpoint_operation, dbo, std::placeholders::_1));
     case thread_type::CUSTOM:
         return (std::bind(&database_operation::custom_operation, dbo, std::placeholders::_1));
     case thread_type::INSERT:
@@ -95,6 +97,8 @@ workload_generator::run()
 
     /* Retrieve useful parameters from the test configuration. */
     operation_configs.push_back(
+      operation_config(_config->get_subconfig(CHECKPOINT_OP_CONFIG), thread_type::CHECKPOINT));
+    operation_configs.push_back(
       operation_config(_config->get_subconfig(CUSTOM_OP_CONFIG), thread_type::CUSTOM));
     operation_configs.push_back(
       operation_config(_config->get_subconfig(INSERT_OP_CONFIG), thread_type::INSERT));
@@ -117,6 +121,10 @@ workload_generator::run()
             logger::log_msg(LOG_INFO,
               "Workload_generator: Creating " + std::to_string(it.thread_count) + " " +
                 type_string(it.type) + " threads.");
+
+        if (it.type == thread_type::CHECKPOINT)
+            testutil_assert(it.thread_count <= 1);
+
         for (size_t i = 0; i < it.thread_count && _running; ++i) {
             thread_context *tc = new thread_context(thread_id++, it.type, it.config,
               connection_manager::instance().create_session(), _timestamp_manager, _tracking,

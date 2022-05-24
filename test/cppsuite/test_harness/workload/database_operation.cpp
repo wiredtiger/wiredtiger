@@ -128,6 +128,18 @@ database_operation::populate(
 }
 
 void
+database_operation::checkpoint_operation(thread_context *tc)
+{
+    logger::log_msg(
+      LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+
+    while (tc->running()) {
+        tc->sleep();
+        testutil_check(tc->session->checkpoint(tc->session.get(), nullptr));
+    }
+}
+
+void
 database_operation::custom_operation(thread_context *tc)
 {
     logger::log_msg(

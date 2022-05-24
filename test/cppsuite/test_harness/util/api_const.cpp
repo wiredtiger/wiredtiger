@@ -32,7 +32,6 @@
 namespace test_harness {
 
 /* Component names. */
-const std::string CHECKPOINT_MANAGER = "checkpoint_manager";
 const std::string RUNTIME_MONITOR = "runtime_monitor";
 const std::string TIMESTAMP_MANAGER = "timestamp_manager";
 const std::string WORKLOAD_GENERATOR = "workload_generator";
@@ -45,6 +44,7 @@ const std::string CACHE_SIZE_MB = "cache_size_mb";
 const std::string CC_PAGES_REMOVED = "cc_pages_removed";
 const std::string COLLECTION_COUNT = "collection_count";
 const std::string COMPRESSION_ENABLED = "compression_enabled";
+const std::string CHECKPOINT_OP_CONFIG = "checkpoint_config";
 const std::string CUSTOM_OP_CONFIG = "custom_config";
 const std::string DURATION_SECONDS = "duration_seconds";
 const std::string ENABLED = "enabled";

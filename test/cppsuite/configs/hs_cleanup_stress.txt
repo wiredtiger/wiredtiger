@@ -9,11 +9,6 @@ statistics_config=
     type=all,
     enable_logging=true
 ),
-checkpoint_manager=
-(
-    enabled=true,
-    op_rate=60s
-),
 runtime_monitor=
 (
     # Seems to insert around 477K records. Give it +-20K margin.

@@ -16,7 +16,6 @@ add_library(cppsuite_test_harness STATIC
     test_harness/workload/transaction_context.cpp
     test_harness/workload/workload_tracking.cpp
     test_harness/workload/workload_validation.cpp
-    test_harness/checkpoint_manager.cpp
     test_harness/connection_manager.cpp
     test_harness/runtime_monitor.cpp
     test_harness/test.cpp

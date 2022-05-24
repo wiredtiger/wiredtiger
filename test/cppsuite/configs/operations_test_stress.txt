@@ -2,11 +2,6 @@
 duration_seconds=1500,
 cache_size_mb=1000,
 compression_enabled=true,
-checkpoint_manager=
-(
-    enabled=true,
-    op_rate=30s
-),
 runtime_monitor=
 (
     stat_db_size=
@@ -29,6 +24,10 @@ timestamp_manager=
 ),
 workload_generator=
 (
+    checkpoint_config=
+    (
+        op_rate=30s,
+    ),
     populate_config=
     (
         collection_count=500,

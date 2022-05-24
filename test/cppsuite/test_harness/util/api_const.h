@@ -35,7 +35,6 @@
 namespace test_harness {
 
 /* Component names. */
-extern const std::string CHECKPOINT_MANAGER;
 extern const std::string RUNTIME_MONITOR;
 extern const std::string TIMESTAMP_MANAGER;
 extern const std::string WORKLOAD_GENERATOR;
@@ -48,6 +47,7 @@ extern const std::string CACHE_SIZE_MB;
 extern const std::string CC_PAGES_REMOVED;
 extern const std::string COLLECTION_COUNT;
 extern const std::string COMPRESSION_ENABLED;
+extern const std::string CHECKPOINT_OP_CONFIG;
 extern const std::string CUSTOM_OP_CONFIG;
 extern const std::string DURATION_SECONDS;
 extern const std::string ENABLED;
