@@ -231,7 +231,6 @@ class search_near_01 : public test_harness::test {
         testutil_assert(tc->stat_cursor.get() == nullptr);
         /* This test will only work with one read thread. */
         testutil_assert(tc->thread_count == 1);
-        test_harness::configuration *workload_config, *read_config;
         std::vector<thread_context *> workers;
         std::atomic<int64_t> z_key_searches;
         int64_t entries_stat, expected_entries, prefix_stat, prev_entries_stat, prev_prefix_stat;
@@ -241,8 +240,10 @@ class search_near_01 : public test_harness::test {
         prev_prefix_stat = 0;
         num_threads = _config->get_int("search_near_threads");
         tc->stat_cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
-        workload_config = _config->get_subconfig(WORKLOAD_GENERATOR);
-        read_config = workload_config->get_subconfig(READ_OP_CONFIG);
+        std::unique_ptr<test_harness::configuration> workload_config(
+          _config->get_subconfig(WORKLOAD_GENERATOR));
+        std::unique_ptr<test_harness::configuration> read_config(
+          workload_config->get_subconfig(READ_OP_CONFIG));
         z_key_searches = 0;
 
         logger::log_msg(LOG_INFO,
@@ -266,7 +267,7 @@ class search_near_01 : public test_harness::test {
                 /* Get a collection and find a cached cursor. */
                 collection &coll = tc->db.get_random_collection();
                 thread_context *search_near_tc =
-                  new thread_context(i, thread_type::READ, read_config,
+                  new thread_context(i, thread_type::READ, read_config.get(),
                     connection_manager::instance().create_session(), tc->tsm, tc->tracking, tc->db);
                 workers.push_back(search_near_tc);
                 tm.add_thread(perform_search_near, search_near_tc, coll.name, srchkey_len,
@@ -307,7 +308,5 @@ class search_near_01 : public test_harness::test {
             z_key_searches = 0;
             tc->sleep();
         }
-        delete read_config;
-        delete workload_config;
     }
 };

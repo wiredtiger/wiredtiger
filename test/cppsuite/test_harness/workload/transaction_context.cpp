@@ -38,11 +38,11 @@ transaction_context::transaction_context(
     : _timestamp_manager(timestamp_manager), _session(session)
 {
     /* Use optional here as our populate threads don't define this configuration. */
-    configuration *transaction_config = config->get_optional_subconfig(OPS_PER_TRANSACTION);
+    std::unique_ptr<configuration> transaction_config(
+      config->get_optional_subconfig(OPS_PER_TRANSACTION));
     if (transaction_config != nullptr) {
         _min_op_count = transaction_config->get_optional_int(MIN, 1);
         _max_op_count = transaction_config->get_optional_int(MAX, 1);
-        delete transaction_config;
     }
 }
 

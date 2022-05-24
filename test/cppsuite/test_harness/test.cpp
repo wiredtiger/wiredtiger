@@ -99,10 +99,6 @@ test::~test()
 void
 test::run()
 {
-    int64_t cache_max_wait_ms, cache_size_mb, duration_seconds;
-    bool enable_logging, statistics_logging;
-    configuration *statistics_config;
-    std::string statistics_type;
     /* Build the database creation config string. */
     std::string db_create_config = CONNECTION_CREATE;
 
@@ -117,24 +113,22 @@ test::run()
     }
 
     /* Get the cache size. */
-    cache_size_mb = _config->get_int(CACHE_SIZE_MB);
+    int64_t cache_size_mb = _config->get_int(CACHE_SIZE_MB);
     db_create_config += ",cache_size=" + std::to_string(cache_size_mb) + "MB";
 
     /* Get the statistics configuration for this run. */
-    statistics_config = _config->get_subconfig(STATISTICS_CONFIG);
-    statistics_type = statistics_config->get_string(TYPE);
-    statistics_logging = statistics_config->get_bool(ENABLE_LOGGING);
+    std::unique_ptr<configuration> statistics_config(_config->get_subconfig(STATISTICS_CONFIG));
+    std::string statistics_type = statistics_config->get_string(TYPE);
+    bool statistics_logging = statistics_config->get_bool(ENABLE_LOGGING);
     db_create_config += statistics_logging ? "," + STATISTICS_LOG : "";
     db_create_config += ",statistics=(" + statistics_type + ")";
-    /* Don't forget to delete. */
-    delete statistics_config;
 
     /* Enable or disable write ahead logging. */
-    enable_logging = _config->get_bool(ENABLE_LOGGING);
+    bool enable_logging = _config->get_bool(ENABLE_LOGGING);
     db_create_config += ",log=(enabled=" + std::string(enable_logging ? "true" : "false") + ")";
 
     /* Maximum waiting time for the cache to get unstuck. */
-    cache_max_wait_ms = _config->get_int(CACHE_MAX_WAIT_MS);
+    int64_t cache_max_wait_ms = _config->get_int(CACHE_MAX_WAIT_MS);
     db_create_config += ",cache_max_wait_ms=" + std::to_string(cache_max_wait_ms);
 
     /* Add the user supplied wiredtiger open config. */
@@ -160,7 +154,7 @@ test::run()
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     /* The test will run for the duration as defined in the config. */
-    duration_seconds = _config->get_int(DURATION_SECONDS);
+    int64_t duration_seconds = _config->get_int(DURATION_SECONDS);
     testutil_assert(duration_seconds >= 0);
     logger::log_msg(LOG_INFO,
       "Waiting {" + std::to_string(duration_seconds) + "} seconds for testing to complete.");

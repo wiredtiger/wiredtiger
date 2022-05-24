@@ -91,9 +91,7 @@ workload_generator::set_workload_tracking(workload_tracking *tracking)
 void
 workload_generator::run()
 {
-    configuration *populate_config;
     std::vector<operation_config> operation_configs;
-    uint64_t thread_id = 0;
 
     /* Retrieve useful parameters from the test configuration. */
     operation_configs.push_back(
@@ -108,12 +106,11 @@ workload_generator::run()
       operation_config(_config->get_subconfig(REMOVE_OP_CONFIG), thread_type::REMOVE));
     operation_configs.push_back(
       operation_config(_config->get_subconfig(UPDATE_OP_CONFIG), thread_type::UPDATE));
-    populate_config = _config->get_subconfig(POPULATE_CONFIG);
 
     /* Populate the database. */
-    _database_operation->populate(_database, _timestamp_manager, populate_config, _tracking);
+    std::unique_ptr<configuration> populate_config(_config->get_subconfig(POPULATE_CONFIG));
+    _database_operation->populate(_database, _timestamp_manager, populate_config.get(), _tracking);
     _db_populated = true;
-    delete populate_config;
 
     /* Generate threads to execute read operations on the collections. */
     for (auto &it : operation_configs) {
@@ -125,6 +122,7 @@ workload_generator::run()
         if (it.type == thread_type::CHECKPOINT)
             testutil_assert(it.thread_count <= 1);
 
+        uint64_t thread_id = 0;
         for (size_t i = 0; i < it.thread_count && _running; ++i) {
             thread_context *tc = new thread_context(thread_id++, it.type, it.config,
               connection_manager::instance().create_session(), _timestamp_manager, _tracking,
