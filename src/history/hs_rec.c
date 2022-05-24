@@ -927,7 +927,6 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
      * store checkpoint inconsistent.
      */
     if (error_on_ts_ordering) {
-        WT_ASSERT(session, false);
         ret = EBUSY;
         WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_no_ts);
         goto err;
