@@ -329,7 +329,7 @@ maximum_stable_ts(wt_timestamp_t *commit_timestamps, uint32_t n)
     }
 
     /* Return one less than the earliest in-use timestamp. */
-    return (ts - 1);
+    return (ts == WT_TS_MAX ? WT_TS_NONE : ts - 1);
 }
 
 /* Allow tests to add their own death handling. */
