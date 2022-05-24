@@ -38,6 +38,7 @@
 #include "thread_manager.h"
 #include "timestamp_manager.h"
 #include "util/api_const.h"
+#include "util/perf_plotter.h"
 
 namespace test_harness {
 test::test(const test_args &args) : _args(args)
@@ -55,7 +56,8 @@ test::test(const test_args &args) : _args(args)
 
     _database.set_timestamp_manager(_timestamp_manager);
     _database.set_workload_tracking(_workload_tracking);
-    _database.set_create_config(_config->get_bool(COMPRESSION_ENABLED));
+    _database.set_create_config(
+      _config->get_bool(COMPRESSION_ENABLED), _config->get_bool(REVERSE_COLLATOR));
 
     /*
      * Ordering is not important here, any dependencies between components should be resolved
@@ -95,9 +97,15 @@ test::run()
     /* Build the database creation config string. */
     std::string db_create_config = CONNECTION_CREATE;
 
-    /* Enable snappy compression if required. */
-    if (_config->get_bool(COMPRESSION_ENABLED))
-        db_create_config += SNAPPY_EXT;
+    /* Enable snappy compression or reverse collator if required. */
+    if (_config->get_bool(COMPRESSION_ENABLED) || _config->get_bool(REVERSE_COLLATOR)) {
+        db_create_config += ",extensions=[";
+        db_create_config +=
+          _config->get_bool(COMPRESSION_ENABLED) ? std::string(SNAPPY_PATH) + "," : "";
+        db_create_config +=
+          _config->get_bool(REVERSE_COLLATOR) ? std::string(REVERSE_COLLATOR_PATH) : "";
+        db_create_config += "]";
+    }
 
     /* Get the cache size. */
     cache_size_mb = _config->get_int(CACHE_SIZE_MB);
@@ -166,6 +174,10 @@ test::run()
           _workload_tracking->get_schema_table_name(),
           _workload_generator->get_database().get_collection_ids());
     }
+
+    /* Log perf stats. */
+    perf_plotter::instance().output_perf_file(_args.test_name);
+
     logger::log_msg(LOG_INFO, "SUCCESS");
 }
 } // namespace test_harness

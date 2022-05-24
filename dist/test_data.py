@@ -218,6 +218,8 @@ test_config = [
         The cache size that wiredtiger will be configured to run with''', min=0, max=100000000000),
     Config('compression_enabled', 'false', r'''
         Whether the database files will use snappy compression or not.''', type='boolean'),
+    Config('reverse_collator', 'false', r'''
+        Configure the database files to use the reverse collator.''', type='boolean'),
     Config('duration_seconds', 0, r'''
         The duration that the test run will last''', min=0, max=1000000),
     Config('enable_logging', 'false', r'''
@@ -238,6 +240,7 @@ methods = {
     'burst_inserts' : Method(test_config + [
                         Config("burst_duration", 90, r'''
                             How long the insertions will occur for.''')]),
+    'cursor_bound_01' : Method(test_config),
     'hs_cleanup' : Method(test_config),
     'operations_test' : Method(test_config),
     'search_near_01' : Method(test_config + [
@@ -246,4 +249,5 @@ methods = {
     'search_near_02' : Method(test_config),
     'search_near_03' : Method(test_config),
     'test_template' : Method(test_config),
+    'bounded_cursor_perf' : Method(test_config),
 }
