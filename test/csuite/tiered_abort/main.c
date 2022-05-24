@@ -85,7 +85,7 @@ static const char *const uri_shadow = "shadow";
 static const char *const sentinel_file = "sentinel_ready";
 
 static bool use_ts;
-static volatile uint64_t global_ts = 1;
+static uint64_t global_ts = 1;
 static uint32_t flush_calls = 1;
 
 /*
@@ -128,6 +128,7 @@ typedef struct {
 typedef struct {
     WT_CONNECTION *conn;
     uint64_t start;
+    uint64_t commit_ts;
     uint32_t info;
 } THREAD_DATA;
 
@@ -136,10 +137,11 @@ typedef struct {
  * ticket is fixed. Flush_tier should be able to run with ongoing operations.
  */
 static pthread_rwlock_t flush_lock;
-/* Lock for transactional ops that set or query a timestamp. */
-static pthread_rwlock_t ts_lock;
+static THREAD_DATA *td_list; /* Array of thread structures. */
+static uint32_t nth;         /* Number of threads. */
 
 static void handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+static uint64_t maximum_committed_ts(void);
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /*
@@ -154,41 +156,59 @@ usage(void)
 }
 
 /*
+ * maximum_committed_ts --
+ *     Return the largest timestamp that's no longer in use.
+ */
+static uint64_t
+maximum_committed_ts(void)
+{
+    uint64_t commit_ts, ts;
+    uint32_t i;
+
+    for (ts = WT_TS_MAX, i = 0; i < nth; i++) {
+        commit_ts = td_list[i].commit_ts;
+        if (commit_ts == WT_TS_NONE)
+            return (WT_TS_NONE);
+        if (commit_ts < ts)
+            ts = commit_ts;
+    }
+
+    /* Return one less than the earliest in-use timestamp. */
+    return (ts - 1);
+}
+
+/*
  * thread_ts_run --
  *     Runner function for a timestamp thread.
  */
 static WT_THREAD_RET
 thread_ts_run(void *arg)
 {
-    WT_DECL_RET;
+    WT_CONNECTION *conn;
     WT_SESSION *session;
     THREAD_DATA *td;
-    char tscfg[64], ts_string[WT_TS_HEX_STRING_SIZE];
+    wt_timestamp_t last_ts, ts;
+    char tscfg[64];
 
     td = (THREAD_DATA *)arg;
+    conn = td->conn;
 
-    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    /* Update the oldest timestamp every 1 millisecond. */
-    for (;; __wt_sleep(0, 1000)) {
-        /*
-         * We get the last committed timestamp periodically in order to update the oldest timestamp,
-         * that requires locking out transactional ops that set or query a timestamp. If there is no
-         * work to do, all-durable will be 0 and we just wait.
-         */
-        testutil_check(pthread_rwlock_wrlock(&ts_lock));
-        ret = td->conn->query_timestamp(td->conn, ts_string, "get=all_durable");
-        testutil_check(pthread_rwlock_unlock(&ts_lock));
-        testutil_assert(ret == 0);
-        if (testutil_timestamp_parse(ts_string) == 0)
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    /* Update the oldest/stable timestamps every 1 millisecond. */
+    for (last_ts = 0;; __wt_sleep(0, 1000)) {
+        /* Get the last committed timestamp periodically in order to update the oldest timestamp. */
+        ts = maximum_committed_ts();
+        if (ts == last_ts)
             continue;
+        last_ts = ts;
 
         /*
          * Set both the oldest and stable timestamp so that we don't need to maintain read
          * availability at older timestamps.
          */
         testutil_check(__wt_snprintf(
-          tscfg, sizeof(tscfg), "oldest_timestamp=%s,stable_timestamp=%s", ts_string, ts_string));
-        testutil_check(td->conn->set_timestamp(td->conn, tscfg));
+          tscfg, sizeof(tscfg), "oldest_timestamp=%" PRIx64 ",stable_timestamp=%" PRIx64, ts, ts));
+        testutil_check(conn->set_timestamp(conn, tscfg));
     }
     /* NOTREACHED */
 }
@@ -347,15 +367,13 @@ thread_run(void *arg)
         testutil_check(session->begin_transaction(session, NULL));
 
         if (use_ts) {
-            testutil_check(pthread_rwlock_rdlock(&ts_lock));
-            active_ts = __wt_atomic_addv64(&global_ts, 2);
+            active_ts = __wt_atomic_fetch_addv64(&global_ts, 2);
             testutil_check(
               __wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, active_ts));
             /*
              * Set the transaction's timestamp now before performing the operation.
              */
             testutil_check(session->timestamp_transaction(session, tscfg));
-            testutil_check(pthread_rwlock_unlock(&ts_lock));
         }
 
         cur_coll->set_key(cur_coll, kname);
@@ -422,11 +440,15 @@ rollback:
                 locked = false;
             }
         }
+
+        /* We're done with the timestamps, allow oldest and stable to move forward. */
+        if (use_ts)
+            WT_PUBLISH(td->commit_ts, active_ts);
     }
     /* NOTREACHED */
 }
 
-static void run_workload(uint32_t, const char *) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+static void run_workload(const char *) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /*
  * run_workload --
@@ -434,7 +456,7 @@ static void run_workload(uint32_t, const char *) WT_GCC_FUNC_DECL_ATTRIBUTE((nor
  *     until it is killed by the parent.
  */
 static void
-run_workload(uint32_t nth, const char *build_dir)
+run_workload(const char *build_dir)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
@@ -444,7 +466,7 @@ run_workload(uint32_t nth, const char *build_dir)
     char envconf[1024], extconf[512], uri[128];
 
     thr = dcalloc(nth + NUM_INT_THREADS, sizeof(*thr));
-    td = dcalloc(nth + NUM_INT_THREADS, sizeof(THREAD_DATA));
+    td = td_list = dcalloc(nth + NUM_INT_THREADS, sizeof(THREAD_DATA));
 
     /*
      * Size the cache appropriately for the number of threads. Each thread adds keys sequentially to
@@ -660,7 +682,7 @@ main(int argc, char *argv[])
     pid_t pid;
     uint64_t absent_coll, absent_local, absent_oplog, absent_shadow, count, key, last_key;
     uint64_t commit_fp, durable_fp, stable_val;
-    uint32_t i, nth, timeout;
+    uint32_t i, timeout;
     int ch, status, ret;
     const char *working_dir;
     char buf[512], bucket_dir[512], build_dir[512], fname[512], kname[64];
@@ -728,7 +750,6 @@ main(int argc, char *argv[])
     testutil_build_dir(opts, build_dir, 512);
 
     testutil_check(pthread_rwlock_init(&flush_lock, NULL));
-    testutil_check(pthread_rwlock_init(&ts_lock, NULL));
 
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
     /*
@@ -771,7 +792,7 @@ main(int argc, char *argv[])
         testutil_assert_errno((pid = fork()) >= 0);
 
         if (pid == 0) { /* child */
-            run_workload(nth, build_dir);
+            run_workload(build_dir);
             /* NOTREACHED */
         }
 
@@ -1010,7 +1031,6 @@ main(int argc, char *argv[])
         fatal = true;
     }
     testutil_check(pthread_rwlock_destroy(&flush_lock));
-    testutil_check(pthread_rwlock_destroy(&ts_lock));
     if (fatal)
         return (EXIT_FAILURE);
     printf("%" PRIu64 " records verified\n", count);
