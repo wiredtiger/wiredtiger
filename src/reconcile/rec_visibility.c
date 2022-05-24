@@ -255,17 +255,10 @@ __timestamp_no_ts_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
  *     time.
  */
 static int
-__rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *select_upd,
+__rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT *upd_select,
   WT_TIME_WINDOW *select_tw, WT_CELL_UNPACK_KV *vpack)
 {
     WT_UPDATE *prev_upd, *upd;
-
-    /*
-     * There is no selected update to go to disk as such we don't need to check the updates
-     * following it.
-     */
-    if (select_upd == NULL)
-        return (0);
 
     /*
      * No need to check updates without timestamps for any reconciliation that doesn't involve
@@ -279,6 +272,17 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      * timestamps.
      */
     if (!F_ISSET(r, WT_REC_CHECKPOINT_RUNNING))
+        return (0);
+
+    /* Cannot evict mixed mode tombstone when checkpoint is running. */
+    if (upd_select->no_ts_tombstone)
+        return (EBUSY);
+
+    /*
+     * There is no selected update to go to disk as such we don't need to check the updates
+     * following it.
+     */
+    if (upd_select->upd == NULL || upd_select->upd->type == WT_UPDATE_TOMBSTONE)
         return (0);
 
     /*
@@ -301,13 +305,13 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      * from the onpage value, no need to check as well because the update chain should only contain
      * prepared updates from the same transaction.
      */
-    if (F_ISSET(select_upd,
+    if (F_ISSET(upd_select->upd,
           WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS |
             WT_UPDATE_PREPARE_RESTORED_FROM_DS))
         return (0);
 
     /* Loop forward from update after the selected on-page update. */
-    for (prev_upd = select_upd, upd = select_upd->next; upd != NULL; upd = upd->next) {
+    for (prev_upd = upd_select->upd, upd = upd_select->upd->next; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
@@ -708,13 +712,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     if (has_newer_updates)
         r->leave_dirty = true;
 
-    onpage_upd = upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE ?
-      NULL :
-      upd_select->upd;
-
-    /* Check the update chain for conditions that could prevent it's eviction. */
-    WT_RET(__rec_validate_upd_chain(session, r, onpage_upd, select_tw, vpack));
-
     /*
      * Set the flag if the selected tombstone has no timestamp. Based on this flag, the caller
      * functions perform the history store truncation for this key.
@@ -755,6 +752,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         WT_ASSERT(session, false);
         WT_RET(EBUSY);
     }
+
+    /* Check the update chain for conditions that could prevent it's eviction. */
+    WT_RET(__rec_validate_upd_chain(session, r, upd_select, select_tw, vpack));
+
+    onpage_upd = upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE ?
+      NULL :
+      upd_select->upd;
 
     /*
      * The update doesn't have any further updates that need to be written to the history store,
