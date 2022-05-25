@@ -219,7 +219,7 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
                 if (table_ret != 0)
                     break;
                 testutil_check(table_cursor->get_key(table_cursor, &table_keyno));
-                if (table_keyno >= base_keyno)
+                if (table_keyno >= base_keyno || table_keyno > TV(RUNS_ROWS))
                     break;
                 testutil_check(table_cursor->get_value(table_cursor, &table_bitv));
                 testutil_assert(table_bitv == 0);
