@@ -310,6 +310,9 @@ err:
         ret = 0;
         while (--trk >= trk_orig) {
             did_drop = did_drop || trk->op == WT_ST_DROP_COMMIT;
+            if (trk->op == WT_ST_REMOVE && WT_PREFIX_MATCH(trk->a, "tiered:"))
+                WT_TRET(__wt_sweep_remove_handle(session, trk->a));
+
             WT_TRET(__meta_track_unroll(session, trk));
         }
     } else

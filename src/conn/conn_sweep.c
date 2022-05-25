@@ -206,23 +206,28 @@ err:
 }
 
 /*
- * __sweep_remove_handles --
- *     Remove closed handles from the connection list.
+ * __wt_sweep_remove_handle --
+ *     Remove the closed handle defined by the uri parameter from the connection list. If the uri is
+ *     NULL the method will remove all closed handles.
  */
-static int
-__sweep_remove_handles(WT_SESSION_IMPL *session)
+int
+__wt_sweep_remove_handle(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle, *dhandle_tmp;
     WT_DECL_RET;
+    size_t uri_len;
 
     conn = S2C(session);
+    uri_len = (uri == NULL ? 0 : strlen(uri));
 
     TAILQ_FOREACH_SAFE(dhandle, &conn->dhqh, q, dhandle_tmp)
     {
         if (WT_IS_METADATA(dhandle))
             continue;
         if (!WT_DHANDLE_CAN_DISCARD(dhandle))
+            continue;
+        if (uri != NULL && !WT_STRING_MATCH(uri, dhandle->name, uri_len))
             continue;
 
         if (dhandle->type == WT_DHANDLE_TYPE_TABLE)
@@ -235,6 +240,10 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
         else
             WT_STAT_CONN_INCR(session, dh_sweep_ref);
         WT_RET_BUSY_OK(ret);
+
+        /* We only need to remove one dhandle that matches the uri. */
+        if (uri != NULL)
+            break;
     }
 
     return (ret == EBUSY ? 0 : ret);
@@ -323,7 +332,7 @@ __sweep_server(void *arg)
         WT_ERR(__sweep_discard_trees(session, &dead_handles));
 
         if (dead_handles > 0)
-            WT_ERR(__sweep_remove_handles(session));
+            WT_ERR(__wt_sweep_remove_handle(session, NULL));
 
         /* Remember the last sweep time. */
         last = now;
