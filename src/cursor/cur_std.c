@@ -1201,13 +1201,8 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
             F_SET(cursor, WT_CURSTD_BOUND_UPPER);
             WT_ERR(__wt_config_gets(session, cfg, "inclusive", &cval));
             if (cval.val)
-                F_SET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
+                F_SET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
             WT_ERR(__wt_buf_set(session, &cursor->upper_bound, key.data, key.size));
-
-            /* Clear the key the cursor was holding. */
-            F_CLR(cursor, WT_CURSTD_KEY_SET);
-            __wt_buf_free(session, &cursor->key);
-            WT_CLEAR(cursor->key);
         } else if (WT_STRING_MATCH("lower", cval.str, cval.len)) {
             /*
              * If the upper bounds are set, make sure that the lower bound is less than the upper
@@ -1226,11 +1221,6 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
             if (cval.val)
                 F_SET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
             WT_ERR(__wt_buf_set(session, &cursor->lower_bound, key.data, key.size));
-
-            /* Clear the key the cursor was holding. */
-            F_CLR(cursor, WT_CURSTD_KEY_SET);
-            __wt_buf_free(session, &cursor->key);
-            WT_CLEAR(cursor->key);
         } else
             WT_ERR_MSG(session, EINVAL,
               "setting bounds only accepts \"upper\" or \"lower\" as the configuration");

@@ -108,7 +108,7 @@ class test_cursor_bound02(wttest.WiredTigerTestCase):
         cursor.set_key(self.gen_key(20))
         self.assertEqual(cursor.bound("bound=lower"), 0)
     
-        # Test bound API: Test that clearing the both bound works. 
+        # Test bound API: Test that clearing both of the bounds works. 
         cursor.set_key(self.gen_key(50))
         self.assertEqual(cursor.bound("bound=upper"), 0)
         self.assertEqual(cursor.bound("action=clear"), 0)
@@ -121,7 +121,7 @@ class test_cursor_bound02(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower"), '/Invalid argument/')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=upper"), '/Invalid argument/')
         
-        # Test bound API: Test that reset also clears the both bound. 
+        # Test bound API: Test that reset also clears both of the bounds. 
         cursor.reset()
         cursor.set_key(self.gen_key(80))
         self.assertEqual(cursor.bound("bound=upper"), 0)
