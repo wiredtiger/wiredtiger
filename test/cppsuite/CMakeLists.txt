@@ -7,6 +7,7 @@ add_library(cppsuite_test_harness STATIC
     test_harness/core/throttle.cpp
     test_harness/util/api_const.cpp
     test_harness/util/logger.cpp
+    test_harness/util/perf_plotter.cpp
     test_harness/util/scoped_connection.cpp
     test_harness/util/scoped_types.cpp
     test_harness/workload/database_model.cpp
