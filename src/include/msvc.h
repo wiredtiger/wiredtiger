@@ -34,22 +34,23 @@
 #define WT_GCC_FUNC_ATTRIBUTE(x)
 #define WT_GCC_FUNC_DECL_ATTRIBUTE(x)
 
-#define WT_ATOMIC_FUNC(name, ret, type, s, t)                                               \
-    static inline ret __wt_atomic_add##name(type *vp, type v)                               \
-    {                                                                                       \
-        return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)) + (v));                       \
-    }                                                                                       \
-    static inline ret __wt_atomic_fetch_add##name(type *vp, type v)                         \
-    {                                                                                       \
-        return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)));                             \
-    }                                                                                       \
-    static inline ret __wt_atomic_sub##name(type *vp, type v)                               \
-    {                                                                                       \
-        return (_InterlockedExchangeAdd##s((t *)(vp), -(t)v) - (v));                        \
-    }                                                                                       \
-    static inline bool __wt_atomic_cas##name(type *vp, type old_val, type new_val)          \
-    {                                                                                       \
-        return (_InterlockedCompareExchange##s((t *)(vp), (t)(new_val), (t)(old_val)) == (t)(old_val)); \
+#define WT_ATOMIC_FUNC(name, ret, type, s, t)                                                     \
+    static inline ret __wt_atomic_add##name(type *vp, type v)                                     \
+    {                                                                                             \
+        return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)) + (v));                             \
+    }                                                                                             \
+    static inline ret __wt_atomic_fetch_add##name(type *vp, type v)                               \
+    {                                                                                             \
+        return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)));                                   \
+    }                                                                                             \
+    static inline ret __wt_atomic_sub##name(type *vp, type v)                                     \
+    {                                                                                             \
+        return (_InterlockedExchangeAdd##s((t *)(vp), -(t)v) - (v));                              \
+    }                                                                                             \
+    static inline bool __wt_atomic_cas##name(type *vp, type old_val, type new_val)                \
+    {                                                                                             \
+        return (                                                                                  \
+          _InterlockedCompareExchange##s((t *)(vp), (t)(new_val), (t)(old_val)) == (t)(old_val)); \
     }
 
 WT_ATOMIC_FUNC(8, uint8_t, uint8_t, 8, char)
@@ -72,7 +73,8 @@ WT_ATOMIC_FUNC(size, size_t, size_t, 64, __int64)
 static inline bool
 __wt_atomic_cas_ptr(void *vp, void *old_val, void *new_val)
 {
-    return (_InterlockedCompareExchange64((volatile __int64 *)vp, (int64_t)new_val, (int64_t)old_val) == ((int64_t)old_val));
+    return (_InterlockedCompareExchange64(
+              (volatile __int64 *)vp, (int64_t)new_val, (int64_t)old_val) == ((int64_t)old_val));
 }
 
 /*

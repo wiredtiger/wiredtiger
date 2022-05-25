@@ -17,7 +17,8 @@ ConnectionWrapper::ConnectionWrapper(const std::string &db_home)
     : _conn_impl(nullptr), _conn(nullptr), _db_home(db_home)
 {
     struct stat sb;
-    /* Check if the DB Home exists and is a directory, without this the mkdir can fail on some platforms (win). */
+    /* Check if the DB Home exists and is a directory, without this the mkdir can fail on some
+     * platforms (win). */
     if (stat(_db_home.c_str(), &sb) == 0) {
         if (!S_ISDIR(sb.st_mode)) {
             std::string errorMessage("Path exists and is not a directory: " + db_home);
