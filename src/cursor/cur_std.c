@@ -1218,7 +1218,7 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
                 WT_ERR(__wt_compare(
                   session, CUR2BT(cursor)->collator, &key, &cursor->upper_bound, &exact));
                 if (exact > 0)
-                    WT_ERR_MSG(session, EINVAL, "The upper bound overlaps with the lower bound");
+                    WT_ERR_MSG(session, EINVAL, "The lower bound overlaps with the upper bound");
             }
             /* Copy the key over to the upper bound item and set upper bound and inclusive flags. */
             F_SET(cursor, WT_CURSTD_BOUND_LOWER);
