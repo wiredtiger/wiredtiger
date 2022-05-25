@@ -148,14 +148,14 @@ transaction_context::try_rollback(const std::string &config)
         rollback(config);
 }
 
-void
+int
 transaction_context::set_commit_timestamp(wt_timestamp_t ts)
 {
     /* We don't want to set zero timestamps on transactions if we're not using timestamps. */
     if (!_timestamp_manager->enabled())
-        return;
+        return 0;
     const std::string config = COMMIT_TS + "=" + timestamp_manager::decimal_to_hex(ts);
-    testutil_check(_session->timestamp_transaction(_session, config.c_str()));
+    return _session->timestamp_transaction(_session, config.c_str());
 }
 
 void
@@ -203,14 +203,11 @@ thread_context::finish()
 }
 
 std::string
-thread_context::key_to_string(uint64_t key_id)
+thread_context::pad_string(const std::string &value, uint64_t size)
 {
-    std::string str, value_str = std::to_string(key_id);
-    testutil_assert(key_size >= value_str.size());
-    uint64_t diff = key_size - value_str.size();
+    uint64_t diff = size > value.size() ? size - value.size() : 0;
     std::string s(diff, '0');
-    str = s.append(value_str);
-    return (str);
+    return (s.append(value));
 }
 
 bool
@@ -223,7 +220,7 @@ thread_context::update(
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
-    transaction.set_commit_timestamp(ts);
+    testutil_check(transaction.set_commit_timestamp(ts));
 
     cursor->set_key(cursor.get(), key.c_str());
     cursor->set_value(cursor.get(), value.c_str());
@@ -236,18 +233,18 @@ thread_context::update(
         } else
             testutil_die(ret, "unhandled error while trying to update a key");
     }
+
+    uint64_t txn_id = ((WT_SESSION_IMPL *)session.get())->txn->id;
     ret = tracking->save_operation(
-      tracking_operation::INSERT, collection_id, key, value, ts, op_track_cursor);
-    if (ret != 0) {
-        if (ret == WT_ROLLBACK) {
-            transaction.set_needs_rollback(true);
-            return (false);
-        } else
-            testutil_die(
-              ret, "unhandled error while trying to save an update to the tracking table");
-    }
-    transaction.add_op();
-    return (true);
+      txn_id, tracking_operation::INSERT, collection_id, key, value, ts, op_track_cursor);
+
+    if (ret == 0)
+        transaction.add_op();
+    else if (ret == WT_ROLLBACK)
+        transaction.set_needs_rollback(true);
+    else
+        testutil_die(ret, "unhandled error while trying to save an update to the tracking table");
+    return (ret == 0);
 }
 
 bool
@@ -260,7 +257,7 @@ thread_context::insert(
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
-    transaction.set_commit_timestamp(ts);
+    testutil_check(transaction.set_commit_timestamp(ts));
 
     cursor->set_key(cursor.get(), key.c_str());
     cursor->set_value(cursor.get(), value.c_str());
@@ -273,18 +270,18 @@ thread_context::insert(
         } else
             testutil_die(ret, "unhandled error while trying to insert a key");
     }
+
+    uint64_t txn_id = ((WT_SESSION_IMPL *)session.get())->txn->id;
     ret = tracking->save_operation(
-      tracking_operation::INSERT, collection_id, key, value, ts, op_track_cursor);
-    if (ret != 0) {
-        if (ret == WT_ROLLBACK) {
-            transaction.set_needs_rollback(true);
-            return (false);
-        } else
-            testutil_die(
-              ret, "unhandled error while trying to save an insert to the tracking table");
-    }
-    transaction.add_op();
-    return (true);
+      txn_id, tracking_operation::INSERT, collection_id, key, value, ts, op_track_cursor);
+
+    if (ret == 0)
+        transaction.add_op();
+    else if (ret == WT_ROLLBACK)
+        transaction.set_needs_rollback(true);
+    else
+        testutil_die(ret, "unhandled error while trying to save an insert to the tracking table");
+    return (ret == 0);
 }
 
 bool
@@ -295,7 +292,18 @@ thread_context::remove(scoped_cursor &cursor, uint64_t collection_id, const std:
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
-    transaction.set_commit_timestamp(ts);
+
+    /*
+     * FIXME: WT-9198 We're concurrently doing a transaction that contains a bunch of operations
+     * while moving the stable timestamp. Eat the occasional EINVAL from the transaction's first
+     * commit timestamp being earlier than the stable timestamp.
+     */
+    ret = transaction.set_commit_timestamp(ts);
+    testutil_assert(ret == 0 || ret == EINVAL);
+    if (ret != 0) {
+        transaction.set_needs_rollback(true);
+        return (false);
+    }
 
     cursor->set_key(cursor.get(), key.c_str());
     ret = cursor->remove(cursor.get());
@@ -306,18 +314,18 @@ thread_context::remove(scoped_cursor &cursor, uint64_t collection_id, const std:
         } else
             testutil_die(ret, "unhandled error while trying to remove a key");
     }
+
+    uint64_t txn_id = ((WT_SESSION_IMPL *)session.get())->txn->id;
     ret = tracking->save_operation(
-      tracking_operation::DELETE_KEY, collection_id, key, "", ts, op_track_cursor);
-    if (ret != 0) {
-        if (ret == WT_ROLLBACK) {
-            transaction.set_needs_rollback(true);
-            return (false);
-        } else
-            testutil_die(
-              ret, "unhandled error while trying to save a remove to the tracking table");
-    }
-    transaction.add_op();
-    return (true);
+      txn_id, tracking_operation::DELETE_KEY, collection_id, key, "", ts, op_track_cursor);
+
+    if (ret == 0)
+        transaction.add_op();
+    else if (ret == WT_ROLLBACK)
+        transaction.set_needs_rollback(true);
+    else
+        testutil_die(ret, "unhandled error while trying to save a remove to the tracking table");
+    return (ret == 0);
 }
 
 void
