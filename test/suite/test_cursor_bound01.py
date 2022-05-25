@@ -46,7 +46,7 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
 
     def test_bound_api(self):
         uri = self.uri + self.file_name
-    create_params = 'value_format=S,key_format=i'
+        create_params = 'value_format=S,key_format=i'
         if self.use_index:
             create_params += ",columns=(k,v)"
         self.session.create(uri, create_params)
