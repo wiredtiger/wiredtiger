@@ -29,10 +29,9 @@
 # test_tiered17.py
 #    Test that opening a file in readonly mode does not create a new object in tier.
 
-from helper import copy_wiredtiger_home
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources, get_conn_config
 from wtscenario import make_scenarios
-import os, wiredtiger, wttest
+import os, wttest
 
 class test_tiered17(TieredConfigMixin, wttest.WiredTigerTestCase):
     tiered_storage_sources = gen_tiered_storage_sources()
@@ -51,6 +50,23 @@ class test_tiered17(TieredConfigMixin, wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(tiered_storage_sources, shutdown)
 
+    def populate(self):
+        # Create and populate a table.
+        self.session.create(self.uri, "key_format=S,value_format=S")
+        c = self.session.open_cursor(self.uri)
+        c["a"] = "a"
+        c["b"] = "b"
+
+        # Do a checkpoint and flush operation.
+        self.session.checkpoint()
+        self.session.flush_tier(None)
+
+        # Add more data but don't do a checkpoint or flush in the unclean shutdown scenario.
+        if not self.clean:
+           c["c"] = "c"
+           c["d"] = "d"
+        c.close()
+
     def get_object_files(self):
         object_files = []
         for path, _, files in os.walk('./'):
@@ -60,22 +76,7 @@ class test_tiered17(TieredConfigMixin, wttest.WiredTigerTestCase):
         return object_files
 
     def test_open_readonly_conn(self):
-        # Create and populate a table.
-        self.session.create(self.uri, "key_format=S,value_format=S")
-        c = self.session.open_cursor(self.uri)
-        c["a"] = "a"
-        c["b"] = "b"
-
-        # Do a checkpoint and flush operation.
-        self.session.checkpoint()
-        self.session.flush_tier(None)
-
-        # Add more data but don't do a checkpoint or flush in the unclean shutdown scenario.
-        if not self.clean:
-           c["c"] = "c"
-           c["d"] = "d"
-        c.close()
-
+        self.populate()
         obj_files_orig = self.get_object_files()
 
         # Re-open the connection but in readonly mode.
@@ -84,39 +85,34 @@ class test_tiered17(TieredConfigMixin, wttest.WiredTigerTestCase):
 
         obj_files = self.get_object_files()
 
-        # Check that no additional object files have been created.
+        # Check that no additional object files have been created after re-opening the connection.
+        self.assertTrue(sorted(obj_files_orig) == sorted(obj_files))
+
+        self.close_conn()
+
+        # Check that no additional object files have been created after closing the connection.
+        obj_files = self.get_object_files()
         self.assertTrue(sorted(obj_files_orig) == sorted(obj_files))
 
     def test_open_readonly_cursor(self):
-        # Create and populate a table.
-        self.session.create(self.uri, "key_format=S,value_format=S")
-        c = self.session.open_cursor(self.uri)
-        c["a"] = "a"
-        c["b"] = "b"
-
-        # Do a checkpoint and flush operation.
-        self.session.checkpoint()
-        self.session.flush_tier(None)
-
-        # Add more data but don't do a checkpoint or flush in the unclean shutdown scenario.
-        if not self.clean:
-           c["c"] = "c"
-           c["d"] = "d"
-        c.close()
-
+        self.populate()
         obj_files_orig = self.get_object_files()
 
         # Open the database in readonly mode.
         self.reopen_conn(config = self.saved_conn)
-        c2 = self.session.open_cursor(self.uri, None, "readonly=true")
+        c = self.session.open_cursor(self.uri, None, "readonly=true")
 
         obj_files = self.get_object_files()
 
-        # Check that no additional object files have been created.
+        # Check that no additional object files have been created after re-opening the connection.
         self.assertTrue(sorted(obj_files_orig) == sorted(obj_files))
 
-        c2.close()
+        c.close()
         self.close_conn()
+
+        # Check that no additional object files have been created after closing the connection.
+        obj_files = self.get_object_files()
+        self.assertTrue(sorted(obj_files_orig) == sorted(obj_files))
 
 if __name__ == '__main__':
     wttest.run()
