@@ -1182,8 +1182,7 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
             WT_ERR_MSG(session, EINVAL, "setting bounds must require the bound configuration set");
 
         /* The cursor must have a key set to place the lower or upper bound. */
-        if (!F_ISSET(cursor, WT_CURSTD_KEY_SET))
-            WT_ERR_MSG(session, EINVAL, "setting bounds must require the key to be set");
+        WT_ERR(__cursor_checkkey(cursor));
 
         if (WT_STRING_MATCH("upper", cval.str, cval.len)) {
             /*
@@ -1196,8 +1195,7 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
                 WT_ERR(__wt_compare(
                   session, CUR2BT(cursor)->collator, &key, &cursor->lower_bound, &exact));
                 if (exact < 0)
-                    WT_ERR_MSG(session, EINVAL,
-                      "The upper bounds is not lexicographically greater than the lower bound");
+                    WT_ERR_MSG(session, EINVAL, "The upper bound overlaps with the lower bound");
             }
             /* Copy the key over to the upper bound item and set upper bound and inclusive flags. */
             F_SET(cursor, WT_CURSTD_BOUND_UPPER);
@@ -1220,8 +1218,7 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
                 WT_ERR(__wt_compare(
                   session, CUR2BT(cursor)->collator, &key, &cursor->upper_bound, &exact));
                 if (exact > 0)
-                    WT_ERR_MSG(session, EINVAL,
-                      "The lower bounds is not lexicographically less than the upper bound");
+                    WT_ERR_MSG(session, EINVAL, "The upper bound overlaps with the lower bound");
             }
             /* Copy the key over to the upper bound item and set upper bound and inclusive flags. */
             F_SET(cursor, WT_CURSTD_BOUND_LOWER);
