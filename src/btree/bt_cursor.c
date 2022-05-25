@@ -514,6 +514,16 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_reset);
 
+    /* Clear bounds if they are set. */
+    if (F_ISSET(cursor, WT_CURSTD_BOUNDS_SET)) {
+        WT_STAT_CONN_DATA_INCR(session, cursor_bounds_reset);
+        __wt_buf_free(session, &cursor->upper_bound);
+        WT_CLEAR(cursor->upper_bound);
+        __wt_buf_free(session, &cursor->lower_bound);
+        WT_CLEAR(cursor->lower_bound);
+        F_CLR(cursor, WT_CURSTD_BOUNDS_ALL);
+    }
+
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
     return (__cursor_reset(cbt));

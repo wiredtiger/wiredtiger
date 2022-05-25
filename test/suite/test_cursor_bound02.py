@@ -120,7 +120,13 @@ class test_cursor_bound02(wttest.WiredTigerTestCase):
         # Test bound API: No key set.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower"), '/Invalid argument/')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=upper"), '/Invalid argument/')
-
+        
+        # Test bound API: Test that reset also clears the both bound. 
+        cursor.reset()
+        cursor.set_key(self.gen_key(80))
+        self.assertEqual(cursor.bound("bound=upper"), 0)
+        cursor.set_key(self.gen_key(30))
+        self.assertEqual(cursor.bound("bound=lower"), 0)
 
 if __name__ == '__main__':
     wttest.run()
