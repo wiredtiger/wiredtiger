@@ -216,7 +216,7 @@ __wt_sweep_remove_handle(WT_SESSION_IMPL *session, const char *uri)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle, *dhandle_tmp;
     WT_DECL_RET;
-    size_t uri_len;
+    size_t name_len, uri_len;
 
     conn = S2C(session);
     uri_len = (uri == NULL ? 0 : strlen(uri));
@@ -227,7 +227,8 @@ __wt_sweep_remove_handle(WT_SESSION_IMPL *session, const char *uri)
             continue;
         if (!WT_DHANDLE_CAN_DISCARD(dhandle))
             continue;
-        if (uri != NULL && !WT_STRING_MATCH(uri, dhandle->name, uri_len))
+        if (uri != NULL && (name_len = strlen(dhandle->name)) > 0 &&
+          !WT_STRING_MATCH(uri, dhandle->name, WT_MAX(uri_len, name_len)))
             continue;
 
         if (dhandle->type == WT_DHANDLE_TYPE_TABLE)
