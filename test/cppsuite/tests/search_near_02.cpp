@@ -41,7 +41,10 @@ using namespace test_harness;
  */
 class search_near_02 : public test_harness::test {
     public:
-    search_near_02(const test_harness::test_args &args) : test(args) {}
+    search_near_02(const test_harness::test_args &args) : test(args)
+    {
+        init_tracking();
+    }
 
     void
     populate(test_harness::database &database, test_harness::timestamp_manager *,
@@ -94,7 +97,6 @@ class search_near_02 : public test_harness::test {
             ccv.push_back({coll, std::move(cursor)});
         }
 
-        std::string key;
         const uint64_t MAX_ROLLBACKS = 100;
         uint64_t counter = 0;
         uint32_t rollback_retries = 0;
@@ -106,11 +108,13 @@ class search_near_02 : public test_harness::test {
 
             while (tc->transaction.active() && tc->running()) {
 
-                /* Generate a random key. */
-                key = random_generator::instance().generate_random_string(tc->key_size);
+                /* Generate a random key/value pair. */
+                std::string key = random_generator::instance().generate_random_string(tc->key_size);
+                std::string value =
+                  random_generator::instance().generate_random_string(tc->value_size);
 
                 /* Insert a key value pair. */
-                if (tc->insert(cc.cursor, cc.coll.id, key)) {
+                if (tc->insert(cc.cursor, cc.coll.id, key, value)) {
                     if (tc->transaction.can_commit()) {
                         /* We are not checking the result of commit as it is not necessary. */
                         if (tc->transaction.commit())
@@ -172,15 +176,7 @@ class search_near_02 : public test_harness::test {
 
             auto &cursor_prefix = cursors[coll.id];
 
-            /*
-             * Pick a random timestamp between the oldest and now. Get rid of the last 32 bits as
-             * they represent an increment for uniqueness.
-             */
-            wt_timestamp_t ts = random_generator::instance().generate_integer(
-              (tc->tsm->get_oldest_ts() >> 32), (tc->tsm->get_next_ts() >> 32));
-            /* Put back the timestamp in the correct format. */
-            ts <<= 32;
-
+            wt_timestamp_t ts = tc->tsm->get_random_ts();
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value.
@@ -250,7 +246,7 @@ class search_near_02 : public test_harness::test {
             /* Both calls are successful. */
             if (ret_prefix == 0)
                 validate_successful_calls(
-                  ret_prefix, exact_prefix, key_prefix, cursor_default, exact_default, prefix);
+                  exact_prefix, key_prefix, cursor_default, exact_default, prefix);
             /* The prefix search near call failed. */
             else
                 validate_unsuccessful_prefix_call(cursor_default, prefix, exact_default);
@@ -270,7 +266,7 @@ class search_near_02 : public test_harness::test {
      * key that is lexicographically greater than the prefix but still contains the prefix.
      */
     void
-    validate_successful_calls(int ret_prefix, int exact_prefix, const std::string &key_prefix,
+    validate_successful_calls(int exact_prefix, const std::string &key_prefix,
       scoped_cursor &cursor_default, int exact_default, const std::string &prefix)
     {
         const char *k;

@@ -40,6 +40,7 @@ const std::string WORKLOAD_TRACKING = "workload_tracking";
 
 /* Configuration API consts. */
 const std::string CACHE_HS_INSERT = "cache_hs_insert";
+const std::string CACHE_MAX_WAIT_MS = "cache_max_wait_ms";
 const std::string CACHE_SIZE_MB = "cache_size_mb";
 const std::string CC_PAGES_REMOVED = "cc_pages_removed";
 const std::string COLLECTION_COUNT = "collection_count";
@@ -61,6 +62,7 @@ const std::string POPULATE_CONFIG = "populate_config";
 const std::string POSTRUN_STATISTICS = "postrun";
 const std::string READ_OP_CONFIG = "read_config";
 const std::string REMOVE_OP_CONFIG = "remove_config";
+const std::string REVERSE_COLLATOR = "reverse_collator";
 const std::string RUNTIME_STATISTICS = "runtime";
 const std::string SAVE = "save";
 const std::string STABLE_LAG = "stable_lag";

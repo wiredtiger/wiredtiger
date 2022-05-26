@@ -67,7 +67,7 @@ class transaction_context {
     /* Attempt to rollback the transaction given the requirements are met. */
     void try_rollback(const std::string &config = "");
     /* Set a commit timestamp. */
-    void set_commit_timestamp(wt_timestamp_t ts);
+    int set_commit_timestamp(wt_timestamp_t ts);
     /* Set that the transaction needs to be rolled back. */
     void set_needs_rollback(bool rollback);
     /*
@@ -114,28 +114,26 @@ class thread_context {
 
     void finish();
 
-    /*
-     * Convert a key_id to a string. If the resulting string is less than the given length, padding
-     * of '0' is added.
-     */
-    std::string key_to_string(uint64_t key_id);
+    /* If the value's size is less than the given size, padding of '0' is added to the value. */
+    std::string pad_string(const std::string &value, uint64_t size);
 
     /*
-     * Generic update function, takes a collection_id and key, will generate the value.
+     * Generic update function, takes a collection_id, key and value.
      *
      * Return true if the operation was successful, a return value of false implies the transaction
      * needs to be rolled back.
      */
-    bool update(scoped_cursor &cursor, uint64_t collection_id, const std::string &key);
+    bool update(scoped_cursor &cursor, uint64_t collection_id, const std::string &key,
+      const std::string &value);
 
     /*
-     * Generic insert function, takes a collection_id and key_id, will generate the value.
+     * Generic insert function, takes a collection_id, key and value.
      *
      * Return true if the operation was successful, a return value of false implies the transaction
      * needs to be rolled back.
      */
-    bool insert(scoped_cursor &cursor, uint64_t collection_id, uint64_t key_id);
-    bool insert(scoped_cursor &cursor, uint64_t collection_id, const std::string &key);
+    bool insert(scoped_cursor &cursor, uint64_t collection_id, const std::string &key,
+      const std::string &value);
 
     /*
      * Generic remove function, takes a collection_id and key and will delete the key if it exists.
@@ -143,8 +141,7 @@ class thread_context {
      * Return true if the operation was successful, a return value of false implies the transaction
      * needs to be rolled back.
      */
-    bool remove(
-      scoped_cursor &cursor, uint64_t collection_id, const std::string &key, wt_timestamp_t ts = 0);
+    bool remove(scoped_cursor &cursor, uint64_t collection_id, const std::string &key);
     void sleep();
     bool running() const;
 

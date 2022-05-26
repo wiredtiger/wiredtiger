@@ -42,7 +42,10 @@ using namespace test_harness;
  */
 class hs_cleanup : public test {
     public:
-    hs_cleanup(const test_args &args) : test(args) {}
+    hs_cleanup(const test_args &args) : test(args)
+    {
+        init_tracking();
+    }
 
     void
     update_operation(thread_context *tc) override final
@@ -93,7 +96,9 @@ class hs_cleanup : public test {
              * API doesn't guarantee our buffer will still be valid once it is called, as such we
              * copy the buffer and then pass it into the API.
              */
-            if (tc->update(cursor, coll.id, key_value_t(key_tmp))) {
+            std::string value =
+              random_generator::instance().generate_pseudo_random_string(tc->value_size);
+            if (tc->update(cursor, coll.id, key_tmp, value)) {
                 if (tc->transaction.can_commit()) {
                     if (tc->transaction.commit())
                         rollback_retries = 0;

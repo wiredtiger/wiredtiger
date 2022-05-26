@@ -375,7 +375,7 @@ __create_import_cmp_uri(const void *a, const void *b)
     ae = (WT_IMPORT_ENTRY *)a;
     be = (WT_IMPORT_ENTRY *)b;
 
-    return strcmp(ae->uri, be->uri);
+    return (strcmp(ae->uri, be->uri));
 }
 
 /*
@@ -394,11 +394,11 @@ __create_import_cmp_id(const void *a, const void *b)
 
     res = ae->file_id - be->file_id;
     if (res < 0)
-        return -1;
+        return (-1);
     else if (res > 0)
-        return 1;
+        return (1);
     else
-        return 0;
+        return (0);
 }
 
 /*
@@ -1196,7 +1196,10 @@ __schema_create_config_check(
   WT_SESSION_IMPL *session, const char *uri, const char *config, bool import)
 {
     WT_CONFIG_ITEM cval;
-    bool is_tiered, tiered_name_set;
+    bool file_metadata, is_tiered, tiered_name_set;
+
+    file_metadata =
+      __wt_config_getones(session, config, "import.file_metadata", &cval) == 0 && cval.val != 0;
 
     if (import && session->import_list == NULL && !WT_PREFIX_MATCH(uri, "file:") &&
       !WT_PREFIX_MATCH(uri, "table:"))
@@ -1211,6 +1214,11 @@ __schema_create_config_check(
       __wt_config_getones(session, config, "tiered_storage.name", &cval) == 0 && cval.len != 0;
     is_tiered = S2C(session)->bstorage != NULL &&
       (!tiered_name_set || !WT_STRING_MATCH("none", cval.str, cval.len));
+
+    /* The import.file_metadata configuration is incompatible with tiered storage. */
+    if (is_tiered && file_metadata)
+        WT_RET_MSG(session, EINVAL,
+          "import for tiered storage is incompatible with the 'file_metadata' setting");
 
     /*
      * If the type configuration is set to anything but "file" while using tiered storage we must

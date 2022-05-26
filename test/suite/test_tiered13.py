@@ -30,11 +30,13 @@
 # Check that importing tiered tables returns an error.
 
 import os, shutil, wiredtiger
-from helper_tiered import get_conn_config, storage_sources, TieredConfigMixin
+from helper_tiered import get_conn_config, gen_tiered_storage_sources, TieredConfigMixin
 from test_import01 import test_import_base
 from wtscenario import make_scenarios
+import wttest 
 
 class test_tiered13(test_import_base, TieredConfigMixin):
+    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered13', tiered_only=True)
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)
 
@@ -122,6 +124,7 @@ class test_tiered13(test_import_base, TieredConfigMixin):
 
         msg = '/Operation not supported/'
         enoent = '/No such file/'
+        invalid = "/import for tiered storage is incompatible with the 'file_metadata' setting/"
         # Try to import via the table:uri. This fails with ENOENT because
         # it is looking for the normal on-disk file name. It cannot tell it
         # is a tiered table in this case.
@@ -129,13 +132,13 @@ class test_tiered13(test_import_base, TieredConfigMixin):
             lambda: self.session.create(self.uri, import_enabled), enoent)
         # Try to import via the table:uri with file metadata.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.create(self.uri, table_import_meta), msg)
+            lambda: self.session.create(self.uri, table_import_meta), invalid)
         # Try to import via the file:uri.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.create(self.file2uri, import_enabled), msg)
         # Try to import via the file:uri with file metadata.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.create(self.file2uri, import_meta), msg)
+            lambda: self.session.create(self.file2uri, import_meta), invalid)
 
         # Try to import via a renamed object. If we don't send in metadata,
         # we cannot tell it was a tiered table until we read in the root page.
@@ -151,4 +154,4 @@ class test_tiered13(test_import_base, TieredConfigMixin):
 
         # Try to import via a renamed object with metadata.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.create(self.otheruri, import_meta), msg)
+            lambda: self.session.create(self.otheruri, import_meta), invalid)

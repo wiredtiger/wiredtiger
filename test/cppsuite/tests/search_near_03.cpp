@@ -46,7 +46,10 @@ class search_near_03 : public test_harness::test {
     const std::string ALPHABET{"abcdefghijklmnopqrstuvwxyz"};
 
     public:
-    search_near_03(const test_harness::test_args &args) : test(args) {}
+    search_near_03(const test_harness::test_args &args) : test(args)
+    {
+        init_tracking();
+    }
 
     /*
      * Here's how we insert an entry into a unique index:
@@ -67,7 +70,9 @@ class search_near_03 : public test_harness::test {
         int exact_prefix, ret;
 
         /* Insert the prefix. */
-        if (!tc->insert(cursor, coll.id, prefix_key))
+        std::string value =
+          random_generator::instance().generate_pseudo_random_string(tc->value_size);
+        if (!tc->insert(cursor, coll.id, prefix_key, value))
             return false;
 
         /* Remove the prefix. */
@@ -91,7 +96,8 @@ class search_near_03 : public test_harness::test {
         }
 
         /* Now insert the key with prefix and id. Use thread id to guarantee uniqueness. */
-        return tc->insert(cursor, coll.id, prefix_key + "," + std::to_string(tc->id));
+        value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
+        return tc->insert(cursor, coll.id, prefix_key + "," + std::to_string(tc->id), value);
     }
 
     static void
