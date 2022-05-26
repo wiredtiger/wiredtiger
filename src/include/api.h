@@ -277,6 +277,11 @@
 #define CURSOR_UPDATE_API_END(s, ret) CURSOR_UPDATE_API_END_RETRY(s, ret, true)
 
 /*
+ * FIXME-WT-xxxx Disable cursor reposition code to evaluate if there are is any performance gain.
+ * Enable once clear or revert the whole reposition logic.
+ */
+#if 0
+/*
  * Calling certain top level APIs allows for internal repositioning of cursors to facilitate
  * eviction of hot pages. These macros facilitate tracking when that is OK.
  */
@@ -291,3 +296,7 @@
     }                                           \
     while (0)                                   \
         ;
+#else
+#define CURSOR_REPOSITION_ENTER(c, s)
+#define CURSOR_REPOSITION_END(c, s)
+#endif
