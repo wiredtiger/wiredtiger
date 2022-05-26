@@ -284,6 +284,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     addr = ref->addr;
 #endif
 
+#if 0
     {
         if (!r->update_used  && WT_SESSION_IS_CHECKPOINT(session) && !__wt_ref_is_root(ref)) {
             fprintf(stdout,
@@ -292,6 +293,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
                     page->modify->page_state);
         }
     }
+#endif
     /*
      * If we fail the reconciliation prior to calling __rec_write_wrapup then we can clean up our
      * state and return an error.
@@ -572,6 +574,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * Add a write barrier to make it more likely that a thread adding an update will see this state
      * change.
      */
+    WT_ASSERT(session, page->modify->page_state != WT_PAGE_CLEAN);
     page->modify->page_state = WT_PAGE_DIRTY_FIRST;
     WT_FULL_BARRIER();
 
