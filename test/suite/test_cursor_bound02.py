@@ -30,8 +30,9 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 # test_cursor_bound02.py
-#    Test that setting bounds of different key formats works in the cursor bound API. Also make
-# sure that WiredTiger complains when the upper and lower bounds overlap.
+#    Test that setting bounds of different key formats works in the cursor bound API. Make
+# sure that WiredTiger complains when the upper and lower bounds overlap and that clearing the 
+# bounds through the bound API and reset calls work appriopately.
 class test_cursor_bound02(wttest.WiredTigerTestCase):
     file_name = 'test_cursor_bound02'
 
