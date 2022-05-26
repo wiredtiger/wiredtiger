@@ -971,7 +971,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
 static inline int
 __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
-    return __wt_txn_read_upd_list_internal(session, cbt, upd, NULL, NULL);
+    return (__wt_txn_read_upd_list_internal(session, cbt, upd, NULL, NULL));
 }
 
 /*
@@ -1122,6 +1122,8 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
     txn = session->txn;
     txn->isolation = session->isolation;
     txn->txn_logsync = S2C(session)->txn_logsync;
+    txn->commit_timestamp = WT_TS_NONE;
+    txn->first_commit_timestamp = WT_TS_NONE;
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
 
