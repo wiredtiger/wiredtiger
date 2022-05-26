@@ -34,7 +34,7 @@ from wtscenario import make_scenarios
 class test_hs12(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=2MB,eviction=(threads_max=1)'
     key_format_values = [
-        #('column', dict(key_format='r')),
+        ('column', dict(key_format='r')),
         ('integer-row', dict(key_format='i')),
     ]
     scenarios = make_scenarios(key_format_values)
