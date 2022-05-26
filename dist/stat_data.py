@@ -882,6 +882,7 @@ conn_dsrc_stats = [
     ##########################################
     # Cursor API error statistics
     ##########################################
+    CursorStat('cursor_bound_error', 'cursor bound calls that return an error'),
     CursorStat('cursor_cache_error', 'cursor cache calls that return an error'),
     CursorStat('cursor_close_error', 'cursor close calls that return an error'),
     CursorStat('cursor_compare_error', 'cursor compare calls that return an error'),

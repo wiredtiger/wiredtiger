@@ -1184,7 +1184,7 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
     }
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_bound);
 }
 
 /*
