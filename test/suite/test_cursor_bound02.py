@@ -118,6 +118,7 @@ class test_cursor_bound02(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.bound("bound=upper"), 0)
 
         # Test bound API: No key set.
+        cursor.reset()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower"), '/Invalid argument/')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=upper"), '/Invalid argument/')
         

@@ -1186,8 +1186,7 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
 
         if (WT_STRING_MATCH("upper", cval.str, cval.len)) {
             /*
-             * If the lower bounds are set, make sure that the upper bound is greater than the
-             lower
+             * If the lower bounds are set, make sure that the upper bound is greater than the lower
              * bound.
              */
             WT_ERR(__wt_cursor_get_raw_key(cursor, &key));
@@ -1195,7 +1194,7 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
                 WT_ERR(__wt_compare(
                   session, CUR2BT(cursor)->collator, &key, &cursor->lower_bound, &exact));
                 if (exact < 0)
-                    WT_ERR_MSG(session, EINVAL, "The upper bound overlaps with the lower bound");
+                    WT_ERR_MSG(session, EINVAL, "The provided cursor bounds are overlapping");
             }
             /* Copy the key over to the upper bound item and set upper bound and inclusive flags. */
             F_SET(cursor, WT_CURSTD_BOUND_UPPER);
@@ -1213,9 +1212,9 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
                 WT_ERR(__wt_compare(
                   session, CUR2BT(cursor)->collator, &key, &cursor->upper_bound, &exact));
                 if (exact > 0)
-                    WT_ERR_MSG(session, EINVAL, "The lower bound overlaps with the upper bound");
+                    WT_ERR_MSG(session, EINVAL, "The provided cursor bounds are overlapping");
             }
-            /* Copy the key over to the upper bound item and set upper bound and inclusive flags. */
+            /* Copy the key over to the lower bound item and set upper bound and inclusive flags. */
             F_SET(cursor, WT_CURSTD_BOUND_LOWER);
             WT_ERR(__wt_config_gets(session, cfg, "inclusive", &cval));
             if (cval.val)
