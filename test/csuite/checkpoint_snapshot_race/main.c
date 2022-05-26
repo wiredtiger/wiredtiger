@@ -27,7 +27,7 @@
  */
 #include "test_util.h"
 
-bool test_running = true;
+static bool test_running = true;
 #define CATALOG_URI "table:catalog"
 #define LOAD_TABLE_URI "table:load_table"
 
@@ -118,7 +118,7 @@ main(int argc, char *argv[])
     snprintf(opts->progress_msg, opts->progress_msg_len, "Running for %" PRIu64 " seconds\n",
       opts->runtime);
     testutil_progress(opts, opts->progress_msg);
-    sleep(opts->runtime);
+    sleep((unsigned int)opts->runtime);
     test_running = false;
 
     testutil_progress(opts, "Stopping\n");
@@ -270,7 +270,7 @@ thread_create_table_race(void *arg)
     return (NULL);
 }
 
-const char *data_string =
+static const char *data_string =
   "A man of literary taste and culture, familiar with the classics, a facile writer of Latin "
   "verses' as well as of Ciceronian prose, he was as anxious that the Roman clergy should unite "
   "human science and literature with their theological studies as that the laity should be "
@@ -307,6 +307,7 @@ thread_add_load(void *arg)
 
     raw_data_str_len = strlen(data_string);
     us_sleep = 100;
+    table_timestamp = 1;
 
     if (test_running)
         return (NULL);
@@ -358,7 +359,7 @@ thread_add_load(void *arg)
              */
             if (us_sleep < 50000 && i % 10000 == 0)
                 us_sleep += us_sleep;
-            usleep(us_sleep);
+            usleep((unsigned int)us_sleep);
         }
     }
     if (transaction_running)
@@ -437,8 +438,8 @@ thread_validate(void *arg)
                 /* Only verify some tables. */
                 if (i % rnd_val != 0)
                     continue;
-                verify_uri = rnd_val % 2 == 0 ? collection_uri : index_uri;
                 catalog_cursor->get_value(catalog_cursor, &collection_uri, &index_uri);
+                verify_uri = rnd_val % 2 == 0 ? collection_uri : index_uri;
                 ret = session->verify(session, verify_uri, NULL);
                 if (ret == EBUSY)
                     snprintf(opts->progress_msg, opts->progress_msg_len,
@@ -546,6 +547,6 @@ sleep_for_us(TEST_OPTS *opts, WT_RAND_STATE *rnd, SLEEP_CONFIG cfg)
         snprintf(opts->progress_msg, opts->progress_msg_len, "%s waiting for: %" PRIu64 " us\n",
           cfg.name, sleep_us);
         testutil_progress(opts, opts->progress_msg);
-        usleep(sleep_us);
+        usleep((unsigned int)sleep_us);
     }
 }
