@@ -991,7 +991,7 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     ret = cursor->update(cursor);
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_modify);
 }
 
 /*
@@ -1111,7 +1111,7 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
     WT_ERR(__cursor_config_debug(cursor, cfg));
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_reconfigure);
 }
 
 /*
@@ -1155,7 +1155,7 @@ err:
     __wt_scr_free(session, &key);
     if (ret != 0)
         WT_TRET(cursor->reset(cursor));
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_largest_key);
 }
 
 /*

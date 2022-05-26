@@ -177,6 +177,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cursor get key calls that return an error",
   "cursor: cursor insert calls that return an error",
   "cursor: cursor insert check calls that return an error",
+  "cursor: cursor largest key calls that return an error",
   "cursor: cursor modify calls that return an error",
   "cursor: cursor next calls that return an error",
   "cursor: cursor next calls that skip due to a globally visible history store tombstone",
@@ -187,6 +188,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cursor prev calls that skip greater than or equal to 100 entries",
   "cursor: cursor prev calls that skip less than 100 entries",
   "cursor: cursor random next calls that return an error",
+  "cursor: cursor reconfigure calls that return an error",
   "cursor: cursor remove calls that return an error",
   "cursor: cursor reopen calls that return an error",
   "cursor: cursor reserve calls that return an error",
@@ -467,6 +469,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_get_value_error = 0;
     stats->cursor_insert_error = 0;
     stats->cursor_insert_check_error = 0;
+    stats->cursor_largest_key_error = 0;
     stats->cursor_modify_error = 0;
     stats->cursor_next_error = 0;
     stats->cursor_next_hs_tombstone = 0;
@@ -477,6 +480,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_prev_skip_ge_100 = 0;
     stats->cursor_prev_skip_lt_100 = 0;
     stats->cursor_next_random_error = 0;
+    stats->cursor_reconfigure_error = 0;
     stats->cursor_remove_error = 0;
     stats->cursor_reopen_error = 0;
     stats->cursor_reserve_error = 0;
@@ -745,6 +749,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_get_value_error += from->cursor_get_value_error;
     to->cursor_insert_error += from->cursor_insert_error;
     to->cursor_insert_check_error += from->cursor_insert_check_error;
+    to->cursor_largest_key_error += from->cursor_largest_key_error;
     to->cursor_modify_error += from->cursor_modify_error;
     to->cursor_next_error += from->cursor_next_error;
     to->cursor_next_hs_tombstone += from->cursor_next_hs_tombstone;
@@ -755,6 +760,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_prev_skip_ge_100 += from->cursor_prev_skip_ge_100;
     to->cursor_prev_skip_lt_100 += from->cursor_prev_skip_lt_100;
     to->cursor_next_random_error += from->cursor_next_random_error;
+    to->cursor_reconfigure_error += from->cursor_reconfigure_error;
     to->cursor_remove_error += from->cursor_remove_error;
     to->cursor_reopen_error += from->cursor_reopen_error;
     to->cursor_reserve_error += from->cursor_reserve_error;
@@ -1027,6 +1033,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_get_value_error += WT_STAT_READ(from, cursor_get_value_error);
     to->cursor_insert_error += WT_STAT_READ(from, cursor_insert_error);
     to->cursor_insert_check_error += WT_STAT_READ(from, cursor_insert_check_error);
+    to->cursor_largest_key_error += WT_STAT_READ(from, cursor_largest_key_error);
     to->cursor_modify_error += WT_STAT_READ(from, cursor_modify_error);
     to->cursor_next_error += WT_STAT_READ(from, cursor_next_error);
     to->cursor_next_hs_tombstone += WT_STAT_READ(from, cursor_next_hs_tombstone);
@@ -1037,6 +1044,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_prev_skip_ge_100 += WT_STAT_READ(from, cursor_prev_skip_ge_100);
     to->cursor_prev_skip_lt_100 += WT_STAT_READ(from, cursor_prev_skip_lt_100);
     to->cursor_next_random_error += WT_STAT_READ(from, cursor_next_random_error);
+    to->cursor_reconfigure_error += WT_STAT_READ(from, cursor_reconfigure_error);
     to->cursor_remove_error += WT_STAT_READ(from, cursor_remove_error);
     to->cursor_reopen_error += WT_STAT_READ(from, cursor_reopen_error);
     to->cursor_reserve_error += WT_STAT_READ(from, cursor_reserve_error);
@@ -1372,6 +1380,7 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor insert calls that return an error",
   "cursor: cursor insert check calls that return an error",
   "cursor: cursor insert key and value bytes",
+  "cursor: cursor largest key calls that return an error",
   "cursor: cursor modify calls",
   "cursor: cursor modify calls that return an error",
   "cursor: cursor modify key and value bytes affected",
@@ -1388,6 +1397,7 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor prev calls that skip greater than or equal to 100 entries",
   "cursor: cursor prev calls that skip less than 100 entries",
   "cursor: cursor random next calls that return an error",
+  "cursor: cursor reconfigure calls that return an error",
   "cursor: cursor remove calls",
   "cursor: cursor remove calls that return an error",
   "cursor: cursor remove key bytes removed",
@@ -1954,6 +1964,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_insert_error = 0;
     stats->cursor_insert_check_error = 0;
     stats->cursor_insert_bytes = 0;
+    stats->cursor_largest_key_error = 0;
     stats->cursor_modify = 0;
     stats->cursor_modify_error = 0;
     stats->cursor_modify_bytes = 0;
@@ -1970,6 +1981,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_prev_skip_ge_100 = 0;
     stats->cursor_prev_skip_lt_100 = 0;
     stats->cursor_next_random_error = 0;
+    stats->cursor_reconfigure_error = 0;
     stats->cursor_remove = 0;
     stats->cursor_remove_error = 0;
     stats->cursor_remove_bytes = 0;
@@ -2538,6 +2550,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_insert_error += WT_STAT_READ(from, cursor_insert_error);
     to->cursor_insert_check_error += WT_STAT_READ(from, cursor_insert_check_error);
     to->cursor_insert_bytes += WT_STAT_READ(from, cursor_insert_bytes);
+    to->cursor_largest_key_error += WT_STAT_READ(from, cursor_largest_key_error);
     to->cursor_modify += WT_STAT_READ(from, cursor_modify);
     to->cursor_modify_error += WT_STAT_READ(from, cursor_modify_error);
     to->cursor_modify_bytes += WT_STAT_READ(from, cursor_modify_bytes);
@@ -2554,6 +2567,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_prev_skip_ge_100 += WT_STAT_READ(from, cursor_prev_skip_ge_100);
     to->cursor_prev_skip_lt_100 += WT_STAT_READ(from, cursor_prev_skip_lt_100);
     to->cursor_next_random_error += WT_STAT_READ(from, cursor_next_random_error);
+    to->cursor_reconfigure_error += WT_STAT_READ(from, cursor_reconfigure_error);
     to->cursor_remove += WT_STAT_READ(from, cursor_remove);
     to->cursor_remove_error += WT_STAT_READ(from, cursor_remove_error);
     to->cursor_remove_bytes += WT_STAT_READ(from, cursor_remove_bytes);
