@@ -68,7 +68,7 @@ config_check_search(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_i
         if (strcmp(deleted_config_options[i], str)== 0){
             __wt_verbose_warning(
             session, WT_VERB_COMPACT, "unknown configuration key: '%.*s'", (int)len, str);
-            return (EINVAL);
+            return (0);
         }
 
     WT_RET_MSG(session, EINVAL, "unknown configuration key: '%.*s'", (int)len, str);
@@ -103,11 +103,7 @@ config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int chec
               session, EINVAL, "Invalid configuration key found: '%.*s'", (int)k.len, k.str);
 
         /* Search for a matching entry. */
-        ret = config_check_search(session, checks, checks_entries, k.str, k.len, &i);
-        /* EINVAL is returned for an unknown configuration field, ignore and keep parsing. */
-        if (ret == EINVAL)
-            continue;
-        WT_RET(ret);
+        WT_RET(config_check_search(session, checks, checks_entries, k.str, k.len, &i));
 
         if (strcmp(checks[i].type, "boolean") == 0) {
             badtype = v.type != WT_CONFIG_ITEM_BOOL &&
