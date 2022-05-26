@@ -1183,7 +1183,6 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
 
         /* The cursor must have a key set to place the lower or upper bound. */
         WT_ERR(__cursor_checkkey(cursor));
-
         if (WT_STRING_MATCH("upper", cval.str, cval.len)) {
             /*
              * If the lower bounds are set, make sure that the upper bound is greater than the lower

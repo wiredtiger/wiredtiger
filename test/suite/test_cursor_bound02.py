@@ -36,8 +36,9 @@ class test_cursor_bound02(wttest.WiredTigerTestCase):
     file_name = 'test_cursor_bound02'
 
     types = [
-        ('file', dict(uri='file:')),
-        ('table', dict(uri='table:')),
+        ('file', dict(uri='file:', use_colgroup=False)),
+        ('table', dict(uri='table:', use_colgroup=False)),
+        ('colgroup', dict(uri='table:', use_colgroup=True))
     ]
 
     key_format_values = [
@@ -50,7 +51,11 @@ class test_cursor_bound02(wttest.WiredTigerTestCase):
         ('composite_complex', dict(key_format='iSru')),
     ]
 
-    scenarios = make_scenarios(types, key_format_values)
+    inclusive = [
+        ('inclusive', dict(inclusive=True)),
+        ('no-inclusive', dict(inclusive=False))
+    ]
+    scenarios = make_scenarios(types, key_format_values, inclusive)
  
     def gen_key(self, i):
         tuple_key = []
@@ -67,55 +72,83 @@ class test_cursor_bound02(wttest.WiredTigerTestCase):
         else:
             return tuple(tuple_key)
 
+    def gen_colgroup_create_param(self):
+        create_params = ",columns=("
+        start = 0
+        for _ in self.key_format:
+            create_params += "k{0},".format(str(start)) 
+            start += 1
+        create_params += "v),colgroups=(g0)"
+        return create_params
+
+    def set_bounds(self, cursor, bound_config):
+        inclusive_config = ",inclusive=false" if self.inclusive == False else ""
+        self.assertEqual(cursor.bound("bound={0}{1}".format(bound_config, inclusive_config)), 0)
+
     def test_bound_api(self):
         uri = self.uri + self.file_name
         create_params = 'value_format=S,key_format={}'.format(self.key_format)
+        if self.use_colgroup:
+            create_params += self.gen_colgroup_create_param()
         self.session.create(uri, create_params)
+        # Add in column group.
+        if self.use_colgroup:
+            create_params = 'columns=(v),'
+            suburi = 'colgroup:{0}:g0'.format(self.file_name)
+            self.session.create(suburi, create_params)
+
         cursor = self.session.open_cursor(uri)
 
         # Test bound API: Basic usage.
         cursor.set_key(self.gen_key(40))
-        self.assertEqual(cursor.bound("bound=lower"), 0)
+        self.set_bounds(cursor, "lower") 
         cursor.set_key(self.gen_key(90))
-        self.assertEqual(cursor.bound("bound=upper"), 0)
+        self.set_bounds(cursor, "upper")
 
         # Test bound API: Upper bound < lower bound.
         cursor.set_key(self.gen_key(30))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=upper"), '/Invalid argument/')
 
         # Test bound API: Lower bound > upper bound.
-        cursor.set_key(self.gen_key(99))
+        cursor.set_key(self.gen_key(95))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower"), '/Invalid argument/')
 
-        # Test bound API: Test resetting lower bound to 20, which would succeed setting upper
+        # Test bound API: Test setting lower bound to 20, which would succeed setting upper
         # bound to 30
         cursor.set_key(self.gen_key(20))
-        self.assertEqual(cursor.bound("bound=lower"), 0)
+        self.set_bounds(cursor, "lower")
         cursor.set_key(self.gen_key(30))
-        self.assertEqual(cursor.bound("bound=upper"), 0)
+        self.set_bounds(cursor, "upper")
+    
+        # Test bound API: Test setting upper bound to 99, which would succeed setting lower
+        # bound to 90
+        cursor.set_key(self.gen_key(99))
+        self.set_bounds(cursor, "upper")
+        cursor.set_key(self.gen_key(90))
+        self.set_bounds(cursor, "lower")
 
         # Test bound API: Test that clearing the lower bound works.
         cursor.set_key(self.gen_key(10))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=upper"), '/Invalid argument/')
         self.assertEqual(cursor.bound("action=clear,bound=lower"), 0)
         cursor.set_key(self.gen_key(10))
-        self.assertEqual(cursor.bound("bound=upper"), 0)
+        self.set_bounds(cursor, "upper")
 
         # Test bound API: Test that clearing the upper bound works. 
         cursor.set_key(self.gen_key(20))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower"), '/Invalid argument/')
         self.assertEqual(cursor.bound("action=clear,bound=upper"), 0)
         cursor.set_key(self.gen_key(20))
-        self.assertEqual(cursor.bound("bound=lower"), 0)
+        self.set_bounds(cursor, "lower")
     
         # Test bound API: Test that clearing both of the bounds works. 
         cursor.set_key(self.gen_key(50))
-        self.assertEqual(cursor.bound("bound=upper"), 0)
+        self.set_bounds(cursor, "upper")
         self.assertEqual(cursor.bound("action=clear"), 0)
         cursor.set_key(self.gen_key(90))
-        self.assertEqual(cursor.bound("bound=lower"), 0)
+        self.set_bounds(cursor, "lower")
         cursor.set_key(self.gen_key(99))
-        self.assertEqual(cursor.bound("bound=upper"), 0)
+        self.set_bounds(cursor, "upper")
 
         # Test bound API: No key set.
         cursor.reset()
@@ -125,9 +158,19 @@ class test_cursor_bound02(wttest.WiredTigerTestCase):
         # Test bound API: Test that reset also clears both of the bounds. 
         cursor.reset()
         cursor.set_key(self.gen_key(80))
-        self.assertEqual(cursor.bound("bound=upper"), 0)
+        self.set_bounds(cursor, "upper")
         cursor.set_key(self.gen_key(30))
-        self.assertEqual(cursor.bound("bound=lower"), 0)
+        self.set_bounds(cursor, "lower")
+
+        # Test bound API: Make sure that a clear and reset works sequentially.
+        cursor.reset()
+        self.assertEqual(cursor.bound("action=clear"), 0)
+
+        # Test bound API: Test that the key persists after bound call.
+        cursor.set_key(self.gen_key(30))
+        cursor.set_value("30")
+        self.set_bounds(cursor, "lower")
+        cursor.insert()
 
 if __name__ == '__main__':
     wttest.run()
