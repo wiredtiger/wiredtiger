@@ -271,7 +271,6 @@ __wt_cursor_get_key(WT_CURSOR *cursor, ...)
     va_start(ap, cursor);
     ret = __wt_cursor_get_keyv(cursor, cursor->flags, ap);
     va_end(ap);
-
     return (ret);
 }
 

@@ -133,7 +133,7 @@ __curfile_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     ret = __wt_btcur_compare((WT_CURSOR_BTREE *)a, (WT_CURSOR_BTREE *)b, cmpp);
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_compare);
 }
 
 /*
@@ -421,9 +421,9 @@ __wt_curfile_insert_check(WT_CURSOR *cursor)
  * Detecting a conflict should not cause transaction error.
  */
 err:
+    CURSOR_UPDATE_API_END(session, ret);
     WT_TRET(tret);
-    CURSOR_UPDATE_API_END_STAT(session, ret, cursor_insert_check);
-    return (ret);
+    API_RET_STAT(session, ret, cursor_insert_check);
 }
 
 /*
