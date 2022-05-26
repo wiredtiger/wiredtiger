@@ -900,8 +900,6 @@ conn_dsrc_stats = [
     CursorStat('cursor_remove_error', 'cursor remove calls that return an error'),
     CursorStat('cursor_search_near_error', 'cursor search near calls that return an error'),
     CursorStat('cursor_search_error', 'cursor search calls that return an error'),
-    CursorStat('cursor_set_key_error', 'cursor set key calls that return an error'),
-    CursorStat('cursor_set_value_error', 'cursor set key calls that return an error'),
     CursorStat('cursor_update_error', 'cursor update calls that return an error'),
 
     ##########################################

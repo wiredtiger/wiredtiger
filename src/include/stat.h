@@ -593,8 +593,6 @@ struct __wt_connection_stats {
     int64_t cursor_search_hs;
     int64_t cursor_search_near;
     int64_t cursor_search_near_error;
-    int64_t cursor_set_key_error;
-    int64_t cursor_set_value_error;
     int64_t cursor_sweep_buckets;
     int64_t cursor_sweep_closed;
     int64_t cursor_sweep_examined;
@@ -1055,8 +1053,6 @@ struct __wt_dsrc_stats {
     int64_t cursor_reset_error;
     int64_t cursor_search_error;
     int64_t cursor_search_near_error;
-    int64_t cursor_set_key_error;
-    int64_t cursor_set_value_error;
     int64_t cursor_update_error;
     int64_t cursor_insert;
     int64_t cursor_insert_bytes;

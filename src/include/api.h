@@ -157,9 +157,9 @@
     API_END(s, ret);        \
     return (ret)
 
-#define API_END_STAT(s, ret, api)                     \
-    if ((ret) != 0 && ((ret) != WT_NOTFOUND)) {       \
-        WT_STAT_CONN_DATA_INCR(session, api##_error); \
+#define API_END_STAT(s, ret, api)               \
+    if ((ret) != 0 && ((ret) != WT_NOTFOUND)) { \
+        WT_STAT_CONN_DATA_INCR(s, api##_error); \
     }
 
 #define API_RET_STAT(s, ret, api) \

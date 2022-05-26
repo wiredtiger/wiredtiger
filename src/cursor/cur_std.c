@@ -272,7 +272,7 @@ __wt_cursor_get_key(WT_CURSOR *cursor, ...)
     ret = __wt_cursor_get_keyv(cursor, cursor->flags, ap);
     va_end(ap);
 
-    API_RET_STAT(s, ret, cursor_get_key);
+    return (ret);
 }
 
 /*
@@ -307,7 +307,6 @@ __wt_cursor_get_raw_key(WT_CURSOR *cursor, WT_ITEM *key)
     ret = cursor->get_key(cursor, key);
     if (!raw_set)
         F_CLR(cursor, WT_CURSTD_RAW);
-
     return (ret);
 }
 
@@ -344,7 +343,6 @@ __wt_cursor_get_raw_value(WT_CURSOR *cursor, WT_ITEM *value)
     ret = cursor->get_value(cursor, value);
     if (!raw_set)
         F_CLR(cursor, WT_CURSTD_RAW);
-
     return (ret);
 }
 
@@ -495,7 +493,7 @@ err:
         } else
             __wt_free(session, tmp.mem);
     }
-    API_END_RET_STAT(session, ret, cursor_set_key);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -635,7 +633,7 @@ err:
             __wt_free(session, tmp.mem);
     }
 
-    API_END_RET_STAT(session, ret, cursor_set_value);
+    API_END_RET(session, ret);
 }
 
 /*

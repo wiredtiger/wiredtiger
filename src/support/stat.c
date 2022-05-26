@@ -192,8 +192,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cursor reset calls that return an error",
   "cursor: cursor search calls that return an error",
   "cursor: cursor search near calls that return an error",
-  "cursor: cursor set key calls that return an error",
-  "cursor: cursor set key calls that return an error",
   "cursor: cursor update calls that return an error",
   "cursor: insert calls",
   "cursor: insert key and value bytes",
@@ -483,8 +481,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_reset_error = 0;
     stats->cursor_search_error = 0;
     stats->cursor_search_near_error = 0;
-    stats->cursor_set_key_error = 0;
-    stats->cursor_set_value_error = 0;
     stats->cursor_update_error = 0;
     stats->cursor_insert = 0;
     stats->cursor_insert_bytes = 0;
@@ -762,8 +758,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_reset_error += from->cursor_reset_error;
     to->cursor_search_error += from->cursor_search_error;
     to->cursor_search_near_error += from->cursor_search_near_error;
-    to->cursor_set_key_error += from->cursor_set_key_error;
-    to->cursor_set_value_error += from->cursor_set_value_error;
     to->cursor_update_error += from->cursor_update_error;
     to->cursor_insert += from->cursor_insert;
     to->cursor_insert_bytes += from->cursor_insert_bytes;
@@ -1045,8 +1039,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_reset_error += WT_STAT_READ(from, cursor_reset_error);
     to->cursor_search_error += WT_STAT_READ(from, cursor_search_error);
     to->cursor_search_near_error += WT_STAT_READ(from, cursor_search_near_error);
-    to->cursor_set_key_error += WT_STAT_READ(from, cursor_set_key_error);
-    to->cursor_set_value_error += WT_STAT_READ(from, cursor_set_value_error);
     to->cursor_update_error += WT_STAT_READ(from, cursor_update_error);
     to->cursor_insert += WT_STAT_READ(from, cursor_insert);
     to->cursor_insert_bytes += WT_STAT_READ(from, cursor_insert_bytes);
@@ -1404,8 +1396,6 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor search history store calls",
   "cursor: cursor search near calls",
   "cursor: cursor search near calls that return an error",
-  "cursor: cursor set key calls that return an error",
-  "cursor: cursor set key calls that return an error",
   "cursor: cursor sweep buckets",
   "cursor: cursor sweep cursors closed",
   "cursor: cursor sweep cursors examined",
@@ -1987,8 +1977,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_search_hs = 0;
     stats->cursor_search_near = 0;
     stats->cursor_search_near_error = 0;
-    stats->cursor_set_key_error = 0;
-    stats->cursor_set_value_error = 0;
     stats->cursor_sweep_buckets = 0;
     stats->cursor_sweep_closed = 0;
     stats->cursor_sweep_examined = 0;
@@ -2572,8 +2560,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_search_hs += WT_STAT_READ(from, cursor_search_hs);
     to->cursor_search_near += WT_STAT_READ(from, cursor_search_near);
     to->cursor_search_near_error += WT_STAT_READ(from, cursor_search_near_error);
-    to->cursor_set_key_error += WT_STAT_READ(from, cursor_set_key_error);
-    to->cursor_set_value_error += WT_STAT_READ(from, cursor_set_value_error);
     to->cursor_sweep_buckets += WT_STAT_READ(from, cursor_sweep_buckets);
     to->cursor_sweep_closed += WT_STAT_READ(from, cursor_sweep_closed);
     to->cursor_sweep_examined += WT_STAT_READ(from, cursor_sweep_examined);
