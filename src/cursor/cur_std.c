@@ -271,7 +271,8 @@ __wt_cursor_get_key(WT_CURSOR *cursor, ...)
     va_start(ap, cursor);
     ret = __wt_cursor_get_keyv(cursor, cursor->flags, ap);
     va_end(ap);
-    return (ret);
+
+    API_RET_STAT(s, ret, cursor_get_key);
 }
 
 /*
@@ -306,6 +307,7 @@ __wt_cursor_get_raw_key(WT_CURSOR *cursor, WT_ITEM *key)
     ret = cursor->get_key(cursor, key);
     if (!raw_set)
         F_CLR(cursor, WT_CURSTD_RAW);
+
     return (ret);
 }
 
@@ -342,6 +344,7 @@ __wt_cursor_get_raw_value(WT_CURSOR *cursor, WT_ITEM *value)
     ret = cursor->get_value(cursor, value);
     if (!raw_set)
         F_CLR(cursor, WT_CURSTD_RAW);
+
     return (ret);
 }
 
@@ -407,7 +410,7 @@ __wt_cursor_get_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
     }
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_get_key);
 }
 
 /*
@@ -492,7 +495,7 @@ err:
         } else
             __wt_free(session, tmp.mem);
     }
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_set_key);
 }
 
 /*
@@ -546,7 +549,7 @@ __wt_cursor_get_valuev(WT_CURSOR *cursor, va_list ap)
         ret = __wt_struct_unpackv(session, cursor->value.data, cursor->value.size, fmt, ap);
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_get_value);
 }
 
 /*
@@ -632,7 +635,7 @@ err:
             __wt_free(session, tmp.mem);
     }
 
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_set_value);
 }
 
 /*
@@ -677,7 +680,8 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
     WT_STAT_CONN_INCR_ATOMIC(session, cursor_cached_count);
     WT_STAT_DATA_DECR(session, cursor_open_count);
     F_SET(cursor, WT_CURSTD_CACHED);
-    return (ret);
+
+    API_RET_STAT(session, ret, cursor_cache);
 }
 
 /*
@@ -950,7 +954,7 @@ __wt_cursor_equals(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
     *equalp = (cmp == 0) ? 1 : 0;
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_equals);
 }
 
 /*
