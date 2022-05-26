@@ -65,9 +65,11 @@ config_check_search(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_i
         }
     
     for (int i = 0; i < config_list_size; i++)
-        if (strcmp(deleted_config_options[i], str)== 0){
+        if (strstr(str, deleted_config_options[i])== 0){
             __wt_verbose_warning(
-            session, WT_VERB_COMPACT, "unknown configuration key: '%.*s'", (int)len, str);
+            session, WT_VERB_COMPACT, "removed configuration key: '%.*s'", (int)len, str);
+            printf("config string %s, config in list %s ", str, deleted_config_options[i]);
+            printf("\n i = %d, config size = %ld", i, config_list_size);
             return (0);
         }
 
