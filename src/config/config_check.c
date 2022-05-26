@@ -37,6 +37,8 @@ config_check_search(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_i
 {
     u_int base, indx, limit;
     int cmp;
+    const char *deleted_config_options[] = {"object_target_size"};
+    size_t config_list_size = sizeof deleted_config_options / sizeof *deleted_config_options;
 
     /*
      * For standard sets of configuration information, we know how many entries and that they're
@@ -61,10 +63,15 @@ config_check_search(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_i
                 --limit;
             }
         }
+    
+    for (int i = 0; i < config_list_size; i++)
+        if (strcmp(deleted_config_options[i], str)== 0){
+            __wt_verbose_warning(
+            session, WT_VERB_COMPACT, "unknown configuration key: '%.*s'", (int)len, str);
+            return (EINVAL);
+        }
 
-    __wt_verbose_warning(
-      session, WT_VERB_COMPACT, "unknown configuration key: '%.*s'", (int)len, str);
-    return (EINVAL);
+    WT_RET_MSG(session, EINVAL, "unknown configuration key: '%.*s'", (int)len, str);
 }
 
 /*
