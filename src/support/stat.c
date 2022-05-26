@@ -1459,6 +1459,7 @@ static const char *const __stats_connection_desc[] = {
   "session: flush_tier tables skipped due to no checkpoint",
   "session: flush_tier tables switched",
   "session: local objects removed",
+  "session: number of files imported",
   "session: open session count",
   "session: session query timestamp calls",
   "session: table alter failed calls",
@@ -2020,6 +2021,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->flush_tier_skipped = 0;
     stats->flush_tier_switched = 0;
     stats->local_objects_removed = 0;
+    stats->tiered_files_imported = 0;
     /* not clearing session_open */
     stats->session_query_ts = 0;
     /* not clearing session_table_alter_fail */
@@ -2592,6 +2594,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->flush_tier_skipped += WT_STAT_READ(from, flush_tier_skipped);
     to->flush_tier_switched += WT_STAT_READ(from, flush_tier_switched);
     to->local_objects_removed += WT_STAT_READ(from, local_objects_removed);
+    to->tiered_files_imported += WT_STAT_READ(from, tiered_files_imported);
     to->session_open += WT_STAT_READ(from, session_open);
     to->session_query_ts += WT_STAT_READ(from, session_query_ts);
     to->session_table_alter_fail += WT_STAT_READ(from, session_table_alter_fail);

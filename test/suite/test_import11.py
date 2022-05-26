@@ -34,6 +34,7 @@ import glob, os, random, re, shutil, string
 import wiredtiger, wttest
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtscenario import make_scenarios
+from wiredtiger import stat
 
 # Shared base class used by import tests.
 class test_import_base(TieredConfigMixin, wttest.WiredTigerTestCase):
@@ -111,6 +112,18 @@ class test_import11(test_import_base):
 
     tiered_storage_sources = gen_tiered_storage_sources()
     scenarios = make_scenarios(tiered_storage_sources)
+
+    def conn_config(self):
+        return self.tiered_conn_config() + ',statistics=(all)'
+
+    def get_stat(self, stat, uri):
+        if uri == None:
+            stat_cursor = self.session.open_cursor('statistics:')
+        else:
+            stat_cursor = self.session.open_cursor('statistics:' + uri)
+        val = stat_cursor[stat][2]
+        stat_cursor.close()
+        return val
 
     def create_and_populate(self, uri):
         self.session.create(uri, self.create_config)
@@ -192,8 +205,15 @@ class test_import11(test_import_base):
         self.session.create(self.uri_a, import_config)
         self.checkpoint_and_flush_tier()
 
+        # Check the number of files imported after doing an import operation.
+        files_imported_prev = self.get_stat(stat.conn.tiered_files_imported, None)
+
         self.session.create(self.uri_b, import_config)
         self.checkpoint_and_flush_tier()
+
+        # Check the number of files imported has increased after doing another import operation.
+        files_imported = self.get_stat(stat.conn.tiered_files_imported, None)
+        self.assertTrue(files_imported == files_imported_prev + 1)
 
         # Remove WiredTiger.export file.
         export_file_path = os.path.join('IMPORT_DB', 'WiredTiger.export')

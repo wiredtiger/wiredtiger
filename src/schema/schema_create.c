@@ -254,6 +254,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
                   uri);
             }
         }
+        WT_STAT_CONN_INCR(session, tiered_files_imported);
     } else
         /* Create the file. */
         WT_ERR(__create_file_block_manager(session, uri, filename, allocsize));
