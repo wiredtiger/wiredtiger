@@ -71,7 +71,7 @@ class test_tiered17(TieredConfigMixin, wttest.WiredTigerTestCase):
         object_files = []
         for path, _, files in os.walk('./'):
             for file in files:
-                if file.endswith('.wtobj'):
+                if file.endswith('.wt') or file.endswith('.wtobj'):
                     object_files.append(os.path.join(path, file))
         return object_files
 
