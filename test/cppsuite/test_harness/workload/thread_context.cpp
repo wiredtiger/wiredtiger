@@ -148,6 +148,11 @@ transaction_context::try_rollback(const std::string &config)
         rollback(config);
 }
 
+/*
+ * FIXME: WT-9198 We're concurrently doing a transaction that contains a bunch of operations while
+ * moving the stable timestamp. Eat the occasional EINVAL from the transaction's first commit
+ * timestamp being earlier than the stable timestamp.
+ */
 int
 transaction_context::set_commit_timestamp(wt_timestamp_t ts)
 {
@@ -220,7 +225,12 @@ thread_context::update(
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
-    testutil_check(transaction.set_commit_timestamp(ts));
+    ret = transaction.set_commit_timestamp(ts);
+    testutil_assert(ret == 0 || ret == EINVAL);
+    if (ret != 0) {
+        transaction.set_needs_rollback(true);
+        return (false);
+    }
 
     cursor->set_key(cursor.get(), key.c_str());
     cursor->set_value(cursor.get(), value.c_str());
@@ -257,7 +267,12 @@ thread_context::insert(
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
-    testutil_check(transaction.set_commit_timestamp(ts));
+    ret = transaction.set_commit_timestamp(ts);
+    testutil_assert(ret == 0 || ret == EINVAL);
+    if (ret != 0) {
+        transaction.set_needs_rollback(true);
+        return (false);
+    }
 
     cursor->set_key(cursor.get(), key.c_str());
     cursor->set_value(cursor.get(), value.c_str());
@@ -292,12 +307,6 @@ thread_context::remove(scoped_cursor &cursor, uint64_t collection_id, const std:
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
-
-    /*
-     * FIXME: WT-9198 We're concurrently doing a transaction that contains a bunch of operations
-     * while moving the stable timestamp. Eat the occasional EINVAL from the transaction's first
-     * commit timestamp being earlier than the stable timestamp.
-     */
     ret = transaction.set_commit_timestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
