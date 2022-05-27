@@ -277,8 +277,10 @@
 #define CURSOR_UPDATE_API_END(s, ret) CURSOR_UPDATE_API_END_RETRY(s, ret, true)
 
 /*
- * FIXME-WT-xxxx Disable cursor reposition code to evaluate if there are is any performance gain.
- * Enable once clear or revert the whole reposition logic.
+ * FIXME-WT-9372 The cursor reposition code has been disabled to isolate performance impact of a
+ * couple of eviction bugs. We are going to introduce a debug configuration option to control
+ * switching the feature on and off. This will help evaluate the need to have the repositioning
+ * logic and to tune it once MongoDB enables yielding during long running transactions.
  */
 #if 0
 /*
