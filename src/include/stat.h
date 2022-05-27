@@ -731,7 +731,6 @@ struct __wt_connection_stats {
     int64_t flush_tier_skipped;
     int64_t flush_tier_switched;
     int64_t local_objects_removed;
-    int64_t tiered_files_imported;
     int64_t session_open;
     int64_t session_query_ts;
     int64_t session_table_alter_fail;
@@ -746,6 +745,8 @@ struct __wt_connection_stats {
     int64_t session_table_compact_timeout;
     int64_t session_table_create_fail;
     int64_t session_table_create_success;
+    int64_t session_table_create_with_import_fail;
+    int64_t session_table_create_with_import_success;
     int64_t session_table_drop_fail;
     int64_t session_table_drop_success;
     int64_t session_table_rename_fail;
