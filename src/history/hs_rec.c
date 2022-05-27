@@ -62,7 +62,7 @@ __hs_verbose_cache_stats(WT_SESSION_IMPL *session, WT_BTREE *btree)
 
 /*
  * __hs_delete_record --
- *     Delete the value left in the history store
+ *     Delete the update left in the history store
  */
 static int
 __hs_delete_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *key,

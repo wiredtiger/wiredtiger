@@ -105,26 +105,8 @@ class test_prepare21(test_rollback_to_stable_base):
         # Pin stable to timestamp 40.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
 
-        # Create a checkpoint thread
-        done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done)
-        try:
-            ckpt.start()
-
-            # Wait for checkpoint to start before committing last transaction.
-            ckpt_started = 0
-            while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.txn_checkpoint_running][2]
-                stat_cursor.close()
-                time.sleep(1)
-
-            prepare_session.rollback_transaction()
-        finally:
-            done.set()
-            ckpt.join()
-
-        self.large_updates(uri, value_d, ds, nrows, False, 60)
+        # Rollback the prepared update
+        prepare_session.rollback_transaction()
 
         done = threading.Event()
         ckpt = checkpoint_thread(self.conn, done)

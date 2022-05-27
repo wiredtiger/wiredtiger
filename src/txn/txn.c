@@ -927,12 +927,10 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 
 /*
  * __txn_fixup_prepared_update --
- *     Fix/restore the history store update of a prepared datastore update based on transaction
- *     status.
+ *     Fix the history store record with the max stop time point if we commit the prepared update.
  */
 static int
-__txn_fixup_prepared_update(
-  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_UPDATE *fix_upd, bool commit)
+__txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_UPDATE *fix_upd)
 {
     WT_DECL_RET;
     WT_ITEM hs_value;
@@ -967,30 +965,28 @@ __txn_fixup_prepared_update(
      * If the history update already has a stop time point and we are committing the prepared update
      * there is no work to do.
      */
-    if (commit) {
-        tw.stop_ts = txn->commit_timestamp;
-        tw.durable_stop_ts = txn->durable_timestamp;
-        tw.stop_txn = txn->id;
-        WT_TIME_WINDOW_SET_START(&tw, fix_upd);
+    tw.stop_ts = txn->commit_timestamp;
+    tw.durable_stop_ts = txn->durable_timestamp;
+    tw.stop_txn = txn->id;
+    WT_TIME_WINDOW_SET_START(&tw, fix_upd);
 
 #ifdef HAVE_DIAGNOSTIC
-        /* Retrieve the existing update value and stop timestamp. */
-        WT_ERR(hs_cursor->get_value(
-          hs_cursor, &hs_stop_durable_ts, &hs_durable_ts, &hs_upd_type, &hs_value));
-        WT_ASSERT(session, hs_stop_durable_ts == WT_TS_MAX);
-        WT_ASSERT(session, (uint8_t)hs_upd_type == WT_UPDATE_STANDARD);
+    /* Retrieve the existing update value and stop timestamp. */
+    WT_ERR(hs_cursor->get_value(
+      hs_cursor, &hs_stop_durable_ts, &hs_durable_ts, &hs_upd_type, &hs_value));
+    WT_ASSERT(session, hs_stop_durable_ts == WT_TS_MAX);
+    WT_ASSERT(session, (uint8_t)hs_upd_type == WT_UPDATE_STANDARD);
 #endif
-        /*
-         * We need to update the stop durable timestamp stored in the history store value.
-         *
-         * Pack the value using cursor api.
-         */
-        hs_value.data = fix_upd->data;
-        hs_value.size = fix_upd->size;
-        hs_cursor->set_value(hs_cursor, &tw, tw.durable_stop_ts, tw.durable_start_ts,
-          (uint64_t)WT_UPDATE_STANDARD, &hs_value);
-        WT_ERR(hs_cursor->update(hs_cursor));
-    }
+    /*
+     * We need to update the stop durable timestamp stored in the history store value.
+     *
+     * Pack the value using cursor api.
+     */
+    hs_value.data = fix_upd->data;
+    hs_value.size = fix_upd->size;
+    hs_cursor->set_value(hs_cursor, &tw, tw.durable_stop_ts, tw.durable_start_ts,
+      (uint64_t)WT_UPDATE_STANDARD, &hs_value);
+    WT_ERR(hs_cursor->update(hs_cursor));
 
 err:
     F_SET(txn, txn_flags);
@@ -1360,8 +1356,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * prepared updates are written to the data store. When the page is read back into memory, there
      * will be only one uncommitted prepared update.
      */
-    if (fix_upd != NULL)
-        WT_ERR(__txn_fixup_prepared_update(session, hs_cursor, fix_upd, commit));
+    if (fix_upd != NULL && commit)
+        WT_ERR(__txn_fixup_prepared_update(session, hs_cursor, fix_upd));
 
 prepare_verify:
 #ifdef HAVE_DIAGNOSTIC
