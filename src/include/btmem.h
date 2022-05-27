@@ -930,6 +930,7 @@ struct __wt_ref {
 #define WT_REF_FLAG_INTERNAL 0x1u /* Page is an internal page */
 #define WT_REF_FLAG_LEAF 0x2u     /* Page is a leaf page */
 #define WT_REF_FLAG_READING 0x4u  /* Page is being read in */
+#define WT_REF_FLAG_WAS_DELETED 0x8u  /* Page has ever been in deleted state */
                                   /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 
