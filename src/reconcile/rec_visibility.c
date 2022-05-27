@@ -189,11 +189,22 @@ static inline bool
 __rec_need_save_upd(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT *upd_select, bool has_newer_updates)
 {
+    WT_UPDATE *upd;
+
     if (upd_select->tw.prepare)
         return (true);
 
     if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
         return (true);
+
+    /* Save the update chain to delete the update from the history store later. */
+    for (upd = upd_select->upd; upd != NULL; upd = upd->next) {
+        if (upd->txnid == WT_TXN_ABORTED)
+            continue;
+
+        if (F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS))
+            return (true);
+    }
 
     /*
      * Don't save updates for any reconciliation that doesn't involve history store (in-memory
@@ -850,6 +861,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         WT_RET(__rec_append_orig_value(session, page, upd_select->upd, vpack));
 
     __wt_rec_time_window_clear_obsolete(session, upd_select, NULL, r);
+
+    WT_ASSERT(session, upd_select->tw.stop_txn != WT_TXN_MAX || upd_select->tw.stop_ts == WT_TS_MAX);
 
     return (0);
 }
