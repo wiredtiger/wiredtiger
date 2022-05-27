@@ -31,7 +31,7 @@
 
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources, get_conn_config
 from wtscenario import make_scenarios
-import os, wttest
+import fnmatch, os, wttest
 
 class test_tiered17(TieredConfigMixin, wttest.WiredTigerTestCase):
     tiered_storage_sources = gen_tiered_storage_sources()
@@ -68,11 +68,7 @@ class test_tiered17(TieredConfigMixin, wttest.WiredTigerTestCase):
         c.close()
 
     def get_object_files(self):
-        object_files = []
-        for path, _, files in os.walk('./'):
-            for file in files:
-                if file.endswith('.wt') or file.endswith('.wtobj'):
-                    object_files.append(os.path.join(path, file))
+        object_files = fnmatch.filter(os.listdir('.'), "*.wtobj") + fnmatch.filter(os.listdir('.'), '*.wt')
         return object_files
 
     def test_open_readonly_conn(self):
@@ -86,13 +82,13 @@ class test_tiered17(TieredConfigMixin, wttest.WiredTigerTestCase):
         obj_files = self.get_object_files()
 
         # Check that no additional object files have been created after re-opening the connection.
-        self.assertTrue(sorted(obj_files_orig) == sorted(obj_files))
+        self.assertTrue(len(obj_files_orig) == len(obj_files))
 
         self.close_conn()
 
         # Check that no additional object files have been created after closing the connection.
         obj_files = self.get_object_files()
-        self.assertTrue(sorted(obj_files_orig) == sorted(obj_files))
+        self.assertTrue(len(obj_files_orig) == len(obj_files))
 
     def test_open_readonly_cursor(self):
         self.populate()
@@ -105,14 +101,14 @@ class test_tiered17(TieredConfigMixin, wttest.WiredTigerTestCase):
         obj_files = self.get_object_files()
 
         # Check that no additional object files have been created after re-opening the connection.
-        self.assertTrue(sorted(obj_files_orig) == sorted(obj_files))
+        self.assertTrue(len(obj_files_orig) == len(obj_files))
 
         c.close()
         self.close_conn()
 
         # Check that no additional object files have been created after closing the connection.
         obj_files = self.get_object_files()
-        self.assertTrue(sorted(obj_files_orig) == sorted(obj_files))
+        self.assertTrue(len(obj_files_orig) == len(obj_files))
 
 if __name__ == '__main__':
     wttest.run()
