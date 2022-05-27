@@ -108,6 +108,8 @@ class test_prepare21(test_rollback_to_stable_base):
         # Rollback the prepared update
         prepare_session.rollback_transaction()
 
+        self.large_updates(uri, value_d, ds, nrows, False, 60)
+
         done = threading.Event()
         ckpt = checkpoint_thread(self.conn, done)
         try:
