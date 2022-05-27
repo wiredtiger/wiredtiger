@@ -81,6 +81,7 @@ __hs_delete_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *key,
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, hs_cursor), true);
     /* It's possible the value in the history store is already obsolete. */
     if (ret == WT_NOTFOUND) {
+        WT_ASSERT(session, delete_tombstone != NULL);
         ret = 0;
         goto done;
     }
