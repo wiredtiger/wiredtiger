@@ -910,6 +910,10 @@ __curhs_insert(WT_CURSOR *cursor)
         hs_tombstone->durable_ts = hs_cursor->time_window.durable_stop_ts;
         hs_tombstone->txnid = hs_cursor->time_window.stop_txn;
 
+        WT_ASSERT(session,
+          hs_tombstone->start_ts >= hs_upd->start_ts &&
+            hs_tombstone->durable_ts >= hs_upd->durable_ts);
+
         hs_tombstone->next = hs_upd;
         hs_upd = hs_tombstone;
     }
