@@ -315,8 +315,10 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * application never modifies the tree, we're not able to do so.)
      */
     WT_RET(__wt_page_modify_init(session, page));
+#if 0
     if (btree->modified)
         __wt_page_modify_set(session, page);
+#endif
 
     /* Hack to get these fast deleted pages scheduled for eviction regularly */
     __wt_page_evict_soon(session, ref);
