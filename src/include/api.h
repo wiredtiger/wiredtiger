@@ -157,18 +157,21 @@
     API_END(s, ret);        \
     return (ret)
 
-#define API_END_STAT(s, ret, api) do {              \
+#define API_END_STAT(s, ret, api)                   \
+    do {                                            \
         if ((ret) != 0 && ((ret) != WT_NOTFOUND)) { \
             WT_STAT_CONN_DATA_INCR(s, api##_error); \
         }                                           \
     } while (0)
 
-#define API_RET_STAT(s, ret, api) do {  \
+#define API_RET_STAT(s, ret, api)       \
+    do {                                \
         API_END_STAT(s, ret, api);      \
         return ((ret));                 \
     } while (0)
 
-#define API_END_RET_STAT(s, ret, api) do {  \
+#define API_END_RET_STAT(s, ret, api)       \
+    do {                                    \
         API_END_STAT(s, ret, api);          \
         API_END_RET(s, ret);                \
     } while (0)
