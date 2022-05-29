@@ -164,16 +164,16 @@
         }                                           \
     } while (0)
 
-#define API_RET_STAT(s, ret, api)       \
-    do {                                \
-        API_END_STAT(s, ret, api);      \
-        return ((ret));                 \
+#define API_RET_STAT(s, ret, api)  \
+    do {                           \
+        API_END_STAT(s, ret, api); \
+        return ((ret));            \
     } while (0)
 
-#define API_END_RET_STAT(s, ret, api)       \
-    do {                                    \
-        API_END_STAT(s, ret, api);          \
-        API_END_RET(s, ret);                \
+#define API_END_RET_STAT(s, ret, api) \
+    do {                              \
+        API_END_STAT(s, ret, api);    \
+        API_END_RET(s, ret);          \
     } while (0)
 
 #define API_END_RET_NOTFOUND_MAP(s, ret) \
@@ -296,10 +296,10 @@
 
 #define CURSOR_UPDATE_API_END(s, ret) CURSOR_UPDATE_API_END_RETRY(s, ret, true)
 
-#define CURSOR_UPDATE_API_END_RETRY_STAT(s, ret, retry, api)  \
-    if ((ret) == WT_PREPARE_CONFLICT)                         \
-        (ret) = WT_ROLLBACK;                                  \
-    API_END_STAT(s, ret, api);                                \
+#define CURSOR_UPDATE_API_END_RETRY_STAT(s, ret, retry, api) \
+    if ((ret) == WT_PREPARE_CONFLICT)                        \
+        (ret) = WT_ROLLBACK;                                 \
+    API_END_STAT(s, ret, api);                               \
     TXN_API_END(s, ret, retry)
 
 #define CURSOR_UPDATE_API_END_STAT(s, ret, api) CURSOR_UPDATE_API_END_RETRY_STAT(s, ret, true, api)
