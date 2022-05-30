@@ -764,9 +764,10 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
         upd->txnid = hs_tw->start_txn;
         upd->durable_ts = hs_tw->durable_start_ts;
         upd->start_ts = hs_tw->start_ts;
-        *fix_updp = upd;
-    } else
-        *fix_updp = first_committed_upd;
+        if (commit)
+            *fix_upd = upd;
+    } else if (commit)
+        *fix_upd = first_committed_upd;
 
     /*
      * When the prepared update is getting committed or the history store update is still on the
@@ -823,7 +824,6 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
     WT_PUBLISH(chain->next, upd);
     *upd_appended = true;
 
-    *fix_updp = upd;
     __wt_cache_page_inmem_incr(session, page, total_size);
 
     if (0) {
@@ -1355,8 +1355,10 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * prepared updates are written to the data store. When the page is read back into memory, there
      * will be only one uncommitted prepared update.
      */
-    if (fix_upd != NULL && commit && fix_upd->type != WT_UPDATE_TOMBSTONE)
+    if (fix_upd != NULL) {
+        WT_ASSERT(session, commit && fix_upd->type != WT_UPDATE_TOMBSTONR)
         WT_ERR(__txn_fixup_prepared_update(session, hs_cursor, fix_upd));
+    }
 
 prepare_verify:
 #ifdef HAVE_DIAGNOSTIC
