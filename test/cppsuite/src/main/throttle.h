@@ -31,8 +31,7 @@
 
 #include <string>
 
-/* Forward declarations for classes to reduce compilation time and modules coupling. */
-class configuration;
+#include "configuration.h"
 
 namespace test_harness {
 class throttle {

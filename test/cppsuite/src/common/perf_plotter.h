@@ -25,11 +25,15 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
+
 #ifndef PERF_PLOTTER_H
 #define PERF_PLOTTER_H
+
 #include <fstream>
 #include <mutex>
+#include <string>
 #include <vector>
+
 namespace test_harness {
 /*
  * Singleton class owning the perf plot json, provides access to add statistics, and a central call

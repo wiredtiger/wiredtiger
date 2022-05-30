@@ -26,8 +26,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "test_harness/util/logger.h"
 #include "thread_manager.h"
+
+#include "logger.h"
 
 namespace test_harness {
 thread_manager::~thread_manager()

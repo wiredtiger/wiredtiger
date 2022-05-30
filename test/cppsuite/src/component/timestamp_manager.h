@@ -30,12 +30,12 @@
 #define TIMESTAMP_MANAGER_H
 
 #include <atomic>
-#include <string>
 
-#include "core/component.h"
+#include "component.h"
 
-/* Forward declarations for classes to reduce compilation time and modules coupling. */
-class configuration;
+extern "C" {
+#include "test_util.h"
+}
 
 namespace test_harness {
 /*

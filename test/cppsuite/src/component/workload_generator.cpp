@@ -26,18 +26,10 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <atomic>
-#include <map>
-
-#include "connection_manager.h"
-#include "core/configuration.h"
-#include "core/throttle.h"
-#include "util/api_const.h"
-#include "workload/database_model.h"
-#include "workload/database_operation.h"
-#include "workload/random_generator.h"
-#include "workload/workload_tracking.h"
 #include "workload_generator.h"
+
+#include "src/common/api_const.h"
+#include "src/storage/connection_manager.h"
 
 namespace test_harness {
 /* operation_config class implementation */
@@ -46,7 +38,7 @@ operation_config::operation_config(configuration *config, thread_type type)
 {
 }
 
-std::function<void(test_harness::thread_context *)>
+std::function<void(thread_context *)>
 operation_config::get_func(database_operation *dbo)
 {
     switch (type) {

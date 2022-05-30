@@ -37,15 +37,8 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include <chrono>
-#include <iostream>
+#include <memory>
 #include <mutex>
-#include <sstream>
-#include <thread>
-
-extern "C" {
-#include "test_util.h"
-}
 
 /* Define helpful functions related to debugging. */
 namespace test_harness {

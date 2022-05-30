@@ -26,13 +26,15 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <chrono>
+#include "logger.h"
+
 #include <iostream>
-#include <mutex>
 #include <sstream>
 #include <thread>
 
-#include "logger.h"
+extern "C" {
+#include "test_util.h"
+}
 
 /* Define helpful functions related to debugging. */
 namespace test_harness {

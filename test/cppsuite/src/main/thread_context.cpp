@@ -26,13 +26,10 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "../core/configuration.h"
-#include "../timestamp_manager.h"
-#include "../util/api_const.h"
-#include "../util/logger.h"
-#include "workload_tracking.h"
-#include "random_generator.h"
 #include "thread_context.h"
+
+#include "src/common/random_generator.h"
+#include "src/common/api_const.h"
 
 namespace test_harness {
 

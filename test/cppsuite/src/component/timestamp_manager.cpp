@@ -26,15 +26,13 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <chrono>
-#include <sstream>
-#include <thread>
-
-#include "connection_manager.h"
-#include "core/configuration.h"
 #include "timestamp_manager.h"
-#include "util/api_const.h"
-#include "workload/random_generator.h"
+
+#include <sstream>
+
+#include "src/common/api_const.h"
+#include "src/common/random_generator.h"
+#include "src/storage/connection_manager.h"
 
 namespace test_harness {
 const std::string

@@ -26,8 +26,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <chrono>
-#include <fstream>
+#ifndef OP_TRACKER_H
+#define OP_TRACKER_H
+
 #include <string>
 
 namespace test_harness {
@@ -56,3 +57,5 @@ class op_tracker {
     uint64_t _total_time_taken;
 };
 } // namespace test_harness
+
+#endif

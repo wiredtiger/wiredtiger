@@ -29,9 +29,9 @@
 #ifndef WORKLOAD_TRACKING_H
 #define WORKLOAD_TRACKING_H
 
-#include "../core/component.h"
-#include "../timestamp_manager.h"
-#include "../util/scoped_types.h"
+#include "component.h"
+#include "src/storage/scoped_types.h"
+#include "timestamp_manager.h"
 
 /*
  * Default schema for tracking operations on collections (key_format: Collection id / Key /

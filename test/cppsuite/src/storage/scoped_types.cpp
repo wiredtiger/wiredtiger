@@ -26,10 +26,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <string>
-#include <utility>
-
 #include "scoped_types.h"
+
+extern "C" {
+#include "test_util.h"
+}
 
 namespace test_harness {
 

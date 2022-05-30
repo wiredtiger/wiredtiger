@@ -29,18 +29,12 @@
 #ifndef WORKLOAD_GENERATOR_H
 #define WORKLOAD_GENERATOR_H
 
-#include <algorithm>
 #include <functional>
 
-#include "core/component.h"
-#include "workload/thread_context.h"
-#include "thread_manager.h"
-#include "workload/database_operation.h"
-
-/* Forward declarations for classes to reduce compilation time and modules coupling. */
-class configuration;
-class database;
-class workload_tracking;
+#include "src/common/thread_manager.h"
+#include "src/main/configuration.h"
+#include "src/main/database_operation.h"
+#include "src/main/thread_context.h"
 
 namespace test_harness {
 /*
@@ -51,7 +45,7 @@ class operation_config {
     explicit operation_config(configuration *config, thread_type type);
 
     /* Returns a function pointer to the member function of the supplied database operation. */
-    std::function<void(test_harness::thread_context *)> get_func(database_operation *dbo);
+    std::function<void(thread_context *)> get_func(database_operation *dbo);
 
     public:
     configuration *config;

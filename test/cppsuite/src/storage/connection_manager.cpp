@@ -27,9 +27,12 @@
  */
 
 #include "connection_manager.h"
-#include "util/api_const.h"
-#include "util/logger.h"
-#include "util/scoped_connection.h"
+
+#include "src/common/logger.h"
+
+extern "C" {
+#include "test_util.h"
+}
 
 namespace test_harness {
 connection_manager &

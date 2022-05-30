@@ -26,11 +26,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "workload_validation.h"
+
 #include <algorithm>
 
-#include "../connection_manager.h"
-#include "database_model.h"
-#include "workload_validation.h"
+#include "src/storage/connection_manager.h"
 
 namespace test_harness {
 void

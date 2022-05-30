@@ -26,16 +26,13 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <cmath>
-#include <map>
-
-#include "../connection_manager.h"
-#include "../thread_manager.h"
-#include "../util/api_const.h"
 #include "database_operation.h"
-#include "random_generator.h"
-#include "workload_tracking.h"
-#include "workload_validation.h"
+
+#include "src/common/thread_manager.h"
+#include "src/common/api_const.h"
+#include "src/common/random_generator.h"
+#include "src/component/workload_validation.h"
+#include "src/storage/connection_manager.h"
 
 namespace test_harness {
 /* Static methods. */

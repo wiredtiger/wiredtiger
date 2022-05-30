@@ -39,12 +39,7 @@
 
 #include <mutex>
 
-extern "C" {
-#include "test_util.h"
-#include "wiredtiger.h"
-}
-
-#include "util/scoped_types.h"
+#include "scoped_types.h"
 
 namespace test_harness {
 /*

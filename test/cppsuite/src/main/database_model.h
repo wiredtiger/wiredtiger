@@ -29,14 +29,10 @@
 #ifndef DATABASE_MODEL_H
 #define DATABASE_MODEL_H
 
-#include <atomic>
 #include <string>
 #include <map>
 
-#include "workload_tracking.h"
-
-/* Forward declarations for classes to reduce compilation time and modules coupling. */
-class timestamp_manager;
+#include "src/component/workload_tracking.h"
 
 namespace test_harness {
 /* Key/Value type. */

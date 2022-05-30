@@ -32,10 +32,10 @@
 #include <string>
 #include <vector>
 
-#include "test_harness/util/logger.h"
+#include "src/common/logger.h"
 
 extern "C" {
-#include "test_util.h"
+#include "wiredtiger.h"
 }
 
 namespace test_harness {

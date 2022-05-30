@@ -27,9 +27,14 @@
  */
 
 #include "checkpoint_manager.h"
-#include "connection_manager.h"
-#include "util/api_const.h"
-#include "util/logger.h"
+
+#include "src/common/api_const.h"
+#include "src/main/configuration.h"
+#include "src/storage/connection_manager.h"
+
+extern "C" {
+#include "test_util.h"
+}
 
 namespace test_harness {
 checkpoint_manager::checkpoint_manager(configuration *configuration)

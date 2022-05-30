@@ -26,10 +26,14 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "configuration.h"
+
 #include <algorithm>
 #include <stack>
 
-#include "configuration.h"
+extern "C" {
+#include "test_util.h"
+}
 
 namespace test_harness {
 /* Static methods implementation. */

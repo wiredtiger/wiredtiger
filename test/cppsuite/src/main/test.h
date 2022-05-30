@@ -29,20 +29,14 @@
 #ifndef TEST_H
 #define TEST_H
 
-#include <memory>
 #include <string>
-#include <vector>
 
-extern "C" {
-#include "wiredtiger.h"
-}
-
-#include "checkpoint_manager.h"
-#include "connection_manager.h"
-#include "runtime_monitor.h"
-#include "util/scoped_connection.h"
-#include "workload/database_operation.h"
-#include "workload_generator.h"
+#include "database_operation.h"
+#include "src/component/checkpoint_manager.h"
+#include "src/component/runtime_monitor.h"
+#include "src/component/workload_generator.h"
+#include "src/storage/connection_manager.h"
+#include "src/storage/scoped_connection.h"
 
 namespace test_harness {
 class test_args {

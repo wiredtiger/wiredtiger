@@ -29,15 +29,15 @@
 #ifndef COMPONENT_H
 #define COMPONENT_H
 
-#include "configuration.h"
-#include "throttle.h"
+#include <string>
+
+#include "src/main/configuration.h"
+#include "src/main/throttle.h"
 
 namespace test_harness {
 /*
  * A component is a class that defines 4 unique stages in its life-cycle, the stages must be run in
  * the following order: load, run, end_run, finish.
- *
- *
  */
 class component {
     public:

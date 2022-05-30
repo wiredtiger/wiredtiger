@@ -26,11 +26,10 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "../connection_manager.h"
-#include "../core/configuration.h"
-#include "../util/api_const.h"
-#include "../util/scoped_types.h"
 #include "workload_tracking.h"
+
+#include "src/common/api_const.h"
+#include "src/storage/connection_manager.h"
 
 namespace test_harness {
 workload_tracking::workload_tracking(

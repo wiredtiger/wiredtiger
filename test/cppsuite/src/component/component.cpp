@@ -27,7 +27,8 @@
  */
 
 #include "component.h"
-#include "test_harness/util/api_const.h"
+
+#include "src/common/api_const.h"
 
 namespace test_harness {
 component::component(const std::string &name, configuration *config) : _config(config), _name(name)

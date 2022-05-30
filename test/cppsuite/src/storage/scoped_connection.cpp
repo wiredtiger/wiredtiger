@@ -25,11 +25,10 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-#include <iostream>
-#include <utility>
 
-#include "../connection_manager.h"
 #include "scoped_connection.h"
+
+#include "connection_manager.h"
 
 namespace test_harness {
 

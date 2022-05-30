@@ -33,11 +33,7 @@
 #include <string>
 #include <vector>
 
-extern "C" {
-#include "wiredtiger.h"
-}
-
-#include "../util/scoped_types.h"
+#include "src/main/database_model.h"
 
 namespace test_harness {
 struct key_state {

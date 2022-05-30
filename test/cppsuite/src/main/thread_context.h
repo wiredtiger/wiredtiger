@@ -31,17 +31,11 @@
 
 #include <string>
 
-extern "C" {
-#include "test_util.h"
-}
-
-#include "../core/throttle.h"
-#include "../workload/database_model.h"
-
-/* Forward declarations for classes to reduce compilation time and modules coupling. */
-class configuration;
-class timestamp_manager;
-class workload_tracking;
+#include "database_model.h"
+#include "src/component/workload_tracking.h"
+#include "src/component/timestamp_manager.h"
+#include "src/main/configuration.h"
+#include "src/storage/scoped_types.h"
 
 namespace test_harness {
 enum thread_type { CUSTOM, INSERT, READ, REMOVE, UPDATE };

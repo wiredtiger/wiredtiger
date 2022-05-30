@@ -26,11 +26,15 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "throttle.h"
+
 #include <thread>
 
-#include "configuration.h"
-#include "test_harness/util/api_const.h"
-#include "throttle.h"
+#include "src/common/api_const.h"
+
+extern "C" {
+#include "test_util.h"
+}
 
 namespace test_harness {
 throttle::throttle(const std::string &throttle_rate)

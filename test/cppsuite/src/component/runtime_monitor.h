@@ -29,19 +29,9 @@
 #ifndef RUNTIME_MONITOR_H
 #define RUNTIME_MONITOR_H
 
-#include <string>
-#include <vector>
-
-extern "C" {
-#include "test_util.h"
-#include "wiredtiger.h"
-}
-
-#include "util/scoped_types.h"
-#include "workload/database_model.h"
-
-/* Forward declarations for classes to reduce compilation time and modules coupling. */
-class configuration;
+#include "src/main/configuration.h"
+#include "src/main/database_model.h"
+#include "src/storage/scoped_types.h"
 
 namespace test_harness {
 

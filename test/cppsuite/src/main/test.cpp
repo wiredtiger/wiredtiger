@@ -26,19 +26,10 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-/* Required to build using older versions of g++. */
-#include <cinttypes>
-#include <memory>
-#include <mutex>
-
-#include "connection_manager.h"
-#include "core/component.h"
-#include "core/configuration.h"
 #include "test.h"
-#include "thread_manager.h"
-#include "timestamp_manager.h"
-#include "util/api_const.h"
-#include "util/perf_plotter.h"
+
+#include "src/common/api_const.h"
+#include "src/common/perf_plotter.h"
 
 namespace test_harness {
 test::test(const test_args &args) : _args(args)

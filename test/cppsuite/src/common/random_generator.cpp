@@ -27,6 +27,7 @@
  */
 
 #include "random_generator.h"
+
 #include <algorithm>
 
 extern "C" {
