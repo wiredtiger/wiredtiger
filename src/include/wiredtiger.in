@@ -6182,9 +6182,9 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! session: table create successful calls */
 #define	WT_STAT_CONN_SESSION_TABLE_CREATE_SUCCESS	1412
 /*! session: table create with import failed calls */
-#define	WT_STAT_CONN_SESSION_TABLE_CREATE_WITH_IMPORT_FAIL	1413
+#define	WT_STAT_CONN_SESSION_TABLE_CREATE_IMPORT_FAIL	1413
 /*! session: table create with import successful calls */
-#define	WT_STAT_CONN_SESSION_TABLE_CREATE_WITH_IMPORT_SUCCESS	1414
+#define	WT_STAT_CONN_SESSION_TABLE_CREATE_IMPORT_SUCCESS	1414
 /*! session: table drop failed calls */
 #define	WT_STAT_CONN_SESSION_TABLE_DROP_FAIL		1415
 /*! session: table drop successful calls */

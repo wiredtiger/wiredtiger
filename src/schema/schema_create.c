@@ -204,19 +204,15 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
         if (WT_SUFFIX_MATCH(filename, ".wtobj")) {
             if (session->import_list != NULL)
                 WT_ERR(__create_file_block_manager(session, uri, filename, allocsize));
-            else {
-                WT_STAT_CONN_INCR(session, session_table_create_with_import_fail);
+            else
                 WT_ERR_MSG(session, ENOTSUP,
                   "%s: import without metadata_file not supported on tiered files", uri);
-            }
         }
 
         /* First verify that the data to import exists on disk. */
         WT_IGNORE_RET(__wt_fs_exist(session, filename, &exists));
-        if (!exists) {
-            WT_STAT_CONN_INCR(session, session_table_create_with_import_fail);
+        if (!exists)
             WT_ERR_MSG(session, ENOENT, "%s", uri);
-        }
 
         import_repair =
           __wt_config_getones(session, config, "import.repair", &cval) == 0 && cval.val != 0;
@@ -232,18 +228,13 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
                     cval.str++;
                     cval.len -= 2;
                 }
-                if ((ret = __wt_strndup(session, cval.str, cval.len, &filemeta)) != 0) {
-                    WT_STAT_CONN_INCR(session, session_table_create_with_import_fail);
-                    goto err;
-                }
+                WT_ERR(__wt_strndup(session, cval.str, cval.len, &filemeta));
                 /*
                  * FIXME-WT-7735: Importing a tiered table is not yet allowed.
                  */
                 if (__wt_config_getones(session, filemeta, "tiered_object", &cval) == 0 &&
-                  cval.val != 0) {
-                    WT_STAT_CONN_INCR(session, session_table_create_with_import_fail);
+                  cval.val != 0)
                     WT_ERR_MSG(session, ENOTSUP, "%s: import not supported on tiered files", uri);
-                }
                 filecfg[2] = filemeta;
                 /*
                  * If there is a file metadata provided, reconstruct the incremental backup
@@ -257,14 +248,12 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
                  * To prevent mistakes with API usage, we should return an error here rather than
                  * inferring a repair.
                  */
-                WT_STAT_CONN_INCR(session, session_table_create_with_import_fail);
                 WT_ERR_MSG(session, EINVAL,
                   "%s: import requires that 'file_metadata' or 'metadata_file' is specified or the "
                   "'repair' option is provided",
                   uri);
             }
         }
-        WT_STAT_CONN_INCR(session, session_table_create_with_import_success);
     } else
         /* Create the file. */
         WT_ERR(__create_file_block_manager(session, uri, filename, allocsize));
@@ -322,6 +311,12 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
         WT_ERR(__wt_session_release_dhandle(session));
 
 err:
+    if (import) {
+        if (ret != 0)
+            WT_STAT_CONN_INCR(session, session_table_create_import_fail);
+        else
+            WT_STAT_CONN_INCR(session, session_table_create_import_success);
+    }
     __wt_scr_free(session, &buf);
     __wt_scr_free(session, &val);
     __wt_free(session, fileconf);
@@ -870,11 +865,13 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
             __wt_config_init(session, &conf, config);
             for (nkeys = 0; (ret = __wt_config_next(&conf, &ckey, &cval)) == 0; nkeys++)
                 ;
-            if (nkeys == 1)
+            if (nkeys == 1) {
+                WT_STAT_CONN_INCR(session, session_table_create_import_fail);
                 WT_ERR_MSG(session, EINVAL,
                   "%s: import requires that the table configuration is specified or the "
                   "'repair' option is provided",
                   uri);
+            }
             WT_ERR_NOTFOUND_OK(ret, false);
         } else {
             /* Try to recreate the associated metadata from the imported data source. */
@@ -1213,9 +1210,11 @@ __schema_create_config_check(
       __wt_config_getones(session, config, "import.file_metadata", &cval) == 0 && cval.val != 0;
 
     if (import && session->import_list == NULL && !WT_PREFIX_MATCH(uri, "file:") &&
-      !WT_PREFIX_MATCH(uri, "table:"))
-        WT_RET_MSG(session, ENOTSUP,
+      !WT_PREFIX_MATCH(uri, "table:")) {
+          WT_STAT_CONN_INCR(session, session_table_create_import_fail);
+          WT_RET_MSG(session, ENOTSUP,
           "%s: import is only supported for 'file' and 'table' data sources", uri);
+      }
 
     /*
      * If tiered storage is configured at the connection level and the user has not configured
@@ -1227,9 +1226,11 @@ __schema_create_config_check(
       (!tiered_name_set || !WT_STRING_MATCH("none", cval.str, cval.len));
 
     /* The import.file_metadata configuration is incompatible with tiered storage. */
-    if (is_tiered && file_metadata)
+    if (is_tiered && file_metadata) {
+        WT_STAT_CONN_INCR(session, session_table_create_import_fail);
         WT_RET_MSG(session, EINVAL,
           "import for tiered storage is incompatible with the 'file_metadata' setting");
+    }
 
     /*
      * If the type configuration is set to anything but "file" while using tiered storage we must
