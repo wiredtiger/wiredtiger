@@ -945,9 +945,12 @@ __txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_U
     txn = session->txn;
     WT_TIME_WINDOW_INIT(&tw);
 
+    /* We should not fix a history store record already with a valid tombstone. */
+    WT_ASSERT(session, fix_upd->type != WT_UPDATE_TOMBSTONE);
+
     /*
-     * Transaction error and prepare are cleared temporarily as cursor functions are not allowed
-     * after an error or a prepared transaction.
+     * Transaction error is cleared temporarily as cursor functions are not allowed after an error
+     * or a prepared transaction.
      */
     txn_flags = FLD_MASK(txn->flags, WT_TXN_ERROR);
     F_CLR(txn, txn_flags);
@@ -961,10 +964,6 @@ __txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_U
      */
     F_SET(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
 
-    /*
-     * If the history update already has a stop time point and we are committing the prepared update
-     * there is no work to do.
-     */
     tw.stop_ts = txn->commit_timestamp;
     tw.durable_stop_ts = txn->durable_timestamp;
     tw.stop_txn = txn->id;
@@ -1356,7 +1355,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * prepared updates are written to the data store. When the page is read back into memory, there
      * will be only one uncommitted prepared update.
      */
-    if (fix_upd != NULL && commit)
+    if (fix_upd != NULL && commit && fix_upd->type != WT_UPDATE_TOMBSTONE)
         WT_ERR(__txn_fixup_prepared_update(session, hs_cursor, fix_upd));
 
 prepare_verify:
