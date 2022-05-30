@@ -1356,7 +1356,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * will be only one uncommitted prepared update.
      */
     if (fix_upd != NULL) {
-        WT_ASSERT(session, commit && fix_upd->type != WT_UPDATE_TOMBSTONR);
+        WT_ASSERT(session, commit && fix_upd->type != WT_UPDATE_TOMBSTONE);
         WT_ERR(__txn_fixup_prepared_update(session, hs_cursor, fix_upd));
     }
 
