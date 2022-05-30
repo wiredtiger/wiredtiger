@@ -1211,10 +1211,10 @@ __schema_create_config_check(
 
     if (import && session->import_list == NULL && !WT_PREFIX_MATCH(uri, "file:") &&
       !WT_PREFIX_MATCH(uri, "table:")) {
-          WT_STAT_CONN_INCR(session, session_table_create_import_fail);
-          WT_RET_MSG(session, ENOTSUP,
+        WT_STAT_CONN_INCR(session, session_table_create_import_fail);
+        WT_RET_MSG(session, ENOTSUP,
           "%s: import is only supported for 'file' and 'table' data sources", uri);
-      }
+    }
 
     /*
      * If tiered storage is configured at the connection level and the user has not configured
