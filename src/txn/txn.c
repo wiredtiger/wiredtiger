@@ -765,9 +765,9 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
         upd->durable_ts = hs_tw->durable_start_ts;
         upd->start_ts = hs_tw->start_ts;
         if (commit)
-            *fix_upd = upd;
+            *fix_updp = upd;
     } else if (commit)
-        *fix_upd = first_committed_upd;
+        *fix_updp = first_committed_upd;
 
     /*
      * When the prepared update is getting committed or the history store update is still on the
