@@ -33,7 +33,7 @@
 #include <string>
 #include <vector>
 
-#include "src/main/database_model.h"
+#include "src/main/database.h"
 
 namespace test_harness {
 struct key_state {

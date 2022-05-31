@@ -31,7 +31,7 @@
 
 #include <string>
 #include "src/main/configuration.h"
-#include "src/main/database_model.h"
+#include "src/main/database.h"
 #include "src/storage/scoped_types.h"
 #include "statistics.h"
 

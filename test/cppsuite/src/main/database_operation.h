@@ -29,7 +29,7 @@
 #ifndef DATABASE_OPERATION_H
 #define DATABASE_OPERATION_H
 
-#include "database_model.h"
+#include "database.h"
 #include "thread_context.h"
 
 namespace test_harness {

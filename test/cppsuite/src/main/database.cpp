@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "database_model.h"
+#include "database.h"
 
 #include "collection.h"
 #include "src/common/api_const.h"
@@ -48,7 +48,7 @@ database::add_collection(uint64_t key_count)
     if (_session.get() == nullptr)
         _session = connection_manager::instance().create_session();
     if (_collection_create_config.empty())
-        testutil_die(EINVAL, "database_model: no collection create config specified!");
+        testutil_die(EINVAL, "database: no collection create config specified!");
     uint64_t next_id = _next_collection_id++;
     std::string collection_name = build_collection_name(next_id);
     /* FIX-ME-Test-Framework: This will get removed when we split the model up. */

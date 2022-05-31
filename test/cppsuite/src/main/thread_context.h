@@ -31,7 +31,7 @@
 
 #include <string>
 
-#include "database_model.h"
+#include "database.h"
 #include "src/component/workload_tracking.h"
 #include "src/component/timestamp_manager.h"
 #include "src/main/configuration.h"

@@ -20,7 +20,7 @@ add_library(cppsuite_test_harness STATIC
     src/component/workload_validation.cpp
     src/main/collection.cpp
     src/main/configuration.cpp
-    src/main/database_model.cpp
+    src/main/database.cpp
     src/main/database_operation.cpp
     src/main/operation_configuration.cpp
     src/main/test.cpp
