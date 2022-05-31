@@ -63,6 +63,8 @@ workload_manager::run()
     uint64_t thread_id = 0;
 
     /* Retrieve useful parameters from the test configuration. */
+    operation_configs.push_back(operation_configuration(
+      _config->get_subconfig(CHECKPOINT_OP_CONFIG), thread_type::CHECKPOINT));
     operation_configs.push_back(
       operation_configuration(_config->get_subconfig(CUSTOM_OP_CONFIG), thread_type::CUSTOM));
     operation_configs.push_back(

@@ -47,6 +47,9 @@ class database_operation {
     virtual void populate(database &database, timestamp_manager *tsm, configuration *config,
       workload_tracking *tracking);
 
+    /* Performs a checkpoint periodically. */
+    virtual void checkpoint_operation(thread_context *tc);
+
     /* Custom operation without a default implementation. */
     virtual void custom_operation(thread_context *tc);
 

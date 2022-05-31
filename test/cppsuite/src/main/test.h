@@ -32,7 +32,6 @@
 #include <string>
 
 #include "database_operation.h"
-#include "src/component/checkpoint_manager.h"
 #include "src/component/statistics_monitor.h"
 #include "src/component/workload_manager.h"
 #include "src/storage/connection_manager.h"
@@ -81,7 +80,6 @@ class test : public database_operation {
 
     private:
     std::vector<component *> _components;
-    checkpoint_manager *_checkpoint_manager = nullptr;
     statistics_monitor *_statistics_monitor = nullptr;
     thread_manager *_thread_manager = nullptr;
     workload_manager *_workload_manager = nullptr;

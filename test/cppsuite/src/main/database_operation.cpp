@@ -28,6 +28,8 @@
 
 #include "database_operation.h"
 
+#include <iostream>
+
 #include "src/common/thread_manager.h"
 #include "src/common/constants.h"
 #include "src/common/logger.h"
@@ -123,6 +125,19 @@ database_operation::populate(
         it = nullptr;
     }
     logger::log_msg(LOG_INFO, "Populate: finished.");
+}
+
+void
+database_operation::checkpoint_operation(thread_context *tc)
+{
+    logger::log_msg(
+      LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+
+    while (tc->running()) {
+        std::cout << "Doing checkpoint" << std::endl;
+        tc->sleep();
+        testutil_check(tc->session->checkpoint(tc->session.get(), nullptr));
+    }
 }
 
 void

@@ -118,15 +118,17 @@ thread_count = [
         Specifies the number of threads that will be used to perform a certain function.''', min=0)
 ]
 
+checkpoint_operation_thread_config = [
+    Config('thread_count', 1, r'''
+        Specifies the number of threads that will be used to perform the checkpoint operation.''',
+        min=0, max=1),
+    Config('op_rate', '60s', r'''
+        The rate at which checkpoint is executed.''')
+]
+custom_operation_thread_config = thread_count + transaction_config + throttle_config + record_config
 read_thread_config = thread_count + throttle_config + transaction_config + record_config
 remove_thread_config = thread_count + transaction_config + throttle_config
 update_insert_thread_config = thread_count + transaction_config + throttle_config + record_config
-custom_operation_thread_config = thread_count + transaction_config + throttle_config + record_config
-
-#
-# Configuration for the checkpoint_manager component.
-#
-checkpoint_manager = enabled_config_false + component_config
 
 #
 # Configuration that applies to the runtime monitor component, this should be a list of statistics
@@ -175,6 +177,9 @@ workload_tracking = enabled_config_true + component_config + tracking_config
 # Configuration that applies to the workload_manager component.
 #
 workload_manager = enabled_config_true + component_config + [
+    Config('checkpoint_config', '',r'''
+        Config that specifies if the checkpoint thread is enabled and its behaviour.''',
+        type='category', subconfig=checkpoint_operation_thread_config),
     Config('custom_config', '',r'''
         Config that specifies the number of custom_operation threads and their behaviour.''',
         type='category', subconfig=custom_operation_thread_config),
@@ -197,9 +202,6 @@ workload_manager = enabled_config_true + component_config + [
 
 test_config = [
 # Component configurations.
-    Config('checkpoint_manager', '', r'''
-        Configuration options for the checkpoint manager''',
-        type='category', subconfig=checkpoint_manager),
     Config('statistics_monitor', '', r'''
         Configuration options for the statistics_monitor''',
         type='category', subconfig=statistics_monitor),

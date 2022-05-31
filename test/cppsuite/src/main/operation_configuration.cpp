@@ -41,6 +41,8 @@ std::function<void(thread_context *)>
 operation_configuration::get_func(database_operation *dbo)
 {
     switch (type) {
+    case thread_type::CHECKPOINT:
+        return (std::bind(&database_operation::checkpoint_operation, dbo, std::placeholders::_1));
     case thread_type::CUSTOM:
         return (std::bind(&database_operation::custom_operation, dbo, std::placeholders::_1));
     case thread_type::INSERT:

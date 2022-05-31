@@ -36,7 +36,6 @@ namespace test_harness {
 test::test(const test_args &args) : _args(args)
 {
     _config = new configuration(args.test_name, args.test_config);
-    _checkpoint_manager = new checkpoint_manager(_config->get_subconfig(CHECKPOINT_MANAGER));
     _statistics_monitor =
       new statistics_monitor(args.test_name, _config->get_subconfig(STATISTICS_MONITOR), _database);
     _timestamp_manager = new timestamp_manager(_config->get_subconfig(TIMESTAMP_MANAGER));
@@ -52,7 +51,7 @@ test::test(const test_args &args) : _args(args)
      * Ordering is not important here, any dependencies between components should be resolved
      * internally by the components.
      */
-    _components = {_workload_manager, _timestamp_manager, _statistics_monitor, _checkpoint_manager};
+    _components = {_workload_manager, _timestamp_manager, _statistics_monitor};
 }
 
 void
@@ -73,14 +72,12 @@ test::init_tracking(workload_tracking *tracking)
 test::~test()
 {
     delete _config;
-    delete _checkpoint_manager;
     delete _statistics_monitor;
     delete _timestamp_manager;
     delete _thread_manager;
     delete _workload_manager;
     delete _workload_tracking;
     _config = nullptr;
-    _checkpoint_manager = nullptr;
     _statistics_monitor = nullptr;
     _timestamp_manager = nullptr;
     _thread_manager = nullptr;

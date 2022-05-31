@@ -6,7 +6,6 @@ add_library(cppsuite_test_harness STATIC
     src/common/logger.cpp
     src/common/random_generator.cpp
     src/common/thread_manager.cpp
-    src/component/checkpoint_manager.cpp
     src/component/component.cpp
     src/component/op_tracker.cpp
     src/component/perf_plotter.cpp
