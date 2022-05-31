@@ -30,35 +30,10 @@
 
 #include "src/common/api_const.h"
 #include "src/common/logger.h"
+#include "src/main/operation_configuration.h"
 #include "src/storage/connection_manager.h"
 
 namespace test_harness {
-/* operation_config class implementation */
-operation_config::operation_config(configuration *config, thread_type type)
-    : config(config), type(type), thread_count(config->get_int(THREAD_COUNT))
-{
-}
-
-std::function<void(thread_context *)>
-operation_config::get_func(database_operation *dbo)
-{
-    switch (type) {
-    case thread_type::CUSTOM:
-        return (std::bind(&database_operation::custom_operation, dbo, std::placeholders::_1));
-    case thread_type::INSERT:
-        return (std::bind(&database_operation::insert_operation, dbo, std::placeholders::_1));
-    case thread_type::READ:
-        return (std::bind(&database_operation::read_operation, dbo, std::placeholders::_1));
-    case thread_type::REMOVE:
-        return (std::bind(&database_operation::remove_operation, dbo, std::placeholders::_1));
-    case thread_type::UPDATE:
-        return (std::bind(&database_operation::update_operation, dbo, std::placeholders::_1));
-    default:
-        /* This may cause a separate testutil_die in type_string but that should be okay. */
-        testutil_die(EINVAL, "unexpected thread_type: %s", type_string(type).c_str());
-    }
-}
-
 /* workload_generator class implementation */
 workload_generator::workload_generator(configuration *configuration,
   database_operation *db_operation, timestamp_manager *timestamp_manager, database &database)
@@ -84,20 +59,20 @@ void
 workload_generator::run()
 {
     configuration *populate_config;
-    std::vector<operation_config> operation_configs;
+    std::vector<operation_configuration> operation_configs;
     uint64_t thread_id = 0;
 
     /* Retrieve useful parameters from the test configuration. */
     operation_configs.push_back(
-      operation_config(_config->get_subconfig(CUSTOM_OP_CONFIG), thread_type::CUSTOM));
+      operation_configuration(_config->get_subconfig(CUSTOM_OP_CONFIG), thread_type::CUSTOM));
     operation_configs.push_back(
-      operation_config(_config->get_subconfig(INSERT_OP_CONFIG), thread_type::INSERT));
+      operation_configuration(_config->get_subconfig(INSERT_OP_CONFIG), thread_type::INSERT));
     operation_configs.push_back(
-      operation_config(_config->get_subconfig(READ_OP_CONFIG), thread_type::READ));
+      operation_configuration(_config->get_subconfig(READ_OP_CONFIG), thread_type::READ));
     operation_configs.push_back(
-      operation_config(_config->get_subconfig(REMOVE_OP_CONFIG), thread_type::REMOVE));
+      operation_configuration(_config->get_subconfig(REMOVE_OP_CONFIG), thread_type::REMOVE));
     operation_configs.push_back(
-      operation_config(_config->get_subconfig(UPDATE_OP_CONFIG), thread_type::UPDATE));
+      operation_configuration(_config->get_subconfig(UPDATE_OP_CONFIG), thread_type::UPDATE));
     populate_config = _config->get_subconfig(POPULATE_CONFIG);
 
     /* Populate the database. */

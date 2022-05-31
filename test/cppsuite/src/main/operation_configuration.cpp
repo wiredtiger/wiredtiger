@@ -26,50 +26,34 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef WORKLOAD_GENERATOR_H
-#define WORKLOAD_GENERATOR_H
+#include "operation_configuration.h"
 
-#include <functional>
-
-#include "src/common/thread_manager.h"
-#include "src/main/configuration.h"
-#include "src/main/database_operation.h"
-#include "src/main/thread_context.h"
+#include "src/common/api_const.h"
 
 namespace test_harness {
-/*
- * Class that can execute operations based on a given configuration.
- */
-class workload_generator : public component {
-    public:
-    explicit workload_generator(configuration *configuration, database_operation *db_operation,
-      timestamp_manager *timestamp_manager, database &database);
+/* operation_configuration class implementation */
+operation_configuration::operation_configuration(configuration *config, thread_type type)
+    : config(config), type(type), thread_count(config->get_int(THREAD_COUNT))
+{
+}
 
-    ~workload_generator();
-
-    /* Delete the copy constructor and the assignment operator. */
-    workload_generator(const workload_generator &) = delete;
-    workload_generator &operator=(const workload_generator &) = delete;
-
-    /* Do the work of the main part of the workload. */
-    void run() override final;
-    void finish() override final;
-
-    database &get_database();
-    bool db_populated() const;
-
-    /* Set the tracking component. */
-    void set_workload_tracking(workload_tracking *tracking);
-
-    private:
-    database &_database;
-    database_operation *_database_operation = nullptr;
-    thread_manager _thread_manager;
-    timestamp_manager *_timestamp_manager = nullptr;
-    workload_tracking *_tracking = nullptr;
-    std::vector<thread_context *> _workers;
-    bool _db_populated = false;
-};
+std::function<void(thread_context *)>
+operation_configuration::get_func(database_operation *dbo)
+{
+    switch (type) {
+    case thread_type::CUSTOM:
+        return (std::bind(&database_operation::custom_operation, dbo, std::placeholders::_1));
+    case thread_type::INSERT:
+        return (std::bind(&database_operation::insert_operation, dbo, std::placeholders::_1));
+    case thread_type::READ:
+        return (std::bind(&database_operation::read_operation, dbo, std::placeholders::_1));
+    case thread_type::REMOVE:
+        return (std::bind(&database_operation::remove_operation, dbo, std::placeholders::_1));
+    case thread_type::UPDATE:
+        return (std::bind(&database_operation::update_operation, dbo, std::placeholders::_1));
+    default:
+        /* This may cause a separate testutil_die in type_string but that should be okay. */
+        testutil_die(EINVAL, "unexpected thread_type: %s", type_string(type).c_str());
+    }
+}
 } // namespace test_harness
-
-#endif

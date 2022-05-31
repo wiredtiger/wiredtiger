@@ -21,6 +21,7 @@ add_library(cppsuite_test_harness STATIC
     src/main/configuration.cpp
     src/main/database_model.cpp
     src/main/database_operation.cpp
+    src/main/operation_configuration.cpp
     src/main/test.cpp
     src/main/thread_context.cpp
     src/main/throttle.cpp
