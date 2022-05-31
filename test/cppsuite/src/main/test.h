@@ -39,12 +39,7 @@
 #include "src/storage/scoped_connection.h"
 
 namespace test_harness {
-class test_args {
-    public:
-    test_args(const std::string &config, const std::string &name, const std::string &wt_open_config)
-        : test_config(config), test_name(name), wt_open_config(wt_open_config)
-    {
-    }
+struct test_args {
     const std::string test_config;
     const std::string test_name;
     const std::string wt_open_config;
