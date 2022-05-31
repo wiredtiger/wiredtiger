@@ -26,9 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "test_harness/test.h"
-
-#include "test_harness/connection_manager.h"
+#include "src/common/random_generator.h"
+#include "src/main/test.h"
 
 using namespace test_harness;
 
@@ -42,7 +41,10 @@ using namespace test_harness;
  */
 class hs_cleanup : public test {
     public:
-    hs_cleanup(const test_args &args) : test(args) {}
+    hs_cleanup(const test_args &args) : test(args)
+    {
+        init_tracking();
+    }
 
     void
     update_operation(thread_context *tc) override final

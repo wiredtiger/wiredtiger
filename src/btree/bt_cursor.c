@@ -17,7 +17,7 @@ typedef struct {
     WT_ITEM key;
     WT_ITEM value;
     uint64_t recno;
-    uint32_t flags;
+    uint64_t flags;
 } WT_CURFILE_STATE;
 
 /*
@@ -513,6 +513,19 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
     session = CUR2S(cbt);
 
     WT_STAT_CONN_DATA_INCR(session, cursor_reset);
+
+    /* Clear bounds if they are set. */
+    if (F_ISSET(cursor, WT_CURSTD_BOUNDS_SET)) {
+        WT_STAT_CONN_DATA_INCR(session, cursor_bounds_reset);
+        /* Clear upper bound, and free the buffer. */
+        F_CLR(cursor, WT_CURSTD_BOUND_UPPER | WT_CURSTD_BOUND_UPPER_INCLUSIVE);
+        __wt_buf_free(session, &cursor->upper_bound);
+        WT_CLEAR(cursor->upper_bound);
+        /* Clear lower bound, and free the buffer. */
+        F_CLR(cursor, WT_CURSTD_BOUND_LOWER | WT_CURSTD_BOUND_LOWER_INCLUSIVE);
+        __wt_buf_free(session, &cursor->lower_bound);
+        WT_CLEAR(cursor->lower_bound);
+    }
 
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
@@ -1963,6 +1976,18 @@ __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
     logging = __wt_log_op(session);
 
     WT_STAT_DATA_INCR(session, cursor_truncate);
+
+    /*
+     * All historical versions must be removed when a key is updated with no timestamp, but that
+     * isn't possible in fast truncate operations. Disallow fast truncate in transactions configured
+     * to commit without a timestamp (excluding logged tables as timestamps cannot be relevant to
+     * them).
+     */
+    if (!F_ISSET(btree, WT_BTREE_LOGGED) && F_ISSET(session->txn, WT_TXN_TS_NOT_SET))
+        WT_RET_MSG(session, EINVAL,
+          "truncate operations may not yet be included in transactions that can commit without a "
+          "timestamp. If your use case encounters this error, please reach out to the WiredTiger "
+          "team");
 
     WT_RET(__wt_txn_autocommit_check(session));
 
