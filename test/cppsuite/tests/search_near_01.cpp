@@ -238,7 +238,7 @@ class search_near_01 : public test {
         prev_prefix_stat = 0;
         num_threads = _config->get_int("search_near_threads");
         tc->stat_cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
-        workload_config = _config->get_subconfig(WORKLOAD_GENERATOR);
+        workload_config = _config->get_subconfig(WORKLOAD_MANAGER);
         read_config = workload_config->get_subconfig(READ_OP_CONFIG);
         z_key_searches = 0;
 

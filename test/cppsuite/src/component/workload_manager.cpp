@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "workload_generator.h"
+#include "workload_manager.h"
 
 #include "src/common/constants.h"
 #include "src/common/logger.h"
@@ -34,29 +34,29 @@
 #include "src/storage/connection_manager.h"
 
 namespace test_harness {
-/* workload_generator class implementation */
-workload_generator::workload_generator(configuration *configuration,
-  database_operation *db_operation, timestamp_manager *timestamp_manager, database &database)
-    : component(WORKLOAD_GENERATOR, configuration), _database(database),
+/* workload_manager class implementation */
+workload_manager::workload_manager(configuration *configuration, database_operation *db_operation,
+  timestamp_manager *timestamp_manager, database &database)
+    : component(WORKLOAD_MANAGER, configuration), _database(database),
       _database_operation(db_operation), _timestamp_manager(timestamp_manager)
 {
 }
 
-workload_generator::~workload_generator()
+workload_manager::~workload_manager()
 {
     for (auto &it : _workers)
         delete it;
 }
 
 void
-workload_generator::set_workload_tracking(workload_tracking *tracking)
+workload_manager::set_workload_tracking(workload_tracking *tracking)
 {
     testutil_assert(_tracking == nullptr);
     _tracking = tracking;
 }
 
 void
-workload_generator::run()
+workload_manager::run()
 {
     configuration *populate_config;
     std::vector<operation_configuration> operation_configs;
@@ -84,7 +84,7 @@ workload_generator::run()
     for (auto &it : operation_configs) {
         if (it.thread_count != 0)
             logger::log_msg(LOG_INFO,
-              "Workload_generator: Creating " + std::to_string(it.thread_count) + " " +
+              "workload_manager: Creating " + std::to_string(it.thread_count) + " " +
                 type_string(it.type) + " threads.");
         for (size_t i = 0; i < it.thread_count && _running; ++i) {
             thread_context *tc = new thread_context(thread_id++, it.type, it.config,
@@ -108,7 +108,7 @@ workload_generator::run()
 }
 
 void
-workload_generator::finish()
+workload_manager::finish()
 {
     component::finish();
     for (const auto &it : _workers)
@@ -118,13 +118,13 @@ workload_generator::finish()
 }
 
 database &
-workload_generator::get_database()
+workload_manager::get_database()
 {
     return (_database);
 }
 
 bool
-workload_generator::db_populated() const
+workload_manager::db_populated() const
 {
     return (_db_populated);
 }

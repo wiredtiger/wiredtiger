@@ -172,9 +172,9 @@ tracking_config = [
 workload_tracking = enabled_config_true + component_config + tracking_config
 
 #
-# Configuration that applies to the workload_generator component.
+# Configuration that applies to the workload_manager component.
 #
-workload_generator = enabled_config_true + component_config + [
+workload_manager = enabled_config_true + component_config + [
     Config('custom_config', '',r'''
         Config that specifies the number of custom_operation threads and their behaviour.''',
         type='category', subconfig=custom_operation_thread_config),
@@ -206,9 +206,9 @@ test_config = [
     Config('timestamp_manager', '', r'''
         Configuration options for the timestamp manager''',
         type='category', subconfig=timestamp_manager),
-    Config('workload_generator','', r'''
-        Configuration options for the workload generator''',
-        type='category', subconfig=workload_generator),
+    Config('workload_manager','', r'''
+        Configuration options for the workload manager''',
+        type='category', subconfig=workload_manager),
     Config('workload_tracking','', r'''
         Configuration options for the workload tracker''',
         type='category', subconfig=workload_tracking),

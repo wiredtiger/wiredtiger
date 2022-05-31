@@ -26,8 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef WORKLOAD_GENERATOR_H
-#define WORKLOAD_GENERATOR_H
+#ifndef WORKLOAD_MANAGER_H
+#define WORKLOAD_MANAGER_H
 
 #include <functional>
 
@@ -40,16 +40,16 @@ namespace test_harness {
 /*
  * Class that can execute operations based on a given configuration.
  */
-class workload_generator : public component {
+class workload_manager : public component {
     public:
-    explicit workload_generator(configuration *configuration, database_operation *db_operation,
+    explicit workload_manager(configuration *configuration, database_operation *db_operation,
       timestamp_manager *timestamp_manager, database &database);
 
-    ~workload_generator();
+    ~workload_manager();
 
     /* Delete the copy constructor and the assignment operator. */
-    workload_generator(const workload_generator &) = delete;
-    workload_generator &operator=(const workload_generator &) = delete;
+    workload_manager(const workload_manager &) = delete;
+    workload_manager &operator=(const workload_manager &) = delete;
 
     /* Do the work of the main part of the workload. */
     void run() override final;

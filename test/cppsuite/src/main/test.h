@@ -34,7 +34,7 @@
 #include "database_operation.h"
 #include "src/component/checkpoint_manager.h"
 #include "src/component/statistics_monitor.h"
-#include "src/component/workload_generator.h"
+#include "src/component/workload_manager.h"
 #include "src/storage/connection_manager.h"
 
 namespace test_harness {
@@ -68,7 +68,7 @@ class test : public database_operation {
      * Getters for all the major components, used if a test wants more control over the test
      * program.
      */
-    workload_generator *get_workload_generator();
+    workload_manager *get_workload_manager();
     statistics_monitor *get_statistics_monitor();
     timestamp_manager *get_timestamp_manager();
     thread_manager *get_thread_manager();
@@ -84,7 +84,7 @@ class test : public database_operation {
     checkpoint_manager *_checkpoint_manager = nullptr;
     statistics_monitor *_statistics_monitor = nullptr;
     thread_manager *_thread_manager = nullptr;
-    workload_generator *_workload_generator = nullptr;
+    workload_manager *_workload_manager = nullptr;
     database _database;
 };
 } // namespace test_harness

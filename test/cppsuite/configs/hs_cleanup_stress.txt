@@ -51,7 +51,7 @@ timestamp_manager=
     oldest_lag=2,
     stable_lag=5
 ),
-workload_generator=
+workload_manager=
 (
     populate_config=
     (

@@ -38,7 +38,7 @@ namespace test_harness {
 extern const std::string CHECKPOINT_MANAGER;
 extern const std::string STATISTICS_MONITOR;
 extern const std::string TIMESTAMP_MANAGER;
-extern const std::string WORKLOAD_GENERATOR;
+extern const std::string WORKLOAD_MANAGER;
 extern const std::string WORKLOAD_TRACKING;
 
 /* Configuration API consts. */

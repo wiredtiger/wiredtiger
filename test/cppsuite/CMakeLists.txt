@@ -15,7 +15,7 @@ add_library(cppsuite_test_harness STATIC
     src/component/statistics/database_size.cpp
     src/component/statistics/statistics.cpp
     src/component/timestamp_manager.cpp
-    src/component/workload_generator.cpp
+    src/component/workload_manager.cpp
     src/component/workload_tracking.cpp
     src/component/workload_validation.cpp
     src/main/collection.cpp
