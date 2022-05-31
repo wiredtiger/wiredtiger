@@ -33,45 +33,12 @@
 #include <map>
 #include <mutex>
 
+#include "collection.h"
 #include "src/component/workload_tracking.h"
 
 namespace test_harness {
 /* Key/Value type. */
 typedef std::string key_value_t;
-
-/* A collection is made of mapped key value objects. */
-class collection {
-    public:
-    explicit collection(const uint64_t id, const uint64_t key_count, const std::string &name);
-
-    /* Copies aren't allowed. */
-    collection(const collection &) = delete;
-    collection &operator=(const collection &) = delete;
-
-    uint64_t get_key_count() const;
-
-    /*
-     * Adding new keys should generally be singly threaded per collection. If two threads both
-     * attempt to add keys using the incrementing id pattern they'd frequently conflict.
-     *
-     * The usage pattern is:
-     *   1. Call get_key_count to get the number of keys already existing. Add keys with id's equal
-     *      to and greater than this value.
-     *   2. Once the transaction has successfully committed then call increase_key_count() with the
-     *      number of added keys.
-     *
-     * The set of keys should always be contiguous such that other threads calling get_key_count
-     * will always know that the keys in existence are 0 -> _key_count - 1.
-     */
-    void increase_key_count(uint64_t increment);
-
-    public:
-    const std::string name;
-    const uint64_t id;
-
-    private:
-    std::atomic<uint64_t> _key_count{0};
-};
 
 /* Representation of the collections in memory. */
 class database {

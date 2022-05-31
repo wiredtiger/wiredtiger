@@ -28,29 +28,12 @@
 
 #include "database_model.h"
 
+#include "collection.h"
 #include "src/common/api_const.h"
 #include "src/common/random_generator.h"
 #include "src/storage/connection_manager.h"
 
 namespace test_harness {
-/* collection class implementation */
-collection::collection(const uint64_t id, const uint64_t key_count, const std::string &name)
-    : name(name), id(id), _key_count(key_count)
-{
-}
-
-uint64_t
-collection::get_key_count() const
-{
-    return (_key_count);
-}
-
-void
-collection::increase_key_count(uint64_t increment)
-{
-    _key_count += increment;
-}
-
 /* database class implementation */
 std::string
 database::build_collection_name(const uint64_t id)

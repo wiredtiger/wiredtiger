@@ -18,6 +18,7 @@ add_library(cppsuite_test_harness STATIC
     src/component/workload_generator.cpp
     src/component/workload_tracking.cpp
     src/component/workload_validation.cpp
+    src/main/collection.cpp
     src/main/configuration.cpp
     src/main/database_model.cpp
     src/main/database_operation.cpp
