@@ -63,15 +63,6 @@ class test : public database_operation {
      */
     virtual void run();
 
-    /*
-     * Getters for all the major components, used if a test wants more control over the test
-     * program.
-     */
-    workload_manager *get_workload_manager();
-    statistics_monitor *get_statistics_monitor();
-    timestamp_manager *get_timestamp_manager();
-    thread_manager *get_thread_manager();
-
     protected:
     const test_args &_args;
     configuration *_config;
