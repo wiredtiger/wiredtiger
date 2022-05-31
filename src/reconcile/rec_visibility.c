@@ -197,6 +197,10 @@ __rec_need_save_upd(
     if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
         return (true);
 
+    /* No need to save the update chain if we want to delete the key from the disk image. */
+    if (upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE)
+        return (false);
+
     /* Save the update chain to delete the update from the history store later. */
     for (upd = upd_select->upd; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED)
