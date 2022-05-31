@@ -39,7 +39,7 @@ namespace test_harness {
 class statistics {
     public:
     statistics() = default;
-    explicit statistics(configuration &config, const std::string &stat_name, int stat_field);
+    statistics(configuration &config, const std::string &stat_name, int stat_field);
     virtual ~statistics() = default;
 
     /* Check that the statistics are within bounds. */

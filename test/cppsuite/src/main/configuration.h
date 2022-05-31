@@ -58,7 +58,7 @@ split_string(const std::string &str, const char delim)
 
 class configuration {
     public:
-    explicit configuration(const std::string &test_config_name, const std::string &config);
+    configuration(const std::string &test_config_name, const std::string &config);
     explicit configuration(const WT_CONFIG_ITEM &nested);
 
     ~configuration();

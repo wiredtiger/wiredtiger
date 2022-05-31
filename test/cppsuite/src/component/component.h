@@ -40,7 +40,7 @@ namespace test_harness {
  */
 class component {
     public:
-    explicit component(const std::string &name, configuration *config);
+    component(const std::string &name, configuration *config);
     virtual ~component();
 
     /* Delete the copy constructor and the assignment operator. */

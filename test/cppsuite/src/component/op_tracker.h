@@ -38,7 +38,7 @@ namespace test_harness {
  */
 class op_tracker {
     public:
-    explicit op_tracker(const std::string id, const std::string &test_name);
+    op_tracker(const std::string id, const std::string &test_name);
     virtual ~op_tracker();
 
     /* Calculates the average time and appends the stat to the perf file. */

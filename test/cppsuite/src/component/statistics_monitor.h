@@ -50,8 +50,7 @@ class statistics_monitor : public component {
     static void get_stat(scoped_cursor &, int, int64_t *);
 
     public:
-    explicit statistics_monitor(
-      const std::string &test_name, configuration *config, database &database);
+    statistics_monitor(const std::string &test_name, configuration *config, database &database);
     virtual ~statistics_monitor() = default;
 
     /* Delete the copy constructor and the assignment operator. */

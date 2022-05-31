@@ -39,7 +39,7 @@ namespace test_harness {
 
 class database_size : public statistics {
     public:
-    explicit database_size(configuration &config, const std::string &name, database &database);
+    database_size(configuration &config, const std::string &name, database &database);
     virtual ~database_size() = default;
 
     /* Don't need the stat cursor for these. */
