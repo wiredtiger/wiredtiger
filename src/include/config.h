@@ -46,6 +46,15 @@ struct __wt_config_parser_impl {
 
 #define WT_CONFIG_ITEM_STATIC_INIT(n) static const WT_CONFIG_ITEM n = {"", 0, 0, WT_CONFIG_ITEM_NUM}
 
+#define WT_CONFIG_PRESERVE_QUOTES(item)                                 \
+    do {                                                                \
+        if ((item)->str[-1] == '"' &&                                   \
+          (item)->str[(item)->len] == '"') {                            \
+            (item)->str -= 1;                                           \
+            (item)->len += 2;                                           \
+        }                                                               \
+    } while (0)
+
 #define WT_CONFIG_UNSET (-1)
 /*
  * DO NOT EDIT: automatically built by dist/api_config.py.
