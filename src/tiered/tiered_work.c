@@ -128,7 +128,6 @@ __wt_tiered_flush_work_wait(WT_SESSION_IMPL *session, uint32_t timeout)
         /* We are done if we don't find any work units or exceed the timeout. */
         done = !found || (WT_TIMEDIFF_SEC(now, start) > timeout);
     }
-    __wt_errx(session, "FLUSH_WAIT: Took %d msec to flush all", (int)WT_TIMEDIFF_MS(now, start));
     return;
 }
 
