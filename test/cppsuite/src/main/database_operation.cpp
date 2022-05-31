@@ -51,15 +51,15 @@ populate_worker(thread_context *tc)
         scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
         uint64_t j = 0;
         while (j < tc->key_count) {
-            tc->transaction.begin();
+            tc->txn.begin();
             auto key = tc->pad_string(std::to_string(j), tc->key_size);
             auto value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
             if (tc->insert(cursor, coll.id, key, value)) {
-                if (tc->transaction.commit()) {
+                if (tc->txn.commit()) {
                     ++j;
                 }
             } else {
-                tc->transaction.rollback();
+                tc->txn.rollback();
             }
         }
     }
@@ -166,21 +166,21 @@ database_operation::insert_operation(thread_context *tc)
     while (tc->running()) {
         uint64_t start_key = ccv[counter].coll.get_key_count();
         uint64_t added_count = 0;
-        tc->transaction.begin();
+        tc->txn.begin();
 
         /* Collection cursor. */
         auto &cc = ccv[counter];
-        while (tc->transaction.active() && tc->running()) {
+        while (tc->txn.active() && tc->running()) {
             /* Insert a key value pair, rolling back the transaction if required. */
             auto key = tc->pad_string(std::to_string(start_key + added_count), tc->key_size);
             auto value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
             if (!tc->insert(cc.cursor, cc.coll.id, key, value)) {
                 added_count = 0;
-                tc->transaction.rollback();
+                tc->txn.rollback();
             } else {
                 added_count++;
-                if (tc->transaction.can_commit()) {
-                    if (tc->transaction.commit()) {
+                if (tc->txn.can_commit()) {
+                    if (tc->txn.commit()) {
                         /*
                          * We need to inform the database model that we've added these keys as some
                          * other thread may rely on the key_count data. Only do so if we
@@ -204,8 +204,8 @@ database_operation::insert_operation(thread_context *tc)
         testutil_assert(counter < collections_per_thread);
     }
     /* Make sure the last transaction is rolled back now the work is finished. */
-    if (tc->transaction.active())
-        tc->transaction.rollback();
+    if (tc->txn.active())
+        tc->txn.rollback();
 }
 
 void
@@ -225,29 +225,29 @@ database_operation::read_operation(thread_context *tc)
         /* Do a second lookup now that we know it exists. */
         auto &cursor = cursors[coll.id];
 
-        tc->transaction.begin();
-        while (tc->transaction.active() && tc->running()) {
+        tc->txn.begin();
+        while (tc->txn.active() && tc->running()) {
             auto ret = cursor->next(cursor.get());
             if (ret != 0) {
                 if (ret == WT_NOTFOUND) {
                     cursor->reset(cursor.get());
                 } else if (ret == WT_ROLLBACK) {
-                    tc->transaction.rollback();
+                    tc->txn.rollback();
                     tc->sleep();
                     continue;
                 } else
                     testutil_die(ret, "Unexpected error returned from cursor->next()");
             }
-            tc->transaction.add_op();
-            tc->transaction.try_rollback();
+            tc->txn.add_op();
+            tc->txn.try_rollback();
             tc->sleep();
         }
         /* Reset our cursor to avoid pinning content. */
         testutil_check(cursor->reset(cursor.get()));
     }
     /* Make sure the last transaction is rolled back now the work is finished. */
-    if (tc->transaction.active())
-        tc->transaction.rollback();
+    if (tc->txn.active())
+        tc->txn.rollback();
 }
 
 void
@@ -288,7 +288,7 @@ database_operation::remove_operation(thread_context *tc)
         }
 
         /* Start a transaction if possible. */
-        tc->transaction.try_begin();
+        tc->txn.try_begin();
 
         /* Get the cursor associated with the collection. */
         scoped_cursor &rnd_cursor = rnd_cursors[coll.id];
@@ -304,25 +304,25 @@ database_operation::remove_operation(thread_context *tc)
              * If we cannot find any record, finish the current transaction as we might be able to
              * see new records after starting a new one.
              */
-            WT_IGNORE_RET_BOOL(tc->transaction.commit());
+            WT_IGNORE_RET_BOOL(tc->txn.commit());
             continue;
         }
         testutil_check(rnd_cursor->get_key(rnd_cursor.get(), &key_str));
         if (!tc->remove(cursor, coll.id, key_str)) {
-            tc->transaction.rollback();
+            tc->txn.rollback();
         }
 
         /* Reset our cursor to avoid pinning content. */
         testutil_check(cursor->reset(cursor.get()));
 
         /* Commit the current transaction if we're able to. */
-        if (tc->transaction.can_commit())
-            WT_IGNORE_RET_BOOL(tc->transaction.commit());
+        if (tc->txn.can_commit())
+            WT_IGNORE_RET_BOOL(tc->txn.commit());
     }
 
     /* Make sure the last operation is rolled back now the work is finished. */
-    if (tc->transaction.active())
-        tc->transaction.rollback();
+    if (tc->txn.active())
+        tc->txn.rollback();
 }
 
 void
@@ -357,7 +357,7 @@ database_operation::update_operation(thread_context *tc)
         }
 
         /* Start a transaction if possible. */
-        tc->transaction.try_begin();
+        tc->txn.try_begin();
 
         /* Get the cursor associated with the collection. */
         scoped_cursor &cursor = cursors[coll.id];
@@ -369,20 +369,20 @@ database_operation::update_operation(thread_context *tc)
         auto key = tc->pad_string(std::to_string(key_id), tc->key_size);
         auto value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
         if (!tc->update(cursor, coll.id, key, value)) {
-            tc->transaction.rollback();
+            tc->txn.rollback();
         }
 
         /* Reset our cursor to avoid pinning content. */
         testutil_check(cursor->reset(cursor.get()));
 
         /* Commit the current transaction if we're able to. */
-        if (tc->transaction.can_commit())
-            WT_IGNORE_RET_BOOL(tc->transaction.commit());
+        if (tc->txn.can_commit())
+            WT_IGNORE_RET_BOOL(tc->txn.commit());
     }
 
     /* Make sure the last operation is rolled back now the work is finished. */
-    if (tc->transaction.active())
-        tc->transaction.rollback();
+    if (tc->txn.active())
+        tc->txn.rollback();
 }
 
 void

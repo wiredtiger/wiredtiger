@@ -65,7 +65,7 @@ thread_context::thread_context(uint64_t id, thread_type type, configuration *con
       value_size(config->get_optional_int(VALUE_SIZE, 1)),
       thread_count(config->get_int(THREAD_COUNT)), type(type), id(id), db(dbase),
       session(std::move(created_session)), tsm(timestamp_manager),
-      transaction(transaction_context(config, timestamp_manager, session.get())),
+      txn(transaction(config, timestamp_manager, session.get())),
       tracking(tracking), _throttle(config)
 {
     if (tracking->enabled())
@@ -98,10 +98,10 @@ thread_context::update(
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
-    ret = transaction.set_commit_timestamp(ts);
+    ret = txn.set_commit_timestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
-        transaction.set_needs_rollback(true);
+        txn.set_needs_rollback(true);
         return (false);
     }
 
@@ -111,7 +111,7 @@ thread_context::update(
 
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            transaction.set_needs_rollback(true);
+            txn.set_needs_rollback(true);
             return (false);
         } else
             testutil_die(ret, "unhandled error while trying to update a key");
@@ -122,9 +122,9 @@ thread_context::update(
       txn_id, tracking_operation::INSERT, collection_id, key, value, ts, op_track_cursor);
 
     if (ret == 0)
-        transaction.add_op();
+        txn.add_op();
     else if (ret == WT_ROLLBACK)
-        transaction.set_needs_rollback(true);
+        txn.set_needs_rollback(true);
     else
         testutil_die(ret, "unhandled error while trying to save an update to the tracking table");
     return (ret == 0);
@@ -140,10 +140,10 @@ thread_context::insert(
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
-    ret = transaction.set_commit_timestamp(ts);
+    ret = txn.set_commit_timestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
-        transaction.set_needs_rollback(true);
+        txn.set_needs_rollback(true);
         return (false);
     }
 
@@ -153,7 +153,7 @@ thread_context::insert(
 
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            transaction.set_needs_rollback(true);
+            txn.set_needs_rollback(true);
             return (false);
         } else
             testutil_die(ret, "unhandled error while trying to insert a key");
@@ -164,9 +164,9 @@ thread_context::insert(
       txn_id, tracking_operation::INSERT, collection_id, key, value, ts, op_track_cursor);
 
     if (ret == 0)
-        transaction.add_op();
+        txn.add_op();
     else if (ret == WT_ROLLBACK)
-        transaction.set_needs_rollback(true);
+        txn.set_needs_rollback(true);
     else
         testutil_die(ret, "unhandled error while trying to save an insert to the tracking table");
     return (ret == 0);
@@ -180,10 +180,10 @@ thread_context::remove(scoped_cursor &cursor, uint64_t collection_id, const std:
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
-    ret = transaction.set_commit_timestamp(ts);
+    ret = txn.set_commit_timestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
-        transaction.set_needs_rollback(true);
+        txn.set_needs_rollback(true);
         return (false);
     }
 
@@ -191,7 +191,7 @@ thread_context::remove(scoped_cursor &cursor, uint64_t collection_id, const std:
     ret = cursor->remove(cursor.get());
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            transaction.set_needs_rollback(true);
+            txn.set_needs_rollback(true);
             return (false);
         } else
             testutil_die(ret, "unhandled error while trying to remove a key");
@@ -202,9 +202,9 @@ thread_context::remove(scoped_cursor &cursor, uint64_t collection_id, const std:
       txn_id, tracking_operation::DELETE_KEY, collection_id, key, "", ts, op_track_cursor);
 
     if (ret == 0)
-        transaction.add_op();
+        txn.add_op();
     else if (ret == WT_ROLLBACK)
-        transaction.set_needs_rollback(true);
+        txn.set_needs_rollback(true);
     else
         testutil_die(ret, "unhandled error while trying to save a remove to the tracking table");
     return (ret == 0);

@@ -69,7 +69,7 @@ class search_near_01 : public test {
             for (uint64_t j = 0; j < ALPHABET.size(); ++j) {
                 for (uint64_t k = 0; k < ALPHABET.size(); ++k) {
                     for (uint64_t count = 0; count < tc->key_count; ++count) {
-                        tc->transaction.begin();
+                        tc->txn.begin();
                         /*
                          * Generate the prefix key, and append a random generated key string based
                          * on the key size configuration.
@@ -84,13 +84,13 @@ class search_near_01 : public test {
                         if (!tc->insert(cursor, coll.id, prefix_key, value)) {
                             testutil_assert(rollback_retries < MAX_ROLLBACKS);
                             /* We failed to insert, rollback our transaction and retry. */
-                            tc->transaction.rollback();
+                            tc->txn.rollback();
                             ++rollback_retries;
                             if (count > 0)
                                 --count;
                         } else {
                             /* Commit txn at commit timestamp 100. */
-                            testutil_assert(tc->transaction.commit(
+                            testutil_assert(tc->txn.commit(
                               "commit_timestamp=" + tc->tsm->decimal_to_hex(100)));
                             rollback_retries = 0;
                         }
@@ -199,11 +199,11 @@ class search_near_01 : public test {
          * prefix search near, we expect the search to early exit out of its prefix range and return
          * WT_NOTFOUND.
          */
-        tc->transaction.begin("read_timestamp=" + tc->tsm->decimal_to_hex(10));
-        if (tc->transaction.active()) {
+        tc->txn.begin("read_timestamp=" + tc->tsm->decimal_to_hex(10));
+        if (tc->txn.active()) {
             cursor->set_key(cursor.get(), srch_key.c_str());
             testutil_assert(cursor->search_near(cursor.get(), &cmpp) == WT_NOTFOUND);
-            tc->transaction.add_op();
+            tc->txn.add_op();
 
             /*
              * There is an edge case where we may not early exit the prefix search near call because
@@ -217,7 +217,7 @@ class search_near_01 : public test {
              */
             if (srch_key == "z" || srch_key == "zz" || srch_key == "zzz")
                 ++z_key_searches;
-            tc->transaction.rollback();
+            tc->txn.rollback();
         }
     }
 

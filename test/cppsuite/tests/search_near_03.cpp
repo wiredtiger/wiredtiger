@@ -117,16 +117,16 @@ class search_near_03 : public test {
         scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
         cursor->reconfigure(cursor.get(), "prefix_search=true");
         for (uint64_t count = 0; count < tc->key_count; ++count) {
-            tc->transaction.begin();
+            tc->txn.begin();
             /*
              * Generate the prefix key, and append a random generated key string based on the key
              * size configuration.
              */
             prefix_key = random_generator::instance().generate_random_string(tc->key_size);
             if (perform_unique_index_insertions(tc, cursor, coll, prefix_key)) {
-                tc->transaction.commit();
+                tc->txn.commit();
             } else {
-                tc->transaction.rollback();
+                tc->txn.rollback();
                 ++rollback_retries;
                 if (count > 0)
                     --count;
@@ -241,7 +241,7 @@ class search_near_03 : public test {
 
             /* Do a second lookup now that we know it exists. */
             auto &cursor = cursors[coll.id];
-            tc->transaction.begin();
+            tc->txn.begin();
             /*
              * Grab a random existing prefix and perform unique index insertion. We expect it to
              * fail to insert, because it should already exist.
@@ -256,7 +256,7 @@ class search_near_03 : public test {
                 ".");
             testutil_assert(!perform_unique_index_insertions(tc, cursor, coll, prefix_key));
             testutil_check(cursor->reset(cursor.get()));
-            tc->transaction.rollback();
+            tc->txn.rollback();
         }
     }
 
@@ -271,7 +271,7 @@ class search_near_03 : public test {
          * Each read thread will count the number of keys in each collection, and will double check
          * if the size of the table hasn't changed.
          */
-        tc->transaction.begin();
+        tc->txn.begin();
         while (tc->running()) {
             for (int i = 0; i < tc->db.get_collection_count(); i++) {
                 collection &coll = tc->db.get_collection(i);
@@ -296,6 +296,6 @@ class search_near_03 : public test {
             }
             key_count = 0;
         }
-        tc->transaction.rollback();
+        tc->txn.rollback();
     }
 };

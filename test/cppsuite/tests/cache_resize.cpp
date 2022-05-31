@@ -105,19 +105,19 @@ class cache_resize : public test {
             uint64_t txn_id = ((WT_SESSION_IMPL *)tc->session.get())->txn->id;
 
             /* Save the change of cache size in the tracking table. */
-            tc->transaction.begin();
+            tc->txn.begin();
             int ret = tc->tracking->save_operation(txn_id, tracking_operation::CUSTOM,
               collection_id, key, value, tc->tsm->get_next_ts(), tc->op_track_cursor);
 
             if (ret == 0)
-                testutil_assert(tc->transaction.commit());
+                testutil_assert(tc->txn.commit());
             else {
                 /* Due to the cache pressure, it is possible to fail when saving the operation. */
                 testutil_assert(ret == WT_ROLLBACK);
                 logger::log_msg(LOG_WARN,
                   "The cache size reconfiguration could not be saved in the tracking table, ret: " +
                     std::to_string(ret));
-                tc->transaction.rollback();
+                tc->txn.rollback();
             }
             increase_cache = !increase_cache;
         }
@@ -142,22 +142,22 @@ class cache_resize : public test {
             /* Take into account the value size given in the test configuration file. */
             const std::string value = std::to_string(cache_size);
 
-            tc->transaction.try_begin();
+            tc->txn.try_begin();
             if (!tc->insert(cursor, coll.id, key, value)) {
-                tc->transaction.rollback();
-            } else if (tc->transaction.can_commit()) {
+                tc->txn.rollback();
+            } else if (tc->txn.can_commit()) {
                 /*
                  * The transaction can fit in the current cache size and is ready to be committed.
                  * This means the tracking table will contain a new record to represent this
                  * transaction which will be used during the validation stage.
                  */
-                testutil_assert(tc->transaction.commit());
+                testutil_assert(tc->txn.commit());
             }
         }
 
         /* Make sure the last transaction is rolled back now the work is finished. */
-        if (tc->transaction.active())
-            tc->transaction.rollback();
+        if (tc->txn.active())
+            tc->txn.rollback();
     }
 
     void

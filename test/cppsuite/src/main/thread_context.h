@@ -98,7 +98,7 @@ class thread_context {
     scoped_cursor op_track_cursor;
     scoped_cursor stat_cursor;
     timestamp_manager *tsm;
-    transaction_context transaction;
+    transaction txn;
     workload_tracking *tracking;
 
     private:
