@@ -26,8 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef DEBUG_UTILS_H
-#define DEBUG_UTILS_H
+#ifndef LOGGER_H
+#define LOGGER_H
 
 /* Following definitions are required in order to use printing format specifiers in C++. */
 #ifndef __STDC_LIMIT_MACROS
