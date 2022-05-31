@@ -32,7 +32,7 @@
 #include <string>
 #include "src/main/configuration.h"
 #include "src/main/database.h"
-#include "src/storage/scoped_types.h"
+#include "src/storage/scoped_cursor.h"
 #include "statistics.h"
 
 namespace test_harness {

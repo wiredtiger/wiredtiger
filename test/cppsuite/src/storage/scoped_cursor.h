@@ -26,52 +26,47 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef STATISTICS_MONITOR_H
-#define STATISTICS_MONITOR_H
+#ifndef SCOPED_CURSOR_H
+#define SCOPED_CURSOR_H
 
-#include <memory>
+/* Following definitions are required in order to use printing format specifiers in C++. */
+#ifndef __STDC_LIMIT_MACROS
+#define __STDC_LIMIT_MACROS
+#endif
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS
+#endif
+
 #include <string>
-#include <vector>
 
-#include "src/main/configuration.h"
-#include "src/main/database.h"
-#include "src/storage/scoped_cursor.h"
-#include "src/storage/scoped_session.h"
-#include "statistics/statistics.h"
+extern "C" {
+#include "wiredtiger.h"
+}
 
 namespace test_harness {
-
-/*
- * The statistics monitor class is designed to track various statistics or other runtime signals
- * relevant to the given workload.
- */
-class statistics_monitor : public component {
+class scoped_cursor {
     public:
-    static void get_stat(scoped_cursor &, int, int64_t *);
+    scoped_cursor() = default;
+    explicit scoped_cursor(WT_SESSION *session, const std::string &uri, const std::string &cfg);
 
-    public:
-    explicit statistics_monitor(
-      const std::string &test_name, configuration *config, database &database);
-    virtual ~statistics_monitor() = default;
+    /* Moving is ok but copying is not. */
+    scoped_cursor(scoped_cursor &&other);
 
-    /* Delete the copy constructor and the assignment operator. */
-    statistics_monitor(const statistics_monitor &) = delete;
-    statistics_monitor &operator=(const statistics_monitor &) = delete;
+    ~scoped_cursor();
 
-    void load() override final;
-    void do_work() override final;
-    void finish() override final;
+    scoped_cursor &operator=(scoped_cursor &&other);
+    scoped_cursor(const scoped_cursor &) = delete;
+    scoped_cursor &operator=(const scoped_cursor &) = delete;
+
+    void reinit(WT_SESSION *session, const std::string &uri, const std::string &cfg);
+
+    WT_CURSOR &operator*();
+    WT_CURSOR *operator->();
+
+    WT_CURSOR *get();
 
     private:
-    void append_stats();
-
-    private:
-    scoped_session _session;
-    scoped_cursor _cursor;
-    const std::string _test_name;
-    std::vector<std::unique_ptr<statistics>> _stats;
-    database &_database;
+    WT_CURSOR *_cursor = nullptr;
 };
 } // namespace test_harness
-
 #endif

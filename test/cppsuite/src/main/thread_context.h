@@ -35,7 +35,8 @@
 #include "src/component/workload_tracking.h"
 #include "src/component/timestamp_manager.h"
 #include "src/main/configuration.h"
-#include "src/storage/scoped_types.h"
+#include "src/storage/scoped_cursor.h"
+#include "src/storage/scoped_session.h"
 #include "transaction.h"
 
 namespace test_harness {

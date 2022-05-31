@@ -30,7 +30,8 @@
 #define WORKLOAD_TRACKING_H
 
 #include "component.h"
-#include "src/storage/scoped_types.h"
+#include "src/storage/scoped_cursor.h"
+#include "src/storage/scoped_session.h"
 #include "timestamp_manager.h"
 
 /*

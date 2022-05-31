@@ -31,7 +31,7 @@
 
 #include "component.h"
 
-#include "src/storage/scoped_types.h"
+#include "src/storage/scoped_session.h"
 
 namespace test_harness {
 class checkpoint_manager : public component {
