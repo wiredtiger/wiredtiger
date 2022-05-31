@@ -129,7 +129,8 @@ __wt_tiered_flush_work_wait(WT_SESSION_IMPL *session, uint32_t timeout)
         done = !found || (WT_TIMEDIFF_SEC(now, start) > timeout);
     }
     if (!found)
-        __wt_msg(session, "tiered_flush_work_wait: timed out after %" PRIu32 " seconds", timeout);
+        (void)__wt_msg(
+          session, "tiered_flush_work_wait: timed out after %" PRIu32 " seconds", timeout);
     return;
 }
 
