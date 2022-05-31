@@ -190,12 +190,11 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
      */
     WT_ERR(__wt_scr_alloc(session, 1024, &build));
     __wt_config_init(session, &cparser, config);
-    while ((ret = __wt_config_next(&cparser, &ck, &cv)) == 0) {
-        if (!WT_STRING_MATCH("checkpoint", ck.str, ck.len))
-            /* Append the entry to the new buffer. */
-            WT_ERR(__wt_buf_catfmt(
-              session, build, "%.*s=%.*s,", (int)ck.len, ck.str, (int)cv.len, cv.str));
-    }
+    /* Preserve any quotation marks during the copy. */
+    while ((ret = __wt_config_next_quoted(&cparser, &ck, &cv)) == 0)
+        /* Append the entry to the new buffer. */
+        WT_ERR(
+          __wt_buf_catfmt(session, build, "%.*s=%.*s,", (int)ck.len, ck.str, (int)cv.len, cv.str));
     WT_ERR_NOTFOUND_OK(ret, false);
     __wt_free(session, config);
     WT_ERR(__wt_strndup(session, build->data, build->size, &config));

@@ -35,19 +35,11 @@ __wt_config_collapse(WT_SESSION_IMPL *session, const char **cfg, char **config_r
     WT_RET(__wt_scr_alloc(session, 1024, &tmp));
 
     __wt_config_init(session, &cparser, cfg[0]);
-    while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
+    /* Include the quotes around string keys/values. */
+    while ((ret = __wt_config_next_quoted(&cparser, &k, &v)) == 0) {
         if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
             WT_ERR_MSG(session, EINVAL, "Invalid configuration key found: '%s'", k.str);
         WT_ERR(__wt_config_get(session, cfg, &k, &v));
-        /* Include the quotes around string keys/values. */
-        if (k.type == WT_CONFIG_ITEM_STRING) {
-            --k.str;
-            k.len += 2;
-        }
-        if (v.type == WT_CONFIG_ITEM_STRING) {
-            --v.str;
-            v.len += 2;
-        }
         WT_ERR(__wt_buf_catfmt(session, tmp, "%.*s=%.*s,", (int)k.len, k.str, (int)v.len, v.str));
     }
 
@@ -116,19 +108,10 @@ __config_merge_scan(
     WT_ERR(__wt_scr_alloc(session, 1024, &vb));
 
     __wt_config_init(session, &cparser, value);
-    while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
+    /* Include the quotes around string keys/values. */
+    while ((ret = __wt_config_next_quoted(&cparser, &k, &v)) == 0) {
         if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
             WT_ERR_MSG(session, EINVAL, "Invalid configuration key found: '%s'", k.str);
-
-        /* Include the quotes around string keys/values. */
-        if (k.type == WT_CONFIG_ITEM_STRING) {
-            --k.str;
-            k.len += 2;
-        }
-        if (v.type == WT_CONFIG_ITEM_STRING) {
-            --v.str;
-            v.len += 2;
-        }
 
         /*
          * !!!
