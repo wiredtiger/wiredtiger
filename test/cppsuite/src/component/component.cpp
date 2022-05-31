@@ -29,6 +29,7 @@
 #include "component.h"
 
 #include "src/common/api_const.h"
+#include "src/common/logger.h"
 
 namespace test_harness {
 component::component(const std::string &name, configuration *config) : _config(config), _name(name)

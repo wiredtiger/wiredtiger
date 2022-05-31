@@ -29,6 +29,7 @@
 #include "test.h"
 
 #include "src/common/api_const.h"
+#include "src/common/logger.h"
 #include "src/common/perf_plotter.h"
 
 namespace test_harness {

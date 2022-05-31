@@ -30,6 +30,7 @@
 #define CHECKPOINT_MANAGER_H
 
 #include "component.h"
+
 #include "src/storage/scoped_types.h"
 
 namespace test_harness {

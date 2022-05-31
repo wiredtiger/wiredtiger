@@ -31,6 +31,8 @@
 #include <algorithm>
 #include <stack>
 
+#include "src/common/logger.h"
+
 extern "C" {
 #include "test_util.h"
 }

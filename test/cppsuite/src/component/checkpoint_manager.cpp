@@ -29,6 +29,7 @@
 #include "checkpoint_manager.h"
 
 #include "src/common/api_const.h"
+#include "src/common/logger.h"
 #include "src/main/configuration.h"
 #include "src/storage/connection_manager.h"
 

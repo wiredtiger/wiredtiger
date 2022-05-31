@@ -30,6 +30,7 @@
 
 #include <algorithm>
 
+#include "src/common/logger.h"
 #include "src/storage/connection_manager.h"
 
 namespace test_harness {

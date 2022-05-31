@@ -32,8 +32,6 @@
 #include <string>
 #include <vector>
 
-#include "src/common/logger.h"
-
 extern "C" {
 #include "wiredtiger.h"
 }
