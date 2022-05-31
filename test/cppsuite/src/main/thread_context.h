@@ -104,7 +104,7 @@ class thread_context {
 
     private:
     bool _running = true;
-    throttle _throttle;
+    uint64_t _sleeping_time_ms = 1000;
 };
 } // namespace test_harness
 

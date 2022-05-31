@@ -25,7 +25,6 @@ add_library(cppsuite_test_harness STATIC
     src/main/operation_configuration.cpp
     src/main/test.cpp
     src/main/thread_context.cpp
-    src/main/throttle.cpp
     src/main/transaction.cpp
     src/storage/connection_manager.cpp
     src/storage/scoped_cursor.cpp

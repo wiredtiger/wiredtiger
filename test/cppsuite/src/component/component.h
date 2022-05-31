@@ -32,7 +32,6 @@
 #include <string>
 
 #include "src/main/configuration.h"
-#include "src/main/throttle.h"
 
 namespace test_harness {
 /*
@@ -56,8 +55,8 @@ class component {
 
     /*
      * The run function provides a top level loop that calls the do_work function every X seconds as
-     * defined by the throttle. Each run() method defined by the components is called in its own
-     * thread by the top level test class.
+     * defined by the sleeping time. Each run() method defined by the components is called in its
+     * own thread by the top level test class.
      *
      * If a component does not wish to use the standard run function, it can be overloaded.
      */
@@ -67,7 +66,7 @@ class component {
     void end_run();
 
     /*
-     * do_work is called every X seconds as defined by the throttle. Generally most components
+     * do_work is called every X seconds as defined by the sleeping time. Generally most components
      * should do their "operation" in the do_work function.
      */
     virtual void do_work();
@@ -85,7 +84,7 @@ class component {
     protected:
     bool _enabled = false;
     volatile bool _running = false;
-    throttle _throttle;
+    uint64_t _sleeping_time_ms = 1000;
     configuration *_config;
 
     private:

@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <stack>
 
+#include "src/common/constants.h"
 #include "src/common/logger.h"
 
 extern "C" {
@@ -192,6 +193,35 @@ configuration::get(
         testutil_die(-1, error_msg);
 
     return func(value);
+}
+
+uint64_t
+configuration::get_throttle_ms()
+{
+    uint64_t multiplier = 0;
+    const std::string throttle_config(get_optional_string(OP_RATE, "1s"));
+    /*
+     * Find the ms, s, or m in the string. Searching for "ms" first as the following two searches
+     * would match as well.
+     */
+    size_t pos = throttle_config.find("ms");
+    if (pos != std::string::npos)
+        multiplier = 1;
+    else {
+        pos = throttle_config.find("s");
+        if (pos != std::string::npos)
+            multiplier = 1000;
+        else {
+            pos = throttle_config.find("m");
+            if (pos != std::string::npos)
+                multiplier = 60 * 1000;
+            else
+                testutil_die(-1, "no rate specifier given");
+        }
+    }
+    const std::string magnitude = throttle_config.substr(0, pos);
+    /* This will throw if it can't cast, which is fine. */
+    return std::stoi(magnitude) * multiplier;
 }
 
 std::string
