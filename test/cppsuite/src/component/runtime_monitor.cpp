@@ -30,29 +30,19 @@
 
 #include <fstream>
 
+#include "perf_plotter.h"
 #include "src/common/api_const.h"
 #include "src/common/logger.h"
-#include "src/component/perf_plotter.h"
 #include "src/storage/connection_manager.h"
+#include "statistics/cache_limit.h"
+#include "statistics/database_size.h"
+#include "statistics/statistics.h"
 
 extern "C" {
 #include "test_util.h"
 }
 
 namespace test_harness {
-
-/* Static methods implementation. */
-static std::string
-collection_name_to_file_name(const std::string &collection_name)
-{
-    /* Strip out the URI prefix. */
-    const size_t colon_pos = collection_name.find(':');
-    testutil_assert(colon_pos != std::string::npos);
-    const auto stripped_name = collection_name.substr(colon_pos + 1);
-
-    /* Now add the directory and file extension. */
-    return (std::string(DEFAULT_DIR) + "/" + stripped_name + ".wt");
-}
 
 /* Inline methods implementation. */
 
@@ -70,187 +60,6 @@ get_stat_field(const std::string &name)
     else if (name == CC_PAGES_REMOVED)
         return (WT_STAT_CONN_CC_PAGES_REMOVED);
     testutil_die(EINVAL, "get_stat_field: Stat \"%s\" is unrecognized", name.c_str());
-}
-
-/* statistics class implementation */
-statistics::statistics(configuration &config, const std::string &stat_name, int stat_field)
-    : field(stat_field), max(config.get_int(MAX)), min(config.get_int(MIN)), name(stat_name),
-      postrun(config.get_bool(POSTRUN_STATISTICS)), runtime(config.get_bool(RUNTIME_STATISTICS)),
-      save(config.get_bool(SAVE))
-{
-}
-
-void
-statistics::check(scoped_cursor &cursor)
-{
-    int64_t stat_value;
-    runtime_monitor::get_stat(cursor, field, &stat_value);
-    if (stat_value < min || stat_value > max) {
-        const std::string error_string = "runtime_monitor: Postrun stat \"" + name +
-          "\" was outside of the specified limits. Min=" + std::to_string(min) +
-          " Max=" + std::to_string(max) + " Actual=" + std::to_string(stat_value);
-        testutil_die(-1, error_string.c_str());
-    } else
-        logger::log_msg(LOG_TRACE, name + " usage: " + std::to_string(stat_value));
-}
-
-std::string
-statistics::get_value_str(scoped_cursor &cursor)
-{
-    int64_t stat_value;
-    runtime_monitor::get_stat(cursor, field, &stat_value);
-    return std::to_string(stat_value);
-}
-
-int
-statistics::get_field() const
-{
-    return field;
-}
-
-int64_t
-statistics::get_max() const
-{
-    return max;
-}
-
-int64_t
-statistics::get_min() const
-{
-    return min;
-}
-
-const std::string &
-statistics::get_name() const
-{
-    return name;
-}
-
-bool
-statistics::get_postrun() const
-{
-    return postrun;
-}
-
-bool
-statistics::get_runtime() const
-{
-    return runtime;
-}
-
-bool
-statistics::get_save() const
-{
-    return save;
-}
-
-/* cache_limit_statistic class implementation */
-cache_limit_statistic::cache_limit_statistic(configuration &config, const std::string &name)
-    : statistics(config, name, -1)
-{
-}
-
-void
-cache_limit_statistic::check(scoped_cursor &cursor)
-{
-    double use_percent = get_cache_value(cursor);
-    if (use_percent > max) {
-        const std::string error_string =
-          "runtime_monitor: Cache usage exceeded during test! Limit: " + std::to_string(max) +
-          " usage: " + std::to_string(use_percent);
-        testutil_die(-1, error_string.c_str());
-    } else
-        logger::log_msg(LOG_TRACE, name + " usage: " + std::to_string(use_percent));
-}
-
-std::string
-cache_limit_statistic::get_value_str(scoped_cursor &cursor)
-{
-    return std::to_string(get_cache_value(cursor));
-}
-
-double
-cache_limit_statistic::get_cache_value(scoped_cursor &cursor)
-{
-    int64_t cache_bytes_image, cache_bytes_other, cache_bytes_max;
-    double use_percent;
-    /* Three statistics are required to compute cache use percentage. */
-    runtime_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_IMAGE, &cache_bytes_image);
-    runtime_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_OTHER, &cache_bytes_other);
-    runtime_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_MAX, &cache_bytes_max);
-    /*
-     * Assert that we never exceed our configured limit for cache usage. Add 0.0 to avoid floating
-     * point conversion errors.
-     */
-    testutil_assert(cache_bytes_max > 0);
-    use_percent = ((cache_bytes_image + cache_bytes_other + 0.0) / cache_bytes_max) * 100;
-    return use_percent;
-}
-
-/* db_size_statistic class implementation */
-db_size_statistic::db_size_statistic(
-  configuration &config, const std::string &name, database &database)
-    : statistics(config, name, -1), _database(database)
-{
-#ifdef _WIN32
-    Logger::log_msg("Database size checking is not implemented on Windows", LOG_ERROR);
-#endif
-}
-
-void
-db_size_statistic::check(scoped_cursor &)
-{
-#ifndef _WIN32
-    const auto file_names = get_file_names();
-    size_t db_size = get_db_size();
-    logger::log_msg(LOG_TRACE, "Current database size is " + std::to_string(db_size) + " bytes");
-
-    if (db_size > max) {
-        const std::string error_string =
-          "runtime_monitor: Database size limit exceeded during test! Limit: " +
-          std::to_string(max) + " db size: " + std::to_string(db_size);
-        testutil_die(-1, error_string.c_str());
-    }
-#endif
-}
-
-std::string
-db_size_statistic::get_value_str(scoped_cursor &)
-{
-    return std::to_string(get_db_size());
-}
-
-size_t
-db_size_statistic::get_db_size() const
-{
-    const auto file_names = get_file_names();
-    size_t db_size = 0;
-
-    for (const auto &name : file_names) {
-        struct stat sb;
-        if (stat(name.c_str(), &sb) == 0) {
-            db_size += sb.st_size;
-            logger::log_msg(LOG_TRACE, name + " was " + std::to_string(sb.st_size) + " bytes");
-        } else
-            /* The only good reason for this to fail is if the file hasn't been created yet. */
-            testutil_assert(errno == ENOENT);
-    }
-
-    return db_size;
-}
-
-const std::vector<std::string>
-db_size_statistic::get_file_names() const
-{
-    std::vector<std::string> file_names;
-    for (const auto &name : _database.get_collection_names())
-        file_names.push_back(collection_name_to_file_name(name));
-
-    /* Add WiredTiger internal tables. */
-    file_names.push_back(std::string(DEFAULT_DIR) + "/" + WT_HS_FILE);
-    file_names.push_back(std::string(DEFAULT_DIR) + "/" + WT_METAFILE);
-
-    return (file_names);
 }
 
 /* runtime_monitor class implementation */
@@ -280,12 +89,12 @@ runtime_monitor::load()
     if (_enabled) {
 
         std::unique_ptr<configuration> stat_config(_config->get_subconfig(STAT_CACHE_SIZE));
-        _stats.push_back(std::unique_ptr<cache_limit_statistic>(
-          new cache_limit_statistic(*stat_config, STAT_CACHE_SIZE)));
+        _stats.push_back(
+          std::unique_ptr<cache_limit>(new cache_limit(*stat_config, STAT_CACHE_SIZE)));
 
         stat_config.reset(_config->get_subconfig(STAT_DB_SIZE));
-        _stats.push_back(std::unique_ptr<db_size_statistic>(
-          new db_size_statistic(*stat_config, STAT_DB_SIZE, _database)));
+        _stats.push_back(
+          std::unique_ptr<database_size>(new database_size(*stat_config, STAT_DB_SIZE, _database)));
 
         stat_config.reset(_config->get_subconfig(CACHE_HS_INSERT));
         _stats.push_back(std::unique_ptr<statistics>(

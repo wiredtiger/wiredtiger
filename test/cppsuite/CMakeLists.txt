@@ -11,6 +11,9 @@ add_library(cppsuite_test_harness STATIC
     src/component/op_tracker.cpp
     src/component/perf_plotter.cpp
     src/component/runtime_monitor.cpp
+    src/component/statistics/cache_limit.cpp
+    src/component/statistics/database_size.cpp
+    src/component/statistics/statistics.cpp
     src/component/timestamp_manager.cpp
     src/component/workload_generator.cpp
     src/component/workload_tracking.cpp

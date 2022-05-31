@@ -26,50 +26,45 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef RUNTIME_MONITOR_H
-#define RUNTIME_MONITOR_H
+#ifndef STATISTICS_H
+#define STATISTICS_H
 
-#include <memory>
 #include <string>
-#include <vector>
 
 #include "src/main/configuration.h"
-#include "src/main/database_model.h"
 #include "src/storage/scoped_types.h"
-#include "statistics/statistics.h"
 
 namespace test_harness {
 
-/*
- * The runtime monitor class is designed to track various statistics or other runtime signals
- * relevant to the given workload.
- */
-class runtime_monitor : public component {
+class statistics {
     public:
-    static void get_stat(scoped_cursor &, int, int64_t *);
+    statistics() = default;
+    explicit statistics(configuration &config, const std::string &stat_name, int stat_field);
+    virtual ~statistics() = default;
 
-    public:
-    explicit runtime_monitor(
-      const std::string &test_name, configuration *config, database &database);
-    virtual ~runtime_monitor() = default;
+    /* Check that the statistics are within bounds. */
+    virtual void check(scoped_cursor &cursor);
 
-    /* Delete the copy constructor and the assignment operator. */
-    runtime_monitor(const runtime_monitor &) = delete;
-    runtime_monitor &operator=(const runtime_monitor &) = delete;
+    /* Retrieve the value associated to the stat in a string format. */
+    virtual std::string get_value_str(scoped_cursor &cursor);
 
-    void load() override final;
-    void do_work() override final;
-    void finish() override final;
+    /* Getters. */
+    int get_field() const;
+    int64_t get_max() const;
+    int64_t get_min() const;
+    const std::string &get_name() const;
+    bool get_postrun() const;
+    bool get_runtime() const;
+    bool get_save() const;
 
-    private:
-    void append_stats();
-
-    private:
-    scoped_session _session;
-    scoped_cursor _cursor;
-    const std::string _test_name;
-    std::vector<std::unique_ptr<statistics>> _stats;
-    database &_database;
+    protected:
+    int field;
+    int64_t max;
+    int64_t min;
+    std::string name;
+    bool postrun;
+    bool runtime;
+    bool save;
 };
 } // namespace test_harness
 

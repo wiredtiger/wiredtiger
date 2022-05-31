@@ -26,49 +26,31 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef RUNTIME_MONITOR_H
-#define RUNTIME_MONITOR_H
+#ifndef DATABASE_SIZE_H
+#define DATABASE_SIZE_H
 
-#include <memory>
 #include <string>
-#include <vector>
-
 #include "src/main/configuration.h"
 #include "src/main/database_model.h"
 #include "src/storage/scoped_types.h"
-#include "statistics/statistics.h"
+#include "statistics.h"
 
 namespace test_harness {
 
-/*
- * The runtime monitor class is designed to track various statistics or other runtime signals
- * relevant to the given workload.
- */
-class runtime_monitor : public component {
+class database_size : public statistics {
     public:
-    static void get_stat(scoped_cursor &, int, int64_t *);
+    explicit database_size(configuration &config, const std::string &name, database &database);
+    virtual ~database_size() = default;
 
-    public:
-    explicit runtime_monitor(
-      const std::string &test_name, configuration *config, database &database);
-    virtual ~runtime_monitor() = default;
-
-    /* Delete the copy constructor and the assignment operator. */
-    runtime_monitor(const runtime_monitor &) = delete;
-    runtime_monitor &operator=(const runtime_monitor &) = delete;
-
-    void load() override final;
-    void do_work() override final;
-    void finish() override final;
+    /* Don't need the stat cursor for these. */
+    void check(scoped_cursor &) override final;
+    std::string get_value_str(scoped_cursor &) override final;
 
     private:
-    void append_stats();
+    size_t get_db_size() const;
+    const std::vector<std::string> get_file_names() const;
 
     private:
-    scoped_session _session;
-    scoped_cursor _cursor;
-    const std::string _test_name;
-    std::vector<std::unique_ptr<statistics>> _stats;
     database &_database;
 };
 } // namespace test_harness
