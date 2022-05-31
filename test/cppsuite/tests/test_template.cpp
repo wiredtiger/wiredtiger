@@ -28,7 +28,7 @@
 
 #include <iostream>
 
-#include "src/common/api_const.h"
+#include "src/common/constants.h"
 #include "src/main/test.h"
 
 namespace test_harness {

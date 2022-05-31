@@ -30,7 +30,7 @@
 
 #include <thread>
 
-#include "src/common/api_const.h"
+#include "src/common/constants.h"
 
 extern "C" {
 #include "test_util.h"

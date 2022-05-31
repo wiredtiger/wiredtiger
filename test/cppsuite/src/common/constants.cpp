@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "api_const.h"
+#include "constants.h"
 
 /* Define all constants related to WiredTiger APIs and testing. */
 namespace test_harness {

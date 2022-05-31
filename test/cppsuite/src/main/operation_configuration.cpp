@@ -28,7 +28,7 @@
 
 #include "operation_configuration.h"
 
-#include "src/common/api_const.h"
+#include "src/common/constants.h"
 
 namespace test_harness {
 /* operation_configuration class implementation */

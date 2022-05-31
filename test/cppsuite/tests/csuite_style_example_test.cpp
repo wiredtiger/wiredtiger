@@ -33,7 +33,7 @@
  * test_template.cpp and create_script.sh.
  */
 
-#include "src/common/api_const.h"
+#include "src/common/constants.h"
 #include "src/common/logger.h"
 #include "src/common/random_generator.h"
 #include "src/common/thread_manager.h"
