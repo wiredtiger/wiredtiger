@@ -7,7 +7,7 @@ checkpoint_manager=
     enabled=true,
     op_rate=30s
 ),
-runtime_monitor=
+statistics_monitor=
 (
     stat_db_size=
     (

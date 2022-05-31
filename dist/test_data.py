@@ -132,7 +132,7 @@ checkpoint_manager = enabled_config_false + component_config
 # Configuration that applies to the runtime monitor component, this should be a list of statistics
 # that need to be checked by the component.
 #
-runtime_monitor = enabled_config_true + component_config + [
+statistics_monitor = enabled_config_true + component_config + [
     Config('cache_hs_insert', '', r'''
         Number of history store table insert calls.''',
         type='category', subconfig=stat_config),
@@ -200,9 +200,9 @@ test_config = [
     Config('checkpoint_manager', '', r'''
         Configuration options for the checkpoint manager''',
         type='category', subconfig=checkpoint_manager),
-    Config('runtime_monitor', '', r'''
-        Configuration options for the runtime_monitor''',
-        type='category', subconfig=runtime_monitor),
+    Config('statistics_monitor', '', r'''
+        Configuration options for the statistics_monitor''',
+        type='category', subconfig=statistics_monitor),
     Config('timestamp_manager', '', r'''
         Configuration options for the timestamp manager''',
         type='category', subconfig=timestamp_manager),

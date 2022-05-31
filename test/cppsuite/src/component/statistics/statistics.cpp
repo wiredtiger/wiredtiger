@@ -30,7 +30,7 @@
 
 #include "src/common/constants.h"
 #include "src/common/logger.h"
-#include "src/component/runtime_monitor.h"
+#include "src/component/statistics_monitor.h"
 
 namespace test_harness {
 
@@ -46,9 +46,9 @@ void
 statistics::check(scoped_cursor &cursor)
 {
     int64_t stat_value;
-    runtime_monitor::get_stat(cursor, field, &stat_value);
+    statistics_monitor::get_stat(cursor, field, &stat_value);
     if (stat_value < min || stat_value > max) {
-        const std::string error_string = "runtime_monitor: Postrun stat \"" + name +
+        const std::string error_string = "statistics_monitor: Postrun stat \"" + name +
           "\" was outside of the specified limits. Min=" + std::to_string(min) +
           " Max=" + std::to_string(max) + " Actual=" + std::to_string(stat_value);
         testutil_die(-1, error_string.c_str());
@@ -60,7 +60,7 @@ std::string
 statistics::get_value_str(scoped_cursor &cursor)
 {
     int64_t stat_value;
-    runtime_monitor::get_stat(cursor, field, &stat_value);
+    statistics_monitor::get_stat(cursor, field, &stat_value);
     return std::to_string(stat_value);
 }
 

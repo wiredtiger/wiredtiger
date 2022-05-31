@@ -37,8 +37,8 @@ test::test(const test_args &args) : _args(args)
 {
     _config = new configuration(args.test_name, args.test_config);
     _checkpoint_manager = new checkpoint_manager(_config->get_subconfig(CHECKPOINT_MANAGER));
-    _runtime_monitor =
-      new runtime_monitor(args.test_name, _config->get_subconfig(RUNTIME_MONITOR), _database);
+    _statistics_monitor =
+      new statistics_monitor(args.test_name, _config->get_subconfig(STATISTICS_MONITOR), _database);
     _timestamp_manager = new timestamp_manager(_config->get_subconfig(TIMESTAMP_MANAGER));
     _workload_generator = new workload_generator(
       _config->get_subconfig(WORKLOAD_GENERATOR), this, _timestamp_manager, _database);
@@ -52,7 +52,8 @@ test::test(const test_args &args) : _args(args)
      * Ordering is not important here, any dependencies between components should be resolved
      * internally by the components.
      */
-    _components = {_workload_generator, _timestamp_manager, _runtime_monitor, _checkpoint_manager};
+    _components = {
+      _workload_generator, _timestamp_manager, _statistics_monitor, _checkpoint_manager};
 }
 
 void
@@ -74,14 +75,14 @@ test::~test()
 {
     delete _config;
     delete _checkpoint_manager;
-    delete _runtime_monitor;
+    delete _statistics_monitor;
     delete _timestamp_manager;
     delete _thread_manager;
     delete _workload_generator;
     delete _workload_tracking;
     _config = nullptr;
     _checkpoint_manager = nullptr;
-    _runtime_monitor = nullptr;
+    _statistics_monitor = nullptr;
     _timestamp_manager = nullptr;
     _thread_manager = nullptr;
     _workload_generator = nullptr;

@@ -12,7 +12,7 @@ checkpoint_manager=
     enabled=true,
     op_rate=20s
 ),
-runtime_monitor=
+statistics_monitor=
 (
     cache_hs_insert=
     (

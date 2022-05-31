@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "runtime_monitor.h"
+#include "statistics_monitor.h"
 
 #include <fstream>
 
@@ -62,9 +62,9 @@ get_stat_field(const std::string &name)
     testutil_die(EINVAL, "get_stat_field: Stat \"%s\" is unrecognized", name.c_str());
 }
 
-/* runtime_monitor class implementation */
+/* statistics_monitor class implementation */
 void
-runtime_monitor::get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep)
+statistics_monitor::get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep)
 {
     const char *desc, *pvalue;
     cursor->set_key(cursor.get(), stat_field);
@@ -73,14 +73,14 @@ runtime_monitor::get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep
     testutil_check(cursor->reset(cursor.get()));
 }
 
-runtime_monitor::runtime_monitor(
+statistics_monitor::statistics_monitor(
   const std::string &test_name, configuration *config, database &database)
-    : component(RUNTIME_MONITOR, config), _test_name(test_name), _database(database)
+    : component(STATISTICS_MONITOR, config), _test_name(test_name), _database(database)
 {
 }
 
 void
-runtime_monitor::load()
+statistics_monitor::load()
 {
     /* Load the general component things. */
     component::load();
@@ -111,7 +111,7 @@ runtime_monitor::load()
 }
 
 void
-runtime_monitor::do_work()
+statistics_monitor::do_work()
 {
     /* Check runtime statistics. */
     for (const auto &stat : _stats) {
@@ -121,7 +121,7 @@ runtime_monitor::do_work()
 }
 
 void
-runtime_monitor::finish()
+statistics_monitor::finish()
 {
     component::finish();
 
@@ -145,7 +145,7 @@ runtime_monitor::finish()
         stat_value = std::stoi(stat->get_value_str(_cursor));
 
         if (stat_value < stat_min || stat_value > stat_max) {
-            const std::string error_string = "runtime_monitor: Postrun stat \"" + stat_name +
+            const std::string error_string = "statistics_monitor: Postrun stat \"" + stat_name +
               "\" was outside of the specified limits. Min=" + std::to_string(stat_min) +
               " Max=" + std::to_string(stat_max) + " Actual=" + std::to_string(stat_value);
             logger::log_msg(LOG_ERROR, error_string);
@@ -153,13 +153,13 @@ runtime_monitor::finish()
         }
 
         logger::log_msg(LOG_INFO,
-          "runtime_monitor: Final value of stat " + stat_name +
+          "statistics_monitor: Final value of stat " + stat_name +
             " is: " + std::to_string(stat_value));
     }
 
     if (!success)
         testutil_die(-1,
-          "runtime_monitor: One or more postrun statistics were outside of their specified "
+          "statistics_monitor: One or more postrun statistics were outside of their specified "
           "limits.");
 }
 
@@ -168,7 +168,7 @@ runtime_monitor::finish()
  * by the configuration file to the perf plotter.
  */
 void
-runtime_monitor::append_stats()
+statistics_monitor::append_stats()
 {
     for (const auto &stat : _stats) {
         if (stat->get_save()) {

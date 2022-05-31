@@ -67,7 +67,7 @@ database_size::check(scoped_cursor &)
 
     if (db_size > max) {
         const std::string error_string =
-          "runtime_monitor: Database size limit exceeded during test! Limit: " +
+          "statistics_monitor: Database size limit exceeded during test! Limit: " +
           std::to_string(max) + " db size: " + std::to_string(db_size);
         testutil_die(-1, error_string.c_str());
     }

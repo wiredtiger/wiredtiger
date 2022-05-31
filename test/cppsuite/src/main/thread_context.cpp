@@ -65,8 +65,8 @@ thread_context::thread_context(uint64_t id, thread_type type, configuration *con
       value_size(config->get_optional_int(VALUE_SIZE, 1)),
       thread_count(config->get_int(THREAD_COUNT)), type(type), id(id), db(dbase),
       session(std::move(created_session)), tsm(timestamp_manager),
-      txn(transaction(config, timestamp_manager, session.get())),
-      tracking(tracking), _throttle(config)
+      txn(transaction(config, timestamp_manager, session.get())), tracking(tracking),
+      _throttle(config)
 {
     if (tracking->enabled())
         op_track_cursor = session.open_scoped_cursor(tracking->get_operation_table_name());

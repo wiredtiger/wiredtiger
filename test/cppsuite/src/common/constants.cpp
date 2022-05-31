@@ -33,7 +33,7 @@ namespace test_harness {
 
 /* Component names. */
 const std::string CHECKPOINT_MANAGER = "checkpoint_manager";
-const std::string RUNTIME_MONITOR = "runtime_monitor";
+const std::string STATISTICS_MONITOR = "statistics_monitor";
 const std::string TIMESTAMP_MANAGER = "timestamp_manager";
 const std::string WORKLOAD_GENERATOR = "workload_generator";
 const std::string WORKLOAD_TRACKING = "workload_tracking";

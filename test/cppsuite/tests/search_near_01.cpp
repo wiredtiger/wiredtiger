@@ -90,8 +90,8 @@ class search_near_01 : public test {
                                 --count;
                         } else {
                             /* Commit txn at commit timestamp 100. */
-                            testutil_assert(tc->txn.commit(
-                              "commit_timestamp=" + tc->tsm->decimal_to_hex(100)));
+                            testutil_assert(
+                              tc->txn.commit("commit_timestamp=" + tc->tsm->decimal_to_hex(100)));
                             rollback_retries = 0;
                         }
                     }
@@ -253,9 +253,9 @@ class search_near_01 : public test {
          */
         expected_entries = keys_per_prefix * pow(ALPHABET.size(), PREFIX_KEY_LEN - srchkey_len);
         while (tc->running()) {
-            runtime_monitor::get_stat(
+            statistics_monitor::get_stat(
               tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &prev_entries_stat);
-            runtime_monitor::get_stat(tc->stat_cursor,
+            statistics_monitor::get_stat(tc->stat_cursor,
               WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prev_prefix_stat);
 
             thread_manager tm;
@@ -279,9 +279,9 @@ class search_near_01 : public test {
             }
             workers.clear();
 
-            runtime_monitor::get_stat(
+            statistics_monitor::get_stat(
               tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entries_stat);
-            runtime_monitor::get_stat(
+            statistics_monitor::get_stat(
               tc->stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prefix_stat);
             logger::log_msg(LOG_TRACE,
               "Read thread skipped entries: " + std::to_string(entries_stat - prev_entries_stat) +

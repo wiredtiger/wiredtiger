@@ -33,7 +33,7 @@
 
 #include "database_operation.h"
 #include "src/component/checkpoint_manager.h"
-#include "src/component/runtime_monitor.h"
+#include "src/component/statistics_monitor.h"
 #include "src/component/workload_generator.h"
 #include "src/storage/connection_manager.h"
 
@@ -69,7 +69,7 @@ class test : public database_operation {
      * program.
      */
     workload_generator *get_workload_generator();
-    runtime_monitor *get_runtime_monitor();
+    statistics_monitor *get_statistics_monitor();
     timestamp_manager *get_timestamp_manager();
     thread_manager *get_thread_manager();
 
@@ -82,7 +82,7 @@ class test : public database_operation {
     private:
     std::vector<component *> _components;
     checkpoint_manager *_checkpoint_manager = nullptr;
-    runtime_monitor *_runtime_monitor = nullptr;
+    statistics_monitor *_statistics_monitor = nullptr;
     thread_manager *_thread_manager = nullptr;
     workload_generator *_workload_generator = nullptr;
     database _database;

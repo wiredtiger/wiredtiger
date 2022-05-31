@@ -14,7 +14,7 @@ checkpoint_manager=
     enabled=true,
     op_rate=60s
 ),
-runtime_monitor=
+statistics_monitor=
 (
     # Seems to insert around 477K records. Give it +-20K margin.
     cache_hs_insert=
