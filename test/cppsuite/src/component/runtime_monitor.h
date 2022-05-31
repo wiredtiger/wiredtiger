@@ -29,6 +29,8 @@
 #ifndef RUNTIME_MONITOR_H
 #define RUNTIME_MONITOR_H
 
+#include <memory>
+
 #include "src/main/configuration.h"
 #include "src/main/database_model.h"
 #include "src/storage/scoped_types.h"

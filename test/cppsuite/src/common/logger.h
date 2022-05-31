@@ -37,7 +37,6 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include <memory>
 #include <mutex>
 
 /* Define helpful functions related to debugging. */
