@@ -16,7 +16,6 @@ add_library(cppsuite_test_harness STATIC
     src/component/timestamp_manager.cpp
     src/component/workload_manager.cpp
     src/component/workload_tracking.cpp
-    src/component/workload_validation.cpp
     src/main/collection.cpp
     src/main/configuration.cpp
     src/main/database.cpp
@@ -25,6 +24,7 @@ add_library(cppsuite_test_harness STATIC
     src/main/test.cpp
     src/main/thread_context.cpp
     src/main/transaction.cpp
+    src/main/validator.cpp
     src/storage/connection_manager.cpp
     src/storage/scoped_cursor.cpp
     src/storage/scoped_session.cpp

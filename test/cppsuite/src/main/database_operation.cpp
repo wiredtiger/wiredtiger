@@ -34,7 +34,7 @@
 #include "src/common/constants.h"
 #include "src/common/logger.h"
 #include "src/common/random_generator.h"
-#include "src/component/workload_validation.h"
+#include "src/main/validator.h"
 #include "src/storage/connection_manager.h"
 
 namespace test_harness {
@@ -404,7 +404,7 @@ void
 database_operation::validate(const std::string &operation_table_name,
   const std::string &schema_table_name, const std::vector<uint64_t> &known_collection_ids)
 {
-    workload_validation wv;
+    validator wv;
     wv.validate(operation_table_name, schema_table_name, known_collection_ids);
 }
 } // namespace test_harness
