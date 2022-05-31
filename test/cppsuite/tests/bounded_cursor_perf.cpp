@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "src/common/op_tracker.cpp"
+#include "src/component/op_tracker.cpp"
 #include "src/main/test.h"
 
 using namespace test_harness;

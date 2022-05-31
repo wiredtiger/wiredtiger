@@ -4,11 +4,12 @@ project(cppsuite CXX)
 add_library(cppsuite_test_harness STATIC
     src/common/api_const.cpp
     src/common/logger.cpp
-    src/common/perf_plotter.cpp
     src/common/random_generator.cpp
     src/common/thread_manager.cpp
     src/component/checkpoint_manager.cpp
     src/component/component.cpp
+    src/component/op_tracker.cpp
+    src/component/perf_plotter.cpp
     src/component/runtime_monitor.cpp
     src/component/timestamp_manager.cpp
     src/component/workload_generator.cpp

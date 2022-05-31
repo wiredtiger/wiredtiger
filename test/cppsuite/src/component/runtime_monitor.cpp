@@ -32,7 +32,7 @@
 
 #include "src/common/api_const.h"
 #include "src/common/logger.h"
-#include "src/common/perf_plotter.h"
+#include "src/component/perf_plotter.h"
 #include "src/storage/connection_manager.h"
 
 extern "C" {
