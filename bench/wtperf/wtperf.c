@@ -1354,9 +1354,6 @@ checkpoint_worker(void *arg)
         }
         wtperf->ckpt = false;
         ++thread->ckpt.ops;
-
-        if (stop || wtperf->error)
-            break;
     }
 
     if (session != NULL && ((ret = session->close(session, NULL)) != 0)) {
@@ -1430,8 +1427,6 @@ flush_tier_worker(void *arg)
         }
         wtperf->flush = false;
         ++thread->flush.ops;
-        if (stop)
-            break;
     }
 
     if (session != NULL && ((ret = session->close(session, NULL)) != 0)) {
