@@ -1172,10 +1172,18 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
     WT_ITEM key;
     WT_SESSION_IMPL *session;
     int exact;
+    bool inclusive;
+
+    exact = 0;
+    inclusive = false;
+
     CURSOR_API_CALL_CONF(cursor, session, bound, config, cfg, NULL);
 
     WT_ERR(__wt_config_gets(session, cfg, "action", &cval));
     if (WT_STRING_MATCH("set", cval.str, cval.len)) {
+        WT_ERR(__wt_config_gets(session, cfg, "inclusive", &cval));
+        inclusive = cval.val != 0;
+
         /* Check that bound is set with action set configuration. */
         WT_ERR(__wt_config_gets(session, cfg, "bound", &cval));
         if (cval.len == 0)
@@ -1194,12 +1202,17 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
                   session, CUR2BT(cursor)->collator, &key, &cursor->lower_bound, &exact));
                 if (exact < 0)
                     WT_ERR_MSG(session, EINVAL, "The provided cursor bounds are overlapping");
+                /* If lower bound and upper bound is equal, both inclusive flags must be set. */
+                if (exact == 0 && (!F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE) || !inclusive))
+                    WT_ERR_MSG(
+                      session, EINVAL, "The provided cursor bounds are equal but not inclusive");
             }
             /* Copy the key over to the upper bound item and set upper bound and inclusive flags. */
             F_SET(cursor, WT_CURSTD_BOUND_UPPER);
-            WT_ERR(__wt_config_gets(session, cfg, "inclusive", &cval));
-            if (cval.val)
+            if (inclusive)
                 F_SET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
+            else
+                F_CLR(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
             WT_ERR(__wt_buf_set(session, &cursor->upper_bound, key.data, key.size));
         } else if (WT_STRING_MATCH("lower", cval.str, cval.len)) {
             /*
@@ -1212,12 +1225,17 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
                   session, CUR2BT(cursor)->collator, &key, &cursor->upper_bound, &exact));
                 if (exact > 0)
                     WT_ERR_MSG(session, EINVAL, "The provided cursor bounds are overlapping");
+                /* If lower bound and upper bound is equal, both inclusive flags must be set. */
+                if (exact == 0 && (!F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE) || !inclusive))
+                    WT_ERR_MSG(
+                      session, EINVAL, "The provided cursor bounds are equal but not inclusive");
             }
             /* Copy the key over to the lower bound item and set upper bound and inclusive flags. */
             F_SET(cursor, WT_CURSTD_BOUND_LOWER);
-            WT_ERR(__wt_config_gets(session, cfg, "inclusive", &cval));
-            if (cval.val)
+            if (inclusive)
                 F_SET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
+            else
+                F_CLR(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
             WT_ERR(__wt_buf_set(session, &cursor->lower_bound, key.data, key.size));
         } else
             WT_ERR_MSG(session, EINVAL,
