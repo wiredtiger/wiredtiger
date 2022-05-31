@@ -1202,7 +1202,10 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
                   session, CUR2BT(cursor)->collator, &key, &cursor->lower_bound, &exact));
                 if (exact < 0)
                     WT_ERR_MSG(session, EINVAL, "The provided cursor bounds are overlapping");
-                /* If lower bound and upper bound is equal, both inclusive flags must be set. */
+                /* 
+                 * If the lower bound and upper bound are equal, both inclusive flags must be
+                 * specified.
+                 */
                 if (exact == 0 && (!F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE) || !inclusive))
                     WT_ERR_MSG(
                       session, EINVAL, "The provided cursor bounds are equal but not inclusive");
@@ -1225,7 +1228,10 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
                   session, CUR2BT(cursor)->collator, &key, &cursor->upper_bound, &exact));
                 if (exact > 0)
                     WT_ERR_MSG(session, EINVAL, "The provided cursor bounds are overlapping");
-                /* If lower bound and upper bound is equal, both inclusive flags must be set. */
+                /* 
+                 * If the lower bound and upper bound are equal, both inclusive flags must be
+                 * specified.
+                 */
                 if (exact == 0 && (!F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE) || !inclusive))
                     WT_ERR_MSG(
                       session, EINVAL, "The provided cursor bounds are equal but not inclusive");
