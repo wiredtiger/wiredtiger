@@ -36,7 +36,6 @@
 #include "src/component/runtime_monitor.h"
 #include "src/component/workload_generator.h"
 #include "src/storage/connection_manager.h"
-#include "src/storage/scoped_connection.h"
 
 namespace test_harness {
 struct test_args {
@@ -86,7 +85,6 @@ class test : public database_operation {
     runtime_monitor *_runtime_monitor = nullptr;
     thread_manager *_thread_manager = nullptr;
     workload_generator *_workload_generator = nullptr;
-    std::shared_ptr<scoped_connection> _scoped_conn;
     database _database;
 };
 } // namespace test_harness

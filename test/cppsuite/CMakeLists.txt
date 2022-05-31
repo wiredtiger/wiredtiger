@@ -28,7 +28,6 @@ add_library(cppsuite_test_harness STATIC
     src/main/throttle.cpp
     src/main/transaction.cpp
     src/storage/connection_manager.cpp
-    src/storage/scoped_connection.cpp
     src/storage/scoped_types.cpp
 )
 
