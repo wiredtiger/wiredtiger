@@ -46,7 +46,7 @@ class operation_tracker_cache_resize : public operation_tracker {
     void
     set_tracking_cursor(const uint64_t txn_id, const tracking_operation &operation,
       const uint64_t &, const std::string &, const std::string &value, wt_timestamp_t ts,
-      scoped_cursor &op_track_cursor) override final
+      wiredtiger_cursor &op_track_cursor) override final
     {
         op_track_cursor->set_key(op_track_cursor.get(), ts, txn_id);
         op_track_cursor->set_value(op_track_cursor.get(), operation, value.c_str());
@@ -130,7 +130,7 @@ class cache_resize : public test {
         const uint64_t collection_count = tc->db.get_collection_count();
         testutil_assert(collection_count > 0);
         collection &coll = tc->db.get_collection(collection_count - 1);
-        scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+        wiredtiger_cursor cursor = tc->session.open_wiredtiger_cursor(coll.name);
 
         while (tc->running()) {
             tc->sleep();
@@ -175,8 +175,8 @@ class cache_resize : public test {
         (void)cache_size_500mb;
 
         /* Open a cursor on the tracking table to read it. */
-        scoped_session session = connection_manager::instance().create_session();
-        scoped_cursor cursor = session.open_scoped_cursor(operation_table_name);
+        wiredtiger_session session = connection_manager::instance().create_session();
+        wiredtiger_cursor cursor = session.open_wiredtiger_cursor(operation_table_name);
 
         /*
          * Parse the tracking table. Each operation is tracked and each transaction is made of

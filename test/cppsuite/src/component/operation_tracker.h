@@ -30,8 +30,8 @@
 #define OPERATION_TRACKER_H
 
 #include "component.h"
-#include "src/storage/scoped_cursor.h"
-#include "src/storage/scoped_session.h"
+#include "src/storage/wiredtiger_cursor.h"
+#include "src/storage/wiredtiger_session.h"
 #include "timestamp_manager.h"
 
 /*
@@ -77,17 +77,17 @@ class operation_tracker : public component {
 
     virtual void set_tracking_cursor(const uint64_t txn_id, const tracking_operation &operation,
       const uint64_t &collection_id, const std::string &key, const std::string &value,
-      wt_timestamp_t ts, scoped_cursor &op_track_cursor);
+      wt_timestamp_t ts, wiredtiger_cursor &op_track_cursor);
 
     int save_operation(const uint64_t txn_id, const tracking_operation &operation,
       const uint64_t &collection_id, const std::string &key, const std::string &value,
-      wt_timestamp_t ts, scoped_cursor &op_track_cursor);
+      wt_timestamp_t ts, wiredtiger_cursor &op_track_cursor);
 
     private:
-    scoped_session _session;
-    scoped_session _sweep_session;
-    scoped_cursor _schema_track_cursor;
-    scoped_cursor _sweep_cursor;
+    wiredtiger_session _session;
+    wiredtiger_session _sweep_session;
+    wiredtiger_cursor _schema_track_cursor;
+    wiredtiger_cursor _sweep_cursor;
     std::string _operation_table_config;
     const std::string _operation_table_name;
     const std::string _schema_table_config;

@@ -67,7 +67,7 @@ connection_manager::create(const std::string &config, const std::string &home)
     testutil_check(wiredtiger_open(home.c_str(), nullptr, config.c_str(), &_conn));
 }
 
-scoped_session
+wiredtiger_session
 connection_manager::create_session()
 {
     if (_conn == nullptr) {
@@ -78,7 +78,7 @@ connection_manager::create_session()
     }
 
     std::lock_guard<std::mutex> lg(_conn_mutex);
-    scoped_session session(_conn);
+    wiredtiger_session session(_conn);
 
     return (session);
 }

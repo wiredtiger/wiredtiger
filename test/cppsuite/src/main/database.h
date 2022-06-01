@@ -73,7 +73,7 @@ class database {
 
     private:
     std::string _collection_create_config = "";
-    scoped_session _session;
+    wiredtiger_session _session;
     timestamp_manager *_tsm = nullptr;
     operation_tracker *_operation_tracker = nullptr;
     uint64_t _next_collection_id = 0;

@@ -63,7 +63,7 @@ get_stat_field(const std::string &name)
 }
 
 void
-statistics_monitor::get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep)
+statistics_monitor::get_stat(wiredtiger_cursor &cursor, int stat_field, int64_t *valuep)
 {
     const char *desc, *pvalue;
     cursor->set_key(cursor.get(), stat_field);
@@ -105,7 +105,7 @@ statistics_monitor::load()
 
         /* Open our statistic cursor. */
         _session = connection_manager::instance().create_session();
-        _cursor = _session.open_scoped_cursor(STATISTICS_URI);
+        _cursor = _session.open_wiredtiger_cursor(STATISTICS_URI);
     }
 }
 

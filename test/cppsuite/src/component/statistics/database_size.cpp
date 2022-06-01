@@ -57,7 +57,7 @@ database_size::database_size(configuration &config, const std::string &name, dat
 }
 
 void
-database_size::check(scoped_cursor &)
+database_size::check(wiredtiger_cursor &)
 {
 #ifndef _WIN32
     const auto file_names = get_file_names();
@@ -74,7 +74,7 @@ database_size::check(scoped_cursor &)
 }
 
 std::string
-database_size::get_value_str(scoped_cursor &)
+database_size::get_value_str(wiredtiger_cursor &)
 {
     return std::to_string(get_db_size());
 }

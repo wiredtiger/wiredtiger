@@ -63,7 +63,7 @@ class search_near_03 : public test {
      */
     static bool
     perform_unique_index_insertions(
-      thread_worker *tc, scoped_cursor &cursor, collection &coll, std::string &prefix_key)
+      thread_worker *tc, wiredtiger_cursor &cursor, collection &coll, std::string &prefix_key)
     {
         std::string ret_key;
         const char *key_tmp;
@@ -114,7 +114,7 @@ class search_near_03 : public test {
          * generated prefix and thread id.
          */
         collection &coll = tc->db.get_collection(tc->id);
-        scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+        wiredtiger_cursor cursor = tc->session.open_wiredtiger_cursor(coll.name);
         cursor->reconfigure(cursor.get(), "prefix_search=true");
         for (uint64_t count = 0; count < tc->key_count; ++count) {
             tc->txn.begin();
@@ -194,12 +194,12 @@ class search_near_03 : public test {
          * traverse through each collection using a cursor to collect the prefix and push it into a
          * 2D vector.
          */
-        scoped_session session = connection_manager::instance().create_session();
+        wiredtiger_session session = connection_manager::instance().create_session();
         const char *key_tmp;
         int ret = 0;
         for (uint64_t i = 0; i < database.get_collection_count(); i++) {
             collection &coll = database.get_collection(i);
-            scoped_cursor cursor = session.open_scoped_cursor(coll.name);
+            wiredtiger_cursor cursor = session.open_wiredtiger_cursor(coll.name);
             std::vector<std::string> prefixes;
             ret = 0;
             while (ret == 0) {
@@ -219,7 +219,7 @@ class search_near_03 : public test {
     void
     insert_operation(thread_worker *tc) override final
     {
-        std::map<uint64_t, scoped_cursor> cursors;
+        std::map<uint64_t, wiredtiger_cursor> cursors;
         std::string prefix_key;
         size_t random_index;
 
@@ -234,7 +234,7 @@ class search_near_03 : public test {
             /* Get a collection and find a cached cursor. */
             collection &coll = tc->db.get_random_collection();
             if (cursors.find(coll.id) == cursors.end()) {
-                scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+                wiredtiger_cursor cursor = tc->session.open_wiredtiger_cursor(coll.name);
                 cursor->reconfigure(cursor.get(), "prefix_search=true");
                 cursors.emplace(coll.id, std::move(cursor));
             }
@@ -275,7 +275,7 @@ class search_near_03 : public test {
         while (tc->running()) {
             for (int i = 0; i < tc->db.get_collection_count(); i++) {
                 collection &coll = tc->db.get_collection(i);
-                scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+                wiredtiger_cursor cursor = tc->session.open_wiredtiger_cursor(coll.name);
                 ret = 0;
                 while (ret == 0) {
                     ret = cursor->next(cursor.get());

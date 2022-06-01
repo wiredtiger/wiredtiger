@@ -26,8 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef SCOPED_CURSOR_H
-#define SCOPED_CURSOR_H
+#ifndef WIREDTIGER_CURSOR_H
+#define WIREDTIGER_CURSOR_H
 
 /* Following definitions are required in order to use printing format specifiers in C++. */
 #ifndef __STDC_LIMIT_MACROS
@@ -44,19 +44,19 @@ extern "C" {
 }
 
 namespace test_harness {
-class scoped_cursor {
+class wiredtiger_cursor {
     public:
-    scoped_cursor() = default;
-    scoped_cursor(WT_SESSION *session, const std::string &uri, const std::string &cfg);
+    wiredtiger_cursor() = default;
+    wiredtiger_cursor(WT_SESSION *session, const std::string &uri, const std::string &cfg);
 
     /* Moving is ok but copying is not. */
-    scoped_cursor(scoped_cursor &&other);
+    wiredtiger_cursor(wiredtiger_cursor &&other);
 
-    ~scoped_cursor();
+    ~wiredtiger_cursor();
 
-    scoped_cursor &operator=(scoped_cursor &&other);
-    scoped_cursor(const scoped_cursor &) = delete;
-    scoped_cursor &operator=(const scoped_cursor &) = delete;
+    wiredtiger_cursor &operator=(wiredtiger_cursor &&other);
+    wiredtiger_cursor(const wiredtiger_cursor &) = delete;
+    wiredtiger_cursor &operator=(const wiredtiger_cursor &) = delete;
 
     void reinit(WT_SESSION *session, const std::string &uri, const std::string &cfg);
 

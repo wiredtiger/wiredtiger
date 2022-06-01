@@ -42,7 +42,7 @@ statistics::statistics(configuration &config, const std::string &stat_name, int 
 }
 
 void
-statistics::check(scoped_cursor &cursor)
+statistics::check(wiredtiger_cursor &cursor)
 {
     int64_t stat_value;
     statistics_monitor::get_stat(cursor, field, &stat_value);
@@ -56,7 +56,7 @@ statistics::check(scoped_cursor &cursor)
 }
 
 std::string
-statistics::get_value_str(scoped_cursor &cursor)
+statistics::get_value_str(wiredtiger_cursor &cursor)
 {
     int64_t stat_value;
     statistics_monitor::get_stat(cursor, field, &stat_value);

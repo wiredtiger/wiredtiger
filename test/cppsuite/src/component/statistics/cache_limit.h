@@ -32,7 +32,7 @@
 #include <string>
 
 #include "src/main/configuration.h"
-#include "src/storage/scoped_cursor.h"
+#include "src/storage/wiredtiger_cursor.h"
 #include "statistics.h"
 
 namespace test_harness {
@@ -42,11 +42,11 @@ class cache_limit : public statistics {
     cache_limit(configuration &config, const std::string &name);
     virtual ~cache_limit() = default;
 
-    void check(scoped_cursor &cursor) override final;
-    std::string get_value_str(scoped_cursor &cursor) override final;
+    void check(wiredtiger_cursor &cursor) override final;
+    std::string get_value_str(wiredtiger_cursor &cursor) override final;
 
     private:
-    double get_cache_value(scoped_cursor &cursor);
+    double get_cache_value(wiredtiger_cursor &cursor);
 };
 } // namespace test_harness
 

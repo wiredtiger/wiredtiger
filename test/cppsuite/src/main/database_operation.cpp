@@ -48,7 +48,7 @@ populate_worker(thread_worker *tc)
          * WiredTiger lets you open a cursor on a collection using the same pointer. When a session
          * is closed, WiredTiger APIs close the cursors too.
          */
-        scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+        wiredtiger_cursor cursor = tc->session.open_wiredtiger_cursor(coll.name);
         uint64_t j = 0;
         while (j < tc->key_count) {
             tc->txn.begin();
@@ -151,12 +151,12 @@ database_operation::insert_operation(thread_worker *tc)
 
     /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
     struct collection_cursor {
-        collection_cursor(collection &coll, scoped_cursor &&cursor)
+        collection_cursor(collection &coll, wiredtiger_cursor &&cursor)
             : coll(coll), cursor(std::move(cursor))
         {
         }
         collection &coll;
-        scoped_cursor cursor;
+        wiredtiger_cursor cursor;
     };
 
     /* Collection cursor vector. */
@@ -169,7 +169,7 @@ database_operation::insert_operation(thread_worker *tc)
     for (int i = tc->id * collections_per_thread;
          i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
         collection &coll = tc->db.get_collection(i);
-        scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+        wiredtiger_cursor cursor = tc->session.open_wiredtiger_cursor(coll.name);
         ccv.push_back({coll, std::move(cursor)});
     }
 
@@ -225,13 +225,13 @@ database_operation::read_operation(thread_worker *tc)
     logger::log_msg(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
-    std::map<uint64_t, scoped_cursor> cursors;
+    std::map<uint64_t, wiredtiger_cursor> cursors;
     while (tc->running()) {
         /* Get a collection and find a cached cursor. */
         collection &coll = tc->db.get_random_collection();
 
         if (cursors.find(coll.id) == cursors.end())
-            cursors.emplace(coll.id, std::move(tc->session.open_scoped_cursor(coll.name)));
+            cursors.emplace(coll.id, std::move(tc->session.open_wiredtiger_cursor(coll.name)));
 
         /* Do a second lookup now that we know it exists. */
         auto &cursor = cursors[coll.id];
@@ -272,7 +272,7 @@ database_operation::remove_operation(thread_worker *tc)
      * other one is a standard cursor to remove the random key. This is required as the random
      * cursor does not support the remove operation.
      */
-    std::map<uint64_t, scoped_cursor> rnd_cursors, cursors;
+    std::map<uint64_t, wiredtiger_cursor> rnd_cursors, cursors;
 
     /* Loop while the test is running. */
     while (tc->running()) {
@@ -291,10 +291,10 @@ database_operation::remove_operation(thread_worker *tc)
               "Thread {" + std::to_string(tc->id) +
                 "} Creating cursor for collection: " + coll.name);
             /* Open the two cursors for the chosen collection. */
-            scoped_cursor rnd_cursor =
-              tc->session.open_scoped_cursor(coll.name, "next_random=true");
+            wiredtiger_cursor rnd_cursor =
+              tc->session.open_wiredtiger_cursor(coll.name, "next_random=true");
             rnd_cursors.emplace(coll.id, std::move(rnd_cursor));
-            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+            wiredtiger_cursor cursor = tc->session.open_wiredtiger_cursor(coll.name);
             cursors.emplace(coll.id, std::move(cursor));
         }
 
@@ -302,8 +302,8 @@ database_operation::remove_operation(thread_worker *tc)
         tc->txn.try_begin();
 
         /* Get the cursor associated with the collection. */
-        scoped_cursor &rnd_cursor = rnd_cursors[coll.id];
-        scoped_cursor &cursor = cursors[coll.id];
+        wiredtiger_cursor &rnd_cursor = rnd_cursors[coll.id];
+        wiredtiger_cursor &cursor = cursors[coll.id];
 
         /* Choose a random key to delete. */
         const char *key_str;
@@ -342,7 +342,7 @@ database_operation::update_operation(thread_worker *tc)
     logger::log_msg(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
     /* Cursor map. */
-    std::map<uint64_t, scoped_cursor> cursors;
+    std::map<uint64_t, wiredtiger_cursor> cursors;
 
     /*
      * Loop while the test is running.
@@ -363,7 +363,7 @@ database_operation::update_operation(thread_worker *tc)
               "Thread {" + std::to_string(tc->id) +
                 "} Creating cursor for collection: " + coll.name);
             /* Open a cursor for the chosen collection. */
-            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+            wiredtiger_cursor cursor = tc->session.open_wiredtiger_cursor(coll.name);
             cursors.emplace(coll.id, std::move(cursor));
         }
 
@@ -371,7 +371,7 @@ database_operation::update_operation(thread_worker *tc)
         tc->txn.try_begin();
 
         /* Get the cursor associated with the collection. */
-        scoped_cursor &cursor = cursors[coll.id];
+        wiredtiger_cursor &cursor = cursors[coll.id];
 
         /* Choose a random key to update. */
         testutil_assert(coll.get_key_count() != 0);
