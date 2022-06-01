@@ -249,6 +249,7 @@ static int
 __delete_redo_window_cleanup_skip(
   WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
+    WT_UNUSED(ref);
     WT_UNUSED(session);
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
