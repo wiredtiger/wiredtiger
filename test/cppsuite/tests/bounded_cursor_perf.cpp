@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "src/component/op_tracker.cpp"
+#include "src/component/execution_timer.cpp"
 #include "src/main/test.h"
 
 using namespace test_harness;
@@ -65,11 +65,11 @@ class bounded_cursor_perf : public test {
          */
         int range_ret_next, range_ret_prev, ret_next, ret_prev;
 
-        /* Initialize the op trackers. */
-        op_tracker bounded_next("bounded_next", test::_args.test_name);
-        op_tracker default_next("default_next", test::_args.test_name);
-        op_tracker bounded_prev("bounded_prev", test::_args.test_name);
-        op_tracker default_prev("default_prev", test::_args.test_name);
+        /* Initialize the different timers for each function. */
+        execution_timer bounded_next("bounded_next", test::_args.test_name);
+        execution_timer default_next("default_next", test::_args.test_name);
+        execution_timer bounded_prev("bounded_prev", test::_args.test_name);
+        execution_timer default_prev("default_prev", test::_args.test_name);
 
         /* Get the collection to work on. */
         testutil_assert(tc->collection_count == 1);

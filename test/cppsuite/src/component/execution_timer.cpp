@@ -26,36 +26,40 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef OP_TRACKER_H
-#define OP_TRACKER_H
+#include "execution_timer.h"
 
-#include <string>
+#include "statistics_writer.h"
 
 namespace test_harness {
+execution_timer::execution_timer(const std::string id, const std::string &test_name)
+    : _id(id), _test_name(test_name), _it_count(0), _total_time_taken(0)
+{
+}
 
-/*
- * Class that tracks the performance of given operations and appends the stats to the perf file.
- */
-class op_tracker {
-    public:
-    op_tracker(const std::string id, const std::string &test_name);
-    virtual ~op_tracker();
+void
+execution_timer::append_stats()
+{
+    uint64_t avg = (uint64_t)_total_time_taken / _it_count;
+    std::string stat = "{\"name\":\"" + _id + "\",\"value\":" + std::to_string(avg) + "}";
+    statistics_writer::instance().add_stat(stat);
+}
 
-    /* Calculates the average time and appends the stat to the perf file. */
-    void append_stats();
+template <typename T>
+auto
+execution_timer::track(T lambda)
+{
+    auto _start_time = std::chrono::steady_clock::now();
+    int ret = lambda();
+    auto _end_time = std::chrono::steady_clock::now();
+    _total_time_taken += (_end_time - _start_time).count();
+    _it_count += 1;
 
-    /*
-     * Does timing for a given operation and keeps track of how many operations have been executed
-     * as well as total time taken.
-     */
-    template <typename T> auto track(T lambda);
+    return ret;
+}
 
-    private:
-    std::string _id;
-    std::string _test_name;
-    int _it_count;
-    uint64_t _total_time_taken;
-};
-} // namespace test_harness
-
-#endif
+execution_timer::~execution_timer()
+{
+    if (_it_count != 0)
+        append_stats();
+}
+}; // namespace test_harness

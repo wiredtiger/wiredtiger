@@ -7,7 +7,7 @@ add_library(cppsuite_test_harness STATIC
     src/common/random_generator.cpp
     src/common/thread_manager.cpp
     src/component/component.cpp
-    src/component/op_tracker.cpp
+    src/component/execution_timer.cpp
     src/component/statistics_monitor.cpp
     src/component/statistics_writer.cpp
     src/component/statistics/cache_limit.cpp
