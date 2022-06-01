@@ -26,9 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <iostream>
-
 #include "src/common/constants.h"
+#include "src/common/logger.h"
 #include "src/main/test.h"
 
 namespace test_harness {
@@ -75,49 +74,49 @@ class test_template : public test {
     void
     populate(database &, timestamp_manager *, configuration *, workload_tracking *) override final
     {
-        std::cout << "populate: nothing done." << std::endl;
+        logger::log_msg(LOG_WARN, "populate: nothing done");
     }
 
     void
     checkpoint_operation(thread_context *) override final
     {
-        std::cout << "checkpoint_operation: nothing done." << std::endl;
+        logger::log_msg(LOG_WARN, "checkpoint_operation: nothing done");
     }
 
     void
     custom_operation(thread_context *) override final
     {
-        std::cout << "custom_operation: nothing done." << std::endl;
+        logger::log_msg(LOG_WARN, "custom_operation: nothing done");
     }
 
     void
     insert_operation(thread_context *) override final
     {
-        std::cout << "insert_operation: nothing done." << std::endl;
+        logger::log_msg(LOG_WARN, "insert_operation: nothing done");
     }
 
     void
     read_operation(thread_context *) override final
     {
-        std::cout << "read_operation: nothing done." << std::endl;
+        logger::log_msg(LOG_WARN, "read_operation: nothing done");
     }
 
     void
     remove_operation(thread_context *) override final
     {
-        std::cout << "remove_operation: nothing done." << std::endl;
+        logger::log_msg(LOG_WARN, "remove_operation: nothing done");
     }
 
     void
     update_operation(thread_context *) override final
     {
-        std::cout << "update_operation: nothing done." << std::endl;
+        logger::log_msg(LOG_WARN, "update_operation: nothing done");
     }
 
     void
     validate(const std::string &, const std::string &, const std::vector<uint64_t> &) override final
     {
-        std::cout << "validate: nothing done." << std::endl;
+        logger::log_msg(LOG_WARN, "validate: nothing done");
     }
 };
 
