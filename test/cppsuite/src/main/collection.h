@@ -26,8 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef COLLECTIONL_H
-#define COLLECTIONL_H
+#ifndef COLLECTION_H
+#define COLLECTION_H
 
 #include <atomic>
 #include <string>
