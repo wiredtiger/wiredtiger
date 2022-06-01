@@ -141,7 +141,7 @@ timestamp_manager::get_valid_read_ts() const
     if (current_stable > current_oldest) {
         --current_stable;
     }
-    testutil_assert(current_stable > 0 && current_stable >= current_oldest);
+    testutil_assert(current_stable == 0 || current_stable >= current_oldest);
     /*
      * Its okay to return a timestamp less than a concurrently updated oldest timestamp as all
      * readers should be reading with timestamp rounding.
