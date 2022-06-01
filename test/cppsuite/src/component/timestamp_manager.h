@@ -62,8 +62,17 @@ class timestamp_manager : public component {
     /* Get oldest timestamp. */
     wt_timestamp_t get_oldest_ts() const;
 
-    /* Generate a random timestamp between the oldest timestamp and now. */
-    wt_timestamp_t get_random_ts() const;
+    /*
+     * Generate a timestamp between the oldest timestamp and the stable timestamp.
+     *
+     * WiredTiger will abort commit transactions that attempt to commit behind an active read
+     * timestamp in order to preserve repeatable reads. Currently the cppsuite doesn't handle that
+     * well, so to avoid this issue we will read behind the stable timestamp.
+     *
+     * This timestamp isn't guaranteed to provide a repeatable read as the oldest could move
+     * concurrently removing the previously seen data.
+     */
+    wt_timestamp_t get_valid_read_ts() const;
 
     private:
     /* Get the current time in seconds, bit shifted to the expected location. */
