@@ -262,9 +262,8 @@ class search_near_01 : public test {
             for (uint64_t i = 0; i < num_threads; ++i) {
                 /* Get a collection and find a cached cursor. */
                 collection &coll = tc->db.get_random_collection();
-                thread_worker *search_near_tc =
-                  new thread_worker(i, thread_type::READ, read_config,
-                    connection_manager::instance().create_session(), tc->tsm, tc->tracking, tc->db);
+                thread_worker *search_near_tc = new thread_worker(i, thread_type::READ, read_config,
+                  connection_manager::instance().create_session(), tc->tsm, tc->tracking, tc->db);
                 workers.push_back(search_near_tc);
                 tm.add_thread(perform_search_near, search_near_tc, coll.name, srchkey_len,
                   std::ref(z_key_searches));
