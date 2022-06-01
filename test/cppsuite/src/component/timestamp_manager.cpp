@@ -135,7 +135,8 @@ timestamp_manager::get_oldest_ts() const
 wt_timestamp_t
 timestamp_manager::get_repeatable_read_ts() const
 {
-    return random_generator::instance().generate_integer<wt_timestamp_t>(_oldest_ts, _stable_ts);
+    return random_generator::instance().generate_integer<wt_timestamp_t>(
+      _oldest_ts, _stable_ts - 1);
 }
 
 uint64_t
