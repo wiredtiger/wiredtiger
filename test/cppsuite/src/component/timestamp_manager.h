@@ -68,8 +68,11 @@ class timestamp_manager : public component {
      * WiredTiger will abort commit transactions that attempt to commit behind an active read
      * timestamp in order to preserve repeatable reads. Currently the cppsuite doesn't handle that
      * well, so to avoid this issue we will read behind the stable timestamp.
+     *
+     * This timestamp isn't guaranteed to provide a repeatable read as the oldest could move
+     * concurrently removing the previously seen data.
      */
-    wt_timestamp_t get_repeatable_read_ts() const;
+    wt_timestamp_t get_valid_read_ts() const;
 
     private:
     /* Get the current time in seconds, bit shifted to the expected location. */
