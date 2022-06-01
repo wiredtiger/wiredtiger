@@ -66,8 +66,8 @@ class timestamp_manager : public component {
      * Generate a timestamp between the oldest timestamp and the stable timestamp.
      *
      * WiredTiger will abort commit transactions that attempt to commit behind an active read
-     * timestamp in order to preserve repeatable reads. Currently the CppSuite doesn't handle that
-     * ell, so to avoid this issue we will read behind the stable timestamp.
+     * timestamp in order to preserve repeatable reads. Currently the cppsuite doesn't handle that
+     * well, so to avoid this issue we will read behind the stable timestamp.
      */
     wt_timestamp_t get_repeatable_read_ts() const;
 
