@@ -156,6 +156,26 @@
 #define API_END_RET(s, ret) \
     API_END(s, ret);        \
     return (ret)
+
+#define API_END_STAT(s, ret, api)                   \
+    do {                                            \
+        if ((ret) != 0 && ((ret) != WT_NOTFOUND)) { \
+            WT_STAT_CONN_DATA_INCR(s, api##_error); \
+        }                                           \
+    } while (0)
+
+#define API_RET_STAT(s, ret, api)  \
+    do {                           \
+        API_END_STAT(s, ret, api); \
+        return ((ret));            \
+    } while (0)
+
+#define API_END_RET_STAT(s, ret, api) \
+    do {                              \
+        API_END_STAT(s, ret, api);    \
+        API_END_RET(s, ret);          \
+    } while (0)
+
 #define API_END_RET_NOTFOUND_MAP(s, ret) \
     API_END(s, ret);                     \
     return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
@@ -276,6 +296,21 @@
 
 #define CURSOR_UPDATE_API_END(s, ret) CURSOR_UPDATE_API_END_RETRY(s, ret, true)
 
+#define CURSOR_UPDATE_API_END_RETRY_STAT(s, ret, retry, api) \
+    if ((ret) == WT_PREPARE_CONFLICT)                        \
+        (ret) = WT_ROLLBACK;                                 \
+    API_END_STAT(s, ret, api);                               \
+    TXN_API_END(s, ret, retry)
+
+#define CURSOR_UPDATE_API_END_STAT(s, ret, api) CURSOR_UPDATE_API_END_RETRY_STAT(s, ret, true, api)
+
+/*
+ * FIXME-WT-9372 The cursor reposition code has been disabled to isolate performance impact of a
+ * couple of eviction bugs. We are going to introduce a debug configuration option to control
+ * switching the feature on and off. This will help evaluate the need to have the repositioning
+ * logic and to tune it once MongoDB enables yielding during long running transactions.
+ */
+#if 0
 /*
  * Calling certain top level APIs allows for internal repositioning of cursors to facilitate
  * eviction of hot pages. These macros facilitate tracking when that is OK.
@@ -291,3 +326,7 @@
     }                                           \
     while (0)                                   \
         ;
+#else
+#define CURSOR_REPOSITION_ENTER(c, s)
+#define CURSOR_REPOSITION_END(c, s)
+#endif

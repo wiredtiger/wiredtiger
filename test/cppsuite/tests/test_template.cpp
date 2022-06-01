@@ -26,11 +26,14 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "test_harness/test.h"
+#include <iostream>
+
+#include "src/common/api_const.h"
+#include "src/main/test.h"
 
 namespace test_harness {
 /* Defines what data is written to the tracking table for use in custom validation. */
-class tracking_table_template : public test_harness::workload_tracking {
+class tracking_table_template : public workload_tracking {
 
     public:
     tracking_table_template(
@@ -40,13 +43,13 @@ class tracking_table_template : public test_harness::workload_tracking {
     }
 
     void
-    set_tracking_cursor(const tracking_operation &operation, const uint64_t &collection_id,
-      const std::string &key, const std::string &value, wt_timestamp_t ts,
-      scoped_cursor &op_track_cursor) override final
+    set_tracking_cursor(const uint64_t txn_id, const tracking_operation &operation,
+      const uint64_t &collection_id, const std::string &key, const std::string &value,
+      wt_timestamp_t ts, scoped_cursor &op_track_cursor) override final
     {
         /* You can replace this call to define your own tracking table contents. */
         workload_tracking::set_tracking_cursor(
-          operation, collection_id, key, value, ts, op_track_cursor);
+          txn_id, operation, collection_id, key, value, ts, op_track_cursor);
     }
 };
 
@@ -54,14 +57,12 @@ class tracking_table_template : public test_harness::workload_tracking {
  * Class that defines operations that do nothing as an example. This shows how database operations
  * can be overridden and customized.
  */
-class test_template : public test_harness::test {
+class test_template : public test {
     public:
-    test_template(const test_harness::test_args &args) : test(args)
+    test_template(const test_args &args) : test(args)
     {
-        delete this->_workload_tracking;
-        this->_workload_tracking =
-          new tracking_table_template(_config->get_subconfig(WORKLOAD_TRACKING),
-            _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager);
+        init_tracking(new tracking_table_template(_config->get_subconfig(WORKLOAD_TRACKING),
+          _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager));
     }
 
     void
@@ -72,38 +73,37 @@ class test_template : public test_harness::test {
     }
 
     void
-    populate(test_harness::database &, test_harness::timestamp_manager *,
-      test_harness::configuration *, test_harness::workload_tracking *) override final
+    populate(database &, timestamp_manager *, configuration *, workload_tracking *) override final
     {
         std::cout << "populate: nothing done." << std::endl;
     }
 
     void
-    custom_operation(test_harness::thread_context *) override final
+    custom_operation(thread_context *) override final
     {
         std::cout << "custom_operation: nothing done." << std::endl;
     }
 
     void
-    insert_operation(test_harness::thread_context *) override final
+    insert_operation(thread_context *) override final
     {
         std::cout << "insert_operation: nothing done." << std::endl;
     }
 
     void
-    read_operation(test_harness::thread_context *) override final
+    read_operation(thread_context *) override final
     {
         std::cout << "read_operation: nothing done." << std::endl;
     }
 
     void
-    remove_operation(test_harness::thread_context *) override final
+    remove_operation(thread_context *) override final
     {
         std::cout << "remove_operation: nothing done." << std::endl;
     }
 
     void
-    update_operation(test_harness::thread_context *) override final
+    update_operation(thread_context *) override final
     {
         std::cout << "update_operation: nothing done." << std::endl;
     }
