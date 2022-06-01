@@ -58,7 +58,6 @@ type_string(thread_type type)
     }
 }
 
-/* thread_context class implementation */
 thread_context::thread_context(uint64_t id, thread_type type, configuration *config,
   scoped_session &&created_session, timestamp_manager *timestamp_manager,
   workload_tracking *tracking, database &dbase)

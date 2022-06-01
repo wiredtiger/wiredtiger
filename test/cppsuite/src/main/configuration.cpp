@@ -71,7 +71,6 @@ config_item_to_list(const WT_CONFIG_ITEM item)
     return (split_string(str, ','));
 }
 
-/* configuration class implementation. */
 configuration::configuration(const std::string &test_config_name, const std::string &config)
 {
     const auto *config_entry = __wt_test_config_match(test_config_name.c_str());

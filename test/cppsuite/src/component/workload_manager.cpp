@@ -34,7 +34,6 @@
 #include "src/storage/connection_manager.h"
 
 namespace test_harness {
-/* workload_manager class implementation */
 workload_manager::workload_manager(configuration *configuration, database_operation *db_operation,
   timestamp_manager *timestamp_manager, database &database)
     : component(WORKLOAD_MANAGER, configuration), _database(database),

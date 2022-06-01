@@ -68,7 +68,6 @@ populate_worker(thread_context *tc)
     logger::log_msg(LOG_TRACE, "Populate: thread {" + std::to_string(tc->id) + "} finished");
 }
 
-/* database_operation class implementation. */
 void
 database_operation::populate(
   database &database, timestamp_manager *tsm, configuration *config, workload_tracking *tracking)

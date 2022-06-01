@@ -34,7 +34,6 @@
 
 namespace test_harness {
 
-/* transaction class implementation */
 transaction::transaction(
   configuration *config, timestamp_manager *timestamp_manager, WT_SESSION *session)
     : _timestamp_manager(timestamp_manager), _session(session)

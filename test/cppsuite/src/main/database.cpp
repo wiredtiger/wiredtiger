@@ -34,7 +34,6 @@
 #include "src/storage/connection_manager.h"
 
 namespace test_harness {
-/* database class implementation */
 std::string
 database::build_collection_name(const uint64_t id)
 {

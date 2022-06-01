@@ -31,7 +31,6 @@
 #include "src/common/constants.h"
 
 namespace test_harness {
-/* operation_configuration class implementation */
 operation_configuration::operation_configuration(configuration *config, thread_type type)
     : config(config), type(type), thread_count(config->get_int(THREAD_COUNT))
 {

@@ -37,7 +37,6 @@ extern "C" {
 
 namespace test_harness {
 
-/* cache_limit class implementation */
 cache_limit::cache_limit(configuration &config, const std::string &name)
     : statistics(config, name, -1)
 {

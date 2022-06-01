@@ -48,7 +48,6 @@ collection_name_to_file_name(const std::string &collection_name)
     return (std::string(DEFAULT_DIR) + "/" + stripped_name + ".wt");
 }
 
-/* database_size class implementation */
 database_size::database_size(configuration &config, const std::string &name, database &database)
     : statistics(config, name, -1), _database(database)
 {

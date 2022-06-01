@@ -62,7 +62,6 @@ get_stat_field(const std::string &name)
     testutil_die(EINVAL, "get_stat_field: Stat \"%s\" is unrecognized", name.c_str());
 }
 
-/* statistics_monitor class implementation */
 void
 statistics_monitor::get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep)
 {

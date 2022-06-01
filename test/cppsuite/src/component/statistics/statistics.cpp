@@ -34,7 +34,6 @@
 
 namespace test_harness {
 
-/* statistics class implementation */
 statistics::statistics(configuration &config, const std::string &stat_name, int stat_field)
     : field(stat_field), max(config.get_int(MAX)), min(config.get_int(MIN)), name(stat_name),
       postrun(config.get_bool(POSTRUN_STATISTICS)), runtime(config.get_bool(RUNTIME_STATISTICS)),
