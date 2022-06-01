@@ -60,7 +60,7 @@ type_string(thread_type type)
 
 thread_worker::thread_worker(uint64_t id, thread_type type, configuration *config,
   scoped_session &&created_session, timestamp_manager *timestamp_manager,
-  workload_tracking *tracking, database &dbase)
+  operation_tracker *op_tracker, database &dbase)
     : /* These won't exist for certain threads which is why we use optional here. */
       collection_count(config->get_optional_int(COLLECTION_COUNT, 1)),
       key_count(config->get_optional_int(KEY_COUNT_PER_COLLECTION, 1)),
@@ -68,11 +68,11 @@ thread_worker::thread_worker(uint64_t id, thread_type type, configuration *confi
       value_size(config->get_optional_int(VALUE_SIZE, 1)),
       thread_count(config->get_int(THREAD_COUNT)), type(type), id(id), db(dbase),
       session(std::move(created_session)), tsm(timestamp_manager),
-      txn(transaction(config, timestamp_manager, session.get())), tracking(tracking),
+      txn(transaction(config, timestamp_manager, session.get())), op_tracker(op_tracker),
       _sleep_time_ms(config->get_throttle_ms())
 {
-    if (tracking->enabled())
-        op_track_cursor = session.open_scoped_cursor(tracking->get_operation_table_name());
+    if (op_tracker->enabled())
+        op_track_cursor = session.open_scoped_cursor(op_tracker->get_operation_table_name());
 
     testutil_assert(key_size > 0 && value_size > 0);
 }
@@ -97,7 +97,7 @@ thread_worker::update(
 {
     WT_DECL_RET;
 
-    testutil_assert(tracking != nullptr);
+    testutil_assert(op_tracker != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
@@ -121,7 +121,7 @@ thread_worker::update(
     }
 
     uint64_t txn_id = ((WT_SESSION_IMPL *)session.get())->txn->id;
-    ret = tracking->save_operation(
+    ret = op_tracker->save_operation(
       txn_id, tracking_operation::INSERT, collection_id, key, value, ts, op_track_cursor);
 
     if (ret == 0)
@@ -139,7 +139,7 @@ thread_worker::insert(
 {
     WT_DECL_RET;
 
-    testutil_assert(tracking != nullptr);
+    testutil_assert(op_tracker != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
@@ -163,7 +163,7 @@ thread_worker::insert(
     }
 
     uint64_t txn_id = ((WT_SESSION_IMPL *)session.get())->txn->id;
-    ret = tracking->save_operation(
+    ret = op_tracker->save_operation(
       txn_id, tracking_operation::INSERT, collection_id, key, value, ts, op_track_cursor);
 
     if (ret == 0)
@@ -179,7 +179,7 @@ bool
 thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::string &key)
 {
     WT_DECL_RET;
-    testutil_assert(tracking != nullptr);
+    testutil_assert(op_tracker != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
@@ -201,7 +201,7 @@ thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::
     }
 
     uint64_t txn_id = ((WT_SESSION_IMPL *)session.get())->txn->id;
-    ret = tracking->save_operation(
+    ret = op_tracker->save_operation(
       txn_id, tracking_operation::DELETE_KEY, collection_id, key, "", ts, op_track_cursor);
 
     if (ret == 0)

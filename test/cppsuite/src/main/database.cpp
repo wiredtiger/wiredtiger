@@ -55,7 +55,7 @@ database::add_collection(uint64_t key_count)
       std::forward_as_tuple(next_id, key_count, collection_name));
     testutil_check(
       _session->create(_session.get(), collection_name.c_str(), _collection_create_config.c_str()));
-    _tracking->save_schema_operation(
+    _operation_tracker->save_schema_operation(
       tracking_operation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
 }
 
@@ -118,10 +118,10 @@ database::set_timestamp_manager(timestamp_manager *tsm)
 }
 
 void
-database::set_workload_tracking(workload_tracking *tracking)
+database::set_operation_tracker(operation_tracker *op_tracker)
 {
-    testutil_assert(_tracking == nullptr);
-    _tracking = tracking;
+    testutil_assert(_operation_tracker == nullptr);
+    _operation_tracker = op_tracker;
 }
 
 void

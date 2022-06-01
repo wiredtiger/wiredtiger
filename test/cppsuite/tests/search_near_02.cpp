@@ -43,12 +43,12 @@ class search_near_02 : public test {
     public:
     search_near_02(const test_args &args) : test(args)
     {
-        init_tracking();
+        init_operation_tracker();
     }
 
     void
     populate(database &database, timestamp_manager *, configuration *config,
-      workload_tracking *) override final
+      operation_tracker *) override final
     {
         /*
          * The populate phase only creates empty collections. The number of collections is defined

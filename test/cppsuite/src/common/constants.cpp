@@ -32,10 +32,10 @@
 namespace test_harness {
 
 /* Component names. */
+const std::string OPERATION_TRACKER = "operation_tracker";
 const std::string STATISTICS_MONITOR = "statistics_monitor";
 const std::string TIMESTAMP_MANAGER = "timestamp_manager";
 const std::string WORKLOAD_MANAGER = "workload_manager";
-const std::string WORKLOAD_TRACKING = "workload_tracking";
 
 /* Configuration API consts. */
 const std::string CACHE_HS_INSERT = "cache_hs_insert";

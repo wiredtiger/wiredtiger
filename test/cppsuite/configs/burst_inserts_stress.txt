@@ -26,7 +26,7 @@ workload_manager=
         value_size=20000
     )
 ),
-workload_tracking=
+operation_tracker=
 (
     enabled=false,
 )

@@ -66,7 +66,7 @@ workload_manager=
         value_size=10000
     )
 ),
-workload_tracking=
+operation_tracker=
 (
     enabled=true,
     op_rate=30s

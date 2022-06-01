@@ -8,6 +8,7 @@ add_library(cppsuite_test_harness STATIC
     src/common/thread_manager.cpp
     src/component/component.cpp
     src/component/execution_timer.cpp
+    src/component/operation_tracker.cpp
     src/component/statistics_monitor.cpp
     src/component/statistics_writer.cpp
     src/component/statistics/cache_limit.cpp
@@ -15,7 +16,6 @@ add_library(cppsuite_test_harness STATIC
     src/component/statistics/statistics.cpp
     src/component/timestamp_manager.cpp
     src/component/workload_manager.cpp
-    src/component/workload_tracking.cpp
     src/main/collection.cpp
     src/main/configuration.cpp
     src/main/database.cpp

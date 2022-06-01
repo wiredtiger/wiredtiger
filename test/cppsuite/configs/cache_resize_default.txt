@@ -32,7 +32,7 @@ workload_manager=
         collection_count=1
     ),
 ),
-workload_tracking=
+operation_tracker=
 (
     # Timestamp, transaction id,
     tracking_key_format=QQ,

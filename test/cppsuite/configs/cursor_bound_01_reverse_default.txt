@@ -53,7 +53,7 @@ workload_manager=
         thread_count=5
     )
 ),
-workload_tracking=
+operation_tracker=
 (
     enabled=false,
 )

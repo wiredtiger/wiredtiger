@@ -103,12 +103,12 @@ class search_near_01 : public test {
     public:
     search_near_01(const test_args &args) : test(args)
     {
-        init_tracking();
+        init_operation_tracker();
     }
 
     void
     populate(database &database, timestamp_manager *tsm, configuration *config,
-      workload_tracking *tracking) override final
+      operation_tracker *op_tracker) override final
     {
         uint64_t collection_count, key_size;
         std::vector<thread_worker *> workers;
@@ -139,7 +139,7 @@ class search_near_01 : public test {
         /* Spawn 26 threads to populate the database. */
         for (uint64_t i = 0; i < ALPHABET.size(); ++i) {
             thread_worker *tc = new thread_worker(i, thread_type::INSERT, config,
-              connection_manager::instance().create_session(), tsm, tracking, database);
+              connection_manager::instance().create_session(), tsm, op_tracker, database);
             workers.push_back(tc);
             tm.add_thread(populate_worker, tc, ALPHABET, PREFIX_KEY_LEN);
         }
@@ -263,7 +263,7 @@ class search_near_01 : public test {
                 /* Get a collection and find a cached cursor. */
                 collection &coll = tc->db.get_random_collection();
                 thread_worker *search_near_tc = new thread_worker(i, thread_type::READ, read_config,
-                  connection_manager::instance().create_session(), tc->tsm, tc->tracking, tc->db);
+                  connection_manager::instance().create_session(), tc->tsm, tc->op_tracker, tc->db);
                 workers.push_back(search_near_tc);
                 tm.add_thread(perform_search_near, search_near_tc, coll.name, srchkey_len,
                   std::ref(z_key_searches));

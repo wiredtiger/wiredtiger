@@ -55,8 +55,8 @@ class test : public database_operation {
     test(const test &) = delete;
     test &operator=(const test &) = delete;
 
-    /* Initialize the tracking component and its dependencies. */
-    void init_tracking(workload_tracking *tracking = nullptr);
+    /* Initialize the operation tracker component and its dependencies. */
+    void init_operation_tracker(operation_tracker *op_tracker = nullptr);
 
     /*
      * The primary run function that most tests will be able to utilize without much other code.
@@ -67,7 +67,7 @@ class test : public database_operation {
     const test_args &_args;
     configuration *_config;
     timestamp_manager *_timestamp_manager = nullptr;
-    workload_tracking *_workload_tracking = nullptr;
+    operation_tracker *_operation_tracker = nullptr;
 
     private:
     std::vector<component *> _components;

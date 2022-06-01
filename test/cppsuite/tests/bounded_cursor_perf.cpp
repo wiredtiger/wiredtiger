@@ -40,7 +40,7 @@ class bounded_cursor_perf : public test {
     public:
     bounded_cursor_perf(const test_args &args) : test(args)
     {
-        init_tracking();
+        init_operation_tracker();
     }
 
     static void

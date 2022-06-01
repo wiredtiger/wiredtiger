@@ -43,7 +43,7 @@ class hs_cleanup : public test {
     public:
     hs_cleanup(const test_args &args) : test(args)
     {
-        init_tracking();
+        init_operation_tracker();
     }
 
     void

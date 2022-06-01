@@ -55,18 +55,18 @@ test::test(const test_args &args) : _args(args)
 }
 
 void
-test::init_tracking(workload_tracking *tracking)
+test::init_operation_tracker(operation_tracker *op_tracker)
 {
-    delete _workload_tracking;
-    if (tracking == nullptr) {
+    delete _operation_tracker;
+    if (op_tracker == nullptr) {
         /* Fallback to default behavior. */
-        tracking = new workload_tracking(_config->get_subconfig(WORKLOAD_TRACKING),
+        op_tracker = new operation_tracker(_config->get_subconfig(OPERATION_TRACKER),
           _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager);
     }
-    _workload_tracking = tracking;
-    _workload_manager->set_workload_tracking(_workload_tracking);
-    _database.set_workload_tracking(_workload_tracking);
-    _components.push_back(_workload_tracking);
+    _operation_tracker = op_tracker;
+    _workload_manager->set_operation_tracker(_operation_tracker);
+    _database.set_operation_tracker(_operation_tracker);
+    _components.push_back(_operation_tracker);
 }
 
 test::~test()
@@ -76,13 +76,13 @@ test::~test()
     delete _timestamp_manager;
     delete _thread_manager;
     delete _workload_manager;
-    delete _workload_tracking;
+    delete _operation_tracker;
     _config = nullptr;
     _statistics_monitor = nullptr;
     _timestamp_manager = nullptr;
     _thread_manager = nullptr;
     _workload_manager = nullptr;
-    _workload_tracking = nullptr;
+    _operation_tracker = nullptr;
 
     _components.clear();
 }
@@ -168,10 +168,10 @@ test::run()
         it->finish();
 
     /* Validation stage. */
-    if (_workload_tracking->enabled()) {
-        std::unique_ptr<configuration> tracking_config(_config->get_subconfig(WORKLOAD_TRACKING));
-        this->validate(_workload_tracking->get_operation_table_name(),
-          _workload_tracking->get_schema_table_name(),
+    if (_operation_tracker->enabled()) {
+        std::unique_ptr<configuration> tracking_config(_config->get_subconfig(OPERATION_TRACKER));
+        this->validate(_operation_tracker->get_operation_table_name(),
+          _operation_tracker->get_schema_table_name(),
           _workload_manager->get_database().get_collection_ids());
     }
 

@@ -32,7 +32,7 @@
 #include <string>
 
 #include "database.h"
-#include "src/component/workload_tracking.h"
+#include "src/component/operation_tracker.h"
 #include "src/component/timestamp_manager.h"
 #include "src/main/configuration.h"
 #include "src/storage/scoped_cursor.h"
@@ -49,7 +49,7 @@ class thread_worker {
     public:
     thread_worker(uint64_t id, thread_type type, configuration *config,
       scoped_session &&created_session, timestamp_manager *timestamp_manager,
-      workload_tracking *tracking, database &dbase);
+      operation_tracker *op_tracker, database &dbase);
 
     virtual ~thread_worker() = default;
 
@@ -100,7 +100,7 @@ class thread_worker {
     scoped_cursor stat_cursor;
     timestamp_manager *tsm;
     transaction txn;
-    workload_tracking *tracking;
+    operation_tracker *op_tracker;
 
     private:
     bool _running = true;

@@ -28,18 +28,18 @@
 
 #include "src/common/constants.h"
 #include "src/common/random_generator.h"
-#include "src/component/workload_tracking.h"
+#include "src/component/operation_tracker.h"
 #include "src/main/test.h"
 
 using namespace test_harness;
 
 /* Defines what data is written to the tracking table for use in custom validation. */
-class tracking_table_cache_resize : public workload_tracking {
+class operation_tracker_cache_resize : public operation_tracker {
 
     public:
-    tracking_table_cache_resize(
+    operation_tracker_cache_resize(
       configuration *config, const bool use_compression, timestamp_manager &tsm)
-        : workload_tracking(config, use_compression, tsm)
+        : operation_tracker(config, use_compression, tsm)
     {
     }
 
@@ -63,8 +63,9 @@ class cache_resize : public test {
     public:
     cache_resize(const test_args &args) : test(args)
     {
-        init_tracking(new tracking_table_cache_resize(_config->get_subconfig(WORKLOAD_TRACKING),
-          _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager));
+        init_operation_tracker(
+          new operation_tracker_cache_resize(_config->get_subconfig(OPERATION_TRACKER),
+            _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager));
     }
 
     void
@@ -106,7 +107,7 @@ class cache_resize : public test {
 
             /* Save the change of cache size in the tracking table. */
             tc->txn.begin();
-            int ret = tc->tracking->save_operation(txn_id, tracking_operation::CUSTOM,
+            int ret = tc->op_tracker->save_operation(txn_id, tracking_operation::CUSTOM,
               collection_id, key, value, tc->tsm->get_next_ts(), tc->op_track_cursor);
 
             if (ret == 0)

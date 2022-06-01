@@ -48,10 +48,10 @@ workload_manager::~workload_manager()
 }
 
 void
-workload_manager::set_workload_tracking(workload_tracking *tracking)
+workload_manager::set_operation_tracker(operation_tracker *op_tracker)
 {
-    testutil_assert(_tracking == nullptr);
-    _tracking = tracking;
+    testutil_assert(_operation_tracker == nullptr);
+    _operation_tracker = op_tracker;
 }
 
 void
@@ -77,7 +77,8 @@ workload_manager::run()
     populate_config = _config->get_subconfig(POPULATE_CONFIG);
 
     /* Populate the database. */
-    _database_operation->populate(_database, _timestamp_manager, populate_config, _tracking);
+    _database_operation->populate(
+      _database, _timestamp_manager, populate_config, _operation_tracker);
     _db_populated = true;
     delete populate_config;
 
@@ -89,8 +90,8 @@ workload_manager::run()
                 type_string(it.type) + " threads.");
         for (size_t i = 0; i < it.thread_count && _running; ++i) {
             thread_worker *tc = new thread_worker(thread_id++, it.type, it.config,
-              connection_manager::instance().create_session(), _timestamp_manager, _tracking,
-              _database);
+              connection_manager::instance().create_session(), _timestamp_manager,
+              _operation_tracker, _database);
             _workers.push_back(tc);
             _thread_manager.add_thread(it.get_func(_database_operation), tc);
         }

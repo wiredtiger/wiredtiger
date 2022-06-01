@@ -34,7 +34,7 @@
 #include <mutex>
 
 #include "collection.h"
-#include "src/component/workload_tracking.h"
+#include "src/component/operation_tracker.h"
 
 namespace test_harness {
 /* Key/Value type. */
@@ -68,14 +68,14 @@ class database {
 
     std::vector<uint64_t> get_collection_ids();
     void set_timestamp_manager(timestamp_manager *tsm);
-    void set_workload_tracking(workload_tracking *tracking);
+    void set_operation_tracker(operation_tracker *op_tracker);
     void set_create_config(bool use_compression, bool use_reverse_collator);
 
     private:
     std::string _collection_create_config = "";
     scoped_session _session;
     timestamp_manager *_tsm = nullptr;
-    workload_tracking *_tracking = nullptr;
+    operation_tracker *_operation_tracker = nullptr;
     uint64_t _next_collection_id = 0;
     std::map<uint64_t, collection> _collections;
     std::mutex _mtx;

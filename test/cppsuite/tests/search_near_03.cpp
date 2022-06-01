@@ -48,7 +48,7 @@ class search_near_03 : public test {
     public:
     search_near_03(const test_args &args) : test(args)
     {
-        init_tracking();
+        init_operation_tracker();
     }
 
     /*
@@ -144,7 +144,7 @@ class search_near_03 : public test {
 
     void
     populate(database &database, timestamp_manager *tsm, configuration *config,
-      workload_tracking *tracking) override final
+      operation_tracker *op_tracker) override final
     {
         uint64_t collection_count, key_count, key_size;
         std::vector<thread_worker *> workers;
@@ -174,7 +174,7 @@ class search_near_03 : public test {
         /* Spawn a populate thread for each collection in the database. */
         for (uint64_t i = 0; i < collection_count; ++i) {
             thread_worker *tc = new thread_worker(i, thread_type::INSERT, config,
-              connection_manager::instance().create_session(), tsm, tracking, database);
+              connection_manager::instance().create_session(), tsm, op_tracker, database);
             workers.push_back(tc);
             tm.add_thread(populate_worker, tc);
         }
