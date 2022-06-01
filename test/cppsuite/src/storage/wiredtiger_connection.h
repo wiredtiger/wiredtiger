@@ -26,8 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CONN_API_H
-#define CONN_API_H
+#ifndef WIREDTIGER_CONNECTION_H
+#define WIREDTIGER_CONNECTION_H
 
 /* Following definitions are required in order to use printing format specifiers in C++. */
 #ifndef __STDC_LIMIT_MACROS
@@ -46,14 +46,14 @@ namespace test_harness {
  * Singleton class owning the database connection, provides access to sessions and any other
  * required connection API calls.
  */
-class connection_manager {
+class wiredtiger_connection {
     public:
-    static connection_manager &instance();
+    static wiredtiger_connection &instance();
 
     public:
     /* No copies of the singleton allowed. */
-    connection_manager(connection_manager const &) = delete;
-    connection_manager &operator=(connection_manager const &) = delete;
+    wiredtiger_connection(wiredtiger_connection const &) = delete;
+    wiredtiger_connection &operator=(wiredtiger_connection const &) = delete;
 
     void close();
     void create(const std::string &config, const std::string &home);
@@ -67,7 +67,7 @@ class connection_manager {
     void set_timestamp(const std::string &config);
 
     private:
-    connection_manager();
+    wiredtiger_connection();
 
     private:
     WT_CONNECTION *_conn = nullptr;

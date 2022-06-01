@@ -37,7 +37,7 @@
 #include "src/common/logger.h"
 #include "src/common/random_generator.h"
 #include "src/common/thread_manager.h"
-#include "src/storage/connection_manager.h"
+#include "src/storage/wiredtiger_connection.h"
 
 extern "C" {
 #include "wiredtiger.h"
@@ -101,8 +101,8 @@ main(int argc, char *argv[])
     const std::string home_dir = std::string(DEFAULT_DIR) + '_' + progname;
 
     /* Create connection. */
-    connection_manager::instance().create(conn_config, home_dir);
-    WT_CONNECTION *conn = connection_manager::instance().get_connection();
+    wiredtiger_connection::instance().create(conn_config, home_dir);
+    WT_CONNECTION *conn = wiredtiger_connection::instance().get_connection();
 
     /* Open different sessions. */
     WT_SESSION *insert_session, *read_session;

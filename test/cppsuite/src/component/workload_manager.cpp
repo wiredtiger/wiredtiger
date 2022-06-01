@@ -31,7 +31,7 @@
 #include "src/common/constants.h"
 #include "src/common/logger.h"
 #include "src/main/operation_configuration.h"
-#include "src/storage/connection_manager.h"
+#include "src/storage/wiredtiger_connection.h"
 
 namespace test_harness {
 workload_manager::workload_manager(configuration *configuration, database_operation *db_operation,
@@ -90,7 +90,7 @@ workload_manager::run()
                 type_string(it.type) + " threads.");
         for (size_t i = 0; i < it.thread_count && _running; ++i) {
             thread_worker *tc = new thread_worker(thread_id++, it.type, it.config,
-              connection_manager::instance().create_session(), _timestamp_manager,
+              wiredtiger_connection::instance().create_session(), _timestamp_manager,
               _operation_tracker, _database);
             _workers.push_back(tc);
             _thread_manager.add_thread(it.get_func(_database_operation), tc);

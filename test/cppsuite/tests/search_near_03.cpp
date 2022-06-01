@@ -174,7 +174,7 @@ class search_near_03 : public test {
         /* Spawn a populate thread for each collection in the database. */
         for (uint64_t i = 0; i < collection_count; ++i) {
             thread_worker *tc = new thread_worker(i, thread_type::INSERT, config,
-              connection_manager::instance().create_session(), tsm, op_tracker, database);
+              wiredtiger_connection::instance().create_session(), tsm, op_tracker, database);
             workers.push_back(tc);
             tm.add_thread(populate_worker, tc);
         }
@@ -194,7 +194,7 @@ class search_near_03 : public test {
          * traverse through each collection using a cursor to collect the prefix and push it into a
          * 2D vector.
          */
-        wiredtiger_session session = connection_manager::instance().create_session();
+        wiredtiger_session session = wiredtiger_connection::instance().create_session();
         const char *key_tmp;
         int ret = 0;
         for (uint64_t i = 0; i < database.get_collection_count(); i++) {

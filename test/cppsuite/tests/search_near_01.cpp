@@ -139,7 +139,7 @@ class search_near_01 : public test {
         /* Spawn 26 threads to populate the database. */
         for (uint64_t i = 0; i < ALPHABET.size(); ++i) {
             thread_worker *tc = new thread_worker(i, thread_type::INSERT, config,
-              connection_manager::instance().create_session(), tsm, op_tracker, database);
+              wiredtiger_connection::instance().create_session(), tsm, op_tracker, database);
             workers.push_back(tc);
             tm.add_thread(populate_worker, tc, ALPHABET, PREFIX_KEY_LEN);
         }
@@ -156,7 +156,7 @@ class search_near_01 : public test {
 
         /* Force evict all the populated keys in all of the collections. */
         int cmpp;
-        wiredtiger_session session = connection_manager::instance().create_session();
+        wiredtiger_session session = wiredtiger_connection::instance().create_session();
         for (uint64_t count = 0; count < collection_count; ++count) {
             collection &coll = database.get_collection(count);
             wiredtiger_cursor evict_cursor =
@@ -263,7 +263,7 @@ class search_near_01 : public test {
                 /* Get a collection and find a cached cursor. */
                 collection &coll = tc->db.get_random_collection();
                 thread_worker *search_near_tc = new thread_worker(i, thread_type::READ, read_config,
-                  connection_manager::instance().create_session(), tc->tsm, tc->op_tracker, tc->db);
+                  wiredtiger_connection::instance().create_session(), tc->tsm, tc->op_tracker, tc->db);
                 workers.push_back(search_near_tc);
                 tm.add_thread(perform_search_near, search_near_tc, coll.name, srchkey_len,
                   std::ref(z_key_searches));

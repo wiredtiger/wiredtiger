@@ -32,7 +32,7 @@
 
 #include "src/common/constants.h"
 #include "src/common/logger.h"
-#include "src/storage/connection_manager.h"
+#include "src/storage/wiredtiger_connection.h"
 #include "statistics_writer.h"
 #include "statistics/cache_limit.h"
 #include "statistics/database_size.h"
@@ -102,7 +102,7 @@ statistics_monitor::load()
           new statistics(*stat_config, CC_PAGES_REMOVED, get_stat_field(CC_PAGES_REMOVED))));
 
         /* Open our statistic cursor. */
-        _session = connection_manager::instance().create_session();
+        _session = wiredtiger_connection::instance().create_session();
         _cursor = _session.open_wiredtiger_cursor(STATISTICS_URI);
     }
 }

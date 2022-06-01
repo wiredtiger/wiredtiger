@@ -71,7 +71,7 @@ class cache_resize : public test {
     void
     custom_operation(thread_worker *tc) override final
     {
-        WT_CONNECTION *conn = connection_manager::instance().get_connection();
+        WT_CONNECTION *conn = wiredtiger_connection::instance().get_connection();
         WT_CONNECTION_IMPL *conn_impl = (WT_CONNECTION_IMPL *)conn;
         bool increase_cache = false;
         const std::string small_cache_size = "cache_size=1MB";
@@ -139,7 +139,7 @@ class cache_resize : public test {
             const std::string key =
               random_generator::instance().generate_pseudo_random_string(tc->key_size);
             const uint64_t cache_size =
-              ((WT_CONNECTION_IMPL *)connection_manager::instance().get_connection())->cache_size;
+              ((WT_CONNECTION_IMPL *)wiredtiger_connection::instance().get_connection())->cache_size;
             /* Take into account the value size given in the test configuration file. */
             const std::string value = std::to_string(cache_size);
 
@@ -175,7 +175,7 @@ class cache_resize : public test {
         (void)cache_size_500mb;
 
         /* Open a cursor on the tracking table to read it. */
-        wiredtiger_session session = connection_manager::instance().create_session();
+        wiredtiger_session session = wiredtiger_connection::instance().create_session();
         wiredtiger_cursor cursor = session.open_wiredtiger_cursor(operation_table_name);
 
         /*

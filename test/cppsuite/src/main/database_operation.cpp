@@ -33,7 +33,7 @@
 #include "src/common/logger.h"
 #include "src/common/random_generator.h"
 #include "src/main/validator.h"
-#include "src/storage/connection_manager.h"
+#include "src/storage/wiredtiger_connection.h"
 
 namespace test_harness {
 /* Static methods. */
@@ -107,7 +107,7 @@ database_operation::populate(
      */
     for (int64_t i = 0; i < thread_count; ++i) {
         thread_worker *tc = new thread_worker(i, thread_type::INSERT, config,
-          connection_manager::instance().create_session(), tsm, op_tracker, database);
+          wiredtiger_connection::instance().create_session(), tsm, op_tracker, database);
         workers.push_back(tc);
         tm.add_thread(populate_worker, tc);
     }
