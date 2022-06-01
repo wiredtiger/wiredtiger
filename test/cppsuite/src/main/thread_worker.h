@@ -35,7 +35,7 @@
 #include "src/component/operation_tracker.h"
 #include "src/component/timestamp_manager.h"
 #include "src/main/configuration.h"
-#include "src/storage/scoped_cursor.h"
+#include "src/storage/cursor.h"
 #include "src/storage/session.h"
 #include "transaction.h"
 
@@ -63,7 +63,7 @@ class thread_worker {
      * Return true if the operation was successful, a return value of false implies the transaction
      * needs to be rolled back.
      */
-    bool update(scoped_cursor &cursor, uint64_t collection_id, const std::string &key,
+    bool update(cursor &scoped_cursor, uint64_t collection_id, const std::string &key,
       const std::string &value);
 
     /*
@@ -72,7 +72,7 @@ class thread_worker {
      * Return true if the operation was successful, a return value of false implies the transaction
      * needs to be rolled back.
      */
-    bool insert(scoped_cursor &cursor, uint64_t collection_id, const std::string &key,
+    bool insert(cursor &scoped_cursor, uint64_t collection_id, const std::string &key,
       const std::string &value);
 
     /*
@@ -81,7 +81,7 @@ class thread_worker {
      * Return true if the operation was successful, a return value of false implies the transaction
      * needs to be rolled back.
      */
-    bool remove(scoped_cursor &cursor, uint64_t collection_id, const std::string &key);
+    bool remove(cursor &scoped_cursor, uint64_t collection_id, const std::string &key);
     void sleep();
     bool running() const;
 
@@ -95,8 +95,8 @@ class thread_worker {
     const uint64_t id;
     database &db;
     session scoped_session;
-    scoped_cursor op_track_cursor;
-    scoped_cursor stat_cursor;
+    cursor op_track_cursor;
+    cursor stat_cursor;
     timestamp_manager *tsm;
     transaction txn;
     operation_tracker *op_tracker;

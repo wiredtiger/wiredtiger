@@ -67,7 +67,7 @@ operation_tracker::load()
     _session = connection_manager::instance().create_session();
     testutil_check(
       _session->create(_session.get(), _schema_table_name.c_str(), _schema_table_config.c_str()));
-    _schema_track_cursor = _session.open_scoped_cursor(_schema_table_name);
+    _schema_track_cursor = _session.open_cursor(_schema_table_name);
     logger::log_msg(LOG_TRACE, "Schema tracking initiated");
 
     /* Initiate operations tracking. */
@@ -80,7 +80,7 @@ operation_tracker::load()
      * obsolete data from the tracking table.
      */
     _sweep_session = connection_manager::instance().create_session();
-    _sweep_cursor = _sweep_session.open_scoped_cursor(_operation_table_name);
+    _sweep_cursor = _sweep_session.open_cursor(_operation_table_name);
     logger::log_msg(LOG_TRACE, "Tracking table sweep initialized");
 }
 
@@ -195,7 +195,7 @@ operation_tracker::save_schema_operation(
 int
 operation_tracker::save_operation(const uint64_t txn_id, const tracking_operation &operation,
   const uint64_t &collection_id, const std::string &key, const std::string &value,
-  wt_timestamp_t ts, scoped_cursor &op_track_cursor)
+  wt_timestamp_t ts, cursor &op_track_cursor)
 {
     WT_DECL_RET;
 
@@ -220,7 +220,7 @@ operation_tracker::save_operation(const uint64_t txn_id, const tracking_operatio
 void
 operation_tracker::set_tracking_cursor(const uint64_t txn_id, const tracking_operation &operation,
   const uint64_t &collection_id, const std::string &key, const std::string &value,
-  wt_timestamp_t ts, scoped_cursor &op_track_cursor)
+  wt_timestamp_t ts, cursor &op_track_cursor)
 {
     op_track_cursor->set_key(op_track_cursor.get(), collection_id, key.c_str(), ts);
     op_track_cursor->set_value(op_track_cursor.get(), static_cast<int>(operation), value.c_str());

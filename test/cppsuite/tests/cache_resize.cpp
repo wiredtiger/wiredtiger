@@ -46,7 +46,7 @@ class operation_tracker_cache_resize : public operation_tracker {
     void
     set_tracking_cursor(const uint64_t txn_id, const tracking_operation &operation,
       const uint64_t &, const std::string &, const std::string &value, wt_timestamp_t ts,
-      scoped_cursor &op_track_cursor) override final
+      cursor &op_track_cursor) override final
     {
         op_track_cursor->set_key(op_track_cursor.get(), ts, txn_id);
         op_track_cursor->set_value(op_track_cursor.get(), operation, value.c_str());
@@ -130,7 +130,7 @@ class cache_resize : public test {
         const uint64_t collection_count = tc->db.get_collection_count();
         testutil_assert(collection_count > 0);
         collection &coll = tc->db.get_collection(collection_count - 1);
-        scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+        cursor scoped_cursor = tc->scoped_session.open_cursor(coll.name);
 
         while (tc->running()) {
             tc->sleep();
@@ -144,7 +144,7 @@ class cache_resize : public test {
             const std::string value = std::to_string(cache_size);
 
             tc->txn.try_begin();
-            if (!tc->insert(cursor, coll.id, key, value)) {
+            if (!tc->insert(scoped_cursor, coll.id, key, value)) {
                 tc->txn.rollback();
             } else if (tc->txn.can_commit()) {
                 /*
@@ -176,7 +176,7 @@ class cache_resize : public test {
 
         /* Open a cursor on the tracking table to read it. */
         session scoped_session = connection_manager::instance().create_session();
-        scoped_cursor cursor = scoped_session.open_scoped_cursor(operation_table_name);
+        cursor scoped_cursor = scoped_session.open_cursor(operation_table_name);
 
         /*
          * Parse the tracking table. Each operation is tracked and each transaction is made of
@@ -184,14 +184,16 @@ class cache_resize : public test {
          * to verify that the cache size was big enough when the transaction was committed, which
          * means at the last operation.
          */
-        while ((ret = cursor->next(cursor.get())) == 0) {
+        while ((ret = scoped_cursor->next(scoped_cursor.get())) == 0) {
 
             uint64_t tracked_ts, tracked_txn_id;
             int tracked_op_type;
             const char *tracked_cache_size;
 
-            testutil_check(cursor->get_key(cursor.get(), &tracked_ts, &tracked_txn_id));
-            testutil_check(cursor->get_value(cursor.get(), &tracked_op_type, &tracked_cache_size));
+            testutil_check(
+              scoped_cursor->get_key(scoped_cursor.get(), &tracked_ts, &tracked_txn_id));
+            testutil_check(
+              scoped_cursor->get_value(scoped_cursor.get(), &tracked_op_type, &tracked_cache_size));
 
             logger::log_msg(LOG_TRACE,
               "Timestamp: " + std::to_string(tracked_ts) +

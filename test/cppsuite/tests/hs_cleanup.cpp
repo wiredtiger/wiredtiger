@@ -60,16 +60,16 @@ class hs_cleanup : public test {
 
         /* In this test each thread gets a single collection. */
         testutil_assert(tc->db.get_collection_count() == tc->thread_count);
-        scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+        cursor scoped_cursor = tc->scoped_session.open_cursor(coll.name);
 
         /* We don't know the keyrange we're operating over here so we can't be much smarter here. */
         while (tc->running()) {
             tc->sleep();
 
-            auto ret = cursor->next(cursor.get());
+            auto ret = scoped_cursor->next(scoped_cursor.get());
             if (ret != 0) {
                 if (ret == WT_NOTFOUND) {
-                    cursor->reset(cursor.get());
+                    scoped_cursor->reset(scoped_cursor.get());
                     continue;
                 }
                 if (ret == WT_ROLLBACK) {
@@ -85,7 +85,7 @@ class hs_cleanup : public test {
                 testutil_die(ret, "Unexpected error returned from cursor->next()");
             }
 
-            testutil_check(cursor->get_key(cursor.get(), &key_tmp));
+            testutil_check(scoped_cursor->get_key(scoped_cursor.get(), &key_tmp));
 
             /* Start a transaction if possible. */
             tc->txn.try_begin();
@@ -97,7 +97,7 @@ class hs_cleanup : public test {
              */
             std::string value =
               random_generator::instance().generate_pseudo_random_string(tc->value_size);
-            if (tc->update(cursor, coll.id, key_tmp, value)) {
+            if (tc->update(scoped_cursor, coll.id, key_tmp, value)) {
                 if (tc->txn.can_commit()) {
                     if (tc->txn.commit())
                         rollback_retries = 0;

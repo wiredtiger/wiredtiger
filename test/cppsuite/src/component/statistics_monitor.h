@@ -35,7 +35,7 @@
 
 #include "src/main/configuration.h"
 #include "src/main/database.h"
-#include "src/storage/scoped_cursor.h"
+#include "src/storage/cursor.h"
 #include "src/storage/session.h"
 #include "statistics/statistics.h"
 
@@ -47,7 +47,7 @@ namespace test_harness {
  */
 class statistics_monitor : public component {
     public:
-    static void get_stat(scoped_cursor &, int, int64_t *);
+    static void get_stat(cursor &, int, int64_t *);
 
     public:
     statistics_monitor(const std::string &test_name, configuration *config, database &database);
@@ -66,7 +66,7 @@ class statistics_monitor : public component {
 
     private:
     session _session;
-    scoped_cursor _cursor;
+    cursor _cursor;
     const std::string _test_name;
     std::vector<std::unique_ptr<statistics>> _stats;
     database &_database;

@@ -32,7 +32,7 @@
 #include <string>
 #include "src/main/configuration.h"
 #include "src/main/database.h"
-#include "src/storage/scoped_cursor.h"
+#include "src/storage/cursor.h"
 #include "statistics.h"
 
 namespace test_harness {
@@ -43,8 +43,8 @@ class database_size : public statistics {
     virtual ~database_size() = default;
 
     /* Don't need the stat cursor for these. */
-    void check(scoped_cursor &) override final;
-    std::string get_value_str(scoped_cursor &) override final;
+    void check(cursor &) override final;
+    std::string get_value_str(cursor &) override final;
 
     private:
     size_t get_db_size() const;

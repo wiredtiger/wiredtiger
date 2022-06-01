@@ -123,8 +123,8 @@ class cursor_bound_01 : public test {
      * bound and upper bound checks while walking the tree.
      */
     void
-    cursor_traversal(scoped_cursor &range_cursor, scoped_cursor &normal_cursor,
-      const bound &lower_bound, const bound &upper_bound, bool next)
+    cursor_traversal(cursor &range_cursor, cursor &normal_cursor, const bound &lower_bound,
+      const bound &upper_bound, bool next)
     {
         int exact, normal_ret, range_ret;
         exact = normal_ret = range_ret = 0;
@@ -219,7 +219,7 @@ class cursor_bound_01 : public test {
      * inclusive configuration is also randomly set as well.
      */
     std::pair<bound, bound>
-    set_random_bounds(thread_worker *tc, scoped_cursor &range_cursor)
+    set_random_bounds(thread_worker *tc, cursor &range_cursor)
     {
         int ret;
         bound lower_bound, upper_bound;
@@ -268,8 +268,8 @@ class cursor_bound_01 : public test {
      * cursor could find.
      */
     void
-    validate_bound_search_near(int range_ret, int range_exact, scoped_cursor &range_cursor,
-      scoped_cursor &normal_cursor, const std::string &search_key, const bound &lower_bound,
+    validate_bound_search_near(int range_ret, int range_exact, cursor &range_cursor,
+      cursor &normal_cursor, const std::string &search_key, const bound &lower_bound,
       const bound &upper_bound)
     {
         /* Range cursor has successfully returned with a key. */
@@ -327,7 +327,7 @@ class cursor_bound_01 : public test {
      */
     void
     validate_successful_search_near_inside_range(
-      scoped_cursor &normal_cursor, int range_exact, const std::string &search_key)
+      cursor &normal_cursor, int range_exact, const std::string &search_key)
     {
         int ret = 0;
         /* Retrieve the key the normal cursor is pointing at. */
@@ -378,8 +378,8 @@ class cursor_bound_01 : public test {
      * outside of the range.
      */
     void
-    validate_successful_search_near_outside_range(scoped_cursor &normal_cursor,
-      const bound &lower_bound, const bound &upper_bound, bool larger_search_key)
+    validate_successful_search_near_outside_range(cursor &normal_cursor, const bound &lower_bound,
+      const bound &upper_bound, bool larger_search_key)
     {
         int ret = larger_search_key ? normal_cursor->next(normal_cursor.get()) :
                                       normal_cursor->prev(normal_cursor.get());
@@ -408,7 +408,7 @@ class cursor_bound_01 : public test {
      */
     void
     validate_search_near_not_found(
-      scoped_cursor &normal_cursor, const bound &lower_bound, const bound &upper_bound)
+      cursor &normal_cursor, const bound &lower_bound, const bound &upper_bound)
     {
         int ret, exact;
         auto lower_key = lower_bound.get_key();
@@ -469,7 +469,7 @@ class cursor_bound_01 : public test {
         while (tc->running()) {
 
             collection &coll = tc->db.get_random_collection();
-            scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+            cursor scoped_cursor = tc->scoped_session.open_cursor(coll.name);
             tc->txn.begin();
 
             while (tc->txn.active() && tc->running()) {
@@ -478,7 +478,7 @@ class cursor_bound_01 : public test {
                 auto key = random_generator::instance().generate_random_string(tc->key_size);
                 auto value = random_generator::instance().generate_random_string(tc->value_size);
                 /* Insert a key/value pair. */
-                if (tc->insert(cursor, coll.id, key, value)) {
+                if (tc->insert(scoped_cursor, coll.id, key, value)) {
                     if (tc->txn.can_commit()) {
                         /* We are not checking the result of commit as it is not necessary. */
                         if (tc->txn.commit())
@@ -501,7 +501,7 @@ class cursor_bound_01 : public test {
                 tc->txn.rollback();
 
             /* Reset our cursor to avoid pinning content. */
-            testutil_check(cursor->reset(cursor.get()));
+            testutil_check(scoped_cursor->reset(scoped_cursor.get()));
         }
     }
 
@@ -516,9 +516,8 @@ class cursor_bound_01 : public test {
         while (tc->running()) {
 
             collection &coll = tc->db.get_random_collection();
-            scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
-            scoped_cursor rnd_cursor =
-              tc->scoped_session.open_scoped_cursor(coll.name, "next_random=true");
+            cursor scoped_cursor = tc->scoped_session.open_cursor(coll.name);
+            cursor rnd_cursor = tc->scoped_session.open_cursor(coll.name, "next_random=true");
             tc->txn.begin();
 
             while (tc->txn.active() && tc->running()) {
@@ -540,7 +539,7 @@ class cursor_bound_01 : public test {
 
                 /* Update the found key with a randomized value. */
                 auto value = random_generator::instance().generate_random_string(tc->value_size);
-                if (tc->update(cursor, coll.id, key, value)) {
+                if (tc->update(scoped_cursor, coll.id, key, value)) {
                     if (tc->txn.can_commit()) {
                         /* We are not checking the result of commit as it is not necessary. */
                         if (tc->txn.commit())
@@ -563,7 +562,7 @@ class cursor_bound_01 : public test {
                 tc->txn.rollback();
 
             /* Reset our cursor to avoid pinning content. */
-            testutil_check(cursor->reset(cursor.get()));
+            testutil_check(scoped_cursor->reset(scoped_cursor.get()));
         }
     }
 
@@ -579,7 +578,7 @@ class cursor_bound_01 : public test {
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         bound lower_bound, upper_bound;
-        std::map<uint64_t, scoped_cursor> cursors;
+        std::map<uint64_t, cursor> cursors;
 
         while (tc->running()) {
             /* Get a random collection to work on. */
@@ -587,8 +586,7 @@ class cursor_bound_01 : public test {
 
             /* Find a cached cursor or create one if none exists. */
             if (cursors.find(coll.id) == cursors.end())
-                cursors.emplace(
-                  coll.id, std::move(tc->scoped_session.open_scoped_cursor(coll.name)));
+                cursors.emplace(coll.id, std::move(tc->scoped_session.open_cursor(coll.name)));
 
             /* Set random bounds on cached range cursor. */
             auto &range_cursor = cursors[coll.id];
@@ -605,7 +603,7 @@ class cursor_bound_01 : public test {
                 upper_bound = bound_pair.second;
             }
 
-            scoped_cursor normal_cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+            cursor normal_cursor = tc->scoped_session.open_cursor(coll.name);
             wt_timestamp_t ts = tc->tsm->get_valid_read_ts();
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
@@ -652,7 +650,7 @@ class cursor_bound_01 : public test {
         logger::log_msg(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
-        std::map<uint64_t, scoped_cursor> cursors;
+        std::map<uint64_t, cursor> cursors;
         bound lower_bound, upper_bound;
         while (tc->running()) {
             /* Get a random collection to work on. */
@@ -660,8 +658,7 @@ class cursor_bound_01 : public test {
 
             /* Find a cached cursor or create one if none exists. */
             if (cursors.find(coll.id) == cursors.end())
-                cursors.emplace(
-                  coll.id, std::move(tc->scoped_session.open_scoped_cursor(coll.name)));
+                cursors.emplace(coll.id, std::move(tc->scoped_session.open_cursor(coll.name)));
 
             /* Set random bounds on cached range cursor. */
             auto &range_cursor = cursors[coll.id];
@@ -678,7 +675,7 @@ class cursor_bound_01 : public test {
                 upper_bound = bound_pair.second;
             }
 
-            scoped_cursor normal_cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+            cursor normal_cursor = tc->scoped_session.open_cursor(coll.name);
             wt_timestamp_t ts = tc->tsm->get_valid_read_ts();
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.

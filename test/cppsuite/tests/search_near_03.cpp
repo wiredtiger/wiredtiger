@@ -63,7 +63,7 @@ class search_near_03 : public test {
      */
     static bool
     perform_unique_index_insertions(
-      thread_worker *tc, scoped_cursor &cursor, collection &coll, std::string &prefix_key)
+      thread_worker *tc, cursor &scoped_cursor, collection &coll, std::string &prefix_key)
     {
         std::string ret_key;
         const char *key_tmp;
@@ -72,11 +72,11 @@ class search_near_03 : public test {
         /* Insert the prefix. */
         std::string value =
           random_generator::instance().generate_pseudo_random_string(tc->value_size);
-        if (!tc->insert(cursor, coll.id, prefix_key, value))
+        if (!tc->insert(scoped_cursor, coll.id, prefix_key, value))
             return false;
 
         /* Remove the prefix. */
-        if (!tc->remove(cursor, coll.id, prefix_key))
+        if (!tc->remove(scoped_cursor, coll.id, prefix_key))
             return false;
 
         /*
@@ -84,11 +84,11 @@ class search_near_03 : public test {
          * WT_NOTFOUND error code is returned. If the prefix is present it means the (prefix, id)
          * has been inserted already. Double check that the prefix potion matches.
          */
-        cursor->set_key(cursor.get(), prefix_key.c_str());
-        ret = cursor->search_near(cursor.get(), &exact_prefix);
+        scoped_cursor->set_key(scoped_cursor.get(), prefix_key.c_str());
+        ret = scoped_cursor->search_near(scoped_cursor.get(), &exact_prefix);
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
         if (ret == 0) {
-            cursor->get_key(cursor.get(), &key_tmp);
+            scoped_cursor->get_key(scoped_cursor.get(), &key_tmp);
             ret_key = get_prefix_from_key(std::string(key_tmp));
             testutil_assert(exact_prefix == 1);
             testutil_assert(prefix_key == ret_key);
@@ -97,7 +97,7 @@ class search_near_03 : public test {
 
         /* Now insert the key with prefix and id. Use thread id to guarantee uniqueness. */
         value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
-        return tc->insert(cursor, coll.id, prefix_key + "," + std::to_string(tc->id), value);
+        return tc->insert(scoped_cursor, coll.id, prefix_key + "," + std::to_string(tc->id), value);
     }
 
     static void
@@ -114,8 +114,8 @@ class search_near_03 : public test {
          * generated prefix and thread id.
          */
         collection &coll = tc->db.get_collection(tc->id);
-        scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
-        cursor->reconfigure(cursor.get(), "prefix_search=true");
+        cursor scoped_cursor = tc->scoped_session.open_cursor(coll.name);
+        scoped_cursor->reconfigure(scoped_cursor.get(), "prefix_search=true");
         for (uint64_t count = 0; count < tc->key_count; ++count) {
             tc->txn.begin();
             /*
@@ -123,7 +123,7 @@ class search_near_03 : public test {
              * size configuration.
              */
             prefix_key = random_generator::instance().generate_random_string(tc->key_size);
-            if (perform_unique_index_insertions(tc, cursor, coll, prefix_key)) {
+            if (perform_unique_index_insertions(tc, scoped_cursor, coll, prefix_key)) {
                 tc->txn.commit();
             } else {
                 tc->txn.rollback();
@@ -199,16 +199,16 @@ class search_near_03 : public test {
         int ret = 0;
         for (uint64_t i = 0; i < database.get_collection_count(); i++) {
             collection &coll = database.get_collection(i);
-            scoped_cursor cursor = scoped_session.open_scoped_cursor(coll.name);
+            cursor scoped_cursor = scoped_session.open_cursor(coll.name);
             std::vector<std::string> prefixes;
             ret = 0;
             while (ret == 0) {
-                ret = cursor->next(cursor.get());
+                ret = scoped_cursor->next(scoped_cursor.get());
                 testutil_assertfmt(ret == 0 || ret == WT_NOTFOUND,
                   "Unexpected error %d returned from cursor->next()", ret);
                 if (ret == WT_NOTFOUND)
                     continue;
-                cursor->get_key(cursor.get(), &key_tmp);
+                scoped_cursor->get_key(scoped_cursor.get(), &key_tmp);
                 prefixes.push_back(std::string(key_tmp));
             }
             prefixes_map.push_back(prefixes);
@@ -219,7 +219,7 @@ class search_near_03 : public test {
     void
     insert_operation(thread_worker *tc) override final
     {
-        std::map<uint64_t, scoped_cursor> cursors;
+        std::map<uint64_t, cursor> cursors;
         std::string prefix_key;
         size_t random_index;
 
@@ -234,9 +234,9 @@ class search_near_03 : public test {
             /* Get a collection and find a cached cursor. */
             collection &coll = tc->db.get_random_collection();
             if (cursors.find(coll.id) == cursors.end()) {
-                scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
-                cursor->reconfigure(cursor.get(), "prefix_search=true");
-                cursors.emplace(coll.id, std::move(cursor));
+                cursor scoped_cursor = tc->scoped_session.open_cursor(coll.name);
+                scoped_cursor->reconfigure(scoped_cursor.get(), "prefix_search=true");
+                cursors.emplace(coll.id, std::move(scoped_cursor));
             }
 
             /* Do a second lookup now that we know it exists. */
@@ -275,10 +275,10 @@ class search_near_03 : public test {
         while (tc->running()) {
             for (int i = 0; i < tc->db.get_collection_count(); i++) {
                 collection &coll = tc->db.get_collection(i);
-                scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+                cursor scoped_cursor = tc->scoped_session.open_cursor(coll.name);
                 ret = 0;
                 while (ret == 0) {
-                    ret = cursor->next(cursor.get());
+                    ret = scoped_cursor->next(scoped_cursor.get());
                     testutil_assertfmt(ret == 0 || ret == WT_NOTFOUND,
                       "Unexpected error %d returned from cursor->next()", ret);
                     if (ret == WT_NOTFOUND)

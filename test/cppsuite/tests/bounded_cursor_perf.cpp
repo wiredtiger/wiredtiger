@@ -44,14 +44,14 @@ class bounded_cursor_perf : public test {
     }
 
     static void
-    set_bounds(scoped_cursor &cursor)
+    set_bounds(cursor &scoped_cursor)
     {
         std::string lower_bound(1, ('0' - 1));
-        cursor->set_key(cursor.get(), lower_bound.c_str());
-        cursor->bound(cursor.get(), "bound=lower");
+        scoped_cursor->set_key(scoped_cursor.get(), lower_bound.c_str());
+        scoped_cursor->bound(scoped_cursor.get(), "bound=lower");
         std::string upper_bound(1, ('9' + 1));
-        cursor->set_key(cursor.get(), upper_bound.c_str());
-        cursor->bound(cursor.get(), "bound=upper");
+        scoped_cursor->set_key(scoped_cursor.get(), upper_bound.c_str());
+        scoped_cursor->bound(scoped_cursor.get(), "bound=upper");
     }
 
     void
@@ -76,10 +76,10 @@ class bounded_cursor_perf : public test {
         collection &coll = tc->db.get_collection(0);
 
         /* Opening the cursors. */
-        scoped_cursor next_cursor = tc->scoped_session.open_scoped_cursor(coll.name);
-        scoped_cursor next_range_cursor = tc->scoped_session.open_scoped_cursor(coll.name);
-        scoped_cursor prev_cursor = tc->scoped_session.open_scoped_cursor(coll.name);
-        scoped_cursor prev_range_cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+        cursor next_cursor = tc->scoped_session.open_cursor(coll.name);
+        cursor next_range_cursor = tc->scoped_session.open_cursor(coll.name);
+        cursor prev_cursor = tc->scoped_session.open_cursor(coll.name);
+        cursor prev_range_cursor = tc->scoped_session.open_cursor(coll.name);
 
         /*
          * The keys in the collection are contiguous from 0 -> key_count -1. Applying the range
