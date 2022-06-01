@@ -135,8 +135,19 @@ timestamp_manager::get_oldest_ts() const
 wt_timestamp_t
 timestamp_manager::get_valid_read_ts() const
 {
+    /* Use get_oldest_ts here to convert from atomic to wt_timestamp_t. */
+    wt_timestamp_t current_oldest = get_oldest_ts();
+    wt_timestamp_t current_stable = _stable_ts;
+    if (current_stable > current_oldest) {
+        --current_stable;
+    }
+    testutil_assert(current_stable > 0 && current_stable >= current_oldest);
+    /*
+     * Its okay to return a timestamp less than a concurrently updated oldest timestamp as all
+     * readers should be reading with timestamp rounding.
+     */
     return random_generator::instance().generate_integer<wt_timestamp_t>(
-      _oldest_ts, _stable_ts - 1);
+      current_oldest, current_stable);
 }
 
 uint64_t
