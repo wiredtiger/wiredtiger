@@ -792,12 +792,41 @@ __wt_tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __tiered_cleanup --
+ *     Cleanup a tiered data handle.
+ */
+static void
+__tiered_cleanup(WT_SESSION_IMPL *session, WT_TIERED *tiered)
+{
+    uint32_t i;
+
+    /* Cleanup and dereference all tiers.  */
+    for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
+        __wt_free(session, tiered->tiers[i].name);
+        tiered->tiers[i].flags = 0;
+        if (tiered->tiers[i].tier != NULL) {
+            (void)__wt_atomic_subi32(&tiered->tiers[i].tier->session_inuse, 1);
+            tiered->tiers[i].tier = NULL;
+        }
+    }
+
+    /* Cleanup other fields in tiered structure. */
+    __wt_free(session, tiered->key_format);
+    __wt_free(session, tiered->value_format);
+    __wt_free(session, tiered->obj_config);
+    tiered->current_id = tiered->next_id = tiered->oldest_id = 0;
+    tiered->flags = 0;
+}
+
+/*
  * __wt_tiered_close --
  *     Close a tiered data handle.
  */
 int
-__wt_tiered_close(WT_SESSION_IMPL *session)
+__wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
+    __tiered_cleanup(session, tiered);
+
     return (__wt_btree_close(session));
 }
 
@@ -808,22 +837,8 @@ __wt_tiered_close(WT_SESSION_IMPL *session)
 int
 __wt_tiered_discard(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
-    uint32_t i;
-
-    __wt_free(session, tiered->key_format);
-    __wt_free(session, tiered->value_format);
-    __wt_free(session, tiered->obj_config);
+    __tiered_cleanup(session, tiered);
     __wt_verbose(session, WT_VERB_TIERED, "%s", "TIERED_CLOSE: called");
-    /*
-     * For the moment we don't have anything to return. But all the callers currently expect a real
-     * return value from a close function. And this may become more complex later. During connection
-     * close the other dhandles may be closed and freed before this dhandle. So just free the names.
-     */
-    for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
-        if (tiered->tiers[i].name != NULL)
-            __wt_free(session, tiered->tiers[i].name);
-    }
-
     return (__wt_btree_discard(session));
 }
 
