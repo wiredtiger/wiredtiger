@@ -38,7 +38,7 @@
 namespace test_harness {
 /* Static methods. */
 static void
-populate_worker(thread_context *tc)
+populate_worker(thread_worker *tc)
 {
     uint64_t collections_per_thread = tc->collection_count / tc->thread_count;
 
@@ -71,7 +71,7 @@ database_operation::populate(
   database &database, timestamp_manager *tsm, configuration *config, workload_tracking *tracking)
 {
     int64_t collection_count, key_count, key_size, thread_count, value_size;
-    std::vector<thread_context *> workers;
+    std::vector<thread_worker *> workers;
     std::string collection_name;
     thread_manager tm;
 
@@ -106,7 +106,7 @@ database_operation::populate(
      * here.
      */
     for (int64_t i = 0; i < thread_count; ++i) {
-        thread_context *tc = new thread_context(i, thread_type::INSERT, config,
+        thread_worker *tc = new thread_worker(i, thread_type::INSERT, config,
           connection_manager::instance().create_session(), tsm, tracking, database);
         workers.push_back(tc);
         tm.add_thread(populate_worker, tc);
@@ -125,7 +125,7 @@ database_operation::populate(
 }
 
 void
-database_operation::checkpoint_operation(thread_context *tc)
+database_operation::checkpoint_operation(thread_worker *tc)
 {
     logger::log_msg(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
@@ -137,14 +137,14 @@ database_operation::checkpoint_operation(thread_context *tc)
 }
 
 void
-database_operation::custom_operation(thread_context *tc)
+database_operation::custom_operation(thread_worker *tc)
 {
     logger::log_msg(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 }
 
 void
-database_operation::insert_operation(thread_context *tc)
+database_operation::insert_operation(thread_worker *tc)
 {
     logger::log_msg(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
@@ -220,7 +220,7 @@ database_operation::insert_operation(thread_context *tc)
 }
 
 void
-database_operation::read_operation(thread_context *tc)
+database_operation::read_operation(thread_worker *tc)
 {
     logger::log_msg(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
@@ -262,7 +262,7 @@ database_operation::read_operation(thread_context *tc)
 }
 
 void
-database_operation::remove_operation(thread_context *tc)
+database_operation::remove_operation(thread_worker *tc)
 {
     logger::log_msg(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
@@ -337,7 +337,7 @@ database_operation::remove_operation(thread_context *tc)
 }
 
 void
-database_operation::update_operation(thread_context *tc)
+database_operation::update_operation(thread_worker *tc)
 {
     logger::log_msg(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");

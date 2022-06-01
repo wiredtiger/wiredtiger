@@ -36,7 +36,7 @@ operation_configuration::operation_configuration(configuration *config, thread_t
 {
 }
 
-std::function<void(thread_context *)>
+std::function<void(thread_worker *)>
 operation_configuration::get_func(database_operation *dbo)
 {
     switch (type) {

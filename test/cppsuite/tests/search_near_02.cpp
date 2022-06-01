@@ -66,7 +66,7 @@ class search_near_02 : public test {
     }
 
     void
-    insert_operation(thread_context *tc) override final
+    insert_operation(thread_worker *tc) override final
     {
         /* Each insert operation will insert new keys in the collections. */
         logger::log_msg(
@@ -145,7 +145,7 @@ class search_near_02 : public test {
     }
 
     void
-    read_operation(thread_context *tc) override final
+    read_operation(thread_worker *tc) override final
     {
         /*
          * Each read operation performs search_near calls with and without prefix enabled on random

@@ -33,7 +33,7 @@
 
 #include "configuration.h"
 #include "database_operation.h"
-#include "thread_context.h"
+#include "thread_worker.h"
 
 namespace test_harness {
 /*
@@ -44,7 +44,7 @@ class operation_configuration {
     operation_configuration(configuration *config, thread_type type);
 
     /* Returns a function pointer to the member function of the supplied database operation. */
-    std::function<void(thread_context *)> get_func(database_operation *dbo);
+    std::function<void(thread_worker *)> get_func(database_operation *dbo);
 
     public:
     configuration *config;

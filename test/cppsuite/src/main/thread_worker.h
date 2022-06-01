@@ -26,8 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef THREAD_CONTEXT_H
-#define THREAD_CONTEXT_H
+#ifndef THREAD_WORKER_H
+#define THREAD_WORKER_H
 
 #include <string>
 
@@ -45,13 +45,13 @@ enum thread_type { CHECKPOINT, CUSTOM, INSERT, READ, REMOVE, UPDATE };
 const std::string type_string(thread_type type);
 
 /* Container class for a thread and any data types it may need to interact with the database. */
-class thread_context {
+class thread_worker {
     public:
-    thread_context(uint64_t id, thread_type type, configuration *config,
+    thread_worker(uint64_t id, thread_type type, configuration *config,
       scoped_session &&created_session, timestamp_manager *timestamp_manager,
       workload_tracking *tracking, database &dbase);
 
-    virtual ~thread_context() = default;
+    virtual ~thread_worker() = default;
 
     void finish();
 

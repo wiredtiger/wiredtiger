@@ -22,7 +22,7 @@ add_library(cppsuite_test_harness STATIC
     src/main/database_operation.cpp
     src/main/operation_configuration.cpp
     src/main/test.cpp
-    src/main/thread_context.cpp
+    src/main/thread_worker.cpp
     src/main/transaction.cpp
     src/main/validator.cpp
     src/storage/connection_manager.cpp

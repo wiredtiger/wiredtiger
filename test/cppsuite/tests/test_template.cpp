@@ -78,37 +78,37 @@ class test_template : public test {
     }
 
     void
-    checkpoint_operation(thread_context *) override final
+    checkpoint_operation(thread_worker *) override final
     {
         logger::log_msg(LOG_WARN, "checkpoint_operation: nothing done");
     }
 
     void
-    custom_operation(thread_context *) override final
+    custom_operation(thread_worker *) override final
     {
         logger::log_msg(LOG_WARN, "custom_operation: nothing done");
     }
 
     void
-    insert_operation(thread_context *) override final
+    insert_operation(thread_worker *) override final
     {
         logger::log_msg(LOG_WARN, "insert_operation: nothing done");
     }
 
     void
-    read_operation(thread_context *) override final
+    read_operation(thread_worker *) override final
     {
         logger::log_msg(LOG_WARN, "read_operation: nothing done");
     }
 
     void
-    remove_operation(thread_context *) override final
+    remove_operation(thread_worker *) override final
     {
         logger::log_msg(LOG_WARN, "remove_operation: nothing done");
     }
 
     void
-    update_operation(thread_context *) override final
+    update_operation(thread_worker *) override final
     {
         logger::log_msg(LOG_WARN, "update_operation: nothing done");
     }

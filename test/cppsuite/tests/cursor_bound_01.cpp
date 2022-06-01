@@ -219,7 +219,7 @@ class cursor_bound_01 : public test {
      * inclusive configuration is also randomly set as well.
      */
     std::pair<bound, bound>
-    set_random_bounds(thread_context *tc, scoped_cursor &range_cursor)
+    set_random_bounds(thread_worker *tc, scoped_cursor &range_cursor)
     {
         int ret;
         bound lower_bound, upper_bound;
@@ -459,7 +459,7 @@ class cursor_bound_01 : public test {
     }
 
     void
-    insert_operation(thread_context *tc) override final
+    insert_operation(thread_worker *tc) override final
     {
         /* Each insert operation will insert new keys in the collections. */
         logger::log_msg(
@@ -506,7 +506,7 @@ class cursor_bound_01 : public test {
     }
 
     void
-    update_operation(thread_context *tc) override final
+    update_operation(thread_worker *tc) override final
     {
         /* Each update operation will update existing keys in the collections. */
         logger::log_msg(
@@ -568,7 +568,7 @@ class cursor_bound_01 : public test {
     }
 
     void
-    read_operation(thread_context *tc) override final
+    read_operation(thread_worker *tc) override final
     {
         /*
          * Each read operation will perform search nears with a range bounded cursor and a normal
@@ -641,7 +641,7 @@ class cursor_bound_01 : public test {
     }
 
     void
-    custom_operation(thread_context *tc) override final
+    custom_operation(thread_worker *tc) override final
     {
         /*
          * Each custom operation will use the range bounded cursor to traverse through existing keys

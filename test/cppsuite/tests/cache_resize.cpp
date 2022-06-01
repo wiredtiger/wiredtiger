@@ -68,7 +68,7 @@ class cache_resize : public test {
     }
 
     void
-    custom_operation(thread_context *tc) override final
+    custom_operation(thread_worker *tc) override final
     {
         WT_CONNECTION *conn = connection_manager::instance().get_connection();
         WT_CONNECTION_IMPL *conn_impl = (WT_CONNECTION_IMPL *)conn;
@@ -124,7 +124,7 @@ class cache_resize : public test {
     }
 
     void
-    insert_operation(thread_context *tc) override final
+    insert_operation(thread_worker *tc) override final
     {
         const uint64_t collection_count = tc->db.get_collection_count();
         testutil_assert(collection_count > 0);

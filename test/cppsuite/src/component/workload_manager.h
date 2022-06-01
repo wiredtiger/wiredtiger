@@ -34,7 +34,7 @@
 #include "src/common/thread_manager.h"
 #include "src/main/configuration.h"
 #include "src/main/database_operation.h"
-#include "src/main/thread_context.h"
+#include "src/main/thread_worker.h"
 
 namespace test_harness {
 /*
@@ -67,7 +67,7 @@ class workload_manager : public component {
     thread_manager _thread_manager;
     timestamp_manager *_timestamp_manager = nullptr;
     workload_tracking *_tracking = nullptr;
-    std::vector<thread_context *> _workers;
+    std::vector<thread_worker *> _workers;
     bool _db_populated = false;
 };
 } // namespace test_harness

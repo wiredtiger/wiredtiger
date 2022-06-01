@@ -88,7 +88,7 @@ workload_manager::run()
               "workload_manager: Creating " + std::to_string(it.thread_count) + " " +
                 type_string(it.type) + " threads.");
         for (size_t i = 0; i < it.thread_count && _running; ++i) {
-            thread_context *tc = new thread_context(thread_id++, it.type, it.config,
+            thread_worker *tc = new thread_worker(thread_id++, it.type, it.config,
               connection_manager::instance().create_session(), _timestamp_manager, _tracking,
               _database);
             _workers.push_back(tc);

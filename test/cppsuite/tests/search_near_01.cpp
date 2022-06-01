@@ -50,7 +50,7 @@ class search_near_01 : public test {
     const int64_t MINIMUM_EXPECTED_ENTRIES = 40;
 
     static void
-    populate_worker(thread_context *tc, const std::string &ALPHABET, uint64_t PREFIX_KEY_LEN)
+    populate_worker(thread_worker *tc, const std::string &ALPHABET, uint64_t PREFIX_KEY_LEN)
     {
         logger::log_msg(LOG_INFO, "Populate with thread id: " + std::to_string(tc->id));
 
@@ -111,7 +111,7 @@ class search_near_01 : public test {
       workload_tracking *tracking) override final
     {
         uint64_t collection_count, key_size;
-        std::vector<thread_context *> workers;
+        std::vector<thread_worker *> workers;
         thread_manager tm;
 
         /* Validate our config. */
@@ -138,7 +138,7 @@ class search_near_01 : public test {
 
         /* Spawn 26 threads to populate the database. */
         for (uint64_t i = 0; i < ALPHABET.size(); ++i) {
-            thread_context *tc = new thread_context(i, thread_type::INSERT, config,
+            thread_worker *tc = new thread_worker(i, thread_type::INSERT, config,
               connection_manager::instance().create_session(), tsm, tracking, database);
             workers.push_back(tc);
             tm.add_thread(populate_worker, tc, ALPHABET, PREFIX_KEY_LEN);
@@ -179,7 +179,7 @@ class search_near_01 : public test {
     }
 
     static void
-    perform_search_near(thread_context *tc, std::string collection_name, uint64_t srchkey_len,
+    perform_search_near(thread_worker *tc, std::string collection_name, uint64_t srchkey_len,
       std::atomic<int64_t> &z_key_searches)
     {
         std::string srch_key;
@@ -222,14 +222,14 @@ class search_near_01 : public test {
     }
 
     void
-    read_operation(thread_context *tc) override final
+    read_operation(thread_worker *tc) override final
     {
         /* Make sure that thread statistics cursor is null before we open it. */
         testutil_assert(tc->stat_cursor.get() == nullptr);
         /* This test will only work with one read thread. */
         testutil_assert(tc->thread_count == 1);
         configuration *workload_config, *read_config;
-        std::vector<thread_context *> workers;
+        std::vector<thread_worker *> workers;
         std::atomic<int64_t> z_key_searches;
         int64_t entries_stat, expected_entries, prefix_stat, prev_entries_stat, prev_prefix_stat;
         int num_threads;
@@ -262,8 +262,8 @@ class search_near_01 : public test {
             for (uint64_t i = 0; i < num_threads; ++i) {
                 /* Get a collection and find a cached cursor. */
                 collection &coll = tc->db.get_random_collection();
-                thread_context *search_near_tc =
-                  new thread_context(i, thread_type::READ, read_config,
+                thread_worker *search_near_tc =
+                  new thread_worker(i, thread_type::READ, read_config,
                     connection_manager::instance().create_session(), tc->tsm, tc->tracking, tc->db);
                 workers.push_back(search_near_tc);
                 tm.add_thread(perform_search_near, search_near_tc, coll.name, srchkey_len,

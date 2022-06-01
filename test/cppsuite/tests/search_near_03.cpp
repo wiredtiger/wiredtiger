@@ -63,7 +63,7 @@ class search_near_03 : public test {
      */
     static bool
     perform_unique_index_insertions(
-      thread_context *tc, scoped_cursor &cursor, collection &coll, std::string &prefix_key)
+      thread_worker *tc, scoped_cursor &cursor, collection &coll, std::string &prefix_key)
     {
         std::string ret_key;
         const char *key_tmp;
@@ -101,7 +101,7 @@ class search_near_03 : public test {
     }
 
     static void
-    populate_worker(thread_context *tc)
+    populate_worker(thread_worker *tc)
     {
         logger::log_msg(LOG_INFO, "Populate with thread id: " + std::to_string(tc->id));
 
@@ -147,7 +147,7 @@ class search_near_03 : public test {
       workload_tracking *tracking) override final
     {
         uint64_t collection_count, key_count, key_size;
-        std::vector<thread_context *> workers;
+        std::vector<thread_worker *> workers;
         thread_manager tm;
 
         /* Validate our config. */
@@ -173,7 +173,7 @@ class search_near_03 : public test {
 
         /* Spawn a populate thread for each collection in the database. */
         for (uint64_t i = 0; i < collection_count; ++i) {
-            thread_context *tc = new thread_context(i, thread_type::INSERT, config,
+            thread_worker *tc = new thread_worker(i, thread_type::INSERT, config,
               connection_manager::instance().create_session(), tsm, tracking, database);
             workers.push_back(tc);
             tm.add_thread(populate_worker, tc);
@@ -217,7 +217,7 @@ class search_near_03 : public test {
     }
 
     void
-    insert_operation(thread_context *tc) override final
+    insert_operation(thread_worker *tc) override final
     {
         std::map<uint64_t, scoped_cursor> cursors;
         std::string prefix_key;
@@ -261,7 +261,7 @@ class search_near_03 : public test {
     }
 
     void
-    read_operation(thread_context *tc) override final
+    read_operation(thread_worker *tc) override final
     {
         uint64_t key_count = 0;
         int ret = 0;

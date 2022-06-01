@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "thread_context.h"
+#include "thread_worker.h"
 
 #include <thread>
 
@@ -58,7 +58,7 @@ type_string(thread_type type)
     }
 }
 
-thread_context::thread_context(uint64_t id, thread_type type, configuration *config,
+thread_worker::thread_worker(uint64_t id, thread_type type, configuration *config,
   scoped_session &&created_session, timestamp_manager *timestamp_manager,
   workload_tracking *tracking, database &dbase)
     : /* These won't exist for certain threads which is why we use optional here. */
@@ -78,13 +78,13 @@ thread_context::thread_context(uint64_t id, thread_type type, configuration *con
 }
 
 void
-thread_context::finish()
+thread_worker::finish()
 {
     _running = false;
 }
 
 std::string
-thread_context::pad_string(const std::string &value, uint64_t size)
+thread_worker::pad_string(const std::string &value, uint64_t size)
 {
     uint64_t diff = size > value.size() ? size - value.size() : 0;
     std::string s(diff, '0');
@@ -92,7 +92,7 @@ thread_context::pad_string(const std::string &value, uint64_t size)
 }
 
 bool
-thread_context::update(
+thread_worker::update(
   scoped_cursor &cursor, uint64_t collection_id, const std::string &key, const std::string &value)
 {
     WT_DECL_RET;
@@ -134,7 +134,7 @@ thread_context::update(
 }
 
 bool
-thread_context::insert(
+thread_worker::insert(
   scoped_cursor &cursor, uint64_t collection_id, const std::string &key, const std::string &value)
 {
     WT_DECL_RET;
@@ -176,7 +176,7 @@ thread_context::insert(
 }
 
 bool
-thread_context::remove(scoped_cursor &cursor, uint64_t collection_id, const std::string &key)
+thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::string &key)
 {
     WT_DECL_RET;
     testutil_assert(tracking != nullptr);
@@ -214,13 +214,13 @@ thread_context::remove(scoped_cursor &cursor, uint64_t collection_id, const std:
 }
 
 void
-thread_context::sleep()
+thread_worker::sleep()
 {
     std::this_thread::sleep_for(std::chrono::milliseconds(_sleep_time_ms));
 }
 
 bool
-thread_context::running() const
+thread_worker::running() const
 {
     return (_running);
 }
