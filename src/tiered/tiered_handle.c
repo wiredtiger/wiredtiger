@@ -815,6 +815,7 @@ __tiered_cleanup(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     __wt_free(session, tiered->obj_config);
     tiered->current_id = tiered->next_id = tiered->oldest_id = 0;
     tiered->flags = 0;
+    tiered->bstorage = NULL;
 }
 
 /*
