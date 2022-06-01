@@ -201,13 +201,15 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
 {
     WT_MODIFY entries[MAX_MODIFY_ENTRIES];
     uint8_t val8;
-    int cmp, ret;
+    int cmp, cmp_new, ret, tmp;
     int nentries;
     char valuebuf[64];
+    uint64_t key_tmp0, key_tmp1, key_tmp2, key_tmp3;
 
     cursor->set_key(cursor, keyno);
+    key_tmp0 = keyno;
     /* Roughly half inserts, then balanced inserts / range removes. */
-    if (new_val > g.nops / 2 && new_val % 39 == 0) {
+    if (new_val > g.nops / 2 && new_val % 10 == 0) {
         if ((ret = cursor->search_near(cursor, &cmp)) != 0) {
             if (ret == WT_NOTFOUND)
                 return (0);
@@ -216,13 +218,57 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
             return (log_print_err("cursor.search_near", ret, 1));
         }
 
+        testutil_check(cursor->get_key(cursor, &key_tmp1));
+
         /* Retry the result of search_near again to confirm the result. */
-        if (new_val % 2 == 0) {
-            if ((ret = cursor->search(cursor)) != 0) {
-                if (ret == WT_ROLLBACK)
-                    return (WT_ROLLBACK);
-                return (log_print_err("cursor.search", ret, 1));
-            }
+        if ((ret = cursor->search(cursor)) != 0) {
+            if (ret == WT_ROLLBACK)
+                return (WT_ROLLBACK);
+
+            /*
+             * Not rolling back, probably WT_NOTFOUND. Let's do some diagnostics:
+             * Print key from before search_near
+             * Print key after search_near
+             * Print key after search
+             */
+            testutil_check(cursor->get_key(cursor, &key_tmp2));
+
+            printf("key_start=%" PRIu64 ", key_post_search_near=%" PRIu64 ", key_post_search=%" PRIu64 "\n",
+                   key_tmp0, key_tmp1, key_tmp2);
+            while (1 == 1)
+                tmp = __wt_session_breakpoint(cursor->session);
+            __wt_abort((WT_SESSION_IMPL *)cursor->session);
+            return (log_print_err("cursor.search", ret, 1));
+        }
+        testutil_check(cursor->get_key(cursor, &key_tmp2));
+
+        /* Run search_near once again to try to break stuff. */
+        if ((ret = cursor->search_near(cursor, &cmp_new)) != 0) {
+            if (ret == WT_ROLLBACK || ret == WT_PREPARE_CONFLICT)
+                return (WT_ROLLBACK);
+
+            /*
+             * Not rolling back, probably WT_NOTFOUND. Let's do some diagnostics:
+             * Print key from before search_near
+             * Print key after search_near
+             * Print key after search
+             */
+            key_tmp2 = *((uint64_t *)cursor->key.data);
+
+            printf("key_start=%" PRIu64 ", key_post_search_near=%" PRIu64 ", key_post_search=%" PRIu64 " (tmp=%d)\n",
+                   key_tmp0, key_tmp1, key_tmp2, tmp);
+            while (1 == 1)
+                tmp = __wt_session_breakpoint(cursor->session);
+            __wt_abort((WT_SESSION_IMPL *)cursor->session);
+            return (log_print_err("cursor.search", ret, 1));
+        }
+        testutil_check(cursor->get_key(cursor, &key_tmp3));
+
+        if (key_tmp2 != key_tmp3 || cmp_new != 0) {
+            while (1 == 1)
+                tmp = __wt_session_breakpoint(cursor->session);
+            __wt_abort((WT_SESSION_IMPL *)cursor->session);
+            return (log_print_err("cursor.search_near", ret, 1));
         }
 
         if (cmp < 0) {
@@ -275,7 +321,7 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
         }
         if (g.sweep_stress)
             testutil_check(cursor->reset(cursor));
-    } else if (new_val % 39 < 10) {
+    } else if (new_val % 10 < 3) {
         if ((ret = cursor->search(cursor)) != 0 && ret != WT_NOTFOUND) {
             if (ret == WT_ROLLBACK || ret == WT_PREPARE_CONFLICT)
                 return (WT_ROLLBACK);
@@ -284,7 +330,7 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
         if (g.sweep_stress)
             testutil_check(cursor->reset(cursor));
     } else {
-        if (new_val % 39 < 30) {
+        if (new_val % 10 < 5) {
             /* Do modify. */
             ret = cursor->search(cursor);
             if (ret == 0 && (type != FIX || !cursor_fix_at_zero(cursor))) {
@@ -384,6 +430,7 @@ real_worker(void)
     }
 
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
+    printf("seed: v=%lu, x.w=%u, x.z=%u\n", rnd.v, rnd.x.w, rnd.x.z);
 
     for (j = 0; j < g.ntables; j++)
         if ((ret = session->open_cursor(session, g.cookies[j].uri, NULL, NULL, &cursors[j])) != 0) {
