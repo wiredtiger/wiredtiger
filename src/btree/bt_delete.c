@@ -220,6 +220,73 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
+ * __delete_redo_window_cleanup_internal --
+ *     Process one internal page for __wt_delete_redo_window_cleanup. This fixes up the transaction
+ *     IDs in the delete info. Since we're called at the end of recovery there's no need to lock the
+ *     ref or worry about races.
+ */
+static void
+__delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_REF *child;
+
+    WT_ASSERT(session, F_ISSET(ref, WT_REF_FLAG_INTERNAL));
+    if (ref->page != NULL) {
+        WT_INTL_FOREACH_BEGIN (session, ref->page, child) {
+            if (child->state == WT_REF_DELETED && child->ft_info.del != NULL)
+                __cell_redo_page_del_cleanup(session, ref->page->dsk, child->ft_info.del);
+        }
+        WT_INTL_FOREACH_END;
+    }
+}
+
+/*
+ * __delete_redo_window_cleanup_skip --
+ *     Tree-walk skip function for __wt_delete_redo_window_cleanup. This skips all leaf pages; we'll
+ *     visit all in-memory internal pages via the flag settings on the tree-walk call.
+ */
+static int
+__delete_redo_window_cleanup_skip(
+  WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
+{
+    WT_UNUSED(session);
+    WT_UNUSED(context);
+    WT_UNUSED(visible_all);
+
+    WT_ASSERT(session, F_ISSET(ref, WT_REF_FLAG_LEAF));
+
+    *skipp = true;
+    return (0);
+}
+
+/*
+ * __wt_delete_redo_window_cleanup --
+ *     Clear old transaction IDs from already-loaded page_del structures to make them look like we
+ *     just unpacked the information. Called after the tree write generation is bumped during
+ *     recovery so that old transaction IDs don't come back to life. Note that this can only fail if
+ *     something goes wrong in the tree walk; it doesn't itself ever fail.
+ */
+int
+__wt_delete_redo_window_cleanup(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    WT_REF *ref;
+
+    /*
+     * Walk the tree and look for internal pages holding fast-truncate information. Note: we pass
+     * WT_READ_VISIBLE_ALL because we have no snapshot, but we aren't actually doing any visibility
+     * checks.
+     */
+    ref = NULL;
+    while ((ret = __wt_tree_walk_custom_skip(session, &ref, __delete_redo_window_cleanup_skip, NULL,
+              WT_READ_CACHE | WT_READ_VISIBLE_ALL)) == 0 &&
+      ref != NULL)
+        WT_WITH_PAGE_INDEX(session, __delete_redo_window_cleanup_internal(session, ref));
+
+    return (ret);
+}
+
+/*
  * __wt_delete_page_skip --
  *     If iterating a cursor, skip deleted pages that are either visible to us or globally visible.
  */

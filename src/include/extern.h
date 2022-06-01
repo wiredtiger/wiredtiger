@@ -658,7 +658,11 @@ extern int __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref,
   WT_PAGE_DELETED *page_del) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_delete_redo_window_cleanup(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_dhandle_update_write_gens(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_direct_io_size_check(WT_SESSION_IMPL *session, const char **cfg,
   const char *config_name, uint32_t *allocsizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1758,7 +1762,6 @@ extern void __wt_curstat_cache_walk(WT_SESSION_IMPL *session);
 extern void __wt_curstat_dsrc_final(WT_CURSOR_STAT *cst);
 extern void __wt_curtable_set_key(WT_CURSOR *cursor, ...);
 extern void __wt_curtable_set_value(WT_CURSOR *cursor, ...);
-extern void __wt_dhandle_update_write_gens(WT_SESSION_IMPL *session);
 extern void __wt_encrypt_size(
   WT_SESSION_IMPL *session, WT_KEYED_ENCRYPTOR *kencryptor, size_t incoming_size, size_t *sizep);
 extern void __wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
