@@ -81,7 +81,7 @@ workload_manager::run()
     _db_populated = true;
     delete populate_config;
 
-    /* Generate threads to execute read operations on the collections. */
+    /* Generate threads to execute the different operations on the collections. */
     for (auto &it : operation_configs) {
         if (it.thread_count != 0)
             logger::log_msg(LOG_INFO,
