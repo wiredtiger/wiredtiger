@@ -62,9 +62,6 @@ class statistics_monitor : public component {
     void finish() override final;
 
     private:
-    void append_stats();
-
-    private:
     wiredtiger_session _session;
     wiredtiger_cursor _cursor;
     const std::string _test_name;

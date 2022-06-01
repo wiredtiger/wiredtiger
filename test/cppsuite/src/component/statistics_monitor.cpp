@@ -44,8 +44,6 @@ extern "C" {
 
 namespace test_harness {
 
-/* Inline methods implementation. */
-
 /*
  * The WiredTiger configuration API doesn't accept string statistic names when retrieving statistic
  * values. This function provides the required mapping to statistic id. We should consider
@@ -124,24 +122,25 @@ statistics_monitor::finish()
 {
     component::finish();
 
-    /* Append stats to the statistics writer. */
-    append_stats();
-
-    /* Check the post run statistics now. */
     bool success = true;
-    int64_t stat_max, stat_min, stat_value;
-    std::string stat_name;
 
     for (const auto &stat : _stats) {
+
+        const std::string stat_name = stat->get_name();
+
+        /* Append stats to the statistics writer if it needs to be saved. */
+        if (stat->get_save()) {
+            auto stat_str =
+              "{\"name\":\"" + stat_name + "\",\"value\":" + stat->get_value_str(_cursor) + "}";
+            statistics_writer::instance().add_stat(stat_str);
+        }
 
         if (!stat->get_postrun())
             continue;
 
-        stat_max = stat->get_max();
-        stat_min = stat->get_min();
-        stat_name = stat->get_name();
-
-        stat_value = std::stoi(stat->get_value_str(_cursor));
+        int64_t stat_max = stat->get_max();
+        int64_t stat_min = stat->get_min();
+        int64_t stat_value = std::stoi(stat->get_value_str(_cursor));
 
         if (stat_value < stat_min || stat_value > stat_max) {
             const std::string error_string = "statistics_monitor: Postrun stat \"" + stat_name +
@@ -160,21 +159,5 @@ statistics_monitor::finish()
         testutil_die(-1,
           "statistics_monitor: One or more postrun statistics were outside of their specified "
           "limits.");
-}
-
-/*
- * This function appends the values of the different statistics that need to be saved as indicated
- * by the test configuration file to the statistics writer.
- */
-void
-statistics_monitor::append_stats()
-{
-    for (const auto &stat : _stats) {
-        if (stat->get_save()) {
-            auto stat_str = "{\"name\":\"" + stat->get_name() +
-              "\",\"value\":" + stat->get_value_str(_cursor) + "}";
-            statistics_writer::instance().add_stat(stat_str);
-        }
-    }
 }
 } // namespace test_harness
