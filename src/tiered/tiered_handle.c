@@ -802,12 +802,11 @@ __tiered_cleanup(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 
     /* Cleanup and dereference all tiers.  */
     for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
-        __wt_free(session, tiered->tiers[i].name);
-        tiered->tiers[i].flags = 0;
-        if (tiered->tiers[i].tier != NULL) {
+        if (tiered->tiers[i].tier != NULL && tiered->tiers[i].tier->session_inuse > 0)
             (void)__wt_atomic_subi32(&tiered->tiers[i].tier->session_inuse, 1);
-            tiered->tiers[i].tier = NULL;
-        }
+        tiered->tiers[i].tier = NULL;
+        tiered->tiers[i].flags = 0;
+        __wt_free(session, tiered->tiers[i].name);
     }
 
     /* Cleanup other fields in tiered structure. */
