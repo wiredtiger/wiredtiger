@@ -2194,8 +2194,8 @@ struct __wt_connection {
 	 * copy is freed on the next cursor operation.  This allows memory sanitizers to detect
 	 * inappropriate references to memory owned by cursors., a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;cursor_reposition, if true\, for the operations with
-	 * snapshot isolation the cursor temporarily releases the page it would otherwise keep
-	 * pinned\, then repositions back to the page for further operations.  A page release
+	 * snapshot isolation the cursor temporarily releases the page that requires force
+	 * eviction\, then repositions back to the page for further operations.  A page release
 	 * encourages eviction of hot or large pages\, which is more likely to succeed without a
 	 * cursor keeping the page pinned., a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction, if true\, modify internal algorithms to change
@@ -2924,7 +2924,7 @@ struct __wt_connection {
  * memory owned by cursors., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
  * cursor_reposition, if true\, for the operations with snapshot isolation the cursor temporarily
- * releases the page it would otherwise keep pinned\, then repositions back to the page for further
+ * releases the page that requires force eviction\, then repositions back to the page for further
  * operations.  A page release encourages eviction of hot or large pages\, which is more likely to
  * succeed without a cursor keeping the page pinned., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction, if true\, modify internal algorithms to change skew to

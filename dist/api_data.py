@@ -568,7 +568,7 @@ connection_runtime_config = [
             type='boolean'),
         Config('cursor_reposition', 'false', r'''
             if true, for the operations with snapshot isolation the cursor temporarily releases the
-            page it would otherwise keep pinned, then repositions back to the page for further
+            page that requires force eviction, then repositions back to the page for further
             operations. A page release encourages eviction of hot or large pages, which is more
             likely to succeed without a cursor keeping the page pinned.''',
             type='boolean'),
