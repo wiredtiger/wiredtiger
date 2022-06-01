@@ -30,10 +30,10 @@
 
 #include <fstream>
 
-#include "perf_plotter.h"
 #include "src/common/constants.h"
 #include "src/common/logger.h"
 #include "src/storage/connection_manager.h"
+#include "statistics_writer.h"
 #include "statistics/cache_limit.h"
 #include "statistics/database_size.h"
 #include "statistics/statistics.h"
@@ -124,7 +124,7 @@ statistics_monitor::finish()
 {
     component::finish();
 
-    /* Append stats to perf plotter. */
+    /* Append stats to the statistics writer. */
     append_stats();
 
     /* Check the post run statistics now. */
@@ -164,7 +164,7 @@ statistics_monitor::finish()
 
 /*
  * This function appends the values of the different statistics that need to be saved as indicated
- * by the configuration file to the perf plotter.
+ * by the test configuration file to the statistics writer.
  */
 void
 statistics_monitor::append_stats()
@@ -173,7 +173,7 @@ statistics_monitor::append_stats()
         if (stat->get_save()) {
             auto stat_str = "{\"name\":\"" + stat->get_name() +
               "\",\"value\":" + stat->get_value_str(_cursor) + "}";
-            perf_plotter::instance().add_stat(stat_str);
+            statistics_writer::instance().add_stat(stat_str);
         }
     }
 }
