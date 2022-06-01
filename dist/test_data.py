@@ -169,9 +169,9 @@ tracking_config = [
 ]
 
 #
-# Configuration that applies to the workload tracking component.
+# Configuration that applies to the operation tracker component.
 #
-workload_tracking = enabled_config_true + component_config + tracking_config
+operation_tracker = enabled_config_true + component_config + tracking_config
 
 #
 # Configuration that applies to the workload_manager component.
@@ -211,9 +211,9 @@ test_config = [
     Config('workload_manager','', r'''
         Configuration options for the workload manager''',
         type='category', subconfig=workload_manager),
-    Config('workload_tracking','', r'''
+    Config('operation_tracker','', r'''
         Configuration options for the workload tracker''',
-        type='category', subconfig=workload_tracking),
+        type='category', subconfig=operation_tracker),
 
 # Non component top level configuration.
     Config('cache_max_wait_ms', 0, r'''
