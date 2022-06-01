@@ -48,6 +48,10 @@ timestamp_manager=
 ),
 workload_manager=
 (
+    checkpoint_config=
+    (
+        op_rate=60s,
+    ),
     populate_config=
     (
         collection_count=10,
