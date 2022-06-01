@@ -230,7 +230,7 @@ database_operation::read_operation(thread_context *tc)
             auto ret = cursor->next(cursor.get());
             if (ret != 0) {
                 if (ret == WT_NOTFOUND) {
-                    cursor->reset(cursor.get());
+                    testutil_check(cursor->reset(cursor.get()));
                 } else if (ret == WT_ROLLBACK) {
                     tc->transaction.rollback();
                     tc->sleep();
