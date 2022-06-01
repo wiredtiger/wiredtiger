@@ -363,17 +363,19 @@ static inline int
 __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp,
   WT_ITEM *prefix, bool *prefix_key_out_of_bounds)
 {
+    WT_BTREE *btree;
     WT_CELL_UNPACK_KV kpack;
     WT_INSERT *ins;
     WT_ITEM *key;
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
-    bool prefix_search;
+    bool prefix_search, out_range;
 
     key = &cbt->iface.key;
     page = cbt->ref->page;
     session = CUR2S(cbt);
+    btree = S2BT(session);
     *prefix_key_out_of_bounds = false;
     prefix_search = prefix != NULL && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH);
     *skippedp = 0;
@@ -432,6 +434,19 @@ restart_read_insert:
                 WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
                 return (WT_NOTFOUND);
             }
+
+            if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER)) {
+                WT_ASSERT(session, WT_DATA_IN_ITEM(&cbt->iface.upper_bound));
+                WT_RET(
+                  __wt_compare_bounds(session, &cbt->iface, btree->collator, true, &out_range));
+                /* Check that the key is within the range if bounds have been set. */
+                if (out_range) {
+                    *prefix_key_out_of_bounds = true;
+                    WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
+                    return (WT_NOTFOUND);
+                }
+            }
+
             WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
             if (cbt->upd_value->type == WT_UPDATE_INVALID) {
                 ++*skippedp;
@@ -483,6 +498,16 @@ restart_read_page:
             *prefix_key_out_of_bounds = true;
             WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
             return (WT_NOTFOUND);
+        }
+        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER)) {
+            WT_ASSERT(session, WT_DATA_IN_ITEM(&cbt->iface.upper_bound));
+            WT_RET(__wt_compare_bounds(session, &cbt->iface, btree->collator, true, &out_range));
+            /* Check that the key is within the range if bounds have been set. */
+            if (out_range) {
+                *prefix_key_out_of_bounds = true;
+                WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
+                return (WT_NOTFOUND);
+            }
         }
 
         /*
