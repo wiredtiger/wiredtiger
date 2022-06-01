@@ -74,14 +74,20 @@ __hs_delete_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *key,
 #ifdef HAVE_DIAGNOSTIC
     WT_TIME_WINDOW *hs_tw;
 #endif
+    /* No need to delete from the history store if it is already obsolete. */
+    if (delete_tombstone != NULL && __wt_txn_upd_visible_all(session, delete_tombstone)) {
+        ret = 0;
+        goto done;
+    }
 
     hs_read_committed = F_ISSET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
     hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, hs_cursor), true);
-    /* It's possible the value in the history store is already obsolete. */
+    /* It's possible the value in the history store becomes obsolete concurrently. */
     if (ret == WT_NOTFOUND) {
-        WT_ASSERT(session, delete_tombstone != NULL);
+        WT_ASSERT(
+          session, delete_tombstone != NULL && __wt_txn_upd_visible_all(session, delete_tombstone));
         ret = 0;
         goto done;
     }
