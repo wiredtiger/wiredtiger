@@ -63,13 +63,13 @@ get_stat_field(const std::string &name)
 }
 
 void
-statistics_monitor::get_stat(cursor &scoped_cursor, int stat_field, int64_t *valuep)
+statistics_monitor::get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep)
 {
     const char *desc, *pvalue;
-    scoped_cursor->set_key(scoped_cursor.get(), stat_field);
-    testutil_check(scoped_cursor->search(scoped_cursor.get()));
-    testutil_check(scoped_cursor->get_value(scoped_cursor.get(), &desc, &pvalue, valuep));
-    testutil_check(scoped_cursor->reset(scoped_cursor.get()));
+    cursor->set_key(cursor.get(), stat_field);
+    testutil_check(cursor->search(cursor.get()));
+    testutil_check(cursor->get_value(cursor.get(), &desc, &pvalue, valuep));
+    testutil_check(cursor->reset(cursor.get()));
 }
 
 statistics_monitor::statistics_monitor(
@@ -105,7 +105,7 @@ statistics_monitor::load()
 
         /* Open our statistic cursor. */
         _session = connection_manager::instance().create_session();
-        _cursor = _session.open_cursor(STATISTICS_URI);
+        _cursor = _session.open_scoped_cursor(STATISTICS_URI);
     }
 }
 

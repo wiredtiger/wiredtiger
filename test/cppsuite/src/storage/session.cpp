@@ -93,9 +93,9 @@ session::get()
     return (_session);
 }
 
-cursor
-session::open_cursor(const std::string &uri, const std::string &cfg)
+scoped_cursor
+session::open_scoped_cursor(const std::string &uri, const std::string &cfg)
 {
-    return (cursor(_session, uri, cfg));
+    return (scoped_cursor(_session, uri, cfg));
 }
 } // namespace test_harness

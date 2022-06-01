@@ -26,7 +26,7 @@ add_library(cppsuite_test_harness STATIC
     src/main/transaction.cpp
     src/main/validator.cpp
     src/storage/connection_manager.cpp
-    src/storage/cursor.cpp
+    src/storage/scoped_cursor.cpp
     src/storage/session.cpp
 )
 

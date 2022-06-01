@@ -48,13 +48,13 @@ populate_worker(thread_worker *tc)
          * WiredTiger lets you open a cursor on a collection using the same pointer. When a session
          * is closed, WiredTiger APIs close the cursors too.
          */
-        cursor scoped_cursor = tc->scoped_session.open_cursor(coll.name);
+        scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
         uint64_t j = 0;
         while (j < tc->key_count) {
             tc->txn.begin();
             auto key = tc->pad_string(std::to_string(j), tc->key_size);
             auto value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
-            if (tc->insert(scoped_cursor, coll.id, key, value)) {
+            if (tc->insert(cursor, coll.id, key, value)) {
                 if (tc->txn.commit()) {
                     ++j;
                 }
@@ -151,12 +151,12 @@ database_operation::insert_operation(thread_worker *tc)
 
     /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
     struct collection_cursor {
-        collection_cursor(collection &coll, cursor &&scoped_cursor)
-            : coll(coll), scoped_cursor(std::move(scoped_cursor))
+        collection_cursor(collection &coll, scoped_cursor &&cursor)
+            : coll(coll), cursor(std::move(cursor))
         {
         }
         collection &coll;
-        cursor scoped_cursor;
+        scoped_cursor cursor;
     };
 
     /* Collection cursor vector. */
@@ -169,8 +169,8 @@ database_operation::insert_operation(thread_worker *tc)
     for (int i = tc->id * collections_per_thread;
          i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
         collection &coll = tc->db.get_collection(i);
-        cursor scoped_cursor = tc->scoped_session.open_cursor(coll.name);
-        ccv.push_back({coll, std::move(scoped_cursor)});
+        scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+        ccv.push_back({coll, std::move(cursor)});
     }
 
     uint64_t counter = 0;
@@ -185,7 +185,7 @@ database_operation::insert_operation(thread_worker *tc)
             /* Insert a key value pair, rolling back the transaction if required. */
             auto key = tc->pad_string(std::to_string(start_key + added_count), tc->key_size);
             auto value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
-            if (!tc->insert(cc.scoped_cursor, cc.coll.id, key, value)) {
+            if (!tc->insert(cc.cursor, cc.coll.id, key, value)) {
                 added_count = 0;
                 tc->txn.rollback();
             } else {
@@ -208,7 +208,7 @@ database_operation::insert_operation(thread_worker *tc)
             tc->sleep();
         }
         /* Reset our cursor to avoid pinning content. */
-        testutil_check(cc.scoped_cursor->reset(cc.scoped_cursor.get()));
+        testutil_check(cc.cursor->reset(cc.cursor.get()));
         counter++;
         if (counter == collections_per_thread)
             counter = 0;
@@ -225,13 +225,13 @@ database_operation::read_operation(thread_worker *tc)
     logger::log_msg(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
-    std::map<uint64_t, cursor> cursors;
+    std::map<uint64_t, scoped_cursor> cursors;
     while (tc->running()) {
         /* Get a collection and find a cached cursor. */
         collection &coll = tc->db.get_random_collection();
 
         if (cursors.find(coll.id) == cursors.end())
-            cursors.emplace(coll.id, std::move(tc->scoped_session.open_cursor(coll.name)));
+            cursors.emplace(coll.id, std::move(tc->scoped_session.open_scoped_cursor(coll.name)));
 
         /* Do a second lookup now that we know it exists. */
         auto &cursor = cursors[coll.id];
@@ -272,7 +272,7 @@ database_operation::remove_operation(thread_worker *tc)
      * other one is a standard cursor to remove the random key. This is required as the random
      * cursor does not support the remove operation.
      */
-    std::map<uint64_t, cursor> rnd_cursors, cursors;
+    std::map<uint64_t, scoped_cursor> rnd_cursors, cursors;
 
     /* Loop while the test is running. */
     while (tc->running()) {
@@ -291,18 +291,19 @@ database_operation::remove_operation(thread_worker *tc)
               "Thread {" + std::to_string(tc->id) +
                 "} Creating cursor for collection: " + coll.name);
             /* Open the two cursors for the chosen collection. */
-            cursor rnd_cursor = tc->scoped_session.open_cursor(coll.name, "next_random=true");
+            scoped_cursor rnd_cursor =
+              tc->scoped_session.open_scoped_cursor(coll.name, "next_random=true");
             rnd_cursors.emplace(coll.id, std::move(rnd_cursor));
-            cursor scoped_cursor = tc->scoped_session.open_cursor(coll.name);
-            cursors.emplace(coll.id, std::move(scoped_cursor));
+            scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+            cursors.emplace(coll.id, std::move(cursor));
         }
 
         /* Start a transaction if possible. */
         tc->txn.try_begin();
 
         /* Get the cursor associated with the collection. */
-        cursor &rnd_cursor = rnd_cursors[coll.id];
-        cursor &scoped_cursor = cursors[coll.id];
+        scoped_cursor &rnd_cursor = rnd_cursors[coll.id];
+        scoped_cursor &cursor = cursors[coll.id];
 
         /* Choose a random key to delete. */
         const char *key_str;
@@ -318,12 +319,12 @@ database_operation::remove_operation(thread_worker *tc)
             continue;
         }
         testutil_check(rnd_cursor->get_key(rnd_cursor.get(), &key_str));
-        if (!tc->remove(scoped_cursor, coll.id, key_str)) {
+        if (!tc->remove(cursor, coll.id, key_str)) {
             tc->txn.rollback();
         }
 
         /* Reset our cursor to avoid pinning content. */
-        testutil_check(scoped_cursor->reset(scoped_cursor.get()));
+        testutil_check(cursor->reset(cursor.get()));
 
         /* Commit the current transaction if we're able to. */
         if (tc->txn.can_commit())
@@ -341,7 +342,7 @@ database_operation::update_operation(thread_worker *tc)
     logger::log_msg(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
     /* Cursor map. */
-    std::map<uint64_t, cursor> cursors;
+    std::map<uint64_t, scoped_cursor> cursors;
 
     /*
      * Loop while the test is running.
@@ -362,15 +363,15 @@ database_operation::update_operation(thread_worker *tc)
               "Thread {" + std::to_string(tc->id) +
                 "} Creating cursor for collection: " + coll.name);
             /* Open a cursor for the chosen collection. */
-            cursor scoped_cursor = tc->scoped_session.open_cursor(coll.name);
-            cursors.emplace(coll.id, std::move(scoped_cursor));
+            scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+            cursors.emplace(coll.id, std::move(cursor));
         }
 
         /* Start a transaction if possible. */
         tc->txn.try_begin();
 
         /* Get the cursor associated with the collection. */
-        cursor &scoped_cursor = cursors[coll.id];
+        scoped_cursor &cursor = cursors[coll.id];
 
         /* Choose a random key to update. */
         testutil_assert(coll.get_key_count() != 0);
@@ -378,12 +379,12 @@ database_operation::update_operation(thread_worker *tc)
           random_generator::instance().generate_integer<uint64_t>(0, coll.get_key_count() - 1);
         auto key = tc->pad_string(std::to_string(key_id), tc->key_size);
         auto value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
-        if (!tc->update(scoped_cursor, coll.id, key, value)) {
+        if (!tc->update(cursor, coll.id, key, value)) {
             tc->txn.rollback();
         }
 
         /* Reset our cursor to avoid pinning content. */
-        testutil_check(scoped_cursor->reset(scoped_cursor.get()));
+        testutil_check(cursor->reset(cursor.get()));
 
         /* Commit the current transaction if we're able to. */
         if (tc->txn.can_commit())

@@ -32,7 +32,7 @@
 #include <string>
 
 #include "src/main/configuration.h"
-#include "src/storage/cursor.h"
+#include "src/storage/scoped_cursor.h"
 
 namespace test_harness {
 
@@ -43,10 +43,10 @@ class statistics {
     virtual ~statistics() = default;
 
     /* Check that the statistics are within bounds. */
-    virtual void check(cursor &scoped_cursor);
+    virtual void check(scoped_cursor &cursor);
 
     /* Retrieve the value associated to the stat in a string format. */
-    virtual std::string get_value_str(cursor &scoped_cursor);
+    virtual std::string get_value_str(scoped_cursor &cursor);
 
     /* Getters. */
     int get_field() const;

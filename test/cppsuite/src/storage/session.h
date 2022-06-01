@@ -39,7 +39,7 @@
 
 #include <string>
 
-#include "cursor.h"
+#include "scoped_cursor.h"
 
 extern "C" {
 #include "wiredtiger.h"
@@ -72,7 +72,7 @@ class session {
 
     WT_SESSION *get();
 
-    cursor open_cursor(const std::string &uri, const std::string &cfg = "");
+    scoped_cursor open_scoped_cursor(const std::string &uri, const std::string &cfg = "");
 
     private:
     WT_SESSION *_session = nullptr;

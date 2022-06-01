@@ -26,8 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CURSOR_H
-#define CURSOR_H
+#ifndef SCOPED_CURSOR_H
+#define SCOPED_CURSOR_H
 
 /* Following definitions are required in order to use printing format specifiers in C++. */
 #ifndef __STDC_LIMIT_MACROS
@@ -44,19 +44,19 @@ extern "C" {
 }
 
 namespace test_harness {
-class cursor {
+class scoped_cursor {
     public:
-    cursor() = default;
-    cursor(WT_SESSION *session, const std::string &uri, const std::string &cfg);
+    scoped_cursor() = default;
+    scoped_cursor(WT_SESSION *session, const std::string &uri, const std::string &cfg);
 
     /* Moving is ok but copying is not. */
-    cursor(cursor &&other);
+    scoped_cursor(scoped_cursor &&other);
 
-    ~cursor();
+    ~scoped_cursor();
 
-    cursor &operator=(cursor &&other);
-    cursor(const cursor &) = delete;
-    cursor &operator=(const cursor &) = delete;
+    scoped_cursor &operator=(scoped_cursor &&other);
+    scoped_cursor(const scoped_cursor &) = delete;
+    scoped_cursor &operator=(const scoped_cursor &) = delete;
 
     void reinit(WT_SESSION *session, const std::string &uri, const std::string &cfg);
 

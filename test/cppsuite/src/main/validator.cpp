@@ -49,14 +49,14 @@ validator::validate(const std::string &operation_table_name, const std::string &
     logger::log_msg(LOG_INFO, "Beginning validation.");
 
     session scoped_session = connection_manager::instance().create_session();
-    cursor scoped_cursor = scoped_session.open_cursor(operation_table_name);
+    scoped_cursor cursor = scoped_session.open_scoped_cursor(operation_table_name);
 
     /*
      * Default validation depends on specific fields being present in the tracking table. If the
      * tracking table schema has been modified the user must define their own validation.
      */
-    const std::string key_format(scoped_cursor->key_format);
-    const std::string value_format(scoped_cursor->value_format);
+    const std::string key_format(cursor->key_format);
+    const std::string value_format(cursor->value_format);
     if (key_format != OPERATION_TRACKING_KEY_FORMAT ||
       value_format != OPERATION_TRACKING_VALUE_FORMAT) {
         testutil_die(EINVAL,
@@ -102,11 +102,10 @@ validator::validate(const std::string &operation_table_name, const std::string &
 
     /* Parse the tracking table. */
     validation_collection current_collection_records;
-    while ((ret = scoped_cursor->next(scoped_cursor.get())) == 0) {
-        testutil_check(scoped_cursor->get_key(
-          scoped_cursor.get(), &tracked_collection_id, &tracked_key, &tracked_timestamp));
+    while ((ret = cursor->next(cursor.get())) == 0) {
         testutil_check(
-          scoped_cursor->get_value(scoped_cursor.get(), &tracked_op_type, &tracked_value));
+          cursor->get_key(cursor.get(), &tracked_collection_id, &tracked_key, &tracked_timestamp));
+        testutil_check(cursor->get_value(cursor.get(), &tracked_op_type, &tracked_value));
 
         logger::log_msg(LOG_TRACE,
           "Retrieved tracked values. \n Collection id: " + std::to_string(tracked_collection_id) +
@@ -169,12 +168,11 @@ validator::parse_schema_tracking_table(session &scoped_session,
     uint64_t key_collection_id;
     int value_operation_type;
 
-    cursor scoped_cursor = scoped_session.open_cursor(tracking_table_name);
+    scoped_cursor cursor = scoped_session.open_scoped_cursor(tracking_table_name);
 
-    while (scoped_cursor->next(scoped_cursor.get()) == 0) {
-        testutil_check(
-          scoped_cursor->get_key(scoped_cursor.get(), &key_collection_id, &key_timestamp));
-        testutil_check(scoped_cursor->get_value(scoped_cursor.get(), &value_operation_type));
+    while (cursor->next(cursor.get()) == 0) {
+        testutil_check(cursor->get_key(cursor.get(), &key_collection_id, &key_timestamp));
+        testutil_check(cursor->get_value(cursor.get(), &value_operation_type));
 
         logger::log_msg(LOG_TRACE, "Collection id is " + std::to_string(key_collection_id));
         logger::log_msg(LOG_TRACE, "Timestamp is " + std::to_string(key_timestamp));
@@ -260,10 +258,10 @@ validator::verify_key_value(session &scoped_session, const uint64_t collection_i
     WT_DECL_RET;
     const char *retrieved_value;
 
-    cursor scoped_cursor =
-      scoped_session.open_cursor(database::build_collection_name(collection_id));
-    scoped_cursor->set_key(scoped_cursor.get(), key.c_str());
-    ret = scoped_cursor->search(scoped_cursor.get());
+    scoped_cursor cursor =
+      scoped_session.open_scoped_cursor(database::build_collection_name(collection_id));
+    cursor->set_key(cursor.get(), key.c_str());
+    ret = cursor->search(cursor.get());
     testutil_assertfmt(ret == 0 || ret == WT_NOTFOUND,
       "Validation failed: Unexpected error returned %d while searching for a key. Key: %s, "
       "Collection_id: %lu",
@@ -283,7 +281,7 @@ validator::verify_key_value(session &scoped_session, const uint64_t collection_i
     if (key_state.exists == false)
         return;
 
-    testutil_check(scoped_cursor->get_value(scoped_cursor.get(), &retrieved_value));
+    testutil_check(cursor->get_value(cursor.get(), &retrieved_value));
     if (key_state.value != key_value_t(retrieved_value))
         testutil_die(LOG_ERROR,
           "Validation failed: Value mismatch for key. Key: %s, Collection_id: %lu, Expected "
