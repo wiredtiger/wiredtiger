@@ -81,8 +81,8 @@ class burst_inserts : public test {
              * Create a reading cursor that will read random documents for every next call. This
              * will help generate cache pressure.
              */
-            ccv.push_back({coll, std::move(tc->scoped_session.open_scoped_cursor(coll.name)),
-              std::move(tc->scoped_session.open_scoped_cursor(coll.name, "next_random=true"))});
+            ccv.push_back({coll, std::move(tc->session.open_scoped_cursor(coll.name)),
+              std::move(tc->session.open_scoped_cursor(coll.name, "next_random=true"))});
         }
 
         uint64_t counter = 0;

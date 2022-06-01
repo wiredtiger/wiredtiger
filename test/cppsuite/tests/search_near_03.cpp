@@ -114,7 +114,7 @@ class search_near_03 : public test {
          * generated prefix and thread id.
          */
         collection &coll = tc->db.get_collection(tc->id);
-        scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+        scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
         cursor->reconfigure(cursor.get(), "prefix_search=true");
         for (uint64_t count = 0; count < tc->key_count; ++count) {
             tc->txn.begin();
@@ -194,12 +194,12 @@ class search_near_03 : public test {
          * traverse through each collection using a cursor to collect the prefix and push it into a
          * 2D vector.
          */
-        session scoped_session = connection_manager::instance().create_session();
+        scoped_session session = connection_manager::instance().create_session();
         const char *key_tmp;
         int ret = 0;
         for (uint64_t i = 0; i < database.get_collection_count(); i++) {
             collection &coll = database.get_collection(i);
-            scoped_cursor cursor = scoped_session.open_scoped_cursor(coll.name);
+            scoped_cursor cursor = session.open_scoped_cursor(coll.name);
             std::vector<std::string> prefixes;
             ret = 0;
             while (ret == 0) {
@@ -234,7 +234,7 @@ class search_near_03 : public test {
             /* Get a collection and find a cached cursor. */
             collection &coll = tc->db.get_random_collection();
             if (cursors.find(coll.id) == cursors.end()) {
-                scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+                scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
                 cursor->reconfigure(cursor.get(), "prefix_search=true");
                 cursors.emplace(coll.id, std::move(cursor));
             }
@@ -275,7 +275,7 @@ class search_near_03 : public test {
         while (tc->running()) {
             for (int i = 0; i < tc->db.get_collection_count(); i++) {
                 collection &coll = tc->db.get_collection(i);
-                scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+                scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
                 ret = 0;
                 while (ret == 0) {
                     ret = cursor->next(cursor.get());

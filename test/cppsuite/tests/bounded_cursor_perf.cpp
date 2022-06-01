@@ -76,10 +76,10 @@ class bounded_cursor_perf : public test {
         collection &coll = tc->db.get_collection(0);
 
         /* Opening the cursors. */
-        scoped_cursor next_cursor = tc->scoped_session.open_scoped_cursor(coll.name);
-        scoped_cursor next_range_cursor = tc->scoped_session.open_scoped_cursor(coll.name);
-        scoped_cursor prev_cursor = tc->scoped_session.open_scoped_cursor(coll.name);
-        scoped_cursor prev_range_cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+        scoped_cursor next_cursor = tc->session.open_scoped_cursor(coll.name);
+        scoped_cursor next_range_cursor = tc->session.open_scoped_cursor(coll.name);
+        scoped_cursor prev_cursor = tc->session.open_scoped_cursor(coll.name);
+        scoped_cursor prev_range_cursor = tc->session.open_scoped_cursor(coll.name);
 
         /*
          * The keys in the collection are contiguous from 0 -> key_count -1. Applying the range

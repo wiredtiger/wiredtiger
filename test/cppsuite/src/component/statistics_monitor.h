@@ -36,7 +36,7 @@
 #include "src/main/configuration.h"
 #include "src/main/database.h"
 #include "src/storage/scoped_cursor.h"
-#include "src/storage/session.h"
+#include "src/storage/scoped_session.h"
 #include "statistics/statistics.h"
 
 namespace test_harness {
@@ -65,7 +65,7 @@ class statistics_monitor : public component {
     void append_stats();
 
     private:
-    session _session;
+    scoped_session _session;
     scoped_cursor _cursor;
     const std::string _test_name;
     std::vector<std::unique_ptr<statistics>> _stats;

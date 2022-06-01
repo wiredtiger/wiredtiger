@@ -48,8 +48,8 @@ validator::validate(const std::string &operation_table_name, const std::string &
 
     logger::log_msg(LOG_INFO, "Beginning validation.");
 
-    session scoped_session = connection_manager::instance().create_session();
-    scoped_cursor cursor = scoped_session.open_scoped_cursor(operation_table_name);
+    scoped_session session = connection_manager::instance().create_session();
+    scoped_cursor cursor = session.open_scoped_cursor(operation_table_name);
 
     /*
      * Default validation depends on specific fields being present in the tracking table. If the
@@ -66,14 +66,14 @@ validator::validate(const std::string &operation_table_name, const std::string &
 
     /* Retrieve the collections that were created and deleted during the test. */
     parse_schema_tracking_table(
-      scoped_session, schema_table_name, created_collections, deleted_collections);
+      session, schema_table_name, created_collections, deleted_collections);
 
     /*
      * Make sure the deleted collections do not exist on disk. The created collections are checked
      * in check_reference.
      */
     for (auto const &it : deleted_collections) {
-        if (!verify_collection_file_state(scoped_session, it, false))
+        if (!verify_collection_file_state(session, it, false))
             testutil_die(LOG_ERROR,
               "Validation failed: collection %s present on disk while it has been tracked as "
               "deleted.",
@@ -132,7 +132,7 @@ validator::validate(const std::string &operation_table_name, const std::string &
              * Given that we've stepped over to the next collection we've built a full picture of
              * the current collection and can now validate it.
              */
-            verify_collection(scoped_session, current_collection_id, current_collection_records);
+            verify_collection(session, current_collection_id, current_collection_records);
 
             /* Begin processing the next collection. */
             current_collection_id = tracked_collection_id;
@@ -156,11 +156,11 @@ validator::validate(const std::string &operation_table_name, const std::string &
      * any collections, check for that.
      */
     if (known_collection_ids.size() != 0)
-        verify_collection(scoped_session, current_collection_id, current_collection_records);
+        verify_collection(session, current_collection_id, current_collection_records);
 }
 
 void
-validator::parse_schema_tracking_table(session &scoped_session,
+validator::parse_schema_tracking_table(scoped_session &session,
   const std::string &tracking_table_name, std::vector<uint64_t> &created_collections,
   std::vector<uint64_t> &deleted_collections)
 {
@@ -168,7 +168,7 @@ validator::parse_schema_tracking_table(session &scoped_session,
     uint64_t key_collection_id;
     int value_operation_type;
 
-    scoped_cursor cursor = scoped_session.open_scoped_cursor(tracking_table_name);
+    scoped_cursor cursor = session.open_scoped_cursor(tracking_table_name);
 
     while (cursor->next(cursor.get()) == 0) {
         testutil_check(cursor->get_key(cursor.get(), &key_collection_id, &key_timestamp));
@@ -222,10 +222,10 @@ validator::update_data_model(const tracking_operation &operation, validation_col
 
 void
 validator::verify_collection(
-  session &scoped_session, const uint64_t collection_id, validation_collection &collection)
+  scoped_session &session, const uint64_t collection_id, validation_collection &collection)
 {
     /* Check the collection exists on disk. */
-    if (!verify_collection_file_state(scoped_session, collection_id, true))
+    if (!verify_collection_file_state(session, collection_id, true))
         testutil_die(LOG_ERROR,
           "Validation failed: collection %lu not present on disk while it has been tracked as "
           "created.",
@@ -233,18 +233,18 @@ validator::verify_collection(
 
     /* Walk through each key/value pair of the current collection. */
     for (const auto &record : collection)
-        verify_key_value(scoped_session, collection_id, record.first, record.second);
+        verify_key_value(session, collection_id, record.first, record.second);
 }
 
 bool
 validator::verify_collection_file_state(
-  session &scoped_session, const uint64_t collection_id, bool exists) const
+  scoped_session &session, const uint64_t collection_id, bool exists) const
 {
     /*
      * We don't necessarily expect to successfully open the cursor so don't create a scoped cursor.
      */
     WT_CURSOR *cursor;
-    int ret = scoped_session->open_cursor(scoped_session.get(),
+    int ret = session->open_cursor(session.get(),
       database::build_collection_name(collection_id).c_str(), nullptr, nullptr, &cursor);
     if (ret == 0)
         testutil_check(cursor->close(cursor));
@@ -252,14 +252,14 @@ validator::verify_collection_file_state(
 }
 
 void
-validator::verify_key_value(session &scoped_session, const uint64_t collection_id,
+validator::verify_key_value(scoped_session &session, const uint64_t collection_id,
   const std::string &key, const key_state &key_state)
 {
     WT_DECL_RET;
     const char *retrieved_value;
 
     scoped_cursor cursor =
-      scoped_session.open_scoped_cursor(database::build_collection_name(collection_id));
+      session.open_scoped_cursor(database::build_collection_name(collection_id));
     cursor->set_key(cursor.get(), key.c_str());
     ret = cursor->search(cursor.get());
     testutil_assertfmt(ret == 0 || ret == WT_NOTFOUND,

@@ -48,7 +48,7 @@ populate_worker(thread_worker *tc)
          * WiredTiger lets you open a cursor on a collection using the same pointer. When a session
          * is closed, WiredTiger APIs close the cursors too.
          */
-        scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+        scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
         uint64_t j = 0;
         while (j < tc->key_count) {
             tc->txn.begin();
@@ -132,7 +132,7 @@ database_operation::checkpoint_operation(thread_worker *tc)
 
     while (tc->running()) {
         tc->sleep();
-        testutil_check(tc->scoped_session->checkpoint(tc->scoped_session.get(), nullptr));
+        testutil_check(tc->session->checkpoint(tc->session.get(), nullptr));
     }
 }
 
@@ -169,7 +169,7 @@ database_operation::insert_operation(thread_worker *tc)
     for (int i = tc->id * collections_per_thread;
          i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
         collection &coll = tc->db.get_collection(i);
-        scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+        scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
         ccv.push_back({coll, std::move(cursor)});
     }
 
@@ -231,7 +231,7 @@ database_operation::read_operation(thread_worker *tc)
         collection &coll = tc->db.get_random_collection();
 
         if (cursors.find(coll.id) == cursors.end())
-            cursors.emplace(coll.id, std::move(tc->scoped_session.open_scoped_cursor(coll.name)));
+            cursors.emplace(coll.id, std::move(tc->session.open_scoped_cursor(coll.name)));
 
         /* Do a second lookup now that we know it exists. */
         auto &cursor = cursors[coll.id];
@@ -292,9 +292,9 @@ database_operation::remove_operation(thread_worker *tc)
                 "} Creating cursor for collection: " + coll.name);
             /* Open the two cursors for the chosen collection. */
             scoped_cursor rnd_cursor =
-              tc->scoped_session.open_scoped_cursor(coll.name, "next_random=true");
+              tc->session.open_scoped_cursor(coll.name, "next_random=true");
             rnd_cursors.emplace(coll.id, std::move(rnd_cursor));
-            scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
             cursors.emplace(coll.id, std::move(cursor));
         }
 
@@ -363,7 +363,7 @@ database_operation::update_operation(thread_worker *tc)
               "Thread {" + std::to_string(tc->id) +
                 "} Creating cursor for collection: " + coll.name);
             /* Open a cursor for the chosen collection. */
-            scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
             cursors.emplace(coll.id, std::move(cursor));
         }
 

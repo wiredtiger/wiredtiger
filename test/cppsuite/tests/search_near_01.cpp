@@ -65,7 +65,7 @@ class search_near_01 : public test {
          */
         for (int64_t i = 0; i < collections_per_thread; ++i) {
             collection &coll = tc->db.get_collection(i);
-            scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
+            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
             for (uint64_t j = 0; j < ALPHABET.size(); ++j) {
                 for (uint64_t k = 0; k < ALPHABET.size(); ++k) {
                     for (uint64_t count = 0; count < tc->key_count; ++count) {
@@ -156,11 +156,11 @@ class search_near_01 : public test {
 
         /* Force evict all the populated keys in all of the collections. */
         int cmpp;
-        session scoped_session = connection_manager::instance().create_session();
+        scoped_session session = connection_manager::instance().create_session();
         for (uint64_t count = 0; count < collection_count; ++count) {
             collection &coll = database.get_collection(count);
             scoped_cursor evict_cursor =
-              scoped_session.open_scoped_cursor(coll.name.c_str(), "debug=(release_evict=true)");
+              session.open_scoped_cursor(coll.name.c_str(), "debug=(release_evict=true)");
 
             for (uint64_t i = 0; i < ALPHABET.size(); ++i) {
                 for (uint64_t j = 0; j < ALPHABET.size(); ++j) {
@@ -185,7 +185,7 @@ class search_near_01 : public test {
         std::string srch_key;
         int cmpp = 0;
 
-        scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(collection_name);
+        scoped_cursor cursor = tc->session.open_scoped_cursor(collection_name);
         cursor->reconfigure(cursor.get(), "prefix_search=true");
         /* Generate search prefix key of random length between a -> zzz. */
         srch_key = random_generator::instance().generate_random_string(
@@ -237,7 +237,7 @@ class search_near_01 : public test {
         prev_entries_stat = 0;
         prev_prefix_stat = 0;
         num_threads = _config->get_int("search_near_threads");
-        tc->stat_cursor = tc->scoped_session.open_scoped_cursor(STATISTICS_URI);
+        tc->stat_cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
         workload_config = _config->get_subconfig(WORKLOAD_MANAGER);
         read_config = workload_config->get_subconfig(READ_OP_CONFIG);
         z_key_searches = 0;
