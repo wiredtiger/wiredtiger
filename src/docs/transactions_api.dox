@@ -25,6 +25,12 @@ effects may be discarded by calling WT_SESSION::rollback_transaction. If
 WT_SESSION::commit_transaction returns any error, the transaction was rolled
 back, not committed.
 
+Schema changing operations are not generally transactional in WiredTiger, they
+can't be grouped together within the scope of a transaction and atomically
+committed or aborted. Think of them as one-shot transactions where the operation
+will either succeed or fail. Examples of schema changing operations are table
+create, drop and rename.
+
 A data operation executed within a transaction can fail if it conflicts with an
 operation in another concurrently running transaction.  (A conflict occurs
 between two operations when letting both of them continue would lead to a
@@ -151,7 +157,8 @@ than snapshot, or if the current transaction has performed any write operations.
 
 \warning
 Applications not using read timestamps for search may see different results
-after the snapshot is updated.
+after the snapshot is updated. NOTE: Is this true? It shouldn't be if the set
+of actively updated timestamps are disjoint from those being read.
 
 @snippet ex_all.c reset snapshot
 

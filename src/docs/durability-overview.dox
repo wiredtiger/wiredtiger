@@ -66,18 +66,15 @@ rolled back (and are thus considered <i>unstable</i>) until the stable timestamp
 is advanced past their commit timestamp.
 
 Applications can roll back all unstable transactions by calling
-WT_CONNECTION::rollback_to_stable (or running recovery as part of database
-open).
+WT_CONNECTION::rollback_to_stable or running recovery as part of database
+open.
 
-Objects in a timestamp system are generally configured for checkpoint-level
-durability in which case the application's stable timestamp is saved with each
+Objects in a timestamp system are required to be configured for checkpoint-level
+durability and the application's stable timestamp is saved with each
 checkpoint and used for crash recovery. Thus, to be stable a transaction must
 commit, the stable timestamp must be advanced past its durable timestamp, and
-then a checkpoint must complete. (Data written as part of checkpoints that
+then a checkpoint must complete. Data written as part of checkpoints that
 complete between transaction commit and advancing the stable timestamp become
-durable but not stable.)
-
-Objects in a timestamp system that are configured for commit-level durability operate as
-they do without timestamps, and timestamps are ignored for those objects.
+will be removed automatically during recovery.
 
 */
