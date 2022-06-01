@@ -54,7 +54,7 @@ component::load()
     if (!_enabled)
         return;
 
-    _sleeping_time_ms = _config->get_throttle_ms();
+    _sleep_time_ms = _config->get_throttle_ms();
 }
 
 void
@@ -63,7 +63,7 @@ component::run()
     logger::log_msg(LOG_INFO, "Running component: " + _name);
     while (_enabled && _running) {
         do_work();
-        std::this_thread::sleep_for(std::chrono::milliseconds(_sleeping_time_ms));
+        std::this_thread::sleep_for(std::chrono::milliseconds(_sleep_time_ms));
     }
 }
 
