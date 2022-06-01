@@ -36,7 +36,7 @@
 #include "src/component/timestamp_manager.h"
 #include "src/main/configuration.h"
 #include "src/storage/scoped_cursor.h"
-#include "src/storage/scoped_session.h"
+#include "src/storage/session.h"
 #include "transaction.h"
 
 namespace test_harness {
@@ -47,9 +47,8 @@ const std::string type_string(thread_type type);
 /* Container class for a thread and any data types it may need to interact with the database. */
 class thread_worker {
     public:
-    thread_worker(uint64_t id, thread_type type, configuration *config,
-      scoped_session &&created_session, timestamp_manager *timestamp_manager,
-      operation_tracker *op_tracker, database &dbase);
+    thread_worker(uint64_t id, thread_type type, configuration *config, session &&created_session,
+      timestamp_manager *timestamp_manager, operation_tracker *op_tracker, database &dbase);
 
     virtual ~thread_worker() = default;
 
@@ -95,7 +94,7 @@ class thread_worker {
     const thread_type type;
     const uint64_t id;
     database &db;
-    scoped_session session;
+    session scoped_session;
     scoped_cursor op_track_cursor;
     scoped_cursor stat_cursor;
     timestamp_manager *tsm;

@@ -26,8 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CONN_API_H
-#define CONN_API_H
+#ifndef SESSION_H
+#define SESSION_H
 
 /* Following definitions are required in order to use printing format specifiers in C++. */
 #ifndef __STDC_LIMIT_MACROS
@@ -37,42 +37,46 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include <mutex>
+#include <string>
 
-#include "session.h"
+#include "scoped_cursor.h"
+
+extern "C" {
+#include "wiredtiger.h"
+}
 
 namespace test_harness {
-/*
- * Singleton class owning the database connection, provides access to sessions and any other
- * required connection API calls.
- */
-class connection_manager {
+class session {
     public:
-    static connection_manager &instance();
+    session() = default;
+    explicit session(WT_CONNECTION *conn);
 
-    public:
-    /* No copies of the singleton allowed. */
-    connection_manager(connection_manager const &) = delete;
-    connection_manager &operator=(connection_manager const &) = delete;
+    ~session();
 
-    void close();
-    void create(const std::string &config, const std::string &home);
-    session create_session();
+    /* Moving is ok but copying is not. */
+    session(session &&other);
 
-    WT_CONNECTION *get_connection();
+    session &operator=(session &&other);
+
+    session(const session &) = delete;
+    session &operator=(const session &) = delete;
+
+    void reinit(WT_CONNECTION *conn);
 
     /*
-     * set_timestamp calls into the connection API in a thread safe manner to set global timestamps.
+     * Override the dereference operators. The idea is that we should able to use this class as if
+     * it is a pointer to a WT_SESSION.
      */
-    void set_timestamp(const std::string &config);
+    WT_SESSION &operator*();
+    WT_SESSION *operator->();
+
+    WT_SESSION *get();
+
+    scoped_cursor open_scoped_cursor(const std::string &uri, const std::string &cfg = "");
 
     private:
-    connection_manager();
-
-    private:
-    WT_CONNECTION *_conn = nullptr;
-    std::mutex _conn_mutex;
+    WT_SESSION *_session = nullptr;
 };
-} // namespace test_harness
 
+} // namespace test_harness
 #endif

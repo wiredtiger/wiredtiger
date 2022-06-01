@@ -31,7 +31,7 @@
 
 #include "component.h"
 #include "src/storage/scoped_cursor.h"
-#include "src/storage/scoped_session.h"
+#include "src/storage/session.h"
 #include "timestamp_manager.h"
 
 /*
@@ -84,8 +84,8 @@ class operation_tracker : public component {
       wt_timestamp_t ts, scoped_cursor &op_track_cursor);
 
     private:
-    scoped_session _session;
-    scoped_session _sweep_session;
+    session _session;
+    session _sweep_session;
     scoped_cursor _schema_track_cursor;
     scoped_cursor _sweep_cursor;
     std::string _operation_table_config;

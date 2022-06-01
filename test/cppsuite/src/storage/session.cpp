@@ -26,57 +26,76 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef SCOPED_SESSION_H
-#define SCOPED_SESSION_H
-
-/* Following definitions are required in order to use printing format specifiers in C++. */
-#ifndef __STDC_LIMIT_MACROS
-#define __STDC_LIMIT_MACROS
-#endif
-#ifndef __STDC_FORMAT_MACROS
-#define __STDC_FORMAT_MACROS
-#endif
-
-#include <string>
-
-#include "scoped_cursor.h"
+#include "session.h"
 
 extern "C" {
-#include "wiredtiger.h"
+#include "test_util.h"
 }
 
 namespace test_harness {
-class scoped_session {
-    public:
-    scoped_session() = default;
-    explicit scoped_session(WT_CONNECTION *conn);
+session::session(WT_CONNECTION *conn)
+{
+    reinit(conn);
+}
 
-    ~scoped_session();
+session::~session()
+{
+    if (_session != nullptr) {
+        testutil_check(_session->close(_session, nullptr));
+        _session = nullptr;
+    }
+}
 
-    /* Moving is ok but copying is not. */
-    scoped_session(scoped_session &&other);
+session::session(session &&other)
+{
+    std::swap(_session, other._session);
+}
 
-    scoped_session &operator=(scoped_session &&other);
+/*
+ * Implement move assignment by move constructing a temporary and swapping its internals with the
+ * current session. This means that the currently held WT_SESSION will get destroyed as the
+ * temporary falls out of the scope and we will steal the one that we're move assigning from.
+ */
+session &
+session::operator=(session &&other)
+{
+    session tmp(std::move(other));
+    std::swap(_session, tmp._session);
+    return (*this);
+}
 
-    scoped_session(const scoped_session &) = delete;
-    scoped_session &operator=(const scoped_session &) = delete;
+void
+session::reinit(WT_CONNECTION *conn)
+{
+    if (_session != nullptr) {
+        testutil_check(_session->close(_session, nullptr));
+        _session = nullptr;
+    }
+    if (conn != nullptr)
+        testutil_check(conn->open_session(conn, nullptr, nullptr, &_session));
+}
 
-    void reinit(WT_CONNECTION *conn);
+WT_SESSION &
+session::operator*()
+{
+    return (*_session);
+}
 
-    /*
-     * Override the dereference operators. The idea is that we should able to use this class as if
-     * it is a pointer to a WT_SESSION.
-     */
-    WT_SESSION &operator*();
-    WT_SESSION *operator->();
+WT_SESSION *
+session::operator->()
+{
+    return (_session);
+}
 
-    WT_SESSION *get();
+WT_SESSION *
+session::get()
+{
+    return (_session);
+}
 
-    scoped_cursor open_scoped_cursor(const std::string &uri, const std::string &cfg = "");
-
-    private:
-    WT_SESSION *_session = nullptr;
-};
-
+scoped_cursor
+session::open_scoped_cursor(const std::string &uri, const std::string &cfg)
+{
+    return (scoped_cursor(_session, uri, cfg));
+}
 } // namespace test_harness
-#endif

@@ -469,7 +469,7 @@ class cursor_bound_01 : public test {
         while (tc->running()) {
 
             collection &coll = tc->db.get_random_collection();
-            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+            scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
             tc->txn.begin();
 
             while (tc->txn.active() && tc->running()) {
@@ -516,9 +516,9 @@ class cursor_bound_01 : public test {
         while (tc->running()) {
 
             collection &coll = tc->db.get_random_collection();
-            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+            scoped_cursor cursor = tc->scoped_session.open_scoped_cursor(coll.name);
             scoped_cursor rnd_cursor =
-              tc->session.open_scoped_cursor(coll.name, "next_random=true");
+              tc->scoped_session.open_scoped_cursor(coll.name, "next_random=true");
             tc->txn.begin();
 
             while (tc->txn.active() && tc->running()) {
@@ -587,7 +587,8 @@ class cursor_bound_01 : public test {
 
             /* Find a cached cursor or create one if none exists. */
             if (cursors.find(coll.id) == cursors.end())
-                cursors.emplace(coll.id, std::move(tc->session.open_scoped_cursor(coll.name)));
+                cursors.emplace(
+                  coll.id, std::move(tc->scoped_session.open_scoped_cursor(coll.name)));
 
             /* Set random bounds on cached range cursor. */
             auto &range_cursor = cursors[coll.id];
@@ -604,7 +605,7 @@ class cursor_bound_01 : public test {
                 upper_bound = bound_pair.second;
             }
 
-            scoped_cursor normal_cursor = tc->session.open_scoped_cursor(coll.name);
+            scoped_cursor normal_cursor = tc->scoped_session.open_scoped_cursor(coll.name);
             wt_timestamp_t ts = tc->tsm->get_valid_read_ts();
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
@@ -659,7 +660,8 @@ class cursor_bound_01 : public test {
 
             /* Find a cached cursor or create one if none exists. */
             if (cursors.find(coll.id) == cursors.end())
-                cursors.emplace(coll.id, std::move(tc->session.open_scoped_cursor(coll.name)));
+                cursors.emplace(
+                  coll.id, std::move(tc->scoped_session.open_scoped_cursor(coll.name)));
 
             /* Set random bounds on cached range cursor. */
             auto &range_cursor = cursors[coll.id];
@@ -676,7 +678,7 @@ class cursor_bound_01 : public test {
                 upper_bound = bound_pair.second;
             }
 
-            scoped_cursor normal_cursor = tc->session.open_scoped_cursor(coll.name);
+            scoped_cursor normal_cursor = tc->scoped_session.open_scoped_cursor(coll.name);
             wt_timestamp_t ts = tc->tsm->get_valid_read_ts();
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.

@@ -59,20 +59,20 @@ type_string(thread_type type)
 }
 
 thread_worker::thread_worker(uint64_t id, thread_type type, configuration *config,
-  scoped_session &&created_session, timestamp_manager *timestamp_manager,
-  operation_tracker *op_tracker, database &dbase)
+  session &&created_session, timestamp_manager *timestamp_manager, operation_tracker *op_tracker,
+  database &dbase)
     : /* These won't exist for certain threads which is why we use optional here. */
       collection_count(config->get_optional_int(COLLECTION_COUNT, 1)),
       key_count(config->get_optional_int(KEY_COUNT_PER_COLLECTION, 1)),
       key_size(config->get_optional_int(KEY_SIZE, 1)),
       value_size(config->get_optional_int(VALUE_SIZE, 1)),
       thread_count(config->get_int(THREAD_COUNT)), type(type), id(id), db(dbase),
-      session(std::move(created_session)), tsm(timestamp_manager),
-      txn(transaction(config, timestamp_manager, session.get())), op_tracker(op_tracker),
+      scoped_session(std::move(created_session)), tsm(timestamp_manager),
+      txn(transaction(config, timestamp_manager, scoped_session.get())), op_tracker(op_tracker),
       _sleep_time_ms(config->get_throttle_ms())
 {
     if (op_tracker->enabled())
-        op_track_cursor = session.open_scoped_cursor(op_tracker->get_operation_table_name());
+        op_track_cursor = scoped_session.open_scoped_cursor(op_tracker->get_operation_table_name());
 
     testutil_assert(key_size > 0 && value_size > 0);
 }
@@ -120,7 +120,7 @@ thread_worker::update(
             testutil_die(ret, "unhandled error while trying to update a key");
     }
 
-    uint64_t txn_id = ((WT_SESSION_IMPL *)session.get())->txn->id;
+    uint64_t txn_id = ((WT_SESSION_IMPL *)scoped_session.get())->txn->id;
     ret = op_tracker->save_operation(
       txn_id, tracking_operation::INSERT, collection_id, key, value, ts, op_track_cursor);
 
@@ -162,7 +162,7 @@ thread_worker::insert(
             testutil_die(ret, "unhandled error while trying to insert a key");
     }
 
-    uint64_t txn_id = ((WT_SESSION_IMPL *)session.get())->txn->id;
+    uint64_t txn_id = ((WT_SESSION_IMPL *)scoped_session.get())->txn->id;
     ret = op_tracker->save_operation(
       txn_id, tracking_operation::INSERT, collection_id, key, value, ts, op_track_cursor);
 
@@ -200,7 +200,7 @@ thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::
             testutil_die(ret, "unhandled error while trying to remove a key");
     }
 
-    uint64_t txn_id = ((WT_SESSION_IMPL *)session.get())->txn->id;
+    uint64_t txn_id = ((WT_SESSION_IMPL *)scoped_session.get())->txn->id;
     ret = op_tracker->save_operation(
       txn_id, tracking_operation::DELETE_KEY, collection_id, key, "", ts, op_track_cursor);
 
