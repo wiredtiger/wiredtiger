@@ -312,8 +312,8 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
         page_del = ref->page->modify->page_del;
     }
     if (page_del != NULL && page_del->timestamp == WT_TS_NONE) {
-        ref->ft_info.del->timestamp = txn->commit_timestamp;
-        ref->ft_info.del->durable_timestamp = txn->durable_timestamp;
+        page_del->timestamp = txn->commit_timestamp;
+        page_del->durable_timestamp = txn->durable_timestamp;
     }
 
     WT_REF_UNLOCK(ref, previous_state);
