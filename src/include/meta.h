@@ -89,10 +89,10 @@ struct __wt_blkincr {
     const char *id_str;   /* User's name for this backup. */
     uint64_t granularity; /* Granularity of this backup. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_BLKINCR_FULL 0x1  /* There is no checkpoint, always do full file */
+#define WT_BLKINCR_FULL 0x1   /* There is no checkpoint, always do full file */
 #define WT_BLKINCR_INUSE 0x2u /* This entry is active */
 #define WT_BLKINCR_VALID 0x4u /* This entry is valid */
-                                /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+                              /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t flags;
 };
 
