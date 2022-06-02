@@ -74,12 +74,12 @@ class search_near_02 : public test {
 
         /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
         struct collection_cursor {
-            collection_cursor(collection &coll, wiredtiger_cursor &&cursor)
+            collection_cursor(collection &coll, scoped_cursor &&cursor)
                 : coll(coll), cursor(std::move(cursor))
             {
             }
             collection &coll;
-            wiredtiger_cursor cursor;
+            scoped_cursor cursor;
         };
 
         /* Collection cursor vector. */
@@ -93,7 +93,7 @@ class search_near_02 : public test {
         for (uint64_t i = thread_offset;
              i < thread_offset + collections_per_thread && tc->running(); ++i) {
             collection &coll = tc->db.get_collection(i);
-            wiredtiger_cursor cursor = tc->session.open_wiredtiger_cursor(coll.name);
+            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
             ccv.push_back({coll, std::move(cursor)});
         }
 
@@ -158,7 +158,7 @@ class search_near_02 : public test {
         const char *key_prefix;
         int exact_prefix, ret;
         int64_t prefix_size;
-        std::map<uint64_t, wiredtiger_cursor> cursors;
+        std::map<uint64_t, scoped_cursor> cursors;
         std::string generated_prefix, key_prefix_str;
 
         while (tc->running()) {
@@ -167,7 +167,7 @@ class search_near_02 : public test {
 
             /* Find a cached cursor or create one if none exists. */
             if (cursors.find(coll.id) == cursors.end()) {
-                cursors.emplace(coll.id, std::move(tc->session.open_wiredtiger_cursor(coll.name)));
+                cursors.emplace(coll.id, std::move(tc->session.open_scoped_cursor(coll.name)));
                 auto &cursor_prefix = cursors[coll.id];
                 /* The cached cursors have the prefix configuration enabled. */
                 testutil_check(
@@ -206,7 +206,7 @@ class search_near_02 : public test {
                 }
 
                 /* Open a cursor with the default configuration on the selected collection. */
-                wiredtiger_cursor cursor_default(tc->session.open_wiredtiger_cursor(coll.name));
+                scoped_cursor cursor_default(tc->session.open_scoped_cursor(coll.name));
 
                 /* Verify the prefix search_near output using the default cursor. */
                 validate_prefix_search_near(
@@ -227,7 +227,7 @@ class search_near_02 : public test {
     /* Validate prefix search_near call outputs using a cursor without prefix key enabled. */
     void
     validate_prefix_search_near(int ret_prefix, int exact_prefix, const std::string &key_prefix,
-      wiredtiger_cursor &cursor_default, const std::string &prefix)
+      scoped_cursor &cursor_default, const std::string &prefix)
     {
         /* Call search near with the default cursor using the given prefix. */
         int exact_default;
@@ -267,7 +267,7 @@ class search_near_02 : public test {
      */
     void
     validate_successful_calls(int exact_prefix, const std::string &key_prefix,
-      wiredtiger_cursor &cursor_default, int exact_default, const std::string &prefix)
+      scoped_cursor &cursor_default, int exact_default, const std::string &prefix)
     {
         const char *k;
         std::string k_str;
@@ -347,7 +347,7 @@ class search_near_02 : public test {
      */
     void
     validate_unsuccessful_prefix_call(
-      wiredtiger_cursor &cursor_default, const std::string &prefix, int exact_default)
+      scoped_cursor &cursor_default, const std::string &prefix, int exact_default)
     {
         int ret;
         const char *k;

@@ -26,19 +26,20 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "wiredtiger_session.h"
+#include "scoped_session.h"
 
 extern "C" {
 #include "test_util.h"
 }
 
 namespace test_harness {
-wiredtiger_session::wiredtiger_session(WT_CONNECTION *conn)
+/* scoped_session implementation */
+scoped_session::scoped_session(WT_CONNECTION *conn)
 {
     reinit(conn);
 }
 
-wiredtiger_session::~wiredtiger_session()
+scoped_session::~scoped_session()
 {
     if (_session != nullptr) {
         testutil_check(_session->close(_session, nullptr));
@@ -46,7 +47,7 @@ wiredtiger_session::~wiredtiger_session()
     }
 }
 
-wiredtiger_session::wiredtiger_session(wiredtiger_session &&other)
+scoped_session::scoped_session(scoped_session &&other)
 {
     std::swap(_session, other._session);
 }
@@ -56,16 +57,16 @@ wiredtiger_session::wiredtiger_session(wiredtiger_session &&other)
  * current session. This means that the currently held WT_SESSION will get destroyed as the
  * temporary falls out of the scope and we will steal the one that we're move assigning from.
  */
-wiredtiger_session &
-wiredtiger_session::operator=(wiredtiger_session &&other)
+scoped_session &
+scoped_session::operator=(scoped_session &&other)
 {
-    wiredtiger_session tmp(std::move(other));
+    scoped_session tmp(std::move(other));
     std::swap(_session, tmp._session);
     return (*this);
 }
 
 void
-wiredtiger_session::reinit(WT_CONNECTION *conn)
+scoped_session::reinit(WT_CONNECTION *conn)
 {
     if (_session != nullptr) {
         testutil_check(_session->close(_session, nullptr));
@@ -76,26 +77,26 @@ wiredtiger_session::reinit(WT_CONNECTION *conn)
 }
 
 WT_SESSION &
-wiredtiger_session::operator*()
+scoped_session::operator*()
 {
     return (*_session);
 }
 
 WT_SESSION *
-wiredtiger_session::operator->()
+scoped_session::operator->()
 {
     return (_session);
 }
 
 WT_SESSION *
-wiredtiger_session::get()
+scoped_session::get()
 {
     return (_session);
 }
 
-wiredtiger_cursor
-wiredtiger_session::open_wiredtiger_cursor(const std::string &uri, const std::string &cfg)
+scoped_cursor
+scoped_session::open_scoped_cursor(const std::string &uri, const std::string &cfg)
 {
-    return (wiredtiger_cursor(_session, uri, cfg));
+    return (scoped_cursor(_session, uri, cfg));
 }
 } // namespace test_harness

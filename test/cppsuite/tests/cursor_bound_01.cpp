@@ -123,7 +123,7 @@ class cursor_bound_01 : public test {
      * bound and upper bound checks while walking the tree.
      */
     void
-    cursor_traversal(wiredtiger_cursor &range_cursor, wiredtiger_cursor &normal_cursor,
+    cursor_traversal(scoped_cursor &range_cursor, scoped_cursor &normal_cursor,
       const bound &lower_bound, const bound &upper_bound, bool next)
     {
         int exact, normal_ret, range_ret;
@@ -219,7 +219,7 @@ class cursor_bound_01 : public test {
      * inclusive configuration is also randomly set as well.
      */
     std::pair<bound, bound>
-    set_random_bounds(thread_worker *tc, wiredtiger_cursor &range_cursor)
+    set_random_bounds(thread_worker *tc, scoped_cursor &range_cursor)
     {
         int ret;
         bound lower_bound, upper_bound;
@@ -268,8 +268,8 @@ class cursor_bound_01 : public test {
      * cursor could find.
      */
     void
-    validate_bound_search_near(int range_ret, int range_exact, wiredtiger_cursor &range_cursor,
-      wiredtiger_cursor &normal_cursor, const std::string &search_key, const bound &lower_bound,
+    validate_bound_search_near(int range_ret, int range_exact, scoped_cursor &range_cursor,
+      scoped_cursor &normal_cursor, const std::string &search_key, const bound &lower_bound,
       const bound &upper_bound)
     {
         /* Range cursor has successfully returned with a key. */
@@ -327,7 +327,7 @@ class cursor_bound_01 : public test {
      */
     void
     validate_successful_search_near_inside_range(
-      wiredtiger_cursor &normal_cursor, int range_exact, const std::string &search_key)
+      scoped_cursor &normal_cursor, int range_exact, const std::string &search_key)
     {
         int ret = 0;
         /* Retrieve the key the normal cursor is pointing at. */
@@ -378,7 +378,7 @@ class cursor_bound_01 : public test {
      * outside of the range.
      */
     void
-    validate_successful_search_near_outside_range(wiredtiger_cursor &normal_cursor,
+    validate_successful_search_near_outside_range(scoped_cursor &normal_cursor,
       const bound &lower_bound, const bound &upper_bound, bool larger_search_key)
     {
         int ret = larger_search_key ? normal_cursor->next(normal_cursor.get()) :
@@ -408,7 +408,7 @@ class cursor_bound_01 : public test {
      */
     void
     validate_search_near_not_found(
-      wiredtiger_cursor &normal_cursor, const bound &lower_bound, const bound &upper_bound)
+      scoped_cursor &normal_cursor, const bound &lower_bound, const bound &upper_bound)
     {
         int ret, exact;
         auto lower_key = lower_bound.get_key();
@@ -469,7 +469,7 @@ class cursor_bound_01 : public test {
         while (tc->running()) {
 
             collection &coll = tc->db.get_random_collection();
-            wiredtiger_cursor cursor = tc->session.open_wiredtiger_cursor(coll.name);
+            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
             tc->txn.begin();
 
             while (tc->txn.active() && tc->running()) {
@@ -516,9 +516,9 @@ class cursor_bound_01 : public test {
         while (tc->running()) {
 
             collection &coll = tc->db.get_random_collection();
-            wiredtiger_cursor cursor = tc->session.open_wiredtiger_cursor(coll.name);
-            wiredtiger_cursor rnd_cursor =
-              tc->session.open_wiredtiger_cursor(coll.name, "next_random=true");
+            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+            scoped_cursor rnd_cursor =
+              tc->session.open_scoped_cursor(coll.name, "next_random=true");
             tc->txn.begin();
 
             while (tc->txn.active() && tc->running()) {
@@ -579,7 +579,7 @@ class cursor_bound_01 : public test {
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         bound lower_bound, upper_bound;
-        std::map<uint64_t, wiredtiger_cursor> cursors;
+        std::map<uint64_t, scoped_cursor> cursors;
 
         while (tc->running()) {
             /* Get a random collection to work on. */
@@ -587,7 +587,7 @@ class cursor_bound_01 : public test {
 
             /* Find a cached cursor or create one if none exists. */
             if (cursors.find(coll.id) == cursors.end())
-                cursors.emplace(coll.id, std::move(tc->session.open_wiredtiger_cursor(coll.name)));
+                cursors.emplace(coll.id, std::move(tc->session.open_scoped_cursor(coll.name)));
 
             /* Set random bounds on cached range cursor. */
             auto &range_cursor = cursors[coll.id];
@@ -604,7 +604,7 @@ class cursor_bound_01 : public test {
                 upper_bound = bound_pair.second;
             }
 
-            wiredtiger_cursor normal_cursor = tc->session.open_wiredtiger_cursor(coll.name);
+            scoped_cursor normal_cursor = tc->session.open_scoped_cursor(coll.name);
             wt_timestamp_t ts = tc->tsm->get_valid_read_ts();
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
@@ -651,7 +651,7 @@ class cursor_bound_01 : public test {
         logger::log_msg(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
-        std::map<uint64_t, wiredtiger_cursor> cursors;
+        std::map<uint64_t, scoped_cursor> cursors;
         bound lower_bound, upper_bound;
         while (tc->running()) {
             /* Get a random collection to work on. */
@@ -659,7 +659,7 @@ class cursor_bound_01 : public test {
 
             /* Find a cached cursor or create one if none exists. */
             if (cursors.find(coll.id) == cursors.end())
-                cursors.emplace(coll.id, std::move(tc->session.open_wiredtiger_cursor(coll.name)));
+                cursors.emplace(coll.id, std::move(tc->session.open_scoped_cursor(coll.name)));
 
             /* Set random bounds on cached range cursor. */
             auto &range_cursor = cursors[coll.id];
@@ -676,7 +676,7 @@ class cursor_bound_01 : public test {
                 upper_bound = bound_pair.second;
             }
 
-            wiredtiger_cursor normal_cursor = tc->session.open_wiredtiger_cursor(coll.name);
+            scoped_cursor normal_cursor = tc->session.open_scoped_cursor(coll.name);
             wt_timestamp_t ts = tc->tsm->get_valid_read_ts();
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.

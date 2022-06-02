@@ -26,8 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef WIREDTIGER_SESSION_H
-#define WIREDTIGER_SESSION_H
+#ifndef SCOPED_SESSION_H
+#define SCOPED_SESSION_H
 
 /* Following definitions are required in order to use printing format specifiers in C++. */
 #ifndef __STDC_LIMIT_MACROS
@@ -39,27 +39,27 @@
 
 #include <string>
 
-#include "wiredtiger_cursor.h"
+#include "scoped_cursor.h"
 
 extern "C" {
 #include "wiredtiger.h"
 }
 
 namespace test_harness {
-class wiredtiger_session {
+class scoped_session {
     public:
-    wiredtiger_session() = default;
-    explicit wiredtiger_session(WT_CONNECTION *conn);
+    scoped_session() = default;
+    explicit scoped_session(WT_CONNECTION *conn);
 
-    ~wiredtiger_session();
+    ~scoped_session();
 
     /* Moving is ok but copying is not. */
-    wiredtiger_session(wiredtiger_session &&other);
+    scoped_session(scoped_session &&other);
 
-    wiredtiger_session &operator=(wiredtiger_session &&other);
+    scoped_session &operator=(scoped_session &&other);
 
-    wiredtiger_session(const wiredtiger_session &) = delete;
-    wiredtiger_session &operator=(const wiredtiger_session &) = delete;
+    scoped_session(const scoped_session &) = delete;
+    scoped_session &operator=(const scoped_session &) = delete;
 
     void reinit(WT_CONNECTION *conn);
 
@@ -72,7 +72,7 @@ class wiredtiger_session {
 
     WT_SESSION *get();
 
-    wiredtiger_cursor open_wiredtiger_cursor(const std::string &uri, const std::string &cfg = "");
+    scoped_cursor open_scoped_cursor(const std::string &uri, const std::string &cfg = "");
 
     private:
     WT_SESSION *_session = nullptr;

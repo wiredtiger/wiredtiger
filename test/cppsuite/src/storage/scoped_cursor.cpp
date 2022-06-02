@@ -26,25 +26,26 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "wiredtiger_cursor.h"
+#include "scoped_cursor.h"
 
 extern "C" {
 #include "test_util.h"
 }
 
 namespace test_harness {
-wiredtiger_cursor::wiredtiger_cursor(
-  WT_SESSION *session, const std::string &uri, const std::string &cfg)
+
+/* scoped_cursor implementation */
+scoped_cursor::scoped_cursor(WT_SESSION *session, const std::string &uri, const std::string &cfg)
 {
     reinit(session, uri, cfg);
 }
 
-wiredtiger_cursor::wiredtiger_cursor(wiredtiger_cursor &&other)
+scoped_cursor::scoped_cursor(scoped_cursor &&other)
 {
     std::swap(_cursor, other._cursor);
 }
 
-wiredtiger_cursor::~wiredtiger_cursor()
+scoped_cursor::~scoped_cursor()
 {
     if (_cursor != nullptr) {
         testutil_check(_cursor->close(_cursor));
@@ -57,16 +58,16 @@ wiredtiger_cursor::~wiredtiger_cursor()
  * current cursor. This means that the currently held WT_CURSOR will get destroyed as the temporary
  * falls out of the scope and we will steal the one that we're move assigning from.
  */
-wiredtiger_cursor &
-wiredtiger_cursor::operator=(wiredtiger_cursor &&other)
+scoped_cursor &
+scoped_cursor::operator=(scoped_cursor &&other)
 {
-    wiredtiger_cursor tmp(std::move(other));
+    scoped_cursor tmp(std::move(other));
     std::swap(_cursor, tmp._cursor);
     return (*this);
 }
 
 void
-wiredtiger_cursor::reinit(WT_SESSION *session, const std::string &uri, const std::string &cfg)
+scoped_cursor::reinit(WT_SESSION *session, const std::string &uri, const std::string &cfg)
 {
     testutil_assert(!uri.empty());
     if (_cursor != nullptr) {
@@ -83,19 +84,19 @@ wiredtiger_cursor::reinit(WT_SESSION *session, const std::string &uri, const std
  * a pointer to a WT_CURSOR.
  */
 WT_CURSOR &
-wiredtiger_cursor::operator*()
+scoped_cursor::operator*()
 {
     return (*_cursor);
 }
 
 WT_CURSOR *
-wiredtiger_cursor::operator->()
+scoped_cursor::operator->()
 {
     return (_cursor);
 }
 
 WT_CURSOR *
-wiredtiger_cursor::get()
+scoped_cursor::get()
 {
     return (_cursor);
 }

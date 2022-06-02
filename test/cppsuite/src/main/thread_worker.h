@@ -35,8 +35,8 @@
 #include "src/component/operation_tracker.h"
 #include "src/component/timestamp_manager.h"
 #include "src/main/configuration.h"
-#include "src/storage/wiredtiger_cursor.h"
-#include "src/storage/wiredtiger_session.h"
+#include "src/storage/scoped_cursor.h"
+#include "src/storage/scoped_session.h"
 #include "transaction.h"
 
 namespace test_harness {
@@ -48,7 +48,7 @@ const std::string type_string(thread_type type);
 class thread_worker {
     public:
     thread_worker(uint64_t id, thread_type type, configuration *config,
-      wiredtiger_session &&created_session, timestamp_manager *timestamp_manager,
+      scoped_session &&created_session, timestamp_manager *timestamp_manager,
       operation_tracker *op_tracker, database &dbase);
 
     virtual ~thread_worker() = default;
@@ -64,7 +64,7 @@ class thread_worker {
      * Return true if the operation was successful, a return value of false implies the transaction
      * needs to be rolled back.
      */
-    bool update(wiredtiger_cursor &cursor, uint64_t collection_id, const std::string &key,
+    bool update(scoped_cursor &cursor, uint64_t collection_id, const std::string &key,
       const std::string &value);
 
     /*
@@ -73,7 +73,7 @@ class thread_worker {
      * Return true if the operation was successful, a return value of false implies the transaction
      * needs to be rolled back.
      */
-    bool insert(wiredtiger_cursor &cursor, uint64_t collection_id, const std::string &key,
+    bool insert(scoped_cursor &cursor, uint64_t collection_id, const std::string &key,
       const std::string &value);
 
     /*
@@ -82,7 +82,7 @@ class thread_worker {
      * Return true if the operation was successful, a return value of false implies the transaction
      * needs to be rolled back.
      */
-    bool remove(wiredtiger_cursor &cursor, uint64_t collection_id, const std::string &key);
+    bool remove(scoped_cursor &cursor, uint64_t collection_id, const std::string &key);
     void sleep();
     bool running() const;
 
@@ -95,9 +95,9 @@ class thread_worker {
     const thread_type type;
     const uint64_t id;
     database &db;
-    wiredtiger_session session;
-    wiredtiger_cursor op_track_cursor;
-    wiredtiger_cursor stat_cursor;
+    scoped_session session;
+    scoped_cursor op_track_cursor;
+    scoped_cursor stat_cursor;
     timestamp_manager *tsm;
     transaction txn;
     operation_tracker *op_tracker;

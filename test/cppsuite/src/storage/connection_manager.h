@@ -39,7 +39,7 @@
 
 #include <mutex>
 
-#include "wiredtiger_session.h"
+#include "scoped_session.h"
 
 namespace test_harness {
 /*
@@ -57,7 +57,7 @@ class connection_manager {
 
     void close();
     void create(const std::string &config, const std::string &home);
-    wiredtiger_session create_session();
+    scoped_session create_session();
 
     WT_CONNECTION *get_connection();
 

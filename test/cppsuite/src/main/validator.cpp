@@ -48,8 +48,8 @@ validator::validate(const std::string &operation_table_name, const std::string &
 
     logger::log_msg(LOG_INFO, "Beginning validation.");
 
-    wiredtiger_session session = connection_manager::instance().create_session();
-    wiredtiger_cursor cursor = session.open_wiredtiger_cursor(operation_table_name);
+    scoped_session session = connection_manager::instance().create_session();
+    scoped_cursor cursor = session.open_scoped_cursor(operation_table_name);
 
     /*
      * Default validation depends on specific fields being present in the tracking table. If the
@@ -160,7 +160,7 @@ validator::validate(const std::string &operation_table_name, const std::string &
 }
 
 void
-validator::parse_schema_tracking_table(wiredtiger_session &session,
+validator::parse_schema_tracking_table(scoped_session &session,
   const std::string &tracking_table_name, std::vector<uint64_t> &created_collections,
   std::vector<uint64_t> &deleted_collections)
 {
@@ -168,7 +168,7 @@ validator::parse_schema_tracking_table(wiredtiger_session &session,
     uint64_t key_collection_id;
     int value_operation_type;
 
-    wiredtiger_cursor cursor = session.open_wiredtiger_cursor(tracking_table_name);
+    scoped_cursor cursor = session.open_scoped_cursor(tracking_table_name);
 
     while (cursor->next(cursor.get()) == 0) {
         testutil_check(cursor->get_key(cursor.get(), &key_collection_id, &key_timestamp));
@@ -222,7 +222,7 @@ validator::update_data_model(const tracking_operation &operation, validation_col
 
 void
 validator::verify_collection(
-  wiredtiger_session &session, const uint64_t collection_id, validation_collection &collection)
+  scoped_session &session, const uint64_t collection_id, validation_collection &collection)
 {
     /* Check the collection exists on disk. */
     if (!verify_collection_file_state(session, collection_id, true))
@@ -238,7 +238,7 @@ validator::verify_collection(
 
 bool
 validator::verify_collection_file_state(
-  wiredtiger_session &session, const uint64_t collection_id, bool exists) const
+  scoped_session &session, const uint64_t collection_id, bool exists) const
 {
     /*
      * We don't necessarily expect to successfully open the cursor so don't create a scoped cursor.
@@ -252,14 +252,14 @@ validator::verify_collection_file_state(
 }
 
 void
-validator::verify_key_value(wiredtiger_session &session, const uint64_t collection_id,
+validator::verify_key_value(scoped_session &session, const uint64_t collection_id,
   const std::string &key, const key_state &key_state)
 {
     WT_DECL_RET;
     const char *retrieved_value;
 
-    wiredtiger_cursor cursor =
-      session.open_wiredtiger_cursor(database::build_collection_name(collection_id));
+    scoped_cursor cursor =
+      session.open_scoped_cursor(database::build_collection_name(collection_id));
     cursor->set_key(cursor.get(), key.c_str());
     ret = cursor->search(cursor.get());
     testutil_assertfmt(ret == 0 || ret == WT_NOTFOUND,

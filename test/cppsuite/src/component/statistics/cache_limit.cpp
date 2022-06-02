@@ -43,7 +43,7 @@ cache_limit::cache_limit(configuration &config, const std::string &name)
 }
 
 void
-cache_limit::check(wiredtiger_cursor &cursor)
+cache_limit::check(scoped_cursor &cursor)
 {
     double use_percent = get_cache_value(cursor);
     if (use_percent > max) {
@@ -56,13 +56,13 @@ cache_limit::check(wiredtiger_cursor &cursor)
 }
 
 std::string
-cache_limit::get_value_str(wiredtiger_cursor &cursor)
+cache_limit::get_value_str(scoped_cursor &cursor)
 {
     return std::to_string(get_cache_value(cursor));
 }
 
 double
-cache_limit::get_cache_value(wiredtiger_cursor &cursor)
+cache_limit::get_cache_value(scoped_cursor &cursor)
 {
     int64_t cache_bytes_image, cache_bytes_other, cache_bytes_max;
     double use_percent;

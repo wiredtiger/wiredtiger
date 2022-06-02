@@ -57,14 +57,14 @@ class burst_inserts : public test {
         /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
         struct collection_cursor {
             collection_cursor(
-              collection &coll, wiredtiger_cursor &&write_cursor, wiredtiger_cursor &&read_cursor)
+              collection &coll, scoped_cursor &&write_cursor, scoped_cursor &&read_cursor)
                 : coll(coll), read_cursor(std::move(read_cursor)),
                   write_cursor(std::move(write_cursor))
             {
             }
             collection &coll;
-            wiredtiger_cursor read_cursor;
-            wiredtiger_cursor write_cursor;
+            scoped_cursor read_cursor;
+            scoped_cursor write_cursor;
         };
 
         /* Collection cursor vector. */
@@ -81,8 +81,8 @@ class burst_inserts : public test {
              * Create a reading cursor that will read random documents for every next call. This
              * will help generate cache pressure.
              */
-            ccv.push_back({coll, std::move(tc->session.open_wiredtiger_cursor(coll.name)),
-              std::move(tc->session.open_wiredtiger_cursor(coll.name, "next_random=true"))});
+            ccv.push_back({coll, std::move(tc->session.open_scoped_cursor(coll.name)),
+              std::move(tc->session.open_scoped_cursor(coll.name, "next_random=true"))});
         }
 
         uint64_t counter = 0;
