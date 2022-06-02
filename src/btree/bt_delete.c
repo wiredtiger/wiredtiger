@@ -197,16 +197,23 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (current_state == WT_REF_DELETED)
         current_state = ref->ft_info.del->previous_ref_state;
-    else if ((updp = ref->ft_info.update) != NULL)
-        /*
-         * Walk any list of update structures and abort them. We can't use the normal read path to
-         * get the pages with updates (the original page may have split, so there may be more than
-         * one page), because the session may have closed the cursor, and we no longer have the
-         * reference to the tree required for a hazard pointer. We're safe since pages with
-         * unresolved transactions aren't going anywhere.
-         */
-        for (; *updp != NULL; ++updp)
-            (*updp)->txnid = WT_TXN_ABORTED;
+    else {
+        if ((updp = ref->ft_info.update) != NULL)
+            /*
+             * Walk any list of update structures and abort them. We can't use the normal read path
+             * to get the pages with updates (the original page may have split, so there may be more
+             * than one page), because the session may have closed the cursor, and we no longer have
+             * the reference to the tree required for a hazard pointer. We're safe since pages with
+             * unresolved transactions aren't going anywhere.
+             */
+            for (; *updp != NULL; ++updp)
+                (*updp)->txnid = WT_TXN_ABORTED;
+        WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
+        WT_ASSERT(session, ref->page->modify->instantiated == true);
+        /* Drop any page_deleted information that had been moved to the modify structure. */
+        ref->page->modify->instantiated = false;
+        __wt_free(session, ref->page->modify->page_del);
+    }
 
     /*
      * Don't set the WT_PAGE_DELETED transaction ID to aborted, discard any WT_UPDATE list or set

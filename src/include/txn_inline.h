@@ -210,6 +210,7 @@ __wt_txn_unmodify(WT_SESSION_IMPL *session)
 static inline void
 __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool commit)
 {
+    WT_PAGE_DELETED *page_del;
     WT_TXN *txn;
     WT_UPDATE **updp;
     wt_timestamp_t ts;
@@ -230,7 +231,8 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
 
     /*
      * Timestamps and prepare state are in the page deleted structure for truncates, or in the
-     * updates in the case of instantiated pages.
+     * updates in the case of instantiated pages. In the case of instantiated pages we may also need
+     * to update the page deleted structure saved in page->modify.
      *
      * Only two cases are possible. First: the state is WT_REF_DELETED. In this case ft_info.del
      * cannot be NULL yet because an uncommitted operation cannot have reached global visibility.
@@ -241,22 +243,29 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
      * truncated when all items on it were already deleted, so no tombstones were created during
      * instantiation.)
      */
-    if (previous_state == WT_REF_DELETED) {
-        ref->ft_info.del->timestamp = ts;
+    if (previous_state == WT_REF_DELETED)
+        page_del = ref->ft_info.del;
+    else {
+        if ((updp = ref->ft_info.update) != NULL)
+            for (; *updp != NULL; ++updp) {
+                (*updp)->start_ts = ts;
+                /*
+                 * Holding the ref locked means we have exclusive access, so if we are committing we
+                 * don't need to use the prepare locked transition state.
+                 */
+                (*updp)->prepare_state = prepare_state;
+                if (commit)
+                    (*updp)->durable_ts = txn->durable_timestamp;
+            }
+        WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
+        page_del = ref->page->modify->page_del;
+    }
+    if (page_del != NULL) {
+        page_del->timestamp = ts;
         if (commit)
-            ref->ft_info.del->durable_timestamp = txn->durable_timestamp;
-        WT_PUBLISH(ref->ft_info.del->prepare_state, prepare_state);
-    } else if ((updp = ref->ft_info.update) != NULL)
-        for (; *updp != NULL; ++updp) {
-            (*updp)->start_ts = ts;
-            /*
-             * Holding the ref locked means we have exclusive access, so if we are committing we
-             * don't need to use the prepare locked transition state.
-             */
-            (*updp)->prepare_state = prepare_state;
-            if (commit)
-                (*updp)->durable_ts = txn->durable_timestamp;
-        }
+            page_del->durable_timestamp = txn->durable_timestamp;
+        WT_PUBLISH(page_del->prepare_state, prepare_state);
+    }
 
     WT_REF_UNLOCK(ref, previous_state);
 }
@@ -268,6 +277,7 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
 static inline void
 __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_PAGE_DELETED *page_del;
     WT_TXN *txn;
     WT_UPDATE **updp;
     uint8_t previous_state;
@@ -290,16 +300,21 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
      * truncated when all items on it were already deleted, so no tombstones were created during
      * instantiation.)
      */
-    if (previous_state == WT_REF_DELETED) {
-        if (ref->ft_info.del->timestamp == WT_TS_NONE) {
-            ref->ft_info.del->timestamp = txn->commit_timestamp;
-            ref->ft_info.del->durable_timestamp = txn->durable_timestamp;
-        }
-    } else if ((updp = ref->ft_info.update) != NULL)
-        for (; *updp != NULL; ++updp) {
-            (*updp)->start_ts = txn->commit_timestamp;
-            (*updp)->durable_ts = txn->durable_timestamp;
-        }
+    if (previous_state == WT_REF_DELETED)
+        page_del = ref->ft_info.del;
+    else {
+        if ((updp = ref->ft_info.update) != NULL)
+            for (; *updp != NULL; ++updp) {
+                (*updp)->start_ts = txn->commit_timestamp;
+                (*updp)->durable_ts = txn->durable_timestamp;
+            }
+        WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
+        page_del = ref->page->modify->page_del;
+    }
+    if (page_del != NULL && page_del->timestamp == WT_TS_NONE) {
+        ref->ft_info.del->timestamp = txn->commit_timestamp;
+        ref->ft_info.del->durable_timestamp = txn->durable_timestamp;
+    }
 
     WT_REF_UNLOCK(ref, previous_state);
 }
