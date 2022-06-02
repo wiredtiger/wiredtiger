@@ -2,32 +2,28 @@ project(cppsuite CXX)
 
 # Create an intermediate static lib.
 add_library(cppsuite_test_harness STATIC
-    src/common/constants.cpp
+    src/common/api_const.cpp
     src/common/logger.cpp
     src/common/random_generator.cpp
     src/common/thread_manager.cpp
+    src/component/checkpoint_manager.cpp
     src/component/component.cpp
-    src/component/execution_timer.cpp
-    src/component/metrics_monitor.cpp
-    src/component/metrics_writer.cpp
-    src/component/operation_tracker.cpp
-    src/component/statistics/cache_limit.cpp
-    src/component/statistics/database_size.cpp
-    src/component/statistics/statistics.cpp
+    src/component/op_tracker.cpp
+    src/component/perf_plotter.cpp
+    src/component/runtime_monitor.cpp
     src/component/timestamp_manager.cpp
-    src/component/workload_manager.cpp
-    src/main/collection.cpp
+    src/component/workload_generator.cpp
+    src/component/workload_tracking.cpp
+    src/component/workload_validation.cpp
     src/main/configuration.cpp
-    src/main/database.cpp
+    src/main/database_model.cpp
     src/main/database_operation.cpp
-    src/main/operation_configuration.cpp
     src/main/test.cpp
-    src/main/thread_worker.cpp
-    src/main/transaction.cpp
-    src/main/validator.cpp
+    src/main/thread_context.cpp
+    src/main/throttle.cpp
     src/storage/connection_manager.cpp
-    src/storage/scoped_cursor.cpp
-    src/storage/scoped_session.cpp
+    src/storage/scoped_connection.cpp
+    src/storage/scoped_types.cpp
 )
 
 target_include_directories(cppsuite_test_harness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
