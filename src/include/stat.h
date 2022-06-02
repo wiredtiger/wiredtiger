@@ -400,6 +400,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_2;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_3;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_4;
+    int64_t cache_eviction_blocked_remove_hs_race_with_checkpoint;
     int64_t cache_eviction_walk_passes;
     int64_t cache_eviction_queue_empty;
     int64_t cache_eviction_queue_not_empty;
@@ -552,6 +553,7 @@ struct __wt_connection_stats {
     int64_t cursor_reposition;
     int64_t cursor_cached_count;
     int64_t cursor_bound_error;
+    int64_t cursor_bounds_reset;
     int64_t cursor_insert_bulk;
     int64_t cursor_cache_error;
     int64_t cursor_cache;
@@ -807,8 +809,6 @@ struct __wt_connection_stats {
     int64_t txn_prepare_commit;
     int64_t txn_prepare_active;
     int64_t txn_prepare_rollback;
-    int64_t txn_prepare_rollback_do_not_remove_hs_update;
-    int64_t txn_prepare_rollback_fix_hs_update_with_ckpt_reserved_txnid;
     int64_t txn_query_ts;
     int64_t txn_read_race_prepare_update;
     int64_t txn_rts;
@@ -937,6 +937,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_2;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_3;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_4;
+    int64_t cache_eviction_blocked_remove_hs_race_with_checkpoint;
     int64_t cache_eviction_walk_passes;
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;
@@ -1035,6 +1036,7 @@ struct __wt_dsrc_stats {
     int64_t cursor_cache;
     int64_t cursor_create;
     int64_t cursor_bound_error;
+    int64_t cursor_bounds_reset;
     int64_t cursor_cache_error;
     int64_t cursor_close_error;
     int64_t cursor_compare_error;
