@@ -409,7 +409,6 @@ __tiered_cleanup_tiers(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
 {
     uint32_t i;
 
-    /* Cleanup and dereference all tiers.  */
     for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
         /*
          * Do not use tier's dhandle if it's a final cleanup, it may be invalid.
