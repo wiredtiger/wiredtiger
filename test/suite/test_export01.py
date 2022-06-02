@@ -159,7 +159,6 @@ class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
             export_file_string = export_file.read()
             self.assertFalse("exportb" in export_file_string)
             self.assertTrue("exportc" in export_file_string)
-            export_file.close()
 
         export_cursor.close()
 
