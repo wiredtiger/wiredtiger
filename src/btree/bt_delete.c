@@ -254,9 +254,7 @@ __delete_redo_window_cleanup_skip(
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
 
-    WT_ASSERT(session, F_ISSET(ref, WT_REF_FLAG_LEAF));
-
-    *skipp = true;
+    *skipp = F_ISSET(ref, WT_REF_FLAG_LEAF);
     return (0);
 }
 
