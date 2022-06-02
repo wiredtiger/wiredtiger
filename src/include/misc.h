@@ -164,10 +164,6 @@
  * They come in 3 flavors: F_XXX (handles a field named "flags" in the structure referenced by its
  * argument), LF_XXX (handles a local variable named "flags"), and FLD_XXX (handles any variable,
  * anywhere).
- *
- * Flags are unsigned 32-bit values -- we cast to keep the compiler quiet (the hex constant might be
- * a negative integer), and to ensure the hex constant is the correct size before applying the
- * bitwise not operator.
  */
 #define FLD_CLR(field, mask) ((void)((field) &= ~(mask)))
 #define FLD_MASK(field, mask) ((field) & (mask))
@@ -183,11 +179,6 @@
 #define LF_ISSET(mask) FLD_ISSET(flags, mask)
 #define LF_MASK(mask) FLD_MASK(flags, mask)
 #define LF_SET(mask) FLD_SET(flags, mask)
-
-#define F_CLR_16(p, mask) FLD_CLR((p)->flags, (uint16_t) mask)
-#define F_ISSET_16(p, mask) FLD_ISSET((p)->flags, (uint16_t) mask)
-#define F_MASK_16(p, mask) FLD_MASK((p)->flags, (uint16_t) mask)
-#define F_SET_16(p, mask) FLD_SET((p)->flags, (uint16_t) mask)
 
 /*
  * Insertion sort, for sorting small sets of values.

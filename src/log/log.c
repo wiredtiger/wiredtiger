@@ -989,7 +989,7 @@ __log_record_verify(
     logrec = *logrecp;
     __wt_log_record_byteswap(&logrec);
 
-    if (F_ISSET_16(&logrec, ~(WT_LOG_RECORD_ALL_FLAGS))) {
+    if (F_ISSET(&logrec, ~(WT_LOG_RECORD_ALL_FLAGS))) {
         __wt_verbose_notice(session, WT_VERB_LOG,
           "%s: log record at position %" PRIu32 " has flag corruption 0x%" PRIx16, log_fh->name,
           offset, logrec.flags);
@@ -1004,7 +1004,7 @@ __log_record_verify(
             *corrupt = true;
         }
     if (logrec.mem_len != 0 &&
-      !F_ISSET_16(&logrec, WT_LOG_RECORD_COMPRESSED | WT_LOG_RECORD_ENCRYPTED)) {
+      !F_ISSET(&logrec, WT_LOG_RECORD_COMPRESSED | WT_LOG_RECORD_ENCRYPTED)) {
         __wt_verbose_notice(session, WT_VERB_LOG,
           "%s: log record at position %" PRIu32 " has memory len corruption 0x%" PRIx32,
           log_fh->name, offset, logrec.mem_len);
@@ -2346,11 +2346,11 @@ advance:
              * for reading.
              */
             cbbuf = buf;
-            if (F_ISSET_16(logrec, WT_LOG_RECORD_ENCRYPTED)) {
+            if (F_ISSET(logrec, WT_LOG_RECORD_ENCRYPTED)) {
                 WT_ERR(__log_decrypt(session, cbbuf, decryptitem));
                 cbbuf = decryptitem;
             }
-            if (F_ISSET_16(logrec, WT_LOG_RECORD_COMPRESSED)) {
+            if (F_ISSET(logrec, WT_LOG_RECORD_COMPRESSED)) {
                 WT_ERR(__log_decompress(session, cbbuf, uncitem));
                 cbbuf = uncitem;
             }
@@ -2524,7 +2524,7 @@ __wt_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, uint32_t
             citem->size = result_len;
             ip = citem;
             newlrp = (WT_LOG_RECORD *)citem->mem;
-            F_SET_16(newlrp, WT_LOG_RECORD_COMPRESSED);
+            F_SET(newlrp, WT_LOG_RECORD_COMPRESSED);
             WT_ASSERT(session, result_len < UINT32_MAX && record->size < UINT32_MAX);
             newlrp->mem_len = WT_STORE_SIZE(record->size);
         }
@@ -2544,7 +2544,7 @@ __wt_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, uint32_t
          */
         ip = eitem;
         newlrp = (WT_LOG_RECORD *)eitem->mem;
-        F_SET_16(newlrp, WT_LOG_RECORD_ENCRYPTED);
+        F_SET(newlrp, WT_LOG_RECORD_ENCRYPTED);
         WT_ASSERT(session, new_size < UINT32_MAX && ip->size < UINT32_MAX);
     }
     ret = __log_write_internal(session, ip, lsnp, flags);

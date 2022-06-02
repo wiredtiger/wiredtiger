@@ -643,7 +643,7 @@ __txn_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, WT_LSN *
     p = WT_LOG_SKIP_HEADER(rawrec->data);
     end = (const uint8_t *)rawrec->data + rawrec->size;
     logrec = (WT_LOG_RECORD *)rawrec->data;
-    compressed = F_ISSET_16(logrec, WT_LOG_RECORD_COMPRESSED);
+    compressed = F_ISSET(logrec, WT_LOG_RECORD_COMPRESSED);
 
     /* First, peek at the log record type. */
     WT_RET(__wt_logrec_read(session, &p, end, &rectype));
