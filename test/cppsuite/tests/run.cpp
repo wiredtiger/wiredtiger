@@ -235,7 +235,6 @@ main(int argc, char *argv[])
             test_harness::logger::log_msg(LOG_INFO, "Running all tests.");
             for (auto const &it : all_tests) {
                 current_test_name = it;
-                std::cout << "Starting test " << current_test_name << std::endl;
                 /* Configuration parsing. */
                 if (!config_filename.empty())
                     current_cfg = parse_configuration_from_file(config_filename);
