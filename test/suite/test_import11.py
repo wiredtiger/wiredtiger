@@ -210,14 +210,14 @@ class test_import11(test_import_base):
 
         # Check the number of files imported after doing an import operation.
         files_imported_prev = self.get_stat(stat.conn.session_table_create_import_success)
-        self.assertTrue(files_imported_prev > 0)
+        self.assertTrue(files_imported_prev == 1)
 
         self.session.create(self.uri_b, import_config)
         self.checkpoint_and_flush_tier()
 
         # Check the number of files imported has increased after doing another import operation.
         files_imported = self.get_stat(stat.conn.session_table_create_import_success)
-        self.assertTrue(files_imported > files_imported_prev)
+        self.assertTrue(files_imported == files_imported_prev + 1)
 
         # Remove WiredTiger.export file.
         export_file_path = os.path.join('IMPORT_DB', 'WiredTiger.export')

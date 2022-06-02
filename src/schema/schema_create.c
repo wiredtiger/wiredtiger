@@ -1255,8 +1255,7 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     import = session->import_list != NULL ||
       (__wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0);
 
-    if ((ret = __schema_create_config_check(session, uri, config, import)) != 0)
-        goto import_err;
+    WT_RET(__schema_create_config_check(session, uri, config, import));
 
     /*
      * We track create operations: if we fail in the middle of creating a complex object, we want to
@@ -1328,17 +1327,6 @@ err:
     __wt_free(session, import_list.entries);
     __wt_free(session, export_file);
 
-import_err:
-    /*
-     * Handle the logic to increment the create import statistics separately here as the
-     * clear_import_flag variable will not be set if the config checking fails.
-     */
-    if (import) {
-        if (ret != 0)
-            WT_STAT_CONN_INCR(session, session_table_create_import_fail);
-        else
-            WT_STAT_CONN_INCR(session, session_table_create_import_success);
-    }
     return (ret);
 }
 
