@@ -28,7 +28,7 @@
 
 #include "execution_timer.h"
 
-#include "statistics_writer.h"
+#include "metrics_writer.h"
 
 namespace test_harness {
 execution_timer::execution_timer(const std::string id, const std::string &test_name)
@@ -41,7 +41,7 @@ execution_timer::append_stats()
 {
     uint64_t avg = (uint64_t)_total_time_taken / _it_count;
     std::string stat = "{\"name\":\"" + _id + "\",\"value\":" + std::to_string(avg) + "}";
-    statistics_writer::instance().add_stat(stat);
+    metrics_writer::instance().add_stat(stat);
 }
 
 template <typename T>

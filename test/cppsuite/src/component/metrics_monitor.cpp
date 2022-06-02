@@ -33,7 +33,7 @@
 #include "src/common/constants.h"
 #include "src/common/logger.h"
 #include "src/storage/wiredtiger_connection.h"
-#include "statistics_writer.h"
+#include "metrics_writer.h"
 #include "statistics/cache_limit.h"
 #include "statistics/database_size.h"
 #include "statistics/statistics.h"
@@ -132,7 +132,7 @@ metrics_monitor::finish()
         if (stat->get_save()) {
             auto stat_str =
               "{\"name\":\"" + stat_name + "\",\"value\":" + stat->get_value_str(_cursor) + "}";
-            statistics_writer::instance().add_stat(stat_str);
+            metrics_writer::instance().add_stat(stat_str);
         }
 
         if (!stat->get_postrun())

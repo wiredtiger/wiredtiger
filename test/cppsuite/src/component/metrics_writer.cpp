@@ -26,18 +26,18 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "statistics_writer.h"
+#include "metrics_writer.h"
 
 namespace test_harness {
 void
-statistics_writer::add_stat(const std::string &stat_string)
+metrics_writer::add_stat(const std::string &stat_string)
 {
     std::lock_guard<std::mutex> lg(_stat_mutex);
     _stats.push_back(stat_string);
 }
 
 void
-statistics_writer::output_perf_file(const std::string &test_name)
+metrics_writer::output_perf_file(const std::string &test_name)
 {
     std::ofstream perf_file;
     std::string stat_info = "[{\"info\":{\"test_name\": \"" + test_name + "\"},\"metrics\": [";
@@ -55,12 +55,12 @@ statistics_writer::output_perf_file(const std::string &test_name)
     perf_file.close();
 }
 
-statistics_writer &
-statistics_writer::instance()
+metrics_writer &
+metrics_writer::instance()
 {
-    static statistics_writer _instance;
+    static metrics_writer _instance;
     return (_instance);
 }
 
-statistics_writer::statistics_writer() {}
+metrics_writer::metrics_writer() {}
 } // namespace test_harness

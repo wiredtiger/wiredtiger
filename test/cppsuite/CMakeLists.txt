@@ -9,8 +9,8 @@ add_library(cppsuite_test_harness STATIC
     src/component/component.cpp
     src/component/execution_timer.cpp
     src/component/metrics_monitor.cpp
+    src/component/metrics_writer.cpp
     src/component/operation_tracker.cpp
-    src/component/statistics_writer.cpp
     src/component/statistics/cache_limit.cpp
     src/component/statistics/database_size.cpp
     src/component/statistics/statistics.cpp

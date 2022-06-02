@@ -26,8 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef STATISTICS_WRITER_H
-#define STATISTICS_WRITER_H
+#ifndef METRICS_WRITER_H
+#define METRICS_WRITER_H
 
 #include <fstream>
 #include <mutex>
@@ -36,20 +36,20 @@
 
 namespace test_harness {
 /* Singleton class that can write statistics to a file. */
-class statistics_writer {
+class metrics_writer {
     public:
-    static statistics_writer &instance();
+    static metrics_writer &instance();
 
     public:
     /* No copies of the singleton allowed. */
-    statistics_writer(statistics_writer const &) = delete;
-    statistics_writer &operator=(statistics_writer const &) = delete;
+    metrics_writer(metrics_writer const &) = delete;
+    metrics_writer &operator=(metrics_writer const &) = delete;
 
     void add_stat(const std::string &stat_string);
     void output_perf_file(const std::string &test_name);
 
     private:
-    statistics_writer();
+    metrics_writer();
     std::vector<std::string> _stats;
     std::mutex _stat_mutex;
 };

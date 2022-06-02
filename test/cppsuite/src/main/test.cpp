@@ -30,7 +30,7 @@
 
 #include "src/common/constants.h"
 #include "src/common/logger.h"
-#include "src/component/statistics_writer.h"
+#include "src/component/metrics_writer.h"
 
 namespace test_harness {
 test::test(const test_args &args) : _args(args)
@@ -176,7 +176,7 @@ test::run()
     }
 
     /* Log perf stats. */
-    statistics_writer::instance().output_perf_file(_args.test_name);
+    metrics_writer::instance().output_perf_file(_args.test_name);
 
     logger::log_msg(LOG_INFO, "SUCCESS");
 }
