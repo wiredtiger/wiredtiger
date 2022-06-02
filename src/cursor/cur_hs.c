@@ -980,7 +980,6 @@ __curhs_insert(WT_CURSOR *cursor)
         WT_ERR_NOTFOUND_OK(__curhs_file_cursor_next(session, file_cursor), false);
     else if (ret == WT_NOTFOUND)
         ret = 0;
-    
 #endif
 
     /* Insert doesn't maintain a position across calls, clear resources. */
