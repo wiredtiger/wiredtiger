@@ -8,8 +8,8 @@ add_library(cppsuite_test_harness STATIC
     src/common/thread_manager.cpp
     src/component/component.cpp
     src/component/execution_timer.cpp
+    src/component/metrics_monitor.cpp
     src/component/operation_tracker.cpp
-    src/component/statistics_monitor.cpp
     src/component/statistics_writer.cpp
     src/component/statistics/cache_limit.cpp
     src/component/statistics/database_size.cpp

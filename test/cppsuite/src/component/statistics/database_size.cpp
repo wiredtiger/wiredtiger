@@ -66,7 +66,7 @@ database_size::check(wiredtiger_cursor &)
 
     if (db_size > max) {
         const std::string error_string =
-          "statistics_monitor: Database size limit exceeded during test! Limit: " +
+          "metrics_monitor: Database size limit exceeded during test! Limit: " +
           std::to_string(max) + " db size: " + std::to_string(db_size);
         testutil_die(-1, error_string.c_str());
     }

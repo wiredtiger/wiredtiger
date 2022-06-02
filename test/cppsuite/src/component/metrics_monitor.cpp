@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "statistics_monitor.h"
+#include "metrics_monitor.h"
 
 #include <fstream>
 
@@ -61,7 +61,7 @@ get_stat_field(const std::string &name)
 }
 
 void
-statistics_monitor::get_stat(wiredtiger_cursor &cursor, int stat_field, int64_t *valuep)
+metrics_monitor::get_stat(wiredtiger_cursor &cursor, int stat_field, int64_t *valuep)
 {
     const char *desc, *pvalue;
     cursor->set_key(cursor.get(), stat_field);
@@ -70,14 +70,14 @@ statistics_monitor::get_stat(wiredtiger_cursor &cursor, int stat_field, int64_t 
     testutil_check(cursor->reset(cursor.get()));
 }
 
-statistics_monitor::statistics_monitor(
+metrics_monitor::metrics_monitor(
   const std::string &test_name, configuration *config, database &database)
-    : component(STATISTICS_MONITOR, config), _test_name(test_name), _database(database)
+    : component(METRICS_MONITOR, config), _test_name(test_name), _database(database)
 {
 }
 
 void
-statistics_monitor::load()
+metrics_monitor::load()
 {
     /* Load the general component things. */
     component::load();
@@ -108,7 +108,7 @@ statistics_monitor::load()
 }
 
 void
-statistics_monitor::do_work()
+metrics_monitor::do_work()
 {
     /* Check runtime statistics. */
     for (const auto &stat : _stats) {
@@ -118,7 +118,7 @@ statistics_monitor::do_work()
 }
 
 void
-statistics_monitor::finish()
+metrics_monitor::finish()
 {
     component::finish();
 
@@ -143,7 +143,7 @@ statistics_monitor::finish()
         int64_t stat_value = std::stoi(stat->get_value_str(_cursor));
 
         if (stat_value < stat_min || stat_value > stat_max) {
-            const std::string error_string = "statistics_monitor: Postrun stat \"" + stat_name +
+            const std::string error_string = "metrics_monitor: Postrun stat \"" + stat_name +
               "\" was outside of the specified limits. Min=" + std::to_string(stat_min) +
               " Max=" + std::to_string(stat_max) + " Actual=" + std::to_string(stat_value);
             logger::log_msg(LOG_ERROR, error_string);
@@ -151,13 +151,13 @@ statistics_monitor::finish()
         }
 
         logger::log_msg(LOG_INFO,
-          "statistics_monitor: Final value of stat " + stat_name +
+          "metrics_monitor: Final value of stat " + stat_name +
             " is: " + std::to_string(stat_value));
     }
 
     if (!success)
         testutil_die(-1,
-          "statistics_monitor: One or more postrun statistics were outside of their specified "
+          "metrics_monitor: One or more postrun statistics were outside of their specified "
           "limits.");
 }
 } // namespace test_harness

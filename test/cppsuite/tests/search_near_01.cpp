@@ -253,9 +253,9 @@ class search_near_01 : public test {
          */
         expected_entries = keys_per_prefix * pow(ALPHABET.size(), PREFIX_KEY_LEN - srchkey_len);
         while (tc->running()) {
-            statistics_monitor::get_stat(
+            metrics_monitor::get_stat(
               tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &prev_entries_stat);
-            statistics_monitor::get_stat(tc->stat_cursor,
+            metrics_monitor::get_stat(tc->stat_cursor,
               WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prev_prefix_stat);
 
             thread_manager tm;
@@ -263,7 +263,8 @@ class search_near_01 : public test {
                 /* Get a collection and find a cached cursor. */
                 collection &coll = tc->db.get_random_collection();
                 thread_worker *search_near_tc = new thread_worker(i, thread_type::READ, read_config,
-                  wiredtiger_connection::instance().create_session(), tc->tsm, tc->op_tracker, tc->db);
+                  wiredtiger_connection::instance().create_session(), tc->tsm, tc->op_tracker,
+                  tc->db);
                 workers.push_back(search_near_tc);
                 tm.add_thread(perform_search_near, search_near_tc, coll.name, srchkey_len,
                   std::ref(z_key_searches));
@@ -278,9 +279,9 @@ class search_near_01 : public test {
             }
             workers.clear();
 
-            statistics_monitor::get_stat(
+            metrics_monitor::get_stat(
               tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entries_stat);
-            statistics_monitor::get_stat(
+            metrics_monitor::get_stat(
               tc->stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prefix_stat);
             logger::log_msg(LOG_TRACE,
               "Read thread skipped entries: " + std::to_string(entries_stat - prev_entries_stat) +

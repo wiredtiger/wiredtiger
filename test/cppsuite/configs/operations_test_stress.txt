@@ -2,7 +2,7 @@
 duration_seconds=1500,
 cache_size_mb=1000,
 compression_enabled=true,
-statistics_monitor=
+metrics_monitor=
 (
     stat_db_size=
     (

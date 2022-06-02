@@ -18,7 +18,7 @@ workload_manager=
         thread_count=1
     )
 ),
-statistics_monitor=
+metrics_monitor=
 (
     cache_hs_insert=
     (

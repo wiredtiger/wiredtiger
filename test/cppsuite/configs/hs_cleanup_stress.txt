@@ -9,7 +9,7 @@ statistics_config=
     type=all,
     enable_logging=true
 ),
-statistics_monitor=
+metrics_monitor=
 (
     # Seems to insert around 477K records. Give it +-20K margin.
     cache_hs_insert=

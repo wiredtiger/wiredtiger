@@ -32,7 +32,7 @@
 #include <string>
 
 #include "database_operation.h"
-#include "src/component/statistics_monitor.h"
+#include "src/component/metrics_monitor.h"
 #include "src/component/workload_manager.h"
 #include "src/storage/wiredtiger_connection.h"
 
@@ -71,7 +71,7 @@ class test : public database_operation {
 
     private:
     std::vector<component *> _components;
-    statistics_monitor *_statistics_monitor = nullptr;
+    metrics_monitor *_metrics_monitor = nullptr;
     thread_manager *_thread_manager = nullptr;
     workload_manager *_workload_manager = nullptr;
     database _database;

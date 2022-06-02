@@ -2,7 +2,7 @@
 duration_seconds=60,
 cache_size_mb=200,
 enable_logging=true,
-statistics_monitor=
+metrics_monitor=
 (
     cache_hs_insert=
     (

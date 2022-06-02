@@ -29,7 +29,7 @@
 #include "cache_limit.h"
 
 #include "src/common/logger.h"
-#include "src/component/statistics_monitor.h"
+#include "src/component/metrics_monitor.h"
 
 extern "C" {
 #include "test_util.h"
@@ -48,7 +48,7 @@ cache_limit::check(wiredtiger_cursor &cursor)
     double use_percent = get_cache_value(cursor);
     if (use_percent > max) {
         const std::string error_string =
-          "statistics_monitor: Cache usage exceeded during test! Limit: " + std::to_string(max) +
+          "metrics_monitor: Cache usage exceeded during test! Limit: " + std::to_string(max) +
           " usage: " + std::to_string(use_percent);
         testutil_die(-1, error_string.c_str());
     } else
@@ -67,9 +67,9 @@ cache_limit::get_cache_value(wiredtiger_cursor &cursor)
     int64_t cache_bytes_image, cache_bytes_other, cache_bytes_max;
     double use_percent;
     /* Three statistics are required to compute cache use percentage. */
-    statistics_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_IMAGE, &cache_bytes_image);
-    statistics_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_OTHER, &cache_bytes_other);
-    statistics_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_MAX, &cache_bytes_max);
+    metrics_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_IMAGE, &cache_bytes_image);
+    metrics_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_OTHER, &cache_bytes_other);
+    metrics_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_MAX, &cache_bytes_max);
     /*
      * Assert that we never exceed our configured limit for cache usage. Add 0.0 to avoid floating
      * point conversion errors.

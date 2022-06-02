@@ -26,8 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef STATISTICS_MONITOR_H
-#define STATISTICS_MONITOR_H
+#ifndef METRICS_MONITOR_H
+#define METRICS_MONITOR_H
 
 #include <memory>
 #include <string>
@@ -45,17 +45,17 @@ namespace test_harness {
  * The statistics monitor class is designed to track various statistics or other runtime signals
  * relevant to the given workload.
  */
-class statistics_monitor : public component {
+class metrics_monitor : public component {
     public:
     static void get_stat(wiredtiger_cursor &, int, int64_t *);
 
     public:
-    statistics_monitor(const std::string &test_name, configuration *config, database &database);
-    virtual ~statistics_monitor() = default;
+    metrics_monitor(const std::string &test_name, configuration *config, database &database);
+    virtual ~metrics_monitor() = default;
 
     /* Delete the copy constructor and the assignment operator. */
-    statistics_monitor(const statistics_monitor &) = delete;
-    statistics_monitor &operator=(const statistics_monitor &) = delete;
+    metrics_monitor(const metrics_monitor &) = delete;
+    metrics_monitor &operator=(const metrics_monitor &) = delete;
 
     void load() override final;
     void do_work() override final;

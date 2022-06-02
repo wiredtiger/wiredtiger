@@ -7,7 +7,7 @@ statistics_config=
     type=all,
     enable_logging=true
 ),
-statistics_monitor=
+metrics_monitor=
 (
     cache_hs_insert=
     (

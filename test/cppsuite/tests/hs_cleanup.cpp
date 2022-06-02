@@ -37,7 +37,7 @@ using namespace test_harness;
  * pre-existing data. It may not trigger a cleanup on the data file but should result in data
  * getting cleaned up from the history store.
  *
- * This is then tracked using the associated statistic which can be found in the statistics_monitor.
+ * This is then tracked using the associated statistic which can be found in the metrics_monitor.
  */
 class hs_cleanup : public test {
     public:

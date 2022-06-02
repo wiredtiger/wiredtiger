@@ -134,7 +134,7 @@ update_insert_thread_config = thread_count + transaction_config + throttle_confi
 # Configuration that applies to the runtime monitor component, this should be a list of statistics
 # that need to be checked by the component.
 #
-statistics_monitor = enabled_config_true + component_config + [
+metrics_monitor = enabled_config_true + component_config + [
     Config('cache_hs_insert', '', r'''
         Number of history store table insert calls.''',
         type='category', subconfig=stat_config),
@@ -202,9 +202,9 @@ workload_manager = enabled_config_true + component_config + [
 
 test_config = [
 # Component configurations.
-    Config('statistics_monitor', '', r'''
-        Configuration options for the statistics_monitor''',
-        type='category', subconfig=statistics_monitor),
+    Config('metrics_monitor', '', r'''
+        Configuration options for the metrics_monitor''',
+        type='category', subconfig=metrics_monitor),
     Config('timestamp_manager', '', r'''
         Configuration options for the timestamp manager''',
         type='category', subconfig=timestamp_manager),

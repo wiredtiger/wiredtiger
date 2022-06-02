@@ -36,7 +36,7 @@ namespace test_harness {
 
 /* Component names. */
 extern const std::string OPERATION_TRACKER;
-extern const std::string STATISTICS_MONITOR;
+extern const std::string METRICS_MONITOR;
 extern const std::string TIMESTAMP_MANAGER;
 extern const std::string WORKLOAD_MANAGER;
 
