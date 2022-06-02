@@ -970,6 +970,7 @@ __curhs_insert(WT_CURSOR *cursor)
     ret = __curhs_file_cursor_search_near(session, file_cursor, &exact);
     /* We can get not found if the inserted history store record is obsolete. */
     WT_ASSERT(session, ret == 0 || ret == WT_NOTFOUND);
+
     /*
      * If a globally visible tombstone is inserted and the page is evicted during search_near then
      * the key would be removed. Hence, a search_near would return a non-zero exact value.
@@ -977,6 +978,9 @@ __curhs_insert(WT_CURSOR *cursor)
      */
     if (ret == 0 && exact == 0)
         WT_ERR_NOTFOUND_OK(__curhs_file_cursor_next(session, file_cursor), false);
+    else if (ret == WT_NOTFOUND)
+        ret = 0;
+    
 #endif
 
     /* Insert doesn't maintain a position across calls, clear resources. */
