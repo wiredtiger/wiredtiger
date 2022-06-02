@@ -968,7 +968,7 @@ __curhs_insert(WT_CURSOR *cursor)
 #ifdef HAVE_DIAGNOSTIC
     /* Do a search again and call next to check the key order. */
     ret = __curhs_file_cursor_search_near(session, file_cursor, &exact);
-    /* We can get not found if the inserted history store value is obsolete. */
+    /* We can get not found if the inserted history store record is obsolete. */
     WT_ASSERT(session, ret == 0 || ret == WT_NOTFOUND);
     /*
      * If a globally visible tombstone is inserted and the page is evicted during search_near then
