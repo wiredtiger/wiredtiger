@@ -184,6 +184,11 @@
 #define LF_MASK(mask) FLD_MASK(flags, mask)
 #define LF_SET(mask) FLD_SET(flags, mask)
 
+#define F_CLR_16(p, mask) FLD_CLR((p)->flags, (uint16_t) mask)
+#define F_ISSET_16(p, mask) FLD_ISSET((p)->flags, (uint16_t) mask)
+#define F_MASK_16(p, mask) FLD_MASK((p)->flags, (uint16_t) mask)
+#define F_SET_16(p, mask) FLD_SET((p)->flags, (uint16_t) mask)
+
 /*
  * Insertion sort, for sorting small sets of values.
  *
