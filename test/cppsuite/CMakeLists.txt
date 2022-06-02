@@ -25,7 +25,7 @@ add_library(cppsuite_test_harness STATIC
     src/main/thread_worker.cpp
     src/main/transaction.cpp
     src/main/validator.cpp
-    src/storage/wiredtiger_connection.cpp
+    src/storage/connection_manager.cpp
     src/storage/wiredtiger_cursor.cpp
     src/storage/wiredtiger_session.cpp
 )

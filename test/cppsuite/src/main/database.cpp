@@ -31,7 +31,7 @@
 #include "collection.h"
 #include "src/common/constants.h"
 #include "src/common/random_generator.h"
-#include "src/storage/wiredtiger_connection.h"
+#include "src/storage/connection_manager.h"
 
 namespace test_harness {
 std::string
@@ -45,7 +45,7 @@ database::add_collection(uint64_t key_count)
 {
     std::lock_guard<std::mutex> lg(_mtx);
     if (_session.get() == nullptr)
-        _session = wiredtiger_connection::instance().create_session();
+        _session = connection_manager::instance().create_session();
     if (_collection_create_config.empty())
         testutil_die(EINVAL, "database: no collection create config specified!");
     uint64_t next_id = _next_collection_id++;

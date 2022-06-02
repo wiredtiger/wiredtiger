@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "wiredtiger_connection.h"
+#include "connection_manager.h"
 
 #include "src/common/logger.h"
 
@@ -35,15 +35,15 @@ extern "C" {
 }
 
 namespace test_harness {
-wiredtiger_connection &
-wiredtiger_connection::instance()
+connection_manager &
+connection_manager::instance()
 {
-    static wiredtiger_connection _instance;
+    static connection_manager _instance;
     return (_instance);
 }
 
 void
-wiredtiger_connection::close()
+connection_manager::close()
 {
     if (_conn != nullptr) {
         testutil_check(_conn->close(_conn, nullptr));
@@ -52,7 +52,7 @@ wiredtiger_connection::close()
 }
 
 void
-wiredtiger_connection::create(const std::string &config, const std::string &home)
+connection_manager::create(const std::string &config, const std::string &home)
 {
     if (_conn != nullptr) {
         logger::log_msg(LOG_ERROR, "Connection is not NULL, cannot be re-opened.");
@@ -68,12 +68,12 @@ wiredtiger_connection::create(const std::string &config, const std::string &home
 }
 
 wiredtiger_session
-wiredtiger_connection::create_session()
+connection_manager::create_session()
 {
     if (_conn == nullptr) {
         logger::log_msg(LOG_ERROR,
           "Connection is NULL, did you forget to call "
-          "wiredtiger_connection::create ?");
+          "connection_manager::create ?");
         testutil_die(EINVAL, "Connection is NULL");
     }
 
@@ -84,7 +84,7 @@ wiredtiger_connection::create_session()
 }
 
 WT_CONNECTION *
-wiredtiger_connection::get_connection()
+connection_manager::get_connection()
 {
     return (_conn);
 }
@@ -93,11 +93,11 @@ wiredtiger_connection::get_connection()
  * set_timestamp calls into the connection API in a thread safe manner to set global timestamps.
  */
 void
-wiredtiger_connection::set_timestamp(const std::string &config)
+connection_manager::set_timestamp(const std::string &config)
 {
     std::lock_guard<std::mutex> lg(_conn_mutex);
     testutil_check(_conn->set_timestamp(_conn, config.c_str()));
 }
 
-wiredtiger_connection::wiredtiger_connection() {}
+connection_manager::connection_manager() {}
 } // namespace test_harness

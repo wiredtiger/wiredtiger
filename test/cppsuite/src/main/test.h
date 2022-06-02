@@ -34,7 +34,7 @@
 #include "database_operation.h"
 #include "src/component/metrics_monitor.h"
 #include "src/component/workload_manager.h"
-#include "src/storage/wiredtiger_connection.h"
+#include "src/storage/connection_manager.h"
 
 namespace test_harness {
 struct test_args {

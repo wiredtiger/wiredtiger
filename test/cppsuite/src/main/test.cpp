@@ -132,7 +132,7 @@ test::run()
     db_create_config += _args.wt_open_config;
 
     /* Create connection. */
-    wiredtiger_connection::instance().create(db_create_config, DEFAULT_DIR);
+    connection_manager::instance().create(db_create_config, DEFAULT_DIR);
 
     /* Initiate the load stage of each component. */
     for (const auto &it : _components)

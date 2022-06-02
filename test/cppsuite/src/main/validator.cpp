@@ -31,7 +31,7 @@
 #include <algorithm>
 
 #include "src/common/logger.h"
-#include "src/storage/wiredtiger_connection.h"
+#include "src/storage/connection_manager.h"
 
 namespace test_harness {
 void
@@ -48,7 +48,7 @@ validator::validate(const std::string &operation_table_name, const std::string &
 
     logger::log_msg(LOG_INFO, "Beginning validation.");
 
-    wiredtiger_session session = wiredtiger_connection::instance().create_session();
+    wiredtiger_session session = connection_manager::instance().create_session();
     wiredtiger_cursor cursor = session.open_wiredtiger_cursor(operation_table_name);
 
     /*

@@ -33,7 +33,7 @@
 #include "src/common/constants.h"
 #include "src/common/logger.h"
 #include "src/common/random_generator.h"
-#include "src/storage/wiredtiger_connection.h"
+#include "src/storage/connection_manager.h"
 
 namespace test_harness {
 const std::string
@@ -111,7 +111,7 @@ timestamp_manager::do_work()
      * obsolete.
      */
     if (!config.empty()) {
-        wiredtiger_connection::instance().set_timestamp(config);
+        connection_manager::instance().set_timestamp(config);
         _oldest_ts = new_oldest_ts;
         _stable_ts = new_stable_ts;
     }
