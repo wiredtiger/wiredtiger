@@ -36,7 +36,8 @@ extern "C" {
 
 namespace test_harness {
 
-connection_manager::~connection_manager() {
+connection_manager::~connection_manager()
+{
     close();
 }
 
