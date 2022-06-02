@@ -54,6 +54,7 @@ class connection_manager {
     /* No copies of the singleton allowed. */
     connection_manager(connection_manager const &) = delete;
     connection_manager &operator=(connection_manager const &) = delete;
+    ~connection_manager();
 
     void close();
     void create(const std::string &config, const std::string &home);

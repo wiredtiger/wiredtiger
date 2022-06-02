@@ -235,6 +235,7 @@ main(int argc, char *argv[])
             test_harness::logger::log_msg(LOG_INFO, "Running all tests.");
             for (auto const &it : all_tests) {
                 current_test_name = it;
+                std::cout << "Starting test " << current_test_name << std::endl;
                 /* Configuration parsing. */
                 if (!config_filename.empty())
                     current_cfg = parse_configuration_from_file(config_filename);
@@ -245,6 +246,13 @@ main(int argc, char *argv[])
                     current_cfg = cfg;
 
                 error_code = run_test(current_test_name, current_cfg, wt_open_config);
+                /*
+                 * The connection is usually closed using the destructor of the connection manager.
+                 * Because it is a singleton and we are executing all tests, we are not going
+                 * through its destructor between each test, we need to close the connection
+                 * manually before starting the next test.
+                 */
+                connection_manager::instance().close();
                 if (error_code != 0)
                     break;
             }
