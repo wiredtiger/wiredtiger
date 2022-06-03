@@ -151,7 +151,7 @@ timestamp_manager::get_valid_read_ts() const
      * Its okay to return a timestamp less than a concurrently updated oldest timestamp as all
      * readers should be reading with timestamp rounding.
      */
-    return random_generator::instance().generate_integer<wt_timestamp_t>(
+    return RandomGenerator::GetInstance().GenerateInteger<wt_timestamp_t>(
       current_oldest, current_stable);
 }
 

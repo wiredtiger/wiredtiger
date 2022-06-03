@@ -96,7 +96,7 @@ class hs_cleanup : public test {
              * copy the buffer and then pass it into the API.
              */
             std::string value =
-              random_generator::instance().generate_pseudo_random_string(tc->value_size);
+              RandomGenerator::GetInstance().GeneratePseudoRandomString(tc->value_size);
             if (tc->update(cursor, coll.id, key_tmp, value)) {
                 if (tc->txn.can_commit()) {
                     if (tc->txn.commit())

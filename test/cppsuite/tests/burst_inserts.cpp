@@ -101,7 +101,7 @@ class burst_inserts : public test {
 
                 /* A return value of true implies the insert was successful. */
                 auto value =
-                  random_generator::instance().generate_pseudo_random_string(tc->value_size);
+                  RandomGenerator::GetInstance().GeneratePseudoRandomString(tc->value_size);
                 if (!tc->insert(cc.write_cursor, cc.coll.id, key, value)) {
                     tc->txn.rollback();
                     added_count = 0;

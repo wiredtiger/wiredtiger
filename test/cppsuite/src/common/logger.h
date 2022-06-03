@@ -42,7 +42,8 @@
 /* Define helpful functions related to debugging. */
 namespace test_harness {
 
-/* Possible log levels. If you change anything here make sure you update loggingLevels accordingly. */
+/* Possible log levels. If you change anything here make sure you update loggingLevels accordingly.
+ */
 #define LOG_ERROR 0
 #define LOG_WARN 1
 #define LOG_INFO 2

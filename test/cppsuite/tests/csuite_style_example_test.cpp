@@ -61,8 +61,8 @@ insert_op(WT_CURSOR *cursor, int key_size, int value_size)
     /* Insert random data. */
     std::string key, value;
     while (do_inserts) {
-        key = random_generator::instance().generate_random_string(key_size);
-        value = random_generator::instance().generate_random_string(value_size);
+        key = RandomGenerator::GetInstance().GenerateRandomString(key_size);
+        value = RandomGenerator::GetInstance().GenerateRandomString(value_size);
         cursor->set_key(cursor, key.c_str());
         cursor->set_value(cursor, value.c_str());
         testutil_check(cursor->insert(cursor));
@@ -77,7 +77,7 @@ read_op(WT_CURSOR *cursor, int key_size)
     /* Read random data. */
     std::string key;
     while (do_reads) {
-        key = random_generator::instance().generate_random_string(key_size);
+        key = RandomGenerator::GetInstance().GenerateRandomString(key_size);
         cursor->set_key(cursor, key.c_str());
         cursor->search(cursor);
     }

@@ -109,9 +109,9 @@ class search_near_02 : public test {
             while (tc->txn.active() && tc->running()) {
 
                 /* Generate a random key/value pair. */
-                std::string key = random_generator::instance().generate_random_string(tc->key_size);
+                std::string key = RandomGenerator::GetInstance().GenerateRandomString(tc->key_size);
                 std::string value =
-                  random_generator::instance().generate_random_string(tc->value_size);
+                  RandomGenerator::GetInstance().GenerateRandomString(tc->value_size);
 
                 /* Insert a key value pair. */
                 if (tc->insert(cc.cursor, cc.coll.id, key, value)) {
@@ -189,10 +189,10 @@ class search_near_02 : public test {
                  * Generate a random prefix. For this, we start by generating a random size and then
                  * its value.
                  */
-                prefix_size = random_generator::instance().generate_integer(
+                prefix_size = RandomGenerator::GetInstance().GenerateInteger(
                   static_cast<int64_t>(1), tc->key_size);
-                generated_prefix = random_generator::instance().generate_random_string(
-                  prefix_size, characters_type::ALPHABET);
+                generated_prefix = RandomGenerator::GetInstance().GenerateRandomString(
+                  prefix_size, charactersType::ALPHABET);
 
                 /* Call search near with the prefix cursor. */
                 cursor_prefix->set_key(cursor_prefix.get(), generated_prefix.c_str());

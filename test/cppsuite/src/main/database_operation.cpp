@@ -53,7 +53,7 @@ populate_worker(thread_worker *tc)
         while (j < tc->key_count) {
             tc->txn.begin();
             auto key = tc->pad_string(std::to_string(j), tc->key_size);
-            auto value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
+            auto value = RandomGenerator::GetInstance().GeneratePseudoRandomString(tc->value_size);
             if (tc->insert(cursor, coll.id, key, value)) {
                 if (tc->txn.commit()) {
                     ++j;
@@ -184,7 +184,7 @@ database_operation::insert_operation(thread_worker *tc)
         while (tc->txn.active() && tc->running()) {
             /* Insert a key value pair, rolling back the transaction if required. */
             auto key = tc->pad_string(std::to_string(start_key + added_count), tc->key_size);
-            auto value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
+            auto value = RandomGenerator::GetInstance().GeneratePseudoRandomString(tc->value_size);
             if (!tc->insert(cc.cursor, cc.coll.id, key, value)) {
                 added_count = 0;
                 tc->txn.rollback();
@@ -376,9 +376,9 @@ database_operation::update_operation(thread_worker *tc)
         /* Choose a random key to update. */
         testutil_assert(coll.get_key_count() != 0);
         auto key_id =
-          random_generator::instance().generate_integer<uint64_t>(0, coll.get_key_count() - 1);
+          RandomGenerator::GetInstance().GenerateInteger<uint64_t>(0, coll.get_key_count() - 1);
         auto key = tc->pad_string(std::to_string(key_id), tc->key_size);
-        auto value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
+        auto value = RandomGenerator::GetInstance().GeneratePseudoRandomString(tc->value_size);
         if (!tc->update(cursor, coll.id, key, value)) {
             tc->txn.rollback();
         }

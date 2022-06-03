@@ -43,45 +43,44 @@
 namespace test_harness {
 /* Helper class to generate random values using uniform distributions. */
 
-enum characters_type { PSEUDO_ALPHANUMERIC, ALPHABET };
+enum charactersType { PSEUDO_ALPHANUMERIC, ALPHABET };
 
-class random_generator {
+class RandomGenerator {
     public:
-    static random_generator &instance();
+    static RandomGenerator &GetInstance();
 
     /* No copies of the singleton allowed. */
-    random_generator(random_generator const &) = delete;
-    random_generator &operator=(random_generator const &) = delete;
+    RandomGenerator(RandomGenerator const &) = delete;
+    RandomGenerator &operator=(RandomGenerator const &) = delete;
 
     /* Generate a random string of a given length. */
-    std::string generate_random_string(
-      std::size_t length, characters_type type = PSEUDO_ALPHANUMERIC);
+    std::string GenerateRandomString(std::size_t length, charactersType type = PSEUDO_ALPHANUMERIC);
 
     /*
      * Generate a pseudo random string which compresses better. It should not be used to generate
      * keys due to the limited randomness.
      */
-    std::string generate_pseudo_random_string(
-      std::size_t length, characters_type type = PSEUDO_ALPHANUMERIC);
+    std::string GeneratePseudoRandomString(
+      std::size_t length, charactersType type = PSEUDO_ALPHANUMERIC);
 
     /* Generate a random integer between min and max. */
     template <typename T>
     T
-    generate_integer(T min, T max)
+    GenerateInteger(T min, T max)
     {
         std::uniform_int_distribution<T> dis(min, max);
         return dis(_generator);
     }
 
     private:
-    random_generator();
-    std::uniform_int_distribution<> &get_distribution(characters_type type);
-    const std::string &get_characters(characters_type type);
+    RandomGenerator();
+    std::uniform_int_distribution<> &GetDistribution(charactersType type);
+    const std::string &GetCharacters(charactersType type);
 
     std::mt19937 _generator;
-    std::uniform_int_distribution<> _alphanum_distrib, _alpha_distrib;
+    std::uniform_int_distribution<> _alphaNumDistribution, _alphaDistribution;
     const std::string _alphabet = "abcdefghijklmnopqrstuvwxyz";
-    const std::string _pseudo_alphanum =
+    const std::string _pseudoAlphaNum =
       "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 };
 } // namespace test_harness

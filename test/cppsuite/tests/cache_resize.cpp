@@ -137,7 +137,7 @@ class cache_resize : public test {
 
             /* Insert the current cache size value using a random key. */
             const std::string key =
-              random_generator::instance().generate_pseudo_random_string(tc->key_size);
+              RandomGenerator::GetInstance().GeneratePseudoRandomString(tc->key_size);
             const uint64_t cache_size =
               ((WT_CONNECTION_IMPL *)connection_manager::instance().get_connection())->cache_size;
             /* Take into account the value size given in the test configuration file. */

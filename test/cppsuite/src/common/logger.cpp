@@ -82,8 +82,8 @@ Logger::LogMessage(int64_t traceType, const std::string &str)
         getLocalTime(timeBuffer, sizeof(timeBuffer));
 
         std::ostringstream ss;
-        ss << timeBuffer << "[TID:" << std::this_thread::get_id() << "][" << loggingLevels[traceType]
-           << "]: " << str << std::endl;
+        ss << timeBuffer << "[TID:" << std::this_thread::get_id() << "]["
+           << loggingLevels[traceType] << "]: " << str << std::endl;
 
         std::lock_guard<std::mutex> lg(_loggerMutex);
         if (traceType == LOG_ERROR)

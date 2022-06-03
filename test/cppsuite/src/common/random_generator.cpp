@@ -35,17 +35,17 @@ extern "C" {
 }
 
 namespace test_harness {
-random_generator &
-random_generator::instance()
+RandomGenerator &
+RandomGenerator::GetInstance()
 {
-    thread_local random_generator _instance;
+    thread_local RandomGenerator _instance;
     return (_instance);
 }
 
 std::string
-random_generator::generate_random_string(std::size_t length, characters_type type)
+RandomGenerator::GenerateRandomString(std::size_t length, charactersType type)
 {
-    const std::string characters = get_characters(type);
+    const std::string characters = GetCharacters(type);
     std::string str;
 
     while (str.size() < length)
@@ -56,58 +56,58 @@ random_generator::generate_random_string(std::size_t length, characters_type typ
 }
 
 std::string
-random_generator::generate_pseudo_random_string(std::size_t length, characters_type type)
+RandomGenerator::GeneratePseudoRandomString(std::size_t length, charactersType type)
 {
-    std::string random_string;
-    std::uniform_int_distribution<> &distribution = get_distribution(type);
-    std::size_t start_location = distribution(_generator);
-    const std::string &characters = get_characters(type);
+    std::string randomString;
+    std::uniform_int_distribution<> &distribution = GetDistribution(type);
+    std::size_t index = distribution(_generator);
+    const std::string &characters = GetCharacters(type);
 
     for (std::size_t i = 0; i < length; ++i) {
-        random_string += characters[start_location];
-        if (start_location == characters.size() - 1)
-            start_location = 0;
+        randomString += characters[index];
+        if (index == characters.size() - 1)
+            index = 0;
         else
-            start_location++;
+            ++index;
     }
-    return (random_string);
+    return (randomString);
 }
 
-random_generator::random_generator()
+RandomGenerator::RandomGenerator()
 {
     _generator = std::mt19937(std::random_device{}());
-    _alphanum_distrib = std::uniform_int_distribution<>(0, _pseudo_alphanum.size() - 1);
-    _alpha_distrib = std::uniform_int_distribution<>(0, _alphabet.size() - 1);
+    _alphaNumDistribution = std::uniform_int_distribution<>(0, _pseudoAlphaNum.size() - 1);
+    _alphaDistribution = std::uniform_int_distribution<>(0, _alphabet.size() - 1);
 }
 
 std::uniform_int_distribution<> &
-random_generator::get_distribution(characters_type type)
+RandomGenerator::GetDistribution(charactersType type)
 {
     switch (type) {
-    case characters_type::ALPHABET:
-        return (_alpha_distrib);
+    case charactersType::ALPHABET:
+        return (_alphaDistribution);
         break;
-    case characters_type::PSEUDO_ALPHANUMERIC:
-        return (_alphanum_distrib);
+    case charactersType::PSEUDO_ALPHANUMERIC:
+        return (_alphaNumDistribution);
         break;
     default:
-        testutil_die(type, "Unexpected characters_type");
+        testutil_die(type, "Unexpected charactersType");
         break;
     }
 }
 
 const std::string &
-random_generator::get_characters(characters_type type)
+RandomGenerator::GetCharacters(charactersType type)
 {
     switch (type) {
-    case characters_type::ALPHABET:
+    case charactersType::ALPHABET:
         return (_alphabet);
         break;
-    case characters_type::PSEUDO_ALPHANUMERIC:
-        return (_pseudo_alphanum);
+    case charactersType::PSEUDO_ALPHANUMERIC:
+        return (_pseudoAlphaNum);
         break;
     default:
-        testutil_die(type, "Unexpected characters_type");
+        testutil_die(type, "Unexpected charactersType");
         break;
     }
 }

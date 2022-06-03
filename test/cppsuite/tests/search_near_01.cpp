@@ -76,11 +76,10 @@ class search_near_01 : public test {
                          */
                         std::string prefix_key = {
                           ALPHABET.at(tc->id), ALPHABET.at(j), ALPHABET.at(k)};
-                        prefix_key += random_generator::instance().generate_random_string(
+                        prefix_key += RandomGenerator::GetInstance().GenerateRandomString(
                           tc->key_size - PREFIX_KEY_LEN);
                         std::string value =
-                          random_generator::instance().generate_pseudo_random_string(
-                            tc->value_size);
+                          RandomGenerator::GetInstance().GeneratePseudoRandomString(tc->value_size);
                         if (!tc->insert(cursor, coll.id, prefix_key, value)) {
                             testutil_assert(rollback_retries < MAX_ROLLBACKS);
                             /* We failed to insert, rollback our transaction and retry. */
@@ -174,7 +173,7 @@ class search_near_01 : public test {
             }
         }
         srchkey_len =
-          random_generator::instance().generate_integer(static_cast<uint64_t>(1), PREFIX_KEY_LEN);
+          RandomGenerator::GetInstance().GenerateInteger(static_cast<uint64_t>(1), PREFIX_KEY_LEN);
         Logger::LogMessage(LOG_INFO, "Populate: finished.");
     }
 
@@ -188,8 +187,8 @@ class search_near_01 : public test {
         scoped_cursor cursor = tc->session.open_scoped_cursor(collection_name);
         cursor->reconfigure(cursor.get(), "prefix_search=true");
         /* Generate search prefix key of random length between a -> zzz. */
-        srch_key = random_generator::instance().generate_random_string(
-          srchkey_len, characters_type::ALPHABET);
+        srch_key = RandomGenerator::GetInstance().GenerateRandomString(
+          srchkey_len, charactersType::ALPHABET);
         Logger::LogMessage(LOG_TRACE,
           "Search near thread {" + std::to_string(tc->id) +
             "} performing prefix search near with key: " + srch_key);

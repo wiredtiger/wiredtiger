@@ -71,7 +71,7 @@ class search_near_03 : public test {
 
         /* Insert the prefix. */
         std::string value =
-          random_generator::instance().generate_pseudo_random_string(tc->value_size);
+          RandomGenerator::GetInstance().GeneratePseudoRandomString(tc->value_size);
         if (!tc->insert(cursor, coll.id, prefix_key, value))
             return false;
 
@@ -96,7 +96,7 @@ class search_near_03 : public test {
         }
 
         /* Now insert the key with prefix and id. Use thread id to guarantee uniqueness. */
-        value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
+        value = RandomGenerator::GetInstance().GeneratePseudoRandomString(tc->value_size);
         return tc->insert(cursor, coll.id, prefix_key + "," + std::to_string(tc->id), value);
     }
 
@@ -122,7 +122,7 @@ class search_near_03 : public test {
              * Generate the prefix key, and append a random generated key string based on the key
              * size configuration.
              */
-            prefix_key = random_generator::instance().generate_random_string(tc->key_size);
+            prefix_key = RandomGenerator::GetInstance().GenerateRandomString(tc->key_size);
             if (perform_unique_index_insertions(tc, cursor, coll, prefix_key)) {
                 tc->txn.commit();
             } else {
@@ -247,7 +247,7 @@ class search_near_03 : public test {
              * fail to insert, because it should already exist.
              */
             testutil_assert(prefixes_map.at(coll.id).size() != 0);
-            random_index = random_generator::instance().generate_integer(
+            random_index = RandomGenerator::GetInstance().GenerateInteger(
               static_cast<size_t>(0), prefixes_map.at(coll.id).size() - 1);
             prefix_key = get_prefix_from_key(prefixes_map.at(coll.id).at(random_index));
             Logger::LogMessage(LOG_TRACE,

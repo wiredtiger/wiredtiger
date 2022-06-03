@@ -53,13 +53,13 @@ class cursor_bound_01 : public test {
         bound(uint64_t key_size_max, bool lower_bound, std::string key)
             : _lower_bound(lower_bound), _key(key)
         {
-            bool set_inclusive = random_generator::instance().generate_integer(0, 1);
+            bool set_inclusive = RandomGenerator::GetInstance().GenerateInteger(0, 1);
             // FIXME: Use random strings, once bounds are implemented properly.
             // auto key_size =
-            //   random_generator::instance().generate_integer(static_cast<uint64_t>(1),
+            //   RandomGenerator::GetInstance().GenerateInteger(static_cast<uint64_t>(1),
             //   key_size_max);
-            // auto random_key = random_generator::instance().generate_random_string(
-            //   key_size, characters_type::ALPHABET);
+            // auto random_key = RandomGenerator::GetInstance().GenerateRandomString(
+            //   key_size, charactersType::ALPHABET);
             // _key = random_key;
             _inclusive = set_inclusive;
         }
@@ -224,7 +224,7 @@ class cursor_bound_01 : public test {
         int ret;
         bound lower_bound, upper_bound;
 
-        auto set_random_bounds = random_generator::instance().generate_integer(0, 3);
+        auto set_random_bounds = RandomGenerator::GetInstance().GenerateInteger(0, 3);
         if (set_random_bounds == NO_BOUNDS)
             range_cursor->bound(range_cursor.get(), "action=clear");
 
@@ -475,8 +475,8 @@ class cursor_bound_01 : public test {
             while (tc->txn.active() && tc->running()) {
 
                 /* Generate a random key. */
-                auto key = random_generator::instance().generate_random_string(tc->key_size);
-                auto value = random_generator::instance().generate_random_string(tc->value_size);
+                auto key = RandomGenerator::GetInstance().GenerateRandomString(tc->key_size);
+                auto value = RandomGenerator::GetInstance().GenerateRandomString(tc->value_size);
                 /* Insert a key/value pair. */
                 if (tc->insert(cursor, coll.id, key, value)) {
                     if (tc->txn.can_commit()) {
@@ -539,7 +539,7 @@ class cursor_bound_01 : public test {
                 testutil_check(rnd_cursor->get_key(rnd_cursor.get(), &key));
 
                 /* Update the found key with a randomized value. */
-                auto value = random_generator::instance().generate_random_string(tc->value_size);
+                auto value = RandomGenerator::GetInstance().GenerateRandomString(tc->value_size);
                 if (tc->update(cursor, coll.id, key, value)) {
                     if (tc->txn.can_commit()) {
                         /* We are not checking the result of commit as it is not necessary. */
@@ -615,10 +615,10 @@ class cursor_bound_01 : public test {
 
             while (tc->txn.active() && tc->running()) {
                 /* Generate a random string. */
-                auto key_size = random_generator::instance().generate_integer(
+                auto key_size = RandomGenerator::GetInstance().GenerateInteger(
                   static_cast<int64_t>(1), tc->key_size);
-                auto srch_key = random_generator::instance().generate_random_string(
-                  key_size, characters_type::ALPHABET);
+                auto srch_key = RandomGenerator::GetInstance().GenerateRandomString(
+                  key_size, charactersType::ALPHABET);
 
                 int exact;
                 range_cursor->set_key(range_cursor.get(), srch_key.c_str());
