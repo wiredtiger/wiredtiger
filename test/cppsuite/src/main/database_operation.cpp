@@ -73,7 +73,7 @@ database_operation::populate(
     int64_t collection_count, key_count, key_size, thread_count, value_size;
     std::vector<thread_worker *> workers;
     std::string collection_name;
-    thread_manager tm;
+    ThreadManager tm;
 
     /* Validate our config. */
     collection_count = config->get_int(collectionCount);
@@ -109,12 +109,12 @@ database_operation::populate(
         thread_worker *tc = new thread_worker(i, thread_type::INSERT, config,
           connection_manager::instance().create_session(), tsm, op_tracker, database);
         workers.push_back(tc);
-        tm.add_thread(populate_worker, tc);
+        tm.addThread(populate_worker, tc);
     }
 
     /* Wait for our populate threads to finish and then join them. */
     Logger::LogMessage(LOG_INFO, "Populate: waiting for threads to complete.");
-    tm.join();
+    tm.Join();
 
     /* Cleanup our workers. */
     for (auto &it : workers) {

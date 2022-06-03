@@ -111,7 +111,7 @@ class search_near_01 : public test {
     {
         uint64_t collection_count, key_size;
         std::vector<thread_worker *> workers;
-        thread_manager tm;
+        ThreadManager tm;
 
         /* Validate our config. */
         collection_count = config->get_int(collectionCount);
@@ -140,12 +140,12 @@ class search_near_01 : public test {
             thread_worker *tc = new thread_worker(i, thread_type::INSERT, config,
               connection_manager::instance().create_session(), tsm, op_tracker, database);
             workers.push_back(tc);
-            tm.add_thread(populate_worker, tc, ALPHABET, PREFIX_KEY_LEN);
+            tm.addThread(populate_worker, tc, ALPHABET, PREFIX_KEY_LEN);
         }
 
         /* Wait for our populate threads to finish and then join them. */
         Logger::LogMessage(LOG_INFO, "Populate: waiting for threads to complete.");
-        tm.join();
+        tm.Join();
 
         /* Cleanup our workers. */
         for (auto &it : workers) {
@@ -257,18 +257,18 @@ class search_near_01 : public test {
             metrics_monitor::get_stat(tc->stat_cursor,
               WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prev_prefix_stat);
 
-            thread_manager tm;
+            ThreadManager tm;
             for (uint64_t i = 0; i < num_threads; ++i) {
                 /* Get a collection and find a cached cursor. */
                 collection &coll = tc->db.get_random_collection();
                 thread_worker *search_near_tc = new thread_worker(i, thread_type::READ, read_config,
                   connection_manager::instance().create_session(), tc->tsm, tc->op_tracker, tc->db);
                 workers.push_back(search_near_tc);
-                tm.add_thread(perform_search_near, search_near_tc, coll.name, srchkey_len,
+                tm.addThread(perform_search_near, search_near_tc, coll.name, srchkey_len,
                   std::ref(z_key_searches));
             }
 
-            tm.join();
+            tm.Join();
 
             /* Cleanup our workers. */
             for (auto &it : workers) {

@@ -31,7 +31,7 @@
 #include "logger.h"
 
 namespace test_harness {
-thread_manager::~thread_manager()
+ThreadManager::~ThreadManager()
 {
     for (auto &it : _workers) {
         if (it != nullptr && it->joinable()) {
@@ -45,7 +45,7 @@ thread_manager::~thread_manager()
 }
 
 void
-thread_manager::join()
+ThreadManager::Join()
 {
     for (const auto &it : _workers) {
         while (!it->joinable()) {

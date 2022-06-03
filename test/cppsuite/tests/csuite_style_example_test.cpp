@@ -144,14 +144,14 @@ main(int argc, char *argv[])
     testutil_check(read_cursor->search(read_cursor));
 
     /* Create a thread manager and spawn some threads that will work. */
-    thread_manager t;
+    ThreadManager t;
     int key_size = 1, value_size = 2;
 
     do_inserts = true;
-    t.add_thread(insert_op, insert_cursor, key_size, value_size);
+    t.addThread(insert_op, insert_cursor, key_size, value_size);
 
     do_reads = true;
-    t.add_thread(read_op, read_cursor, key_size);
+    t.addThread(read_op, read_cursor, key_size);
 
     /* Sleep for the test duration. */
     int test_duration_s = 5;
@@ -160,7 +160,7 @@ main(int argc, char *argv[])
     /* Stop the threads. */
     do_reads = false;
     do_inserts = false;
-    t.join();
+    t.Join();
 
     /* Close cursors. */
     for (auto c : cursors)

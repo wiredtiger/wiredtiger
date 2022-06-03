@@ -41,7 +41,7 @@ test::test(const test_args &args) : _args(args)
     _timestamp_manager = new timestamp_manager(_config->get_subconfig(timestampManager));
     _workload_manager = new workload_manager(
       _config->get_subconfig(workloadManager), this, _timestamp_manager, _database);
-    _thread_manager = new thread_manager();
+    _thread_manager = new ThreadManager();
 
     _database.set_timestamp_manager(_timestamp_manager);
     _database.set_create_config(
@@ -140,7 +140,7 @@ test::run()
 
     /* Spawn threads for all component::run() functions. */
     for (const auto &it : _components)
-        _thread_manager->add_thread(&component::run, it);
+        _thread_manager->addThread(&component::run, it);
 
     /* The initial population phase needs to be finished before starting the actual test. */
     while (_workload_manager->enabled() && !_workload_manager->db_populated())
@@ -161,7 +161,7 @@ test::run()
     Logger::LogMessage(LOG_INFO,
       "Joining all component threads.\n This could take a while as we need to wait"
       " for all components to finish their current loop.");
-    _thread_manager->join();
+    _thread_manager->Join();
 
     /* End the test by calling finish on all known components. */
     for (const auto &it : _components)

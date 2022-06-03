@@ -64,7 +64,7 @@ class workload_manager : public component {
     private:
     database &_database;
     database_operation *_database_operation = nullptr;
-    thread_manager _thread_manager;
+    ThreadManager _thread_manager;
     timestamp_manager *_timestamp_manager = nullptr;
     operation_tracker *_operation_tracker = nullptr;
     std::vector<thread_worker *> _workers;

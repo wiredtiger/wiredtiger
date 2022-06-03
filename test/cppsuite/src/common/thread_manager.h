@@ -34,25 +34,21 @@
 
 namespace test_harness {
 /* Class that handles threads, from their initialization to their deletion. */
-class thread_manager {
+class ThreadManager {
     public:
-    ~thread_manager();
+    ~ThreadManager();
 
-    /*
-     * Generic function to create threads that call member function of classes.
-     */
+    /* Generic function to create threads that call member function of classes. */
     template <typename Callable, typename... Args>
     void
-    add_thread(Callable &&fct, Args &&... args)
+    addThread(Callable &&fct, Args &&... args)
     {
         std::thread *t = new std::thread(fct, std::forward<Args>(args)...);
         _workers.push_back(t);
     }
 
-    /*
-     * Complete the operations for all threads.
-     */
-    void join();
+    /* Complete the operations for all threads. */
+    void Join();
 
     private:
     std::vector<std::thread *> _workers;

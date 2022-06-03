@@ -93,7 +93,7 @@ workload_manager::run()
               connection_manager::instance().create_session(), _timestamp_manager,
               _operation_tracker, _database);
             _workers.push_back(tc);
-            _thread_manager.add_thread(it.get_func(_database_operation), tc);
+            _thread_manager.addThread(it.get_func(_database_operation), tc);
         }
         /*
          * Don't forget to delete the config we created earlier. While we do pass the config into
@@ -115,7 +115,7 @@ workload_manager::finish()
     component::finish();
     for (const auto &it : _workers)
         it->finish();
-    _thread_manager.join();
+    _thread_manager.Join();
     Logger::LogMessage(LOG_TRACE, "Workload generator: run stage done");
 }
 
