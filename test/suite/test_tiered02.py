@@ -36,10 +36,7 @@ from wtscenario import make_scenarios
 class test_tiered02(wttest.WiredTigerTestCase, TieredConfigMixin):
     complex_dataset = [
         ('simple_ds', dict(complex_dataset=False)),
-        
-        # Commented out complex dataset that tests column groups and indexes because it crashes
-        # in the middle of the test. FIXME: WT-9001
-        #('complex_ds', dict(complex_dataset=True)),
+        ('complex_ds', dict(complex_dataset=True)),
     ]
 
     # Make scenarios for different cloud service providers
@@ -123,7 +120,7 @@ class test_tiered02(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.progress('Create simple data set (50)')
         ds = self.get_dataset(50)
         self.progress('populate')
-        ds.populate()
+        ds.populate(create=False)
         ds.check()
         self.progress('open extra cursor on ' + self.uri)
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -138,7 +135,7 @@ class test_tiered02(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.progress('Create simple data set (100)')
         ds = self.get_dataset(100)
         self.progress('populate')
-        ds.populate()
+        ds.populate(create=False)
         ds.check()
         self.progress('checkpoint')
         self.session.checkpoint()
@@ -149,7 +146,7 @@ class test_tiered02(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.progress('Create simple data set (200)')
         ds = self.get_dataset(200)
         self.progress('populate')
-        ds.populate()
+        ds.populate(create=False)
         ds.check()
         cursor.close()
         self.progress('close_conn')
@@ -166,7 +163,7 @@ class test_tiered02(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.progress('Create simple data set (300)')
         ds = self.get_dataset(300)
         self.progress('populate')
-        ds.populate()
+        ds.populate(create=False)
         ds.check()
 
         # We haven't done a flush so there should be
