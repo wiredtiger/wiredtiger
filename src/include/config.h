@@ -46,6 +46,10 @@ struct __wt_config_parser_impl {
 
 #define WT_CONFIG_ITEM_STATIC_INIT(n) static const WT_CONFIG_ITEM n = {"", 0, 0, WT_CONFIG_ITEM_NUM}
 
+/*
+ * This must be used with a configuration value, in the context of processing "key=value" pairs.
+ * That way we know that str[-1] is at a valid address.
+ */
 #define WT_CONFIG_PRESERVE_QUOTES(item)                                  \
     do {                                                                 \
         if ((item)->str[-1] == '"' && (item)->str[(item)->len] == '"') { \
