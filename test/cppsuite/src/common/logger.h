@@ -42,7 +42,7 @@
 /* Define helpful functions related to debugging. */
 namespace test_harness {
 
-/* Possible log levels. If you change anything here make sure you update LOG_LEVELS accordingly. */
+/* Possible log levels. If you change anything here make sure you update loggingLevels accordingly. */
 #define LOG_ERROR 0
 #define LOG_WARN 1
 #define LOG_INFO 2
@@ -52,22 +52,19 @@ namespace test_harness {
  */
 #define LOG_TRACE 3
 
-void get_time(char *time_buf, size_t buf_size);
+void getLocalTime(char *timeBuffer, size_t bufferSize);
 
-class logger {
-    public:
-    /* Current log level. Default is LOG_WARN. */
-    static int64_t trace_level;
-
-    /* Include date in the logs if enabled. Default is true. */
-    static bool include_date;
-
+class Logger {
     public:
     /* Used to print out traces for debugging purpose. */
-    static void log_msg(int64_t trace_type, const std::string &str);
+    static void LogMessage(int64_t traceType, const std::string &str);
 
     /* Make sure the class will not be instantiated. */
-    logger() = delete;
+    Logger() = delete;
+
+    public:
+    /* Current log level. Default is LOG_WARN. */
+    static int64_t traceLevel;
 };
 } // namespace test_harness
 

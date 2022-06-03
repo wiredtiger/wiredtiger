@@ -69,12 +69,12 @@ operation_tracker::load()
     testutil_check(
       _session->create(_session.get(), _schema_table_name.c_str(), _schema_table_config.c_str()));
     _schema_track_cursor = _session.open_scoped_cursor(_schema_table_name);
-    logger::log_msg(LOG_TRACE, "Schema tracking initiated");
+    Logger::LogMessage(LOG_TRACE, "Schema tracking initiated");
 
     /* Initiate operations tracking. */
     testutil_check(_session->create(
       _session.get(), _operation_table_name.c_str(), _operation_table_config.c_str()));
-    logger::log_msg(LOG_TRACE, "Operations tracking created");
+    Logger::LogMessage(LOG_TRACE, "Operations tracking created");
 
     /*
      * Open sweep cursor in a dedicated sweep session. This cursor will be used to clear out
@@ -82,7 +82,7 @@ operation_tracker::load()
      */
     _sweep_session = connection_manager::instance().create_session();
     _sweep_cursor = _sweep_session.open_scoped_cursor(_operation_table_name);
-    logger::log_msg(LOG_TRACE, "Tracking table sweep initialized");
+    Logger::LogMessage(LOG_TRACE, "Tracking table sweep initialized");
 }
 
 void
@@ -130,8 +130,8 @@ operation_tracker::do_work()
         }
         if (ts <= oldest_ts) {
             if (globally_visible_update_found) {
-                if (logger::trace_level == LOG_TRACE)
-                    logger::log_msg(LOG_TRACE,
+                if (Logger::traceLevel == LOG_TRACE)
+                    Logger::LogMessage(LOG_TRACE,
                       std::string("workload tracking: Obsoleted update, key=") + sweep_key +
                         ", collection_id=" + std::to_string(collection_id) +
                         ", timestamp=" + std::to_string(ts) +
@@ -145,8 +145,8 @@ operation_tracker::do_work()
                 testutil_check(_sweep_cursor->remove(_sweep_cursor.get()));
                 testutil_check(_sweep_session->commit_transaction(_sweep_session.get(), nullptr));
             } else if (static_cast<tracking_operation>(op_type) == tracking_operation::INSERT) {
-                if (logger::trace_level == LOG_TRACE)
-                    logger::log_msg(LOG_TRACE,
+                if (Logger::traceLevel == LOG_TRACE)
+                    Logger::LogMessage(LOG_TRACE,
                       std::string("workload tracking: Found globally visible update, key=") +
                         sweep_key + ", collection_id=" + std::to_string(collection_id) +
                         ", timestamp=" + std::to_string(ts) +

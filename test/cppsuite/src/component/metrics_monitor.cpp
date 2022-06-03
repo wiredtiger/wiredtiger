@@ -146,11 +146,11 @@ metrics_monitor::finish()
             const std::string error_string = "metrics_monitor: Postrun stat \"" + stat_name +
               "\" was outside of the specified limits. Min=" + std::to_string(stat_min) +
               " Max=" + std::to_string(stat_max) + " Actual=" + std::to_string(stat_value);
-            logger::log_msg(LOG_ERROR, error_string);
+            Logger::LogMessage(LOG_ERROR, error_string);
             success = false;
         }
 
-        logger::log_msg(LOG_INFO,
+        Logger::LogMessage(LOG_INFO,
           "metrics_monitor: Final value of stat " + stat_name +
             " is: " + std::to_string(stat_value));
     }

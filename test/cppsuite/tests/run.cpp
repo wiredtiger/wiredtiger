@@ -123,7 +123,7 @@ run_test(const std::string &test_name, const std::string &config, const std::str
 {
     int error_code = 0;
 
-    test_harness::logger::log_msg(LOG_TRACE, "Configuration\t:" + config);
+    test_harness::Logger::LogMessage(LOG_TRACE, "Configuration\t:" + config);
     test_harness::test_args args = {
       .test_config = config, .test_name = test_name, .wt_open_config = wt_open_config};
 
@@ -148,12 +148,12 @@ run_test(const std::string &test_name, const std::string &config, const std::str
     else if (test_name == "test_template")
         test_template(args).run();
     else {
-        test_harness::logger::log_msg(LOG_ERROR, "Test not found: " + test_name);
+        test_harness::Logger::LogMessage(LOG_ERROR, "Test not found: " + test_name);
         error_code = -1;
     }
 
     if (error_code == 0)
-        test_harness::logger::log_msg(LOG_INFO, "Test " + test_name + " done.");
+        test_harness::Logger::LogMessage(LOG_INFO, "Test " + test_name + " done.");
 
     return (error_code);
 }
@@ -199,7 +199,7 @@ main(int argc, char *argv[])
                 error_code = -1;
         } else if (std::string(argv[i]) == "-c") {
             if (!config_filename.empty()) {
-                test_harness::logger::log_msg(LOG_ERROR, "Option -C cannot be used with -f");
+                test_harness::Logger::LogMessage(LOG_ERROR, "Option -C cannot be used with -f");
                 error_code = -1;
             } else if ((i + 1) < argc)
                 cfg = argv[++i];
@@ -207,7 +207,7 @@ main(int argc, char *argv[])
                 error_code = -1;
         } else if (std::string(argv[i]) == "-f") {
             if (!cfg.empty()) {
-                test_harness::logger::log_msg(LOG_ERROR, "Option -f cannot be used with -C");
+                test_harness::Logger::LogMessage(LOG_ERROR, "Option -f cannot be used with -C");
                 error_code = -1;
             } else if ((i + 1) < argc)
                 config_filename = argv[++i];
@@ -220,7 +220,7 @@ main(int argc, char *argv[])
                 error_code = -1;
         } else if (std::string(argv[i]) == "-l") {
             if ((i + 1) < argc)
-                test_harness::logger::trace_level = std::stoi(argv[++i]);
+                test_harness::Logger::traceLevel = std::stoi(argv[++i]);
             else
                 error_code = -1;
         } else
@@ -228,11 +228,11 @@ main(int argc, char *argv[])
     }
 
     if (error_code == 0) {
-        test_harness::logger::log_msg(
-          LOG_INFO, "Trace level: " + std::to_string(test_harness::logger::trace_level));
+        test_harness::Logger::LogMessage(
+          LOG_INFO, "Trace level: " + std::to_string(test_harness::Logger::traceLevel));
         if (test_name.empty()) {
             /* Run all tests. */
-            test_harness::logger::log_msg(LOG_INFO, "Running all tests.");
+            test_harness::Logger::LogMessage(LOG_INFO, "Running all tests.");
             for (auto const &it : all_tests) {
                 current_test_name = it;
                 /* Configuration parsing. */
@@ -260,7 +260,7 @@ main(int argc, char *argv[])
             /* Check the test exists. */
             if (std::find(all_tests.begin(), all_tests.end(), current_test_name) ==
               all_tests.end()) {
-                test_harness::logger::log_msg(
+                test_harness::Logger::LogMessage(
                   LOG_ERROR, "The test " + current_test_name + " was not found.");
                 error_code = -1;
             } else {
@@ -274,9 +274,9 @@ main(int argc, char *argv[])
         }
 
         if (error_code != 0)
-            test_harness::logger::log_msg(LOG_ERROR, "Test " + current_test_name + " failed.");
+            test_harness::Logger::LogMessage(LOG_ERROR, "Test " + current_test_name + " failed.");
     } else
-        test_harness::logger::log_msg(LOG_ERROR,
+        test_harness::Logger::LogMessage(LOG_ERROR,
           "Invalid command line arguments supplied. Try "
           "'./run -h' for help.");
 

@@ -103,7 +103,7 @@ class search_near_03 : public test {
     static void
     populate_worker(thread_worker *tc)
     {
-        logger::log_msg(LOG_INFO, "Populate with thread id: " + std::to_string(tc->id));
+        Logger::LogMessage(LOG_INFO, "Populate with thread id: " + std::to_string(tc->id));
 
         std::string prefix_key;
         const uint64_t MAX_ROLLBACKS = 100;
@@ -158,7 +158,7 @@ class search_near_03 : public test {
         testutil_assert(key_count > 0);
         testutil_assert(key_size > 0);
 
-        logger::log_msg(LOG_INFO,
+        Logger::LogMessage(LOG_INFO,
           "Populate configuration with " + std::to_string(collection_count) +
             "collections, number of keys: " + std::to_string(key_count) +
             ", key size: " + std::to_string(key_size));
@@ -180,7 +180,7 @@ class search_near_03 : public test {
         }
 
         /* Wait for our populate threads to finish and then join them. */
-        logger::log_msg(LOG_INFO, "Populate: waiting for threads to complete.");
+        Logger::LogMessage(LOG_INFO, "Populate: waiting for threads to complete.");
         tm.join();
 
         /* Cleanup our workers. */
@@ -213,7 +213,7 @@ class search_near_03 : public test {
             }
             prefixes_map.push_back(prefixes);
         }
-        logger::log_msg(LOG_INFO, "Populate: finished.");
+        Logger::LogMessage(LOG_INFO, "Populate: finished.");
     }
 
     void
@@ -227,7 +227,7 @@ class search_near_03 : public test {
          * Each insert operation will attempt to perform unique index insertions with an existing
          * prefix on a collection.
          */
-        logger::log_msg(
+        Logger::LogMessage(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         while (tc->running()) {
@@ -250,7 +250,7 @@ class search_near_03 : public test {
             random_index = random_generator::instance().generate_integer(
               static_cast<size_t>(0), prefixes_map.at(coll.id).size() - 1);
             prefix_key = get_prefix_from_key(prefixes_map.at(coll.id).at(random_index));
-            logger::log_msg(LOG_TRACE,
+            Logger::LogMessage(LOG_TRACE,
               type_string(tc->type) +
                 " thread: Perform unique index insertions with existing prefix key " + prefix_key +
                 ".");
@@ -265,7 +265,7 @@ class search_near_03 : public test {
     {
         uint64_t key_count = 0;
         int ret = 0;
-        logger::log_msg(
+        Logger::LogMessage(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
         /*
          * Each read thread will count the number of keys in each collection, and will double check
@@ -288,7 +288,7 @@ class search_near_03 : public test {
                 tc->sleep();
             }
             if (tc->running()) {
-                logger::log_msg(LOG_TRACE,
+                Logger::LogMessage(LOG_TRACE,
                   type_string(tc->type) +
                     " thread: calculated count: " + std::to_string(key_count) + " expected size: " +
                     std::to_string(prefixes_map.size() * prefixes_map.at(0).size()));

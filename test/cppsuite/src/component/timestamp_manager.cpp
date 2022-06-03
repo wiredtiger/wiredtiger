@@ -69,7 +69,7 @@ timestamp_manager::load()
 void
 timestamp_manager::do_work()
 {
-    std::string config, log_msg;
+    std::string config, LogMessage;
     /* latest_ts_s represents the time component of the latest timestamp provided. */
     wt_timestamp_t latest_ts_s = get_time_now_s();
 
@@ -80,7 +80,7 @@ timestamp_manager::do_work()
     wt_timestamp_t new_stable_ts = _stable_ts;
     testutil_assert(latest_ts_s >= _stable_ts);
     if ((latest_ts_s - _stable_ts) > _stable_lag) {
-        log_msg = "Timestamp_manager: Stable timestamp expired.";
+        LogMessage = "Timestamp_manager: Stable timestamp expired.";
         new_stable_ts = latest_ts_s - _stable_lag;
         config += stableTimestamp + "=" + decimal_to_hex(new_stable_ts);
     }
@@ -92,18 +92,18 @@ timestamp_manager::do_work()
     wt_timestamp_t new_oldest_ts = _oldest_ts;
     testutil_assert(_stable_ts >= _oldest_ts);
     if ((new_stable_ts - _oldest_ts) > _oldest_lag) {
-        if (log_msg.empty())
-            log_msg = "Timestamp_manager: Oldest timestamp expired.";
+        if (LogMessage.empty())
+            LogMessage = "Timestamp_manager: Oldest timestamp expired.";
         else
-            log_msg += " Oldest timestamp expired.";
+            LogMessage += " Oldest timestamp expired.";
         new_oldest_ts = new_stable_ts - _oldest_lag;
         if (!config.empty())
             config += ",";
         config += oldestTimestamp + "=" + decimal_to_hex(new_oldest_ts);
     }
 
-    if (!log_msg.empty())
-        logger::log_msg(LOG_TRACE, log_msg);
+    if (!LogMessage.empty())
+        Logger::LogMessage(LOG_TRACE, LogMessage);
 
     /*
      * Save the new timestamps. Any timestamps that we're viewing from another thread should be set

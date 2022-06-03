@@ -56,7 +56,7 @@ bool do_reads = false;
 void
 insert_op(WT_CURSOR *cursor, int key_size, int value_size)
 {
-    logger::log_msg(LOG_INFO, "called insert_op");
+    Logger::LogMessage(LOG_INFO, "called insert_op");
 
     /* Insert random data. */
     std::string key, value;
@@ -72,7 +72,7 @@ insert_op(WT_CURSOR *cursor, int key_size, int value_size)
 void
 read_op(WT_CURSOR *cursor, int key_size)
 {
-    logger::log_msg(LOG_INFO, "called read_op");
+    Logger::LogMessage(LOG_INFO, "called read_op");
 
     /* Read random data. */
     std::string key;
@@ -90,11 +90,11 @@ main(int argc, char *argv[])
     const std::string progname = testutil_set_progname(argv);
 
     /* Set the tracing level for the logger component. */
-    logger::trace_level = LOG_INFO;
+    Logger::traceLevel = LOG_INFO;
 
     /* Printing some messages. */
-    logger::log_msg(LOG_INFO, "Starting " + progname);
-    logger::log_msg(LOG_ERROR, "This could be an error.");
+    Logger::LogMessage(LOG_INFO, "Starting " + progname);
+    Logger::LogMessage(LOG_ERROR, "This could be an error.");
 
     /* Create a connection, set the cache size and specify the home directory. */
     const std::string conn_config = connectionCreate + ",cache_size=500MB";
@@ -167,7 +167,7 @@ main(int argc, char *argv[])
         testutil_check(c->close(c));
 
     /* Another message. */
-    logger::log_msg(LOG_INFO, "End of test.");
+    Logger::LogMessage(LOG_INFO, "End of test.");
 
     return (0);
 }

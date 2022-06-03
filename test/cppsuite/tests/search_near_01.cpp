@@ -52,7 +52,7 @@ class search_near_01 : public test {
     static void
     populate_worker(thread_worker *tc, const std::string &ALPHABET, uint64_t PREFIX_KEY_LEN)
     {
-        logger::log_msg(LOG_INFO, "Populate with thread id: " + std::to_string(tc->id));
+        Logger::LogMessage(LOG_INFO, "Populate with thread id: " + std::to_string(tc->id));
 
         uint64_t collections_per_thread = tc->collection_count;
         const uint64_t MAX_ROLLBACKS = 100;
@@ -123,7 +123,7 @@ class search_near_01 : public test {
         /* Check the prefix length is not greater than the key size. */
         testutil_assert(key_size >= PREFIX_KEY_LEN);
 
-        logger::log_msg(LOG_INFO,
+        Logger::LogMessage(LOG_INFO,
           "Populate configuration with key size: " + std::to_string(key_size) +
             " key count: " + std::to_string(keys_per_prefix) +
             " number of collections: " + std::to_string(collection_count));
@@ -145,7 +145,7 @@ class search_near_01 : public test {
         }
 
         /* Wait for our populate threads to finish and then join them. */
-        logger::log_msg(LOG_INFO, "Populate: waiting for threads to complete.");
+        Logger::LogMessage(LOG_INFO, "Populate: waiting for threads to complete.");
         tm.join();
 
         /* Cleanup our workers. */
@@ -175,7 +175,7 @@ class search_near_01 : public test {
         }
         srchkey_len =
           random_generator::instance().generate_integer(static_cast<uint64_t>(1), PREFIX_KEY_LEN);
-        logger::log_msg(LOG_INFO, "Populate: finished.");
+        Logger::LogMessage(LOG_INFO, "Populate: finished.");
     }
 
     static void
@@ -190,7 +190,7 @@ class search_near_01 : public test {
         /* Generate search prefix key of random length between a -> zzz. */
         srch_key = random_generator::instance().generate_random_string(
           srchkey_len, characters_type::ALPHABET);
-        logger::log_msg(LOG_TRACE,
+        Logger::LogMessage(LOG_TRACE,
           "Search near thread {" + std::to_string(tc->id) +
             "} performing prefix search near with key: " + srch_key);
 
@@ -242,7 +242,7 @@ class search_near_01 : public test {
         read_config = workload_config->get_subconfig(readOpConfig);
         z_key_searches = 0;
 
-        logger::log_msg(LOG_INFO,
+        Logger::LogMessage(LOG_INFO,
           type_string(tc->type) + " thread commencing. Spawning " + std::to_string(num_threads) +
             " search near threads.");
 
@@ -282,7 +282,7 @@ class search_near_01 : public test {
               tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entries_stat);
             metrics_monitor::get_stat(
               tc->stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prefix_stat);
-            logger::log_msg(LOG_TRACE,
+            Logger::LogMessage(LOG_TRACE,
               "Read thread skipped entries: " + std::to_string(entries_stat - prev_entries_stat) +
                 " prefix early exit: " +
                 std::to_string(prefix_stat - prev_prefix_stat - z_key_searches));

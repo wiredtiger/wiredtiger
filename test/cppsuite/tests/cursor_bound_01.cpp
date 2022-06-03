@@ -281,7 +281,7 @@ class cursor_bound_01 : public test {
 
             const char *key;
             testutil_check(range_cursor->get_key(range_cursor.get(), &key));
-            logger::log_msg(LOG_TRACE,
+            Logger::LogMessage(LOG_TRACE,
               "bounded search_near found key: " + std::string(key) +
                 " with lower bound: " + lower_key + " upper bound: " + upper_key);
 
@@ -333,7 +333,7 @@ class cursor_bound_01 : public test {
         /* Retrieve the key the normal cursor is pointing at. */
         const char *key;
         testutil_check(normal_cursor->get_key(normal_cursor.get(), &key));
-        logger::log_msg(LOG_TRACE,
+        Logger::LogMessage(LOG_TRACE,
           "bounded search_near validating correct returned key with search key inside range as: " +
             search_key + " and exact: " + std::to_string(range_exact));
         /* When exact = 0, the returned key should be equal to the search key. */
@@ -413,7 +413,7 @@ class cursor_bound_01 : public test {
         int ret, exact;
         auto lower_key = lower_bound.get_key();
         auto upper_key = upper_bound.get_key();
-        logger::log_msg(LOG_TRACE,
+        Logger::LogMessage(LOG_TRACE,
           "bounded search_near found WT_NOTFOUND on lower bound: " + lower_key + " upper bound: " +
             upper_key + " traversing range to validate that there are no keys within range.");
         if (!lower_key.empty()) {
@@ -462,7 +462,7 @@ class cursor_bound_01 : public test {
     insert_operation(thread_worker *tc) override final
     {
         /* Each insert operation will insert new keys in the collections. */
-        logger::log_msg(
+        Logger::LogMessage(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         uint32_t rollback_retries = 0;
@@ -509,7 +509,7 @@ class cursor_bound_01 : public test {
     update_operation(thread_worker *tc) override final
     {
         /* Each update operation will update existing keys in the collections. */
-        logger::log_msg(
+        Logger::LogMessage(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         uint32_t rollback_retries = 0;
@@ -575,7 +575,7 @@ class cursor_bound_01 : public test {
          * cursor without any bounds set. The normal cursor will be used to validate the results
          * from the range cursor.
          */
-        logger::log_msg(
+        Logger::LogMessage(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         bound lower_bound, upper_bound;
@@ -648,7 +648,7 @@ class cursor_bound_01 : public test {
          * in the collection. The records will be validated against with the normal cursor to check
          * for any potential missing records.
          */
-        logger::log_msg(
+        Logger::LogMessage(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         std::map<uint64_t, scoped_cursor> cursors;

@@ -85,7 +85,7 @@ workload_manager::run()
     /* Generate threads to execute the different operations on the collections. */
     for (auto &it : operation_configs) {
         if (it.thread_count != 0)
-            logger::log_msg(LOG_INFO,
+            Logger::LogMessage(LOG_INFO,
               "workload_manager: Creating " + std::to_string(it.thread_count) + " " +
                 type_string(it.type) + " threads.");
         for (size_t i = 0; i < it.thread_count && _running; ++i) {
@@ -116,7 +116,7 @@ workload_manager::finish()
     for (const auto &it : _workers)
         it->finish();
     _thread_manager.join();
-    logger::log_msg(LOG_TRACE, "Workload generator: run stage done");
+    Logger::LogMessage(LOG_TRACE, "Workload generator: run stage done");
 }
 
 database &

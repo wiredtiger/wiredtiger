@@ -52,7 +52,7 @@ cache_limit::check(scoped_cursor &cursor)
           " usage: " + std::to_string(use_percent);
         testutil_die(-1, error_string.c_str());
     } else
-        logger::log_msg(LOG_TRACE, name + " usage: " + std::to_string(use_percent));
+        Logger::LogMessage(LOG_TRACE, name + " usage: " + std::to_string(use_percent));
 }
 
 std::string

@@ -49,7 +49,7 @@ class hs_cleanup : public test {
     void
     update_operation(thread_worker *tc) override final
     {
-        logger::log_msg(
+        Logger::LogMessage(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         const char *key_tmp;

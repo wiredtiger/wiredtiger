@@ -46,7 +46,7 @@ validator::validate(const std::string &operation_table_name, const std::string &
     int tracked_op_type;
     uint64_t current_collection_id = 0;
 
-    logger::log_msg(LOG_INFO, "Beginning validation.");
+    Logger::LogMessage(LOG_INFO, "Beginning validation.");
 
     scoped_session session = connection_manager::instance().create_session();
     scoped_cursor cursor = session.open_scoped_cursor(operation_table_name);
@@ -107,7 +107,7 @@ validator::validate(const std::string &operation_table_name, const std::string &
           cursor->get_key(cursor.get(), &tracked_collection_id, &tracked_key, &tracked_timestamp));
         testutil_check(cursor->get_value(cursor.get(), &tracked_op_type, &tracked_value));
 
-        logger::log_msg(LOG_TRACE,
+        Logger::LogMessage(LOG_TRACE,
           "Retrieved tracked values. \n Collection id: " + std::to_string(tracked_collection_id) +
             "\n Key: " + std::string(tracked_key) +
             "\n Timestamp: " + std::to_string(tracked_timestamp) + "\n Operation type: " +
@@ -174,9 +174,9 @@ validator::parse_schema_tracking_table(scoped_session &session,
         testutil_check(cursor->get_key(cursor.get(), &key_collection_id, &key_timestamp));
         testutil_check(cursor->get_value(cursor.get(), &value_operation_type));
 
-        logger::log_msg(LOG_TRACE, "Collection id is " + std::to_string(key_collection_id));
-        logger::log_msg(LOG_TRACE, "Timestamp is " + std::to_string(key_timestamp));
-        logger::log_msg(LOG_TRACE, "Operation type is " + std::to_string(value_operation_type));
+        Logger::LogMessage(LOG_TRACE, "Collection id is " + std::to_string(key_collection_id));
+        Logger::LogMessage(LOG_TRACE, "Timestamp is " + std::to_string(key_timestamp));
+        Logger::LogMessage(LOG_TRACE, "Operation type is " + std::to_string(value_operation_type));
 
         if (static_cast<tracking_operation>(value_operation_type) ==
           tracking_operation::CREATE_COLLECTION) {

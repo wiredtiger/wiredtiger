@@ -79,7 +79,7 @@ configuration::configuration(const std::string &test_config_name, const std::str
     std::string default_config = std::string(config_entry->base);
     /* Merge in the default configuration. */
     _config = merge_default_config(default_config, config);
-    logger::log_msg(LOG_INFO, "Full config: " + _config);
+    Logger::LogMessage(LOG_INFO, "Full config: " + _config);
 
     int ret =
       wiredtiger_test_config_validate(nullptr, nullptr, test_config_name.c_str(), _config.c_str());

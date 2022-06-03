@@ -90,7 +90,7 @@ class cache_resize : public test {
             /* Get the new cache size. */
             uint64_t new_cache_size = conn_impl->cache_size;
 
-            logger::log_msg(LOG_TRACE,
+            Logger::LogMessage(LOG_TRACE,
               "The cache size was updated from " + std::to_string(prev_cache_size) + " to " +
                 std::to_string(new_cache_size));
 
@@ -115,7 +115,7 @@ class cache_resize : public test {
             else {
                 /* Due to the cache pressure, it is possible to fail when saving the operation. */
                 testutil_assert(ret == WT_ROLLBACK);
-                logger::log_msg(LOG_WARN,
+                Logger::LogMessage(LOG_WARN,
                   "The cache size reconfiguration could not be saved in the tracking table, ret: " +
                     std::to_string(ret));
                 tc->txn.rollback();
@@ -193,7 +193,7 @@ class cache_resize : public test {
             testutil_check(cursor->get_key(cursor.get(), &tracked_ts, &tracked_txn_id));
             testutil_check(cursor->get_value(cursor.get(), &tracked_op_type, &tracked_cache_size));
 
-            logger::log_msg(LOG_TRACE,
+            Logger::LogMessage(LOG_TRACE,
               "Timestamp: " + std::to_string(tracked_ts) +
                 ", transaction id: " + std::to_string(tracked_txn_id) +
                 ", cache size: " + std::to_string(std::stoull(tracked_cache_size)));

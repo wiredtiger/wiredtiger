@@ -63,7 +63,7 @@ populate_worker(thread_worker *tc)
             }
         }
     }
-    logger::log_msg(LOG_TRACE, "Populate: thread {" + std::to_string(tc->id) + "} finished");
+    Logger::LogMessage(LOG_TRACE, "Populate: thread {" + std::to_string(tc->id) + "} finished");
 }
 
 void
@@ -87,7 +87,7 @@ database_operation::populate(
     /* Keys must be unique. */
     testutil_assert(key_count <= pow(10, key_size));
 
-    logger::log_msg(
+    Logger::LogMessage(
       LOG_INFO, "Populate: creating " + std::to_string(collection_count) + " collections.");
 
     /* Create n collections as per the configuration. */
@@ -98,7 +98,7 @@ database_operation::populate(
          */
         database.add_collection(key_count);
 
-    logger::log_msg(
+    Logger::LogMessage(
       LOG_INFO, "Populate: " + std::to_string(collection_count) + " collections created.");
 
     /*
@@ -113,7 +113,7 @@ database_operation::populate(
     }
 
     /* Wait for our populate threads to finish and then join them. */
-    logger::log_msg(LOG_INFO, "Populate: waiting for threads to complete.");
+    Logger::LogMessage(LOG_INFO, "Populate: waiting for threads to complete.");
     tm.join();
 
     /* Cleanup our workers. */
@@ -121,13 +121,13 @@ database_operation::populate(
         delete it;
         it = nullptr;
     }
-    logger::log_msg(LOG_INFO, "Populate: finished.");
+    Logger::LogMessage(LOG_INFO, "Populate: finished.");
 }
 
 void
 database_operation::checkpoint_operation(thread_worker *tc)
 {
-    logger::log_msg(
+    Logger::LogMessage(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
     while (tc->running()) {
@@ -139,14 +139,14 @@ database_operation::checkpoint_operation(thread_worker *tc)
 void
 database_operation::custom_operation(thread_worker *tc)
 {
-    logger::log_msg(
+    Logger::LogMessage(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 }
 
 void
 database_operation::insert_operation(thread_worker *tc)
 {
-    logger::log_msg(
+    Logger::LogMessage(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
     /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
@@ -222,7 +222,7 @@ database_operation::insert_operation(thread_worker *tc)
 void
 database_operation::read_operation(thread_worker *tc)
 {
-    logger::log_msg(
+    Logger::LogMessage(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
     std::map<uint64_t, scoped_cursor> cursors;
@@ -264,7 +264,7 @@ database_operation::read_operation(thread_worker *tc)
 void
 database_operation::remove_operation(thread_worker *tc)
 {
-    logger::log_msg(
+    Logger::LogMessage(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
     /*
@@ -287,7 +287,7 @@ database_operation::remove_operation(thread_worker *tc)
 
         /* Look for existing cursors in our cursor cache. */
         if (cursors.find(coll.id) == cursors.end()) {
-            logger::log_msg(LOG_TRACE,
+            Logger::LogMessage(LOG_TRACE,
               "Thread {" + std::to_string(tc->id) +
                 "} Creating cursor for collection: " + coll.name);
             /* Open the two cursors for the chosen collection. */
@@ -339,7 +339,7 @@ database_operation::remove_operation(thread_worker *tc)
 void
 database_operation::update_operation(thread_worker *tc)
 {
-    logger::log_msg(
+    Logger::LogMessage(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
     /* Cursor map. */
     std::map<uint64_t, scoped_cursor> cursors;
@@ -359,7 +359,7 @@ database_operation::update_operation(thread_worker *tc)
 
         /* Look for existing cursors in our cursor cache. */
         if (cursors.find(coll.id) == cursors.end()) {
-            logger::log_msg(LOG_TRACE,
+            Logger::LogMessage(LOG_TRACE,
               "Thread {" + std::to_string(tc->id) +
                 "} Creating cursor for collection: " + coll.name);
             /* Open a cursor for the chosen collection. */

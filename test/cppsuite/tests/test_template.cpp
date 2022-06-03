@@ -75,49 +75,49 @@ class test_template : public test {
     void
     populate(database &, timestamp_manager *, configuration *, operation_tracker *) override final
     {
-        logger::log_msg(LOG_WARN, "populate: nothing done");
+        Logger::LogMessage(LOG_WARN, "populate: nothing done");
     }
 
     void
     checkpoint_operation(thread_worker *) override final
     {
-        logger::log_msg(LOG_WARN, "checkpoint_operation: nothing done");
+        Logger::LogMessage(LOG_WARN, "checkpoint_operation: nothing done");
     }
 
     void
     custom_operation(thread_worker *) override final
     {
-        logger::log_msg(LOG_WARN, "custom_operation: nothing done");
+        Logger::LogMessage(LOG_WARN, "custom_operation: nothing done");
     }
 
     void
     insert_operation(thread_worker *) override final
     {
-        logger::log_msg(LOG_WARN, "insert_operation: nothing done");
+        Logger::LogMessage(LOG_WARN, "insert_operation: nothing done");
     }
 
     void
     read_operation(thread_worker *) override final
     {
-        logger::log_msg(LOG_WARN, "read_operation: nothing done");
+        Logger::LogMessage(LOG_WARN, "read_operation: nothing done");
     }
 
     void
     remove_operation(thread_worker *) override final
     {
-        logger::log_msg(LOG_WARN, "remove_operation: nothing done");
+        Logger::LogMessage(LOG_WARN, "remove_operation: nothing done");
     }
 
     void
     update_operation(thread_worker *) override final
     {
-        logger::log_msg(LOG_WARN, "update_operation: nothing done");
+        Logger::LogMessage(LOG_WARN, "update_operation: nothing done");
     }
 
     void
     validate(const std::string &, const std::string &, const std::vector<uint64_t> &) override final
     {
-        logger::log_msg(LOG_WARN, "validate: nothing done");
+        Logger::LogMessage(LOG_WARN, "validate: nothing done");
     }
 };
 

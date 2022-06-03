@@ -40,7 +40,7 @@ class burst_inserts : public test {
     burst_inserts(const test_args &args) : test(args)
     {
         _burst_duration = _config->get_int("burst_duration");
-        logger::log_msg(LOG_INFO, "Burst duration set to: " + std::to_string(_burst_duration));
+        Logger::LogMessage(LOG_INFO, "Burst duration set to: " + std::to_string(_burst_duration));
         init_operation_tracker();
     }
 
@@ -51,7 +51,7 @@ class burst_inserts : public test {
     void
     insert_operation(thread_worker *tc) override final
     {
-        logger::log_msg(
+        Logger::LogMessage(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
@@ -137,7 +137,7 @@ class burst_inserts : public test {
             /* Close out our current txn. */
             if (tc->txn.active()) {
                 if (tc->txn.commit()) {
-                    logger::log_msg(LOG_TRACE,
+                    Logger::LogMessage(LOG_TRACE,
                       "Committed an insertion of " + std::to_string(added_count) + " keys.");
                     cc.coll.increase_key_count(added_count);
                 }

@@ -52,7 +52,7 @@ database_size::database_size(configuration &config, const std::string &name, dat
     : statistics(config, name, -1), _database(database)
 {
 #ifdef _WIN32
-    Logger::log_msg("Database size checking is not implemented on Windows", LOG_ERROR);
+    Logger::LogMessage("Database size checking is not implemented on Windows", LOG_ERROR);
 #endif
 }
 
@@ -62,7 +62,7 @@ database_size::check(scoped_cursor &)
 #ifndef _WIN32
     const auto file_names = get_file_names();
     size_t db_size = get_db_size();
-    logger::log_msg(LOG_TRACE, "Current database size is " + std::to_string(db_size) + " bytes");
+    Logger::LogMessage(LOG_TRACE, "Current database size is " + std::to_string(db_size) + " bytes");
 
     if (db_size > max) {
         const std::string error_string =
@@ -89,7 +89,7 @@ database_size::get_db_size() const
         struct stat sb;
         if (stat(name.c_str(), &sb) == 0) {
             db_size += sb.st_size;
-            logger::log_msg(LOG_TRACE, name + " was " + std::to_string(sb.st_size) + " bytes");
+            Logger::LogMessage(LOG_TRACE, name + " was " + std::to_string(sb.st_size) + " bytes");
         } else
             /* The only good reason for this to fail is if the file hasn't been created yet. */
             testutil_assert(errno == ENOENT);

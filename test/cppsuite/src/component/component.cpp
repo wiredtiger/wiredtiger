@@ -46,7 +46,7 @@ component::~component()
 void
 component::load()
 {
-    logger::log_msg(LOG_INFO, "Loading component: " + _name);
+    Logger::LogMessage(LOG_INFO, "Loading component: " + _name);
     _enabled = _config->get_optional_bool(enabledConfig, true);
     /* If we're not enabled we shouldn't be running. */
     _running = _enabled;
@@ -60,7 +60,7 @@ component::load()
 void
 component::run()
 {
-    logger::log_msg(LOG_INFO, "Running component: " + _name);
+    Logger::LogMessage(LOG_INFO, "Running component: " + _name);
     while (_enabled && _running) {
         do_work();
         std::this_thread::sleep_for(std::chrono::milliseconds(_sleep_time_ms));
@@ -88,6 +88,6 @@ component::end_run()
 void
 component::finish()
 {
-    logger::log_msg(LOG_INFO, "Running finish stage of component: " + _name);
+    Logger::LogMessage(LOG_INFO, "Running finish stage of component: " + _name);
 }
 } // namespace test_harness

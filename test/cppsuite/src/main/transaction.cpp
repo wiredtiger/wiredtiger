@@ -101,7 +101,7 @@ transaction::commit(const std::string &config)
     testutil_assert(ret == 0 || ret == EINVAL || ret == WT_ROLLBACK);
 
     if (ret != 0)
-        logger::log_msg(LOG_WARN,
+        Logger::LogMessage(LOG_WARN,
           "Failed to commit transaction in commit, received error code: " + std::to_string(ret));
     _op_count = 0;
     _in_txn = false;

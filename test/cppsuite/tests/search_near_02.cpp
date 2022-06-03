@@ -56,20 +56,20 @@ class search_near_02 : public test {
          */
         int64_t collection_count = config->get_int(collectionCount);
 
-        logger::log_msg(
+        Logger::LogMessage(
           LOG_INFO, "Populate: " + std::to_string(collection_count) + " creating collections.");
 
         for (uint64_t i = 0; i < collection_count; ++i)
             database.add_collection();
 
-        logger::log_msg(LOG_INFO, "Populate: finished.");
+        Logger::LogMessage(LOG_INFO, "Populate: finished.");
     }
 
     void
     insert_operation(thread_worker *tc) override final
     {
         /* Each insert operation will insert new keys in the collections. */
-        logger::log_msg(
+        Logger::LogMessage(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
@@ -152,7 +152,7 @@ class search_near_02 : public test {
          * collections. Each prefix is randomly generated. The result of the search_near call with
          * prefix enabled is then validated using the search_near call without prefix enabled.
          */
-        logger::log_msg(
+        Logger::LogMessage(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         const char *key_prefix;
@@ -286,9 +286,9 @@ class search_near_02 : public test {
         testutil_check(cursor_default->get_key(cursor_default.get(), &key_default));
         std::string key_default_str = key_default;
 
-        logger::log_msg(LOG_TRACE,
+        Logger::LogMessage(LOG_TRACE,
           "search_near (normal) exact " + std::to_string(exact_default) + " key " + key_default);
-        logger::log_msg(LOG_TRACE,
+        Logger::LogMessage(LOG_TRACE,
           "search_near (prefix) exact " + std::to_string(exact_prefix) + " key " + key_prefix);
 
         /* Example: */

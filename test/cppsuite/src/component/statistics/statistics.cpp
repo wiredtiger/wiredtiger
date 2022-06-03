@@ -52,7 +52,7 @@ statistics::check(scoped_cursor &cursor)
           " Max=" + std::to_string(max) + " Actual=" + std::to_string(stat_value);
         testutil_die(-1, error_string.c_str());
     } else
-        logger::log_msg(LOG_TRACE, name + " usage: " + std::to_string(stat_value));
+        Logger::LogMessage(LOG_TRACE, name + " usage: " + std::to_string(stat_value));
 }
 
 std::string

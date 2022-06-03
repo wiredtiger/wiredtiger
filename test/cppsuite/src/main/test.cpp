@@ -149,7 +149,7 @@ test::run()
     /* The test will run for the duration as defined in the config. */
     duration_seconds = _config->get_int(durationSecs);
     testutil_assert(duration_seconds >= 0);
-    logger::log_msg(LOG_INFO,
+    Logger::LogMessage(LOG_INFO,
       "Waiting {" + std::to_string(duration_seconds) + "} seconds for testing to complete.");
     std::this_thread::sleep_for(std::chrono::seconds(duration_seconds));
 
@@ -158,7 +158,7 @@ test::run()
         it->end_run();
 
     /* Call join on the components threads so we know they have finished their loop. */
-    logger::log_msg(LOG_INFO,
+    Logger::LogMessage(LOG_INFO,
       "Joining all component threads.\n This could take a while as we need to wait"
       " for all components to finish their current loop.");
     _thread_manager->join();
@@ -178,6 +178,6 @@ test::run()
     /* Log perf stats. */
     metrics_writer::instance().output_perf_file(_args.test_name);
 
-    logger::log_msg(LOG_INFO, "SUCCESS");
+    Logger::LogMessage(LOG_INFO, "SUCCESS");
 }
 } // namespace test_harness
