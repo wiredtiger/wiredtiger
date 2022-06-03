@@ -209,10 +209,16 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
             for (; *updp != NULL; ++updp)
                 (*updp)->txnid = WT_TXN_ABORTED;
         WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
-        WT_ASSERT(session, ref->page->modify->instantiated == true);
-        /* Drop any page_deleted information that had been moved to the modify structure. */
-        ref->page->modify->instantiated = false;
-        __wt_free(session, ref->page->modify->page_del);
+        /*
+         * Drop any page_deleted information that has been moved to the modify structure. Note that
+         * while this must have been an instantiated page, the information (and flag) is only kept
+         * until the page is reconciled for the first time after instantiation, so it might not be
+         * set now.
+         */
+        if (ref->page->modify->instantiated) {
+            ref->page->modify->instantiated = false;
+            __wt_free(session, ref->page->modify->page_del);
+        }
     }
 
     /*
