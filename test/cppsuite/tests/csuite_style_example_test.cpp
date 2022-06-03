@@ -97,7 +97,7 @@ main(int argc, char *argv[])
     logger::log_msg(LOG_ERROR, "This could be an error.");
 
     /* Create a connection, set the cache size and specify the home directory. */
-    const std::string conn_config = CONNECTION_CREATE + ",cache_size=500MB";
+    const std::string conn_config = connectionCreate + ",cache_size=500MB";
     const std::string home_dir = std::string(DEFAULT_DIR) + '_' + progname;
 
     /* Create connection. */
@@ -112,7 +112,7 @@ main(int argc, char *argv[])
     /* Create a collection. */
     const std::string collection_name = "table:my_collection";
     testutil_check(insert_session->create(
-      insert_session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA.c_str()));
+      insert_session, collection_name.c_str(), defaultFrameworkSchema.c_str()));
 
     /* Open different cursors. */
     WT_CURSOR *insert_cursor, *read_cursor;

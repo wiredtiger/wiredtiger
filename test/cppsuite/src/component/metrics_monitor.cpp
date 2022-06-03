@@ -53,9 +53,9 @@ namespace test_harness {
 inline int
 get_stat_field(const std::string &name)
 {
-    if (name == CACHE_HS_INSERT)
+    if (name == cacheHsInsert)
         return (WT_STAT_CONN_CACHE_HS_INSERT);
-    else if (name == CC_PAGES_REMOVED)
+    else if (name == ccPagesRemoved)
         return (WT_STAT_CONN_CC_PAGES_REMOVED);
     testutil_die(EINVAL, "get_stat_field: Stat \"%s\" is unrecognized", name.c_str());
 }
@@ -72,7 +72,7 @@ metrics_monitor::get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep
 
 metrics_monitor::metrics_monitor(
   const std::string &test_name, configuration *config, database &database)
-    : component(METRICS_MONITOR, config), _test_name(test_name), _database(database)
+    : component(metricsMonitor, config), _test_name(test_name), _database(database)
 {
 }
 
@@ -85,25 +85,25 @@ metrics_monitor::load()
     /* If the component is enabled, load all the known statistics. */
     if (_enabled) {
 
-        std::unique_ptr<configuration> stat_config(_config->get_subconfig(STAT_CACHE_SIZE));
+        std::unique_ptr<configuration> stat_config(_config->get_subconfig(statisticsCacheSize));
         _stats.push_back(
-          std::unique_ptr<cache_limit>(new cache_limit(*stat_config, STAT_CACHE_SIZE)));
+          std::unique_ptr<cache_limit>(new cache_limit(*stat_config, statisticsCacheSize)));
 
-        stat_config.reset(_config->get_subconfig(STAT_DB_SIZE));
-        _stats.push_back(
-          std::unique_ptr<database_size>(new database_size(*stat_config, STAT_DB_SIZE, _database)));
+        stat_config.reset(_config->get_subconfig(statisticsDatabaseSize));
+        _stats.push_back(std::unique_ptr<database_size>(
+          new database_size(*stat_config, statisticsDatabaseSize, _database)));
 
-        stat_config.reset(_config->get_subconfig(CACHE_HS_INSERT));
+        stat_config.reset(_config->get_subconfig(cacheHsInsert));
         _stats.push_back(std::unique_ptr<statistics>(
-          new statistics(*stat_config, CACHE_HS_INSERT, get_stat_field(CACHE_HS_INSERT))));
+          new statistics(*stat_config, cacheHsInsert, get_stat_field(cacheHsInsert))));
 
-        stat_config.reset(_config->get_subconfig(CC_PAGES_REMOVED));
+        stat_config.reset(_config->get_subconfig(ccPagesRemoved));
         _stats.push_back(std::unique_ptr<statistics>(
-          new statistics(*stat_config, CC_PAGES_REMOVED, get_stat_field(CC_PAGES_REMOVED))));
+          new statistics(*stat_config, ccPagesRemoved, get_stat_field(ccPagesRemoved))));
 
         /* Open our statistic cursor. */
         _session = connection_manager::instance().create_session();
-        _cursor = _session.open_scoped_cursor(STATISTICS_URI);
+        _cursor = _session.open_scoped_cursor(statisticsURI);
     }
 }
 

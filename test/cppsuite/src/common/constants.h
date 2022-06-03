@@ -35,56 +35,56 @@
 namespace test_harness {
 
 /* Component names. */
-extern const std::string OPERATION_TRACKER;
-extern const std::string METRICS_MONITOR;
-extern const std::string TIMESTAMP_MANAGER;
-extern const std::string WORKLOAD_MANAGER;
+extern const std::string operationTracker;
+extern const std::string metricsMonitor;
+extern const std::string timestampManager;
+extern const std::string workloadManager;
 
 /* Configuration API consts. */
-extern const std::string CACHE_HS_INSERT;
-extern const std::string CACHE_MAX_WAIT_MS;
-extern const std::string CACHE_SIZE_MB;
-extern const std::string CC_PAGES_REMOVED;
-extern const std::string COLLECTION_COUNT;
-extern const std::string CHECKPOINT_OP_CONFIG;
-extern const std::string COMPRESSION_ENABLED;
-extern const std::string CUSTOM_OP_CONFIG;
-extern const std::string DURATION_SECONDS;
-extern const std::string ENABLED;
-extern const std::string ENABLE_LOGGING;
-extern const std::string INSERT_OP_CONFIG;
-extern const std::string KEY_COUNT_PER_COLLECTION;
-extern const std::string KEY_SIZE;
-extern const std::string LIMIT;
-extern const std::string MAX;
-extern const std::string MIN;
-extern const std::string OLDEST_LAG;
-extern const std::string OP_RATE;
-extern const std::string OPS_PER_TRANSACTION;
-extern const std::string POPULATE_CONFIG;
-extern const std::string POSTRUN_STATISTICS;
-extern const std::string READ_OP_CONFIG;
-extern const std::string REMOVE_OP_CONFIG;
-extern const std::string REVERSE_COLLATOR;
-extern const std::string RUNTIME_STATISTICS;
-extern const std::string SAVE;
-extern const std::string STABLE_LAG;
-extern const std::string STAT_CACHE_SIZE;
-extern const std::string STAT_DB_SIZE;
-extern const std::string STATISTICS_CONFIG;
-extern const std::string THREAD_COUNT;
-extern const std::string TRACKING_KEY_FORMAT;
-extern const std::string TRACKING_VALUE_FORMAT;
-extern const std::string TYPE;
-extern const std::string UPDATE_OP_CONFIG;
-extern const std::string VALUE_SIZE;
+extern const std::string cacheHsInsert;
+extern const std::string cacheMaxWaitMs;
+extern const std::string cacheSizeMB;
+extern const std::string ccPagesRemoved;
+extern const std::string collectionCount;
+extern const std::string checkpointOpConfig;
+extern const std::string compressionEnabled;
+extern const std::string customOpConfig;
+extern const std::string durationSecs;
+extern const std::string enabledConfig;
+extern const std::string enableLogging;
+extern const std::string insertOpConfig;
+extern const std::string keyCountPerCollection;
+extern const std::string keySize;
+extern const std::string limit;
+extern const std::string maxConfig;
+extern const std::string minConfig;
+extern const std::string oldestLag;
+extern const std::string opRate;
+extern const std::string opsPerTransaction;
+extern const std::string populateConfig;
+extern const std::string postrunStatistics;
+extern const std::string readOpConfig;
+extern const std::string removeOpConfig;
+extern const std::string reverseCollator;
+extern const std::string runtimeStatistics;
+extern const std::string saveConfig;
+extern const std::string stableLag;
+extern const std::string statisticsCacheSize;
+extern const std::string statisticsDatabaseSize;
+extern const std::string statisticsConfig;
+extern const std::string threadCount;
+extern const std::string trackingKeyFormat;
+extern const std::string trackingValueFormat;
+extern const std::string type;
+extern const std::string updateOpConfig;
+extern const std::string valueSize;
 
 /* WiredTiger API consts. */
-extern const std::string COMMIT_TS;
-extern const std::string CONNECTION_CREATE;
-extern const std::string OLDEST_TS;
-extern const std::string STABLE_TS;
-extern const std::string STATISTICS_LOG;
+extern const std::string commitTimestamp;
+extern const std::string connectionCreate;
+extern const std::string oldestTimestamp;
+extern const std::string stableTimestamp;
+extern const std::string statisticsLog;
 
 /*
  * Use the Snappy compressor for stress testing to avoid excessive disk space usage. Our builds can
@@ -106,10 +106,10 @@ extern const std::string STATISTICS_LOG;
     EXTPATH "collators/reverse/" EXTSUBPATH "libwiredtiger_reverse_collator.so"
 
 /* Test harness consts. */
-extern const std::string DEFAULT_FRAMEWORK_SCHEMA;
-extern const std::string TABLE_OPERATION_TRACKING;
-extern const std::string TABLE_SCHEMA_TRACKING;
-extern const std::string STATISTICS_URI;
+extern const std::string defaultFrameworkSchema;
+extern const std::string tableNameOpWorkloadTracker;
+extern const std::string tableNameSchemaWorkloadTracker;
+extern const std::string statisticsURI;
 
 } // namespace test_harness
 

@@ -61,8 +61,8 @@ class test_template : public test {
     test_template(const test_args &args) : test(args)
     {
         init_operation_tracker(
-          new operation_tracker_template(_config->get_subconfig(OPERATION_TRACKER),
-            _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager));
+          new operation_tracker_template(_config->get_subconfig(operationTracker),
+            _config->get_bool(compressionEnabled), *_timestamp_manager));
     }
 
     void

@@ -53,13 +53,13 @@ void
 timestamp_manager::load()
 {
     component::load();
-    int64_t oldest_lag = _config->get_int(OLDEST_LAG);
+    int64_t oldest_lag = _config->get_int(oldestLag);
     testutil_assert(oldest_lag >= 0);
     /* Cast and then shift left to match the seconds position. */
     _oldest_lag = oldest_lag;
     _oldest_lag <<= 32;
 
-    int64_t stable_lag = _config->get_int(STABLE_LAG);
+    int64_t stable_lag = _config->get_int(stableLag);
     testutil_assert(stable_lag >= 0);
     /* Cast and then shift left to match the seconds position. */
     _stable_lag = stable_lag;
@@ -82,7 +82,7 @@ timestamp_manager::do_work()
     if ((latest_ts_s - _stable_ts) > _stable_lag) {
         log_msg = "Timestamp_manager: Stable timestamp expired.";
         new_stable_ts = latest_ts_s - _stable_lag;
-        config += STABLE_TS + "=" + decimal_to_hex(new_stable_ts);
+        config += stableTimestamp + "=" + decimal_to_hex(new_stable_ts);
     }
 
     /*
@@ -99,7 +99,7 @@ timestamp_manager::do_work()
         new_oldest_ts = new_stable_ts - _oldest_lag;
         if (!config.empty())
             config += ",";
-        config += OLDEST_TS + "=" + decimal_to_hex(new_oldest_ts);
+        config += oldestTimestamp + "=" + decimal_to_hex(new_oldest_ts);
     }
 
     if (!log_msg.empty())

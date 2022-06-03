@@ -47,7 +47,7 @@ void
 component::load()
 {
     logger::log_msg(LOG_INFO, "Loading component: " + _name);
-    _enabled = _config->get_optional_bool(ENABLED, true);
+    _enabled = _config->get_optional_bool(enabledConfig, true);
     /* If we're not enabled we shouldn't be running. */
     _running = _enabled;
 

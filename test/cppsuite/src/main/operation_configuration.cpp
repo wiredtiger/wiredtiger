@@ -32,7 +32,7 @@
 
 namespace test_harness {
 operation_configuration::operation_configuration(configuration *config, thread_type type)
-    : config(config), type(type), thread_count(config->get_int(THREAD_COUNT))
+    : config(config), type(type), thread_count(config->get_int(threadCount))
 {
 }
 

@@ -39,10 +39,10 @@ transaction::transaction(
     : _timestamp_manager(timestamp_manager), _session(session)
 {
     /* Use optional here as our populate threads don't define this configuration. */
-    configuration *transaction_config = config->get_optional_subconfig(OPS_PER_TRANSACTION);
+    configuration *transaction_config = config->get_optional_subconfig(opsPerTransaction);
     if (transaction_config != nullptr) {
-        _min_op_count = transaction_config->get_optional_int(MIN, 1);
-        _max_op_count = transaction_config->get_optional_int(MAX, 1);
+        _min_op_count = transaction_config->get_optional_int(minConfig, 1);
+        _max_op_count = transaction_config->get_optional_int(maxConfig, 1);
         delete transaction_config;
     }
 }
@@ -137,7 +137,7 @@ transaction::set_commit_timestamp(wt_timestamp_t ts)
     /* We don't want to set zero timestamps on transactions if we're not using timestamps. */
     if (!_timestamp_manager->enabled())
         return 0;
-    const std::string config = COMMIT_TS + "=" + timestamp_manager::decimal_to_hex(ts);
+    const std::string config = commitTimestamp + "=" + timestamp_manager::decimal_to_hex(ts);
     return _session->timestamp_transaction(_session, config.c_str());
 }
 

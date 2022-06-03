@@ -54,7 +54,7 @@ class search_near_02 : public test {
          * The populate phase only creates empty collections. The number of collections is defined
          * in the configuration.
          */
-        int64_t collection_count = config->get_int(COLLECTION_COUNT);
+        int64_t collection_count = config->get_int(collectionCount);
 
         logger::log_msg(
           LOG_INFO, "Populate: " + std::to_string(collection_count) + " creating collections.");

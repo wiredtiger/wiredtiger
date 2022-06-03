@@ -151,9 +151,9 @@ class search_near_03 : public test {
         thread_manager tm;
 
         /* Validate our config. */
-        collection_count = config->get_int(COLLECTION_COUNT);
-        key_count = config->get_int(KEY_COUNT_PER_COLLECTION);
-        key_size = config->get_int(KEY_SIZE);
+        collection_count = config->get_int(collectionCount);
+        key_count = config->get_int(keyCountPerCollection);
+        key_size = config->get_int(keySize);
         testutil_assert(collection_count > 0);
         testutil_assert(key_count > 0);
         testutil_assert(key_size > 0);

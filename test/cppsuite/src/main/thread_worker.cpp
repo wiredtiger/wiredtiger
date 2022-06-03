@@ -62,11 +62,11 @@ thread_worker::thread_worker(uint64_t id, thread_type type, configuration *confi
   scoped_session &&created_session, timestamp_manager *timestamp_manager,
   operation_tracker *op_tracker, database &dbase)
     : /* These won't exist for certain threads which is why we use optional here. */
-      collection_count(config->get_optional_int(COLLECTION_COUNT, 1)),
-      key_count(config->get_optional_int(KEY_COUNT_PER_COLLECTION, 1)),
-      key_size(config->get_optional_int(KEY_SIZE, 1)),
-      value_size(config->get_optional_int(VALUE_SIZE, 1)),
-      thread_count(config->get_int(THREAD_COUNT)), type(type), id(id), db(dbase),
+      collection_count(config->get_optional_int(collectionCount, 1)),
+      key_count(config->get_optional_int(keyCountPerCollection, 1)),
+      key_size(config->get_optional_int(keySize, 1)),
+      value_size(config->get_optional_int(valueSize, 1)),
+      thread_count(config->get_int(threadCount)), type(type), id(id), db(dbase),
       session(std::move(created_session)), tsm(timestamp_manager),
       txn(transaction(config, timestamp_manager, session.get())), op_tracker(op_tracker),
       _sleep_time_ms(config->get_throttle_ms())

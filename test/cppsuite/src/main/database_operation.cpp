@@ -76,13 +76,13 @@ database_operation::populate(
     thread_manager tm;
 
     /* Validate our config. */
-    collection_count = config->get_int(COLLECTION_COUNT);
-    key_count = config->get_int(KEY_COUNT_PER_COLLECTION);
-    value_size = config->get_int(VALUE_SIZE);
-    thread_count = config->get_int(THREAD_COUNT);
+    collection_count = config->get_int(collectionCount);
+    key_count = config->get_int(keyCountPerCollection);
+    value_size = config->get_int(valueSize);
+    thread_count = config->get_int(threadCount);
     testutil_assert(thread_count == 0 || collection_count % thread_count == 0);
     testutil_assert(value_size > 0);
-    key_size = config->get_int(KEY_SIZE);
+    key_size = config->get_int(keySize);
     testutil_assert(key_size > 0);
     /* Keys must be unique. */
     testutil_assert(key_count <= pow(10, key_size));

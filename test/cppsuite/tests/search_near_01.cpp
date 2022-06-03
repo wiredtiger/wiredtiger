@@ -115,9 +115,9 @@ class search_near_01 : public test {
         thread_manager tm;
 
         /* Validate our config. */
-        collection_count = config->get_int(COLLECTION_COUNT);
-        keys_per_prefix = config->get_int(KEY_COUNT_PER_COLLECTION);
-        key_size = config->get_int(KEY_SIZE);
+        collection_count = config->get_int(collectionCount);
+        keys_per_prefix = config->get_int(keyCountPerCollection);
+        key_size = config->get_int(keySize);
         testutil_assert(collection_count > 0);
         testutil_assert(keys_per_prefix > 0);
         /* Check the prefix length is not greater than the key size. */
@@ -237,9 +237,9 @@ class search_near_01 : public test {
         prev_entries_stat = 0;
         prev_prefix_stat = 0;
         num_threads = _config->get_int("search_near_threads");
-        tc->stat_cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
-        workload_config = _config->get_subconfig(WORKLOAD_MANAGER);
-        read_config = workload_config->get_subconfig(READ_OP_CONFIG);
+        tc->stat_cursor = tc->session.open_scoped_cursor(statisticsURI);
+        workload_config = _config->get_subconfig(workloadManager);
+        read_config = workload_config->get_subconfig(readOpConfig);
         z_key_searches = 0;
 
         logger::log_msg(LOG_INFO,

@@ -35,9 +35,9 @@
 namespace test_harness {
 
 statistics::statistics(configuration &config, const std::string &stat_name, int stat_field)
-    : field(stat_field), max(config.get_int(MAX)), min(config.get_int(MIN)), name(stat_name),
-      postrun(config.get_bool(POSTRUN_STATISTICS)), runtime(config.get_bool(RUNTIME_STATISTICS)),
-      save(config.get_bool(SAVE))
+    : field(stat_field), max(config.get_int(maxConfig)), min(config.get_int(minConfig)),
+      name(stat_name), postrun(config.get_bool(postrunStatistics)),
+      runtime(config.get_bool(runtimeStatistics)), save(config.get_bool(saveConfig))
 {
 }
 

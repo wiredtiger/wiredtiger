@@ -64,8 +64,8 @@ class cache_resize : public test {
     cache_resize(const test_args &args) : test(args)
     {
         init_operation_tracker(
-          new operation_tracker_cache_resize(_config->get_subconfig(OPERATION_TRACKER),
-            _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager));
+          new operation_tracker_cache_resize(_config->get_subconfig(operationTracker),
+            _config->get_bool(compressionEnabled), *_timestamp_manager));
     }
 
     void
