@@ -5758,7 +5758,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CURSOR_EQUALS_ERROR		1228
 /*! cursor: cursor get key calls that return an error */
 #define	WT_STAT_CONN_CURSOR_GET_KEY_ERROR		1229
-/*! cursor: cursor get key calls that return an error */
+/*! cursor: cursor get value calls that return an error */
 #define	WT_STAT_CONN_CURSOR_GET_VALUE_ERROR		1230
 /*! cursor: cursor insert calls */
 #define	WT_STAT_CONN_CURSOR_INSERT			1231
@@ -5794,26 +5794,26 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CURSOR_NEXT_SKIP_GE_100		1243
 /*! cursor: cursor next calls that skip less than 100 entries */
 #define	WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100		1244
+/*! cursor: cursor next random calls that return an error */
+#define	WT_STAT_CONN_CURSOR_NEXT_RANDOM_ERROR		1245
 /*! cursor: cursor operation restarted */
-#define	WT_STAT_CONN_CURSOR_RESTART			1245
+#define	WT_STAT_CONN_CURSOR_RESTART			1246
 /*! cursor: cursor prev calls */
-#define	WT_STAT_CONN_CURSOR_PREV			1246
+#define	WT_STAT_CONN_CURSOR_PREV			1247
 /*! cursor: cursor prev calls that return an error */
-#define	WT_STAT_CONN_CURSOR_PREV_ERROR			1247
+#define	WT_STAT_CONN_CURSOR_PREV_ERROR			1248
 /*!
  * cursor: cursor prev calls that skip due to a globally visible history
  * store tombstone
  */
-#define	WT_STAT_CONN_CURSOR_PREV_HS_TOMBSTONE		1248
+#define	WT_STAT_CONN_CURSOR_PREV_HS_TOMBSTONE		1249
 /*!
  * cursor: cursor prev calls that skip greater than or equal to 100
  * entries
  */
-#define	WT_STAT_CONN_CURSOR_PREV_SKIP_GE_100		1249
+#define	WT_STAT_CONN_CURSOR_PREV_SKIP_GE_100		1250
 /*! cursor: cursor prev calls that skip less than 100 entries */
-#define	WT_STAT_CONN_CURSOR_PREV_SKIP_LT_100		1250
-/*! cursor: cursor random next calls that return an error */
-#define	WT_STAT_CONN_CURSOR_NEXT_RANDOM_ERROR		1251
+#define	WT_STAT_CONN_CURSOR_PREV_SKIP_LT_100		1251
 /*! cursor: cursor reconfigure calls that return an error */
 #define	WT_STAT_CONN_CURSOR_RECONFIGURE_ERROR		1252
 /*! cursor: cursor remove calls */
@@ -6988,7 +6988,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CURSOR_EQUALS_ERROR		2159
 /*! cursor: cursor get key calls that return an error */
 #define	WT_STAT_DSRC_CURSOR_GET_KEY_ERROR		2160
-/*! cursor: cursor get key calls that return an error */
+/*! cursor: cursor get value calls that return an error */
 #define	WT_STAT_DSRC_CURSOR_GET_VALUE_ERROR		2161
 /*! cursor: cursor insert calls that return an error */
 #define	WT_STAT_DSRC_CURSOR_INSERT_ERROR		2162
@@ -7012,22 +7012,22 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_GE_100		2168
 /*! cursor: cursor next calls that skip less than 100 entries */
 #define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_LT_100		2169
+/*! cursor: cursor next random calls that return an error */
+#define	WT_STAT_DSRC_CURSOR_NEXT_RANDOM_ERROR		2170
 /*! cursor: cursor prev calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_PREV_ERROR			2170
+#define	WT_STAT_DSRC_CURSOR_PREV_ERROR			2171
 /*!
  * cursor: cursor prev calls that skip due to a globally visible history
  * store tombstone
  */
-#define	WT_STAT_DSRC_CURSOR_PREV_HS_TOMBSTONE		2171
+#define	WT_STAT_DSRC_CURSOR_PREV_HS_TOMBSTONE		2172
 /*!
  * cursor: cursor prev calls that skip greater than or equal to 100
  * entries
  */
-#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_GE_100		2172
+#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_GE_100		2173
 /*! cursor: cursor prev calls that skip less than 100 entries */
-#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_LT_100		2173
-/*! cursor: cursor random next calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_NEXT_RANDOM_ERROR		2174
+#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_LT_100		2174
 /*! cursor: cursor reconfigure calls that return an error */
 #define	WT_STAT_DSRC_CURSOR_RECONFIGURE_ERROR		2175
 /*! cursor: cursor remove calls that return an error */
