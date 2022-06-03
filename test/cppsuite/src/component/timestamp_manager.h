@@ -45,7 +45,7 @@ namespace test_harness {
  * The format of a timestamp is as follows, the first 32 bits represent the epoch time in seconds.
  * The last 32 bits represent an increment for uniqueness.
  */
-class timestamp_manager : public component {
+class timestamp_manager : public Component {
     public:
     static const std::string decimal_to_hex(uint64_t value);
 
@@ -53,8 +53,8 @@ class timestamp_manager : public component {
     explicit timestamp_manager(configuration *config);
     virtual ~timestamp_manager() = default;
 
-    void load() override final;
-    void do_work() override final;
+    void Load() override final;
+    void DoWork() override final;
 
     /* Get a unique timestamp. */
     wt_timestamp_t get_next_ts();

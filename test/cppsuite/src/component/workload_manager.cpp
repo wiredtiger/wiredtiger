@@ -36,7 +36,7 @@
 namespace test_harness {
 workload_manager::workload_manager(configuration *configuration, database_operation *db_operation,
   timestamp_manager *timestamp_manager, database &database)
-    : component(workloadManager, configuration), _database(database),
+    : Component(workloadManager, configuration), _database(database),
       _database_operation(db_operation), _timestamp_manager(timestamp_manager)
 {
 }
@@ -55,7 +55,7 @@ workload_manager::set_operation_tracker(operation_tracker *op_tracker)
 }
 
 void
-workload_manager::run()
+workload_manager::Run()
 {
     configuration *populate_config;
     std::vector<operation_configuration> operation_configs;
@@ -110,9 +110,9 @@ workload_manager::run()
 }
 
 void
-workload_manager::finish()
+workload_manager::Finish()
 {
-    component::finish();
+    Component::Finish();
     for (const auto &it : _workers)
         it->finish();
     _thread_manager.Join();

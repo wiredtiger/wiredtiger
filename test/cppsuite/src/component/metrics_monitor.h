@@ -45,7 +45,7 @@ namespace test_harness {
  * The statistics monitor class is designed to track various statistics or other runtime signals
  * relevant to the given workload.
  */
-class metrics_monitor : public component {
+class metrics_monitor : public Component {
     public:
     static void get_stat(scoped_cursor &, int, int64_t *);
 
@@ -57,9 +57,9 @@ class metrics_monitor : public component {
     metrics_monitor(const metrics_monitor &) = delete;
     metrics_monitor &operator=(const metrics_monitor &) = delete;
 
-    void load() override final;
-    void do_work() override final;
-    void finish() override final;
+    void Load() override final;
+    void DoWork() override final;
+    void Finish() override final;
 
     private:
     scoped_session _session;

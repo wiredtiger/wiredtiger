@@ -56,21 +56,21 @@ namespace test_harness {
 enum class tracking_operation { CREATE_COLLECTION, CUSTOM, DELETE_COLLECTION, DELETE_KEY, INSERT };
 
 /* Class used to track operations performed on collections */
-class operation_tracker : public component {
+class operation_tracker : public Component {
     public:
     operation_tracker(configuration *_config, const bool use_compression, timestamp_manager &tsm);
     virtual ~operation_tracker() = default;
 
     const std::string &get_schema_table_name() const;
     const std::string &get_operation_table_name() const;
-    void load() override final;
+    void Load() override final;
 
     /*
      * As every operation is tracked in the tracking table we need to clear out obsolete operations
      * otherwise the file size grow continuously, as such we cleanup operations that are no longer
      * relevant, i.e. older than the oldest timestamp.
      */
-    void do_work() override final;
+    void DoWork() override final;
 
     void save_schema_operation(
       const tracking_operation &operation, const uint64_t &collection_id, wt_timestamp_t ts);

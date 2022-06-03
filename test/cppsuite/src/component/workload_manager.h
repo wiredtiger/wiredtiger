@@ -40,7 +40,7 @@ namespace test_harness {
 /*
  * Class that can execute operations based on a given configuration.
  */
-class workload_manager : public component {
+class workload_manager : public Component {
     public:
     workload_manager(configuration *configuration, database_operation *db_operation,
       timestamp_manager *timestamp_manager, database &database);
@@ -52,8 +52,8 @@ class workload_manager : public component {
     workload_manager &operator=(const workload_manager &) = delete;
 
     /* Do the work of the main part of the workload. */
-    void run() override final;
-    void finish() override final;
+    void Run() override final;
+    void Finish() override final;
 
     database &get_database();
     bool db_populated() const;

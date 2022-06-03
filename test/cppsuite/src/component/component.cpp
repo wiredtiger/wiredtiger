@@ -34,17 +34,17 @@
 #include "src/common/logger.h"
 
 namespace test_harness {
-component::component(const std::string &name, configuration *config) : _config(config), _name(name)
+Component::Component(const std::string &name, configuration *config) : _config(config), _name(name)
 {
 }
 
-component::~component()
+Component::~Component()
 {
     delete _config;
 }
 
 void
-component::load()
+Component::Load()
 {
     Logger::LogMessage(LOG_INFO, "Loading component: " + _name);
     _enabled = _config->get_optional_bool(enabledConfig, true);
@@ -54,39 +54,39 @@ component::load()
     if (!_enabled)
         return;
 
-    _sleep_time_ms = _config->get_throttle_ms();
+    _sleepTimeMs = _config->get_throttle_ms();
 }
 
 void
-component::run()
+Component::Run()
 {
     Logger::LogMessage(LOG_INFO, "Running component: " + _name);
     while (_enabled && _running) {
-        do_work();
-        std::this_thread::sleep_for(std::chrono::milliseconds(_sleep_time_ms));
+        DoWork();
+        std::this_thread::sleep_for(std::chrono::milliseconds(_sleepTimeMs));
     }
 }
 
 void
-component::do_work()
+Component::DoWork()
 {
     /* Not implemented. */
 }
 
 bool
-component::enabled() const
+Component::IsEnabled() const
 {
     return (_enabled);
 }
 
 void
-component::end_run()
+Component::EndRun()
 {
     _running = false;
 }
 
 void
-component::finish()
+Component::Finish()
 {
     Logger::LogMessage(LOG_INFO, "Running finish stage of component: " + _name);
 }

@@ -136,14 +136,14 @@ test::run()
 
     /* Initiate the load stage of each component. */
     for (const auto &it : _components)
-        it->load();
+        it->Load();
 
-    /* Spawn threads for all component::run() functions. */
+    /* Spawn threads for all Component::Run() functions. */
     for (const auto &it : _components)
-        _thread_manager->addThread(&component::run, it);
+        _thread_manager->addThread(&Component::Run, it);
 
     /* The initial population phase needs to be finished before starting the actual test. */
-    while (_workload_manager->enabled() && !_workload_manager->db_populated())
+    while (_workload_manager->IsEnabled() && !_workload_manager->db_populated())
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     /* The test will run for the duration as defined in the config. */
@@ -155,7 +155,7 @@ test::run()
 
     /* Notify components that they should complete their last iteration. */
     for (const auto &it : _components)
-        it->end_run();
+        it->EndRun();
 
     /* Call join on the components threads so we know they have finished their loop. */
     Logger::LogMessage(LOG_INFO,
@@ -165,10 +165,10 @@ test::run()
 
     /* End the test by calling finish on all known components. */
     for (const auto &it : _components)
-        it->finish();
+        it->Finish();
 
     /* Validation stage. */
-    if (_operation_tracker->enabled()) {
+    if (_operation_tracker->IsEnabled()) {
         std::unique_ptr<configuration> tracking_config(_config->get_subconfig(operationTracker));
         this->validate(_operation_tracker->get_operation_table_name(),
           _operation_tracker->get_schema_table_name(),

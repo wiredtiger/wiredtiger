@@ -45,14 +45,14 @@ timestamp_manager::decimal_to_hex(uint64_t value)
     return (res);
 }
 
-timestamp_manager::timestamp_manager(configuration *config) : component("timestamp_manager", config)
+timestamp_manager::timestamp_manager(configuration *config) : Component("timestamp_manager", config)
 {
 }
 
 void
-timestamp_manager::load()
+timestamp_manager::Load()
 {
-    component::load();
+    Component::Load();
     int64_t oldest_lag = _config->get_int(oldestLag);
     testutil_assert(oldest_lag >= 0);
     /* Cast and then shift left to match the seconds position. */
@@ -67,7 +67,7 @@ timestamp_manager::load()
 }
 
 void
-timestamp_manager::do_work()
+timestamp_manager::DoWork()
 {
     std::string config, LogMessage;
     /* latest_ts_s represents the time component of the latest timestamp provided. */

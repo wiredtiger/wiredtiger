@@ -70,7 +70,7 @@ class test : public database_operation {
     operation_tracker *_operation_tracker = nullptr;
 
     private:
-    std::vector<component *> _components;
+    std::vector<Component *> _components;
     metrics_monitor *_metrics_monitor = nullptr;
     ThreadManager *_thread_manager = nullptr;
     workload_manager *_workload_manager = nullptr;

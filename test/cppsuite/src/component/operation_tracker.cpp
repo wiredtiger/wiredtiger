@@ -35,7 +35,7 @@
 namespace test_harness {
 operation_tracker::operation_tracker(
   configuration *_config, const bool use_compression, timestamp_manager &tsm)
-    : component(operationTracker, _config), _operation_table_name(tableNameOpWorkloadTracker),
+    : Component(operationTracker, _config), _operation_table_name(tableNameOpWorkloadTracker),
       _schema_table_config(SCHEMA_TRACKING_TABLE_CONFIG),
       _schema_table_name(tableNameSchemaWorkloadTracker), _use_compression(use_compression),
       _tsm(tsm)
@@ -57,9 +57,9 @@ operation_tracker::get_operation_table_name() const
 }
 
 void
-operation_tracker::load()
+operation_tracker::Load()
 {
-    component::load();
+    Component::Load();
 
     if (!_enabled)
         return;
@@ -86,7 +86,7 @@ operation_tracker::load()
 }
 
 void
-operation_tracker::do_work()
+operation_tracker::DoWork()
 {
     WT_DECL_RET;
     wt_timestamp_t ts, oldest_ts;

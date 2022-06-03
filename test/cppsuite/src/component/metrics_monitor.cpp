@@ -72,15 +72,15 @@ metrics_monitor::get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep
 
 metrics_monitor::metrics_monitor(
   const std::string &test_name, configuration *config, database &database)
-    : component(metricsMonitor, config), _test_name(test_name), _database(database)
+    : Component(metricsMonitor, config), _test_name(test_name), _database(database)
 {
 }
 
 void
-metrics_monitor::load()
+metrics_monitor::Load()
 {
     /* Load the general component things. */
-    component::load();
+    Component::Load();
 
     /* If the component is enabled, load all the known statistics. */
     if (_enabled) {
@@ -108,7 +108,7 @@ metrics_monitor::load()
 }
 
 void
-metrics_monitor::do_work()
+metrics_monitor::DoWork()
 {
     /* Check runtime statistics. */
     for (const auto &stat : _stats) {
@@ -118,9 +118,9 @@ metrics_monitor::do_work()
 }
 
 void
-metrics_monitor::finish()
+metrics_monitor::Finish()
 {
-    component::finish();
+    Component::Finish();
 
     bool success = true;
 
