@@ -53,16 +53,16 @@
 
 namespace test_harness {
 /* Tracking operations. */
-enum class tracking_operation { CREATE_COLLECTION, CUSTOM, DELETE_COLLECTION, DELETE_KEY, INSERT };
+enum class trackingOperation { CREATE_COLLECTION, CUSTOM, DELETE_COLLECTION, DELETE_KEY, INSERT };
 
 /* Class used to track operations performed on collections */
-class operation_tracker : public Component {
+class OperationTracker : public Component {
     public:
-    operation_tracker(configuration *_config, const bool use_compression, timestamp_manager &tsm);
-    virtual ~operation_tracker() = default;
+    OperationTracker(configuration *_config, const bool useCompression, timestamp_manager &tsm);
+    virtual ~OperationTracker() = default;
 
-    const std::string &get_schema_table_name() const;
-    const std::string &get_operation_table_name() const;
+    const std::string &getSchemaTableName() const;
+    const std::string &getOperationTableName() const;
     void Load() override final;
 
     /*
@@ -72,28 +72,28 @@ class operation_tracker : public Component {
      */
     void DoWork() override final;
 
-    void save_schema_operation(
-      const tracking_operation &operation, const uint64_t &collection_id, wt_timestamp_t ts);
+    void saveSchemaOperation(
+      const trackingOperation &operation, const uint64_t &collectionId, wt_timestamp_t timestamp);
 
-    virtual void set_tracking_cursor(const uint64_t txn_id, const tracking_operation &operation,
-      const uint64_t &collection_id, const std::string &key, const std::string &value,
-      wt_timestamp_t ts, scoped_cursor &op_track_cursor);
+    virtual void setTrackingCursor(const uint64_t transactionId, const trackingOperation &operation,
+      const uint64_t &collectionId, const std::string &key, const std::string &value,
+      wt_timestamp_t timestamp, scoped_cursor &cursor);
 
-    int save_operation(const uint64_t txn_id, const tracking_operation &operation,
-      const uint64_t &collection_id, const std::string &key, const std::string &value,
-      wt_timestamp_t ts, scoped_cursor &op_track_cursor);
+    int save_operation(const uint64_t transactionId, const trackingOperation &operation,
+      const uint64_t &collectionId, const std::string &key, const std::string &value,
+      wt_timestamp_t timestamp, scoped_cursor &cursor);
 
     private:
     scoped_session _session;
-    scoped_session _sweep_session;
-    scoped_cursor _schema_track_cursor;
-    scoped_cursor _sweep_cursor;
-    std::string _operation_table_config;
-    const std::string _operation_table_name;
-    const std::string _schema_table_config;
-    const std::string _schema_table_name;
-    const bool _use_compression;
-    timestamp_manager &_tsm;
+    scoped_session _sweepSession;
+    scoped_cursor _schemaTrackingCursor;
+    scoped_cursor _sweepCursor;
+    std::string _operationTableConfig;
+    const std::string _operationTableName;
+    const std::string _schemaTableConfig;
+    const std::string _schemaTableName;
+    const bool _useCompression;
+    timestamp_manager &_timestampManager;
 };
 } // namespace test_harness
 

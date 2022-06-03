@@ -49,7 +49,7 @@ class thread_worker {
     public:
     thread_worker(uint64_t id, thread_type type, configuration *config,
       scoped_session &&created_session, timestamp_manager *timestamp_manager,
-      operation_tracker *op_tracker, database &dbase);
+      OperationTracker *op_tracker, database &dbase);
 
     virtual ~thread_worker() = default;
 
@@ -100,7 +100,7 @@ class thread_worker {
     scoped_cursor stat_cursor;
     timestamp_manager *tsm;
     transaction txn;
-    operation_tracker *op_tracker;
+    OperationTracker *op_tracker;
 
     private:
     bool _running = true;

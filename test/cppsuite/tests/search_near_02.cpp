@@ -48,7 +48,7 @@ class search_near_02 : public test {
 
     void
     populate(database &database, timestamp_manager *, configuration *config,
-      operation_tracker *) override final
+      OperationTracker *) override final
     {
         /*
          * The populate phase only creates empty collections. The number of collections is defined

@@ -48,7 +48,7 @@ workload_manager::~workload_manager()
 }
 
 void
-workload_manager::set_operation_tracker(operation_tracker *op_tracker)
+workload_manager::set_operation_tracker(OperationTracker *op_tracker)
 {
     testutil_assert(_operation_tracker == nullptr);
     _operation_tracker = op_tracker;

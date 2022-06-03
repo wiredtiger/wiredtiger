@@ -68,7 +68,7 @@ class validator {
       std::vector<uint64_t> &deleted_collections);
 
     /* Update the data model. */
-    void update_data_model(const tracking_operation &operation, validation_collection &collection,
+    void update_data_model(const trackingOperation &operation, validation_collection &collection,
       const uint64_t collection_id, const char *key, const char *value);
 
     /* Compare the tracked operations against what has been saved on disk. */

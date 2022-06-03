@@ -55,12 +55,12 @@ test::test(const test_args &args) : _args(args)
 }
 
 void
-test::init_operation_tracker(operation_tracker *op_tracker)
+test::init_operation_tracker(OperationTracker *op_tracker)
 {
     delete _operation_tracker;
     if (op_tracker == nullptr) {
         /* Fallback to default behavior. */
-        op_tracker = new operation_tracker(_config->get_subconfig(operationTracker),
+        op_tracker = new OperationTracker(_config->get_subconfig(operationTracker),
           _config->get_bool(compressionEnabled), *_timestamp_manager);
     }
     _operation_tracker = op_tracker;
@@ -170,8 +170,8 @@ test::run()
     /* Validation stage. */
     if (_operation_tracker->IsEnabled()) {
         std::unique_ptr<configuration> tracking_config(_config->get_subconfig(operationTracker));
-        this->validate(_operation_tracker->get_operation_table_name(),
-          _operation_tracker->get_schema_table_name(),
+        this->validate(_operation_tracker->getOperationTableName(),
+          _operation_tracker->getSchemaTableName(),
           _workload_manager->get_database().get_collection_ids());
     }
 

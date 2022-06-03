@@ -33,31 +33,31 @@
 #include "src/storage/connection_manager.h"
 
 namespace test_harness {
-operation_tracker::operation_tracker(
-  configuration *_config, const bool use_compression, timestamp_manager &tsm)
-    : Component(operationTracker, _config), _operation_table_name(tableNameOpWorkloadTracker),
-      _schema_table_config(SCHEMA_TRACKING_TABLE_CONFIG),
-      _schema_table_name(tableNameSchemaWorkloadTracker), _use_compression(use_compression),
-      _tsm(tsm)
+OperationTracker::OperationTracker(
+  configuration *_config, const bool useCompression, timestamp_manager &tsm)
+    : Component(operationTracker, _config), _operationTableName(tableNameOpWorkloadTracker),
+      _schemaTableConfig(SCHEMA_TRACKING_TABLE_CONFIG),
+      _schemaTableName(tableNameSchemaWorkloadTracker), _useCompression(useCompression),
+      _timestampManager(tsm)
 {
-    _operation_table_config = "key_format=" + _config->get_string(trackingKeyFormat) +
+    _operationTableConfig = "key_format=" + _config->get_string(trackingKeyFormat) +
       ",value_format=" + _config->get_string(trackingValueFormat) + ",log=(enabled=true)";
 }
 
 const std::string &
-operation_tracker::get_schema_table_name() const
+OperationTracker::getSchemaTableName() const
 {
-    return (_schema_table_name);
+    return (_schemaTableName);
 }
 
 const std::string &
-operation_tracker::get_operation_table_name() const
+OperationTracker::getOperationTableName() const
 {
-    return (_operation_table_name);
+    return (_operationTableName);
 }
 
 void
-operation_tracker::Load()
+OperationTracker::Load()
 {
     Component::Load();
 
@@ -67,96 +67,96 @@ operation_tracker::Load()
     /* Initiate schema tracking. */
     _session = connection_manager::instance().create_session();
     testutil_check(
-      _session->create(_session.get(), _schema_table_name.c_str(), _schema_table_config.c_str()));
-    _schema_track_cursor = _session.open_scoped_cursor(_schema_table_name);
+      _session->create(_session.get(), _schemaTableName.c_str(), _schemaTableConfig.c_str()));
+    _schemaTrackingCursor = _session.open_scoped_cursor(_schemaTableName);
     Logger::LogMessage(LOG_TRACE, "Schema tracking initiated");
 
     /* Initiate operations tracking. */
-    testutil_check(_session->create(
-      _session.get(), _operation_table_name.c_str(), _operation_table_config.c_str()));
+    testutil_check(
+      _session->create(_session.get(), _operationTableName.c_str(), _operationTableConfig.c_str()));
     Logger::LogMessage(LOG_TRACE, "Operations tracking created");
 
     /*
      * Open sweep cursor in a dedicated sweep session. This cursor will be used to clear out
      * obsolete data from the tracking table.
      */
-    _sweep_session = connection_manager::instance().create_session();
-    _sweep_cursor = _sweep_session.open_scoped_cursor(_operation_table_name);
+    _sweepSession = connection_manager::instance().create_session();
+    _sweepCursor = _sweepSession.open_scoped_cursor(_operationTableName);
     Logger::LogMessage(LOG_TRACE, "Tracking table sweep initialized");
 }
 
 void
-operation_tracker::DoWork()
+OperationTracker::DoWork()
 {
     WT_DECL_RET;
-    wt_timestamp_t ts, oldest_ts;
-    uint64_t collection_id, sweep_collection_id;
-    int op_type;
+    wt_timestamp_t timestamp, oldestTimestamp;
+    uint64_t collectionId, sweepCollectionId;
+    int operationType;
     const char *key, *value;
-    char *sweep_key;
-    bool globally_visible_update_found;
+    char *sweepKey;
+    bool globallyVisibleUpdateFound;
 
     /*
      * This function prunes old data from the tracking table as the default validation logic doesn't
      * use it. User-defined validation may need this data, so don't allow it to be removed.
      */
-    const std::string key_format(_sweep_cursor->key_format);
-    const std::string value_format(_sweep_cursor->value_format);
+    const std::string key_format(_sweepCursor->key_format);
+    const std::string value_format(_sweepCursor->value_format);
     if (key_format != OPERATION_TRACKING_KEY_FORMAT ||
       value_format != OPERATION_TRACKING_VALUE_FORMAT)
         return;
 
-    key = sweep_key = nullptr;
-    globally_visible_update_found = false;
+    key = sweepKey = nullptr;
+    globallyVisibleUpdateFound = false;
 
     /* Take a copy of the oldest so that we sweep with a consistent timestamp. */
-    oldest_ts = _tsm.get_oldest_ts();
+    oldestTimestamp = _timestampManager.get_oldest_ts();
 
     /* We need to check if the component is still running to avoid unnecessary iterations. */
-    while (_running && (ret = _sweep_cursor->prev(_sweep_cursor.get())) == 0) {
-        testutil_check(_sweep_cursor->get_key(_sweep_cursor.get(), &collection_id, &key, &ts));
-        testutil_check(_sweep_cursor->get_value(_sweep_cursor.get(), &op_type, &value));
+    while (_running && (ret = _sweepCursor->prev(_sweepCursor.get())) == 0) {
+        testutil_check(_sweepCursor->get_key(_sweepCursor.get(), &collectionId, &key, &timestamp));
+        testutil_check(_sweepCursor->get_value(_sweepCursor.get(), &operationType, &value));
         /*
          * If we're on a new key, reset the check. We want to track whether we have a globally
          * visible update for the current key.
          */
-        if (sweep_key == nullptr || sweep_collection_id != collection_id ||
-          strcmp(sweep_key, key) != 0) {
-            globally_visible_update_found = false;
-            if (sweep_key != nullptr)
-                free(sweep_key);
-            sweep_key = static_cast<char *>(dstrdup(key));
-            sweep_collection_id = collection_id;
+        if (sweepKey == nullptr || sweepCollectionId != collectionId ||
+          strcmp(sweepKey, key) != 0) {
+            globallyVisibleUpdateFound = false;
+            if (sweepKey != nullptr)
+                free(sweepKey);
+            sweepKey = static_cast<char *>(dstrdup(key));
+            sweepCollectionId = collectionId;
         }
-        if (ts <= oldest_ts) {
-            if (globally_visible_update_found) {
+        if (timestamp <= oldestTimestamp) {
+            if (globallyVisibleUpdateFound) {
                 if (Logger::traceLevel == LOG_TRACE)
                     Logger::LogMessage(LOG_TRACE,
-                      std::string("workload tracking: Obsoleted update, key=") + sweep_key +
-                        ", collection_id=" + std::to_string(collection_id) +
-                        ", timestamp=" + std::to_string(ts) +
-                        ", oldest_timestamp=" + std::to_string(oldest_ts) + ", value=" + value);
+                      std::string("workload tracking: Obsoleted update, key=") + sweepKey +
+                        ", collectionId=" + std::to_string(collectionId) +
+                        ", timestamp=" + std::to_string(timestamp) + ", oldest_timestamp=" +
+                        std::to_string(oldestTimestamp) + ", value=" + value);
                 /*
                  * Wrap the removal in a transaction as we need to specify we aren't using a
                  * timestamp on purpose.
                  */
                 testutil_check(
-                  _sweep_session->begin_transaction(_sweep_session.get(), "no_timestamp=true"));
-                testutil_check(_sweep_cursor->remove(_sweep_cursor.get()));
-                testutil_check(_sweep_session->commit_transaction(_sweep_session.get(), nullptr));
-            } else if (static_cast<tracking_operation>(op_type) == tracking_operation::INSERT) {
+                  _sweepSession->begin_transaction(_sweepSession.get(), "no_timestamp=true"));
+                testutil_check(_sweepCursor->remove(_sweepCursor.get()));
+                testutil_check(_sweepSession->commit_transaction(_sweepSession.get(), nullptr));
+            } else if (static_cast<trackingOperation>(operationType) == trackingOperation::INSERT) {
                 if (Logger::traceLevel == LOG_TRACE)
                     Logger::LogMessage(LOG_TRACE,
                       std::string("workload tracking: Found globally visible update, key=") +
-                        sweep_key + ", collection_id=" + std::to_string(collection_id) +
-                        ", timestamp=" + std::to_string(ts) +
-                        ", oldest_timestamp=" + std::to_string(oldest_ts) + ", value=" + value);
-                globally_visible_update_found = true;
+                        sweepKey + ", collectionId=" + std::to_string(collectionId) +
+                        ", timestamp=" + std::to_string(timestamp) + ", oldest_timestamp=" +
+                        std::to_string(oldestTimestamp) + ", value=" + value);
+                globallyVisibleUpdateFound = true;
             }
         }
     }
 
-    free(sweep_key);
+    free(sweepKey);
 
     /*
      * If we get here and the test is still running, it means we must have reached the end of the
@@ -169,62 +169,62 @@ operation_tracker::DoWork()
           "Tracking table sweep failed: cursor->next() returned an unexpected error %d.", ret);
 
     /* If we have a position, give it up. */
-    testutil_check(_sweep_cursor->reset(_sweep_cursor.get()));
+    testutil_check(_sweepCursor->reset(_sweepCursor.get()));
 }
 
 void
-operation_tracker::save_schema_operation(
-  const tracking_operation &operation, const uint64_t &collection_id, wt_timestamp_t ts)
+OperationTracker::saveSchemaOperation(
+  const trackingOperation &operation, const uint64_t &collectionId, wt_timestamp_t timestamp)
 {
     std::string error_message;
 
     if (!_enabled)
         return;
 
-    if (operation == tracking_operation::CREATE_COLLECTION ||
-      operation == tracking_operation::DELETE_COLLECTION) {
-        _schema_track_cursor->set_key(_schema_track_cursor.get(), collection_id, ts);
-        _schema_track_cursor->set_value(_schema_track_cursor.get(), static_cast<int>(operation));
-        testutil_check(_schema_track_cursor->insert(_schema_track_cursor.get()));
+    if (operation == trackingOperation::CREATE_COLLECTION ||
+      operation == trackingOperation::DELETE_COLLECTION) {
+        _schemaTrackingCursor->set_key(_schemaTrackingCursor.get(), collectionId, timestamp);
+        _schemaTrackingCursor->set_value(_schemaTrackingCursor.get(), static_cast<int>(operation));
+        testutil_check(_schemaTrackingCursor->insert(_schemaTrackingCursor.get()));
     } else {
         error_message =
-          "save_schema_operation: invalid operation " + std::to_string(static_cast<int>(operation));
+          "saveSchemaOperation: invalid operation " + std::to_string(static_cast<int>(operation));
         testutil_die(EINVAL, error_message.c_str());
     }
 }
 
 int
-operation_tracker::save_operation(const uint64_t txn_id, const tracking_operation &operation,
-  const uint64_t &collection_id, const std::string &key, const std::string &value,
-  wt_timestamp_t ts, scoped_cursor &op_track_cursor)
+OperationTracker::save_operation(const uint64_t transactionId, const trackingOperation &operation,
+  const uint64_t &collectionId, const std::string &key, const std::string &value,
+  wt_timestamp_t timestamp, scoped_cursor &cursor)
 {
     WT_DECL_RET;
 
     if (!_enabled)
         return (0);
 
-    testutil_assert(op_track_cursor.get() != nullptr);
+    testutil_assert(cursor.get() != nullptr);
 
-    if (operation == tracking_operation::CREATE_COLLECTION ||
-      operation == tracking_operation::DELETE_COLLECTION) {
-        const std::string error_message =
+    if (operation == trackingOperation::CREATE_COLLECTION ||
+      operation == trackingOperation::DELETE_COLLECTION) {
+        const std::string error =
           "save_operation: invalid operation " + std::to_string(static_cast<int>(operation));
-        testutil_die(EINVAL, error_message.c_str());
+        testutil_die(EINVAL, error.c_str());
     } else {
-        set_tracking_cursor(txn_id, operation, collection_id, key, value, ts, op_track_cursor);
-        ret = op_track_cursor->insert(op_track_cursor.get());
+        setTrackingCursor(transactionId, operation, collectionId, key, value, timestamp, cursor);
+        ret = cursor->insert(cursor.get());
     }
     return (ret);
 }
 
 /* Note that the transaction id is not used in the default implementation of the tracking table. */
 void
-operation_tracker::set_tracking_cursor(const uint64_t txn_id, const tracking_operation &operation,
-  const uint64_t &collection_id, const std::string &key, const std::string &value,
-  wt_timestamp_t ts, scoped_cursor &op_track_cursor)
+OperationTracker::setTrackingCursor(const uint64_t transactionId,
+  const trackingOperation &operation, const uint64_t &collectionId, const std::string &key,
+  const std::string &value, wt_timestamp_t timestamp, scoped_cursor &cursor)
 {
-    op_track_cursor->set_key(op_track_cursor.get(), collection_id, key.c_str(), ts);
-    op_track_cursor->set_value(op_track_cursor.get(), static_cast<int>(operation), value.c_str());
+    cursor->set_key(cursor.get(), collectionId, key.c_str(), timestamp);
+    cursor->set_value(cursor.get(), static_cast<int>(operation), value.c_str());
 }
 
 } // namespace test_harness

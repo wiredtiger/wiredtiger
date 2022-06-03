@@ -45,7 +45,7 @@ class database_operation {
      * defined by the configuration.
      */
     virtual void populate(database &database, timestamp_manager *tsm, configuration *config,
-      operation_tracker *op_tracker);
+      OperationTracker *op_tracker);
 
     /* Performs a checkpoint periodically. */
     virtual void checkpoint_operation(thread_worker *tc);

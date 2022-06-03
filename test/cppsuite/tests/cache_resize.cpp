@@ -34,18 +34,18 @@
 using namespace test_harness;
 
 /* Defines what data is written to the tracking table for use in custom validation. */
-class operation_tracker_cache_resize : public operation_tracker {
+class OperationTrackerCacheResize : public OperationTracker {
 
     public:
-    operation_tracker_cache_resize(
+    OperationTrackerCacheResize(
       configuration *config, const bool use_compression, timestamp_manager &tsm)
-        : operation_tracker(config, use_compression, tsm)
+        : OperationTracker(config, use_compression, tsm)
     {
     }
 
     void
-    set_tracking_cursor(const uint64_t txn_id, const tracking_operation &operation,
-      const uint64_t &, const std::string &, const std::string &value, wt_timestamp_t ts,
+    setTrackingCursor(const uint64_t txn_id, const trackingOperation &operation, const uint64_t &,
+      const std::string &, const std::string &value, wt_timestamp_t ts,
       scoped_cursor &op_track_cursor) override final
     {
         op_track_cursor->set_key(op_track_cursor.get(), ts, txn_id);
@@ -64,7 +64,7 @@ class cache_resize : public test {
     cache_resize(const test_args &args) : test(args)
     {
         init_operation_tracker(
-          new operation_tracker_cache_resize(_config->get_subconfig(operationTracker),
+          new OperationTrackerCacheResize(_config->get_subconfig(operationTracker),
             _config->get_bool(compressionEnabled), *_timestamp_manager));
     }
 
@@ -107,7 +107,7 @@ class cache_resize : public test {
 
             /* Save the change of cache size in the tracking table. */
             tc->txn.begin();
-            int ret = tc->op_tracker->save_operation(txn_id, tracking_operation::CUSTOM,
+            int ret = tc->op_tracker->save_operation(txn_id, trackingOperation::CUSTOM,
               collection_id, key, value, tc->tsm->get_next_ts(), tc->op_track_cursor);
 
             if (ret == 0)
@@ -198,15 +198,15 @@ class cache_resize : public test {
                 ", transaction id: " + std::to_string(tracked_txn_id) +
                 ", cache size: " + std::to_string(std::stoull(tracked_cache_size)));
 
-            tracking_operation op_type = static_cast<tracking_operation>(tracked_op_type);
+            trackingOperation op_type = static_cast<trackingOperation>(tracked_op_type);
             /* There are only two types of operation tracked. */
             testutil_assert(
-              op_type == tracking_operation::CUSTOM || op_type == tracking_operation::INSERT);
+              op_type == trackingOperation::CUSTOM || op_type == trackingOperation::INSERT);
 
             /*
              * There is nothing to do if we are reading a record that indicates a cache size change.
              */
-            if (op_type == tracking_operation::CUSTOM)
+            if (op_type == trackingOperation::CUSTOM)
                 continue;
 
             if (first_record) {

@@ -142,7 +142,7 @@ validator::validate(const std::string &operation_table_name, const std::string &
         /*
          * Add the values from the tracking table to the current collection model.
          */
-        update_data_model(static_cast<tracking_operation>(tracked_op_type),
+        update_data_model(static_cast<trackingOperation>(tracked_op_type),
           current_collection_records, current_collection_id, tracked_key, tracked_value);
     };
 
@@ -178,14 +178,14 @@ validator::parse_schema_tracking_table(scoped_session &session,
         Logger::LogMessage(LOG_TRACE, "Timestamp is " + std::to_string(key_timestamp));
         Logger::LogMessage(LOG_TRACE, "Operation type is " + std::to_string(value_operation_type));
 
-        if (static_cast<tracking_operation>(value_operation_type) ==
-          tracking_operation::CREATE_COLLECTION) {
+        if (static_cast<trackingOperation>(value_operation_type) ==
+          trackingOperation::CREATE_COLLECTION) {
             deleted_collections.erase(std::remove(deleted_collections.begin(),
                                         deleted_collections.end(), key_collection_id),
               deleted_collections.end());
             created_collections.push_back(key_collection_id);
-        } else if (static_cast<tracking_operation>(value_operation_type) ==
-          tracking_operation::DELETE_COLLECTION) {
+        } else if (static_cast<trackingOperation>(value_operation_type) ==
+          trackingOperation::DELETE_COLLECTION) {
             created_collections.erase(std::remove(created_collections.begin(),
                                         created_collections.end(), key_collection_id),
               created_collections.end());
@@ -195,10 +195,10 @@ validator::parse_schema_tracking_table(scoped_session &session,
 }
 
 void
-validator::update_data_model(const tracking_operation &operation, validation_collection &collection,
+validator::update_data_model(const trackingOperation &operation, validation_collection &collection,
   const uint64_t collection_id, const char *key, const char *value)
 {
-    if (operation == tracking_operation::DELETE_KEY) {
+    if (operation == trackingOperation::DELETE_KEY) {
         /* Search for the key validating that it exists. */
         const auto it = collection.find(key);
         if (it == collection.end())
@@ -213,11 +213,11 @@ validator::update_data_model(const tracking_operation &operation, validation_col
 
         /* Update the key_state to deleted. */
         it->second.exists = false;
-    } else if (operation == tracking_operation::INSERT)
+    } else if (operation == trackingOperation::INSERT)
         collection[key_value_t(key)] = key_state{true, key_value_t(value)};
     else
         testutil_die(LOG_ERROR, "Validation failed: unexpected operation in the tracking table: %d",
-          static_cast<tracking_operation>(operation));
+          static_cast<trackingOperation>(operation));
 }
 
 void

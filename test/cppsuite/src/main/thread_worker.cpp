@@ -60,7 +60,7 @@ type_string(thread_type type)
 
 thread_worker::thread_worker(uint64_t id, thread_type type, configuration *config,
   scoped_session &&created_session, timestamp_manager *timestamp_manager,
-  operation_tracker *op_tracker, database &dbase)
+  OperationTracker *op_tracker, database &dbase)
     : /* These won't exist for certain threads which is why we use optional here. */
       collection_count(config->get_optional_int(collectionCount, 1)),
       key_count(config->get_optional_int(keyCountPerCollection, 1)),
@@ -72,7 +72,7 @@ thread_worker::thread_worker(uint64_t id, thread_type type, configuration *confi
       _sleep_time_ms(config->get_throttle_ms())
 {
     if (op_tracker->IsEnabled())
-        op_track_cursor = session.open_scoped_cursor(op_tracker->get_operation_table_name());
+        op_track_cursor = session.open_scoped_cursor(op_tracker->getOperationTableName());
 
     testutil_assert(key_size > 0 && value_size > 0);
 }
@@ -122,7 +122,7 @@ thread_worker::update(
 
     uint64_t txn_id = ((WT_SESSION_IMPL *)session.get())->txn->id;
     ret = op_tracker->save_operation(
-      txn_id, tracking_operation::INSERT, collection_id, key, value, ts, op_track_cursor);
+      txn_id, trackingOperation::INSERT, collection_id, key, value, ts, op_track_cursor);
 
     if (ret == 0)
         txn.add_op();
@@ -164,7 +164,7 @@ thread_worker::insert(
 
     uint64_t txn_id = ((WT_SESSION_IMPL *)session.get())->txn->id;
     ret = op_tracker->save_operation(
-      txn_id, tracking_operation::INSERT, collection_id, key, value, ts, op_track_cursor);
+      txn_id, trackingOperation::INSERT, collection_id, key, value, ts, op_track_cursor);
 
     if (ret == 0)
         txn.add_op();
@@ -202,7 +202,7 @@ thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::
 
     uint64_t txn_id = ((WT_SESSION_IMPL *)session.get())->txn->id;
     ret = op_tracker->save_operation(
-      txn_id, tracking_operation::DELETE_KEY, collection_id, key, "", ts, op_track_cursor);
+      txn_id, trackingOperation::DELETE_KEY, collection_id, key, "", ts, op_track_cursor);
 
     if (ret == 0)
         txn.add_op();

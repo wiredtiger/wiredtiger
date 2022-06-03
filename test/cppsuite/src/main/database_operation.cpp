@@ -68,7 +68,7 @@ populate_worker(thread_worker *tc)
 
 void
 database_operation::populate(
-  database &database, timestamp_manager *tsm, configuration *config, operation_tracker *op_tracker)
+  database &database, timestamp_manager *tsm, configuration *config, OperationTracker *op_tracker)
 {
     int64_t collection_count, key_count, key_size, thread_count, value_size;
     std::vector<thread_worker *> workers;

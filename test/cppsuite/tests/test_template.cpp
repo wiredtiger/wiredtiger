@@ -32,22 +32,22 @@
 
 namespace test_harness {
 /* Defines what data is written to the tracking table for use in custom validation. */
-class operation_tracker_template : public operation_tracker {
+class OperationTrackerTemplate : public OperationTracker {
 
     public:
-    operation_tracker_template(
+    OperationTrackerTemplate(
       configuration *config, const bool use_compression, timestamp_manager &tsm)
-        : operation_tracker(config, use_compression, tsm)
+        : OperationTracker(config, use_compression, tsm)
     {
     }
 
     void
-    set_tracking_cursor(const uint64_t txn_id, const tracking_operation &operation,
+    setTrackingCursor(const uint64_t txn_id, const trackingOperation &operation,
       const uint64_t &collection_id, const std::string &key, const std::string &value,
       wt_timestamp_t ts, scoped_cursor &op_track_cursor) override final
     {
         /* You can replace this call to define your own tracking table contents. */
-        operation_tracker::set_tracking_cursor(
+        OperationTracker::setTrackingCursor(
           txn_id, operation, collection_id, key, value, ts, op_track_cursor);
     }
 };
@@ -61,7 +61,7 @@ class test_template : public test {
     test_template(const test_args &args) : test(args)
     {
         init_operation_tracker(
-          new operation_tracker_template(_config->get_subconfig(operationTracker),
+          new OperationTrackerTemplate(_config->get_subconfig(operationTracker),
             _config->get_bool(compressionEnabled), *_timestamp_manager));
     }
 
@@ -73,7 +73,7 @@ class test_template : public test {
     }
 
     void
-    populate(database &, timestamp_manager *, configuration *, operation_tracker *) override final
+    populate(database &, timestamp_manager *, configuration *, OperationTracker *) override final
     {
         Logger::LogMessage(LOG_WARN, "populate: nothing done");
     }

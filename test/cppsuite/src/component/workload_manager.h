@@ -59,14 +59,14 @@ class workload_manager : public Component {
     bool db_populated() const;
 
     /* Set the tracking component. */
-    void set_operation_tracker(operation_tracker *op_tracker);
+    void set_operation_tracker(OperationTracker *op_tracker);
 
     private:
     database &_database;
     database_operation *_database_operation = nullptr;
     ThreadManager _thread_manager;
     timestamp_manager *_timestamp_manager = nullptr;
-    operation_tracker *_operation_tracker = nullptr;
+    OperationTracker *_operation_tracker = nullptr;
     std::vector<thread_worker *> _workers;
     bool _db_populated = false;
 };
