@@ -27,8 +27,12 @@ def dbg(ident, var):
 conn_impl_ptr = gdb.lookup_type("WT_CONNECTION_IMPL").pointer()
 dbg('impl', conn_impl_ptr)
 
-conn = gdb.parse_and_eval("session->iface->connection").reinterpret_cast(conn_impl_ptr).dereference()
-dbg('conn', conn)
+conn = gdb.parse_and_eval("((WT_SESSION_IMPL *)cursor->session)->iface->connection").reinterpret_cast(conn_impl_ptr).dereference()
+# dbg('conn', conn)
+
+dh = get_data_handle(conn, 'file:__wt0000.wt')
+dbg('dh', dh)
+dump_handle(dh)
 
 def walk_wt_list(lst):
     ret = []

@@ -275,6 +275,7 @@ leaf_only:
         if (recno == WT_INSERT_RECNO(ins)) {
             cbt->ins_head = ins_head;
             cbt->ins = ins;
+            cbt->recno = recno;
         }
     return (0);
 

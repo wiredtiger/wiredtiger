@@ -181,6 +181,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
     WT_UPDATE *upd;
+    WT_DECL_RET;
 
     *valid = false;
 
@@ -234,7 +235,12 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
      * update that's been deleted is not a valid key/value pair).
      */
     if (cbt->ins != NULL) {
-        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
+        ret = __wt_txn_read_upd_list(session, cbt, cbt->ins->upd);
+        WT_ASSERT(session,
+                  !cbt->iface.search_must_found || WT_IS_HS(session->dhandle) ||
+                  WT_IS_METADATA(session->dhandle) || ret == 0);
+        WT_RET(ret);
+
         if (cbt->upd_value->type != WT_UPDATE_INVALID) {
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
                 return (0);
@@ -347,7 +353,11 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
      * a history store record into the update list, the base update may be in the update list and we
      * must use it rather than falling back to the on-disk value as the base update.
      */
-    WT_RET(__wt_txn_read(session, cbt, key, recno, upd));
+    ret = __wt_txn_read(session, cbt, key, recno, upd);
+    WT_ASSERT(session,
+              !cbt->iface.search_must_found || WT_IS_HS(session->dhandle) ||
+              WT_IS_METADATA(session->dhandle) || ret == 0);
+    WT_RET(ret);
     if (cbt->upd_value->type != WT_UPDATE_INVALID) {
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
             return (0);
@@ -758,6 +768,9 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
         WT_ERR(__wt_btcur_evict_reposition(cbt));
 
 err:
+    WT_ASSERT(session,
+              !cbt->iface.search_must_found || WT_IS_HS(session->dhandle) ||
+              WT_IS_METADATA(session->dhandle) || ret == 0);
     if (ret != 0) {
         WT_TRET(__cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);

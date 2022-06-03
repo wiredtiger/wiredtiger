@@ -221,7 +221,9 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
         testutil_check(cursor->get_key(cursor, &key_tmp1));
 
         /* Retry the result of search_near again to confirm the result. */
+        cursor->search_must_found = true;
         if ((ret = cursor->search(cursor)) != 0) {
+            cursor->search_must_found = false;
             if (ret == WT_ROLLBACK)
                 return (WT_ROLLBACK);
 
@@ -240,6 +242,7 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
             __wt_abort((WT_SESSION_IMPL *)cursor->session);
             return (log_print_err("cursor.search", ret, 1));
         }
+        cursor->search_must_found = false;
         testutil_check(cursor->get_key(cursor, &key_tmp2));
 
         /* Run search_near once again to try to break stuff. */
@@ -321,7 +324,7 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
         }
         if (g.sweep_stress)
             testutil_check(cursor->reset(cursor));
-    } else if (new_val % 10 < 3) {
+    } else if (new_val % 39 < 3) {
         if ((ret = cursor->search(cursor)) != 0 && ret != WT_NOTFOUND) {
             if (ret == WT_ROLLBACK || ret == WT_PREPARE_CONFLICT)
                 return (WT_ROLLBACK);
@@ -330,7 +333,7 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
         if (g.sweep_stress)
             testutil_check(cursor->reset(cursor));
     } else {
-        if (new_val % 10 < 5) {
+        if (new_val % 39 < 5) {
             /* Do modify. */
             ret = cursor->search(cursor);
             if (ret == 0 && (type != FIX || !cursor_fix_at_zero(cursor))) {
