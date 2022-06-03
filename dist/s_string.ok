@@ -715,6 +715,7 @@ countp
 cp
 cplusplus
 cpp
+cppsuite
 cpuid
 crc
 create's
@@ -1586,6 +1587,7 @@ uu
 vN
 va
 valgrind
+validator
 valuep
 valuev
 vanishingly
