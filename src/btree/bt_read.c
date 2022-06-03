@@ -56,11 +56,15 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
     if (__wt_hazard_count(session, ref) > 1)
         return (false);
 
-    /* If we can do an in-memory split, do it. */
-    if (__wt_leaf_page_can_split(session, page))
-        return (true);
-    if (footprint < btree->maxmempage)
+    /*
+     * If the page is less than the maximum size and can be split in-memory, let's try that first
+     * without forcing the page to evict on release.
+     */
+    if (footprint < btree->maxmempage) {
+        if (__wt_leaf_page_can_split(session, page))
+            return (true);
         return (false);
+    }
 
     /* Bump the oldest ID, we're about to do some visibility checks. */
     WT_IGNORE_RET(__wt_txn_update_oldest(session, 0));
@@ -156,7 +160,7 @@ skip_read:
      * In the case of a fast delete, move all of the page's records to a deleted state based on the
      * fast-delete information. Skip for special commands that don't care about an in-memory state.
      */
-    if (ref->ft_info.del != NULL &&
+    if (previous_state == WT_REF_DELETED &&
       !F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY))
         WT_ERR(__wt_delete_page_instantiate(session, ref));
 

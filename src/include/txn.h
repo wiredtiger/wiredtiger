@@ -293,9 +293,11 @@ struct __wt_txn {
     wt_timestamp_t prepare_timestamp;
 
     /*
-     * Timestamp used for reading via a checkpoint cursor instead of txn_shared->read_timestamp.
+     * Timestamps used for reading via a checkpoint cursor instead of txn_shared->read_timestamp and
+     * the current oldest/pinned timestamp, respectively.
      */
     wt_timestamp_t checkpoint_read_timestamp;
+    wt_timestamp_t checkpoint_oldest_timestamp;
 
     /* Array of modifications by this transaction. */
     WT_TXN_OP *mod;
@@ -348,9 +350,10 @@ struct __wt_txn {
 #define WT_TXN_SHARED_TS_DURABLE 0x02000u
 #define WT_TXN_SHARED_TS_READ 0x04000u
 #define WT_TXN_SYNC_SET 0x08000u
-#define WT_TXN_TS_ROUND_PREPARED 0x10000u
-#define WT_TXN_TS_ROUND_READ 0x20000u
-#define WT_TXN_UPDATE 0x40000u
+#define WT_TXN_TS_NOT_SET 0x10000u
+#define WT_TXN_TS_ROUND_PREPARED 0x20000u
+#define WT_TXN_TS_ROUND_READ 0x40000u
+#define WT_TXN_UPDATE 0x80000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 

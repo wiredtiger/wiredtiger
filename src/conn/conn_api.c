@@ -1167,11 +1167,13 @@ err:
 
     /* Perform a final checkpoint and shut down the global transaction state. */
     WT_TRET(__wt_txn_global_shutdown(session, cfg));
+
     /*
-     * Tiered storage needs to flush any work after the final checkpoint which happens when the
-     * global transaction state is shut down. So this shutdown must come after.
+     * See if close should wait for tiered storage to finish any flushing after the final
+     * checkpoint.
      */
-    WT_TRET(__wt_tiered_storage_destroy(session));
+    WT_TRET(__wt_config_gets(session, cfg, "final_flush", &cval));
+    WT_TRET(__wt_tiered_storage_destroy(session, cval.val));
 
     if (ret != 0) {
         __wt_err(session, ret, "failure during close, disabling further writes");
@@ -2207,7 +2209,7 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
                         WT_ERR(__wt_buf_catfmt(session, buf, ", OVERWRITE"));
                     WT_ERR(__wt_msg(session, "  %s", (const char *)buf->data));
                 }
-                WT_ERR(__wt_msg(session, "  Flags: 0x%" PRIx32, cursor->flags));
+                WT_ERR(__wt_msg(session, "  Flags: 0x%" PRIx64, cursor->flags));
                 WT_ERR(__wt_msg(session, "  Key_format: %s, Value_format: %s",
                   cursor->key_format == NULL ? "EMPTY" : cursor->key_format,
                   cursor->value_format == NULL ? "EMPTY" : cursor->value_format));
@@ -2242,6 +2244,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
       {"backup_rename", WT_TIMING_STRESS_BACKUP_RENAME},
       {"checkpoint_reserved_txnid_delay", WT_TIMING_STRESS_CHECKPOINT_RESERVED_TXNID_DELAY},
       {"checkpoint_slow", WT_TIMING_STRESS_CHECKPOINT_SLOW},
+      {"checkpoint_stop", WT_TIMING_STRESS_CHECKPOINT_STOP},
       {"compact_slow", WT_TIMING_STRESS_COMPACT_SLOW},
       {"evict_reposition", WT_TIMING_STRESS_EVICT_REPOSITION},
       {"failpoint_history_delete_key_from_ts",

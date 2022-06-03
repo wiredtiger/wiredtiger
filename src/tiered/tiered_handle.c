@@ -129,6 +129,24 @@ __tiered_init_tiers(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_CONFIG_ITEM 
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_TIERED_TIERS *local_tier;
+    uint32_t object_id;
+    const char *cfg, *name;
+
+    if (session->import_list != NULL) {
+        /* Insert metadata for all tiered objects. */
+        for (object_id = tiered->oldest_id; object_id < tiered->current_id; object_id++) {
+            WT_RET(
+              __wt_tiered_name(session, &tiered->iface, object_id, WT_TIERED_NAME_OBJECT, &name));
+            ret = __wt_find_import_metadata(session, name, &cfg);
+            /*
+             * It's OK if some of the objects are not there. They may have been dropped before
+             * export.
+             */
+            WT_RET_NOTFOUND_OK(ret);
+            if (ret != WT_NOTFOUND)
+                WT_RET(__wt_metadata_insert(session, name, cfg));
+        }
+    }
 
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
     __wt_config_subinit(session, &cparser, tierconf);
@@ -137,6 +155,12 @@ __tiered_init_tiers(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_CONFIG_ITEM 
         WT_ERR(__wt_buf_fmt(session, tmp, "%.*s", (int)ckey.len, ckey.str));
         __wt_verbose(
           session, WT_VERB_TIERED, "INIT_TIERS: tiered URI dhandle %s", (char *)tmp->data);
+
+        if (session->import_list != NULL) {
+            WT_ERR(__wt_find_import_metadata(session, (const char *)tmp->data, &cfg));
+            WT_ERR(__wt_metadata_insert(session, (const char *)tmp->data, cfg));
+        }
+
         WT_SAVE_DHANDLE(session,
           ret = __tiered_dhandle_setup(
             session, tiered, WT_TIERED_INDEX_INVALID, (const char *)tmp->data));
@@ -336,21 +360,30 @@ __tiered_create_tier_tree(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     WT_TIERED_TIERS *this_tier;
     const char *cfg[3] = {NULL, NULL, NULL};
     const char *config, *name;
+    bool free_config;
 
+    free_config = true;
     config = name = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     /* Create tier:example for the new tiered tree. */
     WT_ERR(__wt_tiered_name(session, &tiered->iface, 0, WT_TIERED_NAME_SHARED, &name));
-    cfg[0] = WT_CONFIG_BASE(session, tier_meta);
-    WT_ASSERT(session, tiered->bstorage != NULL);
-    WT_ERR(__wt_buf_fmt(session, tmp,
-      ",readonly=true,tiered_object=true,tiered_storage=(bucket=%s,bucket_prefix=%s)",
-      tiered->bstorage->bucket, tiered->bstorage->bucket_prefix));
-    cfg[1] = tmp->data;
-    WT_ERR(__wt_config_merge(session, cfg, NULL, &config));
-    /* Set up a tier:example metadata for the first time. */
-    __wt_verbose(session, WT_VERB_TIERED, "CREATE_TIER_TREE: schema create: %s : %s", name, config);
+    if (session->import_list != NULL) {
+        WT_ERR(__wt_find_import_metadata(session, name, &config));
+        free_config = false;
+    } else {
+        cfg[0] = WT_CONFIG_BASE(session, tier_meta);
+        WT_ASSERT(session, tiered->bstorage != NULL);
+        WT_ERR(__wt_buf_fmt(session, tmp,
+          ",readonly=true,tiered_object=true,tiered_storage=(bucket=%s,bucket_prefix=%s)",
+          tiered->bstorage->bucket, tiered->bstorage->bucket_prefix));
+        cfg[1] = tmp->data;
+        WT_ERR(__wt_config_merge(session, cfg, NULL, &config));
+        /* Set up a tier:example metadata for the first time. */
+        __wt_verbose(
+          session, WT_VERB_TIERED, "CREATE_TIER_TREE: schema create: %s : %s", name, config);
+    }
+
     WT_ERR(__wt_schema_create(session, name, config));
     this_tier = &tiered->tiers[WT_TIERED_INDEX_SHARED];
     WT_ASSERT(session, this_tier->name == NULL);
@@ -361,9 +394,35 @@ __tiered_create_tier_tree(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 err:
         /* Only free on error. */
         __wt_free(session, name);
-    __wt_free(session, config);
+
+    if (free_config)
+        __wt_free(session, config);
+
     __wt_scr_free(session, &tmp);
     return (ret);
+}
+
+/*
+ * __tiered_cleanup_tiers --
+ *     Cleanup and dereference all tiers.
+ */
+static void
+__tiered_cleanup_tiers(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
+{
+    uint32_t i;
+
+    for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
+        /*
+         * Do not use tier's dhandle if it's a final cleanup, it may be invalid.
+         * __wt_conn_dhandle_discard is responsible for the proper destruction of all the dhandles.
+         */
+        if (tiered->tiers[i].tier != NULL && !final)
+            WT_WITH_DHANDLE(session, tiered->tiers[i].tier, __wt_cursor_dhandle_decr_use(session));
+
+        tiered->tiers[i].tier = NULL;
+        tiered->tiers[i].flags = 0;
+        __wt_free(session, tiered->tiers[i].name);
+    }
 }
 
 /*
@@ -399,13 +458,7 @@ err:
     __wt_verbose(session, WT_VERB_TIERED, "UPDATE_DH: DONE ret %d", ret);
     if (ret != 0) {
         /* Need to undo our dhandles. Close and dereference all. */
-        for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
-            if (tiered->tiers[i].tier != NULL)
-                (void)__wt_atomic_subi32(&tiered->tiers[i].tier->session_inuse, 1);
-            __wt_free(session, tiered->tiers[i].name);
-            tiered->tiers[i].tier = NULL;
-            tiered->tiers[i].name = NULL;
-        }
+        __tiered_cleanup_tiers(session, tiered, false);
     }
     return (ret);
 }
@@ -700,9 +753,12 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR_NOTFOUND_OK(ret, true);
 
     /* Open tiers if we have them, otherwise initialize. */
-    if (tiered->current_id != WT_TIERED_OBJECTID_NONE)
+    if (tiered->current_id != WT_TIERED_OBJECTID_NONE) {
         WT_ERR(__tiered_init_tiers(session, tiered, &tierconf));
-    else {
+        /* Switch to the next object if we are importing a table. */
+        if (session->import_list != NULL)
+            WT_ERR(__wt_tiered_switch(session, config));
+    } else {
         /*
          * The tiered table name does not exist. But now check if any shared storage objects exist
          * for this name. A user could have created a tiered table. Later dropped it, which removes
@@ -755,12 +811,33 @@ __wt_tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __tiered_cleanup --
+ *     Cleanup a tiered data handle.
+ */
+static void
+__tiered_cleanup(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
+{
+    /* Cleanup and dereference all tiers.  */
+    __tiered_cleanup_tiers(session, tiered, final);
+
+    /* Cleanup other fields in tiered structure. */
+    __wt_free(session, tiered->key_format);
+    __wt_free(session, tiered->value_format);
+    __wt_free(session, tiered->obj_config);
+    tiered->current_id = tiered->next_id = tiered->oldest_id = 0;
+    tiered->flags = 0;
+    tiered->bstorage = NULL;
+}
+
+/*
  * __wt_tiered_close --
  *     Close a tiered data handle.
  */
 int
-__wt_tiered_close(WT_SESSION_IMPL *session)
+__wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
 {
+    __tiered_cleanup(session, tiered, final);
+
     return (__wt_btree_close(session));
 }
 
@@ -769,24 +846,10 @@ __wt_tiered_close(WT_SESSION_IMPL *session)
  *     Discard a tiered data handle.
  */
 int
-__wt_tiered_discard(WT_SESSION_IMPL *session, WT_TIERED *tiered)
+__wt_tiered_discard(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
 {
-    uint32_t i;
-
-    __wt_free(session, tiered->key_format);
-    __wt_free(session, tiered->value_format);
-    __wt_free(session, tiered->obj_config);
+    __tiered_cleanup(session, tiered, final);
     __wt_verbose(session, WT_VERB_TIERED, "%s", "TIERED_CLOSE: called");
-    /*
-     * For the moment we don't have anything to return. But all the callers currently expect a real
-     * return value from a close function. And this may become more complex later. During connection
-     * close the other dhandles may be closed and freed before this dhandle. So just free the names.
-     */
-    for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
-        if (tiered->tiers[i].name != NULL)
-            __wt_free(session, tiered->tiers[i].name);
-    }
-
     return (__wt_btree_discard(session));
 }
 

@@ -818,8 +818,11 @@ __session_create(WT_SESSION *wt_session, const char *uri, const char *config)
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    bool is_import;
 
     session = (WT_SESSION_IMPL *)wt_session;
+    is_import = session->import_list != NULL ||
+      (__wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0);
     SESSION_API_CALL(session, create, config, cfg);
     WT_UNUSED(cfg);
 
@@ -853,6 +856,13 @@ err:
         WT_STAT_CONN_INCR(session, session_table_create_fail);
     else
         WT_STAT_CONN_INCR(session, session_table_create_success);
+
+    if (is_import) {
+        if (ret != 0)
+            WT_STAT_CONN_INCR(session, session_table_create_import_fail);
+        else
+            WT_STAT_CONN_INCR(session, session_table_create_import_success);
+    }
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -2085,6 +2095,12 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     session_ret->name = NULL;
     session_ret->id = i;
 
+    /*
+     * Initialize the pseudo random number generator. We're not seeding it, so all of the sessions
+     * initialize to the same value and proceed in lock step for the session's life. That's not a
+     * problem because sessions are long-lived and will diverge into different parts of the value
+     * space, and what we care about are small values, that is, the low-order bits.
+     */
     if (WT_SESSION_FIRST_USE(session_ret))
         __wt_random_init(&session_ret->rnd);
 

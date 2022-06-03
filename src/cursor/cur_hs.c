@@ -449,13 +449,11 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
             break;
 
         /*
-         * If the stop time pair on the tombstone in the history store is already globally visible
-         * we can skip it. But only if we aren't reading from a checkpoint. If we're reading from a
-         * checkpoint, we need to see the world as of the checkpoint, and visible-all checks refer
-         * to the current world.
+         * If the stop time pair on the tombstone in the history store is already globally visible,
+         * it is outdated and we must skip it rather than returning NOTFOUND. Subsequent entries
+         * might have later stop times and we might need to return one of them.
          */
-        if (!WT_READING_CHECKPOINT(session) &&
-          __wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
+        if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
             WT_STAT_CONN_DATA_INCR(session, cursor_prev_hs_tombstone);
             continue;
         }
@@ -548,13 +546,11 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
             break;
 
         /*
-         * If the stop time pair on the tombstone in the history store is already globally visible
-         * we can skip it. But only if we aren't reading from a checkpoint. If we're reading from a
-         * checkpoint, we need to see the world as of the checkpoint, and visible-all checks refer
-         * to the current world.
+         * If the stop time pair on the tombstone in the history store is already globally visible,
+         * it is outdated and we must skip it rather than returning NOTFOUND. Subsequent entries
+         * might have later stop times and we might need to return one of them.
          */
-        if (!WT_READING_CHECKPOINT(session) &&
-          __wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
+        if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
             WT_STAT_CONN_DATA_INCR(session, cursor_next_hs_tombstone);
             continue;
         }
@@ -943,6 +939,8 @@ __curhs_insert(WT_CURSOR *cursor)
      * update as the update after the tombstone.
      */
     if (WT_TIME_WINDOW_HAS_STOP(&hs_cursor->time_window)) {
+        /* We should not see a tombstone with max transaction id. */
+        WT_ASSERT(session, hs_cursor->time_window.stop_txn != WT_TXN_MAX);
         /*
          * Insert a delete record to represent stop time point for the actual record to be inserted.
          * Set the stop time point as the commit time point of the history store delete record.
@@ -972,14 +970,18 @@ __curhs_insert(WT_CURSOR *cursor)
 #ifdef HAVE_DIAGNOSTIC
     /* Do a search again and call next to check the key order. */
     ret = __curhs_file_cursor_search_near(session, file_cursor, &exact);
-    WT_ASSERT(session, ret == 0);
+    /* We can get not found if the inserted history store record is obsolete. */
+    WT_ASSERT(session, ret == 0 || ret == WT_NOTFOUND);
+
     /*
      * If a globally visible tombstone is inserted and the page is evicted during search_near then
      * the key would be removed. Hence, a search_near would return a non-zero exact value.
      * Therefore, check that exact is zero before calling next.
      */
-    if (exact == 0)
+    if (ret == 0 && exact == 0)
         WT_ERR_NOTFOUND_OK(__curhs_file_cursor_next(session, file_cursor), false);
+    else if (ret == WT_NOTFOUND)
+        ret = 0;
 #endif
 
     /* Insert doesn't maintain a position across calls, clear resources. */
@@ -1144,8 +1146,9 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
       __curhs_update,                                 /* update */
       __curhs_remove,                                 /* remove */
       __wt_cursor_notsup,                             /* reserve */
-      __wt_cursor_reconfigure_notsup,                 /* reconfigure */
+      __wt_cursor_config_notsup,                      /* reconfigure */
       __wt_cursor_notsup,                             /* largest_key */
+      __wt_cursor_config_notsup,                      /* bound */
       __wt_cursor_notsup,                             /* cache */
       __wt_cursor_reopen_notsup,                      /* reopen */
       __wt_cursor_checkpoint_id,                      /* checkpoint ID */

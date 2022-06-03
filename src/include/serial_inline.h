@@ -229,7 +229,9 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     upd = *updp;
     *updp = NULL;
 
-    prev_upd_ts = (upd == NULL) ? WT_TS_NONE : upd->prev_durable_ts;
+    WT_ASSERT(session, upd != NULL);
+
+    prev_upd_ts = upd->prev_durable_ts;
 
     /*
      * All structure setup must be flushed before the structure is entered into the list. We need a
@@ -239,8 +241,8 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      * Check if our update is still permitted.
      */
     while (!__wt_atomic_cas_ptr(srch_upd, upd->next, upd)) {
-        if ((ret = __wt_txn_modify_check(session, cbt, upd->next = *srch_upd, &prev_upd_ts,
-               (upd == NULL) ? WT_UPDATE_INVALID : upd->type)) != 0) {
+        if ((ret = __wt_txn_modify_check(
+               session, cbt, upd->next = *srch_upd, &prev_upd_ts, upd->type)) != 0) {
             /* Free unused memory on error. */
             __wt_free(session, upd);
             return (ret);
@@ -280,7 +282,15 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
         obsolete_timestamp = page->modify->obsolete_check_timestamp;
         if (!__wt_txn_visible_all(session, txn, obsolete_timestamp)) {
             /* Try to move the oldest ID forward and re-check. */
-            WT_RET(__wt_txn_update_oldest(session, 0));
+            ret = __wt_txn_update_oldest(session, 0);
+            /*
+             * We cannot proceed if we fail here as we have inserted the updates to the update
+             * chain. Panic instead. Currently, we don't ever return any error from
+             * __wt_txn_visible_all. We can catch it if we start to do so in the future and properly
+             * handle it.
+             */
+            if (ret != 0)
+                WT_RET_PANIC(session, ret, "fail to update oldest after serializing the updates");
 
             if (!__wt_txn_visible_all(session, txn, obsolete_timestamp))
                 return (0);

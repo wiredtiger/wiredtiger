@@ -1,29 +1,5 @@
 project(unittest CXX)
 
-Include(FetchContent)
-
-FetchContent_Declare(
-    Catch2
-    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-    GIT_TAG        v2.13.8
-)
-
-
-# Note, the preferred solution of using FetchContent_MakeAvailable()
-# is not available in 3.11.0 (it arrived in 3.11.4), so we do some extra steps to achieve the same result.
-#
-# See https://cmake.org/cmake/help/v3.23/module/FetchContent.html
-#
-# Once we can rely on having 3.11.4 or greater, then the following call can be restored, and the
-# code between the Start and End comments below can be removed.
-
-# FetchContent_MakeAvailable(Catch2)
-
-# Start of code that achieves what FetchContent_MakeAvailable(Catch2) would do.
-FetchContent_Populate(Catch2)
-add_subdirectory(${catch2_SOURCE_DIR} ${catch2_BINARY_DIR})
-# End of code that achieves what FetchContent_MakeAvailable(Catch2) would do.
-
 set(unittest_sources
     tests/main.cpp
     tests/test_crc32.cpp
@@ -42,9 +18,16 @@ set(unittest_sources
     tests/wrappers/mock_session.cpp
 )
 
+# Disable 4200 warning on windows, its related to struct definitions with zero sized arrays.
+if(WT_WIN)
+    set(UNITTEST_FLAGS /wd4200)
+else()
+    set(UNITTEST_FLAGS -Wno-missing-declarations)
+endif()
+
 create_test_executable(unittests
     SOURCES ${unittest_sources}
-    FLAGS -Wno-missing-declarations
+    FLAGS ${UNITTEST_FLAGS}
     CXX
 )
 

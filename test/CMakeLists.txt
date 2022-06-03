@@ -20,6 +20,10 @@ add_subdirectory(manydbs)
 add_subdirectory(csuite)
 add_subdirectory(packing)
 
+if(HAVE_UNITTEST)
+    add_subdirectory(unittest)
+endif()
+
 # We currently don't support these tests on non-POSIX systems since they are designed around the
 # existence of POSIX utilities (e.g. certain bash/sh commands, pthreads) or certain system headers
 # e.g Linux signals.
@@ -30,10 +34,6 @@ if(WT_POSIX)
     add_subdirectory(syscall)
     add_subdirectory(thread)
     add_subdirectory(cppsuite)
-
-    if(HAVE_UNITTEST)
-        add_subdirectory(unittest)
-    endif()
 
     if(ENABLE_LLVM)
         # The fuzz test only works with llvm compilers. Restrict compilation of this test to only
