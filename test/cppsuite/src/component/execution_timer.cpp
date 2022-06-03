@@ -31,35 +31,35 @@
 #include "metrics_writer.h"
 
 namespace test_harness {
-execution_timer::execution_timer(const std::string id, const std::string &test_name)
-    : _id(id), _test_name(test_name), _it_count(0), _total_time_taken(0)
+ExecutionTimer::ExecutionTimer(const std::string id, const std::string &testname)
+    : _id(id), _testName(testname), _iterationCount(0), _totalClockTime(0)
 {
 }
 
 void
-execution_timer::append_stats()
+ExecutionTimer::AppendStatistics()
 {
-    uint64_t avg = (uint64_t)_total_time_taken / _it_count;
+    uint64_t avg = (uint64_t)_totalClockTime / _iterationCount;
     std::string stat = "{\"name\":\"" + _id + "\",\"value\":" + std::to_string(avg) + "}";
     metrics_writer::instance().add_stat(stat);
 }
 
 template <typename T>
 auto
-execution_timer::track(T lambda)
+ExecutionTimer::Track(T lambda)
 {
-    auto _start_time = std::chrono::steady_clock::now();
+    auto start = std::chrono::steady_clock::now();
     int ret = lambda();
-    auto _end_time = std::chrono::steady_clock::now();
-    _total_time_taken += (_end_time - _start_time).count();
-    _it_count += 1;
+    auto end = std::chrono::steady_clock::now();
+    _totalClockTime += (end - start).count();
+    _iterationCount += 1;
 
     return ret;
 }
 
-execution_timer::~execution_timer()
+ExecutionTimer::~ExecutionTimer()
 {
-    if (_it_count != 0)
-        append_stats();
+    if (_iterationCount != 0)
+        AppendStatistics();
 }
 }; // namespace test_harness

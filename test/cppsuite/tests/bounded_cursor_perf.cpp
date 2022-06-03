@@ -66,10 +66,10 @@ class bounded_cursor_perf : public test {
         int range_ret_next, range_ret_prev, ret_next, ret_prev;
 
         /* Initialize the different timers for each function. */
-        execution_timer bounded_next("bounded_next", test::_args.test_name);
-        execution_timer default_next("default_next", test::_args.test_name);
-        execution_timer bounded_prev("bounded_prev", test::_args.test_name);
-        execution_timer default_prev("default_prev", test::_args.test_name);
+        ExecutionTimer bounded_next("bounded_next", test::_args.test_name);
+        ExecutionTimer default_next("default_next", test::_args.test_name);
+        ExecutionTimer bounded_prev("bounded_prev", test::_args.test_name);
+        ExecutionTimer default_prev("default_prev", test::_args.test_name);
 
         /* Get the collection to work on. */
         testutil_assert(tc->collection_count == 1);
@@ -90,16 +90,16 @@ class bounded_cursor_perf : public test {
 
         while (tc->running()) {
             while (ret_next != WT_NOTFOUND && ret_prev != WT_NOTFOUND && tc->running()) {
-                range_ret_next = bounded_next.track([&next_range_cursor]() -> int {
+                range_ret_next = bounded_next.Track([&next_range_cursor]() -> int {
                     return next_range_cursor->next(next_range_cursor.get());
                 });
-                ret_next = default_next.track(
+                ret_next = default_next.Track(
                   [&next_cursor]() -> int { return next_cursor->next(next_cursor.get()); });
 
-                range_ret_prev = bounded_prev.track([&prev_range_cursor]() -> int {
+                range_ret_prev = bounded_prev.Track([&prev_range_cursor]() -> int {
                     return prev_range_cursor->prev(prev_range_cursor.get());
                 });
-                ret_prev = default_prev.track(
+                ret_prev = default_prev.Track(
                   [&prev_cursor]() -> int { return prev_cursor->prev(prev_cursor.get()); });
 
                 testutil_assert((ret_next == 0 || ret_next == WT_NOTFOUND) &&
