@@ -34,73 +34,73 @@
 
 namespace test_harness {
 
-statistics::statistics(configuration &config, const std::string &stat_name, int stat_field)
-    : field(stat_field), max(config.get_int(maxConfig)), min(config.get_int(minConfig)),
-      name(stat_name), postrun(config.get_bool(postrunStatistics)),
+Statistics::Statistics(configuration &config, const std::string &statName, int statField)
+    : field(statField), max(config.get_int(maxConfig)), min(config.get_int(minConfig)),
+      name(statName), postrun(config.get_bool(postrunStatistics)),
       runtime(config.get_bool(runtimeStatistics)), save(config.get_bool(saveConfig))
 {
 }
 
 void
-statistics::check(scoped_cursor &cursor)
+Statistics::Check(scoped_cursor &cursor)
 {
-    int64_t stat_value;
-    metrics_monitor::get_stat(cursor, field, &stat_value);
-    if (stat_value < min || stat_value > max) {
-        const std::string error_string = "metrics_monitor: Postrun stat \"" + name +
+    int64_t value;
+    metrics_monitor::get_stat(cursor, field, &value);
+    if (value < min || value > max) {
+        const std::string error = "metrics_monitor: Postrun stat \"" + name +
           "\" was outside of the specified limits. Min=" + std::to_string(min) +
-          " Max=" + std::to_string(max) + " Actual=" + std::to_string(stat_value);
-        testutil_die(-1, error_string.c_str());
+          " Max=" + std::to_string(max) + " Actual=" + std::to_string(value);
+        testutil_die(-1, error.c_str());
     } else
-        Logger::LogMessage(LOG_TRACE, name + " usage: " + std::to_string(stat_value));
+        Logger::LogMessage(LOG_TRACE, name + " usage: " + std::to_string(value));
 }
 
 std::string
-statistics::get_value_str(scoped_cursor &cursor)
+Statistics::GetValueString(scoped_cursor &cursor)
 {
-    int64_t stat_value;
-    metrics_monitor::get_stat(cursor, field, &stat_value);
-    return std::to_string(stat_value);
+    int64_t value;
+    metrics_monitor::get_stat(cursor, field, &value);
+    return std::to_string(value);
 }
 
 int
-statistics::get_field() const
+Statistics::GetField() const
 {
     return field;
 }
 
 int64_t
-statistics::get_max() const
+Statistics::GetMax() const
 {
     return max;
 }
 
 int64_t
-statistics::get_min() const
+Statistics::GetMin() const
 {
     return min;
 }
 
 const std::string &
-statistics::get_name() const
+Statistics::GetName() const
 {
     return name;
 }
 
 bool
-statistics::get_postrun() const
+Statistics::IsPostRunCheckEnabled() const
 {
     return postrun;
 }
 
 bool
-statistics::get_runtime() const
+Statistics::IsRuntimeCheckEnabled() const
 {
     return runtime;
 }
 
 bool
-statistics::get_save() const
+Statistics::IsSaveEnabled() const
 {
     return save;
 }

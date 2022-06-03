@@ -36,26 +36,26 @@
 
 namespace test_harness {
 
-class statistics {
+class Statistics {
     public:
-    statistics() = default;
-    statistics(configuration &config, const std::string &stat_name, int stat_field);
-    virtual ~statistics() = default;
+    Statistics() = default;
+    Statistics(configuration &config, const std::string &statName, int statField);
+    virtual ~Statistics() = default;
 
     /* Check that the statistics are within bounds. */
-    virtual void check(scoped_cursor &cursor);
+    virtual void Check(scoped_cursor &cursor);
 
     /* Retrieve the value associated to the stat in a string format. */
-    virtual std::string get_value_str(scoped_cursor &cursor);
+    virtual std::string GetValueString(scoped_cursor &cursor);
 
     /* Getters. */
-    int get_field() const;
-    int64_t get_max() const;
-    int64_t get_min() const;
-    const std::string &get_name() const;
-    bool get_postrun() const;
-    bool get_runtime() const;
-    bool get_save() const;
+    int GetField() const;
+    int64_t GetMax() const;
+    int64_t GetMin() const;
+    const std::string &GetName() const;
+    bool IsPostRunCheckEnabled() const;
+    bool IsRuntimeCheckEnabled() const;
+    bool IsSaveEnabled() const;
 
     protected:
     int field;

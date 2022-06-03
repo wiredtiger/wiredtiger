@@ -65,7 +65,7 @@ class metrics_monitor : public component {
     scoped_session _session;
     scoped_cursor _cursor;
     const std::string _test_name;
-    std::vector<std::unique_ptr<statistics>> _stats;
+    std::vector<std::unique_ptr<Statistics>> _stats;
     database &_database;
 };
 } // namespace test_harness

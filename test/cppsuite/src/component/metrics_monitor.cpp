@@ -94,12 +94,12 @@ metrics_monitor::load()
           new database_size(*stat_config, statisticsDatabaseSize, _database)));
 
         stat_config.reset(_config->get_subconfig(cacheHsInsert));
-        _stats.push_back(std::unique_ptr<statistics>(
-          new statistics(*stat_config, cacheHsInsert, get_stat_field(cacheHsInsert))));
+        _stats.push_back(std::unique_ptr<Statistics>(
+          new Statistics(*stat_config, cacheHsInsert, get_stat_field(cacheHsInsert))));
 
         stat_config.reset(_config->get_subconfig(ccPagesRemoved));
-        _stats.push_back(std::unique_ptr<statistics>(
-          new statistics(*stat_config, ccPagesRemoved, get_stat_field(ccPagesRemoved))));
+        _stats.push_back(std::unique_ptr<Statistics>(
+          new Statistics(*stat_config, ccPagesRemoved, get_stat_field(ccPagesRemoved))));
 
         /* Open our statistic cursor. */
         _session = connection_manager::instance().create_session();
@@ -112,8 +112,8 @@ metrics_monitor::do_work()
 {
     /* Check runtime statistics. */
     for (const auto &stat : _stats) {
-        if (stat->get_runtime())
-            stat->check(_cursor);
+        if (stat->IsRuntimeCheckEnabled())
+            stat->Check(_cursor);
     }
 }
 
@@ -126,21 +126,21 @@ metrics_monitor::finish()
 
     for (const auto &stat : _stats) {
 
-        const std::string stat_name = stat->get_name();
+        const std::string stat_name = stat->GetName();
 
         /* Append stats to the statistics writer if it needs to be saved. */
-        if (stat->get_save()) {
+        if (stat->IsSaveEnabled()) {
             auto stat_str =
-              "{\"name\":\"" + stat_name + "\",\"value\":" + stat->get_value_str(_cursor) + "}";
+              "{\"name\":\"" + stat_name + "\",\"value\":" + stat->GetValueString(_cursor) + "}";
             metrics_writer::instance().add_stat(stat_str);
         }
 
-        if (!stat->get_postrun())
+        if (!stat->IsPostRunCheckEnabled())
             continue;
 
-        int64_t stat_max = stat->get_max();
-        int64_t stat_min = stat->get_min();
-        int64_t stat_value = std::stoi(stat->get_value_str(_cursor));
+        int64_t stat_max = stat->GetMax();
+        int64_t stat_min = stat->GetMin();
+        int64_t stat_value = std::stoi(stat->GetValueString(_cursor));
 
         if (stat_value < stat_min || stat_value > stat_max) {
             const std::string error_string = "metrics_monitor: Postrun stat \"" + stat_name +

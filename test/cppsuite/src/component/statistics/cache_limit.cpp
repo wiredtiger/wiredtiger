@@ -38,12 +38,12 @@ extern "C" {
 namespace test_harness {
 
 cache_limit::cache_limit(configuration &config, const std::string &name)
-    : statistics(config, name, -1)
+    : Statistics(config, name, -1)
 {
 }
 
 void
-cache_limit::check(scoped_cursor &cursor)
+cache_limit::Check(scoped_cursor &cursor)
 {
     double use_percent = get_cache_value(cursor);
     if (use_percent > max) {
@@ -56,7 +56,7 @@ cache_limit::check(scoped_cursor &cursor)
 }
 
 std::string
-cache_limit::get_value_str(scoped_cursor &cursor)
+cache_limit::GetValueString(scoped_cursor &cursor)
 {
     return std::to_string(get_cache_value(cursor));
 }

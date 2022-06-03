@@ -49,7 +49,7 @@ collection_name_to_file_name(const std::string &collection_name)
 }
 
 database_size::database_size(configuration &config, const std::string &name, database &database)
-    : statistics(config, name, -1), _database(database)
+    : Statistics(config, name, -1), _database(database)
 {
 #ifdef _WIN32
     Logger::LogMessage("Database size checking is not implemented on Windows", LOG_ERROR);
@@ -57,7 +57,7 @@ database_size::database_size(configuration &config, const std::string &name, dat
 }
 
 void
-database_size::check(scoped_cursor &)
+database_size::Check(scoped_cursor &)
 {
 #ifndef _WIN32
     const auto file_names = get_file_names();
@@ -74,7 +74,7 @@ database_size::check(scoped_cursor &)
 }
 
 std::string
-database_size::get_value_str(scoped_cursor &)
+database_size::GetValueString(scoped_cursor &)
 {
     return std::to_string(get_db_size());
 }
