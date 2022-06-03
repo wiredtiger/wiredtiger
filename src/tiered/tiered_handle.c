@@ -414,10 +414,8 @@ __tiered_cleanup_tiers(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
          * Do not use tier's dhandle if it's a final cleanup, it may be invalid.
          * __wt_conn_dhandle_discard is responsible for the proper destruction of all the dhandles.
          */
-        if (tiered->tiers[i].tier != NULL && !final) {
-            WT_ASSERT(session, tiered->tiers[i].tier->session_inuse > 0);
+        if (tiered->tiers[i].tier != NULL && !final)
             WT_WITH_DHANDLE(session, tiered->tiers[i].tier, __wt_cursor_dhandle_decr_use(session));
-        }
 
         tiered->tiers[i].tier = NULL;
         tiered->tiers[i].flags = 0;
