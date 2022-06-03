@@ -30,37 +30,37 @@
 
 namespace test_harness {
 void
-metrics_writer::add_stat(const std::string &stat_string)
+MetricsWriter::AddStatistics(const std::string &statistics)
 {
-    std::lock_guard<std::mutex> lg(_stat_mutex);
-    _stats.push_back(stat_string);
+    std::lock_guard<std::mutex> lg(_mutex);
+    _statistics.push_back(statistics);
 }
 
 void
-metrics_writer::output_perf_file(const std::string &test_name)
+MetricsWriter::WriteToFile(const std::string &testName)
 {
-    std::ofstream perf_file;
-    std::string stat_info = "[{\"info\":{\"test_name\": \"" + test_name + "\"},\"metrics\": [";
+    std::ofstream file;
+    std::string json = "[{\"info\":{\"test_name\": \"" + testName + "\"},\"metrics\": [";
 
-    perf_file.open(test_name + ".json");
+    file.open(testName + ".json");
 
-    for (const auto &stat : _stats)
-        stat_info += stat + ",";
+    for (const auto &stat : _statistics)
+        json += stat + ",";
 
     /* Remove last extra comma. */
-    if (stat_info.back() == ',')
-        stat_info.pop_back();
+    if (json.back() == ',')
+        json.pop_back();
 
-    perf_file << stat_info << "]}]";
-    perf_file.close();
+    file << json << "]}]";
+    file.close();
 }
 
-metrics_writer &
-metrics_writer::instance()
+MetricsWriter &
+MetricsWriter::GetInstance()
 {
-    static metrics_writer _instance;
+    static MetricsWriter _instance;
     return (_instance);
 }
 
-metrics_writer::metrics_writer() {}
+MetricsWriter::MetricsWriter() {}
 } // namespace test_harness

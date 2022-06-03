@@ -54,7 +54,7 @@ class Component {
     virtual void Load();
 
     /*
-     * The run function provides a top level loop that calls the doWork function every X seconds as
+     * The run function provides a top level loop that calls the DoWork function every X seconds as
      * defined by the sleep time. Each run() method defined by the components is called in its own
      * thread by the top level test class.
      *
@@ -66,8 +66,8 @@ class Component {
     void EndRun();
 
     /*
-     * doWork is called every X seconds as defined by the sleep time. Generally most components
-     * should do their "operation" in the doWork function.
+     * DoWork is called every X seconds as defined by the sleep time. Generally most components
+     * should do their "operation" in the DoWork function.
      */
     virtual void DoWork();
 

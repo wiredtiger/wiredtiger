@@ -41,7 +41,7 @@ ExecutionTimer::AppendStatistics()
 {
     uint64_t avg = (uint64_t)_totalClockTime / _iterationCount;
     std::string stat = "{\"name\":\"" + _id + "\",\"value\":" + std::to_string(avg) + "}";
-    metrics_writer::instance().add_stat(stat);
+    MetricsWriter::GetInstance().AddStatistics(stat);
 }
 
 template <typename T>

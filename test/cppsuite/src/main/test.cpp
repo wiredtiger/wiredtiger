@@ -176,7 +176,7 @@ test::run()
     }
 
     /* Log perf stats. */
-    metrics_writer::instance().output_perf_file(_args.test_name);
+    MetricsWriter::GetInstance().WriteToFile(_args.test_name);
 
     Logger::LogMessage(LOG_INFO, "SUCCESS");
 }

@@ -36,22 +36,22 @@
 
 namespace test_harness {
 /* Singleton class that can write statistics to a file. */
-class metrics_writer {
+class MetricsWriter {
     public:
-    static metrics_writer &instance();
+    static MetricsWriter &GetInstance();
 
     public:
     /* No copies of the singleton allowed. */
-    metrics_writer(metrics_writer const &) = delete;
-    metrics_writer &operator=(metrics_writer const &) = delete;
+    MetricsWriter(MetricsWriter const &) = delete;
+    MetricsWriter &operator=(MetricsWriter const &) = delete;
 
-    void add_stat(const std::string &stat_string);
-    void output_perf_file(const std::string &test_name);
+    void AddStatistics(const std::string &statistics);
+    void WriteToFile(const std::string &testName);
 
     private:
-    metrics_writer();
-    std::vector<std::string> _stats;
-    std::mutex _stat_mutex;
+    MetricsWriter();
+    std::vector<std::string> _statistics;
+    std::mutex _mutex;
 };
 } // namespace test_harness
 
