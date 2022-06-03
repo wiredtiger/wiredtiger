@@ -37,45 +37,44 @@ extern "C" {
 
 namespace test_harness {
 
-cache_limit::cache_limit(configuration &config, const std::string &name)
+CacheLimit::CacheLimit(configuration &config, const std::string &name)
     : Statistics(config, name, -1)
 {
 }
 
 void
-cache_limit::Check(scoped_cursor &cursor)
+CacheLimit::Check(scoped_cursor &cursor)
 {
-    double use_percent = get_cache_value(cursor);
-    if (use_percent > max) {
-        const std::string error_string =
+    double cacheUsage = GetCacheUsagePercentage(cursor);
+    if (cacheUsage > max) {
+        const std::string error =
           "metrics_monitor: Cache usage exceeded during test! Limit: " + std::to_string(max) +
-          " usage: " + std::to_string(use_percent);
-        testutil_die(-1, error_string.c_str());
+          " usage: " + std::to_string(cacheUsage);
+        testutil_die(-1, error.c_str());
     } else
-        Logger::LogMessage(LOG_TRACE, name + " usage: " + std::to_string(use_percent));
+        Logger::LogMessage(LOG_TRACE, name + " usage: " + std::to_string(cacheUsage));
 }
 
 std::string
-cache_limit::GetValueString(scoped_cursor &cursor)
+CacheLimit::GetValueString(scoped_cursor &cursor)
 {
-    return std::to_string(get_cache_value(cursor));
+    return std::to_string(GetCacheUsagePercentage(cursor));
 }
 
 double
-cache_limit::get_cache_value(scoped_cursor &cursor)
+CacheLimit::GetCacheUsagePercentage(scoped_cursor &cursor)
 {
-    int64_t cache_bytes_image, cache_bytes_other, cache_bytes_max;
-    double use_percent;
+    int64_t cacheBytesImage, cacheBytesOther, cacheBytesMax;
     /* Three statistics are required to compute cache use percentage. */
-    metrics_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_IMAGE, &cache_bytes_image);
-    metrics_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_OTHER, &cache_bytes_other);
-    metrics_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_MAX, &cache_bytes_max);
+    metrics_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_IMAGE, &cacheBytesImage);
+    metrics_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_OTHER, &cacheBytesOther);
+    metrics_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_MAX, &cacheBytesMax);
     /*
      * Assert that we never exceed our configured limit for cache usage. Add 0.0 to avoid floating
      * point conversion errors.
      */
-    testutil_assert(cache_bytes_max > 0);
-    use_percent = ((cache_bytes_image + cache_bytes_other + 0.0) / cache_bytes_max) * 100;
-    return use_percent;
+    testutil_assert(cacheBytesMax > 0);
+    double cacheUsage = ((cacheBytesImage + cacheBytesOther + 0.0) / cacheBytesMax) * 100;
+    return cacheUsage;
 }
 } // namespace test_harness

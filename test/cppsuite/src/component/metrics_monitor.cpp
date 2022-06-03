@@ -87,7 +87,7 @@ metrics_monitor::load()
 
         std::unique_ptr<configuration> stat_config(_config->get_subconfig(statisticsCacheSize));
         _stats.push_back(
-          std::unique_ptr<cache_limit>(new cache_limit(*stat_config, statisticsCacheSize)));
+          std::unique_ptr<CacheLimit>(new CacheLimit(*stat_config, statisticsCacheSize)));
 
         stat_config.reset(_config->get_subconfig(statisticsDatabaseSize));
         _stats.push_back(std::unique_ptr<database_size>(
