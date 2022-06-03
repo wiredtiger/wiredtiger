@@ -37,18 +37,18 @@ extern "C" {
 namespace test_harness {
 
 static std::string
-collection_name_to_file_name(const std::string &collection_name)
+ConvertCollectionNameToFilename(const std::string &collectionName)
 {
     /* Strip out the URI prefix. */
-    const size_t colon_pos = collection_name.find(':');
-    testutil_assert(colon_pos != std::string::npos);
-    const auto stripped_name = collection_name.substr(colon_pos + 1);
+    const size_t colonPos = collectionName.find(':');
+    testutil_assert(colonPos != std::string::npos);
+    const auto strippedName = collectionName.substr(colonPos + 1);
 
     /* Now add the directory and file extension. */
-    return (std::string(DEFAULT_DIR) + "/" + stripped_name + ".wt");
+    return (std::string(DEFAULT_DIR) + "/" + strippedName + ".wt");
 }
 
-database_size::database_size(configuration &config, const std::string &name, database &database)
+DatabaseSize::DatabaseSize(configuration &config, const std::string &name, database &database)
     : Statistics(config, name, -1), _database(database)
 {
 #ifdef _WIN32
@@ -57,58 +57,59 @@ database_size::database_size(configuration &config, const std::string &name, dat
 }
 
 void
-database_size::Check(scoped_cursor &)
+DatabaseSize::Check(scoped_cursor &)
 {
 #ifndef _WIN32
-    const auto file_names = get_file_names();
-    size_t db_size = get_db_size();
-    Logger::LogMessage(LOG_TRACE, "Current database size is " + std::to_string(db_size) + " bytes");
+    const auto filenames = GetFilenames();
+    size_t databaseSize = GetDatabaseSize();
+    Logger::LogMessage(
+      LOG_TRACE, "Current database size is " + std::to_string(databaseSize) + " bytes");
 
-    if (db_size > max) {
-        const std::string error_string =
+    if (databaseSize > max) {
+        const std::string error =
           "metrics_monitor: Database size limit exceeded during test! Limit: " +
-          std::to_string(max) + " db size: " + std::to_string(db_size);
-        testutil_die(-1, error_string.c_str());
+          std::to_string(max) + " db size: " + std::to_string(databaseSize);
+        testutil_die(-1, error.c_str());
     }
 #endif
 }
 
 std::string
-database_size::GetValueString(scoped_cursor &)
+DatabaseSize::GetValueString(scoped_cursor &)
 {
-    return std::to_string(get_db_size());
+    return std::to_string(GetDatabaseSize());
 }
 
 size_t
-database_size::get_db_size() const
+DatabaseSize::GetDatabaseSize() const
 {
-    const auto file_names = get_file_names();
-    size_t db_size = 0;
+    const auto fileNames = GetFilenames();
+    size_t databaseSize = 0;
 
-    for (const auto &name : file_names) {
+    for (const auto &name : fileNames) {
         struct stat sb;
         if (stat(name.c_str(), &sb) == 0) {
-            db_size += sb.st_size;
+            databaseSize += sb.st_size;
             Logger::LogMessage(LOG_TRACE, name + " was " + std::to_string(sb.st_size) + " bytes");
         } else
             /* The only good reason for this to fail is if the file hasn't been created yet. */
             testutil_assert(errno == ENOENT);
     }
 
-    return db_size;
+    return databaseSize;
 }
 
 const std::vector<std::string>
-database_size::get_file_names() const
+DatabaseSize::GetFilenames() const
 {
-    std::vector<std::string> file_names;
+    std::vector<std::string> fileNames;
     for (const auto &name : _database.get_collection_names())
-        file_names.push_back(collection_name_to_file_name(name));
+        fileNames.push_back(ConvertCollectionNameToFilename(name));
 
     /* Add WiredTiger internal tables. */
-    file_names.push_back(std::string(DEFAULT_DIR) + "/" + WT_HS_FILE);
-    file_names.push_back(std::string(DEFAULT_DIR) + "/" + WT_METAFILE);
+    fileNames.push_back(std::string(DEFAULT_DIR) + "/" + WT_HS_FILE);
+    fileNames.push_back(std::string(DEFAULT_DIR) + "/" + WT_METAFILE);
 
-    return (file_names);
+    return (fileNames);
 }
 } // namespace test_harness
