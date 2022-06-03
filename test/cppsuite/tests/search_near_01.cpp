@@ -252,9 +252,9 @@ class search_near_01 : public test {
          */
         expected_entries = keys_per_prefix * pow(ALPHABET.size(), PREFIX_KEY_LEN - srchkey_len);
         while (tc->running()) {
-            metrics_monitor::get_stat(
+            MetricsMonitor::GetStatistics(
               tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &prev_entries_stat);
-            metrics_monitor::get_stat(tc->stat_cursor,
+            MetricsMonitor::GetStatistics(tc->stat_cursor,
               WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prev_prefix_stat);
 
             ThreadManager tm;
@@ -277,9 +277,9 @@ class search_near_01 : public test {
             }
             workers.clear();
 
-            metrics_monitor::get_stat(
+            MetricsMonitor::GetStatistics(
               tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entries_stat);
-            metrics_monitor::get_stat(
+            MetricsMonitor::GetStatistics(
               tc->stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prefix_stat);
             Logger::LogMessage(LOG_TRACE,
               "Read thread skipped entries: " + std::to_string(entries_stat - prev_entries_stat) +

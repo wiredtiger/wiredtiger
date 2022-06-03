@@ -51,7 +51,7 @@ namespace test_harness {
  * time we want to observe a new postrun statistic.
  */
 inline int
-get_stat_field(const std::string &name)
+GetStatisticsField(const std::string &name)
 {
     if (name == cacheHsInsert)
         return (WT_STAT_CONN_CACHE_HS_INSERT);
@@ -61,23 +61,23 @@ get_stat_field(const std::string &name)
 }
 
 void
-metrics_monitor::get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep)
+MetricsMonitor::GetStatistics(scoped_cursor &cursor, int statisticsField, int64_t *valuep)
 {
     const char *desc, *pvalue;
-    cursor->set_key(cursor.get(), stat_field);
+    cursor->set_key(cursor.get(), statisticsField);
     testutil_check(cursor->search(cursor.get()));
     testutil_check(cursor->get_value(cursor.get(), &desc, &pvalue, valuep));
     testutil_check(cursor->reset(cursor.get()));
 }
 
-metrics_monitor::metrics_monitor(
-  const std::string &test_name, configuration *config, database &database)
-    : Component(metricsMonitor, config), _test_name(test_name), _database(database)
+MetricsMonitor::MetricsMonitor(
+  const std::string &testName, configuration *config, database &database)
+    : Component(metricsMonitor, config), _testName(testName), _database(database)
 {
 }
 
 void
-metrics_monitor::Load()
+MetricsMonitor::Load()
 {
     /* Load the general component things. */
     Component::Load();
@@ -95,11 +95,11 @@ metrics_monitor::Load()
 
         stat_config.reset(_config->get_subconfig(cacheHsInsert));
         _stats.push_back(std::unique_ptr<Statistics>(
-          new Statistics(*stat_config, cacheHsInsert, get_stat_field(cacheHsInsert))));
+          new Statistics(*stat_config, cacheHsInsert, GetStatisticsField(cacheHsInsert))));
 
         stat_config.reset(_config->get_subconfig(ccPagesRemoved));
         _stats.push_back(std::unique_ptr<Statistics>(
-          new Statistics(*stat_config, ccPagesRemoved, get_stat_field(ccPagesRemoved))));
+          new Statistics(*stat_config, ccPagesRemoved, GetStatisticsField(ccPagesRemoved))));
 
         /* Open our statistic cursor. */
         _session = connection_manager::instance().create_session();
@@ -108,7 +108,7 @@ metrics_monitor::Load()
 }
 
 void
-metrics_monitor::DoWork()
+MetricsMonitor::DoWork()
 {
     /* Check runtime statistics. */
     for (const auto &stat : _stats) {
@@ -118,7 +118,7 @@ metrics_monitor::DoWork()
 }
 
 void
-metrics_monitor::Finish()
+MetricsMonitor::Finish()
 {
     Component::Finish();
 
@@ -126,38 +126,38 @@ metrics_monitor::Finish()
 
     for (const auto &stat : _stats) {
 
-        const std::string stat_name = stat->GetName();
+        const std::string statisticsName = stat->GetName();
 
         /* Append stats to the statistics writer if it needs to be saved. */
         if (stat->IsSaveEnabled()) {
-            auto stat_str =
-              "{\"name\":\"" + stat_name + "\",\"value\":" + stat->GetValueString(_cursor) + "}";
-            metrics_writer::instance().add_stat(stat_str);
+            auto json = "{\"name\":\"" + statisticsName +
+              "\",\"value\":" + stat->GetValueString(_cursor) + "}";
+            metrics_writer::instance().add_stat(json);
         }
 
         if (!stat->IsPostRunCheckEnabled())
             continue;
 
-        int64_t stat_max = stat->GetMax();
-        int64_t stat_min = stat->GetMin();
-        int64_t stat_value = std::stoi(stat->GetValueString(_cursor));
+        int64_t max = stat->GetMax();
+        int64_t min = stat->GetMin();
+        int64_t value = std::stoi(stat->GetValueString(_cursor));
 
-        if (stat_value < stat_min || stat_value > stat_max) {
-            const std::string error_string = "metrics_monitor: Postrun stat \"" + stat_name +
-              "\" was outside of the specified limits. Min=" + std::to_string(stat_min) +
-              " Max=" + std::to_string(stat_max) + " Actual=" + std::to_string(stat_value);
+        if (value < min || value > max) {
+            const std::string error_string = "MetricsMonitor: Postrun stat \"" + statisticsName +
+              "\" was outside of the specified limits. Min=" + std::to_string(min) +
+              " Max=" + std::to_string(max) + " Actual=" + std::to_string(value);
             Logger::LogMessage(LOG_ERROR, error_string);
             success = false;
         }
 
         Logger::LogMessage(LOG_INFO,
-          "metrics_monitor: Final value of stat " + stat_name +
-            " is: " + std::to_string(stat_value));
+          "MetricsMonitor: Final value of stat " + statisticsName +
+            " is: " + std::to_string(value));
     }
 
     if (!success)
         testutil_die(-1,
-          "metrics_monitor: One or more postrun statistics were outside of their specified "
+          "MetricsMonitor: One or more postrun statistics were outside of their specified "
           "limits.");
 }
 } // namespace test_harness

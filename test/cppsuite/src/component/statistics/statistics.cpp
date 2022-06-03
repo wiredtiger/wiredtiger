@@ -45,9 +45,9 @@ void
 Statistics::Check(scoped_cursor &cursor)
 {
     int64_t value;
-    metrics_monitor::get_stat(cursor, field, &value);
+    MetricsMonitor::GetStatistics(cursor, field, &value);
     if (value < min || value > max) {
-        const std::string error = "metrics_monitor: Postrun stat \"" + name +
+        const std::string error = "MetricsMonitor: Postrun stat \"" + name +
           "\" was outside of the specified limits. Min=" + std::to_string(min) +
           " Max=" + std::to_string(max) + " Actual=" + std::to_string(value);
         testutil_die(-1, error.c_str());
@@ -59,7 +59,7 @@ std::string
 Statistics::GetValueString(scoped_cursor &cursor)
 {
     int64_t value;
-    metrics_monitor::get_stat(cursor, field, &value);
+    MetricsMonitor::GetStatistics(cursor, field, &value);
     return std::to_string(value);
 }
 

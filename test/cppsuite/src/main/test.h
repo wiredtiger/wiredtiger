@@ -71,7 +71,7 @@ class test : public database_operation {
 
     private:
     std::vector<Component *> _components;
-    metrics_monitor *_metrics_monitor = nullptr;
+    MetricsMonitor *_metrics_monitor = nullptr;
     ThreadManager *_thread_manager = nullptr;
     workload_manager *_workload_manager = nullptr;
     database _database;

@@ -45,17 +45,17 @@ namespace test_harness {
  * The statistics monitor class is designed to track various statistics or other runtime signals
  * relevant to the given workload.
  */
-class metrics_monitor : public Component {
+class MetricsMonitor : public Component {
     public:
-    static void get_stat(scoped_cursor &, int, int64_t *);
+    static void GetStatistics(scoped_cursor &, int, int64_t *);
 
     public:
-    metrics_monitor(const std::string &test_name, configuration *config, database &database);
-    virtual ~metrics_monitor() = default;
+    MetricsMonitor(const std::string &testName, configuration *config, database &database);
+    virtual ~MetricsMonitor() = default;
 
     /* Delete the copy constructor and the assignment operator. */
-    metrics_monitor(const metrics_monitor &) = delete;
-    metrics_monitor &operator=(const metrics_monitor &) = delete;
+    MetricsMonitor(const MetricsMonitor &) = delete;
+    MetricsMonitor &operator=(const MetricsMonitor &) = delete;
 
     void Load() override final;
     void DoWork() override final;
@@ -64,7 +64,7 @@ class metrics_monitor : public Component {
     private:
     scoped_session _session;
     scoped_cursor _cursor;
-    const std::string _test_name;
+    const std::string _testName;
     std::vector<std::unique_ptr<Statistics>> _stats;
     database &_database;
 };

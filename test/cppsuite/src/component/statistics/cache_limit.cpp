@@ -48,7 +48,7 @@ CacheLimit::Check(scoped_cursor &cursor)
     double cacheUsage = GetCacheUsagePercentage(cursor);
     if (cacheUsage > max) {
         const std::string error =
-          "metrics_monitor: Cache usage exceeded during test! Limit: " + std::to_string(max) +
+          "MetricsMonitor: Cache usage exceeded during test! Limit: " + std::to_string(max) +
           " usage: " + std::to_string(cacheUsage);
         testutil_die(-1, error.c_str());
     } else
@@ -66,9 +66,9 @@ CacheLimit::GetCacheUsagePercentage(scoped_cursor &cursor)
 {
     int64_t cacheBytesImage, cacheBytesOther, cacheBytesMax;
     /* Three statistics are required to compute cache use percentage. */
-    metrics_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_IMAGE, &cacheBytesImage);
-    metrics_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_OTHER, &cacheBytesOther);
-    metrics_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_MAX, &cacheBytesMax);
+    MetricsMonitor::GetStatistics(cursor, WT_STAT_CONN_CACHE_BYTES_IMAGE, &cacheBytesImage);
+    MetricsMonitor::GetStatistics(cursor, WT_STAT_CONN_CACHE_BYTES_OTHER, &cacheBytesOther);
+    MetricsMonitor::GetStatistics(cursor, WT_STAT_CONN_CACHE_BYTES_MAX, &cacheBytesMax);
     /*
      * Assert that we never exceed our configured limit for cache usage. Add 0.0 to avoid floating
      * point conversion errors.
