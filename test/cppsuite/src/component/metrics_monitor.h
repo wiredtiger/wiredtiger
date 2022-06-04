@@ -50,7 +50,7 @@ class MetricsMonitor : public Component {
     static void GetStatistics(scoped_cursor &, int, int64_t *);
 
     public:
-    MetricsMonitor(const std::string &testName, Configuration *config, database &database);
+    MetricsMonitor(const std::string &testName, Configuration *config, Database &database);
     virtual ~MetricsMonitor() = default;
 
     /* Delete the copy constructor and the assignment operator. */
@@ -66,7 +66,7 @@ class MetricsMonitor : public Component {
     scoped_cursor _cursor;
     const std::string _testName;
     std::vector<std::unique_ptr<Statistics>> _stats;
-    database &_database;
+    Database &_database;
 };
 } // namespace test_harness
 

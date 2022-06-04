@@ -35,7 +35,7 @@
 
 namespace test_harness {
 WorkloadManager::WorkloadManager(Configuration *configuration, DatabaseOperation *databaseOperation,
-  TimestampManager *timestampManager, database &database)
+  TimestampManager *timestampManager, Database &database)
     : Component(workloadManager, configuration), _database(database),
       _databaseOperation(databaseOperation), _timestampManager(timestampManager)
 {
@@ -117,7 +117,7 @@ WorkloadManager::Finish()
     Logger::LogMessage(LOG_TRACE, "Workload generator: run stage done");
 }
 
-database &
+Database &
 WorkloadManager::GetDatabase()
 {
     return (_database);

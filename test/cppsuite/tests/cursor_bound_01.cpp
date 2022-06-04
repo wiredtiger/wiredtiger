@@ -468,7 +468,7 @@ class cursor_bound_01 : public test {
         uint32_t rollback_retries = 0;
         while (tc->running()) {
 
-            Collection &coll = tc->db.get_random_collection();
+            Collection &coll = tc->db.GetRandomCollection();
             scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
             tc->txn.begin();
 
@@ -515,7 +515,7 @@ class cursor_bound_01 : public test {
         uint32_t rollback_retries = 0;
         while (tc->running()) {
 
-            Collection &coll = tc->db.get_random_collection();
+            Collection &coll = tc->db.GetRandomCollection();
             scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
             scoped_cursor rnd_cursor =
               tc->session.open_scoped_cursor(coll.name, "next_random=true");
@@ -583,7 +583,7 @@ class cursor_bound_01 : public test {
 
         while (tc->running()) {
             /* Get a random collection to work on. */
-            Collection &coll = tc->db.get_random_collection();
+            Collection &coll = tc->db.GetRandomCollection();
 
             /* Find a cached cursor or create one if none exists. */
             if (cursors.find(coll.id) == cursors.end())
@@ -655,7 +655,7 @@ class cursor_bound_01 : public test {
         bound lower_bound, upper_bound;
         while (tc->running()) {
             /* Get a random collection to work on. */
-            Collection &coll = tc->db.get_random_collection();
+            Collection &coll = tc->db.GetRandomCollection();
 
             /* Find a cached cursor or create one if none exists. */
             if (cursors.find(coll.id) == cursors.end())

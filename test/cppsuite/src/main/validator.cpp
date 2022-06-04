@@ -77,7 +77,7 @@ validator::Validate(const std::string &operation_table_name, const std::string &
             testutil_die(LOG_ERROR,
               "Validation failed: collection %s present on disk while it has been tracked as "
               "deleted.",
-              database::build_collection_name(it).c_str());
+              Database::GenerateCollectionName(it).c_str());
     }
 
     /*
@@ -245,7 +245,7 @@ validator::verify_collection_file_state(
      */
     WT_CURSOR *cursor;
     int ret = session->open_cursor(session.get(),
-      database::build_collection_name(collection_id).c_str(), nullptr, nullptr, &cursor);
+      Database::GenerateCollectionName(collection_id).c_str(), nullptr, nullptr, &cursor);
     if (ret == 0)
         testutil_check(cursor->close(cursor));
     return (exists ? (ret == 0) : (ret != 0));
@@ -259,7 +259,7 @@ validator::verify_key_value(scoped_session &session, const uint64_t collection_i
     const char *retrieved_value;
 
     scoped_cursor cursor =
-      session.open_scoped_cursor(database::build_collection_name(collection_id));
+      session.open_scoped_cursor(Database::GenerateCollectionName(collection_id));
     cursor->set_key(cursor.get(), key.c_str());
     ret = cursor->search(cursor.get());
     testutil_assertfmt(ret == 0 || ret == WT_NOTFOUND,

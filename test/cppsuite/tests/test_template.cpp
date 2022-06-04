@@ -72,7 +72,7 @@ class test_template : public test {
     }
 
     void
-    Populate(database &, TimestampManager *, Configuration *, OperationTracker *) override final
+    Populate(Database &, TimestampManager *, Configuration *, OperationTracker *) override final
     {
         Logger::LogMessage(LOG_WARN, "populate: nothing done");
     }

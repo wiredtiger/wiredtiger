@@ -35,34 +35,34 @@
 
 namespace test_harness {
 std::string
-database::build_collection_name(const uint64_t id)
+Database::GenerateCollectionName(const uint64_t id)
 {
     return (std::string("table:collection_" + std::to_string(id)));
 }
 
 void
-database::add_collection(uint64_t key_count)
+Database::AddCollection(uint64_t key_count)
 {
-    std::lock_guard<std::mutex> lg(_mtx);
+    std::lock_guard<std::mutex> lg(_mutex);
     if (_session.get() == nullptr)
         _session = connection_manager::instance().create_session();
-    if (_collection_create_config.empty())
+    if (_collectionCreateConfig.empty())
         testutil_die(EINVAL, "database: no collection create config specified!");
-    uint64_t next_id = _next_collection_id++;
-    std::string collection_name = build_collection_name(next_id);
+    uint64_t nextId = _nextCollectionId++;
+    std::string collectionName = GenerateCollectionName(nextId);
     /* FIX-ME-Test-Framework: This will get removed when we split the model up. */
-    _collections.emplace(std::piecewise_construct, std::forward_as_tuple(next_id),
-      std::forward_as_tuple(next_id, key_count, collection_name));
+    _collections.emplace(std::piecewise_construct, std::forward_as_tuple(nextId),
+      std::forward_as_tuple(nextId, key_count, collectionName));
     testutil_check(
-      _session->create(_session.get(), collection_name.c_str(), _collection_create_config.c_str()));
-    _operation_tracker->saveSchemaOperation(
-      trackingOperation::CREATE_COLLECTION, next_id, _tsm->GetNextTimestamp());
+      _session->create(_session.get(), collectionName.c_str(), _collectionCreateConfig.c_str()));
+    _operationTracker->saveSchemaOperation(
+      trackingOperation::CREATE_COLLECTION, nextId, _timestampManager->GetNextTimestamp());
 }
 
 Collection &
-database::get_collection(uint64_t id)
+Database::GetCollection(uint64_t id)
 {
-    std::lock_guard<std::mutex> lg(_mtx);
+    std::lock_guard<std::mutex> lg(_mutex);
     const auto it = _collections.find(id);
     if (it == _collections.end())
         testutil_die(EINVAL, "tried to get collection that doesn't exist.");
@@ -70,65 +70,65 @@ database::get_collection(uint64_t id)
 }
 
 Collection &
-database::get_random_collection()
+Database::GetRandomCollection()
 {
-    size_t collection_count = get_collection_count();
+    size_t collectionCount = GetCollectionCount();
     /* Any caller should expect at least one collection to exist. */
-    testutil_assert(collection_count != 0);
-    return (get_collection(
-      RandomGenerator::GetInstance().GenerateInteger<uint64_t>(0, collection_count - 1)));
+    testutil_assert(collectionCount != 0);
+    return (GetCollection(
+      RandomGenerator::GetInstance().GenerateInteger<uint64_t>(0, collectionCount - 1)));
 }
 
 uint64_t
-database::get_collection_count()
+Database::GetCollectionCount()
 {
-    std::lock_guard<std::mutex> lg(_mtx);
+    std::lock_guard<std::mutex> lg(_mutex);
     return (_collections.size());
 }
 
 std::vector<std::string>
-database::get_collection_names()
+Database::GetCollectionNames()
 {
-    std::lock_guard<std::mutex> lg(_mtx);
-    std::vector<std::string> collection_names;
+    std::lock_guard<std::mutex> lg(_mutex);
+    std::vector<std::string> collectionNames;
 
     for (auto const &it : _collections)
-        collection_names.push_back(it.second.name);
+        collectionNames.push_back(it.second.name);
 
-    return (collection_names);
+    return (collectionNames);
 }
 
 std::vector<uint64_t>
-database::get_collection_ids()
+Database::GetCollectionIds()
 {
-    std::lock_guard<std::mutex> lg(_mtx);
-    std::vector<uint64_t> collection_ids;
+    std::lock_guard<std::mutex> lg(_mutex);
+    std::vector<uint64_t> collectionIds;
 
     for (auto const &it : _collections)
-        collection_ids.push_back(it.first);
+        collectionIds.push_back(it.first);
 
-    return (collection_ids);
+    return (collectionIds);
 }
 
 void
-database::set_timestamp_manager(TimestampManager *tsm)
+Database::SetTimestampManager(TimestampManager *tsm)
 {
-    testutil_assert(_tsm == nullptr);
-    _tsm = tsm;
+    testutil_assert(_timestampManager == nullptr);
+    _timestampManager = tsm;
 }
 
 void
-database::SetOperationTracker(OperationTracker *op_tracker)
+Database::SetOperationTracker(OperationTracker *op_tracker)
 {
-    testutil_assert(_operation_tracker == nullptr);
-    _operation_tracker = op_tracker;
+    testutil_assert(_operationTracker == nullptr);
+    _operationTracker = op_tracker;
 }
 
 void
-database::set_create_config(bool use_compression, bool use_reverse_collator)
+Database::SetCreateConfig(bool useCompression, bool useReverseCollator)
 {
-    _collection_create_config = defaultFrameworkSchema;
-    _collection_create_config += use_compression ? std::string(SNAPPY_BLK) + "," : "";
-    _collection_create_config += use_reverse_collator ? std::string(REVERSE_COL_CFG) + "," : "";
+    _collectionCreateConfig = defaultFrameworkSchema;
+    _collectionCreateConfig += useCompression ? std::string(SNAPPY_BLK) + "," : "";
+    _collectionCreateConfig += useReverseCollator ? std::string(REVERSE_COL_CFG) + "," : "";
 }
 } // namespace test_harness

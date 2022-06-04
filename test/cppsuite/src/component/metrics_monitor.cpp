@@ -71,7 +71,7 @@ MetricsMonitor::GetStatistics(scoped_cursor &cursor, int statisticsField, int64_
 }
 
 MetricsMonitor::MetricsMonitor(
-  const std::string &testName, Configuration *config, database &database)
+  const std::string &testName, Configuration *config, Database &database)
     : Component(metricsMonitor, config), _testName(testName), _database(database)
 {
 }

@@ -69,14 +69,14 @@ class burst_inserts : public test {
 
         /* Collection cursor vector. */
         std::vector<collection_cursor> ccv;
-        uint64_t collection_count = tc->db.get_collection_count();
+        uint64_t collection_count = tc->db.GetCollectionCount();
         uint64_t collections_per_thread = collection_count / tc->thread_count;
         /* Must have unique collections for each thread. */
         testutil_assert(collection_count % tc->thread_count == 0);
         int thread_offset = tc->id * collections_per_thread;
         for (int i = thread_offset; i < thread_offset + collections_per_thread && tc->running();
              ++i) {
-            Collection &coll = tc->db.get_collection(i);
+            Collection &coll = tc->db.GetCollection(i);
             /*
              * Create a reading cursor that will read random documents for every next call. This
              * will help generate cache pressure.

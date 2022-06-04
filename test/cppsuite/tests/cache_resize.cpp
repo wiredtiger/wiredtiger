@@ -127,9 +127,9 @@ class cache_resize : public test {
     void
     InsertOperation(thread_worker *tc) override final
     {
-        const uint64_t collection_count = tc->db.get_collection_count();
+        const uint64_t collection_count = tc->db.GetCollectionCount();
         testutil_assert(collection_count > 0);
-        Collection &coll = tc->db.get_collection(collection_count - 1);
+        Collection &coll = tc->db.GetCollection(collection_count - 1);
         scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
 
         while (tc->running()) {

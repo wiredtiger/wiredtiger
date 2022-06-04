@@ -56,10 +56,10 @@ class hs_cleanup : public test {
         const uint64_t MAX_ROLLBACKS = 100;
         uint32_t rollback_retries = 0;
 
-        Collection &coll = tc->db.get_collection(tc->id);
+        Collection &coll = tc->db.GetCollection(tc->id);
 
         /* In this test each thread gets a single collection. */
-        testutil_assert(tc->db.get_collection_count() == tc->thread_count);
+        testutil_assert(tc->db.GetCollectionCount() == tc->thread_count);
         scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
 
         /* We don't know the keyrange we're operating over here so we can't be much smarter here. */

@@ -60,7 +60,7 @@ type_string(thread_type type)
 
 thread_worker::thread_worker(uint64_t id, thread_type type, Configuration *config,
   scoped_session &&created_session, TimestampManager *timestamp_manager,
-  OperationTracker *op_tracker, database &dbase)
+  OperationTracker *op_tracker, Database &dbase)
     : /* These won't exist for certain threads which is why we use optional here. */
       collection_count(config->GetOptionalInt(collectionCount, 1)),
       key_count(config->GetOptionalInt(keyCountPerCollection, 1)),

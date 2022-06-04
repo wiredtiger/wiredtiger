@@ -49,7 +49,7 @@ class thread_worker {
     public:
     thread_worker(uint64_t id, thread_type type, Configuration *config,
       scoped_session &&created_session, TimestampManager *timestamp_manager,
-      OperationTracker *op_tracker, database &dbase);
+      OperationTracker *op_tracker, Database &dbase);
 
     virtual ~thread_worker() = default;
 
@@ -94,7 +94,7 @@ class thread_worker {
     const int64_t thread_count;
     const thread_type type;
     const uint64_t id;
-    database &db;
+    Database &db;
     scoped_session session;
     scoped_cursor op_track_cursor;
     scoped_cursor stat_cursor;

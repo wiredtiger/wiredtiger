@@ -113,7 +113,7 @@ class search_near_03 : public test {
          * Each populate thread perform unique index insertions on each collection, with a randomly
          * generated prefix and thread id.
          */
-        Collection &coll = tc->db.get_collection(tc->id);
+        Collection &coll = tc->db.GetCollection(tc->id);
         scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
         cursor->reconfigure(cursor.get(), "prefix_search=true");
         for (uint64_t count = 0; count < tc->key_count; ++count) {
@@ -143,7 +143,7 @@ class search_near_03 : public test {
     }
 
     void
-    Populate(database &database, TimestampManager *tsm, Configuration *config,
+    Populate(Database &database, TimestampManager *tsm, Configuration *config,
       OperationTracker *op_tracker) override final
     {
         uint64_t collection_count, key_count, key_size;
@@ -169,7 +169,7 @@ class search_near_03 : public test {
              * The database model will call into the API and create the collection, with its own
              * session.
              */
-            database.add_collection();
+            database.AddCollection();
 
         /* Spawn a populate thread for each collection in the database. */
         for (uint64_t i = 0; i < collection_count; ++i) {
@@ -197,8 +197,8 @@ class search_near_03 : public test {
         scoped_session session = connection_manager::instance().create_session();
         const char *key_tmp;
         int ret = 0;
-        for (uint64_t i = 0; i < database.get_collection_count(); i++) {
-            Collection &coll = database.get_collection(i);
+        for (uint64_t i = 0; i < database.GetCollectionCount(); i++) {
+            Collection &coll = database.GetCollection(i);
             scoped_cursor cursor = session.open_scoped_cursor(coll.name);
             std::vector<std::string> prefixes;
             ret = 0;
@@ -232,7 +232,7 @@ class search_near_03 : public test {
 
         while (tc->running()) {
             /* Get a collection and find a cached cursor. */
-            Collection &coll = tc->db.get_random_collection();
+            Collection &coll = tc->db.GetRandomCollection();
             if (cursors.find(coll.id) == cursors.end()) {
                 scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
                 cursor->reconfigure(cursor.get(), "prefix_search=true");
@@ -273,8 +273,8 @@ class search_near_03 : public test {
          */
         tc->txn.begin();
         while (tc->running()) {
-            for (int i = 0; i < tc->db.get_collection_count(); i++) {
-                Collection &coll = tc->db.get_collection(i);
+            for (int i = 0; i < tc->db.GetCollectionCount(); i++) {
+                Collection &coll = tc->db.GetCollection(i);
                 scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
                 ret = 0;
                 while (ret == 0) {

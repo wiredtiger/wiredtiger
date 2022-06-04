@@ -48,7 +48,7 @@ ConvertCollectionNameToFilename(const std::string &collectionName)
     return (std::string(DEFAULT_DIR) + "/" + strippedName + ".wt");
 }
 
-DatabaseSize::DatabaseSize(Configuration &config, const std::string &name, database &database)
+DatabaseSize::DatabaseSize(Configuration &config, const std::string &name, Database &database)
     : Statistics(config, name, -1), _database(database)
 {
 #ifdef _WIN32
@@ -103,7 +103,7 @@ const std::vector<std::string>
 DatabaseSize::GetFilenames() const
 {
     std::vector<std::string> fileNames;
-    for (const auto &name : _database.get_collection_names())
+    for (const auto &name : _database.GetCollectionNames())
         fileNames.push_back(ConvertCollectionNameToFilename(name));
 
     /* Add WiredTiger internal tables. */

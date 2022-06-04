@@ -74,7 +74,7 @@ class test : public DatabaseOperation {
     MetricsMonitor *_metrics_monitor = nullptr;
     ThreadManager *_thread_manager = nullptr;
     WorkloadManager *_workload_manager = nullptr;
-    database _database;
+    Database _database;
 };
 } // namespace test_harness
 

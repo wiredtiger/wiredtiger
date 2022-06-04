@@ -47,7 +47,7 @@ class search_near_02 : public test {
     }
 
     void
-    Populate(database &database, TimestampManager *, Configuration *config,
+    Populate(Database &database, TimestampManager *, Configuration *config,
       OperationTracker *) override final
     {
         /*
@@ -60,7 +60,7 @@ class search_near_02 : public test {
           LOG_INFO, "Populate: " + std::to_string(collection_count) + " creating collections.");
 
         for (uint64_t i = 0; i < collection_count; ++i)
-            database.add_collection();
+            database.AddCollection();
 
         Logger::LogMessage(LOG_INFO, "Populate: finished.");
     }
@@ -84,7 +84,7 @@ class search_near_02 : public test {
 
         /* Collection cursor vector. */
         std::vector<collection_cursor> ccv;
-        int64_t collection_count = tc->db.get_collection_count();
+        int64_t collection_count = tc->db.GetCollectionCount();
         int64_t collections_per_thread = collection_count / tc->thread_count;
 
         /* Must have unique collections for each thread. */
@@ -92,7 +92,7 @@ class search_near_02 : public test {
         const uint64_t thread_offset = tc->id * collections_per_thread;
         for (uint64_t i = thread_offset;
              i < thread_offset + collections_per_thread && tc->running(); ++i) {
-            Collection &coll = tc->db.get_collection(i);
+            Collection &coll = tc->db.GetCollection(i);
             scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
             ccv.push_back({coll, std::move(cursor)});
         }
@@ -163,7 +163,7 @@ class search_near_02 : public test {
 
         while (tc->running()) {
             /* Get a random collection to work on. */
-            Collection &coll = tc->db.get_random_collection();
+            Collection &coll = tc->db.GetRandomCollection();
 
             /* Find a cached cursor or create one if none exists. */
             if (cursors.find(coll.id) == cursors.end()) {

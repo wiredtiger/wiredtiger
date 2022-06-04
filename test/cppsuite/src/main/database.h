@@ -41,44 +41,44 @@ namespace test_harness {
 typedef std::string key_value_t;
 
 /* Representation of the collections in memory. */
-class database {
+class Database {
     public:
-    static std::string build_collection_name(const uint64_t id);
+    static std::string GenerateCollectionName(const uint64_t id);
 
     public:
     /*
      * Add a new collection, this will create the underlying collection in the database.
      */
-    void add_collection(uint64_t key_count = 0);
+    void AddCollection(uint64_t keyCount = 0);
 
     /* Get a collection using the id of the collection. */
-    Collection &get_collection(uint64_t id);
+    Collection &GetCollection(uint64_t id);
 
     /* Get a random collection. */
-    Collection &get_random_collection();
+    Collection &GetRandomCollection();
 
     /*
      * Retrieve the current collection count, Collection names are indexed from 0 so when using this
      * take care to avoid an off by one error.
      */
-    uint64_t get_collection_count();
+    uint64_t GetCollectionCount();
 
-    /* FIX-ME-Test-Framework: Replace usages of this with get_collection_ids. */
-    std::vector<std::string> get_collection_names();
+    /* FIX-ME-Test-Framework: Replace usages of this with GetCollectionIds. */
+    std::vector<std::string> GetCollectionNames();
 
-    std::vector<uint64_t> get_collection_ids();
-    void set_timestamp_manager(TimestampManager *tsm);
-    void SetOperationTracker(OperationTracker *op_tracker);
-    void set_create_config(bool use_compression, bool use_reverse_collator);
+    std::vector<uint64_t> GetCollectionIds();
+    void SetTimestampManager(TimestampManager *timestampManager);
+    void SetOperationTracker(OperationTracker *operationTracker);
+    void SetCreateConfig(bool useCompression, bool useReverseCollator);
 
     private:
-    std::string _collection_create_config = "";
+    std::string _collectionCreateConfig = "";
     scoped_session _session;
-    TimestampManager *_tsm = nullptr;
-    OperationTracker *_operation_tracker = nullptr;
-    uint64_t _next_collection_id = 0;
+    TimestampManager *_timestampManager = nullptr;
+    OperationTracker *_operationTracker = nullptr;
+    uint64_t _nextCollectionId = 0;
     std::map<uint64_t, Collection> _collections;
-    std::mutex _mtx;
+    std::mutex _mutex;
 };
 } // namespace test_harness
 

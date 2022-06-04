@@ -43,8 +43,8 @@ test::test(const test_args &args) : _args(args)
       _config->GetSubconfig(workloadManager), this, _timestamp_manager, _database);
     _thread_manager = new ThreadManager();
 
-    _database.set_timestamp_manager(_timestamp_manager);
-    _database.set_create_config(
+    _database.SetTimestampManager(_timestamp_manager);
+    _database.SetCreateConfig(
       _config->GetBool(compressionEnabled), _config->GetBool(reverseCollator));
 
     /*
@@ -172,7 +172,7 @@ test::run()
         std::unique_ptr<Configuration> tracking_config(_config->GetSubconfig(operationTracker));
         this->Validate(_operation_tracker->getOperationTableName(),
           _operation_tracker->getSchemaTableName(),
-          _workload_manager->GetDatabase().get_collection_ids());
+          _workload_manager->GetDatabase().GetCollectionIds());
     }
 
     /* Log perf stats. */

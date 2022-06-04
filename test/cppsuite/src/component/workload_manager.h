@@ -43,7 +43,7 @@ namespace test_harness {
 class WorkloadManager : public Component {
     public:
     WorkloadManager(Configuration *configuration, DatabaseOperation *databaseOperation,
-      TimestampManager *timestampManager, database &database);
+      TimestampManager *timestampManager, Database &database);
 
     ~WorkloadManager();
 
@@ -55,14 +55,14 @@ class WorkloadManager : public Component {
     void Run() override final;
     void Finish() override final;
 
-    database &GetDatabase();
+    Database &GetDatabase();
     bool IsDatabasePopulated() const;
 
     /* Set the tracking component. */
     void SetOperationTracker(OperationTracker *op_tracker);
 
     private:
-    database &_database;
+    Database &_database;
     DatabaseOperation *_databaseOperation = nullptr;
     ThreadManager _threadManager;
     TimestampManager *_timestampManager = nullptr;

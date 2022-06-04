@@ -44,7 +44,7 @@ PopulateWorker(thread_worker *threadWorker)
 
     for (int64_t i = 0; i < collectionsPerThread; ++i) {
         Collection &coll =
-          threadWorker->db.get_collection((threadWorker->id * collectionsPerThread) + i);
+          threadWorker->db.GetCollection((threadWorker->id * collectionsPerThread) + i);
         /*
          * WiredTiger lets you open a cursor on a collection using the same pointer. When a session
          * is closed, WiredTiger APIs close the cursors too.
@@ -70,7 +70,7 @@ PopulateWorker(thread_worker *threadWorker)
 }
 
 void
-DatabaseOperation::Populate(database &database, TimestampManager *timestampManager,
+DatabaseOperation::Populate(Database &database, TimestampManager *timestampManager,
   Configuration *config, OperationTracker *operationTracker)
 {
     /* Validate our config. */
@@ -94,7 +94,7 @@ DatabaseOperation::Populate(database &database, TimestampManager *timestampManag
          * The database model will call into the API and create the collection, with its own
          * session.
          */
-        database.add_collection(key_count_per_collection);
+        database.AddCollection(key_count_per_collection);
 
     Logger::LogMessage(
       LOG_INFO, "Populate: " + std::to_string(collection_count) + " collections created.");
@@ -165,7 +165,7 @@ DatabaseOperation::InsertOperation(thread_worker *threadWorker)
 
     /* Collection cursor vector. */
     std::vector<collection_cursor> ccv;
-    uint64_t collectionCount = threadWorker->db.get_collection_count();
+    uint64_t collectionCount = threadWorker->db.GetCollectionCount();
     testutil_assert(collectionCount != 0);
     uint64_t collectionsPerThread = collectionCount / threadWorker->thread_count;
     /* Must have unique collections for each thread. */
@@ -174,7 +174,7 @@ DatabaseOperation::InsertOperation(thread_worker *threadWorker)
          i < (threadWorker->id * collectionsPerThread) + collectionsPerThread &&
          threadWorker->running();
          ++i) {
-        Collection &coll = threadWorker->db.get_collection(i);
+        Collection &coll = threadWorker->db.GetCollection(i);
         scoped_cursor cursor = threadWorker->session.open_scoped_cursor(coll.name);
         ccv.push_back({coll, std::move(cursor)});
     }
@@ -237,7 +237,7 @@ DatabaseOperation::ReadOperation(thread_worker *threadWorker)
     std::map<uint64_t, scoped_cursor> cursors;
     while (threadWorker->running()) {
         /* Get a collection and find a cached cursor. */
-        Collection &coll = threadWorker->db.get_random_collection();
+        Collection &coll = threadWorker->db.GetRandomCollection();
 
         if (cursors.find(coll.id) == cursors.end())
             cursors.emplace(
@@ -294,7 +294,7 @@ DatabaseOperation::RemoveOperation(thread_worker *threadWorker)
         threadWorker->sleep();
 
         /* Choose a random collection to update. */
-        Collection &coll = threadWorker->db.get_random_collection();
+        Collection &coll = threadWorker->db.GetRandomCollection();
 
         /* Look for existing cursors in our cursor cache. */
         if (cursors.find(coll.id) == cursors.end()) {
@@ -367,7 +367,7 @@ DatabaseOperation::UpdateOperation(thread_worker *threadWorker)
         threadWorker->sleep();
 
         /* Choose a random collection to update. */
-        Collection &coll = threadWorker->db.get_random_collection();
+        Collection &coll = threadWorker->db.GetRandomCollection();
 
         /* Look for existing cursors in our cursor cache. */
         if (cursors.find(coll.id) == cursors.end()) {
