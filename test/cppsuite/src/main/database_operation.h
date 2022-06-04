@@ -33,7 +33,7 @@
 #include "thread_worker.h"
 
 namespace test_harness {
-class database_operation {
+class DatabaseOperation {
     public:
     /*
      * Function that performs the following steps using the configuration that is defined by the
@@ -44,31 +44,31 @@ class database_operation {
      *      - Insert K key/value pairs in each collection. Values are random strings which size is
      * defined by the configuration.
      */
-    virtual void populate(database &database, TimestampManager *tsm, Configuration *config,
-      OperationTracker *op_tracker);
+    virtual void Populate(database &database, TimestampManager *timestampManager,
+      Configuration *config, OperationTracker *operationTracker);
 
     /* Performs a checkpoint periodically. */
-    virtual void checkpoint_operation(thread_worker *tc);
+    virtual void CheckpointOperation(thread_worker *threadWorker);
 
     /* Custom operation without a default implementation. */
-    virtual void custom_operation(thread_worker *tc);
+    virtual void CustomOperation(thread_worker *threadWorker);
 
     /* Basic insert operation that adds a new key every rate tick. */
-    virtual void insert_operation(thread_worker *tc);
+    virtual void InsertOperation(thread_worker *threadWorker);
 
     /* Basic read operation that chooses a random collection and walks a cursor. */
-    virtual void read_operation(thread_worker *tc);
+    virtual void ReadOperation(thread_worker *threadWorker);
 
     /* Basic remove operation that chooses a random key and deletes it. */
-    virtual void remove_operation(thread_worker *tc);
+    virtual void RemoveOperation(thread_worker *threadWorker);
 
     /* Basic update operation that chooses a random key and updates it. */
-    virtual void update_operation(thread_worker *tc);
+    virtual void UpdateOperation(thread_worker *threadWorker);
 
-    virtual void validate(const std::string &operation_table_name,
-      const std::string &schema_table_name, const std::vector<uint64_t> &known_collection_ids);
+    virtual void Validate(const std::string &operationTableName, const std::string &schemaTableName,
+      const std::vector<uint64_t> &knownCollectionIds);
 
-    virtual ~database_operation() = default;
+    virtual ~DatabaseOperation() = default;
 };
 } // namespace test_harness
 #endif

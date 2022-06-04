@@ -55,7 +55,7 @@ class bounded_cursor_perf : public test {
     }
 
     void
-    read_operation(thread_worker *tc) override final
+    ReadOperation(thread_worker *tc) override final
     {
         /* This test will only work with one read thread. */
         testutil_assert(tc->thread_count == 1);

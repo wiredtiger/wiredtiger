@@ -69,7 +69,7 @@ class cache_resize : public test {
     }
 
     void
-    custom_operation(thread_worker *tc) override final
+    CustomOperation(thread_worker *tc) override final
     {
         WT_CONNECTION *conn = connection_manager::instance().get_connection();
         WT_CONNECTION_IMPL *conn_impl = (WT_CONNECTION_IMPL *)conn;
@@ -125,7 +125,7 @@ class cache_resize : public test {
     }
 
     void
-    insert_operation(thread_worker *tc) override final
+    InsertOperation(thread_worker *tc) override final
     {
         const uint64_t collection_count = tc->db.get_collection_count();
         testutil_assert(collection_count > 0);
@@ -162,7 +162,7 @@ class cache_resize : public test {
     }
 
     void
-    validate(const std::string &operation_table_name, const std::string &,
+    Validate(const std::string &operation_table_name, const std::string &,
       const std::vector<uint64_t> &) override final
     {
         bool first_record = false;

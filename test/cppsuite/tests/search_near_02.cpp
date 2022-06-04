@@ -47,7 +47,7 @@ class search_near_02 : public test {
     }
 
     void
-    populate(database &database, TimestampManager *, Configuration *config,
+    Populate(database &database, TimestampManager *, Configuration *config,
       OperationTracker *) override final
     {
         /*
@@ -66,7 +66,7 @@ class search_near_02 : public test {
     }
 
     void
-    insert_operation(thread_worker *tc) override final
+    InsertOperation(thread_worker *tc) override final
     {
         /* Each insert operation will insert new keys in the collections. */
         Logger::LogMessage(
@@ -145,7 +145,7 @@ class search_near_02 : public test {
     }
 
     void
-    read_operation(thread_worker *tc) override final
+    ReadOperation(thread_worker *tc) override final
     {
         /*
          * Each read operation performs search_near calls with and without prefix enabled on random

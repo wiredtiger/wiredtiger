@@ -37,21 +37,21 @@ operation_configuration::operation_configuration(Configuration *config, thread_t
 }
 
 std::function<void(thread_worker *)>
-operation_configuration::get_func(database_operation *dbo)
+operation_configuration::get_func(DatabaseOperation *dbo)
 {
     switch (type) {
     case thread_type::CHECKPOINT:
-        return (std::bind(&database_operation::checkpoint_operation, dbo, std::placeholders::_1));
+        return (std::bind(&DatabaseOperation::CheckpointOperation, dbo, std::placeholders::_1));
     case thread_type::CUSTOM:
-        return (std::bind(&database_operation::custom_operation, dbo, std::placeholders::_1));
+        return (std::bind(&DatabaseOperation::CustomOperation, dbo, std::placeholders::_1));
     case thread_type::INSERT:
-        return (std::bind(&database_operation::insert_operation, dbo, std::placeholders::_1));
+        return (std::bind(&DatabaseOperation::InsertOperation, dbo, std::placeholders::_1));
     case thread_type::READ:
-        return (std::bind(&database_operation::read_operation, dbo, std::placeholders::_1));
+        return (std::bind(&DatabaseOperation::ReadOperation, dbo, std::placeholders::_1));
     case thread_type::REMOVE:
-        return (std::bind(&database_operation::remove_operation, dbo, std::placeholders::_1));
+        return (std::bind(&DatabaseOperation::RemoveOperation, dbo, std::placeholders::_1));
     case thread_type::UPDATE:
-        return (std::bind(&database_operation::update_operation, dbo, std::placeholders::_1));
+        return (std::bind(&DatabaseOperation::UpdateOperation, dbo, std::placeholders::_1));
     default:
         /* This may cause a separate testutil_die in type_string but that should be okay. */
         testutil_die(EINVAL, "unexpected thread_type: %s", type_string(type).c_str());

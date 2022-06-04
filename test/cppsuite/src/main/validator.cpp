@@ -35,7 +35,7 @@
 
 namespace test_harness {
 void
-validator::validate(const std::string &operation_table_name, const std::string &schema_table_name,
+validator::Validate(const std::string &operation_table_name, const std::string &schema_table_name,
   const std::vector<uint64_t> &known_collection_ids)
 {
     WT_DECL_RET;

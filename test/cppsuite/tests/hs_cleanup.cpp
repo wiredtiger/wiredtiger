@@ -47,7 +47,7 @@ class hs_cleanup : public test {
     }
 
     void
-    update_operation(thread_worker *tc) override final
+    UpdateOperation(thread_worker *tc) override final
     {
         Logger::LogMessage(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");

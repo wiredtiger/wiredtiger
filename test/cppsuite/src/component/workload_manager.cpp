@@ -34,8 +34,8 @@
 #include "src/storage/connection_manager.h"
 
 namespace test_harness {
-WorkloadManager::WorkloadManager(Configuration *configuration,
-  database_operation *databaseOperation, TimestampManager *timestampManager, database &database)
+WorkloadManager::WorkloadManager(Configuration *configuration, DatabaseOperation *databaseOperation,
+  TimestampManager *timestampManager, database &database)
     : Component(workloadManager, configuration), _database(database),
       _databaseOperation(databaseOperation), _timestampManager(timestampManager)
 {
@@ -75,7 +75,7 @@ WorkloadManager::Run()
     Configuration *populatedConfig = _config->GetSubconfig(populateConfig);
 
     /* Populate the database. */
-    _databaseOperation->populate(_database, _timestampManager, populatedConfig, _operationTracker);
+    _databaseOperation->Populate(_database, _timestampManager, populatedConfig, _operationTracker);
     _isDatabasePopulated = true;
     delete populatedConfig;
 

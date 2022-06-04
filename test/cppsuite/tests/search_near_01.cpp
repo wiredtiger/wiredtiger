@@ -106,7 +106,7 @@ class search_near_01 : public test {
     }
 
     void
-    populate(database &database, TimestampManager *tsm, Configuration *config,
+    Populate(database &database, TimestampManager *tsm, Configuration *config,
       OperationTracker *op_tracker) override final
     {
         uint64_t collection_count, key_size;
@@ -221,7 +221,7 @@ class search_near_01 : public test {
     }
 
     void
-    read_operation(thread_worker *tc) override final
+    ReadOperation(thread_worker *tc) override final
     {
         /* Make sure that thread statistics cursor is null before we open it. */
         testutil_assert(tc->stat_cursor.get() == nullptr);

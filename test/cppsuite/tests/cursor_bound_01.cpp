@@ -459,7 +459,7 @@ class cursor_bound_01 : public test {
     }
 
     void
-    insert_operation(thread_worker *tc) override final
+    InsertOperation(thread_worker *tc) override final
     {
         /* Each insert operation will insert new keys in the collections. */
         Logger::LogMessage(
@@ -506,7 +506,7 @@ class cursor_bound_01 : public test {
     }
 
     void
-    update_operation(thread_worker *tc) override final
+    UpdateOperation(thread_worker *tc) override final
     {
         /* Each update operation will update existing keys in the collections. */
         Logger::LogMessage(
@@ -568,7 +568,7 @@ class cursor_bound_01 : public test {
     }
 
     void
-    read_operation(thread_worker *tc) override final
+    ReadOperation(thread_worker *tc) override final
     {
         /*
          * Each read operation will perform search nears with a range bounded cursor and a normal
@@ -641,7 +641,7 @@ class cursor_bound_01 : public test {
     }
 
     void
-    custom_operation(thread_worker *tc) override final
+    CustomOperation(thread_worker *tc) override final
     {
         /*
          * Each custom operation will use the range bounded cursor to traverse through existing keys

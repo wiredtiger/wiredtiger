@@ -72,49 +72,49 @@ class test_template : public test {
     }
 
     void
-    populate(database &, TimestampManager *, Configuration *, OperationTracker *) override final
+    Populate(database &, TimestampManager *, Configuration *, OperationTracker *) override final
     {
         Logger::LogMessage(LOG_WARN, "populate: nothing done");
     }
 
     void
-    checkpoint_operation(thread_worker *) override final
+    CheckpointOperation(thread_worker *) override final
     {
-        Logger::LogMessage(LOG_WARN, "checkpoint_operation: nothing done");
+        Logger::LogMessage(LOG_WARN, "CheckpointOperation: nothing done");
     }
 
     void
-    custom_operation(thread_worker *) override final
+    CustomOperation(thread_worker *) override final
     {
-        Logger::LogMessage(LOG_WARN, "custom_operation: nothing done");
+        Logger::LogMessage(LOG_WARN, "CustomOperation: nothing done");
     }
 
     void
-    insert_operation(thread_worker *) override final
+    InsertOperation(thread_worker *) override final
     {
-        Logger::LogMessage(LOG_WARN, "insert_operation: nothing done");
+        Logger::LogMessage(LOG_WARN, "InsertOperation: nothing done");
     }
 
     void
-    read_operation(thread_worker *) override final
+    ReadOperation(thread_worker *) override final
     {
-        Logger::LogMessage(LOG_WARN, "read_operation: nothing done");
+        Logger::LogMessage(LOG_WARN, "ReadOperation: nothing done");
     }
 
     void
-    remove_operation(thread_worker *) override final
+    RemoveOperation(thread_worker *) override final
     {
-        Logger::LogMessage(LOG_WARN, "remove_operation: nothing done");
+        Logger::LogMessage(LOG_WARN, "RemoveOperation: nothing done");
     }
 
     void
-    update_operation(thread_worker *) override final
+    UpdateOperation(thread_worker *) override final
     {
-        Logger::LogMessage(LOG_WARN, "update_operation: nothing done");
+        Logger::LogMessage(LOG_WARN, "UpdateOperation: nothing done");
     }
 
     void
-    validate(const std::string &, const std::string &, const std::vector<uint64_t> &) override final
+    Validate(const std::string &, const std::string &, const std::vector<uint64_t> &) override final
     {
         Logger::LogMessage(LOG_WARN, "validate: nothing done");
     }

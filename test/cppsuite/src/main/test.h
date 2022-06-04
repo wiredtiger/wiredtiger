@@ -46,7 +46,7 @@ struct test_args {
 /*
  * The base class for a test, the standard usage pattern is to just call run().
  */
-class test : public database_operation {
+class test : public DatabaseOperation {
     public:
     explicit test(const test_args &args);
     virtual ~test();

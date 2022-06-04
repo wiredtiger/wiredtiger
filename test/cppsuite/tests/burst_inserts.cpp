@@ -49,7 +49,7 @@ class burst_inserts : public test {
      * sleeps for op_rate.
      */
     void
-    insert_operation(thread_worker *tc) override final
+    InsertOperation(thread_worker *tc) override final
     {
         Logger::LogMessage(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");

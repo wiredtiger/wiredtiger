@@ -170,7 +170,7 @@ test::run()
     /* Validation stage. */
     if (_operation_tracker->IsEnabled()) {
         std::unique_ptr<Configuration> tracking_config(_config->GetSubconfig(operationTracker));
-        this->validate(_operation_tracker->getOperationTableName(),
+        this->Validate(_operation_tracker->getOperationTableName(),
           _operation_tracker->getSchemaTableName(),
           _workload_manager->GetDatabase().get_collection_ids());
     }
