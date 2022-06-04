@@ -37,7 +37,7 @@
 
 namespace test_harness {
 const std::string
-timestamp_manager::decimal_to_hex(uint64_t value)
+TimestampManager::DecimalToHex(uint64_t value)
 {
     std::stringstream ss;
     ss << std::hex << value;
@@ -45,61 +45,61 @@ timestamp_manager::decimal_to_hex(uint64_t value)
     return (res);
 }
 
-timestamp_manager::timestamp_manager(configuration *config) : Component("timestamp_manager", config)
+TimestampManager::TimestampManager(configuration *config) : Component("timestamp_manager", config)
 {
 }
 
 void
-timestamp_manager::Load()
+TimestampManager::Load()
 {
     Component::Load();
-    int64_t oldest_lag = _config->get_int(oldestLag);
-    testutil_assert(oldest_lag >= 0);
+    int64_t currentOldestLag = _config->get_int(oldestLag);
+    testutil_assert(currentOldestLag >= 0);
     /* Cast and then shift left to match the seconds position. */
-    _oldest_lag = oldest_lag;
-    _oldest_lag <<= 32;
+    _oldestLag = currentOldestLag;
+    _oldestLag <<= 32;
 
-    int64_t stable_lag = _config->get_int(stableLag);
-    testutil_assert(stable_lag >= 0);
+    int64_t currentStableLag = _config->get_int(stableLag);
+    testutil_assert(currentStableLag >= 0);
     /* Cast and then shift left to match the seconds position. */
-    _stable_lag = stable_lag;
-    _stable_lag <<= 32;
+    _stableLag = currentStableLag;
+    _stableLag <<= 32;
 }
 
 void
-timestamp_manager::DoWork()
+TimestampManager::DoWork()
 {
     std::string config, LogMessage;
-    /* latest_ts_s represents the time component of the latest timestamp provided. */
-    wt_timestamp_t latest_ts_s = get_time_now_s();
+    /* latestTimestampSecs represents the time component of the latest timestamp provided. */
+    wt_timestamp_t latestTimestampSecs = GetTimeNowSecs();
 
     /*
      * Keep a time window between the latest and stable ts less than the max defined in the
      * configuration.
      */
-    wt_timestamp_t new_stable_ts = _stable_ts;
-    testutil_assert(latest_ts_s >= _stable_ts);
-    if ((latest_ts_s - _stable_ts) > _stable_lag) {
+    wt_timestamp_t newStableTimestamp = _stableTimestamp;
+    testutil_assert(latestTimestampSecs >= _stableTimestamp);
+    if ((latestTimestampSecs - _stableTimestamp) > _stableLag) {
         LogMessage = "Timestamp_manager: Stable timestamp expired.";
-        new_stable_ts = latest_ts_s - _stable_lag;
-        config += stableTimestamp + "=" + decimal_to_hex(new_stable_ts);
+        newStableTimestamp = latestTimestampSecs - _stableLag;
+        config += stableTimestamp + "=" + DecimalToHex(newStableTimestamp);
     }
 
     /*
      * Keep a time window between the stable and oldest ts less than the max defined in the
      * configuration.
      */
-    wt_timestamp_t new_oldest_ts = _oldest_ts;
-    testutil_assert(_stable_ts >= _oldest_ts);
-    if ((new_stable_ts - _oldest_ts) > _oldest_lag) {
+    wt_timestamp_t newOldestTimestamp = _oldestTimestamp;
+    testutil_assert(_stableTimestamp >= _oldestTimestamp);
+    if ((newStableTimestamp - _oldestTimestamp) > _oldestLag) {
         if (LogMessage.empty())
             LogMessage = "Timestamp_manager: Oldest timestamp expired.";
         else
             LogMessage += " Oldest timestamp expired.";
-        new_oldest_ts = new_stable_ts - _oldest_lag;
+        newOldestTimestamp = newStableTimestamp - _oldestLag;
         if (!config.empty())
             config += ",";
-        config += oldestTimestamp + "=" + decimal_to_hex(new_oldest_ts);
+        config += oldestTimestamp + "=" + DecimalToHex(newOldestTimestamp);
     }
 
     if (!LogMessage.empty())
@@ -112,55 +112,55 @@ timestamp_manager::DoWork()
      */
     if (!config.empty()) {
         connection_manager::instance().set_timestamp(config);
-        _oldest_ts = new_oldest_ts;
-        _stable_ts = new_stable_ts;
+        _oldestTimestamp = newOldestTimestamp;
+        _stableTimestamp = newStableTimestamp;
     }
 }
 
 wt_timestamp_t
-timestamp_manager::get_next_ts()
+TimestampManager::GetNextTimestamp()
 {
-    uint64_t current_time = get_time_now_s();
-    uint64_t increment = _increment_ts.fetch_add(1);
-    current_time |= (increment & 0x00000000FFFFFFFF);
-    return (current_time);
+    uint64_t currentTime = GetTimeNowSecs();
+    uint64_t increment = _incrementTimestamp.fetch_add(1);
+    currentTime |= (increment & 0x00000000FFFFFFFF);
+    return (currentTime);
 }
 
 wt_timestamp_t
-timestamp_manager::get_oldest_ts() const
+TimestampManager::GetOldestTimestamp() const
 {
-    return (_oldest_ts);
+    return (_oldestTimestamp);
 }
 
 wt_timestamp_t
-timestamp_manager::get_valid_read_ts() const
+TimestampManager::GetValidReadTimestamp() const
 {
-    /* Use get_oldest_ts here to convert from atomic to wt_timestamp_t. */
-    wt_timestamp_t current_oldest = get_oldest_ts();
-    wt_timestamp_t current_stable = _stable_ts;
-    if (current_stable > current_oldest) {
-        --current_stable;
+    /* Use GetOldestTimestamp here to convert from atomic to wt_timestamp_t. */
+    wt_timestamp_t currentOldestTimestamp = GetOldestTimestamp();
+    wt_timestamp_t currentStableTimestamp = _stableTimestamp;
+    if (currentStableTimestamp > currentOldestTimestamp) {
+        --currentStableTimestamp;
     }
     /*
      * Assert that our stable and oldest match if 0 or that the stable is greater than or equal to
      * the oldest. Ensuring that the oldest is never greater than the stable.
      */
-    testutil_assert(
-      (current_stable == 0 && current_oldest == 0) || current_stable >= current_oldest);
+    testutil_assert((currentStableTimestamp == 0 && currentOldestTimestamp == 0) ||
+      currentStableTimestamp >= currentOldestTimestamp);
     /*
      * Its okay to return a timestamp less than a concurrently updated oldest timestamp as all
      * readers should be reading with timestamp rounding.
      */
     return RandomGenerator::GetInstance().GenerateInteger<wt_timestamp_t>(
-      current_oldest, current_stable);
+      currentOldestTimestamp, currentStableTimestamp);
 }
 
 uint64_t
-timestamp_manager::get_time_now_s() const
+TimestampManager::GetTimeNowSecs() const
 {
     auto now = std::chrono::system_clock::now().time_since_epoch();
-    uint64_t current_time_s =
+    uint64_t currentTimeSecs =
       static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(now).count()) << 32;
-    return (current_time_s);
+    return (currentTimeSecs);
 }
 } // namespace test_harness

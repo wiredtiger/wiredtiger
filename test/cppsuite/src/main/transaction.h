@@ -42,7 +42,7 @@ namespace test_harness {
 
 class transaction {
     public:
-    transaction(configuration *config, timestamp_manager *timestamp_manager, WT_SESSION *session);
+    transaction(configuration *config, TimestampManager *timestamp_manager, WT_SESSION *session);
 
     bool active() const;
     void add_op();
@@ -90,7 +90,7 @@ class transaction {
     int64_t _op_count = 0;
     int64_t _target_op_count = 0;
 
-    timestamp_manager *_timestamp_manager = nullptr;
+    TimestampManager *_timestamp_manager = nullptr;
     WT_SESSION *_session = nullptr;
 };
 

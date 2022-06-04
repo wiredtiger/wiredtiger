@@ -38,7 +38,7 @@ test::test(const test_args &args) : _args(args)
     _config = new configuration(args.test_name, args.test_config);
     _metrics_monitor =
       new MetricsMonitor(args.test_name, _config->get_subconfig(metricsMonitor), _database);
-    _timestamp_manager = new timestamp_manager(_config->get_subconfig(timestampManager));
+    _timestamp_manager = new TimestampManager(_config->get_subconfig(timestampManager));
     _workload_manager = new WorkloadManager(
       _config->get_subconfig(workloadManager), this, _timestamp_manager, _database);
     _thread_manager = new ThreadManager();

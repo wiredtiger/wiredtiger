@@ -35,7 +35,7 @@
 namespace test_harness {
 
 transaction::transaction(
-  configuration *config, timestamp_manager *timestamp_manager, WT_SESSION *session)
+  configuration *config, TimestampManager *timestamp_manager, WT_SESSION *session)
     : _timestamp_manager(timestamp_manager), _session(session)
 {
     /* Use optional here as our populate threads don't define this configuration. */
@@ -137,7 +137,7 @@ transaction::set_commit_timestamp(wt_timestamp_t ts)
     /* We don't want to set zero timestamps on transactions if we're not using timestamps. */
     if (!_timestamp_manager->IsEnabled())
         return 0;
-    const std::string config = commitTimestamp + "=" + timestamp_manager::decimal_to_hex(ts);
+    const std::string config = commitTimestamp + "=" + TimestampManager::DecimalToHex(ts);
     return _session->timestamp_transaction(_session, config.c_str());
 }
 

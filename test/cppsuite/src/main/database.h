@@ -67,14 +67,14 @@ class database {
     std::vector<std::string> get_collection_names();
 
     std::vector<uint64_t> get_collection_ids();
-    void set_timestamp_manager(timestamp_manager *tsm);
+    void set_timestamp_manager(TimestampManager *tsm);
     void SetOperationTracker(OperationTracker *op_tracker);
     void set_create_config(bool use_compression, bool use_reverse_collator);
 
     private:
     std::string _collection_create_config = "";
     scoped_session _session;
-    timestamp_manager *_tsm = nullptr;
+    TimestampManager *_tsm = nullptr;
     OperationTracker *_operation_tracker = nullptr;
     uint64_t _next_collection_id = 0;
     std::map<uint64_t, collection> _collections;

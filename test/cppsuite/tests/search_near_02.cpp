@@ -47,7 +47,7 @@ class search_near_02 : public test {
     }
 
     void
-    populate(database &database, timestamp_manager *, configuration *config,
+    populate(database &database, TimestampManager *, configuration *config,
       OperationTracker *) override final
     {
         /*
@@ -176,13 +176,13 @@ class search_near_02 : public test {
 
             auto &cursor_prefix = cursors[coll.id];
 
-            wt_timestamp_t ts = tc->tsm->get_valid_read_ts();
+            wt_timestamp_t ts = tc->tsm->GetValidReadTimestamp();
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value.
              */
             tc->txn.begin(
-              "roundup_timestamps=(read=true),read_timestamp=" + tc->tsm->decimal_to_hex(ts));
+              "roundup_timestamps=(read=true),read_timestamp=" + tc->tsm->DecimalToHex(ts));
 
             while (tc->txn.active() && tc->running()) {
                 /*

@@ -90,7 +90,7 @@ class search_near_01 : public test {
                         } else {
                             /* Commit txn at commit timestamp 100. */
                             testutil_assert(
-                              tc->txn.commit("commit_timestamp=" + tc->tsm->decimal_to_hex(100)));
+                              tc->txn.commit("commit_timestamp=" + tc->tsm->DecimalToHex(100)));
                             rollback_retries = 0;
                         }
                     }
@@ -106,7 +106,7 @@ class search_near_01 : public test {
     }
 
     void
-    populate(database &database, timestamp_manager *tsm, configuration *config,
+    populate(database &database, TimestampManager *tsm, configuration *config,
       OperationTracker *op_tracker) override final
     {
         uint64_t collection_count, key_size;
@@ -198,7 +198,7 @@ class search_near_01 : public test {
          * prefix search near, we expect the search to early exit out of its prefix range and return
          * WT_NOTFOUND.
          */
-        tc->txn.begin("read_timestamp=" + tc->tsm->decimal_to_hex(10));
+        tc->txn.begin("read_timestamp=" + tc->tsm->DecimalToHex(10));
         if (tc->txn.active()) {
             cursor->set_key(cursor.get(), srch_key.c_str());
             testutil_assert(cursor->search_near(cursor.get(), &cmpp) == WT_NOTFOUND);

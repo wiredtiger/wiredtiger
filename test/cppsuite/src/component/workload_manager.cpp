@@ -35,7 +35,7 @@
 
 namespace test_harness {
 WorkloadManager::WorkloadManager(configuration *configuration,
-  database_operation *databaseOperation, timestamp_manager *timestampManager, database &database)
+  database_operation *databaseOperation, TimestampManager *timestampManager, database &database)
     : Component(workloadManager, configuration), _database(database),
       _databaseOperation(databaseOperation), _timestampManager(timestampManager)
 {

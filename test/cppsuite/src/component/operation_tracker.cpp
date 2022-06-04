@@ -34,7 +34,7 @@
 
 namespace test_harness {
 OperationTracker::OperationTracker(
-  configuration *_config, const bool useCompression, timestamp_manager &tsm)
+  configuration *_config, const bool useCompression, TimestampManager &tsm)
     : Component(operationTracker, _config), _operationTableName(tableNameOpWorkloadTracker),
       _schemaTableConfig(SCHEMA_TRACKING_TABLE_CONFIG),
       _schemaTableName(tableNameSchemaWorkloadTracker), _useCompression(useCompression),
@@ -110,7 +110,7 @@ OperationTracker::DoWork()
     globallyVisibleUpdateFound = false;
 
     /* Take a copy of the oldest so that we sweep with a consistent timestamp. */
-    oldestTimestamp = _timestampManager.get_oldest_ts();
+    oldestTimestamp = _timestampManager.GetOldestTimestamp();
 
     /* We need to check if the component is still running to avoid unnecessary iterations. */
     while (_running && (ret = _sweepCursor->prev(_sweepCursor.get())) == 0) {

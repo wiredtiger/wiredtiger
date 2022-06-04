@@ -143,7 +143,7 @@ class search_near_03 : public test {
     }
 
     void
-    populate(database &database, timestamp_manager *tsm, configuration *config,
+    populate(database &database, TimestampManager *tsm, configuration *config,
       OperationTracker *op_tracker) override final
     {
         uint64_t collection_count, key_count, key_size;

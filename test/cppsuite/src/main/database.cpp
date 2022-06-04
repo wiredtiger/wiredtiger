@@ -56,7 +56,7 @@ database::add_collection(uint64_t key_count)
     testutil_check(
       _session->create(_session.get(), collection_name.c_str(), _collection_create_config.c_str()));
     _operation_tracker->saveSchemaOperation(
-      trackingOperation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
+      trackingOperation::CREATE_COLLECTION, next_id, _tsm->GetNextTimestamp());
 }
 
 collection &
@@ -111,7 +111,7 @@ database::get_collection_ids()
 }
 
 void
-database::set_timestamp_manager(timestamp_manager *tsm)
+database::set_timestamp_manager(TimestampManager *tsm)
 {
     testutil_assert(_tsm == nullptr);
     _tsm = tsm;

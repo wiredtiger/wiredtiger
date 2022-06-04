@@ -605,13 +605,13 @@ class cursor_bound_01 : public test {
             }
 
             scoped_cursor normal_cursor = tc->session.open_scoped_cursor(coll.name);
-            wt_timestamp_t ts = tc->tsm->get_valid_read_ts();
+            wt_timestamp_t ts = tc->tsm->GetValidReadTimestamp();
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value.
              */
             tc->txn.begin(
-              "roundup_timestamps=(read=true),read_timestamp=" + tc->tsm->decimal_to_hex(ts));
+              "roundup_timestamps=(read=true),read_timestamp=" + tc->tsm->DecimalToHex(ts));
 
             while (tc->txn.active() && tc->running()) {
                 /* Generate a random string. */
@@ -677,13 +677,13 @@ class cursor_bound_01 : public test {
             }
 
             scoped_cursor normal_cursor = tc->session.open_scoped_cursor(coll.name);
-            wt_timestamp_t ts = tc->tsm->get_valid_read_ts();
+            wt_timestamp_t ts = tc->tsm->GetValidReadTimestamp();
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value.
              */
             tc->txn.begin(
-              "roundup_timestamps=(read=true),read_timestamp=" + tc->tsm->decimal_to_hex(ts));
+              "roundup_timestamps=(read=true),read_timestamp=" + tc->tsm->DecimalToHex(ts));
             while (tc->txn.active() && tc->running()) {
 
                 cursor_traversal(range_cursor, normal_cursor, lower_bound, upper_bound, true);

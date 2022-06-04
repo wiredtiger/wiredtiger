@@ -43,7 +43,7 @@ namespace test_harness {
 class WorkloadManager : public Component {
     public:
     WorkloadManager(configuration *configuration, database_operation *databaseOperation,
-      timestamp_manager *timestampManager, database &database);
+      TimestampManager *timestampManager, database &database);
 
     ~WorkloadManager();
 
@@ -65,7 +65,7 @@ class WorkloadManager : public Component {
     database &_database;
     database_operation *_databaseOperation = nullptr;
     ThreadManager _threadManager;
-    timestamp_manager *_timestampManager = nullptr;
+    TimestampManager *_timestampManager = nullptr;
     OperationTracker *_operationTracker = nullptr;
     std::vector<thread_worker *> _workers;
     bool _isDatabasePopulated = false;

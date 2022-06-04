@@ -48,7 +48,7 @@ const std::string type_string(thread_type type);
 class thread_worker {
     public:
     thread_worker(uint64_t id, thread_type type, configuration *config,
-      scoped_session &&created_session, timestamp_manager *timestamp_manager,
+      scoped_session &&created_session, TimestampManager *timestamp_manager,
       OperationTracker *op_tracker, database &dbase);
 
     virtual ~thread_worker() = default;
@@ -98,7 +98,7 @@ class thread_worker {
     scoped_session session;
     scoped_cursor op_track_cursor;
     scoped_cursor stat_cursor;
-    timestamp_manager *tsm;
+    TimestampManager *tsm;
     transaction txn;
     OperationTracker *op_tracker;
 

@@ -45,22 +45,22 @@ namespace test_harness {
  * The format of a timestamp is as follows, the first 32 bits represent the epoch time in seconds.
  * The last 32 bits represent an increment for uniqueness.
  */
-class timestamp_manager : public Component {
+class TimestampManager : public Component {
     public:
-    static const std::string decimal_to_hex(uint64_t value);
+    static const std::string DecimalToHex(uint64_t value);
 
     public:
-    explicit timestamp_manager(configuration *config);
-    virtual ~timestamp_manager() = default;
+    explicit TimestampManager(configuration *config);
+    virtual ~TimestampManager() = default;
 
     void Load() override final;
     void DoWork() override final;
 
     /* Get a unique timestamp. */
-    wt_timestamp_t get_next_ts();
+    wt_timestamp_t GetNextTimestamp();
 
     /* Get oldest timestamp. */
-    wt_timestamp_t get_oldest_ts() const;
+    wt_timestamp_t GetOldestTimestamp() const;
 
     /*
      * Generate a timestamp between the oldest timestamp and the stable timestamp.
@@ -72,22 +72,22 @@ class timestamp_manager : public Component {
      * This timestamp isn't guaranteed to provide a repeatable read as the oldest could move
      * concurrently removing the previously seen data.
      */
-    wt_timestamp_t get_valid_read_ts() const;
+    wt_timestamp_t GetValidReadTimestamp() const;
 
     private:
     /* Get the current time in seconds, bit shifted to the expected location. */
-    uint64_t get_time_now_s() const;
+    uint64_t GetTimeNowSecs() const;
 
     private:
-    std::atomic<wt_timestamp_t> _increment_ts{0};
+    std::atomic<wt_timestamp_t> _incrementTimestamp{0};
     /* The tracking table sweep needs to read the oldest timestamp. */
-    std::atomic<wt_timestamp_t> _oldest_ts{0U};
-    wt_timestamp_t _stable_ts = 0U;
+    std::atomic<wt_timestamp_t> _oldestTimestamp{0U};
+    wt_timestamp_t _stableTimestamp = 0U;
     /*
      * _oldest_lag is the time window between the stable and oldest timestamps.
      * _stable_lag is the time window between the latest and stable timestamps.
      */
-    uint64_t _oldest_lag = 0U, _stable_lag = 0U;
+    uint64_t _oldestLag = 0U, _stableLag = 0U;
 };
 } // namespace test_harness
 

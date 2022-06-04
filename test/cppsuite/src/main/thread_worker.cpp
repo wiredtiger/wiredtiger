@@ -59,7 +59,7 @@ type_string(thread_type type)
 }
 
 thread_worker::thread_worker(uint64_t id, thread_type type, configuration *config,
-  scoped_session &&created_session, timestamp_manager *timestamp_manager,
+  scoped_session &&created_session, TimestampManager *timestamp_manager,
   OperationTracker *op_tracker, database &dbase)
     : /* These won't exist for certain threads which is why we use optional here. */
       collection_count(config->get_optional_int(collectionCount, 1)),
@@ -100,7 +100,7 @@ thread_worker::update(
     testutil_assert(op_tracker != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
-    wt_timestamp_t ts = tsm->get_next_ts();
+    wt_timestamp_t ts = tsm->GetNextTimestamp();
     ret = txn.set_commit_timestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
@@ -142,7 +142,7 @@ thread_worker::insert(
     testutil_assert(op_tracker != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
-    wt_timestamp_t ts = tsm->get_next_ts();
+    wt_timestamp_t ts = tsm->GetNextTimestamp();
     ret = txn.set_commit_timestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
@@ -182,7 +182,7 @@ thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::
     testutil_assert(op_tracker != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
-    wt_timestamp_t ts = tsm->get_next_ts();
+    wt_timestamp_t ts = tsm->GetNextTimestamp();
     ret = txn.set_commit_timestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {

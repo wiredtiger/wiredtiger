@@ -38,7 +38,7 @@ class OperationTrackerCacheResize : public OperationTracker {
 
     public:
     OperationTrackerCacheResize(
-      configuration *config, const bool use_compression, timestamp_manager &tsm)
+      configuration *config, const bool use_compression, TimestampManager &tsm)
         : OperationTracker(config, use_compression, tsm)
     {
     }
@@ -108,7 +108,7 @@ class cache_resize : public test {
             /* Save the change of cache size in the tracking table. */
             tc->txn.begin();
             int ret = tc->op_tracker->save_operation(txn_id, trackingOperation::CUSTOM,
-              collection_id, key, value, tc->tsm->get_next_ts(), tc->op_track_cursor);
+              collection_id, key, value, tc->tsm->GetNextTimestamp(), tc->op_track_cursor);
 
             if (ret == 0)
                 testutil_assert(tc->txn.commit());
