@@ -73,7 +73,7 @@ class test : public database_operation {
     std::vector<Component *> _components;
     MetricsMonitor *_metrics_monitor = nullptr;
     ThreadManager *_thread_manager = nullptr;
-    workload_manager *_workload_manager = nullptr;
+    WorkloadManager *_workload_manager = nullptr;
     database _database;
 };
 } // namespace test_harness

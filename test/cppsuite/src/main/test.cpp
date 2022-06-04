@@ -39,7 +39,7 @@ test::test(const test_args &args) : _args(args)
     _metrics_monitor =
       new MetricsMonitor(args.test_name, _config->get_subconfig(metricsMonitor), _database);
     _timestamp_manager = new timestamp_manager(_config->get_subconfig(timestampManager));
-    _workload_manager = new workload_manager(
+    _workload_manager = new WorkloadManager(
       _config->get_subconfig(workloadManager), this, _timestamp_manager, _database);
     _thread_manager = new ThreadManager();
 
@@ -64,8 +64,8 @@ test::init_operation_tracker(OperationTracker *op_tracker)
           _config->get_bool(compressionEnabled), *_timestamp_manager);
     }
     _operation_tracker = op_tracker;
-    _workload_manager->set_operation_tracker(_operation_tracker);
-    _database.set_operation_tracker(_operation_tracker);
+    _workload_manager->SetOperationTracker(_operation_tracker);
+    _database.SetOperationTracker(_operation_tracker);
     _components.push_back(_operation_tracker);
 }
 
@@ -143,7 +143,7 @@ test::run()
         _thread_manager->addThread(&Component::Run, it);
 
     /* The initial population phase needs to be finished before starting the actual test. */
-    while (_workload_manager->IsEnabled() && !_workload_manager->db_populated())
+    while (_workload_manager->IsEnabled() && !_workload_manager->IsDatabasePopulated())
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     /* The test will run for the duration as defined in the config. */
@@ -172,7 +172,7 @@ test::run()
         std::unique_ptr<configuration> tracking_config(_config->get_subconfig(operationTracker));
         this->validate(_operation_tracker->getOperationTableName(),
           _operation_tracker->getSchemaTableName(),
-          _workload_manager->get_database().get_collection_ids());
+          _workload_manager->GetDatabase().get_collection_ids());
     }
 
     /* Log perf stats. */

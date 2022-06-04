@@ -118,7 +118,7 @@ database::set_timestamp_manager(timestamp_manager *tsm)
 }
 
 void
-database::set_operation_tracker(OperationTracker *op_tracker)
+database::SetOperationTracker(OperationTracker *op_tracker)
 {
     testutil_assert(_operation_tracker == nullptr);
     _operation_tracker = op_tracker;

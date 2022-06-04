@@ -34,66 +34,64 @@
 #include "src/storage/connection_manager.h"
 
 namespace test_harness {
-workload_manager::workload_manager(configuration *configuration, database_operation *db_operation,
-  timestamp_manager *timestamp_manager, database &database)
+WorkloadManager::WorkloadManager(configuration *configuration,
+  database_operation *databaseOperation, timestamp_manager *timestampManager, database &database)
     : Component(workloadManager, configuration), _database(database),
-      _database_operation(db_operation), _timestamp_manager(timestamp_manager)
+      _databaseOperation(databaseOperation), _timestampManager(timestampManager)
 {
 }
 
-workload_manager::~workload_manager()
+WorkloadManager::~WorkloadManager()
 {
     for (auto &it : _workers)
         delete it;
 }
 
 void
-workload_manager::set_operation_tracker(OperationTracker *op_tracker)
+WorkloadManager::SetOperationTracker(OperationTracker *operationTracker)
 {
-    testutil_assert(_operation_tracker == nullptr);
-    _operation_tracker = op_tracker;
+    testutil_assert(_operationTracker == nullptr);
+    _operationTracker = operationTracker;
 }
 
 void
-workload_manager::Run()
+WorkloadManager::Run()
 {
-    configuration *populate_config;
-    std::vector<operation_configuration> operation_configs;
-    uint64_t thread_id = 0;
+    std::vector<operation_configuration> operationConfigs;
 
     /* Retrieve useful parameters from the test configuration. */
-    operation_configs.push_back(
+    operationConfigs.push_back(
       operation_configuration(_config->get_subconfig(checkpointOpConfig), thread_type::CHECKPOINT));
-    operation_configs.push_back(
+    operationConfigs.push_back(
       operation_configuration(_config->get_subconfig(customOpConfig), thread_type::CUSTOM));
-    operation_configs.push_back(
+    operationConfigs.push_back(
       operation_configuration(_config->get_subconfig(insertOpConfig), thread_type::INSERT));
-    operation_configs.push_back(
+    operationConfigs.push_back(
       operation_configuration(_config->get_subconfig(readOpConfig), thread_type::READ));
-    operation_configs.push_back(
+    operationConfigs.push_back(
       operation_configuration(_config->get_subconfig(removeOpConfig), thread_type::REMOVE));
-    operation_configs.push_back(
+    operationConfigs.push_back(
       operation_configuration(_config->get_subconfig(updateOpConfig), thread_type::UPDATE));
-    populate_config = _config->get_subconfig(populateConfig);
+    configuration *populatedConfig = _config->get_subconfig(populateConfig);
 
     /* Populate the database. */
-    _database_operation->populate(
-      _database, _timestamp_manager, populate_config, _operation_tracker);
-    _db_populated = true;
-    delete populate_config;
+    _databaseOperation->populate(_database, _timestampManager, populatedConfig, _operationTracker);
+    _isDatabasePopulated = true;
+    delete populatedConfig;
 
+    uint64_t thread_id = 0;
     /* Generate threads to execute the different operations on the collections. */
-    for (auto &it : operation_configs) {
+    for (auto &it : operationConfigs) {
         if (it.thread_count != 0)
             Logger::LogMessage(LOG_INFO,
-              "workload_manager: Creating " + std::to_string(it.thread_count) + " " +
+              "WorkloadManager: Creating " + std::to_string(it.thread_count) + " " +
                 type_string(it.type) + " threads.");
         for (size_t i = 0; i < it.thread_count && _running; ++i) {
             thread_worker *tc = new thread_worker(thread_id++, it.type, it.config,
-              connection_manager::instance().create_session(), _timestamp_manager,
-              _operation_tracker, _database);
+              connection_manager::instance().create_session(), _timestampManager, _operationTracker,
+              _database);
             _workers.push_back(tc);
-            _thread_manager.addThread(it.get_func(_database_operation), tc);
+            _threadManager.addThread(it.get_func(_databaseOperation), tc);
         }
         /*
          * Don't forget to delete the config we created earlier. While we do pass the config into
@@ -110,24 +108,24 @@ workload_manager::Run()
 }
 
 void
-workload_manager::Finish()
+WorkloadManager::Finish()
 {
     Component::Finish();
     for (const auto &it : _workers)
         it->finish();
-    _thread_manager.Join();
+    _threadManager.Join();
     Logger::LogMessage(LOG_TRACE, "Workload generator: run stage done");
 }
 
 database &
-workload_manager::get_database()
+WorkloadManager::GetDatabase()
 {
     return (_database);
 }
 
 bool
-workload_manager::db_populated() const
+WorkloadManager::IsDatabasePopulated() const
 {
-    return (_db_populated);
+    return (_isDatabasePopulated);
 }
 } // namespace test_harness

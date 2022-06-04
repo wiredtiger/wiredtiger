@@ -68,7 +68,7 @@ class database {
 
     std::vector<uint64_t> get_collection_ids();
     void set_timestamp_manager(timestamp_manager *tsm);
-    void set_operation_tracker(OperationTracker *op_tracker);
+    void SetOperationTracker(OperationTracker *op_tracker);
     void set_create_config(bool use_compression, bool use_reverse_collator);
 
     private:

@@ -40,35 +40,35 @@ namespace test_harness {
 /*
  * Class that can execute operations based on a given configuration.
  */
-class workload_manager : public Component {
+class WorkloadManager : public Component {
     public:
-    workload_manager(configuration *configuration, database_operation *db_operation,
-      timestamp_manager *timestamp_manager, database &database);
+    WorkloadManager(configuration *configuration, database_operation *databaseOperation,
+      timestamp_manager *timestampManager, database &database);
 
-    ~workload_manager();
+    ~WorkloadManager();
 
     /* Delete the copy constructor and the assignment operator. */
-    workload_manager(const workload_manager &) = delete;
-    workload_manager &operator=(const workload_manager &) = delete;
+    WorkloadManager(const WorkloadManager &) = delete;
+    WorkloadManager &operator=(const WorkloadManager &) = delete;
 
     /* Do the work of the main part of the workload. */
     void Run() override final;
     void Finish() override final;
 
-    database &get_database();
-    bool db_populated() const;
+    database &GetDatabase();
+    bool IsDatabasePopulated() const;
 
     /* Set the tracking component. */
-    void set_operation_tracker(OperationTracker *op_tracker);
+    void SetOperationTracker(OperationTracker *op_tracker);
 
     private:
     database &_database;
-    database_operation *_database_operation = nullptr;
-    ThreadManager _thread_manager;
-    timestamp_manager *_timestamp_manager = nullptr;
-    OperationTracker *_operation_tracker = nullptr;
+    database_operation *_databaseOperation = nullptr;
+    ThreadManager _threadManager;
+    timestamp_manager *_timestampManager = nullptr;
+    OperationTracker *_operationTracker = nullptr;
     std::vector<thread_worker *> _workers;
-    bool _db_populated = false;
+    bool _isDatabasePopulated = false;
 };
 } // namespace test_harness
 
