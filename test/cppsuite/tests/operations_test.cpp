@@ -36,10 +36,10 @@ using namespace test_harness;
  *
  * Can be used to create stress tests in various ways.
  */
-class operations_test : public test {
+class operations_test : public Test {
     public:
-    operations_test(const test_args &args) : test(args)
+    operations_test(const test_args &args) : Test(args)
     {
-        init_operation_tracker();
+        InitOperationTracker();
     }
 };

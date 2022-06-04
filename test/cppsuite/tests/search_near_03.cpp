@@ -40,15 +40,15 @@ using namespace test_harness;
  *  - M threads will traverse the collections and ensure that the number of records in the
  * collections don't change.
  */
-class search_near_03 : public test {
+class search_near_03 : public Test {
     /* A 2D array consisted of a mapping between each collection and their inserted prefixes. */
     std::vector<std::vector<std::string>> prefixes_map;
     const std::string ALPHABET{"abcdefghijklmnopqrstuvwxyz"};
 
     public:
-    search_near_03(const test_args &args) : test(args)
+    search_near_03(const test_args &args) : Test(args)
     {
-        init_operation_tracker();
+        InitOperationTracker();
     }
 
     /*

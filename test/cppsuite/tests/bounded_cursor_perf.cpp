@@ -36,11 +36,11 @@ using namespace test_harness;
  * bounded and normal cursors. The performance of both cursors are tracked and the average time
  * taken is added to the perf file. The test traverses all keys in the collection.
  */
-class bounded_cursor_perf : public test {
+class bounded_cursor_perf : public Test {
     public:
-    bounded_cursor_perf(const test_args &args) : test(args)
+    bounded_cursor_perf(const test_args &args) : Test(args)
     {
-        init_operation_tracker();
+        InitOperationTracker();
     }
 
     static void
@@ -66,10 +66,10 @@ class bounded_cursor_perf : public test {
         int range_ret_next, range_ret_prev, ret_next, ret_prev;
 
         /* Initialize the different timers for each function. */
-        ExecutionTimer bounded_next("bounded_next", test::_args.test_name);
-        ExecutionTimer default_next("default_next", test::_args.test_name);
-        ExecutionTimer bounded_prev("bounded_prev", test::_args.test_name);
-        ExecutionTimer default_prev("default_prev", test::_args.test_name);
+        ExecutionTimer bounded_next("bounded_next", Test::_args.testName);
+        ExecutionTimer default_next("default_next", Test::_args.testName);
+        ExecutionTimer bounded_prev("bounded_prev", Test::_args.testName);
+        ExecutionTimer default_prev("default_prev", Test::_args.testName);
 
         /* Get the collection to work on. */
         testutil_assert(tc->collection_count == 1);

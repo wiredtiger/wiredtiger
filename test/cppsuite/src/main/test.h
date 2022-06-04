@@ -38,42 +38,38 @@
 
 namespace test_harness {
 struct test_args {
-    const std::string test_config;
-    const std::string test_name;
-    const std::string wt_open_config;
+    const std::string testConfig;
+    const std::string testName;
+    const std::string wtOpenConfig;
 };
 
-/*
- * The base class for a test, the standard usage pattern is to just call run().
- */
-class test : public DatabaseOperation {
+/* The base class for a test, the standard usage pattern is to just call run(). */
+class Test : public DatabaseOperation {
     public:
-    explicit test(const test_args &args);
-    virtual ~test();
+    explicit Test(const test_args &args);
+    virtual ~Test();
 
     /* Delete the copy constructor and the assignment operator. */
-    test(const test &) = delete;
-    test &operator=(const test &) = delete;
+    Test(const Test &) = delete;
+    Test &operator=(const Test &) = delete;
 
     /* Initialize the operation tracker component and its dependencies. */
-    void init_operation_tracker(OperationTracker *op_tracker = nullptr);
+    void InitOperationTracker(OperationTracker *operation_tracker = nullptr);
 
-    /*
-     * The primary run function that most tests will be able to utilize without much other code.
-     */
-    virtual void run();
+    /* The primary run function that most tests will be able to utilize without much other code. */
+    virtual void Run();
 
     protected:
     const test_args &_args;
     Configuration *_config;
-    TimestampManager *_timestamp_manager = nullptr;
-    OperationTracker *_operation_tracker = nullptr;
+    TimestampManager *_timestampManager = nullptr;
+    OperationTracker *_operationTracker = nullptr;
 
     private:
     std::vector<Component *> _components;
-    MetricsMonitor *_metrics_monitor = nullptr;
-    ThreadManager *_thread_manager = nullptr;
-    WorkloadManager *_workload_manager = nullptr;
+    MetricsMonitor *_metricsMonitor = nullptr;
+    ThreadManager *_threadManager = nullptr;
+    WorkloadManager *_workloadManager = nullptr;
     Database _database;
 };
 } // namespace test_harness

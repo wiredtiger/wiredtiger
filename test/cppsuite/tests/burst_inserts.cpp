@@ -35,13 +35,13 @@ using namespace test_harness;
  * This test inserts and reads a large quantity of data in bursts, this is intended to simulate a
  * mongod instance loading a large amount of data over a long period of time.
  */
-class burst_inserts : public test {
+class burst_inserts : public Test {
     public:
-    burst_inserts(const test_args &args) : test(args)
+    burst_inserts(const test_args &args) : Test(args)
     {
         _burst_duration = _config->GetInt("burst_duration");
         Logger::LogMessage(LOG_INFO, "Burst duration set to: " + std::to_string(_burst_duration));
-        init_operation_tracker();
+        InitOperationTracker();
     }
 
     /*

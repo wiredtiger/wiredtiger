@@ -56,19 +56,19 @@ class OperationTrackerTemplate : public OperationTracker {
  * Class that defines operations that do nothing as an example. This shows how database operations
  * can be overridden and customized.
  */
-class test_template : public test {
+class test_template : public Test {
     public:
-    test_template(const test_args &args) : test(args)
+    test_template(const test_args &args) : Test(args)
     {
-        init_operation_tracker(new OperationTrackerTemplate(_config->GetSubconfig(operationTracker),
-          _config->GetBool(compressionEnabled), *_timestamp_manager));
+        InitOperationTracker(new OperationTrackerTemplate(_config->GetSubconfig(operationTracker),
+          _config->GetBool(compressionEnabled), *_timestampManager));
     }
 
     void
-    run() override final
+    Run() override final
     {
         /* You can remove the call to the base class to fully customize your test. */
-        test::run();
+        Test::Run();
     }
 
     void

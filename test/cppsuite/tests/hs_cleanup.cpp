@@ -39,11 +39,11 @@ using namespace test_harness;
  *
  * This is then tracked using the associated statistic which can be found in the MetricsMonitor.
  */
-class hs_cleanup : public test {
+class hs_cleanup : public Test {
     public:
-    hs_cleanup(const test_args &args) : test(args)
+    hs_cleanup(const test_args &args) : Test(args)
     {
-        init_operation_tracker();
+        InitOperationTracker();
     }
 
     void

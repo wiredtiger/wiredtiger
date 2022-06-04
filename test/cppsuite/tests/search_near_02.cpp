@@ -39,11 +39,11 @@ using namespace test_harness;
  *  - M threads will execute search_near calls with prefix enabled using random prefixes as well.
  * Each search_near call with prefix enabled is verified using the default search_near.
  */
-class search_near_02 : public test {
+class search_near_02 : public Test {
     public:
-    search_near_02(const test_args &args) : test(args)
+    search_near_02(const test_args &args) : Test(args)
     {
-        init_operation_tracker();
+        InitOperationTracker();
     }
 
     void

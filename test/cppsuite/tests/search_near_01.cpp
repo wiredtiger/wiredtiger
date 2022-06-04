@@ -42,7 +42,7 @@ using namespace test_harness;
  *  - Using WiredTiger statistics to validate that the number of entries traversed is within
  * bounds of the search key.
  */
-class search_near_01 : public test {
+class search_near_01 : public Test {
     uint64_t keys_per_prefix = 0;
     uint64_t srchkey_len = 0;
     const std::string ALPHABET{"abcdefghijklmnopqrstuvwxyz"};
@@ -100,9 +100,9 @@ class search_near_01 : public test {
     }
 
     public:
-    search_near_01(const test_args &args) : test(args)
+    search_near_01(const test_args &args) : Test(args)
     {
-        init_operation_tracker();
+        InitOperationTracker();
     }
 
     void

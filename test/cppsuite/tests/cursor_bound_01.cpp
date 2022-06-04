@@ -45,7 +45,7 @@ using namespace test_harness;
  * random bounds set. Both next() and prev() calls with bounds set is verified against the
  * default cursor next() and prev() calls.
  */
-class cursor_bound_01 : public test {
+class cursor_bound_01 : public Test {
     /* Class helper to represent the lower and uppers bounds for the range cursor. */
     class bound {
         public:
@@ -95,11 +95,11 @@ class cursor_bound_01 : public test {
     enum bounds { NO_BOUNDS, LOWER_BOUND_SET, UPPER_BOUND_SET, ALL_BOUNDS_SET };
 
     public:
-    cursor_bound_01(const test_args &args) : test(args)
+    cursor_bound_01(const test_args &args) : Test(args)
     {
         /* Track reverse_collator value as it is required for the custom comparator. */
         _reverse_collator_enabled = _config->GetBool(reverseCollator);
-        init_operation_tracker();
+        InitOperationTracker();
     }
 
     bool

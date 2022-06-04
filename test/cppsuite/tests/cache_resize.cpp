@@ -59,13 +59,13 @@ class OperationTrackerCacheResize : public OperationTracker {
  * than the cache size they are rejected, so only transactions made when cache size is 500MB should
  * be allowed.
  */
-class cache_resize : public test {
+class cache_resize : public Test {
     public:
-    cache_resize(const test_args &args) : test(args)
+    cache_resize(const test_args &args) : Test(args)
     {
-        init_operation_tracker(
+        InitOperationTracker(
           new OperationTrackerCacheResize(_config->GetSubconfig(operationTracker),
-            _config->GetBool(compressionEnabled), *_timestamp_manager));
+            _config->GetBool(compressionEnabled), *_timestampManager));
     }
 
     void
