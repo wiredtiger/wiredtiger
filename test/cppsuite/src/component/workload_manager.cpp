@@ -57,21 +57,21 @@ WorkloadManager::SetOperationTracker(OperationTracker *operationTracker)
 void
 WorkloadManager::Run()
 {
-    std::vector<operation_configuration> operationConfigs;
+    std::vector<OperationConfiguration> operationConfigs;
 
     /* Retrieve useful parameters from the test configuration. */
     operationConfigs.push_back(
-      operation_configuration(_config->GetSubconfig(checkpointOpConfig), thread_type::CHECKPOINT));
+      OperationConfiguration(_config->GetSubconfig(checkpointOpConfig), thread_type::CHECKPOINT));
     operationConfigs.push_back(
-      operation_configuration(_config->GetSubconfig(customOpConfig), thread_type::CUSTOM));
+      OperationConfiguration(_config->GetSubconfig(customOpConfig), thread_type::CUSTOM));
     operationConfigs.push_back(
-      operation_configuration(_config->GetSubconfig(insertOpConfig), thread_type::INSERT));
+      OperationConfiguration(_config->GetSubconfig(insertOpConfig), thread_type::INSERT));
     operationConfigs.push_back(
-      operation_configuration(_config->GetSubconfig(readOpConfig), thread_type::READ));
+      OperationConfiguration(_config->GetSubconfig(readOpConfig), thread_type::READ));
     operationConfigs.push_back(
-      operation_configuration(_config->GetSubconfig(removeOpConfig), thread_type::REMOVE));
+      OperationConfiguration(_config->GetSubconfig(removeOpConfig), thread_type::REMOVE));
     operationConfigs.push_back(
-      operation_configuration(_config->GetSubconfig(updateOpConfig), thread_type::UPDATE));
+      OperationConfiguration(_config->GetSubconfig(updateOpConfig), thread_type::UPDATE));
     Configuration *populatedConfig = _config->GetSubconfig(populateConfig);
 
     /* Populate the database. */
@@ -91,7 +91,7 @@ WorkloadManager::Run()
               connection_manager::instance().create_session(), _timestampManager, _operationTracker,
               _database);
             _workers.push_back(tc);
-            _threadManager.addThread(it.get_func(_databaseOperation), tc);
+            _threadManager.addThread(it.GetFunction(_databaseOperation), tc);
         }
         /*
          * Don't forget to delete the config we created earlier. While we do pass the config into

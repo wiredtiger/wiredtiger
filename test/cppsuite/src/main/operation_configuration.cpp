@@ -31,27 +31,33 @@
 #include "src/common/constants.h"
 
 namespace test_harness {
-operation_configuration::operation_configuration(Configuration *config, thread_type type)
+OperationConfiguration::OperationConfiguration(Configuration *config, thread_type type)
     : config(config), type(type), thread_count(config->GetInt(threadCount))
 {
 }
 
 std::function<void(thread_worker *)>
-operation_configuration::get_func(DatabaseOperation *dbo)
+OperationConfiguration::GetFunction(DatabaseOperation *databaseOperation)
 {
     switch (type) {
     case thread_type::CHECKPOINT:
-        return (std::bind(&DatabaseOperation::CheckpointOperation, dbo, std::placeholders::_1));
+        return (std::bind(
+          &DatabaseOperation::CheckpointOperation, databaseOperation, std::placeholders::_1));
     case thread_type::CUSTOM:
-        return (std::bind(&DatabaseOperation::CustomOperation, dbo, std::placeholders::_1));
+        return (
+          std::bind(&DatabaseOperation::CustomOperation, databaseOperation, std::placeholders::_1));
     case thread_type::INSERT:
-        return (std::bind(&DatabaseOperation::InsertOperation, dbo, std::placeholders::_1));
+        return (
+          std::bind(&DatabaseOperation::InsertOperation, databaseOperation, std::placeholders::_1));
     case thread_type::READ:
-        return (std::bind(&DatabaseOperation::ReadOperation, dbo, std::placeholders::_1));
+        return (
+          std::bind(&DatabaseOperation::ReadOperation, databaseOperation, std::placeholders::_1));
     case thread_type::REMOVE:
-        return (std::bind(&DatabaseOperation::RemoveOperation, dbo, std::placeholders::_1));
+        return (
+          std::bind(&DatabaseOperation::RemoveOperation, databaseOperation, std::placeholders::_1));
     case thread_type::UPDATE:
-        return (std::bind(&DatabaseOperation::UpdateOperation, dbo, std::placeholders::_1));
+        return (
+          std::bind(&DatabaseOperation::UpdateOperation, databaseOperation, std::placeholders::_1));
     default:
         /* This may cause a separate testutil_die in type_string but that should be okay. */
         testutil_die(EINVAL, "unexpected thread_type: %s", type_string(type).c_str());

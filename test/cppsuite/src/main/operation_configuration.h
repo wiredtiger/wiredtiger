@@ -39,12 +39,12 @@ namespace test_harness {
 /*
  * Helper class to enable scalable operation types in the DatabaseOperation.
  */
-class operation_configuration {
+class OperationConfiguration {
     public:
-    operation_configuration(Configuration *config, thread_type type);
+    OperationConfiguration(Configuration *config, thread_type type);
 
     /* Returns a function pointer to the member function of the supplied database operation. */
-    std::function<void(thread_worker *)> get_func(DatabaseOperation *dbo);
+    std::function<void(thread_worker *)> GetFunction(DatabaseOperation *databaseOperation);
 
     public:
     Configuration *config;
