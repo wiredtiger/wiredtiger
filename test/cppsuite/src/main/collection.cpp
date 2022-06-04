@@ -29,20 +29,20 @@
 #include "collection.h"
 
 namespace test_harness {
-collection::collection(const uint64_t id, const uint64_t key_count, const std::string &name)
-    : name(name), id(id), _key_count(key_count)
+Collection::Collection(const uint64_t id, const uint64_t keyCount, const std::string &name)
+    : name(name), id(id), _keyCount(keyCount)
 {
 }
 
 uint64_t
-collection::get_key_count() const
+Collection::GetKeyCount() const
 {
-    return (_key_count);
+    return (_keyCount);
 }
 
 void
-collection::increase_key_count(uint64_t increment)
+Collection::IncreaseKeyCount(uint64_t increment)
 {
-    _key_count += increment;
+    _keyCount += increment;
 }
 } // namespace test_harness

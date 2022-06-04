@@ -43,7 +43,7 @@ populate_worker(thread_worker *tc)
     uint64_t collections_per_thread = tc->collection_count / tc->thread_count;
 
     for (int64_t i = 0; i < collections_per_thread; ++i) {
-        collection &coll = tc->db.get_collection((tc->id * collections_per_thread) + i);
+        Collection &coll = tc->db.get_collection((tc->id * collections_per_thread) + i);
         /*
          * WiredTiger lets you open a cursor on a collection using the same pointer. When a session
          * is closed, WiredTiger APIs close the cursors too.
@@ -151,11 +151,11 @@ database_operation::insert_operation(thread_worker *tc)
 
     /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
     struct collection_cursor {
-        collection_cursor(collection &coll, scoped_cursor &&cursor)
+        collection_cursor(Collection &coll, scoped_cursor &&cursor)
             : coll(coll), cursor(std::move(cursor))
         {
         }
-        collection &coll;
+        Collection &coll;
         scoped_cursor cursor;
     };
 
@@ -168,14 +168,14 @@ database_operation::insert_operation(thread_worker *tc)
     testutil_assert(collection_count % tc->thread_count == 0);
     for (int i = tc->id * collections_per_thread;
          i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
-        collection &coll = tc->db.get_collection(i);
+        Collection &coll = tc->db.get_collection(i);
         scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
         ccv.push_back({coll, std::move(cursor)});
     }
 
     uint64_t counter = 0;
     while (tc->running()) {
-        uint64_t start_key = ccv[counter].coll.get_key_count();
+        uint64_t start_key = ccv[counter].coll.GetKeyCount();
         uint64_t added_count = 0;
         tc->txn.begin();
 
@@ -197,7 +197,7 @@ database_operation::insert_operation(thread_worker *tc)
                          * other thread may rely on the key_count data. Only do so if we
                          * successfully committed.
                          */
-                        cc.coll.increase_key_count(added_count);
+                        cc.coll.IncreaseKeyCount(added_count);
                     } else {
                         added_count = 0;
                     }
@@ -228,7 +228,7 @@ database_operation::read_operation(thread_worker *tc)
     std::map<uint64_t, scoped_cursor> cursors;
     while (tc->running()) {
         /* Get a collection and find a cached cursor. */
-        collection &coll = tc->db.get_random_collection();
+        Collection &coll = tc->db.get_random_collection();
 
         if (cursors.find(coll.id) == cursors.end())
             cursors.emplace(coll.id, std::move(tc->session.open_scoped_cursor(coll.name)));
@@ -283,7 +283,7 @@ database_operation::remove_operation(thread_worker *tc)
         tc->sleep();
 
         /* Choose a random collection to update. */
-        collection &coll = tc->db.get_random_collection();
+        Collection &coll = tc->db.get_random_collection();
 
         /* Look for existing cursors in our cursor cache. */
         if (cursors.find(coll.id) == cursors.end()) {
@@ -355,7 +355,7 @@ database_operation::update_operation(thread_worker *tc)
         tc->sleep();
 
         /* Choose a random collection to update. */
-        collection &coll = tc->db.get_random_collection();
+        Collection &coll = tc->db.get_random_collection();
 
         /* Look for existing cursors in our cursor cache. */
         if (cursors.find(coll.id) == cursors.end()) {
@@ -374,9 +374,9 @@ database_operation::update_operation(thread_worker *tc)
         scoped_cursor &cursor = cursors[coll.id];
 
         /* Choose a random key to update. */
-        testutil_assert(coll.get_key_count() != 0);
+        testutil_assert(coll.GetKeyCount() != 0);
         auto key_id =
-          RandomGenerator::GetInstance().GenerateInteger<uint64_t>(0, coll.get_key_count() - 1);
+          RandomGenerator::GetInstance().GenerateInteger<uint64_t>(0, coll.GetKeyCount() - 1);
         auto key = tc->pad_string(std::to_string(key_id), tc->key_size);
         auto value = RandomGenerator::GetInstance().GeneratePseudoRandomString(tc->value_size);
         if (!tc->update(cursor, coll.id, key, value)) {

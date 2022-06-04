@@ -35,15 +35,15 @@
 namespace test_harness {
 
 /* A collection is made of mapped key value objects. */
-class collection {
+class Collection {
     public:
-    collection(const uint64_t id, const uint64_t key_count, const std::string &name);
+    Collection(const uint64_t id, const uint64_t keyCount, const std::string &name);
 
     /* Copies aren't allowed. */
-    collection(const collection &) = delete;
-    collection &operator=(const collection &) = delete;
+    Collection(const Collection &) = delete;
+    Collection &operator=(const Collection &) = delete;
 
-    uint64_t get_key_count() const;
+    uint64_t GetKeyCount() const;
 
     /*
      * Adding new keys should generally be singly threaded per collection. If two threads both
@@ -52,20 +52,20 @@ class collection {
      * The usage pattern is:
      *   1. Call get_key_count to get the number of keys already existing. Add keys with id's equal
      *      to and greater than this value.
-     *   2. Once the transaction has successfully committed then call increase_key_count() with the
+     *   2. Once the transaction has successfully committed then call IncreaseKeyCount() with the
      *      number of added keys.
      *
      * The set of keys should always be contiguous such that other threads calling get_key_count
      * will always know that the keys in existence are 0 -> _key_count - 1.
      */
-    void increase_key_count(uint64_t increment);
+    void IncreaseKeyCount(uint64_t increment);
 
     public:
     const std::string name;
     const uint64_t id;
 
     private:
-    std::atomic<uint64_t> _key_count{0};
+    std::atomic<uint64_t> _keyCount{0};
 };
 } // namespace test_harness
 

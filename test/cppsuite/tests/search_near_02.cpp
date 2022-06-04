@@ -74,11 +74,11 @@ class search_near_02 : public test {
 
         /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
         struct collection_cursor {
-            collection_cursor(collection &coll, scoped_cursor &&cursor)
+            collection_cursor(Collection &coll, scoped_cursor &&cursor)
                 : coll(coll), cursor(std::move(cursor))
             {
             }
-            collection &coll;
+            Collection &coll;
             scoped_cursor cursor;
         };
 
@@ -92,7 +92,7 @@ class search_near_02 : public test {
         const uint64_t thread_offset = tc->id * collections_per_thread;
         for (uint64_t i = thread_offset;
              i < thread_offset + collections_per_thread && tc->running(); ++i) {
-            collection &coll = tc->db.get_collection(i);
+            Collection &coll = tc->db.get_collection(i);
             scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
             ccv.push_back({coll, std::move(cursor)});
         }
@@ -163,7 +163,7 @@ class search_near_02 : public test {
 
         while (tc->running()) {
             /* Get a random collection to work on. */
-            collection &coll = tc->db.get_random_collection();
+            Collection &coll = tc->db.get_random_collection();
 
             /* Find a cached cursor or create one if none exists. */
             if (cursors.find(coll.id) == cursors.end()) {

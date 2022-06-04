@@ -129,7 +129,7 @@ class cache_resize : public test {
     {
         const uint64_t collection_count = tc->db.get_collection_count();
         testutil_assert(collection_count > 0);
-        collection &coll = tc->db.get_collection(collection_count - 1);
+        Collection &coll = tc->db.get_collection(collection_count - 1);
         scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
 
         while (tc->running()) {

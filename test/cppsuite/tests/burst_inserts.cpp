@@ -57,12 +57,12 @@ class burst_inserts : public test {
         /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
         struct collection_cursor {
             collection_cursor(
-              collection &coll, scoped_cursor &&write_cursor, scoped_cursor &&read_cursor)
+              Collection &coll, scoped_cursor &&write_cursor, scoped_cursor &&read_cursor)
                 : coll(coll), read_cursor(std::move(read_cursor)),
                   write_cursor(std::move(write_cursor))
             {
             }
-            collection &coll;
+            Collection &coll;
             scoped_cursor read_cursor;
             scoped_cursor write_cursor;
         };
@@ -76,7 +76,7 @@ class burst_inserts : public test {
         int thread_offset = tc->id * collections_per_thread;
         for (int i = thread_offset; i < thread_offset + collections_per_thread && tc->running();
              ++i) {
-            collection &coll = tc->db.get_collection(i);
+            Collection &coll = tc->db.get_collection(i);
             /*
              * Create a reading cursor that will read random documents for every next call. This
              * will help generate cache pressure.
@@ -87,7 +87,7 @@ class burst_inserts : public test {
 
         uint64_t counter = 0;
         while (tc->running()) {
-            uint64_t start_key = ccv[counter].coll.get_key_count();
+            uint64_t start_key = ccv[counter].coll.GetKeyCount();
             uint64_t added_count = 0;
             auto &cc = ccv[counter];
             auto burst_start = std::chrono::system_clock::now();
@@ -125,8 +125,8 @@ class burst_inserts : public test {
 
                 if (tc->txn.can_commit()) {
                     if (tc->txn.commit()) {
-                        cc.coll.increase_key_count(added_count);
-                        start_key = cc.coll.get_key_count();
+                        cc.coll.IncreaseKeyCount(added_count);
+                        start_key = cc.coll.GetKeyCount();
                     }
                     added_count = 0;
                 }
@@ -139,7 +139,7 @@ class burst_inserts : public test {
                 if (tc->txn.commit()) {
                     Logger::LogMessage(LOG_TRACE,
                       "Committed an insertion of " + std::to_string(added_count) + " keys.");
-                    cc.coll.increase_key_count(added_count);
+                    cc.coll.IncreaseKeyCount(added_count);
                 }
             }
 

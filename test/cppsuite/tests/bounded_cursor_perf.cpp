@@ -73,7 +73,7 @@ class bounded_cursor_perf : public test {
 
         /* Get the collection to work on. */
         testutil_assert(tc->collection_count == 1);
-        collection &coll = tc->db.get_collection(0);
+        Collection &coll = tc->db.get_collection(0);
 
         /* Opening the cursors. */
         scoped_cursor next_cursor = tc->session.open_scoped_cursor(coll.name);

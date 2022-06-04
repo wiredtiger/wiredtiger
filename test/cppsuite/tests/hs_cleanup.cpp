@@ -56,7 +56,7 @@ class hs_cleanup : public test {
         const uint64_t MAX_ROLLBACKS = 100;
         uint32_t rollback_retries = 0;
 
-        collection &coll = tc->db.get_collection(tc->id);
+        Collection &coll = tc->db.get_collection(tc->id);
 
         /* In this test each thread gets a single collection. */
         testutil_assert(tc->db.get_collection_count() == tc->thread_count);

@@ -59,7 +59,7 @@ database::add_collection(uint64_t key_count)
       trackingOperation::CREATE_COLLECTION, next_id, _tsm->GetNextTimestamp());
 }
 
-collection &
+Collection &
 database::get_collection(uint64_t id)
 {
     std::lock_guard<std::mutex> lg(_mtx);
@@ -69,7 +69,7 @@ database::get_collection(uint64_t id)
     return (it->second);
 }
 
-collection &
+Collection &
 database::get_random_collection()
 {
     size_t collection_count = get_collection_count();

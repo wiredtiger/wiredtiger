@@ -52,13 +52,13 @@ class database {
     void add_collection(uint64_t key_count = 0);
 
     /* Get a collection using the id of the collection. */
-    collection &get_collection(uint64_t id);
+    Collection &get_collection(uint64_t id);
 
     /* Get a random collection. */
-    collection &get_random_collection();
+    Collection &get_random_collection();
 
     /*
-     * Retrieve the current collection count, collection names are indexed from 0 so when using this
+     * Retrieve the current collection count, Collection names are indexed from 0 so when using this
      * take care to avoid an off by one error.
      */
     uint64_t get_collection_count();
@@ -77,7 +77,7 @@ class database {
     TimestampManager *_tsm = nullptr;
     OperationTracker *_operation_tracker = nullptr;
     uint64_t _next_collection_id = 0;
-    std::map<uint64_t, collection> _collections;
+    std::map<uint64_t, Collection> _collections;
     std::mutex _mtx;
 };
 } // namespace test_harness

@@ -64,7 +64,7 @@ class search_near_01 : public test {
          * id.
          */
         for (int64_t i = 0; i < collections_per_thread; ++i) {
-            collection &coll = tc->db.get_collection(i);
+            Collection &coll = tc->db.get_collection(i);
             scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
             for (uint64_t j = 0; j < ALPHABET.size(); ++j) {
                 for (uint64_t k = 0; k < ALPHABET.size(); ++k) {
@@ -157,7 +157,7 @@ class search_near_01 : public test {
         int cmpp;
         scoped_session session = connection_manager::instance().create_session();
         for (uint64_t count = 0; count < collection_count; ++count) {
-            collection &coll = database.get_collection(count);
+            Collection &coll = database.get_collection(count);
             scoped_cursor evict_cursor =
               session.open_scoped_cursor(coll.name.c_str(), "debug=(release_evict=true)");
 
@@ -260,7 +260,7 @@ class search_near_01 : public test {
             ThreadManager tm;
             for (uint64_t i = 0; i < num_threads; ++i) {
                 /* Get a collection and find a cached cursor. */
-                collection &coll = tc->db.get_random_collection();
+                Collection &coll = tc->db.get_random_collection();
                 thread_worker *search_near_tc = new thread_worker(i, thread_type::READ, read_config,
                   connection_manager::instance().create_session(), tc->tsm, tc->op_tracker, tc->db);
                 workers.push_back(search_near_tc);
