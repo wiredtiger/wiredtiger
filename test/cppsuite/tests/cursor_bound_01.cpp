@@ -98,7 +98,7 @@ class cursor_bound_01 : public test {
     cursor_bound_01(const test_args &args) : test(args)
     {
         /* Track reverse_collator value as it is required for the custom comparator. */
-        _reverse_collator_enabled = _config->get_bool(reverseCollator);
+        _reverse_collator_enabled = _config->GetBool(reverseCollator);
         init_operation_tracker();
     }
 

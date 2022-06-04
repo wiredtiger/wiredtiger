@@ -38,7 +38,7 @@ class OperationTrackerCacheResize : public OperationTracker {
 
     public:
     OperationTrackerCacheResize(
-      configuration *config, const bool use_compression, TimestampManager &tsm)
+      Configuration *config, const bool use_compression, TimestampManager &tsm)
         : OperationTracker(config, use_compression, tsm)
     {
     }
@@ -64,8 +64,8 @@ class cache_resize : public test {
     cache_resize(const test_args &args) : test(args)
     {
         init_operation_tracker(
-          new OperationTrackerCacheResize(_config->get_subconfig(operationTracker),
-            _config->get_bool(compressionEnabled), *_timestamp_manager));
+          new OperationTrackerCacheResize(_config->GetSubconfig(operationTracker),
+            _config->GetBool(compressionEnabled), *_timestamp_manager));
     }
 
     void

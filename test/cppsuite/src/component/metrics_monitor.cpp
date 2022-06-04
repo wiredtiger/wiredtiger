@@ -71,7 +71,7 @@ MetricsMonitor::GetStatistics(scoped_cursor &cursor, int statisticsField, int64_
 }
 
 MetricsMonitor::MetricsMonitor(
-  const std::string &testName, configuration *config, database &database)
+  const std::string &testName, Configuration *config, database &database)
     : Component(metricsMonitor, config), _testName(testName), _database(database)
 {
 }
@@ -85,19 +85,19 @@ MetricsMonitor::Load()
     /* If the component is enabled, load all the known statistics. */
     if (_enabled) {
 
-        std::unique_ptr<configuration> stat_config(_config->get_subconfig(statisticsCacheSize));
+        std::unique_ptr<Configuration> stat_config(_config->GetSubconfig(statisticsCacheSize));
         _stats.push_back(
           std::unique_ptr<CacheLimit>(new CacheLimit(*stat_config, statisticsCacheSize)));
 
-        stat_config.reset(_config->get_subconfig(statisticsDatabaseSize));
+        stat_config.reset(_config->GetSubconfig(statisticsDatabaseSize));
         _stats.push_back(std::unique_ptr<DatabaseSize>(
           new DatabaseSize(*stat_config, statisticsDatabaseSize, _database)));
 
-        stat_config.reset(_config->get_subconfig(cacheHsInsert));
+        stat_config.reset(_config->GetSubconfig(cacheHsInsert));
         _stats.push_back(std::unique_ptr<Statistics>(
           new Statistics(*stat_config, cacheHsInsert, GetStatisticsField(cacheHsInsert))));
 
-        stat_config.reset(_config->get_subconfig(ccPagesRemoved));
+        stat_config.reset(_config->GetSubconfig(ccPagesRemoved));
         _stats.push_back(std::unique_ptr<Statistics>(
           new Statistics(*stat_config, ccPagesRemoved, GetStatisticsField(ccPagesRemoved))));
 

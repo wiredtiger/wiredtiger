@@ -58,18 +58,17 @@ type_string(thread_type type)
     }
 }
 
-thread_worker::thread_worker(uint64_t id, thread_type type, configuration *config,
+thread_worker::thread_worker(uint64_t id, thread_type type, Configuration *config,
   scoped_session &&created_session, TimestampManager *timestamp_manager,
   OperationTracker *op_tracker, database &dbase)
     : /* These won't exist for certain threads which is why we use optional here. */
-      collection_count(config->get_optional_int(collectionCount, 1)),
-      key_count(config->get_optional_int(keyCountPerCollection, 1)),
-      key_size(config->get_optional_int(keySize, 1)),
-      value_size(config->get_optional_int(valueSize, 1)),
-      thread_count(config->get_int(threadCount)), type(type), id(id), db(dbase),
-      session(std::move(created_session)), tsm(timestamp_manager),
+      collection_count(config->GetOptionalInt(collectionCount, 1)),
+      key_count(config->GetOptionalInt(keyCountPerCollection, 1)),
+      key_size(config->GetOptionalInt(keySize, 1)),
+      value_size(config->GetOptionalInt(valueSize, 1)), thread_count(config->GetInt(threadCount)),
+      type(type), id(id), db(dbase), session(std::move(created_session)), tsm(timestamp_manager),
       txn(transaction(config, timestamp_manager, session.get())), op_tracker(op_tracker),
-      _sleep_time_ms(config->get_throttle_ms())
+      _sleep_time_ms(config->GetThrottleMs())
 {
     if (op_tracker->IsEnabled())
         op_track_cursor = session.open_scoped_cursor(op_tracker->getOperationTableName());

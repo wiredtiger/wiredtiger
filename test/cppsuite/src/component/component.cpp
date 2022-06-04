@@ -34,7 +34,7 @@
 #include "src/common/logger.h"
 
 namespace test_harness {
-Component::Component(const std::string &name, configuration *config) : _config(config), _name(name)
+Component::Component(const std::string &name, Configuration *config) : _config(config), _name(name)
 {
 }
 
@@ -47,14 +47,14 @@ void
 Component::Load()
 {
     Logger::LogMessage(LOG_INFO, "Loading component: " + _name);
-    _enabled = _config->get_optional_bool(enabledConfig, true);
+    _enabled = _config->GetOptionalBool(enabledConfig, true);
     /* If we're not enabled we shouldn't be running. */
     _running = _enabled;
 
     if (!_enabled)
         return;
 
-    _sleepTimeMs = _config->get_throttle_ms();
+    _sleepTimeMs = _config->GetThrottleMs();
 }
 
 void

@@ -50,7 +50,7 @@ class TimestampManager : public Component {
     static const std::string DecimalToHex(uint64_t value);
 
     public:
-    explicit TimestampManager(configuration *config);
+    explicit TimestampManager(Configuration *config);
     virtual ~TimestampManager() = default;
 
     void Load() override final;

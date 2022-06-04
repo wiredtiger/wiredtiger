@@ -35,14 +35,14 @@
 namespace test_harness {
 
 transaction::transaction(
-  configuration *config, TimestampManager *timestamp_manager, WT_SESSION *session)
+  Configuration *config, TimestampManager *timestamp_manager, WT_SESSION *session)
     : _timestamp_manager(timestamp_manager), _session(session)
 {
     /* Use optional here as our populate threads don't define this configuration. */
-    configuration *transaction_config = config->get_optional_subconfig(opsPerTransaction);
+    Configuration *transaction_config = config->GetOptionalSubconfig(opsPerTransaction);
     if (transaction_config != nullptr) {
-        _min_op_count = transaction_config->get_optional_int(minConfig, 1);
-        _max_op_count = transaction_config->get_optional_int(maxConfig, 1);
+        _min_op_count = transaction_config->GetOptionalInt(minConfig, 1);
+        _max_op_count = transaction_config->GetOptionalInt(maxConfig, 1);
         delete transaction_config;
     }
 }

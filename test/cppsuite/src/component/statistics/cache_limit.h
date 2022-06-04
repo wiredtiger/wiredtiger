@@ -39,7 +39,7 @@ namespace test_harness {
 
 class CacheLimit : public Statistics {
     public:
-    CacheLimit(configuration &config, const std::string &name);
+    CacheLimit(Configuration &config, const std::string &name);
     virtual ~CacheLimit() = default;
 
     void Check(scoped_cursor &cursor) override final;

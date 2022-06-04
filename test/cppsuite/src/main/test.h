@@ -65,7 +65,7 @@ class test : public database_operation {
 
     protected:
     const test_args &_args;
-    configuration *_config;
+    Configuration *_config;
     TimestampManager *_timestamp_manager = nullptr;
     OperationTracker *_operation_tracker = nullptr;
 

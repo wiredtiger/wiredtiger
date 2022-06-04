@@ -47,14 +47,14 @@ class search_near_02 : public test {
     }
 
     void
-    populate(database &database, TimestampManager *, configuration *config,
+    populate(database &database, TimestampManager *, Configuration *config,
       OperationTracker *) override final
     {
         /*
          * The populate phase only creates empty collections. The number of collections is defined
          * in the configuration.
          */
-        int64_t collection_count = config->get_int(collectionCount);
+        int64_t collection_count = config->GetInt(collectionCount);
 
         Logger::LogMessage(
           LOG_INFO, "Populate: " + std::to_string(collection_count) + " creating collections.");

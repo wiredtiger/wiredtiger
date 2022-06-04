@@ -36,7 +36,7 @@ class OperationTrackerTemplate : public OperationTracker {
 
     public:
     OperationTrackerTemplate(
-      configuration *config, const bool use_compression, TimestampManager &tsm)
+      Configuration *config, const bool use_compression, TimestampManager &tsm)
         : OperationTracker(config, use_compression, tsm)
     {
     }
@@ -60,9 +60,8 @@ class test_template : public test {
     public:
     test_template(const test_args &args) : test(args)
     {
-        init_operation_tracker(
-          new OperationTrackerTemplate(_config->get_subconfig(operationTracker),
-            _config->get_bool(compressionEnabled), *_timestamp_manager));
+        init_operation_tracker(new OperationTrackerTemplate(_config->GetSubconfig(operationTracker),
+          _config->GetBool(compressionEnabled), *_timestamp_manager));
     }
 
     void
@@ -73,7 +72,7 @@ class test_template : public test {
     }
 
     void
-    populate(database &, TimestampManager *, configuration *, OperationTracker *) override final
+    populate(database &, TimestampManager *, Configuration *, OperationTracker *) override final
     {
         Logger::LogMessage(LOG_WARN, "populate: nothing done");
     }

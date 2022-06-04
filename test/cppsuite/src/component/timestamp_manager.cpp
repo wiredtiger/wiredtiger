@@ -45,7 +45,7 @@ TimestampManager::DecimalToHex(uint64_t value)
     return (res);
 }
 
-TimestampManager::TimestampManager(configuration *config) : Component("timestamp_manager", config)
+TimestampManager::TimestampManager(Configuration *config) : Component("timestamp_manager", config)
 {
 }
 
@@ -53,13 +53,13 @@ void
 TimestampManager::Load()
 {
     Component::Load();
-    int64_t currentOldestLag = _config->get_int(oldestLag);
+    int64_t currentOldestLag = _config->GetInt(oldestLag);
     testutil_assert(currentOldestLag >= 0);
     /* Cast and then shift left to match the seconds position. */
     _oldestLag = currentOldestLag;
     _oldestLag <<= 32;
 
-    int64_t currentStableLag = _config->get_int(stableLag);
+    int64_t currentStableLag = _config->GetInt(stableLag);
     testutil_assert(currentStableLag >= 0);
     /* Cast and then shift left to match the seconds position. */
     _stableLag = currentStableLag;

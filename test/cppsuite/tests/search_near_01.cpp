@@ -106,7 +106,7 @@ class search_near_01 : public test {
     }
 
     void
-    populate(database &database, TimestampManager *tsm, configuration *config,
+    populate(database &database, TimestampManager *tsm, Configuration *config,
       OperationTracker *op_tracker) override final
     {
         uint64_t collection_count, key_size;
@@ -114,9 +114,9 @@ class search_near_01 : public test {
         ThreadManager tm;
 
         /* Validate our config. */
-        collection_count = config->get_int(collectionCount);
-        keys_per_prefix = config->get_int(keyCountPerCollection);
-        key_size = config->get_int(keySize);
+        collection_count = config->GetInt(collectionCount);
+        keys_per_prefix = config->GetInt(keyCountPerCollection);
+        key_size = config->GetInt(keySize);
         testutil_assert(collection_count > 0);
         testutil_assert(keys_per_prefix > 0);
         /* Check the prefix length is not greater than the key size. */
@@ -227,7 +227,7 @@ class search_near_01 : public test {
         testutil_assert(tc->stat_cursor.get() == nullptr);
         /* This test will only work with one read thread. */
         testutil_assert(tc->thread_count == 1);
-        configuration *workload_config, *read_config;
+        Configuration *workload_config, *read_config;
         std::vector<thread_worker *> workers;
         std::atomic<int64_t> z_key_searches;
         int64_t entries_stat, expected_entries, prefix_stat, prev_entries_stat, prev_prefix_stat;
@@ -235,10 +235,10 @@ class search_near_01 : public test {
 
         prev_entries_stat = 0;
         prev_prefix_stat = 0;
-        num_threads = _config->get_int("search_near_threads");
+        num_threads = _config->GetInt("search_near_threads");
         tc->stat_cursor = tc->session.open_scoped_cursor(statisticsURI);
-        workload_config = _config->get_subconfig(workloadManager);
-        read_config = workload_config->get_subconfig(readOpConfig);
+        workload_config = _config->GetSubconfig(workloadManager);
+        read_config = workload_config->GetSubconfig(readOpConfig);
         z_key_searches = 0;
 
         Logger::LogMessage(LOG_INFO,

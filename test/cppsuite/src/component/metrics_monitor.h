@@ -50,7 +50,7 @@ class MetricsMonitor : public Component {
     static void GetStatistics(scoped_cursor &, int, int64_t *);
 
     public:
-    MetricsMonitor(const std::string &testName, configuration *config, database &database);
+    MetricsMonitor(const std::string &testName, Configuration *config, database &database);
     virtual ~MetricsMonitor() = default;
 
     /* Delete the copy constructor and the assignment operator. */

@@ -42,7 +42,7 @@ namespace test_harness {
  */
 class WorkloadManager : public Component {
     public:
-    WorkloadManager(configuration *configuration, database_operation *databaseOperation,
+    WorkloadManager(Configuration *configuration, database_operation *databaseOperation,
       TimestampManager *timestampManager, database &database);
 
     ~WorkloadManager();

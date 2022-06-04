@@ -48,7 +48,7 @@ ConvertCollectionNameToFilename(const std::string &collectionName)
     return (std::string(DEFAULT_DIR) + "/" + strippedName + ".wt");
 }
 
-DatabaseSize::DatabaseSize(configuration &config, const std::string &name, database &database)
+DatabaseSize::DatabaseSize(Configuration &config, const std::string &name, database &database)
     : Statistics(config, name, -1), _database(database)
 {
 #ifdef _WIN32

@@ -44,7 +44,7 @@ class database_operation {
      *      - Insert K key/value pairs in each collection. Values are random strings which size is
      * defined by the configuration.
      */
-    virtual void populate(database &database, TimestampManager *tsm, configuration *config,
+    virtual void populate(database &database, TimestampManager *tsm, Configuration *config,
       OperationTracker *op_tracker);
 
     /* Performs a checkpoint periodically. */

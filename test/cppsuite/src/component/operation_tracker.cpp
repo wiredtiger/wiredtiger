@@ -34,14 +34,14 @@
 
 namespace test_harness {
 OperationTracker::OperationTracker(
-  configuration *_config, const bool useCompression, TimestampManager &tsm)
+  Configuration *_config, const bool useCompression, TimestampManager &tsm)
     : Component(operationTracker, _config), _operationTableName(tableNameOpWorkloadTracker),
       _schemaTableConfig(SCHEMA_TRACKING_TABLE_CONFIG),
       _schemaTableName(tableNameSchemaWorkloadTracker), _useCompression(useCompression),
       _timestampManager(tsm)
 {
-    _operationTableConfig = "key_format=" + _config->get_string(trackingKeyFormat) +
-      ",value_format=" + _config->get_string(trackingValueFormat) + ",log=(enabled=true)";
+    _operationTableConfig = "key_format=" + _config->GetString(trackingKeyFormat) +
+      ",value_format=" + _config->GetString(trackingValueFormat) + ",log=(enabled=true)";
 }
 
 const std::string &

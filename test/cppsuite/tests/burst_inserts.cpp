@@ -39,7 +39,7 @@ class burst_inserts : public test {
     public:
     burst_inserts(const test_args &args) : test(args)
     {
-        _burst_duration = _config->get_int("burst_duration");
+        _burst_duration = _config->GetInt("burst_duration");
         Logger::LogMessage(LOG_INFO, "Burst duration set to: " + std::to_string(_burst_duration));
         init_operation_tracker();
     }

@@ -35,17 +35,17 @@
 namespace test_harness {
 test::test(const test_args &args) : _args(args)
 {
-    _config = new configuration(args.test_name, args.test_config);
+    _config = new Configuration(args.test_name, args.test_config);
     _metrics_monitor =
-      new MetricsMonitor(args.test_name, _config->get_subconfig(metricsMonitor), _database);
-    _timestamp_manager = new TimestampManager(_config->get_subconfig(timestampManager));
+      new MetricsMonitor(args.test_name, _config->GetSubconfig(metricsMonitor), _database);
+    _timestamp_manager = new TimestampManager(_config->GetSubconfig(timestampManager));
     _workload_manager = new WorkloadManager(
-      _config->get_subconfig(workloadManager), this, _timestamp_manager, _database);
+      _config->GetSubconfig(workloadManager), this, _timestamp_manager, _database);
     _thread_manager = new ThreadManager();
 
     _database.set_timestamp_manager(_timestamp_manager);
     _database.set_create_config(
-      _config->get_bool(compressionEnabled), _config->get_bool(reverseCollator));
+      _config->GetBool(compressionEnabled), _config->GetBool(reverseCollator));
 
     /*
      * Ordering is not important here, any dependencies between components should be resolved
@@ -60,8 +60,8 @@ test::init_operation_tracker(OperationTracker *op_tracker)
     delete _operation_tracker;
     if (op_tracker == nullptr) {
         /* Fallback to default behavior. */
-        op_tracker = new OperationTracker(_config->get_subconfig(operationTracker),
-          _config->get_bool(compressionEnabled), *_timestamp_manager);
+        op_tracker = new OperationTracker(_config->GetSubconfig(operationTracker),
+          _config->GetBool(compressionEnabled), *_timestamp_manager);
     }
     _operation_tracker = op_tracker;
     _workload_manager->SetOperationTracker(_operation_tracker);
@@ -92,40 +92,40 @@ test::run()
 {
     int64_t cache_max_wait_ms, cache_size_mb, duration_seconds;
     bool enable_logging, statistics_logging;
-    configuration *statistics_config;
+    Configuration *statistics_config;
     std::string statistics_type;
     /* Build the database creation config string. */
     std::string db_create_config = connectionCreate;
 
     /* Enable snappy compression or reverse collator if required. */
-    if (_config->get_bool(compressionEnabled) || _config->get_bool(reverseCollator)) {
+    if (_config->GetBool(compressionEnabled) || _config->GetBool(reverseCollator)) {
         db_create_config += ",extensions=[";
         db_create_config +=
-          _config->get_bool(compressionEnabled) ? std::string(SNAPPY_PATH) + "," : "";
+          _config->GetBool(compressionEnabled) ? std::string(SNAPPY_PATH) + "," : "";
         db_create_config +=
-          _config->get_bool(reverseCollator) ? std::string(REVERSE_COLLATOR_PATH) : "";
+          _config->GetBool(reverseCollator) ? std::string(REVERSE_COLLATOR_PATH) : "";
         db_create_config += "]";
     }
 
     /* Get the cache size. */
-    cache_size_mb = _config->get_int(cacheSizeMB);
+    cache_size_mb = _config->GetInt(cacheSizeMB);
     db_create_config += ",cache_size=" + std::to_string(cache_size_mb) + "MB";
 
     /* Get the statistics configuration for this run. */
-    statistics_config = _config->get_subconfig(statisticsConfig);
-    statistics_type = statistics_config->get_string(type);
-    statistics_logging = statistics_config->get_bool(enableLogging);
+    statistics_config = _config->GetSubconfig(statisticsConfig);
+    statistics_type = statistics_config->GetString(type);
+    statistics_logging = statistics_config->GetBool(enableLogging);
     db_create_config += statistics_logging ? "," + statisticsLog : "";
     db_create_config += ",statistics=(" + statistics_type + ")";
     /* Don't forget to delete. */
     delete statistics_config;
 
     /* Enable or disable write ahead logging. */
-    enable_logging = _config->get_bool(enableLogging);
+    enable_logging = _config->GetBool(enableLogging);
     db_create_config += ",log=(enabled=" + std::string(enable_logging ? "true" : "false") + ")";
 
     /* Maximum waiting time for the cache to get unstuck. */
-    cache_max_wait_ms = _config->get_int(cacheMaxWaitMs);
+    cache_max_wait_ms = _config->GetInt(cacheMaxWaitMs);
     db_create_config += ",cache_max_wait_ms=" + std::to_string(cache_max_wait_ms);
 
     /* Add the user supplied wiredtiger open config. */
@@ -147,7 +147,7 @@ test::run()
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     /* The test will run for the duration as defined in the config. */
-    duration_seconds = _config->get_int(durationSecs);
+    duration_seconds = _config->GetInt(durationSecs);
     testutil_assert(duration_seconds >= 0);
     Logger::LogMessage(LOG_INFO,
       "Waiting {" + std::to_string(duration_seconds) + "} seconds for testing to complete.");
@@ -169,7 +169,7 @@ test::run()
 
     /* Validation stage. */
     if (_operation_tracker->IsEnabled()) {
-        std::unique_ptr<configuration> tracking_config(_config->get_subconfig(operationTracker));
+        std::unique_ptr<Configuration> tracking_config(_config->GetSubconfig(operationTracker));
         this->validate(_operation_tracker->getOperationTableName(),
           _operation_tracker->getSchemaTableName(),
           _workload_manager->GetDatabase().get_collection_ids());

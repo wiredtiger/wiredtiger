@@ -37,7 +37,7 @@ extern "C" {
 
 namespace test_harness {
 
-CacheLimit::CacheLimit(configuration &config, const std::string &name)
+CacheLimit::CacheLimit(Configuration &config, const std::string &name)
     : Statistics(config, name, -1)
 {
 }

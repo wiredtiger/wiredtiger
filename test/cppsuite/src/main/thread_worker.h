@@ -47,7 +47,7 @@ const std::string type_string(thread_type type);
 /* Container class for a thread and any data types it may need to interact with the database. */
 class thread_worker {
     public:
-    thread_worker(uint64_t id, thread_type type, configuration *config,
+    thread_worker(uint64_t id, thread_type type, Configuration *config,
       scoped_session &&created_session, TimestampManager *timestamp_manager,
       OperationTracker *op_tracker, database &dbase);
 

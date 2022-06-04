@@ -68,7 +68,7 @@ populate_worker(thread_worker *tc)
 
 void
 database_operation::populate(
-  database &database, TimestampManager *tsm, configuration *config, OperationTracker *op_tracker)
+  database &database, TimestampManager *tsm, Configuration *config, OperationTracker *op_tracker)
 {
     int64_t collection_count, key_count, key_size, thread_count, value_size;
     std::vector<thread_worker *> workers;
@@ -76,13 +76,13 @@ database_operation::populate(
     ThreadManager tm;
 
     /* Validate our config. */
-    collection_count = config->get_int(collectionCount);
-    key_count = config->get_int(keyCountPerCollection);
-    value_size = config->get_int(valueSize);
-    thread_count = config->get_int(threadCount);
+    collection_count = config->GetInt(collectionCount);
+    key_count = config->GetInt(keyCountPerCollection);
+    value_size = config->GetInt(valueSize);
+    thread_count = config->GetInt(threadCount);
     testutil_assert(thread_count == 0 || collection_count % thread_count == 0);
     testutil_assert(value_size > 0);
-    key_size = config->get_int(keySize);
+    key_size = config->GetInt(keySize);
     testutil_assert(key_size > 0);
     /* Keys must be unique. */
     testutil_assert(key_count <= pow(10, key_size));

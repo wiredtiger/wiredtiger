@@ -41,13 +41,13 @@ namespace test_harness {
  */
 class operation_configuration {
     public:
-    operation_configuration(configuration *config, thread_type type);
+    operation_configuration(Configuration *config, thread_type type);
 
     /* Returns a function pointer to the member function of the supplied database operation. */
     std::function<void(thread_worker *)> get_func(database_operation *dbo);
 
     public:
-    configuration *config;
+    Configuration *config;
     const thread_type type;
     const int64_t thread_count;
 };

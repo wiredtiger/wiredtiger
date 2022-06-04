@@ -40,7 +40,7 @@ namespace test_harness {
  */
 class Component {
     public:
-    Component(const std::string &name, configuration *config);
+    Component(const std::string &name, Configuration *config);
     virtual ~Component();
 
     /* Delete the copy constructor and the assignment operator. */
@@ -85,7 +85,7 @@ class Component {
     bool _enabled = false;
     volatile bool _running = false;
     uint64_t _sleepTimeMs = 1000;
-    configuration *_config;
+    Configuration *_config;
 
     private:
     const std::string _name;

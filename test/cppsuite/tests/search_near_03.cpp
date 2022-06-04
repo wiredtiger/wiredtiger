@@ -143,7 +143,7 @@ class search_near_03 : public test {
     }
 
     void
-    populate(database &database, TimestampManager *tsm, configuration *config,
+    populate(database &database, TimestampManager *tsm, Configuration *config,
       OperationTracker *op_tracker) override final
     {
         uint64_t collection_count, key_count, key_size;
@@ -151,9 +151,9 @@ class search_near_03 : public test {
         ThreadManager tm;
 
         /* Validate our config. */
-        collection_count = config->get_int(collectionCount);
-        key_count = config->get_int(keyCountPerCollection);
-        key_size = config->get_int(keySize);
+        collection_count = config->GetInt(collectionCount);
+        key_count = config->GetInt(keyCountPerCollection);
+        key_size = config->GetInt(keySize);
         testutil_assert(collection_count > 0);
         testutil_assert(key_count > 0);
         testutil_assert(key_size > 0);
