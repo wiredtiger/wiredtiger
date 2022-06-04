@@ -177,7 +177,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cursor compare calls that return an error",
   "cursor: cursor equals calls that return an error",
   "cursor: cursor get key calls that return an error",
-  "cursor: cursor get key calls that return an error",
+  "cursor: cursor get value calls that return an error",
   "cursor: cursor insert calls that return an error",
   "cursor: cursor insert check calls that return an error",
   "cursor: cursor largest key calls that return an error",
@@ -186,11 +186,11 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cursor next calls that skip due to a globally visible history store tombstone",
   "cursor: cursor next calls that skip greater than or equal to 100 entries",
   "cursor: cursor next calls that skip less than 100 entries",
+  "cursor: cursor next random calls that return an error",
   "cursor: cursor prev calls that return an error",
   "cursor: cursor prev calls that skip due to a globally visible history store tombstone",
   "cursor: cursor prev calls that skip greater than or equal to 100 entries",
   "cursor: cursor prev calls that skip less than 100 entries",
-  "cursor: cursor random next calls that return an error",
   "cursor: cursor reconfigure calls that return an error",
   "cursor: cursor remove calls that return an error",
   "cursor: cursor reopen calls that return an error",
@@ -480,11 +480,11 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_next_hs_tombstone = 0;
     stats->cursor_next_skip_ge_100 = 0;
     stats->cursor_next_skip_lt_100 = 0;
+    stats->cursor_next_random_error = 0;
     stats->cursor_prev_error = 0;
     stats->cursor_prev_hs_tombstone = 0;
     stats->cursor_prev_skip_ge_100 = 0;
     stats->cursor_prev_skip_lt_100 = 0;
-    stats->cursor_next_random_error = 0;
     stats->cursor_reconfigure_error = 0;
     stats->cursor_remove_error = 0;
     stats->cursor_reopen_error = 0;
@@ -763,11 +763,11 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_next_hs_tombstone += from->cursor_next_hs_tombstone;
     to->cursor_next_skip_ge_100 += from->cursor_next_skip_ge_100;
     to->cursor_next_skip_lt_100 += from->cursor_next_skip_lt_100;
+    to->cursor_next_random_error += from->cursor_next_random_error;
     to->cursor_prev_error += from->cursor_prev_error;
     to->cursor_prev_hs_tombstone += from->cursor_prev_hs_tombstone;
     to->cursor_prev_skip_ge_100 += from->cursor_prev_skip_ge_100;
     to->cursor_prev_skip_lt_100 += from->cursor_prev_skip_lt_100;
-    to->cursor_next_random_error += from->cursor_next_random_error;
     to->cursor_reconfigure_error += from->cursor_reconfigure_error;
     to->cursor_remove_error += from->cursor_remove_error;
     to->cursor_reopen_error += from->cursor_reopen_error;
@@ -1050,11 +1050,11 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_next_hs_tombstone += WT_STAT_READ(from, cursor_next_hs_tombstone);
     to->cursor_next_skip_ge_100 += WT_STAT_READ(from, cursor_next_skip_ge_100);
     to->cursor_next_skip_lt_100 += WT_STAT_READ(from, cursor_next_skip_lt_100);
+    to->cursor_next_random_error += WT_STAT_READ(from, cursor_next_random_error);
     to->cursor_prev_error += WT_STAT_READ(from, cursor_prev_error);
     to->cursor_prev_hs_tombstone += WT_STAT_READ(from, cursor_prev_hs_tombstone);
     to->cursor_prev_skip_ge_100 += WT_STAT_READ(from, cursor_prev_skip_ge_100);
     to->cursor_prev_skip_lt_100 += WT_STAT_READ(from, cursor_prev_skip_lt_100);
-    to->cursor_next_random_error += WT_STAT_READ(from, cursor_next_random_error);
     to->cursor_reconfigure_error += WT_STAT_READ(from, cursor_reconfigure_error);
     to->cursor_remove_error += WT_STAT_READ(from, cursor_remove_error);
     to->cursor_reopen_error += WT_STAT_READ(from, cursor_reopen_error);
@@ -1389,7 +1389,7 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor create calls",
   "cursor: cursor equals calls that return an error",
   "cursor: cursor get key calls that return an error",
-  "cursor: cursor get key calls that return an error",
+  "cursor: cursor get value calls that return an error",
   "cursor: cursor insert calls",
   "cursor: cursor insert calls that return an error",
   "cursor: cursor insert check calls that return an error",
@@ -1404,13 +1404,13 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor next calls that skip due to a globally visible history store tombstone",
   "cursor: cursor next calls that skip greater than or equal to 100 entries",
   "cursor: cursor next calls that skip less than 100 entries",
+  "cursor: cursor next random calls that return an error",
   "cursor: cursor operation restarted",
   "cursor: cursor prev calls",
   "cursor: cursor prev calls that return an error",
   "cursor: cursor prev calls that skip due to a globally visible history store tombstone",
   "cursor: cursor prev calls that skip greater than or equal to 100 entries",
   "cursor: cursor prev calls that skip less than 100 entries",
-  "cursor: cursor random next calls that return an error",
   "cursor: cursor reconfigure calls that return an error",
   "cursor: cursor remove calls",
   "cursor: cursor remove calls that return an error",
@@ -1597,6 +1597,8 @@ static const char *const __stats_connection_desc[] = {
   "session: table compact timeout",
   "session: table create failed calls",
   "session: table create successful calls",
+  "session: table create with import failed calls",
+  "session: table create with import successful calls",
   "session: table drop failed calls",
   "session: table drop successful calls",
   "session: table rename failed calls",
@@ -1987,13 +1989,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_next_hs_tombstone = 0;
     stats->cursor_next_skip_ge_100 = 0;
     stats->cursor_next_skip_lt_100 = 0;
+    stats->cursor_next_random_error = 0;
     stats->cursor_restart = 0;
     stats->cursor_prev = 0;
     stats->cursor_prev_error = 0;
     stats->cursor_prev_hs_tombstone = 0;
     stats->cursor_prev_skip_ge_100 = 0;
     stats->cursor_prev_skip_lt_100 = 0;
-    stats->cursor_next_random_error = 0;
     stats->cursor_reconfigure_error = 0;
     stats->cursor_remove = 0;
     stats->cursor_remove_error = 0;
@@ -2179,6 +2181,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing session_table_compact_timeout */
     /* not clearing session_table_create_fail */
     /* not clearing session_table_create_success */
+    /* not clearing session_table_create_import_fail */
+    /* not clearing session_table_create_import_success */
     /* not clearing session_table_drop_fail */
     /* not clearing session_table_drop_success */
     /* not clearing session_table_rename_fail */
@@ -2574,13 +2578,13 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_next_hs_tombstone += WT_STAT_READ(from, cursor_next_hs_tombstone);
     to->cursor_next_skip_ge_100 += WT_STAT_READ(from, cursor_next_skip_ge_100);
     to->cursor_next_skip_lt_100 += WT_STAT_READ(from, cursor_next_skip_lt_100);
+    to->cursor_next_random_error += WT_STAT_READ(from, cursor_next_random_error);
     to->cursor_restart += WT_STAT_READ(from, cursor_restart);
     to->cursor_prev += WT_STAT_READ(from, cursor_prev);
     to->cursor_prev_error += WT_STAT_READ(from, cursor_prev_error);
     to->cursor_prev_hs_tombstone += WT_STAT_READ(from, cursor_prev_hs_tombstone);
     to->cursor_prev_skip_ge_100 += WT_STAT_READ(from, cursor_prev_skip_ge_100);
     to->cursor_prev_skip_lt_100 += WT_STAT_READ(from, cursor_prev_skip_lt_100);
-    to->cursor_next_random_error += WT_STAT_READ(from, cursor_next_random_error);
     to->cursor_reconfigure_error += WT_STAT_READ(from, cursor_reconfigure_error);
     to->cursor_remove += WT_STAT_READ(from, cursor_remove);
     to->cursor_remove_error += WT_STAT_READ(from, cursor_remove_error);
@@ -2776,6 +2780,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->session_table_compact_timeout += WT_STAT_READ(from, session_table_compact_timeout);
     to->session_table_create_fail += WT_STAT_READ(from, session_table_create_fail);
     to->session_table_create_success += WT_STAT_READ(from, session_table_create_success);
+    to->session_table_create_import_fail += WT_STAT_READ(from, session_table_create_import_fail);
+    to->session_table_create_import_success +=
+      WT_STAT_READ(from, session_table_create_import_success);
     to->session_table_drop_fail += WT_STAT_READ(from, session_table_drop_fail);
     to->session_table_drop_success += WT_STAT_READ(from, session_table_drop_success);
     to->session_table_rename_fail += WT_STAT_READ(from, session_table_rename_fail);
