@@ -49,13 +49,13 @@ extern "C" {
 }
 
 /* Declarations to avoid the error raised by -Werror=missing-prototypes. */
-const std::string parse_configuration_from_file(const std::string &filename);
-void print_help();
-int64_t run_test(
-  const std::string &test_name, const std::string &config, const std::string &wt_open_config);
+const std::string ParseConfigurationFromFile(const std::string &filename);
+void PrintHelp();
+int64_t RunTest(
+  const std::string &testName, const std::string &config, const std::string &wtOpenConfig);
 
 const std::string
-parse_configuration_from_file(const std::string &filename)
+ParseConfigurationFromFile(const std::string &filename)
 {
     std::string cfg, line, error;
     std::ifstream cFile(filename);
@@ -78,7 +78,7 @@ parse_configuration_from_file(const std::string &filename)
 }
 
 void
-print_help()
+PrintHelp()
 {
     std::cout << "NAME" << std::endl;
     std::cout << "\trun" << std::endl;
@@ -115,60 +115,60 @@ print_help()
 
 /*
  * Run a specific test.
- * - test_name: specifies which test to run.
+ * - testName: specifies which test to run.
  * - config: defines the configuration used for the test.
  */
 int64_t
-run_test(const std::string &test_name, const std::string &config, const std::string &wt_open_config)
+RunTest(const std::string &testName, const std::string &config, const std::string &wtOpenConfig)
 {
-    int error_code = 0;
+    int error = 0;
 
     test_harness::Logger::LogMessage(LOG_TRACE, "Configuration\t:" + config);
     test_harness::test_args args = {
-      .testConfig = config, .testName = test_name, .wtOpenConfig = wt_open_config};
+      .testConfig = config, .testName = testName, .wtOpenConfig = wtOpenConfig};
 
-    if (test_name == "bounded_cursor_perf")
+    if (testName == "bounded_cursor_perf")
         BoundedCursorPerf(args).Run();
-    else if (test_name == "burst_inserts")
+    else if (testName == "burst_inserts")
         BurstInserts(args).Run();
-    else if (test_name == "cache_resize")
+    else if (testName == "cache_resize")
         CacheResize(args).Run();
-    else if (test_name == "cursor_bound_01")
+    else if (testName == "cursor_bound_01")
         cursor_bound_01(args).Run();
-    else if (test_name == "hs_cleanup")
+    else if (testName == "hs_cleanup")
         HsCleanup(args).Run();
-    else if (test_name == "operations_test")
+    else if (testName == "operations_test")
         OperationsTest(args).Run();
-    else if (test_name == "search_near_01")
+    else if (testName == "search_near_01")
         search_near_01(args).Run();
-    else if (test_name == "search_near_02")
+    else if (testName == "search_near_02")
         search_near_02(args).Run();
-    else if (test_name == "search_near_03")
+    else if (testName == "search_near_03")
         search_near_03(args).Run();
-    else if (test_name == "test_template")
+    else if (testName == "test_template")
         test_template(args).Run();
     else {
-        test_harness::Logger::LogMessage(LOG_ERROR, "Test not found: " + test_name);
-        error_code = -1;
+        test_harness::Logger::LogMessage(LOG_ERROR, "Test not found: " + testName);
+        error = -1;
     }
 
-    if (error_code == 0)
-        test_harness::Logger::LogMessage(LOG_INFO, "Test " + test_name + " done.");
+    if (error == 0)
+        test_harness::Logger::LogMessage(LOG_INFO, "Test " + testName + " done.");
 
-    return (error_code);
+    return (error);
 }
 
 static std::string
-get_default_config_path(const std::string &test_name)
+GetDefaultConfigPath(const std::string &testName)
 {
-    return ("configs/" + test_name + "_default.txt");
+    return ("configs/" + testName + "_default.txt");
 }
 
 int
 main(int argc, char *argv[])
 {
-    std::string cfg, config_filename, current_cfg, current_test_name, test_name, wt_open_config;
-    int64_t error_code = 0;
+    std::string cfg, configFilename, currentConfig, testName, wtOpenConfig;
+    int64_t error = 0;
     const std::vector<std::string> all_tests = {"bounded_cursor_perf", "burst_inserts",
       "cache_resize", "cursor_bound_01", "hs_cleanup", "operations_test", "search_near_01",
       "search_near_02", "search_near_03", "test_template"};
@@ -185,66 +185,67 @@ main(int argc, char *argv[])
      * -l   : Trace level.
      * -t   : Test to run. All tests are run if not specified.
      */
-    for (size_t i = 1; (i < argc) && (error_code == 0); ++i) {
+    for (size_t i = 1; (i < argc) && (error == 0); ++i) {
         if (std::string(argv[i]) == "-h") {
-            print_help();
+            PrintHelp();
             return 0;
         } else if (std::string(argv[i]) == "-C") {
             if ((i + 1) < argc) {
-                wt_open_config = argv[++i];
+                wtOpenConfig = argv[++i];
                 /* Add a comma to the front if the user didn't supply one. */
-                if (wt_open_config[0] != ',')
-                    wt_open_config.insert(0, 1, ',');
+                if (wtOpenConfig[0] != ',')
+                    wtOpenConfig.insert(0, 1, ',');
             } else
-                error_code = -1;
+                error = -1;
         } else if (std::string(argv[i]) == "-c") {
-            if (!config_filename.empty()) {
+            if (!configFilename.empty()) {
                 test_harness::Logger::LogMessage(LOG_ERROR, "Option -C cannot be used with -f");
-                error_code = -1;
+                error = -1;
             } else if ((i + 1) < argc)
                 cfg = argv[++i];
             else
-                error_code = -1;
+                error = -1;
         } else if (std::string(argv[i]) == "-f") {
             if (!cfg.empty()) {
                 test_harness::Logger::LogMessage(LOG_ERROR, "Option -f cannot be used with -C");
-                error_code = -1;
+                error = -1;
             } else if ((i + 1) < argc)
-                config_filename = argv[++i];
+                configFilename = argv[++i];
             else
-                error_code = -1;
+                error = -1;
         } else if (std::string(argv[i]) == "-t") {
             if ((i + 1) < argc)
-                test_name = argv[++i];
+                testName = argv[++i];
             else
-                error_code = -1;
+                error = -1;
         } else if (std::string(argv[i]) == "-l") {
             if ((i + 1) < argc)
                 test_harness::Logger::traceLevel = std::stoi(argv[++i]);
             else
-                error_code = -1;
+                error = -1;
         } else
-            error_code = -1;
+            error = -1;
     }
 
-    if (error_code == 0) {
+    if (error == 0) {
         test_harness::Logger::LogMessage(
           LOG_INFO, "Trace level: " + std::to_string(test_harness::Logger::traceLevel));
-        if (test_name.empty()) {
+        std::string currentTestName;
+        if (testName.empty()) {
             /* Run all tests. */
             test_harness::Logger::LogMessage(LOG_INFO, "Running all tests.");
             for (auto const &it : all_tests) {
-                current_test_name = it;
+                currentTestName = it;
                 /* Configuration parsing. */
-                if (!config_filename.empty())
-                    current_cfg = parse_configuration_from_file(config_filename);
+                if (!configFilename.empty())
+                    currentConfig = ParseConfigurationFromFile(configFilename);
                 else if (cfg.empty())
-                    current_cfg =
-                      parse_configuration_from_file(get_default_config_path(current_test_name));
+                    currentConfig =
+                      ParseConfigurationFromFile(GetDefaultConfigPath(currentTestName));
                 else
-                    current_cfg = cfg;
+                    currentConfig = cfg;
 
-                error_code = run_test(current_test_name, current_cfg, wt_open_config);
+                error = RunTest(currentTestName, currentConfig, wtOpenConfig);
                 /*
                  * The connection is usually closed using the destructor of the connection manager.
                  * Because it is a singleton and we are executing all tests, we are not going
@@ -252,33 +253,32 @@ main(int argc, char *argv[])
                  * manually before starting the next test.
                  */
                 ConnectionManager::GetInstance().Close();
-                if (error_code != 0)
+                if (error != 0)
                     break;
             }
         } else {
-            current_test_name = test_name;
+            currentTestName = testName;
             /* Check the test exists. */
-            if (std::find(all_tests.begin(), all_tests.end(), current_test_name) ==
-              all_tests.end()) {
+            if (std::find(all_tests.begin(), all_tests.end(), currentTestName) == all_tests.end()) {
                 test_harness::Logger::LogMessage(
-                  LOG_ERROR, "The test " + current_test_name + " was not found.");
-                error_code = -1;
+                  LOG_ERROR, "The test " + currentTestName + " was not found.");
+                error = -1;
             } else {
                 /* Configuration parsing. */
-                if (!config_filename.empty())
-                    cfg = parse_configuration_from_file(config_filename);
+                if (!configFilename.empty())
+                    cfg = ParseConfigurationFromFile(configFilename);
                 else if (cfg.empty())
-                    cfg = parse_configuration_from_file(get_default_config_path(current_test_name));
-                error_code = run_test(current_test_name, cfg, wt_open_config);
+                    cfg = ParseConfigurationFromFile(GetDefaultConfigPath(currentTestName));
+                error = RunTest(currentTestName, cfg, wtOpenConfig);
             }
         }
 
-        if (error_code != 0)
-            test_harness::Logger::LogMessage(LOG_ERROR, "Test " + current_test_name + " failed.");
+        if (error != 0)
+            test_harness::Logger::LogMessage(LOG_ERROR, "Test " + currentTestName + " failed.");
     } else
         test_harness::Logger::LogMessage(LOG_ERROR,
           "Invalid command line arguments supplied. Try "
           "'./run -h' for help.");
 
-    return (error_code);
+    return (error);
 }
