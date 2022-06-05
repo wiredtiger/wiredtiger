@@ -67,7 +67,7 @@ thread_worker::thread_worker(uint64_t id, thread_type type, Configuration *confi
       key_size(config->GetOptionalInt(keySize, 1)),
       value_size(config->GetOptionalInt(valueSize, 1)), thread_count(config->GetInt(threadCount)),
       type(type), id(id), db(dbase), session(std::move(created_session)), tsm(timestamp_manager),
-      txn(transaction(config, timestamp_manager, session.get())), op_tracker(op_tracker),
+      txn(Transaction(config, timestamp_manager, session.get())), op_tracker(op_tracker),
       _sleep_time_ms(config->GetThrottleMs())
 {
     if (op_tracker->IsEnabled())
@@ -100,10 +100,10 @@ thread_worker::update(
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->GetNextTimestamp();
-    ret = txn.set_commit_timestamp(ts);
+    ret = txn.SetCommitTimestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
-        txn.set_needs_rollback(true);
+        txn.SetRollbackRequired(true);
         return (false);
     }
 
@@ -113,7 +113,7 @@ thread_worker::update(
 
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            txn.set_needs_rollback(true);
+            txn.SetRollbackRequired(true);
             return (false);
         } else
             testutil_die(ret, "unhandled error while trying to update a key");
@@ -124,9 +124,9 @@ thread_worker::update(
       txn_id, trackingOperation::INSERT, collection_id, key, value, ts, op_track_cursor);
 
     if (ret == 0)
-        txn.add_op();
+        txn.IncrementOp();
     else if (ret == WT_ROLLBACK)
-        txn.set_needs_rollback(true);
+        txn.SetRollbackRequired(true);
     else
         testutil_die(ret, "unhandled error while trying to save an update to the tracking table");
     return (ret == 0);
@@ -142,10 +142,10 @@ thread_worker::insert(
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->GetNextTimestamp();
-    ret = txn.set_commit_timestamp(ts);
+    ret = txn.SetCommitTimestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
-        txn.set_needs_rollback(true);
+        txn.SetRollbackRequired(true);
         return (false);
     }
 
@@ -155,7 +155,7 @@ thread_worker::insert(
 
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            txn.set_needs_rollback(true);
+            txn.SetRollbackRequired(true);
             return (false);
         } else
             testutil_die(ret, "unhandled error while trying to insert a key");
@@ -166,9 +166,9 @@ thread_worker::insert(
       txn_id, trackingOperation::INSERT, collection_id, key, value, ts, op_track_cursor);
 
     if (ret == 0)
-        txn.add_op();
+        txn.IncrementOp();
     else if (ret == WT_ROLLBACK)
-        txn.set_needs_rollback(true);
+        txn.SetRollbackRequired(true);
     else
         testutil_die(ret, "unhandled error while trying to save an insert to the tracking table");
     return (ret == 0);
@@ -182,10 +182,10 @@ thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->GetNextTimestamp();
-    ret = txn.set_commit_timestamp(ts);
+    ret = txn.SetCommitTimestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
-        txn.set_needs_rollback(true);
+        txn.SetRollbackRequired(true);
         return (false);
     }
 
@@ -193,7 +193,7 @@ thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::
     ret = cursor->remove(cursor.get());
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            txn.set_needs_rollback(true);
+            txn.SetRollbackRequired(true);
             return (false);
         } else
             testutil_die(ret, "unhandled error while trying to remove a key");
@@ -204,9 +204,9 @@ thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::
       txn_id, trackingOperation::DELETE_KEY, collection_id, key, "", ts, op_track_cursor);
 
     if (ret == 0)
-        txn.add_op();
+        txn.IncrementOp();
     else if (ret == WT_ROLLBACK)
-        txn.set_needs_rollback(true);
+        txn.SetRollbackRequired(true);
     else
         testutil_die(ret, "unhandled error while trying to save a remove to the tracking table");
     return (ret == 0);

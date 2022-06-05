@@ -52,16 +52,16 @@ PopulateWorker(thread_worker *threadWorker)
         scoped_cursor cursor = threadWorker->session.open_scoped_cursor(coll.name);
         uint64_t j = 0;
         while (j < threadWorker->key_count) {
-            threadWorker->txn.begin();
+            threadWorker->txn.Start();
             auto key = threadWorker->pad_string(std::to_string(j), threadWorker->key_size);
             auto value =
               RandomGenerator::GetInstance().GeneratePseudoRandomString(threadWorker->value_size);
             if (threadWorker->insert(cursor, coll.id, key, value)) {
-                if (threadWorker->txn.commit()) {
+                if (threadWorker->txn.Commit()) {
                     ++j;
                 }
             } else {
-                threadWorker->txn.rollback();
+                threadWorker->txn.Rollback();
             }
         }
     }
@@ -183,11 +183,11 @@ DatabaseOperation::InsertOperation(thread_worker *threadWorker)
     while (threadWorker->running()) {
         uint64_t startKey = ccv[counter].coll.GetKeyCount();
         uint64_t addedCount = 0;
-        threadWorker->txn.begin();
+        threadWorker->txn.Start();
 
         /* Collection cursor. */
         auto &cc = ccv[counter];
-        while (threadWorker->txn.active() && threadWorker->running()) {
+        while (threadWorker->txn.Active() && threadWorker->running()) {
             /* Insert a key value pair, rolling back the transaction if required. */
             auto key = threadWorker->pad_string(
               std::to_string(startKey + addedCount), threadWorker->key_size);
@@ -195,11 +195,11 @@ DatabaseOperation::InsertOperation(thread_worker *threadWorker)
               RandomGenerator::GetInstance().GeneratePseudoRandomString(threadWorker->value_size);
             if (!threadWorker->insert(cc.cursor, cc.coll.id, key, value)) {
                 addedCount = 0;
-                threadWorker->txn.rollback();
+                threadWorker->txn.Rollback();
             } else {
                 addedCount++;
-                if (threadWorker->txn.can_commit()) {
-                    if (threadWorker->txn.commit()) {
+                if (threadWorker->txn.CanCommit()) {
+                    if (threadWorker->txn.Commit()) {
                         /*
                          * We need to inform the database model that we've added these keys as some
                          * other thread may rely on the keyCount data. Only do so if we successfully
@@ -223,8 +223,8 @@ DatabaseOperation::InsertOperation(thread_worker *threadWorker)
         testutil_assert(counter < collectionsPerThread);
     }
     /* Make sure the last transaction is rolled back now the work is finished. */
-    if (threadWorker->txn.active())
-        threadWorker->txn.rollback();
+    if (threadWorker->txn.Active())
+        threadWorker->txn.Rollback();
 }
 
 void
@@ -246,29 +246,29 @@ DatabaseOperation::ReadOperation(thread_worker *threadWorker)
         /* Do a second lookup now that we know it exists. */
         auto &cursor = cursors[coll.id];
 
-        threadWorker->txn.begin();
-        while (threadWorker->txn.active() && threadWorker->running()) {
+        threadWorker->txn.Start();
+        while (threadWorker->txn.Active() && threadWorker->running()) {
             auto ret = cursor->next(cursor.get());
             if (ret != 0) {
                 if (ret == WT_NOTFOUND) {
                     cursor->reset(cursor.get());
                 } else if (ret == WT_ROLLBACK) {
-                    threadWorker->txn.rollback();
+                    threadWorker->txn.Rollback();
                     threadWorker->sleep();
                     continue;
                 } else
                     testutil_die(ret, "Unexpected error returned from cursor->next()");
             }
-            threadWorker->txn.add_op();
-            threadWorker->txn.try_rollback();
+            threadWorker->txn.IncrementOp();
+            threadWorker->txn.TryRollback();
             threadWorker->sleep();
         }
         /* Reset our cursor to avoid pinning content. */
         testutil_check(cursor->reset(cursor.get()));
     }
     /* Make sure the last transaction is rolled back now the work is finished. */
-    if (threadWorker->txn.active())
-        threadWorker->txn.rollback();
+    if (threadWorker->txn.Active())
+        threadWorker->txn.Rollback();
 }
 
 void
@@ -310,7 +310,7 @@ DatabaseOperation::RemoveOperation(thread_worker *threadWorker)
         }
 
         /* Start a transaction if possible. */
-        threadWorker->txn.try_begin();
+        threadWorker->txn.TryStart();
 
         /* Get the cursor associated with the collection. */
         scoped_cursor &randomCursor = randomCursors[coll.id];
@@ -326,25 +326,25 @@ DatabaseOperation::RemoveOperation(thread_worker *threadWorker)
              * If we cannot find any record, finish the current transaction as we might be able to
              * see new records after starting a new one.
              */
-            WT_IGNORE_RET_BOOL(threadWorker->txn.commit());
+            WT_IGNORE_RET_BOOL(threadWorker->txn.Commit());
             continue;
         }
         testutil_check(randomCursor->get_key(randomCursor.get(), &key_str));
         if (!threadWorker->remove(cursor, coll.id, key_str)) {
-            threadWorker->txn.rollback();
+            threadWorker->txn.Rollback();
         }
 
         /* Reset our cursor to avoid pinning content. */
         testutil_check(cursor->reset(cursor.get()));
 
         /* Commit the current transaction if we're able to. */
-        if (threadWorker->txn.can_commit())
-            WT_IGNORE_RET_BOOL(threadWorker->txn.commit());
+        if (threadWorker->txn.CanCommit())
+            WT_IGNORE_RET_BOOL(threadWorker->txn.Commit());
     }
 
     /* Make sure the last operation is rolled back now the work is finished. */
-    if (threadWorker->txn.active())
-        threadWorker->txn.rollback();
+    if (threadWorker->txn.Active())
+        threadWorker->txn.Rollback();
 }
 
 void
@@ -380,7 +380,7 @@ DatabaseOperation::UpdateOperation(thread_worker *threadWorker)
         }
 
         /* Start a transaction if possible. */
-        threadWorker->txn.try_begin();
+        threadWorker->txn.TryStart();
 
         /* Get the cursor associated with the collection. */
         scoped_cursor &cursor = cursors[coll.id];
@@ -393,20 +393,20 @@ DatabaseOperation::UpdateOperation(thread_worker *threadWorker)
         auto value =
           RandomGenerator::GetInstance().GeneratePseudoRandomString(threadWorker->value_size);
         if (!threadWorker->update(cursor, coll.id, key, value)) {
-            threadWorker->txn.rollback();
+            threadWorker->txn.Rollback();
         }
 
         /* Reset our cursor to avoid pinning content. */
         testutil_check(cursor->reset(cursor.get()));
 
         /* Commit the current transaction if we're able to. */
-        if (threadWorker->txn.can_commit())
-            WT_IGNORE_RET_BOOL(threadWorker->txn.commit());
+        if (threadWorker->txn.CanCommit())
+            WT_IGNORE_RET_BOOL(threadWorker->txn.Commit());
     }
 
     /* Make sure the last operation is rolled back now the work is finished. */
-    if (threadWorker->txn.active())
-        threadWorker->txn.rollback();
+    if (threadWorker->txn.Active())
+        threadWorker->txn.Rollback();
 }
 
 void

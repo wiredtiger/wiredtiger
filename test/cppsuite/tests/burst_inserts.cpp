@@ -94,7 +94,7 @@ class burst_inserts : public Test {
             while (tc->running() &&
               std::chrono::system_clock::now() - burst_start <
                 std::chrono::seconds(_burst_duration)) {
-                tc->txn.try_begin();
+                tc->txn.TryStart();
                 auto key = tc->pad_string(std::to_string(start_key + added_count), tc->key_size);
                 cc.write_cursor->set_key(cc.write_cursor.get(), key.c_str());
                 cc.write_cursor->search(cc.write_cursor.get());
@@ -103,7 +103,7 @@ class burst_inserts : public Test {
                 auto value =
                   RandomGenerator::GetInstance().GeneratePseudoRandomString(tc->value_size);
                 if (!tc->insert(cc.write_cursor, cc.coll.id, key, value)) {
-                    tc->txn.rollback();
+                    tc->txn.Rollback();
                     added_count = 0;
                     continue;
                 }
@@ -115,7 +115,7 @@ class burst_inserts : public Test {
                     if (ret == WT_NOTFOUND) {
                         cc.read_cursor->reset(cc.read_cursor.get());
                     } else if (ret == WT_ROLLBACK) {
-                        tc->txn.rollback();
+                        tc->txn.Rollback();
                         added_count = 0;
                         continue;
                     } else {
@@ -123,8 +123,8 @@ class burst_inserts : public Test {
                     }
                 }
 
-                if (tc->txn.can_commit()) {
-                    if (tc->txn.commit()) {
+                if (tc->txn.CanCommit()) {
+                    if (tc->txn.Commit()) {
                         cc.coll.IncreaseKeyCount(added_count);
                         start_key = cc.coll.GetKeyCount();
                     }
@@ -135,8 +135,8 @@ class burst_inserts : public Test {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
             /* Close out our current txn. */
-            if (tc->txn.active()) {
-                if (tc->txn.commit()) {
+            if (tc->txn.Active()) {
+                if (tc->txn.Commit()) {
                     Logger::LogMessage(LOG_TRACE,
                       "Committed an insertion of " + std::to_string(added_count) + " keys.");
                     cc.coll.IncreaseKeyCount(added_count);
@@ -152,8 +152,8 @@ class burst_inserts : public Test {
             tc->sleep();
         }
         /* Make sure the last transaction is rolled back now the work is finished. */
-        if (tc->txn.active())
-            tc->txn.rollback();
+        if (tc->txn.Active())
+            tc->txn.Rollback();
     }
 
     private:

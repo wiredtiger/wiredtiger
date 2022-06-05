@@ -78,8 +78,8 @@ class hs_cleanup : public Test {
                      * call can happen outside the context of a transaction. Assert that we are in
                      * one if we got a rollback.
                      */
-                    testutil_check(tc->txn.can_rollback());
-                    tc->txn.rollback();
+                    testutil_check(tc->txn.CanRollback());
+                    tc->txn.Rollback();
                     continue;
                 }
                 testutil_die(ret, "Unexpected error returned from cursor->next()");
@@ -88,7 +88,7 @@ class hs_cleanup : public Test {
             testutil_check(cursor->get_key(cursor.get(), &key_tmp));
 
             /* Start a transaction if possible. */
-            tc->txn.try_begin();
+            tc->txn.TryStart();
 
             /*
              * The retrieved key needs to be passed inside the update function. However, the update
@@ -98,20 +98,20 @@ class hs_cleanup : public Test {
             std::string value =
               RandomGenerator::GetInstance().GeneratePseudoRandomString(tc->value_size);
             if (tc->update(cursor, coll.id, key_tmp, value)) {
-                if (tc->txn.can_commit()) {
-                    if (tc->txn.commit())
+                if (tc->txn.CanCommit()) {
+                    if (tc->txn.Commit())
                         rollback_retries = 0;
                     else
                         ++rollback_retries;
                 }
             } else {
-                tc->txn.rollback();
+                tc->txn.Rollback();
                 ++rollback_retries;
             }
             testutil_assert(rollback_retries < MAX_ROLLBACKS);
         }
         /* Ensure our last transaction is resolved. */
-        if (tc->txn.active())
-            tc->txn.rollback();
+        if (tc->txn.Active())
+            tc->txn.Rollback();
     }
 };

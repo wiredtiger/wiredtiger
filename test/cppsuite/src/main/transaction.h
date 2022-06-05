@@ -40,57 +40,55 @@ extern "C" {
 
 namespace test_harness {
 
-class transaction {
+class Transaction {
     public:
-    transaction(Configuration *config, TimestampManager *timestamp_manager, WT_SESSION *session);
+    Transaction(Configuration *config, TimestampManager *timestampManager, WT_SESSION *session);
 
-    bool active() const;
-    void add_op();
-    void begin(const std::string &config = "");
+    bool Active() const;
+    void IncrementOp();
+    void Start(const std::string &config = "");
     /* Begin a transaction if we are not currently in one. */
-    void try_begin(const std::string &config = "");
-    /*
-     * Commit a transaction and return true if the commit was successful.
-     */
-    bool commit(const std::string &config = "");
+    void TryStart(const std::string &config = "");
+    /* Commit a transaction and return true if the commit was successful. */
+    bool Commit(const std::string &config = "");
     /* Rollback a transaction, failure will abort the test. */
-    void rollback(const std::string &config = "");
+    void Rollback(const std::string &config = "");
     /* Attempt to rollback the transaction given the requirements are met. */
-    void try_rollback(const std::string &config = "");
+    void TryRollback(const std::string &config = "");
     /* Set a commit timestamp. */
-    int set_commit_timestamp(wt_timestamp_t ts);
+    int SetCommitTimestamp(wt_timestamp_t ts);
     /* Set that the transaction needs to be rolled back. */
-    void set_needs_rollback(bool rollback);
+    void SetRollbackRequired(bool rollback);
     /*
      * Returns true if a transaction can be committed as determined by the op count and the state of
      * the transaction.
      */
-    bool can_commit();
+    bool CanCommit();
     /*
      * Returns true if a transaction can be rolled back as determined by the op count and the state
      * of the transaction.
      */
-    bool can_rollback();
+    bool CanRollback();
 
     private:
-    bool _in_txn = false;
-    bool _needs_rollback = false;
+    bool _active = false;
+    bool _rollbackRequired = false;
 
     /*
      * _min_op_count and _max_op_count are the minimum and maximum number of operations within one
      * transaction. is the current maximum number of operations that can be executed in the current
      * transaction.
      */
-    int64_t _max_op_count = INT64_MAX;
-    int64_t _min_op_count = 0;
+    int64_t _maxOpCount = INT64_MAX;
+    int64_t _minOpCount = 0;
     /*
      * op_count is the current number of operations that have been executed in the current
      * transaction.
      */
-    int64_t _op_count = 0;
-    int64_t _target_op_count = 0;
+    int64_t _opCount = 0;
+    int64_t _targetOpCount = 0;
 
-    TimestampManager *_timestamp_manager = nullptr;
+    TimestampManager *_timestampManager = nullptr;
     WT_SESSION *_session = nullptr;
 };
 

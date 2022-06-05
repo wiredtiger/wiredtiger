@@ -99,7 +99,7 @@ class thread_worker {
     scoped_cursor op_track_cursor;
     scoped_cursor stat_cursor;
     TimestampManager *tsm;
-    transaction txn;
+    Transaction txn;
     OperationTracker *op_tracker;
 
     private:

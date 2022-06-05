@@ -69,7 +69,7 @@ class search_near_01 : public Test {
             for (uint64_t j = 0; j < ALPHABET.size(); ++j) {
                 for (uint64_t k = 0; k < ALPHABET.size(); ++k) {
                     for (uint64_t count = 0; count < tc->key_count; ++count) {
-                        tc->txn.begin();
+                        tc->txn.Start();
                         /*
                          * Generate the prefix key, and append a random generated key string based
                          * on the key size configuration.
@@ -83,14 +83,14 @@ class search_near_01 : public Test {
                         if (!tc->insert(cursor, coll.id, prefix_key, value)) {
                             testutil_assert(rollback_retries < MAX_ROLLBACKS);
                             /* We failed to insert, rollback our transaction and retry. */
-                            tc->txn.rollback();
+                            tc->txn.Rollback();
                             ++rollback_retries;
                             if (count > 0)
                                 --count;
                         } else {
                             /* Commit txn at commit timestamp 100. */
                             testutil_assert(
-                              tc->txn.commit("commit_timestamp=" + tc->tsm->DecimalToHex(100)));
+                              tc->txn.Commit("commit_timestamp=" + tc->tsm->DecimalToHex(100)));
                             rollback_retries = 0;
                         }
                     }
@@ -198,11 +198,11 @@ class search_near_01 : public Test {
          * prefix search near, we expect the search to early exit out of its prefix range and return
          * WT_NOTFOUND.
          */
-        tc->txn.begin("read_timestamp=" + tc->tsm->DecimalToHex(10));
-        if (tc->txn.active()) {
+        tc->txn.Start("read_timestamp=" + tc->tsm->DecimalToHex(10));
+        if (tc->txn.Active()) {
             cursor->set_key(cursor.get(), srch_key.c_str());
             testutil_assert(cursor->search_near(cursor.get(), &cmpp) == WT_NOTFOUND);
-            tc->txn.add_op();
+            tc->txn.IncrementOp();
 
             /*
              * There is an edge case where we may not early exit the prefix search near call because
@@ -216,7 +216,7 @@ class search_near_01 : public Test {
              */
             if (srch_key == "z" || srch_key == "zz" || srch_key == "zzz")
                 ++z_key_searches;
-            tc->txn.rollback();
+            tc->txn.Rollback();
         }
     }
 

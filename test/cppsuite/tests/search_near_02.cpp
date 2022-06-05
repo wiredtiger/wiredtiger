@@ -104,9 +104,9 @@ class search_near_02 : public Test {
         while (tc->running()) {
 
             auto &cc = ccv[counter];
-            tc->txn.begin();
+            tc->txn.Start();
 
-            while (tc->txn.active() && tc->running()) {
+            while (tc->txn.Active() && tc->running()) {
 
                 /* Generate a random key/value pair. */
                 std::string key = RandomGenerator::GetInstance().GenerateRandomString(tc->key_size);
@@ -115,15 +115,15 @@ class search_near_02 : public Test {
 
                 /* Insert a key value pair. */
                 if (tc->insert(cc.cursor, cc.coll.id, key, value)) {
-                    if (tc->txn.can_commit()) {
+                    if (tc->txn.CanCommit()) {
                         /* We are not checking the result of commit as it is not necessary. */
-                        if (tc->txn.commit())
+                        if (tc->txn.Commit())
                             rollback_retries = 0;
                         else
                             ++rollback_retries;
                     }
                 } else {
-                    tc->txn.rollback();
+                    tc->txn.Rollback();
                     ++rollback_retries;
                 }
                 testutil_assert(rollback_retries < MAX_ROLLBACKS);
@@ -133,8 +133,8 @@ class search_near_02 : public Test {
             }
 
             /* Rollback any transaction that could not commit before the end of the test. */
-            if (tc->txn.active())
-                tc->txn.rollback();
+            if (tc->txn.Active())
+                tc->txn.Rollback();
 
             /* Reset our cursor to avoid pinning content. */
             testutil_check(cc.cursor->reset(cc.cursor.get()));
@@ -181,10 +181,10 @@ class search_near_02 : public Test {
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value.
              */
-            tc->txn.begin(
+            tc->txn.Start(
               "roundup_timestamps=(read=true),read_timestamp=" + tc->tsm->DecimalToHex(ts));
 
-            while (tc->txn.active() && tc->running()) {
+            while (tc->txn.Active() && tc->running()) {
                 /*
                  * Generate a random prefix. For this, we start by generating a random size and then
                  * its value.
@@ -212,15 +212,15 @@ class search_near_02 : public Test {
                 validate_prefix_search_near(
                   ret, exact_prefix, key_prefix_str, cursor_default, generated_prefix);
 
-                tc->txn.add_op();
-                tc->txn.try_rollback();
+                tc->txn.IncrementOp();
+                tc->txn.TryRollback();
                 tc->sleep();
             }
             testutil_check(cursor_prefix->reset(cursor_prefix.get()));
         }
         /* Roll back the last transaction if still active now the work is finished. */
-        if (tc->txn.active())
-            tc->txn.rollback();
+        if (tc->txn.Active())
+            tc->txn.Rollback();
     }
 
     private:

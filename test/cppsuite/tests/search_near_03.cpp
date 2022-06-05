@@ -117,16 +117,16 @@ class search_near_03 : public Test {
         scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
         cursor->reconfigure(cursor.get(), "prefix_search=true");
         for (uint64_t count = 0; count < tc->key_count; ++count) {
-            tc->txn.begin();
+            tc->txn.Start();
             /*
              * Generate the prefix key, and append a random generated key string based on the key
              * size configuration.
              */
             prefix_key = RandomGenerator::GetInstance().GenerateRandomString(tc->key_size);
             if (perform_unique_index_insertions(tc, cursor, coll, prefix_key)) {
-                tc->txn.commit();
+                tc->txn.Commit();
             } else {
-                tc->txn.rollback();
+                tc->txn.Rollback();
                 ++rollback_retries;
                 if (count > 0)
                     --count;
@@ -241,7 +241,7 @@ class search_near_03 : public Test {
 
             /* Do a second lookup now that we know it exists. */
             auto &cursor = cursors[coll.id];
-            tc->txn.begin();
+            tc->txn.Start();
             /*
              * Grab a random existing prefix and perform unique index insertion. We expect it to
              * fail to insert, because it should already exist.
@@ -256,7 +256,7 @@ class search_near_03 : public Test {
                 ".");
             testutil_assert(!perform_unique_index_insertions(tc, cursor, coll, prefix_key));
             testutil_check(cursor->reset(cursor.get()));
-            tc->txn.rollback();
+            tc->txn.Rollback();
         }
     }
 
@@ -271,7 +271,7 @@ class search_near_03 : public Test {
          * Each read thread will count the number of keys in each collection, and will double check
          * if the size of the table hasn't changed.
          */
-        tc->txn.begin();
+        tc->txn.Start();
         while (tc->running()) {
             for (int i = 0; i < tc->db.GetCollectionCount(); i++) {
                 Collection &coll = tc->db.GetCollection(i);
@@ -296,6 +296,6 @@ class search_near_03 : public Test {
             }
             key_count = 0;
         }
-        tc->txn.rollback();
+        tc->txn.Rollback();
     }
 };

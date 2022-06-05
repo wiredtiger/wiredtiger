@@ -106,19 +106,19 @@ class cache_resize : public Test {
             uint64_t txn_id = ((WT_SESSION_IMPL *)tc->session.get())->txn->id;
 
             /* Save the change of cache size in the tracking table. */
-            tc->txn.begin();
+            tc->txn.Start();
             int ret = tc->op_tracker->save_operation(txn_id, trackingOperation::CUSTOM,
               collection_id, key, value, tc->tsm->GetNextTimestamp(), tc->op_track_cursor);
 
             if (ret == 0)
-                testutil_assert(tc->txn.commit());
+                testutil_assert(tc->txn.Commit());
             else {
                 /* Due to the cache pressure, it is possible to fail when saving the operation. */
                 testutil_assert(ret == WT_ROLLBACK);
                 Logger::LogMessage(LOG_WARN,
                   "The cache size reconfiguration could not be saved in the tracking table, ret: " +
                     std::to_string(ret));
-                tc->txn.rollback();
+                tc->txn.Rollback();
             }
             increase_cache = !increase_cache;
         }
@@ -143,22 +143,22 @@ class cache_resize : public Test {
             /* Take into account the value size given in the test configuration file. */
             const std::string value = std::to_string(cache_size);
 
-            tc->txn.try_begin();
+            tc->txn.TryStart();
             if (!tc->insert(cursor, coll.id, key, value)) {
-                tc->txn.rollback();
-            } else if (tc->txn.can_commit()) {
+                tc->txn.Rollback();
+            } else if (tc->txn.CanCommit()) {
                 /*
                  * The transaction can fit in the current cache size and is ready to be committed.
                  * This means the tracking table will contain a new record to represent this
                  * transaction which will be used during the validation stage.
                  */
-                testutil_assert(tc->txn.commit());
+                testutil_assert(tc->txn.Commit());
             }
         }
 
         /* Make sure the last transaction is rolled back now the work is finished. */
-        if (tc->txn.active())
-            tc->txn.rollback();
+        if (tc->txn.Active())
+            tc->txn.Rollback();
     }
 
     void

@@ -34,50 +34,50 @@
 
 namespace test_harness {
 
-transaction::transaction(
-  Configuration *config, TimestampManager *timestamp_manager, WT_SESSION *session)
-    : _timestamp_manager(timestamp_manager), _session(session)
+Transaction::Transaction(
+  Configuration *config, TimestampManager *timestampManager, WT_SESSION *session)
+    : _timestampManager(timestampManager), _session(session)
 {
     /* Use optional here as our populate threads don't define this configuration. */
-    Configuration *transaction_config = config->GetOptionalSubconfig(opsPerTransaction);
-    if (transaction_config != nullptr) {
-        _min_op_count = transaction_config->GetOptionalInt(minConfig, 1);
-        _max_op_count = transaction_config->GetOptionalInt(maxConfig, 1);
-        delete transaction_config;
+    Configuration *transactionConfig = config->GetOptionalSubconfig(opsPerTransaction);
+    if (transactionConfig != nullptr) {
+        _minOpCount = transactionConfig->GetOptionalInt(minConfig, 1);
+        _maxOpCount = transactionConfig->GetOptionalInt(maxConfig, 1);
+        delete transactionConfig;
     }
 }
 
 bool
-transaction::active() const
+Transaction::Active() const
 {
-    return (_in_txn);
+    return (_active);
 }
 
 void
-transaction::add_op()
+Transaction::IncrementOp()
 {
-    _op_count++;
+    _opCount++;
 }
 
 void
-transaction::begin(const std::string &config)
+Transaction::Start(const std::string &config)
 {
-    testutil_assert(!_in_txn);
+    testutil_assert(!_active);
     testutil_check(
       _session->begin_transaction(_session, config.empty() ? nullptr : config.c_str()));
     /* This randomizes the number of operations to be executed in one transaction. */
-    _target_op_count =
-      RandomGenerator::GetInstance().GenerateInteger<int64_t>(_min_op_count, _max_op_count);
-    _op_count = 0;
-    _in_txn = true;
-    _needs_rollback = false;
+    _targetOpCount =
+      RandomGenerator::GetInstance().GenerateInteger<int64_t>(_minOpCount, _maxOpCount);
+    _opCount = 0;
+    _active = true;
+    _rollbackRequired = false;
 }
 
 void
-transaction::try_begin(const std::string &config)
+Transaction::TryStart(const std::string &config)
 {
-    if (!_in_txn)
-        begin(config);
+    if (!_active)
+        Start(config);
 }
 
 /*
@@ -85,10 +85,10 @@ transaction::try_begin(const std::string &config)
  * transaction internally.
  */
 bool
-transaction::commit(const std::string &config)
+Transaction::Commit(const std::string &config)
 {
     WT_DECL_RET;
-    testutil_assert(_in_txn && !_needs_rollback);
+    testutil_assert(_active && !_rollbackRequired);
 
     ret = _session->commit_transaction(_session, config.empty() ? nullptr : config.c_str());
     /*
@@ -103,27 +103,27 @@ transaction::commit(const std::string &config)
     if (ret != 0)
         Logger::LogMessage(LOG_WARN,
           "Failed to commit transaction in commit, received error code: " + std::to_string(ret));
-    _op_count = 0;
-    _in_txn = false;
+    _opCount = 0;
+    _active = false;
     return (ret == 0);
 }
 
 void
-transaction::rollback(const std::string &config)
+Transaction::Rollback(const std::string &config)
 {
-    testutil_assert(_in_txn);
+    testutil_assert(_active);
     testutil_check(
       _session->rollback_transaction(_session, config.empty() ? nullptr : config.c_str()));
-    _needs_rollback = false;
-    _op_count = 0;
-    _in_txn = false;
+    _rollbackRequired = false;
+    _opCount = 0;
+    _active = false;
 }
 
 void
-transaction::try_rollback(const std::string &config)
+Transaction::TryRollback(const std::string &config)
 {
-    if (can_rollback())
-        rollback(config);
+    if (CanRollback())
+        Rollback(config);
 }
 
 /*
@@ -132,30 +132,30 @@ transaction::try_rollback(const std::string &config)
  * timestamp being earlier than the stable timestamp.
  */
 int
-transaction::set_commit_timestamp(wt_timestamp_t ts)
+Transaction::SetCommitTimestamp(wt_timestamp_t timestamp)
 {
     /* We don't want to set zero timestamps on transactions if we're not using timestamps. */
-    if (!_timestamp_manager->IsEnabled())
+    if (!_timestampManager->IsEnabled())
         return 0;
-    const std::string config = commitTimestamp + "=" + TimestampManager::DecimalToHex(ts);
+    const std::string config = commitTimestamp + "=" + TimestampManager::DecimalToHex(timestamp);
     return _session->timestamp_transaction(_session, config.c_str());
 }
 
 void
-transaction::set_needs_rollback(bool rollback)
+Transaction::SetRollbackRequired(bool rollback)
 {
-    _needs_rollback = rollback;
+    _rollbackRequired = rollback;
 }
 
 bool
-transaction::can_commit()
+Transaction::CanCommit()
 {
-    return (!_needs_rollback && can_rollback());
+    return (!_rollbackRequired && CanRollback());
 }
 
 bool
-transaction::can_rollback()
+Transaction::CanRollback()
 {
-    return (_in_txn && _op_count >= _target_op_count);
+    return (_active && _opCount >= _targetOpCount);
 }
 } // namespace test_harness
