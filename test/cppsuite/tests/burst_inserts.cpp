@@ -26,6 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "src/common/constants.h"
+#include "src/common/logger.h"
 #include "src/common/random_generator.h"
 #include "src/main/test.h"
 
@@ -35,12 +37,13 @@ using namespace test_harness;
  * This test inserts and reads a large quantity of data in bursts, this is intended to simulate a
  * mongod instance loading a large amount of data over a long period of time.
  */
-class burst_inserts : public Test {
+class BurstInserts : public Test {
     public:
-    burst_inserts(const test_args &args) : Test(args)
+    BurstInserts(const test_args &args) : Test(args)
     {
-        _burst_duration = _config->GetInt("burst_duration");
-        Logger::LogMessage(LOG_INFO, "Burst duration set to: " + std::to_string(_burst_duration));
+        _burstDurationSecs = _config->GetInt("burst_duration");
+        Logger::LogMessage(
+          LOG_INFO, "Burst duration set to: " + std::to_string(_burstDurationSecs));
         InitOperationTracker();
     }
 
@@ -49,113 +52,117 @@ class burst_inserts : public Test {
      * sleeps for op_rate.
      */
     void
-    InsertOperation(thread_worker *tc) override final
+    InsertOperation(thread_worker *threadWorker) override final
     {
-        Logger::LogMessage(
-          LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+        Logger::LogMessage(LOG_INFO,
+          type_string(threadWorker->type) + " thread {" + std::to_string(threadWorker->id) +
+            "} commencing.");
 
         /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
         struct collection_cursor {
             collection_cursor(
-              Collection &coll, ScopedCursor &&write_cursor, ScopedCursor &&read_cursor)
-                : coll(coll), read_cursor(std::move(read_cursor)),
-                  write_cursor(std::move(write_cursor))
+              Collection &collection, ScopedCursor &&writeCursor, ScopedCursor &&readCursor)
+                : collection(collection), readCursor(std::move(readCursor)),
+                  writeCursor(std::move(writeCursor))
             {
             }
-            Collection &coll;
-            ScopedCursor read_cursor;
-            ScopedCursor write_cursor;
+            Collection &collection;
+            ScopedCursor readCursor;
+            ScopedCursor writeCursor;
         };
 
         /* Collection cursor vector. */
         std::vector<collection_cursor> ccv;
-        uint64_t collection_count = tc->db.GetCollectionCount();
-        uint64_t collections_per_thread = collection_count / tc->thread_count;
+        uint64_t collectionCount = threadWorker->db.GetCollectionCount();
+        uint64_t collectionsPerThread = collectionCount / threadWorker->thread_count;
         /* Must have unique collections for each thread. */
-        testutil_assert(collection_count % tc->thread_count == 0);
-        int thread_offset = tc->id * collections_per_thread;
-        for (int i = thread_offset; i < thread_offset + collections_per_thread && tc->running();
-             ++i) {
-            Collection &coll = tc->db.GetCollection(i);
+        testutil_assert(collectionCount % threadWorker->thread_count == 0);
+        int threadOffset = threadWorker->id * collectionsPerThread;
+        for (int i = threadOffset;
+             i < threadOffset + collectionsPerThread && threadWorker->running(); ++i) {
+            Collection &collection = threadWorker->db.GetCollection(i);
             /*
              * Create a reading cursor that will read random documents for every next call. This
              * will help generate cache pressure.
              */
-            ccv.push_back({coll, std::move(tc->session.OpenScopedCursor(coll.name)),
-              std::move(tc->session.OpenScopedCursor(coll.name, "next_random=true"))});
+            ccv.push_back(
+              {collection, std::move(threadWorker->session.OpenScopedCursor(collection.name)),
+                std::move(
+                  threadWorker->session.OpenScopedCursor(collection.name, "next_random=true"))});
         }
 
         uint64_t counter = 0;
-        while (tc->running()) {
-            uint64_t start_key = ccv[counter].coll.GetKeyCount();
-            uint64_t added_count = 0;
+        while (threadWorker->running()) {
+            uint64_t startKey = ccv[counter].collection.GetKeyCount();
+            uint64_t addedCount = 0;
             auto &cc = ccv[counter];
             auto burst_start = std::chrono::system_clock::now();
-            while (tc->running() &&
+            while (threadWorker->running() &&
               std::chrono::system_clock::now() - burst_start <
-                std::chrono::seconds(_burst_duration)) {
-                tc->txn.TryStart();
-                auto key = tc->pad_string(std::to_string(start_key + added_count), tc->key_size);
-                cc.write_cursor->set_key(cc.write_cursor.Get(), key.c_str());
-                cc.write_cursor->search(cc.write_cursor.Get());
+                std::chrono::seconds(_burstDurationSecs)) {
+                threadWorker->txn.TryStart();
+                auto key = threadWorker->pad_string(
+                  std::to_string(startKey + addedCount), threadWorker->key_size);
+                cc.writeCursor->set_key(cc.writeCursor.Get(), key.c_str());
+                cc.writeCursor->search(cc.writeCursor.Get());
 
                 /* A return value of true implies the insert was successful. */
-                auto value =
-                  RandomGenerator::GetInstance().GeneratePseudoRandomString(tc->value_size);
-                if (!tc->insert(cc.write_cursor, cc.coll.id, key, value)) {
-                    tc->txn.Rollback();
-                    added_count = 0;
+                auto value = RandomGenerator::GetInstance().GeneratePseudoRandomString(
+                  threadWorker->value_size);
+                if (!threadWorker->insert(cc.writeCursor, cc.collection.id, key, value)) {
+                    threadWorker->txn.Rollback();
+                    addedCount = 0;
                     continue;
                 }
-                added_count++;
+                addedCount++;
 
                 /* Walk our random reader intended to generate cache pressure. */
                 int ret = 0;
-                if ((ret = cc.read_cursor->next(cc.read_cursor.Get())) != 0) {
+                if ((ret = cc.readCursor->next(cc.readCursor.Get())) != 0) {
                     if (ret == WT_NOTFOUND) {
-                        cc.read_cursor->reset(cc.read_cursor.Get());
+                        cc.readCursor->reset(cc.readCursor.Get());
                     } else if (ret == WT_ROLLBACK) {
-                        tc->txn.Rollback();
-                        added_count = 0;
+                        threadWorker->txn.Rollback();
+                        addedCount = 0;
                         continue;
                     } else {
                         testutil_die(ret, "Unhandled error in cursor->next()");
                     }
                 }
 
-                if (tc->txn.CanCommit()) {
-                    if (tc->txn.Commit()) {
-                        cc.coll.IncreaseKeyCount(added_count);
-                        start_key = cc.coll.GetKeyCount();
+                if (threadWorker->txn.CanCommit()) {
+                    if (threadWorker->txn.Commit()) {
+                        cc.collection.IncreaseKeyCount(addedCount);
+                        startKey = cc.collection.GetKeyCount();
                     }
-                    added_count = 0;
+                    addedCount = 0;
                 }
 
                 /* Sleep as currently this loop is too fast. */
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
             /* Close out our current txn. */
-            if (tc->txn.Active()) {
-                if (tc->txn.Commit()) {
+            if (threadWorker->txn.Active()) {
+                if (threadWorker->txn.Commit()) {
                     Logger::LogMessage(LOG_TRACE,
-                      "Committed an insertion of " + std::to_string(added_count) + " keys.");
-                    cc.coll.IncreaseKeyCount(added_count);
+                      "Committed an insertion of " + std::to_string(addedCount) + " keys.");
+                    cc.collection.IncreaseKeyCount(addedCount);
                 }
             }
 
-            testutil_check(cc.write_cursor->reset(cc.write_cursor.Get()));
-            testutil_check(cc.read_cursor->reset(cc.read_cursor.Get()));
+            testutil_check(cc.writeCursor->reset(cc.writeCursor.Get()));
+            testutil_check(cc.readCursor->reset(cc.readCursor.Get()));
             counter++;
-            if (counter == collections_per_thread)
+            if (counter == collectionsPerThread)
                 counter = 0;
-            testutil_assert(counter < collections_per_thread);
-            tc->sleep();
+            testutil_assert(counter < collectionsPerThread);
+            threadWorker->sleep();
         }
         /* Make sure the last transaction is rolled back now the work is finished. */
-        if (tc->txn.Active())
-            tc->txn.Rollback();
+        if (threadWorker->txn.Active())
+            threadWorker->txn.Rollback();
     }
 
     private:
-    int _burst_duration = 0;
+    int _burstDurationSecs = 0;
 };

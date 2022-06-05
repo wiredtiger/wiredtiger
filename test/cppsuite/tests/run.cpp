@@ -130,7 +130,7 @@ run_test(const std::string &test_name, const std::string &config, const std::str
     if (test_name == "bounded_cursor_perf")
         BoundedCursorPerf(args).Run();
     else if (test_name == "burst_inserts")
-        burst_inserts(args).Run();
+        BurstInserts(args).Run();
     else if (test_name == "cache_resize")
         cache_resize(args).Run();
     else if (test_name == "cursor_bound_01")
