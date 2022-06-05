@@ -35,45 +35,44 @@
 
 namespace test_harness {
 void
-validator::Validate(const std::string &operation_table_name, const std::string &schema_table_name,
-  const std::vector<uint64_t> &known_collection_ids)
+Validator::Validate(const std::string &operationTableName, const std::string &schemaTableName,
+  const std::vector<uint64_t> &knownCollectionIds)
 {
     WT_DECL_RET;
-    wt_timestamp_t tracked_timestamp;
-    std::vector<uint64_t> created_collections, deleted_collections;
-    uint64_t tracked_collection_id;
-    const char *tracked_key, *tracked_value;
-    int tracked_op_type;
-    uint64_t current_collection_id = 0;
+    wt_timestamp_t trackedTimestamps;
+    uint64_t trackedCollectionId;
+    const char *trackedKey, *trackedValue;
+    int trackedOpType;
+    uint64_t currentCollectionId = 0;
 
     Logger::LogMessage(LOG_INFO, "Beginning validation.");
 
     scoped_session session = connection_manager::instance().create_session();
-    scoped_cursor cursor = session.open_scoped_cursor(operation_table_name);
+    scoped_cursor cursor = session.open_scoped_cursor(operationTableName);
 
     /*
      * Default validation depends on specific fields being present in the tracking table. If the
      * tracking table schema has been modified the user must define their own validation.
      */
-    const std::string key_format(cursor->key_format);
-    const std::string value_format(cursor->value_format);
-    if (key_format != OPERATION_TRACKING_KEY_FORMAT ||
-      value_format != OPERATION_TRACKING_VALUE_FORMAT) {
+    const std::string keyFormat(cursor->key_format);
+    const std::string valueFormat(cursor->value_format);
+    if (keyFormat != OPERATION_TRACKING_KEY_FORMAT ||
+      valueFormat != OPERATION_TRACKING_VALUE_FORMAT) {
         testutil_die(EINVAL,
           "Attempting to perform default validation on a test with a user-defined tracking "
           "table. Please define validation for your test");
     }
 
     /* Retrieve the collections that were created and deleted during the test. */
-    parse_schema_tracking_table(
-      session, schema_table_name, created_collections, deleted_collections);
+    std::vector<uint64_t> createdCollections, deletedCollections;
+    parseSchemaTrackingTable(session, schemaTableName, createdCollections, deletedCollections);
 
     /*
      * Make sure the deleted collections do not exist on disk. The created collections are checked
      * in check_reference.
      */
-    for (auto const &it : deleted_collections) {
-        if (!verify_collection_file_state(session, it, false))
+    for (auto const &it : deletedCollections) {
+        if (!VerifyCollectionFileState(session, it, false))
             testutil_die(LOG_ERROR,
               "Validation failed: collection %s present on disk while it has been tracked as "
               "deleted.",
@@ -84,66 +83,66 @@ validator::Validate(const std::string &operation_table_name, const std::string &
      * All collections in memory should match those created in the schema tracking table. Dropping
      * is currently not supported.
      */
-    std::sort(created_collections.begin(), created_collections.end());
-    auto on_disk_collection_id = created_collections.begin();
-    if (created_collections.size() != known_collection_ids.size())
+    std::sort(createdCollections.begin(), createdCollections.end());
+    auto onDiskCollectionId = createdCollections.begin();
+    if (createdCollections.size() != knownCollectionIds.size())
         testutil_die(LOG_ERROR,
           "Validation failed: collection state mismatch, expected %lu"
           " collections to exist but have %lu on disk",
-          created_collections.size(), known_collection_ids.size());
-    for (const auto id : known_collection_ids) {
-        if (id != *on_disk_collection_id)
+          createdCollections.size(), knownCollectionIds.size());
+    for (const auto id : knownCollectionIds) {
+        if (id != *onDiskCollectionId)
             testutil_die(LOG_ERROR,
               "Validation failed: collection state mismatch expected "
               "collection id %lu but got %lu.",
-              id, *on_disk_collection_id);
-        on_disk_collection_id++;
+              id, *onDiskCollectionId);
+        onDiskCollectionId++;
     }
 
     /* Parse the tracking table. */
-    validation_collection current_collection_records;
+    validation_collection currentCollectionRecords;
     while ((ret = cursor->next(cursor.get())) == 0) {
         testutil_check(
-          cursor->get_key(cursor.get(), &tracked_collection_id, &tracked_key, &tracked_timestamp));
-        testutil_check(cursor->get_value(cursor.get(), &tracked_op_type, &tracked_value));
+          cursor->get_key(cursor.get(), &trackedCollectionId, &trackedKey, &trackedTimestamps));
+        testutil_check(cursor->get_value(cursor.get(), &trackedOpType, &trackedValue));
 
         Logger::LogMessage(LOG_TRACE,
-          "Retrieved tracked values. \n Collection id: " + std::to_string(tracked_collection_id) +
-            "\n Key: " + std::string(tracked_key) +
-            "\n Timestamp: " + std::to_string(tracked_timestamp) + "\n Operation type: " +
-            std::to_string(tracked_op_type) + "\n Value: " + std::string(tracked_value));
+          "Retrieved tracked values. \n Collection id: " + std::to_string(trackedCollectionId) +
+            "\n Key: " + std::string(trackedKey) +
+            "\n Timestamp: " + std::to_string(trackedTimestamps) + "\n Operation type: " +
+            std::to_string(trackedOpType) + "\n Value: " + std::string(trackedValue));
 
         /*
          * Check if we've stepped over to the next collection. The tracking table is sorted by
          * collection_id so this is correct.
          */
-        if (tracked_collection_id != current_collection_id) {
-            if (std::find(known_collection_ids.begin(), known_collection_ids.end(),
-                  tracked_collection_id) == known_collection_ids.end())
+        if (trackedCollectionId != currentCollectionId) {
+            if (std::find(knownCollectionIds.begin(), knownCollectionIds.end(),
+                  trackedCollectionId) == knownCollectionIds.end())
                 testutil_die(LOG_ERROR,
                   "Validation failed: The collection id %lu is not part of the known "
                   "collection set.",
-                  tracked_collection_id);
-            if (tracked_collection_id < current_collection_id)
+                  trackedCollectionId);
+            if (trackedCollectionId < currentCollectionId)
                 testutil_die(LOG_ERROR, "Validation failed: The collection id %lu is out of order.",
-                  tracked_collection_id);
+                  trackedCollectionId);
 
             /*
              * Given that we've stepped over to the next collection we've built a full picture of
              * the current collection and can now validate it.
              */
-            verify_collection(session, current_collection_id, current_collection_records);
+            VerifyCollection(session, currentCollectionId, currentCollectionRecords);
 
             /* Begin processing the next collection. */
-            current_collection_id = tracked_collection_id;
-            current_collection_records.clear();
+            currentCollectionId = trackedCollectionId;
+            currentCollectionRecords.clear();
         }
 
         /*
          * Add the values from the tracking table to the current collection model.
          */
-        update_data_model(static_cast<trackingOperation>(tracked_op_type),
-          current_collection_records, current_collection_id, tracked_key, tracked_value);
+        UpdateDataModel(static_cast<trackingOperation>(trackedOpType), currentCollectionRecords,
+          currentCollectionId, trackedKey, trackedValue);
     };
 
     /* The value of ret should be WT_NOTFOUND once the cursor has read all rows. */
@@ -155,48 +154,47 @@ validator::Validate(const std::string &operation_table_name, const std::string &
      * We still need to validate the last collection. But we can also end up here if there aren't
      * any collections, check for that.
      */
-    if (known_collection_ids.size() != 0)
-        verify_collection(session, current_collection_id, current_collection_records);
+    if (knownCollectionIds.size() != 0)
+        VerifyCollection(session, currentCollectionId, currentCollectionRecords);
 }
 
 void
-validator::parse_schema_tracking_table(scoped_session &session,
-  const std::string &tracking_table_name, std::vector<uint64_t> &created_collections,
-  std::vector<uint64_t> &deleted_collections)
+Validator::parseSchemaTrackingTable(scoped_session &session, const std::string &trackingTableName,
+  std::vector<uint64_t> &createdCollections, std::vector<uint64_t> &deletedCollections)
 {
-    wt_timestamp_t key_timestamp;
-    uint64_t key_collection_id;
-    int value_operation_type;
+    wt_timestamp_t keyTimestamp;
+    uint64_t keyCollectionId;
+    int valueOperationType;
 
-    scoped_cursor cursor = session.open_scoped_cursor(tracking_table_name);
+    scoped_cursor cursor = session.open_scoped_cursor(trackingTableName);
 
     while (cursor->next(cursor.get()) == 0) {
-        testutil_check(cursor->get_key(cursor.get(), &key_collection_id, &key_timestamp));
-        testutil_check(cursor->get_value(cursor.get(), &value_operation_type));
+        testutil_check(cursor->get_key(cursor.get(), &keyCollectionId, &keyTimestamp));
+        testutil_check(cursor->get_value(cursor.get(), &valueOperationType));
 
-        Logger::LogMessage(LOG_TRACE, "Collection id is " + std::to_string(key_collection_id));
-        Logger::LogMessage(LOG_TRACE, "Timestamp is " + std::to_string(key_timestamp));
-        Logger::LogMessage(LOG_TRACE, "Operation type is " + std::to_string(value_operation_type));
+        Logger::LogMessage(LOG_TRACE, "Collection id is " + std::to_string(keyCollectionId));
+        Logger::LogMessage(LOG_TRACE, "Timestamp is " + std::to_string(keyTimestamp));
+        Logger::LogMessage(LOG_TRACE, "Operation type is " + std::to_string(valueOperationType));
 
-        if (static_cast<trackingOperation>(value_operation_type) ==
+        if (static_cast<trackingOperation>(valueOperationType) ==
           trackingOperation::CREATE_COLLECTION) {
-            deleted_collections.erase(std::remove(deleted_collections.begin(),
-                                        deleted_collections.end(), key_collection_id),
-              deleted_collections.end());
-            created_collections.push_back(key_collection_id);
-        } else if (static_cast<trackingOperation>(value_operation_type) ==
+            deletedCollections.erase(
+              std::remove(deletedCollections.begin(), deletedCollections.end(), keyCollectionId),
+              deletedCollections.end());
+            createdCollections.push_back(keyCollectionId);
+        } else if (static_cast<trackingOperation>(valueOperationType) ==
           trackingOperation::DELETE_COLLECTION) {
-            created_collections.erase(std::remove(created_collections.begin(),
-                                        created_collections.end(), key_collection_id),
-              created_collections.end());
-            deleted_collections.push_back(key_collection_id);
+            createdCollections.erase(
+              std::remove(createdCollections.begin(), createdCollections.end(), keyCollectionId),
+              createdCollections.end());
+            deletedCollections.push_back(keyCollectionId);
         }
     }
 }
 
 void
-validator::update_data_model(const trackingOperation &operation, validation_collection &collection,
-  const uint64_t collection_id, const char *key, const char *value)
+Validator::UpdateDataModel(const trackingOperation &operation, validation_collection &collection,
+  const uint64_t collectionId, const char *key, const char *value)
 {
     if (operation == trackingOperation::DELETE_KEY) {
         /* Search for the key validating that it exists. */
@@ -204,88 +202,86 @@ validator::update_data_model(const trackingOperation &operation, validation_coll
         if (it == collection.end())
             testutil_die(LOG_ERROR,
               "Validation failed: key deleted that doesn't exist. Collection id: %lu Key: %s",
-              collection_id, key);
+              collectionId, key);
         else if (it->second.exists == false)
             /* The key has been deleted twice. */
             testutil_die(LOG_ERROR,
               "Validation failed: deleted key deleted again. Collection id: %lu Key: %s",
-              collection_id, it->first.c_str());
+              collectionId, it->first.c_str());
 
-        /* Update the key_state to deleted. */
+        /* Update the deleted key. */
         it->second.exists = false;
     } else if (operation == trackingOperation::INSERT)
-        collection[key_value_t(key)] = key_state{true, key_value_t(value)};
+        collection[key_value_t(key)] = KeyState{true, key_value_t(value)};
     else
         testutil_die(LOG_ERROR, "Validation failed: unexpected operation in the tracking table: %d",
           static_cast<trackingOperation>(operation));
 }
 
 void
-validator::verify_collection(
-  scoped_session &session, const uint64_t collection_id, validation_collection &collection)
+Validator::VerifyCollection(
+  scoped_session &session, const uint64_t collectionId, validation_collection &collection)
 {
     /* Check the collection exists on disk. */
-    if (!verify_collection_file_state(session, collection_id, true))
+    if (!VerifyCollectionFileState(session, collectionId, true))
         testutil_die(LOG_ERROR,
           "Validation failed: collection %lu not present on disk while it has been tracked as "
           "created.",
-          collection_id);
+          collectionId);
 
     /* Walk through each key/value pair of the current collection. */
     for (const auto &record : collection)
-        verify_key_value(session, collection_id, record.first, record.second);
+        VerifyKeyValue(session, collectionId, record.first, record.second);
 }
 
 bool
-validator::verify_collection_file_state(
-  scoped_session &session, const uint64_t collection_id, bool exists) const
+Validator::VerifyCollectionFileState(
+  scoped_session &session, const uint64_t collectionId, bool exists) const
 {
     /*
      * We don't necessarily expect to successfully open the cursor so don't create a scoped cursor.
      */
     WT_CURSOR *cursor;
     int ret = session->open_cursor(session.get(),
-      Database::GenerateCollectionName(collection_id).c_str(), nullptr, nullptr, &cursor);
+      Database::GenerateCollectionName(collectionId).c_str(), nullptr, nullptr, &cursor);
     if (ret == 0)
         testutil_check(cursor->close(cursor));
     return (exists ? (ret == 0) : (ret != 0));
 }
 
 void
-validator::verify_key_value(scoped_session &session, const uint64_t collection_id,
-  const std::string &key, const key_state &key_state)
+Validator::VerifyKeyValue(scoped_session &session, const uint64_t collectionId,
+  const std::string &key, const KeyState &keyState)
 {
-    WT_DECL_RET;
-    const char *retrieved_value;
-
     scoped_cursor cursor =
-      session.open_scoped_cursor(Database::GenerateCollectionName(collection_id));
+      session.open_scoped_cursor(Database::GenerateCollectionName(collectionId));
     cursor->set_key(cursor.get(), key.c_str());
-    ret = cursor->search(cursor.get());
+    int ret = cursor->search(cursor.get());
     testutil_assertfmt(ret == 0 || ret == WT_NOTFOUND,
       "Validation failed: Unexpected error returned %d while searching for a key. Key: %s, "
-      "Collection_id: %lu",
-      ret, key.c_str(), collection_id);
-    if (ret == WT_NOTFOUND && key_state.exists)
+      "collectionId: %lu",
+      ret, key.c_str(), collectionId);
+    if (ret == WT_NOTFOUND && keyState.exists)
         testutil_die(LOG_ERROR,
           "Validation failed: Search failed to find key that should exist. Key: %s, "
-          "Collection_id: %lu",
-          key.c_str(), collection_id);
-    else if (ret == 0 && key_state.exists == false) {
+          "collectionId: %lu",
+          key.c_str(), collectionId);
+    else if (ret == 0 && keyState.exists == false) {
         testutil_die(LOG_ERROR,
           "Validation failed: Key exists when it is expected to be deleted. Key: %s, "
-          "Collection_id: %lu",
-          key.c_str(), collection_id);
+          "collectionId: %lu",
+          key.c_str(), collectionId);
     }
 
-    if (key_state.exists == false)
+    if (keyState.exists == false)
         return;
 
-    testutil_check(cursor->get_value(cursor.get(), &retrieved_value));
-    if (key_state.value != key_value_t(retrieved_value))
+    const char *retrievedValue;
+    testutil_check(cursor->get_value(cursor.get(), &retrievedValue));
+    if (keyState.value != key_value_t(retrievedValue))
         testutil_die(LOG_ERROR,
-          "Validation failed: Value mismatch for key. Key: %s, Collection_id: %lu, Expected "
+          "Validation failed: Value mismatch for key. Key: %s, collectionId: %lu, Expected "
           "value: %s, Found value: %s",
-          key.c_str(), collection_id, key_state.value.c_str(), retrieved_value);
+          key.c_str(), collectionId, keyState.value.c_str(), retrievedValue);
 }
 } // namespace test_harness

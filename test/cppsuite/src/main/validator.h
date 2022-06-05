@@ -36,26 +36,26 @@
 #include "src/main/database.h"
 
 namespace test_harness {
-struct key_state {
-    key_state() = default;
-    key_state(bool exists, const key_value_t &value) : exists(exists), value(value) {}
+struct KeyState {
+    KeyState() = default;
+    KeyState(bool exists, const key_value_t &value) : exists(exists), value(value) {}
     bool exists = false;
     key_value_t value;
 };
-typedef std::map<key_value_t, key_state> validation_collection;
+typedef std::map<key_value_t, KeyState> validation_collection;
 /* Class that defines a basic validation algorithm. */
-class validator {
+class Validator {
     public:
     /*
      * Validate the on disk data against what has been tracked during the test. This is done by
      * replaying the tracked operations so a representation in memory of the collections is created.
      * This representation is then compared to what is on disk.
      *
-     * - operation_table_name: Table that contains all the operations performed on keys.
-     * - schema_table_name: Table that contains all the schema operations performed.
+     * - operationTableName: Table that contains all the operations performed on keys.
+     * - schemaTableName: Table that contains all the schema operations performed.
      */
-    void Validate(const std::string &operation_table_name, const std::string &schema_table_name,
-      const std::vector<uint64_t> &known_collection_ids);
+    void Validate(const std::string &operationTableName, const std::string &schemaTableName,
+      const std::vector<uint64_t> &knownCollectionIds);
 
     private:
     /*
@@ -63,28 +63,27 @@ class validator {
      * collection_name: collection that contains the operations on the different collections during
      * the test.
      */
-    void parse_schema_tracking_table(scoped_session &session,
-      const std::string &tracking_table_name, std::vector<uint64_t> &created_collections,
-      std::vector<uint64_t> &deleted_collections);
+    void parseSchemaTrackingTable(scoped_session &session, const std::string &trackingTableName,
+      std::vector<uint64_t> &createdCollections, std::vector<uint64_t> &deletedCollections);
 
     /* Update the data model. */
-    void update_data_model(const trackingOperation &operation, validation_collection &collection,
-      const uint64_t collection_id, const char *key, const char *value);
+    void UpdateDataModel(const trackingOperation &operation, validation_collection &collection,
+      const uint64_t collectionId, const char *key, const char *value);
 
     /* Compare the tracked operations against what has been saved on disk. */
-    void verify_collection(
+    void VerifyCollection(
       scoped_session &session, const uint64_t collection_id, validation_collection &collection);
 
     /*
      * Check whether a collection exists on disk. exists: needs to be set to true if the collection
      * is expected to be existing, false otherwise.
      */
-    bool verify_collection_file_state(
-      scoped_session &session, const uint64_t collection_id, bool exists) const;
+    bool VerifyCollectionFileState(
+      scoped_session &session, const uint64_t collectionId, bool exists) const;
 
     /* Verify the given expected value is the same on disk. */
-    void verify_key_value(scoped_session &session, const uint64_t collection_id,
-      const std::string &key, const key_state &key_state);
+    void VerifyKeyValue(scoped_session &session, const uint64_t collectionId,
+      const std::string &key, const KeyState &keyState);
 };
 } // namespace test_harness
 

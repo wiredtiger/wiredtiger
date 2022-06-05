@@ -413,7 +413,7 @@ void
 DatabaseOperation::Validate(const std::string &operationTableName,
   const std::string &schemaTable_name, const std::vector<uint64_t> &knownCollectionIds)
 {
-    validator wv;
+    Validator wv;
     wv.Validate(operationTableName, schemaTable_name, knownCollectionIds);
 }
 } // namespace test_harness
