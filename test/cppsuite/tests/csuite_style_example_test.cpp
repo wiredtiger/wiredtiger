@@ -47,22 +47,22 @@ extern "C" {
 using namespace test_harness;
 
 /* Declarations to avoid the error raised by -Werror=missing-prototypes. */
-void insert_op(WT_CURSOR *cursor, int key_size, int value_size);
-void read_op(WT_CURSOR *cursor, int key_size);
+void InsertOp(WT_CURSOR *cursor, int keySize, int valueSize);
+void ReadOp(WT_CURSOR *cursor, int keySize);
 
-bool do_inserts = false;
-bool do_reads = false;
+bool doInserts = false;
+bool doReads = false;
 
 void
-insert_op(WT_CURSOR *cursor, int key_size, int value_size)
+InsertOp(WT_CURSOR *cursor, int keySize, int valueSize)
 {
-    Logger::LogMessage(LOG_INFO, "called insert_op");
+    Logger::LogMessage(LOG_INFO, "called InsertOp");
 
     /* Insert random data. */
     std::string key, value;
-    while (do_inserts) {
-        key = RandomGenerator::GetInstance().GenerateRandomString(key_size);
-        value = RandomGenerator::GetInstance().GenerateRandomString(value_size);
+    while (doInserts) {
+        key = RandomGenerator::GetInstance().GenerateRandomString(keySize);
+        value = RandomGenerator::GetInstance().GenerateRandomString(valueSize);
         cursor->set_key(cursor, key.c_str());
         cursor->set_value(cursor, value.c_str());
         testutil_check(cursor->insert(cursor));
@@ -70,14 +70,14 @@ insert_op(WT_CURSOR *cursor, int key_size, int value_size)
 }
 
 void
-read_op(WT_CURSOR *cursor, int key_size)
+ReadOp(WT_CURSOR *cursor, int keySize)
 {
-    Logger::LogMessage(LOG_INFO, "called read_op");
+    Logger::LogMessage(LOG_INFO, "called ReadOp");
 
     /* Read random data. */
     std::string key;
-    while (do_reads) {
-        key = RandomGenerator::GetInstance().GenerateRandomString(key_size);
+    while (doReads) {
+        key = RandomGenerator::GetInstance().GenerateRandomString(keySize);
         cursor->set_key(cursor, key.c_str());
         cursor->search(cursor);
     }
@@ -97,69 +97,69 @@ main(int argc, char *argv[])
     Logger::LogMessage(LOG_ERROR, "This could be an error.");
 
     /* Create a connection, set the cache size and specify the home directory. */
-    const std::string conn_config = connectionCreate + ",cache_size=500MB";
-    const std::string home_dir = std::string(DEFAULT_DIR) + '_' + progname;
+    const std::string connectionConfig = connectionCreate + ",cache_size=500MB";
+    const std::string homeDir = std::string(DEFAULT_DIR) + '_' + progname;
 
     /* Create connection. */
-    ConnectionManager::GetInstance().Create(conn_config, home_dir);
-    WT_CONNECTION *conn = ConnectionManager::GetInstance().GetConnection();
+    ConnectionManager::GetInstance().Create(connectionConfig, homeDir);
+    WT_CONNECTION *connection = ConnectionManager::GetInstance().GetConnection();
 
     /* Open different sessions. */
-    WT_SESSION *insert_session, *read_session;
-    testutil_check(conn->open_session(conn, nullptr, nullptr, &insert_session));
-    testutil_check(conn->open_session(conn, nullptr, nullptr, &read_session));
+    WT_SESSION *insertSession, *readSession;
+    testutil_check(connection->open_session(connection, nullptr, nullptr, &insertSession));
+    testutil_check(connection->open_session(connection, nullptr, nullptr, &readSession));
 
     /* Create a collection. */
-    const std::string collection_name = "table:my_collection";
-    testutil_check(insert_session->create(
-      insert_session, collection_name.c_str(), defaultFrameworkSchema.c_str()));
+    const std::string collectionName = "table:my_collection";
+    testutil_check(
+      insertSession->create(insertSession, collectionName.c_str(), defaultFrameworkSchema.c_str()));
 
     /* Open different cursors. */
-    WT_CURSOR *insert_cursor, *read_cursor;
+    WT_CURSOR *insertCursor, *readCursor;
     const std::string cursor_config = "";
-    testutil_check(insert_session->open_cursor(
-      insert_session, collection_name.c_str(), nullptr, cursor_config.c_str(), &insert_cursor));
-    testutil_check(read_session->open_cursor(
-      read_session, collection_name.c_str(), nullptr, cursor_config.c_str(), &read_cursor));
+    testutil_check(insertSession->open_cursor(
+      insertSession, collectionName.c_str(), nullptr, cursor_config.c_str(), &insertCursor));
+    testutil_check(readSession->open_cursor(
+      readSession, collectionName.c_str(), nullptr, cursor_config.c_str(), &readCursor));
 
     /* Store cursors. */
     std::vector<WT_CURSOR *> cursors;
-    cursors.push_back(insert_cursor);
-    cursors.push_back(read_cursor);
+    cursors.push_back(insertCursor);
+    cursors.push_back(readCursor);
 
     /* Insert some data. */
     std::string key = "a";
     const std::string value = "b";
-    insert_cursor->set_key(insert_cursor, key.c_str());
-    insert_cursor->set_value(insert_cursor, value.c_str());
-    testutil_check(insert_cursor->insert(insert_cursor));
+    insertCursor->set_key(insertCursor, key.c_str());
+    insertCursor->set_value(insertCursor, value.c_str());
+    testutil_check(insertCursor->insert(insertCursor));
 
     /* Read some data. */
     key = "b";
-    read_cursor->set_key(read_cursor, key.c_str());
-    testutil_assert(read_cursor->search(read_cursor) == WT_NOTFOUND);
+    readCursor->set_key(readCursor, key.c_str());
+    testutil_assert(readCursor->search(readCursor) == WT_NOTFOUND);
 
     key = "a";
-    read_cursor->set_key(read_cursor, key.c_str());
-    testutil_check(read_cursor->search(read_cursor));
+    readCursor->set_key(readCursor, key.c_str());
+    testutil_check(readCursor->search(readCursor));
 
     /* Create a thread manager and spawn some threads that will work. */
     ThreadManager t;
-    int key_size = 1, value_size = 2;
+    int keySize = 1, valueSize = 2;
 
-    do_inserts = true;
-    t.addThread(insert_op, insert_cursor, key_size, value_size);
+    doInserts = true;
+    t.addThread(InsertOp, insertCursor, keySize, valueSize);
 
-    do_reads = true;
-    t.addThread(read_op, read_cursor, key_size);
+    doReads = true;
+    t.addThread(ReadOp, readCursor, keySize);
 
     /* Sleep for the test duration. */
-    int test_duration_s = 5;
-    std::this_thread::sleep_for(std::chrono::seconds(test_duration_s));
+    int testDurationSecs = 5;
+    std::this_thread::sleep_for(std::chrono::seconds(testDurationSecs));
 
     /* Stop the threads. */
-    do_reads = false;
-    do_inserts = false;
+    doReads = false;
+    doInserts = false;
     t.Join();
 
     /* Close cursors. */
