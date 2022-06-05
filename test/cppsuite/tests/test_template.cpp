@@ -36,19 +36,19 @@ class OperationTrackerTemplate : public OperationTracker {
 
     public:
     OperationTrackerTemplate(
-      Configuration *config, const bool use_compression, TimestampManager &tsm)
-        : OperationTracker(config, use_compression, tsm)
+      Configuration *config, const bool useCompression, TimestampManager &timestampManager)
+        : OperationTracker(config, useCompression, timestampManager)
     {
     }
 
     void
-    setTrackingCursor(const uint64_t txn_id, const trackingOperation &operation,
-      const uint64_t &collection_id, const std::string &key, const std::string &value,
-      wt_timestamp_t ts, ScopedCursor &op_track_cursor) override final
+    setTrackingCursor(const uint64_t transactionId, const trackingOperation &operation,
+      const uint64_t &collectionId, const std::string &key, const std::string &value,
+      wt_timestamp_t timestamp, ScopedCursor &cursor) override final
     {
         /* You can replace this call to define your own tracking table contents. */
         OperationTracker::setTrackingCursor(
-          txn_id, operation, collection_id, key, value, ts, op_track_cursor);
+          transactionId, operation, collectionId, key, value, timestamp, cursor);
     }
 };
 
@@ -56,9 +56,9 @@ class OperationTrackerTemplate : public OperationTracker {
  * Class that defines operations that do nothing as an example. This shows how database operations
  * can be overridden and customized.
  */
-class test_template : public Test {
+class TestTemplate : public Test {
     public:
-    test_template(const test_args &args) : Test(args)
+    TestTemplate(const test_args &args) : Test(args)
     {
         InitOperationTracker(new OperationTrackerTemplate(_config->GetSubconfig(operationTracker),
           _config->GetBool(compressionEnabled), *_timestampManager));

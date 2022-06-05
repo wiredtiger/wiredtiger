@@ -146,7 +146,7 @@ RunTest(const std::string &testName, const std::string &config, const std::strin
     else if (testName == "search_near_03")
         search_near_03(args).Run();
     else if (testName == "test_template")
-        test_template(args).Run();
+        TestTemplate(args).Run();
     else {
         test_harness::Logger::LogMessage(LOG_ERROR, "Test not found: " + testName);
         error = -1;
