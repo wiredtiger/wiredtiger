@@ -43,10 +43,10 @@ class Statistics {
     virtual ~Statistics() = default;
 
     /* Check that the statistics are within bounds. */
-    virtual void Check(scoped_cursor &cursor);
+    virtual void Check(ScopedCursor &cursor);
 
     /* Retrieve the value associated to the stat in a string format. */
-    virtual std::string GetValueString(scoped_cursor &cursor);
+    virtual std::string GetValueString(ScopedCursor &cursor);
 
     /* Getters. */
     int GetField() const;

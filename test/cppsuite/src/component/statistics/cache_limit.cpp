@@ -43,7 +43,7 @@ CacheLimit::CacheLimit(Configuration &config, const std::string &name)
 }
 
 void
-CacheLimit::Check(scoped_cursor &cursor)
+CacheLimit::Check(ScopedCursor &cursor)
 {
     double cacheUsage = GetCacheUsagePercentage(cursor);
     if (cacheUsage > max) {
@@ -56,13 +56,13 @@ CacheLimit::Check(scoped_cursor &cursor)
 }
 
 std::string
-CacheLimit::GetValueString(scoped_cursor &cursor)
+CacheLimit::GetValueString(ScopedCursor &cursor)
 {
     return std::to_string(GetCacheUsagePercentage(cursor));
 }
 
 double
-CacheLimit::GetCacheUsagePercentage(scoped_cursor &cursor)
+CacheLimit::GetCacheUsagePercentage(ScopedCursor &cursor)
 {
     int64_t cacheBytesImage, cacheBytesOther, cacheBytesMax;
     /* Three statistics are required to compute cache use percentage. */

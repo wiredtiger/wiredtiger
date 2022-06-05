@@ -57,7 +57,7 @@ DatabaseSize::DatabaseSize(Configuration &config, const std::string &name, Datab
 }
 
 void
-DatabaseSize::Check(scoped_cursor &)
+DatabaseSize::Check(ScopedCursor &)
 {
 #ifndef _WIN32
     const auto filenames = GetFilenames();
@@ -75,7 +75,7 @@ DatabaseSize::Check(scoped_cursor &)
 }
 
 std::string
-DatabaseSize::GetValueString(scoped_cursor &)
+DatabaseSize::GetValueString(ScopedCursor &)
 {
     return std::to_string(GetDatabaseSize());
 }

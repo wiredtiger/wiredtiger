@@ -42,7 +42,7 @@ Statistics::Statistics(Configuration &config, const std::string &statName, int s
 }
 
 void
-Statistics::Check(scoped_cursor &cursor)
+Statistics::Check(ScopedCursor &cursor)
 {
     int64_t value;
     MetricsMonitor::GetStatistics(cursor, field, &value);
@@ -56,7 +56,7 @@ Statistics::Check(scoped_cursor &cursor)
 }
 
 std::string
-Statistics::GetValueString(scoped_cursor &cursor)
+Statistics::GetValueString(ScopedCursor &cursor)
 {
     int64_t value;
     MetricsMonitor::GetStatistics(cursor, field, &value);

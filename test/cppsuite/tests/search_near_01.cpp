@@ -65,7 +65,7 @@ class search_near_01 : public Test {
          */
         for (int64_t i = 0; i < collections_per_thread; ++i) {
             Collection &coll = tc->db.GetCollection(i);
-            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+            ScopedCursor cursor = tc->session.open_scoped_cursor(coll.name);
             for (uint64_t j = 0; j < ALPHABET.size(); ++j) {
                 for (uint64_t k = 0; k < ALPHABET.size(); ++k) {
                     for (uint64_t count = 0; count < tc->key_count; ++count) {
@@ -158,16 +158,16 @@ class search_near_01 : public Test {
         scoped_session session = ConnectionManager::GetInstance().CreateSession();
         for (uint64_t count = 0; count < collection_count; ++count) {
             Collection &coll = database.GetCollection(count);
-            scoped_cursor evict_cursor =
+            ScopedCursor evict_cursor =
               session.open_scoped_cursor(coll.name.c_str(), "debug=(release_evict=true)");
 
             for (uint64_t i = 0; i < ALPHABET.size(); ++i) {
                 for (uint64_t j = 0; j < ALPHABET.size(); ++j) {
                     for (uint64_t k = 0; k < ALPHABET.size(); ++k) {
                         std::string key = {ALPHABET.at(i), ALPHABET.at(j), ALPHABET.at(k)};
-                        evict_cursor->set_key(evict_cursor.get(), key.c_str());
-                        evict_cursor->search_near(evict_cursor.get(), &cmpp);
-                        testutil_check(evict_cursor->reset(evict_cursor.get()));
+                        evict_cursor->set_key(evict_cursor.Get(), key.c_str());
+                        evict_cursor->search_near(evict_cursor.Get(), &cmpp);
+                        testutil_check(evict_cursor->reset(evict_cursor.Get()));
                     }
                 }
             }
@@ -184,8 +184,8 @@ class search_near_01 : public Test {
         std::string srch_key;
         int cmpp = 0;
 
-        scoped_cursor cursor = tc->session.open_scoped_cursor(collection_name);
-        cursor->reconfigure(cursor.get(), "prefix_search=true");
+        ScopedCursor cursor = tc->session.open_scoped_cursor(collection_name);
+        cursor->reconfigure(cursor.Get(), "prefix_search=true");
         /* Generate search prefix key of random length between a -> zzz. */
         srch_key = RandomGenerator::GetInstance().GenerateRandomString(
           srchkey_len, charactersType::ALPHABET);
@@ -200,8 +200,8 @@ class search_near_01 : public Test {
          */
         tc->txn.Start("read_timestamp=" + tc->tsm->DecimalToHex(10));
         if (tc->txn.Active()) {
-            cursor->set_key(cursor.get(), srch_key.c_str());
-            testutil_assert(cursor->search_near(cursor.get(), &cmpp) == WT_NOTFOUND);
+            cursor->set_key(cursor.Get(), srch_key.c_str());
+            testutil_assert(cursor->search_near(cursor.Get(), &cmpp) == WT_NOTFOUND);
             tc->txn.IncrementOp();
 
             /*
@@ -224,7 +224,7 @@ class search_near_01 : public Test {
     ReadOperation(thread_worker *tc) override final
     {
         /* Make sure that thread statistics cursor is null before we open it. */
-        testutil_assert(tc->stat_cursor.get() == nullptr);
+        testutil_assert(tc->stat_cursor.Get() == nullptr);
         /* This test will only work with one read thread. */
         testutil_assert(tc->thread_count == 1);
         Configuration *workload_config, *read_config;

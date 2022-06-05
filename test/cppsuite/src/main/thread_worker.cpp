@@ -92,12 +92,12 @@ thread_worker::pad_string(const std::string &value, uint64_t size)
 
 bool
 thread_worker::update(
-  scoped_cursor &cursor, uint64_t collection_id, const std::string &key, const std::string &value)
+  ScopedCursor &cursor, uint64_t collection_id, const std::string &key, const std::string &value)
 {
     WT_DECL_RET;
 
     testutil_assert(op_tracker != nullptr);
-    testutil_assert(cursor.get() != nullptr);
+    testutil_assert(cursor.Get() != nullptr);
 
     wt_timestamp_t ts = tsm->GetNextTimestamp();
     ret = txn.SetCommitTimestamp(ts);
@@ -107,9 +107,9 @@ thread_worker::update(
         return (false);
     }
 
-    cursor->set_key(cursor.get(), key.c_str());
-    cursor->set_value(cursor.get(), value.c_str());
-    ret = cursor->update(cursor.get());
+    cursor->set_key(cursor.Get(), key.c_str());
+    cursor->set_value(cursor.Get(), value.c_str());
+    ret = cursor->update(cursor.Get());
 
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
@@ -134,12 +134,12 @@ thread_worker::update(
 
 bool
 thread_worker::insert(
-  scoped_cursor &cursor, uint64_t collection_id, const std::string &key, const std::string &value)
+  ScopedCursor &cursor, uint64_t collection_id, const std::string &key, const std::string &value)
 {
     WT_DECL_RET;
 
     testutil_assert(op_tracker != nullptr);
-    testutil_assert(cursor.get() != nullptr);
+    testutil_assert(cursor.Get() != nullptr);
 
     wt_timestamp_t ts = tsm->GetNextTimestamp();
     ret = txn.SetCommitTimestamp(ts);
@@ -149,9 +149,9 @@ thread_worker::insert(
         return (false);
     }
 
-    cursor->set_key(cursor.get(), key.c_str());
-    cursor->set_value(cursor.get(), value.c_str());
-    ret = cursor->insert(cursor.get());
+    cursor->set_key(cursor.Get(), key.c_str());
+    cursor->set_value(cursor.Get(), value.c_str());
+    ret = cursor->insert(cursor.Get());
 
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
@@ -175,11 +175,11 @@ thread_worker::insert(
 }
 
 bool
-thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::string &key)
+thread_worker::remove(ScopedCursor &cursor, uint64_t collection_id, const std::string &key)
 {
     WT_DECL_RET;
     testutil_assert(op_tracker != nullptr);
-    testutil_assert(cursor.get() != nullptr);
+    testutil_assert(cursor.Get() != nullptr);
 
     wt_timestamp_t ts = tsm->GetNextTimestamp();
     ret = txn.SetCommitTimestamp(ts);
@@ -189,8 +189,8 @@ thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::
         return (false);
     }
 
-    cursor->set_key(cursor.get(), key.c_str());
-    ret = cursor->remove(cursor.get());
+    cursor->set_key(cursor.Get(), key.c_str());
+    ret = cursor->remove(cursor.Get());
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
             txn.SetRollbackRequired(true);

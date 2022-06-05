@@ -61,13 +61,13 @@ GetStatisticsField(const std::string &name)
 }
 
 void
-MetricsMonitor::GetStatistics(scoped_cursor &cursor, int statisticsField, int64_t *valuep)
+MetricsMonitor::GetStatistics(ScopedCursor &cursor, int statisticsField, int64_t *valuep)
 {
     const char *desc, *pvalue;
-    cursor->set_key(cursor.get(), statisticsField);
-    testutil_check(cursor->search(cursor.get()));
-    testutil_check(cursor->get_value(cursor.get(), &desc, &pvalue, valuep));
-    testutil_check(cursor->reset(cursor.get()));
+    cursor->set_key(cursor.Get(), statisticsField);
+    testutil_check(cursor->search(cursor.Get()));
+    testutil_check(cursor->get_value(cursor.Get(), &desc, &pvalue, valuep));
+    testutil_check(cursor->reset(cursor.Get()));
 }
 
 MetricsMonitor::MetricsMonitor(

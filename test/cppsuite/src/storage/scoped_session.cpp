@@ -94,9 +94,9 @@ scoped_session::get()
     return (_session);
 }
 
-scoped_cursor
+ScopedCursor
 scoped_session::open_scoped_cursor(const std::string &uri, const std::string &cfg)
 {
-    return (scoped_cursor(_session, uri, cfg));
+    return (ScopedCursor(_session, uri, cfg));
 }
 } // namespace test_harness

@@ -77,17 +77,17 @@ class OperationTracker : public Component {
 
     virtual void setTrackingCursor(const uint64_t transactionId, const trackingOperation &operation,
       const uint64_t &collectionId, const std::string &key, const std::string &value,
-      wt_timestamp_t timestamp, scoped_cursor &cursor);
+      wt_timestamp_t timestamp, ScopedCursor &cursor);
 
     int save_operation(const uint64_t transactionId, const trackingOperation &operation,
       const uint64_t &collectionId, const std::string &key, const std::string &value,
-      wt_timestamp_t timestamp, scoped_cursor &cursor);
+      wt_timestamp_t timestamp, ScopedCursor &cursor);
 
     private:
     scoped_session _session;
     scoped_session _sweepSession;
-    scoped_cursor _schemaTrackingCursor;
-    scoped_cursor _sweepCursor;
+    ScopedCursor _schemaTrackingCursor;
+    ScopedCursor _sweepCursor;
     std::string _operationTableConfig;
     const std::string _operationTableName;
     const std::string _schemaTableConfig;

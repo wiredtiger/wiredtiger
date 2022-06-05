@@ -47,7 +47,7 @@ namespace test_harness {
  */
 class MetricsMonitor : public Component {
     public:
-    static void GetStatistics(scoped_cursor &, int, int64_t *);
+    static void GetStatistics(ScopedCursor &, int, int64_t *);
 
     public:
     MetricsMonitor(const std::string &testName, Configuration *config, Database &database);
@@ -63,7 +63,7 @@ class MetricsMonitor : public Component {
 
     private:
     scoped_session _session;
-    scoped_cursor _cursor;
+    ScopedCursor _cursor;
     const std::string _testName;
     std::vector<std::unique_ptr<Statistics>> _stats;
     Database &_database;

@@ -34,18 +34,17 @@ extern "C" {
 
 namespace test_harness {
 
-/* scoped_cursor implementation */
-scoped_cursor::scoped_cursor(WT_SESSION *session, const std::string &uri, const std::string &cfg)
+ScopedCursor::ScopedCursor(WT_SESSION *session, const std::string &uri, const std::string &cfg)
 {
-    reinit(session, uri, cfg);
+    Reinit(session, uri, cfg);
 }
 
-scoped_cursor::scoped_cursor(scoped_cursor &&other)
+ScopedCursor::ScopedCursor(ScopedCursor &&other)
 {
     std::swap(_cursor, other._cursor);
 }
 
-scoped_cursor::~scoped_cursor()
+ScopedCursor::~ScopedCursor()
 {
     if (_cursor != nullptr) {
         testutil_check(_cursor->close(_cursor));
@@ -58,16 +57,16 @@ scoped_cursor::~scoped_cursor()
  * current cursor. This means that the currently held WT_CURSOR will get destroyed as the temporary
  * falls out of the scope and we will steal the one that we're move assigning from.
  */
-scoped_cursor &
-scoped_cursor::operator=(scoped_cursor &&other)
+ScopedCursor &
+ScopedCursor::operator=(ScopedCursor &&other)
 {
-    scoped_cursor tmp(std::move(other));
+    ScopedCursor tmp(std::move(other));
     std::swap(_cursor, tmp._cursor);
     return (*this);
 }
 
 void
-scoped_cursor::reinit(WT_SESSION *session, const std::string &uri, const std::string &cfg)
+ScopedCursor::Reinit(WT_SESSION *session, const std::string &uri, const std::string &cfg)
 {
     testutil_assert(!uri.empty());
     if (_cursor != nullptr) {
@@ -84,19 +83,19 @@ scoped_cursor::reinit(WT_SESSION *session, const std::string &uri, const std::st
  * a pointer to a WT_CURSOR.
  */
 WT_CURSOR &
-scoped_cursor::operator*()
+ScopedCursor::operator*()
 {
     return (*_cursor);
 }
 
 WT_CURSOR *
-scoped_cursor::operator->()
+ScopedCursor::operator->()
 {
     return (_cursor);
 }
 
 WT_CURSOR *
-scoped_cursor::get()
+ScopedCursor::Get()
 {
     return (_cursor);
 }

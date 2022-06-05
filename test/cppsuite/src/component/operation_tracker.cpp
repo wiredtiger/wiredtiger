@@ -113,9 +113,9 @@ OperationTracker::DoWork()
     oldestTimestamp = _timestampManager.GetOldestTimestamp();
 
     /* We need to check if the component is still running to avoid unnecessary iterations. */
-    while (_running && (ret = _sweepCursor->prev(_sweepCursor.get())) == 0) {
-        testutil_check(_sweepCursor->get_key(_sweepCursor.get(), &collectionId, &key, &timestamp));
-        testutil_check(_sweepCursor->get_value(_sweepCursor.get(), &operationType, &value));
+    while (_running && (ret = _sweepCursor->prev(_sweepCursor.Get())) == 0) {
+        testutil_check(_sweepCursor->get_key(_sweepCursor.Get(), &collectionId, &key, &timestamp));
+        testutil_check(_sweepCursor->get_value(_sweepCursor.Get(), &operationType, &value));
         /*
          * If we're on a new key, reset the check. We want to track whether we have a globally
          * visible update for the current key.
@@ -142,7 +142,7 @@ OperationTracker::DoWork()
                  */
                 testutil_check(
                   _sweepSession->begin_transaction(_sweepSession.get(), "no_timestamp=true"));
-                testutil_check(_sweepCursor->remove(_sweepCursor.get()));
+                testutil_check(_sweepCursor->remove(_sweepCursor.Get()));
                 testutil_check(_sweepSession->commit_transaction(_sweepSession.get(), nullptr));
             } else if (static_cast<trackingOperation>(operationType) == trackingOperation::INSERT) {
                 if (Logger::traceLevel == LOG_TRACE)
@@ -169,7 +169,7 @@ OperationTracker::DoWork()
           "Tracking table sweep failed: cursor->next() returned an unexpected error %d.", ret);
 
     /* If we have a position, give it up. */
-    testutil_check(_sweepCursor->reset(_sweepCursor.get()));
+    testutil_check(_sweepCursor->reset(_sweepCursor.Get()));
 }
 
 void
@@ -183,9 +183,9 @@ OperationTracker::saveSchemaOperation(
 
     if (operation == trackingOperation::CREATE_COLLECTION ||
       operation == trackingOperation::DELETE_COLLECTION) {
-        _schemaTrackingCursor->set_key(_schemaTrackingCursor.get(), collectionId, timestamp);
-        _schemaTrackingCursor->set_value(_schemaTrackingCursor.get(), static_cast<int>(operation));
-        testutil_check(_schemaTrackingCursor->insert(_schemaTrackingCursor.get()));
+        _schemaTrackingCursor->set_key(_schemaTrackingCursor.Get(), collectionId, timestamp);
+        _schemaTrackingCursor->set_value(_schemaTrackingCursor.Get(), static_cast<int>(operation));
+        testutil_check(_schemaTrackingCursor->insert(_schemaTrackingCursor.Get()));
     } else {
         error_message =
           "saveSchemaOperation: invalid operation " + std::to_string(static_cast<int>(operation));
@@ -196,14 +196,14 @@ OperationTracker::saveSchemaOperation(
 int
 OperationTracker::save_operation(const uint64_t transactionId, const trackingOperation &operation,
   const uint64_t &collectionId, const std::string &key, const std::string &value,
-  wt_timestamp_t timestamp, scoped_cursor &cursor)
+  wt_timestamp_t timestamp, ScopedCursor &cursor)
 {
     WT_DECL_RET;
 
     if (!_enabled)
         return (0);
 
-    testutil_assert(cursor.get() != nullptr);
+    testutil_assert(cursor.Get() != nullptr);
 
     if (operation == trackingOperation::CREATE_COLLECTION ||
       operation == trackingOperation::DELETE_COLLECTION) {
@@ -212,7 +212,7 @@ OperationTracker::save_operation(const uint64_t transactionId, const trackingOpe
         testutil_die(EINVAL, error.c_str());
     } else {
         setTrackingCursor(transactionId, operation, collectionId, key, value, timestamp, cursor);
-        ret = cursor->insert(cursor.get());
+        ret = cursor->insert(cursor.Get());
     }
     return (ret);
 }
@@ -221,10 +221,10 @@ OperationTracker::save_operation(const uint64_t transactionId, const trackingOpe
 void
 OperationTracker::setTrackingCursor(const uint64_t transactionId,
   const trackingOperation &operation, const uint64_t &collectionId, const std::string &key,
-  const std::string &value, wt_timestamp_t timestamp, scoped_cursor &cursor)
+  const std::string &value, wt_timestamp_t timestamp, ScopedCursor &cursor)
 {
-    cursor->set_key(cursor.get(), collectionId, key.c_str(), timestamp);
-    cursor->set_value(cursor.get(), static_cast<int>(operation), value.c_str());
+    cursor->set_key(cursor.Get(), collectionId, key.c_str(), timestamp);
+    cursor->set_value(cursor.Get(), static_cast<int>(operation), value.c_str());
 }
 
 } // namespace test_harness

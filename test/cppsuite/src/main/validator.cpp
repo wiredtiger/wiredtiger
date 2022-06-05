@@ -48,7 +48,7 @@ Validator::Validate(const std::string &operationTableName, const std::string &sc
     Logger::LogMessage(LOG_INFO, "Beginning validation.");
 
     scoped_session session = ConnectionManager::GetInstance().CreateSession();
-    scoped_cursor cursor = session.open_scoped_cursor(operationTableName);
+    ScopedCursor cursor = session.open_scoped_cursor(operationTableName);
 
     /*
      * Default validation depends on specific fields being present in the tracking table. If the
@@ -101,10 +101,10 @@ Validator::Validate(const std::string &operationTableName, const std::string &sc
 
     /* Parse the tracking table. */
     validation_collection currentCollectionRecords;
-    while ((ret = cursor->next(cursor.get())) == 0) {
+    while ((ret = cursor->next(cursor.Get())) == 0) {
         testutil_check(
-          cursor->get_key(cursor.get(), &trackedCollectionId, &trackedKey, &trackedTimestamps));
-        testutil_check(cursor->get_value(cursor.get(), &trackedOpType, &trackedValue));
+          cursor->get_key(cursor.Get(), &trackedCollectionId, &trackedKey, &trackedTimestamps));
+        testutil_check(cursor->get_value(cursor.Get(), &trackedOpType, &trackedValue));
 
         Logger::LogMessage(LOG_TRACE,
           "Retrieved tracked values. \n Collection id: " + std::to_string(trackedCollectionId) +
@@ -166,11 +166,11 @@ Validator::parseSchemaTrackingTable(scoped_session &session, const std::string &
     uint64_t keyCollectionId;
     int valueOperationType;
 
-    scoped_cursor cursor = session.open_scoped_cursor(trackingTableName);
+    ScopedCursor cursor = session.open_scoped_cursor(trackingTableName);
 
-    while (cursor->next(cursor.get()) == 0) {
-        testutil_check(cursor->get_key(cursor.get(), &keyCollectionId, &keyTimestamp));
-        testutil_check(cursor->get_value(cursor.get(), &valueOperationType));
+    while (cursor->next(cursor.Get()) == 0) {
+        testutil_check(cursor->get_key(cursor.Get(), &keyCollectionId, &keyTimestamp));
+        testutil_check(cursor->get_value(cursor.Get(), &valueOperationType));
 
         Logger::LogMessage(LOG_TRACE, "Collection id is " + std::to_string(keyCollectionId));
         Logger::LogMessage(LOG_TRACE, "Timestamp is " + std::to_string(keyTimestamp));
@@ -253,10 +253,10 @@ void
 Validator::VerifyKeyValue(scoped_session &session, const uint64_t collectionId,
   const std::string &key, const KeyState &keyState)
 {
-    scoped_cursor cursor =
+    ScopedCursor cursor =
       session.open_scoped_cursor(Database::GenerateCollectionName(collectionId));
-    cursor->set_key(cursor.get(), key.c_str());
-    int ret = cursor->search(cursor.get());
+    cursor->set_key(cursor.Get(), key.c_str());
+    int ret = cursor->search(cursor.Get());
     testutil_assertfmt(ret == 0 || ret == WT_NOTFOUND,
       "Validation failed: Unexpected error returned %d while searching for a key. Key: %s, "
       "collectionId: %lu",
@@ -277,7 +277,7 @@ Validator::VerifyKeyValue(scoped_session &session, const uint64_t collectionId,
         return;
 
     const char *retrievedValue;
-    testutil_check(cursor->get_value(cursor.get(), &retrievedValue));
+    testutil_check(cursor->get_value(cursor.Get(), &retrievedValue));
     if (keyState.value != key_value_t(retrievedValue))
         testutil_die(LOG_ERROR,
           "Validation failed: Value mismatch for key. Key: %s, collectionId: %lu, Expected "

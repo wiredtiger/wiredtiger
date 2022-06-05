@@ -63,7 +63,7 @@ class search_near_03 : public Test {
      */
     static bool
     perform_unique_index_insertions(
-      thread_worker *tc, scoped_cursor &cursor, Collection &coll, std::string &prefix_key)
+      thread_worker *tc, ScopedCursor &cursor, Collection &coll, std::string &prefix_key)
     {
         std::string ret_key;
         const char *key_tmp;
@@ -84,11 +84,11 @@ class search_near_03 : public Test {
          * WT_NOTFOUND error code is returned. If the prefix is present it means the (prefix, id)
          * has been inserted already. Double check that the prefix potion matches.
          */
-        cursor->set_key(cursor.get(), prefix_key.c_str());
-        ret = cursor->search_near(cursor.get(), &exact_prefix);
+        cursor->set_key(cursor.Get(), prefix_key.c_str());
+        ret = cursor->search_near(cursor.Get(), &exact_prefix);
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
         if (ret == 0) {
-            cursor->get_key(cursor.get(), &key_tmp);
+            cursor->get_key(cursor.Get(), &key_tmp);
             ret_key = get_prefix_from_key(std::string(key_tmp));
             testutil_assert(exact_prefix == 1);
             testutil_assert(prefix_key == ret_key);
@@ -114,8 +114,8 @@ class search_near_03 : public Test {
          * generated prefix and thread id.
          */
         Collection &coll = tc->db.GetCollection(tc->id);
-        scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
-        cursor->reconfigure(cursor.get(), "prefix_search=true");
+        ScopedCursor cursor = tc->session.open_scoped_cursor(coll.name);
+        cursor->reconfigure(cursor.Get(), "prefix_search=true");
         for (uint64_t count = 0; count < tc->key_count; ++count) {
             tc->txn.Start();
             /*
@@ -199,16 +199,16 @@ class search_near_03 : public Test {
         int ret = 0;
         for (uint64_t i = 0; i < database.GetCollectionCount(); i++) {
             Collection &coll = database.GetCollection(i);
-            scoped_cursor cursor = session.open_scoped_cursor(coll.name);
+            ScopedCursor cursor = session.open_scoped_cursor(coll.name);
             std::vector<std::string> prefixes;
             ret = 0;
             while (ret == 0) {
-                ret = cursor->next(cursor.get());
+                ret = cursor->next(cursor.Get());
                 testutil_assertfmt(ret == 0 || ret == WT_NOTFOUND,
                   "Unexpected error %d returned from cursor->next()", ret);
                 if (ret == WT_NOTFOUND)
                     continue;
-                cursor->get_key(cursor.get(), &key_tmp);
+                cursor->get_key(cursor.Get(), &key_tmp);
                 prefixes.push_back(std::string(key_tmp));
             }
             prefixes_map.push_back(prefixes);
@@ -219,7 +219,7 @@ class search_near_03 : public Test {
     void
     InsertOperation(thread_worker *tc) override final
     {
-        std::map<uint64_t, scoped_cursor> cursors;
+        std::map<uint64_t, ScopedCursor> cursors;
         std::string prefix_key;
         size_t random_index;
 
@@ -234,8 +234,8 @@ class search_near_03 : public Test {
             /* Get a collection and find a cached cursor. */
             Collection &coll = tc->db.GetRandomCollection();
             if (cursors.find(coll.id) == cursors.end()) {
-                scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
-                cursor->reconfigure(cursor.get(), "prefix_search=true");
+                ScopedCursor cursor = tc->session.open_scoped_cursor(coll.name);
+                cursor->reconfigure(cursor.Get(), "prefix_search=true");
                 cursors.emplace(coll.id, std::move(cursor));
             }
 
@@ -255,7 +255,7 @@ class search_near_03 : public Test {
                 " thread: Perform unique index insertions with existing prefix key " + prefix_key +
                 ".");
             testutil_assert(!perform_unique_index_insertions(tc, cursor, coll, prefix_key));
-            testutil_check(cursor->reset(cursor.get()));
+            testutil_check(cursor->reset(cursor.Get()));
             tc->txn.Rollback();
         }
     }
@@ -275,10 +275,10 @@ class search_near_03 : public Test {
         while (tc->running()) {
             for (int i = 0; i < tc->db.GetCollectionCount(); i++) {
                 Collection &coll = tc->db.GetCollection(i);
-                scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+                ScopedCursor cursor = tc->session.open_scoped_cursor(coll.name);
                 ret = 0;
                 while (ret == 0) {
-                    ret = cursor->next(cursor.get());
+                    ret = cursor->next(cursor.Get());
                     testutil_assertfmt(ret == 0 || ret == WT_NOTFOUND,
                       "Unexpected error %d returned from cursor->next()", ret);
                     if (ret == WT_NOTFOUND)

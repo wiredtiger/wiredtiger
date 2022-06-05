@@ -44,26 +44,26 @@ extern "C" {
 }
 
 namespace test_harness {
-class scoped_cursor {
+class ScopedCursor {
     public:
-    scoped_cursor() = default;
-    scoped_cursor(WT_SESSION *session, const std::string &uri, const std::string &cfg);
+    ScopedCursor() = default;
+    ScopedCursor(WT_SESSION *session, const std::string &uri, const std::string &cfg);
 
     /* Moving is ok but copying is not. */
-    scoped_cursor(scoped_cursor &&other);
+    ScopedCursor(ScopedCursor &&other);
 
-    ~scoped_cursor();
+    ~ScopedCursor();
 
-    scoped_cursor &operator=(scoped_cursor &&other);
-    scoped_cursor(const scoped_cursor &) = delete;
-    scoped_cursor &operator=(const scoped_cursor &) = delete;
+    ScopedCursor &operator=(ScopedCursor &&other);
+    ScopedCursor(const ScopedCursor &) = delete;
+    ScopedCursor &operator=(const ScopedCursor &) = delete;
 
-    void reinit(WT_SESSION *session, const std::string &uri, const std::string &cfg);
+    void Reinit(WT_SESSION *session, const std::string &uri, const std::string &cfg);
 
     WT_CURSOR &operator*();
     WT_CURSOR *operator->();
 
-    WT_CURSOR *get();
+    WT_CURSOR *Get();
 
     private:
     WT_CURSOR *_cursor = nullptr;

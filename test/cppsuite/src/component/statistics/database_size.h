@@ -43,8 +43,8 @@ class DatabaseSize : public Statistics {
     virtual ~DatabaseSize() = default;
 
     /* Don't need the stat cursor for these. */
-    void Check(scoped_cursor &) override final;
-    std::string GetValueString(scoped_cursor &) override final;
+    void Check(ScopedCursor &) override final;
+    std::string GetValueString(ScopedCursor &) override final;
 
     private:
     size_t GetDatabaseSize() const;

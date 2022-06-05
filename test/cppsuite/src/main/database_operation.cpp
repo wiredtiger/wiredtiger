@@ -49,7 +49,7 @@ PopulateWorker(thread_worker *threadWorker)
          * WiredTiger lets you open a cursor on a collection using the same pointer. When a session
          * is closed, WiredTiger APIs close the cursors too.
          */
-        scoped_cursor cursor = threadWorker->session.open_scoped_cursor(coll.name);
+        ScopedCursor cursor = threadWorker->session.open_scoped_cursor(coll.name);
         uint64_t j = 0;
         while (j < threadWorker->key_count) {
             threadWorker->txn.Start();
@@ -155,12 +155,12 @@ DatabaseOperation::InsertOperation(thread_worker *threadWorker)
 
     /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
     struct collection_cursor {
-        collection_cursor(Collection &coll, scoped_cursor &&cursor)
+        collection_cursor(Collection &coll, ScopedCursor &&cursor)
             : coll(coll), cursor(std::move(cursor))
         {
         }
         Collection &coll;
-        scoped_cursor cursor;
+        ScopedCursor cursor;
     };
 
     /* Collection cursor vector. */
@@ -175,7 +175,7 @@ DatabaseOperation::InsertOperation(thread_worker *threadWorker)
          threadWorker->running();
          ++i) {
         Collection &coll = threadWorker->db.GetCollection(i);
-        scoped_cursor cursor = threadWorker->session.open_scoped_cursor(coll.name);
+        ScopedCursor cursor = threadWorker->session.open_scoped_cursor(coll.name);
         ccv.push_back({coll, std::move(cursor)});
     }
 
@@ -216,7 +216,7 @@ DatabaseOperation::InsertOperation(thread_worker *threadWorker)
             threadWorker->sleep();
         }
         /* Reset our cursor to avoid pinning content. */
-        testutil_check(cc.cursor->reset(cc.cursor.get()));
+        testutil_check(cc.cursor->reset(cc.cursor.Get()));
         counter++;
         if (counter == collectionsPerThread)
             counter = 0;
@@ -234,7 +234,7 @@ DatabaseOperation::ReadOperation(thread_worker *threadWorker)
       type_string(threadWorker->type) + " thread {" + std::to_string(threadWorker->id) +
         "} commencing.");
 
-    std::map<uint64_t, scoped_cursor> cursors;
+    std::map<uint64_t, ScopedCursor> cursors;
     while (threadWorker->running()) {
         /* Get a collection and find a cached cursor. */
         Collection &coll = threadWorker->db.GetRandomCollection();
@@ -248,10 +248,10 @@ DatabaseOperation::ReadOperation(thread_worker *threadWorker)
 
         threadWorker->txn.Start();
         while (threadWorker->txn.Active() && threadWorker->running()) {
-            auto ret = cursor->next(cursor.get());
+            auto ret = cursor->next(cursor.Get());
             if (ret != 0) {
                 if (ret == WT_NOTFOUND) {
-                    cursor->reset(cursor.get());
+                    cursor->reset(cursor.Get());
                 } else if (ret == WT_ROLLBACK) {
                     threadWorker->txn.Rollback();
                     threadWorker->sleep();
@@ -264,7 +264,7 @@ DatabaseOperation::ReadOperation(thread_worker *threadWorker)
             threadWorker->sleep();
         }
         /* Reset our cursor to avoid pinning content. */
-        testutil_check(cursor->reset(cursor.get()));
+        testutil_check(cursor->reset(cursor.Get()));
     }
     /* Make sure the last transaction is rolled back now the work is finished. */
     if (threadWorker->txn.Active())
@@ -283,7 +283,7 @@ DatabaseOperation::RemoveOperation(thread_worker *threadWorker)
      * other one is a standard cursor to remove the random key. This is required as the random
      * cursor does not support the remove operation.
      */
-    std::map<uint64_t, scoped_cursor> randomCursors, cursors;
+    std::map<uint64_t, ScopedCursor> randomCursors, cursors;
 
     /* Loop while the test is running. */
     while (threadWorker->running()) {
@@ -302,10 +302,10 @@ DatabaseOperation::RemoveOperation(thread_worker *threadWorker)
               "Thread {" + std::to_string(threadWorker->id) +
                 "} Creating cursor for collection: " + coll.name);
             /* Open the two cursors for the chosen collection. */
-            scoped_cursor randomCursor =
+            ScopedCursor randomCursor =
               threadWorker->session.open_scoped_cursor(coll.name, "next_random=true");
             randomCursors.emplace(coll.id, std::move(randomCursor));
-            scoped_cursor cursor = threadWorker->session.open_scoped_cursor(coll.name);
+            ScopedCursor cursor = threadWorker->session.open_scoped_cursor(coll.name);
             cursors.emplace(coll.id, std::move(cursor));
         }
 
@@ -313,12 +313,12 @@ DatabaseOperation::RemoveOperation(thread_worker *threadWorker)
         threadWorker->txn.TryStart();
 
         /* Get the cursor associated with the collection. */
-        scoped_cursor &randomCursor = randomCursors[coll.id];
-        scoped_cursor &cursor = cursors[coll.id];
+        ScopedCursor &randomCursor = randomCursors[coll.id];
+        ScopedCursor &cursor = cursors[coll.id];
 
         /* Choose a random key to delete. */
         const char *key_str;
-        int ret = randomCursor->next(randomCursor.get());
+        int ret = randomCursor->next(randomCursor.Get());
         /* It is possible not to find anything if the collection is empty. */
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
         if (ret == WT_NOTFOUND) {
@@ -329,13 +329,13 @@ DatabaseOperation::RemoveOperation(thread_worker *threadWorker)
             WT_IGNORE_RET_BOOL(threadWorker->txn.Commit());
             continue;
         }
-        testutil_check(randomCursor->get_key(randomCursor.get(), &key_str));
+        testutil_check(randomCursor->get_key(randomCursor.Get(), &key_str));
         if (!threadWorker->remove(cursor, coll.id, key_str)) {
             threadWorker->txn.Rollback();
         }
 
         /* Reset our cursor to avoid pinning content. */
-        testutil_check(cursor->reset(cursor.get()));
+        testutil_check(cursor->reset(cursor.Get()));
 
         /* Commit the current transaction if we're able to. */
         if (threadWorker->txn.CanCommit())
@@ -354,7 +354,7 @@ DatabaseOperation::UpdateOperation(thread_worker *threadWorker)
       type_string(threadWorker->type) + " thread {" + std::to_string(threadWorker->id) +
         "} commencing.");
     /* Cursor map. */
-    std::map<uint64_t, scoped_cursor> cursors;
+    std::map<uint64_t, ScopedCursor> cursors;
 
     /*
      * Loop while the test is running.
@@ -375,7 +375,7 @@ DatabaseOperation::UpdateOperation(thread_worker *threadWorker)
               "Thread {" + std::to_string(threadWorker->id) +
                 "} Creating cursor for collection: " + coll.name);
             /* Open a cursor for the chosen collection. */
-            scoped_cursor cursor = threadWorker->session.open_scoped_cursor(coll.name);
+            ScopedCursor cursor = threadWorker->session.open_scoped_cursor(coll.name);
             cursors.emplace(coll.id, std::move(cursor));
         }
 
@@ -383,7 +383,7 @@ DatabaseOperation::UpdateOperation(thread_worker *threadWorker)
         threadWorker->txn.TryStart();
 
         /* Get the cursor associated with the collection. */
-        scoped_cursor &cursor = cursors[coll.id];
+        ScopedCursor &cursor = cursors[coll.id];
 
         /* Choose a random key to update. */
         testutil_assert(coll.GetKeyCount() != 0);
@@ -397,7 +397,7 @@ DatabaseOperation::UpdateOperation(thread_worker *threadWorker)
         }
 
         /* Reset our cursor to avoid pinning content. */
-        testutil_check(cursor->reset(cursor.get()));
+        testutil_check(cursor->reset(cursor.Get()));
 
         /* Commit the current transaction if we're able to. */
         if (threadWorker->txn.CanCommit())

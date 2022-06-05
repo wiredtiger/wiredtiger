@@ -57,14 +57,14 @@ class burst_inserts : public Test {
         /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
         struct collection_cursor {
             collection_cursor(
-              Collection &coll, scoped_cursor &&write_cursor, scoped_cursor &&read_cursor)
+              Collection &coll, ScopedCursor &&write_cursor, ScopedCursor &&read_cursor)
                 : coll(coll), read_cursor(std::move(read_cursor)),
                   write_cursor(std::move(write_cursor))
             {
             }
             Collection &coll;
-            scoped_cursor read_cursor;
-            scoped_cursor write_cursor;
+            ScopedCursor read_cursor;
+            ScopedCursor write_cursor;
         };
 
         /* Collection cursor vector. */
@@ -96,8 +96,8 @@ class burst_inserts : public Test {
                 std::chrono::seconds(_burst_duration)) {
                 tc->txn.TryStart();
                 auto key = tc->pad_string(std::to_string(start_key + added_count), tc->key_size);
-                cc.write_cursor->set_key(cc.write_cursor.get(), key.c_str());
-                cc.write_cursor->search(cc.write_cursor.get());
+                cc.write_cursor->set_key(cc.write_cursor.Get(), key.c_str());
+                cc.write_cursor->search(cc.write_cursor.Get());
 
                 /* A return value of true implies the insert was successful. */
                 auto value =
@@ -111,9 +111,9 @@ class burst_inserts : public Test {
 
                 /* Walk our random reader intended to generate cache pressure. */
                 int ret = 0;
-                if ((ret = cc.read_cursor->next(cc.read_cursor.get())) != 0) {
+                if ((ret = cc.read_cursor->next(cc.read_cursor.Get())) != 0) {
                     if (ret == WT_NOTFOUND) {
-                        cc.read_cursor->reset(cc.read_cursor.get());
+                        cc.read_cursor->reset(cc.read_cursor.Get());
                     } else if (ret == WT_ROLLBACK) {
                         tc->txn.Rollback();
                         added_count = 0;
@@ -143,8 +143,8 @@ class burst_inserts : public Test {
                 }
             }
 
-            testutil_check(cc.write_cursor->reset(cc.write_cursor.get()));
-            testutil_check(cc.read_cursor->reset(cc.read_cursor.get()));
+            testutil_check(cc.write_cursor->reset(cc.write_cursor.Get()));
+            testutil_check(cc.read_cursor->reset(cc.read_cursor.Get()));
             counter++;
             if (counter == collections_per_thread)
                 counter = 0;

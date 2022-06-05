@@ -74,12 +74,12 @@ class search_near_02 : public Test {
 
         /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
         struct collection_cursor {
-            collection_cursor(Collection &coll, scoped_cursor &&cursor)
+            collection_cursor(Collection &coll, ScopedCursor &&cursor)
                 : coll(coll), cursor(std::move(cursor))
             {
             }
             Collection &coll;
-            scoped_cursor cursor;
+            ScopedCursor cursor;
         };
 
         /* Collection cursor vector. */
@@ -93,7 +93,7 @@ class search_near_02 : public Test {
         for (uint64_t i = thread_offset;
              i < thread_offset + collections_per_thread && tc->running(); ++i) {
             Collection &coll = tc->db.GetCollection(i);
-            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+            ScopedCursor cursor = tc->session.open_scoped_cursor(coll.name);
             ccv.push_back({coll, std::move(cursor)});
         }
 
@@ -137,7 +137,7 @@ class search_near_02 : public Test {
                 tc->txn.Rollback();
 
             /* Reset our cursor to avoid pinning content. */
-            testutil_check(cc.cursor->reset(cc.cursor.get()));
+            testutil_check(cc.cursor->reset(cc.cursor.Get()));
             if (++counter == ccv.size())
                 counter = 0;
             testutil_assert(counter < collections_per_thread);
@@ -158,7 +158,7 @@ class search_near_02 : public Test {
         const char *key_prefix;
         int exact_prefix, ret;
         int64_t prefix_size;
-        std::map<uint64_t, scoped_cursor> cursors;
+        std::map<uint64_t, ScopedCursor> cursors;
         std::string generated_prefix, key_prefix_str;
 
         while (tc->running()) {
@@ -171,7 +171,7 @@ class search_near_02 : public Test {
                 auto &cursor_prefix = cursors[coll.id];
                 /* The cached cursors have the prefix configuration enabled. */
                 testutil_check(
-                  cursor_prefix.get()->reconfigure(cursor_prefix.get(), "prefix_search=true"));
+                  cursor_prefix.Get()->reconfigure(cursor_prefix.Get(), "prefix_search=true"));
             }
 
             auto &cursor_prefix = cursors[coll.id];
@@ -195,18 +195,18 @@ class search_near_02 : public Test {
                   prefix_size, charactersType::ALPHABET);
 
                 /* Call search near with the prefix cursor. */
-                cursor_prefix->set_key(cursor_prefix.get(), generated_prefix.c_str());
-                ret = cursor_prefix->search_near(cursor_prefix.get(), &exact_prefix);
+                cursor_prefix->set_key(cursor_prefix.Get(), generated_prefix.c_str());
+                ret = cursor_prefix->search_near(cursor_prefix.Get(), &exact_prefix);
                 testutil_assert(ret == 0 || ret == WT_NOTFOUND);
                 if (ret == 0) {
-                    testutil_check(cursor_prefix->get_key(cursor_prefix.get(), &key_prefix));
+                    testutil_check(cursor_prefix->get_key(cursor_prefix.Get(), &key_prefix));
                     key_prefix_str = key_prefix;
                 } else {
                     key_prefix_str = "";
                 }
 
                 /* Open a cursor with the default configuration on the selected collection. */
-                scoped_cursor cursor_default(tc->session.open_scoped_cursor(coll.name));
+                ScopedCursor cursor_default(tc->session.open_scoped_cursor(coll.name));
 
                 /* Verify the prefix search_near output using the default cursor. */
                 validate_prefix_search_near(
@@ -216,7 +216,7 @@ class search_near_02 : public Test {
                 tc->txn.TryRollback();
                 tc->sleep();
             }
-            testutil_check(cursor_prefix->reset(cursor_prefix.get()));
+            testutil_check(cursor_prefix->reset(cursor_prefix.Get()));
         }
         /* Roll back the last transaction if still active now the work is finished. */
         if (tc->txn.Active())
@@ -227,12 +227,12 @@ class search_near_02 : public Test {
     /* Validate prefix search_near call outputs using a cursor without prefix key enabled. */
     void
     validate_prefix_search_near(int ret_prefix, int exact_prefix, const std::string &key_prefix,
-      scoped_cursor &cursor_default, const std::string &prefix)
+      ScopedCursor &cursor_default, const std::string &prefix)
     {
         /* Call search near with the default cursor using the given prefix. */
         int exact_default;
-        cursor_default->set_key(cursor_default.get(), prefix.c_str());
-        int ret_default = cursor_default->search_near(cursor_default.get(), &exact_default);
+        cursor_default->set_key(cursor_default.Get(), prefix.c_str());
+        int ret_default = cursor_default->search_near(cursor_default.Get(), &exact_default);
 
         /*
          * It is not possible to have a prefix search near call successful and the default search
@@ -267,7 +267,7 @@ class search_near_02 : public Test {
      */
     void
     validate_successful_calls(int exact_prefix, const std::string &key_prefix,
-      scoped_cursor &cursor_default, int exact_default, const std::string &prefix)
+      ScopedCursor &cursor_default, int exact_default, const std::string &prefix)
     {
         const char *k;
         std::string k_str;
@@ -283,7 +283,7 @@ class search_near_02 : public Test {
 
         /* Retrieve the key the default cursor is pointing at. */
         const char *key_default;
-        testutil_check(cursor_default->get_key(cursor_default.get(), &key_default));
+        testutil_check(cursor_default->get_key(cursor_default.Get(), &key_default));
         std::string key_default_str = key_default;
 
         Logger::LogMessage(LOG_TRACE,
@@ -310,8 +310,8 @@ class search_near_02 : public Test {
              * The next key of the default cursor should be equal to the key pointed by the prefix
              * cursor.
              */
-            testutil_assert(cursor_default->next(cursor_default.get()) == 0);
-            testutil_check(cursor_default->get_key(cursor_default.get(), &k));
+            testutil_assert(cursor_default->next(cursor_default.Get()) == 0);
+            testutil_check(cursor_default->get_key(cursor_default.Get(), &k));
             testutil_assert(k == key_prefix);
         }
         /* Example: */
@@ -347,7 +347,7 @@ class search_near_02 : public Test {
      */
     void
     validate_unsuccessful_prefix_call(
-      scoped_cursor &cursor_default, const std::string &prefix, int exact_default)
+      ScopedCursor &cursor_default, const std::string &prefix, int exact_default)
     {
         int ret;
         const char *k;
@@ -361,7 +361,7 @@ class search_near_02 : public Test {
 
         /* Retrieve the key at the default cursor. */
         const char *key_default;
-        testutil_check(cursor_default->get_key(cursor_default.get(), &key_default));
+        testutil_check(cursor_default->get_key(cursor_default.Get(), &key_default));
         std::string key_default_str = key_default;
 
         /* The key at the default cursor should not contain the prefix. */
@@ -384,9 +384,9 @@ class search_near_02 : public Test {
              * The next key of the default cursor should be lexicographically greater than the
              * prefix if it exists.
              */
-            ret = cursor_default->next(cursor_default.get());
+            ret = cursor_default->next(cursor_default.Get());
             if (ret == 0) {
-                testutil_check(cursor_default->get_key(cursor_default.get(), &k));
+                testutil_check(cursor_default->get_key(cursor_default.Get(), &k));
                 k_str = k;
                 testutil_assert(!std::lexicographical_compare(
                   k_str.begin(), k_str.end(), prefix.begin(), prefix.end()));
@@ -412,9 +412,9 @@ class search_near_02 : public Test {
              * The next key of the default cursor should be lexicographically smaller than the
              * prefix if it exists.
              */
-            ret = cursor_default->prev(cursor_default.get());
+            ret = cursor_default->prev(cursor_default.Get());
             if (ret == 0) {
-                testutil_check(cursor_default->get_key(cursor_default.get(), &k));
+                testutil_check(cursor_default->get_key(cursor_default.Get(), &k));
                 k_str = k;
                 testutil_assert(std::lexicographical_compare(
                   k_str.begin(), k_str.end(), prefix.begin(), prefix.end()));

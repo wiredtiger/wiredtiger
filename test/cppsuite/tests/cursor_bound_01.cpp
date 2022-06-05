@@ -123,7 +123,7 @@ class cursor_bound_01 : public Test {
      * bound and upper bound checks while walking the tree.
      */
     void
-    cursor_traversal(scoped_cursor &range_cursor, scoped_cursor &normal_cursor,
+    cursor_traversal(ScopedCursor &range_cursor, ScopedCursor &normal_cursor,
       const bound &lower_bound, const bound &upper_bound, bool next)
     {
         int exact, normal_ret, range_ret;
@@ -132,35 +132,35 @@ class cursor_bound_01 : public Test {
         auto lower_key = lower_bound.get_key();
         auto upper_key = upper_bound.get_key();
         if (next) {
-            range_ret = range_cursor->next(range_cursor.get());
+            range_ret = range_cursor->next(range_cursor.Get());
             /*
              * If the key exists, position the cursor to the lower key using search near otherwise
              * use prev().
              */
             if (!lower_key.empty()) {
-                normal_cursor->set_key(normal_cursor.get(), lower_key.c_str());
-                normal_ret = normal_cursor->search_near(normal_cursor.get(), &exact);
+                normal_cursor->set_key(normal_cursor.Get(), lower_key.c_str());
+                normal_ret = normal_cursor->search_near(normal_cursor.Get(), &exact);
                 if (normal_ret == WT_NOTFOUND)
                     return;
                 if (exact < 0)
-                    normal_ret = normal_cursor->next(normal_cursor.get());
+                    normal_ret = normal_cursor->next(normal_cursor.Get());
             } else
-                normal_ret = normal_cursor->next(normal_cursor.get());
+                normal_ret = normal_cursor->next(normal_cursor.Get());
         } else {
-            range_ret = range_cursor->prev(range_cursor.get());
+            range_ret = range_cursor->prev(range_cursor.Get());
             /*
              * If the key exists, position the cursor to the upper key using search near otherwise
              * use next().
              */
             if (!upper_key.empty()) {
-                normal_cursor->set_key(normal_cursor.get(), upper_key.c_str());
-                normal_ret = normal_cursor->search_near(normal_cursor.get(), &exact);
+                normal_cursor->set_key(normal_cursor.Get(), upper_key.c_str());
+                normal_ret = normal_cursor->search_near(normal_cursor.Get(), &exact);
                 if (normal_ret == WT_NOTFOUND)
                     return;
                 if (exact > 0)
-                    normal_ret = normal_cursor->prev(normal_cursor.get());
+                    normal_ret = normal_cursor->prev(normal_cursor.Get());
             } else
-                normal_ret = normal_cursor->prev(normal_cursor.get());
+                normal_ret = normal_cursor->prev(normal_cursor.Get());
         }
 
         if (normal_ret == WT_NOTFOUND)
@@ -169,16 +169,16 @@ class cursor_bound_01 : public Test {
 
         /* Retrieve the key the cursor is pointing at. */
         const char *normal_key, *range_key;
-        testutil_check(normal_cursor->get_key(normal_cursor.get(), &normal_key));
-        testutil_check(range_cursor->get_key(range_cursor.get(), &range_key));
+        testutil_check(normal_cursor->get_key(normal_cursor.Get(), &normal_key));
+        testutil_check(range_cursor->get_key(range_cursor.Get(), &range_key));
         testutil_assert(std::string(normal_key).compare(range_key) == 0);
         while (true) {
             if (next) {
-                normal_ret = normal_cursor->next(normal_cursor.get());
-                range_ret = range_cursor->next(range_cursor.get());
+                normal_ret = normal_cursor->next(normal_cursor.Get());
+                range_ret = range_cursor->next(range_cursor.Get());
             } else {
-                normal_ret = normal_cursor->prev(normal_cursor.get());
-                range_ret = range_cursor->prev(range_cursor.get());
+                normal_ret = normal_cursor->prev(normal_cursor.Get());
+                range_ret = range_cursor->prev(range_cursor.Get());
             }
             testutil_assert(normal_ret == 0 || normal_ret == WT_NOTFOUND);
             testutil_assert(range_ret == 0 || range_ret == WT_NOTFOUND);
@@ -188,7 +188,7 @@ class cursor_bound_01 : public Test {
                 break;
             /* It is possible that we have reached the end of the bounded range. */
             else if (range_ret == WT_NOTFOUND && normal_ret == 0) {
-                testutil_check(normal_cursor->get_key(normal_cursor.get(), &normal_key));
+                testutil_check(normal_cursor->get_key(normal_cursor.Get(), &normal_key));
                 /*  Make sure that normal cursor returns a key that is outside of the range. */
                 if (next) {
                     testutil_assert(!upper_key.empty());
@@ -207,8 +207,8 @@ class cursor_bound_01 : public Test {
                 testutil_assert(custom_lexicographical_compare(
                   lower_key, range_key, lower_bound.get_inclusive()));
             /* Make sure that records match between both cursors. */
-            testutil_check(normal_cursor->get_key(normal_cursor.get(), &normal_key));
-            testutil_check(range_cursor->get_key(range_cursor.get(), &range_key));
+            testutil_check(normal_cursor->get_key(normal_cursor.Get(), &normal_key));
+            testutil_check(range_cursor->get_key(range_cursor.Get(), &range_key));
             testutil_assert(std::string(normal_key).compare(range_key) == 0);
         }
     }
@@ -219,14 +219,14 @@ class cursor_bound_01 : public Test {
      * inclusive configuration is also randomly set as well.
      */
     std::pair<bound, bound>
-    set_random_bounds(thread_worker *tc, scoped_cursor &range_cursor)
+    set_random_bounds(thread_worker *tc, ScopedCursor &range_cursor)
     {
         int ret;
         bound lower_bound, upper_bound;
 
         auto set_random_bounds = RandomGenerator::GetInstance().GenerateInteger(0, 3);
         if (set_random_bounds == NO_BOUNDS)
-            range_cursor->bound(range_cursor.get(), "action=clear");
+            range_cursor->bound(range_cursor.Get(), "action=clear");
 
         if (set_random_bounds == LOWER_BOUND_SET || set_random_bounds == ALL_BOUNDS_SET) {
             /* Reverse case. */
@@ -235,8 +235,8 @@ class cursor_bound_01 : public Test {
             /* Normal case. */
             else
                 lower_bound = bound(tc->key_size, true, "0");
-            range_cursor->set_key(range_cursor.get(), lower_bound.get_key().c_str());
-            ret = range_cursor->bound(range_cursor.get(), lower_bound.get_config().c_str());
+            range_cursor->set_key(range_cursor.Get(), lower_bound.get_key().c_str());
+            ret = range_cursor->bound(range_cursor.Get(), lower_bound.get_config().c_str());
             testutil_assert(ret == 0 || ret == EINVAL);
         }
 
@@ -247,8 +247,8 @@ class cursor_bound_01 : public Test {
             /* Normal case. */
             else
                 upper_bound = bound(tc->key_size, false, std::string(tc->key_size, 'z'));
-            range_cursor->set_key(range_cursor.get(), upper_bound.get_key().c_str());
-            ret = range_cursor->bound(range_cursor.get(), upper_bound.get_config().c_str());
+            range_cursor->set_key(range_cursor.Get(), upper_bound.get_key().c_str());
+            ret = range_cursor->bound(range_cursor.Get(), upper_bound.get_config().c_str());
             testutil_assert(ret == 0 || ret == EINVAL);
         }
 
@@ -268,8 +268,8 @@ class cursor_bound_01 : public Test {
      * cursor could find.
      */
     void
-    validate_bound_search_near(int range_ret, int range_exact, scoped_cursor &range_cursor,
-      scoped_cursor &normal_cursor, const std::string &search_key, const bound &lower_bound,
+    validate_bound_search_near(int range_ret, int range_exact, ScopedCursor &range_cursor,
+      ScopedCursor &normal_cursor, const std::string &search_key, const bound &lower_bound,
       const bound &upper_bound)
     {
         /* Range cursor has successfully returned with a key. */
@@ -280,7 +280,7 @@ class cursor_bound_01 : public Test {
             auto upper_inclusive = upper_bound.get_inclusive();
 
             const char *key;
-            testutil_check(range_cursor->get_key(range_cursor.get(), &key));
+            testutil_check(range_cursor->get_key(range_cursor.Get(), &key));
             Logger::LogMessage(LOG_TRACE,
               "bounded search_near found key: " + std::string(key) +
                 " with lower bound: " + lower_key + " upper bound: " + upper_key);
@@ -299,9 +299,9 @@ class cursor_bound_01 : public Test {
               custom_lexicographical_compare(search_key, upper_key, upper_inclusive);
             auto search_key_inside_range = above_lower_key && below_upper_key;
 
-            normal_cursor->set_key(normal_cursor.get(), key);
+            normal_cursor->set_key(normal_cursor.Get(), key);
             /* Position the normal cursor on the found key from range cursor. */
-            testutil_check(normal_cursor->search(normal_cursor.get()));
+            testutil_check(normal_cursor->search(normal_cursor.Get()));
 
             /*
              * Call different validation methods depending on whether the search key is inside or
@@ -327,12 +327,12 @@ class cursor_bound_01 : public Test {
      */
     void
     validate_successful_search_near_inside_range(
-      scoped_cursor &normal_cursor, int range_exact, const std::string &search_key)
+      ScopedCursor &normal_cursor, int range_exact, const std::string &search_key)
     {
         int ret = 0;
         /* Retrieve the key the normal cursor is pointing at. */
         const char *key;
-        testutil_check(normal_cursor->get_key(normal_cursor.get(), &key));
+        testutil_check(normal_cursor->get_key(normal_cursor.Get(), &key));
         Logger::LogMessage(LOG_TRACE,
           "bounded search_near validating correct returned key with search key inside range as: " +
             search_key + " and exact: " + std::to_string(range_exact));
@@ -347,11 +347,11 @@ class cursor_bound_01 : public Test {
             testutil_assert(!custom_lexicographical_compare(key, search_key, true));
 
             /* Check that the previous key is less than the search key. */
-            ret = normal_cursor->prev(normal_cursor.get());
+            ret = normal_cursor->prev(normal_cursor.Get());
             testutil_assert(ret == WT_NOTFOUND || ret == 0);
             if (ret == WT_NOTFOUND)
                 return;
-            testutil_check(normal_cursor->get_key(normal_cursor.get(), &key));
+            testutil_check(normal_cursor->get_key(normal_cursor.Get(), &key));
             testutil_assert(custom_lexicographical_compare(key, search_key, false));
             /*
              * When exact < 0, the returned key should be less than the search key and performing a
@@ -361,11 +361,11 @@ class cursor_bound_01 : public Test {
             testutil_assert(custom_lexicographical_compare(key, search_key, false));
 
             /* Check that the next key is greater than the search key. */
-            ret = normal_cursor->next(normal_cursor.get());
+            ret = normal_cursor->next(normal_cursor.Get());
             testutil_assert(ret == WT_NOTFOUND || ret == 0);
             if (ret == WT_NOTFOUND)
                 return;
-            testutil_check(normal_cursor->get_key(normal_cursor.get(), &key));
+            testutil_check(normal_cursor->get_key(normal_cursor.Get(), &key));
             testutil_assert(!custom_lexicographical_compare(key, search_key, true));
         }
     }
@@ -378,11 +378,11 @@ class cursor_bound_01 : public Test {
      * outside of the range.
      */
     void
-    validate_successful_search_near_outside_range(scoped_cursor &normal_cursor,
+    validate_successful_search_near_outside_range(ScopedCursor &normal_cursor,
       const bound &lower_bound, const bound &upper_bound, bool larger_search_key)
     {
-        int ret = larger_search_key ? normal_cursor->next(normal_cursor.get()) :
-                                      normal_cursor->prev(normal_cursor.get());
+        int ret = larger_search_key ? normal_cursor->next(normal_cursor.Get()) :
+                                      normal_cursor->prev(normal_cursor.Get());
         auto lower_key = lower_bound.get_key();
         auto upper_key = upper_bound.get_key();
         if (ret == WT_NOTFOUND)
@@ -390,7 +390,7 @@ class cursor_bound_01 : public Test {
         testutil_assert(ret == 0);
 
         const char *key;
-        testutil_check(normal_cursor->get_key(normal_cursor.get(), &key));
+        testutil_check(normal_cursor->get_key(normal_cursor.Get(), &key));
         /*
          * Assert that the next() or prev() call has placed the normal cursor outside of the bounded
          * range.
@@ -408,7 +408,7 @@ class cursor_bound_01 : public Test {
      */
     void
     validate_search_near_not_found(
-      scoped_cursor &normal_cursor, const bound &lower_bound, const bound &upper_bound)
+      ScopedCursor &normal_cursor, const bound &lower_bound, const bound &upper_bound)
     {
         int ret, exact;
         auto lower_key = lower_bound.get_key();
@@ -417,10 +417,10 @@ class cursor_bound_01 : public Test {
           "bounded search_near found WT_NOTFOUND on lower bound: " + lower_key + " upper bound: " +
             upper_key + " traversing range to validate that there are no keys within range.");
         if (!lower_key.empty()) {
-            normal_cursor->set_key(normal_cursor.get(), lower_key.c_str());
-            ret = normal_cursor->search_near(normal_cursor.get(), &exact);
+            normal_cursor->set_key(normal_cursor.Get(), lower_key.c_str());
+            ret = normal_cursor->search_near(normal_cursor.Get(), &exact);
         } else
-            ret = normal_cursor->next(normal_cursor.get());
+            ret = normal_cursor->next(normal_cursor.Get());
 
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
 
@@ -429,7 +429,7 @@ class cursor_bound_01 : public Test {
          * place the cursor in the first record in the range.
          */
         if (exact < 0)
-            ret = normal_cursor->next(normal_cursor.get());
+            ret = normal_cursor->next(normal_cursor.Get());
 
         /*
          * Validate that there are no keys in the bounded range that the range cursor could have
@@ -439,7 +439,7 @@ class cursor_bound_01 : public Test {
         while (ret != WT_NOTFOUND) {
             testutil_assert(ret == 0);
 
-            testutil_check(normal_cursor->get_key(normal_cursor.get(), &key));
+            testutil_check(normal_cursor->get_key(normal_cursor.Get(), &key));
             /* Asserted that the traversed key is not within the range bound. */
             auto above_lower_key = lower_key.empty() ||
               custom_lexicographical_compare(lower_key, key, lower_bound.get_inclusive());
@@ -454,7 +454,7 @@ class cursor_bound_01 : public Test {
             if (!below_upper_key)
                 break;
 
-            ret = normal_cursor->next(normal_cursor.get());
+            ret = normal_cursor->next(normal_cursor.Get());
         }
     }
 
@@ -469,7 +469,7 @@ class cursor_bound_01 : public Test {
         while (tc->running()) {
 
             Collection &coll = tc->db.GetRandomCollection();
-            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+            ScopedCursor cursor = tc->session.open_scoped_cursor(coll.name);
             tc->txn.Start();
 
             while (tc->txn.Active() && tc->running()) {
@@ -501,7 +501,7 @@ class cursor_bound_01 : public Test {
                 tc->txn.Rollback();
 
             /* Reset our cursor to avoid pinning content. */
-            testutil_check(cursor->reset(cursor.get()));
+            testutil_check(cursor->reset(cursor.Get()));
         }
     }
 
@@ -516,13 +516,12 @@ class cursor_bound_01 : public Test {
         while (tc->running()) {
 
             Collection &coll = tc->db.GetRandomCollection();
-            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
-            scoped_cursor rnd_cursor =
-              tc->session.open_scoped_cursor(coll.name, "next_random=true");
+            ScopedCursor cursor = tc->session.open_scoped_cursor(coll.name);
+            ScopedCursor rnd_cursor = tc->session.open_scoped_cursor(coll.name, "next_random=true");
             tc->txn.Start();
 
             while (tc->txn.Active() && tc->running()) {
-                int ret = rnd_cursor->next(rnd_cursor.get());
+                int ret = rnd_cursor->next(rnd_cursor.Get());
 
                 /* It is possible not to find anything if the collection is empty. */
                 testutil_assert(ret == 0 || ret == WT_NOTFOUND);
@@ -536,7 +535,7 @@ class cursor_bound_01 : public Test {
                 }
 
                 const char *key;
-                testutil_check(rnd_cursor->get_key(rnd_cursor.get(), &key));
+                testutil_check(rnd_cursor->get_key(rnd_cursor.Get(), &key));
 
                 /* Update the found key with a randomized value. */
                 auto value = RandomGenerator::GetInstance().GenerateRandomString(tc->value_size);
@@ -563,7 +562,7 @@ class cursor_bound_01 : public Test {
                 tc->txn.Rollback();
 
             /* Reset our cursor to avoid pinning content. */
-            testutil_check(cursor->reset(cursor.get()));
+            testutil_check(cursor->reset(cursor.Get()));
         }
     }
 
@@ -579,7 +578,7 @@ class cursor_bound_01 : public Test {
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         bound lower_bound, upper_bound;
-        std::map<uint64_t, scoped_cursor> cursors;
+        std::map<uint64_t, ScopedCursor> cursors;
 
         while (tc->running()) {
             /* Get a random collection to work on. */
@@ -604,7 +603,7 @@ class cursor_bound_01 : public Test {
                 upper_bound = bound_pair.second;
             }
 
-            scoped_cursor normal_cursor = tc->session.open_scoped_cursor(coll.name);
+            ScopedCursor normal_cursor = tc->session.open_scoped_cursor(coll.name);
             wt_timestamp_t ts = tc->tsm->GetValidReadTimestamp();
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
@@ -621,8 +620,8 @@ class cursor_bound_01 : public Test {
                   key_size, charactersType::ALPHABET);
 
                 int exact;
-                range_cursor->set_key(range_cursor.get(), srch_key.c_str());
-                auto ret = range_cursor->search_near(range_cursor.get(), &exact);
+                range_cursor->set_key(range_cursor.Get(), srch_key.c_str());
+                auto ret = range_cursor->search_near(range_cursor.Get(), &exact);
                 testutil_assert(ret == 0 || ret == WT_NOTFOUND);
 
                 /* Verify the bound search_near result using the normal cursor. */
@@ -633,7 +632,7 @@ class cursor_bound_01 : public Test {
                 tc->txn.TryRollback();
                 tc->sleep();
             }
-            testutil_check(range_cursor->reset(range_cursor.get()));
+            testutil_check(range_cursor->reset(range_cursor.Get()));
         }
         /* Roll back the last transaction if still active now the work is finished. */
         if (tc->txn.Active())
@@ -651,7 +650,7 @@ class cursor_bound_01 : public Test {
         Logger::LogMessage(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
-        std::map<uint64_t, scoped_cursor> cursors;
+        std::map<uint64_t, ScopedCursor> cursors;
         bound lower_bound, upper_bound;
         while (tc->running()) {
             /* Get a random collection to work on. */
@@ -676,7 +675,7 @@ class cursor_bound_01 : public Test {
                 upper_bound = bound_pair.second;
             }
 
-            scoped_cursor normal_cursor = tc->session.open_scoped_cursor(coll.name);
+            ScopedCursor normal_cursor = tc->session.open_scoped_cursor(coll.name);
             wt_timestamp_t ts = tc->tsm->GetValidReadTimestamp();
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
@@ -692,7 +691,7 @@ class cursor_bound_01 : public Test {
                 tc->txn.TryRollback();
                 tc->sleep();
             }
-            testutil_check(range_cursor->reset(range_cursor.get()));
+            testutil_check(range_cursor->reset(range_cursor.Get()));
         }
         /* Roll back the last transaction if still active now the work is finished. */
         if (tc->txn.Active())

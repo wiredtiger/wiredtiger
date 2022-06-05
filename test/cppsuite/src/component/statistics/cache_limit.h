@@ -42,11 +42,11 @@ class CacheLimit : public Statistics {
     CacheLimit(Configuration &config, const std::string &name);
     virtual ~CacheLimit() = default;
 
-    void Check(scoped_cursor &cursor) override final;
-    std::string GetValueString(scoped_cursor &cursor) override final;
+    void Check(ScopedCursor &cursor) override final;
+    std::string GetValueString(ScopedCursor &cursor) override final;
 
     private:
-    double GetCacheUsagePercentage(scoped_cursor &cursor);
+    double GetCacheUsagePercentage(ScopedCursor &cursor);
 };
 } // namespace test_harness
 

@@ -60,16 +60,16 @@ class hs_cleanup : public Test {
 
         /* In this test each thread gets a single collection. */
         testutil_assert(tc->db.GetCollectionCount() == tc->thread_count);
-        scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+        ScopedCursor cursor = tc->session.open_scoped_cursor(coll.name);
 
         /* We don't know the keyrange we're operating over here so we can't be much smarter here. */
         while (tc->running()) {
             tc->sleep();
 
-            auto ret = cursor->next(cursor.get());
+            auto ret = cursor->next(cursor.Get());
             if (ret != 0) {
                 if (ret == WT_NOTFOUND) {
-                    cursor->reset(cursor.get());
+                    cursor->reset(cursor.Get());
                     continue;
                 }
                 if (ret == WT_ROLLBACK) {
@@ -85,7 +85,7 @@ class hs_cleanup : public Test {
                 testutil_die(ret, "Unexpected error returned from cursor->next()");
             }
 
-            testutil_check(cursor->get_key(cursor.get(), &key_tmp));
+            testutil_check(cursor->get_key(cursor.Get(), &key_tmp));
 
             /* Start a transaction if possible. */
             tc->txn.TryStart();
