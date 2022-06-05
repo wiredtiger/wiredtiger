@@ -142,7 +142,7 @@ RunTest(const std::string &testName, const std::string &config, const std::strin
     else if (testName == "search_near_01")
         search_near_01(args).Run();
     else if (testName == "search_near_02")
-        search_near_02(args).Run();
+        SearchNear02(args).Run();
     else if (testName == "search_near_03")
         SearchNear03(args).Run();
     else if (testName == "test_template")
