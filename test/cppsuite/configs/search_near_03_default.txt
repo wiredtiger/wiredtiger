@@ -1,4 +1,4 @@
-# Configuration for search_near_03 default test.
+# Configuration for SearchNear03 default test.
 # The population phase performs unique index insertions based on the number of collections and
 # key count for each collection. 
 # Threads:
