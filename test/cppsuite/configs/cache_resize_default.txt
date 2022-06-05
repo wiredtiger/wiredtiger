@@ -1,4 +1,4 @@
-# Configuration for cache_resize:
+# Configuration for CacheResize:
 # - Defines a thread that uses the custom operation to resize the cache during runtime.
 # - Defines several insert threads used to perform transactions larger than 1MB.
 # - Defines custom tracking

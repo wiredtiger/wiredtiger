@@ -27,6 +27,7 @@
  */
 
 #include "src/common/constants.h"
+#include "src/common/logger.h"
 #include "src/common/random_generator.h"
 #include "src/component/operation_tracker.h"
 #include "src/main/test.h"
@@ -38,18 +39,18 @@ class OperationTrackerCacheResize : public OperationTracker {
 
     public:
     OperationTrackerCacheResize(
-      Configuration *config, const bool use_compression, TimestampManager &tsm)
-        : OperationTracker(config, use_compression, tsm)
+      Configuration *config, const bool useCompression, TimestampManager &timestampManager)
+        : OperationTracker(config, useCompression, timestampManager)
     {
     }
 
     void
-    setTrackingCursor(const uint64_t txn_id, const trackingOperation &operation, const uint64_t &,
-      const std::string &, const std::string &value, wt_timestamp_t ts,
-      ScopedCursor &op_track_cursor) override final
+    setTrackingCursor(const uint64_t transactionId, const trackingOperation &operation,
+      const uint64_t &, const std::string &, const std::string &value, wt_timestamp_t timestamp,
+      ScopedCursor &cursor) override final
     {
-        op_track_cursor->set_key(op_track_cursor.Get(), ts, txn_id);
-        op_track_cursor->set_value(op_track_cursor.Get(), operation, value.c_str());
+        cursor->set_key(cursor.Get(), timestamp, transactionId);
+        cursor->set_value(cursor.Get(), operation, value.c_str());
     }
 };
 
@@ -59,9 +60,9 @@ class OperationTrackerCacheResize : public OperationTracker {
  * than the cache size they are rejected, so only transactions made when cache size is 500MB should
  * be allowed.
  */
-class cache_resize : public Test {
+class CacheResize : public Test {
     public:
-    cache_resize(const test_args &args) : Test(args)
+    CacheResize(const test_args &args) : Test(args)
     {
         InitOperationTracker(
           new OperationTrackerCacheResize(_config->GetSubconfig(operationTracker),
@@ -71,44 +72,44 @@ class cache_resize : public Test {
     void
     CustomOperation(thread_worker *tc) override final
     {
-        WT_CONNECTION *conn = ConnectionManager::GetInstance().GetConnection();
-        WT_CONNECTION_IMPL *conn_impl = (WT_CONNECTION_IMPL *)conn;
-        bool increase_cache = false;
-        const std::string small_cache_size = "cache_size=1MB";
-        const std::string big_cache_size = "cache_size=500MB";
+        WT_CONNECTION *connection = ConnectionManager::GetInstance().GetConnection();
+        WT_CONNECTION_IMPL *connectionImpl = (WT_CONNECTION_IMPL *)connection;
+        bool increaseCache = false;
+        const std::string smallCacheSize = "cache_size=1MB";
+        const std::string bigCacheSize = "cache_size=500MB";
 
         while (tc->running()) {
             tc->sleep();
 
             /* Get the current cache size. */
-            uint64_t prev_cache_size = conn_impl->cache_size;
+            uint64_t previousCacheSize = connectionImpl->cache_size;
 
             /* Reconfigure with the new cache size. */
-            testutil_check(conn->reconfigure(
-              conn, increase_cache ? big_cache_size.c_str() : small_cache_size.c_str()));
+            testutil_check(connection->reconfigure(
+              connection, increaseCache ? bigCacheSize.c_str() : smallCacheSize.c_str()));
 
             /* Get the new cache size. */
-            uint64_t new_cache_size = conn_impl->cache_size;
+            uint64_t newCacheSize = connectionImpl->cache_size;
 
             Logger::LogMessage(LOG_TRACE,
-              "The cache size was updated from " + std::to_string(prev_cache_size) + " to " +
-                std::to_string(new_cache_size));
+              "The cache size was updated from " + std::to_string(previousCacheSize) + " to " +
+                std::to_string(newCacheSize));
 
             /*
              * The collection id and the key are dummy fields which are required by the
              * save_operation API but not needed for this test.
              */
-            const uint64_t collection_id = 0;
+            const uint64_t collectionId = 0;
             const std::string key;
-            const std::string value = std::to_string(new_cache_size);
+            const std::string value = std::to_string(newCacheSize);
 
             /* Retrieve the current transaction id. */
-            uint64_t txn_id = ((WT_SESSION_IMPL *)tc->session.Get())->txn->id;
+            uint64_t transactionId = ((WT_SESSION_IMPL *)tc->session.Get())->txn->id;
 
             /* Save the change of cache size in the tracking table. */
             tc->txn.Start();
-            int ret = tc->op_tracker->save_operation(txn_id, trackingOperation::CUSTOM,
-              collection_id, key, value, tc->tsm->GetNextTimestamp(), tc->op_track_cursor);
+            int ret = tc->op_tracker->save_operation(transactionId, trackingOperation::CUSTOM,
+              collectionId, key, value, tc->tsm->GetNextTimestamp(), tc->op_track_cursor);
 
             if (ret == 0)
                 testutil_assert(tc->txn.Commit());
@@ -120,17 +121,17 @@ class cache_resize : public Test {
                     std::to_string(ret));
                 tc->txn.Rollback();
             }
-            increase_cache = !increase_cache;
+            increaseCache = !increaseCache;
         }
     }
 
     void
     InsertOperation(thread_worker *tc) override final
     {
-        const uint64_t collection_count = tc->db.GetCollectionCount();
-        testutil_assert(collection_count > 0);
-        Collection &coll = tc->db.GetCollection(collection_count - 1);
-        ScopedCursor cursor = tc->session.OpenScopedCursor(coll.name);
+        const uint64_t collectionCount = tc->db.GetCollectionCount();
+        testutil_assert(collectionCount > 0);
+        Collection &collection = tc->db.GetCollection(collectionCount - 1);
+        ScopedCursor cursor = tc->session.OpenScopedCursor(collection.name);
 
         while (tc->running()) {
             tc->sleep();
@@ -138,13 +139,13 @@ class cache_resize : public Test {
             /* Insert the current cache size value using a random key. */
             const std::string key =
               RandomGenerator::GetInstance().GeneratePseudoRandomString(tc->key_size);
-            const uint64_t cache_size =
+            const uint64_t cacheSize =
               ((WT_CONNECTION_IMPL *)ConnectionManager::GetInstance().GetConnection())->cache_size;
             /* Take into account the value size given in the test configuration file. */
-            const std::string value = std::to_string(cache_size);
+            const std::string value = std::to_string(cacheSize);
 
             tc->txn.TryStart();
-            if (!tc->insert(cursor, coll.id, key, value)) {
+            if (!tc->insert(cursor, collection.id, key, value)) {
                 tc->txn.Rollback();
             } else if (tc->txn.CanCommit()) {
                 /*
@@ -162,21 +163,21 @@ class cache_resize : public Test {
     }
 
     void
-    Validate(const std::string &operation_table_name, const std::string &,
+    Validate(const std::string &operationTableName, const std::string &,
       const std::vector<uint64_t> &) override final
     {
-        bool first_record = false;
+        bool firstRecord = false;
         int ret;
-        uint64_t cache_size, num_records = 0, prev_txn_id;
-        const uint64_t cache_size_500mb = 500000000;
+        uint64_t cacheSize, numRecords = 0, previousTransactionId;
+        const uint64_t cacheSize500MB = 500000000;
 
         /* FIXME-WT-9339. */
-        (void)cache_size;
-        (void)cache_size_500mb;
+        (void)cacheSize;
+        (void)cacheSize500MB;
 
         /* Open a cursor on the tracking table to read it. */
         ScopedSession session = ConnectionManager::GetInstance().CreateSession();
-        ScopedCursor cursor = session.OpenScopedCursor(operation_table_name);
+        ScopedCursor cursor = session.OpenScopedCursor(operationTableName);
 
         /*
          * Parse the tracking table. Each operation is tracked and each transaction is made of
@@ -186,32 +187,33 @@ class cache_resize : public Test {
          */
         while ((ret = cursor->next(cursor.Get())) == 0) {
 
-            uint64_t tracked_ts, tracked_txn_id;
-            int tracked_op_type;
-            const char *tracked_cache_size;
+            uint64_t trackedTimestamp, trackedTransactionId;
+            int trackedOperationType;
+            const char *trackedCacheSize;
 
-            testutil_check(cursor->get_key(cursor.Get(), &tracked_ts, &tracked_txn_id));
-            testutil_check(cursor->get_value(cursor.Get(), &tracked_op_type, &tracked_cache_size));
+            testutil_check(cursor->get_key(cursor.Get(), &trackedTimestamp, &trackedTransactionId));
+            testutil_check(
+              cursor->get_value(cursor.Get(), &trackedOperationType, &trackedCacheSize));
 
             Logger::LogMessage(LOG_TRACE,
-              "Timestamp: " + std::to_string(tracked_ts) +
-                ", transaction id: " + std::to_string(tracked_txn_id) +
-                ", cache size: " + std::to_string(std::stoull(tracked_cache_size)));
+              "Timestamp: " + std::to_string(trackedTimestamp) +
+                ", transaction id: " + std::to_string(trackedTransactionId) +
+                ", cache size: " + std::to_string(std::stoull(trackedCacheSize)));
 
-            trackingOperation op_type = static_cast<trackingOperation>(tracked_op_type);
+            trackingOperation opType = static_cast<trackingOperation>(trackedOperationType);
             /* There are only two types of operation tracked. */
             testutil_assert(
-              op_type == trackingOperation::CUSTOM || op_type == trackingOperation::INSERT);
+              opType == trackingOperation::CUSTOM || opType == trackingOperation::INSERT);
 
             /*
              * There is nothing to do if we are reading a record that indicates a cache size change.
              */
-            if (op_type == trackingOperation::CUSTOM)
+            if (opType == trackingOperation::CUSTOM)
                 continue;
 
-            if (first_record) {
-                first_record = false;
-            } else if (prev_txn_id != tracked_txn_id) {
+            if (firstRecord) {
+                firstRecord = false;
+            } else if (previousTransactionId != trackedTransactionId) {
                 /*
                  * We have moved to a new transaction, make sure the cache was big enough when the
                  * previous transaction was committed.
@@ -219,22 +221,22 @@ class cache_resize : public Test {
                  * FIXME-WT-9339 - Somehow we have some transactions that go through while the cache
                  * is very low. Enable the check when this is no longer the case.
                  *
-                 * testutil_assert(cache_size > cache_size_500mb);
+                 * testutil_assert(cacheSize > cacheSize500MB);
                  */
             }
-            prev_txn_id = tracked_txn_id;
+            previousTransactionId = trackedTransactionId;
             /* Save the last cache size seen by the transaction. */
-            cache_size = std::stoull(tracked_cache_size);
-            ++num_records;
+            cacheSize = std::stoull(trackedCacheSize);
+            ++numRecords;
         }
         /* All records have been parsed, the last one still needs the be checked. */
         testutil_assert(ret == WT_NOTFOUND);
-        testutil_assert(num_records > 0);
+        testutil_assert(numRecords > 0);
         /*
          * FIXME-WT-9339 - Somehow we have some transactions that go through while the cache is very
          * low. Enable the check when this is no longer the case.
          *
-         * testutil_assert(cache_size > cache_size_500mb);
+         * testutil_assert(cacheSize > cacheSize500MB);
          */
     }
 };

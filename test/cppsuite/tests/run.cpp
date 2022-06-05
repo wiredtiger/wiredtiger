@@ -132,7 +132,7 @@ run_test(const std::string &test_name, const std::string &config, const std::str
     else if (test_name == "burst_inserts")
         BurstInserts(args).Run();
     else if (test_name == "cache_resize")
-        cache_resize(args).Run();
+        CacheResize(args).Run();
     else if (test_name == "cursor_bound_01")
         cursor_bound_01(args).Run();
     else if (test_name == "hs_cleanup")
