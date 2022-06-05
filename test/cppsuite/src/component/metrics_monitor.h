@@ -62,7 +62,7 @@ class MetricsMonitor : public Component {
     void Finish() override final;
 
     private:
-    scoped_session _session;
+    ScopedSession _session;
     ScopedCursor _cursor;
     const std::string _testName;
     std::vector<std::unique_ptr<Statistics>> _stats;

@@ -49,7 +49,7 @@ PopulateWorker(thread_worker *threadWorker)
          * WiredTiger lets you open a cursor on a collection using the same pointer. When a session
          * is closed, WiredTiger APIs close the cursors too.
          */
-        ScopedCursor cursor = threadWorker->session.open_scoped_cursor(coll.name);
+        ScopedCursor cursor = threadWorker->session.OpenScopedCursor(coll.name);
         uint64_t j = 0;
         while (j < threadWorker->key_count) {
             threadWorker->txn.Start();
@@ -134,7 +134,7 @@ DatabaseOperation::CheckpointOperation(thread_worker *threadWorker)
 
     while (threadWorker->running()) {
         threadWorker->sleep();
-        testutil_check(threadWorker->session->checkpoint(threadWorker->session.get(), nullptr));
+        testutil_check(threadWorker->session->checkpoint(threadWorker->session.Get(), nullptr));
     }
 }
 
@@ -175,7 +175,7 @@ DatabaseOperation::InsertOperation(thread_worker *threadWorker)
          threadWorker->running();
          ++i) {
         Collection &coll = threadWorker->db.GetCollection(i);
-        ScopedCursor cursor = threadWorker->session.open_scoped_cursor(coll.name);
+        ScopedCursor cursor = threadWorker->session.OpenScopedCursor(coll.name);
         ccv.push_back({coll, std::move(cursor)});
     }
 
@@ -240,8 +240,7 @@ DatabaseOperation::ReadOperation(thread_worker *threadWorker)
         Collection &coll = threadWorker->db.GetRandomCollection();
 
         if (cursors.find(coll.id) == cursors.end())
-            cursors.emplace(
-              coll.id, std::move(threadWorker->session.open_scoped_cursor(coll.name)));
+            cursors.emplace(coll.id, std::move(threadWorker->session.OpenScopedCursor(coll.name)));
 
         /* Do a second lookup now that we know it exists. */
         auto &cursor = cursors[coll.id];
@@ -303,9 +302,9 @@ DatabaseOperation::RemoveOperation(thread_worker *threadWorker)
                 "} Creating cursor for collection: " + coll.name);
             /* Open the two cursors for the chosen collection. */
             ScopedCursor randomCursor =
-              threadWorker->session.open_scoped_cursor(coll.name, "next_random=true");
+              threadWorker->session.OpenScopedCursor(coll.name, "next_random=true");
             randomCursors.emplace(coll.id, std::move(randomCursor));
-            ScopedCursor cursor = threadWorker->session.open_scoped_cursor(coll.name);
+            ScopedCursor cursor = threadWorker->session.OpenScopedCursor(coll.name);
             cursors.emplace(coll.id, std::move(cursor));
         }
 
@@ -375,7 +374,7 @@ DatabaseOperation::UpdateOperation(thread_worker *threadWorker)
               "Thread {" + std::to_string(threadWorker->id) +
                 "} Creating cursor for collection: " + coll.name);
             /* Open a cursor for the chosen collection. */
-            ScopedCursor cursor = threadWorker->session.open_scoped_cursor(coll.name);
+            ScopedCursor cursor = threadWorker->session.OpenScopedCursor(coll.name);
             cursors.emplace(coll.id, std::move(cursor));
         }
 

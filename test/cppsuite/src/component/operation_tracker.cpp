@@ -67,13 +67,13 @@ OperationTracker::Load()
     /* Initiate schema tracking. */
     _session = ConnectionManager::GetInstance().CreateSession();
     testutil_check(
-      _session->create(_session.get(), _schemaTableName.c_str(), _schemaTableConfig.c_str()));
-    _schemaTrackingCursor = _session.open_scoped_cursor(_schemaTableName);
+      _session->create(_session.Get(), _schemaTableName.c_str(), _schemaTableConfig.c_str()));
+    _schemaTrackingCursor = _session.OpenScopedCursor(_schemaTableName);
     Logger::LogMessage(LOG_TRACE, "Schema tracking initiated");
 
     /* Initiate operations tracking. */
     testutil_check(
-      _session->create(_session.get(), _operationTableName.c_str(), _operationTableConfig.c_str()));
+      _session->create(_session.Get(), _operationTableName.c_str(), _operationTableConfig.c_str()));
     Logger::LogMessage(LOG_TRACE, "Operations tracking created");
 
     /*
@@ -81,7 +81,7 @@ OperationTracker::Load()
      * obsolete data from the tracking table.
      */
     _sweepSession = ConnectionManager::GetInstance().CreateSession();
-    _sweepCursor = _sweepSession.open_scoped_cursor(_operationTableName);
+    _sweepCursor = _sweepSession.OpenScopedCursor(_operationTableName);
     Logger::LogMessage(LOG_TRACE, "Tracking table sweep initialized");
 }
 
@@ -141,9 +141,9 @@ OperationTracker::DoWork()
                  * timestamp on purpose.
                  */
                 testutil_check(
-                  _sweepSession->begin_transaction(_sweepSession.get(), "no_timestamp=true"));
+                  _sweepSession->begin_transaction(_sweepSession.Get(), "no_timestamp=true"));
                 testutil_check(_sweepCursor->remove(_sweepCursor.Get()));
-                testutil_check(_sweepSession->commit_transaction(_sweepSession.get(), nullptr));
+                testutil_check(_sweepSession->commit_transaction(_sweepSession.Get(), nullptr));
             } else if (static_cast<trackingOperation>(operationType) == trackingOperation::INSERT) {
                 if (Logger::traceLevel == LOG_TRACE)
                     Logger::LogMessage(LOG_TRACE,

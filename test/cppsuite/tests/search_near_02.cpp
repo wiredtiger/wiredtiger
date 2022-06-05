@@ -93,7 +93,7 @@ class search_near_02 : public Test {
         for (uint64_t i = thread_offset;
              i < thread_offset + collections_per_thread && tc->running(); ++i) {
             Collection &coll = tc->db.GetCollection(i);
-            ScopedCursor cursor = tc->session.open_scoped_cursor(coll.name);
+            ScopedCursor cursor = tc->session.OpenScopedCursor(coll.name);
             ccv.push_back({coll, std::move(cursor)});
         }
 
@@ -167,7 +167,7 @@ class search_near_02 : public Test {
 
             /* Find a cached cursor or create one if none exists. */
             if (cursors.find(coll.id) == cursors.end()) {
-                cursors.emplace(coll.id, std::move(tc->session.open_scoped_cursor(coll.name)));
+                cursors.emplace(coll.id, std::move(tc->session.OpenScopedCursor(coll.name)));
                 auto &cursor_prefix = cursors[coll.id];
                 /* The cached cursors have the prefix configuration enabled. */
                 testutil_check(
@@ -206,7 +206,7 @@ class search_near_02 : public Test {
                 }
 
                 /* Open a cursor with the default configuration on the selected collection. */
-                ScopedCursor cursor_default(tc->session.open_scoped_cursor(coll.name));
+                ScopedCursor cursor_default(tc->session.OpenScopedCursor(coll.name));
 
                 /* Verify the prefix search_near output using the default cursor. */
                 validate_prefix_search_near(

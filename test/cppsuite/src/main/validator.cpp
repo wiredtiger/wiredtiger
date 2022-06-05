@@ -47,8 +47,8 @@ Validator::Validate(const std::string &operationTableName, const std::string &sc
 
     Logger::LogMessage(LOG_INFO, "Beginning validation.");
 
-    scoped_session session = ConnectionManager::GetInstance().CreateSession();
-    ScopedCursor cursor = session.open_scoped_cursor(operationTableName);
+    ScopedSession session = ConnectionManager::GetInstance().CreateSession();
+    ScopedCursor cursor = session.OpenScopedCursor(operationTableName);
 
     /*
      * Default validation depends on specific fields being present in the tracking table. If the
@@ -159,14 +159,14 @@ Validator::Validate(const std::string &operationTableName, const std::string &sc
 }
 
 void
-Validator::parseSchemaTrackingTable(scoped_session &session, const std::string &trackingTableName,
+Validator::parseSchemaTrackingTable(ScopedSession &session, const std::string &trackingTableName,
   std::vector<uint64_t> &createdCollections, std::vector<uint64_t> &deletedCollections)
 {
     wt_timestamp_t keyTimestamp;
     uint64_t keyCollectionId;
     int valueOperationType;
 
-    ScopedCursor cursor = session.open_scoped_cursor(trackingTableName);
+    ScopedCursor cursor = session.OpenScopedCursor(trackingTableName);
 
     while (cursor->next(cursor.Get()) == 0) {
         testutil_check(cursor->get_key(cursor.Get(), &keyCollectionId, &keyTimestamp));
@@ -220,7 +220,7 @@ Validator::UpdateDataModel(const trackingOperation &operation, validation_collec
 
 void
 Validator::VerifyCollection(
-  scoped_session &session, const uint64_t collectionId, validation_collection &collection)
+  ScopedSession &session, const uint64_t collectionId, validation_collection &collection)
 {
     /* Check the collection exists on disk. */
     if (!VerifyCollectionFileState(session, collectionId, true))
@@ -236,13 +236,13 @@ Validator::VerifyCollection(
 
 bool
 Validator::VerifyCollectionFileState(
-  scoped_session &session, const uint64_t collectionId, bool exists) const
+  ScopedSession &session, const uint64_t collectionId, bool exists) const
 {
     /*
      * We don't necessarily expect to successfully open the cursor so don't create a scoped cursor.
      */
     WT_CURSOR *cursor;
-    int ret = session->open_cursor(session.get(),
+    int ret = session->open_cursor(session.Get(),
       Database::GenerateCollectionName(collectionId).c_str(), nullptr, nullptr, &cursor);
     if (ret == 0)
         testutil_check(cursor->close(cursor));
@@ -250,11 +250,10 @@ Validator::VerifyCollectionFileState(
 }
 
 void
-Validator::VerifyKeyValue(scoped_session &session, const uint64_t collectionId,
+Validator::VerifyKeyValue(ScopedSession &session, const uint64_t collectionId,
   const std::string &key, const KeyState &keyState)
 {
-    ScopedCursor cursor =
-      session.open_scoped_cursor(Database::GenerateCollectionName(collectionId));
+    ScopedCursor cursor = session.OpenScopedCursor(Database::GenerateCollectionName(collectionId));
     cursor->set_key(cursor.Get(), key.c_str());
     int ret = cursor->search(cursor.Get());
     testutil_assertfmt(ret == 0 || ret == WT_NOTFOUND,

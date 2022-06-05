@@ -84,8 +84,8 @@ class OperationTracker : public Component {
       wt_timestamp_t timestamp, ScopedCursor &cursor);
 
     private:
-    scoped_session _session;
-    scoped_session _sweepSession;
+    ScopedSession _session;
+    ScopedSession _sweepSession;
     ScopedCursor _schemaTrackingCursor;
     ScopedCursor _sweepCursor;
     std::string _operationTableConfig;

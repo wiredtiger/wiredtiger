@@ -76,10 +76,10 @@ class bounded_cursor_perf : public Test {
         Collection &coll = tc->db.GetCollection(0);
 
         /* Opening the cursors. */
-        ScopedCursor next_cursor = tc->session.open_scoped_cursor(coll.name);
-        ScopedCursor next_range_cursor = tc->session.open_scoped_cursor(coll.name);
-        ScopedCursor prev_cursor = tc->session.open_scoped_cursor(coll.name);
-        ScopedCursor prev_range_cursor = tc->session.open_scoped_cursor(coll.name);
+        ScopedCursor next_cursor = tc->session.OpenScopedCursor(coll.name);
+        ScopedCursor next_range_cursor = tc->session.OpenScopedCursor(coll.name);
+        ScopedCursor prev_cursor = tc->session.OpenScopedCursor(coll.name);
+        ScopedCursor prev_range_cursor = tc->session.OpenScopedCursor(coll.name);
 
         /*
          * The keys in the collection are contiguous from 0 -> key_count -1. Applying the range

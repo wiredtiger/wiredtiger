@@ -58,7 +58,7 @@ class ConnectionManager {
 
     void Close();
     void Create(const std::string &config, const std::string &home);
-    scoped_session CreateSession();
+    ScopedSession CreateSession();
 
     WT_CONNECTION *GetConnection();
 

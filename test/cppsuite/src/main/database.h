@@ -73,7 +73,7 @@ class Database {
 
     private:
     std::string _collectionCreateConfig = "";
-    scoped_session _session;
+    ScopedSession _session;
     TimestampManager *_timestampManager = nullptr;
     OperationTracker *_operationTracker = nullptr;
     uint64_t _nextCollectionId = 0;

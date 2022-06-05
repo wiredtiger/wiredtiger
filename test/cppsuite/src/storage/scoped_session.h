@@ -46,22 +46,22 @@ extern "C" {
 }
 
 namespace test_harness {
-class scoped_session {
+class ScopedSession {
     public:
-    scoped_session() = default;
-    explicit scoped_session(WT_CONNECTION *conn);
+    ScopedSession() = default;
+    explicit ScopedSession(WT_CONNECTION *connection);
 
-    ~scoped_session();
+    ~ScopedSession();
 
     /* Moving is ok but copying is not. */
-    scoped_session(scoped_session &&other);
+    ScopedSession(ScopedSession &&other);
 
-    scoped_session &operator=(scoped_session &&other);
+    ScopedSession &operator=(ScopedSession &&other);
 
-    scoped_session(const scoped_session &) = delete;
-    scoped_session &operator=(const scoped_session &) = delete;
+    ScopedSession(const ScopedSession &) = delete;
+    ScopedSession &operator=(const ScopedSession &) = delete;
 
-    void reinit(WT_CONNECTION *conn);
+    void Reinit(WT_CONNECTION *connection);
 
     /*
      * Override the dereference operators. The idea is that we should able to use this class as if
@@ -70,9 +70,9 @@ class scoped_session {
     WT_SESSION &operator*();
     WT_SESSION *operator->();
 
-    WT_SESSION *get();
+    WT_SESSION *Get();
 
-    ScopedCursor open_scoped_cursor(const std::string &uri, const std::string &cfg = "");
+    ScopedCursor OpenScopedCursor(const std::string &uri, const std::string &cfg = "");
 
     private:
     WT_SESSION *_session = nullptr;

@@ -114,7 +114,7 @@ class search_near_03 : public Test {
          * generated prefix and thread id.
          */
         Collection &coll = tc->db.GetCollection(tc->id);
-        ScopedCursor cursor = tc->session.open_scoped_cursor(coll.name);
+        ScopedCursor cursor = tc->session.OpenScopedCursor(coll.name);
         cursor->reconfigure(cursor.Get(), "prefix_search=true");
         for (uint64_t count = 0; count < tc->key_count; ++count) {
             tc->txn.Start();
@@ -194,12 +194,12 @@ class search_near_03 : public Test {
          * traverse through each collection using a cursor to collect the prefix and push it into a
          * 2D vector.
          */
-        scoped_session session = ConnectionManager::GetInstance().CreateSession();
+        ScopedSession session = ConnectionManager::GetInstance().CreateSession();
         const char *key_tmp;
         int ret = 0;
         for (uint64_t i = 0; i < database.GetCollectionCount(); i++) {
             Collection &coll = database.GetCollection(i);
-            ScopedCursor cursor = session.open_scoped_cursor(coll.name);
+            ScopedCursor cursor = session.OpenScopedCursor(coll.name);
             std::vector<std::string> prefixes;
             ret = 0;
             while (ret == 0) {
@@ -234,7 +234,7 @@ class search_near_03 : public Test {
             /* Get a collection and find a cached cursor. */
             Collection &coll = tc->db.GetRandomCollection();
             if (cursors.find(coll.id) == cursors.end()) {
-                ScopedCursor cursor = tc->session.open_scoped_cursor(coll.name);
+                ScopedCursor cursor = tc->session.OpenScopedCursor(coll.name);
                 cursor->reconfigure(cursor.Get(), "prefix_search=true");
                 cursors.emplace(coll.id, std::move(cursor));
             }
@@ -275,7 +275,7 @@ class search_near_03 : public Test {
         while (tc->running()) {
             for (int i = 0; i < tc->db.GetCollectionCount(); i++) {
                 Collection &coll = tc->db.GetCollection(i);
-                ScopedCursor cursor = tc->session.open_scoped_cursor(coll.name);
+                ScopedCursor cursor = tc->session.OpenScopedCursor(coll.name);
                 ret = 0;
                 while (ret == 0) {
                     ret = cursor->next(cursor.Get());

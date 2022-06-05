@@ -44,7 +44,7 @@ void
 Database::AddCollection(uint64_t key_count)
 {
     std::lock_guard<std::mutex> lg(_mutex);
-    if (_session.get() == nullptr)
+    if (_session.Get() == nullptr)
         _session = ConnectionManager::GetInstance().CreateSession();
     if (_collectionCreateConfig.empty())
         testutil_die(EINVAL, "database: no collection create config specified!");
@@ -54,7 +54,7 @@ Database::AddCollection(uint64_t key_count)
     _collections.emplace(std::piecewise_construct, std::forward_as_tuple(nextId),
       std::forward_as_tuple(nextId, key_count, collectionName));
     testutil_check(
-      _session->create(_session.get(), collectionName.c_str(), _collectionCreateConfig.c_str()));
+      _session->create(_session.Get(), collectionName.c_str(), _collectionCreateConfig.c_str()));
     _operationTracker->saveSchemaOperation(
       trackingOperation::CREATE_COLLECTION, nextId, _timestampManager->GetNextTimestamp());
 }

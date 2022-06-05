@@ -63,7 +63,7 @@ class Validator {
      * collection_name: collection that contains the operations on the different collections during
      * the test.
      */
-    void parseSchemaTrackingTable(scoped_session &session, const std::string &trackingTableName,
+    void parseSchemaTrackingTable(ScopedSession &session, const std::string &trackingTableName,
       std::vector<uint64_t> &createdCollections, std::vector<uint64_t> &deletedCollections);
 
     /* Update the data model. */
@@ -72,18 +72,18 @@ class Validator {
 
     /* Compare the tracked operations against what has been saved on disk. */
     void VerifyCollection(
-      scoped_session &session, const uint64_t collection_id, validation_collection &collection);
+      ScopedSession &session, const uint64_t collection_id, validation_collection &collection);
 
     /*
      * Check whether a collection exists on disk. exists: needs to be set to true if the collection
      * is expected to be existing, false otherwise.
      */
     bool VerifyCollectionFileState(
-      scoped_session &session, const uint64_t collectionId, bool exists) const;
+      ScopedSession &session, const uint64_t collectionId, bool exists) const;
 
     /* Verify the given expected value is the same on disk. */
-    void VerifyKeyValue(scoped_session &session, const uint64_t collectionId,
-      const std::string &key, const KeyState &keyState);
+    void VerifyKeyValue(ScopedSession &session, const uint64_t collectionId, const std::string &key,
+      const KeyState &keyState);
 };
 } // namespace test_harness
 

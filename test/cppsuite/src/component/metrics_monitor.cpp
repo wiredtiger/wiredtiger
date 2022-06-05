@@ -103,7 +103,7 @@ MetricsMonitor::Load()
 
         /* Open our statistic cursor. */
         _session = ConnectionManager::GetInstance().CreateSession();
-        _cursor = _session.open_scoped_cursor(statisticsURI);
+        _cursor = _session.OpenScopedCursor(statisticsURI);
     }
 }
 

@@ -103,7 +103,7 @@ class cache_resize : public Test {
             const std::string value = std::to_string(new_cache_size);
 
             /* Retrieve the current transaction id. */
-            uint64_t txn_id = ((WT_SESSION_IMPL *)tc->session.get())->txn->id;
+            uint64_t txn_id = ((WT_SESSION_IMPL *)tc->session.Get())->txn->id;
 
             /* Save the change of cache size in the tracking table. */
             tc->txn.Start();
@@ -130,7 +130,7 @@ class cache_resize : public Test {
         const uint64_t collection_count = tc->db.GetCollectionCount();
         testutil_assert(collection_count > 0);
         Collection &coll = tc->db.GetCollection(collection_count - 1);
-        ScopedCursor cursor = tc->session.open_scoped_cursor(coll.name);
+        ScopedCursor cursor = tc->session.OpenScopedCursor(coll.name);
 
         while (tc->running()) {
             tc->sleep();
@@ -175,8 +175,8 @@ class cache_resize : public Test {
         (void)cache_size_500mb;
 
         /* Open a cursor on the tracking table to read it. */
-        scoped_session session = ConnectionManager::GetInstance().CreateSession();
-        ScopedCursor cursor = session.open_scoped_cursor(operation_table_name);
+        ScopedSession session = ConnectionManager::GetInstance().CreateSession();
+        ScopedCursor cursor = session.OpenScopedCursor(operation_table_name);
 
         /*
          * Parse the tracking table. Each operation is tracked and each transaction is made of

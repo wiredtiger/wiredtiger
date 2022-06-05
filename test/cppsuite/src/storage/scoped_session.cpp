@@ -33,13 +33,13 @@ extern "C" {
 }
 
 namespace test_harness {
-/* scoped_session implementation */
-scoped_session::scoped_session(WT_CONNECTION *conn)
+/* ScopedSession implementation */
+ScopedSession::ScopedSession(WT_CONNECTION *conn)
 {
-    reinit(conn);
+    Reinit(conn);
 }
 
-scoped_session::~scoped_session()
+ScopedSession::~ScopedSession()
 {
     if (_session != nullptr) {
         testutil_check(_session->close(_session, nullptr));
@@ -47,7 +47,7 @@ scoped_session::~scoped_session()
     }
 }
 
-scoped_session::scoped_session(scoped_session &&other)
+ScopedSession::ScopedSession(ScopedSession &&other)
 {
     std::swap(_session, other._session);
 }
@@ -57,45 +57,45 @@ scoped_session::scoped_session(scoped_session &&other)
  * current session. This means that the currently held WT_SESSION will get destroyed as the
  * temporary falls out of the scope and we will steal the one that we're move assigning from.
  */
-scoped_session &
-scoped_session::operator=(scoped_session &&other)
+ScopedSession &
+ScopedSession::operator=(ScopedSession &&other)
 {
-    scoped_session tmp(std::move(other));
+    ScopedSession tmp(std::move(other));
     std::swap(_session, tmp._session);
     return (*this);
 }
 
 void
-scoped_session::reinit(WT_CONNECTION *conn)
+ScopedSession::Reinit(WT_CONNECTION *connection)
 {
     if (_session != nullptr) {
         testutil_check(_session->close(_session, nullptr));
         _session = nullptr;
     }
-    if (conn != nullptr)
-        testutil_check(conn->open_session(conn, nullptr, nullptr, &_session));
+    if (connection != nullptr)
+        testutil_check(connection->open_session(connection, nullptr, nullptr, &_session));
 }
 
 WT_SESSION &
-scoped_session::operator*()
+ScopedSession::operator*()
 {
     return (*_session);
 }
 
 WT_SESSION *
-scoped_session::operator->()
+ScopedSession::operator->()
 {
     return (_session);
 }
 
 WT_SESSION *
-scoped_session::get()
+ScopedSession::Get()
 {
     return (_session);
 }
 
 ScopedCursor
-scoped_session::open_scoped_cursor(const std::string &uri, const std::string &cfg)
+ScopedSession::OpenScopedCursor(const std::string &uri, const std::string &cfg)
 {
     return (ScopedCursor(_session, uri, cfg));
 }

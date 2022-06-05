@@ -60,7 +60,7 @@ class hs_cleanup : public Test {
 
         /* In this test each thread gets a single collection. */
         testutil_assert(tc->db.GetCollectionCount() == tc->thread_count);
-        ScopedCursor cursor = tc->session.open_scoped_cursor(coll.name);
+        ScopedCursor cursor = tc->session.OpenScopedCursor(coll.name);
 
         /* We don't know the keyrange we're operating over here so we can't be much smarter here. */
         while (tc->running()) {

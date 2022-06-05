@@ -65,7 +65,7 @@ class search_near_01 : public Test {
          */
         for (int64_t i = 0; i < collections_per_thread; ++i) {
             Collection &coll = tc->db.GetCollection(i);
-            ScopedCursor cursor = tc->session.open_scoped_cursor(coll.name);
+            ScopedCursor cursor = tc->session.OpenScopedCursor(coll.name);
             for (uint64_t j = 0; j < ALPHABET.size(); ++j) {
                 for (uint64_t k = 0; k < ALPHABET.size(); ++k) {
                     for (uint64_t count = 0; count < tc->key_count; ++count) {
@@ -155,11 +155,11 @@ class search_near_01 : public Test {
 
         /* Force evict all the populated keys in all of the collections. */
         int cmpp;
-        scoped_session session = ConnectionManager::GetInstance().CreateSession();
+        ScopedSession session = ConnectionManager::GetInstance().CreateSession();
         for (uint64_t count = 0; count < collection_count; ++count) {
             Collection &coll = database.GetCollection(count);
             ScopedCursor evict_cursor =
-              session.open_scoped_cursor(coll.name.c_str(), "debug=(release_evict=true)");
+              session.OpenScopedCursor(coll.name.c_str(), "debug=(release_evict=true)");
 
             for (uint64_t i = 0; i < ALPHABET.size(); ++i) {
                 for (uint64_t j = 0; j < ALPHABET.size(); ++j) {
@@ -184,7 +184,7 @@ class search_near_01 : public Test {
         std::string srch_key;
         int cmpp = 0;
 
-        ScopedCursor cursor = tc->session.open_scoped_cursor(collection_name);
+        ScopedCursor cursor = tc->session.OpenScopedCursor(collection_name);
         cursor->reconfigure(cursor.Get(), "prefix_search=true");
         /* Generate search prefix key of random length between a -> zzz. */
         srch_key = RandomGenerator::GetInstance().GenerateRandomString(
@@ -236,7 +236,7 @@ class search_near_01 : public Test {
         prev_entries_stat = 0;
         prev_prefix_stat = 0;
         num_threads = _config->GetInt("search_near_threads");
-        tc->stat_cursor = tc->session.open_scoped_cursor(statisticsURI);
+        tc->stat_cursor = tc->session.OpenScopedCursor(statisticsURI);
         workload_config = _config->GetSubconfig(workloadManager);
         read_config = workload_config->GetSubconfig(readOpConfig);
         z_key_searches = 0;

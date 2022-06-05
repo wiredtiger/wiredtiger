@@ -69,11 +69,11 @@ ConnectionManager::Create(const std::string &config, const std::string &home)
     /* Create the working dir. */
     testutil_make_work_dir(home.c_str());
 
-    /* Open conn. */
+    /* Open connection. */
     testutil_check(wiredtiger_open(home.c_str(), nullptr, config.c_str(), &_connection));
 }
 
-scoped_session
+ScopedSession
 ConnectionManager::CreateSession()
 {
     if (_connection == nullptr) {
@@ -84,7 +84,7 @@ ConnectionManager::CreateSession()
     }
 
     std::lock_guard<std::mutex> lg(_mutex);
-    scoped_session session(_connection);
+    ScopedSession session(_connection);
 
     return (session);
 }
