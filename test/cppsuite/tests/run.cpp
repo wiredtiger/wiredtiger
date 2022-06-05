@@ -138,7 +138,7 @@ run_test(const std::string &test_name, const std::string &config, const std::str
     else if (test_name == "hs_cleanup")
         HsCleanup(args).Run();
     else if (test_name == "operations_test")
-        operations_test(args).Run();
+        OperationsTest(args).Run();
     else if (test_name == "search_near_01")
         search_near_01(args).Run();
     else if (test_name == "search_near_02")

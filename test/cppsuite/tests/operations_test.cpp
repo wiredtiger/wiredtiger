@@ -36,9 +36,9 @@ using namespace test_harness;
  *
  * Can be used to create stress tests in various ways.
  */
-class operations_test : public Test {
+class OperationsTest : public Test {
     public:
-    operations_test(const test_args &args) : Test(args)
+    OperationsTest(const test_args &args) : Test(args)
     {
         InitOperationTracker();
     }
