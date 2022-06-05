@@ -45,7 +45,7 @@ Database::AddCollection(uint64_t key_count)
 {
     std::lock_guard<std::mutex> lg(_mutex);
     if (_session.get() == nullptr)
-        _session = connection_manager::instance().create_session();
+        _session = ConnectionManager::GetInstance().CreateSession();
     if (_collectionCreateConfig.empty())
         testutil_die(EINVAL, "database: no collection create config specified!");
     uint64_t nextId = _nextCollectionId++;

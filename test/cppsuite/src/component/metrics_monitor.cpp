@@ -102,7 +102,7 @@ MetricsMonitor::Load()
           new Statistics(*stat_config, ccPagesRemoved, GetStatisticsField(ccPagesRemoved))));
 
         /* Open our statistic cursor. */
-        _session = connection_manager::instance().create_session();
+        _session = ConnectionManager::GetInstance().CreateSession();
         _cursor = _session.open_scoped_cursor(statisticsURI);
     }
 }

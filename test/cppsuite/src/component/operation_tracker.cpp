@@ -65,7 +65,7 @@ OperationTracker::Load()
         return;
 
     /* Initiate schema tracking. */
-    _session = connection_manager::instance().create_session();
+    _session = ConnectionManager::GetInstance().CreateSession();
     testutil_check(
       _session->create(_session.get(), _schemaTableName.c_str(), _schemaTableConfig.c_str()));
     _schemaTrackingCursor = _session.open_scoped_cursor(_schemaTableName);
@@ -80,7 +80,7 @@ OperationTracker::Load()
      * Open sweep cursor in a dedicated sweep session. This cursor will be used to clear out
      * obsolete data from the tracking table.
      */
-    _sweepSession = connection_manager::instance().create_session();
+    _sweepSession = ConnectionManager::GetInstance().CreateSession();
     _sweepCursor = _sweepSession.open_scoped_cursor(_operationTableName);
     Logger::LogMessage(LOG_TRACE, "Tracking table sweep initialized");
 }

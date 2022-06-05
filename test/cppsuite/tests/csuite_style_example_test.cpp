@@ -101,8 +101,8 @@ main(int argc, char *argv[])
     const std::string home_dir = std::string(DEFAULT_DIR) + '_' + progname;
 
     /* Create connection. */
-    connection_manager::instance().create(conn_config, home_dir);
-    WT_CONNECTION *conn = connection_manager::instance().get_connection();
+    ConnectionManager::GetInstance().Create(conn_config, home_dir);
+    WT_CONNECTION *conn = ConnectionManager::GetInstance().GetConnection();
 
     /* Open different sessions. */
     WT_SESSION *insert_session, *read_session;

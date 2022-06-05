@@ -36,31 +36,31 @@ extern "C" {
 
 namespace test_harness {
 
-connection_manager::~connection_manager()
+ConnectionManager::~ConnectionManager()
 {
-    close();
+    Close();
 }
 
-connection_manager &
-connection_manager::instance()
+ConnectionManager &
+ConnectionManager::GetInstance()
 {
-    static connection_manager _instance;
+    static ConnectionManager _instance;
     return (_instance);
 }
 
 void
-connection_manager::close()
+ConnectionManager::Close()
 {
-    if (_conn != nullptr) {
-        testutil_check(_conn->close(_conn, nullptr));
-        _conn = nullptr;
+    if (_connection != nullptr) {
+        testutil_check(_connection->close(_connection, nullptr));
+        _connection = nullptr;
     }
 }
 
 void
-connection_manager::create(const std::string &config, const std::string &home)
+ConnectionManager::Create(const std::string &config, const std::string &home)
 {
-    if (_conn != nullptr) {
+    if (_connection != nullptr) {
         Logger::LogMessage(LOG_ERROR, "Connection is not NULL, cannot be re-opened.");
         testutil_die(EINVAL, "Connection is not NULL");
     }
@@ -70,40 +70,38 @@ connection_manager::create(const std::string &config, const std::string &home)
     testutil_make_work_dir(home.c_str());
 
     /* Open conn. */
-    testutil_check(wiredtiger_open(home.c_str(), nullptr, config.c_str(), &_conn));
+    testutil_check(wiredtiger_open(home.c_str(), nullptr, config.c_str(), &_connection));
 }
 
 scoped_session
-connection_manager::create_session()
+ConnectionManager::CreateSession()
 {
-    if (_conn == nullptr) {
+    if (_connection == nullptr) {
         Logger::LogMessage(LOG_ERROR,
           "Connection is NULL, did you forget to call "
-          "connection_manager::create ?");
+          "ConnectionManager::create ?");
         testutil_die(EINVAL, "Connection is NULL");
     }
 
-    std::lock_guard<std::mutex> lg(_conn_mutex);
-    scoped_session session(_conn);
+    std::lock_guard<std::mutex> lg(_mutex);
+    scoped_session session(_connection);
 
     return (session);
 }
 
 WT_CONNECTION *
-connection_manager::get_connection()
+ConnectionManager::GetConnection()
 {
-    return (_conn);
+    return (_connection);
 }
 
-/*
- * set_timestamp calls into the connection API in a thread safe manner to set global timestamps.
- */
+/* SetTimestamp calls into the connection API in a thread safe manner to set global timestamps. */
 void
-connection_manager::set_timestamp(const std::string &config)
+ConnectionManager::SetTimestamp(const std::string &config)
 {
-    std::lock_guard<std::mutex> lg(_conn_mutex);
-    testutil_check(_conn->set_timestamp(_conn, config.c_str()));
+    std::lock_guard<std::mutex> lg(_mutex);
+    testutil_check(_connection->set_timestamp(_connection, config.c_str()));
 }
 
-connection_manager::connection_manager() {}
+ConnectionManager::ConnectionManager() {}
 } // namespace test_harness

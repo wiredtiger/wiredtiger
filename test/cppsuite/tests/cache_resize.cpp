@@ -71,7 +71,7 @@ class cache_resize : public Test {
     void
     CustomOperation(thread_worker *tc) override final
     {
-        WT_CONNECTION *conn = connection_manager::instance().get_connection();
+        WT_CONNECTION *conn = ConnectionManager::GetInstance().GetConnection();
         WT_CONNECTION_IMPL *conn_impl = (WT_CONNECTION_IMPL *)conn;
         bool increase_cache = false;
         const std::string small_cache_size = "cache_size=1MB";
@@ -139,7 +139,7 @@ class cache_resize : public Test {
             const std::string key =
               RandomGenerator::GetInstance().GeneratePseudoRandomString(tc->key_size);
             const uint64_t cache_size =
-              ((WT_CONNECTION_IMPL *)connection_manager::instance().get_connection())->cache_size;
+              ((WT_CONNECTION_IMPL *)ConnectionManager::GetInstance().GetConnection())->cache_size;
             /* Take into account the value size given in the test configuration file. */
             const std::string value = std::to_string(cache_size);
 
@@ -175,7 +175,7 @@ class cache_resize : public Test {
         (void)cache_size_500mb;
 
         /* Open a cursor on the tracking table to read it. */
-        scoped_session session = connection_manager::instance().create_session();
+        scoped_session session = ConnectionManager::GetInstance().CreateSession();
         scoped_cursor cursor = session.open_scoped_cursor(operation_table_name);
 
         /*

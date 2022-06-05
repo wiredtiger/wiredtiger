@@ -88,8 +88,8 @@ WorkloadManager::Run()
                 type_string(it.type) + " threads.");
         for (size_t i = 0; i < it.thread_count && _running; ++i) {
             thread_worker *tc = new thread_worker(thread_id++, it.type, it.config,
-              connection_manager::instance().create_session(), _timestampManager, _operationTracker,
-              _database);
+              ConnectionManager::GetInstance().CreateSession(), _timestampManager,
+              _operationTracker, _database);
             _workers.push_back(tc);
             _threadManager.addThread(it.GetFunction(_databaseOperation), tc);
         }

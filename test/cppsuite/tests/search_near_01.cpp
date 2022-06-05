@@ -138,7 +138,7 @@ class search_near_01 : public Test {
         /* Spawn 26 threads to populate the database. */
         for (uint64_t i = 0; i < ALPHABET.size(); ++i) {
             thread_worker *tc = new thread_worker(i, thread_type::INSERT, config,
-              connection_manager::instance().create_session(), tsm, op_tracker, database);
+              ConnectionManager::GetInstance().CreateSession(), tsm, op_tracker, database);
             workers.push_back(tc);
             tm.addThread(populate_worker, tc, ALPHABET, PREFIX_KEY_LEN);
         }
@@ -155,7 +155,7 @@ class search_near_01 : public Test {
 
         /* Force evict all the populated keys in all of the collections. */
         int cmpp;
-        scoped_session session = connection_manager::instance().create_session();
+        scoped_session session = ConnectionManager::GetInstance().CreateSession();
         for (uint64_t count = 0; count < collection_count; ++count) {
             Collection &coll = database.GetCollection(count);
             scoped_cursor evict_cursor =
@@ -262,7 +262,8 @@ class search_near_01 : public Test {
                 /* Get a collection and find a cached cursor. */
                 Collection &coll = tc->db.GetRandomCollection();
                 thread_worker *search_near_tc = new thread_worker(i, thread_type::READ, read_config,
-                  connection_manager::instance().create_session(), tc->tsm, tc->op_tracker, tc->db);
+                  ConnectionManager::GetInstance().CreateSession(), tc->tsm, tc->op_tracker,
+                  tc->db);
                 workers.push_back(search_near_tc);
                 tm.addThread(perform_search_near, search_near_tc, coll.name, srchkey_len,
                   std::ref(z_key_searches));

@@ -46,33 +46,33 @@ namespace test_harness {
  * Singleton class owning the database connection, provides access to sessions and any other
  * required connection API calls.
  */
-class connection_manager {
+class ConnectionManager {
     public:
-    static connection_manager &instance();
+    static ConnectionManager &GetInstance();
 
     public:
     /* No copies of the singleton allowed. */
-    connection_manager(connection_manager const &) = delete;
-    connection_manager &operator=(connection_manager const &) = delete;
-    ~connection_manager();
+    ConnectionManager(ConnectionManager const &) = delete;
+    ConnectionManager &operator=(ConnectionManager const &) = delete;
+    ~ConnectionManager();
 
-    void close();
-    void create(const std::string &config, const std::string &home);
-    scoped_session create_session();
+    void Close();
+    void Create(const std::string &config, const std::string &home);
+    scoped_session CreateSession();
 
-    WT_CONNECTION *get_connection();
+    WT_CONNECTION *GetConnection();
 
     /*
-     * set_timestamp calls into the connection API in a thread safe manner to set global timestamps.
+     * SetTimestamp calls into the connection API in a thread safe manner to set global timestamps.
      */
-    void set_timestamp(const std::string &config);
+    void SetTimestamp(const std::string &config);
 
     private:
-    connection_manager();
+    ConnectionManager();
 
     private:
-    WT_CONNECTION *_conn = nullptr;
-    std::mutex _conn_mutex;
+    WT_CONNECTION *_connection = nullptr;
+    std::mutex _mutex;
 };
 } // namespace test_harness
 

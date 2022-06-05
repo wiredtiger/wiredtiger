@@ -111,7 +111,7 @@ TimestampManager::DoWork()
      * obsolete.
      */
     if (!config.empty()) {
-        connection_manager::instance().set_timestamp(config);
+        ConnectionManager::GetInstance().SetTimestamp(config);
         _oldestTimestamp = newOldestTimestamp;
         _stableTimestamp = newStableTimestamp;
     }

@@ -125,7 +125,7 @@ Test::Run()
     databaseCreateConfig += _args.wtOpenConfig;
 
     /* Create connection. */
-    connection_manager::instance().create(databaseCreateConfig, DEFAULT_DIR);
+    ConnectionManager::GetInstance().Create(databaseCreateConfig, DEFAULT_DIR);
 
     /* Initiate the load stage of each component. */
     for (const auto &it : _components)

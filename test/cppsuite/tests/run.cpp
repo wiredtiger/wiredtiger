@@ -251,7 +251,7 @@ main(int argc, char *argv[])
                  * through its destructor between each test, we need to close the connection
                  * manually before starting the next test.
                  */
-                connection_manager::instance().close();
+                ConnectionManager::GetInstance().Close();
                 if (error_code != 0)
                     break;
             }

@@ -47,7 +47,7 @@ Validator::Validate(const std::string &operationTableName, const std::string &sc
 
     Logger::LogMessage(LOG_INFO, "Beginning validation.");
 
-    scoped_session session = connection_manager::instance().create_session();
+    scoped_session session = ConnectionManager::GetInstance().CreateSession();
     scoped_cursor cursor = session.open_scoped_cursor(operationTableName);
 
     /*

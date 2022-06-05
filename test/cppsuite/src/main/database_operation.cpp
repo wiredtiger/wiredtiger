@@ -107,7 +107,7 @@ DatabaseOperation::Populate(Database &database, TimestampManager *timestampManag
     std::vector<thread_worker *> workers;
     for (int64_t i = 0; i < thread_count; ++i) {
         thread_worker *tc = new thread_worker(i, thread_type::INSERT, config,
-          connection_manager::instance().create_session(), timestampManager, operationTracker,
+          ConnectionManager::GetInstance().CreateSession(), timestampManager, operationTracker,
           database);
         workers.push_back(tc);
         threadManager.addThread(PopulateWorker, tc);
