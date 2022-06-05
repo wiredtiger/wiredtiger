@@ -128,7 +128,7 @@ run_test(const std::string &test_name, const std::string &config, const std::str
       .testConfig = config, .testName = test_name, .wtOpenConfig = wt_open_config};
 
     if (test_name == "bounded_cursor_perf")
-        bounded_cursor_perf(args).Run();
+        BoundedCursorPerf(args).Run();
     else if (test_name == "burst_inserts")
         burst_inserts(args).Run();
     else if (test_name == "cache_resize")

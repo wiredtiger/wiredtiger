@@ -36,15 +36,15 @@ using namespace test_harness;
  * bounded and normal cursors. The performance of both cursors are tracked and the average time
  * taken is added to the perf file. The test traverses all keys in the collection.
  */
-class bounded_cursor_perf : public Test {
+class BoundedCursorPerf : public Test {
     public:
-    bounded_cursor_perf(const test_args &args) : Test(args)
+    BoundedCursorPerf(const test_args &args) : Test(args)
     {
         InitOperationTracker();
     }
 
     static void
-    set_bounds(ScopedCursor &cursor)
+    SetBounds(ScopedCursor &cursor)
     {
         std::string lower_bound(1, ('0' - 1));
         cursor->set_key(cursor.Get(), lower_bound.c_str());
@@ -63,52 +63,52 @@ class bounded_cursor_perf : public Test {
          * Each read operation performs next() and prev() calls with both normal cursors and bounded
          * cursors.
          */
-        int range_ret_next, range_ret_prev, ret_next, ret_prev;
+        int rangeRetNext, rangeRetPrev, retNext, retPrev;
 
         /* Initialize the different timers for each function. */
-        ExecutionTimer bounded_next("bounded_next", Test::_args.testName);
-        ExecutionTimer default_next("default_next", Test::_args.testName);
-        ExecutionTimer bounded_prev("bounded_prev", Test::_args.testName);
-        ExecutionTimer default_prev("default_prev", Test::_args.testName);
+        ExecutionTimer boundedNext("boundedNext", Test::_args.testName);
+        ExecutionTimer defaultNext("defaultNext", Test::_args.testName);
+        ExecutionTimer boundedPrev("boundedPrev", Test::_args.testName);
+        ExecutionTimer defaultPrev("defaultPrev", Test::_args.testName);
 
         /* Get the collection to work on. */
         testutil_assert(tc->collection_count == 1);
         Collection &coll = tc->db.GetCollection(0);
 
         /* Opening the cursors. */
-        ScopedCursor next_cursor = tc->session.OpenScopedCursor(coll.name);
-        ScopedCursor next_range_cursor = tc->session.OpenScopedCursor(coll.name);
-        ScopedCursor prev_cursor = tc->session.OpenScopedCursor(coll.name);
-        ScopedCursor prev_range_cursor = tc->session.OpenScopedCursor(coll.name);
+        ScopedCursor nextCursor = tc->session.OpenScopedCursor(coll.name);
+        ScopedCursor nextRangeCursor = tc->session.OpenScopedCursor(coll.name);
+        ScopedCursor prevCursor = tc->session.OpenScopedCursor(coll.name);
+        ScopedCursor prevRangeCursor = tc->session.OpenScopedCursor(coll.name);
 
         /*
          * The keys in the collection are contiguous from 0 -> key_count -1. Applying the range
          * cursor bounds outside of the key range for the purpose of this test.
          */
-        set_bounds(next_range_cursor);
-        set_bounds(prev_range_cursor);
+        SetBounds(nextRangeCursor);
+        SetBounds(prevRangeCursor);
 
         while (tc->running()) {
-            while (ret_next != WT_NOTFOUND && ret_prev != WT_NOTFOUND && tc->running()) {
-                range_ret_next = bounded_next.Track([&next_range_cursor]() -> int {
-                    return next_range_cursor->next(next_range_cursor.Get());
+            while (retNext != WT_NOTFOUND && retPrev != WT_NOTFOUND && tc->running()) {
+                rangeRetNext = boundedNext.Track([&nextRangeCursor]() -> int {
+                    return nextRangeCursor->next(nextRangeCursor.Get());
                 });
-                ret_next = default_next.Track(
-                  [&next_cursor]() -> int { return next_cursor->next(next_cursor.Get()); });
+                retNext = defaultNext.Track(
+                  [&nextCursor]() -> int { return nextCursor->next(nextCursor.Get()); });
 
-                range_ret_prev = bounded_prev.Track([&prev_range_cursor]() -> int {
-                    return prev_range_cursor->prev(prev_range_cursor.Get());
+                rangeRetPrev = boundedPrev.Track([&prevRangeCursor]() -> int {
+                    return prevRangeCursor->prev(prevRangeCursor.Get());
                 });
-                ret_prev = default_prev.Track(
-                  [&prev_cursor]() -> int { return prev_cursor->prev(prev_cursor.Get()); });
+                retPrev = defaultPrev.Track(
+                  [&prevCursor]() -> int { return prevCursor->prev(prevCursor.Get()); });
 
-                testutil_assert((ret_next == 0 || ret_next == WT_NOTFOUND) &&
-                  (ret_prev == 0 || ret_prev == WT_NOTFOUND));
-                testutil_assert((range_ret_prev == 0 || range_ret_prev == WT_NOTFOUND) &&
-                  (range_ret_next == 0 || range_ret_next == WT_NOTFOUND));
+                testutil_assert((retNext == 0 || retNext == WT_NOTFOUND) &&
+                  (retPrev == 0 || retPrev == WT_NOTFOUND));
+                testutil_assert((rangeRetPrev == 0 || rangeRetPrev == WT_NOTFOUND) &&
+                  (rangeRetNext == 0 || rangeRetNext == WT_NOTFOUND));
             }
-            set_bounds(next_range_cursor);
-            set_bounds(prev_range_cursor);
+            SetBounds(nextRangeCursor);
+            SetBounds(prevRangeCursor);
         }
     }
 };

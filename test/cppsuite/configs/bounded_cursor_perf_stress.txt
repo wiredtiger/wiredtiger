@@ -1,4 +1,4 @@
-# Configuration for bounded_cursor_perf stress test.
+# Configuration for BoundedCursorPerf stress test.
 # The test will repeatedly call next() and prev() operations and track performance of the operations
 # done with both range cursor and regular cursors.
 
