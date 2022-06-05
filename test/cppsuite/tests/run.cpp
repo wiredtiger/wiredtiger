@@ -136,7 +136,7 @@ run_test(const std::string &test_name, const std::string &config, const std::str
     else if (test_name == "cursor_bound_01")
         cursor_bound_01(args).Run();
     else if (test_name == "hs_cleanup")
-        hs_cleanup(args).Run();
+        HsCleanup(args).Run();
     else if (test_name == "operations_test")
         operations_test(args).Run();
     else if (test_name == "search_near_01")

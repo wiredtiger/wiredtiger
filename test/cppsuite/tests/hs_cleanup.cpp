@@ -39,32 +39,32 @@ using namespace test_harness;
  *
  * This is then tracked using the associated statistic which can be found in the MetricsMonitor.
  */
-class hs_cleanup : public Test {
+class HsCleanup : public Test {
     public:
-    hs_cleanup(const test_args &args) : Test(args)
+    HsCleanup(const test_args &args) : Test(args)
     {
         InitOperationTracker();
     }
 
     void
-    UpdateOperation(thread_worker *tc) override final
+    UpdateOperation(thread_worker *threadWorker) override final
     {
-        Logger::LogMessage(
-          LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+        Logger::LogMessage(LOG_INFO,
+          type_string(threadWorker->type) + " thread {" + std::to_string(threadWorker->id) +
+            "} commencing.");
 
-        const char *key_tmp;
         const uint64_t MAX_ROLLBACKS = 100;
-        uint32_t rollback_retries = 0;
+        uint32_t rolbackRetries = 0;
 
-        Collection &coll = tc->db.GetCollection(tc->id);
+        Collection &collection = threadWorker->db.GetCollection(threadWorker->id);
 
         /* In this test each thread gets a single collection. */
-        testutil_assert(tc->db.GetCollectionCount() == tc->thread_count);
-        ScopedCursor cursor = tc->session.OpenScopedCursor(coll.name);
+        testutil_assert(threadWorker->db.GetCollectionCount() == threadWorker->thread_count);
+        ScopedCursor cursor = threadWorker->session.OpenScopedCursor(collection.name);
 
         /* We don't know the keyrange we're operating over here so we can't be much smarter here. */
-        while (tc->running()) {
-            tc->sleep();
+        while (threadWorker->running()) {
+            threadWorker->sleep();
 
             auto ret = cursor->next(cursor.Get());
             if (ret != 0) {
@@ -78,17 +78,18 @@ class hs_cleanup : public Test {
                      * call can happen outside the context of a transaction. Assert that we are in
                      * one if we got a rollback.
                      */
-                    testutil_check(tc->txn.CanRollback());
-                    tc->txn.Rollback();
+                    testutil_check(threadWorker->txn.CanRollback());
+                    threadWorker->txn.Rollback();
                     continue;
                 }
                 testutil_die(ret, "Unexpected error returned from cursor->next()");
             }
 
-            testutil_check(cursor->get_key(cursor.Get(), &key_tmp));
+            const char *keyTmp;
+            testutil_check(cursor->get_key(cursor.Get(), &keyTmp));
 
             /* Start a transaction if possible. */
-            tc->txn.TryStart();
+            threadWorker->txn.TryStart();
 
             /*
              * The retrieved key needs to be passed inside the update function. However, the update
@@ -96,22 +97,22 @@ class hs_cleanup : public Test {
              * copy the buffer and then pass it into the API.
              */
             std::string value =
-              RandomGenerator::GetInstance().GeneratePseudoRandomString(tc->value_size);
-            if (tc->update(cursor, coll.id, key_tmp, value)) {
-                if (tc->txn.CanCommit()) {
-                    if (tc->txn.Commit())
-                        rollback_retries = 0;
+              RandomGenerator::GetInstance().GeneratePseudoRandomString(threadWorker->value_size);
+            if (threadWorker->update(cursor, collection.id, keyTmp, value)) {
+                if (threadWorker->txn.CanCommit()) {
+                    if (threadWorker->txn.Commit())
+                        rolbackRetries = 0;
                     else
-                        ++rollback_retries;
+                        ++rolbackRetries;
                 }
             } else {
-                tc->txn.Rollback();
-                ++rollback_retries;
+                threadWorker->txn.Rollback();
+                ++rolbackRetries;
             }
-            testutil_assert(rollback_retries < MAX_ROLLBACKS);
+            testutil_assert(rolbackRetries < MAX_ROLLBACKS);
         }
         /* Ensure our last transaction is resolved. */
-        if (tc->txn.Active())
-            tc->txn.Rollback();
+        if (threadWorker->txn.Active())
+            threadWorker->txn.Rollback();
     }
 };
