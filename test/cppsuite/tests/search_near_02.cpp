@@ -67,11 +67,11 @@ class SearchNear02 : public Test {
     }
 
     void
-    InsertOperation(thread_worker *threadWorker) override final
+    InsertOperation(ThreadWorker *threadWorker) override final
     {
         /* Each insert operation will insert new keys in the collections. */
         Logger::LogMessage(LOG_INFO,
-          type_string(threadWorker->type) + " thread {" + std::to_string(threadWorker->id) +
+          ThreadTypeToString(threadWorker->type) + " thread {" + std::to_string(threadWorker->id) +
             "} commencing.");
 
         /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
@@ -86,15 +86,15 @@ class SearchNear02 : public Test {
 
         /* Collection cursor vector. */
         std::vector<collection_cursor> ccv;
-        int64_t collectionCount = threadWorker->db.GetCollectionCount();
-        int64_t collectionsPerThread = collectionCount / threadWorker->thread_count;
+        int64_t collectionCount = threadWorker->database.GetCollectionCount();
+        int64_t collectionsPerThread = collectionCount / threadWorker->threadCount;
 
         /* Must have unique collections for each thread. */
-        testutil_assert(collectionCount % threadWorker->thread_count == 0);
+        testutil_assert(collectionCount % threadWorker->threadCount == 0);
         const uint64_t threadOffset = threadWorker->id * collectionsPerThread;
         for (uint64_t i = threadOffset;
-             i < threadOffset + collectionsPerThread && threadWorker->running(); ++i) {
-            Collection &collection = threadWorker->db.GetCollection(i);
+             i < threadOffset + collectionsPerThread && threadWorker->Running(); ++i) {
+            Collection &collection = threadWorker->database.GetCollection(i);
             ScopedCursor cursor = threadWorker->session.OpenScopedCursor(collection.name);
             ccv.push_back({collection, std::move(cursor)});
         }
@@ -103,41 +103,41 @@ class SearchNear02 : public Test {
         uint64_t counter = 0;
         uint32_t rollbackRetries = 0;
 
-        while (threadWorker->running()) {
+        while (threadWorker->Running()) {
 
             auto &cc = ccv[counter];
-            threadWorker->txn.Start();
+            threadWorker->transaction.Start();
 
-            while (threadWorker->txn.Active() && threadWorker->running()) {
+            while (threadWorker->transaction.Active() && threadWorker->Running()) {
 
                 /* Generate a random key/value pair. */
                 std::string key =
-                  RandomGenerator::GetInstance().GenerateRandomString(threadWorker->key_size);
+                  RandomGenerator::GetInstance().GenerateRandomString(threadWorker->keySize);
                 std::string value =
-                  RandomGenerator::GetInstance().GenerateRandomString(threadWorker->value_size);
+                  RandomGenerator::GetInstance().GenerateRandomString(threadWorker->valueSize);
 
                 /* Insert a key value pair. */
-                if (threadWorker->insert(cc.cursor, cc.collection.id, key, value)) {
-                    if (threadWorker->txn.CanCommit()) {
+                if (threadWorker->Insert(cc.cursor, cc.collection.id, key, value)) {
+                    if (threadWorker->transaction.CanCommit()) {
                         /* We are not checking the result of commit as it is not necessary. */
-                        if (threadWorker->txn.Commit())
+                        if (threadWorker->transaction.Commit())
                             rollbackRetries = 0;
                         else
                             ++rollbackRetries;
                     }
                 } else {
-                    threadWorker->txn.Rollback();
+                    threadWorker->transaction.Rollback();
                     ++rollbackRetries;
                 }
                 testutil_assert(rollbackRetries < kMaxRollbacks);
 
                 /* Sleep the duration defined by the configuration. */
-                threadWorker->sleep();
+                threadWorker->Sleep();
             }
 
             /* Rollback any transaction that could not commit before the end of the test. */
-            if (threadWorker->txn.Active())
-                threadWorker->txn.Rollback();
+            if (threadWorker->transaction.Active())
+                threadWorker->transaction.Rollback();
 
             /* Reset our cursor to avoid pinning content. */
             testutil_check(cc.cursor->reset(cc.cursor.Get()));
@@ -148,7 +148,7 @@ class SearchNear02 : public Test {
     }
 
     void
-    ReadOperation(thread_worker *threadWorker) override final
+    ReadOperation(ThreadWorker *threadWorker) override final
     {
         /*
          * Each read operation performs search_near calls with and without prefix enabled on random
@@ -156,14 +156,14 @@ class SearchNear02 : public Test {
          * prefix enabled is then validated using the search_near call without prefix enabled.
          */
         Logger::LogMessage(LOG_INFO,
-          type_string(threadWorker->type) + " thread {" + std::to_string(threadWorker->id) +
+          ThreadTypeToString(threadWorker->type) + " thread {" + std::to_string(threadWorker->id) +
             "} commencing.");
 
         std::map<uint64_t, ScopedCursor> cursors;
 
-        while (threadWorker->running()) {
+        while (threadWorker->Running()) {
             /* Get a random collection to work on. */
-            Collection &collection = threadWorker->db.GetRandomCollection();
+            Collection &collection = threadWorker->database.GetRandomCollection();
 
             /* Find a cached cursor or create one if none exists. */
             if (cursors.find(collection.id) == cursors.end()) {
@@ -177,21 +177,21 @@ class SearchNear02 : public Test {
 
             auto &cursorPrefix = cursors[collection.id];
 
-            wt_timestamp_t timestamp = threadWorker->tsm->GetValidReadTimestamp();
+            wt_timestamp_t timestamp = threadWorker->timestampManager->GetValidReadTimestamp();
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value.
              */
-            threadWorker->txn.Start("roundup_timestamps=(read=true),read_timestamp=" +
-              threadWorker->tsm->DecimalToHex(timestamp));
+            threadWorker->transaction.Start("roundup_timestamps=(read=true),read_timestamp=" +
+              threadWorker->timestampManager->DecimalToHex(timestamp));
 
-            while (threadWorker->txn.Active() && threadWorker->running()) {
+            while (threadWorker->transaction.Active() && threadWorker->Running()) {
                 /*
                  * Generate a random prefix. For this, we start by generating a random size and then
                  * its value.
                  */
                 int64_t prefixSize = RandomGenerator::GetInstance().GenerateInteger(
-                  static_cast<int64_t>(1), threadWorker->key_size);
+                  static_cast<int64_t>(1), threadWorker->keySize);
                 const std::string generatedPrefix =
                   RandomGenerator::GetInstance().GenerateRandomString(
                     prefixSize, charactersType::ALPHABET);
@@ -215,15 +215,15 @@ class SearchNear02 : public Test {
                 validate_prefix_search_near(
                   ret, exactPrefix, keyPrefixString, cursorDefault, generatedPrefix);
 
-                threadWorker->txn.IncrementOp();
-                threadWorker->txn.TryRollback();
-                threadWorker->sleep();
+                threadWorker->transaction.IncrementOp();
+                threadWorker->transaction.TryRollback();
+                threadWorker->Sleep();
             }
             testutil_check(cursorPrefix->reset(cursorPrefix.Get()));
         }
         /* Roll back the last transaction if still active now the work is finished. */
-        if (threadWorker->txn.Active())
-            threadWorker->txn.Rollback();
+        if (threadWorker->transaction.Active())
+            threadWorker->transaction.Rollback();
     }
 
     private:

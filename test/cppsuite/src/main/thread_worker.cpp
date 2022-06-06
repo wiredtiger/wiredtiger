@@ -38,52 +38,54 @@
 namespace test_harness {
 
 const std::string
-type_string(thread_type type)
+ThreadTypeToString(ThreadType type)
 {
     switch (type) {
-    case thread_type::CHECKPOINT:
+    case ThreadType::kCheckpoint:
         return ("checkpoint");
-    case thread_type::CUSTOM:
+    case ThreadType::kCustom:
         return ("custom");
-    case thread_type::INSERT:
+    case ThreadType::kInsert:
         return ("insert");
-    case thread_type::READ:
+    case ThreadType::kRead:
         return ("read");
-    case thread_type::REMOVE:
+    case ThreadType::kRemove:
         return ("remove");
-    case thread_type::UPDATE:
+    case ThreadType::kUpdate:
         return ("update");
     default:
-        testutil_die(EINVAL, "unexpected thread_type: %d", static_cast<int>(type));
+        testutil_die(EINVAL, "unexpected ThreadType: %d", static_cast<int>(type));
     }
 }
 
-thread_worker::thread_worker(uint64_t id, thread_type type, Configuration *config,
-  ScopedSession &&created_session, TimestampManager *timestamp_manager,
-  OperationTracker *op_tracker, Database &dbase)
+ThreadWorker::ThreadWorker(uint64_t id, ThreadType type, Configuration *config,
+  ScopedSession &&createdSession, TimestampManager *timestampManager,
+  OperationTracker *operationTracker, Database &database)
     : /* These won't exist for certain threads which is why we use optional here. */
-      collection_count(config->GetOptionalInt(kCollectionCount, 1)),
-      key_count(config->GetOptionalInt(kKeyCountPerCollection, 1)),
-      key_size(config->GetOptionalInt(kKeySize, 1)),
-      value_size(config->GetOptionalInt(kValueSize, 1)), thread_count(config->GetInt(kThreadCount)),
-      type(type), id(id), db(dbase), session(std::move(created_session)), tsm(timestamp_manager),
-      txn(Transaction(config, timestamp_manager, session.Get())), op_tracker(op_tracker),
-      _sleep_time_ms(config->GetThrottleMs())
+      collectionCount(config->GetOptionalInt(kCollectionCount, 1)),
+      keyCount(config->GetOptionalInt(kKeyCountPerCollection, 1)),
+      keySize(config->GetOptionalInt(kKeySize, 1)),
+      valueSize(config->GetOptionalInt(kValueSize, 1)), threadCount(config->GetInt(kThreadCount)),
+      type(type), id(id), database(database), session(std::move(createdSession)),
+      timestampManager(timestampManager),
+      transaction(Transaction(config, timestampManager, session.Get())),
+      operationTracker(operationTracker), _sleepTimeMs(config->GetThrottleMs())
 {
-    if (op_tracker->IsEnabled())
-        op_track_cursor = session.OpenScopedCursor(op_tracker->getOperationTableName());
+    if (operationTracker->IsEnabled())
+        operationTrackingCursor =
+          session.OpenScopedCursor(operationTracker->getOperationTableName());
 
-    testutil_assert(key_size > 0 && value_size > 0);
+    testutil_assert(keySize > 0 && valueSize > 0);
 }
 
 void
-thread_worker::finish()
+ThreadWorker::Finish()
 {
     _running = false;
 }
 
 std::string
-thread_worker::pad_string(const std::string &value, uint64_t size)
+ThreadWorker::PadString(const std::string &value, uint64_t size)
 {
     uint64_t diff = size > value.size() ? size - value.size() : 0;
     std::string s(diff, '0');
@@ -91,19 +93,19 @@ thread_worker::pad_string(const std::string &value, uint64_t size)
 }
 
 bool
-thread_worker::update(
+ThreadWorker::Update(
   ScopedCursor &cursor, uint64_t collection_id, const std::string &key, const std::string &value)
 {
     WT_DECL_RET;
 
-    testutil_assert(op_tracker != nullptr);
+    testutil_assert(operationTracker != nullptr);
     testutil_assert(cursor.Get() != nullptr);
 
-    wt_timestamp_t ts = tsm->GetNextTimestamp();
-    ret = txn.SetCommitTimestamp(ts);
+    wt_timestamp_t timestamp = timestampManager->GetNextTimestamp();
+    ret = transaction.SetCommitTimestamp(timestamp);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
-        txn.SetRollbackRequired(true);
+        transaction.SetRollbackRequired(true);
         return (false);
     }
 
@@ -113,39 +115,39 @@ thread_worker::update(
 
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            txn.SetRollbackRequired(true);
+            transaction.SetRollbackRequired(true);
             return (false);
         } else
             testutil_die(ret, "unhandled error while trying to update a key");
     }
 
     uint64_t txn_id = ((WT_SESSION_IMPL *)session.Get())->txn->id;
-    ret = op_tracker->save_operation(
-      txn_id, trackingOperation::INSERT, collection_id, key, value, ts, op_track_cursor);
+    ret = operationTracker->save_operation(txn_id, trackingOperation::INSERT, collection_id, key,
+      value, timestamp, operationTrackingCursor);
 
     if (ret == 0)
-        txn.IncrementOp();
+        transaction.IncrementOp();
     else if (ret == WT_ROLLBACK)
-        txn.SetRollbackRequired(true);
+        transaction.SetRollbackRequired(true);
     else
         testutil_die(ret, "unhandled error while trying to save an update to the tracking table");
     return (ret == 0);
 }
 
 bool
-thread_worker::insert(
+ThreadWorker::Insert(
   ScopedCursor &cursor, uint64_t collection_id, const std::string &key, const std::string &value)
 {
     WT_DECL_RET;
 
-    testutil_assert(op_tracker != nullptr);
+    testutil_assert(operationTracker != nullptr);
     testutil_assert(cursor.Get() != nullptr);
 
-    wt_timestamp_t ts = tsm->GetNextTimestamp();
-    ret = txn.SetCommitTimestamp(ts);
+    wt_timestamp_t timestamp = timestampManager->GetNextTimestamp();
+    ret = transaction.SetCommitTimestamp(timestamp);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
-        txn.SetRollbackRequired(true);
+        transaction.SetRollbackRequired(true);
         return (false);
     }
 
@@ -155,37 +157,37 @@ thread_worker::insert(
 
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            txn.SetRollbackRequired(true);
+            transaction.SetRollbackRequired(true);
             return (false);
         } else
             testutil_die(ret, "unhandled error while trying to insert a key");
     }
 
     uint64_t txn_id = ((WT_SESSION_IMPL *)session.Get())->txn->id;
-    ret = op_tracker->save_operation(
-      txn_id, trackingOperation::INSERT, collection_id, key, value, ts, op_track_cursor);
+    ret = operationTracker->save_operation(txn_id, trackingOperation::INSERT, collection_id, key,
+      value, timestamp, operationTrackingCursor);
 
     if (ret == 0)
-        txn.IncrementOp();
+        transaction.IncrementOp();
     else if (ret == WT_ROLLBACK)
-        txn.SetRollbackRequired(true);
+        transaction.SetRollbackRequired(true);
     else
         testutil_die(ret, "unhandled error while trying to save an insert to the tracking table");
     return (ret == 0);
 }
 
 bool
-thread_worker::remove(ScopedCursor &cursor, uint64_t collection_id, const std::string &key)
+ThreadWorker::Remove(ScopedCursor &cursor, uint64_t collection_id, const std::string &key)
 {
     WT_DECL_RET;
-    testutil_assert(op_tracker != nullptr);
+    testutil_assert(operationTracker != nullptr);
     testutil_assert(cursor.Get() != nullptr);
 
-    wt_timestamp_t ts = tsm->GetNextTimestamp();
-    ret = txn.SetCommitTimestamp(ts);
+    wt_timestamp_t timestamp = timestampManager->GetNextTimestamp();
+    ret = transaction.SetCommitTimestamp(timestamp);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
-        txn.SetRollbackRequired(true);
+        transaction.SetRollbackRequired(true);
         return (false);
     }
 
@@ -193,33 +195,33 @@ thread_worker::remove(ScopedCursor &cursor, uint64_t collection_id, const std::s
     ret = cursor->remove(cursor.Get());
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            txn.SetRollbackRequired(true);
+            transaction.SetRollbackRequired(true);
             return (false);
         } else
             testutil_die(ret, "unhandled error while trying to remove a key");
     }
 
     uint64_t txn_id = ((WT_SESSION_IMPL *)session.Get())->txn->id;
-    ret = op_tracker->save_operation(
-      txn_id, trackingOperation::DELETE_KEY, collection_id, key, "", ts, op_track_cursor);
+    ret = operationTracker->save_operation(txn_id, trackingOperation::DELETE_KEY, collection_id,
+      key, "", timestamp, operationTrackingCursor);
 
     if (ret == 0)
-        txn.IncrementOp();
+        transaction.IncrementOp();
     else if (ret == WT_ROLLBACK)
-        txn.SetRollbackRequired(true);
+        transaction.SetRollbackRequired(true);
     else
         testutil_die(ret, "unhandled error while trying to save a remove to the tracking table");
     return (ret == 0);
 }
 
 void
-thread_worker::sleep()
+ThreadWorker::Sleep()
 {
-    std::this_thread::sleep_for(std::chrono::milliseconds(_sleep_time_ms));
+    std::this_thread::sleep_for(std::chrono::milliseconds(_sleepTimeMs));
 }
 
 bool
-thread_worker::running() const
+ThreadWorker::Running() const
 {
     return (_running);
 }

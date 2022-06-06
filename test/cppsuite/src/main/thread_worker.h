@@ -40,71 +40,71 @@
 #include "transaction.h"
 
 namespace test_harness {
-enum thread_type { CHECKPOINT, CUSTOM, INSERT, READ, REMOVE, UPDATE };
+enum ThreadType { kCheckpoint, kCustom, kInsert, kRead, kRemove, kUpdate };
 
-const std::string type_string(thread_type type);
+const std::string ThreadTypeToString(ThreadType type);
 
 /* Container class for a thread and any data types it may need to interact with the database. */
-class thread_worker {
+class ThreadWorker {
     public:
-    thread_worker(uint64_t id, thread_type type, Configuration *config,
-      ScopedSession &&created_session, TimestampManager *timestamp_manager,
-      OperationTracker *op_tracker, Database &dbase);
+    ThreadWorker(uint64_t id, ThreadType type, Configuration *config,
+      ScopedSession &&createdSession, TimestampManager *timestampManager,
+      OperationTracker *operationTracker, Database &database);
 
-    virtual ~thread_worker() = default;
+    virtual ~ThreadWorker() = default;
 
-    void finish();
+    void Finish();
 
     /* If the value's size is less than the given size, padding of '0' is added to the value. */
-    std::string pad_string(const std::string &value, uint64_t size);
+    std::string PadString(const std::string &value, uint64_t size);
 
     /*
-     * Generic update function, takes a collection_id, key and value.
+     * Generic update function, takes a collectionId, key and value.
      *
      * Return true if the operation was successful, a return value of false implies the transaction
      * needs to be rolled back.
      */
-    bool update(ScopedCursor &cursor, uint64_t collection_id, const std::string &key,
+    bool Update(ScopedCursor &cursor, uint64_t collectionId, const std::string &key,
       const std::string &value);
 
     /*
-     * Generic insert function, takes a collection_id, key and value.
+     * Generic insert function, takes a collectionId, key and value.
      *
      * Return true if the operation was successful, a return value of false implies the transaction
      * needs to be rolled back.
      */
-    bool insert(ScopedCursor &cursor, uint64_t collection_id, const std::string &key,
+    bool Insert(ScopedCursor &cursor, uint64_t collectionId, const std::string &key,
       const std::string &value);
 
     /*
-     * Generic remove function, takes a collection_id and key and will delete the key if it exists.
+     * Generic remove function, takes a collectionId and key and will delete the key if it exists.
      *
      * Return true if the operation was successful, a return value of false implies the transaction
      * needs to be rolled back.
      */
-    bool remove(ScopedCursor &cursor, uint64_t collection_id, const std::string &key);
-    void sleep();
-    bool running() const;
+    bool Remove(ScopedCursor &cursor, uint64_t collectionId, const std::string &key);
+    void Sleep();
+    bool Running() const;
 
     public:
-    const int64_t collection_count;
-    const int64_t key_count;
-    const int64_t key_size;
-    const int64_t value_size;
-    const int64_t thread_count;
-    const thread_type type;
+    const int64_t collectionCount;
+    const int64_t keyCount;
+    const int64_t keySize;
+    const int64_t valueSize;
+    const int64_t threadCount;
+    const ThreadType type;
     const uint64_t id;
-    Database &db;
+    Database &database;
     ScopedSession session;
-    ScopedCursor op_track_cursor;
-    ScopedCursor stat_cursor;
-    TimestampManager *tsm;
-    Transaction txn;
-    OperationTracker *op_tracker;
+    ScopedCursor operationTrackingCursor;
+    ScopedCursor statisticsCursor;
+    TimestampManager *timestampManager;
+    Transaction transaction;
+    OperationTracker *operationTracker;
 
     private:
     bool _running = true;
-    uint64_t _sleep_time_ms = 1000;
+    uint64_t _sleepTimeMs = 1000;
 };
 } // namespace test_harness
 

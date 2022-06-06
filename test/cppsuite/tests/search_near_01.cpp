@@ -52,12 +52,12 @@ class SearchNear01 : public Test {
 
     static void
     populate_worker(
-      thread_worker *threadWorker, const std::string &ALPHABET, uint64_t prefixKeyLength)
+      ThreadWorker *threadWorker, const std::string &ALPHABET, uint64_t prefixKeyLength)
     {
         Logger::LogMessage(
           LOG_INFO, "Populate with thread id: " + std::to_string(threadWorker->id));
 
-        uint64_t collectionsPerThread = threadWorker->collection_count;
+        uint64_t collectionsPerThread = threadWorker->collectionCount;
         const uint64_t kMaxRollbacks = 100;
         uint32_t rollbackRetries = 0;
 
@@ -67,12 +67,12 @@ class SearchNear01 : public Test {
          * id.
          */
         for (int64_t i = 0; i < collectionsPerThread; ++i) {
-            Collection &collection = threadWorker->db.GetCollection(i);
+            Collection &collection = threadWorker->database.GetCollection(i);
             ScopedCursor cursor = threadWorker->session.OpenScopedCursor(collection.name);
             for (uint64_t j = 0; j < ALPHABET.size(); ++j) {
                 for (uint64_t k = 0; k < ALPHABET.size(); ++k) {
-                    for (uint64_t count = 0; count < threadWorker->key_count; ++count) {
-                        threadWorker->txn.Start();
+                    for (uint64_t count = 0; count < threadWorker->keyCount; ++count) {
+                        threadWorker->transaction.Start();
                         /*
                          * Generate the prefix key, and append a random generated key string based
                          * on the key size configuration.
@@ -80,21 +80,21 @@ class SearchNear01 : public Test {
                         std::string prefixKey = {
                           ALPHABET.at(threadWorker->id), ALPHABET.at(j), ALPHABET.at(k)};
                         prefixKey += RandomGenerator::GetInstance().GenerateRandomString(
-                          threadWorker->key_size - prefixKeyLength);
+                          threadWorker->keySize - prefixKeyLength);
                         std::string value =
                           RandomGenerator::GetInstance().GeneratePseudoRandomString(
-                            threadWorker->value_size);
-                        if (!threadWorker->insert(cursor, collection.id, prefixKey, value)) {
+                            threadWorker->valueSize);
+                        if (!threadWorker->Insert(cursor, collection.id, prefixKey, value)) {
                             testutil_assert(rollbackRetries < kMaxRollbacks);
                             /* We failed to insert, rollback our transaction and retry. */
-                            threadWorker->txn.Rollback();
+                            threadWorker->transaction.Rollback();
                             ++rollbackRetries;
                             if (count > 0)
                                 --count;
                         } else {
                             /* Commit txn at commit timestamp 100. */
-                            testutil_assert(threadWorker->txn.Commit(
-                              "commit_timestamp=" + threadWorker->tsm->DecimalToHex(100)));
+                            testutil_assert(threadWorker->transaction.Commit("commit_timestamp=" +
+                              threadWorker->timestampManager->DecimalToHex(100)));
                             rollbackRetries = 0;
                         }
                     }
@@ -136,10 +136,10 @@ class SearchNear01 : public Test {
             database.AddCollection();
 
         /* Spawn 26 threads to populate the database. */
-        std::vector<thread_worker *> workers;
+        std::vector<ThreadWorker *> workers;
         ThreadManager threadManager;
         for (uint64_t i = 0; i < ALPHABET.size(); ++i) {
-            thread_worker *threadWorker = new thread_worker(i, thread_type::INSERT, config,
+            ThreadWorker *threadWorker = new ThreadWorker(i, ThreadType::kInsert, config,
               ConnectionManager::GetInstance().CreateSession(), timestampManager, operationTracker,
               database);
             workers.push_back(threadWorker);
@@ -181,7 +181,7 @@ class SearchNear01 : public Test {
     }
 
     static void
-    perform_search_near(thread_worker *threadWorker, std::string collection_name,
+    perform_search_near(ThreadWorker *threadWorker, std::string collection_name,
       uint64_t searchKeyLength, std::atomic<int64_t> &zKeySearches)
     {
         ScopedCursor cursor = threadWorker->session.OpenScopedCursor(collection_name);
@@ -198,12 +198,13 @@ class SearchNear01 : public Test {
          * prefix search near, we expect the search to early exit out of its prefix range and return
          * WT_NOTFOUND.
          */
-        threadWorker->txn.Start("read_timestamp=" + threadWorker->tsm->DecimalToHex(10));
-        if (threadWorker->txn.Active()) {
+        threadWorker->transaction.Start(
+          "read_timestamp=" + threadWorker->timestampManager->DecimalToHex(10));
+        if (threadWorker->transaction.Active()) {
             cursor->set_key(cursor.Get(), srch_key.c_str());
             int cmpp;
             testutil_assert(cursor->search_near(cursor.Get(), &cmpp) == WT_NOTFOUND);
-            threadWorker->txn.IncrementOp();
+            threadWorker->transaction.IncrementOp();
 
             /*
              * There is an edge case where we may not early exit the prefix search near call because
@@ -217,17 +218,17 @@ class SearchNear01 : public Test {
              */
             if (srch_key == "z" || srch_key == "zz" || srch_key == "zzz")
                 ++zKeySearches;
-            threadWorker->txn.Rollback();
+            threadWorker->transaction.Rollback();
         }
     }
 
     void
-    ReadOperation(thread_worker *threadWorker) override final
+    ReadOperation(ThreadWorker *threadWorker) override final
     {
         /* Make sure that thread statistics cursor is null before we open it. */
-        testutil_assert(threadWorker->stat_cursor.Get() == nullptr);
+        testutil_assert(threadWorker->statisticsCursor.Get() == nullptr);
         /* This test will only work with one read thread. */
-        testutil_assert(threadWorker->thread_count == 1);
+        testutil_assert(threadWorker->threadCount == 1);
         std::atomic<int64_t> zKeySearches;
         int64_t entriesStatistics, expectedEntries, prefixStatistics, prevEntriesStatistics,
           prevPrefixStatistics;
@@ -235,13 +236,13 @@ class SearchNear01 : public Test {
         prevEntriesStatistics = 0;
         prevPrefixStatistics = 0;
         int64_t threadsCount = _config->GetInt("search_near_threads");
-        threadWorker->stat_cursor = threadWorker->session.OpenScopedCursor(kStatisticsURI);
+        threadWorker->statisticsCursor = threadWorker->session.OpenScopedCursor(kStatisticsURI);
         Configuration *workloadConfig = _config->GetSubconfig(kWorkloadManager);
         Configuration *readConfig = workloadConfig->GetSubconfig(kReadOpConfig);
         zKeySearches = 0;
 
         Logger::LogMessage(LOG_INFO,
-          type_string(threadWorker->type) + " thread commencing. Spawning " +
+          ThreadTypeToString(threadWorker->type) + " thread commencing. Spawning " +
             std::to_string(threadsCount) + " search near threads.");
 
         /*
@@ -250,20 +251,21 @@ class SearchNear01 : public Test {
          * will increase the number of entries search by a factor of 26.
          */
         expectedEntries = keysPerPrefix * pow(ALPHABET.size(), PREFIX_KEY_LEN - searchKeyLength);
-        while (threadWorker->running()) {
-            MetricsMonitor::GetStatistics(threadWorker->stat_cursor,
+        while (threadWorker->Running()) {
+            MetricsMonitor::GetStatistics(threadWorker->statisticsCursor,
               WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &prevEntriesStatistics);
-            MetricsMonitor::GetStatistics(threadWorker->stat_cursor,
+            MetricsMonitor::GetStatistics(threadWorker->statisticsCursor,
               WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prevPrefixStatistics);
 
             ThreadManager threadManager;
-            std::vector<thread_worker *> workers;
+            std::vector<ThreadWorker *> workers;
             for (uint64_t i = 0; i < threadsCount; ++i) {
                 /* Get a collection and find a cached cursor. */
-                Collection &collection = threadWorker->db.GetRandomCollection();
-                thread_worker *searchNearThreadWorker = new thread_worker(i, thread_type::READ,
-                  readConfig, ConnectionManager::GetInstance().CreateSession(), threadWorker->tsm,
-                  threadWorker->op_tracker, threadWorker->db);
+                Collection &collection = threadWorker->database.GetRandomCollection();
+                ThreadWorker *searchNearThreadWorker = new ThreadWorker(i, ThreadType::kRead,
+                  readConfig, ConnectionManager::GetInstance().CreateSession(),
+                  threadWorker->timestampManager, threadWorker->operationTracker,
+                  threadWorker->database);
                 workers.push_back(searchNearThreadWorker);
                 threadManager.addThread(perform_search_near, searchNearThreadWorker,
                   collection.name, searchKeyLength, std::ref(zKeySearches));
@@ -278,9 +280,9 @@ class SearchNear01 : public Test {
             }
             workers.clear();
 
-            MetricsMonitor::GetStatistics(
-              threadWorker->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entriesStatistics);
-            MetricsMonitor::GetStatistics(threadWorker->stat_cursor,
+            MetricsMonitor::GetStatistics(threadWorker->statisticsCursor,
+              WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entriesStatistics);
+            MetricsMonitor::GetStatistics(threadWorker->statisticsCursor,
               WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prefixStatistics);
             Logger::LogMessage(LOG_TRACE,
               "Read thread skipped entries: " +
@@ -301,7 +303,7 @@ class SearchNear01 : public Test {
               entriesStatistics - prevEntriesStatistics);
             testutil_assert(prefixStatistics - prevPrefixStatistics == threadsCount - zKeySearches);
             zKeySearches = 0;
-            threadWorker->sleep();
+            threadWorker->Sleep();
         }
         delete readConfig;
         delete workloadConfig;

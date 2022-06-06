@@ -48,22 +48,22 @@ class DatabaseOperation {
       Configuration *config, OperationTracker *operationTracker);
 
     /* Performs a checkpoint periodically. */
-    virtual void CheckpointOperation(thread_worker *threadWorker);
+    virtual void CheckpointOperation(ThreadWorker *threadWorker);
 
     /* Custom operation without a default implementation. */
-    virtual void CustomOperation(thread_worker *threadWorker);
+    virtual void CustomOperation(ThreadWorker *threadWorker);
 
     /* Basic insert operation that adds a new key every rate tick. */
-    virtual void InsertOperation(thread_worker *threadWorker);
+    virtual void InsertOperation(ThreadWorker *threadWorker);
 
     /* Basic read operation that chooses a random collection and walks a cursor. */
-    virtual void ReadOperation(thread_worker *threadWorker);
+    virtual void ReadOperation(ThreadWorker *threadWorker);
 
     /* Basic remove operation that chooses a random key and deletes it. */
-    virtual void RemoveOperation(thread_worker *threadWorker);
+    virtual void RemoveOperation(ThreadWorker *threadWorker);
 
     /* Basic update operation that chooses a random key and updates it. */
-    virtual void UpdateOperation(thread_worker *threadWorker);
+    virtual void UpdateOperation(ThreadWorker *threadWorker);
 
     virtual void Validate(const std::string &operationTableName, const std::string &schemaTableName,
       const std::vector<uint64_t> &knownCollectionIds);

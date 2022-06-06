@@ -67,7 +67,7 @@ class WorkloadManager : public Component {
     ThreadManager _threadManager;
     TimestampManager *_timestampManager = nullptr;
     OperationTracker *_operationTracker = nullptr;
-    std::vector<thread_worker *> _workers;
+    std::vector<ThreadWorker *> _workers;
     bool _isDatabasePopulated = false;
 };
 } // namespace test_harness

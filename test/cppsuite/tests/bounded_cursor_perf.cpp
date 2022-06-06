@@ -55,10 +55,10 @@ class BoundedCursorPerf : public Test {
     }
 
     void
-    ReadOperation(thread_worker *threadWorker) override final
+    ReadOperation(ThreadWorker *threadWorker) override final
     {
         /* This test will only work with one read thread. */
-        testutil_assert(threadWorker->thread_count == 1);
+        testutil_assert(threadWorker->threadCount == 1);
         /*
          * Each read operation performs next() and prev() calls with both normal cursors and bounded
          * cursors.
@@ -72,8 +72,8 @@ class BoundedCursorPerf : public Test {
         ExecutionTimer defaultPrev("defaultPrev", Test::_args.testName);
 
         /* Get the collection to work on. */
-        testutil_assert(threadWorker->collection_count == 1);
-        Collection &coll = threadWorker->db.GetCollection(0);
+        testutil_assert(threadWorker->collectionCount == 1);
+        Collection &coll = threadWorker->database.GetCollection(0);
 
         /* Opening the cursors. */
         ScopedCursor nextCursor = threadWorker->session.OpenScopedCursor(coll.name);
@@ -88,8 +88,8 @@ class BoundedCursorPerf : public Test {
         SetBounds(nextRangeCursor);
         SetBounds(prevRangeCursor);
 
-        while (threadWorker->running()) {
-            while (retNext != WT_NOTFOUND && retPrev != WT_NOTFOUND && threadWorker->running()) {
+        while (threadWorker->Running()) {
+            while (retNext != WT_NOTFOUND && retPrev != WT_NOTFOUND && threadWorker->Running()) {
                 rangeRetNext = boundedNext.Track([&nextRangeCursor]() -> int {
                     return nextRangeCursor->next(nextRangeCursor.Get());
                 });

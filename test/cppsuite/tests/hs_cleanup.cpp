@@ -47,24 +47,24 @@ class HsCleanup : public Test {
     }
 
     void
-    UpdateOperation(thread_worker *threadWorker) override final
+    UpdateOperation(ThreadWorker *threadWorker) override final
     {
         Logger::LogMessage(LOG_INFO,
-          type_string(threadWorker->type) + " thread {" + std::to_string(threadWorker->id) +
+          ThreadTypeToString(threadWorker->type) + " thread {" + std::to_string(threadWorker->id) +
             "} commencing.");
 
         const uint64_t kMaxRollbacks = 100;
         uint32_t rolbackRetries = 0;
 
-        Collection &collection = threadWorker->db.GetCollection(threadWorker->id);
+        Collection &collection = threadWorker->database.GetCollection(threadWorker->id);
 
         /* In this test each thread gets a single collection. */
-        testutil_assert(threadWorker->db.GetCollectionCount() == threadWorker->thread_count);
+        testutil_assert(threadWorker->database.GetCollectionCount() == threadWorker->threadCount);
         ScopedCursor cursor = threadWorker->session.OpenScopedCursor(collection.name);
 
         /* We don't know the keyrange we're operating over here so we can't be much smarter here. */
-        while (threadWorker->running()) {
-            threadWorker->sleep();
+        while (threadWorker->Running()) {
+            threadWorker->Sleep();
 
             auto ret = cursor->next(cursor.Get());
             if (ret != 0) {
@@ -78,8 +78,8 @@ class HsCleanup : public Test {
                      * call can happen outside the context of a transaction. Assert that we are in
                      * one if we got a rollback.
                      */
-                    testutil_check(threadWorker->txn.CanRollback());
-                    threadWorker->txn.Rollback();
+                    testutil_check(threadWorker->transaction.CanRollback());
+                    threadWorker->transaction.Rollback();
                     continue;
                 }
                 testutil_die(ret, "Unexpected error returned from cursor->next()");
@@ -89,7 +89,7 @@ class HsCleanup : public Test {
             testutil_check(cursor->get_key(cursor.Get(), &keyTmp));
 
             /* Start a transaction if possible. */
-            threadWorker->txn.TryStart();
+            threadWorker->transaction.TryStart();
 
             /*
              * The retrieved key needs to be passed inside the update function. However, the update
@@ -97,22 +97,22 @@ class HsCleanup : public Test {
              * copy the buffer and then pass it into the API.
              */
             std::string value =
-              RandomGenerator::GetInstance().GeneratePseudoRandomString(threadWorker->value_size);
-            if (threadWorker->update(cursor, collection.id, keyTmp, value)) {
-                if (threadWorker->txn.CanCommit()) {
-                    if (threadWorker->txn.Commit())
+              RandomGenerator::GetInstance().GeneratePseudoRandomString(threadWorker->valueSize);
+            if (threadWorker->Update(cursor, collection.id, keyTmp, value)) {
+                if (threadWorker->transaction.CanCommit()) {
+                    if (threadWorker->transaction.Commit())
                         rolbackRetries = 0;
                     else
                         ++rolbackRetries;
                 }
             } else {
-                threadWorker->txn.Rollback();
+                threadWorker->transaction.Rollback();
                 ++rolbackRetries;
             }
             testutil_assert(rolbackRetries < kMaxRollbacks);
         }
         /* Ensure our last transaction is resolved. */
-        if (threadWorker->txn.Active())
-            threadWorker->txn.Rollback();
+        if (threadWorker->transaction.Active())
+            threadWorker->transaction.Rollback();
     }
 };

@@ -61,17 +61,17 @@ WorkloadManager::Run()
 
     /* Retrieve useful parameters from the test configuration. */
     operationConfigs.push_back(
-      OperationConfiguration(_config->GetSubconfig(kCheckpointOpConfig), thread_type::CHECKPOINT));
+      OperationConfiguration(_config->GetSubconfig(kCheckpointOpConfig), ThreadType::kCheckpoint));
     operationConfigs.push_back(
-      OperationConfiguration(_config->GetSubconfig(kCustomOpConfig), thread_type::CUSTOM));
+      OperationConfiguration(_config->GetSubconfig(kCustomOpConfig), ThreadType::kCustom));
     operationConfigs.push_back(
-      OperationConfiguration(_config->GetSubconfig(kInsertOpConfig), thread_type::INSERT));
+      OperationConfiguration(_config->GetSubconfig(kInsertOpConfig), ThreadType::kInsert));
     operationConfigs.push_back(
-      OperationConfiguration(_config->GetSubconfig(kReadOpConfig), thread_type::READ));
+      OperationConfiguration(_config->GetSubconfig(kReadOpConfig), ThreadType::kRead));
     operationConfigs.push_back(
-      OperationConfiguration(_config->GetSubconfig(kRemoveOpConfig), thread_type::REMOVE));
+      OperationConfiguration(_config->GetSubconfig(kRemoveOpConfig), ThreadType::kRemove));
     operationConfigs.push_back(
-      OperationConfiguration(_config->GetSubconfig(kUpdateOpConfig), thread_type::UPDATE));
+      OperationConfiguration(_config->GetSubconfig(kUpdateOpConfig), ThreadType::kUpdate));
     Configuration *populatedConfig = _config->GetSubconfig(kPopulateConfig);
 
     /* Populate the database. */
@@ -85,9 +85,9 @@ WorkloadManager::Run()
         if (it.thread_count != 0)
             Logger::LogMessage(LOG_INFO,
               "WorkloadManager: Creating " + std::to_string(it.thread_count) + " " +
-                type_string(it.type) + " threads.");
+                ThreadTypeToString(it.type) + " threads.");
         for (size_t i = 0; i < it.thread_count && _running; ++i) {
-            thread_worker *threadWorker = new thread_worker(thread_id++, it.type, it.config,
+            ThreadWorker *threadWorker = new ThreadWorker(thread_id++, it.type, it.config,
               ConnectionManager::GetInstance().CreateSession(), _timestampManager,
               _operationTracker, _database);
             _workers.push_back(threadWorker);
@@ -112,7 +112,7 @@ WorkloadManager::Finish()
 {
     Component::Finish();
     for (const auto &it : _workers)
-        it->finish();
+        it->Finish();
     _threadManager.Join();
     Logger::LogMessage(LOG_TRACE, "Workload generator: run stage done");
 }

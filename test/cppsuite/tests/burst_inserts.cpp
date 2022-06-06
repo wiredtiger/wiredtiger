@@ -52,10 +52,10 @@ class BurstInserts : public Test {
      * sleeps for op_rate.
      */
     void
-    InsertOperation(thread_worker *threadWorker) override final
+    InsertOperation(ThreadWorker *threadWorker) override final
     {
         Logger::LogMessage(LOG_INFO,
-          type_string(threadWorker->type) + " thread {" + std::to_string(threadWorker->id) +
+          ThreadTypeToString(threadWorker->type) + " thread {" + std::to_string(threadWorker->id) +
             "} commencing.");
 
         /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
@@ -73,14 +73,14 @@ class BurstInserts : public Test {
 
         /* Collection cursor vector. */
         std::vector<collection_cursor> ccv;
-        uint64_t collectionCount = threadWorker->db.GetCollectionCount();
-        uint64_t collectionsPerThread = collectionCount / threadWorker->thread_count;
+        uint64_t collectionCount = threadWorker->database.GetCollectionCount();
+        uint64_t collectionsPerThread = collectionCount / threadWorker->threadCount;
         /* Must have unique collections for each thread. */
-        testutil_assert(collectionCount % threadWorker->thread_count == 0);
+        testutil_assert(collectionCount % threadWorker->threadCount == 0);
         int threadOffset = threadWorker->id * collectionsPerThread;
         for (int i = threadOffset;
-             i < threadOffset + collectionsPerThread && threadWorker->running(); ++i) {
-            Collection &collection = threadWorker->db.GetCollection(i);
+             i < threadOffset + collectionsPerThread && threadWorker->Running(); ++i) {
+            Collection &collection = threadWorker->database.GetCollection(i);
             /*
              * Create a reading cursor that will read random documents for every next call. This
              * will help generate cache pressure.
@@ -92,25 +92,25 @@ class BurstInserts : public Test {
         }
 
         uint64_t counter = 0;
-        while (threadWorker->running()) {
+        while (threadWorker->Running()) {
             uint64_t startKey = ccv[counter].collection.GetKeyCount();
             uint64_t addedCount = 0;
             auto &cc = ccv[counter];
             auto burst_start = std::chrono::system_clock::now();
-            while (threadWorker->running() &&
+            while (threadWorker->Running() &&
               std::chrono::system_clock::now() - burst_start <
                 std::chrono::seconds(_burstDurationSecs)) {
-                threadWorker->txn.TryStart();
-                auto key = threadWorker->pad_string(
-                  std::to_string(startKey + addedCount), threadWorker->key_size);
+                threadWorker->transaction.TryStart();
+                auto key = threadWorker->PadString(
+                  std::to_string(startKey + addedCount), threadWorker->keySize);
                 cc.writeCursor->set_key(cc.writeCursor.Get(), key.c_str());
                 cc.writeCursor->search(cc.writeCursor.Get());
 
                 /* A return value of true implies the insert was successful. */
                 auto value = RandomGenerator::GetInstance().GeneratePseudoRandomString(
-                  threadWorker->value_size);
-                if (!threadWorker->insert(cc.writeCursor, cc.collection.id, key, value)) {
-                    threadWorker->txn.Rollback();
+                  threadWorker->valueSize);
+                if (!threadWorker->Insert(cc.writeCursor, cc.collection.id, key, value)) {
+                    threadWorker->transaction.Rollback();
                     addedCount = 0;
                     continue;
                 }
@@ -122,7 +122,7 @@ class BurstInserts : public Test {
                     if (ret == WT_NOTFOUND) {
                         cc.readCursor->reset(cc.readCursor.Get());
                     } else if (ret == WT_ROLLBACK) {
-                        threadWorker->txn.Rollback();
+                        threadWorker->transaction.Rollback();
                         addedCount = 0;
                         continue;
                     } else {
@@ -130,8 +130,8 @@ class BurstInserts : public Test {
                     }
                 }
 
-                if (threadWorker->txn.CanCommit()) {
-                    if (threadWorker->txn.Commit()) {
+                if (threadWorker->transaction.CanCommit()) {
+                    if (threadWorker->transaction.Commit()) {
                         cc.collection.IncreaseKeyCount(addedCount);
                         startKey = cc.collection.GetKeyCount();
                     }
@@ -142,8 +142,8 @@ class BurstInserts : public Test {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
             /* Close out our current txn. */
-            if (threadWorker->txn.Active()) {
-                if (threadWorker->txn.Commit()) {
+            if (threadWorker->transaction.Active()) {
+                if (threadWorker->transaction.Commit()) {
                     Logger::LogMessage(LOG_TRACE,
                       "Committed an insertion of " + std::to_string(addedCount) + " keys.");
                     cc.collection.IncreaseKeyCount(addedCount);
@@ -156,11 +156,11 @@ class BurstInserts : public Test {
             if (counter == collectionsPerThread)
                 counter = 0;
             testutil_assert(counter < collectionsPerThread);
-            threadWorker->sleep();
+            threadWorker->Sleep();
         }
         /* Make sure the last transaction is rolled back now the work is finished. */
-        if (threadWorker->txn.Active())
-            threadWorker->txn.Rollback();
+        if (threadWorker->transaction.Active())
+            threadWorker->transaction.Rollback();
     }
 
     private:

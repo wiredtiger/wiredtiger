@@ -78,37 +78,37 @@ class TestTemplate : public Test {
     }
 
     void
-    CheckpointOperation(thread_worker *) override final
+    CheckpointOperation(ThreadWorker *) override final
     {
         Logger::LogMessage(LOG_WARN, "CheckpointOperation: nothing done");
     }
 
     void
-    CustomOperation(thread_worker *) override final
+    CustomOperation(ThreadWorker *) override final
     {
         Logger::LogMessage(LOG_WARN, "CustomOperation: nothing done");
     }
 
     void
-    InsertOperation(thread_worker *) override final
+    InsertOperation(ThreadWorker *) override final
     {
         Logger::LogMessage(LOG_WARN, "InsertOperation: nothing done");
     }
 
     void
-    ReadOperation(thread_worker *) override final
+    ReadOperation(ThreadWorker *) override final
     {
         Logger::LogMessage(LOG_WARN, "ReadOperation: nothing done");
     }
 
     void
-    RemoveOperation(thread_worker *) override final
+    RemoveOperation(ThreadWorker *) override final
     {
         Logger::LogMessage(LOG_WARN, "RemoveOperation: nothing done");
     }
 
     void
-    UpdateOperation(thread_worker *) override final
+    UpdateOperation(ThreadWorker *) override final
     {
         Logger::LogMessage(LOG_WARN, "UpdateOperation: nothing done");
     }

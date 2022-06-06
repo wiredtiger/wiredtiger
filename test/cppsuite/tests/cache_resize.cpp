@@ -70,7 +70,7 @@ class CacheResize : public Test {
     }
 
     void
-    CustomOperation(thread_worker *threadWorker) override final
+    CustomOperation(ThreadWorker *threadWorker) override final
     {
         WT_CONNECTION *connection = ConnectionManager::GetInstance().GetConnection();
         WT_CONNECTION_IMPL *connectionImpl = (WT_CONNECTION_IMPL *)connection;
@@ -78,8 +78,8 @@ class CacheResize : public Test {
         const std::string smallCacheSize = "cache_size=1MB";
         const std::string bigCacheSize = "cache_size=500MB";
 
-        while (threadWorker->running()) {
-            threadWorker->sleep();
+        while (threadWorker->Running()) {
+            threadWorker->Sleep();
 
             /* Get the current cache size. */
             uint64_t previousCacheSize = connectionImpl->cache_size;
@@ -107,60 +107,61 @@ class CacheResize : public Test {
             uint64_t transactionId = ((WT_SESSION_IMPL *)threadWorker->session.Get())->txn->id;
 
             /* Save the change of cache size in the tracking table. */
-            threadWorker->txn.Start();
-            int ret = threadWorker->op_tracker->save_operation(transactionId,
+            threadWorker->transaction.Start();
+            int ret = threadWorker->operationTracker->save_operation(transactionId,
               trackingOperation::CUSTOM, collectionId, key, value,
-              threadWorker->tsm->GetNextTimestamp(), threadWorker->op_track_cursor);
+              threadWorker->timestampManager->GetNextTimestamp(),
+              threadWorker->operationTrackingCursor);
 
             if (ret == 0)
-                testutil_assert(threadWorker->txn.Commit());
+                testutil_assert(threadWorker->transaction.Commit());
             else {
                 /* Due to the cache pressure, it is possible to fail when saving the operation. */
                 testutil_assert(ret == WT_ROLLBACK);
                 Logger::LogMessage(LOG_WARN,
                   "The cache size reconfiguration could not be saved in the tracking table, ret: " +
                     std::to_string(ret));
-                threadWorker->txn.Rollback();
+                threadWorker->transaction.Rollback();
             }
             increaseCache = !increaseCache;
         }
     }
 
     void
-    InsertOperation(thread_worker *threadWorker) override final
+    InsertOperation(ThreadWorker *threadWorker) override final
     {
-        const uint64_t collectionCount = threadWorker->db.GetCollectionCount();
+        const uint64_t collectionCount = threadWorker->database.GetCollectionCount();
         testutil_assert(collectionCount > 0);
-        Collection &collection = threadWorker->db.GetCollection(collectionCount - 1);
+        Collection &collection = threadWorker->database.GetCollection(collectionCount - 1);
         ScopedCursor cursor = threadWorker->session.OpenScopedCursor(collection.name);
 
-        while (threadWorker->running()) {
-            threadWorker->sleep();
+        while (threadWorker->Running()) {
+            threadWorker->Sleep();
 
             /* Insert the current cache size value using a random key. */
             const std::string key =
-              RandomGenerator::GetInstance().GeneratePseudoRandomString(threadWorker->key_size);
+              RandomGenerator::GetInstance().GeneratePseudoRandomString(threadWorker->keySize);
             const uint64_t cacheSize =
               ((WT_CONNECTION_IMPL *)ConnectionManager::GetInstance().GetConnection())->cache_size;
             /* Take into account the value size given in the test configuration file. */
             const std::string value = std::to_string(cacheSize);
 
-            threadWorker->txn.TryStart();
-            if (!threadWorker->insert(cursor, collection.id, key, value)) {
-                threadWorker->txn.Rollback();
-            } else if (threadWorker->txn.CanCommit()) {
+            threadWorker->transaction.TryStart();
+            if (!threadWorker->Insert(cursor, collection.id, key, value)) {
+                threadWorker->transaction.Rollback();
+            } else if (threadWorker->transaction.CanCommit()) {
                 /*
                  * The transaction can fit in the current cache size and is ready to be committed.
                  * This means the tracking table will contain a new record to represent this
                  * transaction which will be used during the validation stage.
                  */
-                testutil_assert(threadWorker->txn.Commit());
+                testutil_assert(threadWorker->transaction.Commit());
             }
         }
 
         /* Make sure the last transaction is rolled back now the work is finished. */
-        if (threadWorker->txn.Active())
-            threadWorker->txn.Rollback();
+        if (threadWorker->transaction.Active())
+            threadWorker->transaction.Rollback();
     }
 
     void

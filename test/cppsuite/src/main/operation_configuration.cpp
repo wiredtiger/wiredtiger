@@ -31,36 +31,36 @@
 #include "src/common/constants.h"
 
 namespace test_harness {
-OperationConfiguration::OperationConfiguration(Configuration *config, thread_type type)
+OperationConfiguration::OperationConfiguration(Configuration *config, ThreadType type)
     : config(config), type(type), thread_count(config->GetInt(kThreadCount))
 {
 }
 
-std::function<void(thread_worker *)>
+std::function<void(ThreadWorker *)>
 OperationConfiguration::GetFunction(DatabaseOperation *databaseOperation)
 {
     switch (type) {
-    case thread_type::CHECKPOINT:
+    case ThreadType::kCheckpoint:
         return (std::bind(
           &DatabaseOperation::CheckpointOperation, databaseOperation, std::placeholders::_1));
-    case thread_type::CUSTOM:
+    case ThreadType::kCustom:
         return (
           std::bind(&DatabaseOperation::CustomOperation, databaseOperation, std::placeholders::_1));
-    case thread_type::INSERT:
+    case ThreadType::kInsert:
         return (
           std::bind(&DatabaseOperation::InsertOperation, databaseOperation, std::placeholders::_1));
-    case thread_type::READ:
+    case ThreadType::kRead:
         return (
           std::bind(&DatabaseOperation::ReadOperation, databaseOperation, std::placeholders::_1));
-    case thread_type::REMOVE:
+    case ThreadType::kRemove:
         return (
           std::bind(&DatabaseOperation::RemoveOperation, databaseOperation, std::placeholders::_1));
-    case thread_type::UPDATE:
+    case ThreadType::kUpdate:
         return (
           std::bind(&DatabaseOperation::UpdateOperation, databaseOperation, std::placeholders::_1));
     default:
-        /* This may cause a separate testutil_die in type_string but that should be okay. */
-        testutil_die(EINVAL, "unexpected thread_type: %s", type_string(type).c_str());
+        /* This may cause a separate testutil_die in ThreadTypeToString but that should be okay. */
+        testutil_die(EINVAL, "unexpected thread_type: %s", ThreadTypeToString(type).c_str());
     }
 }
 } // namespace test_harness
