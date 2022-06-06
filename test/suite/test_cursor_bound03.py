@@ -29,7 +29,7 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_cursor_bound02.py
+# test_cursor_bound03.py
 #    Test that setting bounds of different key formats works in the cursor bound API. Make
 # sure that WiredTiger complains when the upper and lower bounds overlap and that clearing the 
 # bounds through the bound API and reset calls work appriopately.
@@ -37,22 +37,26 @@ class test_cursor_bound03(wttest.WiredTigerTestCase):
     file_name = 'test_cursor_bound03'
 
     types = [
-        ('file', dict(uri='file:', use_colgroup=False)),
-        ('table', dict(uri='table:', use_colgroup=False)),
+        ('file', dict(uri='file:',use_colgroup=False)),
+        ('table', dict(uri='table:',use_colgroup=False))
     ]
 
     key_format_values = [
-        ('string', dict(key_format='S')),
-        # ('var', dict(key_format='r')),
-        ('int', dict(key_format='i')),
-        ('bytes', dict(key_format='u')),
+        ('string', dict(key_format='S',value_format='S')),
+        ('var', dict(key_format='r',value_format='S')),
+        ('fix', dict(key_format='r',value_format='8t')),
+        ('int', dict(key_format='i',value_format='S')),
+        ('bytes', dict(key_format='u',value_format='S')),
     ]
 
-    inclusive = [
-        ('inclusive', dict(inclusive=True)),
-        # ('no-inclusive', dict(inclusive=False))
+    config = [
+        ('inclusive-evict', dict(inclusive=True,evict=True)),
+        ('no-inclusive-evict', dict(inclusive=False,evict=True)),
+        ('inclusive', dict(inclusive=True,evict=False)),
+        ('no-inclusive', dict(inclusive=False,evict=False))      
     ]
-    scenarios = make_scenarios(types, key_format_values, inclusive)
+
+    scenarios = make_scenarios(types, key_format_values, config)
  
     def gen_key(self, i):
         tuple_key = []
@@ -82,69 +86,66 @@ class test_cursor_bound03(wttest.WiredTigerTestCase):
         self.session.create(uri, create_params)
 
         cursor = self.session.open_cursor(uri)
-
+        self.session.begin_transaction()
         for i in range(40,60):
             cursor.set_key(self.gen_key(i))
-            cursor[self.gen_key(i)] = self.genvalue(i)     
+            cursor[self.gen_key(i)] = self.genvalue(i) 
+        self.session.commit_transaction()
 
-        return cursor   
+        evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
+        for i in range(40,60):
+            evict_cursor.reset() 
+
+        return cursor
                  
     def test_bound_next_early_exit(self):
         cursor = self.create_session_and_cursor()
         self.tty("NEXT TESTS----------------")
-        #Test bound API: Early exit works with next traversal call.
+        # Test bound API: Early exit works with next traversal call.
         cursor.set_key(self.gen_key(50))
         cursor.set_value("1000")
-        self.set_bounds(cursor,"upper")
         cursor.insert()
 
+        cursor.set_key(self.gen_key(50))
+        self.set_bounds(cursor,"upper")
+        
         #Upper bound set, default inclusive options works.
         while True:
-            nextret = cursor.next()
+            ret = cursor.next()
             self.tty("next ret:")
-            self.tty(str(nextret))
+            self.tty(str(ret))
             
-            if nextret != 0:
+            if ret != 0:
                 break
             key = cursor.get_key()
-            self.tty(str(key))
-            self.tty(str(50))
             if self.inclusive:
                 self.assertTrue(int(key) <= int(50))
-
             else:
                 self.assertTrue(int(key) < int(50))        
-        
-        return cursor
 
+        cursor.close()   
 
     def test_bound_prev_early_exit(self):
         cursor = self.create_session_and_cursor()
         self.tty("PREV TESTS----------------")
 
-        #Test bound API: Early exit works with next traversal call.
+        # Test bound API: Early exit works with next traversal call.
         cursor.set_key(self.gen_key(55))
         self.set_bounds(cursor,"lower")
 
-        #Lower bound set, default inclusive options works.
+        # Lower bound set, default inclusive options works.
         while True:
-            prevret = cursor.prev()
+            ret = cursor.prev()
             self.tty("prev ret:")
-            self.tty(str(prevret))
-            if prevret != 0:
+            self.tty(str(ret))
+            if ret != 0:
                 break
             key = cursor.get_key()
             self.tty("prev key\n")
             self.tty(str(key))
             self.assertTrue(int(key) >= int(55))
 
-        return cursor
-        
-    # def test_bound_early_exit(self):
-    #     cursor = self.create_session_and_cursor()
-    #     cursor = self.test_bound_next_early_exit(cursor)
-    #     cursor = self.test_bound_prev_early_exit(cursor)
-    #     cursor.close()
+        cursor.close()
 
 if __name__ == '__main__':
     wttest.run()
