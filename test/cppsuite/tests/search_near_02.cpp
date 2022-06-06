@@ -99,7 +99,7 @@ class SearchNear02 : public Test {
             ccv.push_back({collection, std::move(cursor)});
         }
 
-        const uint64_t MAX_ROLLBACKS = 100;
+        const uint64_t kMaxRollbacks = 100;
         uint64_t counter = 0;
         uint32_t rollbackRetries = 0;
 
@@ -129,7 +129,7 @@ class SearchNear02 : public Test {
                     threadWorker->txn.Rollback();
                     ++rollbackRetries;
                 }
-                testutil_assert(rollbackRetries < MAX_ROLLBACKS);
+                testutil_assert(rollbackRetries < kMaxRollbacks);
 
                 /* Sleep the duration defined by the configuration. */
                 threadWorker->sleep();

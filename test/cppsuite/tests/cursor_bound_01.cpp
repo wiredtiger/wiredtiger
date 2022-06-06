@@ -91,7 +91,7 @@ class CursorBound01 : public Test {
 
     private:
     bool _reverseCollatorEnabled = false;
-    const uint64_t MAX_ROLLBACKS = 100;
+    const uint64_t kMaxRollbacks = 100;
     enum bounds { NO_BOUNDS, LOWER_BOUND_SET, UPPER_BOUND_SET, ALL_BOUNDS_SET };
 
     public:
@@ -494,7 +494,7 @@ class CursorBound01 : public Test {
                     threadWorker->txn.Rollback();
                     ++rollback_retries;
                 }
-                testutil_assert(rollback_retries < MAX_ROLLBACKS);
+                testutil_assert(rollback_retries < kMaxRollbacks);
 
                 /* Sleep the duration defined by the configuration. */
                 threadWorker->sleep();
@@ -558,7 +558,7 @@ class CursorBound01 : public Test {
                     threadWorker->txn.Rollback();
                     ++rollback_retries;
                 }
-                testutil_assert(rollback_retries < MAX_ROLLBACKS);
+                testutil_assert(rollback_retries < kMaxRollbacks);
 
                 /* Sleep the duration defined by the configuration. */
                 threadWorker->sleep();

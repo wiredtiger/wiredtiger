@@ -105,7 +105,7 @@ class SearchNear03 : public Test {
         Logger::LogMessage(
           LOG_INFO, "Populate with thread id: " + std::to_string(threadWorker->id));
 
-        const uint64_t MAX_ROLLBACKS = 100;
+        const uint64_t kMaxRollbacks = 100;
         uint32_t rollbackRetries = 0;
 
         /*
@@ -131,7 +131,7 @@ class SearchNear03 : public Test {
                 if (count > 0)
                     --count;
             }
-            testutil_assert(rollbackRetries < MAX_ROLLBACKS);
+            testutil_assert(rollbackRetries < kMaxRollbacks);
         }
     }
 

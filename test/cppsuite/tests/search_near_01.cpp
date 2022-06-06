@@ -58,7 +58,7 @@ class SearchNear01 : public Test {
           LOG_INFO, "Populate with thread id: " + std::to_string(threadWorker->id));
 
         uint64_t collectionsPerThread = threadWorker->collection_count;
-        const uint64_t MAX_ROLLBACKS = 100;
+        const uint64_t kMaxRollbacks = 100;
         uint32_t rollbackRetries = 0;
 
         /*
@@ -85,7 +85,7 @@ class SearchNear01 : public Test {
                           RandomGenerator::GetInstance().GeneratePseudoRandomString(
                             threadWorker->value_size);
                         if (!threadWorker->insert(cursor, collection.id, prefixKey, value)) {
-                            testutil_assert(rollbackRetries < MAX_ROLLBACKS);
+                            testutil_assert(rollbackRetries < kMaxRollbacks);
                             /* We failed to insert, rollback our transaction and retry. */
                             threadWorker->txn.Rollback();
                             ++rollbackRetries;

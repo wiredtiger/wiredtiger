@@ -53,7 +53,7 @@ class HsCleanup : public Test {
           type_string(threadWorker->type) + " thread {" + std::to_string(threadWorker->id) +
             "} commencing.");
 
-        const uint64_t MAX_ROLLBACKS = 100;
+        const uint64_t kMaxRollbacks = 100;
         uint32_t rolbackRetries = 0;
 
         Collection &collection = threadWorker->db.GetCollection(threadWorker->id);
@@ -109,7 +109,7 @@ class HsCleanup : public Test {
                 threadWorker->txn.Rollback();
                 ++rolbackRetries;
             }
-            testutil_assert(rolbackRetries < MAX_ROLLBACKS);
+            testutil_assert(rolbackRetries < kMaxRollbacks);
         }
         /* Ensure our last transaction is resolved. */
         if (threadWorker->txn.Active())
