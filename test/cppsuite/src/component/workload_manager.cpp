@@ -82,11 +82,11 @@ WorkloadManager::Run()
     uint64_t thread_id = 0;
     /* Generate threads to execute the different operations on the collections. */
     for (auto &it : operationConfigs) {
-        if (it.thread_count != 0)
+        if (it.threadCount != 0)
             Logger::LogMessage(LOG_INFO,
-              "WorkloadManager: Creating " + std::to_string(it.thread_count) + " " +
+              "WorkloadManager: Creating " + std::to_string(it.threadCount) + " " +
                 ThreadTypeToString(it.type) + " threads.");
-        for (size_t i = 0; i < it.thread_count && _running; ++i) {
+        for (size_t i = 0; i < it.threadCount && _running; ++i) {
             ThreadWorker *threadWorker = new ThreadWorker(thread_id++, it.type, it.config,
               ConnectionManager::GetInstance().CreateSession(), _timestampManager,
               _operationTracker, _database);

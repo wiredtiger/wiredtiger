@@ -49,7 +49,7 @@ class OperationConfiguration {
     public:
     Configuration *config;
     const ThreadType type;
-    const int64_t thread_count;
+    const int64_t threadCount;
 };
 } // namespace test_harness
 #endif
