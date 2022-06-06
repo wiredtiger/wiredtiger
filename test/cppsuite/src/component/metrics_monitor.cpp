@@ -53,9 +53,9 @@ namespace test_harness {
 inline int
 GetStatisticsField(const std::string &name)
 {
-    if (name == cacheHsInsert)
+    if (name == kCacheHsInsert)
         return (WT_STAT_CONN_CACHE_HS_INSERT);
-    else if (name == ccPagesRemoved)
+    else if (name == kCcPagesRemoved)
         return (WT_STAT_CONN_CC_PAGES_REMOVED);
     testutil_die(EINVAL, "get_stat_field: Stat \"%s\" is unrecognized", name.c_str());
 }
@@ -72,7 +72,7 @@ MetricsMonitor::GetStatistics(ScopedCursor &cursor, int statisticsField, int64_t
 
 MetricsMonitor::MetricsMonitor(
   const std::string &testName, Configuration *config, Database &database)
-    : Component(metricsMonitor, config), _testName(testName), _database(database)
+    : Component(kMetricsMonitor, config), _testName(testName), _database(database)
 {
 }
 
@@ -85,25 +85,25 @@ MetricsMonitor::Load()
     /* If the component is enabled, load all the known statistics. */
     if (_enabled) {
 
-        std::unique_ptr<Configuration> stat_config(_config->GetSubconfig(statisticsCacheSize));
+        std::unique_ptr<Configuration> stat_config(_config->GetSubconfig(kStatisticsCacheSize));
         _stats.push_back(
-          std::unique_ptr<CacheLimit>(new CacheLimit(*stat_config, statisticsCacheSize)));
+          std::unique_ptr<CacheLimit>(new CacheLimit(*stat_config, kStatisticsCacheSize)));
 
-        stat_config.reset(_config->GetSubconfig(statisticsDatabaseSize));
+        stat_config.reset(_config->GetSubconfig(kStatisticsDatabaseSize));
         _stats.push_back(std::unique_ptr<DatabaseSize>(
-          new DatabaseSize(*stat_config, statisticsDatabaseSize, _database)));
+          new DatabaseSize(*stat_config, kStatisticsDatabaseSize, _database)));
 
-        stat_config.reset(_config->GetSubconfig(cacheHsInsert));
+        stat_config.reset(_config->GetSubconfig(kCacheHsInsert));
         _stats.push_back(std::unique_ptr<Statistics>(
-          new Statistics(*stat_config, cacheHsInsert, GetStatisticsField(cacheHsInsert))));
+          new Statistics(*stat_config, kCacheHsInsert, GetStatisticsField(kCacheHsInsert))));
 
-        stat_config.reset(_config->GetSubconfig(ccPagesRemoved));
+        stat_config.reset(_config->GetSubconfig(kCcPagesRemoved));
         _stats.push_back(std::unique_ptr<Statistics>(
-          new Statistics(*stat_config, ccPagesRemoved, GetStatisticsField(ccPagesRemoved))));
+          new Statistics(*stat_config, kCcPagesRemoved, GetStatisticsField(kCcPagesRemoved))));
 
         /* Open our statistic cursor. */
         _session = ConnectionManager::GetInstance().CreateSession();
-        _cursor = _session.OpenScopedCursor(statisticsURI);
+        _cursor = _session.OpenScopedCursor(kStatisticsURI);
     }
 }
 

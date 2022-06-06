@@ -127,7 +127,7 @@ Database::SetOperationTracker(OperationTracker *op_tracker)
 void
 Database::SetCreateConfig(bool useCompression, bool useReverseCollator)
 {
-    _collectionCreateConfig = defaultFrameworkSchema;
+    _collectionCreateConfig = kDefaultFrameworkSchema;
     _collectionCreateConfig += useCompression ? std::string(SNAPPY_BLK) + "," : "";
     _collectionCreateConfig += useReverseCollator ? std::string(REVERSE_COL_CFG) + "," : "";
 }

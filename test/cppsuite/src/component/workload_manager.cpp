@@ -36,7 +36,7 @@
 namespace test_harness {
 WorkloadManager::WorkloadManager(Configuration *configuration, DatabaseOperation *databaseOperation,
   TimestampManager *timestampManager, Database &database)
-    : Component(workloadManager, configuration), _database(database),
+    : Component(kWorkloadManager, configuration), _database(database),
       _databaseOperation(databaseOperation), _timestampManager(timestampManager)
 {
 }
@@ -61,18 +61,18 @@ WorkloadManager::Run()
 
     /* Retrieve useful parameters from the test configuration. */
     operationConfigs.push_back(
-      OperationConfiguration(_config->GetSubconfig(checkpointOpConfig), thread_type::CHECKPOINT));
+      OperationConfiguration(_config->GetSubconfig(kCheckpointOpConfig), thread_type::CHECKPOINT));
     operationConfigs.push_back(
-      OperationConfiguration(_config->GetSubconfig(customOpConfig), thread_type::CUSTOM));
+      OperationConfiguration(_config->GetSubconfig(kCustomOpConfig), thread_type::CUSTOM));
     operationConfigs.push_back(
-      OperationConfiguration(_config->GetSubconfig(insertOpConfig), thread_type::INSERT));
+      OperationConfiguration(_config->GetSubconfig(kInsertOpConfig), thread_type::INSERT));
     operationConfigs.push_back(
-      OperationConfiguration(_config->GetSubconfig(readOpConfig), thread_type::READ));
+      OperationConfiguration(_config->GetSubconfig(kReadOpConfig), thread_type::READ));
     operationConfigs.push_back(
-      OperationConfiguration(_config->GetSubconfig(removeOpConfig), thread_type::REMOVE));
+      OperationConfiguration(_config->GetSubconfig(kRemoveOpConfig), thread_type::REMOVE));
     operationConfigs.push_back(
-      OperationConfiguration(_config->GetSubconfig(updateOpConfig), thread_type::UPDATE));
-    Configuration *populatedConfig = _config->GetSubconfig(populateConfig);
+      OperationConfiguration(_config->GetSubconfig(kUpdateOpConfig), thread_type::UPDATE));
+    Configuration *populatedConfig = _config->GetSubconfig(kPopulateConfig);
 
     /* Populate the database. */
     _databaseOperation->Populate(_database, _timestampManager, populatedConfig, _operationTracker);

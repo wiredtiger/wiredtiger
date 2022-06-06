@@ -60,8 +60,8 @@ class TestTemplate : public Test {
     public:
     TestTemplate(const test_args &args) : Test(args)
     {
-        InitOperationTracker(new OperationTrackerTemplate(_config->GetSubconfig(operationTracker),
-          _config->GetBool(compressionEnabled), *_timestampManager));
+        InitOperationTracker(new OperationTrackerTemplate(_config->GetSubconfig(kOperationTracker),
+          _config->GetBool(kCompressionEnabled), *_timestampManager));
     }
 
     void

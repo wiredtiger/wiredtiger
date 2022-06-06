@@ -37,15 +37,15 @@ Test::Test(const test_args &args) : _args(args)
 {
     _config = new Configuration(args.testName, args.testConfig);
     _metricsMonitor =
-      new MetricsMonitor(args.testName, _config->GetSubconfig(metricsMonitor), _database);
-    _timestampManager = new TimestampManager(_config->GetSubconfig(timestampManager));
+      new MetricsMonitor(args.testName, _config->GetSubconfig(kMetricsMonitor), _database);
+    _timestampManager = new TimestampManager(_config->GetSubconfig(kTimestampManager));
     _workloadManager = new WorkloadManager(
-      _config->GetSubconfig(workloadManager), this, _timestampManager, _database);
+      _config->GetSubconfig(kWorkloadManager), this, _timestampManager, _database);
     _threadManager = new ThreadManager();
 
     _database.SetTimestampManager(_timestampManager);
     _database.SetCreateConfig(
-      _config->GetBool(compressionEnabled), _config->GetBool(reverseCollator));
+      _config->GetBool(kCompressionEnabled), _config->GetBool(kReverseCollator));
 
     /*
      * Ordering is not important here, any dependencies between components should be resolved
@@ -60,8 +60,8 @@ Test::InitOperationTracker(OperationTracker *operation_tracker)
     delete _operationTracker;
     if (operation_tracker == nullptr) {
         /* Fallback to default behavior. */
-        operation_tracker = new OperationTracker(_config->GetSubconfig(operationTracker),
-          _config->GetBool(compressionEnabled), *_timestampManager);
+        operation_tracker = new OperationTracker(_config->GetSubconfig(kOperationTracker),
+          _config->GetBool(kCompressionEnabled), *_timestampManager);
     }
     _operationTracker = operation_tracker;
     _workloadManager->SetOperationTracker(_operationTracker);
@@ -91,35 +91,36 @@ void
 Test::Run()
 {
     /* Build the database creation config string. */
-    std::string databaseCreateConfig = connectionCreate;
+    std::string databaseCreateConfig = kConnectionCreate;
 
     /* Enable snappy compression or reverse collator if required. */
-    if (_config->GetBool(compressionEnabled) || _config->GetBool(reverseCollator)) {
+    if (_config->GetBool(kCompressionEnabled) || _config->GetBool(kReverseCollator)) {
         databaseCreateConfig += ",extensions=[";
         databaseCreateConfig +=
-          _config->GetBool(compressionEnabled) ? std::string(SNAPPY_PATH) + "," : "";
+          _config->GetBool(kCompressionEnabled) ? std::string(SNAPPY_PATH) + "," : "";
         databaseCreateConfig +=
-          _config->GetBool(reverseCollator) ? std::string(REVERSE_COLLATOR_PATH) : "";
+          _config->GetBool(kReverseCollator) ? std::string(REVERSE_COLLATOR_PATH) : "";
         databaseCreateConfig += "]";
     }
 
     /* Get the cache size. */
-    int64_t cache_size_mb = _config->GetInt(cacheSizeMB);
+    int64_t cache_size_mb = _config->GetInt(kCacheSizeMB);
     databaseCreateConfig += ",cache_size=" + std::to_string(cache_size_mb) + "MB";
 
     /* Get the statistics configuration for this run. */
-    Configuration *statistics_config = _config->GetSubconfig(statisticsConfig);
-    databaseCreateConfig += statistics_config->GetBool(enableLogging) ? "," + statisticsLog : "";
-    databaseCreateConfig += ",statistics=(" + statistics_config->GetString(type) + ")";
+    Configuration *statistics_config = _config->GetSubconfig(kStatisticsConfig);
+    databaseCreateConfig += statistics_config->GetBool(kEnableLogging) ? "," + kStatisticsLog : "";
+    databaseCreateConfig += ",statistics=(" + statistics_config->GetString(kType) + ")";
     /* Don't forget to delete. */
     delete statistics_config;
 
     /* Enable or disable write ahead logging. */
     databaseCreateConfig +=
-      ",log=(enabled=" + std::string(_config->GetBool(enableLogging) ? "true" : "false") + ")";
+      ",log=(enabled=" + std::string(_config->GetBool(kEnableLogging) ? "true" : "false") + ")";
 
     /* Maximum waiting time for the cache to get unstuck. */
-    databaseCreateConfig += ",cache_max_wait_ms=" + std::to_string(_config->GetInt(cacheMaxWaitMs));
+    databaseCreateConfig +=
+      ",cache_max_wait_ms=" + std::to_string(_config->GetInt(kCacheMaxWaitMs));
 
     /* Add the user supplied wiredtiger open config. */
     databaseCreateConfig += _args.wtOpenConfig;
@@ -140,7 +141,7 @@ Test::Run()
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     /* The test will run for the duration as defined in the config. */
-    int64_t duration_secs = _config->GetInt(durationSecs);
+    int64_t duration_secs = _config->GetInt(kDurationSecs);
     Logger::LogMessage(
       LOG_INFO, "Waiting {" + std::to_string(duration_secs) + "} seconds for testing to complete.");
     std::this_thread::sleep_for(std::chrono::seconds(duration_secs));
@@ -161,7 +162,7 @@ Test::Run()
 
     /* Validation stage. */
     if (_operationTracker->IsEnabled()) {
-        std::unique_ptr<Configuration> tracking_config(_config->GetSubconfig(operationTracker));
+        std::unique_ptr<Configuration> tracking_config(_config->GetSubconfig(kOperationTracker));
         this->Validate(_operationTracker->getOperationTableName(),
           _operationTracker->getSchemaTableName(),
           _workloadManager->GetDatabase().GetCollectionIds());

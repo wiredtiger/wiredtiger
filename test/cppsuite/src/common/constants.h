@@ -35,56 +35,56 @@
 namespace test_harness {
 
 /* Component names. */
-extern const std::string operationTracker;
-extern const std::string metricsMonitor;
-extern const std::string timestampManager;
-extern const std::string workloadManager;
+extern const std::string kOperationTracker;
+extern const std::string kMetricsMonitor;
+extern const std::string kTimestampManager;
+extern const std::string kWorkloadManager;
 
 /* Configuration API consts. */
-extern const std::string cacheHsInsert;
-extern const std::string cacheMaxWaitMs;
-extern const std::string cacheSizeMB;
-extern const std::string ccPagesRemoved;
-extern const std::string collectionCount;
-extern const std::string checkpointOpConfig;
-extern const std::string compressionEnabled;
-extern const std::string customOpConfig;
-extern const std::string durationSecs;
-extern const std::string enabledConfig;
-extern const std::string enableLogging;
-extern const std::string insertOpConfig;
-extern const std::string keyCountPerCollection;
-extern const std::string keySize;
-extern const std::string limit;
-extern const std::string maxConfig;
-extern const std::string minConfig;
-extern const std::string oldestLag;
-extern const std::string opRate;
-extern const std::string opsPerTransaction;
-extern const std::string populateConfig;
-extern const std::string postrunStatistics;
-extern const std::string readOpConfig;
-extern const std::string removeOpConfig;
-extern const std::string reverseCollator;
-extern const std::string runtimeStatistics;
-extern const std::string saveConfig;
-extern const std::string stableLag;
-extern const std::string statisticsCacheSize;
-extern const std::string statisticsDatabaseSize;
-extern const std::string statisticsConfig;
-extern const std::string threadCount;
-extern const std::string trackingKeyFormat;
-extern const std::string trackingValueFormat;
-extern const std::string type;
-extern const std::string updateOpConfig;
-extern const std::string valueSize;
+extern const std::string kCacheHsInsert;
+extern const std::string kCacheMaxWaitMs;
+extern const std::string kCacheSizeMB;
+extern const std::string kCcPagesRemoved;
+extern const std::string kCollectionCount;
+extern const std::string kCheckpointOpConfig;
+extern const std::string kCompressionEnabled;
+extern const std::string kCustomOpConfig;
+extern const std::string kDurationSecs;
+extern const std::string kEnabledConfig;
+extern const std::string kEnableLogging;
+extern const std::string kInsertOpConfig;
+extern const std::string kKeyCountPerCollection;
+extern const std::string kKeySize;
+extern const std::string kLimit;
+extern const std::string kMaxConfig;
+extern const std::string kMinConfig;
+extern const std::string kOldestLag;
+extern const std::string kOpRate;
+extern const std::string kOpsPerTransaction;
+extern const std::string kPopulateConfig;
+extern const std::string kPostrunStatistics;
+extern const std::string kReadOpConfig;
+extern const std::string kRemoveOpConfig;
+extern const std::string kReverseCollator;
+extern const std::string kRuntimeStatistics;
+extern const std::string kSaveConfig;
+extern const std::string kStableLag;
+extern const std::string kStatisticsCacheSize;
+extern const std::string kStatisticsDatabaseSize;
+extern const std::string kStatisticsConfig;
+extern const std::string kThreadCount;
+extern const std::string kTrackingKeyFormat;
+extern const std::string kTrackingValueFormat;
+extern const std::string kType;
+extern const std::string kUpdateOpConfig;
+extern const std::string kValueSize;
 
 /* WiredTiger API consts. */
-extern const std::string commitTimestamp;
-extern const std::string connectionCreate;
-extern const std::string oldestTimestamp;
-extern const std::string stableTimestamp;
-extern const std::string statisticsLog;
+extern const std::string kCommitTimestamp;
+extern const std::string kConnectionCreate;
+extern const std::string kOldestTimestamp;
+extern const std::string kStableTimestamp;
+extern const std::string kStatisticsLog;
 
 /*
  * Use the Snappy compressor for stress testing to avoid excessive disk space usage. Our builds can
@@ -106,10 +106,10 @@ extern const std::string statisticsLog;
     EXTPATH "collators/reverse/" EXTSUBPATH "libwiredtiger_reverse_collator.so"
 
 /* Test harness consts. */
-extern const std::string defaultFrameworkSchema;
-extern const std::string tableNameOpWorkloadTracker;
-extern const std::string tableNameSchemaWorkloadTracker;
-extern const std::string statisticsURI;
+extern const std::string kDefaultFrameworkSchema;
+extern const std::string kTableNameOpWorkloadTracker;
+extern const std::string kTableNameSchemaWorkloadTracker;
+extern const std::string kStatisticsURI;
 
 } // namespace test_harness
 

@@ -27,6 +27,7 @@
  */
 
 #include "src/common/constants.h"
+#include "src/common/logger.h"
 #include "src/common/random_generator.h"
 #include "src/main/test.h"
 
@@ -147,9 +148,9 @@ class SearchNear03 : public Test {
       OperationTracker *operationTracker) override final
     {
         /* Validate our config. */
-        int64_t collection_count = config->GetInt(collectionCount);
-        int64_t key_count = config->GetInt(keyCountPerCollection);
-        int64_t key_size = config->GetInt(keySize);
+        int64_t collection_count = config->GetInt(kCollectionCount);
+        int64_t key_count = config->GetInt(kKeyCountPerCollection);
+        int64_t key_size = config->GetInt(kKeySize);
         testutil_assert(collection_count > 0);
         testutil_assert(key_count > 0);
         testutil_assert(key_size > 0);

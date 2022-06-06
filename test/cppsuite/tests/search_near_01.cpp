@@ -114,9 +114,9 @@ class SearchNear01 : public Test {
       OperationTracker *operationTracker) override final
     {
         /* Validate our config. */
-        int64_t collection_count = config->GetInt(collectionCount);
-        keysPerPrefix = config->GetInt(keyCountPerCollection);
-        int64_t key_size = config->GetInt(keySize);
+        int64_t collection_count = config->GetInt(kCollectionCount);
+        keysPerPrefix = config->GetInt(kKeyCountPerCollection);
+        int64_t key_size = config->GetInt(kKeySize);
         testutil_assert(collection_count > 0);
         testutil_assert(keysPerPrefix > 0);
         /* Check the prefix length is not greater than the key size. */
@@ -235,9 +235,9 @@ class SearchNear01 : public Test {
         prevEntriesStatistics = 0;
         prevPrefixStatistics = 0;
         int64_t threadsCount = _config->GetInt("search_near_threads");
-        threadWorker->stat_cursor = threadWorker->session.OpenScopedCursor(statisticsURI);
-        Configuration *workloadConfig = _config->GetSubconfig(workloadManager);
-        Configuration *readConfig = workloadConfig->GetSubconfig(readOpConfig);
+        threadWorker->stat_cursor = threadWorker->session.OpenScopedCursor(kStatisticsURI);
+        Configuration *workloadConfig = _config->GetSubconfig(kWorkloadManager);
+        Configuration *readConfig = workloadConfig->GetSubconfig(kReadOpConfig);
         zKeySearches = 0;
 
         Logger::LogMessage(LOG_INFO,

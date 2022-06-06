@@ -53,13 +53,13 @@ void
 TimestampManager::Load()
 {
     Component::Load();
-    int64_t currentOldestLag = _config->GetInt(oldestLag);
+    int64_t currentOldestLag = _config->GetInt(kOldestLag);
     testutil_assert(currentOldestLag >= 0);
     /* Cast and then shift left to match the seconds position. */
     _oldestLag = currentOldestLag;
     _oldestLag <<= 32;
 
-    int64_t currentStableLag = _config->GetInt(stableLag);
+    int64_t currentStableLag = _config->GetInt(kStableLag);
     testutil_assert(currentStableLag >= 0);
     /* Cast and then shift left to match the seconds position. */
     _stableLag = currentStableLag;
@@ -82,7 +82,7 @@ TimestampManager::DoWork()
     if ((latestTimestampSecs - _stableTimestamp) > _stableLag) {
         LogMessage = "Timestamp_manager: Stable timestamp expired.";
         newStableTimestamp = latestTimestampSecs - _stableLag;
-        config += stableTimestamp + "=" + DecimalToHex(newStableTimestamp);
+        config += kStableTimestamp + "=" + DecimalToHex(newStableTimestamp);
     }
 
     /*
@@ -99,7 +99,7 @@ TimestampManager::DoWork()
         newOldestTimestamp = newStableTimestamp - _oldestLag;
         if (!config.empty())
             config += ",";
-        config += oldestTimestamp + "=" + DecimalToHex(newOldestTimestamp);
+        config += kOldestTimestamp + "=" + DecimalToHex(newOldestTimestamp);
     }
 
     if (!LogMessage.empty())

@@ -65,8 +65,8 @@ class CacheResize : public Test {
     CacheResize(const test_args &args) : Test(args)
     {
         InitOperationTracker(
-          new OperationTrackerCacheResize(_config->GetSubconfig(operationTracker),
-            _config->GetBool(compressionEnabled), *_timestampManager));
+          new OperationTrackerCacheResize(_config->GetSubconfig(kOperationTracker),
+            _config->GetBool(kCompressionEnabled), *_timestampManager));
     }
 
     void

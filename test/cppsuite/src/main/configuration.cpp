@@ -198,7 +198,7 @@ uint64_t
 Configuration::GetThrottleMs()
 {
     uint64_t multiplier = 0;
-    const std::string throttleConfig(GetOptionalString(opRate, "1s"));
+    const std::string throttleConfig(GetOptionalString(kOpRate, "1s"));
     /*
      * Find the ms, s, or m in the string. Searching for "ms" first as the following two searches
      * would match as well.

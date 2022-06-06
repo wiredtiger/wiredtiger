@@ -74,13 +74,13 @@ DatabaseOperation::Populate(Database &database, TimestampManager *timestampManag
   Configuration *config, OperationTracker *operationTracker)
 {
     /* Validate our config. */
-    int64_t collection_count = config->GetInt(collectionCount);
-    int64_t key_count_per_collection = config->GetInt(keyCountPerCollection);
-    int64_t value_size = config->GetInt(valueSize);
-    int64_t thread_count = config->GetInt(threadCount);
+    int64_t collection_count = config->GetInt(kCollectionCount);
+    int64_t key_count_per_collection = config->GetInt(kKeyCountPerCollection);
+    int64_t value_size = config->GetInt(kValueSize);
+    int64_t thread_count = config->GetInt(kThreadCount);
     testutil_assert(thread_count == 0 || collection_count % thread_count == 0);
     testutil_assert(value_size > 0);
-    int64_t key_size = config->GetInt(keySize);
+    int64_t key_size = config->GetInt(kKeySize);
     testutil_assert(key_size > 0);
     /* Keys must be unique. */
     testutil_assert(key_count_per_collection <= pow(10, key_size));

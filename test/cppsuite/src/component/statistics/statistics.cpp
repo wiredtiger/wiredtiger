@@ -35,9 +35,9 @@
 namespace test_harness {
 
 Statistics::Statistics(Configuration &config, const std::string &statName, int statField)
-    : field(statField), max(config.GetInt(maxConfig)), min(config.GetInt(minConfig)),
-      name(statName), postrun(config.GetBool(postrunStatistics)),
-      runtime(config.GetBool(runtimeStatistics)), save(config.GetBool(saveConfig))
+    : field(statField), max(config.GetInt(kMaxConfig)), min(config.GetInt(kMinConfig)),
+      name(statName), postrun(config.GetBool(kPostrunStatistics)),
+      runtime(config.GetBool(kRuntimeStatistics)), save(config.GetBool(kSaveConfig))
 {
 }
 
