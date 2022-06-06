@@ -104,8 +104,8 @@ static const char *const uri_rev = "table:rev";
     "transaction_sync=(enabled,method=%s)"
 #define ENV_CONFIG_TIER \
     ",tiered_storage=(bucket=./bucket,bucket_prefix=rdio-,local_retention=2,name=dir_store)"
-#define ENV_CONFIG_TIER_EXT                             \
-    ",extensions=(../../ext/storage_sources/dir_store/" \
+#define ENV_CONFIG_TIER_EXT                               \
+    ",extensions=(%s../../ext/storage_sources/dir_store/" \
     "libwiredtiger_dir_store.so=(early_load=true))"
 #define ENV_CONFIG_REC "log=(recover=on)"
 
@@ -163,6 +163,12 @@ static const char *const uri_rev = "table:rev";
  */
 #define SCHEMA_FREQUENCY_DEFAULT 100
 static uint64_t schema_frequency;
+
+/*
+ * TODO: WT-7833 Lock to coordinate inserts and flush_tier. This lock should be removed when that
+ * ticket is fixed. Flush_tier should be able to run with ongoing operations.
+ */
+static pthread_rwlock_t flush_lock;
 
 #define TEST_STREQ(expect, got, message)                                 \
     do {                                                                 \
@@ -389,9 +395,11 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
         testutil_check(session->open_cursor(session, uri1, NULL, NULL, &cursor));
         cursor->set_key(cursor, uri1);
         cursor->set_value(cursor, uri1);
+        testutil_check(pthread_rwlock_rdlock(&flush_lock));
         testutil_check(session->log_printf(session, "INSERT: %s", uri1));
         testutil_check(cursor->insert(cursor));
         testutil_check(session->log_printf(session, "INSERT: DONE %s", uri1));
+        testutil_check(pthread_rwlock_unlock(&flush_lock));
         testutil_check(cursor->close(cursor));
         break;
     case 2:
@@ -418,9 +426,11 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
         /*
         fprintf(stderr, "UPDATE: %s\n", uri2);
         */
+        testutil_check(pthread_rwlock_rdlock(&flush_lock));
         testutil_check(session->log_printf(session, "UPDATE: %s", uri2));
         testutil_check(cursor->update(cursor));
         testutil_check(session->log_printf(session, "UPDATE: DONE %s", uri2));
+        testutil_check(pthread_rwlock_unlock(&flush_lock));
         testutil_check(cursor->close(cursor));
         break;
     case 4:
@@ -518,13 +528,9 @@ thread_flush_run(void *arg)
          * Currently not testing any of the flush tier configuration strings other than defaults. We
          * expect the defaults are what MongoDB wants for now.
          */
-#if 0
         testutil_check(pthread_rwlock_wrlock(&flush_lock));
         testutil_check(session->flush_tier(session, NULL));
         testutil_check(pthread_rwlock_unlock(&flush_lock));
-#else
-        testutil_check(session->flush_tier(session, NULL));
-#endif
         printf("Flush tier %" PRIu32 " completed.\n", i);
         fflush(stdout);
 #if 0
@@ -661,14 +667,20 @@ again:
  *     threads, and copied/recovered.
  */
 static void
-create_db(const char *method)
+create_db(const char *method, uint32_t flags)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    char envconf[512];
+    char envconf[512], tierconf[128];
 
     testutil_check(__wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG, method));
+    if (LF_ISSET(TEST_TIERED)) {
+        testutil_check(__wt_snprintf(tierconf, sizeof(tierconf), ENV_CONFIG_TIER_EXT, ""));
+        strcat(envconf, tierconf);
+        strcat(envconf, ENV_CONFIG_TIER);
+    }
 
+    printf("create_db: wiredtiger_open configuration: %s\n", envconf);
     testutil_check(wiredtiger_open(home, NULL, envconf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(session->create(session, uri_main, "key_format=S,value_format=S"));
@@ -696,7 +708,7 @@ fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
     WT_THREAD_DATA *td;
     wt_thread_t *thr;
     uint32_t ckpt_id, flush_id, i;
-    char envconf[512];
+    char envconf[512], tierconf[128];
 
     /* Allocate number of threads plus two more for checkpoint and flush. */
     thr = dcalloc(nth + 2, sizeof(*thr));
@@ -705,7 +717,8 @@ fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
         testutil_die(errno, "Child chdir: %s", home);
     testutil_check(__wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG, method));
     if (LF_ISSET(TEST_TIERED)) {
-        strcat(envconf, ENV_CONFIG_TIER_EXT);
+        testutil_check(__wt_snprintf(tierconf, sizeof(tierconf), ENV_CONFIG_TIER_EXT, "../"));
+        strcat(envconf, tierconf);
         strcat(envconf, ENV_CONFIG_TIER);
     }
 
@@ -1302,6 +1315,7 @@ main(int argc, char *argv[])
     if (LF_ISSET(TEST_TIERED) && !LF_ISSET(TEST_CKPT))
         usage();
 
+    testutil_check(pthread_rwlock_init(&flush_lock, NULL));
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
     /*
      * If the user wants to verify they need to tell us how many threads there were so we know what
@@ -1346,7 +1360,7 @@ main(int argc, char *argv[])
         }
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
 
-        create_db(method);
+        create_db(method, flags);
         if (!populate_only) {
             /*
              * Fork a child to insert as many items. We will then randomly suspend the child, run
