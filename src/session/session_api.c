@@ -1360,6 +1360,13 @@ __wt_session_range_truncate(
     int cmp;
     bool local_start;
 
+#ifdef HAVE_DIAGNOSTIC
+    WT_CURSOR *debug_start;
+    WT_CURSOR *debug_stop;
+    bool is_truncate;
+    is_truncate = false;
+#endif
+
     local_start = false;
     if (uri != NULL) {
         WT_ASSERT(session, WT_BTREE_PREFIX(uri));
@@ -1449,7 +1456,20 @@ __wt_session_range_truncate(
             goto done;
     }
 
+    /* Create a copy of the start and stop cursors for error-checking purposes. */
+#ifdef HAVE_DIAGNOSTIC
+    debug_start = debug_stop = NULL;
+    if (start != NULL)
+        WT_ERR(__session_open_cursor((WT_SESSION *)session, NULL, start, NULL, &debug_start));
+    if (stop != NULL)
+        WT_ERR(__session_open_cursor((WT_SESSION *)session, NULL, stop, NULL, &debug_stop));
+#endif
+
     WT_ERR(__wt_schema_range_truncate(session, start, stop));
+
+#ifdef HAVE_DIAGNOSTIC
+    is_truncate = true;
+#endif
 
 done:
 err:
@@ -1465,6 +1485,16 @@ err:
         WT_TRET(start->reset(start));
     if (stop != NULL)
         WT_TRET(stop->reset(stop));
+
+#ifdef HAVE_DIAGNOSTIC
+    if (is_truncate) {
+        if (debug_start != NULL)
+            WT_TRET(debug_start->close(debug_start));
+        if (debug_stop != NULL)
+            WT_TRET(debug_stop->close(debug_stop));
+    }
+#endif
+
     return (ret);
 }
 
