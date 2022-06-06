@@ -26,6 +26,11 @@ cursor types that give access to data managed by WiredTiger:
 	backup cursor (optionally only returning block incremental ids if
 	<code>query_id</code> is appended),
 	key=<code>string</code>\, see @ref backup for details}
+@row{<tt>backup:export</tt>,
+	export cursor that generates a text file WiredTiger.export. The file contains metadata for all
+	objects in the database. It can be used in the import process as the value for
+	<code>metadata_file</code> configuration option,
+	key=<code>string</code>}
 @row{<code>log:</code>,
 	log cursor,
 	key=<code>(long fileID\, long offset\, int seqno)</code>\,<br>
