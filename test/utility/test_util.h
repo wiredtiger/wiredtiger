@@ -66,11 +66,11 @@ typedef struct {
     FILE *progress_fp;
     char *progress_file_name;
     /*
-     * TODO: this buffer isn't thread safe, but it's convenient. The solution is to change
-     * the progress function to take variable args, like the __wt_err implementation.
+     * TODO: this buffer isn't thread safe, but it's convenient. The solution is to change the
+     * progress function to take variable args, like the __wt_err implementation.
      */
     char progress_msg[1024];
-    size_t  progress_msg_len;
+    size_t progress_msg_len;
 
     bool preserve;             /* Don't remove files on exit */
     bool verbose;              /* Run in verbose mode */

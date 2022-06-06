@@ -430,7 +430,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
             WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
             if (!WT_IS_METADATA(btree->dhandle))
                 fprintf(stderr, "Didn't mark %s page clean in %s tree after reconciliation\n",
-                        r->update_used ? "empty" : "non-empty", btree->dhandle->name);
+                  r->update_used ? "empty" : "non-empty", btree->dhandle->name);
         }
     }
 }

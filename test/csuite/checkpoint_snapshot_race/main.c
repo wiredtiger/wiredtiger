@@ -221,8 +221,8 @@ thread_create_table_race(void *arg)
         snprintf(index_config_str, sizeof(index_config_str), "%s",
           rnd_val % 12 == 0 ? "debug=(release_evict)" : "");
 
-        testutil_check(open_cursor_wrap(opts, 
-          session, collection_uri, collection_config_str, &collection_cursor));
+        testutil_check(open_cursor_wrap(
+          opts, session, collection_uri, collection_config_str, &collection_cursor));
 
         snprintf(opts->progress_msg, opts->progress_msg_len, "Creating collection/index: %s\n",
           collection_uri);
@@ -236,7 +236,7 @@ thread_create_table_race(void *arg)
         /*
          * Add some random sleeps in the middle of insertion to increase the chance of a checkpoint
          * beginning during insertion.
-        */
+         */
         sleep_for_us(opts, &rnd, cr_opts->mid_insertion);
 
         testutil_check(open_cursor_wrap(opts, session, index_uri, index_config_str, &index_cursor));
@@ -556,13 +556,12 @@ sleep_for_us(TEST_OPTS *opts, WT_RAND_STATE *rnd, SLEEP_CONFIG cfg)
 }
 
 static int
-open_cursor_wrap(TEST_OPTS *opts, WT_SESSION *session,
-        const char *uri, const char *config, WT_CURSOR **cursorp)
+open_cursor_wrap(
+  TEST_OPTS *opts, WT_SESSION *session, const char *uri, const char *config, WT_CURSOR **cursorp)
 {
     int ret;
 
-    while ((ret = session->open_cursor(
-              session, uri, NULL, config, cursorp)) != 0) {
+    while ((ret = session->open_cursor(session, uri, NULL, config, cursorp)) != 0) {
         snprintf(opts->progress_msg, opts->progress_msg_len,
           "Error returned opening %s cursor: %s\n", uri, wiredtiger_strerror(ret));
         testutil_progress(opts, opts->progress_msg);

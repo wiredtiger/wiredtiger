@@ -56,7 +56,8 @@ testutil_parse_opts(int argc, char *const *argv, TEST_OPTS *opts)
         case 'A': /* Number of append threads */
             opts->n_append_threads = (uint64_t)atoll(__wt_optarg);
             break;
-        case 'C': /* How long for checkpoint thread to wait before running in checkpoint_snapshot_race */
+        case 'C': /* How long for checkpoint thread to wait before running in
+                     checkpoint_snapshot_race */
             opts->checkpoint_delay_str = dstrdup(__wt_optarg);
             break;
         case 'd': /* Use data in multi-threaded test programs */

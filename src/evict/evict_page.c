@@ -328,7 +328,6 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         WT_REF_SET_STATE(ref, WT_REF_DISK);
     }
 
-
     return (0);
 }
 
