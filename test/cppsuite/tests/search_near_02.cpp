@@ -194,7 +194,7 @@ class SearchNear02 : public Test {
                   static_cast<int64_t>(1), threadWorker->keySize);
                 const std::string generatedPrefix =
                   RandomGenerator::GetInstance().GenerateRandomString(
-                    prefixSize, charactersType::ALPHABET);
+                    prefixSize, charactersType::kAlphabet);
 
                 /* Call search near with the prefix cursor. */
                 int exactPrefix;

@@ -86,7 +86,7 @@ class Configuration {
     uint64_t GetThrottleMs();
 
     private:
-    enum class types { BOOL, INT, LIST, STRING, STRUCT };
+    enum class types { kBool, kInt, kList, kString, kStruct };
 
     template <typename T>
     T Get(const std::string &key, bool optional, types type, T def, T (*func)(WT_CONFIG_ITEM item));

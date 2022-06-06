@@ -110,57 +110,57 @@ Configuration::~Configuration()
 std::string
 Configuration::GetString(const std::string &key)
 {
-    return Get<std::string>(key, false, types::STRING, "", ConfigItemToString);
+    return Get<std::string>(key, false, types::kString, "", ConfigItemToString);
 }
 
 std::string
 Configuration::GetOptionalString(const std::string &key, const std::string &def)
 {
-    return Get<std::string>(key, true, types::STRING, def, ConfigItemToString);
+    return Get<std::string>(key, true, types::kString, def, ConfigItemToString);
 }
 
 bool
 Configuration::GetBool(const std::string &key)
 {
-    return Get<bool>(key, false, types::BOOL, false, ConfigItemToBool);
+    return Get<bool>(key, false, types::kBool, false, ConfigItemToBool);
 }
 
 bool
 Configuration::GetOptionalBool(const std::string &key, const bool def)
 {
-    return Get<bool>(key, true, types::BOOL, def, ConfigItemToBool);
+    return Get<bool>(key, true, types::kBool, def, ConfigItemToBool);
 }
 
 int64_t
 Configuration::GetInt(const std::string &key)
 {
-    return Get<int64_t>(key, false, types::INT, 0, ConfigItemToInt);
+    return Get<int64_t>(key, false, types::kInt, 0, ConfigItemToInt);
 }
 
 int64_t
 Configuration::GetOptionalInt(const std::string &key, const int64_t def)
 {
-    return Get<int64_t>(key, true, types::INT, def, ConfigItemToInt);
+    return Get<int64_t>(key, true, types::kInt, def, ConfigItemToInt);
 }
 
 Configuration *
 Configuration::GetSubconfig(const std::string &key)
 {
-    return Get<Configuration *>(key, false, types::STRUCT, nullptr,
+    return Get<Configuration *>(key, false, types::kStruct, nullptr,
       [](WT_CONFIG_ITEM item) { return new Configuration(item); });
 }
 
 Configuration *
 Configuration::GetOptionalSubconfig(const std::string &key)
 {
-    return Get<Configuration *>(key, true, types::STRUCT, nullptr,
+    return Get<Configuration *>(key, true, types::kStruct, nullptr,
       [](WT_CONFIG_ITEM item) { return new Configuration(item); });
 }
 
 std::vector<std::string>
 Configuration::GetList(const std::string &key)
 {
-    return Get<std::vector<std::string>>(key, false, types::LIST, {}, ConfigItemToList);
+    return Get<std::vector<std::string>>(key, false, types::kList, {}, ConfigItemToList);
 }
 
 template <typename T>
@@ -178,17 +178,17 @@ Configuration::Get(
         testutil_die(ret, ("Error while finding config with key \"" + key + "\"").c_str());
 
     const char *error = "Configuration value doesn't match requested type";
-    if (type == types::STRING &&
+    if (type == types::kString &&
       (value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRING &&
         value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_ID))
         testutil_die(-1, error);
-    else if (type == types::BOOL && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_BOOL)
+    else if (type == types::kBool && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_BOOL)
         testutil_die(-1, error);
-    else if (type == types::INT && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_NUM)
+    else if (type == types::kInt && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_NUM)
         testutil_die(-1, error);
-    else if (type == types::STRUCT && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT)
+    else if (type == types::kStruct && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT)
         testutil_die(-1, error);
-    else if (type == types::LIST && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT)
+    else if (type == types::kList && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT)
         testutil_die(-1, error);
 
     return func(value);

@@ -109,7 +109,7 @@ class CacheResize : public Test {
             /* Save the change of cache size in the tracking table. */
             threadWorker->transaction.Start();
             int ret = threadWorker->operationTracker->save_operation(transactionId,
-              trackingOperation::CUSTOM, collectionId, key, value,
+              trackingOperation::kCustom, collectionId, key, value,
               threadWorker->timestampManager->GetNextTimestamp(),
               threadWorker->operationTrackingCursor);
 
@@ -205,12 +205,12 @@ class CacheResize : public Test {
             trackingOperation opType = static_cast<trackingOperation>(trackedOperationType);
             /* There are only two types of operation tracked. */
             testutil_assert(
-              opType == trackingOperation::CUSTOM || opType == trackingOperation::INSERT);
+              opType == trackingOperation::kCustom || opType == trackingOperation::kInsert);
 
             /*
              * There is nothing to do if we are reading a record that indicates a cache size change.
              */
-            if (opType == trackingOperation::CUSTOM)
+            if (opType == trackingOperation::kCustom)
                 continue;
 
             if (firstRecord) {

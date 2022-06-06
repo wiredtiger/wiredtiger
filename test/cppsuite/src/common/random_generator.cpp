@@ -84,10 +84,10 @@ std::uniform_int_distribution<> &
 RandomGenerator::GetDistribution(charactersType type)
 {
     switch (type) {
-    case charactersType::ALPHABET:
+    case charactersType::kAlphabet:
         return (_alphaDistribution);
         break;
-    case charactersType::PSEUDO_ALPHANUMERIC:
+    case charactersType::kPseudoAlphaNum:
         return (_alphaNumDistribution);
         break;
     default:
@@ -100,10 +100,10 @@ const std::string &
 RandomGenerator::GetCharacters(charactersType type)
 {
     switch (type) {
-    case charactersType::ALPHABET:
+    case charactersType::kAlphabet:
         return (_alphabet);
         break;
-    case charactersType::PSEUDO_ALPHANUMERIC:
+    case charactersType::kPseudoAlphaNum:
         return (_pseudoAlphaNum);
         break;
     default:

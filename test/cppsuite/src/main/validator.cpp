@@ -177,13 +177,13 @@ Validator::parseSchemaTrackingTable(ScopedSession &session, const std::string &t
         Logger::LogMessage(LOG_TRACE, "Operation type is " + std::to_string(valueOperationType));
 
         if (static_cast<trackingOperation>(valueOperationType) ==
-          trackingOperation::CREATE_COLLECTION) {
+          trackingOperation::kCreateCollection) {
             deletedCollections.erase(
               std::remove(deletedCollections.begin(), deletedCollections.end(), keyCollectionId),
               deletedCollections.end());
             createdCollections.push_back(keyCollectionId);
         } else if (static_cast<trackingOperation>(valueOperationType) ==
-          trackingOperation::DELETE_COLLECTION) {
+          trackingOperation::kDeleteCollection) {
             createdCollections.erase(
               std::remove(createdCollections.begin(), createdCollections.end(), keyCollectionId),
               createdCollections.end());
@@ -196,7 +196,7 @@ void
 Validator::UpdateDataModel(const trackingOperation &operation, validation_collection &collection,
   const uint64_t collectionId, const char *key, const char *value)
 {
-    if (operation == trackingOperation::DELETE_KEY) {
+    if (operation == trackingOperation::kDeleteKey) {
         /* Search for the key validating that it exists. */
         const auto it = collection.find(key);
         if (it == collection.end())
@@ -211,7 +211,7 @@ Validator::UpdateDataModel(const trackingOperation &operation, validation_collec
 
         /* Update the deleted key. */
         it->second.exists = false;
-    } else if (operation == trackingOperation::INSERT)
+    } else if (operation == trackingOperation::kInsert)
         collection[key_value_t(key)] = KeyState{true, key_value_t(value)};
     else
         testutil_die(LOG_ERROR, "Validation failed: unexpected operation in the tracking table: %d",

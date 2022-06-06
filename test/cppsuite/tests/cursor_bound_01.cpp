@@ -59,7 +59,7 @@ class CursorBound01 : public Test {
             //   RandomGenerator::GetInstance().GenerateInteger(static_cast<uint64_t>(1),
             //   keySizeMax);
             // auto random_key = RandomGenerator::GetInstance().GenerateRandomString(
-            //   key_size, charactersType::ALPHABET);
+            //   key_size, charactersType::kAlphabet);
             // _key = random_key;
             _inclusive = RandomGenerator::GetInstance().GenerateInteger(0, 1);
         }
@@ -92,7 +92,7 @@ class CursorBound01 : public Test {
     private:
     bool _reverseCollatorEnabled = false;
     const uint64_t kMaxRollbacks = 100;
-    enum bounds { NO_BOUNDS, LOWER_BOUND_SET, UPPER_BOUND_SET, ALL_BOUNDS_SET };
+    enum bounds { kNoBounds, kLowerBoundSet, kUpperBoundSet, kAllBoundsSet };
 
     public:
     CursorBound01(const test_args &args) : Test(args)
@@ -225,10 +225,10 @@ class CursorBound01 : public Test {
         Bound lowerBound, upperBound;
 
         auto setRandomBounds = RandomGenerator::GetInstance().GenerateInteger(0, 3);
-        if (setRandomBounds == NO_BOUNDS)
+        if (setRandomBounds == kNoBounds)
             rangeCursor->bound(rangeCursor.Get(), "action=clear");
 
-        if (setRandomBounds == LOWER_BOUND_SET || setRandomBounds == ALL_BOUNDS_SET) {
+        if (setRandomBounds == kLowerBoundSet || setRandomBounds == kAllBoundsSet) {
             /* Reverse case. */
             if (_reverseCollatorEnabled)
                 lowerBound =
@@ -241,7 +241,7 @@ class CursorBound01 : public Test {
             testutil_assert(ret == 0 || ret == EINVAL);
         }
 
-        if (setRandomBounds == UPPER_BOUND_SET || setRandomBounds == ALL_BOUNDS_SET) {
+        if (setRandomBounds == kUpperBoundSet || setRandomBounds == kAllBoundsSet) {
             /* Reverse case. */
             if (_reverseCollatorEnabled)
                 upperBound = Bound(threadWorker->keySize, false, "0");
@@ -626,7 +626,7 @@ class CursorBound01 : public Test {
                 auto key_size = RandomGenerator::GetInstance().GenerateInteger(
                   static_cast<int64_t>(1), threadWorker->keySize);
                 auto srch_key = RandomGenerator::GetInstance().GenerateRandomString(
-                  key_size, charactersType::ALPHABET);
+                  key_size, charactersType::kAlphabet);
 
                 int exact;
                 rangeCursor->set_key(rangeCursor.Get(), srch_key.c_str());

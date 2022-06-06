@@ -144,7 +144,8 @@ OperationTracker::DoWork()
                   _sweepSession->begin_transaction(_sweepSession.Get(), "no_timestamp=true"));
                 testutil_check(_sweepCursor->remove(_sweepCursor.Get()));
                 testutil_check(_sweepSession->commit_transaction(_sweepSession.Get(), nullptr));
-            } else if (static_cast<trackingOperation>(operationType) == trackingOperation::INSERT) {
+            } else if (static_cast<trackingOperation>(operationType) ==
+              trackingOperation::kInsert) {
                 if (Logger::traceLevel == LOG_TRACE)
                     Logger::LogMessage(LOG_TRACE,
                       std::string("workload tracking: Found globally visible update, key=") +
@@ -181,8 +182,8 @@ OperationTracker::saveSchemaOperation(
     if (!_enabled)
         return;
 
-    if (operation == trackingOperation::CREATE_COLLECTION ||
-      operation == trackingOperation::DELETE_COLLECTION) {
+    if (operation == trackingOperation::kCreateCollection ||
+      operation == trackingOperation::kDeleteCollection) {
         _schemaTrackingCursor->set_key(_schemaTrackingCursor.Get(), collectionId, timestamp);
         _schemaTrackingCursor->set_value(_schemaTrackingCursor.Get(), static_cast<int>(operation));
         testutil_check(_schemaTrackingCursor->insert(_schemaTrackingCursor.Get()));
@@ -205,8 +206,8 @@ OperationTracker::save_operation(const uint64_t transactionId, const trackingOpe
 
     testutil_assert(cursor.Get() != nullptr);
 
-    if (operation == trackingOperation::CREATE_COLLECTION ||
-      operation == trackingOperation::DELETE_COLLECTION) {
+    if (operation == trackingOperation::kCreateCollection ||
+      operation == trackingOperation::kDeleteCollection) {
         const std::string error =
           "save_operation: invalid operation " + std::to_string(static_cast<int>(operation));
         testutil_die(EINVAL, error.c_str());

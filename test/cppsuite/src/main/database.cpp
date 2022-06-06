@@ -56,7 +56,7 @@ Database::AddCollection(uint64_t key_count)
     testutil_check(
       _session->create(_session.Get(), collectionName.c_str(), _collectionCreateConfig.c_str()));
     _operationTracker->saveSchemaOperation(
-      trackingOperation::CREATE_COLLECTION, nextId, _timestampManager->GetNextTimestamp());
+      trackingOperation::kCreateCollection, nextId, _timestampManager->GetNextTimestamp());
 }
 
 Collection &

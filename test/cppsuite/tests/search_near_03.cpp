@@ -44,7 +44,7 @@ using namespace test_harness;
 class SearchNear03 : public Test {
     /* A 2D array consisted of a mapping between each collection and their inserted prefixes. */
     std::vector<std::vector<std::string>> existingPrefixes;
-    const std::string ALPHABET{"abcdefghijklmnopqrstuvwxyz"};
+    const std::string kAlphabet{"abcdefghijklmnopqrstuvwxyz"};
 
     public:
     SearchNear03(const test_args &args) : Test(args)

@@ -46,13 +46,13 @@ using namespace test_harness;
 class SearchNear01 : public Test {
     uint64_t keysPerPrefix = 0;
     uint64_t searchKeyLength = 0;
-    const std::string ALPHABET{"abcdefghijklmnopqrstuvwxyz"};
+    const std::string kAlphabet{"abcdefghijklmnopqrstuvwxyz"};
     const uint64_t PREFIX_KEY_LEN = 3;
     const int64_t MINIMUM_EXPECTED_ENTRIES = 40;
 
     static void
     populate_worker(
-      ThreadWorker *threadWorker, const std::string &ALPHABET, uint64_t prefixKeyLength)
+      ThreadWorker *threadWorker, const std::string &kAlphabet, uint64_t prefixKeyLength)
     {
         Logger::LogMessage(
           LOG_INFO, "Populate with thread id: " + std::to_string(threadWorker->id));
@@ -69,8 +69,8 @@ class SearchNear01 : public Test {
         for (int64_t i = 0; i < collectionsPerThread; ++i) {
             Collection &collection = threadWorker->database.GetCollection(i);
             ScopedCursor cursor = threadWorker->session.OpenScopedCursor(collection.name);
-            for (uint64_t j = 0; j < ALPHABET.size(); ++j) {
-                for (uint64_t k = 0; k < ALPHABET.size(); ++k) {
+            for (uint64_t j = 0; j < kAlphabet.size(); ++j) {
+                for (uint64_t k = 0; k < kAlphabet.size(); ++k) {
                     for (uint64_t count = 0; count < threadWorker->keyCount; ++count) {
                         threadWorker->transaction.Start();
                         /*
@@ -78,7 +78,7 @@ class SearchNear01 : public Test {
                          * on the key size configuration.
                          */
                         std::string prefixKey = {
-                          ALPHABET.at(threadWorker->id), ALPHABET.at(j), ALPHABET.at(k)};
+                          kAlphabet.at(threadWorker->id), kAlphabet.at(j), kAlphabet.at(k)};
                         prefixKey += RandomGenerator::GetInstance().GenerateRandomString(
                           threadWorker->keySize - prefixKeyLength);
                         std::string value =
@@ -138,12 +138,12 @@ class SearchNear01 : public Test {
         /* Spawn 26 threads to populate the database. */
         std::vector<ThreadWorker *> workers;
         ThreadManager threadManager;
-        for (uint64_t i = 0; i < ALPHABET.size(); ++i) {
+        for (uint64_t i = 0; i < kAlphabet.size(); ++i) {
             ThreadWorker *threadWorker = new ThreadWorker(i, ThreadType::kInsert, config,
               ConnectionManager::GetInstance().CreateSession(), timestampManager, operationTracker,
               database);
             workers.push_back(threadWorker);
-            threadManager.addThread(populate_worker, threadWorker, ALPHABET, PREFIX_KEY_LEN);
+            threadManager.addThread(populate_worker, threadWorker, kAlphabet, PREFIX_KEY_LEN);
         }
 
         /* Wait for our populate threads to finish and then join them. */
@@ -164,10 +164,10 @@ class SearchNear01 : public Test {
             ScopedCursor evictionCursor =
               session.OpenScopedCursor(collection.name.c_str(), "debug=(release_evict=true)");
 
-            for (uint64_t i = 0; i < ALPHABET.size(); ++i) {
-                for (uint64_t j = 0; j < ALPHABET.size(); ++j) {
-                    for (uint64_t k = 0; k < ALPHABET.size(); ++k) {
-                        std::string key = {ALPHABET.at(i), ALPHABET.at(j), ALPHABET.at(k)};
+            for (uint64_t i = 0; i < kAlphabet.size(); ++i) {
+                for (uint64_t j = 0; j < kAlphabet.size(); ++j) {
+                    for (uint64_t k = 0; k < kAlphabet.size(); ++k) {
+                        std::string key = {kAlphabet.at(i), kAlphabet.at(j), kAlphabet.at(k)};
                         evictionCursor->set_key(evictionCursor.Get(), key.c_str());
                         evictionCursor->search_near(evictionCursor.Get(), &cmpp);
                         testutil_check(evictionCursor->reset(evictionCursor.Get()));
@@ -188,7 +188,7 @@ class SearchNear01 : public Test {
         cursor->reconfigure(cursor.Get(), "prefix_search=true");
         /* Generate search prefix key of random length between a -> zzz. */
         const std::string srch_key = RandomGenerator::GetInstance().GenerateRandomString(
-          searchKeyLength, charactersType::ALPHABET);
+          searchKeyLength, charactersType::kAlphabet);
         Logger::LogMessage(LOG_TRACE,
           "Search near thread {" + std::to_string(threadWorker->id) +
             "} performing prefix search near with key: " + srch_key);
@@ -250,7 +250,7 @@ class SearchNear01 : public Test {
          * per search near function call. The key we search near can be different in length, which
          * will increase the number of entries search by a factor of 26.
          */
-        expectedEntries = keysPerPrefix * pow(ALPHABET.size(), PREFIX_KEY_LEN - searchKeyLength);
+        expectedEntries = keysPerPrefix * pow(kAlphabet.size(), PREFIX_KEY_LEN - searchKeyLength);
         while (threadWorker->Running()) {
             MetricsMonitor::GetStatistics(threadWorker->statisticsCursor,
               WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &prevEntriesStatistics);
