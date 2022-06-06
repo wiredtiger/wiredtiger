@@ -74,43 +74,42 @@ DatabaseOperation::Populate(Database &database, TimestampManager *timestampManag
   Configuration *config, OperationTracker *operationTracker)
 {
     /* Validate our config. */
-    int64_t collection_count = config->GetInt(kCollectionCount);
-    int64_t key_count_per_collection = config->GetInt(kKeyCountPerCollection);
-    int64_t value_size = config->GetInt(kValueSize);
-    int64_t thread_count = config->GetInt(kThreadCount);
-    testutil_assert(thread_count == 0 || collection_count % thread_count == 0);
-    testutil_assert(value_size > 0);
-    int64_t key_size = config->GetInt(kKeySize);
-    testutil_assert(key_size > 0);
+    int64_t collectionCount = config->GetInt(kCollectionCount);
+    int64_t keyCountPerCollection = config->GetInt(kKeyCountPerCollection);
+    int64_t valueSize = config->GetInt(kValueSize);
+    int64_t threadCount = config->GetInt(kThreadCount);
+    testutil_assert(threadCount == 0 || collectionCount % threadCount == 0);
+    testutil_assert(valueSize > 0);
+    int64_t keySize = config->GetInt(kKeySize);
+    testutil_assert(keySize > 0);
     /* Keys must be unique. */
-    testutil_assert(key_count_per_collection <= pow(10, key_size));
+    testutil_assert(keyCountPerCollection <= pow(10, keySize));
 
     Logger::LogMessage(
-      LOG_INFO, "Populate: creating " + std::to_string(collection_count) + " collections.");
+      LOG_INFO, "Populate: creating " + std::to_string(collectionCount) + " collections.");
 
     /* Create n collections as per the configuration. */
-    for (int64_t i = 0; i < collection_count; ++i)
+    for (int64_t i = 0; i < collectionCount; ++i)
         /*
          * The database model will call into the API and create the collection, with its own
          * session.
          */
-        database.AddCollection(key_count_per_collection);
+        database.AddCollection(keyCountPerCollection);
 
     Logger::LogMessage(
-      LOG_INFO, "Populate: " + std::to_string(collection_count) + " collections created.");
+      LOG_INFO, "Populate: " + std::to_string(collectionCount) + " collections created.");
 
     /*
-     * Spawn thread_count threads to populate the database, theoretically we should be IO bound
-     * here.
+     * Spawn threadCount threads to populate the database, theoretically we should be IO bound here.
      */
     ThreadManager threadManager;
     std::vector<thread_worker *> workers;
-    for (int64_t i = 0; i < thread_count; ++i) {
-        thread_worker *tc = new thread_worker(i, thread_type::INSERT, config,
+    for (int64_t i = 0; i < threadCount; ++i) {
+        thread_worker *threadWorker = new thread_worker(i, thread_type::INSERT, config,
           ConnectionManager::GetInstance().CreateSession(), timestampManager, operationTracker,
           database);
-        workers.push_back(tc);
-        threadManager.addThread(PopulateWorker, tc);
+        workers.push_back(threadWorker);
+        threadManager.addThread(PopulateWorker, threadWorker);
     }
 
     /* Wait for our populate threads to finish and then join them. */

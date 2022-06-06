@@ -63,17 +63,17 @@ class SearchNear03 : public Test {
      * All of these operations are wrapped in the same transaction.
      */
     static bool
-    PerformUniqueIndexInsertions(thread_worker *threadContext, ScopedCursor &cursor,
+    PerformUniqueIndexInsertions(thread_worker *threadWorker, ScopedCursor &cursor,
       Collection &collection, std::string &prefixKey)
     {
         /* Insert the prefix. */
         std::string value =
-          RandomGenerator::GetInstance().GeneratePseudoRandomString(threadContext->value_size);
-        if (!threadContext->insert(cursor, collection.id, prefixKey, value))
+          RandomGenerator::GetInstance().GeneratePseudoRandomString(threadWorker->value_size);
+        if (!threadWorker->insert(cursor, collection.id, prefixKey, value))
             return false;
 
         /* Remove the prefix. */
-        if (!threadContext->remove(cursor, collection.id, prefixKey))
+        if (!threadWorker->remove(cursor, collection.id, prefixKey))
             return false;
 
         /*
@@ -94,17 +94,16 @@ class SearchNear03 : public Test {
         }
 
         /* Now insert the key with prefix and id. Use thread id to guarantee uniqueness. */
-        value =
-          RandomGenerator::GetInstance().GeneratePseudoRandomString(threadContext->value_size);
-        return threadContext->insert(
-          cursor, collection.id, prefixKey + "," + std::to_string(threadContext->id), value);
+        value = RandomGenerator::GetInstance().GeneratePseudoRandomString(threadWorker->value_size);
+        return threadWorker->insert(
+          cursor, collection.id, prefixKey + "," + std::to_string(threadWorker->id), value);
     }
 
     static void
-    populate_worker(thread_worker *threadContext)
+    populate_worker(thread_worker *threadWorker)
     {
         Logger::LogMessage(
-          LOG_INFO, "Populate with thread id: " + std::to_string(threadContext->id));
+          LOG_INFO, "Populate with thread id: " + std::to_string(threadWorker->id));
 
         const uint64_t MAX_ROLLBACKS = 100;
         uint32_t rollbackRetries = 0;
@@ -113,21 +112,21 @@ class SearchNear03 : public Test {
          * Each populate thread perform unique index insertions on each collection, with a randomly
          * generated prefix and thread id.
          */
-        Collection &collection = threadContext->db.GetCollection(threadContext->id);
-        ScopedCursor cursor = threadContext->session.OpenScopedCursor(collection.name);
+        Collection &collection = threadWorker->db.GetCollection(threadWorker->id);
+        ScopedCursor cursor = threadWorker->session.OpenScopedCursor(collection.name);
         cursor->reconfigure(cursor.Get(), "prefix_search=true");
-        for (uint64_t count = 0; count < threadContext->key_count; ++count) {
-            threadContext->txn.Start();
+        for (uint64_t count = 0; count < threadWorker->key_count; ++count) {
+            threadWorker->txn.Start();
             /*
              * Generate the prefix key, and append a random generated key string based on the key
              * size configuration.
              */
             std::string prefixKey =
-              RandomGenerator::GetInstance().GenerateRandomString(threadContext->key_size);
-            if (PerformUniqueIndexInsertions(threadContext, cursor, collection, prefixKey)) {
-                threadContext->txn.Commit();
+              RandomGenerator::GetInstance().GenerateRandomString(threadWorker->key_size);
+            if (PerformUniqueIndexInsertions(threadWorker, cursor, collection, prefixKey)) {
+                threadWorker->txn.Commit();
             } else {
-                threadContext->txn.Rollback();
+                threadWorker->txn.Rollback();
                 ++rollbackRetries;
                 if (count > 0)
                     --count;
@@ -148,20 +147,20 @@ class SearchNear03 : public Test {
       OperationTracker *operationTracker) override final
     {
         /* Validate our config. */
-        int64_t collection_count = config->GetInt(kCollectionCount);
-        int64_t key_count = config->GetInt(kKeyCountPerCollection);
-        int64_t key_size = config->GetInt(kKeySize);
-        testutil_assert(collection_count > 0);
-        testutil_assert(key_count > 0);
-        testutil_assert(key_size > 0);
+        int64_t collectionCount = config->GetInt(kCollectionCount);
+        int64_t keyCount = config->GetInt(kKeyCountPerCollection);
+        int64_t keySize = config->GetInt(kKeySize);
+        testutil_assert(collectionCount > 0);
+        testutil_assert(keyCount > 0);
+        testutil_assert(keySize > 0);
 
         Logger::LogMessage(LOG_INFO,
-          "Populate configuration with " + std::to_string(collection_count) +
-            "collections, number of keys: " + std::to_string(key_count) +
-            ", key size: " + std::to_string(key_size));
+          "Populate configuration with " + std::to_string(collectionCount) +
+            "collections, number of keys: " + std::to_string(keyCount) +
+            ", key size: " + std::to_string(keySize));
 
         /* Create n collections as per the configuration. */
-        for (uint64_t i = 0; i < collection_count; ++i)
+        for (uint64_t i = 0; i < collectionCount; ++i)
             /*
              * The database model will call into the API and create the collection, with its own
              * session.
@@ -171,12 +170,12 @@ class SearchNear03 : public Test {
         /* Spawn a populate thread for each collection in the database. */
         std::vector<thread_worker *> workers;
         ThreadManager threadManager;
-        for (uint64_t i = 0; i < collection_count; ++i) {
-            thread_worker *threadContext = new thread_worker(i, thread_type::INSERT, config,
+        for (uint64_t i = 0; i < collectionCount; ++i) {
+            thread_worker *threadWorker = new thread_worker(i, thread_type::INSERT, config,
               ConnectionManager::GetInstance().CreateSession(), timestampManager, operationTracker,
               database);
-            workers.push_back(threadContext);
-            threadManager.addThread(populate_worker, threadContext);
+            workers.push_back(threadWorker);
+            threadManager.addThread(populate_worker, threadWorker);
         }
 
         /* Wait for our populate threads to finish and then join them. */
@@ -217,7 +216,7 @@ class SearchNear03 : public Test {
     }
 
     void
-    InsertOperation(thread_worker *threadContext) override final
+    InsertOperation(thread_worker *threadWorker) override final
     {
         std::map<uint64_t, ScopedCursor> cursors;
 
@@ -226,21 +225,21 @@ class SearchNear03 : public Test {
          * prefix on a collection.
          */
         Logger::LogMessage(LOG_INFO,
-          type_string(threadContext->type) + " thread {" + std::to_string(threadContext->id) +
+          type_string(threadWorker->type) + " thread {" + std::to_string(threadWorker->id) +
             "} commencing.");
 
-        while (threadContext->running()) {
+        while (threadWorker->running()) {
             /* Get a collection and find a cached cursor. */
-            Collection &collection = threadContext->db.GetRandomCollection();
+            Collection &collection = threadWorker->db.GetRandomCollection();
             if (cursors.find(collection.id) == cursors.end()) {
-                ScopedCursor cursor = threadContext->session.OpenScopedCursor(collection.name);
+                ScopedCursor cursor = threadWorker->session.OpenScopedCursor(collection.name);
                 cursor->reconfigure(cursor.Get(), "prefix_search=true");
                 cursors.emplace(collection.id, std::move(cursor));
             }
 
             /* Do a second lookup now that we know it exists. */
             auto &cursor = cursors[collection.id];
-            threadContext->txn.Start();
+            threadWorker->txn.Start();
             /*
              * Grab a random existing prefix and perform unique index insertion. We expect it to
              * fail to insert, because it should already exist.
@@ -251,33 +250,33 @@ class SearchNear03 : public Test {
             std::string prefixKey =
               GetPrefixFromKey(existingPrefixes.at(collection.id).at(random_index));
             Logger::LogMessage(LOG_TRACE,
-              type_string(threadContext->type) +
+              type_string(threadWorker->type) +
                 " thread: Perform unique index insertions with existing prefix key " + prefixKey +
                 ".");
             testutil_assert(
-              !PerformUniqueIndexInsertions(threadContext, cursor, collection, prefixKey));
+              !PerformUniqueIndexInsertions(threadWorker, cursor, collection, prefixKey));
             testutil_check(cursor->reset(cursor.Get()));
-            threadContext->txn.Rollback();
+            threadWorker->txn.Rollback();
         }
     }
 
     void
-    ReadOperation(thread_worker *threadContext) override final
+    ReadOperation(thread_worker *threadWorker) override final
     {
         uint64_t keyCount = 0;
         int ret = 0;
         Logger::LogMessage(LOG_INFO,
-          type_string(threadContext->type) + " thread {" + std::to_string(threadContext->id) +
+          type_string(threadWorker->type) + " thread {" + std::to_string(threadWorker->id) +
             "} commencing.");
         /*
          * Each read thread will count the number of keys in each collection, and will double check
          * if the size of the table hasn't changed.
          */
-        threadContext->txn.Start();
-        while (threadContext->running()) {
-            for (int i = 0; i < threadContext->db.GetCollectionCount(); i++) {
-                Collection &collection = threadContext->db.GetCollection(i);
-                ScopedCursor cursor = threadContext->session.OpenScopedCursor(collection.name);
+        threadWorker->txn.Start();
+        while (threadWorker->running()) {
+            for (int i = 0; i < threadWorker->db.GetCollectionCount(); i++) {
+                Collection &collection = threadWorker->db.GetCollection(i);
+                ScopedCursor cursor = threadWorker->session.OpenScopedCursor(collection.name);
                 ret = 0;
                 while (ret == 0) {
                     ret = cursor->next(cursor.Get());
@@ -287,11 +286,11 @@ class SearchNear03 : public Test {
                         continue;
                     keyCount++;
                 }
-                threadContext->sleep();
+                threadWorker->sleep();
             }
-            if (threadContext->running()) {
+            if (threadWorker->running()) {
                 Logger::LogMessage(LOG_TRACE,
-                  type_string(threadContext->type) +
+                  type_string(threadWorker->type) +
                     " thread: calculated count: " + std::to_string(keyCount) + " expected size: " +
                     std::to_string(existingPrefixes.size() * existingPrefixes.at(0).size()));
                 testutil_assert(
@@ -299,6 +298,6 @@ class SearchNear03 : public Test {
             }
             keyCount = 0;
         }
-        threadContext->txn.Rollback();
+        threadWorker->txn.Rollback();
     }
 };

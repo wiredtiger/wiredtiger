@@ -55,10 +55,10 @@ class BoundedCursorPerf : public Test {
     }
 
     void
-    ReadOperation(thread_worker *tc) override final
+    ReadOperation(thread_worker *threadWorker) override final
     {
         /* This test will only work with one read thread. */
-        testutil_assert(tc->thread_count == 1);
+        testutil_assert(threadWorker->thread_count == 1);
         /*
          * Each read operation performs next() and prev() calls with both normal cursors and bounded
          * cursors.
@@ -72,14 +72,14 @@ class BoundedCursorPerf : public Test {
         ExecutionTimer defaultPrev("defaultPrev", Test::_args.testName);
 
         /* Get the collection to work on. */
-        testutil_assert(tc->collection_count == 1);
-        Collection &coll = tc->db.GetCollection(0);
+        testutil_assert(threadWorker->collection_count == 1);
+        Collection &coll = threadWorker->db.GetCollection(0);
 
         /* Opening the cursors. */
-        ScopedCursor nextCursor = tc->session.OpenScopedCursor(coll.name);
-        ScopedCursor nextRangeCursor = tc->session.OpenScopedCursor(coll.name);
-        ScopedCursor prevCursor = tc->session.OpenScopedCursor(coll.name);
-        ScopedCursor prevRangeCursor = tc->session.OpenScopedCursor(coll.name);
+        ScopedCursor nextCursor = threadWorker->session.OpenScopedCursor(coll.name);
+        ScopedCursor nextRangeCursor = threadWorker->session.OpenScopedCursor(coll.name);
+        ScopedCursor prevCursor = threadWorker->session.OpenScopedCursor(coll.name);
+        ScopedCursor prevRangeCursor = threadWorker->session.OpenScopedCursor(coll.name);
 
         /*
          * The keys in the collection are contiguous from 0 -> key_count -1. Applying the range
@@ -88,8 +88,8 @@ class BoundedCursorPerf : public Test {
         SetBounds(nextRangeCursor);
         SetBounds(prevRangeCursor);
 
-        while (tc->running()) {
-            while (retNext != WT_NOTFOUND && retPrev != WT_NOTFOUND && tc->running()) {
+        while (threadWorker->running()) {
+            while (retNext != WT_NOTFOUND && retPrev != WT_NOTFOUND && threadWorker->running()) {
                 rangeRetNext = boundedNext.Track([&nextRangeCursor]() -> int {
                     return nextRangeCursor->next(nextRangeCursor.Get());
                 });

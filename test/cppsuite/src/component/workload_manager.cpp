@@ -87,11 +87,11 @@ WorkloadManager::Run()
               "WorkloadManager: Creating " + std::to_string(it.thread_count) + " " +
                 type_string(it.type) + " threads.");
         for (size_t i = 0; i < it.thread_count && _running; ++i) {
-            thread_worker *tc = new thread_worker(thread_id++, it.type, it.config,
+            thread_worker *threadWorker = new thread_worker(thread_id++, it.type, it.config,
               ConnectionManager::GetInstance().CreateSession(), _timestampManager,
               _operationTracker, _database);
-            _workers.push_back(tc);
-            _threadManager.addThread(it.GetFunction(_databaseOperation), tc);
+            _workers.push_back(threadWorker);
+            _threadManager.addThread(it.GetFunction(_databaseOperation), threadWorker);
         }
         /*
          * Don't forget to delete the config we created earlier. While we do pass the config into

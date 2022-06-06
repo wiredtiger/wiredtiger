@@ -116,14 +116,14 @@ class SearchNear01 : public Test {
         /* Validate our config. */
         int64_t collection_count = config->GetInt(kCollectionCount);
         keysPerPrefix = config->GetInt(kKeyCountPerCollection);
-        int64_t key_size = config->GetInt(kKeySize);
+        int64_t keySize = config->GetInt(kKeySize);
         testutil_assert(collection_count > 0);
         testutil_assert(keysPerPrefix > 0);
         /* Check the prefix length is not greater than the key size. */
-        testutil_assert(key_size >= PREFIX_KEY_LEN);
+        testutil_assert(keySize >= PREFIX_KEY_LEN);
 
         Logger::LogMessage(LOG_INFO,
-          "Populate configuration with key size: " + std::to_string(key_size) +
+          "Populate configuration with key size: " + std::to_string(keySize) +
             " key count: " + std::to_string(keysPerPrefix) +
             " number of collections: " + std::to_string(collection_count));
 
