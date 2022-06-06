@@ -239,10 +239,6 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
             /* Optionally limit reads to cache-only. */
             if (LF_ISSET(WT_READ_CACHE))
                 return (WT_NOTFOUND);
-            if (F_ISSET(ref, WT_REF_FLAG_WAS_DELETED))
-                fprintf(stderr, "Recreating a memory page that was previously in deleted state "
-                        "from a disk ref, which means there could be missing tombstones. "
-                        "Table: %s\n", session->dhandle->name);
 read:
             /*
              * The page isn't in memory, read it. If this thread respects the cache size, check for

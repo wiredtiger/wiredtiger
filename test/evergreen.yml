@@ -1227,6 +1227,16 @@ tasks:
   # End of cppsuite test tasks.
   # Start of csuite test tasks
 
+  - name: csuite-checkpoint-snapshot
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite smoke test"
+        vars:
+          test_args: cmake_build/test/csuite/checkpoint_snapshot_race/test_checkpoint_snapshot_race
+          test_binary: checkpoint_snapshot_race
+
   - name: csuite-incr-backup-test
     tags: ["pull_request"]
     depends_on:
@@ -3882,6 +3892,7 @@ buildvariants:
     - name: configure-combinations
     - name: syscall-linux
     - name: checkpoint-filetypes-test
+    - name: csuite-checkpoint-snapshot
     - name: unit-test-zstd
     - name: unit-test-random-seed
     - name: spinlock-gcc-test
@@ -3942,6 +3953,7 @@ buildvariants:
     - name: ".pull_request !.pull_request_compilers !.python"
     - name: examples-c-test
     - name: format-asan-smoke-test
+    - name: csuite-checkpoint-snapshot
 
 - name: ubuntu2004-msan
   display_name: "! Ubuntu 20.04 MSAN"
@@ -3978,6 +3990,7 @@ buildvariants:
     - name: examples-c-production-disable-static-test
     - name: format-stress-pull-request-test
     - name: make-check-test
+    - name: csuite-checkpoint-snapshot
 
 - name: ubuntu2004-ubsan
   display_name: "! Ubuntu 20.04 UBSAN"
@@ -4010,6 +4023,7 @@ buildvariants:
     - name: compile
     - name: compile-production-disable-shared
     - name: compile-production-disable-static
+    - name: csuite-checkpoint-snapshot
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
     - name: format-stress-pull-request-test
@@ -4019,6 +4033,7 @@ buildvariants:
     - name: cppsuite-search-near-01-default
     - name: cppsuite-search-near-02-default
     - name: cppsuite-search-near-03-default
+    - name: csuite-checkpoint-snapshot
 
 - name: ubuntu2004-compilers
   display_name: "! Ubuntu 20.04 Compilers"
@@ -4293,6 +4308,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
+    - name: csuite-checkpoint-snapshot
     - name: unit-test
     - name: fops
     - name: time-shift-sensitivity-test
@@ -4573,6 +4589,7 @@ buildvariants:
     - name: fops
     - name: linux-directio
     - name: checkpoint-filetypes-test
+    - name: csuite-checkpoint-snapshot
     - name: unit-test-zstd
     - name: unit-test-long
     - name: spinlock-gcc-test

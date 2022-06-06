@@ -57,6 +57,8 @@ void *thread_add_load(void *);
 void parse_sleep_config(const char *name, char *config_str, SLEEP_CONFIG *cfg);
 void sleep_for_us(TEST_OPTS *opts, WT_RAND_STATE *rnd, SLEEP_CONFIG cfg);
 
+static int open_cursor_wrap(TEST_OPTS *, WT_SESSION *, const char *, const char *, WT_CURSOR **);
+
 /*
  * main --
  *     Test's entry point.
@@ -94,7 +96,8 @@ main(int argc, char *argv[])
     testutil_check(pthread_cond_init(&cr_opts->ckpt_go_cond, NULL));
 
     testutil_check(wiredtiger_open(opts->home, NULL,
-      "create,cache_size=100MB,log=(enabled,file_max=10M,remove=true),debug_mode=(table_logging)",
+      "create,cache_size=100MB,log=(enabled,file_max=10M,remove=true),"
+      "debug_mode=(table_logging,eviction)",
       &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
@@ -141,13 +144,12 @@ thread_create_table_race(void *arg)
 {
     CHECKPOINT_RACE_OPTS *cr_opts;
     TEST_OPTS *opts;
-    WT_CURSOR *catalog_cursor, *collection_cursor, *index_cursor;
+    WT_CURSOR *catalog_cursor, *collection_cursor, *collection_cursor2, *index_cursor;
     WT_RAND_STATE rnd;
-    WT_SESSION *session;
+    WT_SESSION *session, *session2;
     uint64_t i, rnd_val;
     char collection_uri[64], index_uri[64], ts_string[64];
     char collection_config_str[64], index_config_str[64];
-    int ret;
 
     cr_opts = (CHECKPOINT_RACE_OPTS *)arg;
     opts = cr_opts->opts;
@@ -155,8 +157,9 @@ thread_create_table_race(void *arg)
 
     testutil_progress(opts, "Start create thread\n");
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
+    testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session2));
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
-    testutil_check(session->open_cursor(session, CATALOG_URI, NULL, NULL, &catalog_cursor));
+    testutil_check(open_cursor_wrap(opts, session, CATALOG_URI, NULL, &catalog_cursor));
 
     while (test_running) {
 
@@ -202,6 +205,11 @@ thread_create_table_race(void *arg)
         catalog_cursor->reset(catalog_cursor);
         testutil_check(session->commit_transaction(session, ts_string));
 
+        /* Access the collection table via a different session */
+        testutil_check(open_cursor_wrap(opts, session2, collection_uri, NULL, &collection_cursor2));
+        testutil_assert(collection_cursor2->next(collection_cursor2) == WT_NOTFOUND);
+        testutil_check(collection_cursor2->close(collection_cursor2));
+
         /* Write to both tables in a single txn as per the printlog */
         testutil_check(session->begin_transaction(session, NULL));
 
@@ -213,8 +221,8 @@ thread_create_table_race(void *arg)
         snprintf(index_config_str, sizeof(index_config_str), "%s",
           rnd_val % 12 == 0 ? "debug=(release_evict)" : "");
 
-        testutil_check(session->open_cursor(
-          session, collection_uri, NULL, collection_config_str, &collection_cursor));
+        testutil_check(open_cursor_wrap(opts, 
+          session, collection_uri, collection_config_str, &collection_cursor));
 
         snprintf(opts->progress_msg, opts->progress_msg_len, "Creating collection/index: %s\n",
           collection_uri);
@@ -225,17 +233,13 @@ thread_create_table_race(void *arg)
         testutil_check(collection_cursor->insert(collection_cursor));
         testutil_check(collection_cursor->reset(collection_cursor));
 
-        /* Add some random sleeps in the middle of insertion to increase the chance of a checkpoint
-         * beginning during insertion */
+        /*
+         * Add some random sleeps in the middle of insertion to increase the chance of a checkpoint
+         * beginning during insertion.
+        */
         sleep_for_us(opts, &rnd, cr_opts->mid_insertion);
 
-        while ((ret = session->open_cursor(
-                  session, index_uri, NULL, index_config_str, &index_cursor)) != 0) {
-            snprintf(opts->progress_msg, opts->progress_msg_len,
-              "Error returned opening index cursor: %s\n", wiredtiger_strerror(ret));
-            testutil_progress(opts, opts->progress_msg);
-            usleep(10);
-        }
+        testutil_check(open_cursor_wrap(opts, session, index_uri, index_config_str, &index_cursor));
         index_cursor->set_key(index_cursor, i);
         index_cursor->set_value(index_cursor, 2 * i);
         testutil_check(index_cursor->insert(index_cursor));
@@ -265,6 +269,8 @@ thread_create_table_race(void *arg)
     }
 
     testutil_check(catalog_cursor->close(catalog_cursor));
+    testutil_check(session->close(session, NULL));
+    testutil_check(session2->close(session2, NULL));
     testutil_progress(opts, "END create thread\n");
 
     return (NULL);
@@ -309,14 +315,11 @@ thread_add_load(void *arg)
     us_sleep = 100;
     table_timestamp = 1;
 
-    if (test_running)
-        return (NULL);
-
     testutil_progress(opts, "Start load generation thread\n");
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
-    testutil_check(session->open_cursor(session, LOAD_TABLE_URI, NULL, NULL, &load_cursor));
-    testutil_check(session->open_cursor(session, CATALOG_URI, NULL, NULL, &catalog_cursor));
+    testutil_check(open_cursor_wrap(opts, session, LOAD_TABLE_URI, NULL, &load_cursor));
+    testutil_check(open_cursor_wrap(opts, session, CATALOG_URI, NULL, &catalog_cursor));
 
     for (i = 0, transaction_running = false; test_running; i++) {
         if (!transaction_running) {
@@ -393,10 +396,10 @@ thread_validate(void *arg)
 
     validated_values = validation_passes = 0;
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
-    testutil_check(session->open_cursor(session, CATALOG_URI, NULL, NULL, &catalog_cursor));
+    testutil_check(open_cursor_wrap(opts, session, CATALOG_URI, NULL, &catalog_cursor));
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
 
-    sleep(3);
+    sleep(4);
 
     while (test_running) {
         usleep(100000);
@@ -408,8 +411,8 @@ thread_validate(void *arg)
         while ((ret = catalog_cursor->prev(catalog_cursor)) == 0) {
             catalog_cursor->get_value(catalog_cursor, &collection_uri, &index_uri);
             testutil_check(
-              session->open_cursor(session, collection_uri, NULL, NULL, &collection_cursor));
-            testutil_check(session->open_cursor(session, index_uri, NULL, NULL, &index_cursor));
+              open_cursor_wrap(opts, session, collection_uri, NULL, &collection_cursor));
+            testutil_check(open_cursor_wrap(opts, session, index_uri, NULL, &index_cursor));
 
             while ((ret = collection_cursor->next(collection_cursor)) == 0) {
                 testutil_assert(index_cursor->next(index_cursor) == 0);
@@ -482,6 +485,7 @@ thread_checkpoint(void *arg)
     cr_opts = (CHECKPOINT_RACE_OPTS *)arg;
     opts = cr_opts->opts;
 
+    sleep(1);
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
     while (test_running) {
@@ -549,4 +553,23 @@ sleep_for_us(TEST_OPTS *opts, WT_RAND_STATE *rnd, SLEEP_CONFIG cfg)
         testutil_progress(opts, opts->progress_msg);
         usleep((unsigned int)sleep_us);
     }
+}
+
+static int
+open_cursor_wrap(TEST_OPTS *opts, WT_SESSION *session,
+        const char *uri, const char *config, WT_CURSOR **cursorp)
+{
+    int ret;
+
+    while ((ret = session->open_cursor(
+              session, uri, NULL, config, cursorp)) != 0) {
+        snprintf(opts->progress_msg, opts->progress_msg_len,
+          "Error returned opening %s cursor: %s\n", uri, wiredtiger_strerror(ret));
+        testutil_progress(opts, opts->progress_msg);
+        if (ret != EBUSY)
+            return (ret);
+        /* Don't busy spin - it's likely that verify is running but it shouldn't be long */
+        usleep(10);
+    }
+    return (0);
 }
