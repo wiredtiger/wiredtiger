@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "src/component/op_tracker.cpp"
+#include "src/component/execution_timer.cpp"
 #include "src/main/test.h"
 
 using namespace test_harness;
@@ -40,7 +40,7 @@ class bounded_cursor_perf : public test {
     public:
     bounded_cursor_perf(const test_args &args) : test(args)
     {
-        init_tracking();
+        init_operation_tracker();
     }
 
     static void
@@ -48,14 +48,14 @@ class bounded_cursor_perf : public test {
     {
         std::string lower_bound(1, ('0' - 1));
         cursor->set_key(cursor.get(), lower_bound.c_str());
-        cursor->bound(cursor.get(), "bound=lower");
+        testutil_check(cursor->bound(cursor.get(), "bound=lower"));
         std::string upper_bound(1, ('9' + 1));
         cursor->set_key(cursor.get(), upper_bound.c_str());
-        cursor->bound(cursor.get(), "bound=upper");
+        testutil_check(cursor->bound(cursor.get(), "bound=upper"));
     }
 
     void
-    read_operation(thread_context *tc) override final
+    read_operation(thread_worker *tc) override final
     {
         /* This test will only work with one read thread. */
         testutil_assert(tc->thread_count == 1);
@@ -65,11 +65,11 @@ class bounded_cursor_perf : public test {
          */
         int range_ret_next, range_ret_prev, ret_next, ret_prev;
 
-        /* Initialize the op trackers. */
-        op_tracker bounded_next("bounded_next", test::_args.test_name);
-        op_tracker default_next("default_next", test::_args.test_name);
-        op_tracker bounded_prev("bounded_prev", test::_args.test_name);
-        op_tracker default_prev("default_prev", test::_args.test_name);
+        /* Initialize the different timers for each function. */
+        execution_timer bounded_next("bounded_next", test::_args.test_name);
+        execution_timer default_next("default_next", test::_args.test_name);
+        execution_timer bounded_prev("bounded_prev", test::_args.test_name);
+        execution_timer default_prev("default_prev", test::_args.test_name);
 
         /* Get the collection to work on. */
         testutil_assert(tc->collection_count == 1);
