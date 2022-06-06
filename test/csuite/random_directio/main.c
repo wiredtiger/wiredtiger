@@ -704,8 +704,10 @@ fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
     if (chdir(home) != 0)
         testutil_die(errno, "Child chdir: %s", home);
     testutil_check(__wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG, method));
-    strcat(envconf, ENV_CONFIG_TIER_EXT);
-    strcat(envconf, ENV_CONFIG_TIER);
+    if (LF_ISSET(TEST_TIERED)) {
+        strcat(envconf, ENV_CONFIG_TIER_EXT);
+        strcat(envconf, ENV_CONFIG_TIER);
+    }
 
     printf("fill_db: wiredtiger_open configuration: %s\n", envconf);
     testutil_check(wiredtiger_open(".", NULL, envconf, &conn));
