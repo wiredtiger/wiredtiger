@@ -1856,9 +1856,10 @@ __cursor_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint64_t yield_count, sleep_usecs;
+    size_t records_truncated;
 
     session = CUR2S(start);
-    yield_count = sleep_usecs = 0;
+    records_truncated = yield_count = sleep_usecs = 0;
 
 /*
  * First, call the cursor search method to re-position the cursor: we may not have a cursor position
@@ -1881,12 +1882,17 @@ retry:
 
     for (;;) {
         WT_ERR(rmfunc(start, NULL, WT_UPDATE_TOMBSTONE));
+        ++records_truncated;
 
-        if (stop != NULL && __cursor_equals(start, stop))
+        if (stop != NULL && __cursor_equals(start, stop)) {
+            WT_STAT_CONN_INCRV(session, cursor_truncate_keys_deleted, records_truncated);
             return (0);
+        }
 
-        if ((ret = __wt_btcur_next(start, true)) == WT_NOTFOUND)
+        if ((ret = __wt_btcur_next(start, true)) == WT_NOTFOUND) {
+            WT_STAT_CONN_INCRV(session, cursor_truncate_keys_deleted, records_truncated);
             return (0);
+        }
         WT_ERR(ret);
 
         start->compare = 0; /* Exact match */
