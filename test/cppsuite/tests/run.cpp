@@ -134,7 +134,7 @@ RunTest(const std::string &testName, const std::string &config, const std::strin
     else if (testName == "cache_resize")
         CacheResize(args).Run();
     else if (testName == "cursor_bound_01")
-        cursor_bound_01(args).Run();
+        CursorBound01(args).Run();
     else if (testName == "hs_cleanup")
         HsCleanup(args).Run();
     else if (testName == "operations_test")
