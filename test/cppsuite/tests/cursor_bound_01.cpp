@@ -142,7 +142,7 @@ class cursor_bound_01 : public test {
             range_ret = range_cursor->next(range_cursor.get());
             /*
              * If the key exists, position the cursor to the lower key using search near otherwise
-             * use prev().
+             * use next().
              */
             if (!lower_key.empty()) {
                 normal_cursor->set_key(normal_cursor.get(), lower_key.c_str());
@@ -157,7 +157,7 @@ class cursor_bound_01 : public test {
             range_ret = range_cursor->prev(range_cursor.get());
             /*
              * If the key exists, position the cursor to the upper key using search near otherwise
-             * use next().
+             * use prev().
              */
             if (!upper_key.empty()) {
                 normal_cursor->set_key(normal_cursor.get(), upper_key.c_str());
@@ -632,7 +632,7 @@ class cursor_bound_01 : public test {
             auto &bound_pair = bounds[coll.id];
             auto new_bound_pair = set_random_bounds(tc, range_cursor);
             /* Only update the bounds when the bounds have a key. */
-            if (!!new_bound_pair.first.get_key().empty())
+            if (!new_bound_pair.first.get_key().empty())
                 bound_pair.first = new_bound_pair.first;
             if (!new_bound_pair.second.get_key().empty())
                 bound_pair.second = new_bound_pair.second;
@@ -730,6 +730,7 @@ class cursor_bound_01 : public test {
             while (tc->txn.active() && tc->running()) {
                 cursor_traversal(
                   range_cursor, normal_cursor, bound_pair.first, bound_pair.second, true);
+                testutil_check(normal_cursor->reset(normal_cursor.get()));
                 cursor_traversal(
                   range_cursor, normal_cursor, bound_pair.first, bound_pair.second, false);
                 tc->txn.add_op();

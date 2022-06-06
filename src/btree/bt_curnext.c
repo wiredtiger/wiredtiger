@@ -436,6 +436,7 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skip
 {
     WT_BTREE *btree;
     WT_CELL_UNPACK_KV kpack;
+    WT_CURSOR *cursor;
     WT_INSERT *ins;
     WT_ITEM *key;
     WT_PAGE *page;
@@ -443,12 +444,13 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skip
     WT_SESSION_IMPL *session;
     bool prefix_search, out_range;
 
+    cursor = &cbt->iface;
     key = &cbt->iface.key;
     page = cbt->ref->page;
     session = CUR2S(cbt);
     btree = S2BT(session);
     *prefix_key_out_of_bounds = false;
-    prefix_search = prefix != NULL && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH);
+    prefix_search = prefix != NULL && F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH);
     *skippedp = 0;
 
     /* If restarting after a prepare conflict, jump to the right spot. */
@@ -500,13 +502,15 @@ restart_read_insert:
              * If the cursor has prefix search configured we can early exit here if the key that we
              * are visiting is after our prefix.
              */
-            if (prefix_search && __wt_prefix_match(prefix, key) < 0) {
+            if (prefix_search && __wt_prefix_match(prefix, &cbt->iface.key) < 0) {
                 *prefix_key_out_of_bounds = true;
                 WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
                 return (WT_NOTFOUND);
             }
 
-            if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER)) {
+            /* If an upper bound has been set ensure that the key is within the range, otherwise
+             * early exit. */
+            if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
                 WT_ASSERT(session, WT_DATA_IN_ITEM(&cbt->iface.upper_bound));
                 WT_RET(
                   __wt_compare_bounds(session, &cbt->iface, btree->collator, true, &out_range));
@@ -565,14 +569,15 @@ restart_read_page:
          * If the cursor has prefix search configured we can early exit here if the key that we are
          * visiting is after our prefix.
          */
-        if (prefix_search && __wt_prefix_match(prefix, &cbt->iface.key) < 0) {
+        if (prefix_search && __wt_prefix_match(prefix, key) < 0) {
             *prefix_key_out_of_bounds = true;
             WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
             return (WT_NOTFOUND);
         }
-        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER)) {
+        if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
             WT_ASSERT(session, WT_DATA_IN_ITEM(&cbt->iface.upper_bound));
-            WT_RET(__wt_compare_bounds(session, &cbt->iface, btree->collator, true, &out_range));
+            WT_RET(__wt_compare_bounds(session, cursor, btree->collator, true, &out_range));
+
             /* Check that the key is within the range if bounds have been set. */
             if (out_range) {
                 *prefix_key_out_of_bounds = true;
@@ -822,18 +827,50 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
 int
 __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
 {
+    WT_BTREE *btree;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
     size_t total_skipped, skipped;
     uint32_t flags;
-    bool newpage, prefix_key_out_of_bounds, restart;
+    int exact;
+    bool newpage, prefix_key_out_of_bounds, restart, out_range;
 
     cursor = &cbt->iface;
+    exact = 0;
     prefix_key_out_of_bounds = false;
     session = CUR2S(cbt);
+    btree = S2BT(session);
     total_skipped = 0;
+
+    /*
+     * Checks if the cursor is currently positioned and positions it according to the bounds set. If
+     * the cursor is unpositioned, it will be positioned on the lower bound.
+     */
+    if ((&cbt->ref->page) == NULL && F_ISSET(cursor, WT_CURSTD_BOUND_LOWER) &&
+      !(F_ISSET(cursor, WT_CURSTD_BOUND_ENTRY))) {
+        WT_ASSERT(session, WT_DATA_IN_ITEM(&cbt->iface.lower_bound));
+        __wt_cursor_set_raw_key(cursor, &cursor->lower_bound);
+        F_SET(cursor, WT_CURSTD_BOUND_ENTRY);
+        ret = cursor->search_near(cursor, &exact);
+        F_CLR(cursor, WT_CURSTD_BOUND_ENTRY);
+        WT_RET(ret);
+
+        /* When search_near_bounded is implemented then remove this.
+         * If the search near returns a higher value, ensure it's within the upper bound.
+         */
+        if (exact == 0 && F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE)) {
+            return (0);
+        } else if (exact > 0) {
+            if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
+                WT_RET(__wt_compare_bounds(session, cursor, btree->collator, true, &out_range));
+                if (out_range)
+                    return (WT_NOTFOUND);
+            }
+            return (0);
+        }
+    }
 
     WT_STAT_CONN_DATA_INCR(session, cursor_next);
 
@@ -880,15 +917,14 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
             F_CLR(cbt, WT_CBT_ITERATE_APPEND);
             if (ret != WT_NOTFOUND)
                 break;
-
             /*
              * If we are doing a search near with prefix key configured, we need to check if we have
              * exited the next function due to a prefix key mismatch. If so, we can immediately
              * return WT_NOTFOUND and we do not have to walk onto the next page.
              */
-            if (ret == WT_NOTFOUND) {
+            if (prefix_key_out_of_bounds) {
                 WT_ASSERT(session, ret == WT_NOTFOUND);
-                return (WT_NOTFOUND);
+                break;
             }
         } else if (page != NULL) {
             switch (page->type) {
@@ -915,11 +951,10 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
              * exited the next function due to a prefix key mismatch. If so, we can immediately
              * return WT_NOTFOUND and we do not have to walk onto the next page.
              */
-            if (ret == WT_NOTFOUND) {
+            if (prefix_key_out_of_bounds) {
                 WT_ASSERT(session, ret == WT_NOTFOUND);
-                return (WT_NOTFOUND);
+                break;
             }
-
             /*
              * Column-store pages may have appended entries. Handle it separately from the usual
              * cursor code, it's in a simple format.
