@@ -2491,6 +2491,7 @@ tasks:
           posix_configure_flags:
             -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
             -DHAVE_DIAGNOSTIC=1
+            -DENABLE_STRICT=1 
             -DWITH_PIC=1
             -DCMAKE_BUILD_TYPE=ASan
             -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
