@@ -1216,7 +1216,7 @@ main(int argc, char *argv[])
           __wt_snprintf_len_set(p, sizeof(args) - (size_t)(p - args), &size, " %s", argv[i]));
         p += size;
     }
-    while ((ch = __wt_getopt(progname, argc, argv, "BCd:f:h:i:m:n:pS:T:t:v")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "BCd:f:h:i:m:n:PpS:T:t:v")) != EOF)
         switch (ch) {
         case 'B':
             LF_SET(TEST_TIERED);
