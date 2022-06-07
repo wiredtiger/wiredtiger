@@ -227,11 +227,12 @@ config_table(TABLE *table, void *arg)
      * table doesn't already have a value set). This is done after picking an access method as the
      * access method is more complicated, the base value might be set to "row,var", to pick from two
      * possible access methods, and so we do that before blindly taking any already set values from
-     * the base configuration.
+     * the base configuration. Also, don't copy the mirror setting, it's more complicated as well.
      */
     if (ntables != 0)
         for (cp = configuration_list; cp->name != NULL; ++cp)
-            if (F_ISSET(cp, C_TABLE) && !table->v[cp->off].set && tables[0]->v[cp->off].set)
+            if (F_ISSET(cp, C_TABLE) && cp->off != V_TABLE_RUNS_MIRROR && !table->v[cp->off].set &&
+              tables[0]->v[cp->off].set)
                 config_promote(table, cp, &tables[0]->v[cp->off]);
 
     /*
@@ -965,9 +966,7 @@ config_mirrors(void)
     char buf[100];
     bool already_set, explicit_mirror;
 
-    /*
-     *
-     */
+    /* Check for a CONFIG file that's already set up for mirroring. */
     for (already_set = false, i = 1; i <= ntables; ++i)
         if (NTV(tables[i], RUNS_MIRROR)) {
             already_set = tables[i]->mirror = true;
