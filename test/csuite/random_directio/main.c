@@ -517,7 +517,7 @@ thread_flush_run(void *arg)
         testutil_check(pthread_rwlock_wrlock(&flush_lock));
         testutil_check(session->flush_tier(session, NULL));
         testutil_check(pthread_rwlock_unlock(&flush_lock));
-        printf("Flush tier %" PRIu32 " completed.\n", i);
+        printf("Flush tier %" PRIu32 " completed.\n", ++i);
         fflush(stdout);
     }
     /* NOTREACHED */
