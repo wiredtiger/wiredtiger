@@ -3,18 +3,13 @@ duration_seconds=6000,
 burst_duration=90,
 cache_size_mb=16384,
 compression_enabled=true,
-checkpoint_manager=
-(
-    enabled=true,
-    op_rate=120s
-),
 timestamp_manager=
 (
     enabled=true,
     oldest_lag=30,
     stable_lag=30
 ),
-workload_generator=
+workload_manager=
 (
     populate_config=
     (
@@ -31,9 +26,13 @@ workload_generator=
         ops_per_transaction=(max=2000,min=10),
         thread_count=100,
         value_size=1000000
+    ),
+    checkpoint_config=
+    (
+        op_rate=120s,
     )
 ),
-workload_tracking=
+operation_tracker=
 (
     enabled=false,
 )
