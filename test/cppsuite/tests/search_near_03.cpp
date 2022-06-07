@@ -116,7 +116,7 @@ class SearchNear03 : public Test {
         ScopedCursor cursor = threadWorker->session.OpenScopedCursor(collection.name);
         testutil_check(cursor->reconfigure(cursor.Get(), "prefix_search=true"));
         for (uint64_t count = 0; count < threadWorker->keyCount; ++count) {
-            threadWorker->transaction.Start();
+            threadWorker->transaction.Begin();
             /*
              * Generate the prefix key, and append a random generated key string based on the key
              * size configuration.
@@ -239,7 +239,7 @@ class SearchNear03 : public Test {
 
             /* Do a second lookup now that we know it exists. */
             auto &cursor = cursors[collection.id];
-            threadWorker->transaction.Start();
+            threadWorker->transaction.Begin();
             /*
              * Grab a random existing prefix and perform unique index insertion. We expect it to
              * fail to insert, because it should already exist.
@@ -272,7 +272,7 @@ class SearchNear03 : public Test {
          * Each read thread will count the number of keys in each collection, and will double check
          * if the size of the table hasn't changed.
          */
-        threadWorker->transaction.Start();
+        threadWorker->transaction.Begin();
         while (threadWorker->Running()) {
             for (int i = 0; i < threadWorker->database.GetCollectionCount(); i++) {
                 Collection &collection = threadWorker->database.GetCollection(i);

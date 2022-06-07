@@ -45,12 +45,12 @@ class OperationTrackerCacheResize : public OperationTracker {
     }
 
     void
-    setTrackingCursor(const uint64_t transactionId, const trackingOperation &operation,
+    setTrackingCursor(const uint64_t transactionId, const TrackingOperation &operation,
       const uint64_t &, const std::string &, const std::string &value, wt_timestamp_t timestamp,
-      ScopedCursor &cursor) override final
+      ScopedCursor &opTrackingCursor) override final
     {
-        cursor->set_key(cursor.Get(), timestamp, transactionId);
-        cursor->set_value(cursor.Get(), operation, value.c_str());
+        opTrackingCursor->set_key(opTrackingCursor.Get(), timestamp, transactionId);
+        opTrackingCursor->set_value(opTrackingCursor.Get(), operation, value.c_str());
     }
 };
 
@@ -97,7 +97,7 @@ class CacheResize : public Test {
 
             /*
              * The collection id and the key are dummy fields which are required by the
-             * save_operation API but not needed for this test.
+             * SaveOperation API but not needed for this test.
              */
             const uint64_t collectionId = 0;
             const std::string key;
@@ -107,9 +107,9 @@ class CacheResize : public Test {
             uint64_t transactionId = ((WT_SESSION_IMPL *)threadWorker->session.Get())->txn->id;
 
             /* Save the change of cache size in the tracking table. */
-            threadWorker->transaction.Start();
+            threadWorker->transaction.Begin();
             int ret = threadWorker->operationTracker->save_operation(transactionId,
-              trackingOperation::kCustom, collectionId, key, value,
+              TrackingOperation::kCustom, collectionId, key, value,
               threadWorker->timestampManager->GetNextTimestamp(),
               threadWorker->operationTrackingCursor);
 
@@ -146,7 +146,7 @@ class CacheResize : public Test {
             /* Take into account the value size given in the test configuration file. */
             const std::string value = std::to_string(cacheSize);
 
-            threadWorker->transaction.TryStart();
+            threadWorker->transaction.TryBegin();
             if (!threadWorker->Insert(cursor, collection.id, key, value)) {
                 threadWorker->transaction.Rollback();
             } else if (threadWorker->transaction.CanCommit()) {
@@ -160,7 +160,7 @@ class CacheResize : public Test {
         }
 
         /* Make sure the last transaction is rolled back now the work is finished. */
-        if (threadWorker->transaction.Active())
+        if (threadWorker->transaction.Running())
             threadWorker->transaction.Rollback();
     }
 
@@ -202,15 +202,15 @@ class CacheResize : public Test {
                 ", transaction id: " + std::to_string(trackedTransactionId) +
                 ", cache size: " + std::to_string(std::stoull(trackedCacheSize)));
 
-            trackingOperation opType = static_cast<trackingOperation>(trackedOperationType);
+            TrackingOperation opType = static_cast<TrackingOperation>(trackedOperationType);
             /* There are only two types of operation tracked. */
             testutil_assert(
-              opType == trackingOperation::kCustom || opType == trackingOperation::kInsert);
+              opType == TrackingOperation::kCustom || opType == TrackingOperation::kInsert);
 
             /*
              * There is nothing to do if we are reading a record that indicates a cache size change.
              */
-            if (opType == trackingOperation::kCustom)
+            if (opType == TrackingOperation::kCustom)
                 continue;
 
             if (firstRecord) {

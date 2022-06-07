@@ -30,10 +30,10 @@
 
 namespace test_harness {
 void
-MetricsWriter::AddStatistics(const std::string &statistics)
+MetricsWriter::AddMetrics(const std::string &statistics)
 {
     std::lock_guard<std::mutex> lg(_mutex);
-    _statistics.push_back(statistics);
+    _metrics.push_back(statistics);
 }
 
 void
@@ -44,7 +44,7 @@ MetricsWriter::WriteToFile(const std::string &testName)
 
     file.open(testName + ".json");
 
-    for (const auto &stat : _statistics)
+    for (const auto &stat : _metrics)
         json += stat + ",";
 
     /* Remove last extra comma. */

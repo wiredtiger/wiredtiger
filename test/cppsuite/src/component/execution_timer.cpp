@@ -32,16 +32,20 @@
 
 namespace test_harness {
 ExecutionTimer::ExecutionTimer(const std::string id, const std::string &testname)
-    : _id(id), _testName(testname), _iterationCount(0), _totalClockTime(0)
+    : _id(id), _testName(testname), _iterationCount(0), _totalExecutionTime(0)
 {
 }
 
 void
-ExecutionTimer::AppendStatistics()
+ExecutionTimer::AppendMetrics()
 {
-    uint64_t avg = (uint64_t)_totalClockTime / _iterationCount;
+    uint64_t avg;
+    if (_iterationCount > 0)
+        avg = _totalExecutionTime / (uint64_t)_iterationCount;
+    else
+        avg = _totalExecutionTime;
     std::string stat = "{\"name\":\"" + _id + "\",\"value\":" + std::to_string(avg) + "}";
-    MetricsWriter::GetInstance().AddStatistics(stat);
+    MetricsWriter::GetInstance().AddMetrics(stat);
 }
 
 template <typename T>
@@ -51,7 +55,7 @@ ExecutionTimer::Track(T lambda)
     auto start = std::chrono::steady_clock::now();
     int ret = lambda();
     auto end = std::chrono::steady_clock::now();
-    _totalClockTime += (end - start).count();
+    _totalExecutionTime += (end - start).count();
     _iterationCount += 1;
 
     return ret;
@@ -60,6 +64,6 @@ ExecutionTimer::Track(T lambda)
 ExecutionTimer::~ExecutionTimer()
 {
     if (_iterationCount != 0)
-        AppendStatistics();
+        AppendMetrics();
 }
 }; // namespace test_harness

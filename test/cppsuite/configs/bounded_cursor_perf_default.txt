@@ -1,4 +1,4 @@
-# Configuration for BoundedCursorPerf.
+# Configuration for BoundedCursorPerf default test.
 # The test will repeatedly call next() and prev() operations and track performance of the operations
 # done with both range cursor and regular cursors. 
 # This config will have a 1 minute duration, with only one read thread. 

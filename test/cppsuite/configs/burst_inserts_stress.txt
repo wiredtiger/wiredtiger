@@ -1,3 +1,4 @@
+# Configuration for BurstInserts stress test.
 # Used as a stress test for the framework.
 duration_seconds=14400,
 cache_size_mb=2000,

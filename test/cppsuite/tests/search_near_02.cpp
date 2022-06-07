@@ -106,9 +106,9 @@ class SearchNear02 : public Test {
         while (threadWorker->Running()) {
 
             auto &cc = ccv[counter];
-            threadWorker->transaction.Start();
+            threadWorker->transaction.Begin();
 
-            while (threadWorker->transaction.Active() && threadWorker->Running()) {
+            while (threadWorker->transaction.Running() && threadWorker->Running()) {
 
                 /* Generate a random key/value pair. */
                 std::string key =
@@ -136,7 +136,7 @@ class SearchNear02 : public Test {
             }
 
             /* Rollback any transaction that could not commit before the end of the test. */
-            if (threadWorker->transaction.Active())
+            if (threadWorker->transaction.Running())
                 threadWorker->transaction.Rollback();
 
             /* Reset our cursor to avoid pinning content. */
@@ -182,10 +182,10 @@ class SearchNear02 : public Test {
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value.
              */
-            threadWorker->transaction.Start("roundup_timestamps=(read=true),read_timestamp=" +
+            threadWorker->transaction.Begin("roundup_timestamps=(read=true),read_timestamp=" +
               threadWorker->timestampManager->DecimalToHex(timestamp));
 
-            while (threadWorker->transaction.Active() && threadWorker->Running()) {
+            while (threadWorker->transaction.Running() && threadWorker->Running()) {
                 /*
                  * Generate a random prefix. For this, we start by generating a random size and then
                  * its value.
@@ -194,7 +194,7 @@ class SearchNear02 : public Test {
                   static_cast<int64_t>(1), threadWorker->keySize);
                 const std::string generatedPrefix =
                   RandomGenerator::GetInstance().GenerateRandomString(
-                    prefixSize, charactersType::kAlphabet);
+                    prefixSize, CharactersType::kAlphabet);
 
                 /* Call search near with the prefix cursor. */
                 int exactPrefix;
@@ -215,14 +215,14 @@ class SearchNear02 : public Test {
                 validate_prefix_search_near(
                   ret, exactPrefix, keyPrefixString, cursorDefault, generatedPrefix);
 
-                threadWorker->transaction.IncrementOp();
+                threadWorker->transaction.IncrementOpCounter();
                 threadWorker->transaction.TryRollback();
                 threadWorker->Sleep();
             }
             testutil_check(cursorPrefix->reset(cursorPrefix.Get()));
         }
         /* Roll back the last transaction if still active now the work is finished. */
-        if (threadWorker->transaction.Active())
+        if (threadWorker->transaction.Running())
             threadWorker->transaction.Rollback();
     }
 

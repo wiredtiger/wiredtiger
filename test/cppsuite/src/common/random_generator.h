@@ -43,7 +43,7 @@
 namespace test_harness {
 /* Helper class to generate random values using uniform distributions. */
 
-enum charactersType { kPseudoAlphaNum, kAlphabet };
+enum CharactersType { kPseudoAlphaNum, kAlphabet };
 
 class RandomGenerator {
     public:
@@ -54,14 +54,14 @@ class RandomGenerator {
     RandomGenerator &operator=(RandomGenerator const &) = delete;
 
     /* Generate a random string of a given length. */
-    std::string GenerateRandomString(std::size_t length, charactersType type = kPseudoAlphaNum);
+    std::string GenerateRandomString(std::size_t length, CharactersType type = kPseudoAlphaNum);
 
     /*
      * Generate a pseudo random string which compresses better. It should not be used to generate
      * keys due to the limited randomness.
      */
     std::string GeneratePseudoRandomString(
-      std::size_t length, charactersType type = kPseudoAlphaNum);
+      std::size_t length, CharactersType type = kPseudoAlphaNum);
 
     /* Generate a random integer between min and max. */
     template <typename T>
@@ -74,8 +74,8 @@ class RandomGenerator {
 
     private:
     RandomGenerator();
-    std::uniform_int_distribution<> &GetDistribution(charactersType type);
-    const std::string &GetCharacters(charactersType type);
+    std::uniform_int_distribution<> &GetDistribution(CharactersType type);
+    const std::string &GetCharacters(CharactersType type);
 
     std::mt19937 _generator;
     std::uniform_int_distribution<> _alphaNumDistribution, _alphaDistribution;

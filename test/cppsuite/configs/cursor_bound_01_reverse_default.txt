@@ -1,4 +1,4 @@
-# Configuration for CursorBound01 reverse default test.
+# Configuration for CursorBound01 default test with reverse collator.
 # During the test duration:
 #   - M threads will keep inserting new random keys.
 #   - N threads will execute search_near calls with random bounds set. Each search_near

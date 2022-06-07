@@ -122,11 +122,11 @@ ThreadWorker::Update(
     }
 
     uint64_t txn_id = ((WT_SESSION_IMPL *)session.Get())->txn->id;
-    ret = operationTracker->save_operation(txn_id, trackingOperation::kInsert, collection_id, key,
+    ret = operationTracker->save_operation(txn_id, TrackingOperation::kInsert, collection_id, key,
       value, timestamp, operationTrackingCursor);
 
     if (ret == 0)
-        transaction.IncrementOp();
+        transaction.IncrementOpCounter();
     else if (ret == WT_ROLLBACK)
         transaction.SetRollbackRequired(true);
     else
@@ -164,11 +164,11 @@ ThreadWorker::Insert(
     }
 
     uint64_t txn_id = ((WT_SESSION_IMPL *)session.Get())->txn->id;
-    ret = operationTracker->save_operation(txn_id, trackingOperation::kInsert, collection_id, key,
+    ret = operationTracker->save_operation(txn_id, TrackingOperation::kInsert, collection_id, key,
       value, timestamp, operationTrackingCursor);
 
     if (ret == 0)
-        transaction.IncrementOp();
+        transaction.IncrementOpCounter();
     else if (ret == WT_ROLLBACK)
         transaction.SetRollbackRequired(true);
     else
@@ -202,11 +202,11 @@ ThreadWorker::Remove(ScopedCursor &cursor, uint64_t collection_id, const std::st
     }
 
     uint64_t txn_id = ((WT_SESSION_IMPL *)session.Get())->txn->id;
-    ret = operationTracker->save_operation(txn_id, trackingOperation::kDeleteKey, collection_id,
+    ret = operationTracker->save_operation(txn_id, TrackingOperation::kDeleteKey, collection_id,
       key, "", timestamp, operationTrackingCursor);
 
     if (ret == 0)
-        transaction.IncrementOp();
+        transaction.IncrementOpCounter();
     else if (ret == WT_ROLLBACK)
         transaction.SetRollbackRequired(true);
     else

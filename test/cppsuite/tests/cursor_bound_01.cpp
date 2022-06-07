@@ -59,7 +59,7 @@ class CursorBound01 : public Test {
             //   RandomGenerator::GetInstance().GenerateInteger(static_cast<uint64_t>(1),
             //   keySizeMax);
             // auto random_key = RandomGenerator::GetInstance().GenerateRandomString(
-            //   key_size, charactersType::kAlphabet);
+            //   key_size, CharactersType::kAlphabet);
             // _key = random_key;
             _inclusive = RandomGenerator::GetInstance().GenerateInteger(0, 1);
         }
@@ -472,9 +472,9 @@ class CursorBound01 : public Test {
 
             Collection &coll = threadWorker->database.GetRandomCollection();
             ScopedCursor cursor = threadWorker->session.OpenScopedCursor(coll.name);
-            threadWorker->transaction.Start();
+            threadWorker->transaction.Begin();
 
-            while (threadWorker->transaction.Active() && threadWorker->Running()) {
+            while (threadWorker->transaction.Running() && threadWorker->Running()) {
 
                 /* Generate a random key. */
                 auto key =
@@ -501,7 +501,7 @@ class CursorBound01 : public Test {
             }
 
             /* Rollback any transaction that could not commit before the end of the test. */
-            if (threadWorker->transaction.Active())
+            if (threadWorker->transaction.Running())
                 threadWorker->transaction.Rollback();
 
             /* Reset our cursor to avoid pinning content. */
@@ -524,9 +524,9 @@ class CursorBound01 : public Test {
             ScopedCursor cursor = threadWorker->session.OpenScopedCursor(coll.name);
             ScopedCursor rnd_cursor =
               threadWorker->session.OpenScopedCursor(coll.name, "next_random=true");
-            threadWorker->transaction.Start();
+            threadWorker->transaction.Begin();
 
-            while (threadWorker->transaction.Active() && threadWorker->Running()) {
+            while (threadWorker->transaction.Running() && threadWorker->Running()) {
                 int ret = rnd_cursor->next(rnd_cursor.Get());
 
                 /* It is possible not to find anything if the collection is empty. */
@@ -565,7 +565,7 @@ class CursorBound01 : public Test {
             }
 
             /* Rollback any transaction that could not commit before the end of the test. */
-            if (threadWorker->transaction.Active())
+            if (threadWorker->transaction.Running())
                 threadWorker->transaction.Rollback();
 
             /* Reset our cursor to avoid pinning content. */
@@ -618,15 +618,15 @@ class CursorBound01 : public Test {
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value.
              */
-            threadWorker->transaction.Start("roundup_timestamps=(read=true),read_timestamp=" +
+            threadWorker->transaction.Begin("roundup_timestamps=(read=true),read_timestamp=" +
               threadWorker->timestampManager->DecimalToHex(timestamp));
 
-            while (threadWorker->transaction.Active() && threadWorker->Running()) {
+            while (threadWorker->transaction.Running() && threadWorker->Running()) {
                 /* Generate a random string. */
                 auto key_size = RandomGenerator::GetInstance().GenerateInteger(
                   static_cast<int64_t>(1), threadWorker->keySize);
                 auto srch_key = RandomGenerator::GetInstance().GenerateRandomString(
-                  key_size, charactersType::kAlphabet);
+                  key_size, CharactersType::kAlphabet);
 
                 int exact;
                 rangeCursor->set_key(rangeCursor.Get(), srch_key.c_str());
@@ -637,14 +637,14 @@ class CursorBound01 : public Test {
                 ValidateBoundSearchNear(
                   ret, exact, rangeCursor, normalCursor, srch_key, lowerBound, upperBound);
 
-                threadWorker->transaction.IncrementOp();
+                threadWorker->transaction.IncrementOpCounter();
                 threadWorker->transaction.TryRollback();
                 threadWorker->Sleep();
             }
             testutil_check(rangeCursor->reset(rangeCursor.Get()));
         }
         /* Roll back the last transaction if still active now the work is finished. */
-        if (threadWorker->transaction.Active())
+        if (threadWorker->transaction.Running())
             threadWorker->transaction.Rollback();
     }
 
@@ -692,20 +692,20 @@ class CursorBound01 : public Test {
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value.
              */
-            threadWorker->transaction.Start("roundup_timestamps=(read=true),read_timestamp=" +
+            threadWorker->transaction.Begin("roundup_timestamps=(read=true),read_timestamp=" +
               threadWorker->timestampManager->DecimalToHex(timestamp));
-            while (threadWorker->transaction.Active() && threadWorker->Running()) {
+            while (threadWorker->transaction.Running() && threadWorker->Running()) {
 
                 CursorTraversal(rangeCursor, normalCursor, lowerBound, upperBound, true);
                 CursorTraversal(rangeCursor, normalCursor, lowerBound, upperBound, false);
-                threadWorker->transaction.IncrementOp();
+                threadWorker->transaction.IncrementOpCounter();
                 threadWorker->transaction.TryRollback();
                 threadWorker->Sleep();
             }
             testutil_check(rangeCursor->reset(rangeCursor.Get()));
         }
         /* Roll back the last transaction if still active now the work is finished. */
-        if (threadWorker->transaction.Active())
+        if (threadWorker->transaction.Running())
             threadWorker->transaction.Rollback();
     }
 };

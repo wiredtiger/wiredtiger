@@ -132,7 +132,7 @@ MetricsMonitor::Finish()
         if (stat->IsSaveEnabled()) {
             auto json = "{\"name\":\"" + statisticsName +
               "\",\"value\":" + stat->GetValueString(_cursor) + "}";
-            MetricsWriter::GetInstance().AddStatistics(json);
+            MetricsWriter::GetInstance().AddMetrics(json);
         }
 
         if (!stat->IsPostRunCheckEnabled())

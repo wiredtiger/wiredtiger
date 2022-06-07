@@ -45,12 +45,12 @@ class MetricsWriter {
     MetricsWriter(MetricsWriter const &) = delete;
     MetricsWriter &operator=(MetricsWriter const &) = delete;
 
-    void AddStatistics(const std::string &statistics);
+    void AddMetrics(const std::string &statistics);
     void WriteToFile(const std::string &testName);
 
     private:
     MetricsWriter();
-    std::vector<std::string> _statistics;
+    std::vector<std::string> _metrics;
     std::mutex _mutex;
 };
 } // namespace test_harness

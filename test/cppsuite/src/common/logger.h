@@ -42,7 +42,8 @@
 /* Define helpful functions related to debugging. */
 namespace test_harness {
 
-/* Possible log levels. If you change anything here make sure you update loggingLevels accordingly.
+/*
+ * Possible log levels. If you change anything here make sure you update loggingLevels accordingly.
  */
 #define LOG_ERROR 0
 #define LOG_WARN 1
@@ -53,7 +54,7 @@ namespace test_harness {
  */
 #define LOG_TRACE 3
 
-void getLocalTime(char *timeBuffer, size_t bufferSize);
+void GetTime(char *timeBuffer, size_t bufferSize);
 
 class Logger {
     public:

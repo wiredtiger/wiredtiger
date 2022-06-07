@@ -43,7 +43,7 @@ RandomGenerator::GetInstance()
 }
 
 std::string
-RandomGenerator::GenerateRandomString(std::size_t length, charactersType type)
+RandomGenerator::GenerateRandomString(std::size_t length, CharactersType type)
 {
     const std::string characters = GetCharacters(type);
     std::string str;
@@ -56,7 +56,7 @@ RandomGenerator::GenerateRandomString(std::size_t length, charactersType type)
 }
 
 std::string
-RandomGenerator::GeneratePseudoRandomString(std::size_t length, charactersType type)
+RandomGenerator::GeneratePseudoRandomString(std::size_t length, CharactersType type)
 {
     std::string randomString;
     std::uniform_int_distribution<> &distribution = GetDistribution(type);
@@ -81,34 +81,28 @@ RandomGenerator::RandomGenerator()
 }
 
 std::uniform_int_distribution<> &
-RandomGenerator::GetDistribution(charactersType type)
+RandomGenerator::GetDistribution(CharactersType type)
 {
     switch (type) {
-    case charactersType::kAlphabet:
+    case CharactersType::kAlphabet:
         return (_alphaDistribution);
-        break;
-    case charactersType::kPseudoAlphaNum:
+    case CharactersType::kPseudoAlphaNum:
         return (_alphaNumDistribution);
-        break;
     default:
-        testutil_die(type, "Unexpected charactersType");
-        break;
+        testutil_die(type, "Unexpected CharactersType");
     }
 }
 
 const std::string &
-RandomGenerator::GetCharacters(charactersType type)
+RandomGenerator::GetCharacters(CharactersType type)
 {
     switch (type) {
-    case charactersType::kAlphabet:
+    case CharactersType::kAlphabet:
         return (_alphabet);
-        break;
-    case charactersType::kPseudoAlphaNum:
+    case CharactersType::kPseudoAlphaNum:
         return (_pseudoAlphaNum);
-        break;
     default:
-        testutil_die(type, "Unexpected charactersType");
-        break;
+        testutil_die(type, "Unexpected CharactersType");
     }
 }
 

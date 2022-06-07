@@ -53,7 +53,7 @@
 
 namespace test_harness {
 /* Tracking operations. */
-enum class trackingOperation { kCreateCollection, kCustom, kDeleteCollection, kDeleteKey, kInsert };
+enum class TrackingOperation { kCreateCollection, kCustom, kDeleteCollection, kDeleteKey, kInsert };
 
 /* Class used to track operations performed on collections */
 class OperationTracker : public Component {
@@ -73,15 +73,15 @@ class OperationTracker : public Component {
     void DoWork() override final;
 
     void saveSchemaOperation(
-      const trackingOperation &operation, const uint64_t &collectionId, wt_timestamp_t timestamp);
+      const TrackingOperation &operation, const uint64_t &collectionId, wt_timestamp_t timestamp);
 
-    virtual void setTrackingCursor(const uint64_t transactionId, const trackingOperation &operation,
+    virtual void setTrackingCursor(const uint64_t transactionId, const TrackingOperation &operation,
       const uint64_t &collectionId, const std::string &key, const std::string &value,
-      wt_timestamp_t timestamp, ScopedCursor &cursor);
+      wt_timestamp_t timestamp, ScopedCursor &opTrackingCursor);
 
-    int save_operation(const uint64_t transactionId, const trackingOperation &operation,
+    int save_operation(const uint64_t transactionId, const TrackingOperation &operation,
       const uint64_t &collectionId, const std::string &key, const std::string &value,
-      wt_timestamp_t timestamp, ScopedCursor &cursor);
+      wt_timestamp_t timestamp, ScopedCursor &opTrackingCursor);
 
     private:
     ScopedSession _session;

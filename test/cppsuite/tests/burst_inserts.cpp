@@ -100,7 +100,7 @@ class BurstInserts : public Test {
             while (threadWorker->Running() &&
               std::chrono::system_clock::now() - burst_start <
                 std::chrono::seconds(_burstDurationSecs)) {
-                threadWorker->transaction.TryStart();
+                threadWorker->transaction.TryBegin();
                 auto key = threadWorker->PadString(
                   std::to_string(startKey + addedCount), threadWorker->keySize);
                 cc.writeCursor->set_key(cc.writeCursor.Get(), key.c_str());
@@ -142,7 +142,7 @@ class BurstInserts : public Test {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
             /* Close out our current txn. */
-            if (threadWorker->transaction.Active()) {
+            if (threadWorker->transaction.Running()) {
                 if (threadWorker->transaction.Commit()) {
                     Logger::LogMessage(LOG_TRACE,
                       "Committed an insertion of " + std::to_string(addedCount) + " keys.");
@@ -159,7 +159,7 @@ class BurstInserts : public Test {
             threadWorker->Sleep();
         }
         /* Make sure the last transaction is rolled back now the work is finished. */
-        if (threadWorker->transaction.Active())
+        if (threadWorker->transaction.Running())
             threadWorker->transaction.Rollback();
     }
 

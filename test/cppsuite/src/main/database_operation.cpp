@@ -52,7 +52,7 @@ PopulateWorker(ThreadWorker *threadWorker)
         ScopedCursor cursor = threadWorker->session.OpenScopedCursor(coll.name);
         uint64_t j = 0;
         while (j < threadWorker->keyCount) {
-            threadWorker->transaction.Start();
+            threadWorker->transaction.Begin();
             auto key = threadWorker->PadString(std::to_string(j), threadWorker->keySize);
             auto value =
               RandomGenerator::GetInstance().GeneratePseudoRandomString(threadWorker->valueSize);
@@ -182,11 +182,11 @@ DatabaseOperation::InsertOperation(ThreadWorker *threadWorker)
     while (threadWorker->Running()) {
         uint64_t startKey = ccv[counter].coll.GetKeyCount();
         uint64_t addedCount = 0;
-        threadWorker->transaction.Start();
+        threadWorker->transaction.Begin();
 
         /* Collection cursor. */
         auto &cc = ccv[counter];
-        while (threadWorker->transaction.Active() && threadWorker->Running()) {
+        while (threadWorker->transaction.Running() && threadWorker->Running()) {
             /* Insert a key value pair, rolling back the transaction if required. */
             auto key =
               threadWorker->PadString(std::to_string(startKey + addedCount), threadWorker->keySize);
@@ -222,7 +222,7 @@ DatabaseOperation::InsertOperation(ThreadWorker *threadWorker)
         testutil_assert(counter < collectionsPerThread);
     }
     /* Make sure the last transaction is rolled back now the work is finished. */
-    if (threadWorker->transaction.Active())
+    if (threadWorker->transaction.Running())
         threadWorker->transaction.Rollback();
 }
 
@@ -244,8 +244,8 @@ DatabaseOperation::ReadOperation(ThreadWorker *threadWorker)
         /* Do a second lookup now that we know it exists. */
         auto &cursor = cursors[coll.id];
 
-        threadWorker->transaction.Start();
-        while (threadWorker->transaction.Active() && threadWorker->Running()) {
+        threadWorker->transaction.Begin();
+        while (threadWorker->transaction.Running() && threadWorker->Running()) {
             auto ret = cursor->next(cursor.Get());
             if (ret != 0) {
                 if (ret == WT_NOTFOUND) {
@@ -257,7 +257,7 @@ DatabaseOperation::ReadOperation(ThreadWorker *threadWorker)
                 } else
                     testutil_die(ret, "Unexpected error returned from cursor->next()");
             }
-            threadWorker->transaction.IncrementOp();
+            threadWorker->transaction.IncrementOpCounter();
             threadWorker->transaction.TryRollback();
             threadWorker->Sleep();
         }
@@ -265,7 +265,7 @@ DatabaseOperation::ReadOperation(ThreadWorker *threadWorker)
         testutil_check(cursor->reset(cursor.Get()));
     }
     /* Make sure the last transaction is rolled back now the work is finished. */
-    if (threadWorker->transaction.Active())
+    if (threadWorker->transaction.Running())
         threadWorker->transaction.Rollback();
 }
 
@@ -308,7 +308,7 @@ DatabaseOperation::RemoveOperation(ThreadWorker *threadWorker)
         }
 
         /* Start a transaction if possible. */
-        threadWorker->transaction.TryStart();
+        threadWorker->transaction.TryBegin();
 
         /* Get the cursor associated with the collection. */
         ScopedCursor &randomCursor = randomCursors[coll.id];
@@ -341,7 +341,7 @@ DatabaseOperation::RemoveOperation(ThreadWorker *threadWorker)
     }
 
     /* Make sure the last operation is rolled back now the work is finished. */
-    if (threadWorker->transaction.Active())
+    if (threadWorker->transaction.Running())
         threadWorker->transaction.Rollback();
 }
 
@@ -378,7 +378,7 @@ DatabaseOperation::UpdateOperation(ThreadWorker *threadWorker)
         }
 
         /* Start a transaction if possible. */
-        threadWorker->transaction.TryStart();
+        threadWorker->transaction.TryBegin();
 
         /* Get the cursor associated with the collection. */
         ScopedCursor &cursor = cursors[coll.id];
@@ -403,7 +403,7 @@ DatabaseOperation::UpdateOperation(ThreadWorker *threadWorker)
     }
 
     /* Make sure the last operation is rolled back now the work is finished. */
-    if (threadWorker->transaction.Active())
+    if (threadWorker->transaction.Running())
         threadWorker->transaction.Rollback();
 }
 

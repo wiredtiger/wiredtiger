@@ -47,7 +47,7 @@ void
 Component::Load()
 {
     Logger::LogMessage(LOG_INFO, "Loading component: " + _name);
-    _enabled = _config->GetOptionalBool(kEnabledConfig, true);
+    _enabled = _config->GetOptionalBool(kConfigEnabled, true);
     /* If we're not enabled we shouldn't be running. */
     _running = _enabled;
 

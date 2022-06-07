@@ -47,14 +47,14 @@ const std::string kCheckpointOpConfig = "checkpoint_config";
 const std::string kCompressionEnabled = "compression_enabled";
 const std::string kCustomOpConfig = "custom_config";
 const std::string kDurationSecs = "duration_seconds";
-const std::string kEnabledConfig = "enabled";
+const std::string kConfigEnabled = "enabled";
 const std::string kEnableLogging = "enable_logging";
 const std::string kInsertOpConfig = "insert_config";
 const std::string kKeyCountPerCollection = "key_count_per_collection";
 const std::string kKeySize = "key_size";
 const std::string kLimit = "limit";
-const std::string kMaxConfig = "max";
-const std::string kMinConfig = "min";
+const std::string kMax = "max";
+const std::string kMin = "min";
 const std::string kOldestLag = "oldest_lag";
 const std::string kOpRate = "op_rate";
 const std::string kOpsPerTransaction = "ops_per_transaction";
@@ -64,7 +64,7 @@ const std::string kReadOpConfig = "read_config";
 const std::string kRemoveOpConfig = "remove_config";
 const std::string kReverseCollator = "reverse_collator";
 const std::string kRuntimeStatistics = "runtime";
-const std::string kSaveConfig = "save";
+const std::string kSaveMetrics = "save";
 const std::string kStableLag = "stable_lag";
 const std::string kStatisticsCacheSize = "stat_cache_size";
 const std::string kStatisticsDatabaseSize = "stat_db_size";
@@ -85,8 +85,8 @@ const std::string kStatisticsLog = "statistics_log=(json,wait=1)";
 
 /* Test harness consts. */
 const std::string kDefaultFrameworkSchema = "key_format=S,value_format=S,";
-const std::string kTableNameOpWorkloadTracker = "table:operation_tracker";
-const std::string kTableNameSchemaWorkloadTracker = "table:schema_tracking";
+const std::string kOperationTrackerTableName = "table:operation_tracker";
+const std::string kSchemaTrackerTableName = "table:schema_tracking";
 const std::string kStatisticsURI = "statistics:";
 
 } // namespace test_harness

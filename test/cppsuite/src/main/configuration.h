@@ -86,10 +86,10 @@ class Configuration {
     uint64_t GetThrottleMs();
 
     private:
-    enum class types { kBool, kInt, kList, kString, kStruct };
+    enum class Types { kBool, kInt, kList, kString, kStruct };
 
     template <typename T>
-    T Get(const std::string &key, bool optional, types type, T def, T (*func)(WT_CONFIG_ITEM item));
+    T Get(const std::string &key, bool optional, Types type, T def, T (*func)(WT_CONFIG_ITEM item));
 
     /*
      * Merge together two configuration strings, the user one and the default one.

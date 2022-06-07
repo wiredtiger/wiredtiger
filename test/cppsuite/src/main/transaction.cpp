@@ -41,43 +41,43 @@ Transaction::Transaction(
     /* Use optional here as our populate threads don't define this configuration. */
     Configuration *transactionConfig = config->GetOptionalSubconfig(kOpsPerTransaction);
     if (transactionConfig != nullptr) {
-        _minOpCount = transactionConfig->GetOptionalInt(kMinConfig, 1);
-        _maxOpCount = transactionConfig->GetOptionalInt(kMaxConfig, 1);
+        _minOpCount = transactionConfig->GetOptionalInt(kMin, 1);
+        _maxOpCount = transactionConfig->GetOptionalInt(kMax, 1);
         delete transactionConfig;
     }
 }
 
 bool
-Transaction::Active() const
+Transaction::Running() const
 {
-    return (_active);
+    return (_running);
 }
 
 void
-Transaction::IncrementOp()
+Transaction::IncrementOpCounter()
 {
     _opCount++;
 }
 
 void
-Transaction::Start(const std::string &config)
+Transaction::Begin(const std::string &config)
 {
-    testutil_assert(!_active);
+    testutil_assert(!_running);
     testutil_check(
       _session->begin_transaction(_session, config.empty() ? nullptr : config.c_str()));
     /* This randomizes the number of operations to be executed in one transaction. */
     _targetOpCount =
       RandomGenerator::GetInstance().GenerateInteger<int64_t>(_minOpCount, _maxOpCount);
     _opCount = 0;
-    _active = true;
+    _running = true;
     _rollbackRequired = false;
 }
 
 void
-Transaction::TryStart(const std::string &config)
+Transaction::TryBegin(const std::string &config)
 {
-    if (!_active)
-        Start(config);
+    if (!_running)
+        Begin(config);
 }
 
 /*
@@ -88,7 +88,7 @@ bool
 Transaction::Commit(const std::string &config)
 {
     WT_DECL_RET;
-    testutil_assert(_active && !_rollbackRequired);
+    testutil_assert(_running && !_rollbackRequired);
 
     ret = _session->commit_transaction(_session, config.empty() ? nullptr : config.c_str());
     /*
@@ -104,19 +104,19 @@ Transaction::Commit(const std::string &config)
         Logger::LogMessage(LOG_WARN,
           "Failed to commit transaction in commit, received error code: " + std::to_string(ret));
     _opCount = 0;
-    _active = false;
+    _running = false;
     return (ret == 0);
 }
 
 void
 Transaction::Rollback(const std::string &config)
 {
-    testutil_assert(_active);
+    testutil_assert(_running);
     testutil_check(
       _session->rollback_transaction(_session, config.empty() ? nullptr : config.c_str()));
     _rollbackRequired = false;
     _opCount = 0;
-    _active = false;
+    _running = false;
 }
 
 void
@@ -156,6 +156,6 @@ Transaction::CanCommit()
 bool
 Transaction::CanRollback()
 {
-    return (_active && _opCount >= _targetOpCount);
+    return (_running && _opCount >= _targetOpCount);
 }
 } // namespace test_harness

@@ -50,7 +50,7 @@ static std::mutex _loggerMutex;
 int64_t Logger::traceLevel = LOG_WARN;
 
 void
-getLocalTime(char *timeBuffer, size_t bufferSize)
+GetTime(char *timeBuffer, size_t bufferSize)
 {
     size_t allocatedSize;
     struct tm *tm, _tm;
@@ -79,7 +79,7 @@ Logger::LogMessage(int64_t traceType, const std::string &str)
         testutil_assert(traceType >= LOG_ERROR && traceType < loggingLevels.size());
 
         char timeBuffer[64];
-        getLocalTime(timeBuffer, sizeof(timeBuffer));
+        GetTime(timeBuffer, sizeof(timeBuffer));
 
         std::ostringstream ss;
         ss << timeBuffer << "[TID:" << std::this_thread::get_id() << "]["

@@ -44,11 +44,11 @@ class Transaction {
     public:
     Transaction(Configuration *config, TimestampManager *timestampManager, WT_SESSION *session);
 
-    bool Active() const;
-    void IncrementOp();
-    void Start(const std::string &config = "");
+    bool Running() const;
+    void IncrementOpCounter();
+    void Begin(const std::string &config = "");
     /* Begin a transaction if we are not currently in one. */
-    void TryStart(const std::string &config = "");
+    void TryBegin(const std::string &config = "");
     /* Commit a transaction and return true if the commit was successful. */
     bool Commit(const std::string &config = "");
     /* Rollback a transaction, failure will abort the test. */
@@ -71,7 +71,7 @@ class Transaction {
     bool CanRollback();
 
     private:
-    bool _active = false;
+    bool _running = false;
     bool _rollbackRequired = false;
 
     /*

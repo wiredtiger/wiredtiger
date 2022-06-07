@@ -1,4 +1,4 @@
-# Configuration for hs_cleanup.
+# Configuration for HsCleanup default test.
 # need to be defined.
 duration_seconds=60,
 cache_size_mb=200,

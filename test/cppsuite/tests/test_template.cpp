@@ -42,13 +42,13 @@ class OperationTrackerTemplate : public OperationTracker {
     }
 
     void
-    setTrackingCursor(const uint64_t transactionId, const trackingOperation &operation,
+    setTrackingCursor(const uint64_t transactionId, const TrackingOperation &operation,
       const uint64_t &collectionId, const std::string &key, const std::string &value,
-      wt_timestamp_t timestamp, ScopedCursor &cursor) override final
+      wt_timestamp_t timestamp, ScopedCursor &opTrackingCursor) override final
     {
         /* You can replace this call to define your own tracking table contents. */
         OperationTracker::setTrackingCursor(
-          transactionId, operation, collectionId, key, value, timestamp, cursor);
+          transactionId, operation, collectionId, key, value, timestamp, opTrackingCursor);
     }
 };
 

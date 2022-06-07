@@ -72,7 +72,7 @@ class SearchNear01 : public Test {
             for (uint64_t j = 0; j < kAlphabet.size(); ++j) {
                 for (uint64_t k = 0; k < kAlphabet.size(); ++k) {
                     for (uint64_t count = 0; count < threadWorker->keyCount; ++count) {
-                        threadWorker->transaction.Start();
+                        threadWorker->transaction.Begin();
                         /*
                          * Generate the prefix key, and append a random generated key string based
                          * on the key size configuration.
@@ -188,7 +188,7 @@ class SearchNear01 : public Test {
         testutil_check(cursor->reconfigure(cursor.Get(), "prefix_search=true"));
         /* Generate search prefix key of random length between a -> zzz. */
         const std::string srch_key = RandomGenerator::GetInstance().GenerateRandomString(
-          searchKeyLength, charactersType::kAlphabet);
+          searchKeyLength, CharactersType::kAlphabet);
         Logger::LogMessage(LOG_TRACE,
           "Search near thread {" + std::to_string(threadWorker->id) +
             "} performing prefix search near with key: " + srch_key);
@@ -198,13 +198,13 @@ class SearchNear01 : public Test {
          * prefix search near, we expect the search to early exit out of its prefix range and return
          * WT_NOTFOUND.
          */
-        threadWorker->transaction.Start(
+        threadWorker->transaction.Begin(
           "read_timestamp=" + threadWorker->timestampManager->DecimalToHex(10));
-        if (threadWorker->transaction.Active()) {
+        if (threadWorker->transaction.Running()) {
             cursor->set_key(cursor.Get(), srch_key.c_str());
             int cmpp;
             testutil_assert(cursor->search_near(cursor.Get(), &cmpp) == WT_NOTFOUND);
-            threadWorker->transaction.IncrementOp();
+            threadWorker->transaction.IncrementOpCounter();
 
             /*
              * There is an edge case where we may not early exit the prefix search near call because

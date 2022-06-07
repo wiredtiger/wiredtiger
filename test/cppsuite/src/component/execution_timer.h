@@ -43,7 +43,7 @@ class ExecutionTimer {
     virtual ~ExecutionTimer();
 
     /* Calculates the average time and appends the stat to the perf file. */
-    void AppendStatistics();
+    void AppendMetrics();
 
     /*
      * Does timing for a given operation and keeps track of how many operations have been executed
@@ -55,7 +55,7 @@ class ExecutionTimer {
     std::string _id;
     std::string _testName;
     int _iterationCount;
-    uint64_t _totalClockTime;
+    uint64_t _totalExecutionTime;
 };
 } // namespace test_harness
 

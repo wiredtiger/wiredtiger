@@ -1,4 +1,4 @@
-# Configuration for SearchNear02.
+# Configuration for SearchNear02 default test.
 # The configuration creates:
 # - threads that continuously insert random keys and values.
 # - threads that continuously perform prefix search_near calls on random keys.

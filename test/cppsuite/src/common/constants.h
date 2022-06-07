@@ -50,14 +50,14 @@ extern const std::string kCheckpointOpConfig;
 extern const std::string kCompressionEnabled;
 extern const std::string kCustomOpConfig;
 extern const std::string kDurationSecs;
-extern const std::string kEnabledConfig;
+extern const std::string kConfigEnabled;
 extern const std::string kEnableLogging;
 extern const std::string kInsertOpConfig;
 extern const std::string kKeyCountPerCollection;
 extern const std::string kKeySize;
 extern const std::string kLimit;
-extern const std::string kMaxConfig;
-extern const std::string kMinConfig;
+extern const std::string kMax;
+extern const std::string kMin;
 extern const std::string kOldestLag;
 extern const std::string kOpRate;
 extern const std::string kOpsPerTransaction;
@@ -67,7 +67,7 @@ extern const std::string kReadOpConfig;
 extern const std::string kRemoveOpConfig;
 extern const std::string kReverseCollator;
 extern const std::string kRuntimeStatistics;
-extern const std::string kSaveConfig;
+extern const std::string kSaveMetrics;
 extern const std::string kStableLag;
 extern const std::string kStatisticsCacheSize;
 extern const std::string kStatisticsDatabaseSize;
@@ -107,8 +107,8 @@ extern const std::string kStatisticsLog;
 
 /* Test harness consts. */
 extern const std::string kDefaultFrameworkSchema;
-extern const std::string kTableNameOpWorkloadTracker;
-extern const std::string kTableNameSchemaWorkloadTracker;
+extern const std::string kOperationTrackerTableName;
+extern const std::string kSchemaTrackerTableName;
 extern const std::string kStatisticsURI;
 
 } // namespace test_harness

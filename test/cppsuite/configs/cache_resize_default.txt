@@ -1,4 +1,5 @@
-# Configuration for CacheResize:
+# Configuration for CacheResize default test.
+# The test:
 # - Defines a thread that uses the custom operation to resize the cache during runtime.
 # - Defines several insert threads used to perform transactions larger than 1MB.
 # - Defines custom tracking

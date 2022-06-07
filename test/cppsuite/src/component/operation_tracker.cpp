@@ -35,10 +35,9 @@
 namespace test_harness {
 OperationTracker::OperationTracker(
   Configuration *_config, const bool useCompression, TimestampManager &tsm)
-    : Component(kOperationTracker, _config), _operationTableName(kTableNameOpWorkloadTracker),
-      _schemaTableConfig(SCHEMA_TRACKING_TABLE_CONFIG),
-      _schemaTableName(kTableNameSchemaWorkloadTracker), _useCompression(useCompression),
-      _timestampManager(tsm)
+    : Component(kOperationTracker, _config), _operationTableName(kOperationTrackerTableName),
+      _schemaTableConfig(SCHEMA_TRACKING_TABLE_CONFIG), _schemaTableName(kSchemaTrackerTableName),
+      _useCompression(useCompression), _timestampManager(tsm)
 {
     _operationTableConfig = "key_format=" + _config->GetString(kTrackingKeyFormat) +
       ",value_format=" + _config->GetString(kTrackingValueFormat) + ",log=(enabled=true)";
@@ -144,8 +143,8 @@ OperationTracker::DoWork()
                   _sweepSession->begin_transaction(_sweepSession.Get(), "no_timestamp=true"));
                 testutil_check(_sweepCursor->remove(_sweepCursor.Get()));
                 testutil_check(_sweepSession->commit_transaction(_sweepSession.Get(), nullptr));
-            } else if (static_cast<trackingOperation>(operationType) ==
-              trackingOperation::kInsert) {
+            } else if (static_cast<TrackingOperation>(operationType) ==
+              TrackingOperation::kInsert) {
                 if (Logger::traceLevel == LOG_TRACE)
                     Logger::LogMessage(LOG_TRACE,
                       std::string("workload tracking: Found globally visible update, key=") +
@@ -175,15 +174,15 @@ OperationTracker::DoWork()
 
 void
 OperationTracker::saveSchemaOperation(
-  const trackingOperation &operation, const uint64_t &collectionId, wt_timestamp_t timestamp)
+  const TrackingOperation &operation, const uint64_t &collectionId, wt_timestamp_t timestamp)
 {
     std::string error_message;
 
     if (!_enabled)
         return;
 
-    if (operation == trackingOperation::kCreateCollection ||
-      operation == trackingOperation::kDeleteCollection) {
+    if (operation == TrackingOperation::kCreateCollection ||
+      operation == TrackingOperation::kDeleteCollection) {
         _schemaTrackingCursor->set_key(_schemaTrackingCursor.Get(), collectionId, timestamp);
         _schemaTrackingCursor->set_value(_schemaTrackingCursor.Get(), static_cast<int>(operation));
         testutil_check(_schemaTrackingCursor->insert(_schemaTrackingCursor.Get()));
@@ -195,25 +194,26 @@ OperationTracker::saveSchemaOperation(
 }
 
 int
-OperationTracker::save_operation(const uint64_t transactionId, const trackingOperation &operation,
+OperationTracker::save_operation(const uint64_t transactionId, const TrackingOperation &operation,
   const uint64_t &collectionId, const std::string &key, const std::string &value,
-  wt_timestamp_t timestamp, ScopedCursor &cursor)
+  wt_timestamp_t timestamp, ScopedCursor &opTrackingCursor)
 {
     WT_DECL_RET;
 
     if (!_enabled)
         return (0);
 
-    testutil_assert(cursor.Get() != nullptr);
+    testutil_assert(opTrackingCursor.Get() != nullptr);
 
-    if (operation == trackingOperation::kCreateCollection ||
-      operation == trackingOperation::kDeleteCollection) {
+    if (operation == TrackingOperation::kCreateCollection ||
+      operation == TrackingOperation::kDeleteCollection) {
         const std::string error =
-          "save_operation: invalid operation " + std::to_string(static_cast<int>(operation));
+          "SaveOperation: invalid operation " + std::to_string(static_cast<int>(operation));
         testutil_die(EINVAL, error.c_str());
     } else {
-        setTrackingCursor(transactionId, operation, collectionId, key, value, timestamp, cursor);
-        ret = cursor->insert(cursor.Get());
+        setTrackingCursor(
+          transactionId, operation, collectionId, key, value, timestamp, opTrackingCursor);
+        ret = opTrackingCursor->insert(opTrackingCursor.Get());
     }
     return (ret);
 }
@@ -221,11 +221,11 @@ OperationTracker::save_operation(const uint64_t transactionId, const trackingOpe
 /* Note that the transaction id is not used in the default implementation of the tracking table. */
 void
 OperationTracker::setTrackingCursor(const uint64_t transactionId,
-  const trackingOperation &operation, const uint64_t &collectionId, const std::string &key,
-  const std::string &value, wt_timestamp_t timestamp, ScopedCursor &cursor)
+  const TrackingOperation &operation, const uint64_t &collectionId, const std::string &key,
+  const std::string &value, wt_timestamp_t timestamp, ScopedCursor &opTrackingCursor)
 {
-    cursor->set_key(cursor.Get(), collectionId, key.c_str(), timestamp);
-    cursor->set_value(cursor.Get(), static_cast<int>(operation), value.c_str());
+    opTrackingCursor->set_key(opTrackingCursor.Get(), collectionId, key.c_str(), timestamp);
+    opTrackingCursor->set_value(opTrackingCursor.Get(), static_cast<int>(operation), value.c_str());
 }
 
 } // namespace test_harness

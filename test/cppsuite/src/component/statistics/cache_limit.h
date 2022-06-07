@@ -46,7 +46,7 @@ class CacheLimit : public Statistics {
     std::string GetValueString(ScopedCursor &cursor) override final;
 
     private:
-    double GetCacheUsagePercentage(ScopedCursor &cursor);
+    double GetCacheFillRatio(ScopedCursor &cursor);
 };
 } // namespace test_harness
 

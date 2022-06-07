@@ -26,6 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "src/common/logger.h"
 #include "src/common/random_generator.h"
 #include "src/main/test.h"
 
@@ -89,7 +90,7 @@ class HsCleanup : public Test {
             testutil_check(cursor->get_key(cursor.Get(), &keyTmp));
 
             /* Start a transaction if possible. */
-            threadWorker->transaction.TryStart();
+            threadWorker->transaction.TryBegin();
 
             /*
              * The retrieved key needs to be passed inside the update function. However, the update
@@ -112,7 +113,7 @@ class HsCleanup : public Test {
             testutil_assert(rolbackRetries < kMaxRollbacks);
         }
         /* Ensure our last transaction is resolved. */
-        if (threadWorker->transaction.Active())
+        if (threadWorker->transaction.Running())
             threadWorker->transaction.Rollback();
     }
 };

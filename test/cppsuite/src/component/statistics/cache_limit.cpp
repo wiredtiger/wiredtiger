@@ -45,24 +45,24 @@ CacheLimit::CacheLimit(Configuration &config, const std::string &name)
 void
 CacheLimit::Check(ScopedCursor &cursor)
 {
-    double cacheUsage = GetCacheUsagePercentage(cursor);
-    if (cacheUsage > max) {
+    double cacheFillRatio = GetCacheFillRatio(cursor);
+    if (cacheFillRatio > max) {
         const std::string error =
           "MetricsMonitor: Cache usage exceeded during test! Limit: " + std::to_string(max) +
-          " usage: " + std::to_string(cacheUsage);
+          " usage: " + std::to_string(cacheFillRatio);
         testutil_die(-1, error.c_str());
     } else
-        Logger::LogMessage(LOG_TRACE, name + " usage: " + std::to_string(cacheUsage));
+        Logger::LogMessage(LOG_TRACE, name + " usage: " + std::to_string(cacheFillRatio));
 }
 
 std::string
 CacheLimit::GetValueString(ScopedCursor &cursor)
 {
-    return std::to_string(GetCacheUsagePercentage(cursor));
+    return std::to_string(GetCacheFillRatio(cursor));
 }
 
 double
-CacheLimit::GetCacheUsagePercentage(ScopedCursor &cursor)
+CacheLimit::GetCacheFillRatio(ScopedCursor &cursor)
 {
     int64_t cacheBytesImage, cacheBytesOther, cacheBytesMax;
     /* Three statistics are required to compute cache use percentage. */
@@ -74,7 +74,7 @@ CacheLimit::GetCacheUsagePercentage(ScopedCursor &cursor)
      * point conversion errors.
      */
     testutil_assert(cacheBytesMax > 0);
-    double cacheUsage = ((cacheBytesImage + cacheBytesOther + 0.0) / cacheBytesMax) * 100;
-    return cacheUsage;
+    double cacheFillRatio = ((cacheBytesImage + cacheBytesOther + 0.0) / cacheBytesMax) * 100;
+    return cacheFillRatio;
 }
 } // namespace test_harness

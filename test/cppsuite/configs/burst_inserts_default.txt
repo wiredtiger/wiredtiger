@@ -1,4 +1,4 @@
-# Configuration for BurstInserts.
+# Configuration for BurstInserts default test.
 # need to be defined.
 duration_seconds=5,
 cache_size_mb=250
