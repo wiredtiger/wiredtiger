@@ -924,7 +924,7 @@ check_db(uint32_t nth, uint32_t datasize, pid_t pid, bool directio, uint32_t fla
     uint64_t gotid, id;
     uint64_t *lastid;
     uint32_t gotth, kvsize, th, threadmap;
-    char checkdir[4096], dbgdir[4096], envconf[512], savedir[4096];
+    char checkdir[4096], dbgdir[4096], envconf[512], savedir[4096], tierconf[128];
     char *gotkey, *gotvalue, *keybuf, *p;
     char **large_arr;
 
@@ -956,7 +956,7 @@ check_db(uint32_t nth, uint32_t datasize, pid_t pid, bool directio, uint32_t fla
     copy_directory(checkdir, savedir, false);
 
     printf("Open database, run recovery and verify content\n");
-    testutil_check(__wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_REC, method));
+    testutil_check(__wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_REC));
     if (LF_ISSET(TEST_TIERED)) {
         testutil_check(__wt_snprintf(tierconf, sizeof(tierconf), ENV_CONFIG_TIER_EXT, ""));
         strcat(envconf, tierconf);
