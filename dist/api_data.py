@@ -948,9 +948,6 @@ tiered_storage_configuration_common = [
         time in seconds to retain data on tiered storage on the local tier for faster read
         access''',
         min='0', max='10000'),
-    Config('object_target_size', '0', r'''
-        This option is no longer supported, retained for backward compatibility''',
-        min='0', undoc=True),
 ]
 connection_reconfigure_tiered_storage_configuration = [
     Config('tiered_storage', '', r'''
