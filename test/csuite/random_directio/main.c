@@ -505,21 +505,10 @@ thread_flush_run(void *arg)
     WT_SESSION *session;
     WT_THREAD_DATA *td;
     uint32_t i, sleep_time;
-#if 0
-    FILE *fp;
-    char buf[512];
-#endif
 
     __wt_random_init(&rnd);
 
     td = (WT_THREAD_DATA *)arg;
-    /*
-     * Keep a separate file with the records we wrote for checking.
-     */
-#if 0
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, sentinel_file));
-    (void)unlink(buf);
-#endif
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
     for (i = 0;;) {
         sleep_time = __wt_random(&rnd) % MAX_FLUSH_INVL;
@@ -533,16 +522,6 @@ thread_flush_run(void *arg)
         testutil_check(pthread_rwlock_unlock(&flush_lock));
         printf("Flush tier %" PRIu32 " completed.\n", i);
         fflush(stdout);
-#if 0
-        /*
-         * Create the sentinel file so that the parent process knows the desired number of
-         * flush_tier calls have finished and can start its timer.
-         */
-        if (++i == flush_calls) {
-            testutil_assert_errno((fp = fopen(buf, "w")) != NULL);
-            testutil_assert_errno(fclose(fp) == 0);
-        }
-#endif
     }
     /* NOTREACHED */
 }
@@ -600,6 +579,7 @@ again:
         gen_kv(buf1, kvsize, i, td->id, large, true);
         gen_kv(buf2, kvsize, i, td->id, large, false);
 
+        testutil_check(pthread_rwlock_rdlock(&flush_lock));
         testutil_check(session->begin_transaction(session, NULL));
         cursor->set_key(cursor, buf1);
         /*
@@ -625,8 +605,10 @@ again:
          * operations are not part of the transaction operations for the main table. If we are
          * running 'integrated' then we'll first do the schema operations and commit later.
          */
-        if (!F_ISSET(td, SCHEMA_INTEGRATED))
+        if (!F_ISSET(td, SCHEMA_INTEGRATED)) {
             testutil_check(session->commit_transaction(session, NULL));
+            testutil_check(pthread_rwlock_unlock(&flush_lock));
+        }
         /*
          * If we are doing a schema test, generate operations for additional tables. Each table has
          * a 'lifetime' of 4 values of the id.
@@ -646,8 +628,10 @@ again:
                 /*
                  * Only rollback if integrated and we have an active transaction.
                  */
-                if (F_ISSET(td, SCHEMA_INTEGRATED))
+                if (F_ISSET(td, SCHEMA_INTEGRATED)) {
                     testutil_check(session->rollback_transaction(session, NULL));
+                    testutil_check(pthread_rwlock_unlock(&flush_lock));
+                }
                 sleep(1);
                 goto again;
             }
@@ -655,8 +639,10 @@ again:
         /*
          * If schema operations are integrated, commit the transaction now that they're complete.
          */
-        if (F_ISSET(td, SCHEMA_INTEGRATED))
+        if (F_ISSET(td, SCHEMA_INTEGRATED)) {
             testutil_check(session->commit_transaction(session, NULL));
+            testutil_check(pthread_rwlock_unlock(&flush_lock));
+        }
     }
     /* NOTREACHED */
 }
