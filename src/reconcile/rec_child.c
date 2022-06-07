@@ -124,6 +124,7 @@ __wt_rec_child_modify(
         switch (r->tested_ref_state = ref->state) {
         case WT_REF_DISK:
             /* On disk, not modified by definition. */
+            // 9417 IGNORE
             WT_ASSERT(session, ref->addr != NULL);
             goto done;
 

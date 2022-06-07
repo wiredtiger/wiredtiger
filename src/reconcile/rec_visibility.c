@@ -19,12 +19,15 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_
     WT_SAVE_UPD *supd;
 
     /* If nothing is committed, we must restore the update chain. */
+    // WT-9417 IGNORE
     WT_ASSERT(session, onpage_upd != NULL || supd_restore);
     /* We can only write a standard update or a modify to the data store. */
+    // WT-9417 IGNORE
     WT_ASSERT(session,
       onpage_upd == NULL || onpage_upd->type == WT_UPDATE_STANDARD ||
         onpage_upd->type == WT_UPDATE_MODIFY);
     /* For columns, ins is never null, so rip == NULL implies ins != NULL. */
+    // WT-9417 IGNORE - Column store
     WT_ASSERT(session, rip != NULL || ins != NULL);
 
     WT_RET(__wt_realloc_def(session, &r->supd_allocated, r->supd_next + 1, &r->supd));
@@ -107,6 +110,7 @@ __rec_append_orig_value(
      * because we have to do a search for the prepared updates, which can not proceed until eviction
      * finishes.
      */
+    // WT-9417 IGNORE
     WT_ASSERT(session, oldest_upd != NULL);
 
     /*
@@ -141,6 +145,7 @@ __rec_append_orig_value(
              * We may have overwritten its transaction id to WT_TXN_NONE and its timestamps to
              * WT_TS_NONE in the time window.
              */
+            // WT-9417 IGNORE
             WT_ASSERT(session,
               (unpack->tw.stop_ts == oldest_upd->start_ts || unpack->tw.stop_ts == WT_TS_NONE) &&
                 (unpack->tw.stop_txn == oldest_upd->txnid || unpack->tw.stop_txn == WT_TXN_NONE));
@@ -248,9 +253,11 @@ __timestamp_no_ts_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
      * When supporting read-uncommitted it was possible for the stop_txn to be less than the
      * start_txn, this is no longer true so assert that we don't encounter it.
      */
+    // WT-9417 IGNORE
     WT_ASSERT(session, select_tw->stop_txn >= select_tw->start_txn);
 
     if (select_tw->stop_ts < select_tw->start_ts) {
+        // WT-9417 IGNORE
         WT_ASSERT(session, select_tw->stop_ts == WT_TS_NONE);
         __wt_verbose(session, WT_VERB_TIMESTAMP,
           "Warning: fixing remove without a timestamp earlier than value; time window %s",
@@ -387,6 +394,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
             prev_upd->durable_ts >= vpack->tw.durable_stop_ts);
         if (prev_upd->start_ts < vpack->tw.start_ts ||
           (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prev_upd->start_ts < vpack->tw.stop_ts)) {
+            // WT-9417 IGNORE
             WT_ASSERT(session, prev_upd->start_ts == WT_TS_NONE);
             WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_1);
             return (EBUSY);
@@ -466,6 +474,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         first_upd = ins->upd;
     else {
         /* Note: ins is never null for columns. */
+        // WT-9417 IGNORE - Column store
         WT_ASSERT(session, rip != NULL && page->type == WT_PAGE_ROW_LEAF);
         if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
             return (0);
@@ -645,6 +654,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
                 while (upd->next != NULL && upd->next->txnid == WT_TXN_ABORTED)
                     upd = upd->next;
 
+                // WT-9417 IGNORE
                 WT_ASSERT(session, upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED);
                 upd_select->upd = upd = upd->next;
                 /* We should not see multiple consecutive tombstones. */
@@ -665,6 +675,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
             /* Move the pointer to the last update on the update chain. */
             for (last_upd = tombstone; last_upd->next != NULL; last_upd = last_upd->next)
                 /* Tombstone is the only non-aborted update on the update chain. */
+                // WT-9417 IGNORE
                 WT_ASSERT(session, last_upd->next->txnid == WT_TXN_ABORTED);
 
             /*
@@ -781,6 +792,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
       F_ISSET(r, WT_REC_CHECKPOINT_RUNNING)) {
         /* Catch this case in diagnostic builds. */
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_3);
+        // WT-9417 IGNORE
         WT_ASSERT(session, false);
         WT_RET(EBUSY);
     }
@@ -826,6 +838,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     /*
      * Paranoia: check that we didn't choose an update that has since been rolled back.
      */
+    // WT-9417 IGNORE
     WT_ASSERT(session, upd_select->upd == NULL || upd_select->upd->txnid != WT_TXN_ABORTED);
     /*
      * We should never select an update that has been written to the history store except checkpoint
@@ -859,6 +872,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
 
     __wt_rec_time_window_clear_obsolete(session, upd_select, NULL, r);
 
+    // WT-9417 IGNORE - This is generic catchall assert, not motivated by a specific invariant.
     WT_ASSERT(
       session, upd_select->tw.stop_txn != WT_TXN_MAX || upd_select->tw.stop_ts == WT_TS_MAX);
 

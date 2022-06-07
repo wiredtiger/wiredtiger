@@ -56,12 +56,14 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
         F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /* Can't do history store eviction for history store itself or for metadata. */
+    // WT-9417 IGNORE
     WT_ASSERT(session,
       !LF_ISSET(WT_REC_HS) || (!WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle)));
     /* Flag as unused for non diagnostic builds. */
     WT_UNUSED(btree);
 
     /* It's an error to be called with a clean page. */
+    // WT-9417 IGNORE
     WT_ASSERT(session, __wt_page_is_modified(page));
 
     /*
@@ -143,6 +145,7 @@ __reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t fla
      * Check that transaction time always moves forward for a given page. If this check fails,
      * reconciliation can free something that a future reconciliation will need.
      */
+    // WT-9417 IGNORE
     WT_ASSERT(session, WT_TXNID_LE(mod->last_oldest_id, oldest_id));
     mod->last_oldest_id = oldest_id;
 #endif
@@ -365,6 +368,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
          * eviction case. Otherwise, we must be reconciling the metadata (which does not allow
          * history store content).
          */
+        // WT-9417 IGNORE
         WT_ASSERT(session,
           !F_ISSET(r, WT_REC_EVICT) ||
             (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || WT_IS_METADATA(btree->dhandle)));
@@ -879,6 +883,7 @@ __rec_leaf_page_max_slvg(WT_SESSION_IMPL *session, WT_RECONCILE *r)
          * chunks of the namespace and space for time windows, so we will take what it says. Thus,
          * we shouldn't come here.
          */
+        // WT-9417 IGNORE - Column store
         WT_ASSERT(session, false);
         break;
     case WT_PAGE_COL_VAR:
@@ -1301,6 +1306,7 @@ __wt_rec_split_grow(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t add_len)
     WT_RET(bm->write_size(bm, session, &corrected_page_size));
     WT_RET(__wt_buf_grow(session, &r->cur_ptr->image, corrected_page_size));
 
+    // WT-9417 IGNORE
     WT_ASSERT(session, corrected_page_size >= inuse);
 
     /* Convert the free space back to pointers. */
@@ -1312,9 +1318,11 @@ __wt_rec_split_grow(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t add_len)
     if (r->page->type == WT_PAGE_COL_FIX) {
         /* Reallocating an FLCS page increases the auxiliary space. */
         r->aux_space_avail = corrected_page_size - aux_first_free;
+        // WT-9417 IGNORE
         WT_ASSERT(session, r->aux_space_avail >= add_len);
     } else {
         r->space_avail = corrected_page_size - first_free;
+        // WT-9417 IGNORE
         WT_ASSERT(session, r->space_avail >= add_len);
     }
 
@@ -1356,6 +1364,7 @@ __rec_split_fix_shrink(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         dst = r->first_free + WT_COL_FIX_AUXHEADER_RESERVATION;
 
         /* The move span should be the empty data size. */
+        // WT-9417 IGNORE 
         WT_ASSERT(session, src == dst + emptysize);
 
         /* Do the move. */
@@ -1406,6 +1415,7 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
      */
     inuse = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
     if (inuse < r->split_size / 2 && !__wt_rec_need_split(r, 0)) {
+        // WT-9417 IGNORE - Column store
         WT_ASSERT(session, r->page->type != WT_PAGE_COL_FIX);
         goto done;
     }
@@ -1579,6 +1589,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
     if (combined_size <= r->page_size) {
         /* This won't work for FLCS pages, so make sure we don't get here by accident. */
+        // WT-9417 IGNORE - Column store
         WT_ASSERT(session, r->page->type != WT_PAGE_COL_FIX);
 
         /*
@@ -1604,6 +1615,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
     if (prev_ptr->min_offset != 0 && cur_ptr->image.size < r->min_split_size) {
         /* This won't work for FLCS pages, so make sure we don't get here by accident. */
+        // WT-9417 IGNORE
         WT_ASSERT(session, r->page->type != WT_PAGE_COL_FIX);
 
         /*
@@ -1779,6 +1791,7 @@ __rec_split_write_supd(
                 key->data = WT_INSERT_KEY(supd->ins);
                 key->size = WT_INSERT_KEY_SIZE(supd->ins);
             }
+            // WT-9417 IGNORE - This was added to suppress a coverity warning
             WT_ASSERT(session, next != NULL);
             WT_ERR(__wt_compare(session, btree->collator, key, &next->key, &cmp));
             if (cmp >= 0)
@@ -2723,6 +2736,7 @@ __wt_rec_hs_clear_on_tombstone(
     btree = S2BT(session);
 
     /* We should be passed a recno or a row-store key, but not both. */
+    // WT-9417 IGNORE
     WT_ASSERT(session, (recno == WT_RECNO_OOB) != (rowkey == NULL));
 
     if (rowkey != NULL)
