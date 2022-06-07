@@ -169,7 +169,7 @@ class SearchNear01 : public Test {
                     for (uint64_t k = 0; k < kAlphabet.size(); ++k) {
                         std::string key = {kAlphabet.at(i), kAlphabet.at(j), kAlphabet.at(k)};
                         evictionCursor->set_key(evictionCursor.Get(), key.c_str());
-                        evictionCursor->search_near(evictionCursor.Get(), &cmpp);
+                        testutil_check(evictionCursor->search_near(evictionCursor.Get(), &cmpp));
                         testutil_check(evictionCursor->reset(evictionCursor.Get()));
                     }
                 }
@@ -185,7 +185,7 @@ class SearchNear01 : public Test {
       uint64_t searchKeyLength, std::atomic<int64_t> &zKeySearches)
     {
         ScopedCursor cursor = threadWorker->session.OpenScopedCursor(collection_name);
-        cursor->reconfigure(cursor.Get(), "prefix_search=true");
+        testutil_check(cursor->reconfigure(cursor.Get(), "prefix_search=true"));
         /* Generate search prefix key of random length between a -> zzz. */
         const std::string srch_key = RandomGenerator::GetInstance().GenerateRandomString(
           searchKeyLength, charactersType::kAlphabet);

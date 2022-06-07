@@ -249,7 +249,7 @@ DatabaseOperation::ReadOperation(ThreadWorker *threadWorker)
             auto ret = cursor->next(cursor.Get());
             if (ret != 0) {
                 if (ret == WT_NOTFOUND) {
-                    cursor->reset(cursor.Get());
+                    testutil_check(cursor->reset(cursor.Get()));
                 } else if (ret == WT_ROLLBACK) {
                     threadWorker->transaction.Rollback();
                     threadWorker->Sleep();

@@ -69,7 +69,7 @@ class HsCleanup : public Test {
             auto ret = cursor->next(cursor.Get());
             if (ret != 0) {
                 if (ret == WT_NOTFOUND) {
-                    cursor->reset(cursor.Get());
+                    testutil_check(cursor->reset(cursor.Get()));
                     continue;
                 }
                 if (ret == WT_ROLLBACK) {

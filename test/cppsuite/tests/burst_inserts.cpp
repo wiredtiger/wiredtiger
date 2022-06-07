@@ -104,7 +104,7 @@ class BurstInserts : public Test {
                 auto key = threadWorker->PadString(
                   std::to_string(startKey + addedCount), threadWorker->keySize);
                 cc.writeCursor->set_key(cc.writeCursor.Get(), key.c_str());
-                cc.writeCursor->search(cc.writeCursor.Get());
+                testutil_assert(cc.writeCursor->search(cc.writeCursor.Get()) == WT_NOTFOUND);
 
                 /* A return value of true implies the insert was successful. */
                 auto value = RandomGenerator::GetInstance().GeneratePseudoRandomString(
@@ -120,7 +120,7 @@ class BurstInserts : public Test {
                 int ret = 0;
                 if ((ret = cc.readCursor->next(cc.readCursor.Get())) != 0) {
                     if (ret == WT_NOTFOUND) {
-                        cc.readCursor->reset(cc.readCursor.Get());
+                        testutil_check(cc.readCursor->reset(cc.readCursor.Get()));
                     } else if (ret == WT_ROLLBACK) {
                         threadWorker->transaction.Rollback();
                         addedCount = 0;

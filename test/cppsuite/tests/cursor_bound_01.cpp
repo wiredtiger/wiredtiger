@@ -226,7 +226,7 @@ class CursorBound01 : public Test {
 
         auto setRandomBounds = RandomGenerator::GetInstance().GenerateInteger(0, 3);
         if (setRandomBounds == kNoBounds)
-            rangeCursor->bound(rangeCursor.Get(), "action=clear");
+            testutil_check(rangeCursor->bound(rangeCursor.Get(), "action=clear"));
 
         if (setRandomBounds == kLowerBoundSet || setRandomBounds == kAllBoundsSet) {
             /* Reverse case. */

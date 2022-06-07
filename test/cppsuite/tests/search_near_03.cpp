@@ -87,7 +87,7 @@ class SearchNear03 : public Test {
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
         if (ret == 0) {
             const char *keyTmp;
-            cursor->get_key(cursor.Get(), &keyTmp);
+            testutil_check(cursor->get_key(cursor.Get(), &keyTmp));
             testutil_assert(exactPrefix == 1);
             testutil_assert(prefixKey == GetPrefixFromKey(std::string(keyTmp)));
             return false;
@@ -114,7 +114,7 @@ class SearchNear03 : public Test {
          */
         Collection &collection = threadWorker->database.GetCollection(threadWorker->id);
         ScopedCursor cursor = threadWorker->session.OpenScopedCursor(collection.name);
-        cursor->reconfigure(cursor.Get(), "prefix_search=true");
+        testutil_check(cursor->reconfigure(cursor.Get(), "prefix_search=true"));
         for (uint64_t count = 0; count < threadWorker->keyCount; ++count) {
             threadWorker->transaction.Start();
             /*
@@ -207,7 +207,7 @@ class SearchNear03 : public Test {
                   "Unexpected error %d returned from cursor->next()", ret);
                 if (ret == WT_NOTFOUND)
                     continue;
-                cursor->get_key(cursor.Get(), &keyTmp);
+                testutil_check(cursor->get_key(cursor.Get(), &keyTmp));
                 prefixes.push_back(keyTmp);
             }
             existingPrefixes.push_back(prefixes);
@@ -233,7 +233,7 @@ class SearchNear03 : public Test {
             Collection &collection = threadWorker->database.GetRandomCollection();
             if (cursors.find(collection.id) == cursors.end()) {
                 ScopedCursor cursor = threadWorker->session.OpenScopedCursor(collection.name);
-                cursor->reconfigure(cursor.Get(), "prefix_search=true");
+                testutil_check(cursor->reconfigure(cursor.Get(), "prefix_search=true"));
                 cursors.emplace(collection.id, std::move(cursor));
             }
 

@@ -79,7 +79,7 @@ ReadOp(WT_CURSOR *cursor, int keySize)
     while (doReads) {
         key = RandomGenerator::GetInstance().GenerateRandomString(keySize);
         cursor->set_key(cursor, key.c_str());
-        cursor->search(cursor);
+        WT_IGNORE_RET(cursor->search(cursor));
     }
 }
 
