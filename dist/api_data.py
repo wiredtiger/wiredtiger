@@ -201,6 +201,9 @@ tiered_config = [
             time in seconds to retain data on tiered storage on the local tier for faster
             read access''',
             min='0', max='10000'),
+        Config('object_target_size', '0', r'''
+            This option is no longer supported, retained for backward compatibility''',
+            min='0', undoc=True),
         ]),
 ]
 
@@ -388,10 +391,10 @@ file_meta = file_config + [
         LSN of the last checkpoint'''),
     Config('id', '', r'''
         the file's ID number'''),
-    Config('readonly', 'false', r'''
-        the file is read-only. All methods that modify a file are disabled. See @ref
-        readonly for more information''',
-        type='boolean'),
+    # Config('readonly', 'false', r'''
+    #     the file is read-only. All methods that modify a file are disabled. See @ref
+    #     readonly for more information''',
+    #     type='boolean'),
     Config('tiered_object', 'false', r'''
         this file is a tiered object. When opened on its own, it is marked as readonly and may
         be restricted in other ways''',
@@ -945,9 +948,9 @@ tiered_storage_configuration_common = [
         time in seconds to retain data on tiered storage on the local tier for faster read
         access''',
         min='0', max='10000'),
-    Config('object_target_size', '10M', r'''
-        the approximate size of objects before creating them on the tiered storage tier''',
-        min='100K', max='10TB'),
+    Config('object_target_size', '0', r'''
+        This option is no longer supported, retained for backward compatibility''',
+        min='0', undoc=True),
 ]
 connection_reconfigure_tiered_storage_configuration = [
     Config('tiered_storage', '', r'''

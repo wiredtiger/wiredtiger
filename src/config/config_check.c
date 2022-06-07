@@ -38,10 +38,6 @@ config_check_search(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_i
     u_int base, indx, limit;
     int cmp;
 
-    /* A list of removed configuration options that should bypass the test. */
-    const char *deleted_config_options[] = {"object_target_size"};
-    size_t config_list_size = sizeof deleted_config_options / sizeof *deleted_config_options;
-
     /*
      * For standard sets of configuration information, we know how many entries and that they're
      * sorted, do a binary search. Else, do it the slow way.
@@ -65,18 +61,6 @@ config_check_search(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_i
                 --limit;
             }
         }
-
-    /*
-     * Check if the config is a removed config and therefore not recognized, if so continue testing
-     * with a warning and do not fail.
-     */
-    for (int i = 0; i < config_list_size; i++) {
-        if (strncmp(str, deleted_config_options[i], len) == 0) {
-            __wt_verbose_warning(
-              session, WT_VERB_COMPACT, "removed configuration key: '%.*s'", (int)len, str);
-            return (0);
-        }
-    }
     WT_RET_MSG(session, EINVAL, "unknown configuration key: '%.*s'", (int)len, str);
 }
 
