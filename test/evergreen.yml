@@ -21,6 +21,7 @@ post:
 timeout:
   - func: "run wt hang analyzer"
 exec_timeout_secs: 21600 # 6 hrs
+callback_timeout_secs: 3600 # 1 hr
 
 #######################################
 #            Functions                #
@@ -365,7 +366,6 @@ functions:
         set -o errexit
         set -o verbose
         ${test_env_vars|} ./test_wt2853_perf ${wt2853_perf_args}
-
   "csuite test":
     command: shell.exec
     params:
@@ -466,6 +466,19 @@ functions:
         source_dir: ${upload_source_dir|wiredtiger}
         include:
           - "./**"
+    # This script fails a test if it generates an artifact over 15GB
+    # Some tests, e.g. perf-test-long-500m-btree-populate create large
+    # artifacts.
+    - command: shell.exec
+      params:
+        script: |
+          echo "Echoing size of archive: "
+          ls -lh ${upload_filename|wiredtiger.tgz}
+          filesize=$(stat -c %s ${upload_filename|wiredtiger.tgz})
+          if [ "$filesize" -gt 15000000000 ]; then
+            echo "Failing upload on artifacts > 15gb"
+            exit 1
+          fi
     - command: s3.put
       params:
         aws_secret: ${aws_secret}
@@ -476,6 +489,7 @@ functions:
         content_type: application/tar
         display_name: Artifacts
         remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
+
   "upload endian format artifacts":
     - command: s3.put
       params:
@@ -487,6 +501,7 @@ functions:
         content_type: application/tar
         display_name: WT_TEST
         remote_file: wiredtiger/${endian_format}/${revision}/artifacts/${remote_file}
+
   "cleanup":
     command: shell.exec
     params:
@@ -1086,6 +1101,18 @@ tasks:
         vars:
           test_path: test/cppsuite/hs_cleanup
 
+  - name: cppsuite-burst-inserts-default
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config: debug_mode=(cursor_copy=true)
+          test_config_filename: configs/burst_inserts_default.txt
+          test_name: burst_inserts
+
   - name: cppsuite-search-near-01-default
     tags: ["pull_request"]
     depends_on:
@@ -1164,6 +1191,16 @@ tasks:
       - func: "upload test stats"
         vars:
           test_path: test/cppsuite/hs_cleanup
+
+  - name: cppsuite-burst-inserts-stress
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/burst_inserts_stress.txt
+          test_name: burst_inserts
 
   - name: cppsuite-search-near-01-stress
     depends_on:
@@ -4189,9 +4226,9 @@ buildvariants:
 
 - name: cppsuite-stress-tests
   display_name: "Cppsuite Stress Tests"
-  batchtime: 480 # 3 times a day
+  batchtime: 960 # Twice a day
   run_on:
-  - ubuntu2004-test
+  - ubuntu2004-medium
   expansions:
     test_env_vars:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
@@ -4212,6 +4249,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: cppsuite-operations-test-stress
+    - name: cppsuite-burst-inserts-stress
     - name: cppsuite-hs-cleanup-stress
     - name: cppsuite-search-near-01-stress
     - name: cppsuite-search-near-02-stress
