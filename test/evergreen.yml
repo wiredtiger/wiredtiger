@@ -191,7 +191,7 @@ functions:
             cd cmake_build
             # CC is set to the system default "clang" binary here as a workaround to mongo toolchains not supporting ASAN on Ubuntu PPC.
             $CMAKE -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1 \
-              -DHAVE_DIAGNOSTIC=1 -DCC_OPTIMIZE_LEVEL=-O0 \
+              -DHAVE_DIAGNOSTIC=1 \
               ${NON_BARRIER_DIAGNOSTIC_YIELDS|} -DCMAKE_BUILD_TYPE=ASan \
               -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 ${configure_python_setting|} \
               -G "${cmake_generator|Ninja}" ../.
@@ -2495,7 +2495,6 @@ tasks:
           posix_configure_flags:
             -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
             -DHAVE_DIAGNOSTIC=1
-            -DCC_OPTIMIZE_LEVEL=-O0
             -DWITH_PIC=1
             -DCMAKE_BUILD_TYPE=ASan
             -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
@@ -2794,7 +2793,6 @@ tasks:
           posix_configure_flags:
             -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
             -DHAVE_DIAGNOSTIC=1
-            -DCC_OPTIMIZE_LEVEL=-O0
             -DWITH_PIC=1
             -DHAVE_BUILTIN_EXTENSION_LZ4=1
             -DHAVE_BUILTIN_EXTENSION_SNAPPY=1
