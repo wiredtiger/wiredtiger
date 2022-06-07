@@ -238,7 +238,7 @@ __compact_walk_internal(WT_SESSION_IMPL *session, WT_REF *parent)
      * visit them individually.
      */
     overall_progress = false;
-    WT_INTL_FOREACH_BEGIN (session, parent->page, ref) {
+    WT_INTL_FOREACH_BEGIN_V2 (session, parent->page, ref) {
         if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
             WT_ERR(__compact_page(session, ref, &skipp));
             if (!skipp)

@@ -32,6 +32,7 @@ set(unittest_sources
     tests/test_pow.cpp
     tests/test_reconciliation_tracking.cpp
     tests/test_tailq.cpp
+    tests/test_truncate_and_compact.cpp
     tests/utils.cpp
     tests/block/test_bitstring.cpp
     tests/block/test_block_ckpt.cpp

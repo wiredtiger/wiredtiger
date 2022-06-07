@@ -16,6 +16,10 @@ include(cmake/configs/modes.cmake)
 include(cmake/helpers.cmake)
 include(cmake/define_libwiredtiger.cmake)
 
+set (WT_POSIX 1)
+set (HAVE_UNITTEST 1)
+set (HAVE_DIAGNOSTIC 1)
+
 # If the user doesn't manually specify the target ARCH and OS (i.e not cross-compiling)
 # we will infer the target from the host.
 if(NOT WT_ARCH)

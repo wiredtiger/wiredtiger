@@ -4,3 +4,6 @@ build/
 dist/clang-format
 /docs/
 test-compatibility-run/
+test/suite/__pycache__
+cmake-build-release
+cmake-build-debug

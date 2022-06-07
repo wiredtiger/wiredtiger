@@ -2,7 +2,12 @@
 
 ## Building/running
 
-These tests are built as part of the default build via CMake + Ninja. To run
+These tests are built as part of the default build via CMake + Ninja.
+They require that the `HAVE_UNITTEST` CMake flag is set. For example:
+
+`cmake -DHAVE_UNITTEST=1 -DHAVE_DIAGNOSTIC=1 -G Ninja ../.`
+
+To run
 them, go to your build directory and execute tests/unittest/unittests.
 
 To run tests for a specific tag (a.k.a. subsystem), put the tag in square

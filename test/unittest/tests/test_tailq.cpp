@@ -58,7 +58,7 @@ template <class T>
 void
 TestTailQWrapper<T>::pushBack(std::list<T> const &values)
 {
-    std::for_each(values.begin(), values.end(), [this](const int n) { this->pushBack(n); });
+    std::for_each(values.begin(), values.end(), [this](const T value) { this->pushBack(value); });
 }
 
 template <class T>

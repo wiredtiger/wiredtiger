@@ -103,8 +103,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     force_evict_hs = false;
     local_gen = false;
 
+    uint8_t page_type = page->type;
+
     __wt_verbose(
       session, WT_VERB_EVICT, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
+
+//    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+//        printf("Evicting - ref %p, page %p (%s)\n", (void *)ref, (void *)page, __wt_page_type_string(page->type));
+//    }
 
     tree_dead = F_ISSET(session->dhandle, WT_DHANDLE_DEAD);
     if (tree_dead)
@@ -123,8 +129,10 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
      * Track how long forcible eviction took. Immediately increment the forcible eviction counter,
      * we might do an in-memory split and not an eviction, which skips the other statistics.
      */
+    bool is_urgent = false;
     time_start = 0;
     if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
+        is_urgent = true;
         time_start = __wt_clock(session);
         WT_STAT_CONN_INCR(session, cache_eviction_force);
 
@@ -186,16 +194,34 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     /* Figure out whether reconciliation was done on the page */
     clean_page = __wt_page_evict_clean(page);
 
+    bool was_clean = false;
+
     /* Update the reference and discard the page. */
     if (__wt_ref_is_root(ref))
         __wt_ref_out(session, ref);
-    else if ((clean_page && !F_ISSET(conn, WT_CONN_IN_MEMORY)) || tree_dead)
+    else if ((clean_page && !F_ISSET(conn, WT_CONN_IN_MEMORY)) || tree_dead) {
         /*
          * Pages that belong to dead trees never write back to disk and can't support page splits.
          */
         WT_ERR(__evict_page_clean_update(session, ref, flags));
-    else
+        was_clean = true;
+    } else {
         WT_ERR(__evict_page_dirty_update(session, ref, flags));
+        was_clean = false;
+    }
+
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+        fprintf(stderr, "Evicted internal page: ref %p, page %p (original type: %s), clean_page %d, tree_dead %d, was_clean %d, is_urgent %d, closing %d, force_evict_hs %d\n",
+          (void *)ref,
+          (void *)page,
+          __wt_page_type_string(page_type),
+          clean_page,
+          tree_dead,
+          was_clean,
+          is_urgent,
+          closing,
+          force_evict_hs);
+    }
 
     if (time_start != 0) {
         time_stop = __wt_clock(session);

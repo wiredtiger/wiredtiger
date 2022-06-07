@@ -17,7 +17,7 @@ ConnectionWrapper::ConnectionWrapper(const std::string &db_home)
     : _conn_impl(nullptr), _conn(nullptr), _db_home(db_home)
 {
     utils::throwIfNonZero(mkdir(_db_home.c_str(), 0700));
-    utils::throwIfNonZero(wiredtiger_open(_db_home.c_str(), nullptr, "create", &_conn));
+    utils::throwIfNonZero(wiredtiger_open(_db_home.c_str(), nullptr, "create,statistics=[all,clear]", &_conn));
 }
 
 ConnectionWrapper::~ConnectionWrapper()
@@ -30,7 +30,7 @@ ConnectionWrapper::~ConnectionWrapper()
 WT_SESSION_IMPL *
 ConnectionWrapper::createSession()
 {
-    WT_SESSION *sess;
+    WT_SESSION* sess = nullptr;
     _conn->open_session(_conn, nullptr, nullptr, &sess);
 
     auto sess_impl = (WT_SESSION_IMPL *)sess;

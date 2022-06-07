@@ -15,7 +15,7 @@ int
 main(int argc, char **argv)
 {
     // Clean up after any previous failed/crashed test runs.
-    utils::wiredtigerCleanup(DB_HOME);
+    utils::wiredtigerCleanup(utils::UnitTestDatabaseHome);
 
     return Catch::Session().run(argc, argv);
 }

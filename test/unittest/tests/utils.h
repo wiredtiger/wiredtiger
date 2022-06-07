@@ -6,10 +6,13 @@
  * See the file LICENSE for redistribution information.
  */
 #include <string>
-
-#define DB_HOME "test_db"
+#include <filesystem>
 
 namespace utils {
+const std::basic_string UnitTestDatabaseHome = "test_db";
+
+inline bool isSuccessResult(int result) { return result == 0; };
+
 void throwIfNonZero(int result);
-void wiredtigerCleanup(const std::string &db_home);
+void wiredtigerCleanup(std::string const& db_home);
 } // namespace utils

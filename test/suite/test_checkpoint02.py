@@ -35,6 +35,7 @@ import queue, threading, wttest
 from wtthread import checkpoint_thread, op_thread
 from wtscenario import make_scenarios
 
+
 # test_checkpoint02.py
 #   Run background checkpoints repeatedly while doing inserts and other
 #   operations in another thread
@@ -46,8 +47,8 @@ class test_checkpoint02(wttest.WiredTigerTestCase):
     ]
 
     size_values = [
-        ('table-100', dict(uri='table:test',dsize=100,nops=50000,nthreads=10)),
-        ('table-10', dict(uri='table:test',dsize=10,nops=50000,nthreads=30))
+        ('table-100', dict(uri='table:test', dsize=100, nops=50000, nthreads=10)),
+        ('table-10', dict(uri='table:test', dsize=10, nops=50000, nthreads=30))
     ]
 
     scenarios = make_scenarios(format_values, size_values)
@@ -55,7 +56,8 @@ class test_checkpoint02(wttest.WiredTigerTestCase):
     def test_checkpoint02(self):
         done = threading.Event()
         self.session.create(self.uri,
-            "key_format={},value_format={}".format(self.key_format, self.value_format))
+                            "key_format={},value_format={},allocation_size=1024b,internal_page_max=1024b,leaf_page_max=1024b".
+                            format(self.key_format, self.value_format))
 
         if self.value_format == '8t':
             self.nops *= 2
@@ -107,6 +109,7 @@ class test_checkpoint02(wttest.WiredTigerTestCase):
             i += 1
 
         self.assertEqual(i, self.nops + 1)
+
 
 if __name__ == '__main__':
     wttest.run()

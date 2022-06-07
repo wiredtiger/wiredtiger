@@ -783,6 +783,15 @@ __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
      * ever forced to re-instantiate that piece of the namespace, it comes back as a leaf page.
      * Reset the WT_REF type as it's possible that it has changed.
      */
+
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+        fprintf(stderr, "************** We're changing a REF from internal to leaf - ref %p, page %p ***************\n", (void*)ref, (void*)ref->page);
+        //WT_RET(session->iface.compact(&(session->iface), "table:access2", NULL));
+        sleep(5);
+//        WT_ASSERT(session, false);
+//        __wt_abort(session);
+    }
+
     F_CLR(ref, WT_REF_FLAG_INTERNAL);
     F_SET(ref, WT_REF_FLAG_LEAF);
 
