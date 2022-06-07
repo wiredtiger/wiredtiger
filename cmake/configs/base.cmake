@@ -214,8 +214,9 @@ config_bool(
 
 set(default_build_type "Debug")
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
+  message(STATUS "Setting default build type to '${default_build_type}'.")
   set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
+      STRING "Type of build selected." FORCE)
 endif()
 
 set(default_optimize_level)
