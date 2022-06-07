@@ -148,38 +148,18 @@ copy_directory_int(const char *fromdir, const char *todir, bool directio)
 
 /*
  * clean_directory --
- *     Clean up a directory, can be recursive for subdirectories.
+ *     Clean up a directory, use system to remove subdirectories too.
  */
 static void
 clean_directory(const char *todir)
 {
-    struct dirent *dp;
-    DIR *dirp;
-    char tofile[4096];
+    int status;
+    char buf[512];
 
-    dirp = opendir(todir);
-    if (dirp != NULL) {
-        while ((dp = readdir(dirp)) != NULL) {
-            /*
-             * Skip . and ..
-             */
-            if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0)
-                continue;
-            /*
-             * If we encounter any subdirectories, we need to recursively clean out the files and
-             * then remove the directory itself.
-             */
-            if (dp->d_type == DT_DIR) {
-                clean_directory(dp->d_name);
-                testutil_check(rmdir(todir));
-            } else {
-                testutil_check(__wt_snprintf(tofile, sizeof(tofile), "%s/%s", todir, dp->d_name));
-                testutil_check(unlink(tofile));
-            }
-        }
-        testutil_check(closedir(dirp));
-        testutil_check(rmdir(todir));
-    }
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "rm -rf %s", todir));
+    fprintf(stderr, "CLEAN: remove: %s\n", buf);
+    if ((status = system(buf)) < 0)
+        testutil_die(status, "system: %s", buf);
 }
 
 /*
