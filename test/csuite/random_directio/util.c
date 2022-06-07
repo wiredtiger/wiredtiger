@@ -148,7 +148,7 @@ copy_directory_int(const char *fromdir, const char *todir, bool directio)
 
 /*
  * clean_directory --
- *     Clean up a directory, use system to remove subdirectories too.
+ *     Clean up a directory, use system to remove sub-directories too.
  */
 static void
 clean_directory(const char *todir)
@@ -164,7 +164,7 @@ clean_directory(const char *todir)
 /*
  * copy_directory --
  *     Copy a directory, using direct IO if indicated. Wrapper because the sub functions can be
- *     called recursively if there are subdirectories present.
+ *     called recursively if there are sub-directories present.
  */
 void
 copy_directory(const char *fromdir, const char *todir, bool directio)

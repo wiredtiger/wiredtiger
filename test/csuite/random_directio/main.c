@@ -484,10 +484,7 @@ thread_ckpt_run(void *arg)
     for (i = 0;; ++i) {
         sleep_time = __wt_random(&rnd) % MAX_CKPT_INVL;
         sleep(sleep_time);
-        /*
-         * Since this is the default, send in this string even if running without timestamps.
-         */
-        testutil_check(session->checkpoint(session, "use_timestamp=true"));
+        testutil_check(session->checkpoint(session, NULL));
         printf("Checkpoint %d complete.\n", i);
         fflush(stdout);
     }
