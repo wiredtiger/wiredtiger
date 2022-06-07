@@ -47,12 +47,15 @@ struct __wt_config_parser_impl {
 #define WT_CONFIG_ITEM_STATIC_INIT(n) static const WT_CONFIG_ITEM n = {"", 0, 0, WT_CONFIG_ITEM_NUM}
 
 /*
- * This must be used with a configuration value, in the context of processing "key=value" pairs.
- * That way we know that str[-1] is at a valid address.
+ * If double quotes surround the string, then expand the string to include them. This is always
+ * called in the context of key/values returned by the configuration parser.  The character to the
+ * right must be at a valid memory address, and checking just that one is sufficient.  If it is a
+ * double quote, then the character to the left must be as well, by the rules of the tokenizer.
  */
-#define WT_CONFIG_PRESERVE_QUOTES(item)                                  \
+#define WT_CONFIG_PRESERVE_QUOTES(session, item)                         \
     do {                                                                 \
-        if ((item)->str[-1] == '"' && (item)->str[(item)->len] == '"') { \
+        if ((item)->str[(item)->len] == '"') {                           \
+            WT_ASSERT(session, (item)->str[-1] == '"');                  \
             (item)->str -= 1;                                            \
             (item)->len += 2;                                            \
         }                                                                \
