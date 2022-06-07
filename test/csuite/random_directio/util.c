@@ -157,7 +157,6 @@ clean_directory(const char *todir)
     char buf[512];
 
     testutil_check(__wt_snprintf(buf, sizeof(buf), "rm -rf %s", todir));
-    fprintf(stderr, "CLEAN: remove: %s\n", buf);
     if ((status = system(buf)) < 0)
         testutil_die(status, "system: %s", buf);
 }
