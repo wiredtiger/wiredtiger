@@ -61,7 +61,7 @@ config_check_search(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_i
                 --limit;
             }
         }
-  
+        
     WT_RET_MSG(session, EINVAL, "unknown configuration key: '%.*s'", (int)len, str);
 }
 
