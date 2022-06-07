@@ -51,7 +51,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      * doesn't apply to checkpoints: there are (rare) cases where we write data at read-uncommitted
      * isolation.
      */
-    WT_ASSERT(session,
+    WT_ASSERT_STRONG(session,
       !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_ALL) ||
         F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
@@ -222,9 +222,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_DECL_RET;
     WT_PAGE *page;
     WT_RECONCILE *r;
-#ifdef HAVE_DIAGNOSTIC
     void *addr;
-#endif
 
     btree = S2BT(session);
     page = ref->page;
@@ -280,9 +278,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
       F_ISSET(r, WT_REC_CALL_URGENT) && !r->update_used && r->cache_write_restore)
         ret = __wt_set_return(session, EBUSY);
 
-#ifdef HAVE_DIAGNOSTIC
     addr = ref->addr;
-#endif
 
     /*
      * If we fail the reconciliation prior to calling __rec_write_wrapup then we can clean up our
@@ -293,7 +289,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      */
     if (ret != 0) {
         /* Make sure that reconciliation doesn't free the page that has been written to disk. */
-        WT_ASSERT(session, addr == NULL || ref->addr != NULL);
+        WT_ASSERT_STRONG(session, addr == NULL || ref->addr != NULL);
         WT_IGNORE_RET(__rec_write_err(session, r, page));
         WT_IGNORE_RET(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
         /*
@@ -408,7 +404,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         if (__wt_atomic_cas32(&mod->page_state, WT_PAGE_DIRTY_FIRST, WT_PAGE_CLEAN))
             __wt_cache_dirty_decr(session, page);
         else
-            WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
+            WT_ASSERT_STRONG(session, !F_ISSET(r, WT_REC_EVICT));
     }
 }
 
@@ -468,8 +464,8 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
          * There's special error handling required when re-instantiating pages in memory; it's not
          * needed here, asserted for safety.
          */
-        WT_ASSERT(session, mod->mod_multi[i].supd == NULL);
-        WT_ASSERT(session, mod->mod_multi[i].disk_image == NULL);
+        WT_ASSERT_STRONG(session, mod->mod_multi[i].supd == NULL);
+        WT_ASSERT_STRONG(session, mod->mod_multi[i].disk_image == NULL);
 
         WT_ERR(
           __wt_multi_to_ref(session, next, &mod->mod_multi[i], &pindex->index[i], NULL, false));
@@ -589,7 +585,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
             r->last_running = ckpt_txn;
     }
     /* When operating on the history store table, we should never try history store eviction. */
-    WT_ASSERT(session, !F_ISSET(btree->dhandle, WT_DHANDLE_HS) || !LF_ISSET(WT_REC_HS));
+    WT_ASSERT_STRONG(session, !F_ISSET(btree->dhandle, WT_DHANDLE_HS) || !LF_ISSET(WT_REC_HS));
 
     /*
      * History store table eviction is configured when eviction gets aggressive, adjust the flags
@@ -1539,7 +1535,7 @@ __wt_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t ne
         WT_TIME_AGGREGATE_COPY(&r->cur_ptr->ta_min, &r->cur_ptr->ta);
 
         /* Assert we're not re-entering this code. */
-        WT_ASSERT(session, r->cur_ptr->min_offset == 0);
+        WT_ASSERT_STRONG(session, r->cur_ptr->min_offset == 0);
         r->cur_ptr->min_offset = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
 
         /* All page boundaries reset the dictionary. */
@@ -1569,7 +1565,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     size_t combined_size, len_to_move;
     uint8_t *cur_dsk_start;
 
-    WT_ASSERT(session, r->prev_ptr != NULL);
+    WT_ASSERT_STRONG(session, r->prev_ptr != NULL);
 
     btree = S2BT(session);
     cur_ptr = r->cur_ptr;
@@ -1990,7 +1986,7 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
      * race, minor trickiness so we only read and write the value once.
      */
     WT_ORDERED_READ(current, *adjustp);
-    WT_ASSERT(session, current >= max);
+    WT_ASSERT_STRONG(session, current >= max);
 
     if (compressed_size > max) {
         /*
@@ -2119,7 +2115,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
      * the wrapup code, and we don't have a code path from here to there.)
      */
     if (last_block && r->multi_next == 1 && __rec_is_checkpoint(session, r)) {
-        WT_ASSERT(session, r->supd_next == 0);
+        WT_ASSERT_STRONG(session, r->supd_next == 0);
 
         if (compressed_image == NULL)
             r->wrapup_checkpoint = &chunk->image;
@@ -2151,7 +2147,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         if (multi->supd_restore)
             goto copy_image;
 
-        WT_ASSERT(session, chunk->entries > 0);
+        WT_ASSERT_STRONG(session, chunk->entries > 0);
     }
 
     /*
@@ -2504,7 +2500,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * splits can.
          */
         if (F_ISSET(r, WT_REC_IN_MEMORY) || r->multi->supd_restore) {
-            WT_ASSERT(session,
+            WT_ASSERT_STRONG(session,
               F_ISSET(r, WT_REC_IN_MEMORY) ||
                 (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0));
             goto split;
@@ -2617,7 +2613,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      * Sanity check: Can't insert updates into history store from the history store itself or from
      * the metadata file.
      */
-    WT_ASSERT(session, !WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle));
+    WT_ASSERT_STRONG(session, !WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle));
     /* Flag as unused for non diagnostic builds. */
     WT_UNUSED(btree);
 

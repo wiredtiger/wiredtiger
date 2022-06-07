@@ -176,3 +176,15 @@
             WT_RET_PANIC(session, v, __VA_ARGS__); \
     } while (0)
 #endif
+
+/*
+ * WT_ASSERT_STRONG
+ * Assert an expression, abort in both diagnostic and release mode if it fails.
+ */
+#define WT_ASSERT_STRONG(session, exp)             \
+    do {                                    \
+        if (!(exp)) {                       \
+            __wt_errx(session, "%s", #exp); \
+            __wt_abort(session);            \
+        }                                   \
+    } while (0)
