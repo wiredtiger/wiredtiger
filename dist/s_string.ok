@@ -1361,6 +1361,7 @@ regionp
 reinitialization
 relocked
 repl
+repositions
 resizable
 resize
 resizing
@@ -1588,6 +1589,7 @@ uu
 vN
 va
 valgrind
+validator
 valuep
 valuev
 vanishingly
