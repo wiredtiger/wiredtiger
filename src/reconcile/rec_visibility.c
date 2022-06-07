@@ -840,8 +840,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     /*
      * Paranoia: check that we didn't choose an update that has since been rolled back.
      */
-    // WT-9417 IGNORE
-    WT_ASSERT(session, upd_select->upd == NULL || upd_select->upd->txnid != WT_TXN_ABORTED);
+    WT_ASSERT_STRONG(session, upd_select->upd == NULL || upd_select->upd->txnid != WT_TXN_ABORTED);
     /*
      * We should never select an update that has been written to the history store except checkpoint
      * writes the update that is older than a prepared update.
