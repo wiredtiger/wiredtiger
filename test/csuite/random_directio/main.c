@@ -105,7 +105,7 @@ static const char *const uri_rev = "table:rev";
 #define ENV_CONFIG_TIER \
     ",tiered_storage=(bucket=./bucket,bucket_prefix=rdio-,local_retention=2,name=dir_store)"
 #define ENV_CONFIG_TIER_EXT                               \
-    ",extensions=(%s../../ext/storage_sources/dir_store/" \
+    ",extensions=(%s../../../ext/storage_sources/dir_store/" \
     "libwiredtiger_dir_store.so=(early_load=true))"
 #define ENV_CONFIG_REC "log=(recover=on)"
 
