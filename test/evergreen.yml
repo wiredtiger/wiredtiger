@@ -122,7 +122,7 @@ functions:
           mkdir -p cmake_build
           cd cmake_build
           $CMAKE \
-          ${posix_configure_flags|-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DCC_OPTIMIZE_LEVEL=-O0 -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1 -DENABLE_STATIC=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL} -G "${cmake_generator|Ninja}" ./..
+          ${posix_configure_flags|-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1 -DENABLE_STATIC=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL} -G "${cmake_generator|Ninja}" ./..
         fi
   "make wiredtiger": &make_wiredtiger
     command: shell.exec
@@ -168,8 +168,7 @@ functions:
             mkdir -p cmake_build
             cd cmake_build
             $CMAKE -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1 \
-              -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 ${NON_BARRIER_DIAGNOSTIC_YIELDS|} \
-              -DCC_OPTIMIZE_LEVEL=-O0 -DCMAKE_BUILD_TYPE=ASan \
+              -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 ${NON_BARRIER_DIAGNOSTIC_YIELDS|} -DCMAKE_BUILD_TYPE=ASan \
               -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 ${configure_python_setting|} \
               -G "${cmake_generator|Ninja}" ../.
           fi
@@ -191,8 +190,7 @@ functions:
             cd cmake_build
             # CC is set to the system default "clang" binary here as a workaround to mongo toolchains not supporting ASAN on Ubuntu PPC.
             $CMAKE -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1 \
-              -DHAVE_DIAGNOSTIC=1 \
-              ${NON_BARRIER_DIAGNOSTIC_YIELDS|} -DCMAKE_BUILD_TYPE=ASan \
+              -DHAVE_DIAGNOSTIC=1 ${NON_BARRIER_DIAGNOSTIC_YIELDS|} -DCMAKE_BUILD_TYPE=ASan \
               -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 ${configure_python_setting|} \
               -G "${cmake_generator|Ninja}" ../.
           fi
@@ -212,8 +210,7 @@ functions:
             mkdir -p cmake_build
             cd cmake_build
             $CMAKE -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1 \
-              -DHAVE_DIAGNOSTIC=1 -DCC_OPTIMIZE_LEVEL=-O0 \
-              ${NON_BARRIER_DIAGNOSTIC_YIELDS|} -DENABLE_STRICT=1  \
+              -DHAVE_DIAGNOSTIC=1 ${NON_BARRIER_DIAGNOSTIC_YIELDS|} -DENABLE_STRICT=1  \
               -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 ${configure_python_setting|} \
               -G "${cmake_generator|Ninja}" ../.
           fi
@@ -815,7 +812,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DHAVE_DIAGNOSTIC=1 -DCC_OPTIMIZE_LEVEL=-O0 -DENABLE_STRICT=1 -DENABLE_PYTHON=1 -DHAVE_FTRUNCATE=0
+          posix_configure_flags: -DHAVE_DIAGNOSTIC=1 -DENABLE_STRICT=1 -DENABLE_PYTHON=1 -DHAVE_FTRUNCATE=0
       - func: "upload artifact"
       - func: "cleanup"
 
@@ -824,7 +821,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DCC_OPTIMIZE_LEVEL=-O0
+          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1
       - func: "upload artifact"
       - func: "cleanup"
 
@@ -834,7 +831,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=0 -DCC_OPTIMIZE_LEVEL=-O0
+          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=0
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake -DGNU_C_VERSION=7 -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1
@@ -873,7 +870,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DHAVE_DIAGNOSTIC=1 -DCC_OPTIMIZE_LEVEL=-O0 -DENABLE_STRICT=1 -DENABLE_PYTHON=1 -DHAVE_FTRUNCATE=0
+          posix_configure_flags: -DHAVE_DIAGNOSTIC=1 -DENABLE_STRICT=1 -DENABLE_PYTHON=1 -DHAVE_FTRUNCATE=0
       - func: "make check all"
 
   # Start of normal make check test tasks
@@ -1032,7 +1029,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DCC_OPTIMIZE_LEVEL=-O0 -DENABLE_LZ4=1 -DENABLE_SNAPPY=1 -DENABLE_ZLIB=1 -DHAVE_UNITTEST=1
+          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DENABLE_LZ4=1 -DENABLE_SNAPPY=1 -DENABLE_ZLIB=1 -DHAVE_UNITTEST=1
           # Different flags for windows based on what is supported and enabled by default.
           windows_configure_flags: -DHAVE_DIAGNOSTIC=1 -DHAVE_UNITTEST=1
       - command: shell.exec
@@ -2044,7 +2041,7 @@ tasks:
       # Handle special build combination for running all the diagnostic tests.
       - func: "configure wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DCC_OPTIMIZE_LEVEL=-O0 -DENABLE_STATIC=0
+          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DENABLE_STATIC=0
       - func: "make wiredtiger"
       - func: "make check all"
 
@@ -2135,7 +2132,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_BUILD_TYPE=Coverage -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1 -DHAVE_DIAGNOSTIC=1 -DCC_OPTIMIZE_LEVEL=-O0 -DENABLE_STRICT=1 -DENABLE_PYTHON=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_ZSTD=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
+          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_BUILD_TYPE=Coverage -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1 -DHAVE_DIAGNOSTIC=1 -DENABLE_STRICT=1 -DENABLE_PYTHON=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_ZSTD=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
       - func: "make check all"
       - func: "unit test"
         vars:
@@ -2220,7 +2217,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DCC_OPTIMIZE_LEVEL=-O0 -DENABLE_S3=1 -DIMPORT_S3_SDK=external -DENABLE_PYTHON=1 -DHAVE_UNITTEST=1 -DCMAKE_CXX_FLAGS="-ggdb"
+          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DENABLE_S3=1 -DIMPORT_S3_SDK=external -DENABLE_PYTHON=1 -DHAVE_UNITTEST=1 -DCMAKE_CXX_FLAGS="-ggdb"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
@@ -2249,7 +2246,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DCC_OPTIMIZE_LEVEL=-O0 -DENABLE_S3=1 -DIMPORT_S3_SDK=external -DENABLE_PYTHON=1 -DHAVE_UNITTEST=1 -DCMAKE_CXX_FLAGS="-ggdb"
+          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DENABLE_S3=1 -DIMPORT_S3_SDK=external -DENABLE_PYTHON=1 -DHAVE_UNITTEST=1 -DCMAKE_CXX_FLAGS="-ggdb"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
@@ -2355,7 +2352,6 @@ tasks:
             -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
             -DCMAKE_C_FLAGS='-g -Werror'
             -DHAVE_DIAGNOSTIC=1
-            -DCC_OPTIMIZE_LEVEL=-O0
             -DENABLE_STRICT=1
             -DENABLE_STATIC=0
       - func: "make wiredtiger"
@@ -2889,7 +2885,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars: 
-          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DCC_OPTIMIZE_LEVEL=-O0 -DNON_BARRIER_DIAGNOSTIC_YIELDS=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 -DHAVE_BUILTIN_EXTENSION_ZSTD=1
+          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DNON_BARRIER_DIAGNOSTIC_YIELDS=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 -DHAVE_BUILTIN_EXTENSION_ZSTD=1
       - func: "format test script"
         vars:
           format_test_script_args: -R -t 360
@@ -2904,7 +2900,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DCC_OPTIMIZE_LEVEL=-O0 -DNON_BARRIER_DIAGNOSTIC_YIELDS=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
+          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DNON_BARRIER_DIAGNOSTIC_YIELDS=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
       - func: "recovery stress test script"
         vars:
           times: 25
@@ -3850,7 +3846,6 @@ buildvariants:
       -DCMAKE_C_FLAGS="-ggdb"
       -DCMAKE_CXX_FLAGS="-ggdb"
       -DHAVE_DIAGNOSTIC=1
-      -DCC_OPTIMIZE_LEVEL=-O0
       -DENABLE_PYTHON=1
       -DENABLE_ZLIB=1
       -DENABLE_SNAPPY=1
@@ -3909,7 +3904,6 @@ buildvariants:
       -DCMAKE_BUILD_TYPE=ASan
       -DENABLE_STRICT=1
       -DHAVE_DIAGNOSTIC=1
-      -DCC_OPTIMIZE_LEVEL=-O0
       -DENABLE_STATIC=0
       -DENABLE_TCMALLOC=1
       -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
@@ -3941,12 +3935,12 @@ buildvariants:
     posix_configure_flags:
       -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_clang.cmake
       -DCMAKE_BUILD_TYPE=MSan
-      -DCMAKE_C_FLAGS="-ggdb"
-      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
-      -DCC_OPTIMIZE_LEVEL=-O0
-      -DENABLE_STATIC=0
+      -DCC_OPTIMIZE_LEVEL=-O1
       -DENABLE_STRICT=1
       -DHAVE_DIAGNOSTIC=1
+      -DENABLE_STATIC=0
+      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+      -DCMAKE_C_FLAGS="-ggdb"
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
@@ -3977,15 +3971,15 @@ buildvariants:
     posix_configure_flags:
       -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_clang.cmake
       -DCMAKE_BUILD_TYPE=UBSan
+      -DCC_OPTIMIZE_LEVEL=-O1
+      -DENABLE_STRICT=1
+      -DHAVE_DIAGNOSTIC=1
+      -DENABLE_STATIC=0
+      -DENABLE_TCMALLOC=1
+      -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
+      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
       -DCMAKE_C_FLAGS="-ggdb"
       -DCMAKE_CXX_FLAGS="-ggdb"
-      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
-      -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
-      -DCC_OPTIMIZE_LEVEL=-O0
-      -DENABLE_STATIC=0
-      -DENABLE_STRICT=1
-      -DENABLE_TCMALLOC=1
-      -DHAVE_DIAGNOSTIC=1
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:

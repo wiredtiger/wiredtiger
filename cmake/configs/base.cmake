@@ -212,11 +212,17 @@ config_bool(
     DEFAULT OFF
 )
 
+set(default_build_type "Debug")
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
+  set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
+endif()
+
 set(default_optimize_level)
 if("${WT_OS}" STREQUAL "windows")
-    set(default_optimize_level "/O2")
+    set(default_optimize_level "/O0")
 else()
-    set(default_optimize_level "-O3")
+    set(default_optimize_level "-O0")
 endif()
 config_string(
     CC_OPTIMIZE_LEVEL
