@@ -48,9 +48,9 @@ struct __wt_config_parser_impl {
 
 /*
  * If double quotes surround the string, then expand the string to include them. This is always
- * called in the context of key/values returned by the configuration parser. The character to the
- * right must be at a valid memory address, and checking just that one is sufficient. If it is a
- * double quote, then the character to the left must be as well, by the rules of the tokenizer.
+ * called in the context of keys or values returned by the configuration parser. The character after
+ * the string must be at a valid memory address, and checking just that one is sufficient. If it is
+ * a double quote, then the character before must be as well, by the rules of the tokenizer.
  */
 #define WT_CONFIG_PRESERVE_QUOTES(session, item)        \
     do {                                                \
