@@ -49,7 +49,6 @@ check() {
 l=`(cd .. &&
     find bench examples ext src test -not -path "test/cppsuite/*" -name '*.[chsy]' &&
     find src -name '*.in' &&
-    find test -name '*.cxx' &&
     find test -not -path "test/cppsuite/*" -name '*.cpp')`
 
 usage()
