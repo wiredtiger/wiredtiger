@@ -42,7 +42,14 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref,
     if (!__wt_page_del_visible(session, page_del, !F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))) {
         if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
             WT_RET_PANIC(session, EINVAL, "reconciliation illegally skipped an update");
-        if (F_ISSET(r, WT_REC_CLEAN_AFTER_REC))
+        /*
+         * In addition to the WT_REC_CLEAN_AFTER_REC case, fail if we're trying to evict an internal
+         * page and we can't see the update to it. There's not much point continuing; unlike with a
+         * leaf page, rewriting the page image and keeping the modification doesn't accomplish a
+         * great deal. Also currently code elsewhere assumes that evicting (vs. checkpointing)
+         * internal pages shouldn't leave them dirty.
+         */
+        if (F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_EVICT))
             return (__wt_set_return(session, EBUSY));
         cmsp->state = WT_CHILD_ORIGINAL;
         r->leave_dirty = true;
