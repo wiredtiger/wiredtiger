@@ -1364,7 +1364,7 @@ __rec_split_fix_shrink(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         dst = r->first_free + WT_COL_FIX_AUXHEADER_RESERVATION;
 
         /* The move span should be the empty data size. */
-        // WT-9417 IGNORE 
+        // WT-9417 IGNORE
         WT_ASSERT(session, src == dst + emptysize);
 
         /* Do the move. */

@@ -179,9 +179,9 @@
 
 /*
  * WT_ASSERT_STRONG
- * Assert an expression, abort in both diagnostic and release mode if it fails.
+ *  Assert an expression, abort in both diagnostic and release mode if it fails.
  */
-#define WT_ASSERT_STRONG(session, exp)             \
+#define WT_ASSERT_STRONG(session, exp)      \
     do {                                    \
         if (!(exp)) {                       \
             __wt_errx(session, "%s", #exp); \

@@ -542,7 +542,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         /* Ignore prepared updates if it is checkpoint. */
         if (upd->prepare_state == WT_PREPARE_LOCKED ||
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
-            WT_ASSERT_STRONG(session, upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid);
+            WT_ASSERT_STRONG(
+              session, upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid);
             if (F_ISSET(r, WT_REC_CHECKPOINT)) {
                 upd_memsize += WT_UPDATE_MEMSIZE(upd);
                 has_newer_updates = true;
@@ -670,7 +671,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
             WT_ASSERT_STRONG(session, tombstone != NULL);
 
             /* We must have an ondisk value and it can't be a prepared update. */
-            WT_ASSERT_STRONG(session, vpack != NULL && vpack->type != WT_CELL_DEL && !vpack->tw.prepare);
+            WT_ASSERT_STRONG(
+              session, vpack != NULL && vpack->type != WT_CELL_DEL && !vpack->tw.prepare);
 
             /* Move the pointer to the last update on the update chain. */
             for (last_upd = tombstone; last_upd->next != NULL; last_upd = last_upd->next)
