@@ -845,7 +845,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         (!F_ISSET(r, WT_REC_EVICT) && seen_prepare));
     WT_ASSERT(session,
       tombstone == NULL || !F_ISSET(tombstone, WT_UPDATE_HS) ||
-        F_ISSET(upd_select->upd, WT_UPDATE_TO_DELETE_FROM_HS) ||
+        F_ISSET(tombstone, WT_UPDATE_TO_DELETE_FROM_HS) ||
         (!F_ISSET(r, WT_REC_EVICT) && seen_prepare));
 
     /*
