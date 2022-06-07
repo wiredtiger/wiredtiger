@@ -506,6 +506,7 @@ __cursor_search_neighboring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *
         if (*exact <= 0)
             return (ret);
     }
+
     return (ret);
 }
 
@@ -672,8 +673,10 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     WT_CURFILE_STATE state;
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    int pid, ret2;
     WT_SESSION_IMPL *session;
     bool leaf_found, valid;
+    char buf[1024];
 
     btree = CUR2BT(cbt);
     cursor = &cbt->iface;
@@ -732,7 +735,13 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
                     WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
             }
         } else {
-            WT_ERR(__cursor_col_search(cbt, NULL, NULL));
+            ret = __cursor_col_search(cbt, NULL, NULL);
+            if (ret != 0) {
+                WT_ASSERT(session,
+                          !cbt->iface.search_must_found || WT_IS_HS(session->dhandle) ||
+                          WT_IS_METADATA(session->dhandle));
+                goto err;
+            }
             if (cbt->compare == 0) {
                 if (F_ISSET(cursor, WT_CURSTD_KEY_ONLY))
                     valid = true;
@@ -768,9 +777,23 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
         WT_ERR(__wt_btcur_evict_reposition(cbt));
 
 err:
-    WT_ASSERT(session,
-              !cbt->iface.search_must_found || WT_IS_HS(session->dhandle) ||
-              WT_IS_METADATA(session->dhandle) || ret == 0);
+    if (!(!cbt->iface.search_must_found || WT_IS_HS(session->dhandle) ||
+          WT_IS_METADATA(session->dhandle) || ret == 0)) {
+        pid = getpid();
+        snprintf(buf, 1024, "debug_page_%d.txt", pid);
+        ret2 = __wt_debug_page(session, btree, cbt->ref, buf);
+
+        snprintf(buf, 1024, "debug_tree_%d.txt", pid);
+        ret2 |= __wt_debug_tree(session, btree, cbt->ref, buf);
+
+        snprintf(buf, 1024, "debug_tree_all_%d.txt", pid);
+        ret2 |= __wt_debug_tree_all(session, btree, cbt->ref, buf);
+
+        printf("ret2 is %d\n", ret2);
+        WT_ASSERT(session,
+                  !cbt->iface.search_must_found || WT_IS_HS(session->dhandle) ||
+                  WT_IS_METADATA(session->dhandle) || ret == 0);
+    }
     if (ret != 0) {
         WT_TRET(__cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
@@ -792,11 +815,14 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     WT_SESSION_IMPL *session;
     int exact;
     bool leaf_found, valid;
+    uint64_t tmp, tmp2;
 
     btree = CUR2BT(cbt);
     cursor = &cbt->iface;
     session = CUR2S(cbt);
     exact = 0;
+
+    tmp2 = cbt->iface.recno;
 
     WT_STAT_CONN_DATA_INCR(session, cursor_search_near);
 
@@ -861,8 +887,16 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
             WT_ERR(
               __wt_cursor_valid(cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, &valid));
         } else {
+            tmp = cbt->iface.recno;
             WT_ERR(__cursor_col_search(cbt, NULL, NULL));
             WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
+            if (cbt->recno_maybe_oob != 1) {
+                if (ret == 0 && cbt->compare == -1 && cbt->recno != 0) {
+                    WT_ASSERT(session, tmp > cbt->recno);
+                } else if (ret == 0 && cbt->compare == 1 && cbt->recno != 0) {
+                    WT_ASSERT(session, tmp < cbt->recno);
+                }
+            }
         }
     }
 
@@ -910,6 +944,11 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     } else {
         /* We didn't find an exact match, try to find the nearest one. */
         WT_WITHOUT_EVICT_REPOSITION(ret = __cursor_search_neighboring(cbt, &state, &exact));
+        if (exact == -1 && cbt->recno != 0) {
+            WT_ASSERT(session, tmp2 > cbt->recno);
+        } else if (exact == 1 && cbt->recno != 0) {
+            WT_ASSERT(session, tmp2 < cbt->recno);
+        }
         WT_ERR(ret);
     }
 
@@ -934,6 +973,18 @@ err:
         WT_TRET(__cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }
+
+    if (ret == 0 && *exactp == -1 && cbt->recno != 0) {
+        WT_ASSERT(session, tmp2 > cbt->recno);
+    } else if (ret == 0 && *exactp == 1 && cbt->recno != 0) {
+        WT_ASSERT(session, tmp2 < cbt->recno) ;
+    }
+
+    if (ret == 0 && *exactp != 0 && cbt->recno != 0) {
+        WT_IGNORE_RET(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
+        WT_ASSERT(session, valid == true);
+    }
+
     return (ret);
 }
 

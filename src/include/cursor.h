@@ -119,6 +119,7 @@ struct __wt_cursor_btree {
     uint32_t page_deleted_count; /* Deleted items on the page */
 
     uint64_t recno; /* Record number */
+    uint64_t recno_maybe_oob; /* Record number */
 
     /*
      * Next-random cursors can optionally be configured to step through a percentage of the total

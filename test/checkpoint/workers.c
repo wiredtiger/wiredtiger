@@ -172,7 +172,7 @@ worker_no_ts_delete(WT_CURSOR *cursor, uint64_t keyno)
     cursor->set_key(cursor, keyno);
     ret = cursor->search(cursor);
     if (ret == 0)
-        ret = cursor->remove(cursor);
+        ret = 0; /* cursor->remove(cursor); */
     if (ret == WT_NOTFOUND)
         ret = 0;
 

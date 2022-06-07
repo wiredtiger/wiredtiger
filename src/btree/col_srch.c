@@ -23,12 +23,14 @@ __check_leaf_key_range(WT_SESSION_IMPL *session, uint64_t recno, WT_REF *leaf, W
      * those cases, only skipping the complete leaf page search if we know it's not going to work.
      */
     cbt->compare = 0;
+    cbt->recno_maybe_oob = 0;
 
     /*
      * Check if the search key is smaller than the parent's starting key for this page.
      */
     if (recno < leaf->ref_recno) {
         cbt->compare = 1; /* page keys > search key */
+        cbt->recno_maybe_oob = 1;
         return (0);
     }
 
@@ -73,6 +75,8 @@ __wt_col_search(
     uint64_t recno;
     uint32_t base, indx, limit, read_flags;
     int depth;
+
+    cbt->recno_maybe_oob = 0;
 
     session = CUR2S(cbt);
     btree = S2BT(session);
@@ -213,6 +217,7 @@ leaf_only:
      */
     if (search_recno == WT_RECNO_OOB) {
         cbt->compare = -1;
+        cbt->recno_maybe_oob = 1;
         return (0);
     }
 
@@ -289,16 +294,19 @@ past_end:
      */
     cbt->ins_head = WT_COL_APPEND(page);
     if ((cbt->ins = __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, recno)) ==
-      NULL)
+      NULL) {
         cbt->compare = -1;
-    else {
+        cbt->recno_maybe_oob = 1;
+    } else {
         cbt->recno = WT_INSERT_RECNO(cbt->ins);
         if (recno == cbt->recno)
             cbt->compare = 0;
         else if (recno < cbt->recno)
             cbt->compare = 1;
-        else
+        else {
             cbt->compare = -1;
+            cbt->recno_maybe_oob = 1;
+        }
     }
     return (0);
 }

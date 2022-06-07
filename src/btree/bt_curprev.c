@@ -404,6 +404,7 @@ restart_read:
             if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
                 return (0);
 
+            WT_ASSERT(session, cbt->recno == WT_INSERT_RECNO(cbt->ins));
             WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
         }
         if (cbt->upd_value->type != WT_UPDATE_INVALID) {
