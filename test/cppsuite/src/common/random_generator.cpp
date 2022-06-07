@@ -89,7 +89,7 @@ RandomGenerator::GetDistribution(CharactersType type)
     case CharactersType::kPseudoAlphaNum:
         return (_alphaNumDistribution);
     default:
-        testutil_die(type, "Unexpected CharactersType");
+        testutil_die(static_cast<int>(type), "Unexpected CharactersType");
     }
 }
 
@@ -102,7 +102,7 @@ RandomGenerator::GetCharacters(CharactersType type)
     case CharactersType::kPseudoAlphaNum:
         return (_pseudoAlphaNum);
     default:
-        testutil_die(type, "Unexpected CharactersType");
+        testutil_die(static_cast<int>(type), "Unexpected CharactersType");
     }
 }
 

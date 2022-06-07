@@ -40,7 +40,7 @@
 #include "transaction.h"
 
 namespace test_harness {
-enum ThreadType { kCheckpoint, kCustom, kInsert, kRead, kRemove, kUpdate };
+enum class ThreadType { kCheckpoint, kCustom, kInsert, kRead, kRemove, kUpdate };
 
 const std::string ThreadTypeToString(ThreadType type);
 
