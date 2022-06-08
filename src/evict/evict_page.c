@@ -222,7 +222,11 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
           was_clean,
           is_urgent,
           closing,
-          force_evict_hs);
+          force_evict_hs,
+          count);
+        if (page_type != WT_PAGE_ROW_INT) {
+            fprintf(stderr, "*** Evicted internal page that was not internal earlier in function! ** ");
+        }
     }
 
     if (time_start != 0) {
