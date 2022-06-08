@@ -260,6 +260,10 @@ class cursor_bound_01 : public test {
             ret = range_cursor->bound(range_cursor.get(), lower_bound.get_config().c_str());
             testutil_assert(ret == 0 || ret == EINVAL);
 
+            /*
+             * It is possible that the new lower bound overlaps with the upper bound. In that case,
+             * just clear the lower bound and continue with test.
+             */
             if (ret == EINVAL)
                 lower_bound.clear();
         }
@@ -270,6 +274,10 @@ class cursor_bound_01 : public test {
             ret = range_cursor->bound(range_cursor.get(), upper_bound.get_config().c_str());
             testutil_assert(ret == 0 || ret == EINVAL);
 
+            /*
+             * It is possible that the new upper bound overlaps with the lower bound. In that case,
+             * just clear the upper bound and continue with test.
+             */
             if (ret == EINVAL)
                 upper_bound.clear();
         }
@@ -608,6 +616,7 @@ class cursor_bound_01 : public test {
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         std::map<uint64_t, scoped_cursor> cursors;
+        /* Maintain the lower and upper bound for each cursor held in the cursors map. */
         std::map<uint64_t, std::pair<bound, bound>> bounds;
         while (tc->running()) {
             /* Get a random collection to work on. */
@@ -630,7 +639,7 @@ class cursor_bound_01 : public test {
             if (!new_bound_pair.second.get_key().empty())
                 bound_pair.second = new_bound_pair.second;
 
-            /* Clear all bounds if both bounds doesn't have a key. */
+            /* Clear all bounds if both bounds don't have a key. */
             if (new_bound_pair.first.get_key().empty() && new_bound_pair.second.get_key().empty()) {
                 bound_pair.first.clear();
                 bound_pair.second.clear();
@@ -683,6 +692,7 @@ class cursor_bound_01 : public test {
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         std::map<uint64_t, scoped_cursor> cursors;
+        /* Maintain the lower and upper bound for each cursor held in the cursors map. */
         std::map<uint64_t, std::pair<bound, bound>> bounds;
         while (tc->running()) {
             /* Get a random collection to work on. */
@@ -705,7 +715,7 @@ class cursor_bound_01 : public test {
             if (!new_bound_pair.second.get_key().empty())
                 bound_pair.second = new_bound_pair.second;
 
-            /* Clear all bounds if both bounds doesn't have a key. */
+            /* Clear all bounds if both bounds don't have a key. */
             if (new_bound_pair.first.get_key().empty() && new_bound_pair.second.get_key().empty()) {
                 bound_pair.first.clear();
                 bound_pair.second.clear();
