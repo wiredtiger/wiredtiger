@@ -421,7 +421,7 @@ test_upgrade(THREAD_DATA *td)
 
     /* FIXME-WT-9423 Remove this return when tiered storage supports upgrade. */
     if (tiered)
-    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+        testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
     if ((ret = session->upgrade(session, uri, NULL)) != 0)
         if (ret != ENOENT && ret != EBUSY)
@@ -1078,8 +1078,9 @@ main(int argc, char *argv[])
         printf("Parent: compatibility: %s, in-mem log sync: %s, timestamp in use: %s\n",
           compat ? "true" : "false", inmem ? "true" : "false", use_ts ? "true" : "false");
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 "\n", progname,
-          compat ? " -C" : "", inmem ? " -m" : "", !use_ts ? " -z" : "", working_dir, nth, timeout);
+        printf("CONFIG: %s%s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 "\n", progname,
+          compat ? " -C" : "", inmem ? " -m" : "", tiered ? " -B" : "", !use_ts ? " -z" : "",
+          working_dir, nth, timeout);
         /*
          * Fork a child to insert as many items. We will then randomly kill the child, run recovery
          * and make sure all items we wrote exist after recovery runs.
