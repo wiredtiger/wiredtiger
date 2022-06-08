@@ -421,7 +421,8 @@ test_upgrade(THREAD_DATA *td)
 
     /* FIXME-WT-9423 Remove this return when tiered storage supports upgrade. */
     if (tiered)
-        testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+        return;
+    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
     if ((ret = session->upgrade(session, uri, NULL)) != 0)
         if (ret != ENOENT && ret != EBUSY)
