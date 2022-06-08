@@ -1364,7 +1364,7 @@ __wt_session_range_truncate(
     WT_CURSOR *debug_start;
     WT_CURSOR *debug_stop;
     WT_ITEM col_value;
-    bool is_col_fix, is_truncate;
+    bool is_truncate;
 
     debug_start = debug_stop = NULL;
     is_truncate = false;
