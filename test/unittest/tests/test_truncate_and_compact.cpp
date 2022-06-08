@@ -288,7 +288,7 @@ void triggerEviction(WT_SESSION* session, std::string const& table_name, int key
     std::cout << "Try to trigger eviction" << std::endl;
     WT_CURSOR* cursor = nullptr;
     REQUIRE(session->open_cursor(session, table_name.c_str(), nullptr, "debug=(release_evict=true)", &cursor) == 0);
-    for (int i = keyMin; i <= keyMax; i += 10000) {
+    for (int i = keyMin; i <= keyMax; i += 1000) {
         std::string key = testcase_key_base + std::to_string(i);
         std::cout << "  attempt to trigger eviction using key " << key << std::endl;
         cursor->set_key(cursor, key.c_str());
