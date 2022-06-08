@@ -421,60 +421,28 @@ __rec_calc_upd_memsize(WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, size_t upd_m
 }
 
 /*
- * __wt_rec_upd_select --
- *     Return the update in a list that should be written (or NULL if none can be written).
+ * __rec_upd_select --
+ *     Select the update to write to disk image.
  */
-int
-__wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
-  WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
-{
-    WT_PAGE *page;
-    WT_TIME_WINDOW *select_tw;
-    WT_UPDATE *first_txn_upd, *first_upd, *onpage_upd, *upd, *last_upd, *tombstone;
-    wt_timestamp_t max_ts;
-    size_t upd_memsize;
-    uint64_t max_txn, session_txnid, txnid;
-    bool has_newer_updates, is_hs_page, supd_restore, upd_saved;
+static int
+__rec_upd_select(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd, WT_UPDATE_SELECT *upd_select,
+  WT_UPDATE **first_txn_updp, bool *has_newer_updatesp, size_t *upd_memsizep
 #ifdef HAVE_DIAGNOSTIC
-    bool seen_prepare;
+  ,
+  bool *seen_preparep
 #endif
+)
+{
+    WT_UPDATE *upd;
+    wt_timestamp_t max_ts;
+    uint64_t max_txn, session_txnid, txnid;
+    bool is_hs_page;
 
-    /*
-     * The "saved updates" return value is used independently of returning an update we can write,
-     * both must be initialized.
-     */
-    upd_select->upd = NULL;
-    upd_select->upd_saved = false;
-    upd_select->no_ts_tombstone = false;
-    select_tw = &upd_select->tw;
-    WT_TIME_WINDOW_INIT(select_tw);
-
-    page = r->page;
-    first_txn_upd = onpage_upd = upd = last_upd = tombstone = NULL;
-    upd_memsize = 0;
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
-    has_newer_updates = supd_restore = upd_saved = false;
     is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
     session_txnid = WT_SESSION_TXN_SHARED(session)->id;
-
-#ifdef HAVE_DIAGNOSTIC
-    seen_prepare = false;
-#endif
-
-    /*
-     * If called with a WT_INSERT item, use its WT_UPDATE list (which must exist), otherwise check
-     * for an on-page row-store WT_UPDATE list (which may not exist). Return immediately if the item
-     * has no updates.
-     */
-    if (ins != NULL)
-        first_upd = ins->upd;
-    else {
-        /* Note: ins is never null for columns. */
-        WT_ASSERT(session, rip != NULL && page->type == WT_PAGE_ROW_LEAF);
-        if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
-            return (0);
-    }
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
         if ((txnid = upd->txnid) == WT_TXN_ABORTED)
@@ -483,8 +451,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         /*
          * Track the first update in the chain that is not aborted and the maximum transaction ID.
          */
-        if (first_txn_upd == NULL)
-            first_txn_upd = upd;
+        if (*first_txn_updp == NULL)
+            *first_txn_updp = upd;
         if (WT_TXNID_LT(max_txn, txnid))
             max_txn = txnid;
 
@@ -492,8 +460,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
          * Special handling for application threads evicting their own updates.
          */
         if (!is_hs_page && F_ISSET(r, WT_REC_APP_EVICTION_SNAPSHOT) && txnid == session_txnid) {
-            upd_memsize += WT_UPDATE_MEMSIZE(upd);
-            has_newer_updates = true;
+            *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+            *has_newer_updatesp = true;
             continue;
         }
         /*
@@ -530,8 +498,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
                 return (__wt_set_return(session, EBUSY));
             }
 
-            upd_memsize += WT_UPDATE_MEMSIZE(upd);
-            has_newer_updates = true;
+            *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+            *has_newer_updatesp = true;
             continue;
         }
 
@@ -540,12 +508,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
             WT_ASSERT(session, upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid);
             if (F_ISSET(r, WT_REC_CHECKPOINT)) {
-                upd_memsize += WT_UPDATE_MEMSIZE(upd);
-                has_newer_updates = true;
+                *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+                *has_newer_updatesp = true;
                 if (upd->start_ts > max_ts)
                     max_ts = upd->start_ts;
-#ifdef HAVE_DIADNOSTIC
-                seen_prepare = true;
+#ifdef HAVE_DIAGNOSTIC
+                *seen_preparep = true;
 #endif
                 continue;
             } else {
@@ -579,6 +547,79 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         if (!F_ISSET(r, WT_REC_EVICT) || !WT_IS_METADATA(session->dhandle))
             break;
     }
+
+    /*
+     * Track the most recent transaction in the page. We store this in the tree at the end of
+     * reconciliation in the service of checkpoints, it is used to avoid discarding trees from
+     * memory when they have changes required to satisfy a snapshot read.
+     */
+    if (WT_TXNID_LT(r->max_txn, max_txn))
+        r->max_txn = max_txn;
+
+    /* Update the maximum timestamp. */
+    if (max_ts > r->max_ts)
+        r->max_ts = max_ts;
+
+    return (0);
+}
+
+/*
+ * __wt_rec_upd_select --
+ *     Return the update in a list that should be written (or NULL if none can be written).
+ */
+int
+__wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
+  WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
+{
+    WT_PAGE *page;
+    WT_TIME_WINDOW *select_tw;
+    WT_UPDATE *first_txn_upd, *first_upd, *onpage_upd, *upd, *last_upd, *tombstone;
+    size_t upd_memsize;
+    bool has_newer_updates, supd_restore, upd_saved;
+#ifdef HAVE_DIAGNOSTIC
+    bool seen_prepare;
+#endif
+
+    /*
+     * The "saved updates" return value is used independently of returning an update we can write,
+     * both must be initialized.
+     */
+    upd_select->upd = NULL;
+    upd_select->upd_saved = false;
+    upd_select->no_ts_tombstone = false;
+    select_tw = &upd_select->tw;
+    WT_TIME_WINDOW_INIT(select_tw);
+
+    page = r->page;
+    first_txn_upd = onpage_upd = upd = last_upd = tombstone = NULL;
+    upd_memsize = 0;
+    has_newer_updates = supd_restore = upd_saved = false;
+
+#ifdef HAVE_DIAGNOSTIC
+    seen_prepare = false;
+#endif
+
+    /*
+     * If called with a WT_INSERT item, use its WT_UPDATE list (which must exist), otherwise check
+     * for an on-page row-store WT_UPDATE list (which may not exist). Return immediately if the item
+     * has no updates.
+     */
+    if (ins != NULL)
+        first_upd = ins->upd;
+    else {
+        /* Note: ins is never null for columns. */
+        WT_ASSERT(session, rip != NULL && page->type == WT_PAGE_ROW_LEAF);
+        if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
+            return (0);
+    }
+
+    WT_RET(__rec_upd_select(
+      session, r, first_upd, upd_select, &first_txn_upd, &has_newer_updates, &upd_memsize
+#ifdef HAVE_DIAGNOSTIC
+      ,
+      &seen_prepare
+#endif
+      ));
 
     /* Keep track of the selected update. */
     upd = upd_select->upd;
@@ -728,18 +769,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         }
     }
 
-    /*
-     * Track the most recent transaction in the page. We store this in the tree at the end of
-     * reconciliation in the service of checkpoints, it is used to avoid discarding trees from
-     * memory when they have changes required to satisfy a snapshot read.
-     */
-    if (WT_TXNID_LT(r->max_txn, max_txn))
-        r->max_txn = max_txn;
-
-    /* Update the maximum timestamp. */
-    if (max_ts > r->max_ts)
-        r->max_ts = max_ts;
-
     /* Mark the page dirty after reconciliation. */
     if (has_newer_updates)
         r->leave_dirty = true;
@@ -755,7 +784,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
      * Set the flag if the selected tombstone has no timestamp. Based on this flag, the caller
      * functions perform the history store truncation for this key.
      */
-    if (!is_hs_page && tombstone != NULL &&
+    if (!F_ISSET(session->dhandle, WT_DHANDLE_HS) && tombstone != NULL &&
       !F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS)) {
         upd = upd_select->upd;
 
