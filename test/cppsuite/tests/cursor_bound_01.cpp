@@ -51,7 +51,7 @@ class cursor_bound_01 : public test {
         public:
         bound()
         {
-            this->clear();
+            clear();
         };
 
         bound(uint64_t key_size_max, bool lower_bound) : _lower_bound(lower_bound)
@@ -625,10 +625,10 @@ class cursor_bound_01 : public test {
             auto &bound_pair = bounds[coll.id];
             auto new_bound_pair = set_random_bounds(tc, range_cursor);
             /* Only update the bounds when the bounds have a key. */
-            if (!bound_pair.first.get_key().empty())
-                bound_pair.first = std::move(new_bound_pair.first);
-            if (!bound_pair.second.get_key().empty())
-                bound_pair.second = std::move(new_bound_pair.second);
+            if (!!new_bound_pair.first.get_key().empty())
+                bound_pair.first = new_bound_pair.first;
+            if (!new_bound_pair.second.get_key().empty())
+                bound_pair.second = new_bound_pair.second;
 
             /* Clear all bounds if both bounds doesn't have a key. */
             if (new_bound_pair.first.get_key().empty() && new_bound_pair.second.get_key().empty()) {
@@ -700,10 +700,10 @@ class cursor_bound_01 : public test {
             auto &bound_pair = bounds[coll.id];
             auto new_bound_pair = set_random_bounds(tc, range_cursor);
             /* Only update the bounds when the bounds have a key. */
-            if (!bound_pair.first.get_key().empty())
-                bound_pair.first = std::move(new_bound_pair.first);
-            if (!bound_pair.second.get_key().empty())
-                bound_pair.second = std::move(new_bound_pair.second);
+            if (!new_bound_pair.first.get_key().empty())
+                bound_pair.first = new_bound_pair.first;
+            if (!new_bound_pair.second.get_key().empty())
+                bound_pair.second = new_bound_pair.second;
 
             /* Clear all bounds if both bounds doesn't have a key. */
             if (new_bound_pair.first.get_key().empty() && new_bound_pair.second.get_key().empty()) {
