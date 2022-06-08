@@ -103,7 +103,7 @@ static const char *const uri_rev = "table:rev";
     "create,log=(file_max=10M,enabled)," \
     "transaction_sync=(enabled,method=%s)"
 #define ENV_CONFIG_TIER \
-    ",tiered_storage=(bucket=./bucket,bucket_prefix=rdio-,local_retention=2,name=dir_store)"
+    ",tiered_storage=(bucket=./bucket,bucket_prefix=pfx-,local_retention=2,name=dir_store)"
 #define ENV_CONFIG_TIER_EXT                                  \
     ",extensions=(%s../../../ext/storage_sources/dir_store/" \
     "libwiredtiger_dir_store.so=(early_load=true))"

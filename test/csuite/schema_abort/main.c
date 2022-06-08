@@ -98,7 +98,7 @@ static pthread_rwlock_t flush_lock;
     "eviction_updates_trigger=95,eviction_updates_target=80," \
     "log=(enabled,file_max=10M,remove=false)"
 #define ENV_CONFIG_TIER \
-    ",tiered_storage=(bucket=./bucket,bucket_prefix=rdio-,local_retention=2,name=dir_store)"
+    ",tiered_storage=(bucket=./bucket,bucket_prefix=pfx-,local_retention=2,name=dir_store)"
 #define ENV_CONFIG_TIER_EXT                                   \
     ",extensions=(../../../../ext/storage_sources/dir_store/" \
     "libwiredtiger_dir_store.so=(early_load=true))"
