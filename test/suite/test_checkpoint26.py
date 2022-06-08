@@ -73,8 +73,8 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         # a bit of a nuisance. So, since the metadata table isn't large, iterate it once and
         # save the eviction keys in a Python list, then iterate those keys and evict them.
         #
-        # We'll evict every 3rd key. FUTURE: would be nice to evict each page exactly once,
-        # but that's even harder here than in the usual evict cursor case.
+        # FUTURE: would be nice to evict each page exactly once, but that's even harder here
+        # than in the usual eviction cursor case.
         keys = []
         n = 0
         for k, v in evict_cursor:
@@ -126,11 +126,9 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         if self.value_format == '8t':
             value_a = 97
             value_b = 98
-            value_c = 99
         else:
             value_a = "aaaaa" * 100
             value_b = "bbbbb" * 100
-            value_c = "ccccc" * 100
 
         # Pin oldest and stable timestamps to 5.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5) +
