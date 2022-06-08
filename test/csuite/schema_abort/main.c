@@ -726,7 +726,7 @@ thread_run(void *arg)
         if (use_ts)
             stable_ts = __wt_atomic_addv64(&global_ts, 1);
 
-	testutil_check(pthread_rwlock_rdlock(&flush_lock));
+        testutil_check(pthread_rwlock_rdlock(&flush_lock));
         testutil_check(session->begin_transaction(session, NULL));
         if (use_prep)
             testutil_check(oplog_session->begin_transaction(oplog_session, NULL));
@@ -803,7 +803,7 @@ thread_run(void *arg)
         data.data = lbuf;
         cur_local->set_value(cur_local, &data);
         testutil_check(cur_local->insert(cur_local));
-	testutil_check(pthread_rwlock_unlock(&flush_lock));
+        testutil_check(pthread_rwlock_unlock(&flush_lock));
 
         /*
          * Save the timestamp and key separately for checking later.
