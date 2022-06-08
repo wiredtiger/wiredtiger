@@ -257,7 +257,7 @@ test_bulk_unique(THREAD_DATA *td, int force)
     WT_DECL_RET;
     WT_SESSION *session;
     uint64_t my_uid;
-    char new_uri[64];
+    char dropconf[128], new_uri[64];
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
@@ -279,9 +279,13 @@ test_bulk_unique(THREAD_DATA *td, int force)
     else if (ret != EINVAL)
         testutil_die(ret, "session.open_cursor bulk unique: %s, new_uri");
 
-    while ((ret = session->drop(session, new_uri, force ? "force" : NULL)) != 0)
+    testutil_check(__wt_snprintf(dropconf, sizeof(dropconf), "force=%s", force ? "true" : "false"));
+    /* For testing we want to remove objects too. */
+    if (tiered)
+        strcat(dropconf, ",remove_shared=true");
+    while ((ret = session->drop(session, new_uri, dropconf)) != 0)
         if (ret != EBUSY)
-            testutil_die(ret, "session.drop: %s", new_uri);
+            testutil_die(ret, "session.drop: %s %s", new_uri, dropconf);
 
     if (use_txn && (ret = session->commit_transaction(session, NULL)) != 0 && ret != EINVAL)
         testutil_die(ret, "session.commit bulk unique");
