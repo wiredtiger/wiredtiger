@@ -247,7 +247,7 @@ contains metadata for all objects in the database. The file can be specified as 
 for \c metadata_file to import a table. See WT_SESSION::create for more details.
 The cursor operates like a normal backup cursor, it can be used to iterate over all files needed
 for a backup. The main difference is that ::wiredtiger_open will
-ignore \c WiredTiger.export, it will not try to start the system using the file or delete it.
+ignore \c WiredTiger.export, it will not try to start the system using the file nor delete it.
 As with all backup cursors, there can only be one backup cursor of any type open at a time.
 
 @section backup_o_direct Backup and O_DIRECT
