@@ -166,8 +166,8 @@ Configuration::GetList(const std::string &key)
 
 template <typename T>
 T
-Configuration::Get(
-  const std::string &key, bool optional, ConfigurationType type, T def, T (*func)(WT_CONFIG_ITEM item))
+Configuration::Get(const std::string &key, bool optional, ConfigurationType type, T def,
+  T (*func)(WT_CONFIG_ITEM item))
 {
     WT_DECL_RET;
     WT_CONFIG_ITEM value = {"", 0, 1, WT_CONFIG_ITEM::WT_CONFIG_ITEM_BOOL};
