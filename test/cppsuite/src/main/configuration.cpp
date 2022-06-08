@@ -110,63 +110,64 @@ Configuration::~Configuration()
 std::string
 Configuration::GetString(const std::string &key)
 {
-    return Get<std::string>(key, false, Types::kString, "", ConfigItemToString);
+    return Get<std::string>(key, false, ConfigurationType::kString, "", ConfigItemToString);
 }
 
 std::string
 Configuration::GetOptionalString(const std::string &key, const std::string &def)
 {
-    return Get<std::string>(key, true, Types::kString, def, ConfigItemToString);
+    return Get<std::string>(key, true, ConfigurationType::kString, def, ConfigItemToString);
 }
 
 bool
 Configuration::GetBool(const std::string &key)
 {
-    return Get<bool>(key, false, Types::kBool, false, ConfigItemToBool);
+    return Get<bool>(key, false, ConfigurationType::kBool, false, ConfigItemToBool);
 }
 
 bool
 Configuration::GetOptionalBool(const std::string &key, const bool def)
 {
-    return Get<bool>(key, true, Types::kBool, def, ConfigItemToBool);
+    return Get<bool>(key, true, ConfigurationType::kBool, def, ConfigItemToBool);
 }
 
 int64_t
 Configuration::GetInt(const std::string &key)
 {
-    return Get<int64_t>(key, false, Types::kInt, 0, ConfigItemToInt);
+    return Get<int64_t>(key, false, ConfigurationType::kInt, 0, ConfigItemToInt);
 }
 
 int64_t
 Configuration::GetOptionalInt(const std::string &key, const int64_t def)
 {
-    return Get<int64_t>(key, true, Types::kInt, def, ConfigItemToInt);
+    return Get<int64_t>(key, true, ConfigurationType::kInt, def, ConfigItemToInt);
 }
 
 Configuration *
 Configuration::GetSubconfig(const std::string &key)
 {
-    return Get<Configuration *>(key, false, Types::kStruct, nullptr,
+    return Get<Configuration *>(key, false, ConfigurationType::kStruct, nullptr,
       [](WT_CONFIG_ITEM item) { return new Configuration(item); });
 }
 
 Configuration *
 Configuration::GetOptionalSubconfig(const std::string &key)
 {
-    return Get<Configuration *>(key, true, Types::kStruct, nullptr,
+    return Get<Configuration *>(key, true, ConfigurationType::kStruct, nullptr,
       [](WT_CONFIG_ITEM item) { return new Configuration(item); });
 }
 
 std::vector<std::string>
 Configuration::GetList(const std::string &key)
 {
-    return Get<std::vector<std::string>>(key, false, Types::kList, {}, ConfigItemToList);
+    return Get<std::vector<std::string>>(
+      key, false, ConfigurationType::kList, {}, ConfigItemToList);
 }
 
 template <typename T>
 T
 Configuration::Get(
-  const std::string &key, bool optional, Types type, T def, T (*func)(WT_CONFIG_ITEM item))
+  const std::string &key, bool optional, ConfigurationType type, T def, T (*func)(WT_CONFIG_ITEM item))
 {
     WT_DECL_RET;
     WT_CONFIG_ITEM value = {"", 0, 1, WT_CONFIG_ITEM::WT_CONFIG_ITEM_BOOL};
@@ -178,17 +179,19 @@ Configuration::Get(
         testutil_die(ret, ("Error while finding config with key \"" + key + "\"").c_str());
 
     const char *error = "Configuration value doesn't match requested type";
-    if (type == Types::kString &&
+    if (type == ConfigurationType::kString &&
       (value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRING &&
         value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_ID))
         testutil_die(-1, error);
-    else if (type == Types::kBool && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_BOOL)
+    else if (type == ConfigurationType::kBool && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_BOOL)
         testutil_die(-1, error);
-    else if (type == Types::kInt && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_NUM)
+    else if (type == ConfigurationType::kInt && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_NUM)
         testutil_die(-1, error);
-    else if (type == Types::kStruct && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT)
+    else if (type == ConfigurationType::kStruct &&
+      value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT)
         testutil_die(-1, error);
-    else if (type == Types::kList && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT)
+    else if (type == ConfigurationType::kList &&
+      value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT)
         testutil_die(-1, error);
 
     return func(value);
