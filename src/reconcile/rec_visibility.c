@@ -711,7 +711,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     upd_select->tombstone = NULL;
     upd_select->upd_saved = false;
     upd_select->no_ts_tombstone = false;
-    WT_TIME_WINDOW_INIT(select_tw);
+    WT_TIME_WINDOW_INIT(&upd_select->tw);
 
     page = r->page;
     first_txn_upd = onpage_upd = upd = NULL;
