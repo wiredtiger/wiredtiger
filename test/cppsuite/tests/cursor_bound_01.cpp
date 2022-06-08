@@ -56,13 +56,11 @@ class cursor_bound_01 : public test {
 
         bound(uint64_t key_size_max, bool lower_bound) : _lower_bound(lower_bound)
         {
-            bool set_inclusive = random_generator::instance().generate_integer(0, 1);
             auto key_size =
               random_generator::instance().generate_integer(static_cast<uint64_t>(1), key_size_max);
-            auto random_key = random_generator::instance().generate_random_string(
+            _key = random_generator::instance().generate_random_string(
               key_size, characters_type::ALPHABET);
-            _key = random_key;
-            _inclusive = set_inclusive;
+            _inclusive = random_generator::instance().generate_integer(0, 1);
         }
 
         std::string
