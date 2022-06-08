@@ -722,7 +722,7 @@ class cursor_bound_01 : public test {
             while (tc->txn.active() && tc->running()) {
                 cursor_traversal(
                   range_cursor, normal_cursor, bound_pair.first, bound_pair.second, true);
-                // cursor_traversal(range_cursor, normal_cursor, lower_bound, upper_bound, false);
+                cursor_traversal(range_cursor, normal_cursor, bound_pair.first, bound_pair.second, false);
                 tc->txn.add_op();
                 tc->txn.try_rollback();
                 tc->sleep();
