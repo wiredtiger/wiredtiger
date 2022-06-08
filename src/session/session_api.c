@@ -1358,7 +1358,7 @@ __wt_session_range_truncate(
 {
     WT_DECL_RET;
     int cmp;
-    bool local_start;
+    bool is_col_fix, local_start;
 
 #ifdef HAVE_DIAGNOSTIC
     WT_CURSOR *debug_start;
@@ -1367,10 +1367,10 @@ __wt_session_range_truncate(
     bool is_col_fix, is_truncate;
 
     debug_start = debug_stop = NULL;
-    is_col_fix = is_truncate = false;
+    is_truncate = false;
 #endif
 
-    local_start = false;
+    is_col_fix = local_start = false;
     if (uri != NULL) {
         WT_ASSERT(session, WT_BTREE_PREFIX(uri));
         /*
