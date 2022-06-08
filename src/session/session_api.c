@@ -1363,8 +1363,11 @@ __wt_session_range_truncate(
 #ifdef HAVE_DIAGNOSTIC
     WT_CURSOR *debug_start;
     WT_CURSOR *debug_stop;
-    bool is_truncate;
-    is_truncate = false;
+    WT_ITEM col_value;
+    bool is_col_fix, is_truncate;
+
+    debug_start = debug_stop = NULL;
+    is_col_fix = is_truncate = false;
 #endif
 
     local_start = false;
@@ -1456,7 +1459,10 @@ __wt_session_range_truncate(
             goto done;
     }
 
-    /* Create a copy of the start and stop cursors for error-checking purposes. */
+    /*
+     * Create a copy of the start and stop cursors to maintain the original start and stop positions
+     * for error-checking purposes.
+     */
 #ifdef HAVE_DIAGNOSTIC
     debug_start = debug_stop = NULL;
     if (start != NULL)
@@ -1465,10 +1471,32 @@ __wt_session_range_truncate(
         WT_ERR(__session_open_cursor((WT_SESSION *)session, NULL, stop, NULL, &debug_stop));
 #endif
 
-    WT_ERR(__wt_schema_range_truncate(session, start, stop));
+    WT_ERR(__wt_schema_range_truncate(session, start, stop, &is_col_fix));
 
 #ifdef HAVE_DIAGNOSTIC
     is_truncate = true;
+    /*
+     * The debug cursors will be positioned at the start and stop keys of the range if there is one.
+     * For row-store and variable-length column store, we expect a WT_NOTFOUND value when searching
+     * for a record that has been truncated. For fixed length column store, this works a little
+     * differently. We should instead check that the corresponding value of the truncated record is
+     * zero.
+     */
+    if (!is_col_fix) {
+        if (start != NULL)
+            WT_ASSERT(session, debug_start->search(debug_start) == WT_NOTFOUND);
+        if (stop != NULL)
+            WT_ASSERT(session, debug_stop->search(debug_stop) == WT_NOTFOUND);
+    } else {
+        if (start != NULL) {
+            debug_start->search(debug_start);
+            WT_ASSERT(session, debug_start->get_value(debug_start, &col_value) == 0);
+        }
+        if (stop != NULL) {
+            debug_stop->search(debug_stop);
+            WT_ASSERT(session, debug_stop->get_value(debug_stop, &col_value) == 0);
+        }
+    }
 #endif
 
 done:
