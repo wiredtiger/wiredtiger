@@ -613,13 +613,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
             return (0);
     }
 
-    WT_RET(__rec_upd_select(
-      session, r, first_upd, upd_select, &first_txn_upd, &has_newer_updates, &upd_memsize
 #ifdef HAVE_DIAGNOSTIC
-      ,
-      &seen_prepare
+    WT_RET(__rec_upd_select(session, r, first_upd, upd_select, &first_txn_upd, &has_newer_updates,
+      &upd_memsize, &seen_prepare));
+#else
+    WT_RET(__rec_upd_select(
+      session, r, first_upd, upd_select, &first_txn_upd, &has_newer_updates, &upd_memsize));
 #endif
-      ));
 
     /* Keep track of the selected update. */
     upd = upd_select->upd;
