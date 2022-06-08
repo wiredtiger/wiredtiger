@@ -130,7 +130,7 @@ else()
     endif()
 endif()
 
-# Address sanitizer builds should have debug info available and optimization off
+# Sanitizer builds should have debug info available and optimization off
 set(san_debug_flags "-O0 -g ${no_omit_frame_flag}")
 
 # UBSAN build variant flags.

@@ -212,8 +212,12 @@ config_bool(
     DEFAULT OFF
 )
 
+# Setup the WiredTiger build to use Debug settings as unless the build type was explicitly
+# configured. Primary users of the build are our developers, who want as much help diagnosing
+# issues as possible. Builds targeted for release to customers should switch to a "Release" setting.
 set(default_build_type "Debug")
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  # Notify callers that our build chooses Debug, not the default empty
   message(STATUS "Setting default build type to '${default_build_type}'.")
   set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
       STRING "Type of build selected." FORCE)
@@ -221,7 +225,7 @@ endif()
 
 set(default_optimize_level)
 if("${WT_OS}" STREQUAL "windows")
-    set(default_optimize_level "/O0")
+    set(default_optimize_level "/Od")
 else()
     set(default_optimize_level "-O0")
 endif()
