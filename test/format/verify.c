@@ -211,7 +211,8 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
         case FIX:
             /*
              * RS and VLCS skip over removed entries, FLCS returns a value of 0. Skip to the next
-             * matching key number, asserting intermediate records have values of 0.
+             * matching key number or the next nonzero value. If the latter comes early, we'll visit
+             * the mismatch logic below.
              */
             for (;;) {
                 table_ret = read_op(table_cursor, NEXT, NULL);
@@ -222,7 +223,8 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
                 if (table_keyno >= base_keyno || table_keyno > TV(RUNS_ROWS))
                     break;
                 testutil_check(table_cursor->get_value(table_cursor, &table_bitv));
-                testutil_assert(table_bitv == 0);
+                if (table_bitv != 0)
+                    break;
             }
             break;
         case VAR:
