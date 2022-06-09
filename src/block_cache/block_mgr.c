@@ -17,8 +17,10 @@ static void __bm_method_set(WT_BM *, bool);
 static int
 __bm_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-    WT_RET_MSG(
-      session, ENOTSUP, "%s: write operation on read-only checkpoint handle", bm->block->name);
+    WT_WITH_BM_READER(bm, session, block,
+      __wt_err(
+        session, ENOTSUP, "%s: write operation on read-only checkpoint handle", block->name));
+    return (ENOTSUP);
 }
 
 /*
@@ -28,7 +30,11 @@ __bm_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_addr_invalid(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
-    return (__wt_block_addr_invalid(session, bm->block, addr, addr_size, bm->is_live));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(bm, session, block,
+      ret = __wt_block_addr_invalid(session, block, addr, addr_size, bm->is_live));
+    return (ret);
 }
 
 /*
@@ -39,7 +45,11 @@ static int
 __bm_addr_string(
   WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
 {
-    return (__wt_block_addr_string(session, bm->block, buf, addr, addr_size));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(
+      bm, session, block, ret = __wt_block_addr_string(session, block, buf, addr, addr_size));
+    return (ret);
 }
 
 /*
@@ -49,7 +59,9 @@ __bm_addr_string(
 static u_int
 __bm_block_header(WT_BM *bm)
 {
-    return (__wt_block_header(bm->block));
+    WT_UNUSED(bm);
+
+    return (__wt_block_header());
 }
 
 /*
@@ -60,7 +72,11 @@ static int
 __bm_checkpoint(
   WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
 {
-    return (__wt_block_checkpoint(session, bm->block, buf, ckptbase, data_checksum));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(bm, session, block,
+      ret = __wt_block_checkpoint(session, block, buf, ckptbase, data_checksum));
+    return (ret);
 }
 
 /*
@@ -71,8 +87,11 @@ static int
 __bm_checkpoint_last(WT_BM *bm, WT_SESSION_IMPL *session, char **metadatap, char **checkpoint_listp,
   WT_ITEM *checkpoint)
 {
-    return (
-      __wt_block_checkpoint_last(session, bm->block, metadatap, checkpoint_listp, checkpoint));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(bm, session, block,
+      ret = __wt_block_checkpoint_last(session, block, metadatap, checkpoint_listp, checkpoint));
+    return (ret);
 }
 
 /*
@@ -98,17 +117,20 @@ static int
 __bm_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
   uint8_t *root_addr, size_t *root_addr_sizep, bool checkpoint)
 {
+    WT_BLOCK *block;
+    WT_DECL_RET;
+
     /* If not opening a checkpoint, we're opening the live system. */
     bm->is_live = !checkpoint;
-    WT_RET(__wt_block_checkpoint_load(
-      session, bm->block, addr, addr_size, root_addr, root_addr_sizep, checkpoint));
-
-    if (checkpoint) {
+    WT_GET_BM_READ_REFERENCE(bm, session, block);
+    ret = __wt_block_checkpoint_load(
+      session, block, addr, addr_size, root_addr, root_addr_sizep, checkpoint);
+    if (ret == 0 && checkpoint) {
         /*
          * Read-only objects are optionally mapped into memory instead of being read into cache
          * buffers.
          */
-        WT_RET(__wt_blkcache_map(session, bm->block, &bm->map, &bm->maplen, &bm->mapped_cookie));
+        ret = __wt_blkcache_map(session, block, &bm->map, &bm->maplen, &bm->mapped_cookie);
 
         /*
          * If this handle is for a checkpoint, that is, read-only, there isn't a lot you can do with
@@ -117,8 +139,9 @@ __bm_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, s
          */
         __bm_method_set(bm, true);
     }
+    WT_RELEASE_BM_READ_REFERENCE(bm, session, block);
 
-    return (0);
+    return (ret);
 }
 
 /*
@@ -128,7 +151,11 @@ __bm_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, s
 static int
 __bm_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
 {
-    return (__wt_block_checkpoint_resolve(session, bm->block, failed));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(
+      bm, session, block, ret = __wt_block_checkpoint_resolve(session, block, failed));
+    return (ret);
 }
 
 /*
@@ -150,7 +177,10 @@ __bm_checkpoint_resolve_readonly(WT_BM *bm, WT_SESSION_IMPL *session, bool faile
 static int
 __bm_checkpoint_start(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-    return (__wt_block_checkpoint_start(session, bm->block));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(bm, session, block, ret = __wt_block_checkpoint_start(session, block));
+    return (ret);
 }
 
 /*
@@ -170,15 +200,19 @@ __bm_checkpoint_start_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_checkpoint_unload(WT_BM *bm, WT_SESSION_IMPL *session)
 {
+    WT_BLOCK *block;
     WT_DECL_RET;
+
+    WT_GET_BM_READ_REFERENCE(bm, session, block);
 
     /* Unmap any mapped segment. */
     if (bm->map != NULL)
-        WT_TRET(__wt_blkcache_unmap(session, bm->block, bm->map, bm->maplen, &bm->mapped_cookie));
+        WT_TRET(__wt_blkcache_unmap(session, block, bm->map, bm->maplen, &bm->mapped_cookie));
 
     /* Unload the checkpoint. */
-    WT_TRET(__wt_block_checkpoint_unload(session, bm->block, !bm->is_live));
+    WT_TRET(__wt_block_checkpoint_unload(session, block, !bm->is_live));
 
+    WT_RELEASE_BM_READ_REFERENCE(bm, session, block);
     return (ret);
 }
 
@@ -234,7 +268,7 @@ __bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
     do {
         found = false;
         TAILQ_FOREACH (block, &conn->blockqh, q)
-            if (block->ref == 0) {
+            if (block->ref == 0 && block->active == 0) {
                 found = true;
                 WT_TRET(__bm_close_block_remove(session, block));
                 break;
@@ -257,8 +291,9 @@ __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
     if (bm == NULL) /* Safety check */
         return (0);
 
-    ret = __bm_close_block(session, bm->block);
+    WT_WITH_BM_WRITER(bm, session, ret = __bm_close_block(session, bm->block));
 
+    __wt_rwlock_destroy(session, &bm->lock);
     __wt_overwrite_and_free(session, bm);
     return (ret);
 }
@@ -270,7 +305,10 @@ __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_compact_end(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-    return (__wt_block_compact_end(session, bm->block));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(bm, session, block, ret = __wt_block_compact_end(session, block));
+    return (ret);
 }
 
 /*
@@ -291,7 +329,11 @@ static int
 __bm_compact_page_rewrite(
   WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr, size_t *addr_sizep, bool *writtenp)
 {
-    return (__wt_block_compact_page_rewrite(session, bm->block, addr, addr_sizep, writtenp));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(bm, session, block,
+      ret = __wt_block_compact_page_rewrite(session, block, addr, addr_sizep, writtenp));
+    return (ret);
 }
 
 /*
@@ -317,7 +359,11 @@ static int
 __bm_compact_page_skip(
   WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool *skipp)
 {
-    return (__wt_block_compact_page_skip(session, bm->block, addr, addr_size, skipp));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(bm, session, block,
+      ret = __wt_block_compact_page_skip(session, block, addr, addr_size, skipp));
+    return (ret);
 }
 
 /*
@@ -342,7 +388,7 @@ __bm_compact_page_skip_readonly(
 static void
 __bm_compact_progress(WT_BM *bm, WT_SESSION_IMPL *session, u_int *msg_countp)
 {
-    __wt_block_compact_progress(session, bm->block, msg_countp);
+    WT_WITH_BM_READER(bm, session, block, __wt_block_compact_progress(session, block, msg_countp));
 }
 
 /*
@@ -352,7 +398,10 @@ __bm_compact_progress(WT_BM *bm, WT_SESSION_IMPL *session, u_int *msg_countp)
 static int
 __bm_compact_skip(WT_BM *bm, WT_SESSION_IMPL *session, bool *skipp)
 {
-    return (__wt_block_compact_skip(session, bm->block, skipp));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(bm, session, block, ret = __wt_block_compact_skip(session, block, skipp));
+    return (ret);
 }
 
 /*
@@ -374,7 +423,10 @@ __bm_compact_skip_readonly(WT_BM *bm, WT_SESSION_IMPL *session, bool *skipp)
 static int
 __bm_compact_start(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-    return (__wt_block_compact_start(session, bm->block));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(bm, session, block, ret = __wt_block_compact_start(session, block));
+    return (ret);
 }
 
 /*
@@ -396,13 +448,16 @@ __bm_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
 {
     WT_BLKCACHE *blkcache;
 
+    WT_DECL_RET;
+
     blkcache = &S2C(session)->blkcache;
 
     /* Evict the freed block from the block cache */
     if (blkcache->type != BLKCACHE_UNCONFIGURED)
         __wt_blkcache_remove(session, addr, addr_size);
 
-    return (__wt_block_free(session, bm->block, addr, addr_size));
+    WT_WITH_BM_READER(bm, session, block, ret = __wt_block_free(session, block, addr, addr_size));
+    return (ret);
 }
 
 /*
@@ -437,10 +492,16 @@ __bm_is_mapped(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_map_discard(WT_BM *bm, WT_SESSION_IMPL *session, void *map, size_t len)
 {
+    WT_BLOCK *block;
+    WT_DECL_RET;
     WT_FILE_HANDLE *handle;
 
-    handle = bm->block->fh->handle;
-    return (handle->fh_map_discard(handle, (WT_SESSION *)session, map, len, bm->mapped_cookie));
+    WT_GET_BM_READ_REFERENCE(bm, session, block);
+    handle = block->fh->handle;
+    ret = handle->fh_map_discard(handle, (WT_SESSION *)session, map, len, bm->mapped_cookie);
+    WT_RELEASE_BM_READ_REFERENCE(bm, session, block);
+
+    return (ret);
 }
 
 /*
@@ -450,7 +511,10 @@ __bm_map_discard(WT_BM *bm, WT_SESSION_IMPL *session, void *map, size_t len)
 static int
 __bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
 {
-    return (__wt_bm_read(bm, session, buf, addr, addr_size));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(bm, session, block, ret = __wt_bm_read(bm, session, buf, addr, addr_size));
+    return (ret);
 }
 
 /*
@@ -460,7 +524,10 @@ __bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr
 static int
 __bm_salvage_end(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-    return (__wt_block_salvage_end(session, bm->block));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(bm, session, block, ret = __wt_block_salvage_end(session, block));
+    return (ret);
 }
 
 /*
@@ -496,7 +563,11 @@ static int
 __bm_salvage_next(
   WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr, size_t *addr_sizep, bool *eofp)
 {
-    return (__wt_block_salvage_next(session, bm->block, addr, addr_sizep, eofp));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(
+      bm, session, block, ret = __wt_block_salvage_next(session, block, addr, addr_sizep, eofp));
+    return (ret);
 }
 
 /*
@@ -506,7 +577,10 @@ __bm_salvage_next(
 static int
 __bm_salvage_start(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-    return (__wt_block_salvage_start(session, bm->block));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(bm, session, block, ret = __wt_block_salvage_start(session, block));
+    return (ret);
 }
 
 /*
@@ -526,7 +600,11 @@ __bm_salvage_start_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_salvage_valid(WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr, size_t addr_size, bool valid)
 {
-    return (__wt_block_salvage_valid(session, bm->block, addr, addr_size, valid));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(
+      bm, session, block, ret = __wt_block_salvage_valid(session, block, addr, addr_size, valid));
+    return (ret);
 }
 
 /*
@@ -551,7 +629,7 @@ __bm_salvage_valid_readonly(
 static int
 __bm_stat(WT_BM *bm, WT_SESSION_IMPL *session, WT_DSRC_STATS *stats)
 {
-    __wt_block_stat(session, bm->block, stats);
+    WT_WITH_BM_READER(bm, session, block, __wt_block_stat(session, block, stats));
     return (0);
 }
 
@@ -562,15 +640,20 @@ __bm_stat(WT_BM *bm, WT_SESSION_IMPL *session, WT_DSRC_STATS *stats)
 static int
 __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
 {
-    WT_BLOCK *block;
+    WT_BLOCK *block, *newblock;
+    WT_DECL_RET;
+
+    WT_ASSERT(session, bm->multi_object);
+
+    WT_GET_BM_WRITE_REFERENCE(bm, session);
 
     block = bm->block;
-
     /* Close out our current handle. */
-    WT_RET(__bm_close_block(session, block));
+    WT_ERR(__bm_close_block(session, block));
     bm->block = NULL;
 
-    WT_RET(__wt_blkcache_get_handle(session, NULL, objectid, &block));
+    /* Consider moving this outside the write reference lock */
+    WT_ERR(__wt_blkcache_get_handle(session, NULL, objectid, &newblock));
 
     /*
      * KEITH XXX: We need to distinguish between tiered switch and loading a checkpoint. This is
@@ -578,15 +661,18 @@ __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
      * previous files if we don't have the extent list. This fixes the problem where we randomly
      * write a new position in the new tiered object, but it's not OK.
      */
-    WT_RET(__wt_block_ckpt_init(session, &block->live, "live"));
+    WT_ERR(__wt_block_ckpt_init(session, &newblock->live, "live"));
 
     /*
      * This isn't right: the new block handle will reasonably have different methods for objects in
      * different backing sources. That's not the case today, but the current architecture lacks the
      * ability to support multiple sources cleanly.
      */
-    bm->block = block;
-    return (0);
+    bm->block = newblock;
+
+err:
+    WT_RELEASE_BM_WRITE_REFERENCE(bm, session);
+    return (ret);
 }
 
 /*
@@ -606,9 +692,12 @@ __bm_switch_object_readonly(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t object
  *     Flush a file to disk.
  */
 static int
-__bm_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool block)
+__bm_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool sync_block)
 {
-    return (__wt_fsync(session, bm->block->fh, block));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(bm, session, block, ret = __wt_fsync(session, block->fh, sync_block));
+    return (ret);
 }
 
 /*
@@ -630,7 +719,11 @@ __bm_sync_readonly(WT_BM *bm, WT_SESSION_IMPL *session, bool async)
 static int
 __bm_verify_addr(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
-    return (__wt_block_verify_addr(session, bm->block, addr, addr_size));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(
+      bm, session, block, ret = __wt_block_verify_addr(session, block, addr, addr_size));
+    return (ret);
 }
 
 /*
@@ -640,7 +733,10 @@ __bm_verify_addr(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_
 static int
 __bm_verify_end(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-    return (__wt_block_verify_end(session, bm->block));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(bm, session, block, ret = __wt_block_verify_end(session, block));
+    return (ret);
 }
 
 /*
@@ -650,7 +746,11 @@ __bm_verify_end(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_verify_start(WT_BM *bm, WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *cfg[])
 {
-    return (__wt_block_verify_start(session, bm->block, ckptbase, cfg));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(
+      bm, session, block, ret = __wt_block_verify_start(session, block, ckptbase, cfg));
+    return (ret);
 }
 
 /*
@@ -661,11 +761,14 @@ static int
 __bm_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_sizep,
   bool data_checksum, bool checkpoint_io)
 {
+    WT_DECL_RET;
+
     __wt_capacity_throttle(
       session, buf->size, checkpoint_io ? WT_THROTTLE_CKPT : WT_THROTTLE_EVICT);
 
-    return (
-      __wt_block_write(session, bm->block, buf, addr, addr_sizep, data_checksum, checkpoint_io));
+    WT_WITH_BM_READER(bm, session, block,
+      ret = __wt_block_write(session, block, buf, addr, addr_sizep, data_checksum, checkpoint_io));
+    return (ret);
 }
 
 /*
@@ -692,7 +795,10 @@ __bm_write_readonly(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *
 static int
 __bm_write_size(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
 {
-    return (__wt_block_write_size(session, bm->block, sizep));
+    WT_DECL_RET;
+
+    WT_WITH_BM_READER(bm, session, block, ret = __wt_block_write_size(session, block, sizep));
+    return (ret);
 }
 
 /*
@@ -780,25 +886,34 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
 {
     WT_BM *bm;
     WT_DECL_RET;
+    bool inited;
 
     *bmp = NULL;
+    inited = false;
 
     __wt_verbose(session, WT_VERB_BLOCK, "open: %s", uri);
 
     WT_RET(__wt_calloc_one(session, &bm));
     __bm_method_set(bm, false);
+    WT_ERR(__wt_rwlock_init(session, &bm->lock));
+    inited = true;
 
     if (WT_PREFIX_MATCH(uri, "file:")) {
         uri += strlen("file:");
         WT_ERR(__wt_block_open(session, uri, WT_TIERED_OBJECTID_NONE, cfg, forced_salvage, readonly,
           false, allocsize, &bm->block));
-    } else
+        bm->multi_object = false;
+    } else {
         WT_ERR(__wt_blkcache_tiered_open(session, uri, 0, &bm->block));
+        bm->multi_object = true;
+    }
 
     *bmp = bm;
     return (0);
 
 err:
+    if (inited)
+        __wt_rwlock_destroy(session, &bm->lock);
     __wt_free(session, bm);
     return (ret);
 }

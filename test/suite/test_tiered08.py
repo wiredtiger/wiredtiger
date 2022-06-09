@@ -57,7 +57,7 @@ class test_tiered08(wttest.WiredTigerTestCase, TieredConfigMixin):
     uri = "table:test_tiered08"
 
     def conn_config(self):
-        return get_conn_config(self) + '),statistics=(fast)'
+        return get_conn_config(self) + '),statistics=(fast),timing_stress_for_test=(tiered_flush_finish)'
         
     # Load the storage store extension.
     def conn_extensions(self, extlist):
@@ -101,12 +101,6 @@ class test_tiered08(wttest.WiredTigerTestCase, TieredConfigMixin):
         c.close()
 
     def test_tiered08(self):
-
-        # FIXME-WT-7833
-        #     This test can trigger races in file handle access during flush_tier.
-        #     We will re-enable it when that is fixed.
-        self.skipTest('Concurrent flush_tier and insert operations not supported yet.')
-
         cfg = self.conn_config()
         self.pr('Config is: ' + cfg)
         intl_page = 'internal_page_max=16K'

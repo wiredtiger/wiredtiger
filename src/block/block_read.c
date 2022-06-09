@@ -17,13 +17,15 @@ __wt_bm_read(
   WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
 {
     WT_BLOCK *block;
+    WT_DECL_RET;
     wt_off_t offset;
     uint32_t checksum, objectid, size;
 
+    WT_GET_BM_READ_REFERENCE(bm, session, block);
     block = bm->block;
 
     /* Crack the cookie. */
-    WT_RET(__wt_block_addr_unpack(
+    WT_ERR(__wt_block_addr_unpack(
       session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
 
 #ifdef HAVE_DIAGNOSTIC
@@ -32,18 +34,20 @@ __wt_bm_read(
      * live systems, the discard list. This only applies if the block is in this object.
      */
     if (objectid == block->objectid)
-        WT_RET(__wt_block_misplaced(
+        WT_ERR(__wt_block_misplaced(
           session, block, "read", offset, size, bm->is_live, __PRETTY_FUNCTION__, __LINE__));
 #endif
 
     /* Read the block. */
     __wt_capacity_throttle(session, size, WT_THROTTLE_READ);
-    WT_RET(__wt_block_read_off(session, block, buf, objectid, offset, size, checksum));
+    WT_ERR(__wt_block_read_off(session, block, buf, objectid, offset, size, checksum));
 
     /* Optionally discard blocks from the system's buffer cache. */
-    WT_RET(__wt_block_discard(session, block, (size_t)size));
+    WT_ERR(__wt_block_discard(session, block, (size_t)size));
 
-    return (0);
+err:
+    WT_RELEASE_BM_READ_REFERENCE(bm, session, block);
+    return (ret);
 }
 
 /*
@@ -103,8 +107,10 @@ __wt_bm_corrupt(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t
     WT_ERR(__wt_bm_read(bm, session, tmp, addr, addr_size));
 
     /* Crack the cookie, dump the block. */
-    WT_ERR(__wt_block_addr_unpack(
-      session, bm->block, addr, addr_size, &objectid, &offset, &size, &checksum));
+    WT_WITH_BM_READER(bm, session, block,
+      ret = __wt_block_addr_unpack(
+        session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
+    WT_ERR(ret);
     WT_ERR(__wt_bm_corrupt_dump(session, tmp, objectid, offset, size, checksum));
 
 err:

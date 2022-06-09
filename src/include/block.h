@@ -207,7 +207,8 @@ struct __wt_bm {
     int (*write)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, uint8_t *, size_t *, bool, bool);
     int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
 
-    WT_BLOCK *block; /* Underlying file */
+    WT_RWLOCK lock;  /* Locked: Block access */
+    WT_BLOCK *block; /* Locked: Underlying file */
 
     void *map; /* Mapped region */
     size_t maplen;
@@ -216,7 +217,8 @@ struct __wt_bm {
     /*
      * There's only a single block manager handle that can be written, all others are checkpoints.
      */
-    bool is_live; /* The live system */
+    bool is_live;      /* The live system */
+    bool multi_object; /* May have multiple objects */
 };
 
 /*
@@ -226,7 +228,8 @@ struct __wt_bm {
 struct __wt_block {
     const char *name;  /* Name */
     uint32_t objectid; /* Object id */
-    uint32_t ref;      /* References */
+    uint32_t ref;      /* References from other blocks */
+    uint32_t active;   /* Active references */
 
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
@@ -290,6 +293,61 @@ struct __wt_block {
     uint8_t *fragfile;       /* Per-file frag tracking list */
     uint8_t *fragckpt;       /* Per-checkpoint frag tracking list */
 };
+
+/*
+ * A block manager's block pointer can be changed when an object is switched. To access it safely,
+ * these macros should be used. The READ/READER macros use a shared lock to get a valid block
+ * variable, incrementing the active counter so that it cannot be freed. The WRITE/WRITER macros use
+ * an exclusive lock so that the block manager's block pointer can be changed. Once a block is no
+ * longer pointed to by a block manager, its active count can only decrease, when it hits zero, it
+ * is eligible to be freed.
+ */
+#define WT_GET_BM_READ_REFERENCE(bm, session, b)     \
+    do {                                             \
+        if (bm->multi_object) {                      \
+            __wt_readlock(session, &bm->lock);       \
+            b = bm->block;                           \
+            (void)__wt_atomic_addv32(&b->active, 1); \
+            __wt_readunlock(session, &bm->lock);     \
+        } else                                       \
+            b = bm->block;                           \
+    } while (0)
+
+#define WT_RELEASE_BM_READ_REFERENCE(bm, session, b) \
+    do {                                             \
+        if (bm->multi_object)                        \
+            (void)__wt_atomic_subv32(&b->active, 1); \
+    } while (0)
+
+#define WT_WITH_BM_READER(bm, session, blockvar, op)         \
+    do {                                                     \
+        WT_BLOCK *blockvar;                                  \
+        WT_GET_BM_READ_REFERENCE(bm, session, blockvar);     \
+        op;                                                  \
+        WT_RELEASE_BM_READ_REFERENCE(bm, session, blockvar); \
+    } while (0)
+
+#define WT_GET_BM_WRITE_REFERENCE(bm, session)  \
+    do {                                        \
+        if (bm->multi_object)                   \
+            __wt_writelock(session, &bm->lock); \
+    } while (0)
+
+#define WT_RELEASE_BM_WRITE_REFERENCE(bm, session) \
+    do {                                           \
+        if (bm->multi_object)                      \
+            __wt_writeunlock(session, &bm->lock);  \
+    } while (0)
+
+/*
+ * This is called whenever we are changing the bm->block.
+ */
+#define WT_WITH_BM_WRITER(bm, session, op)          \
+    do {                                            \
+        WT_GET_BM_WRITE_REFERENCE(bm, session);     \
+        op;                                         \
+        WT_RELEASE_BM_WRITE_REFERENCE(bm, session); \
+    } while (0)
 
 /*
  * WT_BLOCK_DESC --
@@ -426,9 +484,7 @@ __wt_block_header_byteswap(WT_BLOCK_HEADER *blk)
  *     Return the size of the block-specific header.
  */
 static inline u_int
-__wt_block_header(WT_BLOCK *block)
+__wt_block_header(void)
 {
-    WT_UNUSED(block);
-
     return ((u_int)WT_BLOCK_HEADER_SIZE);
 }

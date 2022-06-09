@@ -60,11 +60,11 @@ __wt_block_compact_get_progress_stats(WT_SESSION_IMPL *session, WT_BM *bm,
 {
     WT_BLOCK *block;
 
-    WT_UNUSED(session);
-    block = bm->block;
+    WT_GET_BM_READ_REFERENCE(bm, session, block);
     *pages_reviewedp = block->compact_pages_reviewed;
     *pages_skippedp = block->compact_pages_skipped;
     *pages_rewrittenp = block->compact_pages_rewritten;
+    WT_RELEASE_BM_READ_REFERENCE(bm, session, block);
 }
 
 /*

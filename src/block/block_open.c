@@ -461,9 +461,11 @@ __wt_block_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_DSRC_STATS *stats)
 int
 __wt_block_manager_size(WT_BM *bm, WT_SESSION_IMPL *session, wt_off_t *sizep)
 {
-    WT_UNUSED(session);
+    WT_BLOCK *block;
 
-    *sizep = bm->block->size;
+    WT_GET_BM_READ_REFERENCE(bm, session, block);
+    *sizep = block->size;
+    WT_RELEASE_BM_READ_REFERENCE(bm, session, block);
     return (0);
 }
 
