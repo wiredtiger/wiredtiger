@@ -404,6 +404,7 @@ int snap_repeat_txn(TINFO *);
 void snap_repeat_update(TINFO *, bool);
 void snap_teardown(TINFO *);
 void snap_track(TINFO *, thread_op);
+void table_dump_page(WT_SESSION *, const char *, TABLE *, uint64_t, const char *);
 void table_verify(TABLE *, void *);
 void timestamp_init(void);
 void timestamp_once(WT_SESSION *, bool, bool);

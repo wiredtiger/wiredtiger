@@ -289,6 +289,43 @@ cursor_dump_page(WT_CURSOR *cursor, const char *tag)
 }
 
 /*
+ * table_dump_page --
+ *     Dump a page from a table (at a given key number) to a backing file.
+ */
+void
+table_dump_page(
+  WT_SESSION *session, const char *checkpoint, TABLE *tbl, uint64_t keyno, const char *tag)
+{
+    WT_CURSOR *cursor;
+    WT_ITEM key;
+    int exactp, ret;
+    char cfg[256];
+
+    if (checkpoint != NULL)
+        testutil_check(__wt_snprintf(cfg, sizeof(cfg), "checkpoint=%s", checkpoint));
+
+    wiredtiger_open_cursor(session, tbl->uri, checkpoint == NULL ? NULL : cfg, &cursor);
+    switch (tbl->type) {
+    case FIX:
+    case VAR:
+        cursor->set_key(cursor, keyno);
+        break;
+    case ROW:
+        key_gen_init(&key);
+        key_gen(tbl, &key, keyno);
+        cursor->set_key(cursor, &key);
+        key_gen_teardown(&key);
+        break;
+    }
+    ret = cursor->search_near(cursor, &exactp);
+    if (ret == 0)
+        cursor_dump_page(cursor, tag);
+    else
+        fprintf(stderr, "%s: Not dumping (error %d from search_near)\n", tag, ret);
+    testutil_check(cursor->close(cursor));
+}
+
+/*
  * set_core --
  *     Turn core dumps off/on.
  */

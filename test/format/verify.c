@@ -150,9 +150,9 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
     WT_SESSION *session;
     uint64_t base_id, base_keyno, last_match, table_id, table_keyno, rows;
     uint8_t base_bitv, table_bitv;
-    u_int failures;
+    u_int failures, i;
     int base_ret, table_ret;
-    char buf[256];
+    char buf[256], tagbuf[128];
 
     base_keyno = table_keyno = 0;             /* -Wconditional-uninitialized */
     base_bitv = table_bitv = FIX_VALUE_WRONG; /* -Wconditional-uninitialized */
@@ -278,8 +278,29 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
 page_dump:
                 /* Dump the cursor pages for the first failure. */
                 if (++failures == 1) {
-                    cursor_dump_page(base_cursor, "mirror error: base cursor");
-                    cursor_dump_page(table_cursor, "mirror error: table cursor");
+                    testutil_check(__wt_snprintf(
+                      tagbuf, sizeof(tagbuf), "mirror error: base cursor (table %u)", base->id));
+                    cursor_dump_page(base_cursor, tagbuf);
+                    testutil_check(__wt_snprintf(
+                      tagbuf, sizeof(tagbuf), "mirror error: table cursor (table %u)", table->id));
+                    cursor_dump_page(table_cursor, tagbuf);
+                    for (i = 1; i <= ntables; ++i) {
+                        if (!tables[i]->mirror)
+                            continue;
+                        if (tables[i] != base &&
+                          (tables[i] != table || table_keyno != base_keyno)) {
+                            testutil_check(__wt_snprintf(tagbuf, sizeof(tagbuf),
+                              "mirror error: base key number %" PRIu64 " in table %u", base_keyno,
+                              i));
+                            table_dump_page(session, checkpoint, tables[i], base_keyno, tagbuf);
+                        }
+                        if (tables[i] != table && table_keyno != base_keyno) {
+                            testutil_check(__wt_snprintf(tagbuf, sizeof(tagbuf),
+                              "mirror error: table key number %" PRIu64 " in table %u", table_keyno,
+                              i));
+                            table_dump_page(session, checkpoint, tables[i], table_keyno, tagbuf);
+                        }
+                    }
                 }
 
                 /*
