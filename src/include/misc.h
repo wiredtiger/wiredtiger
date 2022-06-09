@@ -164,6 +164,10 @@
  * They come in 3 flavors: F_XXX (handles a field named "flags" in the structure referenced by its
  * argument), LF_XXX (handles a local variable named "flags"), and FLD_XXX (handles any variable,
  * anywhere).
+ *
+ * Flags are unsigned 32-bit values -- we cast to keep the compiler quiet (the hex constant might be
+ * a negative integer), and to ensure the hex constant is the correct size before applying the
+ * bitwise not operator.
  */
 #define FLD_CLR(field, mask) ((void)((field) &= ~(mask)))
 #define FLD_MASK(field, mask) ((field) & (mask))
