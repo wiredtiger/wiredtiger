@@ -1485,11 +1485,11 @@ __wt_session_range_truncate(
             WT_ASSERT(session, debug_stop->search(debug_stop) == WT_NOTFOUND);
     } else {
         if (start != NULL) {
-            debug_start->search(debug_start);
+            WT_ERR(debug_start->search(debug_start));
             WT_ASSERT(session, debug_start->get_value(debug_start, &col_value) == 0);
         }
         if (stop != NULL) {
-            debug_stop->search(debug_stop);
+            WT_ERR(debug_stop->search(debug_stop));
             WT_ASSERT(session, debug_stop->get_value(debug_stop, &col_value) == 0);
         }
     }
