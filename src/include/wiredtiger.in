@@ -1763,7 +1763,7 @@ struct __wt_session {
 	 * A transaction must be in progress when this method is called.
 	 *
 	 * If WT_SESSION::commit_transaction returns an error, the transaction
-	 * was rolled back, not committed.
+	 * was rolled back, not committed, and all cursors are reset.
 	 *
 	 * @requires_transaction
 	 *
