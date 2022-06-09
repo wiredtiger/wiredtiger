@@ -1363,10 +1363,8 @@ __wt_session_range_truncate(
 #ifdef HAVE_DIAGNOSTIC
     WT_CURSOR *debug_start, *debug_stop;
     WT_ITEM col_value;
-    bool is_truncate;
 
     debug_start = debug_stop = NULL;
-    is_truncate = false;
 #endif
 
     is_col_fix = local_start = false;
@@ -1468,8 +1466,6 @@ __wt_session_range_truncate(
         WT_ERR(__session_open_cursor((WT_SESSION *)session, NULL, start, NULL, &debug_start));
     if (stop != NULL)
         WT_ERR(__session_open_cursor((WT_SESSION *)session, NULL, stop, NULL, &debug_stop));
-
-    is_truncate = true;
 #endif
 
     WT_ERR(__wt_schema_range_truncate(session, start, stop, &is_col_fix));
@@ -1515,12 +1511,10 @@ err:
         WT_TRET(stop->reset(stop));
 
 #ifdef HAVE_DIAGNOSTIC
-    if (is_truncate) {
-        if (debug_start != NULL)
-            WT_TRET(debug_start->close(debug_start));
-        if (debug_stop != NULL)
-            WT_TRET(debug_stop->close(debug_stop));
-    }
+    if (debug_start != NULL)
+        WT_TRET(debug_start->close(debug_start));
+    if (debug_stop != NULL)
+        WT_TRET(debug_stop->close(debug_stop));
 #endif
 
     return (ret);
