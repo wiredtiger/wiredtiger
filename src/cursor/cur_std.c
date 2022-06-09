@@ -1168,12 +1168,14 @@ int
 __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
 {
     WT_CONFIG_ITEM cval;
+    WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_ITEM key;
     WT_SESSION_IMPL *session;
     int exact;
     bool inclusive;
 
+    cbt = (WT_CURSOR_BTREE *)cursor;
     exact = 0;
     inclusive = false;
 
@@ -1188,6 +1190,9 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
         WT_ERR(__wt_config_gets(session, cfg, "bound", &cval));
         if (cval.len == 0)
             WT_ERR_MSG(session, EINVAL, "setting bounds must require the bound configuration set");
+
+        if (cbt->ref != NULL)
+            WT_ERR_MSG(session, EINVAL, "setting bounds on a positioned cursor is not allowed");
 
         /* The cursor must have a key set to place the lower or upper bound. */
         WT_ERR(__cursor_checkkey(cursor));

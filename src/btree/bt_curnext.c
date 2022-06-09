@@ -857,8 +857,9 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
         F_CLR(cursor, WT_CURSTD_BOUND_ENTRY);
         WT_RET(ret);
 
-        /* When search_near_bounded is implemented then remove this.
-         * If the search near returns a higher value, ensure it's within the upper bound.
+        /*
+         * When search_near_bounded is implemented then remove this. If the search near returns a
+         * higher value, ensure it's within the upper bound.
          */
         if (exact == 0 && F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE)) {
             return (0);
