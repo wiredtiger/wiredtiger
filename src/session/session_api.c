@@ -1361,8 +1361,7 @@ __wt_session_range_truncate(
     bool is_col_fix, local_start;
 
 #ifdef HAVE_DIAGNOSTIC
-    WT_CURSOR *debug_start;
-    WT_CURSOR *debug_stop;
+    WT_CURSOR *debug_start, *debug_stop;
     WT_ITEM col_value;
     bool is_truncate;
 
@@ -1469,12 +1468,13 @@ __wt_session_range_truncate(
         WT_ERR(__session_open_cursor((WT_SESSION *)session, NULL, start, NULL, &debug_start));
     if (stop != NULL)
         WT_ERR(__session_open_cursor((WT_SESSION *)session, NULL, stop, NULL, &debug_stop));
+
+    is_truncate = true;
 #endif
 
     WT_ERR(__wt_schema_range_truncate(session, start, stop, &is_col_fix));
 
 #ifdef HAVE_DIAGNOSTIC
-    is_truncate = true;
     /*
      * The debug cursors will be positioned at the start and stop keys of the range if there is one.
      * For row-store and variable-length column store, we expect a WT_NOTFOUND value when searching
