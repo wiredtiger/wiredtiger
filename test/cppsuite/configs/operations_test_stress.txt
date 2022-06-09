@@ -1,6 +1,6 @@
 # Used as a stress test for the framework.
 duration_seconds=600,
-cache_size_mb=10000,
+cache_size_mb=2000,
 compression_enabled=true,
 metrics_monitor=
 (
@@ -26,7 +26,7 @@ workload_manager=
 (
     checkpoint_config=
     (
-        op_rate=30s,
+        op_rate=120s,
     ),
     populate_config=
     (
@@ -41,26 +41,26 @@ workload_manager=
     (
         key_size=100,
         op_rate=10ms,
-        ops_per_transaction=(max=20,min=10),
+        ops_per_transaction=(max=20,min=0),
         thread_count=40,
         value_size=1000000
     ),
     read_config=
     (
-        op_rate=3ms,
+        op_rate=1ms,
         ops_per_transaction=(max=1000,min=50),
         thread_count=40
     ),
     remove_config=
     (
         op_rate=1ms,
-        ops_per_transaction=(max=100,min=50),
+        ops_per_transaction=(max=50,min=0),
         thread_count=20
     ),
     update_config=
     (
         op_rate=10ms,
-        ops_per_transaction=(max=10,min=5),
+        ops_per_transaction=(max=10,min=0),
         thread_count=40,
         value_size=1000000
     )
