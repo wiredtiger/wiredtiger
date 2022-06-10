@@ -108,8 +108,7 @@ __rec_append_orig_value(
      * because we have to do a search for the prepared updates, which can not proceed until eviction
      * finishes.
      */
-    // WT-9417 IGNORE
-    WT_ASSERT(session, oldest_upd != NULL);
+    WT_ASSERT_STRONG(session, oldest_upd != NULL);
 
     /*
      * Additionally, we need to append a tombstone before the onpage value we're about to append to
