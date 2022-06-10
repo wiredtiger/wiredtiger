@@ -508,8 +508,10 @@ restart_read_insert:
                 return (WT_NOTFOUND);
             }
 
-            /* If an upper bound has been set ensure that the key is within the range, otherwise
-             * early exit. */
+            /* 
+             * If an upper bound has been set ensure that the key is within the range, otherwise
+             * early exit.
+             */
             if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
                 WT_ASSERT(session, WT_DATA_IN_ITEM(&cbt->iface.upper_bound));
                 WT_RET(

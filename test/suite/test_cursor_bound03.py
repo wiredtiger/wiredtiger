@@ -348,9 +348,6 @@ class test_cursor_bound03(wttest.WiredTigerTestCase):
         self.cursor_traversal_bound(cursor, None, 55)
         self.assertEqual(cursor.bound("action=clear"), 0)
 
-
-    def test_bound_prev_early_exit(self):
-        cursor = self.create_session_and_cursor()
         # Test bound api: Test that changing upper bounds works (out of data range).
         self.cursor_traversal_bound(cursor, None, 50)
         self.cursor_traversal_bound(cursor, None, 95)
@@ -365,6 +362,10 @@ class test_cursor_bound03(wttest.WiredTigerTestCase):
         self.cursor_traversal_bound(cursor, 50, None)
         self.cursor_traversal_bound(cursor, 45, None)
         self.assertEqual(cursor.bound("action=clear"), 0)
+
+        # Test bound api: Test that changing lower bounds works (out of data range).
+        self.cursor_traversal_bound(cursor, 50, None)
+        self.cursor_traversal_bound(cursor, 15, None)
         self.assertEqual(cursor.bound("action=clear"), 0)
 
         cursor.close()
