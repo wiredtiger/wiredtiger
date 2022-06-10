@@ -1461,7 +1461,6 @@ __wt_session_range_truncate(
      * for error-checking purposes.
      */
 #ifdef HAVE_DIAGNOSTIC
-    debug_start = debug_stop = NULL;
     if (start != NULL)
         WT_ERR(__session_open_cursor((WT_SESSION *)session, NULL, start, NULL, &debug_start));
     if (stop != NULL)
