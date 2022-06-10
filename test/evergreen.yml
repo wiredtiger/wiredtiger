@@ -408,6 +408,7 @@ functions:
         set -o errexit
         set -o verbose
         ${test_env_vars|} ./test_wt2853_perf ${wt2853_perf_args}
+
   "csuite test":
     command: shell.exec
     params:
@@ -518,7 +519,6 @@ functions:
         content_type: application/tar
         display_name: Artifacts
         remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
-
   "upload endian format artifacts":
     - command: s3.put
       params:
@@ -530,7 +530,6 @@ functions:
         content_type: application/tar
         display_name: WT_TEST
         remote_file: wiredtiger/${endian_format}/${revision}/artifacts/${remote_file}
-
   "cleanup":
     command: shell.exec
     params:
