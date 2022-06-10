@@ -372,4 +372,3 @@ class test_cursor_bound03(wttest.WiredTigerTestCase):
 
 if __name__ == '__main__':
     wttest.run()
-    
