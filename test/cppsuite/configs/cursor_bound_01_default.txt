@@ -40,6 +40,7 @@ workload_manager=
     (
         op_rate=500ms,
         thread_count=0
+    ),
     update_config=
     (
         thread_count=0,

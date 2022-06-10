@@ -15,11 +15,9 @@
 static inline int
 __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, bool *key_out_of_bounds)
 {
-    WT_CURSOR *cursor;
     WT_SESSION_IMPL *session;
     uint64_t recno_bound;
 
-    cursor = &cbt->iface;
     recno_bound = 0;
     session = CUR2S(cbt);
 
@@ -43,13 +41,16 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, bool 
      */
     __cursor_set_recno(cbt, cbt->recno + 1);
 
-    if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
-        WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->upper_bound));
+    /*
+     * If an upper bound has been set ensure that the key is within the range, otherwise early exit.
+     */
+    if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER)) {
+        WT_ASSERT(session, WT_DATA_IN_ITEM(&cbt->iface.upper_bound));
         WT_RET(__wt_struct_unpack(
-          session, cursor->upper_bound.data, cursor->upper_bound.size, "q", &recno_bound));
+          session, cbt->iface.upper_bound.data, cbt->iface.upper_bound.size, "q", &recno_bound));
         /* Check that the key is within the range if bounds have been set. */
-        if ((F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE) && cbt->recno > recno_bound) ||
-          (!F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE) && cbt->recno >= recno_bound)) {
+        if ((F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER_INCLUSIVE) && cbt->recno > recno_bound) ||
+          (!F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER_INCLUSIVE) && cbt->recno >= recno_bound)) {
             *key_out_of_bounds = true;
             WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
             return (WT_NOTFOUND);
@@ -94,12 +95,10 @@ restart_read:
 static inline int
 __cursor_fix_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, bool *key_out_of_bounds)
 {
-    WT_CURSOR *cursor;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
     uint64_t recno_bound;
 
-    cursor = &cbt->iface;
     recno_bound = 0;
     session = CUR2S(cbt);
     page = cbt->ref->page;
@@ -128,13 +127,16 @@ __cursor_fix_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, bool *key_ou
 
 new_page:
 restart_read:
-    if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
-        WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->upper_bound));
+    /*
+     * If an upper bound has been set ensure that the key is within the range, otherwise early exit.
+     */
+    if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER)) {
+        WT_ASSERT(session, WT_DATA_IN_ITEM(&cbt->iface.upper_bound));
         WT_RET(__wt_struct_unpack(
-          session, cursor->upper_bound.data, cursor->upper_bound.size, "q", &recno_bound));
+          session, cbt->iface.upper_bound.data, cbt->iface.upper_bound.size, "q", &recno_bound));
         /* Check that the key is within the range if bounds have been set. */
-        if ((F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE) && cbt->recno > recno_bound) ||
-          (!F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE) && cbt->recno >= recno_bound)) {
+        if ((F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER_INCLUSIVE) && cbt->recno > recno_bound) ||
+          (!F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER_INCLUSIVE) && cbt->recno >= recno_bound)) {
             *key_out_of_bounds = true;
             WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
             return (WT_NOTFOUND);
@@ -212,6 +214,10 @@ new_page:
 
         __cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
 restart_read:
+        /*
+         * If an upper bound has been set ensure that the key is within the range, otherwise early
+         * exit.
+         */
         if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
             WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->upper_bound));
             WT_RET(__wt_struct_unpack(
@@ -255,13 +261,11 @@ __cursor_var_next(
     WT_CELL *cell;
     WT_CELL_UNPACK_KV unpack;
     WT_COL *cip;
-    WT_CURSOR *cursor;
     WT_INSERT *ins;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
     uint64_t recno_bound, rle, rle_start;
 
-    cursor = &cbt->iface;
     recno_bound = 0;
     session = CUR2S(cbt);
     page = cbt->ref->page;
@@ -296,13 +300,19 @@ __cursor_var_next(
 
 new_page:
 restart_read:
-        if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
-            WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->upper_bound));
-            WT_RET(__wt_struct_unpack(
-              session, cursor->upper_bound.data, cursor->upper_bound.size, "q", &recno_bound));
+        /*
+         * If an upper bound has been set ensure that the key is within the range, otherwise early
+         * exit.
+         */
+        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER)) {
+            WT_ASSERT(session, WT_DATA_IN_ITEM(&cbt->iface.upper_bound));
+            WT_RET(__wt_struct_unpack(session, cbt->iface.upper_bound.data,
+              cbt->iface.upper_bound.size, "q", &recno_bound));
             /* Check that the key is within the range if bounds have been set. */
-            if ((F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE) && cbt->recno > recno_bound) ||
-              (!F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE) && cbt->recno >= recno_bound)) {
+            if ((F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER_INCLUSIVE) &&
+                  cbt->recno > recno_bound) ||
+              (!F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER_INCLUSIVE) &&
+                cbt->recno >= recno_bound)) {
                 *key_out_of_bounds = true;
                 WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
                 return (WT_NOTFOUND);
