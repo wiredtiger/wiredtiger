@@ -178,10 +178,10 @@
 #endif
 
 /*
- * WT_ASSERT_STRONG
+ * WT_ASSERT_ALWAYS
  *  Assert an expression, abort in both diagnostic and release mode if it fails.
  */
-#define WT_ASSERT_STRONG(session, exp)      \
+#define WT_ASSERT_ALWAYS(session, exp)      \
     do {                                    \
         if (!(exp)) {                       \
             __wt_errx(session, "%s", #exp); \

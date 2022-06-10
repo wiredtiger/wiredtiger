@@ -74,8 +74,8 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
         __wt_page_modify_clear(session, page);
 
     /* Assert we never discard a dirty page or a page queued for eviction. */
-    WT_ASSERT_STRONG(session, !__wt_page_is_modified(page));
-    WT_ASSERT_STRONG(session, !F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU));
+    WT_ASSERT_ALWAYS(session, !__wt_page_is_modified(page));
+    WT_ASSERT_ALWAYS(session, !F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU));
 
     /*
      * If a root page split, there may be one or more pages linked from the page; walk the list,
