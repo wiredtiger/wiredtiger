@@ -514,8 +514,38 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 static inline bool
 __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
 {
+    WT_TXN *txn;
     uint64_t oldest_id;
 
+    txn = session->txn;
+
+    /* Make sure that checkpoint cursor transactions only read checkpoints, except for metadata. */
+    WT_ASSERT(session,
+      (session->dhandle != NULL && WT_IS_METADATA(session->dhandle)) ||
+        WT_READING_CHECKPOINT(session) == F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT));
+
+    /*
+     * When reading from a checkpoint, all readers use the same snapshot, so a transaction is
+     * globally visible if it is visible in that snapshot. Note that this can cause things that were
+     * not globally visible yet when the checkpoint is taken to become globally visible in the
+     * checkpoint. This is expected (it is like all the old running transactions exited) -- but note
+     * that it's important that the inverse change (something globally visible when the checkpoint
+     * was taken becomes not globally visible in the checkpoint) never happen as this violates basic
+     * assumptions about visibility. (And, concretely, it can cause stale history store entries to
+     * come back to life and produce wrong answers.)
+     *
+     * Note: we use the transaction to check this rather than testing WT_READING_CHECKPOINT because
+     * reading the metadata while working with a checkpoint cursor will borrow the transaction; it
+     * then ends up using it to read a non-checkpoint tree. This is believed to be ok because the
+     * metadata is always read-uncommitted, but we want to still use the checkpoint-cursor
+     * visibility logic. Using the regular visibility logic with a checkpoint cursor transaction can
+     * be logically invalid (it is possible that way for something to be globally visible but
+     * specifically invisible) and also can end up comparing transaction ids from different database
+     * opens.
+     */
+    if (F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT))
+        return (__wt_txn_visible_id_snapshot(
+          id, txn->snap_min, txn->snap_max, txn->snapshot, txn->snapshot_count));
     oldest_id = __wt_txn_oldest_id(session);
 
     return (WT_TXNID_LT(id, oldest_id));
@@ -551,6 +581,16 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
     /* Timestamp check. */
     if (timestamp == WT_TS_NONE)
         return (true);
+
+    /* Make sure that checkpoint cursor transactions only read checkpoints, except for metadata. */
+    WT_ASSERT(session,
+      (session->dhandle != NULL && WT_IS_METADATA(session->dhandle)) ||
+        WT_READING_CHECKPOINT(session) == F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT));
+
+    /* When reading a checkpoint, use the checkpoint state instead of the current state. */
+    if (F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT))
+        return (session->txn->checkpoint_oldest_timestamp != WT_TS_NONE &&
+          timestamp <= session->txn->checkpoint_oldest_timestamp);
 
     /* If no oldest timestamp has been supplied, updates have to stay in cache. */
     __wt_txn_pinned_timestamp(session, &pinned_ts);
@@ -950,7 +990,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
 static inline int
 __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
-    return __wt_txn_read_upd_list_internal(session, cbt, upd, NULL, NULL);
+    return (__wt_txn_read_upd_list_internal(session, cbt, upd, NULL, NULL));
 }
 
 /*
@@ -1101,6 +1141,8 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
     txn = session->txn;
     txn->isolation = session->isolation;
     txn->txn_logsync = S2C(session)->txn_logsync;
+    txn->commit_timestamp = WT_TS_NONE;
+    txn->first_commit_timestamp = WT_TS_NONE;
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
 

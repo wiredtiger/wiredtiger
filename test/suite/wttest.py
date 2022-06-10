@@ -185,11 +185,12 @@ class WiredTigerTestCase(unittest.TestCase):
     _printOnceSeen = {}
     _ttyDescriptor = None   # set this early, to allow tty() to be called any time.
 
+    # rollbacks_allowed can be overridden to permit more or fewer retries on rollback errors.
     # We retry tests that get rollback errors in a way that is mostly invisible.
     # There is a visible difference in that the rollback error's stack trace is recorded
-    # in the results.txt .  If a single test fails more than self._rollbacksAllowedPerTest,
-    # we will also raise an error.
-    _rollbacksAllowedPerTest = 2
+    # in the results.txt .  If a single test fails more than self.rollbacks_allowed,
+    # we raise an error, and the test fails.
+    rollbacks_allowed = 2
 
     # conn_config can be overridden to add to basic connection configuration.
     # Can be a string or a callable function or lambda expression.
@@ -209,7 +210,8 @@ class WiredTigerTestCase(unittest.TestCase):
     @staticmethod
     def globalSetup(preserveFiles = False, removeAtStart = True, useTimestamp = False,
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
-                    longtest = False, zstdtest = False, ignoreStdout = False, seedw = 0, seedz = 0, hookmgr = None):
+                    longtest = False, zstdtest = False, ignoreStdout = False, seedw = 0, seedz = 0, 
+                    hookmgr = None, ss_random_prefix = 0):
         WiredTigerTestCase._preserveFiles = preserveFiles
         d = 'WT_TEST' if dirarg == None else dirarg
         if useTimestamp:
@@ -236,6 +238,7 @@ class WiredTigerTestCase(unittest.TestCase):
         WiredTigerTestCase._concurrent = False
         WiredTigerTestCase._seeds = [521288629, 362436069]
         WiredTigerTestCase._randomseed = False
+        WiredTigerTestCase._ss_random_prefix = ss_random_prefix
         WiredTigerTestCase._retriesAfterRollback = 0
         WiredTigerTestCase._testsRun = 0
         if hookmgr == None:
@@ -249,7 +252,7 @@ class WiredTigerTestCase(unittest.TestCase):
     @staticmethod
     def finalReport():
         # We retry tests that get rollback errors in a way that is mostly invisible.
-        # self._rollbacksAllowedPerTest makes sure a single test doesn't rollback too many times.
+        # self.rollbacks_allowed makes sure a single test doesn't rollback too many times.
         # We also want to report an error if the total number of retries in the entire run gets
         # above a threshold, we use 1%.  To prevent a shorter run (say 50 tests) from tripping
         # over this if it happens to have 1 or 2 hits, we won't fail unless there's an absolute
@@ -317,7 +320,7 @@ class WiredTigerTestCase(unittest.TestCase):
     # this method does not override anything.  The test method is called a different way,
     # and we will not get any retry behavior.
     def _callTestMethod(self, method):
-        rollbacksAllowed = self._rollbacksAllowedPerTest
+        rollbacksAllowed = self.rollbacks_allowed
         finished = False
         WiredTigerTestCase._testsRun += 1
         while not finished and rollbacksAllowed >= 0:
@@ -529,7 +532,6 @@ class WiredTigerTestCase(unittest.TestCase):
         except:
             self.tearDown()
             raise
-        self.rollbacksLeft = WiredTigerTestCase._rollbacksAllowedPerTest
 
     # Used as part of tearDown determining if there is an error.
     def list2reason(self, result, fieldname):
@@ -575,6 +577,13 @@ class WiredTigerTestCase(unittest.TestCase):
         exc_failure = (sys.exc_info() != (None, None, None))
 
         passed = not error and not failure and not exc_failure
+
+        # Download the files from the S3 bucket for tiered tests if the test fails or preserve is
+        # turned on.
+        if hasattr(self, 'ss_name') and self.ss_name == 's3_store' and not self.skipped and \
+            (not passed or WiredTigerTestCase._preserveFiles):
+                self.download_objects(self.bucket, self.bucket_prefix)
+                self.pr('downloading s3 files')
 
         self.pr('finishing')
 
@@ -959,6 +968,9 @@ def islongtest():
 
 def getseed():
     return WiredTigerTestCase._seeds
+
+def getss_random_prefix():
+    return WiredTigerTestCase._ss_random_prefix
 
 def runsuite(suite, parallel):
     suite_to_run = suite

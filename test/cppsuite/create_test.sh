@@ -40,9 +40,9 @@ SEARCH="test_template"
 sed -i "s/$SEARCH/$1/" "$FILE"
 echo "Updated test name in $FILE."
 
-# Replace tracking_table_template with the new tracking table name.
-SEARCH="tracking_table_template"
-sed -i "s/$SEARCH/tracking_table_$1/" "$FILE"
+# Replace operation_tracker_template with the new tracking table name.
+SEARCH="operation_tracker_template"
+sed -i "s/$SEARCH/operation_tracker_$1/" "$FILE"
 echo "Updated tracking table name in $FILE."
 
 # Replace the first line of the configuration file.
@@ -59,7 +59,7 @@ sed -i "/$SEARCH/a $VALUE" $FILE
 # Add the new test to the run_test() method
 SEARCH="test_template("
 LINE_1="\else if (test_name == \"$1\")\n"
-LINE_2="\ $1(test_harness::test_args{config, test_name, wt_open_config}).run();"
+LINE_2="\ $1(args).run();"
 sed -i "/$SEARCH/a $LINE_1$LINE_2" $FILE
 
 # Add the new test to all existing tests.

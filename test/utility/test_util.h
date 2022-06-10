@@ -65,9 +65,10 @@ typedef struct {
     FILE *progress_fp; /* Progress tracking file */
     char *progress_file_name;
 
-    bool preserve;             /* Don't remove files on exit */
-    bool verbose;              /* Run in verbose mode */
     bool do_data_ops;          /* Have schema ops use data */
+    bool preserve;             /* Don't remove files on exit */
+    bool tiered;               /* Configure tiered storage */
+    bool verbose;              /* Run in verbose mode */
     uint64_t nrecords;         /* Number of records */
     uint64_t nops;             /* Number of operations */
     uint64_t nthreads;         /* Number of threads */
@@ -308,6 +309,28 @@ testutil_timestamp_parse(const char *str)
     ts = __wt_strtouq(str, &p, 16);
     testutil_assert((size_t)(p - str) <= WT_TS_HEX_STRING_SIZE);
     return (ts);
+}
+
+/*
+ * maximum_stable_ts --
+ *     Return the largest usable stable timestamp from a list of n committed timestamps.
+ */
+static inline wt_timestamp_t
+maximum_stable_ts(wt_timestamp_t *commit_timestamps, uint32_t n)
+{
+    wt_timestamp_t commit_ts, ts;
+    uint32_t i;
+
+    for (ts = WT_TS_MAX, i = 0; i < n; i++) {
+        commit_ts = commit_timestamps[i];
+        if (commit_ts == WT_TS_NONE)
+            return (WT_TS_NONE);
+        if (commit_ts < ts)
+            ts = commit_ts;
+    }
+
+    /* Return one less than the earliest in-use timestamp. */
+    return (ts == WT_TS_MAX ? WT_TS_NONE : ts - 1);
 }
 
 /* Allow tests to add their own death handling. */

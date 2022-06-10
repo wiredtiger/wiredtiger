@@ -2,26 +2,32 @@ project(cppsuite CXX)
 
 # Create an intermediate static lib.
 add_library(cppsuite_test_harness STATIC
-    test_harness/core/component.cpp
-    test_harness/core/configuration.cpp
-    test_harness/core/throttle.cpp
-    test_harness/util/api_const.cpp
-    test_harness/util/logger.cpp
-    test_harness/util/scoped_connection.cpp
-    test_harness/util/scoped_types.cpp
-    test_harness/workload/database_model.cpp
-    test_harness/workload/database_operation.cpp
-    test_harness/workload/random_generator.cpp
-    test_harness/workload/thread_context.cpp
-    test_harness/workload/workload_tracking.cpp
-    test_harness/workload/workload_validation.cpp
-    test_harness/checkpoint_manager.cpp
-    test_harness/connection_manager.cpp
-    test_harness/runtime_monitor.cpp
-    test_harness/test.cpp
-    test_harness/thread_manager.cpp
-    test_harness/timestamp_manager.cpp
-    test_harness/workload_generator.cpp
+    src/common/constants.cpp
+    src/common/logger.cpp
+    src/common/random_generator.cpp
+    src/common/thread_manager.cpp
+    src/component/component.cpp
+    src/component/execution_timer.cpp
+    src/component/metrics_monitor.cpp
+    src/component/metrics_writer.cpp
+    src/component/operation_tracker.cpp
+    src/component/statistics/cache_limit.cpp
+    src/component/statistics/database_size.cpp
+    src/component/statistics/statistics.cpp
+    src/component/timestamp_manager.cpp
+    src/component/workload_manager.cpp
+    src/main/collection.cpp
+    src/main/configuration.cpp
+    src/main/database.cpp
+    src/main/database_operation.cpp
+    src/main/operation_configuration.cpp
+    src/main/test.cpp
+    src/main/thread_worker.cpp
+    src/main/transaction.cpp
+    src/main/validator.cpp
+    src/storage/connection_manager.cpp
+    src/storage/scoped_cursor.cpp
+    src/storage/scoped_session.cpp
 )
 
 target_include_directories(cppsuite_test_harness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
