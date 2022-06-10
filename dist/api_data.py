@@ -202,7 +202,7 @@ tiered_config = [
             read access''',
             min='0', max='10000'),
         Config('object_target_size', '0', r'''
-            the approximate size of objects before creating them on the tiered storage tier''',
+            this option is no longer supported, retained for backward compatibility''',
             min='0', undoc=True),
         ]),
 ]
