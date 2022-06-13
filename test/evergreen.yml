@@ -387,6 +387,7 @@ functions:
         content_type: application/tar
         display_name: cppsuite-test
         remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
+    # We remove the wiredtiger directory here to avoid to getting archived again by post tasks.
     - command: shell.exec
       params:
         shell: bash
