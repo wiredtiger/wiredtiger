@@ -127,9 +127,6 @@ class burst_inserts : public test {
                     }
                     added_count = 0;
                 }
-
-                /* Sleep as currently this loop is too fast. */
-                //std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
             /* Close out our current txn. */
             if (tc->txn.active()) {
