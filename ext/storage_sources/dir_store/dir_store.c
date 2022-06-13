@@ -1143,6 +1143,7 @@ dir_store_remove_if_exists(
               FS2DS(file_system), session, errno, "%s: dir_store_remove stat", file_path);
             goto err;
         }
+        ret = 0;
     } else {
         if ((ret = wt_fs->fs_remove(wt_fs, session, file_path, flags)) != 0) {
             ret =
