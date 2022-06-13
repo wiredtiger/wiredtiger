@@ -633,7 +633,12 @@ dir_store_file_copy(DIR_STORE *dir_store, WT_SESSION *session, const char *src_p
     }
     if ((ret = wt_fs->fs_open_file(wt_fs, session, src_path, type, WT_FS_OPEN_READONLY, &src)) !=
       0) {
-        ret = dir_store_err(dir_store, session, ret, "%s: cannot open for read", src_path);
+        /*
+         * It is normal and possible that the source file was dropped. Don't print out an error
+         * message in that case, but still return the ENOENT error value.
+         */
+        if (ret != ENOENT)
+            ret = dir_store_err(dir_store, session, ret, "%s: cannot open for read", src_path);
         goto err;
     }
 
