@@ -117,9 +117,7 @@ static const WT_CONFIG_CHECK confchk_tiered_manager_subconfigs[] = {
   {"wait", "int", NULL, "min=0,max=100000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_tiered_storage_subconfigs[] = {
-  {"local_retention", "int", NULL, "min=0,max=10000", NULL, 0},
-  {"object_target_size", "int", NULL, "min=100K,max=10TB", NULL, 0},
-  {NULL, NULL, NULL, NULL, NULL, 0}};
+  {"local_retention", "int", NULL, "min=0,max=10000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
   {"block_cache", "category", NULL, NULL, confchk_wiredtiger_open_block_cache_subconfigs, 12},
@@ -157,7 +155,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     confchk_WT_CONNECTION_reconfigure_statistics_log_subconfigs, 5},
   {"tiered_manager", "category", NULL, NULL, confchk_tiered_manager_subconfigs, 3},
   {"tiered_storage", "category", NULL, NULL,
-    confchk_WT_CONNECTION_reconfigure_tiered_storage_subconfigs, 2},
+    confchk_WT_CONNECTION_reconfigure_tiered_storage_subconfigs, 1},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
     "\"checkpoint_reserved_txnid_delay\",\"checkpoint_slow\","
@@ -292,7 +290,8 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create_tiered_storage_subconfigs
   {"bucket_prefix", "string", NULL, NULL, NULL, 0},
   {"cache_directory", "string", NULL, NULL, NULL, 0},
   {"local_retention", "int", NULL, "min=0,max=10000", NULL, 0},
-  {"name", "string", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
+  {"name", "string", NULL, NULL, NULL, 0}, {"object_target_size", "int", NULL, "min=0", NULL, 0},
+  {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
   {"access_pattern_hint", "string", NULL, "choices=[\"none\",\"random\",\"sequential\"]", NULL, 0},
@@ -338,7 +337,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
   {"split_pct", "int", NULL, "min=50,max=100", NULL, 0},
   {"tiered_object", "boolean", NULL, NULL, NULL, 0},
   {"tiered_storage", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_storage_subconfigs,
-    6},
+    7},
   {"type", "string", NULL, NULL, NULL, 0},
   {"value_format", "format", __wt_struct_confchk, NULL, NULL, 0},
   {"verbose", "list", NULL, "choices=[\"write_timestamp\"]", NULL, 0},
@@ -497,7 +496,7 @@ static const WT_CONFIG_CHECK confchk_file_config[] = {
   {"split_pct", "int", NULL, "min=50,max=100", NULL, 0},
   {"tiered_object", "boolean", NULL, NULL, NULL, 0},
   {"tiered_storage", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_storage_subconfigs,
-    6},
+    7},
   {"value_format", "format", __wt_struct_confchk, NULL, NULL, 0},
   {"verbose", "list", NULL, "choices=[\"write_timestamp\"]", NULL, 0},
   {"write_timestamp_usage", "string", NULL,
@@ -549,7 +548,7 @@ static const WT_CONFIG_CHECK confchk_file_meta[] = {
   {"split_pct", "int", NULL, "min=50,max=100", NULL, 0},
   {"tiered_object", "boolean", NULL, NULL, NULL, 0},
   {"tiered_storage", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_storage_subconfigs,
-    6},
+    7},
   {"value_format", "format", __wt_struct_confchk, NULL, NULL, 0},
   {"verbose", "list", NULL, "choices=[\"write_timestamp\"]", NULL, 0},
   {"version", "string", NULL, NULL, NULL, 0},
@@ -617,7 +616,7 @@ static const WT_CONFIG_CHECK confchk_lsm_meta[] = {
   {"split_pct", "int", NULL, "min=50,max=100", NULL, 0},
   {"tiered_object", "boolean", NULL, NULL, NULL, 0},
   {"tiered_storage", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_storage_subconfigs,
-    6},
+    7},
   {"value_format", "format", __wt_struct_confchk, NULL, NULL, 0},
   {"verbose", "list", NULL, "choices=[\"write_timestamp\"]", NULL, 0},
   {"write_timestamp_usage", "string", NULL,
@@ -670,7 +669,7 @@ static const WT_CONFIG_CHECK confchk_object_meta[] = {
   {"split_pct", "int", NULL, "min=50,max=100", NULL, 0},
   {"tiered_object", "boolean", NULL, NULL, NULL, 0},
   {"tiered_storage", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_storage_subconfigs,
-    6},
+    7},
   {"value_format", "format", __wt_struct_confchk, NULL, NULL, 0},
   {"verbose", "list", NULL, "choices=[\"write_timestamp\"]", NULL, 0},
   {"version", "string", NULL, NULL, NULL, 0},
@@ -739,7 +738,7 @@ static const WT_CONFIG_CHECK confchk_tier_meta[] = {
   {"split_pct", "int", NULL, "min=50,max=100", NULL, 0},
   {"tiered_object", "boolean", NULL, NULL, NULL, 0},
   {"tiered_storage", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_storage_subconfigs,
-    6},
+    7},
   {"value_format", "format", __wt_struct_confchk, NULL, NULL, 0},
   {"verbose", "list", NULL, "choices=[\"write_timestamp\"]", NULL, 0},
   {"version", "string", NULL, NULL, NULL, 0},
@@ -793,7 +792,7 @@ static const WT_CONFIG_CHECK confchk_tiered_meta[] = {
   {"split_pct", "int", NULL, "min=50,max=100", NULL, 0},
   {"tiered_object", "boolean", NULL, NULL, NULL, 0},
   {"tiered_storage", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_storage_subconfigs,
-    6},
+    7},
   {"tiers", "list", NULL, NULL, NULL, 0},
   {"value_format", "format", __wt_struct_confchk, NULL, NULL, 0},
   {"verbose", "list", NULL, "choices=[\"write_timestamp\"]", NULL, 0},
@@ -838,9 +837,7 @@ static const WT_CONFIG_CHECK confchk_tiered_storage_subconfigs[] = {
   {"bucket_prefix", "string", NULL, NULL, NULL, 0},
   {"cache_directory", "string", NULL, NULL, NULL, 0},
   {"local_retention", "int", NULL, "min=0,max=10000", NULL, 0},
-  {"name", "string", NULL, NULL, NULL, 0},
-  {"object_target_size", "int", NULL, "min=100K,max=10TB", NULL, 0},
-  {NULL, NULL, NULL, NULL, NULL, 0}};
+  {"name", "string", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_transaction_sync_subconfigs[] = {
   {"enabled", "boolean", NULL, NULL, NULL, 0},
@@ -898,7 +895,6 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     "\"clear\",\"tree_walk\"]",
     NULL, 0},
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6},
-  {"tiered_manager", "category", NULL, NULL, confchk_tiered_manager_subconfigs, 3},
   {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 7},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
@@ -982,7 +978,6 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     "\"clear\",\"tree_walk\"]",
     NULL, 0},
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6},
-  {"tiered_manager", "category", NULL, NULL, confchk_tiered_manager_subconfigs, 3},
   {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 7},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
@@ -1064,7 +1059,6 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     "\"clear\",\"tree_walk\"]",
     NULL, 0},
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6},
-  {"tiered_manager", "category", NULL, NULL, confchk_tiered_manager_subconfigs, 3},
   {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 7},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
@@ -1144,7 +1138,6 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     "\"clear\",\"tree_walk\"]",
     NULL, 0},
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6},
-  {"tiered_manager", "category", NULL, NULL, confchk_tiered_manager_subconfigs, 3},
   {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 7},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
@@ -1219,10 +1212,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "path=\".\"),shared_cache=(chunk=10MB,name=,quota=0,reserve=0,"
     "size=500MB),statistics=none,statistics_log=(json=false,"
     "on_close=false,sources=,timestamp=\"%b %d %H:%M:%S\",wait=0),"
-    "tiered_manager=(threads_max=8,threads_min=1,wait=0),"
-    "tiered_storage=(local_retention=300,object_target_size=10M),"
-    "timing_stress_for_test=,verbose=[]",
-    confchk_WT_CONNECTION_reconfigure, 31},
+    "tiered_storage=(local_retention=300),timing_stress_for_test=,"
+    "verbose=[]",
+    confchk_WT_CONNECTION_reconfigure, 30},
   {"WT_CONNECTION.rollback_to_stable", "", NULL, 0}, {"WT_CONNECTION.set_file_system", "", NULL, 0},
   {"WT_CONNECTION.set_timestamp",
     "durable_timestamp=,force=false,oldest_timestamp=,"
@@ -1271,13 +1263,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "chunk_size=10MB,merge_custom=(prefix=,start_generation=0,"
     "suffix=),merge_max=15,merge_min=0),memory_page_image_max=0,"
     "memory_page_max=5MB,os_cache_dirty_max=0,os_cache_max=0,"
-    "prefix_compression=false,prefix_compression_min=4,readonly=false"
-    ",source=,split_deepen_min_child=0,split_deepen_per_child=0,"
-    "split_pct=90,tiered_object=false,tiered_storage=(auth_token=,"
-    "bucket=,bucket_prefix=,cache_directory=,local_retention=300,"
-    "name=),type=file,value_format=u,verbose=[],"
-    "write_timestamp_usage=none",
-    confchk_WT_SESSION_create, 50},
+    "prefix_compression=false,prefix_compression_min=4,source=,"
+    "split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
+    "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
+    "cache_directory=,local_retention=300,name=,object_target_size=0)"
+    ",type=file,value_format=u,verbose=[],write_timestamp_usage=none",
+    confchk_WT_SESSION_create, 48},
   {"WT_SESSION.drop",
     "checkpoint_wait=true,force=false,lock_wait=true,"
     "remove_files=true",
@@ -1342,12 +1333,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
     "leaf_value_max=0,log=(enabled=true),memory_page_image_max=0,"
     "memory_page_max=5MB,os_cache_dirty_max=0,os_cache_max=0,"
-    "prefix_compression=false,prefix_compression_min=4,readonly=false"
-    ",split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
-    "tiered_object=false,tiered_storage=(auth_token=,bucket=,"
-    "bucket_prefix=,cache_directory=,local_retention=300,name=),"
-    "value_format=u,verbose=[],write_timestamp_usage=none",
-    confchk_file_config, 42},
+    "prefix_compression=false,prefix_compression_min=4,"
+    "split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
+    "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
+    "cache_directory=,local_retention=300,name=,object_target_size=0)"
+    ",value_format=u,verbose=[],write_timestamp_usage=none",
+    confchk_file_config, 40},
   {"file.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
@@ -1365,8 +1356,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
     ",split_deepen_per_child=0,split_pct=90,tiered_object=false,"
     "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
-    "cache_directory=,local_retention=300,name=),value_format=u,"
-    "verbose=[],version=(major=0,minor=0),write_timestamp_usage=none",
+    "cache_directory=,local_retention=300,name=,object_target_size=0)"
+    ",value_format=u,verbose=[],version=(major=0,minor=0),"
+    "write_timestamp_usage=none",
     confchk_file_meta, 47},
   {"index.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
@@ -1396,9 +1388,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     ",readonly=false,split_deepen_min_child=0,"
     "split_deepen_per_child=0,split_pct=90,tiered_object=false,"
     "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
-    "cache_directory=,local_retention=300,name=),value_format=u,"
-    "verbose=[],write_timestamp_usage=none",
-    confchk_lsm_meta, 46},
+    "cache_directory=,local_retention=300,name=,object_target_size=0)"
+    ",value_format=u,verbose=[],write_timestamp_usage=none",
+    confchk_lsm_meta, 44},
   {"object.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
@@ -1416,8 +1408,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
     ",split_deepen_per_child=0,split_pct=90,tiered_object=false,"
     "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
-    "cache_directory=,local_retention=300,name=),value_format=u,"
-    "verbose=[],version=(major=0,minor=0),write_timestamp_usage=none",
+    "cache_directory=,local_retention=300,name=,object_target_size=0)"
+    ",value_format=u,verbose=[],version=(major=0,minor=0),"
+    "write_timestamp_usage=none",
     confchk_object_meta, 49},
   {"table.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
@@ -1442,9 +1435,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "prefix_compression=false,prefix_compression_min=4,readonly=false"
     ",split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
     "tiered_object=false,tiered_storage=(auth_token=,bucket=,"
-    "bucket_prefix=,cache_directory=,local_retention=300,name=),"
-    "value_format=u,verbose=[],version=(major=0,minor=0),"
-    "write_timestamp_usage=none",
+    "bucket_prefix=,cache_directory=,local_retention=300,name=,"
+    "object_target_size=0),value_format=u,verbose=[],version=(major=0"
+    ",minor=0),write_timestamp_usage=none",
     confchk_tier_meta, 50},
   {"tiered.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
@@ -1464,8 +1457,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "readonly=false,split_deepen_min_child=0,split_deepen_per_child=0"
     ",split_pct=90,tiered_object=false,tiered_storage=(auth_token=,"
     "bucket=,bucket_prefix=,cache_directory=,local_retention=300,"
-    "name=),tiers=,value_format=u,verbose=[],version=(major=0,"
-    "minor=0),write_timestamp_usage=none",
+    "name=,object_target_size=0),tiers=,value_format=u,verbose=[],"
+    "version=(major=0,minor=0),write_timestamp_usage=none",
     confchk_tiered_meta, 52},
   {"wiredtiger_open",
     "backup_restore_target=,"
@@ -1503,12 +1496,11 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "path=\".\",sources=,timestamp=\"%b %d %H:%M:%S\",wait=0),"
     "tiered_manager=(threads_max=8,threads_min=1,wait=0),"
     "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
-    "cache_directory=,local_retention=300,name=,"
-    "object_target_size=10M),timing_stress_for_test=,"
-    "transaction_sync=(enabled=false,method=fsync),"
-    "use_environment=true,use_environment_priv=false,verbose=[],"
-    "verify_metadata=false,write_through=",
-    confchk_wiredtiger_open, 59},
+    "cache_directory=,interval=60,local_retention=300,name=),"
+    "timing_stress_for_test=,transaction_sync=(enabled=false,"
+    "method=fsync),use_environment=true,use_environment_priv=false,"
+    "verbose=[],verify_metadata=false,write_through=",
+    confchk_wiredtiger_open, 58},
   {"wiredtiger_open_all",
     "backup_restore_target=,"
     "block_cache=(blkcache_eviction_aggression=1800,"
@@ -1545,12 +1537,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "path=\".\",sources=,timestamp=\"%b %d %H:%M:%S\",wait=0),"
     "tiered_manager=(threads_max=8,threads_min=1,wait=0),"
     "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
-    "cache_directory=,local_retention=300,name=,"
-    "object_target_size=10M),timing_stress_for_test=,"
-    "transaction_sync=(enabled=false,method=fsync),"
-    "use_environment=true,use_environment_priv=false,verbose=[],"
-    "verify_metadata=false,version=(major=0,minor=0),write_through=",
-    confchk_wiredtiger_open_all, 60},
+    "cache_directory=,interval=60,local_retention=300,name=),"
+    "timing_stress_for_test=,transaction_sync=(enabled=false,"
+    "method=fsync),use_environment=true,use_environment_priv=false,"
+    "verbose=[],verify_metadata=false,version=(major=0,minor=0),"
+    "write_through=",
+    confchk_wiredtiger_open_all, 59},
   {"wiredtiger_open_basecfg",
     "backup_restore_target=,"
     "block_cache=(blkcache_eviction_aggression=1800,"
@@ -1586,11 +1578,11 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "path=\".\",sources=,timestamp=\"%b %d %H:%M:%S\",wait=0),"
     "tiered_manager=(threads_max=8,threads_min=1,wait=0),"
     "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
-    "cache_directory=,local_retention=300,name=,"
-    "object_target_size=10M),timing_stress_for_test=,"
-    "transaction_sync=(enabled=false,method=fsync),verbose=[],"
-    "verify_metadata=false,version=(major=0,minor=0),write_through=",
-    confchk_wiredtiger_open_basecfg, 54},
+    "cache_directory=,interval=60,local_retention=300,name=),"
+    "timing_stress_for_test=,transaction_sync=(enabled=false,"
+    "method=fsync),verbose=[],verify_metadata=false,version=(major=0,"
+    "minor=0),write_through=",
+    confchk_wiredtiger_open_basecfg, 53},
   {"wiredtiger_open_usercfg",
     "backup_restore_target=,"
     "block_cache=(blkcache_eviction_aggression=1800,"
@@ -1626,11 +1618,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "path=\".\",sources=,timestamp=\"%b %d %H:%M:%S\",wait=0),"
     "tiered_manager=(threads_max=8,threads_min=1,wait=0),"
     "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
-    "cache_directory=,local_retention=300,name=,"
-    "object_target_size=10M),timing_stress_for_test=,"
-    "transaction_sync=(enabled=false,method=fsync),verbose=[],"
-    "verify_metadata=false,write_through=",
-    confchk_wiredtiger_open_usercfg, 53},
+    "cache_directory=,interval=60,local_retention=300,name=),"
+    "timing_stress_for_test=,transaction_sync=(enabled=false,"
+    "method=fsync),verbose=[],verify_metadata=false,write_through=",
+    confchk_wiredtiger_open_usercfg, 52},
   {NULL, NULL, NULL, 0}};
 
 int
