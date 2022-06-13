@@ -131,7 +131,7 @@ else()
 endif()
 
 # Sanitizer builds should have debug info available and optimization off
-set(san_debug_flags "-O0 -g ${no_omit_frame_flag}")
+set(san_debug_flags "-Og -g ${no_omit_frame_flag}")
 
 # UBSAN build variant flags.
 set(ubsan_link_flags "-fsanitize=undefined")
