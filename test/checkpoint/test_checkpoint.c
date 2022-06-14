@@ -50,7 +50,7 @@ main(int argc, char *argv[])
 {
     table_type ttype;
     int ch, cnt, i, ret, runs;
-    char buf[128], *working_dir;
+    char *working_dir;
     const char *config_open;
     bool verify_only;
 
@@ -186,10 +186,6 @@ main(int argc, char *argv[])
     (void)signal(SIGINT, onint);
 
     testutil_work_dir_from_path(g.home, 512, working_dir);
-    if (g.tiered) {
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/bucket", g.home));
-        testutil_make_work_dir(buf);
-    }
 
     /* Start time at 1 since 0 is not a valid timestamp. */
     g.ts_stable = 1;
@@ -263,10 +259,11 @@ run_complete:
 }
 
 #define DEBUG_MODE_CFG ",debug_mode=(eviction=true,table_logging=true),verbose=(recovery)"
-#define ENV_CONFIG_TIER                                             \
+#define SWEEP_CFG ",file_manager=(close_handle_minimum=1,close_idle_time=1,close_scan_interval=1)"
+#define TIER_CFG                                                    \
     ",extensions=(../../ext/storage_sources/dir_store/"             \
     "libwiredtiger_dir_store.so=(early_load=true)),tiered_storage=" \
-    "(bucket=./bucket,bucket_prefix=ckpt-,local_retention=2,name=dir_store)"
+    "(bucket=bucket,bucket_prefix=ckpt-,local_retention=2,name=dir_store)"
 /*
  * wt_connect --
  *     Configure the WiredTiger connection.
@@ -315,18 +312,16 @@ wt_connect(const char *config_open)
     /*
      * If we want to stress sweep, we have a lot of additional configuration settings to set.
      */
-    if (g.sweep_stress) {
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s",
-          ",file_manager=(close_handle_minimum=1,close_idle_time=1,close_scan_interval=1),"));
-        strcat(config, buf);
-    }
+    if (g.sweep_stress)
+        strcat(config, SWEEP_CFG);
 
     /*
      * If we are using tiered add in the extension and tiered storage configuration.
      */
     if (g.tiered) {
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", ENV_CONFIG_TIER));
-        strcat(config, buf);
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/bucket", g.home));
+        testutil_make_work_dir(buf);
+        strcat(config, TIER_CFG);
     }
 
     printf("WT open config: %s\n", config);
