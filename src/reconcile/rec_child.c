@@ -60,7 +60,8 @@ __rec_child_deleted(
      */
     WT_ORDERED_READ(prepare_state, page_del->prepare_state);
     if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
-        WT_ASSERT_ALWAYS(session, !F_ISSET(r, WT_REC_EVICT));
+        WT_ASSERT_ALWAYS(session, !F_ISSET(r, WT_REC_EVICT),
+          "In progress prepares should never be seen in eviction");
 
         cmsp->state = WT_CHILD_ORIGINAL;
         return (0);

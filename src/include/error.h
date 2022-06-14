@@ -181,10 +181,10 @@
  * WT_ASSERT_ALWAYS
  *  Assert an expression, abort in both diagnostic and release mode if it fails.
  */
-#define WT_ASSERT_ALWAYS(session, exp)      \
-    do {                                    \
-        if (!(exp)) {                       \
-            __wt_errx(session, "%s", #exp); \
-            __wt_abort(session);            \
-        }                                   \
+#define WT_ASSERT_ALWAYS(session, exp, failure_reason)                             \
+    do {                                                                           \
+        if (!(exp)) {                                                              \
+            __wt_errx(session, "Assertion '%s' failed: %s", #exp, failure_reason); \
+            __wt_abort(session);                                                   \
+        }                                                                          \
     } while (0)

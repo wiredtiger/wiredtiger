@@ -1500,6 +1500,7 @@ tokname
 tokstart
 toktype
 tolower
+tombstoned
 toolchain
 toplevel
 totalsec
