@@ -6,9 +6,6 @@ metrics_monitor=
 (
     stat_db_size=
     (
-        #At the end of the run the data files are approximately 2.3MB each. Which is a total of:
-        #1.15GB, the history store isn't significant. Give the workload an extra 200MB of margin.
-        # max=1350000000,
         # FIXME-WT-8886 - This check has been disabled to remove noisy failures in evergreen and
         # will be properly corrected in WT-8886.
         runtime=false,
@@ -67,8 +64,6 @@ workload_manager=
 ),
 operation_tracker=
 (
-    # FIXME-WT-8640 Enable the tracker again once we have moved to a different host or modified the
-    # workload.
     enabled=true,
     # Run after checkpoint most of the time.
     op_rate=40s
