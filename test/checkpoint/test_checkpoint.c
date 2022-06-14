@@ -50,7 +50,7 @@ main(int argc, char *argv[])
 {
     table_type ttype;
     int ch, cnt, i, ret, runs;
-    char *working_dir;
+    char buf[128], *working_dir;
     const char *config_open;
     bool verify_only;
 
@@ -186,6 +186,10 @@ main(int argc, char *argv[])
     (void)signal(SIGINT, onint);
 
     testutil_work_dir_from_path(g.home, 512, working_dir);
+    if (g.tiered) {
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/bucket", g.home);
+        testutil_make_work_dir(buf);
+    }
 
     /* Start time at 1 since 0 is not a valid timestamp. */
     g.ts_stable = 1;
@@ -260,7 +264,7 @@ run_complete:
 
 #define DEBUG_MODE_CFG ",debug_mode=(eviction=true,table_logging=true),verbose=(recovery)"
 #define ENV_CONFIG_TIER                                             \
-    ",extensions=(../../../ext/storage_sources/dir_store/"          \
+    ",extensions=(../../ext/storage_sources/dir_store/"             \
     "libwiredtiger_dir_store.so=(early_load=true)),tiered_storage=" \
     "(bucket=./bucket,bucket_prefix=ckpt-,local_retention=2,name=dir_store)"
 /*
