@@ -1012,8 +1012,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     if (full && logging)
         WT_ERR(__wt_txn_checkpoint_log(session, full, WT_TXN_LOG_CKPT_START, NULL));
 
-    /* Add a ten second wait to simulate checkpoint slowness. */
-    tsp.tv_sec = 10;
+    /* Add wait to simulate checkpoint slowness. */
+    tsp.tv_sec = 2;
     tsp.tv_nsec = 0;
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_SLOW, &tsp);
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));

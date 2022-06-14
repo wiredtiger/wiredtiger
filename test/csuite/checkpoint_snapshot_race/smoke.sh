@@ -45,8 +45,8 @@ run_set_of_tests () {
 # Run the program for an increasingly long time period
 for i in `seq 100`
 do
-    runtime=`echo "$i+1" | bc`
+    #runtime=`echo "$i+1" | bc`
+    runtime=12
     run_set_of_tests $i 20 $runtime
 done
-
 

@@ -45,18 +45,24 @@ typedef struct {
     volatile uint64_t collection_count;
     SLEEP_CONFIG mid_insertion;
     SLEEP_CONFIG checkpoint_start;
+    bool enable_load_thread;
+    bool enable_post_create_search;
+    bool enable_release_evict;
+    uint64_t drop_table_wait_ms;
 } CHECKPOINT_RACE_OPTS;
 
 /* Thread start points */
-void *thread_checkpoint(void *);
-void *thread_validate(void *);
-void *thread_create_table_race(void *);
 void *thread_add_load(void *);
+void *thread_checkpoint(void *);
+void *thread_create_table_race(void *);
+void *thread_drop_tables(void *);
+void *thread_validate(void *);
 
 /* Helpers to seed waits in thread operations */
 void parse_sleep_config(const char *name, char *config_str, SLEEP_CONFIG *cfg);
 void sleep_for_us(TEST_OPTS *opts, WT_RAND_STATE *rnd, SLEEP_CONFIG cfg);
 
+static int get_table_to_drop(CHECKPOINT_RACE_OPTS *, char **, size_t);
 static int open_cursor_wrap(TEST_OPTS *, WT_SESSION *, const char *, const char *, WT_CURSOR **);
 
 /*
@@ -92,6 +98,10 @@ main(int argc, char *argv[])
      * it better to avoid 0.
      */
     cr_opts->collection_count = 10;
+    cr_opts->enable_load_thread = false;
+    cr_opts->enable_post_create_search = false;
+    cr_opts->enable_release_evict = false;
+    cr_opts->drop_table_wait_ms = 100;
     testutil_check(pthread_mutex_init(&cr_opts->ckpt_go_cond_mutex, NULL));
     testutil_check(pthread_cond_init(&cr_opts->ckpt_go_cond, NULL));
 
@@ -115,6 +125,7 @@ main(int argc, char *argv[])
     testutil_check(pthread_create(&ckpt_thread, NULL, thread_checkpoint, cr_opts));
     testutil_check(pthread_create(&create_thread, NULL, thread_create_table_race, cr_opts));
     testutil_check(pthread_create(&create_thread, NULL, thread_add_load, cr_opts));
+    testutil_check(pthread_create(&validate_thread, NULL, thread_drop_tables, cr_opts));
     testutil_check(pthread_create(&validate_thread, NULL, thread_validate, cr_opts));
     usleep(200); /* Wait for threads to spin up */
 
@@ -214,7 +225,10 @@ thread_create_table_race(void *arg)
         testutil_check(session->begin_transaction(session, NULL));
 
         /* Occasionally force the newly updated page to be evicted */
-        rnd_val = (uint64_t)__wt_random(&rnd);
+        if (cr_opts->enable_release_evict)
+            rnd_val = (uint64_t)__wt_random(&rnd);
+        else
+            rnd_val = 1;
         snprintf(collection_config_str, sizeof(collection_config_str), "%s",
           rnd_val % 12 == 0 ? "debug=(release_evict)" : "");
         rnd_val = (uint64_t)__wt_random(&rnd);
@@ -253,15 +267,17 @@ thread_create_table_race(void *arg)
          * the pages force evicted, since insert doesn't leave the cursor positioned it won't
          * trigger the eviction.
          */
-        rnd_val = (uint64_t)__wt_random(&rnd) % 4;
-        if (rnd_val == 0) {
-            testutil_check(session->begin_transaction(session, NULL));
-            collection_cursor->set_key(collection_cursor, i);
-            testutil_assert(collection_cursor->search(collection_cursor) == 0);
+        if (cr_opts->enable_post_create_search) {
+            rnd_val = (uint64_t)__wt_random(&rnd) % 4;
+            if (rnd_val == 0) {
+                testutil_check(session->begin_transaction(session, NULL));
+                collection_cursor->set_key(collection_cursor, i);
+                testutil_assert(collection_cursor->search(collection_cursor) == 0);
 
-            index_cursor->set_key(index_cursor, i);
-            testutil_assert(index_cursor->search(index_cursor) == 0);
-            testutil_check(session->commit_transaction(session, NULL));
+                index_cursor->set_key(index_cursor, i);
+                testutil_assert(index_cursor->search(index_cursor) == 0);
+                testutil_check(session->commit_transaction(session, NULL));
+            }
         }
 
         testutil_check(collection_cursor->close(collection_cursor));
@@ -315,6 +331,9 @@ thread_add_load(void *arg)
     us_sleep = 100;
     table_timestamp = 1;
 
+    if (!cr_opts->enable_load_thread)
+        return (NULL);
+
     testutil_progress(opts, "Start load generation thread\n");
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
@@ -360,7 +379,7 @@ thread_add_load(void *arg)
              * Slow down inserts as the workload runs longer - we want to generate load, but not so
              * much that it interferes with the rest of the application.
              */
-            if (us_sleep < 50000 && i % 10000 == 0)
+            if (us_sleep < 50000 && i % 50000 == 0)
                 us_sleep += us_sleep;
             usleep((unsigned int)us_sleep);
         }
@@ -399,10 +418,10 @@ thread_validate(void *arg)
     testutil_check(open_cursor_wrap(opts, session, CATALOG_URI, NULL, &catalog_cursor));
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
 
-    sleep(4);
+    sleep(2);
 
     while (test_running) {
-        usleep(100000);
+        usleep(10000);
         testutil_check(session->begin_transaction(session, NULL));
         /*
          * Iterate through the set of tables in reverse (so we inspect newer tables first to
@@ -410,9 +429,16 @@ thread_validate(void *arg)
          */
         while ((ret = catalog_cursor->prev(catalog_cursor)) == 0) {
             catalog_cursor->get_value(catalog_cursor, &collection_uri, &index_uri);
-            testutil_check(
-              open_cursor_wrap(opts, session, collection_uri, NULL, &collection_cursor));
-            testutil_check(open_cursor_wrap(opts, session, index_uri, NULL, &index_cursor));
+            /* It's possible that a table drop removed the table so handle ENOENT. */
+            if ((ret = open_cursor_wrap(opts, session, collection_uri, NULL, &collection_cursor)) ==
+              ENOENT)
+                continue;
+            testutil_assert(ret == 0);
+            if ((ret = open_cursor_wrap(opts, session, index_uri, NULL, &index_cursor)) == ENOENT) {
+                testutil_check(collection_cursor->close(collection_cursor));
+                continue;
+            }
+            testutil_assert(ret == 0);
 
             while ((ret = collection_cursor->next(collection_cursor)) == 0) {
                 testutil_assert(index_cursor->next(index_cursor) == 0);
@@ -444,9 +470,9 @@ thread_validate(void *arg)
                 catalog_cursor->get_value(catalog_cursor, &collection_uri, &index_uri);
                 verify_uri = rnd_val % 2 == 0 ? collection_uri : index_uri;
                 ret = session->verify(session, verify_uri, NULL);
-                if (ret == EBUSY)
-                    snprintf(opts->progress_msg, opts->progress_msg_len,
-                      "Verifying got busy on %s\n", verify_uri);
+                if (ret == EBUSY || ret == ENOENT)
+                    snprintf(opts->progress_msg, opts->progress_msg_len, "Verifying got %s on %s\n",
+                      ret == EBUSY ? "EBUSY" : "ENOENT", verify_uri);
                 else {
                     testutil_assert(ret == 0);
                     snprintf(opts->progress_msg, opts->progress_msg_len,
@@ -461,6 +487,132 @@ thread_validate(void *arg)
     snprintf(opts->progress_msg, opts->progress_msg_len,
       "END validate thread, validation_passes: %" PRIu64 ", validated_values: %" PRIu64 "\n",
       validation_passes, validated_values);
+    testutil_progress(opts, opts->progress_msg);
+
+    return (NULL);
+}
+
+/*
+ * get_table_to_drop --
+ *     Retrieve the URI of a table to drop, returns WT_NOTFOUND if none.
+ */
+int
+get_table_to_drop(CHECKPOINT_RACE_OPTS *cr_opts, char **urip, size_t uri_len)
+{
+    TEST_OPTS *opts;
+    WT_CURSOR *catalog_cursor, *test_cursor;
+    WT_RAND_STATE rnd;
+    WT_SESSION *session;
+    uint64_t chosen_index, max_index;
+    int ret;
+    char *collection_uri, *index_uri, *uri;
+    char ts_string[64];
+
+    opts = cr_opts->opts;
+
+    max_index = 0;
+    testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
+    testutil_check(open_cursor_wrap(opts, session, CATALOG_URI, NULL, &catalog_cursor));
+    __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
+
+    testutil_check(session->begin_transaction(session, NULL));
+    /*
+     * Iterate through the set of tables in reverse (so we inspect newer tables first to encourage
+     * races).
+     */
+    if ((ret = catalog_cursor->prev(catalog_cursor)) != 0) {
+        ret = WT_NOTFOUND;
+        goto err;
+    }
+    catalog_cursor->get_key(catalog_cursor, &max_index);
+    /* Don't start dropping tables until a reasonable number have been created. */
+    if (max_index < 10) {
+        ret = WT_NOTFOUND;
+        goto err;
+    }
+    /* Choose a commit timestamp a bit in the future */
+    snprintf(ts_string, 64, "commit_timestamp=%" PRIu64, max_index + 10);
+
+    /* Don't drop the newest table - give it a chance to be created properly */
+    max_index -= 2;
+
+    chosen_index = (uint64_t)__wt_random(&rnd) % max_index;
+    catalog_cursor->set_key(catalog_cursor, chosen_index);
+
+    /* Sometimes the chosen table has already been removed. */
+    if ((ret = catalog_cursor->search(catalog_cursor)) != 0)
+        goto err;
+
+    /* Decide between the index and collection URIs */
+    catalog_cursor->get_value(catalog_cursor, &collection_uri, &index_uri);
+    if (__wt_random(&rnd) % 2 == 0)
+        uri = collection_uri;
+    else
+        uri = index_uri;
+
+    /* Copy out the URI we need */
+    testutil_check(__wt_snprintf(*urip, uri_len, "%s", uri));
+
+    /* Remove the entry from the catalog to avoid other operations looking at the table */
+    testutil_check(catalog_cursor->remove(catalog_cursor));
+
+    /* Check to ensure the table is there (it should be) */
+    ret = open_cursor_wrap(opts, session, uri, NULL, &test_cursor);
+    if (ret == 0)
+        test_cursor->close(test_cursor);
+
+err:
+    testutil_check(session->commit_transaction(session, ts_string));
+    session->close(session, NULL);
+    return (ret);
+}
+
+/*
+ * thread_drop_tables --
+ *     Periodically drop a table.
+ */
+WT_THREAD_RET
+thread_drop_tables(void *arg)
+{
+
+    CHECKPOINT_RACE_OPTS *cr_opts;
+    TEST_OPTS *opts;
+    WT_CURSOR *catalog_cursor;
+    WT_RAND_STATE rnd;
+    WT_SESSION *session;
+    uint64_t dropped_tables, max_index;
+    char _drop_uri[128];
+    char *drop_uri;
+    int ret;
+
+    cr_opts = (CHECKPOINT_RACE_OPTS *)arg;
+    opts = cr_opts->opts;
+
+    dropped_tables = max_index = 0;
+    drop_uri = _drop_uri;
+    testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
+    testutil_check(open_cursor_wrap(opts, session, CATALOG_URI, NULL, &catalog_cursor));
+    __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
+
+    /* Let the test get up and running first */
+    sleep(1);
+
+    while (test_running) {
+        usleep((unsigned int)(cr_opts->drop_table_wait_ms * 1000));
+        if (get_table_to_drop(cr_opts, &drop_uri, sizeof(_drop_uri)) == WT_NOTFOUND)
+            continue;
+
+        if ((ret = session->drop(session, drop_uri, NULL)) == 0)
+            ++dropped_tables;
+        else {
+            snprintf(opts->progress_msg, opts->progress_msg_len,
+              "Failed to drop table %s, reason: %d\n", drop_uri, ret);
+            testutil_progress(opts, opts->progress_msg);
+        }
+    }
+
+    snprintf(opts->progress_msg, opts->progress_msg_len,
+      "END drop thread, dropped %" PRIu64 " tables\n", dropped_tables);
     testutil_progress(opts, opts->progress_msg);
 
     return (NULL);
@@ -503,10 +655,16 @@ thread_checkpoint(void *arg)
         /* Checkpoint once per second or when woken */
         testutil_check(pthread_mutex_lock(&cr_opts->ckpt_go_cond_mutex));
         clock_gettime(CLOCK_REALTIME, &ts);
-        ts.tv_sec += 1;
+        /* If adding 1ms doesn't overflow do that */
+        if (ts.tv_nsec + 1000000 < 999999999)
+            ts.tv_nsec += 1000000;
+        else
+            ts.tv_sec += 1;
         ret = pthread_cond_timedwait(&cr_opts->ckpt_go_cond, &cr_opts->ckpt_go_cond_mutex, &ts);
 
+#if 0
         sleep_for_us(opts, &rnd, cr_opts->checkpoint_start);
+#endif
 
         testutil_assert(ret != EINVAL && ret != EPERM);
         testutil_check(pthread_mutex_unlock(&cr_opts->ckpt_go_cond_mutex));
@@ -519,7 +677,10 @@ thread_checkpoint(void *arg)
     return (NULL);
 }
 
-/* Parse a config for how long a thread should sleep. */
+/*
+ * parse_sleep_config --
+ *     Parse a config for how long a thread should sleep.
+ */
 void
 parse_sleep_config(const char *name, char *config_str, SLEEP_CONFIG *cfg)
 {
@@ -532,10 +693,18 @@ parse_sleep_config(const char *name, char *config_str, SLEEP_CONFIG *cfg)
             testutil_assert(cfg->sleep_min_us < cfg->sleep_max_us);
             cfg->name = name;
         }
+    } else {
+        /* Default to no delay */
+        cfg->name = name;
+        cfg->sleep_min_us = 0;
+        cfg->sleep_max_us = 0;
     }
 }
 
-/* Provided a min/max range, sleep for a random number of microseconds */
+/*
+ * sleep_for_us --
+ *     Provided a min/max range, sleep for a random number of microseconds
+ */
 void
 sleep_for_us(TEST_OPTS *opts, WT_RAND_STATE *rnd, SLEEP_CONFIG cfg)
 {
@@ -555,6 +724,10 @@ sleep_for_us(TEST_OPTS *opts, WT_RAND_STATE *rnd, SLEEP_CONFIG cfg)
     }
 }
 
+/*
+ * open_cursor_wrap --
+ *     Open a cursor - handling EBUSY, since sometimes verify gets in the way temporarily
+ */
 static int
 open_cursor_wrap(
   TEST_OPTS *opts, WT_SESSION *session, const char *uri, const char *config, WT_CURSOR **cursorp)
