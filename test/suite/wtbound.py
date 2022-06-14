@@ -75,12 +75,6 @@ class bound_base(wttest.WiredTigerTestCase):
             return list_key[0]
         else:
             return list_key
-            
-    def gen_value(self, i):
-        if (self.value_format == "8t"):
-            return i
-        else:
-            return 'value' + str(i)
 
     def set_bounds(self, cursor, key, bound_config, inclusive = None):
         inclusive_config = ""
@@ -106,8 +100,6 @@ class bound_base(wttest.WiredTigerTestCase):
             next = self.direction
 
         start_range = self.start_key
-        if (self.value_format == "8t"):
-            start_range = 1
         end_range = self.end_key
 
         if (upper_key):

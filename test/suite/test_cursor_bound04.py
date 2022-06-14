@@ -45,14 +45,13 @@ class test_cursor_bound04(bound_base):
     ]
 
     key_format_values = [
-        ('string', dict(key_format='S',value_format='S')),
-        ('var', dict(key_format='r',value_format='S')),
-        #('fix', dict(key_format='r',value_format='8t')),
-        ('int', dict(key_format='i',value_format='S')),
-        ('bytes', dict(key_format='u',value_format='S')),
-        ('composite_string', dict(key_format='SSS',value_format='S')),
-        ('composite_int_string', dict(key_format='iS',value_format='S')),
-        ('composite_complex', dict(key_format='iSru',value_format='S')),
+        ('string', dict(key_format='S')),
+        ('var', dict(key_format='r')),
+        ('int', dict(key_format='i')),
+        ('bytes', dict(key_format='u')),
+        ('composite_string', dict(key_format='SSS')),
+        ('composite_int_string', dict(key_format='iS')),
+        ('composite_complex', dict(key_format='iSru')),
     ]
 
     config = [
@@ -63,7 +62,7 @@ class test_cursor_bound04(bound_base):
 
     def create_session_and_cursor(self):
         uri = self.uri + self.file_name
-        create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
+        create_params = 'value_format=S,key_format={}'.format(self.key_format)
         if self.use_colgroup:
             create_params += self.gen_colgroup_create_param()
         self.session.create(uri, create_params)
@@ -76,7 +75,7 @@ class test_cursor_bound04(bound_base):
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
         for i in range(self.start_key, self.end_key + 1):
-            cursor[self.gen_key(i)] = self.gen_value(i) 
+            cursor[self.gen_key(i)] = "value" + str(i)
         self.session.commit_transaction()
 
         if (self.evict):

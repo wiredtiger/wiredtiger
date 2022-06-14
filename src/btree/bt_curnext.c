@@ -13,12 +13,10 @@
  *     Return the next entry on the append list.
  */
 static inline int
-__cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, bool *key_out_of_bounds)
+__cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
     WT_SESSION_IMPL *session;
-    uint64_t recno_bound;
 
-    recno_bound = 0;
     session = CUR2S(cbt);
 
     /* If restarting after a prepare conflict, jump to the right spot. */
@@ -40,22 +38,6 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, bool 
      * it to 1, which is correct.
      */
     __cursor_set_recno(cbt, cbt->recno + 1);
-
-    /*
-     * If an upper bound has been set ensure that the key is within the range, otherwise early exit.
-     */
-    if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER)) {
-        WT_ASSERT(session, WT_DATA_IN_ITEM(&cbt->iface.upper_bound));
-        WT_RET(__wt_struct_unpack(
-          session, cbt->iface.upper_bound.data, cbt->iface.upper_bound.size, "q", &recno_bound));
-        /* Check that the key is within the range if bounds have been set. */
-        if ((F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER_INCLUSIVE) && cbt->recno > recno_bound) ||
-          (!F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER_INCLUSIVE) && cbt->recno >= recno_bound)) {
-            *key_out_of_bounds = true;
-            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
-            return (WT_NOTFOUND);
-        }
-    }
 
     /*
      * Fixed-width column store appends are inherently non-transactional. Even a non-visible update
@@ -93,13 +75,11 @@ restart_read:
  *     Move to the next, fixed-length column-store item.
  */
 static inline int
-__cursor_fix_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, bool *key_out_of_bounds)
+__cursor_fix_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
-    uint64_t recno_bound;
 
-    recno_bound = 0;
     session = CUR2S(cbt);
     page = cbt->ref->page;
 
@@ -127,21 +107,6 @@ __cursor_fix_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, bool *key_ou
 
 new_page:
 restart_read:
-    /*
-     * If an upper bound has been set ensure that the key is within the range, otherwise early exit.
-     */
-    if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER)) {
-        WT_ASSERT(session, WT_DATA_IN_ITEM(&cbt->iface.upper_bound));
-        WT_RET(__wt_struct_unpack(
-          session, cbt->iface.upper_bound.data, cbt->iface.upper_bound.size, "q", &recno_bound));
-        /* Check that the key is within the range if bounds have been set. */
-        if ((F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER_INCLUSIVE) && cbt->recno > recno_bound) ||
-          (!F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER_INCLUSIVE) && cbt->recno >= recno_bound)) {
-            *key_out_of_bounds = true;
-            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
-            return (WT_NOTFOUND);
-        }
-    }
 
     /* We only have one slot. */
     cbt->slot = 0;
@@ -913,7 +878,7 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
             WT_ASSERT(session, page != NULL);
             switch (page->type) {
             case WT_PAGE_COL_FIX:
-                ret = __cursor_fix_append_next(cbt, newpage, restart, &key_out_of_bounds);
+                ret = __cursor_fix_append_next(cbt, newpage, restart);
                 break;
             case WT_PAGE_COL_VAR:
                 ret = __cursor_var_append_next(cbt, newpage, restart, &skipped, &key_out_of_bounds);
@@ -939,7 +904,7 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
         } else if (page != NULL) {
             switch (page->type) {
             case WT_PAGE_COL_FIX:
-                ret = __cursor_fix_next(cbt, newpage, restart, &key_out_of_bounds);
+                ret = __cursor_fix_next(cbt, newpage, restart);
                 break;
             case WT_PAGE_COL_VAR:
                 ret = __cursor_var_next(cbt, newpage, restart, &skipped, &key_out_of_bounds);

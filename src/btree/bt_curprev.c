@@ -120,10 +120,9 @@ restart:
  *     Return the previous fixed-length entry on the append list.
  */
 static inline int
-__cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, bool *key_out_of_bounds)
+__cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
     WT_SESSION_IMPL *session;
-    uint64_t recno_bound;
 
     session = CUR2S(cbt);
 
@@ -188,19 +187,6 @@ __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, bool 
     if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
         return (0);
 
-    if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER)) {
-        WT_ASSERT(session, WT_DATA_IN_ITEM(&cbt->iface.lower_bound));
-        WT_RET(__wt_struct_unpack(
-          session, cbt->iface.lower_bound.data, cbt->iface.lower_bound.size, "q", &recno_bound));
-        /* Check that the key is within the range if bounds have been set. */
-        if ((F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER_INCLUSIVE) && cbt->recno < recno_bound) ||
-          (!F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER_INCLUSIVE) && cbt->recno <= recno_bound)) {
-            *key_out_of_bounds = true;
-            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
-            return (WT_NOTFOUND);
-        }
-    }
-
     /*
      * Fixed-width column store appends are inherently non-transactional. Even a non-visible update
      * by a concurrent or aborted transaction changes the effective end of the data. The effect is
@@ -232,11 +218,10 @@ restart_read:
  *     Move to the previous, fixed-length column-store item.
  */
 static inline int
-__cursor_fix_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, bool *key_out_of_bounds)
+__cursor_fix_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
-    uint64_t recno_bound;
 
     session = CUR2S(cbt);
     page = cbt->ref->page;
@@ -276,19 +261,6 @@ restart_read:
 
     if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
         return (0);
-
-    if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER)) {
-        WT_ASSERT(session, WT_DATA_IN_ITEM(&cbt->iface.lower_bound));
-        WT_RET(__wt_struct_unpack(
-          session, cbt->iface.lower_bound.data, cbt->iface.lower_bound.size, "q", &recno_bound));
-        /* Check that the key is within the range if bounds have been set. */
-        if ((F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER_INCLUSIVE) && cbt->recno < recno_bound) ||
-          (!F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER_INCLUSIVE) && cbt->recno <= recno_bound)) {
-            *key_out_of_bounds = true;
-            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
-            return (WT_NOTFOUND);
-        }
-    }
 
     __wt_upd_value_clear(cbt->upd_value);
     if (cbt->ins != NULL)
@@ -844,7 +816,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
             WT_ASSERT(session, page != NULL);
             switch (page->type) {
             case WT_PAGE_COL_FIX:
-                ret = __cursor_fix_append_prev(cbt, newpage, restart, &key_out_of_bounds);
+                ret = __cursor_fix_append_prev(cbt, newpage, restart);
                 break;
             case WT_PAGE_COL_VAR:
                 ret = __cursor_var_append_prev(cbt, newpage, restart, &skipped, &key_out_of_bounds);
@@ -872,7 +844,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
         if (page != NULL) {
             switch (page->type) {
             case WT_PAGE_COL_FIX:
-                ret = __cursor_fix_prev(cbt, newpage, restart, &key_out_of_bounds);
+                ret = __cursor_fix_prev(cbt, newpage, restart);
                 break;
             case WT_PAGE_COL_VAR:
                 ret = __cursor_var_prev(cbt, newpage, restart, &skipped, &key_out_of_bounds);
