@@ -211,7 +211,7 @@ thread_ckpt_run(void *arg)
      * Keep a separate file with the records we wrote for checking.
      */
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    for (i = 0;;) {
+    for (i = 1;; ++i) {
         sleep_time = __wt_random(&rnd) % MAX_CKPT_INVL;
         sleep(sleep_time);
         /*
@@ -220,7 +220,7 @@ thread_ckpt_run(void *arg)
         testutil_check(session->checkpoint(session, "use_timestamp=true"));
         testutil_check(td->conn->query_timestamp(td->conn, ts_string, "get=last_checkpoint"));
         testutil_assert(sscanf(ts_string, "%" SCNx64, &stable) == 1);
-        printf("Checkpoint %d complete at stable %" PRIu64 ".\n", ++i, stable);
+        printf("Checkpoint %d complete at stable %" PRIu64 ".\n", i, stable);
         fflush(stdout);
     }
     /* NOTREACHED */
@@ -250,7 +250,7 @@ thread_flush_run(void *arg)
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, sentinel_file));
     (void)unlink(buf);
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    for (i = 0;;) {
+    for (i = 1;; ++i) {
         sleep_time = __wt_random(&rnd) % MAX_FLUSH_INVL;
         sleep(sleep_time);
         testutil_check(td->conn->query_timestamp(td->conn, ts_string, "get=last_checkpoint"));
@@ -265,7 +265,7 @@ thread_flush_run(void *arg)
         testutil_check(pthread_rwlock_wrlock(&flush_lock));
         testutil_check(session->flush_tier(session, NULL));
         testutil_check(pthread_rwlock_unlock(&flush_lock));
-        printf("Flush tier %" PRIu32 " completed.\n", ++i);
+        printf("Flush tier %" PRIu32 " completed.\n", i);
         fflush(stdout);
         /*
          * Create the sentinel file so that the parent process knows the desired number of

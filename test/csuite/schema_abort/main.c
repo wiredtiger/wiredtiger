@@ -545,7 +545,7 @@ thread_ckpt_run(void *arg)
      * Keep writing checkpoints until killed by parent.
      */
     __wt_epoch(NULL, &start);
-    for (i = 0;;) {
+    for (i = 1;; ++i) {
         sleep_time = __wt_random(&rnd) % MAX_CKPT_INVL;
         sleep(sleep_time);
         if (use_ts) {
@@ -573,7 +573,7 @@ thread_ckpt_run(void *arg)
          * Since this is the default, send in this string even if running without timestamps.
          */
         testutil_check(session->checkpoint(session, "use_timestamp=true"));
-        printf("Checkpoint %d complete.  Minimum ts %" PRIu64 "\n", ++i, ts);
+        printf("Checkpoint %d complete.  Minimum ts %" PRIu64 "\n", i, ts);
         fflush(stdout);
         /*
          * Create the checkpoint file so that the parent process knows at least one checkpoint has
@@ -606,7 +606,7 @@ thread_flush_run(void *arg)
 
     td = (THREAD_DATA *)arg;
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    for (i = 0;;) {
+    for (i = 1;; ++i) {
         sleep_time = __wt_random(&rnd) % MAX_FLUSH_INVL;
         sleep(sleep_time);
         /*
@@ -616,7 +616,7 @@ thread_flush_run(void *arg)
         testutil_check(pthread_rwlock_wrlock(&flush_lock));
         testutil_check(session->flush_tier(session, NULL));
         testutil_check(pthread_rwlock_unlock(&flush_lock));
-        printf("Flush tier %" PRIu32 " completed.\n", ++i);
+        printf("Flush tier %" PRIu32 " completed.\n", i);
         fflush(stdout);
     }
     /* NOTREACHED */
