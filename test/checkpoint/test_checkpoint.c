@@ -187,7 +187,7 @@ main(int argc, char *argv[])
 
     testutil_work_dir_from_path(g.home, 512, working_dir);
     if (g.tiered) {
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/bucket", g.home);
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/bucket", g.home));
         testutil_make_work_dir(buf);
     }
 
