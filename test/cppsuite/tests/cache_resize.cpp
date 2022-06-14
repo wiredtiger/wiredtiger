@@ -223,8 +223,11 @@ class cache_resize : public test {
                  */
             }
             prev_txn_id = tracked_txn_id;
-            /* Save the last cache size seen by the transaction. */
-            cache_size = std::stoull(tracked_cache_size);
+            /*
+             * FIXME-WT-9339 - Save the last cache size seen by the transaction.
+             *
+             * cache_size = std::stoull(tracked_cache_size);
+             */
             ++num_records;
         }
         /* All records have been parsed, the last one still needs the be checked. */
