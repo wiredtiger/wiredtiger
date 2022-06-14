@@ -165,7 +165,7 @@ class cache_resize : public test {
     validate(const std::string &operation_table_name, const std::string &,
       const std::vector<uint64_t> &) override final
     {
-        bool first_record = false;
+        bool first_record = true;
         int ret;
         uint64_t cache_size, num_records = 0, prev_txn_id;
         const uint64_t cache_size_500mb = 500000000;
