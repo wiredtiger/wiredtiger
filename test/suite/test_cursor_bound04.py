@@ -39,8 +39,9 @@ class test_cursor_bound04(bound_base):
     file_name = 'test_cursor_bound04'
 
     types = [
-        ('file', dict(uri='file:')),
-        ('table', dict(uri='table:'))
+        ('file', dict(uri='file:', use_colgroup=False)),
+        ('table', dict(uri='table:', use_colgroup=False)),
+        ('colgroup', dict(uri='table:', use_colgroup=True))
     ]
 
     key_format_values = [
@@ -63,7 +64,14 @@ class test_cursor_bound04(bound_base):
     def create_session_and_cursor(self):
         uri = self.uri + self.file_name
         create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
+        if self.use_colgroup:
+            create_params += self.gen_colgroup_create_param()
         self.session.create(uri, create_params)
+        # Add in column group.
+        if self.use_colgroup:
+            create_params = 'columns=(v),'
+            suburi = 'colgroup:{0}:g0'.format(self.file_name)
+            self.session.create(suburi, create_params)
 
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
@@ -175,10 +183,47 @@ class test_cursor_bound04(bound_base):
         self.assertEqual(key, self.check_key(55))
         self.assertEqual(cursor.bound("action=clear"), 0)
         self.cursor_traversal_bound(cursor, None, None, True, self.end_key - 55 - 1)
+        cursor.reset()
 
+        self.set_bounds(cursor, 55, "upper")
+        self.assertEqual(cursor.next(), 0)
+        key = cursor.get_key()
+        self.assertEqual(key, self.check_key(self.start_key))
+        self.assertEqual(cursor.bound("action=clear"), 0)
+        self.cursor_traversal_bound(cursor, None, None, True,  self.end_key - self.start_key - 1)
+        cursor.reset()
+        cursor.close()
 
     def test_bound_combination_scenario(self):
         cursor = self.create_session_and_cursor()
+
+        # Test that basic cases of setting lower bound and performing combination of next() and
+        # prev() calls.
+        self.set_bounds(cursor, 45, "lower")
+        self.assertEqual(cursor.next(), 0)
+        key = cursor.get_key()
+        self.assertEqual(key, self.check_key(45))
+        self.assertEqual(cursor.next(), 0)
+        key = cursor.get_key()
+        self.assertEqual(key, self.check_key(46))
+        self.assertEqual(cursor.prev(), 0)
+        key = cursor.get_key()
+        self.assertEqual(key, self.check_key(45))
+        self.assertEqual(cursor.prev(), wiredtiger.WT_NOTFOUND)
+
+        # Test that basic cases of setting upper bound and performing combination of next() and
+        # prev() calls.
+        self.set_bounds(cursor, 60, "upper")
+        self.assertEqual(cursor.prev(), 0)
+        key = cursor.get_key()
+        self.assertEqual(key, self.check_key(60))
+        self.assertEqual(cursor.prev(), 0)
+        key = cursor.get_key()
+        self.assertEqual(key, self.check_key(59))
+        self.assertEqual(cursor.next(), 0)
+        key = cursor.get_key()
+        self.assertEqual(key, self.check_key(60))
+        self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
 
         # Test bound api: Test that prev() works after next() traversal.
         self.set_bounds(cursor, 45, "lower")
@@ -196,6 +241,27 @@ class test_cursor_bound04(bound_base):
         self.assertEqual(cursor.next(), 0)
         key = cursor.get_key()
         self.assertEqual(key, self.check_key(45)) 
+        cursor.reset()
+
+        # Test special case where we position with bounds then clear, then traverse opposite
+        # direction.
+        self.set_bounds(cursor, 45, "lower")
+        self.assertEqual(cursor.next(), 0)
+        key = cursor.get_key()
+        self.assertEqual(key, self.check_key(45))
+        self.assertEqual(cursor.bound("action=clear"), 0)
+        self.cursor_traversal_bound(cursor, None, None, False,  45 - self.start_key - 1)
+        cursor.reset()
+
+        self.set_bounds(cursor, 45, "upper")
+        self.assertEqual(cursor.prev(), 0)
+        key = cursor.get_key()
+        self.assertEqual(key, self.check_key(45))
+        self.assertEqual(cursor.bound("action=clear"), 0)
+        self.cursor_traversal_bound(cursor, None, None, True,  self.end_key - 45 - 1)
+        cursor.reset()
+
+        cursor.close()
 
 if __name__ == '__main__':
     wttest.run()

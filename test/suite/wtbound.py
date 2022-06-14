@@ -35,6 +35,15 @@ class bound_base(wttest.WiredTigerTestCase):
     lower_inclusve = True
     upper_inclusive = True
 
+    def gen_colgroup_create_param(self):
+        create_params = ",columns=("
+        start = 0
+        for _ in self.key_format:
+            create_params += "k{0},".format(str(start)) 
+            start += 1
+        create_params += "v),colgroups=(g0)"
+        return create_params
+
     def gen_key(self, i):
         tuple_key = []
         for key in self.key_format:
@@ -90,7 +99,7 @@ class bound_base(wttest.WiredTigerTestCase):
 
         # Set key and bounds.    
         cursor.set_key(self.gen_key(key))
-        self.assertEqual(cursor.bound("bound={0}{1}".format(bound_config, inclusive_config)), 0)
+        return cursor.bound("bound={0}{1}".format(bound_config, inclusive_config))
     
     def cursor_traversal_bound(self, cursor, lower_key, upper_key, next=None, expected_count=None):
         if next == None:
@@ -140,4 +149,3 @@ class bound_base(wttest.WiredTigerTestCase):
             self.assertEqual(expected_count, count)
         else:
             self.assertEqual(end_range - start_range, count)
-   

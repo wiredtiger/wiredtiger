@@ -37,8 +37,9 @@ class test_cursor_bound03(bound_base):
     file_name = 'test_cursor_bound03'
 
     types = [
-        ('file', dict(uri='file:')),
-        ('table', dict(uri='table:'))
+        ('file', dict(uri='file:', use_colgroup=False)),
+        ('table', dict(uri='table:', use_colgroup=False)),
+        ('colgroup', dict(uri='table:', use_colgroup=True))
     ]
 
     key_format_values = [
@@ -73,7 +74,14 @@ class test_cursor_bound03(bound_base):
     def create_session_and_cursor(self):
         uri = self.uri + self.file_name
         create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
+        if self.use_colgroup:
+            create_params += self.gen_colgroup_create_param()
         self.session.create(uri, create_params)
+        # Add in column group.
+        if self.use_colgroup:
+            create_params = 'columns=(v),'
+            suburi = 'colgroup:{0}:g0'.format(self.file_name)
+            self.session.create(suburi, create_params)
 
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
