@@ -620,9 +620,9 @@ verify_tiered(WT_SESSION *session)
                 ret = stat(buf, &sb);
                 /*
                  * If we get a stat return that indicates the file exists, verify it is must be the
-		 * second last object only. Since we're running with flush_checkpoint debug mode
-		 * turned on, the recovery and checkpoint after flush_tier may open the last object
-		 * that existed prior to crash. All earlier objects must not exist.
+                 * second last object only. Since we're running with flush_checkpoint debug mode
+                 * turned on, the recovery and checkpoint after flush_tier may open the last object
+                 * that existed prior to crash. All earlier objects must not exist.
                  */
                 testutil_assert(ret != 0 || i == last - 1);
                 /* Verify earlier objects exist in the bucket directory. */
