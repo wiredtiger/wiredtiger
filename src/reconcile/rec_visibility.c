@@ -844,14 +844,17 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
       "Updated selected that has since been rolled back");
     /*
      * We should never select an update that has been written to the history store except checkpoint
-     * writes the update that is older than a prepared update.
+     * writes the update that is older than a prepared update or we need to first delete the update
+     * from the history store.
      */
     WT_ASSERT_ALWAYS(session,
       upd_select->upd == NULL || !F_ISSET(upd_select->upd, WT_UPDATE_HS) ||
+        F_ISSET(upd_select->upd, WT_UPDATE_TO_DELETE_FROM_HS) ||
         (!F_ISSET(r, WT_REC_EVICT) && seen_prepare),
       "Selected update that has already been written to the history store");
     WT_ASSERT_ALWAYS(session,
       tombstone == NULL || !F_ISSET(tombstone, WT_UPDATE_HS) ||
+        F_ISSET(tombstone, WT_UPDATE_TO_DELETE_FROM_HS) ||
         (!F_ISSET(r, WT_REC_EVICT) && seen_prepare),
       "Selected update that has already been written to the history store");
 

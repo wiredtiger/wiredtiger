@@ -741,40 +741,40 @@ struct __wt_cursor {
 	WT_ITEM lower_bound, upper_bound;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define	WT_CURSTD_APPEND		0x000000001u
-#define	WT_CURSTD_BULK			0x000000002u
-#define	WT_CURSTD_CACHEABLE		0x000000004u
-#define	WT_CURSTD_CACHED		0x000000008u
-#define	WT_CURSTD_DEAD			0x000000010u
-#define	WT_CURSTD_DEBUG_COPY_KEY	0x000000020u
-#define	WT_CURSTD_DEBUG_COPY_VALUE	0x000000040u
-#define	WT_CURSTD_DEBUG_RESET_EVICT	0x000000080u
-#define	WT_CURSTD_DUMP_HEX		0x000000100u
-#define	WT_CURSTD_DUMP_JSON		0x000000200u
-#define	WT_CURSTD_DUMP_PRETTY		0x000000400u
-#define	WT_CURSTD_DUMP_PRINT		0x000000800u
-#define	WT_CURSTD_DUP_NO_VALUE          0x000001000u
-#define	WT_CURSTD_EVICT_REPOSITION     0x000002000u
-#define	WT_CURSTD_HS_READ_ALL		0x000004000u
-#define	WT_CURSTD_HS_READ_COMMITTED	0x000008000u
-#define	WT_CURSTD_IGNORE_TOMBSTONE	0x000010000u
-#define	WT_CURSTD_JOINED		0x000020000u
-#define	WT_CURSTD_KEY_EXT		0x000040000u /* Key points out of tree. */
-#define	WT_CURSTD_KEY_INT		0x000080000u /* Key points into tree. */
-#define	WT_CURSTD_KEY_ONLY		0x000100000u
-#define	WT_CURSTD_META_INUSE		0x000200000u
-#define	WT_CURSTD_OPEN			0x000400000u
-#define	WT_CURSTD_OVERWRITE		0x000800000u
-#define	WT_CURSTD_PREFIX_SEARCH		0x001000000u
-#define	WT_CURSTD_RAW			0x002000000u
-#define	WT_CURSTD_RAW_SEARCH		0x004000000u
-#define	WT_CURSTD_VALUE_EXT		0x008000000u /* Value points out of tree. */
-#define	WT_CURSTD_VALUE_INT		0x010000000u /* Value points into tree. */
-#define WT_CURSTD_BOUND_LOWER    0x020000000u       /* Lower bound. */
-#define WT_CURSTD_BOUND_LOWER_INCLUSIVE 0x040000000u /* Inclusive lower bound. */
-#define WT_CURSTD_BOUND_UPPER           0x080000000u /* Upper bound. */
-#define WT_CURSTD_BOUND_UPPER_INCLUSIVE 0x100000000u /* Inclusive upper bound. */
-#define WT_CURSTD_VERSION_CURSOR	0x200000000u /* Version cursor. */
+#define	WT_CURSTD_APPEND		0x000000001ull
+#define	WT_CURSTD_BULK			0x000000002ull
+#define	WT_CURSTD_CACHEABLE		0x000000004ull
+#define	WT_CURSTD_CACHED		0x000000008ull
+#define	WT_CURSTD_DEAD			0x000000010ull
+#define	WT_CURSTD_DEBUG_COPY_KEY	0x000000020ull
+#define	WT_CURSTD_DEBUG_COPY_VALUE	0x000000040ull
+#define	WT_CURSTD_DEBUG_RESET_EVICT	0x000000080ull
+#define	WT_CURSTD_DUMP_HEX		0x000000100ull
+#define	WT_CURSTD_DUMP_JSON		0x000000200ull
+#define	WT_CURSTD_DUMP_PRETTY		0x000000400ull
+#define	WT_CURSTD_DUMP_PRINT		0x000000800ull
+#define	WT_CURSTD_DUP_NO_VALUE          0x000001000ull
+#define	WT_CURSTD_EVICT_REPOSITION     0x000002000ull
+#define	WT_CURSTD_HS_READ_ALL		0x000004000ull
+#define	WT_CURSTD_HS_READ_COMMITTED	0x000008000ull
+#define	WT_CURSTD_IGNORE_TOMBSTONE	0x000010000ull
+#define	WT_CURSTD_JOINED		0x000020000ull
+#define	WT_CURSTD_KEY_EXT		0x000040000ull /* Key points out of tree. */
+#define	WT_CURSTD_KEY_INT		0x000080000ull /* Key points into tree. */
+#define	WT_CURSTD_KEY_ONLY		0x000100000ull
+#define	WT_CURSTD_META_INUSE		0x000200000ull
+#define	WT_CURSTD_OPEN			0x000400000ull
+#define	WT_CURSTD_OVERWRITE		0x000800000ull
+#define	WT_CURSTD_PREFIX_SEARCH		0x001000000ull
+#define	WT_CURSTD_RAW			0x002000000ull
+#define	WT_CURSTD_RAW_SEARCH		0x004000000ull
+#define	WT_CURSTD_VALUE_EXT		0x008000000ull /* Value points out of tree. */
+#define	WT_CURSTD_VALUE_INT		0x010000000ull /* Value points into tree. */
+#define WT_CURSTD_BOUND_LOWER    0x020000000ull       /* Lower bound. */
+#define WT_CURSTD_BOUND_LOWER_INCLUSIVE 0x040000000ull /* Inclusive lower bound. */
+#define WT_CURSTD_BOUND_UPPER           0x080000000ull /* Upper bound. */
+#define WT_CURSTD_BOUND_UPPER_INCLUSIVE 0x100000000ull /* Inclusive upper bound. */
+#define WT_CURSTD_VERSION_CURSOR	0x200000000ull /* Version cursor. */
 /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
 #define	WT_CURSTD_KEY_SET	(WT_CURSTD_KEY_EXT | WT_CURSTD_KEY_INT)
 #define	WT_CURSTD_VALUE_SET	(WT_CURSTD_VALUE_EXT | WT_CURSTD_VALUE_INT)
@@ -1220,18 +1220,18 @@ struct __wt_session {
 	 * by any update to a record in the table., a boolean flag; default \c false.}
 	 * @config{import = (, configure import of an existing object into the currently running
 	 * database., a set of related configuration options defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;compare_timestamp, Allow importing files with timestamps
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;compare_timestamp, allow importing files with timestamps
 	 * smaller or equal to the configured global timestamps.  Note the history of the files are
 	 * not imported together and thus snapshot read of historical data will not work with the
 	 * option "stable_timestamp". (The \c oldest and \c stable arguments are deprecated
-	 * short-hand for \c oldest_timestamp and \c stable_timestamp\, respectively.)., a string\,
+	 * short-hand for \c oldest_timestamp and \c stable_timestamp\, respectively)., a string\,
 	 * chosen from the following options: \c "oldest"\, \c "oldest_timestamp"\, \c "stable"\, \c
 	 * "stable_timestamp"; default \c oldest_timestamp.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
 	 * enabled, whether to import the input URI from disk., a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_metadata, the file configuration extracted from the
 	 * metadata of the export database., a string; default empty.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;metadata_file, File that contains all the relevant
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;metadata_file, a text file that contains all the relevant
 	 * metadata information for the URI to import.  The file is generated by backup:export
 	 * cursor., a string; default empty.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;repair, whether to
@@ -2193,6 +2193,11 @@ struct __wt_connection {
 	 * make a copy of any data returned by a cursor operation and return the copy instead.  The
 	 * copy is freed on the next cursor operation.  This allows memory sanitizers to detect
 	 * inappropriate references to memory owned by cursors., a boolean flag; default \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;cursor_reposition, if true\, for the operations with
+	 * snapshot isolation the cursor temporarily releases the page that requires force
+	 * eviction\, then repositions back to the page for further operations.  A page release
+	 * encourages eviction of hot or large pages\, which is more likely to succeed without a
+	 * cursor keeping the page pinned., a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction, if true\, modify internal algorithms to change
 	 * skew to force history store eviction to happen more aggressively.  This includes but is
 	 * not limited to not skewing newest\, not favoring leaf pages\, and modifying the eviction
@@ -2918,22 +2923,26 @@ struct __wt_connection {
  * next cursor operation.  This allows memory sanitizers to detect inappropriate references to
  * memory owned by cursors., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * eviction, if true\, modify internal algorithms to change skew to force history store eviction to
- * happen more aggressively.  This includes but is not limited to not skewing newest\, not favoring
- * leaf pages\, and modifying the eviction score mechanism., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;flush_checkpoint, if true\, call a system wide checkpoint
- * immediately after a flush_tier completes to force objects out to disk so that a flush_tier can
- * work single-threaded., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * log_retention, adjust log removal to retain at least this number of log files\, ignored if set to
- * 0. (Warning: this option can remove log files required for recovery if no checkpoints have yet
- * been done and the number of log files exceeds the configured value.  As WiredTiger cannot detect
- * the difference between a system that has not yet checkpointed and one that will never
- * checkpoint\, it might discard log files before any checkpoint is done.)., an integer between 0
- * and 1024; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;realloc_exact, if true\, reallocation of
- * memory will only provide the exact amount requested.  This will help with spotting memory
- * allocation issues more easily., a boolean flag; default \c false.}
+ * cursor_reposition, if true\, for the operations with snapshot isolation the cursor temporarily
+ * releases the page that requires force eviction\, then repositions back to the page for further
+ * operations.  A page release encourages eviction of hot or large pages\, which is more likely to
+ * succeed without a cursor keeping the page pinned., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction, if true\, modify internal algorithms to change skew to
+ * force history store eviction to happen more aggressively.  This includes but is not limited to
+ * not skewing newest\, not favoring leaf pages\, and modifying the eviction score mechanism., a
+ * boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;flush_checkpoint, if true\, call
+ * a system wide checkpoint immediately after a flush_tier completes to force objects out to disk so
+ * that a flush_tier can work single-threaded., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;log_retention, adjust log removal to retain at least this number
+ * of log files\, ignored if set to 0. (Warning: this option can remove log files required for
+ * recovery if no checkpoints have yet been done and the number of log files exceeds the configured
+ * value.  As WiredTiger cannot detect the difference between a system that has not yet checkpointed
+ * and one that will never checkpoint\, it might discard log files before any checkpoint is done.).,
+ * an integer between 0 and 1024; default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;realloc_exact, if
+ * true\, reallocation of memory will only provide the exact amount requested.  This will help with
+ * spotting memory allocation issues more easily., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;rollback_error, return a WT_ROLLBACK error from a transaction
  * operation about every Nth operation to simulate a collision., an integer between 0 and 10M;
  * default \c 0.}
