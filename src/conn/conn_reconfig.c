@@ -287,6 +287,65 @@ __wt_conn_optrack_teardown(WT_SESSION_IMPL *session, bool reconfig)
     return (ret);
 }
 
+int
+__wt_conn_call_log_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(buf);
+    WT_DECL_RET;
+
+#ifndef HAVE_DIAGNOSTIC
+    /* Operation tracking isn't supported in read-only mode */
+    WT_RET_MSG(session, EINVAL, "Operation tracking is incompatible with read only configuration");
+#endif
+
+    WT_UNUSED(reconfig);
+
+    conn = S2C(session);
+
+    /*
+     * Operation tracking files will include the ID of the creating process in their name, so we can
+     * distinguish between log files created by different WiredTiger processes in the same
+     * directory. We cache the process id for future use.
+     */
+    conn->optrack_pid = __wt_process_id();
+
+    WT_RET(__wt_config_gets(session, cfg, "call_log", &cval));
+
+    if (cval.val) {
+        WT_RET(__wt_scr_alloc(session, 0, &buf));
+        WT_ERR(
+          __wt_filename_construct(session, "", "call-log", conn->optrack_pid, UINT32_MAX, buf));
+        WT_ERR(__wt_open(session, (const char *)buf->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
+          WT_FS_OPEN_CREATE, &conn->call_log_fh));
+
+        FLD_SET(conn->call_log_flags, WT_CONN_CALL_LOG_ENABLED);
+    }
+
+err:
+    __wt_scr_free(session, &buf);
+    return (ret);
+}
+
+int
+__wt_conn_call_log_teardown(WT_SESSION_IMPL *session, bool reconfig)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    WT_UNUSED(reconfig);
+
+    conn = S2C(session);
+
+    if (!FLD_ISSET(conn->call_log_flags, WT_CONN_CALL_LOG_ENABLED))
+        return (0);
+
+    WT_TRET(__wt_close(session, &conn->call_log_fh));
+
+    return (ret);
+}
+
 /*
  * __wt_conn_statistics_config --
  *     Set statistics configuration.

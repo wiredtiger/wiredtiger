@@ -737,6 +737,9 @@ connection_runtime_config = [
                 directory must already exist. If the value is not an absolute path, the path
                 is relative to the database home (see @ref absolute_path for more information)'''),
         ]),
+    Config('call_log', '', r'''
+        enable call log tracking for codify timestamps simulator.''',
+        type='boolean'),
     Config('shared_cache', '', r'''
         shared cache configuration options. A database should configure either a cache_size
         or a shared_cache not both. Enabling a shared cache uses a session from the configured

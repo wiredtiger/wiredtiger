@@ -281,6 +281,10 @@ struct __wt_connection_impl {
     WT_SPINLOCK optrack_map_spinlock; /* Translation file spinlock. */
     uintmax_t optrack_pid;            /* Cache the process ID. */
 
+#ifdef HAVE_DIAGNOSTIC
+    WT_FH *call_log_fh;
+#endif
+
     void **foc;      /* Free-on-close array */
     size_t foc_cnt;  /* Array entries */
     size_t foc_size; /* Array size */
@@ -652,4 +656,9 @@ struct __wt_connection_impl {
 #define WT_CONN_WAS_BACKUP 0x800000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_CONN_CALL_LOG_ENABLED 0x1u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+    uint32_t call_log_flags;
 };
