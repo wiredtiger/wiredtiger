@@ -596,10 +596,11 @@ usage(void)
 {
     fprintf(stderr,
       "usage: %s\n"
-      "    [-DmpvXx] [-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys] [-l log]\n"
+      "    [-BDmpvXx] [-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys] [-l log]\n"
       "    [-n ops] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t f|r|v] [-W workers]\n",
       progname);
     fprintf(stderr, "%s",
+      "\t-B use tiered storage\n"
       "\t-C specify wiredtiger_open configuration arguments\n"
       "\t-c checkpoint name to used named checkpoints\n"
       "\t-D debug mode\n"
