@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wiredtiger, wttest, unittest
 from wtscenario import make_scenarios
 
 # test_cursor_bound03.py
@@ -48,7 +48,7 @@ class test_cursor_bound03(wttest.WiredTigerTestCase):
     key_format_values = [
         ('string', dict(key_format='S',value_format='S')),
         ('var', dict(key_format='r',value_format='S')),
-        #('fix', dict(key_format='r',value_format='8t')),
+        # ('fix', dict(key_format='r',value_format='8t')),
         ('int', dict(key_format='i',value_format='S')),
         ('bytes', dict(key_format='u',value_format='S')),
         ('composite_string', dict(key_format='SSS',value_format='S')),
@@ -133,7 +133,7 @@ class test_cursor_bound03(wttest.WiredTigerTestCase):
 
     def cursor_traversal_bound(self, cursor, lower_key, upper_key, next=None, expected_count=None):
         if next == None:
-            next = self.direction
+            next = self.next
 
         start_range = self.start_key
         end_range = self.end_key
@@ -279,7 +279,6 @@ class test_cursor_bound03(wttest.WiredTigerTestCase):
         self.assertEqual(key, self.check_key(55))
         self.assertEqual(cursor.bound("action=clear"), 0)
         self.cursor_traversal_bound(cursor, None, None, True, self.end_key - 55 - 1)
-
 
     def test_bound_combination_scenario(self):
         cursor = self.create_session_and_cursor()

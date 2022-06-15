@@ -2019,10 +2019,15 @@ static inline bool __wt_txn_visible_id_snapshot(uint64_t id, uint64_t snap_min, 
   uint64_t *snapshot, uint32_t snapshot_count) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline double __wt_eviction_dirty_target(WT_CACHE *cache)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_bounds_early_exit(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
+  bool direction, bool *key_out_of_bounds) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_btcur_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, void *context,
   bool visible_all, bool *skipp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_btree_block_free(WT_SESSION_IMPL *session, const uint8_t *addr,
   size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_btree_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
+  WT_COLLATOR *collator, bool direction, bool *key_out_of_bounds)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_buf_extend(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_buf_grow(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)
@@ -2048,6 +2053,8 @@ static inline int __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page
   WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack, WT_INSERT **new_insp, size_t new_ins_size,
   uint64_t *recnop, u_int skipdepth, bool exclusive)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_col_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
+  bool direction, bool *key_out_of_bounds) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
   const WT_ITEM *user_item, const WT_ITEM *tree_item, int *cmpp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2144,7 +2151,7 @@ static inline int __wt_rec_dict_replace(
 static inline int __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_row_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
-  WT_COLLATOR *collator, bool direction, bool *out_range)
+  WT_COLLATOR *collator, bool direction, bool *key_out_of_bounds)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_row_leaf_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip,
   WT_ITEM *key, bool instantiate) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
