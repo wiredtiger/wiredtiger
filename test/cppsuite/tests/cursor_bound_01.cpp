@@ -142,7 +142,7 @@ class cursor_bound_01 : public test {
             range_ret = range_cursor->next(range_cursor.get());
             /*
              * If the key exists, position the cursor to the lower key using search near otherwise
-             * use prev]().
+             * use prev().
              */
             if (!lower_key.empty()) {
                 normal_cursor->set_key(normal_cursor.get(), lower_key.c_str());

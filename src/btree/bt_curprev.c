@@ -123,6 +123,7 @@ static inline int
 __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
     WT_SESSION_IMPL *session;
+
     session = CUR2S(cbt);
 
     /* If restarting after a prepare conflict, jump to the right spot. */
@@ -607,6 +608,7 @@ restart_read_insert:
              */
             if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER))
                 WT_RET(__wt_bounds_early_exit(session, cbt, false, key_out_of_bounds));
+
             WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
             if (cbt->upd_value->type == WT_UPDATE_INVALID) {
                 ++*skippedp;
@@ -691,7 +693,6 @@ restart_read_page:
 int
 __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 {
-    WT_BTREE *btree;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_PAGE *page;
@@ -702,11 +703,10 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     bool newpage, key_out_of_bounds, restart;
 
     cursor = &cbt->iface;
-    session = CUR2S(cbt);
-    btree = S2BT(session);
     exact = 0;
-    total_skipped = 0;
     key_out_of_bounds = false;
+    session = CUR2S(cbt);
+    total_skipped = 0;
 
     /*
      * Checks if the cursor is currently positioned and positions it according to the bounds set. If
@@ -728,16 +728,18 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
          */
         if (exact == 0 && F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE)) {
             return (0);
-        } else if (exact < 0 && F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
+        } else if (exact < 0) {
             /*
              * If search near returns a key less than upper bound, check the returned key against
              * the lower bound to ensure that the key is within bounds. Else there are no visible
              * records, return WT_NOTFOUND.
              */
-            WT_RET(
-              __wt_btree_compare_bounds(session, cbt, btree->collator, false, &key_out_of_bounds));
-            if (key_out_of_bounds)
-                return (WT_NOTFOUND);
+            if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
+                WT_RET(__wt_btree_compare_bounds(
+                  session, cbt, S2BT(session)->collator, false, &key_out_of_bounds));
+                if (key_out_of_bounds)
+                    return (WT_NOTFOUND);
+            }
             return (0);
         }
     }
@@ -798,14 +800,14 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
             if (ret != WT_NOTFOUND)
                 break;
             /*
-             * If we are doing a search near with prefix key configured, we need to check if we have
-             * exited the cursor prev function due to a prefix key mismatch. If so, we can
-             * immediately return WT_NOTFOUND and we do not have to walk onto the previous page.
+             * If we are doing a search near with prefix key configured or the cursor has bounds
+             * set, we need to check if we have exited the next function due to a prefix key
+             * mismatch or the key is out of bounds. If so, we can immediately return WT_NOTFOUND
+             * and we do not have to walk onto the next page.
              */
-            if (key_out_of_bounds) {
-                WT_ASSERT(session, ret == WT_NOTFOUND);
+            if (key_out_of_bounds)
                 break;
-            }
+
             newpage = true;
         }
         if (page != NULL) {
@@ -826,16 +828,14 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
             }
             if (ret != WT_NOTFOUND)
                 break;
-
             /*
-             * If we are doing a search near with prefix key configured, we need to check if we have
-             * exited the cursor prev function due to a prefix key mismatch. If so, we can
-             * immediately return WT_NOTFOUND and we do not have to walk onto the previous page.
+             * If we are doing a search near with prefix key configured or the cursor has bounds
+             * set, we need to check if we have exited the prev function due to a prefix key
+             * mismatch or the key is out of bounds. If so, we can immediately return WT_NOTFOUND
+             * and we do not have to walk onto the next page.
              */
-            if (key_out_of_bounds) {
-                WT_ASSERT(session, ret == WT_NOTFOUND);
+            if (key_out_of_bounds)
                 break;
-            }
         }
         /*
          * If we saw a lot of deleted records on this page, or we went all the way through a page

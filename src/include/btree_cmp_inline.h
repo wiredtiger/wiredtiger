@@ -147,6 +147,7 @@ __wt_btree_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_COL
   bool direction, bool *key_out_of_bounds)
 {
     WT_BTREE *btree;
+
     btree = S2BT(session);
 
     if (btree->type == BTREE_ROW)
@@ -198,6 +199,7 @@ __wt_col_compare_bounds(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool direction, bool *key_out_of_bounds)
 {
     uint64_t recno_bound;
+
     recno_bound = 0;
 
     if (direction) {
