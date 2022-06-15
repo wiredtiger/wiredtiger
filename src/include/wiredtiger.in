@@ -2162,6 +2162,8 @@ struct __wt_connection {
 	 * @config{cache_size, maximum heap memory to allocate for the cache.  A database should
 	 * configure either \c cache_size or \c shared_cache but not both., an integer between 1MB
 	 * and 10TB; default \c 100MB.}
+	 * @config{call_log, enable call log tracking for codify timestamps simulator., a boolean
+	 * flag; default empty.}
 	 * @config{checkpoint = (, periodically checkpoint the database.  Enabling the checkpoint
 	 * server uses a session from the configured session_max., a set of related configuration
 	 * options defined below.}
@@ -2875,6 +2877,8 @@ struct __wt_connection {
  * @config{cache_size, maximum heap memory to allocate for the cache.  A database should configure
  * either \c cache_size or \c shared_cache but not both., an integer between 1MB and 10TB; default
  * \c 100MB.}
+ * @config{call_log, enable call log tracking for codify timestamps simulator., a boolean flag;
+ * default empty.}
  * @config{checkpoint = (, periodically checkpoint the database.  Enabling the checkpoint server
  * uses a session from the configured session_max., a set of related configuration options defined
  * below.}

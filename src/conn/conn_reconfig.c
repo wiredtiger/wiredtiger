@@ -297,7 +297,7 @@ __wt_conn_call_log_setup(WT_SESSION_IMPL *session, const char *cfg[], bool recon
 
 #ifndef HAVE_DIAGNOSTIC
     /* Operation tracking isn't supported in read-only mode */
-    WT_RET_MSG(session, EINVAL, "Operation tracking is incompatible with read only configuration");
+    WT_RET_MSG(session, EINVAL, "Call log tracking requires diagnostic build mode");
 #endif
 
     WT_UNUSED(reconfig);
@@ -319,6 +319,9 @@ __wt_conn_call_log_setup(WT_SESSION_IMPL *session, const char *cfg[], bool recon
           __wt_filename_construct(session, "", "call-log", conn->optrack_pid, UINT32_MAX, buf));
         WT_ERR(__wt_open(session, (const char *)buf->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
           WT_FS_OPEN_CREATE, &conn->call_log_fh));
+        // WT_ERR(__wt_open(session, (const char *)buf->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
+        //   WT_FS_OPEN_CREATE, &conn->call_log_fst->fh));
+        WT_ERR(__wt_fopen(session, "call-log", WT_FS_OPEN_CREATE, WT_STREAM_APPEND, &conn->call_log_fst));
 
         FLD_SET(conn->call_log_flags, WT_CONN_CALL_LOG_ENABLED);
     }
@@ -342,6 +345,7 @@ __wt_conn_call_log_teardown(WT_SESSION_IMPL *session, bool reconfig)
         return (0);
 
     WT_TRET(__wt_close(session, &conn->call_log_fh));
+    WT_TRET(__wt_fclose(session, &conn->call_log_fst));
 
     return (ret);
 }

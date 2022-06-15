@@ -283,6 +283,7 @@ struct __wt_connection_impl {
 
 #ifdef HAVE_DIAGNOSTIC
     WT_FH *call_log_fh;
+    WT_FSTREAM *call_log_fst;
 #endif
 
     void **foc;      /* Free-on-close array */
