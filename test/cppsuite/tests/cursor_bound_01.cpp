@@ -660,7 +660,7 @@ class cursor_bound_01 : public test {
                 auto srch_key = random_generator::instance().generate_random_string(
                   key_size, characters_type::ALPHABET);
 
-                int exact;
+                int exact = 0;
                 range_cursor->set_key(range_cursor.get(), srch_key.c_str());
                 auto ret = range_cursor->search_near(range_cursor.get(), &exact);
                 testutil_assert(ret == 0 || ret == WT_NOTFOUND);
