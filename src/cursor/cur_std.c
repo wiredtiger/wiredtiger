@@ -1194,7 +1194,7 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
         if (cval.len == 0)
             WT_ERR_MSG(session, EINVAL, "setting bounds must require the bound configuration set");
 
-        if (cbt->ref != NULL)
+        if (WT_CURSOR_IS_POSITIONED(cbt))
             WT_ERR_MSG(session, EINVAL, "setting bounds on a positioned cursor is not allowed");
 
         /* The cursor must have a key set to place the lower or upper bound. */

@@ -2064,11 +2064,8 @@ static inline int
 __wt_bounds_early_exit(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool direction, bool *key_out_of_bounds)
 {
-    WT_BTREE *btree;
-
-    btree = S2BT(session);
-
-    WT_RET(__wt_row_compare_bounds(session, &cbt->iface, collator, direction, key_out_of_bounds));
+    WT_RET(__wt_row_compare_bounds(
+      session, &cbt->iface, S2BT(session)->collator, direction, key_out_of_bounds));
     if (*key_out_of_bounds) {
         if (direction)
             WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);

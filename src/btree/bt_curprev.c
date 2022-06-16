@@ -686,7 +686,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     size_t total_skipped, skipped;
     uint32_t flags;
     int exact;
-    bool newpage, key_out_of_bounds, restart;
+    bool key_out_of_bounds, newpage, restart;
 
     cursor = &cbt->iface;
     exact = 0;
@@ -696,9 +696,11 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 
     /*
      * Checks if the cursor is currently positioned and positions it according to the bounds set. If
-     * the cursor is unpositioned, it will be positioned on the lower bound.
+     * the cursor is unpositioned, it will be positioned on the lower bound. WT_CURSTD_BOUND_ENTRY
+     * is checked and acts as a guard to prevent re-entry in the case that the cursor positioning
+     * has already begun, and next() is called as a part of the positioning.
      */
-    if ((&cbt->ref->page) == NULL && F_ISSET(cursor, WT_CURSTD_BOUND_UPPER) &&
+    if (!WT_CURSOR_IS_POSITIONED(cbt) && F_ISSET(cursor, WT_CURSTD_BOUND_UPPER) &&
       !(F_ISSET(cursor, WT_CURSTD_BOUND_ENTRY))) {
         WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->upper_bound));
 
@@ -709,8 +711,8 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
         WT_RET(ret);
 
         /*
-         * When search_near_bounded is implemented then remove this. If search near returns a higher
-         * value, ensure it's within the upper bound.
+         * FIXME-WT-9324: When search_near_bounded is implemented then remove this. If search near
+         * returns a higher value, ensure it's within the upper bound.
          */
         if (exact == 0 && F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE)) {
             return (0);
@@ -722,7 +724,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
              */
             if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
                 WT_RET(__wt_row_compare_bounds(
-                  session, cbt, S2BT(session)->collator, false, &key_out_of_bounds));
+                  session, cursor, S2BT(session)->collator, false, &key_out_of_bounds));
                 if (key_out_of_bounds)
                     return (WT_NOTFOUND);
             }

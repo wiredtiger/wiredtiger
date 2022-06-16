@@ -750,7 +750,7 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     size_t total_skipped, skipped;
     uint32_t flags;
     int exact;
-    bool newpage, key_out_of_bounds, restart;
+    bool key_out_of_bounds, newpage, restart;
 
     cursor = &cbt->iface;
     exact = 0;
@@ -760,9 +760,11 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
 
     /*
      * Checks if the cursor is currently positioned and positions it according to the bounds set. If
-     * the cursor is unpositioned, it will be positioned on the lower bound.
+     * the cursor is unpositioned, it will be positioned on the lower bound. WT_CURSTD_BOUND_ENTRY
+     * is checked and acts as a guard to prevent re-entry in the case that the cursor positioning
+     * has already begun, and next() is called as a part of the positioning.
      */
-    if ((&cbt->ref->page) == NULL && F_ISSET(cursor, WT_CURSTD_BOUND_LOWER) &&
+    if (!WT_CURSOR_IS_POSITIONED(cbt) && F_ISSET(cursor, WT_CURSTD_BOUND_LOWER) &&
       !(F_ISSET(cursor, WT_CURSTD_BOUND_ENTRY))) {
         WT_ASSERT(session, WT_DATA_IN_ITEM(&cbt->iface.lower_bound));
         __wt_cursor_set_raw_key(cursor, &cursor->lower_bound);
@@ -772,8 +774,8 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
         WT_RET(ret);
 
         /*
-         * When search_near_bounded is implemented then remove this. If the search near returns a
-         * higher value, ensure it's within the upper bound.
+         * FIXME-WT-9324: When search_near_bounded is implemented then remove this. If search near
+         * returns a higher value, ensure it's within the upper bound.
          */
         if (exact == 0 && F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE)) {
             return (0);
