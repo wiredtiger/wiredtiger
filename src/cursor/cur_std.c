@@ -1181,6 +1181,9 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
 
     CURSOR_API_CALL_CONF(cursor, session, bound, config, cfg, NULL);
 
+    if (WT_STREQ(cursor->key_format, "r"))
+        WT_ERR_MSG(session, EINVAL, "setting bounds is not compatible with column store yet.");
+
     WT_ERR(__wt_config_gets(session, cfg, "action", &cval));
     if (WT_STRING_MATCH("set", cval.str, cval.len)) {
         WT_ERR(__wt_config_gets(session, cfg, "inclusive", &cval));

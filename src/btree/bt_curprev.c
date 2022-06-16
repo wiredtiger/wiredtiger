@@ -296,8 +296,7 @@ restart_read:
  *     Return the previous variable-length entry on the append list.
  */
 static inline int
-__cursor_var_append_prev(
-  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_bounds)
+__cursor_var_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp)
 {
     WT_SESSION_IMPL *session;
 
@@ -325,12 +324,6 @@ new_page:
             return (0);
 
 restart_read:
-        /*
-         * If a lower bound has been set ensure that the key is within the range, otherwise early
-         * exit.
-         */
-        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER))
-            WT_RET(__wt_bounds_early_exit(session, cbt, false, key_out_of_bounds));
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
@@ -354,8 +347,7 @@ restart_read:
  *     Move to the previous, variable-length column-store item.
  */
 static inline int
-__cursor_var_prev(
-  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_bounds)
+__cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp)
 {
     WT_CELL *cell;
     WT_CELL_UNPACK_KV unpack;
@@ -399,12 +391,6 @@ new_page:
             return (WT_NOTFOUND);
 
 restart_read:
-        /*
-         * If a lower bound has been set ensure that the key is within the range, otherwise early
-         * exit.
-         */
-        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER))
-            WT_RET(__wt_bounds_early_exit(session, cbt, false, key_out_of_bounds));
         /* Find the matching WT_COL slot. */
         if ((cip = __col_var_search(cbt->ref, cbt->recno, &rle_start)) == NULL)
             return (WT_NOTFOUND);
@@ -735,7 +721,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
              * records, return WT_NOTFOUND.
              */
             if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
-                WT_RET(__wt_btree_compare_bounds(
+                WT_RET(__wt_row_compare_bounds(
                   session, cbt, S2BT(session)->collator, false, &key_out_of_bounds));
                 if (key_out_of_bounds)
                     return (WT_NOTFOUND);
@@ -788,7 +774,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
                 ret = __cursor_fix_append_prev(cbt, newpage, restart);
                 break;
             case WT_PAGE_COL_VAR:
-                ret = __cursor_var_append_prev(cbt, newpage, restart, &skipped, &key_out_of_bounds);
+                ret = __cursor_var_append_prev(cbt, newpage, restart, &skipped);
                 total_skipped += skipped;
                 break;
             default:
@@ -799,14 +785,6 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
             F_CLR(cbt, WT_CBT_ITERATE_APPEND);
             if (ret != WT_NOTFOUND)
                 break;
-            /*
-             * If we are doing a search near with prefix key configured or the cursor has bounds
-             * set, we need to check if we have exited the next function due to a prefix key
-             * mismatch or the key is out of bounds. If so, we can immediately return WT_NOTFOUND
-             * and we do not have to walk onto the next page.
-             */
-            if (key_out_of_bounds)
-                break;
 
             newpage = true;
         }
@@ -816,7 +794,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
                 ret = __cursor_fix_prev(cbt, newpage, restart);
                 break;
             case WT_PAGE_COL_VAR:
-                ret = __cursor_var_prev(cbt, newpage, restart, &skipped, &key_out_of_bounds);
+                ret = __cursor_var_prev(cbt, newpage, restart, &skipped);
                 total_skipped += skipped;
                 break;
             case WT_PAGE_ROW_LEAF:

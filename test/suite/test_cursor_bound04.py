@@ -46,7 +46,8 @@ class test_cursor_bound04(bound_base):
 
     key_format_values = [
         ('string', dict(key_format='S')),
-        ('var', dict(key_format='r')),
+        # FIXME-WT-9474: Uncomment once column store is implemented.
+        #('var', dict(key_format='r')),
         ('int', dict(key_format='i')),
         ('bytes', dict(key_format='u')),
         ('composite_string', dict(key_format='SSS')),

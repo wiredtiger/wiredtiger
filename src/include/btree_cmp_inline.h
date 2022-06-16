@@ -138,27 +138,6 @@ __wt_prefix_match(const WT_ITEM *prefix, const WT_ITEM *tree_item)
 }
 
 /*
- * __wt_btree_compare_bounds --
- *     Return if the cursor key is within the bounded range. Calls the respective comparison
- *     functions based on whether it's row or column store.
- */
-static inline int
-__wt_btree_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_COLLATOR *collator,
-  bool direction, bool *key_out_of_bounds)
-{
-    WT_BTREE *btree;
-
-    btree = S2BT(session);
-
-    if (btree->type == BTREE_ROW)
-        WT_RET(
-          __wt_row_compare_bounds(session, &cbt->iface, collator, direction, key_out_of_bounds));
-    else
-        WT_RET(__wt_col_compare_bounds(session, cbt, direction, key_out_of_bounds));
-
-    return (0);
-}
-/*
  * __wt_row_compare_bounds --
  *     Return if the cursor key is within the bounded range. If direction is True, this indicates a
  *     next call and the key is checked against the upper bound. If direction is False, this
@@ -184,42 +163,6 @@ __wt_row_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_COLLATOR
             *key_out_of_bounds = (cmpp < 0);
         else
             *key_out_of_bounds = (cmpp <= 0);
-    }
-    return (0);
-}
-
-/*
- * __wt_col_compare_bounds --
- *     Return if the cursor key is within the bounded range. If direction is True, this indicates a
- *     next call and the recno is checked against the upper bound. If direction is False, this
- *     indicates a prev call and the recno is then checked against the lower bound.
- */
-static inline int
-__wt_col_compare_bounds(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool direction, bool *key_out_of_bounds)
-{
-    uint64_t recno_bound;
-
-    recno_bound = 0;
-
-    if (direction) {
-        WT_ASSERT(session, WT_DATA_IN_ITEM(&cbt->iface.upper_bound));
-
-        /* Unpack the raw recno buffer into integer variable. */
-        WT_RET(__wt_struct_unpack(
-          session, cbt->iface.upper_bound.data, cbt->iface.upper_bound.size, "q", &recno_bound));
-        if ((F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER_INCLUSIVE) && cbt->recno > recno_bound) ||
-          (!F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER_INCLUSIVE) && cbt->recno >= recno_bound))
-            *key_out_of_bounds = true;
-    } else {
-        WT_ASSERT(session, WT_DATA_IN_ITEM(&cbt->iface.lower_bound));
-
-        /* Unpack the raw recno buffer into integer variable. */
-        WT_RET(__wt_struct_unpack(
-          session, cbt->iface.lower_bound.data, cbt->iface.lower_bound.size, "q", &recno_bound));
-        if ((F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER_INCLUSIVE) && cbt->recno < recno_bound) ||
-          (!F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER_INCLUSIVE) && cbt->recno <= recno_bound))
-            *key_out_of_bounds = true;
     }
     return (0);
 }

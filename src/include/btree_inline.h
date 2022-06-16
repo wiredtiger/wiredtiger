@@ -2068,7 +2068,7 @@ __wt_bounds_early_exit(
 
     btree = S2BT(session);
 
-    WT_RET(__wt_btree_compare_bounds(session, cbt, btree->collator, direction, key_out_of_bounds));
+    WT_RET(__wt_row_compare_bounds(session, &cbt->iface, collator, direction, key_out_of_bounds));
     if (*key_out_of_bounds) {
         if (direction)
             WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
