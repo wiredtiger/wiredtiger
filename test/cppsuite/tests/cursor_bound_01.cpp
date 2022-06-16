@@ -392,7 +392,7 @@ class cursor_bound_01 : public test {
              * When exact < 0, the returned key should be less than the search key and performing a
              * next() should be greater than the search key.
              */
-        } else if (range_exact < 0) {
+        } else {
             testutil_assert(custom_lexicographical_compare(key, search_key, false));
 
             /* Check that the next key is greater than the search key. */
@@ -445,7 +445,8 @@ class cursor_bound_01 : public test {
     validate_search_near_not_found(
       scoped_cursor &normal_cursor, const bound &lower_bound, const bound &upper_bound)
     {
-        int ret, exact;
+        int ret = 0, exact = 0;
+
         auto lower_key = lower_bound.get_key();
         auto upper_key = upper_bound.get_key();
         logger::log_msg(LOG_TRACE,
