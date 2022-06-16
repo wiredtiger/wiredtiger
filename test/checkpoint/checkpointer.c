@@ -166,6 +166,11 @@ flush_thread(void *arg)
         __wt_writelock(session, &g.flush_lock);
         testutil_check(wt_session->flush_tier(wt_session, NULL));
         __wt_writeunlock(session, &g.flush_lock);
+        printf("Finished a flush_tier\n");
+        fflush(stdout);
+
+        if (!g.running)
+            goto done;
         /*
          * Random value between 5000 and 10000.
          */
@@ -173,6 +178,7 @@ flush_thread(void *arg)
         __wt_sleep(0, delay + 5000);
     }
 
+done:
     testutil_check(wt_session->close(wt_session, NULL));
 
     return (WT_THREAD_RET_VALUE);
