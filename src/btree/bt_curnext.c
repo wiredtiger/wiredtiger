@@ -429,7 +429,7 @@ restart_read_insert:
              * If the cursor has prefix search configured we can early exit here if the key that we
              * are visiting is after our prefix.
              */
-            if (prefix_search && __wt_prefix_match(prefix, &cbt->iface.key) < 0) {
+            if (prefix_search && __wt_prefix_match(prefix, key) < 0) {
                 *key_out_of_bounds = true;
                 WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
                 return (WT_NOTFOUND);

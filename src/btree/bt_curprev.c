@@ -785,7 +785,6 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
             F_CLR(cbt, WT_CBT_ITERATE_APPEND);
             if (ret != WT_NOTFOUND)
                 break;
-
             newpage = true;
         }
         if (page != NULL) {
