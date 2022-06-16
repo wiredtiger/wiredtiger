@@ -163,6 +163,7 @@ flush_thread(void *arg)
     fflush(stdout);
 
     while (g.running) {
+        /* FIXME-WT-7833 Remove this lock when that ticket merges. */
         __wt_writelock(session, &g.flush_lock);
         testutil_check(wt_session->flush_tier(wt_session, NULL));
         __wt_writeunlock(session, &g.flush_lock);
