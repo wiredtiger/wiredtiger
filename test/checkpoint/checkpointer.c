@@ -53,11 +53,11 @@ set_stable(void)
 }
 
 /*
- * start_checkpoints --
- *     Responsible for creating the checkpoint thread.
+ * start_threads --
+ *     Responsible for creating the service threads.
  */
 void
-start_checkpoints(void)
+start_threads(void)
 {
     set_stable();
     testutil_check(__wt_thread_create(NULL, &g.checkpoint_thread, checkpointer, NULL));
@@ -72,13 +72,12 @@ start_checkpoints(void)
 }
 
 /*
- * end_checkpoints --
- *     Responsible for cleanly shutting down the checkpoint thread.
+ * end_threads --
+ *     Responsible for cleanly shutting down the service threads.
  */
 void
-end_checkpoints(void)
+end_threads(void)
 {
-    testutil_check(__wt_thread_join(NULL, &g.checkpoint_thread));
     if (g.tiered) {
         testutil_check(__wt_thread_join(NULL, &g.flush_thread));
         __wt_rwlock_destroy(NULL, &g.flush_lock);
@@ -87,6 +86,8 @@ end_checkpoints(void)
         testutil_check(__wt_thread_join(NULL, &g.clock_thread));
         __wt_rwlock_destroy(NULL, &g.clock_lock);
     }
+    /* Shutdown checkpoint after flush thread completes because flush depends on checkpoint. */
+    testutil_check(__wt_thread_join(NULL, &g.checkpoint_thread));
 }
 
 /*
@@ -219,7 +220,7 @@ real_checkpointer(void)
         return (log_print_err("Checkpoint thread started stopped\n", EINVAL, 1));
 
     __wt_random_init(&rnd);
-    while (g.ntables > g.ntables_created)
+    while (g.ntables > g.ntables_created && g.running)
         __wt_yield();
 
     if ((ret = g.conn->open_session(g.conn, NULL, NULL, &session)) != 0)

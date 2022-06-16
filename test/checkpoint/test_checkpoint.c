@@ -205,9 +205,12 @@ main(int argc, char *argv[])
 
         for (i = 0; i < g.ntables; ++i) {
             g.cookies[i].id = i;
-            if (ttype == MIX)
+            if (ttype == MIX) {
                 g.cookies[i].type = (table_type)((i % MAX_TABLE_TYPE) + 1);
-            else
+                /* LSM is not supported with tiered storage. Just use ROW. */
+                if (g.tiered && g.cookies[i].type == LSM)
+                    g.cookies[i].type = ROW;
+            } else
                 g.cookies[i].type = ttype;
             testutil_check(__wt_snprintf(
               g.cookies[i].uri, sizeof(g.cookies[i].uri), "%s%04d", URI_BASE, g.cookies[i].id));
@@ -232,14 +235,14 @@ main(int argc, char *argv[])
             goto run_complete;
         }
 
-        start_checkpoints();
-        if ((ret = start_workers()) != 0) {
+        start_threads();
+        ret = start_workers();
+        g.running = 0;
+        end_threads();
+        if (ret != 0) {
             (void)log_print_err("Start workers failed", ret, 1);
             break;
         }
-
-        g.running = 0;
-        end_checkpoints();
 
 run_complete:
         free(g.cookies);
