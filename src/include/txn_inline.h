@@ -1195,7 +1195,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 
         /*
          * Stall here if the cache is completely full. Eviction check can return rollback, but the
-         * WT_SESSION.begin_transaction API can't return rollback, continue on.
+         * WT_SESSION.begin_transaction API can't, continue on.
          */
         WT_RET_ERROR_OK(__wt_cache_eviction_check(session, false, true, NULL), WT_ROLLBACK);
 
