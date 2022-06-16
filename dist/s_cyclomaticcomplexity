@@ -1,0 +1,31 @@
+#! /bin/sh
+
+t=__wt.$$
+trap 'rm -f $t' 0 1 2 3 13 15
+
+# Install Metrix++, ensuring it is outside the 'src' directory
+cd ..
+set -o verbose
+
+# git clone https://github.com/metrixplusplus/metrixplusplus metrixplusplus
+
+# We only want complexity measures for the 'src' directory
+cd src
+
+python "../metrixplusplus/metrix++.py" collect --std.code.lines.code --std.code.complexity.cyclomatic
+python "../metrixplusplus/metrix++.py" view
+
+# Set the cyclomatic complexity limit to 20
+python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:20
+
+# Fail if there are functions with cyclomatic complexity larger than 95
+set -o errexit
+echo tempfile = $(mktemp)
+python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:95 | tee tempfile
+egrep -r -n 'exceeds the limit' tempfile > $t;
+test -s $t && {
+        echo "ERROR:complexity:cyclomatic:95 - functions with complexity larger than limit of 95"
+        cat tempfile
+        echo "END:complexity:cyclomatic:95"
+    }
+rm tempfile
