@@ -20,12 +20,12 @@ python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyc
 
 # Fail if there are functions with cyclomatic complexity larger than 95
 set -o errexit
-echo tempfile = $(mktemp)
-python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:95 | tee tempfile
-egrep -r -n 'exceeds the limit' tempfile > $t;
-test -s $t && {
-        echo "ERROR:complexity:cyclomatic:95 - functions with complexity larger than limit of 95"
-        cat tempfile
-        echo "END:complexity:cyclomatic:95"
-    }
-rm tempfile
+python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:95 > tempfile | tee tempfile
+if egrep -r -n 'exceeds the limit' tempfile > $t; then 
+    echo "ERROR:complexity:cyclomatic:95: functions with complexity larger than limit of 95"
+    cat tempfile
+    echo "END:complexity:cyclomatic:95"
+else
+    cat tempfile
+fi
+rm tempfile 
