@@ -287,6 +287,11 @@ __wt_conn_optrack_teardown(WT_SESSION_IMPL *session, bool reconfig)
     return (ret);
 }
 
+#ifdef HAVE_CALL_LOG
+/*
+ * __wt_conn_call_log_setup --
+ *      Setup the resources for call log tracking.
+ */
 int
 __wt_conn_call_log_setup(WT_SESSION_IMPL *session)
 {
@@ -310,6 +315,9 @@ err:
     return (ret);
 }
 
+/* __wt_conn_call_log_teardown --
+ *      Clean up the resources used for the call log.
+ */
 int
 __wt_conn_call_log_teardown(WT_SESSION_IMPL *session)
 {
@@ -325,6 +333,7 @@ __wt_conn_call_log_teardown(WT_SESSION_IMPL *session)
 
     return (ret);
 }
+#endif
 
 /*
  * __wt_conn_statistics_config --

@@ -1454,16 +1454,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     readonly = txn->mod_count == 0;
     cannot_fail = locked = false;
 
-    // if (FLD_ISSET(conn->call_log_flags, WT_CONN_CALL_LOG_ENABLED)) {
-    //     __wt_write(conn->call_log_fh);
-
-    // }
-
-#ifdef HAVE_CALL_LOG
-    printf("Hello from the call log\n");
-    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "{\n    msg: Hello from the call log.\n},\n"));
-#endif
-
     /* Permit the commit if the transaction failed, but was read-only. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || txn->mod_count == 0);
