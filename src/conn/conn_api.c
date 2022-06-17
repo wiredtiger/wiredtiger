@@ -2810,17 +2810,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
     WT_ERR(__conn_session_size(session, cfg, &conn->session_size));
     WT_ERR(__wt_config_gets(session, cfg, "session_scratch_max", &cval));
-    WT_ERR(__wt_conn_call_log_setup(session, cfg, false));
+
     conn->session_scratch_max = (size_t)cval.val;
-
-    //     WT_ERR(__wt_config_gets(session, cfg, "call_log", &cval));
-    //     if (cval.val)
-    // #ifndef HAVE_DIAGNOSTIC
-    //     WT_ERR_MSG(session, EINVAL, "call_log requires diagnostic build");
-    //     // TODO-ME: Exit?
-    // #endif
-
-    //         FLD_SET(conn->call_log_flags, WT_CONN_CALL_LOG_ENABLED);
 
     /*
      * If buffer alignment is not configured, use zero unless direct I/O is also configured, in
@@ -3046,6 +3037,13 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     WT_STATIC_ASSERT(offsetof(WT_CONNECTION_IMPL, iface) == 0);
     *connectionp = &conn->iface;
+
+#ifdef HAVE_CALL_LOG
+    /*
+     * Set up the call file.
+     */
+    WT_ERR(__wt_conn_call_log_setup(session));
+#endif
 
 err:
     /* Discard the scratch buffers. */

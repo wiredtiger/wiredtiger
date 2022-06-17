@@ -281,8 +281,7 @@ struct __wt_connection_impl {
     WT_SPINLOCK optrack_map_spinlock; /* Translation file spinlock. */
     uintmax_t optrack_pid;            /* Cache the process ID. */
 
-#ifdef HAVE_DIAGNOSTIC
-    WT_FH *call_log_fh;
+#ifdef HAVE_CALL_LOG
     WT_FSTREAM *call_log_fst;
 #endif
 
