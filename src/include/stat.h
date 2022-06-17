@@ -1042,12 +1042,9 @@ struct __wt_dsrc_stats {
     int64_t cursor_create;
     int64_t cursor_bound_error;
     int64_t cursor_bounds_reset;
-    int64_t cursor_bounds_reset;
     int64_t cursor_bounds_next_unpositioned;
     int64_t cursor_bounds_next_early_exit;
-    int64_t cursor_bounds_next_early_exit;
     int64_t cursor_bounds_prev_unpositioned;
-    int64_t cursor_bounds_prev_early_exit;
     int64_t cursor_bounds_prev_early_exit;
     int64_t cursor_cache_error;
     int64_t cursor_close_error;

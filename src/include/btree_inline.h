@@ -2258,9 +2258,9 @@ __wt_btcur_bounds_row_position(
     exact = 0;
 
     if (direction)
-        WT_STAT_CONN_DATA_INCR(session, CURSOR_BOUNDS_NEXT_UNPOSITIONED);
+        WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_unpositioned);
     else
-        WT_STAT_CONN_DATA_INCR(session, CURSOR_BOUNDS_PREV_UNPOSITIONED);
+        WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_unpositioned);
 
     WT_ASSERT(session, WT_DATA_IN_ITEM(bound));
     __wt_cursor_set_raw_key(cursor, bound);
