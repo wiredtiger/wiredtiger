@@ -2056,12 +2056,12 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
 }
 
 /*
- * __wt_bounds_early_exit --
+ * __wt_btcur_bounds_early_exit --
  *     Performs bound comparison to check if the key is within bounds, if not, increment the
  *     appropriate stat, early exit, and return WT_NOTFOUND.
  */
 static inline int
-__wt_bounds_early_exit(
+__wt_btcur_bounds_early_exit(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool direction, bool *key_out_of_bounds)
 {
     WT_RET(__wt_row_compare_bounds(

@@ -440,7 +440,7 @@ restart_read_insert:
              * early exit.
              */
             if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER))
-                WT_RET(__wt_bounds_early_exit(session, cbt, true, key_out_of_bounds));
+                WT_RET(__wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_bounds));
 
             WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
             if (cbt->upd_value->type == WT_UPDATE_INVALID) {
@@ -500,7 +500,7 @@ restart_read_page:
          * exit.
          */
         if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER))
-            WT_RET(__wt_bounds_early_exit(session, cbt, true, key_out_of_bounds));
+            WT_RET(__wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_bounds));
 
         /*
          * Read the on-disk value and/or history. Pass an update list: the update list may contain

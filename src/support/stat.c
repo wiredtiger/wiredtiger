@@ -474,10 +474,10 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_bound_error = 0;
     stats->cursor_bounds_reset = 0;
     stats->cursor_bounds_reset = 0;
-    stats->cursor_bounds_next = 0;
+    stats->cursor_bounds_next_unpositioned = 0;
     stats->cursor_bounds_next_early_exit = 0;
     stats->cursor_bounds_next_early_exit = 0;
-    stats->cursor_bounds_prev = 0;
+    stats->cursor_bounds_prev_unpositioned = 0;
     stats->cursor_bounds_prev_early_exit = 0;
     stats->cursor_bounds_prev_early_exit = 0;
     stats->cursor_cache_error = 0;
@@ -764,10 +764,10 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_bound_error += from->cursor_bound_error;
     to->cursor_bounds_reset += from->cursor_bounds_reset;
     to->cursor_bounds_reset += from->cursor_bounds_reset;
-    to->cursor_bounds_next += from->cursor_bounds_next;
+    to->cursor_bounds_next_unpositioned += from->cursor_bounds_next_unpositioned;
     to->cursor_bounds_next_early_exit += from->cursor_bounds_next_early_exit;
     to->cursor_bounds_next_early_exit += from->cursor_bounds_next_early_exit;
-    to->cursor_bounds_prev += from->cursor_bounds_prev;
+    to->cursor_bounds_prev_unpositioned += from->cursor_bounds_prev_unpositioned;
     to->cursor_bounds_prev_early_exit += from->cursor_bounds_prev_early_exit;
     to->cursor_bounds_prev_early_exit += from->cursor_bounds_prev_early_exit;
     to->cursor_cache_error += from->cursor_cache_error;
@@ -1058,10 +1058,10 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_bound_error += WT_STAT_READ(from, cursor_bound_error);
     to->cursor_bounds_reset += WT_STAT_READ(from, cursor_bounds_reset);
     to->cursor_bounds_reset += WT_STAT_READ(from, cursor_bounds_reset);
-    to->cursor_bounds_next += WT_STAT_READ(from, cursor_bounds_next);
+    to->cursor_bounds_next_unpositioned += WT_STAT_READ(from, cursor_bounds_next_unpositioned);
     to->cursor_bounds_next_early_exit += WT_STAT_READ(from, cursor_bounds_next_early_exit);
     to->cursor_bounds_next_early_exit += WT_STAT_READ(from, cursor_bounds_next_early_exit);
-    to->cursor_bounds_prev += WT_STAT_READ(from, cursor_bounds_prev);
+    to->cursor_bounds_prev_unpositioned += WT_STAT_READ(from, cursor_bounds_prev_unpositioned);
     to->cursor_bounds_prev_early_exit += WT_STAT_READ(from, cursor_bounds_prev_early_exit);
     to->cursor_bounds_prev_early_exit += WT_STAT_READ(from, cursor_bounds_prev_early_exit);
     to->cursor_cache_error += WT_STAT_READ(from, cursor_cache_error);
@@ -1998,9 +1998,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cursor_cached_count */
     stats->cursor_bound_error = 0;
     stats->cursor_bounds_reset = 0;
-    stats->cursor_bounds_next = 0;
+    stats->cursor_bounds_next_unpositioned = 0;
     stats->cursor_bounds_next_early_exit = 0;
-    stats->cursor_bounds_prev = 0;
+    stats->cursor_bounds_prev_unpositioned = 0;
     stats->cursor_bounds_prev_early_exit = 0;
     stats->cursor_insert_bulk = 0;
     stats->cursor_cache_error = 0;
@@ -2591,9 +2591,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_cached_count += WT_STAT_READ(from, cursor_cached_count);
     to->cursor_bound_error += WT_STAT_READ(from, cursor_bound_error);
     to->cursor_bounds_reset += WT_STAT_READ(from, cursor_bounds_reset);
-    to->cursor_bounds_next += WT_STAT_READ(from, cursor_bounds_next);
+    to->cursor_bounds_next_unpositioned += WT_STAT_READ(from, cursor_bounds_next_unpositioned);
     to->cursor_bounds_next_early_exit += WT_STAT_READ(from, cursor_bounds_next_early_exit);
-    to->cursor_bounds_prev += WT_STAT_READ(from, cursor_bounds_prev);
+    to->cursor_bounds_prev_unpositioned += WT_STAT_READ(from, cursor_bounds_prev_unpositioned);
     to->cursor_bounds_prev_early_exit += WT_STAT_READ(from, cursor_bounds_prev_early_exit);
     to->cursor_insert_bulk += WT_STAT_READ(from, cursor_insert_bulk);
     to->cursor_cache_error += WT_STAT_READ(from, cursor_cache_error);
