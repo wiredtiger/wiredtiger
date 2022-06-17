@@ -3015,9 +3015,9 @@ tasks:
             # Fail if there are functions with cyclomatic complexity larger than 95
             python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:95 > $t
             if grep -q 'exceeds' $t; then 
-                echo "[ERROR]:complexity:cyclomatic:95: Complexity limit exceeded."
+                echo "[ERROR]:complexity:cyclomatic: Complexity limit exceeded."
                 cat $t
-                echo "[ERROR]:complexity:cyclomatic:95: Finished " && rm $t && exit 1
+                echo "[ERROR]:complexity:cyclomatic: Finished " && rm $t && exit 1
             else
                 cat $t && rm $t 
             fi
