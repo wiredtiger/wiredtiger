@@ -90,6 +90,7 @@ Checkpointing
 Checksum
 Checksums
 CityHash
+ClassName
 CloseHandle
 Cmvxz
 Cmvz
@@ -337,6 +338,7 @@ OUTBUFF
 OVFL
 ObWgfvgw
 Obama
+ObjectId
 Opcode
 Optane
 Outfmt
@@ -396,6 +398,7 @@ RedHat
 Redistributions
 Refactor
 Resize
+ReturnVal
 RocksDB
 Rogerio
 Runtime
@@ -847,6 +850,7 @@ eof
 epi
 eq
 equalp
+errMsg
 errhandler
 errno
 errx
@@ -1155,6 +1159,7 @@ metaconf
 metadata
 metadata's
 metafile
+methodName
 mfence
 minSnapshotHistoryWindowInSeconds
 minorp

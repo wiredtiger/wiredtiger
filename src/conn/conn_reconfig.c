@@ -290,7 +290,7 @@ __wt_conn_optrack_teardown(WT_SESSION_IMPL *session, bool reconfig)
 #ifdef HAVE_CALL_LOG
 /*
  * __wt_conn_call_log_setup --
- *      Setup the resources for call log tracking.
+ *     Setup the resources for call log tracking.
  */
 int
 __wt_conn_call_log_setup(WT_SESSION_IMPL *session)
@@ -304,9 +304,10 @@ __wt_conn_call_log_setup(WT_SESSION_IMPL *session)
     conn->optrack_pid = __wt_process_id();
 
     WT_RET(__wt_scr_alloc(session, 0, &buf));
-    WT_ERR(__wt_filename_construct(session, "", "WiredTiger_call_log", conn->optrack_pid, UINT32_MAX, buf));
-    WT_ERR(
-      __wt_fopen(session, (const char *)buf->data, WT_FS_OPEN_CREATE, WT_STREAM_APPEND, &conn->call_log_fst));
+    WT_ERR(__wt_filename_construct(
+      session, "", "WiredTiger_call_log", conn->optrack_pid, UINT32_MAX, buf));
+    WT_ERR(__wt_fopen(
+      session, (const char *)buf->data, WT_FS_OPEN_CREATE, WT_STREAM_APPEND, &conn->call_log_fst));
 
     FLD_SET(conn->call_log_flags, WT_CONN_CALL_LOG_ENABLED);
 
@@ -315,8 +316,9 @@ err:
     return (ret);
 }
 
-/* __wt_conn_call_log_teardown --
- *      Clean up the resources used for the call log.
+/*
+ * __wt_conn_call_log_teardown --
+ *     Clean up the resources used for the call log.
  */
 int
 __wt_conn_call_log_teardown(WT_SESSION_IMPL *session)
