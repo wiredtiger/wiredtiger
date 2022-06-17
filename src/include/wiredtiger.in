@@ -927,7 +927,8 @@ struct __wt_session {
 	 * Cursors capable of supporting transactional operations operate in the
 	 * context of the current transaction, if any.
 	 *
-	 * WT_SESSION::rollback_transaction implicitly resets all cursors.
+	 * WT_SESSION::rollback_transaction implicitly resets all cursors associated with the
+         # session.
 	 *
 	 * Cursors are relatively light-weight objects but may hold references
 	 * to heavier-weight objects; applications should re-use cursors when
@@ -1763,7 +1764,7 @@ struct __wt_session {
 	 * A transaction must be in progress when this method is called.
 	 *
 	 * If WT_SESSION::commit_transaction returns an error, the transaction
-	 * was rolled back, not committed.
+	 * was rolled back, not committed, and all cursors associated with the session are reset.
 	 *
 	 * @requires_transaction
 	 *
@@ -1829,7 +1830,7 @@ struct __wt_session {
 	 *
 	 * A transaction must be in progress when this method is called.
 	 *
-	 * All cursors are reset.
+	 * All cursors associated with the session are reset.
 	 *
 	 * @requires_transaction
 	 *
@@ -2412,9 +2413,6 @@ struct __wt_connection {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;local_retention, time in seconds to retain data
 	 * on tiered storage on the local tier for faster read access., an integer between 0 and
 	 * 10000; default \c 300.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;object_target_size, the
-	 * approximate size of objects before creating them on the tiered storage tier., an integer
-	 * between 100K and 10TB; default \c 10M.}
 	 * @config{ ),,}
 	 * @config{verbose, enable messages for various subsystems and operations.  Options are
 	 * given as a list\, where each message type can optionally define an associated verbosity
