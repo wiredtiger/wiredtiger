@@ -101,9 +101,9 @@ class test_cursor_bound03(bound_base):
         cursor = self.create_session_and_cursor()
 
         # Test bound api: Test early exit works with upper bound.
-        self.set_bounds(cursor, 50, "upper", self.upper_inclusive)
-        self.cursor_traversal_bound(cursor, None, 50)
-        self.assertEqual(cursor.bound("action=clear"), 0)
+        # self.set_bounds(cursor, 50, "upper", self.upper_inclusive)
+        # self.cursor_traversal_bound(cursor, None, 50)
+        # self.assertEqual(cursor.bound("action=clear"), 0)
 
         # Test bound api: Test traversal works with lower bound.
         self.set_bounds(cursor, 45, "lower", self.lower_inclusive)

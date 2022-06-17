@@ -116,6 +116,7 @@ class bound_base(wttest.WiredTigerTestCase):
 
         count = ret = 0
         while True:
+            self.session.breakpoint()
             if (next):
                 ret = cursor.next()
             else:
@@ -129,6 +130,9 @@ class bound_base(wttest.WiredTigerTestCase):
             if (self.lower_inclusive and lower_key):
                 self.assertTrue(self.check_key(lower_key) <= key)
             elif (lower_key):
+                # print("lower key:")
+                # print(lower_key)
+                # print(key)
                 self.assertTrue(self.check_key(lower_key) < key)
                 
             if (self.upper_inclusive and upper_key):

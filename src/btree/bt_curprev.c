@@ -685,12 +685,11 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     WT_SESSION_IMPL *session;
     size_t total_skipped, skipped;
     uint32_t flags;
-    int exact;
-    bool key_out_of_bounds, newpage, restart;
+    bool key_out_of_bounds, newpage, restart, unpositioned;
 
     cursor = &cbt->iface;
-    exact = 0;
     key_out_of_bounds = false;
+    unpositioned = false;
     session = CUR2S(cbt);
     total_skipped = 0;
 
@@ -700,37 +699,10 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
      * is checked and acts as a guard to prevent re-entry in the case that the cursor positioning
      * has already begun, and next() is called as a part of the positioning.
      */
-    if (!WT_CURSOR_IS_POSITIONED(cbt) && F_ISSET(cursor, WT_CURSTD_BOUND_UPPER) &&
-      !(F_ISSET(cursor, WT_CURSTD_BOUND_ENTRY))) {
-        WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->upper_bound));
+    WT_RET(__wt_btcur_bounds_row_position(session, cbt, false, &key_out_of_bounds, &unpositioned));
 
-        __wt_cursor_set_raw_key(cursor, &cursor->upper_bound);
-        F_SET(cursor, WT_CURSTD_BOUND_ENTRY);
-        ret = cursor->search_near(cursor, &exact);
-        F_CLR(cursor, WT_CURSTD_BOUND_ENTRY);
-        WT_RET(ret);
-
-        /*
-         * FIXME-WT-9324: When search_near_bounded is implemented then remove this. If search near
-         * returns a higher value, ensure it's within the upper bound.
-         */
-        if (exact == 0 && F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE)) {
-            return (0);
-        } else if (exact < 0) {
-            /*
-             * If search near returns a key less than upper bound, check the returned key against
-             * the lower bound to ensure that the key is within bounds. Else there are no visible
-             * records, return WT_NOTFOUND.
-             */
-            if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
-                WT_RET(__wt_row_compare_bounds(
-                  session, cursor, S2BT(session)->collator, false, &key_out_of_bounds));
-                if (key_out_of_bounds)
-                    return (WT_NOTFOUND);
-            }
-            return (0);
-        }
-    }
+    if(unpositioned)
+        return (0);
 
     WT_STAT_CONN_DATA_INCR(session, cursor_prev);
 
@@ -902,3 +874,5 @@ err:
 
     return (ret);
 }
+
+
