@@ -287,55 +287,6 @@ __wt_conn_optrack_teardown(WT_SESSION_IMPL *session, bool reconfig)
     return (ret);
 }
 
-// #ifdef HAVE_CALL_LOG
-// /*
-//  * __wt_conn_call_log_setup --
-//  *     Setup the resources for call log tracking.
-//  */
-// int
-// __wt_conn_call_log_setup(WT_SESSION_IMPL *session)
-// {
-//     WT_CONNECTION_IMPL *conn;
-//     WT_DECL_ITEM(buf);
-//     WT_DECL_RET;
-
-//     conn = S2C(session);
-
-//     WT_RET(__wt_scr_alloc(session, 0, &buf));
-//     WT_ERR(__wt_filename_construct(
-//       session, "", "WiredTiger_call_log", __wt_process_id(), UINT32_MAX, buf));
-//     WT_ERR(__wt_fopen(
-//       session, (const char *)buf->data, WT_FS_OPEN_CREATE, WT_STREAM_APPEND,
-//       &conn->call_log_fst));
-
-//     FLD_SET(conn->call_log_flags, WT_CONN_CALL_LOG_ENABLED);
-
-// err:
-//     __wt_scr_free(session, &buf);
-//     return (ret);
-// }
-
-// /*
-//  * __wt_conn_call_log_teardown --
-//  *     Clean up the resources used for the call log.
-//  */
-// int
-// __wt_conn_call_log_teardown(WT_SESSION_IMPL *session)
-// {
-//     WT_CONNECTION_IMPL *conn;
-//     WT_DECL_RET;
-
-//     conn = S2C(session);
-
-//     if (!FLD_ISSET(conn->call_log_flags, WT_CONN_CALL_LOG_ENABLED))
-//         return (0);
-
-//     WT_TRET(__wt_fclose(session, &conn->call_log_fst));
-
-//     return (ret);
-// }
-// #endif
-
 /*
  * __wt_conn_statistics_config --
  *     Set statistics configuration.
