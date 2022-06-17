@@ -93,8 +93,11 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
         cursor.bound("action=clear")
         cursor.bound("action=clear,bound=lower")
         cursor.bound("action=clear,bound=upper")
-        self.assertTrue(False)
-        print("Test")
+
+        # Check that clear with bound configuration works properly.
+        cursor.bound("action=clear")
+        cursor.bound("action=clear,bound=lower")
+        cursor.bound("action=clear,bound=upper")
 
 if __name__ == '__main__':
     wttest.run()
