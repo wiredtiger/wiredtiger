@@ -877,5 +877,3 @@ err:
 
     return (ret);
 }
-
-
