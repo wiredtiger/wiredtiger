@@ -58,7 +58,7 @@ class test_tiered08(wttest.WiredTigerTestCase, TieredConfigMixin):
     uri = "table:test_tiered08"
 
     def conn_config(self):
-        return get_conn_config(self) + '),statistics=(fast)'
+        return get_conn_config(self) + '),statistics=(fast),timing_stress_for_test=(tiered_flush_finish)'
         
     # Load the storage store extension.
     def conn_extensions(self, extlist):

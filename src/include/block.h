@@ -16,8 +16,6 @@
  */
 #define WT_BLOCK_INVALID_OFFSET 0
 
-#define WT_BLOCK_ISLOCAL(block) ((block)->objectid == WT_TIERED_OBJECTID_NONE)
-
 /*
  * The block manager maintains three per-checkpoint extent lists:
  *	alloc:	 the extents allocated in this checkpoint
@@ -237,14 +235,13 @@ struct __wt_block {
     size_t related_allocated; /* Size of related object array */
     u_int related_next;       /* Next open slot */
 
-    WT_BLOCK *ckpt_drain; /* Draining concurrent writers to the next checkpoint */
-
     WT_FH *fh;            /* Backing file handle */
     wt_off_t size;        /* File size */
     wt_off_t extend_size; /* File extended size */
     wt_off_t extend_len;  /* File extend chunk size */
 
     bool created_during_backup; /* Created during incremental backup */
+    bool close_on_checkpoint;   /* Close the handle after the next checkpoint */
 
     /* Configuration information, set when the file is opened. */
     uint32_t allocfirst; /* Allocation is first-fit */

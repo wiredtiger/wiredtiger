@@ -74,26 +74,6 @@ __bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
 }
 
 /*
- * __bm_drain_and_close --
- *     Drain the list of waiting WT_BLOCK structures.
- */
-static int
-__bm_drain_and_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
-{
-    if (block == NULL)
-        return (0);
-
-    /*
-     * Close any WT_BLOCK structures queued to be drained: a recursive call to simplify closing them
-     * from the end to the beginning.
-     */
-    WT_RET(__bm_drain_and_close(session, block->ckpt_drain));
-    block->ckpt_drain = NULL;
-
-    return (__bm_close_block(session, block));
-}
-
-/*
  * __bm_readonly --
  *     General-purpose "writes not supported on this handle" function.
  */
@@ -143,19 +123,38 @@ static int
 __bm_checkpoint(
   WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
 {
-    WT_BLOCK *block;
+    WT_BLOCK *block, *tblock;
+    WT_CONNECTION_IMPL *conn;
+    bool found;
 
+    conn = S2C(session);
     block = bm->block;
 
     WT_RET(__wt_block_checkpoint(session, block, buf, ckptbase, data_checksum));
 
     /*
-     * After a checkpoint, we can close previously writeable tiered objects. The block's reference
-     * count was set when the block was originally opened, switching didn't change it and this is
-     * the close.
+     * Close previous primary objects that are no longer being written, that is, ones where all
+     * in-flight writes have drained. We know all writes have drained when a subsequent checkpoint
+     * completes, and we know the metadata file is the last file to be checkpointed. After
+     * checkpointing the metadata file, review any previous primary objects, flushing writes and
+     * discarding the primary reference.
      */
-    WT_RET(__bm_drain_and_close(session, block->ckpt_drain));
-    block->ckpt_drain = NULL;
+    if (strcmp(WT_METAFILE, block->name) != 0)
+        return (0);
+    do {
+        found = false;
+        __wt_spin_lock(session, &conn->block_lock);
+        TAILQ_FOREACH (tblock, &conn->blockqh, q)
+            if (tblock->close_on_checkpoint) {
+                tblock->close_on_checkpoint = false;
+                __wt_spin_unlock(session, &conn->block_lock);
+                found = true;
+                WT_RET(__wt_fsync(session, tblock->fh, true));
+                WT_RET(__bm_close_block(session, tblock));
+                break;
+            }
+    } while (found);
+    __wt_spin_unlock(session, &conn->block_lock);
 
     return (0);
 }
@@ -291,14 +290,7 @@ __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
     if (bm == NULL) /* Safety check */
         return (0);
 
-    /*
-     * We shouldn't ever need to drain a chain of block handles, unless we're closing the database
-     * and tier flush happened without a checkpoint happening in the new object. Assert that's the
-     * case.
-     */
-    WT_ASSERT(session, F_ISSET(S2C(session), WT_CONN_CLOSING) || bm->block->ckpt_drain == NULL);
-
-    ret = __bm_drain_and_close(session, bm->block);
+    ret = __bm_close_block(session, bm->block);
 
     __wt_overwrite_and_free(session, bm);
     return (ret);
@@ -604,33 +596,54 @@ static int
 __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
 {
     WT_BLOCK *block, *current;
+    size_t root_addr_size;
 
     current = bm->block;
 
+    /* There should not be a checkpoint in progress. */
+    WT_ASSERT(session, !S2C(session)->txn_global.checkpoint_running);
+
     WT_RET(__wt_blkcache_tiered_open(session, NULL, objectid, &block));
+
+    __wt_verbose(
+      session, WT_VERB_TIERED, "block manager switching from %s to %s", current->name, block->name);
 
     /* Fast-path switching to the current object, just undo the reference count increment. */
     if (block == current)
         return (__bm_close_block(session, block));
 
+    /* Load a new object. */
+    WT_RET(__wt_block_checkpoint_load(session, block, NULL, 0, NULL, &root_addr_size, false));
+
     /*
-     * FIXME: We need to distinguish between tiered switch and loading a checkpoint. This discards
-     * the extent list, which isn't correct because we can't know when to discard previous files if
-     * we don't have the extent list. This fixes the problem where we randomly write a new position
-     * in the new tiered object, but it's not OK.
+     * The previous object should be closed once writes have drained.
+     *
+     * FIXME: the old object does not participate in the upcoming checkpoint which has a couple of
+     * implications. First, the extent lists for the old object are discarded and never written,
+     * which makes it impossible to treat the old object as a standalone object, so, for example,
+     * you can't verify it. Second, I'm not sure what mechanism ensures the old object's writes are
+     * flushed to stable storage before the new objects complete a checkpoint. I think the writes
+     * will necessarily be done to the OS (because reconciliation of the old object is holding the
+     * page locked and checkpoint will wait on that lock), but there's no flush of the old block
+     * handle to ensure the write has hit stable storage. We're unlikely to get caught (and I might
+     * be wrong about this, I haven't actually tested it), but I'm suspicious there's a problem. A
+     * solution is both of these issues is for the upper layers to checkpoint all modified objects
+     * in the logical object before the checkpoint updates the metadata, flushing all underlying
+     * writes to stable storage, but that means writing extent lists without a root page.
      */
-    WT_RET(__wt_block_ckpt_init(session, &block->live, "live"));
-
-    /* The previous block handle can be closed after the next checkpoint. */
-    block->ckpt_drain = current;
+    current->close_on_checkpoint = true;
 
     /*
+     * Swap out the block manager's default handler.
+     *
      * FIXME: the new block handle reasonably has different methods for objects in different backing
      * sources. That's not the case today, but the current architecture lacks the ability to support
      * multiple sources cleanly.
      *
-     * FIXME: We need to think hard about the concurrency issues here, if it's safe to simply swap
-     * out the block manager's default block.
+     * FIXME: it should not be possible for a thread of control to copy the WT_BM value in the btree
+     * layer, sleep until after a subsequent switch and a subsequent a checkpoint that would discard
+     * the WT_BM it copied, but it would be worth thinking through those scenarios in detail to be
+     * sure there aren't any races.
      */
     bm->block = block;
     return (0);
