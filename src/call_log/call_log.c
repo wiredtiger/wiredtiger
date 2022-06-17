@@ -50,7 +50,7 @@ __wt_conn_call_log_teardown(WT_SESSION_IMPL *session)
     if (!FLD_ISSET(conn->call_log_flags, WT_CONN_CALL_LOG_ENABLED))
         return (0);
 
-    WT_TRET(__wt_fclose(session, &conn->call_log_fst));
+    WT_RET(__wt_fclose(session, &conn->call_log_fst));
 
     return (ret);
 }
