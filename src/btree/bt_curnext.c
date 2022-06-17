@@ -749,26 +749,29 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     WT_SESSION_IMPL *session;
     size_t total_skipped, skipped;
     uint32_t flags;
-    bool key_out_of_bounds, newpage, restart, unpositioned;
+    bool key_out_of_bounds, newpage, restart, need_walk;
 
     cursor = &cbt->iface;
     key_out_of_bounds = false;
-    unpositioned = false;
+    need_walk = false;
     session = CUR2S(cbt);
     total_skipped = 0;
 
     /*
-     * Checks if the cursor is currently positioned and positions it according to the bounds set. If
-     * the cursor is unpositioned, it will be positioned on the lower bound. WT_CURSTD_BOUND_ENTRY
-     * is checked and acts as a guard to prevent re-entry in the case that the cursor positioning
-     * has already begun, and next() is called as a part of the positioning.
+     * If we have a bound set we should position our cursor appropriately if it isn't already
+     * positioned.
+     *
+     * In one scenario this function returns and needs to walk to the next record. In that case we
+     * set a boolean. We need to be careful that the entry flag isn't set so we don't re-enter
+     * search near.
      */
+    if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER) && !WT_CURSOR_IS_POSITIONED(cbt) &&
+      !F_ISSET(cursor, WT_CURSTD_BOUND_ENTRY)) {
+        WT_RET(__wt_btcur_bounds_row_position(session, cbt, true, &need_walk));
+        if (!need_walk)
+            return (0);
+    }
 
-    WT_RET(__wt_btcur_bounds_row_position(session, cbt, true, &key_out_of_bounds, &unpositioned));
-
-    if(unpositioned)
-        return (0);
-        
     WT_STAT_CONN_DATA_INCR(session, cursor_next);
 
     flags = WT_READ_NO_SPLIT | WT_READ_SKIP_INTL; /* tree walk flags */

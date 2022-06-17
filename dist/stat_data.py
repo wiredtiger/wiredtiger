@@ -338,9 +338,6 @@ conn_stats = [
     CursorStat('cursor_reopen', 'cursors reused from cache'),
     CursorStat('cursor_reserve', 'cursor reserve calls'),
     CursorStat('cursor_reset', 'cursor reset calls'),
-    CursorStat('cursor_bounds_reset', 'cursor bounds cleared from reset'),
-    CursorStat('cursor_bounds_next_early_exit', 'cursor bounds next early exit'),
-    CursorStat('cursor_bounds_prev_early_exit', 'cursor bounds prev early exit'),
     CursorStat('cursor_restart', 'cursor operation restarted'),
     CursorStat('cursor_search', 'cursor search calls'),
     CursorStat('cursor_search_hs', 'cursor search history store calls'),
@@ -872,6 +869,11 @@ conn_dsrc_stats = [
     ##########################################
     # Cursor operations
     ##########################################
+    CursorStat('cursor_bounds_reset', 'cursor bounds cleared from reset'),
+    CursorStat('cursor_bounds_next_early_exit', 'cursor bounds next early exit'),
+    CursorStat('cursor_bounds_prev_early_exit', 'cursor bounds prev early exit'),
+    CursorStat('cursor_bounds_next', 'cursor bounds next called on an unpositioned cursor'),
+    CursorStat('cursor_bounds_prev', 'cursor bounds prev called on an unpositioned cursor'),
     CursorStat('cursor_next_hs_tombstone', 'cursor next calls that skip due to a globally visible history store tombstone'),
     CursorStat('cursor_next_skip_ge_100', 'cursor next calls that skip greater than or equal to 100 entries'),
     CursorStat('cursor_next_skip_lt_100', 'cursor next calls that skip less than 100 entries'),

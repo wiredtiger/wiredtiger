@@ -2068,7 +2068,7 @@ __wt_bounds_early_exit(
       session, &cbt->iface, S2BT(session)->collator, direction, key_out_of_bounds));
     if (*key_out_of_bounds) {
         if (direction)
-        WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
+            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
         else
             WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
         return (WT_NOTFOUND);
@@ -2129,63 +2129,64 @@ __wt_btcur_skip_page(
     return (0);
 }
 
+/*
+ * __wt_btcur_bounds_row_position --
+ *     A unpositioned bounded cursor need to start its cursor next and prev walk from the lower or
+ *     upper bound depending on which direction it is going. This function calls search near to
+ *     position the cursor appropriately.
+ */
 static inline int
-__wt_btcur_bounds_row_position(WT_SESSION_IMPL*session,WT_CURSOR_BTREE *cbt, bool direction, bool *key_out_of_bounds, bool *unpositioned){
+__wt_btcur_bounds_row_position(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool direction, bool *need_walk)
+{
 
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_ITEM *bound;
     int exact;
-    uint64_t bound_flag;
-    uint64_t bound_flag2;
-    uint64_t bound_flag_inclusive;
-    cursor = &cbt->iface;
+    bool key_out_of_bounds;
+    uint64_t bound_flag, bound_flag_inclusive;
 
+    key_out_of_bounds = false;
+    cursor = &cbt->iface;
     bound = direction ? &cursor->lower_bound : &cursor->upper_bound;
-    bound_flag = direction ? WT_CURSTD_BOUND_LOWER : WT_CURSTD_BOUND_UPPER;
-    bound_flag2 = direction ? WT_CURSTD_BOUND_UPPER : WT_CURSTD_BOUND_LOWER;
-    bound_flag_inclusive = direction ? WT_CURSTD_BOUND_LOWER_INCLUSIVE : WT_CURSTD_BOUND_UPPER_INCLUSIVE;
+    bound_flag = direction ? WT_CURSTD_BOUND_UPPER : WT_CURSTD_BOUND_LOWER;
+    bound_flag_inclusive =
+      direction ? WT_CURSTD_BOUND_LOWER_INCLUSIVE : WT_CURSTD_BOUND_UPPER_INCLUSIVE;
     exact = 0;
 
+    if (direction)
+        WT_STAT_CONN_DATA_INCR(session, CURSOR_BOUNDS_NEXT_UNPOSITIONED);
+    else
+        WT_STAT_CONN_DATA_INCR(session, CURSOR_BOUNDS_PREV_UNPOSITIONED);
+
+    WT_ASSERT(session, WT_DATA_IN_ITEM(bound));
+    __wt_cursor_set_raw_key(cursor, bound);
+    F_SET(cursor, WT_CURSTD_BOUND_ENTRY);
+    ret = cursor->search_near(cursor, &exact);
+    F_CLR(cursor, WT_CURSTD_BOUND_ENTRY);
+    WT_RET(ret);
+
     /*
-     * Checks if the cursor is currently positioned and positions it according to the bounds set. If
-     * the cursor is unpositioned, it will be positioned on the lower bound. WT_CURSTD_BOUND_ENTRY
-     * is checked and acts as a guard to prevent re-entry in the case that the cursor positioning
-     * has already begun, and next() is called as a part of the positioning.
+     * FIXME-WT-9324: When search_near_bounded is implemented then remove this. If search near
+     * returns a higher value, ensure it's within the upper bound.
      */
-    if (!WT_CURSOR_IS_POSITIONED(cbt) && F_ISSET(cursor, bound_flag) &&
-      !(F_ISSET(cursor, WT_CURSTD_BOUND_ENTRY))) {
-
-        WT_ASSERT(session, WT_DATA_IN_ITEM(bound));
-        __wt_cursor_set_raw_key(cursor, bound);
-        F_SET(cursor, WT_CURSTD_BOUND_ENTRY);
-        ret = cursor->search_near(cursor, &exact);
-        F_CLR(cursor, WT_CURSTD_BOUND_ENTRY);
-        WT_RET(ret);
-
+    if (exact == 0 && F_ISSET(cursor, bound_flag_inclusive)) {
+        return (0);
+    } else if (direction ? exact > 0 : exact < 0) {
         /*
-         * FIXME-WT-9324: When search_near_bounded is implemented then remove this. If search near
-         * returns a higher value, ensure it's within the upper bound.
+         * If search near returns a key higher than the lower bound, check the returned key against
+         * the upper bound to ensure that the key is within bounds. Else there are no visible
+         * records, return WT_NOTFOUND.
          */
-        if (exact == 0 && F_ISSET(cursor, bound_flag_inclusive)) {
-            *unpositioned = true;
-            return (0);
-        } else if (direction ? exact > 0 : exact < 0) {
-            *unpositioned = true;
-            /*
-             * If search near returns a key higher than the lower bound, check the returned key
-             * against the upper bound to ensure that the key is within bounds. Else there are no
-             * visible records, return WT_NOTFOUND.
-             */
-            if (F_ISSET(cursor, bound_flag2)) {
-                WT_RET(__wt_row_compare_bounds(
-                  session, cursor, S2BT(session)->collator, direction, key_out_of_bounds));
-                if (*key_out_of_bounds)
-                    return (WT_NOTFOUND);
-            }
-            return (0);
+        if (F_ISSET(cursor, bound_flag)) {
+            WT_RET(__wt_row_compare_bounds(
+              session, cursor, S2BT(session)->collator, direction, &key_out_of_bounds));
+            if (key_out_of_bounds)
+                return (WT_NOTFOUND);
         }
+        return (0);
     }
-
+    *need_walk = true;
     return (0);
 }
