@@ -1271,8 +1271,12 @@ __split_parent_climb(WT_SESSION_IMPL *session, WT_PAGE *page)
      * to a different part of the tree where it will be written; in other words, in one part of the
      * tree we'll skip the newly created insert split chunk, but we'll write it upon finding it in a
      * different part of the tree.
+     *
+     * We don't allow checkpoint to trigger internal split as well as it may confuse itself to write
+     * the old disk image for the splitting internal page resulting to some leaf pages being
+     * referenced by two internal pages in the checkpoint.
      */
-    if (__wt_btree_syncing_by_other_session(session)) {
+    if (WT_BTREE_SYNCING(S2BT(session))) {
         __split_internal_unlock(session, page);
         return (0);
     }
