@@ -157,8 +157,7 @@ than snapshot, or if the current transaction has performed any write operations.
 
 \warning
 Applications not using read timestamps for search may see different results
-after the snapshot is updated. NOTE: Is this true? It shouldn't be if the set
-of actively updated timestamps are disjoint from those being read.
+after the snapshot is updated.
 
 @snippet ex_all.c reset snapshot
 

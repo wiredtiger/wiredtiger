@@ -55,7 +55,12 @@ itself to be a bottle-neck):
 
 \warning
 For all objects for which logging is configured, that is, objects configured for
-commit-level durability, assigning timestamps is illegal and will result in an error.
+commit-level durability, timestamps are ignored and durability behaves as if
+timestamps were not set. This means timestamps do not change run-time behavior
+for logged objects. (For example, it is not possible to read historical data and
+attempts to do so are ignored.) Commits are written into the log and
+subsequently restored as part of database recovery, as they are without
+timestamps.
 
 In general, timestamp-based WiredTiger applications will mostly not
 use commit-level durability. However, commit-level durability with
@@ -80,8 +85,8 @@ is explicitly turned off when the object is created.
 
 @section timestamps_durability_checkpoint Checkpoint durability and timestamps
 
-Checkpoint durability is the only durability model supported for objects that
-use timestamps. The change from checkpoint durability without
+Checkpoint durability is the expected choice for most objects when
+timestamps are configured. The change from checkpoint durability without
 timestamps is applications can set a maximum value for the timestamp of
 each checkpoint (the "stable timestamp"), and during recovery objects
 are returned to the stable timestamp
