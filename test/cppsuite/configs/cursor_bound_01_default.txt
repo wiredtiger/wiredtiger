@@ -16,7 +16,7 @@ timestamp_manager=
     # checks.
     oldest_lag=50,
 ),
-workload_generator=
+workload_manager=
 (
     populate_config=
     (
@@ -28,31 +28,31 @@ workload_generator=
     (
         key_size=10,
         op_rate=10ms,
-        thread_count=5,
+        thread_count=0,
         value_size=20
     ),
     read_config=
     (
         op_rate=3ms,
-        thread_count=10
+        thread_count=0
     ),
     remove_config=
     (
         op_rate=500ms,
-        thread_count=1
+        thread_count=0
     ),
     update_config=
     (
         op_rate=15ms,
-        thread_count=10,
+        thread_count=0,
         value_size=20
     ),
     custom_config=
     (
-        thread_count=5
+        thread_count=0
     )
 ),
-workload_tracking=
+operation_tracker=
 (
     enabled=false,
 )

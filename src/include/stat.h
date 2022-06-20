@@ -400,6 +400,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_2;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_3;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_4;
+    int64_t cache_eviction_blocked_remove_hs_race_with_checkpoint;
     int64_t cache_eviction_walk_passes;
     int64_t cache_eviction_queue_empty;
     int64_t cache_eviction_queue_not_empty;
@@ -576,13 +577,13 @@ struct __wt_connection_stats {
     int64_t cursor_next_hs_tombstone;
     int64_t cursor_next_skip_ge_100;
     int64_t cursor_next_skip_lt_100;
+    int64_t cursor_next_random_error;
     int64_t cursor_restart;
     int64_t cursor_prev;
     int64_t cursor_prev_error;
     int64_t cursor_prev_hs_tombstone;
     int64_t cursor_prev_skip_ge_100;
     int64_t cursor_prev_skip_lt_100;
-    int64_t cursor_next_random_error;
     int64_t cursor_reconfigure_error;
     int64_t cursor_remove;
     int64_t cursor_remove_error;
@@ -602,6 +603,7 @@ struct __wt_connection_stats {
     int64_t cursor_sweep_examined;
     int64_t cursor_sweep;
     int64_t cursor_truncate;
+    int64_t cursor_truncate_keys_deleted;
     int64_t cursor_update;
     int64_t cursor_update_error;
     int64_t cursor_update_bytes;
@@ -768,6 +770,8 @@ struct __wt_connection_stats {
     int64_t session_table_compact_timeout;
     int64_t session_table_create_fail;
     int64_t session_table_create_success;
+    int64_t session_table_create_import_fail;
+    int64_t session_table_create_import_success;
     int64_t session_table_drop_fail;
     int64_t session_table_drop_success;
     int64_t session_table_rename_fail;
@@ -806,8 +810,6 @@ struct __wt_connection_stats {
     int64_t txn_prepare_commit;
     int64_t txn_prepare_active;
     int64_t txn_prepare_rollback;
-    int64_t txn_prepare_rollback_do_not_remove_hs_update;
-    int64_t txn_prepare_rollback_fix_hs_update_with_ckpt_reserved_txnid;
     int64_t txn_query_ts;
     int64_t txn_read_race_prepare_update;
     int64_t txn_rts;
@@ -936,6 +938,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_2;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_3;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_4;
+    int64_t cache_eviction_blocked_remove_hs_race_with_checkpoint;
     int64_t cache_eviction_walk_passes;
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;
@@ -1049,11 +1052,11 @@ struct __wt_dsrc_stats {
     int64_t cursor_next_hs_tombstone;
     int64_t cursor_next_skip_ge_100;
     int64_t cursor_next_skip_lt_100;
+    int64_t cursor_next_random_error;
     int64_t cursor_prev_error;
     int64_t cursor_prev_hs_tombstone;
     int64_t cursor_prev_skip_ge_100;
     int64_t cursor_prev_skip_lt_100;
-    int64_t cursor_next_random_error;
     int64_t cursor_reconfigure_error;
     int64_t cursor_remove_error;
     int64_t cursor_reopen_error;
