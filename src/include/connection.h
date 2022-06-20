@@ -282,6 +282,7 @@ struct __wt_connection_impl {
     uintmax_t optrack_pid;            /* Cache the process ID. */
 
 #ifdef HAVE_CALL_LOG
+    /* File stream used for writing to the call log. */
     WT_FSTREAM *call_log_fst;
 #endif
 

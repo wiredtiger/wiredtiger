@@ -3038,9 +3038,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     *connectionp = &conn->iface;
 
 #ifdef HAVE_CALL_LOG
-    /*
-     * Set up the call file.
-     */
+    /* Set up the call log file. */
     WT_ERR(__wt_conn_call_log_setup(session));
 #endif
 
