@@ -579,7 +579,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
  *     Fill the time window information and the selected update.
  */
 static int
-__rec_fill_upd_select(
+__rec_fill_tw_from_upd_select(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
 {
     WT_TIME_WINDOW *select_tw;
@@ -780,7 +780,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         r->update_used = true;
 
     if (upd != NULL)
-        WT_RET(__rec_fill_upd_select(session, page, vpack, upd_select));
+        WT_RET(__rec_fill_tw_from_upd_select(session, page, vpack, upd_select));
 
     /* Mark the page dirty after reconciliation. */
     if (has_newer_updates)
