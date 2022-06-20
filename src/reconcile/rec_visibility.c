@@ -612,8 +612,7 @@ __rec_fill_tw_from_upd_select(
      */
     if (upd->type == WT_UPDATE_TOMBSTONE) {
         WT_TIME_WINDOW_SET_STOP(select_tw, upd);
-        tombstone = upd;
-        upd_select->tombstone = upd;
+        tombstone = upd_select->tombstone = upd;
 
         /* Find the update this tombstone applies to. */
         if (!__wt_txn_upd_visible_all(session, upd)) {
