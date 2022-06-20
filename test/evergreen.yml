@@ -2990,6 +2990,7 @@ tasks:
             ./upload-results-atlas.py ${atlas_wt_perf_test_user} ${atlas_wt_perf_pass} wt-perf-tests many-collection-test ${branch_name} $res_dir/results/results.json
 
   - name: cyclomatic-complexity
+    tags: ["pull_request"]
     commands:
       - func: "get project"
       - command: shell.exec
@@ -3012,8 +3013,8 @@ tasks:
             # Set the cyclomatic complexity limit to 20
             python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:20
 
-            # Fail if there are functions with cyclomatic complexity larger than 95
-            python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:95 > $t
+            # Fail if there are functions with cyclomatic complexity larger than 91
+            python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:91 > $t
             if grep -q 'exceeds' $t; then 
                 echo "[ERROR]:complexity:cyclomatic: Complexity limit exceeded."
                 cat $t
