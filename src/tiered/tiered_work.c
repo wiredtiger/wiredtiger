@@ -36,6 +36,14 @@ __wt_tiered_work_free(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
+
+    /*
+     * When a new work unit is pushed into the work queue, session_inuse of the tiered dhandle is
+     * incremented. This is where we decrement it after the work unit was popped from the queue and
+     * the appropriate work has been finished.
+     */
+    (void)__wt_atomic_subi32(&entry->tiered->iface.session_inuse, 1);
+
     __tiered_flush_state(session, entry->type, false);
     /* If all work is done signal any waiting thread waiting for sync. */
     if (WT_FLUSH_STATE_DONE(conn->flush_state))
@@ -54,6 +62,13 @@ __wt_tiered_push_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
 
     conn = S2C(session);
     __wt_spin_lock(session, &conn->tiered_lock);
+
+    /*
+     * Increment session_inuse of the tiered dhandle to make sure it is not deleted by the sweep
+     * server while the work unit is in the queue or being worked upon.
+     */
+    (void)__wt_atomic_addi32(&entry->tiered->iface.session_inuse, 1);
+
     TAILQ_INSERT_TAIL(&conn->tieredqh, entry, q);
     WT_STAT_CONN_INCR(session, tiered_work_units_created);
     __wt_spin_unlock(session, &conn->tiered_lock);

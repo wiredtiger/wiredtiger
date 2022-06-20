@@ -783,6 +783,11 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
         FLD_SET(unused, WT_TIERED_WORK_FORCE | WT_TIERED_WORK_FREE);
         WT_ERR(__wt_tiered_put_drop_shared(session, tiered, tiered->current_id));
         __wt_tiered_get_drop_shared(session, &entry);
+        /*
+         * This is a reminder that it is required to decrement session_inuse on tiered dhandle after
+         * a work unit has been popped from the queue and it is not required to be around anymore.
+         * Usually this is done in __wt_tiered_work_free.
+         */
     }
 #endif
 
