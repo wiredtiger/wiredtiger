@@ -201,7 +201,7 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
 {
     WT_MODIFY entries[MAX_MODIFY_ENTRIES];
     uint8_t val8;
-    int cmp, ret;
+    int cmp, cmp_two, ret;
     int nentries;
     char valuebuf[64];
 
@@ -215,6 +215,10 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
                 return (WT_ROLLBACK);
             return (log_print_err("cursor.search_near", ret, 1));
         }
+
+        /* Do another search_near to assert the first call landed somewhere valid. */
+        testutil_check(cursor->search_near(cursor, &cmp_two));
+        testutil_assert(cmp_two == 0);
 
         /* Retry the result of search_near again to confirm the result. */
         if (new_val % 2 == 0) {
