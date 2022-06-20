@@ -575,7 +575,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
 }
 
 /*
- * __rec_fill_upd_select --
+ * __rec_fill_tw_from_upd_select --
  *     Fill the time window information and the selected update.
  */
 static int
