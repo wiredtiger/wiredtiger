@@ -104,7 +104,7 @@ be the earliest: the second and subsequent commit timestamps may not be
 earlier than the first commit timestamp.  This feature is not compatible with
 prepared transactions, which must use only a single commit timestamp.
 
-This functionality is generally available as a mechanism to allow an optimised
+This functionality is generally available as a mechanism to allow an optimized
 implementation of re-creating a timestamp view of a data set. For example, in
 a MongoDB replica set, content is generated on one node where transactions are
 assigned a single commit timestamp, that content is re-created on each other
