@@ -2362,6 +2362,8 @@ tasks:
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: -DSPINLOCK_TYPE=gcc
       - func: "make check all"
       - func: "format test"
         vars:

@@ -4,7 +4,6 @@ include(cmake/configs/version.cmake)
 # Setup defaults based on the build type.
 set(default_have_diagnostics ON)
 set(default_enable_python ON)
-set(default_spinlock_type "gcc")
 set(default_enable_lz4 OFF)
 set(default_enable_snappy OFF)
 set(default_enable_zlib OFF)
@@ -33,7 +32,6 @@ if(WT_WIN)
     set(default_enable_static ON)
     set(default_enable_shared OFF)
     set(default_enable_python OFF)
-    set(default_spinlock_type "msvc")
 endif()
 
 if(WT_LINUX OR WT_DARWIN)
@@ -179,7 +177,6 @@ config_choice(
         "gcc;SPINLOCK_GCC;"
         "msvc;SPINLOCK_MSVC;WT_WIN"
         "pthread_adaptive;SPINLOCK_PTHREAD_MUTEX_ADAPTIVE;HAVE_LIBPTHREAD"
-    DEFAULT ${default_spinlock_type}
 )
 
 config_bool(
