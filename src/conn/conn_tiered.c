@@ -176,6 +176,35 @@ err:
     return (ret);
 }
 
+static int
+open_tiered(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry, bool *need_release)
+{
+    WT_DECL_RET;
+
+    *need_release = false;
+    if (entry->tiered == NULL || entry->tiered->bstorage == NULL) {
+        WT_ASSERT(session, entry->uri != NULL && WT_PREFIX_MATCH(entry->uri, "tiered:"));
+        WT_SAVE_DHANDLE(session, ret = __wt_session_get_dhandle(session, entry->uri, NULL, NULL, 0));
+        WT_RET(ret);
+        entry->tiered = (WT_TIERED *)session->dhandle;
+        *need_release = true;
+    }
+    return (0);
+}
+
+static int
+release_handle(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry, bool *need_release)
+{
+    WT_DECL_RET;
+
+    if (*need_release) {
+        WT_WITH_DHANDLE(session, &entry->tiered->iface, ret = __wt_session_release_dhandle(session));
+        WT_RET(ret);
+        *need_release = false;
+    }
+    return (0);
+}
+
 /*
  * __tier_storage_remove_local --
  *     Perform one iteration of tiered storage local object removal.
@@ -187,8 +216,11 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
     WT_TIERED_WORK_UNIT *entry;
     uint64_t now;
     const char *object;
+    bool need_release;
 
     entry = NULL;
+    need_release = false;
+
     for (;;) {
         /* Check if we're quitting or being reconfigured. */
         if (!__tiered_server_run_chk(session))
@@ -198,6 +230,8 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
         __wt_tiered_get_drop_local(session, now, &entry);
         if (entry == NULL)
             break;
+        
+        WT_ERR(open_tiered(session, entry, &need_release));
         WT_ERR(__wt_tiered_name(
           session, &entry->tiered->iface, entry->id, WT_TIERED_NAME_OBJECT, &object));
         __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: %s at %" PRIu64, object, now);
@@ -220,6 +254,9 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
              */
             WT_ASSERT(session, entry->tiered != NULL && entry->tiered->bstorage != NULL);
             entry->op_val = now + entry->tiered->bstorage->retain_secs;
+            //WT_ERR(__wt_strdup(session, entry->tiered->iface.name, entry->uri));
+            WT_ERR(release_handle(session, entry, &need_release));
+            entry->tiered = NULL;
             __wt_tiered_push_work(session, entry);
         } else {
             __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: actually remove %s", object);
@@ -228,13 +265,16 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
             /*
              * We are responsible for freeing the work unit when we're done with it.
              */
+            WT_ERR(release_handle(session, entry, &need_release));
             __wt_tiered_work_free(session, entry);
         }
         entry = NULL;
     }
 err:
-    if (entry != NULL)
+    if (entry != NULL) {
+        WT_TRET(release_handle(session, entry, &need_release));
         __wt_tiered_work_free(session, entry);
+    }
     return (ret);
 }
 
@@ -407,8 +447,11 @@ __tier_storage_finish(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     WT_TIERED_WORK_UNIT *entry;
+    bool need_release;
 
     entry = NULL;
+    need_release = false;
+
     /*
      * Sleep a known period of time so that tests using the timing stress flag can have an idea when
      * to check for the cache operation to complete. Sleep one second before processing the work
@@ -424,17 +467,23 @@ __tier_storage_finish(WT_SESSION_IMPL *session)
         __wt_tiered_get_flush_finish(session, &entry);
         if (entry == NULL)
             break;
+        
+        WT_ERR(open_tiered(session, entry, &need_release));
         WT_ERR(__tier_operation(session, entry->tiered, entry->id, WT_TIERED_WORK_FLUSH_FINISH));
         /*
          * We are responsible for freeing the work unit when we're done with it.
          */
+        WT_ERR(release_handle(session, entry, &need_release));
         __wt_tiered_work_free(session, entry);
         entry = NULL;
     }
 
 err:
-    if (entry != NULL)
+    if (entry != NULL) {
+        WT_TRET(release_handle(session, entry, &need_release));
         __wt_tiered_work_free(session, entry);
+    }
+
     return (ret);
 }
 
@@ -447,6 +496,9 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     WT_TIERED_WORK_UNIT *entry;
+    bool need_release;
+
+    need_release = false;
 
     /* There is nothing to do until the checkpoint after the flush completes. */
     if (!S2C(session)->flush_ckpt_complete)
@@ -467,17 +519,23 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
         __wt_tiered_get_flush(session, &entry);
         if (entry == NULL)
             break;
+        
+        WT_ERR(open_tiered(session, entry, &need_release));
         WT_ERR(__tier_operation(session, entry->tiered, entry->id, WT_TIERED_WORK_FLUSH));
         /*
          * We are responsible for freeing the work unit when we're done with it.
          */
+        WT_ERR(release_handle(session, entry, &need_release));
         __wt_tiered_work_free(session, entry);
         entry = NULL;
     }
 
 err:
-    if (entry != NULL)
+    if (entry != NULL) {
+        WT_TRET(release_handle(session, entry, &need_release));
         __wt_tiered_work_free(session, entry);
+    }
+
     return (ret);
 }
 

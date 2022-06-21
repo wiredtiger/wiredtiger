@@ -59,6 +59,7 @@ struct __wt_tiered_work_unit {
     uint64_t op_val;                      /* A value for the operation */
     WT_TIERED *tiered;                    /* Tiered tree */
     uint32_t id;                          /* Id of the object */
+    char *uri;                            /* URI of the object */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TIERED_WORK_FORCE 0x1u /* Force operation */
 #define WT_TIERED_WORK_FREE 0x2u  /* Free data after operation */

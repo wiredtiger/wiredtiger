@@ -40,6 +40,7 @@ __wt_tiered_work_free(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
     /* If all work is done signal any waiting thread waiting for sync. */
     if (WT_FLUSH_STATE_DONE(conn->flush_state))
         __wt_cond_signal(session, conn->flush_cond);
+    __wt_free(session, entry->uri);
     __wt_free(session, entry);
 }
 
@@ -188,14 +189,24 @@ __wt_tiered_get_drop_shared(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entr
 int
 __wt_tiered_put_flush_finish(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id)
 {
+    WT_DECL_RET;
     WT_TIERED_WORK_UNIT *entry;
 
     WT_RET(__wt_calloc_one(session, &entry));
+    WT_ERR(__wt_strdup(session, tiered->iface.name, &entry->uri));
+
     entry->type = WT_TIERED_WORK_FLUSH_FINISH;
     entry->id = id;
     entry->tiered = tiered;
     __wt_tiered_push_work(session, entry);
-    return (0);
+
+err:
+    if (ret != 0) {
+        __wt_free(session, entry->uri);
+        __wt_free(session, entry);
+    }
+
+    return (ret);
 }
 
 /*
@@ -205,10 +216,13 @@ __wt_tiered_put_flush_finish(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32
 int
 __wt_tiered_put_drop_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id)
 {
+    WT_DECL_RET;
     WT_TIERED_WORK_UNIT *entry;
     uint64_t now;
 
     WT_RET(__wt_calloc_one(session, &entry));
+    WT_ERR(__wt_strdup(session, tiered->iface.name, &entry->uri));
+
     entry->type = WT_TIERED_WORK_DROP_LOCAL;
     entry->id = id;
     WT_ASSERT(session, tiered->bstorage != NULL);
@@ -217,7 +231,14 @@ __wt_tiered_put_drop_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t
     entry->op_val = now + tiered->bstorage->retain_secs;
     entry->tiered = tiered;
     __wt_tiered_push_work(session, entry);
-    return (0);
+
+err:
+    if (ret != 0) {
+        __wt_free(session, entry->uri);
+        __wt_free(session, entry);
+    }
+
+    return (ret);
 }
 
 /*
@@ -227,14 +248,24 @@ __wt_tiered_put_drop_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t
 int
 __wt_tiered_put_drop_shared(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id)
 {
+    WT_DECL_RET;
     WT_TIERED_WORK_UNIT *entry;
 
     WT_RET(__wt_calloc_one(session, &entry));
+    WT_ERR(__wt_strdup(session, tiered->iface.name, &entry->uri));
+
     entry->type = WT_TIERED_WORK_DROP_SHARED;
     entry->id = id;
     entry->tiered = tiered;
     __wt_tiered_push_work(session, entry);
-    return (0);
+
+err:
+    if (ret != 0) {
+        __wt_free(session, entry->uri);
+        __wt_free(session, entry);
+    }
+
+    return (ret);
 }
 
 /*
@@ -245,12 +276,22 @@ __wt_tiered_put_drop_shared(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_
 int
 __wt_tiered_put_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id)
 {
+    WT_DECL_RET;
     WT_TIERED_WORK_UNIT *entry;
 
     WT_RET(__wt_calloc_one(session, &entry));
+    WT_ERR(__wt_strdup(session, tiered->iface.name, &entry->uri));
+
     entry->type = WT_TIERED_WORK_FLUSH;
     entry->id = id;
     entry->tiered = tiered;
     __wt_tiered_push_work(session, entry);
-    return (0);
+
+err:
+    if (ret != 0) {
+        __wt_free(session, entry->uri);
+        __wt_free(session, entry);
+    }
+
+    return (ret);
 }
