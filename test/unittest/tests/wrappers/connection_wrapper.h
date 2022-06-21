@@ -12,6 +12,7 @@
 #include <memory>
 #include <string>
 #include "wt_internal.h"
+#include "event_handler.h"
 
 /*
  * Prefer a "real" class over a mock class when you need a fully fleshed-out connection or session.
@@ -20,7 +21,8 @@
  */
 class ConnectionWrapper {
     public:
-    explicit ConnectionWrapper(const std::string &db_home);
+    explicit ConnectionWrapper(std::string db_home);
+    ConnectionWrapper(std::string db_home, std::shared_ptr<EventHandler>& eventHandler);
     ~ConnectionWrapper();
 
     /*
@@ -28,15 +30,19 @@ class ConnectionWrapper {
      * cleaned up when that connection is closed. Neither this class nor its users need to clean it
      * up.
      */
-    WT_SESSION_IMPL* createSession();
+    WT_SESSION_IMPL* createSession(const char* config = nullptr);
 
     WT_CONNECTION_IMPL *getWtConnectionImpl() const;
     WT_CONNECTION *getWtConnection() const;
 
     private:
+    void initConnection();
+    WT_EVENT_HANDLER *getWtEventHandler();
+
     WT_CONNECTION_IMPL *_conn_impl;
     WT_CONNECTION *_conn;
     std::string _db_home;
+    std::shared_ptr<EventHandler> _eventHandler;
 };
 
 #endif // WT_CONNECTION_WRAPPER_H

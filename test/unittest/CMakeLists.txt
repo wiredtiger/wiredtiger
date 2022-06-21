@@ -27,6 +27,7 @@ add_subdirectory(${catch2_SOURCE_DIR} ${catch2_BINARY_DIR})
 set(unittest_sources
     tests/main.cpp
     tests/test_crc32.cpp
+    tests/test_event_handler.cpp
     tests/test_extent_list.cpp
     tests/test_fnv.cpp
     tests/test_pow.cpp
@@ -38,6 +39,7 @@ set(unittest_sources
     tests/block/test_block_ckpt.cpp
     tests/packing/test_intpack.cpp
     tests/wrappers/block_mods.cpp
+    tests/wrappers/event_handler.cpp
     tests/wrappers/connection_wrapper.cpp
     tests/wrappers/mock_connection.cpp
     tests/wrappers/mock_session.cpp
