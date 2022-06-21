@@ -934,6 +934,13 @@ err:
         WT_TRET(__cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }
+
+    F_SET(cbt, WT_CBT_VAR_ONPAGE_MATCH);
+    if (ret == 0 && *exactp != 0 && cbt->recno != 0) {
+        WT_IGNORE_RET(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
+        WT_ASSERT(session, valid == true);
+    }
+
     return (ret);
 }
 
