@@ -19,7 +19,7 @@ if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo|Coverage)$")
     set(default_have_diagnostics OFF)
 endif()
 
-if("${CMAKE_BUILD_TYPE}" == "Release")
+if(${CMAKE_BUILD_TYPE} STREQUAL "Release")
     set(default_enable_debug_info OFF)
 endif()
 
