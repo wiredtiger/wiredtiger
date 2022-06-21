@@ -30,6 +30,11 @@ __wt_conn_call_log_setup(WT_SESSION_IMPL *session)
 
     F_SET(session, WT_CONN_CALL_LOG_ENABLED);
 
+    WT_RET(__wt_call_log_print_start(
+      session, "global", "wiredtiger_open", 2, "\"Input1\": hello1", "\"Input1\": Hello2"));
+    WT_RET(__wt_call_log_print_finish(
+      session, 0, "no error", 2, "\"Output1\": hello1", "\"Output2\": Hello2"));
+
 err:
     if (!F_ISSET(session, WT_CONN_CALL_LOG_ENABLED))
         WT_ERR_MSG(session, WT_ERROR, "Failed to open call log.");
@@ -52,5 +57,112 @@ __wt_conn_call_log_teardown(WT_SESSION_IMPL *session)
         return (0);
 
     return (__wt_fclose(session, &conn->call_log_fst));
+}
+
+/*
+ * __wt_call_log_print --
+ *     Helper function for printing the JSON formatted call log entry.
+ */
+int
+__wt_call_log_print(
+  WT_SESSION_IMPL *session, const char *class_name, const char *operation, int ret_val)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+
+    WT_ERR(__wt_fprintf(session, conn->call_log_fst,
+      "{\n"
+      "    \"Operation\" : {\n"
+      "        \"ClassName\" : \"%s\",\n"
+      "        \"methodName\" : \"%s\",\n"
+      "        \"Input\" : {\n"
+      "            \"ObjectId\" :"
+      "        },\n"
+      "        \"Output\" : {\n"
+      "        },\n"
+      "        \"Return\" : {\n"
+      "            \"ReturnVal\" : \"%d\",\n"
+      "            \"errMsg\" : \" \",\n"
+      "        },\n"
+      "    },\n"
+      "},",
+      class_name, operation, ret_val));
+err:
+
+    return (ret);
+}
+
+/*
+ * __wt_call_log_print --
+ *     Helper function for printing the JSON formatted call log entry.
+ */
+int
+__wt_call_log_print_start(
+  WT_SESSION_IMPL *session, const char *class_name, const char *method_name, int n, ...)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    va_list valist;
+
+    conn = S2C(session);
+
+    va_start(valist, n);
+
+    WT_ERR(__wt_fprintf(session, conn->call_log_fst,
+      "{\n"
+      "    \"Operation\" : {\n"
+      "        \"ClassName\" : \"%s\",\n"
+      "        \"methodName\" : \"%s\",\n"
+      "        \"Input\" : {\n",
+      class_name, method_name));
+
+    for (int i = 0; i < n; i++) {
+        WT_ERR(
+          __wt_fprintf(session, conn->call_log_fst, "            %s,\n", va_arg(valist, char *)));
+    }
+
+    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "        },\n"));
+err:
+
+    return (ret);
+}
+
+/*
+ * __wt_call_log_print --
+ *     Helper function for printing the JSON formatted call log entry.
+ */
+int
+__wt_call_log_print_finish(WT_SESSION_IMPL *session, int retVal, const char *errMsg, int n, ...)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    va_list valist;
+
+    conn = S2C(session);
+
+    va_start(valist, n);
+
+    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "        \"Output\" : {\n"));
+
+    for (int i = 0; i < n; i++) {
+        WT_ERR(
+          __wt_fprintf(session, conn->call_log_fst, "            %s,\n", va_arg(valist, char *)));
+    }
+
+    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "        },\n"));
+
+    WT_ERR(__wt_fprintf(session, conn->call_log_fst,
+      "        \"Return\" : {\n"
+      "            \"ReturnVal\" : \"%d\",\n"
+      "            \"errMsg\" : \"%s\",\n"
+      "        },\n"
+      "    },\n"
+      "},",
+      retVal, errMsg));
+err:
+
+    return (ret);
 }
 #endif
