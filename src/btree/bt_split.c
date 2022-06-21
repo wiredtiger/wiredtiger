@@ -1272,9 +1272,11 @@ __split_parent_climb(WT_SESSION_IMPL *session, WT_PAGE *page)
      * tree we'll skip the newly created insert split chunk, but we'll write it upon finding it in a
      * different part of the tree.
      *
-     * We don't allow checkpoint to trigger internal split as well because it may confuse itself to
-     * write the old disk image for the splitting internal page resulting to some leaf pages being
-     * referenced by two internal pages in the checkpoint.
+     * Historically we allowed checkpoint itself to trigger an internal split here. That wasn't
+     * correct, since if that split climbs the tree above the immediate parent the checkpoint walk
+     * will potentially miss some internal pages. Non checkpoint cursor traversal handles that
+     * pattern by checking the tree structure is safe when climbing the tree, but checkpoint walk
+     * doesn't do that.
      */
     if (WT_BTREE_SYNCING(S2BT(session))) {
         __split_internal_unlock(session, page);
