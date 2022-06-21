@@ -288,7 +288,7 @@ void triggerEviction(WT_SESSION* session, std::string const& table_name, int key
     std::cout << "Try to trigger eviction" << std::endl;
     WT_CURSOR* cursor = nullptr;
     REQUIRE(session->open_cursor(session, table_name.c_str(), nullptr, "debug=(release_evict=true)", &cursor) == 0);
-    for (int i = keyMin; i <= keyMax; i += 1000) {
+    for (int i = keyMin; i <= keyMax; i += 10000) {
         std::string key = testcase_key_base + std::to_string(i);
         std::cout << "  attempt to trigger eviction using key " << key << std::endl;
         cursor->set_key(cursor, key.c_str());
@@ -313,7 +313,8 @@ void test_truncate_and_evict()
     //    read some of the data deleted by the truncate, and ensure that this works.
 
     std::cout << "==== test_truncate_and_evict() ====" << std::endl;
-    ConnectionWrapper conn(utils::UnitTestDatabaseHome);
+    auto eventHandler = std::make_shared<EventHandler>();
+    ConnectionWrapper conn(utils::UnitTestDatabaseHome, eventHandler);
     WT_SESSION_IMPL* sessionImpl = conn.createSession();
     WT_SESSION* session = &(sessionImpl->iface);
     std::string table_name = "table:access2";

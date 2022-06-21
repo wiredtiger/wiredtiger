@@ -28,14 +28,6 @@ EventHandler::redirectHandleError(WT_EVENT_HANDLER *eventHandler, WT_SESSION *se
 
 
 int
-EventHandler::handleError(WT_SESSION *session, int error, const char *message)
-{
-    std::cerr << "EventHandler::handleError: error = " << error << ", message = '" << message << "'" << std::endl;
-    return 0;
-}
-
-
-int
 EventHandler::redirectHandleMessage(
   WT_EVENT_HANDLER *eventHandler, WT_SESSION *session, const char *message)
 {
@@ -59,4 +51,42 @@ EventHandler::redirectHandleClose(
 {
     auto* customEventHandler = reinterpret_cast<CustomEventHandler*>(eventHandler);
     return customEventHandler->_eventHandler->handleClose(session, cursor);
+}
+
+
+int
+EventHandler::handleError(WT_SESSION *session, int error, const char *message)
+{
+    std::cerr << "EventHandler::handleError: error = " << error << ", message = '" << message << "'" << std::endl;
+    return 0;
+}
+
+
+int
+EventHandler::handleMessage(WT_SESSION *session, const char *message)
+{
+    //std::cerr << "EventHandler::handleMessage: message = '" << message << "'" << std::endl;
+    fprintf(stderr, "EventHandler::handleMessage: message = '%s'\n", message);
+    return 0;
+}
+
+
+WT_EVENT_HANDLER *
+EventHandler::getWtEventHandler()
+{
+    return &_customEventHandler._wtEventHandler;
+}
+
+
+int
+EventHandler::handleProgress(WT_SESSION *session, const char *operation, uint64_t progress)
+{
+    return 0;
+}
+
+
+int
+EventHandler::handleClose(WT_SESSION *session, WT_CURSOR *cursor)
+{
+    return 0;
 }
