@@ -26,9 +26,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "test_harness/test.h"
-#include "test_harness/util/api_const.h"
-#include "test_harness/workload/random_generator.h"
+#include "src/common/constants.h"
+#include "src/common/random_generator.h"
+#include "src/main/test.h"
 
 using namespace test_harness;
 
@@ -39,13 +39,16 @@ using namespace test_harness;
  *  - M threads will execute search_near calls with prefix enabled using random prefixes as well.
  * Each search_near call with prefix enabled is verified using the default search_near.
  */
-class search_near_02 : public test_harness::test {
+class search_near_02 : public test {
     public:
-    search_near_02(const test_harness::test_args &args) : test(args) {}
+    search_near_02(const test_args &args) : test(args)
+    {
+        init_operation_tracker();
+    }
 
     void
-    populate(test_harness::database &database, test_harness::timestamp_manager *,
-      test_harness::configuration *config, test_harness::workload_tracking *) override final
+    populate(database &database, timestamp_manager *, configuration *config,
+      operation_tracker *) override final
     {
         /*
          * The populate phase only creates empty collections. The number of collections is defined
@@ -63,7 +66,7 @@ class search_near_02 : public test_harness::test {
     }
 
     void
-    insert_operation(test_harness::thread_context *tc) override final
+    insert_operation(thread_worker *tc) override final
     {
         /* Each insert operation will insert new keys in the collections. */
         logger::log_msg(
@@ -94,7 +97,6 @@ class search_near_02 : public test_harness::test {
             ccv.push_back({coll, std::move(cursor)});
         }
 
-        std::string key;
         const uint64_t MAX_ROLLBACKS = 100;
         uint64_t counter = 0;
         uint32_t rollback_retries = 0;
@@ -102,24 +104,26 @@ class search_near_02 : public test_harness::test {
         while (tc->running()) {
 
             auto &cc = ccv[counter];
-            tc->transaction.begin();
+            tc->txn.begin();
 
-            while (tc->transaction.active() && tc->running()) {
+            while (tc->txn.active() && tc->running()) {
 
-                /* Generate a random key. */
-                key = random_generator::instance().generate_random_string(tc->key_size);
+                /* Generate a random key/value pair. */
+                std::string key = random_generator::instance().generate_random_string(tc->key_size);
+                std::string value =
+                  random_generator::instance().generate_random_string(tc->value_size);
 
                 /* Insert a key value pair. */
-                if (tc->insert(cc.cursor, cc.coll.id, key)) {
-                    if (tc->transaction.can_commit()) {
+                if (tc->insert(cc.cursor, cc.coll.id, key, value)) {
+                    if (tc->txn.can_commit()) {
                         /* We are not checking the result of commit as it is not necessary. */
-                        if (tc->transaction.commit())
+                        if (tc->txn.commit())
                             rollback_retries = 0;
                         else
                             ++rollback_retries;
                     }
                 } else {
-                    tc->transaction.rollback();
+                    tc->txn.rollback();
                     ++rollback_retries;
                 }
                 testutil_assert(rollback_retries < MAX_ROLLBACKS);
@@ -129,8 +133,8 @@ class search_near_02 : public test_harness::test {
             }
 
             /* Rollback any transaction that could not commit before the end of the test. */
-            if (tc->transaction.active())
-                tc->transaction.rollback();
+            if (tc->txn.active())
+                tc->txn.rollback();
 
             /* Reset our cursor to avoid pinning content. */
             testutil_check(cc.cursor->reset(cc.cursor.get()));
@@ -141,7 +145,7 @@ class search_near_02 : public test_harness::test {
     }
 
     void
-    read_operation(test_harness::thread_context *tc) override final
+    read_operation(thread_worker *tc) override final
     {
         /*
          * Each read operation performs search_near calls with and without prefix enabled on random
@@ -172,23 +176,15 @@ class search_near_02 : public test_harness::test {
 
             auto &cursor_prefix = cursors[coll.id];
 
-            /*
-             * Pick a random timestamp between the oldest and now. Get rid of the last 32 bits as
-             * they represent an increment for uniqueness.
-             */
-            wt_timestamp_t ts = random_generator::instance().generate_integer(
-              (tc->tsm->get_oldest_ts() >> 32), (tc->tsm->get_next_ts() >> 32));
-            /* Put back the timestamp in the correct format. */
-            ts <<= 32;
-
+            wt_timestamp_t ts = tc->tsm->get_valid_read_ts();
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value.
              */
-            tc->transaction.begin(
+            tc->txn.begin(
               "roundup_timestamps=(read=true),read_timestamp=" + tc->tsm->decimal_to_hex(ts));
 
-            while (tc->transaction.active() && tc->running()) {
+            while (tc->txn.active() && tc->running()) {
                 /*
                  * Generate a random prefix. For this, we start by generating a random size and then
                  * its value.
@@ -216,15 +212,15 @@ class search_near_02 : public test_harness::test {
                 validate_prefix_search_near(
                   ret, exact_prefix, key_prefix_str, cursor_default, generated_prefix);
 
-                tc->transaction.add_op();
-                tc->transaction.try_rollback();
+                tc->txn.add_op();
+                tc->txn.try_rollback();
                 tc->sleep();
             }
             testutil_check(cursor_prefix->reset(cursor_prefix.get()));
         }
         /* Roll back the last transaction if still active now the work is finished. */
-        if (tc->transaction.active())
-            tc->transaction.rollback();
+        if (tc->txn.active())
+            tc->txn.rollback();
     }
 
     private:
@@ -250,7 +246,7 @@ class search_near_02 : public test_harness::test {
             /* Both calls are successful. */
             if (ret_prefix == 0)
                 validate_successful_calls(
-                  ret_prefix, exact_prefix, key_prefix, cursor_default, exact_default, prefix);
+                  exact_prefix, key_prefix, cursor_default, exact_default, prefix);
             /* The prefix search near call failed. */
             else
                 validate_unsuccessful_prefix_call(cursor_default, prefix, exact_default);
@@ -270,7 +266,7 @@ class search_near_02 : public test_harness::test {
      * key that is lexicographically greater than the prefix but still contains the prefix.
      */
     void
-    validate_successful_calls(int ret_prefix, int exact_prefix, const std::string &key_prefix,
+    validate_successful_calls(int exact_prefix, const std::string &key_prefix,
       scoped_cursor &cursor_default, int exact_default, const std::string &prefix)
     {
         const char *k;
