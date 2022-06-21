@@ -24,13 +24,15 @@ __wt_conn_call_log_setup(WT_SESSION_IMPL *session)
 
     WT_RET(__wt_scr_alloc(session, 0, &file_name));
     WT_ERR(__wt_filename_construct(
-      session, "", "WiredTiger_call_log", __wt_process_id(), UINT32_MAX, file_name));
-    WT_ERR(__wt_fopen(
-      session, (const char *)file_name->data, WT_FS_OPEN_CREATE, WT_STREAM_APPEND, &conn->call_log_fst));
+      session, "", "wt_call_log", __wt_process_id(), UINT32_MAX, file_name));
+    WT_ERR(__wt_fopen(session, (const char *)file_name->data, WT_FS_OPEN_CREATE, WT_STREAM_APPEND,
+      &conn->call_log_fst));
 
-    FLD_SET(conn->call_log_flags, WT_CONN_CALL_LOG_ENABLED);
+    F_SET(session, WT_CONN_CALL_LOG_ENABLED);
 
 err:
+    if (!F_ISSET(session, WT_CONN_CALL_LOG_ENABLED))
+        WT_ERR_MSG(session, WT_ERROR, "Failed to open call log.");
     __wt_scr_free(session, &file_name);
     return (ret);
 }
@@ -46,9 +48,9 @@ __wt_conn_call_log_teardown(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    if (!FLD_ISSET(conn->call_log_flags, WT_CONN_CALL_LOG_ENABLED))
+    if (!F_ISSET(session, WT_CONN_CALL_LOG_ENABLED))
         return (0);
 
-    return(__wt_fclose(session, &conn->call_log_fst));
+    return (__wt_fclose(session, &conn->call_log_fst));
 }
 #endif
