@@ -1,6 +1,51 @@
 include(cmake/helpers.cmake)
 include(cmake/configs/version.cmake)
 
+# Setup defaults based on the build type.
+set(default_have_diagnostics ON)
+set(default_enable_python ON)
+set(default_spinlock_type "gcc")
+set(default_enable_lz4 OFF)
+set(default_enable_snappy OFF)
+set(default_enable_zlib OFF)
+set(default_enable_zstd OFF)
+set(default_enable_tcmalloc OFF)
+set(default_enable_s3 OFF)
+set(default_enable_debug_info ON)
+set(default_enable_static OFF)
+set(default_enable_shared ON)
+
+if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo|Coverage)$")
+    set(default_have_diagnostics OFF)
+endif()
+
+if("${CMAKE_BUILD_TYPE}" == "Release")
+    set(default_enable_debug_info OFF)
+endif()
+
+if("${CMAKE_BUILD_TYPE}" MATCHES "^(Debug|Release|RelWithDebInfo|Coverage)$")
+    set(default_enable_tcmalloc ON)
+endif()
+
+if(WT_WIN)
+    # We force a static compilation to generate a ".lib" file. We can then
+    # additionally generate a dll file using a *DEF file.
+    set(default_enable_static ON)
+    set(default_enable_shared OFF)
+    set(default_enable_python OFF)
+    set(default_spinlock_type "msvc")
+endif()
+
+if(WT_LINUX OR WT_DARWIN)
+    if("${CMAKE_BUILD_TYPE}" MATCHES "^(Debug|Release|RelWithDebInfo|Coverage)$")
+        set(default_enable_lz4 ON)
+        set(default_enable_snappy ON)
+        set(default_enable_zlib ON)
+        set(default_enable_zstd ON)
+        set(default_enable_s3 ON)
+    endif()
+endif()
+
 # WiredTiger-related configuration options.
 
 config_choice(
@@ -39,7 +84,7 @@ config_string(
 config_bool(
     HAVE_DIAGNOSTIC
     "Enable WiredTiger diagnostics"
-    DEFAULT OFF
+    DEFAULT ${default_have_diagnostics}
 )
 
 config_bool(
@@ -57,7 +102,7 @@ config_bool(
 config_bool(
     HAVE_UNITTEST
     "Enable WiredTiger unit tests"
-    DEFAULT OFF
+    DEFAULT ON
 )
 
 config_bool(
@@ -69,32 +114,32 @@ config_bool(
 config_bool(
     ENABLE_STATIC
     "Compile as a static library"
-    DEFAULT OFF
+    DEFAULT ${default_enable_static}
 )
 
 config_bool(
     ENABLE_SHARED
     "Compile as a shared library"
-    DEFAULT ON
+    DEFAULT ${default_enable_shared}
 )
 
 config_bool(
     WITH_PIC
     "Generate position-independent code. Note PIC will always \
     be used on shared targets, irrespective of the value of this configuration."
-    DEFAULT OFF
+    DEFAULT ON
 )
 
 config_bool(
     ENABLE_STRICT
     "Compile with strict compiler warnings enabled"
-    DEFAULT OFF
+    DEFAULT ON
 )
 
 config_bool(
     ENABLE_PYTHON
     "Configure the python API"
-    DEFAULT OFF
+    DEFAULT ${default_enable_python}
 )
 
 config_string(
@@ -134,12 +179,13 @@ config_choice(
         "gcc;SPINLOCK_GCC;"
         "msvc;SPINLOCK_MSVC;WT_WIN"
         "pthread_adaptive;SPINLOCK_PTHREAD_MUTEX_ADAPTIVE;HAVE_LIBPTHREAD"
+    DEFAULT ${default_spinlock_type}
 )
 
 config_bool(
     ENABLE_LZ4
     "Build the lz4 compressor extension"
-    DEFAULT OFF
+    DEFAULT ${default_enable_lz4}
     DEPENDS "HAVE_LIBLZ4"
     # Specifically throw a fatal error if a user tries to enable the lz4 compressor without
     # actually having the library available (as opposed to silently defaulting to OFF).
@@ -159,7 +205,7 @@ config_bool(
 config_bool(
     ENABLE_SNAPPY
     "Build the snappy compressor extension"
-    DEFAULT OFF
+    DEFAULT ${default_enable_snappy}
     DEPENDS "HAVE_LIBSNAPPY"
     # Specifically throw a fatal error if a user tries to enable the snappy compressor without
     # actually having the library available (as opposed to silently defaulting to OFF).
@@ -169,7 +215,7 @@ config_bool(
 config_bool(
     ENABLE_ZLIB
     "Build the zlib compressor extension"
-    DEFAULT OFF
+    DEFAULT ${default_enable_zlib}
     DEPENDS "HAVE_LIBZ"
     # Specifically throw a fatal error if a user tries to enable the zlib compressor without
     # actually having the library available (as opposed to silently defaulting to OFF).
@@ -179,7 +225,7 @@ config_bool(
 config_bool(
     ENABLE_ZSTD
     "Build the libzstd compressor extension"
-    DEFAULT OFF
+    DEFAULT ${default_enable_zstd}
     DEPENDS "HAVE_LIBZSTD"
     # Specifically throw a fatal error if a user tries to enable the zstd compressor without
     # actually having the library available (as opposed to silently defaulting to OFF).
@@ -199,7 +245,7 @@ config_bool(
 config_bool(
     ENABLE_TCMALLOC
     "Use TCMalloc as the backend allocator"
-    DEFAULT OFF
+    DEFAULT ${default_enable_tcmalloc}
     DEPENDS "HAVE_LIBTCMALLOC"
     # Specifically throw a fatal error if a user tries to enable the tcmalloc allocator without
     # actually having the library available (as opposed to silently defaulting to OFF).
@@ -209,7 +255,7 @@ config_bool(
 config_bool(
     ENABLE_S3
     "Build the S3 storage extension"
-    DEFAULT OFF
+    DEFAULT ${default_enable_s3}
 )
 
 config_bool(
@@ -218,27 +264,21 @@ config_bool(
     DEFAULT OFF
 )
 
-# Setup the WiredTiger build to use Debug settings as unless the build type was explicitly
-# configured. Primary users of the build are our developers, who want as much help diagnosing
-# issues as possible. Builds targeted for release to customers should switch to a "Release" setting.
-set(default_build_type "Debug")
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  # Notify callers that our build chooses Debug, not the default empty
-  message(STATUS "Defaulting build type to '${default_build_type}'.")
-  set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
-      STRING "Type of build selected." FORCE)
+config_bool(
+    ENABLE_DEBUG_INFO
+    "Enable debug information."
+    DEFAULT ${default_enable_debug_info}
+)
+
+set(default_optimize_level "")
+if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo)$")
+    if(WT_WIN)
+        set(default_optimize_level "/O2")
+    else()
+        set(default_optimize_level "-O2")
+    endif()
 endif()
 
-set(default_optimize_level)
-if("${WT_OS}" STREQUAL "windows")
-    set(default_optimize_level "/Od")
-else()
-    # Ideally this would choose an optimization level of Og. Which is the recommended configuration
-    # for build-debug cycles when using GCC and is a synonym in clang for O1.
-    # Unfortunately at the moment, WiredTiger code generates compiler warnings (as errors) when
-    # built with Og.
-    set(default_optimize_level "-O1")
-endif()
 config_string(
     CC_OPTIMIZE_LEVEL
     "CC optimization level"
@@ -269,16 +309,22 @@ config_string(
     DEFAULT "\"${WT_VERSION_STRING}\""
 )
 
-# Diagnostic mode requires diagnostic flags. These are set by default in debug mode, otherwise set
-# them manually.
-if(HAVE_DIAGNOSTIC AND NOT "${CMAKE_BUILD_TYPE}" MATCHES "^(Debug|RelWithDebInfo)$")
+# Diagnostic mode requires debug info, set it automatically.
+if (HAVE_DIAGNOSTIC)
+    set(ENABLE_DEBUG_INFO ON)
+endif()
+
+# Setup debug info if enabled.
+if(ENABLE_DEBUG_INFO)
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
         # Produce full symbolic debugging information.
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /Z7")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Z7")
         # Ensure a PDB file can be generated for debugging symbols.
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG")
     else()
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ggdb")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb")
     endif()
 endif()
 
@@ -315,9 +361,6 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "RelWithDebInfo")
     endif()
 endif()
 
-if(NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Release")
-    # Don't use the optimization level if we have specified a release config.
-    # CMakes Release config sets compilation to the highest optimization level
-    # by default.
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CC_OPTIMIZE_LEVEL}")
-endif()
+# Always set our optimization level.
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CC_OPTIMIZE_LEVEL}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CC_OPTIMIZE_LEVEL}")
