@@ -216,7 +216,7 @@ operation_tracker::save_operation(WT_SESSION *session, const tracking_operation 
     return (ret);
 }
 
-/* Note that the transaction id is not used in the default implementation of the tracking table. */
+/* Note that session is not used in the default implementation of the tracking table. */
 void
 operation_tracker::set_tracking_cursor(WT_SESSION *session, const tracking_operation &operation,
   const uint64_t &collection_id, const std::string &key, const std::string &value,
