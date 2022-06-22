@@ -9,31 +9,6 @@ endif(CCACHE_FOUND)
 
 project(WiredTiger C CXX ASM)
 
-if(HAVE_UNITTEST)
-    Include(FetchContent)
-
-    FetchContent_Declare(
-        Catch2
-        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-        GIT_TAG        v2.13.8
-    )
-
-    # Note, the preferred solution of using FetchContent_MakeAvailable()
-    # is not available in 3.11.0 (it arrived in 3.11.4), so we do some extra steps to achieve the same result.
-    #
-    # See https://cmake.org/cmake/help/v3.23/module/FetchContent.html
-    #
-    # Once we can rely on having 3.11.4 or greater, then the following call can be restored, and the
-    # code between the Start and End comments below can be removed.
-
-    # FetchContent_MakeAvailable(Catch2)
-
-    # Start of code that achieves what FetchContent_MakeAvailable(Catch2) would do.
-    FetchContent_Populate(Catch2)
-    add_subdirectory(${catch2_SOURCE_DIR} ${catch2_BINARY_DIR})
-    # End of code that achieves what FetchContent_MakeAvailable(Catch2) would do.
-endif()
-
 # Import our available build types prior to initializing the
 # project.
 include(cmake/configs/modes.cmake)
@@ -99,6 +74,31 @@ if(ENABLE_STRICT)
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
         include(cmake/strict/clxx_strict.cmake)
     endif()
+endif()
+
+if(HAVE_UNITTEST)
+    Include(FetchContent)
+
+    FetchContent_Declare(
+        Catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG        v2.13.8
+    )
+
+    # Note, the preferred solution of using FetchContent_MakeAvailable()
+    # is not available in 3.11.0 (it arrived in 3.11.4), so we do some extra steps to achieve the same result.
+    #
+    # See https://cmake.org/cmake/help/v3.23/module/FetchContent.html
+    #
+    # Once we can rely on having 3.11.4 or greater, then the following call can be restored, and the
+    # code between the Start and End comments below can be removed.
+
+    # FetchContent_MakeAvailable(Catch2)
+
+    # Start of code that achieves what FetchContent_MakeAvailable(Catch2) would do.
+    FetchContent_Populate(Catch2)
+    add_subdirectory(${catch2_SOURCE_DIR} ${catch2_BINARY_DIR})
+    # End of code that achieves what FetchContent_MakeAvailable(Catch2) would do.
 endif()
 
 # Enable CTest. Subsequent targets may additionally define their own ctest definitions.
