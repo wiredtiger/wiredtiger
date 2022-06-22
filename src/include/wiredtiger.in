@@ -1314,6 +1314,9 @@ struct __wt_session {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;name, permitted values are \c "none" or custom storage
 	 * source name created with WT_CONNECTION::add_storage_source.  See @ref
 	 * custom_storage_sources for more information., a string; default \c none.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;object_target_size, this option is no longer supported\,
+	 * retained for backward compatibility., an integer greater than or equal to 0; default \c
+	 * 0.}
 	 * @config{ ),,}
 	 * @config{type, set the type of data source used to store a column group\, index or simple
 	 * table.  By default\, a \c "file:" URI is derived from the object name.  The \c type
