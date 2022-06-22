@@ -703,7 +703,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
      */
     if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER) && !WT_CURSOR_IS_POSITIONED(cbt) &&
       !F_ISSET(cursor, WT_CURSTD_BOUND_ENTRY)) {
-        WT_RET(__wt_btcur_bounds_row_position(session, cbt, false, &need_walk));
+        WT_ERR(__wt_btcur_bounds_row_position(session, cbt, false, &need_walk));
         if (!need_walk)
             return (0);
     }

@@ -767,7 +767,7 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
      */
     if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER) && !WT_CURSOR_IS_POSITIONED(cbt) &&
       !F_ISSET(cursor, WT_CURSTD_BOUND_ENTRY)) {
-        WT_RET(__wt_btcur_bounds_row_position(session, cbt, true, &need_walk));
+        WT_ERR(__wt_btcur_bounds_row_position(session, cbt, true, &need_walk));
         if (!need_walk)
             return (0);
     }
