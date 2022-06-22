@@ -8,6 +8,8 @@
 
 #include <catch2/catch.hpp>
 #include <iostream>
+#include <memory>
+#include <thread>
 #include <vector>
 #include <unordered_map>
 #include "wt_internal.h"
@@ -21,6 +23,43 @@ static const std::string testcase_value_base = "a really long string and a value
 
 static const std::string testcase_key1 = "key1";
 static const std::string testcase_value1 = "value1";
+
+
+class TruncateCompactEventHandler : public EventHandler {
+    public:
+    TruncateCompactEventHandler();
+    ~TruncateCompactEventHandler() override = default;
+
+    void SetCompactThreadShouldTerminate(bool value) { _compactThreadShouldTerminate = value; };
+    bool GetCompactThreadShouldTerminate() { return _compactThreadShouldTerminate; };
+
+    void SetCallCompact(bool value) { _callCompact = value; };
+    bool GetCallCompact() { return _callCompact; };
+
+    protected:
+    int handleMessage(WT_SESSION *session, const char *message) override;
+
+    private:
+    std::atomic_bool _compactThreadShouldTerminate;
+    std::atomic_bool _callCompact;
+};
+
+
+TruncateCompactEventHandler::TruncateCompactEventHandler()
+ :  _compactThreadShouldTerminate(false),
+    _callCompact(false)
+{
+}
+
+
+int
+TruncateCompactEventHandler::handleMessage(WT_SESSION *session, const char *message)
+{
+    fprintf(stderr, "TruncateCompactEventHandler::handleMessage: message = '%s'\n", message);
+    _callCompact = true;
+    return 0;
+}
+
 
 TEST_CASE("Truncate and compact: create simple table", "[compact]")
 {
@@ -294,10 +333,26 @@ void triggerEviction(WT_SESSION* session, std::string const& table_name, int key
         cursor->set_key(cursor, key.c_str());
         int ret = cursor->search(cursor);
         cursor->reset(cursor);
-        REQUIRE(session->compact(session, table_name.c_str(), nullptr) == 0);
+        //REQUIRE(session->compact(session, table_name.c_str(), nullptr) == 0);
     }
     REQUIRE(cursor->close(cursor) == 0);
     //dump_stats(sessionImpl);
+}
+
+
+void compactThreadFunction(WT_SESSION* session, std::string table_name, int& result, TruncateCompactEventHandler* truncateCompactEventHandler)
+{
+    std::cout << "starting compactThreadFunction() in a thread" << std::endl << std::flush;
+    while (!truncateCompactEventHandler->GetCompactThreadShouldTerminate()) {
+        if (truncateCompactEventHandler->GetCallCompact()) {
+            truncateCompactEventHandler->SetCallCompact(false);
+            std::cout << "In compactThreadFunction(): calling session->compact()" << std::endl;
+            result = session->compact(session, table_name.c_str(), nullptr);
+        }
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+
+    std::cout << "ending compactThreadFunction() in a thread" << std::endl << std::flush;
 }
 
 void test_truncate_and_evict()
@@ -313,7 +368,8 @@ void test_truncate_and_evict()
     //    read some of the data deleted by the truncate, and ensure that this works.
 
     std::cout << "==== test_truncate_and_evict() ====" << std::endl;
-    auto eventHandler = std::make_shared<EventHandler>();
+    auto truncateEventHandler = std::make_shared<TruncateCompactEventHandler>();
+    std::shared_ptr<EventHandler> eventHandler = truncateEventHandler;
     ConnectionWrapper conn(utils::UnitTestDatabaseHome, eventHandler);
     WT_SESSION_IMPL* sessionImpl = conn.createSession();
     WT_SESSION* session = &(sessionImpl->iface);
@@ -340,6 +396,9 @@ void test_truncate_and_evict()
     std::cout << "Set oldest and stable timestamps to 0x1" << std::endl;
     REQUIRE(conn.getWtConnection()->set_timestamp(conn.getWtConnection(), "oldest_timestamp=1") == 0);
     REQUIRE(conn.getWtConnection()->set_timestamp(conn.getWtConnection(), "stable_timestamp=1") == 0);
+
+    int compactResult = 0;
+    std::thread compactThread(compactThreadFunction, session, table_name, std::ref(compactResult), truncateEventHandler.get());
 
     dump_stats(sessionImpl);
 
@@ -406,28 +465,6 @@ void test_truncate_and_evict()
         REQUIRE(get_num_key_values(session, table_name, 0x40) == remainingAfterTruncate);
     }
 
-//    {
-//        // Compact
-//        std::cout << "Compact (0):" << std::endl;
-//        REQUIRE(session->compact(session, table_name.c_str(), nullptr) == 0);
-//        dump_stats(sessionImpl);
-//        //sleep(5);
-//    }
-//
-//#ifdef HAVE_DIAGNOSTIC
-//    //analyse_tree(sessionImpl, file_name);
-//#endif
-//
-//    {
-//        std::cout << "Checkpoint (1):" << std::endl;
-//        REQUIRE(session->checkpoint(session, nullptr) == 0);
-//        dump_stats(sessionImpl);
-//        // Compact
-//        std::cout << "Compact (1):" << std::endl;
-//        REQUIRE(session->compact(session, table_name.c_str(), nullptr) == 0);
-//        dump_stats(sessionImpl);
-//        //sleep(5);
-//    }
     {
         // Read the key/value pairs, at timestamp 0x20 (ie before the truncate)
         REQUIRE(get_num_key_values(session, table_name, 0x20) == numValuesToInsert);
@@ -442,22 +479,6 @@ void test_truncate_and_evict()
     std::cout << std::flush;
 
     triggerEviction(session, table_name, truncateMin, truncateMax);
-//    sleep(10);
-//    dump_stats(sessionImpl);
-
-#ifdef HAVE_DIAGNOSTIC
-    //analyse_tree(sessionImpl, file_name);
-#endif
-
-    {
-        // Compact
-        std::cout << "Compact (2):" << std::endl;
-        REQUIRE(session->compact(session, table_name.c_str(), nullptr) == 0);
-        dump_stats(sessionImpl);
-        std::cout << "Checkpoint (2):" << std::endl;
-        REQUIRE(session->checkpoint(session, nullptr) == 0);
-        dump_stats(sessionImpl);
-    }
 
 #ifdef HAVE_DIAGNOSTIC
     analyse_tree(sessionImpl, file_name);
@@ -466,7 +487,11 @@ void test_truncate_and_evict()
     // Read the key/value pairs, at timestamp 0x40 (ie after everything)
     REQUIRE(get_num_key_values(session, table_name, 0x40) == remainingAfterTruncate);
 
-    // TODO: We get a "scratch buffer allocated and never discarded" warning.
+    truncateEventHandler->SetCompactThreadShouldTerminate(true);
+
+    compactThread.join();
+
+    // TODO: We sometimes get a "scratch buffer allocated and never discarded" warning.
     //       It seems to come from __wt_debug_tree_all.
 }
 

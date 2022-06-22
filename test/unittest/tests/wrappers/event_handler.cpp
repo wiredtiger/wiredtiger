@@ -20,7 +20,8 @@ EventHandler::EventHandler()
 
 
 int
-EventHandler::redirectHandleError(WT_EVENT_HANDLER *eventHandler, WT_SESSION *session, int error, const char *message)
+EventHandler::redirectHandleError(
+  WT_EVENT_HANDLER *eventHandler, WT_SESSION *session, int error, const char *message)
 {
     auto* customEventHandler = reinterpret_cast<CustomEventHandler*>(eventHandler);
     return customEventHandler->_eventHandler->handleError(session, error, message);
@@ -74,7 +75,7 @@ EventHandler::handleMessage(WT_SESSION *session, const char *message)
 WT_EVENT_HANDLER *
 EventHandler::getWtEventHandler()
 {
-    return &_customEventHandler._wtEventHandler;
+    return &(_customEventHandler._wtEventHandler);
 }
 
 
