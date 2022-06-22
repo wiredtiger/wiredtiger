@@ -18,5 +18,5 @@ TEST_CASE("Event handler: simple", "[event_handler]")
 {
     auto eventHandler = std::make_shared<EventHandler>();
     ConnectionWrapper conn(utils::UnitTestDatabaseHome, eventHandler);
-    WT_SESSION_IMPL *session = conn.createSession("isolation=invalid");
+    conn.createSession("isolation=invalid");
 }

@@ -96,6 +96,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     WT_PAGE *page;
     uint64_t time_start, time_stop;
     bool clean_page, closing, force_evict_hs, inmem_split, local_gen, tree_dead;
+    bool was_clean;
+    bool is_urgent;
+    uint8_t page_type;
 
     conn = S2C(session);
     page = ref->page;
@@ -103,7 +106,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     force_evict_hs = false;
     local_gen = false;
 
-    uint8_t page_type = page->type;
+    page_type = page->type;
 
     __wt_verbose(
       session, WT_VERB_EVICT, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
@@ -129,7 +132,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
      * Track how long forcible eviction took. Immediately increment the forcible eviction counter,
      * we might do an in-memory split and not an eviction, which skips the other statistics.
      */
-    bool is_urgent = false;
+    is_urgent = false;
     time_start = 0;
     if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
         is_urgent = true;
@@ -194,7 +197,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     /* Figure out whether reconciliation was done on the page */
     clean_page = __wt_page_evict_clean(page);
 
-    bool was_clean = false;
+    was_clean = false;
 
     /* Update the reference and discard the page. */
     if (__wt_ref_is_root(ref))

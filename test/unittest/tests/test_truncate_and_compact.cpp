@@ -7,6 +7,7 @@
 */
 
 #include <catch2/catch.hpp>
+#include <atomic>
 #include <iostream>
 #include <memory>
 #include <thread>
@@ -14,7 +15,6 @@
 #include <unordered_map>
 #include "wt_internal.h"
 #include "wiredtiger.h"
-#include "extern.h"
 #include "utils.h"
 #include "wrappers/connection_wrapper.h"
 
@@ -40,8 +40,8 @@ class TruncateCompactEventHandler : public EventHandler {
     int handleMessage(WT_SESSION *session, const char *message) override;
 
     private:
-    std::atomic_bool _compactThreadShouldTerminate;
-    std::atomic_bool _callCompact;
+    std::atomic<bool> _compactThreadShouldTerminate;
+    std::atomic<bool> _callCompact;
 };
 
 
@@ -331,7 +331,7 @@ void triggerEviction(WT_SESSION* session, std::string const& table_name, int key
         std::string key = testcase_key_base + std::to_string(i);
         std::cout << "  attempt to trigger eviction using key " << key << std::endl;
         cursor->set_key(cursor, key.c_str());
-        int ret = cursor->search(cursor);
+        cursor->search(cursor);
         cursor->reset(cursor);
         //REQUIRE(session->compact(session, table_name.c_str(), nullptr) == 0);
     }

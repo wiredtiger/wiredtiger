@@ -763,6 +763,7 @@ int
 __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_BTREE *btree;
+    bool sleep_pause;
 
     btree = S2BT(session);
 
@@ -784,7 +785,7 @@ __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
      * Reset the WT_REF type as it's possible that it has changed.
      */
 
-    bool sleep_pause = false;
+    sleep_pause = false;
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         static int count = 0;
         count++;
