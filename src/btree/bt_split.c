@@ -1274,9 +1274,10 @@ __split_parent_climb(WT_SESSION_IMPL *session, WT_PAGE *page)
      *
      * Historically we allowed checkpoint itself to trigger an internal split here. That wasn't
      * correct, since if that split climbs the tree above the immediate parent the checkpoint walk
-     * will potentially miss some internal pages. Non checkpoint cursor traversal handles that
-     * pattern by checking the tree structure is safe when climbing the tree, but checkpoint walk
-     * doesn't do that.
+     * will potentially miss some internal pages. This is wrong as checkpoint needs to reconcile the
+     * entire internal tree structure. Non checkpoint cursor traversal doesn't care the internal
+     * tree structure as they just want to get the next value correctly. Therefore, it is OK to
+     * split concurrently to cursor read operations.
      */
     if (WT_BTREE_SYNCING(S2BT(session))) {
         __split_internal_unlock(session, page);
