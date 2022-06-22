@@ -373,6 +373,8 @@ void test_truncate_and_evict()
     ConnectionWrapper conn(utils::UnitTestDatabaseHome, eventHandler);
     WT_SESSION_IMPL* sessionImpl = conn.createSession();
     WT_SESSION* session = &(sessionImpl->iface);
+    WT_SESSION_IMPL* compactSessionImpl = conn.createSession();
+    WT_SESSION* compactSession = &(compactSessionImpl->iface);
     std::string table_name = "table:access2";
     std::string file_name = "file:access2.wt";
 
@@ -398,7 +400,7 @@ void test_truncate_and_evict()
     REQUIRE(conn.getWtConnection()->set_timestamp(conn.getWtConnection(), "stable_timestamp=1") == 0);
 
     int compactResult = 0;
-    std::thread compactThread(compactThreadFunction, session, table_name, std::ref(compactResult), truncateEventHandler.get());
+    std::thread compactThread(compactThreadFunction, compactSession, table_name, std::ref(compactResult), truncateEventHandler.get());
 
     dump_stats(sessionImpl);
 
