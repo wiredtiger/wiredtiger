@@ -386,11 +386,13 @@ __tier_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, uint3
     const char *local_uri, *obj_uri;
 
     local_uri = obj_uri = NULL;
+    __wt_spin_lock(session, &tiered->iface.close_lock);
     WT_ERR(__wt_tiered_name(session, &tiered->iface, id, WT_TIERED_NAME_LOCAL, &local_uri));
     WT_ERR(__wt_tiered_name(session, &tiered->iface, id, WT_TIERED_NAME_OBJECT, &obj_uri));
     WT_ERR(__tier_do_operation(session, tiered, id, local_uri, obj_uri, op));
 
 err:
+    __wt_spin_unlock(session, &tiered->iface.close_lock);
     __wt_free(session, local_uri);
     __wt_free(session, obj_uri);
     return (ret);
@@ -431,10 +433,7 @@ __tier_storage_finish(WT_SESSION_IMPL *session)
             break;
         }*/
 
-        __wt_spin_lock(session, &entry->tiered->iface.close_lock);
-        ret = __tier_operation(session, entry->tiered, entry->id, WT_TIERED_WORK_FLUSH_FINISH);
-        __wt_spin_unlock(session, &entry->tiered->iface.close_lock);
-        WT_ERR(ret);
+        WT_ERR(__tier_operation(session, entry->tiered, entry->id, WT_TIERED_WORK_FLUSH_FINISH));
 
         /*
          * We are responsible for freeing the work unit when we're done with it.
@@ -446,6 +445,7 @@ __tier_storage_finish(WT_SESSION_IMPL *session)
 err:
     if (entry != NULL)
         __wt_tiered_work_free(session, entry);
+        
     return (ret);
 }
 

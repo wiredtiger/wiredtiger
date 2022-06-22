@@ -91,7 +91,6 @@ __wt_tiered_pop_work(
         }
     }
     __wt_spin_unlock(session, &conn->tiered_lock);
-
     return;
 }
 

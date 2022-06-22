@@ -709,12 +709,10 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Set up the bstorage from the configuration first. */
     WT_RET(__wt_config_gets(session, tiered_cfg, "tiered_storage.name", &cval));
-
     if (cval.len == 0)
         tiered->bstorage = S2C(session)->bstorage;
     else
         WT_ERR(__wt_tiered_bucket_config(session, tiered_cfg, &tiered->bstorage));
-
     WT_ASSERT(session, tiered->bstorage != NULL);
     /* Collapse into one string for later use in switch. */
     WT_ERR(__wt_config_merge(session, tiered_cfg, NULL, &config));
