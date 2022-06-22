@@ -80,7 +80,7 @@ run "python api_config_gen.py"
 run "python api_err.py"
 run "python flags.py"
 run "python log.py"
-run "python stat.py"
+run "python stat.py" && exit 1
 run "python verbose.py"
 run "sh ./s_copyright"
 run "sh ./s_style"

@@ -126,6 +126,18 @@ class YieldStat(Stat):
         Stat.__init__(self, name, YieldStat.prefix, desc, flags)
 
 ##########################################
+# Check for duplicate stat descriptions:
+# Duplicate stat descpriptions within a category are not allowed.
+# The list must be sorted by description. 
+##########################################
+def check_unique_description(sorted_list):
+    temp = ""
+    for i in sorted_list:
+        if temp == i.desc:
+            raise Exception("ERROR: repeated stat description - '" + i.desc + "'")
+        temp = i.desc
+
+##########################################
 # Groupings of useful statistics:
 # A pre-defined dictionary containing the group name as the key and the
 # list of prefix tags that comprise that group.
@@ -178,6 +190,8 @@ conn_stats = [
     ConnStat('rwlock_write', 'pthread mutex shared lock write-lock calls'),
     ConnStat('time_travel', 'detected system time went backwards'),
     ConnStat('write_io', 'total write I/Os'),
+    ConnStat('write_io2', 'total write I/Os'),
+
 
     ##########################################
     # Block manager statistics
@@ -639,6 +653,7 @@ conn_stats = [
 ]
 
 conn_stats = sorted(conn_stats, key=attrgetter('desc'))
+check_unique_description(conn_stats)
 
 ##########################################
 # Data source statistics
@@ -798,6 +813,7 @@ dsrc_stats = [
 ]
 
 dsrc_stats = sorted(dsrc_stats, key=attrgetter('desc'))
+check_unique_description(dsrc_stats)
 
 ##########################################
 # CONNECTION AND DATA SOURCE statistics
@@ -970,6 +986,7 @@ conn_dsrc_stats = [
 ]
 
 conn_dsrc_stats = sorted(conn_dsrc_stats, key=attrgetter('desc'))
+check_unique_description(conn_dsrc_stats)
 
 ##########################################
 # Cursor Join statistics
@@ -983,6 +1000,7 @@ join_stats = [
 ]
 
 join_stats = sorted(join_stats, key=attrgetter('desc'))
+check_unique_description(join_stats)
 
 ##########################################
 # Session statistics
@@ -998,3 +1016,4 @@ session_stats = [
 ]
 
 session_stats = sorted(session_stats, key=attrgetter('desc'))
+check_unique_description(session_stats)
