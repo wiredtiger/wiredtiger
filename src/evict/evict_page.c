@@ -213,7 +213,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         static int count = 0;
         count++;
-        fprintf(stderr, "Evicted internal page: ref %p, page %p (original type: %s), clean_page %d, tree_dead %d, was_clean %d, is_urgent %d, closing %d, force_evict_hs %d, count %d\n",
+        fprintf(stderr, "Evicted internal page: ref %p, page %p (original type: %s), "
+          "clean_page %d, tree_dead %d, was_clean %d, is_urgent %d, closing %d, "
+          "force_evict_hs %d, count %d\n",
           (void *)ref,
           (void *)page,
           __wt_page_type_string(page_type),
@@ -225,7 +227,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
           force_evict_hs,
           count);
         if (page_type != WT_PAGE_ROW_INT) {
-            fprintf(stderr, "*** Evicted internal page that was not internal earlier in function! ** ");
+            fprintf(stderr,
+              "*** Evicted internal page that was not internal earlier in function! ***\n");
         }
     }
 
