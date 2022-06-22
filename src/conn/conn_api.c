@@ -3037,6 +3037,11 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_STATIC_ASSERT(offsetof(WT_CONNECTION_IMPL, iface) == 0);
     *connectionp = &conn->iface;
 
+#ifdef HAVE_CALL_LOG
+    /* Set up the call log file. */
+    WT_ERR(__wt_conn_call_log_setup(session));
+#endif
+
 err:
     /* Discard the scratch buffers. */
     __wt_scr_free(session, &encbuf);
