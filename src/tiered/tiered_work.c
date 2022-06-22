@@ -42,7 +42,8 @@ __wt_tiered_work_free(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
      * incremented. This is where we decrement it after the work unit was popped from the queue and
      * the appropriate work has been finished.
      */
-    (void)__wt_atomic_subi32(&entry->tiered->iface.session_inuse, 1);
+    WT_WITH_DHANDLE(session, &entry->tiered->iface, __wt_cursor_dhandle_decr_use(session));
+    //(void)__wt_atomic_subi32(&entry->tiered->iface.session_inuse, 1);
 
     __tiered_flush_state(session, entry->type, false);
     /* If all work is done signal any waiting thread waiting for sync. */
@@ -67,7 +68,8 @@ __wt_tiered_push_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
      * Increment session_inuse of the tiered dhandle to make sure it is not deleted by the sweep
      * server while the work unit is in the queue or being worked upon.
      */
-    (void)__wt_atomic_addi32(&entry->tiered->iface.session_inuse, 1);
+    WT_WITH_DHANDLE(session, &entry->tiered->iface, __wt_cursor_dhandle_incr_use(session));
+    //(void)__wt_atomic_addi32(&entry->tiered->iface.session_inuse, 1);
 
     TAILQ_INSERT_TAIL(&conn->tieredqh, entry, q);
     WT_STAT_CONN_INCR(session, tiered_work_units_created);
@@ -226,6 +228,9 @@ __wt_tiered_put_drop_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t
     WT_RET(__wt_calloc_one(session, &entry));
     entry->type = WT_TIERED_WORK_DROP_LOCAL;
     entry->id = id;
+    if (tiered->bstorage == NULL)
+        return 0;
+
     WT_ASSERT(session, tiered->bstorage != NULL);
     __wt_seconds(session, &now);
     /* Put a work unit in the queue with the time this object expires. */
