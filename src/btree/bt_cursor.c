@@ -800,7 +800,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    int exact;
+    int exact, i;
     bool leaf_found, valid;
 
     btree = CUR2BT(cbt);
@@ -953,6 +953,13 @@ err:
         WT_TRET(__wt_cursor_key_order_init(cbt));
     }
 #endif
+
+    if (ret == WT_NOTFOUND && cbt->iface.search_near_must_find) {
+        printf("event_ptr=%d\n", btree->events_ptr);
+        for (i = 0; i < 64; i++)
+            printf("log[%d]=%d\n", i, btree->events[i]);
+        __wt_abort(session);
+    }
 
     if (ret != 0) {
         BTCUR_SEARCH_NEAR_EVENT(btree, RET_NON_ZERO);

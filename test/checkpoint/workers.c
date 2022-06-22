@@ -217,8 +217,11 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
         }
 
         /* Do another search_near to assert the first call landed somewhere valid. */
+        if (ret == 0)
+            cursor->search_near_must_find = true;
         testutil_check(cursor->search_near(cursor, &cmp_two));
         testutil_assert(cmp_two == 0);
+        cursor->search_near_must_find = false;
 
         /* Retry the result of search_near again to confirm the result. */
         if (new_val % 2 == 0) {
