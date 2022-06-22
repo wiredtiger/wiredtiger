@@ -246,6 +246,39 @@ struct __wt_btree {
     volatile uint32_t evict_busy; /* Count of threads in eviction */
     WT_EVICT_WALK_TYPE evict_start_type;
 
+    enum {
+        BTCUR_SEARCH_NEAR_EVENT_NONE,
+        BTCUR_SEARCH_NEAR_EVENT_CALL,
+        BTCUR_SEARCH_NEAR_EVENT_EXIT,
+        BTCUR_SEARCH_NEAR_EVENT_RET_NON_ZERO,
+        BTCUR_SEARCH_NEAR_EVENT_DIAG_ORDER_INIT,
+        BTCUR_SEARCH_NEAR_EVENT_RET_ZERO_EXACTP_NON_NULL,
+        BTCUR_SEARCH_NEAR_EVENT_RET_ZERO_DONE,
+        BTCUR_SEARCH_NEAR_EVENT_NOT_FIX_IMPLICIT,
+        BTCUR_SEARCH_NEAR_EVENT_FIX_IMPLICIT,
+        BTCUR_SEARCH_NEAR_EVENT_NOT_PREFIX_AND_MATCH,
+        BTCUR_SEARCH_NEAR_EVENT_PREFIX_AND_MATCH,
+        BTCUR_SEARCH_NEAR_EVENT_VALID2,
+        BTCUR_SEARCH_NEAR_EVENT_INVALID_COL,
+        BTCUR_SEARCH_NEAR_EVENT_INVALID_ROW,
+        BTCUR_SEARCH_NEAR_EVENT_INVALID,
+        BTCUR_SEARCH_NEAR_EVENT_LEAF_FOUND_ERR,
+        BTCUR_SEARCH_NEAR_EVENT_ROW_AND_PINNED,
+        BTCUR_SEARCH_NEAR_EVENT_SEARCH_NEIGHBOURING_RET_FINAL,
+        BTCUR_SEARCH_NEAR_EVENT_SEARCH_NEIGHBOURING_RET_PREV,
+        BTCUR_SEARCH_NEAR_EVENT_SEARCH_NEIGHBOURING_RET_PREFIX,
+        BTCUR_SEARCH_NEAR_EVENT_SEARCH_NEIGHBOURING_RET_NEXT,
+        BTCUR_SEARCH_NEAR_EVENT_SEARCH_NEIGHBOURING_CALL,
+    } search_near_event;
+
+#define BTCUR_SEARCH_NEAR_EVENT(btree, ev)                              \
+    do {                                                                \
+        (btree)->events[(btree)->events_ptr++] = BTCUR_SEARCH_NEAR_EVENT_##ev; \
+        (btree)->events_ptr %= 64;                                      \
+    } while (0)
+    uint8_t events[64];
+    uint8_t events_ptr;
+
 /*
  * Flag values up to 0xfff are reserved for WT_DHANDLE_XXX. See comment with dhandle flags for an
  * explanation.

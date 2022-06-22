@@ -462,14 +462,18 @@ __cursor_search_neighboring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *
     cursor = &cbt->iface;
     session = CUR2S(cbt);
 
+    BTCUR_SEARCH_NEAR_EVENT(btree, SEARCH_NEIGHBOURING_CALL);
+
     while ((ret = __wt_btcur_next_prefix(cbt, &state->key, false)) != WT_NOTFOUND) {
         WT_RET(ret);
         if (btree->type == BTREE_ROW)
             WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state->key, exact));
         else
             *exact = cbt->recno < state->recno ? -1 : cbt->recno == state->recno ? 0 : 1;
-        if (*exact >= 0)
+        if (*exact >= 0) {
+            BTCUR_SEARCH_NEAR_EVENT(btree, SEARCH_NEIGHBOURING_RET_NEXT);
             return (ret);
+        }
     }
 
     /*
@@ -481,8 +485,10 @@ __cursor_search_neighboring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *
      * starting with "b". All the entries before this one will start with "a", hence not matching
      * the prefix.
      */
-    if (F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH))
+    if (F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH)) {
+        BTCUR_SEARCH_NEAR_EVENT(btree, SEARCH_NEIGHBOURING_RET_PREFIX);
         return (ret);
+    }
 
     /*
      * We walked to the end of the tree without finding a match. Walk backwards instead.
@@ -493,9 +499,13 @@ __cursor_search_neighboring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *
             WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state->key, exact));
         else
             *exact = cbt->recno < state->recno ? -1 : cbt->recno == state->recno ? 0 : 1;
-        if (*exact <= 0)
+        if (*exact <= 0) {
+            BTCUR_SEARCH_NEAR_EVENT(btree, SEARCH_NEIGHBOURING_RET_PREV);
             return (ret);
+        }
     }
+
+    BTCUR_SEARCH_NEAR_EVENT(btree, SEARCH_NEIGHBOURING_RET_FINAL);
     return (ret);
 }
 
@@ -798,6 +808,8 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     session = CUR2S(cbt);
     exact = 0;
 
+    BTCUR_SEARCH_NEAR_EVENT(btree, CALL);
+
     WT_STAT_CONN_DATA_INCR(session, cursor_search_near);
 
     WT_RET(__wt_txn_search_check(session));
@@ -823,6 +835,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     valid = false;
     if (btree->type == BTREE_ROW && __cursor_page_pinned(cbt, true)) {
         __wt_txn_cursor_op(session);
+        BTCUR_SEARCH_NEAR_EVENT(btree, ROW_AND_PINNED);
 
         /*
          * Set the "insert" flag for row-store search; we may intend to position the cursor at the
@@ -841,11 +854,14 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
          * temporary buffer.
          */
         if (leaf_found &&
-          (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)))
+          (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1))) {
+            BTCUR_SEARCH_NEAR_EVENT(btree, LEAF_FOUND_ERR);
             WT_ERR(
               __wt_cursor_valid(cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, &valid));
+        }
     }
     if (!valid) {
+        BTCUR_SEARCH_NEAR_EVENT(btree, INVALID);
         WT_ERR(__wt_cursor_func_init(cbt, true));
 
         /*
@@ -853,6 +869,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
          * the end of the tree, rather than match an existing record. (LSM requires this semantic.)
          */
         if (btree->type == BTREE_ROW) {
+            BTCUR_SEARCH_NEAR_EVENT(btree, INVALID_ROW);
             WT_ERR(__cursor_row_search(cbt, true, NULL, NULL));
             /*
              * If there's an exact match, the row-store search function built the key in the
@@ -861,6 +878,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
             WT_ERR(
               __wt_cursor_valid(cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, &valid));
         } else {
+            BTCUR_SEARCH_NEAR_EVENT(btree, INVALID_COL);
             WT_ERR(__cursor_col_search(cbt, NULL, NULL));
             WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
         }
@@ -883,6 +901,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
      * If that fails, quit, there's no record to return.
      */
     if (valid) {
+        BTCUR_SEARCH_NEAR_EVENT(btree, VALID2);
         exact = cbt->compare;
         /*
          * Set the cursor key before the prefix search near check. If the prefix doesn't match,
@@ -891,15 +910,18 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
          */
         WT_ERR(__wt_key_return(cbt));
         if (F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH) &&
-          __wt_prefix_match(&state.key, &cursor->key) != 0)
+          __wt_prefix_match(&state.key, &cursor->key) != 0) {
+            BTCUR_SEARCH_NEAR_EVENT(btree, PREFIX_AND_MATCH);
             __cursor_state_restore(cursor, &state);
-        else {
+        } else {
+            BTCUR_SEARCH_NEAR_EVENT(btree, NOT_PREFIX_AND_MATCH);
             __wt_value_return(cbt, cbt->upd_value);
             goto done;
         }
     }
 
     if (__cursor_fix_implicit(btree, cbt)) {
+        BTCUR_SEARCH_NEAR_EVENT(btree, FIX_IMPLICIT);
         cbt->recno = cursor->recno;
         cbt->v = 0;
         cursor->value.data = &cbt->v;
@@ -909,23 +931,31 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     } else {
         /* We didn't find an exact match, try to find the nearest one. */
+        BTCUR_SEARCH_NEAR_EVENT(btree, NOT_FIX_IMPLICIT);
         WT_WITHOUT_EVICT_REPOSITION(ret = __cursor_search_neighboring(cbt, &state, &exact));
         WT_ERR(ret);
     }
 
 done:
-    if (ret == 0)
+    if (ret == 0) {
+        BTCUR_SEARCH_NEAR_EVENT(btree, RET_ZERO_DONE);
         WT_ERR(__wt_btcur_evict_reposition(cbt));
+    }
 err:
-    if (ret == 0 && exactp != NULL)
+    if (ret == 0 && exactp != NULL) {
+        BTCUR_SEARCH_NEAR_EVENT(btree, RET_ZERO_EXACTP_NON_NULL);
         *exactp = exact;
+    }
 
 #ifdef HAVE_DIAGNOSTIC
-    if (ret == 0)
+    if (ret == 0) {
+        BTCUR_SEARCH_NEAR_EVENT(btree, DIAG_ORDER_INIT);
         WT_TRET(__wt_cursor_key_order_init(cbt));
+    }
 #endif
 
     if (ret != 0) {
+        BTCUR_SEARCH_NEAR_EVENT(btree, RET_NON_ZERO);
         /*
          * It is important that this reset is kept as the cursor state is modified in the above prev
          * and next loops. Those internally do reset the cursor but not when performing a prefix
@@ -935,12 +965,7 @@ err:
         __cursor_state_restore(cursor, &state);
     }
 
-    F_SET(cbt, WT_CBT_VAR_ONPAGE_MATCH);
-    if (ret == 0 && *exactp != 0 && cbt->recno != 0) {
-        WT_IGNORE_RET(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
-        WT_ASSERT(session, valid == true);
-    }
-
+    BTCUR_SEARCH_NEAR_EVENT(btree, EXIT);
     return (ret);
 }
 
