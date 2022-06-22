@@ -255,8 +255,6 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
              * If a drop operation on tiered storage is configured to force removal of shared
              * objects, we want to remove these files after the drop operation is successful.
              */
-            if (tiered->bstorage == NULL)
-                return 0;
             if (remove_shared)
                 WT_ERR(__wt_meta_track_drop_object(session, tiered->bstorage, filename));
         }

@@ -80,8 +80,6 @@ __wt_blkcache_tiered_open(
         WT_ERR(__wt_buf_fmt(session, tmp, "%.*s%s", (int)pfx.len, pfx.str, object_name));
 
         bstorage = tiered->bstorage;
-        if (tiered->bstorage == NULL)
-            return 0;
         WT_WITH_BUCKET_STORAGE(bstorage, session,
           ret = __wt_block_open(session, tmp->mem, objectid, cfg, false, true, true, 0, &block));
         WT_ERR(ret);

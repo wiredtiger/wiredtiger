@@ -218,9 +218,6 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
              * Update the time on the entry before pushing it back on the queue so that we don't get
              * into an infinite loop trying to drop an open file that may be in use a while.
              */
-            if (entry->tiered == NULL && entry->tiered->bstorage == NULL)
-                return 0;
-
             WT_ASSERT(session, entry->tiered != NULL && entry->tiered->bstorage != NULL);
             entry->op_val = now + entry->tiered->bstorage->retain_secs;
             __wt_tiered_push_work(session, entry);
@@ -322,9 +319,6 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
 
     WT_ASSERT(session, (op == WT_TIERED_WORK_FLUSH || op == WT_TIERED_WORK_FLUSH_FINISH));
     tmp = NULL;
-    if (tiered == NULL || tiered->bstorage == NULL)
-        return 0;
-
     storage_source = tiered->bstorage->storage_source;
     bucket_fs = tiered->bstorage->file_system;
 
@@ -430,7 +424,18 @@ __tier_storage_finish(WT_SESSION_IMPL *session)
         __wt_tiered_get_flush_finish(session, &entry);
         if (entry == NULL)
             break;
-        WT_ERR(__tier_operation(session, entry->tiered, entry->id, WT_TIERED_WORK_FLUSH_FINISH));
+        
+        /*if (entry->tiered == NULL || entry->tiered->bstorage == NULL) {
+            __wt_tiered_push_work(session, entry);
+            entry = NULL;
+            break;
+        }*/
+
+        __wt_spin_lock(session, &entry->tiered->iface.close_lock);
+        ret = __tier_operation(session, entry->tiered, entry->id, WT_TIERED_WORK_FLUSH_FINISH);
+        __wt_spin_unlock(session, &entry->tiered->iface.close_lock);
+        WT_ERR(ret);
+
         /*
          * We are responsible for freeing the work unit when we're done with it.
          */
