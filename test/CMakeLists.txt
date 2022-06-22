@@ -19,6 +19,7 @@ add_subdirectory(huge)
 add_subdirectory(manydbs)
 add_subdirectory(csuite)
 add_subdirectory(packing)
+add_subdirectory(simulator)
 
 if(HAVE_UNITTEST)
     add_subdirectory(unittest)
