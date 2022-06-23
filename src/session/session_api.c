@@ -1363,8 +1363,10 @@ __wt_session_range_truncate(
 #ifdef HAVE_DIAGNOSTIC
     WT_CURSOR *debug_start, *debug_stop;
     WT_ITEM col_value;
+    bool start_key_exists, stop_key_exists;
 
     debug_start = debug_stop = NULL;
+    start_key_exists = stop_key_exists = false;
 #endif
 
     is_col_fix = local_start = false;
@@ -1461,10 +1463,22 @@ __wt_session_range_truncate(
      * for error-checking purposes.
      */
 #ifdef HAVE_DIAGNOSTIC
-    if (start != NULL)
+    if (start != NULL) {
         WT_ERR(__session_open_cursor((WT_SESSION *)session, NULL, start, NULL, &debug_start));
-    if (stop != NULL)
+        ret = debug_start->search(debug_start);
+        if (ret == 0)
+            start_key_exists = true;
+        else if (ret != WT_NOTFOUND)
+            WT_ERR(ret);
+    }
+    if (stop != NULL) {
         WT_ERR(__session_open_cursor((WT_SESSION *)session, NULL, stop, NULL, &debug_stop));
+        ret = debug_stop->search(debug_stop);
+        if (ret == 0)
+            stop_key_exists = true;
+        else if (ret != WT_NOTFOUND)
+            WT_ERR(ret);
+    }
 #endif
 
     WT_ERR(__wt_schema_range_truncate(session, start, stop, &is_col_fix));
@@ -1478,9 +1492,9 @@ __wt_session_range_truncate(
      * zero.
      */
     if (!is_col_fix) {
-        if (start != NULL)
+        if (start != NULL && start_key_exists)
             WT_ASSERT(session, debug_start->search(debug_start) == WT_NOTFOUND);
-        if (stop != NULL)
+        if (stop != NULL && stop_key_exists)
             WT_ASSERT(session, debug_stop->search(debug_stop) == WT_NOTFOUND);
     } else {
         if (start != NULL) {
