@@ -1416,7 +1416,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
 
     WT_RET(__wt_scr_alloc(session, 0, &hs_key));
 
-    /* Open a history store start table cursor. */
+    /* Open a history store start cursor. */
     WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor_start));
     F_SET(hs_cursor_start, WT_CURSTD_HS_READ_COMMITTED);
 
@@ -1427,11 +1427,11 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
         goto done;
     }
 
-    /* Open a history store stop table cursor. */
+    /* Open a history store stop cursor. */
     WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor_stop));
     F_SET(hs_cursor_stop, WT_CURSTD_HS_READ_COMMITTED | WT_CURSTD_HS_READ_ACROSS_BTREE);
 
-    hs_cursor_stop->set_key(hs_cursor_start, 1, btree_id + 1);
+    hs_cursor_stop->set_key(hs_cursor_stop, 1, btree_id + 1);
     ret = __wt_curhs_search_near_before(session, hs_cursor_stop);
     /* We can find the start point then we must be able to find the stop point. */
     if (ret != 0)
