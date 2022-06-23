@@ -46,6 +46,26 @@ if(WT_WIN)
 endif()
 
 # WiredTiger-related configuration options.
+config_choice(
+    WT_ARCH
+    "Target architecture for WiredTiger"
+    OPTIONS
+        "x86;WT_X86;"
+        "aarch64;WT_AARCH64;"
+        "ppc64le;WT_PPC64;"
+        "s390x;WT_S390X;"
+        "riscv64;WT_RISCV64;"
+)
+
+config_choice(
+    WT_OS
+    "Target OS for WiredTiger"
+    OPTIONS
+        "darwin;WT_DARWIN;"
+        "windows;WT_WIN;"
+        "linux;WT_LINUX;"
+)
+
 config_bool(
     WT_POSIX
     "Is a posix platform"
