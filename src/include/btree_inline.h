@@ -2277,9 +2277,9 @@ __wt_btcur_bounds_row_position(
         return (0);
     } else if (direction ? exact > 0 : exact < 0) {
         /*
-         * If search near returns a non-exact key, check the returned key against the upper bound if 
-         * doing a next, and the lower bound if doing a prev to ensure the key is within bounds. If not,
-         * there are no visible records, return WT_NOTFOUND.
+         * If search near returns a non-exact key, check the returned key against the upper bound if
+         * doing a next, and the lower bound if doing a prev to ensure the key is within bounds. If
+         * not, there are no visible records, return WT_NOTFOUND.
          */
         if (F_ISSET(cursor, bound_flag)) {
             WT_RET(__wt_row_compare_bounds(
