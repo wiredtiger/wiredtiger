@@ -27,7 +27,9 @@ if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo|Coverage)$")
     if(NOT HAVE_BUILTIN_EXTENSION_ZLIB)
         set(default_enable_zlib ${HAVE_LIBZ})
     endif()
-    set(default_enable_zstd ${HAVE_LIBZSTD})
+    if(NOT HAVE_BUILTIN_EXTENSION_ZSTD)
+        set(default_enable_zstd ${HAVE_LIBZSTD})
+    endif()
     set(default_enable_tcmalloc ${HAVE_LIBTCMALLOC})    
 endif()
 
@@ -245,7 +247,7 @@ config_bool(
     DEFAULT ${default_enable_debug_info}
 )
 
-set(default_optimize_level "-O0")
+set(default_optimize_level "-O1")
 if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo)$")
     if(WT_WIN)
         set(default_optimize_level "/O2")
@@ -263,6 +265,8 @@ config_string(
     "CC optimization level"
     DEFAULT "${default_optimize_level}"
 )
+
+add_compile_options("${CC_OPTIMIZE_LEVEL}")
 
 config_string(
     VERSION_MAJOR
@@ -297,13 +301,11 @@ endif()
 if(ENABLE_DEBUG_INFO)
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
         # Produce full symbolic debugging information.
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /Z7")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Z7")
+        add_compile_options(/Z7)
         # Ensure a PDB file can be generated for debugging symbols.
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG")
+        add_link_options(/DEBUG)
     else()
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ggdb")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb")
+        add_compile_options(-ggdb)
     endif()
 endif()
 
@@ -321,13 +323,9 @@ if(WT_WIN)
     # Check if we a using the dynamic or static run-time library.
     if(DYNAMIC_CRT)
         # Use the multithread-specific and DLL-specific version of the run-time library (MSVCRT.lib).
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MD")
+        add_compile_options(/MD)
     else()
         # Use the multithread, static version of the run-time library.
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MT")
+        add_compile_options(/MT)
     endif()
 endif()
-
-# Always set our optimization level.
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CC_OPTIMIZE_LEVEL}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CC_OPTIMIZE_LEVEL}")
