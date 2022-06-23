@@ -218,6 +218,9 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
              * Update the time on the entry before pushing it back on the queue so that we don't get
              * into an infinite loop trying to drop an open file that may be in use a while.
              */
+            if (entry->tiered->bstorage == NULL)
+                printf("AAA bstorage == NULL: %s (__tier_storage_remove_local)\n", entry->tiered->iface.name);
+            
             WT_ASSERT(session, entry->tiered != NULL && entry->tiered->bstorage != NULL);
             entry->op_val = now + entry->tiered->bstorage->retain_secs;
             __wt_tiered_push_work(session, entry);
@@ -319,6 +322,10 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
 
     WT_ASSERT(session, (op == WT_TIERED_WORK_FLUSH || op == WT_TIERED_WORK_FLUSH_FINISH));
     tmp = NULL;
+    printf("AAA: __tier_do_operation %s; %s\n", tiered->iface.name, tiered->bstorage == NULL ? "bstorage is NULL" : "");
+    if (tiered->bstorage == NULL)
+        printf("AAA bstorage == NULL: %s (__tier_do_operation)\n", tiered->iface.name);
+
     storage_source = tiered->bstorage->storage_source;
     bucket_fs = tiered->bstorage->file_system;
 
@@ -384,17 +391,27 @@ __tier_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, uint3
 {
     WT_DECL_RET;
     const char *local_uri, *obj_uri;
+    bool was_null;
 
     local_uri = obj_uri = NULL;
-    __wt_spin_lock(session, &tiered->iface.close_lock);
+    was_null = tiered->bstorage == NULL;
+    //__wt_spin_lock(session, &tiered->iface.close_lock);
+
+    if (was_null || tiered->bstorage == NULL)
+        was_null = false;
+
     WT_ERR(__wt_tiered_name(session, &tiered->iface, id, WT_TIERED_NAME_LOCAL, &local_uri));
     WT_ERR(__wt_tiered_name(session, &tiered->iface, id, WT_TIERED_NAME_OBJECT, &obj_uri));
     WT_ERR(__tier_do_operation(session, tiered, id, local_uri, obj_uri, op));
 
 err:
-    __wt_spin_unlock(session, &tiered->iface.close_lock);
+    //__wt_spin_unlock(session, &tiered->iface.close_lock);
     __wt_free(session, local_uri);
     __wt_free(session, obj_uri);
+
+    if (tiered->bstorage == NULL)
+        was_null = false;
+
     return (ret);
 }
 
@@ -434,7 +451,6 @@ __tier_storage_finish(WT_SESSION_IMPL *session)
         }*/
 
         WT_ERR(__tier_operation(session, entry->tiered, entry->id, WT_TIERED_WORK_FLUSH_FINISH));
-
         /*
          * We are responsible for freeing the work unit when we're done with it.
          */
@@ -445,7 +461,6 @@ __tier_storage_finish(WT_SESSION_IMPL *session)
 err:
     if (entry != NULL)
         __wt_tiered_work_free(session, entry);
-        
     return (ret);
 }
 
@@ -625,9 +640,12 @@ __tiered_server(void *arg)
          *  - Remove any cached objects that are aged out.
          */
         if (timediff >= conn->tiered_interval || signalled) {
-            WT_ERR(__tier_storage_copy(session));
-            WT_ERR(__tier_storage_finish(session));
-            WT_ERR(__tier_storage_remove(session, false));
+            if ((ret = __tier_storage_copy(session)) != 0)
+                WT_ERR(ret);
+            if ((ret = __tier_storage_finish(session)) != 0)
+                WT_ERR(ret);
+            if ((ret = __tier_storage_remove(session, false)) != 0)
+                WT_ERR(ret);
             time_start = time_stop;
         }
     }

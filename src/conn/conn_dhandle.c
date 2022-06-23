@@ -532,8 +532,10 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
      * operations. The reverse won't happen because when the handle from a verify or other special
      * operation is closed, there won't be updates in the tree that can block the close.
      */
-    if (F_ISSET(dhandle, WT_DHANDLE_OPEN))
+    if (F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
+        printf("AAA wt_conn_dhandle_close: %s (__wt_conn_dhandle_open)\n", session->dhandle->name);
         WT_ERR(__wt_conn_dhandle_close(session, false, false));
+    }
 
     /* Discard any previous configuration, set up the new configuration. */
     __conn_dhandle_config_clear(session);
@@ -770,6 +772,7 @@ __conn_dhandle_close_one(
      */
     if (F_ISSET(session->dhandle, WT_DHANDLE_OPEN)) {
         __wt_meta_track_sub_on(session);
+        printf("AAA wt_conn_dhandle_close: %s (__conn_dhandle_close_one)\n", session->dhandle->name);
         ret = __wt_conn_dhandle_close(session, false, mark_dead);
 
         /*
@@ -867,6 +870,7 @@ __wt_conn_dhandle_discard_single(WT_SESSION_IMPL *session, bool final, bool mark
     dhandle = session->dhandle;
 
     if (F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
+        printf("AAA wt_conn_dhandle_close: %s (__wt_conn_dhandle_discard_single)\n", session->dhandle->name);
         tret = __wt_conn_dhandle_close(session, final, mark_dead);
         if (final && tret != 0) {
             __wt_err(session, tret, "Final close of %s failed", dhandle->name);

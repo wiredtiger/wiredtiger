@@ -87,6 +87,7 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
      * For btree handles, closing the handle decrements the open file count, meaning the close loop
      * won't overrun the configured minimum.
      */
+    printf("AAA wt_conn_dhandle_close: %s (__sweep_expire_one)\n", session->dhandle->name);
     ret = __wt_conn_dhandle_close(session, false, true);
 
 err:
@@ -158,6 +159,7 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
             continue;
 
         /* If the handle is marked dead, flush it from cache. */
+        printf("AAA wt_conn_dhandle_close: %s (__sweep_discard_trees)\n", dhandle->name);
         WT_WITH_DHANDLE(session, dhandle, ret = __wt_conn_dhandle_close(session, false, false));
 
         /* We closed the btree handle. */

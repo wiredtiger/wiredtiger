@@ -24,6 +24,9 @@ __tiered_name_check(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     char **obj_files;
     const char *name, *obj_name, *obj_uri;
 
+    if (tiered->bstorage == NULL)
+        printf("AAA bstorage == NULL: %s (__tiered_name_check)\n", tiered->iface.name);
+
     bucket_fs = tiered->bstorage->file_system;
     name = tiered->iface.name;
     obj_name = obj_uri = NULL;
@@ -110,8 +113,12 @@ __tiered_dhandle_setup(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t i, 
     tier->tier = session->dhandle;
 
     /* The Btree needs to use the bucket storage to do file system operations. */
-    if (session->dhandle->type == WT_DHANDLE_TYPE_BTREE)
+    if (session->dhandle->type == WT_DHANDLE_TYPE_BTREE) {
+        if (tiered->bstorage == NULL)
+            printf("AAA bstorage == NULL: %s (__tiered_dhandle_setup)\n", tiered->iface.name);
+
         ((WT_BTREE *)session->dhandle->handle)->bstorage = tiered->bstorage;
+    }
 err:
     WT_RET(__wt_session_release_dhandle(session));
     return (ret);
@@ -374,6 +381,9 @@ __tiered_create_tier_tree(WT_SESSION_IMPL *session, WT_TIERED *tiered)
         free_config = false;
     } else {
         cfg[0] = WT_CONFIG_BASE(session, tier_meta);
+        if (tiered->bstorage == NULL)
+            printf("AAA bstorage == NULL: %s (__tiered_create_tier_tree)\n", tiered->iface.name);
+
         WT_ASSERT(session, tiered->bstorage != NULL);
         WT_ERR(__wt_buf_fmt(session, tmp,
           ",readonly=true,tiered_object=true,tiered_storage=(bucket=%s,bucket_prefix=%s)",
@@ -713,6 +723,10 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
         tiered->bstorage = S2C(session)->bstorage;
     else
         WT_ERR(__wt_tiered_bucket_config(session, tiered_cfg, &tiered->bstorage));
+
+    if (tiered->bstorage == NULL)
+        printf("AAA bstorage == NULL: %s (__tiered_open)\n", tiered->iface.name);
+
     WT_ASSERT(session, tiered->bstorage != NULL);
     /* Collapse into one string for later use in switch. */
     WT_ERR(__wt_config_merge(session, tiered_cfg, NULL, &config));

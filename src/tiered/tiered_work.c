@@ -36,6 +36,8 @@ __wt_tiered_work_free(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
+
+    //__wt_spin_unlock(session, &entry->tiered->iface.close_lock);
     __tiered_flush_state(session, entry->type, false);
     /* If all work is done signal any waiting thread waiting for sync. */
     if (WT_FLUSH_STATE_DONE(conn->flush_state))
@@ -53,6 +55,8 @@ __wt_tiered_push_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
+    //__wt_spin_lock(session, &entry->tiered->iface.close_lock);
+    printf("AAA: __wt_tiered_push_work %s; %s\n", entry->tiered->iface.name, entry->tiered->bstorage == NULL ? "bstorage is NULL" : "");
     __wt_spin_lock(session, &conn->tiered_lock);
     TAILQ_INSERT_TAIL(&conn->tieredqh, entry, q);
     WT_STAT_CONN_INCR(session, tiered_work_units_created);
@@ -91,6 +95,9 @@ __wt_tiered_pop_work(
         }
     }
     __wt_spin_unlock(session, &conn->tiered_lock);
+
+    if(entry != NULL)
+        printf("AAA: __wt_tiered_pop_work %s; %s\n", entry->tiered->iface.name, entry->tiered->bstorage == NULL ? "bstorage is NULL" : "");
     return;
 }
 
@@ -211,6 +218,10 @@ __wt_tiered_put_drop_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t
     WT_RET(__wt_calloc_one(session, &entry));
     entry->type = WT_TIERED_WORK_DROP_LOCAL;
     entry->id = id;
+
+    if (tiered->bstorage == NULL)
+        printf("AAA bstorage == NULL: %s (__wt_tiered_put_drop_local)\n", tiered->iface.name);
+
     WT_ASSERT(session, tiered->bstorage != NULL);
     __wt_seconds(session, &now);
     /* Put a work unit in the queue with the time this object expires. */
