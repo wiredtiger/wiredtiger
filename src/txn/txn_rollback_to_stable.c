@@ -1420,7 +1420,6 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
     WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor_start));
     F_SET(hs_cursor_start, WT_CURSTD_HS_READ_COMMITTED);
 
-    /* Walk the history store for the given btree. */
     hs_cursor_start->set_key(hs_cursor_start, 1, btree_id);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor_start), false);
     if (ret == WT_NOTFOUND) {
@@ -1432,20 +1431,21 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
     WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor_stop));
     F_SET(hs_cursor_stop, WT_CURSTD_HS_READ_COMMITTED | WT_CURSTD_HS_READ_ACROSS_BTREE);
 
-    /* Walk the history store for the given btree. */
     hs_cursor_stop->set_key(hs_cursor_start, 1, btree_id + 1);
     ret = __wt_curhs_search_near_before(session, hs_cursor_stop);
-    /* We can find the start point then we must be able to find the end point*/
+    /* We can find the start point then we must be able to find the stop point. */
     if (ret != 0)
         WT_ERR_PANIC(session, ret, "cannot locate the endpoint to truncate the history store");
 
     hs_cursor_stop->get_key(hs_cursor_stop, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter);
-    /* We don't have concurrent transactions running with rollback to stable. Simply move the cursor
-     * forward. */
+    /*
+     * We don't have concurrent transactions running with rollback to stable. Simply move the cursor
+     * forward.
+     */
     if (hs_btree_id != btree_id) {
         WT_ASSERT(session, hs_btree_id == btree_id + 1);
         ret = hs_cursor_stop->prev(hs_cursor_stop);
-        /* We can find the start point then we must be able to find the end point*/
+        /* We can find the start point then we must be able to find the stop point. */
         if (ret != 0)
             WT_ERR_PANIC(session, ret, "cannot locate the endpoint to truncate the history store");
     }
