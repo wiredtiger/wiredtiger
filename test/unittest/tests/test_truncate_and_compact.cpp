@@ -346,7 +346,7 @@ void compactThreadFunction(WT_SESSION* session, std::string table_name, int& res
     while (!truncateCompactEventHandler->GetCompactThreadShouldTerminate()) {
         if (truncateCompactEventHandler->GetCallCompact()) {
             truncateCompactEventHandler->SetCallCompact(false);
-            std::cout << "In compactThreadFunction(): calling session->compact()" << std::endl;
+            std::cout << "*** In compactThreadFunction(): calling session->compact()" << std::endl;
             result = session->compact(session, table_name.c_str(), nullptr);
         }
         std::this_thread::sleep_for(std::chrono::seconds(1));

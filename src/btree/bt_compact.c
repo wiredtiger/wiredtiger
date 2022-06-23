@@ -238,14 +238,35 @@ __compact_walk_internal(WT_SESSION_IMPL *session, WT_REF *parent)
      * visit them individually.
      */
     overall_progress = false;
-    WT_INTL_FOREACH_BEGIN_V2 (session, parent->page, ref) {
-        if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
-            WT_ERR(__compact_page(session, ref, &skipp));
-            if (!skipp)
-                overall_progress = true;
+//    WT_INTL_FOREACH_BEGIN_V2 (session, parent->page, ref) {
+//        if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
+//            WT_ERR(__compact_page(session, ref, &skipp));
+//            if (!skipp)
+//                overall_progress = true;
+//        }
+//    }
+//    WT_INTL_FOREACH_END;
+
+    {
+        WT_PAGE_INDEX *__pindex;
+        WT_REF **__refp;
+        uint32_t __entries;
+        WT_PAGE* page;
+        page = parent->page;
+        //WT_INTL_INDEX_GET(session, page, __pindex);
+        WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0); \
+        __pindex = WT_INTL_INDEX_GET_SAFE(page);
+        if (__pindex == NULL)
+            __wt_abort(session);
+        for (__refp = __pindex->index, __entries = __pindex->entries; __entries > 0; --__entries) {
+            (ref) = *__refp++;
+            if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
+                WT_ERR(__compact_page(session, ref, &skipp));
+                if (!skipp)
+                    overall_progress = true;
+            }
         }
     }
-    WT_INTL_FOREACH_END;
 
     /*
      * If we moved a leaf page, we'll write the parent. If we didn't move a leaf page, check pages

@@ -795,7 +795,7 @@ __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
         //WT_RET(session->iface.compact(&(session->iface), "table:access2", NULL));
         //sleep(5);
 //        WT_ASSERT(session, false);
-//        __wt_abort(session);
+//        __wt_abort;
     }
 
     F_CLR(ref, WT_REF_FLAG_INTERNAL);
