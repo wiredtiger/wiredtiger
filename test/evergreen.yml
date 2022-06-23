@@ -2305,7 +2305,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DIMPORT_S3_SDK=external
+          posix_configure_flags: -DENABLE_S3=1 -DIMPORT_S3_SDK=external
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
@@ -2334,7 +2334,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DIMPORT_S3_SDK=external
+          posix_configure_flags: -DENABLE_S3=1 -DIMPORT_S3_SDK=external
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"

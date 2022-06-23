@@ -5,7 +5,7 @@ include(CheckCXXCompilerFlag)
 include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
 
 # Establish an internal cache variable to track our custom build modes.
-set(BUILD_MODES None Debug Release RelWithDebInfo CACHE INTERNAL "")
+set(BUILD_MODES Debug Release RelWithDebInfo CACHE INTERNAL "")
 
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
     set(MSVC_C_COMPILER 1)
@@ -188,11 +188,11 @@ define_build_mode(Coverage
     DEPENDS "NOT MSVC"
 )
 
-define_build_mode(None)
+define_build_mode(Debug)
 
 if(NOT CMAKE_BUILD_TYPE)
     string(REPLACE ";" " " build_modes_doc "${BUILD_MODES}")
-    set(CMAKE_BUILD_TYPE "None" CACHE STRING "Choose the type of build, options are: ${build_modes_doc}." FORCE)
+    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the type of build, options are: ${build_modes_doc}." FORCE)
 endif()
 
 if(CMAKE_BUILD_TYPE)
@@ -202,3 +202,15 @@ if(CMAKE_BUILD_TYPE)
 endif()
 
 set(CMAKE_CONFIGURATION_TYPES ${BUILD_MODES})
+
+# For the RelWithDebInfo build, the optimisation level is set to 02 by default, we want to remove it
+# as we want to use CC_OPTIMIZE_LEVEL instead.
+if("${CMAKE_BUILD_TYPE}" STREQUAL "RelWithDebInfo")
+    if("${WT_OS}" STREQUAL "windows")
+        string(REPLACE "/O2" "" CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELWITHDEBINFO})
+        string(REPLACE "/O2" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+    else()
+        string(REPLACE "-O2" "" CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELWITHDEBINFO})
+        string(REPLACE "-O2" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+    endif()
+endif()

@@ -1,7 +1,7 @@
 include(cmake/helpers.cmake)
 include(cmake/configs/version.cmake)
 
-# Setup defaults based on the build type.
+# Setup defaults based on the build type and available libraries.
 set(default_have_diagnostics ON)
 set(default_enable_python ON)
 set(default_enable_lz4 OFF)
@@ -9,21 +9,30 @@ set(default_enable_snappy OFF)
 set(default_enable_zlib OFF)
 set(default_enable_zstd OFF)
 set(default_enable_tcmalloc OFF)
-set(default_enable_s3 OFF)
 set(default_enable_debug_info ON)
 set(default_enable_static OFF)
 set(default_enable_shared ON)
 
-if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo|Coverage)$")
+if("${CMAKE_BUILD_TYPE}" MATCHES "^(Debug|Release|RelWithDebInfo|Coverage)$")
     set(default_have_diagnostics OFF)
 endif()
 
-if(${CMAKE_BUILD_TYPE} STREQUAL "Release")
-    set(default_enable_debug_info OFF)
+if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo|Coverage)$")
+    if(NOT HAVE_BUILTIN_EXTENSION_LZ4)
+        set(default_enable_lz4 ${HAVE_LIBLZ4})
+    endif()
+    if(NOT HAVE_BUILTIN_EXTENSION_SNAPPY)
+        set(default_enable_snappy ${HAVE_LIBSNAPPY})
+    endif()
+    if(NOT HAVE_BUILTIN_EXTENSION_ZLIB)
+        set(default_enable_zlib ${HAVE_LIBZ})
+    endif()
+    set(default_enable_zstd ${HAVE_LIBZSTD})
+    set(default_enable_tcmalloc ${HAVE_LIBTCMALLOC})    
 endif()
 
-if("${CMAKE_BUILD_TYPE}" MATCHES "^(Debug|Release|RelWithDebInfo|Coverage)$")
-    set(default_enable_tcmalloc ON)
+if("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
+    set(default_enable_debug_info OFF)
 endif()
 
 if(WT_WIN)
@@ -34,38 +43,7 @@ if(WT_WIN)
     set(default_enable_python OFF)
 endif()
 
-if(WT_LINUX OR WT_DARWIN)
-    if("${CMAKE_BUILD_TYPE}" MATCHES "^(Debug|Release|RelWithDebInfo|Coverage)$")
-        set(default_enable_lz4 ON)
-        set(default_enable_snappy ON)
-        set(default_enable_zlib ON)
-        set(default_enable_zstd ON)
-        set(default_enable_s3 ON)
-    endif()
-endif()
-
 # WiredTiger-related configuration options.
-
-config_choice(
-    WT_ARCH
-    "Target architecture for WiredTiger"
-    OPTIONS
-        "x86;WT_X86;"
-        "aarch64;WT_AARCH64;"
-        "ppc64le;WT_PPC64;"
-        "s390x;WT_S390X;"
-        "riscv64;WT_RISCV64;"
-)
-
-config_choice(
-    WT_OS
-    "Target OS for WiredTiger"
-    OPTIONS
-        "darwin;WT_DARWIN;"
-        "windows;WT_WIN;"
-        "linux;WT_LINUX;"
-)
-
 config_bool(
     WT_POSIX
     "Is a posix platform"
@@ -252,7 +230,7 @@ config_bool(
 config_bool(
     ENABLE_S3
     "Build the S3 storage extension"
-    DEFAULT ${default_enable_s3}
+    DEFAULT OFF
 )
 
 config_bool(
@@ -267,12 +245,16 @@ config_bool(
     DEFAULT ${default_enable_debug_info}
 )
 
-set(default_optimize_level "")
+set(default_optimize_level "-O0")
 if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo)$")
     if(WT_WIN)
         set(default_optimize_level "/O2")
     else()
         set(default_optimize_level "-O2")
+    endif()
+else()
+    if(WT_WIN)
+        set(default_optimize_level "/Od")
     endif()
 endif()
 
@@ -343,18 +325,6 @@ if(WT_WIN)
     else()
         # Use the multithread, static version of the run-time library.
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MT")
-    endif()
-endif()
-
-# For the RelWithDebInfo build, the optimisation level is set to 02 by default, we want to remove it
-# as we want to use CC_OPTIMIZE_LEVEL instead.
-if("${CMAKE_BUILD_TYPE}" STREQUAL "RelWithDebInfo")
-    if("${WT_OS}" STREQUAL "windows")
-        string(REPLACE "/O2" "" CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELWITHDEBINFO})
-        string(REPLACE "/O2" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
-    else()
-        string(REPLACE "-O2" "" CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELWITHDEBINFO})
-        string(REPLACE "-O2" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
     endif()
 endif()
 
