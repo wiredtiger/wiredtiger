@@ -424,7 +424,8 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
         WT_ERR(file_cursor->get_key(file_cursor, &btree_id, datastore_key, &start_ts, &counter));
 
         /* Stop before crossing over to the next btree. */
-        if (F_ISSET(hs_cursor, WT_HS_CUR_BTREE_ID_SET) && btree_id != hs_cursor->btree_id) {
+        if (F_ISSET(hs_cursor, WT_HS_CUR_BTREE_ID_SET) &&
+          !F_ISSET(std_cursor, WT_CURSTD_HS_READ_ACROSS_BTREE) && btree_id != hs_cursor->btree_id) {
             ret = WT_NOTFOUND;
             goto err;
         }
