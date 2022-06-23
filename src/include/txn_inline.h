@@ -407,8 +407,11 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     }
     op->u.op_upd = upd;
 
-    /* History store bypasses transactions, transaction modify should never be called on it. */
-    WT_ASSERT(session, !WT_IS_HS((S2BT(session))->dhandle));
+    /* History store deletion is non transactional. */
+    if (WT_IS_HS((S2BT(session))->dhandle)) {
+        WT_ASSERT(session, upd->type == WT_UPDATE_TOMBSTONE);
+        return (0);
+    }
 
     upd->txnid = session->txn->id;
     __wt_txn_op_set_timestamp(session, op);

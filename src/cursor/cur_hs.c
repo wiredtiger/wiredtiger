@@ -1000,52 +1000,19 @@ static int
 __curhs_remove(WT_CURSOR *cursor)
 {
     WT_CURSOR *file_cursor;
-    WT_CURSOR_BTREE *cbt;
     WT_CURSOR_HS *hs_cursor;
     WT_DECL_RET;
-    WT_ITEM hs_key;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *hs_tombstone;
-    wt_timestamp_t hs_start_ts;
-    uint64_t hs_counter;
-    uint32_t hs_btree_id;
 
-    WT_CLEAR(hs_key);
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
-    cbt = (WT_CURSOR_BTREE *)file_cursor;
-    hs_tombstone = NULL;
 
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, remove, CUR2BT(file_cursor));
-
-    /* Remove must be called with cursor positioned. */
-    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_INT));
-
-    WT_ERR(cursor->get_key(cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
-
-    /*
-     * Since we're using internal functions to modify the row structure, we need to manually set the
-     * comparison to an exact match.
-     */
-    cbt->compare = 0;
-    /* Add a tombstone with WT_TXN_NONE transaction id and WT_TS_NONE timestamps. */
-    WT_ERR(__wt_upd_alloc_tombstone(session, &hs_tombstone, NULL));
-    hs_tombstone->txnid = WT_TXN_NONE;
-    hs_tombstone->start_ts = hs_tombstone->durable_ts = WT_TS_NONE;
-    while ((ret = __wt_hs_modify(cbt, hs_tombstone)) == WT_RESTART) {
-        WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, false));
-        WT_ERR(ret);
-    }
-
-    WT_ERR(ret);
-
-    /* Invalidate the previous value but we will hold on to the position of the key. */
-    F_CLR(file_cursor, WT_CURSTD_VALUE_SET);
+    WT_ERR(file_cursor->remove(file_cursor));
     F_CLR(cursor, WT_CURSTD_VALUE_SET);
 
     if (0) {
 err:
-        __wt_free(session, hs_tombstone);
         WT_TRET(cursor->reset(cursor));
     }
 
