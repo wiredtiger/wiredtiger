@@ -3042,6 +3042,10 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_conn_call_log_setup(session));
 #endif
 
+#ifdef HAVE_CALL_LOG
+    WT_ERR(__wt_call_log_wiredtiger_open(session, ret));
+#endif
+
 err:
     /* Discard the scratch buffers. */
     __wt_scr_free(session, &encbuf);

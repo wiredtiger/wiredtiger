@@ -90,6 +90,7 @@ Checkpointing
 Checksum
 Checksums
 CityHash
+ClassName
 CloseHandle
 Cmvxz
 Cmvz
@@ -297,6 +298,7 @@ Marsaglia's
 Mellor
 Memrata
 Metadata
+MethodName
 Mewhort
 Mitzenmacher
 Mmap
@@ -396,6 +398,7 @@ RedHat
 Redistributions
 Refactor
 Resize
+ReturnVal
 RocksDB
 Rogerio
 Runtime
@@ -847,6 +850,7 @@ eof
 epi
 eq
 equalp
+errMsg
 errhandler
 errno
 errx
@@ -1232,6 +1236,7 @@ num
 numSymbols
 numbare
 nvram
+objectId
 objs
 offpage
 ofh
