@@ -9,36 +9,16 @@ endif(CCACHE_FOUND)
 
 project(WiredTiger C CXX ASM)
 
+# Import our available build types prior to initializing the
+# project.
+include(cmake/configs/modes.cmake)
 # Import our helpers.
 include(cmake/helpers.cmake)
 include(cmake/define_libwiredtiger.cmake)
 
-# Define the ARCH and OS options.
-config_choice(
-    WT_ARCH
-    "Target architecture for WiredTiger"
-    OPTIONS
-        "x86;WT_X86;"
-        "aarch64;WT_AARCH64;"
-        "ppc64le;WT_PPC64;"
-        "s390x;WT_S390X;"
-        "riscv64;WT_RISCV64;"
-)
-
-config_choice(
-    WT_OS
-    "Target OS for WiredTiger"
-    OPTIONS
-        "darwin;WT_DARWIN;"
-        "windows;WT_WIN;"
-        "linux;WT_LINUX;"
-)
-
-# Import our available build types prior to initializing the project.
-include(cmake/configs/modes.cmake)
-
 # If the user doesn't manually specify the target ARCH and OS (i.e not cross-compiling)
-# we will infer the target from the host.
+# we will infer the target from the host. This is checked prior to the config option
+# being defined (in base.cmake) since it will prevent it having a default value.
 if(NOT WT_ARCH)
     # Defer to our hosts architecture as our target architecture.
     if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|i686|i386|AMD64)$")
