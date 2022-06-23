@@ -1435,19 +1435,25 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
     ret = __wt_curhs_search_near_before(session, hs_cursor_stop);
     /* We can find the start point then we must be able to find the stop point. */
     if (ret != 0)
-        WT_ERR_PANIC(session, ret, "cannot locate the endpoint to truncate the history store");
+        WT_ERR_PANIC(session, ret, "cannot locate the stop point to truncate the history store");
 
     hs_cursor_stop->get_key(hs_cursor_stop, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter);
     /*
      * We don't have concurrent transactions running with rollback to stable. Simply move the cursor
-     * forward.
+     * to the previous record.
      */
     if (hs_btree_id != btree_id) {
         WT_ASSERT(session, hs_btree_id == btree_id + 1);
         ret = hs_cursor_stop->prev(hs_cursor_stop);
         /* We can find the start point then we must be able to find the stop point. */
         if (ret != 0)
-            WT_ERR_PANIC(session, ret, "cannot locate the endpoint to truncate the history store");
+            WT_ERR_PANIC(
+              session, ret, "cannot locate the stop point to truncate the history store");
+
+#ifdef HAVE_DIAGNOSTIC
+        hs_cursor_stop->get_key(hs_cursor_stop, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter);
+        WT_ASSERT(session, hs_btree_id == btree_id);
+#endif
     }
 
     /* Truncate only works with the underlying file cursor. */
