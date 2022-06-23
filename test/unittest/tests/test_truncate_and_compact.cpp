@@ -499,7 +499,7 @@ void test_truncate_and_evict()
 
 TEST_CASE("Truncate and compact: table", "[compact]")
 {
-    for (int i = 1; i <= 500; ++i) {
+    for (int i = 1; i <= 100000; ++i) {
         if (i > 1)
             std::cout << std::endl;
         std::cout << "============================================" << std::endl;
