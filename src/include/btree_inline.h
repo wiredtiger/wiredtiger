@@ -2125,12 +2125,12 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
  */
 static inline int
 __wt_btcur_bounds_early_exit(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool direction, bool *key_out_of_bounds)
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next, bool *key_out_of_bounds)
 {
     WT_RET(__wt_row_compare_bounds(
-      session, &cbt->iface, S2BT(session)->collator, direction, key_out_of_bounds));
+      session, &cbt->iface, S2BT(session)->collator, next, key_out_of_bounds));
     if (*key_out_of_bounds) {
-        if (direction)
+        if (next)
             WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
         else
             WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
@@ -2239,7 +2239,7 @@ unlock:
  */
 static inline int
 __wt_btcur_bounds_row_position(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool direction, bool *need_walk)
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next, bool *need_walk)
 {
 
     WT_CURSOR *cursor;
@@ -2251,13 +2251,13 @@ __wt_btcur_bounds_row_position(
 
     key_out_of_bounds = false;
     cursor = &cbt->iface;
-    bound = direction ? &cursor->lower_bound : &cursor->upper_bound;
-    bound_flag = direction ? WT_CURSTD_BOUND_UPPER : WT_CURSTD_BOUND_LOWER;
+    bound = next ? &cursor->lower_bound : &cursor->upper_bound;
+    bound_flag = next ? WT_CURSTD_BOUND_UPPER : WT_CURSTD_BOUND_LOWER;
     bound_flag_inclusive =
-      direction ? WT_CURSTD_BOUND_LOWER_INCLUSIVE : WT_CURSTD_BOUND_UPPER_INCLUSIVE;
+      next ? WT_CURSTD_BOUND_LOWER_INCLUSIVE : WT_CURSTD_BOUND_UPPER_INCLUSIVE;
     exact = 0;
 
-    if (direction)
+    if (next)
         WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_unpositioned);
     else
         WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_unpositioned);
@@ -2275,7 +2275,7 @@ __wt_btcur_bounds_row_position(
      */
     if (exact == 0 && F_ISSET(cursor, bound_flag_inclusive)) {
         return (0);
-    } else if (direction ? exact > 0 : exact < 0) {
+    } else if (next ? exact > 0 : exact < 0) {
         /*
          * If search near returns a non-exact key, check the returned key against the upper bound if
          * doing a next, and the lower bound if doing a prev to ensure the key is within bounds. If
@@ -2283,7 +2283,7 @@ __wt_btcur_bounds_row_position(
          */
         if (F_ISSET(cursor, bound_flag)) {
             WT_RET(__wt_row_compare_bounds(
-              session, cursor, S2BT(session)->collator, direction, &key_out_of_bounds));
+              session, cursor, S2BT(session)->collator, next, &key_out_of_bounds));
             if (key_out_of_bounds)
                 return (WT_NOTFOUND);
         }

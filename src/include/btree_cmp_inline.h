@@ -139,17 +139,17 @@ __wt_prefix_match(const WT_ITEM *prefix, const WT_ITEM *tree_item)
 
 /*
  * __wt_row_compare_bounds --
- *     Return if the cursor key is within the bounded range. If direction is True, this indicates a
- *     next call and the key is checked against the upper bound. If direction is False, this
+ *     Return if the cursor key is within the bounded range. If next is True, this indicates a
+ *     next call and the key is checked against the upper bound. If next is False, this
  *     indicates a prev call and the key is then checked against the lower bound.
  */
 static inline int
 __wt_row_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_COLLATOR *collator,
-  bool direction, bool *key_out_of_bounds)
+  bool next, bool *key_out_of_bounds)
 {
     int cmpp;
 
-    if (direction) {
+    if (next) {
         WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->upper_bound));
         WT_RET(__wt_compare(session, collator, &cursor->key, &cursor->upper_bound, &cmpp));
         if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE))
