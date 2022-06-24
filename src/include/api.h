@@ -100,29 +100,29 @@
     while (0)
 
 /* An API call wrapped in a transaction if necessary. */
-#define TXN_API_CALL(s, h, n, dh, config, cfg)                                               \
-    do {                                                                                     \
-        bool __autotxn = false, __update = false;                                            \
-        API_CALL(s, h, n, dh, config, cfg);                                                  \
-        __autotxn =                                                                          \
-          !WT_IS_HS((s)->dhandle) && !F_ISSET((s)->txn, WT_TXN_AUTOCOMMIT | WT_TXN_RUNNING); \
-        if (__autotxn)                                                                       \
-            F_SET((s)->txn, WT_TXN_AUTOCOMMIT);                                              \
-        __update = !F_ISSET((s)->txn, WT_TXN_UPDATE);                                        \
-        if (__update)                                                                        \
+#define TXN_API_CALL(s, h, n, dh, config, cfg)                           \
+    do {                                                                 \
+        bool __autotxn = false, __update = false;                        \
+        API_CALL(s, h, n, dh, config, cfg);                              \
+        __autotxn = ((s)->dhandle == NULL || !WT_IS_HS((s)->dhandle)) && \
+          !F_ISSET((s)->txn, WT_TXN_AUTOCOMMIT | WT_TXN_RUNNING);        \
+        if (__autotxn)                                                   \
+            F_SET((s)->txn, WT_TXN_AUTOCOMMIT);                          \
+        __update = !F_ISSET((s)->txn, WT_TXN_UPDATE);                    \
+        if (__update)                                                    \
             F_SET((s)->txn, WT_TXN_UPDATE);
 
 /* An API call wrapped in a transaction if necessary. */
-#define TXN_API_CALL_NOCONF(s, h, n, dh)                                                     \
-    do {                                                                                     \
-        bool __autotxn = false, __update = false;                                            \
-        API_CALL_NOCONF(s, h, n, dh);                                                        \
-        __autotxn =                                                                          \
-          !WT_IS_HS((s)->dhandle) && !F_ISSET((s)->txn, WT_TXN_AUTOCOMMIT | WT_TXN_RUNNING); \
-        if (__autotxn)                                                                       \
-            F_SET((s)->txn, WT_TXN_AUTOCOMMIT);                                              \
-        __update = !F_ISSET((s)->txn, WT_TXN_UPDATE);                                        \
-        if (__update)                                                                        \
+#define TXN_API_CALL_NOCONF(s, h, n, dh)                                 \
+    do {                                                                 \
+        bool __autotxn = false, __update = false;                        \
+        API_CALL_NOCONF(s, h, n, dh);                                    \
+        __autotxn = ((s)->dhandle == NULL || !WT_IS_HS((s)->dhandle)) && \
+          !F_ISSET((s)->txn, WT_TXN_AUTOCOMMIT | WT_TXN_RUNNING);        \
+        if (__autotxn)                                                   \
+            F_SET((s)->txn, WT_TXN_AUTOCOMMIT);                          \
+        __update = !F_ISSET((s)->txn, WT_TXN_UPDATE);                    \
+        if (__update)                                                    \
             F_SET((s)->txn, WT_TXN_UPDATE);
 
 /* End a transactional API call, optional retry on rollback. */
