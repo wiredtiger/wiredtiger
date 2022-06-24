@@ -194,7 +194,7 @@ struct __wt_modify {
  * more information.
  *
  * <b>Thread safety:</b> A WT_CURSOR handle is not usually shared between
- * threads, see @ref threads for more information.
+ * threads. See @ref threads for more information.
  */
 struct __wt_cursor {
 	WT_SESSION *session;	/*!< The session handle for this cursor. */
@@ -235,7 +235,7 @@ struct __wt_cursor {
 	 * @param cursor the cursor handle
 	 * @param ... pointers to hold key fields corresponding to
 	 * WT_CURSOR::key_format.
-	 * The API does not validate the argument types passed in, the caller is
+	 * The API does not validate the argument types passed in; the caller is
 	 * responsible for passing the correct argument types according to
 	 * WT_CURSOR::key_format.
 	 * @errors
@@ -252,7 +252,7 @@ struct __wt_cursor {
 	 * @param cursor the cursor handle
 	 * @param ... pointers to hold value fields corresponding to
 	 * WT_CURSOR::value_format.
-	 * The API does not validate the argument types passed in, the caller is
+	 * The API does not validate the argument types passed in; the caller is
 	 * responsible for passing the correct argument types according to
 	 * WT_CURSOR::value_format.
 	 * @errors
@@ -442,7 +442,8 @@ struct __wt_cursor {
 	 *
 	 * If a cursor with record number keys was configured with
 	 * "append=true" (not the default), the value must be set; a new record
-	 * will be appended and the record number set as the cursor key value.
+	 * will be appended and the new record number can be retrieved using
+	 * WT_CURSOR::get_key.
 	 *
 	 * @snippet ex_all.c Insert a new record and assign a record number
 	 *
@@ -459,7 +460,7 @@ struct __wt_cursor {
 	 *
 	 * Inserting a new record after the current maximum record in a
 	 * fixed-length bit field column-store (that is, a store with an
-	 * 'r' type key and 't' type value) may implicitly create the missing
+	 * 'r' type key and 't' type value) will implicitly create the missing
 	 * records as records with a value of 0.
 	 *
 	 * When loading a large amount of data into a new object, using
@@ -901,7 +902,7 @@ struct __wt_session {
 	 *
 	 * @param session the session handle
 	 * @param error a return value from a WiredTiger, ISO C, or POSIX
-	 * standard API
+	 * standard API call
 	 * @returns a string representation of the error
 	 */
 	const char *__F(strerror)(WT_SESSION *session, int error);
@@ -931,7 +932,7 @@ struct __wt_session {
 	 * context of the current transaction, if any.
 	 *
 	 * WT_SESSION::rollback_transaction implicitly resets all cursors associated with the
-         # session.
+         * session.
 	 *
 	 * Cursors are relatively light-weight objects but may hold references
 	 * to heavier-weight objects; applications should re-use cursors when
@@ -1565,16 +1566,16 @@ struct __wt_session {
 	/*!
 	 * Salvage a table.
 	 *
-	 * Salvage rebuilds the file, or files of which a table is comprised,
+	 * Salvage rebuilds the file or files which comprise a table,
 	 * discarding any corrupted file blocks.
 	 *
-	 * Previously deleted records may re-appear, and inserted records may
-	 * disappear, when salvage is done, so salvage should not be run
+	 * When salvage is done, previously deleted records may re-appear, and
+	 * inserted records may disappear, so salvage should not be run
 	 * unless it is known to be necessary.  Normally, salvage should be
 	 * called after a table or file has been corrupted, as reported by the
 	 * WT_SESSION::verify method.
 	 *
-	 * Files are rebuilt in place, the salvage method overwrites the
+	 * Files are rebuilt in place. The salvage method overwrites the
 	 * existing files.
 	 *
 	 * @exclusive
@@ -1602,7 +1603,10 @@ struct __wt_session {
 	 * it is not required the cursor reference a record in the object, only
 	 * that the key be set.  This allows applications to discard portions of
 	 * the object name space without knowing exactly what records the object
-	 * contains.
+	 * contains. The start and stop points are both inclusive; that is, the
+	 * key set in the start cursor is the first record to be deleted and the
+	 * key set in the stop cursor is the last.
+	 *
 	 * @snippet ex_all.c Truncate a range
 	 *
 	 * Range truncate is implemented as a "scan and write" operation, specifically without range
@@ -1617,7 +1621,7 @@ struct __wt_session {
 	 * the WT_CURSOR::next (WT_CURSOR::prev) method will iterate from the
 	 * beginning (end) of the table.
 	 *
-	 * Truncate a backup cursor.  This operation removes all log files that
+	 * Example: truncate a backup cursor.  This operation removes all log files that
 	 * have been returned by the backup cursor.  It can be used to remove log
 	 * files after copying them during @ref backup_incremental.
 	 * @snippet ex_backup.c Truncate a backup cursor
@@ -1657,9 +1661,8 @@ struct __wt_session {
 	/*!
 	 * Verify a table.
 	 *
-	 * Verify reports if a file, or the files of which a table is
-	 * comprised, have been corrupted.  The WT_SESSION::salvage method
-	 * can be used to repair a corrupted file,
+	 * Verify reports if a file, or the files that comprise a table, have been corrupted.
+	 * The WT_SESSION::salvage method can be used to repair a corrupted file.
 	 *
 	 * @snippet ex_all.c Verify a table
 	 *
@@ -1962,7 +1965,7 @@ struct __wt_session {
 	 * durability are always included in the checkpoint. See @ref durability_checkpoint and
 	 * @ref durability_log for more information.
 	 *
-	 * Calling the checkpoint method multiple times serializes the checkpoints, new checkpoint
+	 * Calling the checkpoint method multiple times serializes the checkpoints; new checkpoint
 	 * calls wait for running checkpoint calls to complete.
 	 *
 	 * Existing named checkpoints may optionally be discarded.
@@ -1998,16 +2001,16 @@ struct __wt_session {
 	int __F(checkpoint)(WT_SESSION *session, const char *config);
 
 	/*!
-	 * Reset the snapshot.
+	 * Reset the snapshot used for database visibility.
 	 *
-	 * This method resets snapshots for snapshot isolation transactions to update their existing
-	 * snapshot. It raises an error when this API is used in an isolation other than snapshot,
-	 * or when the transaction has performed any write operations.
-	 *
-	 * This API internally releases the current snapshot and gets the new running transactions
-	 * snapshot to avoid pinning the content in the database that is no longer needed.
+	 * For transactions running with snapshot isolation, this method releases the existing
+	 * snapshot of the database and gets a new one. This makes newer commits visible. The
+	 * call can be used to avoid pinning old and no-longer-needed content in the database.
 	 * Applications not using read timestamps for search may see different results after the
 	 * snapshot is updated.
+	 *
+ 	 * It is an error to call this method when using an isolation level other than snapshot
+	 * isolation, or if the current transaction has already written any data.
 	 *
 	 * @requires_transaction
 	 *
@@ -2021,9 +2024,9 @@ struct __wt_session {
 	/*!
 	 * Return the transaction ID range pinned by the session handle.
 	 *
-	 * The ID range is approximate and is calculated based on the oldest
-	 * ID needed for the active transaction in this session, compared
-	 * to the newest transaction in the system.
+	 * The ID range is an approximate count of transactions and is calculated
+	 * based on the oldest ID needed for the active transaction in this session,
+	 * compared to the newest transaction in the system.
 	 *
 	 * @snippet ex_all.c transaction pinned range
 	 *
@@ -2070,8 +2073,8 @@ struct __wt_session {
  * will communicate with the first process over a socket connection to perform
  * their operations.
  *
- * <b>Thread safety:</b> A WT_CONNECTION handle may be shared between threads,
- * see @ref threads for more information.
+ * <b>Thread safety:</b> A WT_CONNECTION handle may be shared between threads.
+ * See @ref threads for more information.
  */
 struct __wt_connection {
 	/*!
@@ -3282,7 +3285,7 @@ int wiredtiger_open(const char *home,
  *
  * @snippet ex_all.c Display an error
  *
- * @param error a return value from a WiredTiger, ISO C, or POSIX standard API
+ * @param error a return value from a WiredTiger, ISO C, or POSIX standard API call
  * @returns a string representation of the error
  */
 const char *wiredtiger_strerror(int error) WT_ATTRIBUTE_LIBRARY_VISIBLE;
@@ -3300,7 +3303,7 @@ struct __wt_event_handler {
 	 *
 	 * Errors that require the application to exit and restart will have
 	 * their \c error value set to \c WT_PANIC. The application can exit
-	 * immediately when \c WT_PANIC is passed to an event handler, there
+	 * immediately when \c WT_PANIC is passed to an event handler; there
 	 * is no reason to return into WiredTiger.
 	 *
 	 * Event handler returns are not ignored: if the handler returns
@@ -3311,7 +3314,7 @@ struct __wt_event_handler {
 	 * was generated. The handle may have been created by the application
 	 * or automatically by WiredTiger.
 	 * @param error a return value from a WiredTiger, ISO C, or
-	 * POSIX standard API, which can be converted to a string using
+	 * POSIX standard API call, which can be converted to a string using
 	 * WT_SESSION::strerror
 	 * @param message an error string
 	 */
@@ -3591,8 +3594,8 @@ struct __wt_config_item {
 	 * list or string), the \c str field will reference the value of the
 	 * configuration string.
 	 *
-	 * The bytes referenced by \c str are <b>not</b> nul-terminated,
-	 * use the \c len field instead of a terminating nul byte.
+	 * The bytes referenced by \c str are <b>not</b> nul-terminated.
+	 * Use the \c len field instead of a terminating nul byte.
 	 */
 	const char *str;
 
@@ -3606,7 +3609,7 @@ struct __wt_config_item {
 	 * \c val field will be set to 1 (true), or 0 (false).
 	 *
 	 * If the configuration string can be legally interpreted as an integer,
-	 * using the strtoll function rules as specified in ISO/IEC 9899:1990
+	 * using the \c strtoll function rules as specified in ISO/IEC 9899:1990
 	 * ("ISO C90"), that integer will be stored in the \c val field.
 	 */
 	int64_t val;
@@ -3633,8 +3636,8 @@ struct __wt_config_item {
 
 #if !defined(SWIG) && !defined(DOXYGEN)
 /*!
- * Validate a configuration string for a WiredTiger API.
- * This API is outside the scope of a WiredTiger connection handle, since
+ * Validate a configuration string for a WiredTiger API call.
+ * This call is outside the scope of a WiredTiger connection handle, since
  * applications may need to validate configuration strings prior to calling
  * ::wiredtiger_open.
  * @param session the session handle (may be \c NULL if the database not yet
@@ -3662,8 +3665,8 @@ int wiredtiger_test_config_validate(WT_SESSION *session,
 
 /*!
  * Create a handle that can be used to parse or create configuration strings
- * compatible with WiredTiger APIs.
- * This API is outside the scope of a WiredTiger connection handle, since
+ * compatible with the WiredTiger API.
+ * This call is outside the scope of a WiredTiger connection handle, since
  * applications may need to generate configuration strings prior to calling
  * ::wiredtiger_open.
  * @param session the session handle to be used for error reporting (if NULL,
@@ -3682,7 +3685,7 @@ int wiredtiger_config_parser_open(WT_SESSION *session,
 
 /*!
  * A handle that can be used to search and traverse configuration strings
- * compatible with WiredTiger APIs.
+ * compatible with the WiredTiger API.
  * To parse the contents of a list or nested configuration string use a new
  * configuration parser handle based on the content of the ::WT_CONFIG_ITEM
  * retrieved from the parent configuration string.
@@ -3763,7 +3766,7 @@ struct __wt_config_parser {
  * Return a pointer to a function that calculates a CRC32C checksum.
  *
  * The WiredTiger library CRC32C checksum function uses hardware support where available, else it
- * falls back to a software implementation. Selecting a CRC32C checksum function can be slow, the
+ * falls back to a software implementation. Selecting a CRC32C checksum function can be slow, so the
  * return value should be cached by the caller for repeated use.
  *
  * @snippet ex_all.c Checksum a buffer
@@ -3832,7 +3835,7 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * @name Error returns
  * Most functions and methods in WiredTiger return an integer code indicating
  * whether the operation succeeded or failed.  A return of zero indicates
- * success, all non-zero return values indicate some kind of failure.
+ * success; all non-zero return values indicate some kind of failure.
  *
  * WiredTiger reserves all values from -31,800 to -31,999 as possible error
  * return values.  WiredTiger may also return C99/POSIX error codes such as
@@ -3982,7 +3985,7 @@ struct __wt_collator {
 	 * If non-NULL a callback performed when the data source is closed
 	 * for customized extractors otherwise when the database is closed.
 	 *
-	 * The WT_COLLATOR::terminate callback is intended to allow cleanup,
+	 * The WT_COLLATOR::terminate callback is intended to allow cleanup;
 	 * the handle will not be subsequently accessed by WiredTiger.
 	 */
 	int (*terminate)(WT_COLLATOR *collator, WT_SESSION *session);
@@ -4130,7 +4133,7 @@ struct __wt_compressor {
 	/*!
 	 * If non-NULL, a callback performed when the database is closed.
 	 *
-	 * The WT_COMPRESSOR::terminate callback is intended to allow cleanup,
+	 * The WT_COMPRESSOR::terminate callback is intended to allow cleanup;
 	 * the handle will not be subsequently accessed by WiredTiger.
 	 *
 	 * @snippet nop_compress.c WT_COMPRESSOR terminate
@@ -4253,7 +4256,7 @@ struct __wt_data_source {
 	/*!
 	 * If non-NULL, a callback performed when the database is closed.
 	 *
-	 * The WT_DATA_SOURCE::terminate callback is intended to allow cleanup,
+	 * The WT_DATA_SOURCE::terminate callback is intended to allow cleanup;
 	 * the handle will not be subsequently accessed by WiredTiger.
 	 *
 	 * @snippet ex_data_source.c WT_DATA_SOURCE terminate
@@ -4487,7 +4490,7 @@ struct __wt_extractor {
 	 * is closed for customized extractors otherwise when the database
 	 * is closed.
 	 *
-	 * The WT_EXTRACTOR::terminate callback is intended to allow cleanup,
+	 * The WT_EXTRACTOR::terminate callback is intended to allow cleanup;
 	 * the handle will not be subsequently accessed by WiredTiger.
 	 */
 	int (*terminate)(WT_EXTRACTOR *extractor, WT_SESSION *session);
@@ -4699,7 +4702,7 @@ struct __wt_file_system {
 	 * This method is not required and should be set to NULL when not
 	 * required by the file system.
 	 *
-	 * The WT_FILE_SYSTEM::terminate callback is intended to allow cleanup,
+	 * The WT_FILE_SYSTEM::terminate callback is intended to allow cleanup;
 	 * the handle will not be subsequently accessed by WiredTiger.
 	 */
 	int (*terminate)(WT_FILE_SYSTEM *file_system, WT_SESSION *session);
@@ -4711,7 +4714,7 @@ struct __wt_file_system {
 #define	WT_FILE_HANDLE_WILLNEED	2
 
 /*!
- * A file handle implementation returned by WT_FILE_SYSTEM::open_file.
+ * A file handle implementation returned by WT_FILE_SYSTEM::fs_open_file.
  *
  * <b>Thread safety:</b> Unless explicitly stated otherwise, WiredTiger may
  * invoke methods on the WT_FILE_HANDLE interface from multiple threads
@@ -4722,17 +4725,17 @@ struct __wt_file_system {
  */
 struct __wt_file_handle {
 	/*!
-	 * The enclosing file system, set by WT_FILE_SYSTEM::open_file.
+	 * The enclosing file system, set by WT_FILE_SYSTEM::fs_open_file.
 	 */
 	WT_FILE_SYSTEM *file_system;
 
 	/*!
-	 * The name of the file, set by WT_FILE_SYSTEM::open_file.
+	 * The name of the file, set by WT_FILE_SYSTEM::fs_open_file.
 	 */
 	char *name;
 
 	/*!
-	 * Close a file handle, the handle will not be further accessed by
+	 * Close a file handle. The handle will not be further accessed by
 	 * WiredTiger.
 	 *
 	 * @errors
@@ -5114,7 +5117,7 @@ struct __wt_storage_source {
 	 * This method is not required and should be set to NULL when not
 	 * required by the storage source implementation.
 	 *
-	 * The WT_STORAGE_SOURCE::terminate callback is intended to allow cleanup,
+	 * The WT_STORAGE_SOURCE::terminate callback is intended to allow cleanup;
 	 * the handle will not be subsequently accessed by WiredTiger.
 	 */
 	int (*terminate)(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session);
@@ -5151,11 +5154,11 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * @anchor backup_types
  * @{
  */
-/*! invalid type */
+/*! Invalid backup type. */
 #define WT_BACKUP_INVALID	0
-/*! whole file */
+/*! Whole file. */
 #define WT_BACKUP_FILE		1
-/*! file range */
+/*! File range. */
 #define WT_BACKUP_RANGE		2
 /*! @} */
 
@@ -5169,37 +5172,37 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * never change because they're written into the log.  Append
  * any new records or operations to the appropriate set.
  */
-/*! checkpoint */
+/*! Checkpoint. */
 #define	WT_LOGREC_CHECKPOINT	0
-/*! transaction commit */
+/*! Transaction commit. */
 #define	WT_LOGREC_COMMIT	1
-/*! file sync */
+/*! File sync. */
 #define	WT_LOGREC_FILE_SYNC	2
-/*! message */
+/*! Message. */
 #define	WT_LOGREC_MESSAGE	3
-/*! system/internal record */
+/*! System/internal record. */
 #define	WT_LOGREC_SYSTEM	4
-/*! invalid operation */
+/*! Invalid operation. */
 #define	WT_LOGOP_INVALID	0
-/*! column-store put */
+/*! Column-store put. */
 #define	WT_LOGOP_COL_PUT	1
-/*! column-store remove */
+/*! Column-store remove. */
 #define	WT_LOGOP_COL_REMOVE	2
-/*! column-store truncate */
+/*! Column-store truncate. */
 #define	WT_LOGOP_COL_TRUNCATE	3
-/*! row-store put */
+/*! Row-store put. */
 #define	WT_LOGOP_ROW_PUT	4
-/*! row-store remove */
+/*! Row-store remove. */
 #define	WT_LOGOP_ROW_REMOVE	5
-/*! row-store truncate */
+/*! Row-store truncate. */
 #define	WT_LOGOP_ROW_TRUNCATE	6
-/*! checkpoint start */
+/*! Checkpoint start. */
 #define	WT_LOGOP_CHECKPOINT_START	7
-/*! previous LSN */
+/*! Previous LSN. */
 #define	WT_LOGOP_PREV_LSN	8
-/*! column-store modify */
+/*! Column-store modify. */
 #define	WT_LOGOP_COL_MODIFY	9
-/*! row-store modify */
+/*! Row-store modify. */
 #define	WT_LOGOP_ROW_MODIFY	10
 /*
  * NOTE: Diagnostic-only log operations should have values in
@@ -7359,7 +7362,7 @@ typedef enum {
     WT_VERB_SPLIT,
     WT_VERB_TEMPORARY,
     WT_VERB_THREAD_GROUP,
-    WT_VERB_TIERED,               /*!< Tiered messages. */
+    WT_VERB_TIERED,               /*!< Tiered storage messages. */
     WT_VERB_TIMESTAMP,            /*!< Timestamp messages. */
     WT_VERB_TRANSACTION,          /*!< Transaction messages. */
     WT_VERB_VERIFY,               /*!< Verify messages. */
