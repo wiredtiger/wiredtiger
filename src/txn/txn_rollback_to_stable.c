@@ -1421,7 +1421,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
     F_SET(hs_cursor_start, WT_CURSTD_HS_READ_COMMITTED);
 
     hs_cursor_start->set_key(hs_cursor_start, 1, btree_id);
-    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor_start), false);
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor_start), true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;
@@ -1432,7 +1432,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
     F_SET(hs_cursor_stop, WT_CURSTD_HS_READ_COMMITTED | WT_CURSTD_HS_READ_ACROSS_BTREE);
 
     hs_cursor_stop->set_key(hs_cursor_stop, 1, btree_id + 1);
-    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor_stop), false);
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor_stop), true);
 
 #ifdef HAVE_DIAGNOSTIC
     /* If we get not found, we are at the largest btree id in the history store. */
