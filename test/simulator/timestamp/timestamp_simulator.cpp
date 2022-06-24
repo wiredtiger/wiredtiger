@@ -27,15 +27,41 @@
  */
 
 #include <iostream>
+#include <map>
+#include "connection_sim.h"
 #include "json.hpp"
 
 using json = nlohmann::json;
+
+std::map<int, Connection> connection_map;
+
+void print_connection_map();
+
+void print_connection_map() {
+    for (std::map<int, Connection>::iterator it = connection_map.begin(); it != connection_map.end(); ++it) {
+        std::cout << it->first << " => " << &it->second << std::endl;
+    }
+}
 
 int
 main()
 {
     json j = {{"pi", 3.141}, {"happy", true}};
     std::cout << j.dump(4) << std::endl;
+
+    // Loop over the call log entries from the call log manager.
+    // If the call log entry is wiredtiger_open -> Create a new connection object.    
+    Connection *conn = new Connection();
+
+    // PM-2564-TODO: Add this object to the object map manager here.
+    int  object_id = 1;
+    connection_map.insert({object_id, *conn});
+
+    print_connection_map();
+
+    conn->open_session();
+
+    delete(conn);
 
     return (0);
 }
