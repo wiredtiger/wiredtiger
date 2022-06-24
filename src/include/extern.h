@@ -1881,12 +1881,15 @@ extern void __wt_thread_group_start_one(
   WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, bool is_locked);
 extern void __wt_thread_group_stop_one(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group);
 extern void __wt_tiered_get_drop_local(
-  WT_SESSION_IMPL *session, uint64_t now, WT_TIERED_WORK_UNIT **entryp);
-extern void __wt_tiered_get_drop_shared(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp);
-extern void __wt_tiered_get_flush(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp);
-extern void __wt_tiered_get_flush_finish(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp);
-extern void __wt_tiered_pop_work(
-  WT_SESSION_IMPL *session, uint32_t type, uint64_t maxval, WT_TIERED_WORK_UNIT **entryp);
+  WT_SESSION_IMPL *session, uint64_t now, WT_TIERED_WORK_UNIT **entryp, bool *need_release);
+extern void __wt_tiered_get_drop_shared(
+  WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp, bool *need_release);
+extern void __wt_tiered_get_flush(
+  WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp, bool *need_release);
+extern void __wt_tiered_get_flush_finish(
+  WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp, bool *need_release);
+extern void __wt_tiered_pop_work(WT_SESSION_IMPL *session, uint32_t type, uint64_t maxval,
+  WT_TIERED_WORK_UNIT **entryp, bool *need_release);
 extern void __wt_tiered_push_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry);
 extern void __wt_tiered_work_free(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry);
 extern void __wt_timestamp_to_hex_string(wt_timestamp_t ts, char *hex_timestamp);

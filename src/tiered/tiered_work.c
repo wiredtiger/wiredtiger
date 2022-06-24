@@ -69,13 +69,16 @@ __wt_tiered_push_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
  *     returned work unit structure.
  */
 void
-__wt_tiered_pop_work(
-  WT_SESSION_IMPL *session, uint32_t type, uint64_t maxval, WT_TIERED_WORK_UNIT **entryp)
+__wt_tiered_pop_work(WT_SESSION_IMPL *session, uint32_t type, uint64_t maxval,
+  WT_TIERED_WORK_UNIT **entryp, bool *need_release)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *saved_dhandle;
+    WT_DECL_RET;
     WT_TIERED_WORK_UNIT *entry;
 
     *entryp = entry = NULL;
+    *need_release = false;
 
     conn = S2C(session);
     if (TAILQ_EMPTY(&conn->tieredqh))
@@ -91,6 +94,21 @@ __wt_tiered_pop_work(
         }
     }
     __wt_spin_unlock(session, &conn->tiered_lock);
+
+    if (entry != NULL && entry->tiered->bstorage == NULL) {
+        saved_dhandle = session->dhandle;
+        ret = __wt_session_get_dhandle(session, entry->tiered->iface.name, NULL, NULL, 0);
+        if (ret == 0) {
+            entry->tiered = (WT_TIERED *)session->dhandle;
+            *need_release = true;
+        }
+        session->dhandle = saved_dhandle;
+        if (ret == ENOENT) {
+            __wt_tiered_work_free(session, entry);
+            *entryp = entry = NULL;
+        }
+    }
+
     return;
 }
 
@@ -140,9 +158,10 @@ __wt_tiered_flush_work_wait(WT_SESSION_IMPL *session, uint32_t timeout)
  *     our caller and here. The caller is responsible for freeing the work unit.
  */
 void
-__wt_tiered_get_flush_finish(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp)
+__wt_tiered_get_flush_finish(
+  WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp, bool *need_release)
 {
-    __wt_tiered_pop_work(session, WT_TIERED_WORK_FLUSH_FINISH, 0, entryp);
+    __wt_tiered_pop_work(session, WT_TIERED_WORK_FLUSH_FINISH, 0, entryp, need_release);
     return;
 }
 
@@ -152,9 +171,9 @@ __wt_tiered_get_flush_finish(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **ent
  *     caller and here. The caller is responsible for freeing the work unit.
  */
 void
-__wt_tiered_get_flush(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp)
+__wt_tiered_get_flush(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp, bool *need_release)
 {
-    __wt_tiered_pop_work(session, WT_TIERED_WORK_FLUSH, 0, entryp);
+    __wt_tiered_pop_work(session, WT_TIERED_WORK_FLUSH, 0, entryp, need_release);
     return;
 }
 
@@ -164,9 +183,10 @@ __wt_tiered_get_flush(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp)
  *     freeing the work unit.
  */
 void
-__wt_tiered_get_drop_local(WT_SESSION_IMPL *session, uint64_t now, WT_TIERED_WORK_UNIT **entryp)
+__wt_tiered_get_drop_local(
+  WT_SESSION_IMPL *session, uint64_t now, WT_TIERED_WORK_UNIT **entryp, bool *need_release)
 {
-    __wt_tiered_pop_work(session, WT_TIERED_WORK_DROP_LOCAL, now, entryp);
+    __wt_tiered_pop_work(session, WT_TIERED_WORK_DROP_LOCAL, now, entryp, need_release);
     return;
 }
 
@@ -175,9 +195,10 @@ __wt_tiered_get_drop_local(WT_SESSION_IMPL *session, uint64_t now, WT_TIERED_WOR
  *     Get a drop shared work unit. The caller is responsible for freeing the work unit.
  */
 void
-__wt_tiered_get_drop_shared(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp)
+__wt_tiered_get_drop_shared(
+  WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp, bool *need_release)
 {
-    __wt_tiered_pop_work(session, WT_TIERED_WORK_DROP_SHARED, 0, entryp);
+    __wt_tiered_pop_work(session, WT_TIERED_WORK_DROP_SHARED, 0, entryp, need_release);
     return;
 }
 

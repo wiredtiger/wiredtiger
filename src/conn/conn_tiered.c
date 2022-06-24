@@ -186,16 +186,20 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_TIERED_WORK_UNIT *entry;
     uint64_t now;
+    int tret;
     const char *object;
+    bool need_release;
 
     entry = NULL;
+    need_release = false;
+
     for (;;) {
         /* Check if we're quitting or being reconfigured. */
         if (!__tiered_server_run_chk(session))
             break;
 
         __wt_seconds(session, &now);
-        __wt_tiered_get_drop_local(session, now, &entry);
+        __wt_tiered_get_drop_local(session, now, &entry, &need_release);
         if (entry == NULL)
             break;
         WT_ERR(__wt_tiered_name(
@@ -221,6 +225,12 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
             WT_ASSERT(session, entry->tiered != NULL && entry->tiered->bstorage != NULL);
             entry->op_val = now + entry->tiered->bstorage->retain_secs;
             __wt_tiered_push_work(session, entry);
+            if (need_release) {
+                WT_WITH_DHANDLE(
+                  session, &entry->tiered->iface, ret = __wt_session_release_dhandle(session));
+                need_release = false;
+                WT_ERR(ret);
+            }
         } else {
             __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: actually remove %s", object);
             WT_STAT_CONN_INCR(session, local_objects_removed);
@@ -228,13 +238,27 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
             /*
              * We are responsible for freeing the work unit when we're done with it.
              */
+            if (need_release) {
+                WT_WITH_DHANDLE(
+                  session, &entry->tiered->iface, ret = __wt_session_release_dhandle(session));
+                need_release = false;
+                WT_ERR(ret);
+            }
             __wt_tiered_work_free(session, entry);
         }
+
         entry = NULL;
     }
 err:
-    if (entry != NULL)
+    if (entry != NULL) {
+        if (need_release) {
+            WT_WITH_DHANDLE(
+              session, &entry->tiered->iface, tret = __wt_session_release_dhandle(session));
+            if (ret == 0)
+                ret = tret;
+        }
         __wt_tiered_work_free(session, entry);
+    }
     return (ret);
 }
 
@@ -407,8 +431,11 @@ __tier_storage_finish(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     WT_TIERED_WORK_UNIT *entry;
+    int tret;
+    bool need_release;
 
     entry = NULL;
+    need_release = false;
     /*
      * Sleep a known period of time so that tests using the timing stress flag can have an idea when
      * to check for the cache operation to complete. Sleep one second before processing the work
@@ -421,20 +448,33 @@ __tier_storage_finish(WT_SESSION_IMPL *session)
         if (!__tiered_server_run_chk(session))
             break;
 
-        __wt_tiered_get_flush_finish(session, &entry);
+        __wt_tiered_get_flush_finish(session, &entry, &need_release);
         if (entry == NULL)
             break;
         WT_ERR(__tier_operation(session, entry->tiered, entry->id, WT_TIERED_WORK_FLUSH_FINISH));
         /*
          * We are responsible for freeing the work unit when we're done with it.
          */
+        if (need_release) {
+            WT_WITH_DHANDLE(
+              session, &entry->tiered->iface, tret = __wt_session_release_dhandle(session));
+            need_release = false;
+            WT_RET(tret);
+        }
         __wt_tiered_work_free(session, entry);
         entry = NULL;
     }
 
 err:
-    if (entry != NULL)
+    if (entry != NULL) {
+        if (need_release) {
+            WT_WITH_DHANDLE(
+              session, &entry->tiered->iface, tret = __wt_session_release_dhandle(session));
+            if (ret == 0)
+                ret = tret;
+        }
         __wt_tiered_work_free(session, entry);
+    }
     return (ret);
 }
 
@@ -447,11 +487,15 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     WT_TIERED_WORK_UNIT *entry;
+    int tret;
+    bool need_release;
 
     /* There is nothing to do until the checkpoint after the flush completes. */
     if (!S2C(session)->flush_ckpt_complete)
         return (0);
     entry = NULL;
+    need_release = false;
+
     for (;;) {
         /* Check if we're quitting or being reconfigured. */
         if (!__tiered_server_run_chk(session))
@@ -464,20 +508,33 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
          * calling __wt_tiered_get_flush so that we don't pull it off the queue until we're sure we
          * want to process it.
          */
-        __wt_tiered_get_flush(session, &entry);
+        __wt_tiered_get_flush(session, &entry, &need_release);
         if (entry == NULL)
             break;
         WT_ERR(__tier_operation(session, entry->tiered, entry->id, WT_TIERED_WORK_FLUSH));
         /*
          * We are responsible for freeing the work unit when we're done with it.
          */
+        if (need_release) {
+            WT_WITH_DHANDLE(
+              session, &entry->tiered->iface, tret = __wt_session_release_dhandle(session));
+            need_release = false;
+            WT_RET(tret);
+        }
         __wt_tiered_work_free(session, entry);
         entry = NULL;
     }
 
 err:
-    if (entry != NULL)
+    if (entry != NULL) {
+        if (need_release) {
+            WT_WITH_DHANDLE(
+              session, &entry->tiered->iface, tret = __wt_session_release_dhandle(session));
+            if (ret == 0)
+                ret = tret;
+        }
         __wt_tiered_work_free(session, entry);
+    }
     return (ret);
 }
 
@@ -614,9 +671,12 @@ __tiered_server(void *arg)
          *  - Remove any cached objects that are aged out.
          */
         if (timediff >= conn->tiered_interval || signalled) {
-            WT_ERR(__tier_storage_copy(session));
-            WT_ERR(__tier_storage_finish(session));
-            WT_ERR(__tier_storage_remove(session, false));
+            if ((ret = __tier_storage_copy(session)) != 0)
+                WT_ERR(ret);
+            if ((ret = __tier_storage_finish(session)) != 0)
+                WT_ERR(ret);
+            if ((ret = __tier_storage_remove(session, false)) != 0)
+                WT_ERR(ret);
             time_start = time_stop;
         }
     }

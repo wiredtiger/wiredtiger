@@ -59,6 +59,10 @@ __tiered_name_check(WT_SESSION_IMPL *session, WT_TIERED *tiered)
          */
         len = strlen(obj_files[i]);
         if (len == obj_len) {
+            // AAA test code
+            //WT_RET(bucket_fs->fs_remove(bucket_fs, (WT_SESSION *)session, obj_files[i], WT_FS_DURABLE));
+            //--------------
+
             __wt_verbose(
               session, WT_VERB_TIERED, "EEXIST %s already exists on shared storage", obj_files[i]);
             WT_ERR_MSG(session, EEXIST, "%s already exists on shared storage", obj_files[i]);
@@ -697,6 +701,7 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     char *metaconf;
     const char *obj_cfg[] = {WT_CONFIG_BASE(session, object_meta), NULL, NULL, NULL};
     const char **tiered_cfg, *config;
+    bool need_release;
 
     dhandle = session->dhandle;
     tiered = (WT_TIERED *)dhandle;
@@ -782,7 +787,7 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
         FLD_SET(unused, WT_TIERED_OBJ_LOCAL | WT_TIERED_TREE_UNUSED);
         FLD_SET(unused, WT_TIERED_WORK_FORCE | WT_TIERED_WORK_FREE);
         WT_ERR(__wt_tiered_put_drop_shared(session, tiered, tiered->current_id));
-        __wt_tiered_get_drop_shared(session, &entry);
+        __wt_tiered_get_drop_shared(session, &entry, &need_release);
     }
 #endif
 
