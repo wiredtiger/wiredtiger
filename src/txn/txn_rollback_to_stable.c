@@ -1438,10 +1438,6 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
     /* If we get not found, we are at the largest btree id in the history store. */
     if (ret == 0) {
         hs_cursor_stop->get_key(hs_cursor_stop, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter);
-        /*
-         * We don't have concurrent transactions running with rollback to stable. Simply move the
-         * cursor to the previous record.
-         */
         WT_ASSERT(session, hs_btree_id > btree_id);
     }
 #endif
