@@ -1412,6 +1412,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
     uint32_t hs_btree_id;
 
     hs_cursor_start = hs_cursor_stop = NULL;
+    hs_btree_id = 0;
     truncate_session = (WT_SESSION *)session;
 
     WT_RET(__wt_scr_alloc(session, 0, &hs_key));
