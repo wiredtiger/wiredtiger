@@ -1432,17 +1432,20 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
     F_SET(hs_cursor_stop, WT_CURSTD_HS_READ_COMMITTED | WT_CURSTD_HS_READ_ACROSS_BTREE);
 
     hs_cursor_stop->set_key(hs_cursor_stop, 1, btree_id + 1);
-    ret = __wt_curhs_search_near_after(session, hs_cursor_stop);
-    /* We can find the start point then we must be able to find the stop point. */
-    if (ret != 0)
-        WT_ERR_PANIC(session, ret, "cannot locate the stop point to truncate the history store");
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor_stop), false);
 
-    hs_cursor_stop->get_key(hs_cursor_stop, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter);
-    /*
-     * We don't have concurrent transactions running with rollback to stable. Simply move the cursor
-     * to the previous record.
-     */
-    WT_ASSERT(session, hs_btree_id > btree_id);
+#ifdef HAVE_DIAGNOSTIC
+    /* If we get not found, we are at the largest btree id in the history store. */
+    if (ret == 0) {
+        hs_cursor_stop->get_key(hs_cursor_stop, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter);
+        /*
+         * We don't have concurrent transactions running with rollback to stable. Simply move the
+         * cursor to the previous record.
+         */
+        WT_ASSERT(session, hs_btree_id > btree_id);
+    }
+#endif
+
     ret = hs_cursor_stop->prev(hs_cursor_stop);
     /* We can find the start point then we must be able to find the stop point. */
     if (ret != 0)
