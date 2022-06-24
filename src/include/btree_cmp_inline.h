@@ -139,9 +139,9 @@ __wt_prefix_match(const WT_ITEM *prefix, const WT_ITEM *tree_item)
 
 /*
  * __wt_row_compare_bounds --
- *     Return if the cursor key is within the bounded range. If next is True, this indicates a
- *     next call and the key is checked against the upper bound. If next is False, this
- *     indicates a prev call and the key is then checked against the lower bound.
+ *     Return if the cursor key is within the bounded range. If next is True, this indicates a next
+ *     call and the key is checked against the upper bound. If next is False, this indicates a prev
+ *     call and the key is then checked against the lower bound.
  */
 static inline int
 __wt_row_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_COLLATOR *collator,

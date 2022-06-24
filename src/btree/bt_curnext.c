@@ -756,7 +756,6 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     need_walk = false;
     session = CUR2S(cbt);
     total_skipped = 0;
-
     /*
      * If we have a bound set we should position our cursor appropriately if it isn't already
      * positioned.
@@ -764,6 +763,13 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
      * In one scenario this function returns and needs to walk to the next record. In that case we
      * set a boolean. We need to be careful that the entry flag isn't set so we don't re-enter
      * search near.
+     *
+     * This positioning logic is at a valid place here. Moving it below __wt_cursor_func_init
+     * results in a segfault since the WT_CBT_ACTIVE flag would have been set, which is incorrect in
+     * our case of positioning the cursor. This positioning code block also calls search_near that
+     * will take a snapshot since the current transaction doesn't have an existing snapshot, and
+     * won't clear it. This snapshot will be consistently used throughout the rest of the
+     * __wt_btcur_next_prefix, so there won't be any data visibility issues.
      */
     if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER) && !WT_CURSOR_IS_POSITIONED(cbt) &&
       !F_ISSET(cursor, WT_CURSTD_BOUND_ENTRY)) {
@@ -771,7 +777,6 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
         if (!need_walk)
             return (0);
     }
-
     WT_STAT_CONN_DATA_INCR(session, cursor_next);
 
     flags = WT_READ_NO_SPLIT | WT_READ_SKIP_INTL; /* tree walk flags */

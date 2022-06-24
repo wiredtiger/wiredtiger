@@ -2253,8 +2253,7 @@ __wt_btcur_bounds_row_position(
     cursor = &cbt->iface;
     bound = next ? &cursor->lower_bound : &cursor->upper_bound;
     bound_flag = next ? WT_CURSTD_BOUND_UPPER : WT_CURSTD_BOUND_LOWER;
-    bound_flag_inclusive =
-      next ? WT_CURSTD_BOUND_LOWER_INCLUSIVE : WT_CURSTD_BOUND_UPPER_INCLUSIVE;
+    bound_flag_inclusive = next ? WT_CURSTD_BOUND_LOWER_INCLUSIVE : WT_CURSTD_BOUND_UPPER_INCLUSIVE;
     exact = 0;
 
     if (next)
