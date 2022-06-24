@@ -407,6 +407,9 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     }
     op->u.op_upd = upd;
 
+    /* History store bypasses transactions, transaction modify should never be called on it. */
+    WT_ASSERT(session, !WT_IS_HS((S2BT(session))->dhandle));
+
     upd->txnid = session->txn->id;
     __wt_txn_op_set_timestamp(session, op);
 
