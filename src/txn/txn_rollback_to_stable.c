@@ -1407,14 +1407,18 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
     WT_SESSION *truncate_session;
+#ifdef HAVE_DIAGNOSTIC
     wt_timestamp_t hs_start_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
+#endif
 
     hs_cursor_start = hs_cursor_stop = NULL;
     truncate_session = (WT_SESSION *)session;
 
+#ifdef HAVE_DIAGNOSTIC
     WT_RET(__wt_scr_alloc(session, 0, &hs_key));
+#endif
 
     /* Open a history store start cursor. */
     WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor_start));
@@ -1463,7 +1467,9 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
 
 done:
 err:
+#ifdef HAVE_DIAGNOSTIC
     __wt_scr_free(session, &hs_key);
+#endif
     if (hs_cursor_start != NULL)
         WT_TRET(hs_cursor_start->close(hs_cursor_start));
     if (hs_cursor_stop != NULL)
