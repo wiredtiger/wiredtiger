@@ -9,5 +9,7 @@ int Connection::open_session(){
     Session* s = new Session();
 
     session_list.push_back(s);
+
+    return (0);
 }
 

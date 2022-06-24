@@ -4,6 +4,7 @@
 
 class Connection {
     std::vector<Session*> session_list;
+    Session *active_session;
 
     public:
         Connection();

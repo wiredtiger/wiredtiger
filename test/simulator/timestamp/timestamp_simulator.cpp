@@ -28,40 +28,60 @@
 
 #include <iostream>
 #include <map>
+#include <fstream>
 #include "connection_sim.h"
 #include "json.hpp"
 
 using json = nlohmann::json;
 
-std::map<int, Connection> connection_map;
+std::map<unsigned int, Connection> connection_map;
 
 void print_connection_map();
 
 void print_connection_map() {
-    for (std::map<int, Connection>::iterator it = connection_map.begin(); it != connection_map.end(); ++it) {
+    for (std::map<unsigned int, Connection>::iterator it = connection_map.begin(); it != connection_map.end(); ++it) {
         std::cout << it->first << " => " << &it->second << std::endl;
     }
 }
 
+// JSON object for wiredtiger_open
+
 int
 main()
 {
-    json j = {{"pi", 3.141}, {"happy", true}};
-    std::cout << j.dump(4) << std::endl;
-
     // Loop over the call log entries from the call log manager.
+    // read a JSON file
+    std::ifstream i("/home/ubuntu/wiredtiger/test/simulator/timestamp/wt_call_log.json");
+    json j2;
+    i >> j2;
+
+    std::cout << j2.dump(4) << std::endl;
+
+    std::cout << j2["Operation"]["ClassName"] << std::endl;
+    std::cout << "API call: " << j2["Operation"]["MethodName"] << std::endl;
+
     // If the call log entry is wiredtiger_open -> Create a new connection object.    
-    Connection *conn = new Connection();
+    if (j2["Operation"]["MethodName"] == "wiredtiger_open"){
+        Connection *conn = new Connection();
 
-    // PM-2564-TODO: Add this object to the object map manager here.
-    int  object_id = 1;
-    connection_map.insert({object_id, *conn});
+        // Get the connection objectid from the call log entry.
+        std::string s = j2["Operation"]["Output"]["objectId"];
+        unsigned int x = std::stoul(s, nullptr, 16);
 
-    print_connection_map();
+        // Check to see if the object id is the same after changing the type.
+        std::cout << std::hex << x << std::endl;
 
-    conn->open_session();
+        // Add this object to the connection map.
+        connection_map.insert({x, *conn});
 
-    delete(conn);
+        // Check the entries in the connection map.
+        print_connection_map();
+
+        // Show that open session creates a new session object.
+        conn->open_session();
+
+        delete(conn);
+    }
 
     return (0);
 }
