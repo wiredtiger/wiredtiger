@@ -77,7 +77,7 @@ class DhandleStat(Stat):
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, DhandleStat.prefix, desc, flags)
 class JoinStat(Stat):
-    prefix = 'join'
+    prefix = ''  # prefix is inserted dynamically
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, JoinStat.prefix, desc, flags)
 class LockStat(Stat):

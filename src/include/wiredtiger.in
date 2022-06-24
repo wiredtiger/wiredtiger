@@ -7267,15 +7267,15 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * @anchor statistics_join
  * @{
  */
-/*! join: accesses to the main table */
+/*! : accesses to the main table */
 #define	WT_STAT_JOIN_MAIN_ACCESS			3000
-/*! join: bloom filter false positives */
+/*! : bloom filter false positives */
 #define	WT_STAT_JOIN_BLOOM_FALSE_POSITIVE		3001
-/*! join: checks that conditions of membership are satisfied */
+/*! : checks that conditions of membership are satisfied */
 #define	WT_STAT_JOIN_MEMBERSHIP_CHECK			3002
-/*! join: items inserted into a bloom filter */
+/*! : items inserted into a bloom filter */
 #define	WT_STAT_JOIN_BLOOM_INSERT			3003
-/*! join: items iterated */
+/*! : items iterated */
 #define	WT_STAT_JOIN_ITERATED				3004
 
 /*!
