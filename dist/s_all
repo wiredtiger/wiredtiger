@@ -4,6 +4,7 @@
 t=__wt.$$
 t_pfx=__s_all_tmp_
 trap 'rm -f $t *.pyc __tmp __wt.* __s_all_tmp*' 0 1 2 3 13 15
+pwd
 
 # We require python which may not be installed.
 type python > /dev/null 2>&1 || {
@@ -81,7 +82,10 @@ run "python api_err.py"
 run "python flags.py"
 run "python log.py"
 run "python stat.py"
+run "python verbose.py"
 run "sh ./s_copyright"
+run "sh ./s_style"
+run "./s_clang-format"
 run "python prototypes.py"
 run "sh ./s_typedef -b"
 run "python test_tag.py"

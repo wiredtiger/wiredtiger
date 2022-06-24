@@ -5,12 +5,27 @@ import re, string, sys, textwrap
 from dist import compare_srcfile, format_srcfile
 from operator import attrgetter
 
-# Read the source files. Catch any exceptions when generation the stats.
-# try:
+# Read the source files.
 from stat_data import groups, dsrc_stats, conn_stats, conn_dsrc_stats, join_stats, \
-        session_stats
-# except Exception as error_msg:
-#     print(error_msg)
+    session_stats
+
+##########################################
+# Check for duplicate stat descriptions:
+# Duplicate stat descpriptions within a category are not allowed.
+# The list must be sorted by description. 
+##################g########################
+def check_unique_description(sorted_list):
+    temp = ""
+    for i in sorted_list:
+        if temp == i.desc:
+            print("ERROR: repeated stat description in - '%s'" % (i.desc))
+        temp = i.desc
+
+check_unique_description(conn_stats)
+check_unique_description(dsrc_stats)
+check_unique_description(session_stats)
+check_unique_description(join_stats)
+check_unique_description(conn_dsrc_stats)
 
 # Statistic categories need to be sorted in order to generate a valid statistics JSON file.
 sorted_conn_stats = conn_stats
