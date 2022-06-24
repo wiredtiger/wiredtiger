@@ -1443,6 +1443,8 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
 #endif
 
     do {
+        WT_ASSERT(session, ret == WT_NOTFOUND || hs_btree_id > btree_id);
+
         WT_ERR_NOTFOUND_OK(hs_cursor_stop->prev(hs_cursor_stop), true);
         /* We can find the start point then we must be able to find the stop point. */
         if (ret == WT_NOTFOUND)
