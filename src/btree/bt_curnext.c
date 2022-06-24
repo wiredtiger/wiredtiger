@@ -764,12 +764,11 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
      * set a boolean. We need to be careful that the entry flag isn't set so we don't re-enter
      * search near.
      *
-     * This positioning logic is at a valid place here. Moving it below __wt_cursor_func_init
-     * results in a segfault since the WT_CBT_ACTIVE flag would have been set, which is incorrect in
-     * our case of positioning the cursor. This positioning code block also calls search_near that
-     * will take a snapshot since the current transaction doesn't have an existing snapshot, and
-     * won't clear it. This snapshot will be consistently used throughout the rest of the
-     * __wt_btcur_next_prefix, so there won't be any data visibility issues.
+     * This logic must come before the call to __wt_cursor_func_init, as it will set the cbt active
+     * flag which changes the logic flow within the subsequent search near resulting in a
+     * segmentation fault. It is better to not set state prior to calling search near. Additionally
+     * the cursor initialization function does take a snapshot if required as does cursor search
+     * near.
      */
     if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER) && !WT_CURSOR_IS_POSITIONED(cbt) &&
       !F_ISSET(cursor, WT_CURSTD_BOUND_ENTRY)) {
