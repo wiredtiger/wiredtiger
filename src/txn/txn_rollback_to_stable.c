@@ -1404,10 +1404,10 @@ static int
 __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
 {
     WT_CURSOR *hs_cursor_start, *hs_cursor_stop;
-    WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
     WT_SESSION *truncate_session;
 #ifdef HAVE_DIAGNOSTIC
+    WT_DECL_ITEM(hs_key);
     wt_timestamp_t hs_start_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
