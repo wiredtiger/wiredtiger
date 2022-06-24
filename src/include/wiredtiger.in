@@ -2328,7 +2328,7 @@ struct __wt_connection {
 	 * @config{json_output, enable JSON formatted messages on the event handler interface.
 	 * Options are given as a list\, where each option specifies an event handler category e.g.
 	 * 'error' represents the messages from the WT_EVENT_HANDLER::handle_error method., a list\,
-	 * with values chosen from the following options: \c "error"\, \c "message"; default empty.}
+	 * with values chosen from the following options: \c "error"\, \c "message"; default \c [].}
 	 * @config{log = (, enable logging.  Enabling logging uses three sessions from the
 	 * configured session_max., a set of related configuration options defined as follows.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system buffer cache
@@ -2438,7 +2438,7 @@ struct __wt_connection {
 	 * "mutex"\, \c "out_of_order"\, \c "overflow"\, \c "read"\, \c "reconcile"\, \c
 	 * "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c "shared_cache"\, \c
 	 * "split"\, \c "temporary"\, \c "thread_group"\, \c "tiered"\, \c "timestamp"\, \c
-	 * "transaction"\, \c "verify"\, \c "version"\, \c "write"; default empty.}
+	 * "transaction"\, \c "verify"\, \c "version"\, \c "write"; default \c [].}
 	 * @configend
 	 * @errors
 	 */
@@ -3101,7 +3101,7 @@ struct __wt_connection {
  * @config{json_output, enable JSON formatted messages on the event handler interface.  Options are
  * given as a list\, where each option specifies an event handler category e.g.  'error' represents
  * the messages from the WT_EVENT_HANDLER::handle_error method., a list\, with values chosen from
- * the following options: \c "error"\, \c "message"; default empty.}
+ * the following options: \c "error"\, \c "message"; default \c [].}
  * @config{log = (, enable logging.  Enabling logging uses three sessions from the configured
  * session_max., a set of related configuration options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;compressor, configure a compressor for log records.  Permitted
@@ -3255,7 +3255,7 @@ struct __wt_connection {
  * "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "overflow"\, \c
  * "read"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c
  * "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c "tiered"\, \c "timestamp"\,
- * \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default empty.}
+ * \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default \c [].}
  * @config{verify_metadata, open connection and verify any WiredTiger metadata.  Not supported when
  * opening a connection from a backup.  This API allows verification and detection of corruption in
  * WiredTiger metadata., a boolean flag; default \c false.}

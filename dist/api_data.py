@@ -65,7 +65,7 @@ common_runtime_config = [
             check''',
             choices=['off', 'on'], undoc=True),
         ]),
-    Config('verbose', '', r'''
+    Config('verbose', '[]', r'''
         this option is no longer supported, retained for backward compatibility''',
         type='list', choices=['write_timestamp'], undoc=True),
     Config('write_timestamp_usage', 'none', r'''
@@ -700,7 +700,7 @@ connection_runtime_config = [
             internally. The minimum non-zero setting is 1MB.''',
             min='0', max='1TB'),
         ]),
-    Config('json_output', '', r'''
+    Config('json_output', '[]', r'''
         enable JSON formatted messages on the event handler interface. Options are given as a
         list, where each option specifies an event handler category e.g. 'error' represents
         the messages from the WT_EVENT_HANDLER::handle_error method.''',
@@ -785,7 +785,7 @@ connection_runtime_config = [
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
         'history_store_search', 'history_store_sweep_race', 'prepare_checkpoint_delay', 'split_1',
         'split_2', 'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'tiered_flush_finish']),
-    Config('verbose', '', r'''
+    Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
         <code>"verbose=[evictserver,read:1,rts:0]"</code>. Verbosity levels that can be provided
