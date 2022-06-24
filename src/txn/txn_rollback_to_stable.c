@@ -1404,21 +1404,17 @@ static int
 __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
 {
     WT_CURSOR *hs_cursor_start, *hs_cursor_stop;
+    WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
     WT_SESSION *truncate_session;
-#ifdef HAVE_DIAGNOSTIC
-    WT_DECL_ITEM(hs_key);
     wt_timestamp_t hs_start_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
-#endif
 
     hs_cursor_start = hs_cursor_stop = NULL;
     truncate_session = (WT_SESSION *)session;
 
-#ifdef HAVE_DIAGNOSTIC
     WT_RET(__wt_scr_alloc(session, 0, &hs_key));
-#endif
 
     /* Open a history store start cursor. */
     WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor_start));
@@ -1450,15 +1446,14 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
     }
 #endif
 
-    ret = hs_cursor_stop->prev(hs_cursor_stop);
-    /* We can find the start point then we must be able to find the stop point. */
-    if (ret != 0)
-        WT_ERR_PANIC(session, ret, "cannot locate the stop point to truncate the history store");
-
-#ifdef HAVE_DIAGNOSTIC
-    hs_cursor_stop->get_key(hs_cursor_stop, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter);
-    WT_ASSERT(session, hs_btree_id == btree_id);
-#endif
+    do {
+        WT_ERR_NOTFOUND_OK(hs_cursor_stop->prev(hs_cursor_stop), true);
+        /* We can find the start point then we must be able to find the stop point. */
+        if (ret == WT_NOTFOUND)
+            WT_ERR_PANIC(
+              session, ret, "cannot locate the stop point to truncate the history store");
+        hs_cursor_stop->get_key(hs_cursor_stop, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter);
+    } while (hs_btree_id != btree_id);
 
     /* Truncate only works with the underlying file cursor. */
     WT_ERR(truncate_session->truncate(truncate_session, NULL,
@@ -1467,9 +1462,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
 
 done:
 err:
-#ifdef HAVE_DIAGNOSTIC
     __wt_scr_free(session, &hs_key);
-#endif
     if (hs_cursor_start != NULL)
         WT_TRET(hs_cursor_start->close(hs_cursor_start));
     if (hs_cursor_stop != NULL)
