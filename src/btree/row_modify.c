@@ -119,9 +119,11 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
                 upd->prev_durable_ts = prev_upd_ts;
                 WT_ERR(__wt_txn_modify(session, upd));
                 added_to_txn = true;
-            } else
+            } else {
+                WT_ASSERT(session, modify_type == WT_UPDATE_TOMBSTONE);
                 /* Allocate a WT_UPDATE structure. */
                 WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
+            }
 
             /* Avoid WT_CURSOR.update data copy. */
             __wt_upd_value_assign(cbt->modify_update, upd);
@@ -209,7 +211,8 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             if (!WT_IS_HS(session->dhandle)) {
                 WT_ERR(__wt_txn_modify(session, upd));
                 added_to_txn = true;
-            }
+            } else
+                WT_ASSERT(session, modify_type == WT_UPDATE_TOMBSTONE);
 
             /* Avoid a data copy in WT_CURSOR.update. */
             __wt_upd_value_assign(cbt->modify_update, upd);
