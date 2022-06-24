@@ -439,9 +439,13 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * This access to the WT_PAGE_DELETED structure is safe; caller has the WT_REF locked, and in
      * fact just allocated the structure to fill in.
+     *
+     * History truncation is non transactional.
      */
-    ref->ft_info.del->txnid = txn->id;
-    __wt_txn_op_set_timestamp(session, op);
+    if (!WT_IS_HS(session->dhandle)) {
+        ref->ft_info.del->txnid = txn->id;
+        __wt_txn_op_set_timestamp(session, op);
+    }
 
     if (__wt_log_op(session))
         WT_ERR(__wt_txn_log_op(session, NULL));
