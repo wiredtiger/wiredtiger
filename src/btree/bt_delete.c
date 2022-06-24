@@ -130,7 +130,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     WT_ERR(__wt_calloc_one(session, &ref->ft_info.del));
     ref->ft_info.del->previous_ref_state = previous_state;
 
-    /* History store truncation is non transactional. */
+    /* History store truncation is non-transactional. */
     if (!WT_IS_HS(session->dhandle))
         WT_ERR(__wt_txn_modify_page_delete(session, ref));
 

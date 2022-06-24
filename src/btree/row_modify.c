@@ -121,6 +121,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
                 added_to_txn = true;
             } else {
                 WT_ASSERT(session, modify_type == WT_UPDATE_TOMBSTONE);
+                old_upd = *upd_entry;
                 /* Allocate a WT_UPDATE structure. */
                 WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
             }
