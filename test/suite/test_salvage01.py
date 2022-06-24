@@ -277,7 +277,7 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
         self.open_conn()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.verify('table:' + self.tablename, None),
-            "/Read checksum error/")
+            "/read checksum error/")
 
         self.session.salvage('file:' + self.tablename + ".wt", None)
         self.check_damaged(self.tablename)
