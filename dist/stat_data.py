@@ -134,7 +134,9 @@ def check_unique_description(sorted_list):
     temp = ""
     for i in sorted_list:
         if temp == i.desc:
-            raise Exception("ERROR: repeated stat description - '" + i.desc + "'")
+            print("ERROR: repeated stat description in - '%s'" % (i.desc))
+            # raise Exception("ERROR: repeated stat description in - '%s'" % (i.desc))
+            sys.exit(1)
         temp = i.desc
 
 ##########################################

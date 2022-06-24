@@ -72,7 +72,7 @@ run()
 	errchk "$1" $t "$2"
 }
 
-# Non parallelizable scripts The following scripts either modify files or
+# Non parallelizable scripts. The following scripts either modify files or
 # already parallelize internally.
 run "sh ./s_readme $force"
 run "sh ./s_install $force"
@@ -80,11 +80,8 @@ run "python api_config_gen.py"
 run "python api_err.py"
 run "python flags.py"
 run "python log.py"
-run "python stat.py" && exit 1
-run "python verbose.py"
+run "python stat.py"
 run "sh ./s_copyright"
-run "sh ./s_style"
-run "./s_clang-format"
 run "python prototypes.py"
 run "sh ./s_typedef -b"
 run "python test_tag.py"

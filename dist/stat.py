@@ -5,9 +5,12 @@ import re, string, sys, textwrap
 from dist import compare_srcfile, format_srcfile
 from operator import attrgetter
 
-# Read the source files.
+# Read the source files. Catch any exceptions when generation the stats.
+# try:
 from stat_data import groups, dsrc_stats, conn_stats, conn_dsrc_stats, join_stats, \
-    session_stats
+        session_stats
+# except Exception as error_msg:
+#     print(error_msg)
 
 # Statistic categories need to be sorted in order to generate a valid statistics JSON file.
 sorted_conn_stats = conn_stats
