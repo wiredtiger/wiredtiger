@@ -73,9 +73,13 @@ dump_queue(WT_SESSION_IMPL *session, const char* origin)
     __wt_spin_lock(session, &conn->tiered_lock);
     printf("AAA work queue %s\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++", origin);
     TAILQ_FOREACH (entry, &conn->tieredqh, q) {
-        printf("\n%s:%s:%s", entry->tiered->iface.name, 
-            entry->tiered->tiers[0].tier != NULL ? entry->tiered->tiers[0].name : "",
-            type_to_str(entry->type));
+        printf("\n%s|%s", entry->tiered->iface.name, type_to_str(entry->type));
+        if (entry->tiered->tiers[0].tier != NULL)
+            printf("\n\t[0]%s", entry->tiered->tiers[0].name);
+        if (entry->tiered->tiers[1].tier != NULL)
+            printf("\n\t[1]%s", entry->tiered->tiers[1].name);
+        if (entry->tiered->tiers[2].tier != NULL)
+            printf("\n\t[2]%s", entry->tiered->tiers[2].name);
     }
     printf("\n----------------------------------------------------------------------------------\n");
     __wt_spin_unlock(session, &conn->tiered_lock);    
