@@ -151,6 +151,7 @@ __wt_tiered_pop_work(WT_SESSION_IMPL *session, uint32_t type, uint64_t maxval,
         }
         session->dhandle = saved_dhandle;
         if (ret == ENOENT) {
+            printf("AAA no metadata entry for %s\n", entry->tiered->iface.name);
             __wt_tiered_work_free(session, entry);
             *entryp = entry = NULL;
         }
