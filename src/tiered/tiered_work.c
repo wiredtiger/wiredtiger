@@ -43,6 +43,44 @@ __wt_tiered_work_free(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
     __wt_free(session, entry);
 }
 
+
+static const char*
+type_to_str(uint32_t type)
+{
+    switch (type)
+    {
+        case WT_TIERED_WORK_DROP_LOCAL:
+            return "WT_TIERED_WORK_DROP_LOCAL";
+        case WT_TIERED_WORK_DROP_SHARED:
+            return "WT_TIERED_WORK_DROP_SHARED";
+        case WT_TIERED_WORK_FLUSH:
+            return "WT_TIERED_WORK_FLUSH";
+        case WT_TIERED_WORK_FLUSH_FINISH:
+            return "WT_TIERED_WORK_FLUSH_FINISH";
+        default:
+            return "";
+    }
+}
+
+static void
+dump_queue(WT_SESSION_IMPL *session, const char* origin)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_TIERED_WORK_UNIT *entry;
+
+    conn = S2C(session);
+    
+    __wt_spin_lock(session, &conn->tiered_lock);
+    printf("AAA work queue %s\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++", origin);
+    TAILQ_FOREACH (entry, &conn->tieredqh, q) {
+        printf("\n%s:%s:%s", entry->tiered->iface.name, 
+            entry->tiered->tiers[0].tier != NULL ? entry->tiered->tiers[0].name : "",
+            type_to_str(entry->type));
+    }
+    printf("\n----------------------------------------------------------------------------------\n");
+    __wt_spin_unlock(session, &conn->tiered_lock);    
+}
+
 /*
  * __wt_tiered_push_work --
  *     Push a work unit to the queue. Assumes it is passed an already filled out structure.
@@ -59,6 +97,10 @@ __wt_tiered_push_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
     __wt_spin_unlock(session, &conn->tiered_lock);
     __tiered_flush_state(session, entry->type, true);
     __wt_cond_signal(session, conn->tiered_cond);
+
+    // AAA test code
+    dump_queue(session, "push");
+    //--------------
     return;
 }
 
@@ -93,6 +135,7 @@ __wt_tiered_pop_work(WT_SESSION_IMPL *session, uint32_t type, uint64_t maxval,
             break;
         }
     }
+
     __wt_spin_unlock(session, &conn->tiered_lock);
 
     if (entry != NULL && entry->tiered->bstorage == NULL) {
@@ -108,6 +151,11 @@ __wt_tiered_pop_work(WT_SESSION_IMPL *session, uint32_t type, uint64_t maxval,
             *entryp = entry = NULL;
         }
     }
+
+    // AAA test code
+    dump_queue(session, "pop");
+    //--------------
+
 
     return;
 }
