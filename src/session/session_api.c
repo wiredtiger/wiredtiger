@@ -1478,12 +1478,11 @@ __wt_session_range_truncate(
      * zero.
      */
     if (!is_col_fix) {
-        if (start != NULL) {
-            F_CLR(debug_start, WT_CURSTD_IGNORE_TOMBSTONE);
-            WT_ASSERT(session, debug_start->search(debug_start) == WT_NOTFOUND);
-        } if (stop != NULL) {
-            F_CLR(debug_stop, WT_CURSTD_IGNORE_TOMBSTONE);
-            WT_ASSERT(session, debug_stop->search(debug_stop) == WT_NOTFOUND);
+        if (!WT_IS_HS(session->dhandle)) {
+            if (start != NULL)
+                WT_ASSERT(session, debug_start->search(debug_start) == WT_NOTFOUND);
+            if (stop != NULL)
+                WT_ASSERT(session, debug_stop->search(debug_stop) == WT_NOTFOUND);
         }
     } else {
         if (start != NULL) {

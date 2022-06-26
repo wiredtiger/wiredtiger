@@ -239,7 +239,6 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
     if (session->nhazard == 0 && !found)
         return;
 
-    WT_ASSERT(session, false);
     __wt_errx(session, "session %p: close hazard pointer table: table not empty", (void *)session);
 
 #ifdef HAVE_DIAGNOSTIC

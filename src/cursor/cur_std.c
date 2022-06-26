@@ -1307,8 +1307,6 @@ __wt_cursor_dup_position(WT_CURSOR *to_dup, WT_CURSOR *cursor)
      * operations and that requirement will save the day.
      */
     F_SET(cursor, WT_CURSTD_RAW_SEARCH);
-    if (WT_IS_HS(CUR2S(cursor)->dhandle))
-        F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
     ret = cursor->search(cursor);
     F_CLR(cursor, WT_CURSTD_RAW_SEARCH);
 
