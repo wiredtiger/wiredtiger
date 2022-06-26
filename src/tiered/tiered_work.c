@@ -63,7 +63,7 @@ type_to_str(uint32_t type)
 }
 
 static void
-dump_queue(WT_SESSION_IMPL *session, const char* origin)
+dump_queue(WT_SESSION_IMPL *session, const char* action, WT_TIERED_WORK_UNIT *active_entry)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TIERED_WORK_UNIT *entry;
@@ -71,9 +71,10 @@ dump_queue(WT_SESSION_IMPL *session, const char* origin)
     conn = S2C(session);
     
     __wt_spin_lock(session, &conn->tiered_lock);
-    printf("AAA work queue %s\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++", origin);
+    printf("AAA work queue %s(%s)\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++", 
+        action, active_entry == NULL ? "" : active_entry->tiered->iface.name);
     TAILQ_FOREACH (entry, &conn->tieredqh, q) {
-        printf("\n%s|%s", entry->tiered->iface.name, type_to_str(entry->type));
+        printf("\n%s|%s", entry->tiered->iface.name, type_to_str(entry->type)); 
         if (entry->tiered->tiers[0].tier != NULL)
             printf("\n\t[0]%s", entry->tiered->tiers[0].name);
         if (entry->tiered->tiers[1].tier != NULL)
@@ -103,7 +104,7 @@ __wt_tiered_push_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
     __wt_cond_signal(session, conn->tiered_cond);
 
     // AAA test code
-    dump_queue(session, "push");
+    dump_queue(session, "push", entry);
     //--------------
     return;
 }
@@ -158,7 +159,7 @@ __wt_tiered_pop_work(WT_SESSION_IMPL *session, uint32_t type, uint64_t maxval,
     }
 
     // AAA test code
-    dump_queue(session, "pop");
+    dump_queue(session, "pop", *entryp);
     //--------------
 
 
