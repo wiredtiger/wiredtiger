@@ -130,8 +130,6 @@ else()
     endif()
 endif()
 
-# Sanitizer builds should have debug info available and optimization off
-set(san_debug_flags "-O1 -g ${no_omit_frame_flag}")
 
 # UBSAN build variant flags.
 set(ubsan_link_flags "-fsanitize=undefined")
@@ -150,22 +148,22 @@ set(tsan_compiler_cxx_flag "-fsanitize=thread")
 
 # Define our custom build variants.
 define_build_mode(ASan
-    C_COMPILER_FLAGS ${asan_compiler_c_flag} ${san_debug_flags}
-    CXX_COMPILER_FLAGS ${asan_compiler_cxx_flag} ${san_debug_flags}
+    C_COMPILER_FLAGS ${asan_compiler_c_flag} ${no_omit_frame_flag}
+    CXX_COMPILER_FLAGS ${asan_compiler_cxx_flag} ${no_omit_frame_flag}
     LINK_FLAGS ${asan_link_flags}
     LIBS ${asan_lib_flags}
 )
 
 define_build_mode(UBSan
-    C_COMPILER_FLAGS ${ubsan_compiler_c_flag} ${san_debug_flags}
-    CXX_COMPILER_FLAGS ${ubsan_compiler_cxx_flag} ${san_debug_flags}
+    C_COMPILER_FLAGS ${ubsan_compiler_c_flag} ${no_omit_frame_flag}
+    CXX_COMPILER_FLAGS ${ubsan_compiler_cxx_flag} ${no_omit_frame_flag}
     LINK_FLAGS ${ubsan_link_flags}
     # Disable UBSan on MSVC compilers (unsupported).
     DEPENDS "NOT MSVC"
 )
 
 define_build_mode(MSan
-    C_COMPILER_FLAGS ${msan_compiler_c_flag} ${san_debug_flags}
+    C_COMPILER_FLAGS ${msan_compiler_c_flag} ${no_omit_frame_flag}
     CXX_COMPILER_FLAGS ${msan_compiler_cxx_flag}
     LINK_FLAGS ${msan_link_flags}
     # Disable MSan on MSVC and GNU compilers (unsupported).
@@ -173,7 +171,7 @@ define_build_mode(MSan
 )
 
 define_build_mode(TSan
-    C_COMPILER_FLAGS ${tsan_compiler_c_flag} ${san_debug_flags}
+    C_COMPILER_FLAGS ${tsan_compiler_c_flag} ${no_omit_frame_flag}
     CXX_COMPILER_FLAGS ${tsan_compiler_cxx_flag}
     LINK_FLAGS ${tsan_link_flags}
     # Disable TSan on MSVC compilers (unsupported).
@@ -190,6 +188,9 @@ define_build_mode(Coverage
 
 define_build_mode(Debug)
 
+# Setup the WiredTiger build to use Debug settings as unless the build type was explicitly
+# configured. Primary users of the build are our developers, who want as much help diagnosing
+# issues as possible. Builds targeted for release to customers should switch to a "Release" setting.
 if(NOT CMAKE_BUILD_TYPE)
     string(REPLACE ";" " " build_modes_doc "${BUILD_MODES}")
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the type of build, options are: ${build_modes_doc}." FORCE)
@@ -203,7 +204,7 @@ endif()
 
 set(CMAKE_CONFIGURATION_TYPES ${BUILD_MODES})
 
-# We want to use the optimisation level from CC_OPTIMIZE_LEVEL and our DEBUG settings as well. 
+# We want to use the optimisation level from CC_OPTIMIZE_LEVEL and our DEBUG settings as well.
 # Remove the default values from Release and RelWithDebInfo.
 if("${WT_OS}" STREQUAL "windows")
     string(REPLACE "/O3" "" CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE})

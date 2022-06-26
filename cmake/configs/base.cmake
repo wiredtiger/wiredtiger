@@ -277,6 +277,10 @@ config_bool(
     DEFAULT ${default_enable_debug_info}
 )
 
+# Ideally this would choose an optimization level of Og. Which is the recommended configuration
+# for build-debug cycles when using GCC and is a synonym in clang for O1.
+# Unfortunately at the moment, WiredTiger code generates compiler warnings (as errors) when
+# built with Og.
 set(default_optimize_level "-O1")
 if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo)$")
     if(WT_WIN)
