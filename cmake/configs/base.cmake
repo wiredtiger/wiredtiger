@@ -12,9 +12,20 @@ set(default_enable_tcmalloc OFF)
 set(default_enable_debug_info ON)
 set(default_enable_static OFF)
 set(default_enable_shared ON)
+set(default_have_unittest ON)
 
 if("${CMAKE_BUILD_TYPE}" MATCHES "^(Debug|Release|RelWithDebInfo|Coverage)$")
     set(default_have_diagnostics OFF)
+endif()
+
+# TODO see if this should be on or off.
+# if("${CMAKE_BUILD_TYPE}" MATCHES "^(MSan)$")
+#    set(default_have_unittest OFF)
+# endif()
+
+# MSan / UBSan fails on Python tests due to linking issue
+if("${CMAKE_BUILD_TYPE}" MATCHES "^(MSan|UBSan)$")
+    set(default_enable_python OFF)
 endif()
 
 if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo|Coverage)$")
@@ -30,7 +41,7 @@ if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo|Coverage)$")
     if(NOT HAVE_BUILTIN_EXTENSION_ZSTD)
         set(default_enable_zstd ${HAVE_LIBZSTD})
     endif()
-    set(default_enable_tcmalloc ${HAVE_LIBTCMALLOC})    
+    set(default_enable_tcmalloc ${HAVE_LIBTCMALLOC})
 endif()
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
@@ -42,7 +53,6 @@ if(WT_WIN)
     # additionally generate a dll file using a *DEF file.
     set(default_enable_static ON)
     set(default_enable_shared OFF)
-    set(default_enable_python OFF)
 endif()
 
 # WiredTiger-related configuration options.
@@ -100,7 +110,7 @@ config_bool(
 config_bool(
     HAVE_UNITTEST
     "Enable WiredTiger unit tests"
-    DEFAULT ON
+    DEFAULT ${default_have_unittest}
 )
 
 config_bool(
@@ -323,7 +333,7 @@ if(ENABLE_DEBUG_INFO)
         # Produce full symbolic debugging information.
         add_compile_options(/Z7)
         # Ensure a PDB file can be generated for debugging symbols.
-        add_link_options(/DEBUG)
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG")
     else()
         add_compile_options(-ggdb)
     endif()
