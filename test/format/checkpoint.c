@@ -81,7 +81,7 @@ checkpoint(void *arg)
             --secs;
             continue;
         }
-        
+
         /*
          * LSM and data-sources don't support named checkpoints. Also, don't attempt named
          * checkpoints during a hot backup. It's OK to create named checkpoints during a hot backup,
