@@ -81,12 +81,12 @@ checkpoint(void *arg)
             --secs;
             continue;
         }
-
+        
         /*
          * LSM and data-sources don't support named checkpoints. Also, don't attempt named
          * checkpoints during a hot backup. It's OK to create named checkpoints during a hot backup,
          * but we can't delete them, so repeating an already existing named checkpoint will fail
-         * when we can't drop the previous one.
+         * when we can't drop the previous one. Wow
          */
         ckpt_config = NULL;
         backup_locked = false;
