@@ -240,8 +240,8 @@ struct __wt_block {
     wt_off_t extend_size; /* File extended size */
     wt_off_t extend_len;  /* File extend chunk size */
 
-    bool created_during_backup; /* Created during incremental backup */
     bool close_on_checkpoint;   /* Close the handle after the next checkpoint */
+    bool created_during_backup; /* Created during incremental backup */
 
     /* Configuration information, set when the file is opened. */
     uint32_t allocfirst; /* Allocation is first-fit */
