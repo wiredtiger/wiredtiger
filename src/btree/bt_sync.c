@@ -223,9 +223,12 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref)
     if (busy)
         return (0);
 
+    /* The modified page reconciliation result is not valid any more. Skip it. */
     WT_ASSERT(session, ref->page != NULL);
-    mod = ref->page->modify;
+    if (__wt_page_is_modified(ref->page))
+        goto err;
 
+    mod = ref->page->modify;
     if (mod != NULL && mod->rec_result == WT_PM_REC_EMPTY) {
         tag = "reconciled empty";
 
