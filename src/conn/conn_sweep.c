@@ -106,7 +106,7 @@ __sweep_dhandle_close_no_lock(WT_SESSION_IMPL *session)
      * To prevent races through the close code, we don't acquire the handle's rwlock.
      * __wt_conn_dhandle_close acquires the handle's close lock.
      */
-    return __wt_conn_dhandle_close(session, false, false);
+    return (__wt_conn_dhandle_close(session, false, false));
 }
 
 /*
@@ -116,7 +116,7 @@ __sweep_dhandle_close_no_lock(WT_SESSION_IMPL *session)
 static int
 __sweep_expire_one(WT_SESSION_IMPL *session)
 {
-    return __sweep_dhandle_close_with_lock(session);
+    return (__sweep_dhandle_close_with_lock(session));
 }
 
 /*
