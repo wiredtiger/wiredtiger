@@ -472,11 +472,15 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
 
         /*
          * Validate the timestamps in the key and the cell are same. This must be validated only
-         * after verifying it's stop time window is not globally visible.
+         * after verifying it's stop time window is not globally visible. The start timestamps of
+         * the time window are cleared when they are globally visible and there will be no stop
+         * timestamp in the history store whenever a prepared update is written to the data store.
          */
         WT_ASSERT(session,
-          hs_tw->start_ts == hs_start_ts && hs_tw->durable_start_ts == hs_durable_ts &&
-            hs_tw->durable_stop_ts == hs_stop_durable_ts);
+          (hs_tw->start_ts == WT_TS_NONE || hs_tw->start_ts == hs_start_ts) &&
+            (hs_tw->durable_start_ts == WT_TS_NONE || hs_tw->durable_start_ts == hs_durable_ts) &&
+            ((hs_tw->durable_stop_ts == 0 && hs_stop_durable_ts == WT_TS_MAX) ||
+              hs_tw->durable_stop_ts == hs_stop_durable_ts));
 
         /*
          * Stop processing when we find a stable update according to the given timestamp and
