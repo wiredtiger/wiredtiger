@@ -1461,10 +1461,12 @@ __wt_session_range_truncate(
      * for error-checking purposes.
      */
 #ifdef HAVE_DIAGNOSTIC
-    if (start != NULL)
-        WT_ERR(__session_open_cursor((WT_SESSION *)session, NULL, start, NULL, &debug_start));
-    if (stop != NULL)
-        WT_ERR(__session_open_cursor((WT_SESSION *)session, NULL, stop, NULL, &debug_stop));
+    if (strcmp(start->uri, WT_HS_URI) != 0) {
+        if (start != NULL)
+            WT_ERR(__session_open_cursor((WT_SESSION *)session, NULL, start, NULL, &debug_start));
+        if (stop != NULL)
+            WT_ERR(__session_open_cursor((WT_SESSION *)session, NULL, stop, NULL, &debug_stop));
+    }
 #endif
 
     WT_ERR(__wt_schema_range_truncate(session, start, stop, &is_col_fix));
@@ -1478,18 +1480,16 @@ __wt_session_range_truncate(
      * zero.
      */
     if (!is_col_fix) {
-        if (!WT_IS_HS(session->dhandle)) {
-            if (start != NULL)
-                WT_ASSERT(session, debug_start->search(debug_start) == WT_NOTFOUND);
-            if (stop != NULL)
-                WT_ASSERT(session, debug_stop->search(debug_stop) == WT_NOTFOUND);
-        }
+        if (debug_start != NULL)
+            WT_ASSERT(session, debug_start->search(debug_start) == WT_NOTFOUND);
+        if (debug_stop != NULL)
+            WT_ASSERT(session, debug_stop->search(debug_stop) == WT_NOTFOUND);
     } else {
-        if (start != NULL) {
+        if (debug_start != NULL) {
             WT_ERR(debug_start->search(debug_start));
             WT_ASSERT(session, debug_start->get_value(debug_start, &col_value) == 0);
         }
-        if (stop != NULL) {
+        if (debug_stop != NULL) {
             WT_ERR(debug_stop->search(debug_stop));
             WT_ASSERT(session, debug_stop->get_value(debug_stop, &col_value) == 0);
         }
