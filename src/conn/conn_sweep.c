@@ -50,11 +50,11 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
 }
 
 /*
- * __sweep_expire_one --
- *     Mark a single handle dead.
+ * __sweep_dhandle_close_with_lock --
+ *     Close dhandle while holding rwlock.
  */
 static int
-__sweep_expire_one(WT_SESSION_IMPL *session)
+__sweep_dhandle_close_with_lock(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
     WT_DATA_HANDLE *dhandle;
@@ -93,6 +93,30 @@ err:
     __wt_writeunlock(session, &dhandle->rwlock);
 
     return (ret);
+}
+
+/*
+ * __sweep_dhandle_close_no_lock --
+ *     Close dhandle without any extra locking.
+ */
+static int
+__sweep_dhandle_close_no_lock(WT_SESSION_IMPL *session)
+{
+    /*
+     * To prevent races through the close code, we don't acquire the handle's rwlock.
+     * __wt_conn_dhandle_close acquires the handle's close lock.
+     */
+    return __wt_conn_dhandle_close(session, false, false);
+}
+
+/*
+ * __sweep_expire_one --
+ *     Mark a single handle dead.
+ */
+static int
+__sweep_expire_one(WT_SESSION_IMPL *session)
+{
+    return __sweep_dhandle_close_with_lock(session);
 }
 
 /*
@@ -158,7 +182,7 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
             continue;
 
         /* If the handle is marked dead, flush it from cache. */
-        WT_WITH_DHANDLE(session, dhandle, ret = __wt_conn_dhandle_close(session, false, false));
+        WT_WITH_DHANDLE(session, dhandle, ret = __sweep_dhandle_close_no_lock(session));
 
         /* We closed the btree handle. */
         if (ret == 0) {
