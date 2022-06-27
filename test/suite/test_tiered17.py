@@ -84,7 +84,6 @@ class test_tiered17(TieredConfigMixin, wttest.WiredTigerTestCase):
         self.verify_checkpoint()
         obj_files_orig = self.get_object_files()
 
-        #
         # Re-open the connection but in readonly mode.
         conn_params = 'readonly=true,' + self.saved_conn
         self.reopen_conn(config = conn_params)
