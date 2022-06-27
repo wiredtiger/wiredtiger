@@ -72,7 +72,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
         live_open = block->live_open;
         block->live_open = true;
         __wt_spin_unlock(session, &block->live_lock);
-        WT_ASSERT(session, live_open == false);
+        WT_ERR_ASSERT(session, live_open == false, EBUSY, "attempt to re-open live file");
         if (live_open)
             WT_ERR_MSG(session, WT_ERROR, "%s: already open", block->name);
 
