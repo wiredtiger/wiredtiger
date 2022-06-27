@@ -2928,6 +2928,12 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     conn->unclean_shutdown = false;
 #endif
 
+#ifdef HAVE_CALL_LOG
+    /* Set up the call log file. */
+    WT_ERR(__wt_conn_call_log_setup(session));
+    WT_ERR(__wt_call_log_wiredtiger_open_start(session));
+#endif
+
     /*
      * This function expects the cache to be created so parse this after the rest of the connection
      * is set up.
@@ -3037,16 +3043,11 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_STATIC_ASSERT(offsetof(WT_CONNECTION_IMPL, iface) == 0);
     *connectionp = &conn->iface;
 
-#ifdef HAVE_CALL_LOG
-    /* Set up the call log file. */
-    WT_ERR(__wt_conn_call_log_setup(session));
-#endif
-
 err:
 
 #ifdef HAVE_CALL_LOG
-    /* Print the call log entry for wiredtiger_open. */
-    WT_RET(__wt_call_log_wiredtiger_open(session, ret));
+    /* Print the end of the call log entry for wiredtiger_open. */
+    WT_TRET(__wt_call_log_wiredtiger_open_end(session, ret));
 #endif
 
     /* Discard the scratch buffers. */
