@@ -392,6 +392,8 @@ real_worker(void)
         }
 
     for (i = 0; i < g.nops && g.running; ++i, __wt_yield()) {
+        if (i > 0 && i % 5000 == 0)
+            printf("Worker %u of %u ops\n", i, g.nops);
         if (start_txn) {
             if ((ret = session->begin_transaction(session, begin_cfg)) != 0) {
                 (void)log_print_err("real_worker:begin_transaction", ret, 1);
