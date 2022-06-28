@@ -662,11 +662,12 @@ __wt_cell_leaf_value_parse(WT_PAGE *page, WT_CELL *cell)
  * case, make sure all reads are inside the page image. If an error occurs, return an error code but
  * don't output messages, our caller handles that.
  */
-#define WT_CELL_LEN_CHK(t, len, dsk, end)                                                       \
-    do {                                                                                        \
-        if ((end) != NULL &&                                                                    \
-          ((uint8_t *)(t) < (uint8_t *)(dsk) || (((uint8_t *)(t)) + (len)) > (uint8_t *)(end))) \
-            return (WT_ERROR);                                                                  \
+#define WT_CELL_LEN_CHK(start, len, dsk, end)                   \
+    do {                                                        \
+        if ((end) != NULL &&                                    \
+          ((uint8_t *)(start) < (uint8_t *)(dsk) ||             \
+            (((uint8_t *)(start)) + (len)) > (uint8_t *)(end))) \
+            return (WT_ERROR);                                  \
     } while (0)
 
 /*
