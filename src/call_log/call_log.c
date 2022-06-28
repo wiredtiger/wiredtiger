@@ -102,10 +102,10 @@ __call_log_print_input(WT_SESSION_IMPL *session, int n, ...)
         /* Don't print the comma at the end of the input entry if it's the last one. */
         if (i == n - 1)
             WT_ERR(
-            __wt_fprintf(session, conn->call_log_fst, "        %s\n", va_arg(valist, char*)));
+              __wt_fprintf(session, conn->call_log_fst, "        %s\n", va_arg(valist, char *)));
         else
             WT_ERR(
-            __wt_fprintf(session, conn->call_log_fst, "        %s,\n", va_arg(valist, char*)));
+              __wt_fprintf(session, conn->call_log_fst, "        %s,\n", va_arg(valist, char *)));
     }
 
     WT_ERR(__wt_fprintf(session, conn->call_log_fst, "    },\n"));
@@ -140,10 +140,10 @@ __call_log_print_output(WT_SESSION_IMPL *session, int n, ...)
         /* Don't print the comma at the end of the output entry if it's the last one. */
         if (i == n - 1)
             WT_ERR(
-            __wt_fprintf(session, conn->call_log_fst, "        %s\n", va_arg(valist, char*)));
+              __wt_fprintf(session, conn->call_log_fst, "        %s\n", va_arg(valist, char *)));
         else
             WT_ERR(
-            __wt_fprintf(session, conn->call_log_fst, "        %s,\n", va_arg(valist, char*)));
+              __wt_fprintf(session, conn->call_log_fst, "        %s,\n", va_arg(valist, char *)));
     }
 
     WT_ERR(__wt_fprintf(session, conn->call_log_fst, "    },\n"));
@@ -179,32 +179,19 @@ __call_log_print_return(WT_SESSION_IMPL *session, int ret_val, const char *err_m
 }
 
 /*
- * __wt_call_log_wiredtiger_open_start --
- *     Print the first half of the call log entry for the wiredtiger_open API call. The call log
- *     entry is split in two so that the api call will always be logged regardless of a failure.
+ * __wt_call_log_wiredtiger_open --
+ *     Print the call log entry for the wiredtiger_open API call.
  */
 int
-__wt_call_log_wiredtiger_open_start(WT_SESSION_IMPL *session)
-{
-
-    WT_RET(__call_log_print_start(session, "global", "wiredtiger_open"));
-    WT_RET(__call_log_print_input(session, 0));
-
-    return (0);
-}
-
-/*
- * __wt_call_log_wiredtiger_open_end --
- *     Print the second half of the call log entry for the wiredtiger_open API call.
- */
-int
-__wt_call_log_wiredtiger_open_end(WT_SESSION_IMPL *session, int ret_val)
+__wt_call_log_wiredtiger_open(WT_SESSION_IMPL *session, int ret_val)
 {
     WT_CONNECTION_IMPL *conn;
     char buf[128];
 
     conn = S2C(session);
 
+    WT_RET(__call_log_print_start(session, "global", "wiredtiger_open"));
+    WT_RET(__call_log_print_input(session, 0));
     WT_RET(__wt_snprintf(buf, sizeof(buf), "\"objectId\": %p", conn));
     WT_RET(__call_log_print_output(session, 1, buf));
     WT_RET(__call_log_print_return(session, ret_val, ""));

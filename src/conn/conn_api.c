@@ -2931,7 +2931,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 #ifdef HAVE_CALL_LOG
     /* Set up the call log file. */
     WT_ERR(__wt_conn_call_log_setup(session));
-    WT_ERR(__wt_call_log_wiredtiger_open_start(session));
 #endif
 
     /*
@@ -3046,8 +3045,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 err:
 
 #ifdef HAVE_CALL_LOG
-    /* Print the end of the call log entry for wiredtiger_open. */
-    WT_TRET(__wt_call_log_wiredtiger_open_end(session, ret));
+    /* Print the call log entry for wiredtiger_open. */
+    WT_TRET(__wt_call_log_wiredtiger_open(session, ret));
 #endif
 
     /* Discard the scratch buffers. */
