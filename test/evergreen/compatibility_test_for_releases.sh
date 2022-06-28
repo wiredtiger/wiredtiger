@@ -4,6 +4,7 @@
 ##############################################################################################
 
 set -e
+set -x
 
 #############################################################
 # bflag:
@@ -598,7 +599,7 @@ get_build_system()
     # Check for WiredTiger standalone branch names. They are of the form 10.0.0 - figure out
     # if the first element is numerical, and use that to decide.
     wt_version="false"
-    major=`echo $branch | cut -d '-' -f 2 | cut -d '.' -f 1`
+    major=`echo $branch | cut -d '.' -f 1`
     case $major in
         ''|*[!0-9]*) wt_version="false" ;;
         *) wt_version="true" ;;
