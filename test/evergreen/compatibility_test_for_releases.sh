@@ -77,7 +77,7 @@ build_branch()
     cd "$1"
     git checkout --quiet "$1"
 
-    if [ "${build_sys[$1]}" == "cmake" ]; then
+    if [ get_build_system($1) == "cmake" ]; then
         . ./test/evergreen/find_cmake.sh
         config=""
         config+="-DENABLE_SNAPPY=1 "
@@ -295,7 +295,7 @@ run_test_checkpoint()
 
     cd "$branch_name/build/test/checkpoint"
 
-    if [ "${build_sys[$branch_name]}" == "cmake" ]; then
+    if [ get_build_system($branch_name) == "cmake" ]; then
         test_bin="test_checkpoint"
     else
         test_bin="t"
@@ -386,7 +386,7 @@ verify_test_checkpoint()
     top_dir=$PWD
     cd "$1/build/test/checkpoint"
 
-    if [ "${build_sys[$1]}" == "cmake" ]; then
+    if [ get_build_system($1) == "cmake" ]; then
         test_bin="test_checkpoint"
     else
         test_bin="t"
@@ -466,7 +466,7 @@ test_upgrade_to_branch()
 {
     cd $1/build/test/checkpoint
 
-    if [ "${build_sys[$1]}" == "cmake" ]; then
+    if [ get_build_system($1) == "cmake" ]; then
         test_bin="test_checkpoint"
     else
         test_bin="t"
@@ -572,6 +572,22 @@ build_sys['mongodb-5.0']="autoconf"
 build_sys['mongodb-4.4']="autoconf"
 build_sys['mongodb-4.2']="autoconf"
 build_sys['mongodb-4.0']="autoconf"
+
+get_build_system()
+{
+    branch="$1"
+    # Default to cmake.
+    local build_system="cmake"
+
+    if [[ $branch == mongodb-* ]]; then
+        major=`echo $branch | cut -d '-' -f 2 | cut -d '.' -f 1`
+        if [ $major -lt 6 ]; then
+            build_system="autoconf"
+        fi
+    fi
+    echo $build_system
+
+}
 
 #############################################################
 # usage string
