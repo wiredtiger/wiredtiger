@@ -31,6 +31,8 @@ __wt_conn_call_log_setup(WT_SESSION_IMPL *session)
 
     F_SET(conn, WT_CONN_CALL_LOG_ENABLED);
 
+    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "[\n"));
+
 err:
     __wt_scr_free(session, &file_name);
     return (ret);
@@ -50,6 +52,8 @@ __wt_conn_call_log_teardown(WT_SESSION_IMPL *session)
     if (!F_ISSET(conn, WT_CONN_CALL_LOG_ENABLED))
         return (0);
 
+    WT_RET(__wt_fprintf(session, conn->call_log_fst, "]\n"));
+
     return (__wt_fclose(session, &conn->call_log_fst));
 }
 
@@ -67,9 +71,8 @@ __call_log_print_start(WT_SESSION_IMPL *session, const char *class_name, const c
 
     WT_RET(__wt_fprintf(session, conn->call_log_fst,
       "{\n"
-      "    \"Operation\" : {\n"
-      "        \"ClassName\" : \"%s\",\n"
-      "        \"MethodName\" : \"%s\",\n",
+      "    \"ClassName\" : \"%s\",\n"
+      "    \"MethodName\" : \"%s\",\n",
       class_name, method_name));
 
     return (0);
@@ -93,14 +96,19 @@ __call_log_print_input(WT_SESSION_IMPL *session, int n, ...)
 
     va_start(valist, n);
 
-    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "        \"Input\" : {\n"));
+    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "    \"Input\" : {\n"));
 
     for (int i = 0; i < n; i++) {
-        WT_ERR(
-          __wt_fprintf(session, conn->call_log_fst, "            %s,\n", va_arg(valist, char*)));
+        /* Don't print the comma at the end of the input entry if it's the last one. */
+        if (i == n - 1)
+            WT_ERR(
+            __wt_fprintf(session, conn->call_log_fst, "        %s\n", va_arg(valist, char*)));
+        else
+            WT_ERR(
+            __wt_fprintf(session, conn->call_log_fst, "        %s,\n", va_arg(valist, char*)));
     }
 
-    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "        },\n"));
+    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "    },\n"));
 
 err:
     va_end(valist);
@@ -126,14 +134,19 @@ __call_log_print_output(WT_SESSION_IMPL *session, int n, ...)
 
     va_start(valist, n);
 
-    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "        \"Output\" : {\n"));
+    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "    \"Output\" : {\n"));
 
     for (int i = 0; i < n; i++) {
-        WT_ERR(
-          __wt_fprintf(session, conn->call_log_fst, "            %s,\n", va_arg(valist, char*)));
+        /* Don't print the comma at the end of the output entry if it's the last one. */
+        if (i == n - 1)
+            WT_ERR(
+            __wt_fprintf(session, conn->call_log_fst, "        %s\n", va_arg(valist, char*)));
+        else
+            WT_ERR(
+            __wt_fprintf(session, conn->call_log_fst, "        %s,\n", va_arg(valist, char*)));
     }
 
-    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "        },\n"));
+    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "    },\n"));
 
 err:
     va_end(valist);
@@ -155,12 +168,11 @@ __call_log_print_return(WT_SESSION_IMPL *session, int ret_val, const char *err_m
     conn = S2C(session);
 
     WT_RET(__wt_fprintf(session, conn->call_log_fst,
-      "        \"Return\" : {\n"
-      "            \"ReturnVal\" : %d,\n"
-      "            \"errMsg\" : \"%s\"\n"
-      "        }\n"
+      "    \"Return\" : {\n"
+      "        \"ReturnVal\" : %d,\n"
+      "        \"errMsg\" : \"%s\"\n"
       "    }\n"
-      "}",
+      "}\n",
       ret_val, err_msg));
 
     return (0);
