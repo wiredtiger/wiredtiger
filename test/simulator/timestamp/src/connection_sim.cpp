@@ -12,4 +12,3 @@ int Connection::open_session(){
 
     return (0);
 }
-

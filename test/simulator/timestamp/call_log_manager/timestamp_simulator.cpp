@@ -50,49 +50,11 @@ void print_connection_map() {
 int
 main()
 {
-    // Loop over the call log entries from the call log manager.
-    // read a JSON file
-    // std::ifstream i("/home/ubuntu/wiredtiger/test/simulator/timestamp/wt_call_log.json");
-    // json j;
-    // i >> j;
-
-    // std::cout << j.dump(4) << std::endl;
-
-    // // std::cout << j2["Operation"]["ClassName"] << std::endl;
-    // // std::cout << "API call: " << j2["Operation"]["MethodName"] << std::endl;
-
-    // // Loop over each operation in the call log.
-    // for (const auto& element : j["Operations"]){
-    //     std::cout << element << std::endl;
-    // }
-
     CallLogManager *clm = new CallLogManager();
 
     clm->dumpCallLog();
     clm->processCallLog();
 
-    // If the call log entry is wiredtiger_open -> Create a new connection object.    
-    // if (j2["Operation"]["MethodName"] == "wiredtiger_open"){
-    //     Connection *conn = new Connection();
-
-    //     // Get the connection objectid from the call log entry.
-    //     std::string s = j2["Operation"]["Output"]["objectId"];
-    //     unsigned int x = std::stoul(s, nullptr, 16);
-
-    //     // Check to see if the object id is the same after changing the type.
-    //     std::cout << std::hex << x << std::endl;
-
-    //     // Add this object to the connection map.
-    //     connection_map.insert({x, *conn});
-
-    //     // Check the entries in the connection map.
-    //     print_connection_map();
-
-    //     // Show that open session creates a new session object.
-    //     conn->open_session();
-
-    //     delete(conn);
-    // }
 
     return (0);
 }

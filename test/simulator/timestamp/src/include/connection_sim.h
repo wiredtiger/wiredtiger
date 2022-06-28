@@ -12,4 +12,3 @@ class Connection {
         int query_timestamp();
         int set_timestamp();
 };
-
