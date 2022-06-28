@@ -50,7 +50,7 @@ class test_debug_mode10(wttest.WiredTigerTestCase):
         # Make checkpoint perform eviction.
         self.session.checkpoint()
 
-        # Read the statistics of pages that have been update restored without update_restore
+        # Read the statistics of pages that have been evicted during checkpoint.
         stat_cursor = self.session.open_cursor('statistics:')
         pages_evicted_during_checkpoint = stat_cursor[stat.conn.cache_eviction_pages_in_parallel_with_checkpoint][2]
         stat_cursor.close()
