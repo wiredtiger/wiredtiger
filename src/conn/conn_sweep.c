@@ -50,18 +50,42 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
 }
 
 /*
+ * __sweep_close_dhandle_locked --
+ *     Close write-locked dhandle.
+ */
+static int
+__sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_DATA_HANDLE *dhandle;
+
+    dhandle = session->dhandle;
+    btree = WT_DHANDLE_BTREE(dhandle) ? dhandle->handle : NULL;
+
+    /* This method expects dhandle write lock. */
+    WT_ASSERT(session, (dhandle->lock_flags | WT_DHANDLE_LOCK_WRITE) == WT_DHANDLE_LOCK_WRITE);
+
+    /* Only sweep clean trees. */
+    if (btree != NULL && btree->modified)
+        return (0);
+
+    /*
+     * Mark the handle dead and close the underlying handle.
+     *
+     * For btree handles, closing the handle decrements the open file count, meaning the close loop
+     * won't overrun the configured minimum.
+     */
+    return (__wt_conn_dhandle_close(session, false, true));
+}
+
+/*
  * __sweep_expire_one --
  *     Mark a single handle dead.
  */
 static int
 __sweep_expire_one(WT_SESSION_IMPL *session)
 {
-    WT_BTREE *btree;
-    WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
-
-    dhandle = session->dhandle;
-    btree = WT_DHANDLE_BTREE(dhandle) ? dhandle->handle : NULL;
 
     /*
      * Acquire an exclusive lock on the handle and mark it dead.
@@ -75,22 +99,7 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
      * rather than returning an EBUSY error to the application. This is done holding the handle list
      * lock so that connection-level handle searches never need to retry.
      */
-    WT_RET(__wt_try_writelock(session, &dhandle->rwlock));
-
-    /* Only sweep clean trees. */
-    if (btree != NULL && btree->modified)
-        goto err;
-
-    /*
-     * Mark the handle dead and close the underlying handle.
-     *
-     * For btree handles, closing the handle decrements the open file count, meaning the close loop
-     * won't overrun the configured minimum.
-     */
-    ret = __wt_conn_dhandle_close(session, false, true);
-
-err:
-    __wt_writeunlock(session, &dhandle->rwlock);
+    WT_WITH_DHANDLE_WRITE_LOCK_NOWAIT(session, ret, ret = __sweep_close_dhandle_locked(session));
 
     return (ret);
 }
@@ -183,7 +192,7 @@ __sweep_remove_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
     WT_DECL_RET;
 
     /* Try to get exclusive access. */
-    WT_RET(__wt_try_writelock(session, &dhandle->rwlock));
+    WT_RET(__wt_session_dhandle_try_writelock(session));
 
     /*
      * If there are no longer any references to the handle in any sessions, attempt to discard it.
@@ -199,7 +208,7 @@ __sweep_remove_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
      */
     if (ret != 0) {
 err:
-        __wt_writeunlock(session, &dhandle->rwlock);
+        __wt_session_dhandle_writeunlock(session);
     }
 
     return (ret);
