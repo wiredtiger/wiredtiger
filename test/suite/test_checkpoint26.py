@@ -29,14 +29,14 @@
 from wiredtiger import stat
 import wttest
 
-# test_debug_mode10.py
+# test_checkpoint26.py
 # Test the debug mode setting for checkpoint_evict_page.
 # Force checkpoint to evict all pages that are reconciled. The debug mode is effective in testing
 # scenarios where checkpoint itself starts to evict pages. Have a big enough cache and small data pages
 # so that eviction activity is small, allowing checkpoint to reconcile and evict pages.
-class test_debug_mode10(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=1000MB,statistics=(all),eviction_dirty_target=80,eviction_dirty_trigger=95,debug_mode=(checkpoint_evict_page=true)'
-    uri = "table:test_debug_mode10"
+class test_checkpoint26(wttest.WiredTigerTestCase):
+    conn_config = 'cache_size=1000MB,statistics=(all),eviction_dirty_target=80,eviction_dirty_trigger=95,timing_stress_for_test=[checkpoint_evict_page]'
+    uri = "table:test_checkpoint26"
 
     def test_checkpoint_evict_page(self):
         self.session.create(self.uri, 'key_format=i,value_format=S')
