@@ -97,7 +97,7 @@ __call_log_print_input(WT_SESSION_IMPL *session, int n, ...)
 
     for (int i = 0; i < n; i++) {
         WT_ERR(
-          __wt_fprintf(session, conn->call_log_fst, "            %s,\n", va_arg(valist, char *)));
+          __wt_fprintf(session, conn->call_log_fst, "            %s,\n", va_arg(valist, char*)));
     }
 
     WT_ERR(__wt_fprintf(session, conn->call_log_fst, "        },\n"));
@@ -130,7 +130,7 @@ __call_log_print_output(WT_SESSION_IMPL *session, int n, ...)
 
     for (int i = 0; i < n; i++) {
         WT_ERR(
-          __wt_fprintf(session, conn->call_log_fst, "            %s,\n", va_arg(valist, char *)));
+          __wt_fprintf(session, conn->call_log_fst, "            %s,\n", va_arg(valist, char*)));
     }
 
     WT_ERR(__wt_fprintf(session, conn->call_log_fst, "        },\n"));
