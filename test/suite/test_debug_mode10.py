@@ -31,7 +31,7 @@ import wttest
 
 # test_debug_mode10.py
 # Test the debug mode setting for checkpoint_evict_page.
-# Force checkpoint to evict all pages that are reconcilled. The debug mode is effective in testing
+# Force checkpoint to evict all pages that are reconciled. The debug mode is effective in testing
 # scenarios where checkpoint itself starts to evict pages. Have a big enough cache and small data pages
 # so that eviction activity is small, allowing checkpoint to reconcile and evict pages.
 class test_debug_mode10(wttest.WiredTigerTestCase):
@@ -47,11 +47,17 @@ class test_debug_mode10(wttest.WiredTigerTestCase):
             cursor[i] = 'b' * 5000
             self.session.commit_transaction()
 
+        # There should be no eviction activity at this point.
+        stat_cursor = self.session.open_cursor('statistics:')
+        pages_evicted_during_checkpoint = stat_cursor[stat.conn.cache_eviction_pages_in_parallel_with_checkpoint][2]
+        self.assertEqual(pages_evicted_during_checkpoint, 0)
+        stat_cursor.close()
+
         # Make checkpoint perform eviction.
         self.session.checkpoint()
 
         # Read the statistics of pages that have been evicted during checkpoint.
         stat_cursor = self.session.open_cursor('statistics:')
         pages_evicted_during_checkpoint = stat_cursor[stat.conn.cache_eviction_pages_in_parallel_with_checkpoint][2]
-        stat_cursor.close()
         self.assertGreater(pages_evicted_during_checkpoint, 0)
+        stat_cursor.close()
