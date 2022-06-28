@@ -734,6 +734,7 @@ struct __wt_cursor {
 	 * user on open.
 	 */
 	const char *internal_uri;
+	bool search_near_must_find;
 
     /*
      * Lower bound and upper bound buffers that is used for the bound API. Store the key set for
