@@ -577,6 +577,12 @@ build_sys['mongodb-4.4']="autoconf"
 build_sys['mongodb-4.2']="autoconf"
 build_sys['mongodb-4.0']="autoconf"
 
+#############################################################
+# Retrive the build system used by a particular release,
+# since WiredTiger swtiched from autoconf to cmake.
+#       arg1: branch name to check against
+#       output: string as name of build system
+#############################################################
 get_build_system()
 {
     branch="$1"
@@ -586,6 +592,21 @@ get_build_system()
     if [[ $branch == mongodb-* ]]; then
         major=`echo $branch | cut -d '-' -f 2 | cut -d '.' -f 1`
         if [ $major -lt 6 ]; then
+            build_system="autoconf"
+        fi
+    fi
+    # Check for WiredTiger standalone branch names. They are of the form 10.0.0 - figure out
+    # if the first element is numerical, and use that to decide.
+    wt_version="false"
+    major=`echo $branch | cut -d '-' -f 2 | cut -d '.' -f 1`
+    case $major in
+        ''|*[!0-9]*) wt_version="false" ;;
+        *) wt_version="true" ;;
+    esac
+
+    if [[ "$wt_version" == "true" ]]; then
+        # The 11.0.0 version of WiredTiger is where cmake became the default
+        if [ $major -lt 11 ]; then
             build_system="autoconf"
         fi
     fi
