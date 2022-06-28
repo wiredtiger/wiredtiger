@@ -77,7 +77,8 @@ build_branch()
     cd "$1"
     git checkout --quiet "$1"
 
-    if [ get_build_system($1) == "cmake" ]; then
+    build_system=$(get_build_system $1)
+    if [ "$build_system" == "cmake" ]; then
         . ./test/evergreen/find_cmake.sh
         config=""
         config+="-DENABLE_SNAPPY=1 "
@@ -295,7 +296,8 @@ run_test_checkpoint()
 
     cd "$branch_name/build/test/checkpoint"
 
-    if [ get_build_system($branch_name) == "cmake" ]; then
+    build_system=$(get_build_system $branch_name)
+    if [ "$build_system" == "cmake" ]; then
         test_bin="test_checkpoint"
     else
         test_bin="t"
@@ -386,7 +388,8 @@ verify_test_checkpoint()
     top_dir=$PWD
     cd "$1/build/test/checkpoint"
 
-    if [ get_build_system($1) == "cmake" ]; then
+    build_system=$(get_build_system $1)
+    if [ "$build_system" == "cmake" ]; then
         test_bin="test_checkpoint"
     else
         test_bin="t"
@@ -466,7 +469,8 @@ test_upgrade_to_branch()
 {
     cd $1/build/test/checkpoint
 
-    if [ get_build_system($1) == "cmake" ]; then
+    build_system=$(get_build_system $1)
+    if [ "$build_system" == "cmake" ]; then
         test_bin="test_checkpoint"
     else
         test_bin="t"
