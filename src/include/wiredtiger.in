@@ -2196,31 +2196,30 @@ struct __wt_connection {
 	 * @config{debug_mode = (, control the settings of various extended debugging features., a
 	 * set of related configuration options defined as follows.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_evict_page, if true\, when performing
-	 * checkpoint evict all pages that are reconciled., a boolean flag; default \c false.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_retention, adjust log removal to retain the
-	 * log records of this number of checkpoints.  Zero or one means perform normal removal., an
-	 * integer between \c 0 and \c 1024; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-	 * corruption_abort, if true and built in diagnostic mode\, dump core in the case of data
-	 * corruption., a boolean flag; default \c true.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-	 * cursor_copy, if true\, use the system allocator to make a copy of any data returned by a
-	 * cursor operation and return the copy instead.  The copy is freed on the next cursor
-	 * operation.  This allows memory sanitizers to detect inappropriate references to memory
-	 * owned by cursors., a boolean flag; default \c false.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-	 * cursor_reposition, if true\, for operations with snapshot isolation the cursor
-	 * temporarily releases any page that requires force eviction\, then repositions back to the
-	 * page for further operations.  A page release encourages eviction of hot or large pages\,
-	 * which is more likely to succeed without a cursor keeping the page pinned., a boolean
-	 * flag; default \c false.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction, if true\, modify
-	 * internal algorithms to change skew to force history store eviction to happen more
-	 * aggressively.  This includes but is not limited to not skewing newest\, not favoring leaf
-	 * pages\, and modifying the eviction score mechanism., a boolean flag; default \c false.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;flush_checkpoint, if true\, call a system wide checkpoint
-	 * immediately after a flush_tier completes to force objects out to disk so that a
-	 * flush_tier can work single-threaded., a boolean flag; default \c false.}
+	 * checkpoint evict all pages that are going to be reconciled., a boolean flag; default \c
+	 * false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_retention, adjust log removal to
+	 * retain the log records of this number of checkpoints.  Zero or one means perform normal
+	 * removal., an integer between \c 0 and \c 1024; default \c 0.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true and built in diagnostic mode\,
+	 * dump core in the case of data corruption., a boolean flag; default \c true.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;cursor_copy, if true\, use the system allocator to make a
+	 * copy of any data returned by a cursor operation and return the copy instead.  The copy is
+	 * freed on the next cursor operation.  This allows memory sanitizers to detect
+	 * inappropriate references to memory owned by cursors., a boolean flag; default \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;cursor_reposition, if true\, for operations with snapshot
+	 * isolation the cursor temporarily releases any page that requires force eviction\, then
+	 * repositions back to the page for further operations.  A page release encourages eviction
+	 * of hot or large pages\, which is more likely to succeed without a cursor keeping the page
+	 * pinned., a boolean flag; default \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction, if
+	 * true\, modify internal algorithms to change skew to force history store eviction to
+	 * happen more aggressively.  This includes but is not limited to not skewing newest\, not
+	 * favoring leaf pages\, and modifying the eviction score mechanism., a boolean flag;
+	 * default \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;flush_checkpoint, if true\, call a
+	 * system wide checkpoint immediately after a flush_tier completes to force objects out to
+	 * disk so that a flush_tier can work single-threaded., a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;log_retention, adjust log removal to retain at least this
 	 * number of log files.  (Warning: this option can remove log files required for recovery if
 	 * no checkpoints have yet been done and the number of log files exceeds the configured
@@ -2930,11 +2929,11 @@ struct __wt_connection {
  * @config{debug_mode = (, control the settings of various extended debugging features., a set of
  * related configuration options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * checkpoint_evict_page, if true\, when performing checkpoint evict all pages that are reconciled.,
- * a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_retention, adjust
- * log removal to retain the log records of this number of checkpoints.  Zero or one means perform
- * normal removal., an integer between \c 0 and \c 1024; default \c 0.}
+ * checkpoint_evict_page, if true\, when performing checkpoint evict all pages that are going to be
+ * reconciled., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * checkpoint_retention, adjust log removal to retain the log records of this number of checkpoints.
+ * Zero or one means perform normal removal., an integer between \c 0 and \c 1024; default \c 0.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true and built in diagnostic mode\, dump
  * core in the case of data corruption., a boolean flag; default \c true.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;cursor_copy, if true\, use the system allocator to make a copy of
