@@ -2195,6 +2195,8 @@ struct __wt_connection {
 	 * @config{ ),,}
 	 * @config{debug_mode = (, control the settings of various extended debugging features., a
 	 * set of related configuration options defined as follows.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_evict_page, if true\, when performing
+	 * checkpoint evict all pages that are reconciled., a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_retention, adjust log removal to retain the
 	 * log records of this number of checkpoints.  Zero or one means perform normal removal., an
 	 * integer between \c 0 and \c 1024; default \c 0.}
@@ -2928,8 +2930,11 @@ struct __wt_connection {
  * @config{debug_mode = (, control the settings of various extended debugging features., a set of
  * related configuration options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * checkpoint_retention, adjust log removal to retain the log records of this number of checkpoints.
- * Zero or one means perform normal removal., an integer between \c 0 and \c 1024; default \c 0.}
+ * checkpoint_evict_page, if true\, when performing checkpoint evict all pages that are reconciled.,
+ * a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_retention, adjust
+ * log removal to retain the log records of this number of checkpoints.  Zero or one means perform
+ * normal removal., an integer between \c 0 and \c 1024; default \c 0.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true and built in diagnostic mode\, dump
  * core in the case of data corruption., a boolean flag; default \c true.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;cursor_copy, if true\, use the system allocator to make a copy of

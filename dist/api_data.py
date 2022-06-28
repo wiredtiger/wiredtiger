@@ -560,6 +560,9 @@ connection_runtime_config = [
         Config('corruption_abort', 'true', r'''
             if true and built in diagnostic mode, dump core in the case of data corruption''',
             type='boolean'),
+        Config('checkpoint_evict_page', 'false', r'''
+            if true, when performing checkpoint evict all pages that are reconciled.''',
+            type='boolean'),
         Config('checkpoint_retention', '0', r'''
             adjust log removal to retain the log records of this number of checkpoints. Zero
             or one means perform normal removal.''',
