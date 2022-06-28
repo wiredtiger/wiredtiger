@@ -154,6 +154,8 @@ configure_timing_stress(char *p, size_t max)
         CONFIG_APPEND(p, ",aggressive_sweep");
     if (GV(STRESS_CHECKPOINT))
         CONFIG_APPEND(p, ",checkpoint_slow");
+    if (GV(STRESS_CHECKPOINT_EVICT_PAGE))
+        CONFIG_APPEND(p, ",checkpoint_evict_page");
     if (GV(STRESS_CHECKPOINT_PREPARE))
         CONFIG_APPEND(p, ",prepare_checkpoint_delay");
     if (GV(STRESS_CHECKPOINT_RESERVED_TXNID_DELAY))

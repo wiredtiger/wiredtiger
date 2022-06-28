@@ -50,6 +50,7 @@ statistics=0
 statistics.server=0
 stress.aggressive_sweep=0
 stress.checkpoint=0
+stress.checkpoint_evict_page=1
 stress.checkpoint_reserved_txnid_delay=0
 stress.checkpoint_prepare=0
 stress.evict_reposition=0
@@ -66,7 +67,6 @@ stress.split_6=0
 stress.split_7=0
 transaction.implicit=0
 transaction.timestamps=1
-wiredtiger.config=debug_mode=(checkpoint_evict_page=true)
 wiredtiger.rwlock=1
 wiredtiger.leak_memory=0
 ############################################
