@@ -36,16 +36,18 @@ call_log_manager::call_log_manager(std::string call_log_file)
     call_log = json::parse(file);
 }
 
-int call_log_manager::process_call_log()
+int
+call_log_manager::process_call_log()
 {
-    for (const auto& call_log_entry : call_log)
+    for (const auto &call_log_entry : call_log)
         process_call_log_entry(call_log_entry);
 }
 
-int call_log_manager::process_call_log_entry(json call_log_entry)
+int
+call_log_manager::process_call_log_entry(json call_log_entry)
 {
     /* call_log_entry: wiredtiger_open() */
-    if (call_log_entry["MethodName"] == "wiredtiger_open"){
-        std::cout << "Wiredtiger open call" << std::endl;
+    if (call_log_entry["MethodName"] == "wiredtiger_open") {
+        std::cout << "WiredTiger open call" << std::endl;
     }
 }

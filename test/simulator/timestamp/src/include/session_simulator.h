@@ -31,13 +31,13 @@
 
 class session_simulator {
     public:
-        session_simulator();
-        ~session_simulator() = default;
+    session_simulator();
+    ~session_simulator() = default;
 
     public:
-        /* Deleted functions should generally be public as it results in better error messages. */
-        session_simulator(session_simulator const &) = delete;
-        session_simulator &operator=(session_simulator const &) = delete;
+    /* Deleted functions should generally be public as it results in better error messages. */
+    session_simulator(session_simulator const &) = delete;
+    session_simulator &operator=(session_simulator const &) = delete;
 };
 
 #endif

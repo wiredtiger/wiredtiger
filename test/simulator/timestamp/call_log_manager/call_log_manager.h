@@ -37,14 +37,15 @@ using json = nlohmann::json;
 class call_log_manager {
     /* Member variables */
     private:
-        json call_log;
+    json call_log;
 
     /* Methods */
     public:
-        call_log_manager(std::string);
-        int process_call_log();
+    call_log_manager(std::string);
+    int process_call_log();
+
     private:
-        int process_call_log_entry(json);
+    int process_call_log_entry(json);
 };
 
 #endif

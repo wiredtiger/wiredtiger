@@ -36,7 +36,8 @@ connection_simulator::get_connection()
     return (_connection_instance);
 }
 
-std::shared_ptr<session_simulator> connection_simulator::open_session()
+std::shared_ptr<session_simulator>
+connection_simulator::open_session()
 {
     std::shared_ptr<session_simulator> session = std::make_shared<session_simulator>();
 
@@ -45,12 +46,14 @@ std::shared_ptr<session_simulator> connection_simulator::open_session()
     return (session);
 }
 
-int connection_simulator::query_timestamp() 
+int
+connection_simulator::query_timestamp()
 {
     return (0);
 }
 
-int connection_simulator::set_timestamp() 
+int
+connection_simulator::set_timestamp()
 {
     return (0);
 }

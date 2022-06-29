@@ -38,23 +38,24 @@
 class connection_simulator {
     /* Member variables */
     private:
-        std::vector<std::shared_ptr<session_simulator>> session_list;
-    
+    std::vector<std::shared_ptr<session_simulator>> session_list;
+
     /* Methods */
     public:
-        static connection_simulator &get_connection();
-        std::shared_ptr<session_simulator> open_session();
-        int query_timestamp();
-        int set_timestamp();
-        ~connection_simulator() = default;
+    static connection_simulator &get_connection();
+    std::shared_ptr<session_simulator> open_session();
+    int query_timestamp();
+    int set_timestamp();
+    ~connection_simulator() = default;
 
     /* No copies of the singleton allowed. */
     private:
-        connection_simulator();
+    connection_simulator();
+
     public:
-        /* Deleted functions should generally be public as it results in better error messages. */
-        connection_simulator(connection_simulator const &) = delete;
-        connection_simulator &operator=(connection_simulator const &) = delete;
+    /* Deleted functions should generally be public as it results in better error messages. */
+    connection_simulator(connection_simulator const &) = delete;
+    connection_simulator &operator=(connection_simulator const &) = delete;
 };
 
 #endif
