@@ -192,7 +192,7 @@ __wt_call_log_wiredtiger_open(WT_SESSION_IMPL *session, int ret_val)
 
     WT_RET(__call_log_print_start(session, "global", "wiredtiger_open"));
     WT_RET(__call_log_print_input(session, 0));
-    WT_RET(__wt_snprintf(buf, sizeof(buf), "\"objectId\": %p", conn));
+    WT_RET(__wt_snprintf(buf, sizeof(buf), "\"objectId\": \"%p\"", conn));
     WT_RET(__call_log_print_output(session, 1, buf));
     WT_RET(__call_log_print_return(session, ret_val, ""));
 
