@@ -32,7 +32,7 @@ import wiredtiger
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_checkpoint26.py
+# test_checkpoint27.py
 #
 # Check that nothing bad happens if we read in metadata pages while in the
 # middle of reading a checkpoint.
@@ -114,7 +114,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_checkpoint(self):
-        uri = 'table:checkpoint26'
+        uri = 'table:checkpoint27'
         nrows = 1000
 
         # Create a table.
