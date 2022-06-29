@@ -168,6 +168,44 @@ __wt_row_compare_bounds(
 }
 
 /*
+ * __wt_col_compare_bounds --
+ *     Return if the cursor key is within the bounded range. If direction is True, this indicates a
+ *     next call and the recno is checked against the upper bound. If direction is False, this
+ *     indicates a prev call and the recno is then checked against the lower bound.
+ */
+static inline int
+__wt_col_compare_bounds(
+  WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool direction, bool *key_out_of_bounds)
+{
+    WT_CURSOR_BTREE *cbt;
+    uint64_t recno_bound;
+
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    recno_bound = 0;
+
+    if (direction) {
+        WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->upper_bound));
+
+        /* Unpack the raw recno buffer into integer variable. */
+        WT_RET(__wt_struct_unpack(
+          session, cursor->upper_bound.data, cursor->upper_bound.size, "q", &recno_bound));
+        if ((F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE) && cbt->recno > recno_bound) ||
+          (!F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE) && cbt->recno >= recno_bound))
+            *key_out_of_bounds = true;
+    } else {
+        WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->lower_bound));
+
+        /* Unpack the raw recno buffer into integer variable. */
+        WT_RET(__wt_struct_unpack(
+          session, cursor->lower_bound.data, cursor->lower_bound.size, "q", &recno_bound));
+        if ((F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE) && cbt->recno < recno_bound) ||
+          (!F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE) && cbt->recno <= recno_bound))
+            *key_out_of_bounds = true;
+    }
+    return (0);
+}
+
+/*
  * __wt_lex_compare_skip --
  *     Lexicographic comparison routine, skipping leading bytes. Returns: < 0 if user_item is
  *     lexicographically < tree_item = 0 if user_item is lexicographically = tree_item > 0 if

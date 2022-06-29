@@ -902,6 +902,13 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
 
 done:
 err:
+    if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER) && ret == 0 &&
+      S2BT(session)->type == BTREE_COL_VAR) {
+        WT_RET(__wt_col_compare_bounds(session, cursor, true, &key_out_of_bounds));
+        if (key_out_of_bounds)
+            ret = WT_NOTFOUND;
+    }
+
     if (total_skipped < 100)
         WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_lt_100);
     else
