@@ -905,8 +905,10 @@ err:
     if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER) && ret == 0 &&
       S2BT(session)->type == BTREE_COL_VAR) {
         WT_RET(__wt_col_compare_bounds(session, cursor, true, &key_out_of_bounds));
-        if (key_out_of_bounds)
+        if (key_out_of_bounds) {
+            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
             ret = WT_NOTFOUND;
+        }
     }
 
     if (total_skipped < 100)
