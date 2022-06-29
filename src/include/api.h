@@ -156,6 +156,26 @@
 #define API_END_RET(s, ret) \
     API_END(s, ret);        \
     return (ret)
+
+#define API_END_STAT(s, ret, api)                   \
+    do {                                            \
+        if ((ret) != 0 && ((ret) != WT_NOTFOUND)) { \
+            WT_STAT_CONN_DATA_INCR(s, api##_error); \
+        }                                           \
+    } while (0)
+
+#define API_RET_STAT(s, ret, api)  \
+    do {                           \
+        API_END_STAT(s, ret, api); \
+        return ((ret));            \
+    } while (0)
+
+#define API_END_RET_STAT(s, ret, api) \
+    do {                              \
+        API_END_STAT(s, ret, api);    \
+        API_END_RET(s, ret);          \
+    } while (0)
+
 #define API_END_RET_NOTFOUND_MAP(s, ret) \
     API_END(s, ret);                     \
     return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
@@ -276,18 +296,24 @@
 
 #define CURSOR_UPDATE_API_END(s, ret) CURSOR_UPDATE_API_END_RETRY(s, ret, true)
 
+#define CURSOR_UPDATE_API_END_RETRY_STAT(s, ret, retry, api) \
+    if ((ret) == WT_PREPARE_CONFLICT)                        \
+        (ret) = WT_ROLLBACK;                                 \
+    API_END_STAT(s, ret, api);                               \
+    TXN_API_END(s, ret, retry)
+
+#define CURSOR_UPDATE_API_END_STAT(s, ret, api) CURSOR_UPDATE_API_END_RETRY_STAT(s, ret, true, api)
+
 /*
  * Calling certain top level APIs allows for internal repositioning of cursors to facilitate
  * eviction of hot pages. These macros facilitate tracking when that is OK.
  */
-#define CURSOR_REPOSITION_ENTER(c, s)   \
-    do {                                \
-        if ((s)->api_call_counter == 1) \
-            F_SET((c), WT_CURSTD_EVICT_REPOSITION);
+#define CURSOR_REPOSITION_ENTER(c, s)                                      \
+    if (FLD_ISSET(S2C(s)->debug_flags, WT_CONN_DEBUG_CURSOR_REPOSITION) && \
+      (s)->api_call_counter == 1)                                          \
+    F_SET((c), WT_CURSTD_EVICT_REPOSITION)
 
-#define CURSOR_REPOSITION_END(c, s)             \
-    if ((s)->api_call_counter == 1)             \
-        F_CLR((c), WT_CURSTD_EVICT_REPOSITION); \
-    }                                           \
-    while (0)                                   \
-        ;
+#define CURSOR_REPOSITION_END(c, s)                                        \
+    if (FLD_ISSET(S2C(s)->debug_flags, WT_CONN_DEBUG_CURSOR_REPOSITION) && \
+      (s)->api_call_counter == 1)                                          \
+    F_CLR((c), WT_CURSTD_EVICT_REPOSITION)

@@ -135,7 +135,7 @@ __curfile_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     ret = __wt_btcur_compare((WT_CURSOR_BTREE *)a, (WT_CURSOR_BTREE *)b, cmpp);
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_compare);
 }
 
 /*
@@ -196,7 +196,7 @@ __curfile_next(WT_CURSOR *cursor)
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_next);
 }
 
 /*
@@ -226,7 +226,7 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_next_random);
 }
 
 /*
@@ -257,7 +257,7 @@ __curfile_prev(WT_CURSOR *cursor)
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_prev);
 }
 
 /*
@@ -283,7 +283,7 @@ __curfile_reset(WT_CURSOR *cursor)
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_reset);
 }
 
 /*
@@ -319,7 +319,7 @@ __curfile_search(WT_CURSOR *cursor)
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_search);
 }
 
 /*
@@ -355,7 +355,7 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_search_near);
 }
 
 /*
@@ -395,7 +395,7 @@ __curfile_insert(WT_CURSOR *cursor)
     WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
 
 err:
-    CURSOR_UPDATE_API_END(session, ret);
+    CURSOR_UPDATE_API_END_STAT(session, ret, cursor_insert);
     return (ret);
 }
 
@@ -425,7 +425,7 @@ __wt_curfile_insert_check(WT_CURSOR *cursor)
 err:
     CURSOR_UPDATE_API_END(session, ret);
     WT_TRET(tret);
-    return (ret);
+    API_RET_STAT(session, ret, cursor_insert_check);
 }
 
 /*
@@ -458,7 +458,7 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) != 0);
 
 err:
-    CURSOR_UPDATE_API_END(session, ret);
+    CURSOR_UPDATE_API_END_STAT(session, ret, cursor_modify);
     return (ret);
 }
 
@@ -491,7 +491,7 @@ __curfile_update(WT_CURSOR *cursor)
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:
-    CURSOR_UPDATE_API_END(session, ret);
+    CURSOR_UPDATE_API_END_STAT(session, ret, cursor_update);
     return (ret);
 }
 
@@ -543,7 +543,8 @@ __curfile_remove(WT_CURSOR *cursor)
 
 err:
     /* If we've lost an initial position, we must fail. */
-    CURSOR_UPDATE_API_END_RETRY(session, ret, !positioned || F_ISSET(cursor, WT_CURSTD_KEY_INT));
+    CURSOR_UPDATE_API_END_RETRY_STAT(
+      session, ret, !positioned || F_ISSET(cursor, WT_CURSTD_KEY_INT), cursor_remove);
     return (ret);
 }
 
@@ -576,7 +577,7 @@ __curfile_reserve(WT_CURSOR *cursor)
     WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
 
 err:
-    CURSOR_UPDATE_API_END(session, ret);
+    CURSOR_UPDATE_API_END_STAT(session, ret, cursor_reserve);
 
     /*
      * The application might do a WT_CURSOR.get_value call when we return, so we need a value and
@@ -657,7 +658,7 @@ err:
     }
 
 done:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_close);
 }
 
 /*
@@ -770,7 +771,7 @@ __curfile_reopen(WT_CURSOR *cursor, bool sweep_check_only)
      * completes.
      */
     WT_WITH_DHANDLE(session, dhandle, ret = __curfile_reopen_int(cursor));
-    return (ret);
+    API_RET_STAT(session, ret, cursor_reopen);
 }
 
 /*
@@ -1154,6 +1155,9 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
      * history store. (This is not normally done by applications; but it is done by a couple tests,
      * and furthermore any internally opened history store cursors come through here, so this case
      * does matter.)
+     *
+     * This initialization is repeated when opening the underlying data handle, which is ugly, but
+     * cleanup requires the initialization have happened even if not opening a checkpoint handle.
      */
     ckpt_snapshot.ckpt_id = 0;
     ckpt_snapshot.oldest_ts = WT_TS_NONE;

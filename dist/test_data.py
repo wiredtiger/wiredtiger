@@ -55,9 +55,9 @@ throttle_config = [
 #
 record_config = [
     Config('key_size', 5, r'''
-        The size of the keys created''', min=0, max=10000),
+        The size of the keys created''', min=1),
     Config('value_size', 5, r'''
-        The size of the values created''', min=0, max=1000000000),
+        The size of the values created''', min=1),
 ]
 
 #
@@ -118,21 +118,23 @@ thread_count = [
         Specifies the number of threads that will be used to perform a certain function.''', min=0)
 ]
 
+checkpoint_operation_thread_config = [
+    Config('thread_count', 1, r'''
+        Specifies the number of threads that will be used to perform the checkpoint operation.''',
+        min=0, max=1),
+    Config('op_rate', '60s', r'''
+        The rate at which checkpoint is executed.''')
+]
+custom_operation_thread_config = thread_count + transaction_config + throttle_config + record_config
 read_thread_config = thread_count + throttle_config + transaction_config + record_config
 remove_thread_config = thread_count + transaction_config + throttle_config
 update_insert_thread_config = thread_count + transaction_config + throttle_config + record_config
-custom_operation_thread_config = thread_count + transaction_config + throttle_config + record_config
-
-#
-# Configuration for the checkpoint_manager component.
-#
-checkpoint_manager = enabled_config_false + component_config
 
 #
 # Configuration that applies to the runtime monitor component, this should be a list of statistics
 # that need to be checked by the component.
 #
-runtime_monitor = enabled_config_true + component_config + [
+metrics_monitor = enabled_config_true + component_config + [
     Config('cache_hs_insert', '', r'''
         Number of history store table insert calls.''',
         type='category', subconfig=stat_config),
@@ -167,14 +169,17 @@ tracking_config = [
 ]
 
 #
-# Configuration that applies to the workload tracking component.
+# Configuration that applies to the operation tracker component.
 #
-workload_tracking = enabled_config_true + component_config + tracking_config
+operation_tracker = enabled_config_true + component_config + tracking_config
 
 #
-# Configuration that applies to the workload_generator component.
+# Configuration that applies to the workload_manager component.
 #
-workload_generator = enabled_config_true + component_config + [
+workload_manager = enabled_config_true + component_config + [
+    Config('checkpoint_config', '',r'''
+        Config that specifies if the checkpoint thread is enabled and its behaviour.''',
+        type='category', subconfig=checkpoint_operation_thread_config),
     Config('custom_config', '',r'''
         Config that specifies the number of custom_operation threads and their behaviour.''',
         type='category', subconfig=custom_operation_thread_config),
@@ -197,23 +202,22 @@ workload_generator = enabled_config_true + component_config + [
 
 test_config = [
 # Component configurations.
-    Config('checkpoint_manager', '', r'''
-        Configuration options for the checkpoint manager''',
-        type='category', subconfig=checkpoint_manager),
-    Config('runtime_monitor', '', r'''
-        Configuration options for the runtime_monitor''',
-        type='category', subconfig=runtime_monitor),
+    Config('metrics_monitor', '', r'''
+        Configuration options for the metrics_monitor''',
+        type='category', subconfig=metrics_monitor),
     Config('timestamp_manager', '', r'''
         Configuration options for the timestamp manager''',
         type='category', subconfig=timestamp_manager),
-    Config('workload_generator','', r'''
-        Configuration options for the workload generator''',
-        type='category', subconfig=workload_generator),
-    Config('workload_tracking','', r'''
+    Config('workload_manager','', r'''
+        Configuration options for the workload manager''',
+        type='category', subconfig=workload_manager),
+    Config('operation_tracker','', r'''
         Configuration options for the workload tracker''',
-        type='category', subconfig=workload_tracking),
+        type='category', subconfig=operation_tracker),
 
 # Non component top level configuration.
+    Config('cache_max_wait_ms', 0, r'''
+        The strict equivalent of cache_max_wait_ms defined in wiredtiger.''', min=0),
     Config('cache_size_mb', 0, r'''
         The cache size that wiredtiger will be configured to run with''', min=0, max=100000000000),
     Config('compression_enabled', 'false', r'''
@@ -240,6 +244,8 @@ methods = {
     'burst_inserts' : Method(test_config + [
                         Config("burst_duration", 90, r'''
                             How long the insertions will occur for.''')]),
+    'cache_resize' : Method(test_config),
+    'cursor_bound_01' : Method(test_config),
     'hs_cleanup' : Method(test_config),
     'operations_test' : Method(test_config),
     'search_near_01' : Method(test_config + [
@@ -248,4 +254,5 @@ methods = {
     'search_near_02' : Method(test_config),
     'search_near_03' : Method(test_config),
     'test_template' : Method(test_config),
+    'bounded_cursor_perf' : Method(test_config),
 }

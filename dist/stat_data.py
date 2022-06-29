@@ -343,6 +343,7 @@ conn_stats = [
     CursorStat('cursor_search_hs', 'cursor search history store calls'),
     CursorStat('cursor_search_near', 'cursor search near calls'),
     CursorStat('cursor_truncate', 'cursor truncate calls'),
+    CursorStat('cursor_truncate_keys_deleted', 'cursor truncates performed on individual keys'),
     CursorStat('cursor_update', 'cursor update calls'),
     CursorStat('cursor_update_bytes', 'cursor update key and value bytes', 'size'),
     CursorStat('cursor_update_bytes_changed', 'cursor update value size change', 'size'),
@@ -521,6 +522,8 @@ conn_stats = [
     SessionOpStat('session_table_compact_timeout', 'table compact timeout', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_fail', 'table create failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_success', 'table create successful calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_create_import_fail', 'table create with import failed calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_create_import_success', 'table create with import successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_fail', 'table drop failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_success', 'table drop successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_rename_fail', 'table rename failed calls', 'no_clear,no_scale'),
@@ -593,8 +596,6 @@ conn_stats = [
     TxnStat('txn_prepare_active', 'prepared transactions currently active'),
     TxnStat('txn_prepare_commit', 'prepared transactions committed'),
     TxnStat('txn_prepare_rollback', 'prepared transactions rolled back'),
-    TxnStat('txn_prepare_rollback_do_not_remove_hs_update', 'prepared transactions rolled back and do not remove the history store entry'),
-    TxnStat('txn_prepare_rollback_fix_hs_update_with_ckpt_reserved_txnid', 'prepared transactions rolled back and fix the history store entry with checkpoint reserved transaction id'),
     TxnStat('txn_prepared_updates', 'Number of prepared updates'),
     TxnStat('txn_prepared_updates_committed', 'Number of prepared updates committed'),
     TxnStat('txn_prepared_updates_key_repeated', 'Number of prepared updates repeated on the same key'),
@@ -813,6 +814,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_blocked_no_ts_checkpoint_race_2', 'eviction gave up due to detecting a tombstone without a timestamp ahead of the selected on disk update'),
     CacheStat('cache_eviction_blocked_no_ts_checkpoint_race_3', 'eviction gave up due to detecting a tombstone without a timestamp ahead of the selected on disk update after validating the update chain'),
     CacheStat('cache_eviction_blocked_no_ts_checkpoint_race_4', 'eviction gave up due to detecting update chain entries without timestamps after the selected on disk update'),
+    CacheStat('cache_eviction_blocked_remove_hs_race_with_checkpoint', 'eviction gave up due to needing to remove a record from the history store but checkpoint is running'),
     CacheStat('cache_eviction_checkpoint', 'checkpoint blocked page eviction'),
     CacheStat('cache_eviction_clean', 'unmodified pages evicted'),
     CacheStat('cache_eviction_deepen', 'page split during eviction deepened the tree'),
@@ -865,6 +867,11 @@ conn_dsrc_stats = [
     ##########################################
     # Cursor operations
     ##########################################
+    CursorStat('cursor_bounds_reset', 'cursor bounds cleared from reset'),
+    CursorStat('cursor_bounds_next_early_exit', 'cursor bounds next early exit'),
+    CursorStat('cursor_bounds_prev_early_exit', 'cursor bounds prev early exit'),
+    CursorStat('cursor_bounds_next_unpositioned', 'cursor bounds next called on an unpositioned cursor'),
+    CursorStat('cursor_bounds_prev_unpositioned', 'cursor bounds prev called on an unpositioned cursor'),
     CursorStat('cursor_next_hs_tombstone', 'cursor next calls that skip due to a globally visible history store tombstone'),
     CursorStat('cursor_next_skip_ge_100', 'cursor next calls that skip greater than or equal to 100 entries'),
     CursorStat('cursor_next_skip_lt_100', 'cursor next calls that skip less than 100 entries'),
@@ -878,6 +885,32 @@ conn_dsrc_stats = [
     CursorStat('cursor_reposition_failed', 'Total number of times cursor fails to temporarily release pinned page to encourage eviction of hot or large page'),
     CursorStat('cursor_search_near_prefix_fast_paths', 'Total number of times a search near has exited due to prefix config'),
     CursorStat('cursor_skip_hs_cur_position', 'Total number of entries skipped to position the history store cursor'),
+
+    ##########################################
+    # Cursor API error statistics
+    ##########################################
+    CursorStat('cursor_bound_error', 'cursor bound calls that return an error'),
+    CursorStat('cursor_cache_error', 'cursor cache calls that return an error'),
+    CursorStat('cursor_close_error', 'cursor close calls that return an error'),
+    CursorStat('cursor_compare_error', 'cursor compare calls that return an error'),
+    CursorStat('cursor_equals_error', 'cursor equals calls that return an error'),
+    CursorStat('cursor_get_key_error', 'cursor get key calls that return an error'),
+    CursorStat('cursor_get_value_error', 'cursor get value calls that return an error'),
+    CursorStat('cursor_insert_check_error', 'cursor insert check calls that return an error'),
+    CursorStat('cursor_insert_error', 'cursor insert calls that return an error'),
+    CursorStat('cursor_largest_key_error', 'cursor largest key calls that return an error'),
+    CursorStat('cursor_modify_error', 'cursor modify calls that return an error'),
+    CursorStat('cursor_next_error', 'cursor next calls that return an error'),
+    CursorStat('cursor_next_random_error', 'cursor next random calls that return an error'),
+    CursorStat('cursor_prev_error', 'cursor prev calls that return an error'),
+    CursorStat('cursor_reconfigure_error', 'cursor reconfigure calls that return an error'),
+    CursorStat('cursor_reset_error', 'cursor reset calls that return an error'),
+    CursorStat('cursor_reserve_error', 'cursor reserve calls that return an error'),
+    CursorStat('cursor_reopen_error', 'cursor reopen calls that return an error'),
+    CursorStat('cursor_remove_error', 'cursor remove calls that return an error'),
+    CursorStat('cursor_search_near_error', 'cursor search near calls that return an error'),
+    CursorStat('cursor_search_error', 'cursor search calls that return an error'),
+    CursorStat('cursor_update_error', 'cursor update calls that return an error'),
 
     ##########################################
     # Checkpoint cleanup statistics

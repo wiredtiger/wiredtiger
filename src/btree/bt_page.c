@@ -738,7 +738,6 @@ __inmem_col_var(
 static int
 __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 {
-    WT_BTREE *btree;
     WT_CELL_UNPACK_ADDR unpack;
     WT_DECL_ITEM(current);
     WT_DECL_RET;
@@ -746,8 +745,6 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
     WT_REF *ref, **refp;
     uint32_t hint;
     bool overflow_keys;
-
-    btree = S2BT(session);
 
     WT_RET(__wt_scr_alloc(session, 0, &current));
 
@@ -809,16 +806,6 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
                 *ref->ft_info.del = unpack.page_del;
             }
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
-
-            /*
-             * If the tree is already dirty and so will be written, mark the page dirty. (We want to
-             * free the deleted pages, but if the handle is read-only or if the application never
-             * modifies the tree, we're not able to do so.)
-             */
-            if (btree->modified) {
-                WT_ERR(__wt_page_modify_init(session, page));
-                __wt_page_only_modify_set(session, page);
-            }
 
             ref->addr = unpack.cell;
             ++refp;
@@ -995,12 +982,8 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp)
              *
              * The visibility information is not referenced on the page so we need to ensure that
              * the value is globally visible at the point in time where we read the page into cache.
-             *
-             * Skip if reading from a checkpoint because visible_all uses the current oldest txnid,
-             * which is not in general the checkpoint's oldest txnid, and may make things visible
-             * that shouldn't be.
              */
-            if (!btree->huffman_value && !WT_READING_CHECKPOINT(session) &&
+            if (!btree->huffman_value &&
               (WT_TIME_WINDOW_IS_EMPTY(&unpack.tw) ||
                 (!WT_TIME_WINDOW_HAS_STOP(&unpack.tw) &&
                   __wt_txn_tw_start_visible_all(session, &unpack.tw))))

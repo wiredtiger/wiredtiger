@@ -32,6 +32,8 @@
       {NULL, 0, NULL, 0, 0},                /* WT_ITEM value */                                 \
       0,                                    /* int saved_err */                                 \
       NULL,                                 /* internal_uri */                                  \
+      {NULL, 0, NULL, 0, 0},                /* WT_ITEM lower bound */                           \
+      {NULL, 0, NULL, 0, 0},                /* WT_ITEM upper bound */                           \
       0                                     /* uint32_t flags */                                \
     }
 
@@ -584,3 +586,12 @@ struct __wt_cursor_version {
 
 #define WT_CURSOR_RAW_OK \
     (WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRETTY | WT_CURSTD_DUMP_PRINT | WT_CURSTD_RAW)
+
+/*
+ * A positioned cursor must have a page, this is a requirement of the cursor logic within the
+ * wiredtiger API. As such if the page on the cursor is not null we can safely assume that the
+ * cursor is positioned.
+ *
+ * This is primarily used by cursor bound checking logic.
+ */
+#define WT_CURSOR_IS_POSITIONED(cbt) (cbt->ref != NULL && cbt->ref->page != NULL)

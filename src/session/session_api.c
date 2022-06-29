@@ -818,8 +818,11 @@ __session_create(WT_SESSION *wt_session, const char *uri, const char *config)
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    bool is_import;
 
     session = (WT_SESSION_IMPL *)wt_session;
+    is_import = session->import_list != NULL ||
+      (__wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0);
     SESSION_API_CALL(session, create, config, cfg);
     WT_UNUSED(cfg);
 
@@ -853,6 +856,13 @@ err:
         WT_STAT_CONN_INCR(session, session_table_create_fail);
     else
         WT_STAT_CONN_INCR(session, session_table_create_success);
+
+    if (is_import) {
+        if (ret != 0)
+            WT_STAT_CONN_INCR(session, session_table_create_import_fail);
+        else
+            WT_STAT_CONN_INCR(session, session_table_create_import_success);
+    }
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -1348,9 +1358,16 @@ __wt_session_range_truncate(
 {
     WT_DECL_RET;
     int cmp;
-    bool local_start;
+    bool is_col_fix, local_start;
 
-    local_start = false;
+#ifdef HAVE_DIAGNOSTIC
+    WT_CURSOR *debug_start, *debug_stop;
+    WT_ITEM col_value;
+
+    debug_start = debug_stop = NULL;
+#endif
+
+    is_col_fix = local_start = false;
     if (uri != NULL) {
         WT_ASSERT(session, WT_BTREE_PREFIX(uri));
         /*
@@ -1439,7 +1456,43 @@ __wt_session_range_truncate(
             goto done;
     }
 
-    WT_ERR(__wt_schema_range_truncate(session, start, stop));
+    /*
+     * Create a copy of the start and stop cursors to maintain the original start and stop positions
+     * for error-checking purposes.
+     */
+#ifdef HAVE_DIAGNOSTIC
+    if (start != NULL)
+        WT_ERR(__session_open_cursor((WT_SESSION *)session, NULL, start, NULL, &debug_start));
+    if (stop != NULL)
+        WT_ERR(__session_open_cursor((WT_SESSION *)session, NULL, stop, NULL, &debug_stop));
+#endif
+
+    WT_ERR(__wt_schema_range_truncate(session, start, stop, &is_col_fix));
+
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * The debug cursors will be positioned at the start and stop keys of the range if there is one.
+     * For row-store and variable-length column store, we expect a WT_NOTFOUND value when searching
+     * for a record that has been truncated. For fixed length column store, this works a little
+     * differently. We should instead check that the corresponding value of the truncated record is
+     * zero.
+     */
+    if (!is_col_fix) {
+        if (start != NULL)
+            WT_ASSERT(session, debug_start->search(debug_start) == WT_NOTFOUND);
+        if (stop != NULL)
+            WT_ASSERT(session, debug_stop->search(debug_stop) == WT_NOTFOUND);
+    } else {
+        if (start != NULL) {
+            WT_ERR(debug_start->search(debug_start));
+            WT_ASSERT(session, debug_start->get_value(debug_start, &col_value) == 0);
+        }
+        if (stop != NULL) {
+            WT_ERR(debug_stop->search(debug_stop));
+            WT_ASSERT(session, debug_stop->get_value(debug_stop, &col_value) == 0);
+        }
+    }
+#endif
 
 done:
 err:
@@ -1455,6 +1508,14 @@ err:
         WT_TRET(start->reset(start));
     if (stop != NULL)
         WT_TRET(stop->reset(stop));
+
+#ifdef HAVE_DIAGNOSTIC
+    if (debug_start != NULL)
+        WT_TRET(debug_start->close(debug_start));
+    if (debug_stop != NULL)
+        WT_TRET(debug_stop->close(debug_stop));
+#endif
+
     return (ret);
 }
 
