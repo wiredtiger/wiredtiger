@@ -199,6 +199,10 @@ __wt_call_log_wiredtiger_open(WT_SESSION_IMPL *session, int ret_val)
     return (0);
 }
 
+/*
+ * __wt_call_log_open_session --
+ *     Print the call log entry for the open session API call.
+ */
 int
 __wt_call_log_open_session(WT_SESSION_IMPL *session, int ret_val)
 {

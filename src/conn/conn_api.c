@@ -1283,6 +1283,12 @@ __conn_open_session(WT_CONNECTION *wt_conn, WT_EVENT_HANDLER *event_handler, con
     WT_ERR(__wt_open_session(conn, event_handler, config, true, &session_ret));
     *wt_sessionp = &session_ret->iface;
 
+#ifdef HAVE_CALL_LOG
+    if (F_ISSET(conn, WT_CONN_CALL_LOG_ENABLED)) {
+        WT_TRET(__wt_call_log_open_session(session, ret));
+    }
+#endif
+
 err:
     API_END_RET_NOTFOUND_MAP(session, ret);
 }

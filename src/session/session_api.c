@@ -2270,12 +2270,6 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
         }
     }
 
-#ifdef HAVE_CALL_LOG
-    if (F_ISSET(conn, WT_CONN_CALL_LOG_ENABLED)) {
-        WT_TRET(__wt_call_log_open_session(session, ret));
-    }
-#endif
-
     *sessionp = session;
     return (0);
 }
