@@ -78,6 +78,8 @@ __wt_col_search(
     btree = S2BT(session);
     current = NULL;
 
+    BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_CALL);
+
     /*
      * Assert the session and cursor have the right relationship (not search specific, but search is
      * a convenient place to check given any operation on a cursor will likely search a page).
@@ -90,8 +92,10 @@ __wt_col_search(
      * When appending a new record, the search record number will be an out-of-band value, search
      * for the largest key in the table instead.
      */
-    if ((recno = search_recno) == WT_RECNO_OOB)
+    if ((recno = search_recno) == WT_RECNO_OOB) {
+        BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_RECNO_OOB);
         recno = UINT64_MAX;
+    }
 
     /*
      * We may be searching only a single leaf page, not the full tree. In the normal case where we
@@ -101,13 +105,17 @@ __wt_col_search(
      * on the current page).
      */
     if (leaf != NULL) {
+        BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_LEAF_NON_NULL);
         WT_ASSERT(session, search_recno != WT_RECNO_OOB);
 
         if (!leaf_safe) {
+            BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_LEAF_NON_NULL_UNSAFE);
             WT_RET(__check_leaf_key_range(session, recno, leaf, cbt));
             *leaf_foundp = cbt->compare == 0;
-            if (!*leaf_foundp)
+            if (!*leaf_foundp) {
+                BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_LEAF_NON_NULL_UNSAFE_RET_ZERO);
                 return (0);
+            }
         }
 
         current = leaf;
@@ -119,17 +127,20 @@ restart:
         /*
          * Discard the currently held page and restart the search from the root.
          */
+        BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_RESTART);
         WT_RET(__wt_page_release(session, current, 0));
     }
 
     /* Search the internal pages of the tree. */
     current = &btree->root;
+    BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_OUTER_LOOP);
     for (depth = 2, pindex = NULL;; ++depth) {
         parent_pindex = pindex;
         page = current->page;
-        if (page->type != WT_PAGE_COL_INT)
+        if (page->type != WT_PAGE_COL_INT) {
+            BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_OUTER_LOOP_BRK_PG_TYPE_WRONG);
             break;
-
+        }
         WT_INTL_INDEX_GET(session, page, pindex);
         base = pindex->entries;
         descent = pindex->index[base - 1];
@@ -195,6 +206,7 @@ descend:
         }
         if (ret == WT_RESTART)
             goto restart;
+        BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_OUTER_LOOP_LAST_RET);
         return (ret);
     }
 
@@ -203,6 +215,7 @@ descend:
         btree->maximum_depth = depth;
 
 leaf_only:
+    BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_LEAF_ONLY);
     page = current->page;
     cbt->ref = current;
 
@@ -212,6 +225,7 @@ leaf_only:
      * number and position when we do the work.
      */
     if (search_recno == WT_RECNO_OOB) {
+        BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_RECNO_OOB_APPEND);
         cbt->compare = -1;
         return (0);
     }
@@ -232,28 +246,33 @@ leaf_only:
             cbt->recno = current->ref_recno;
             cbt->slot = 0;
             cbt->compare = 1;
+            BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_COL_FIX_RECNO_LT);
             return (0);
         }
         if (recno >= current->ref_recno + page->entries) {
             cbt->recno = current->ref_recno + page->entries;
             cbt->slot = 0;
+            BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_COL_FIX_RECNO_GT);
             goto past_end;
         } else {
             cbt->recno = recno;
             cbt->slot = 0;
             cbt->compare = 0;
             ins_head = WT_COL_UPDATE_SINGLE(page);
+            BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_COL_FIX_OK);
         }
     } else {
         if (recno < current->ref_recno) {
             cbt->recno = current->ref_recno;
             cbt->slot = 0;
             cbt->compare = 1;
+            BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_NON_COL_FIX_RECNO_LT);
             return (0);
         }
         if ((cip = __col_var_search(current, recno, NULL)) == NULL) {
             cbt->recno = __col_var_last_recno(current);
             cbt->slot = page->entries == 0 ? 0 : page->entries - 1;
+            BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_NON_COL_FIX_RECNO_GT);
             goto past_end;
         } else {
             cbt->recno = recno;
@@ -261,6 +280,7 @@ leaf_only:
             cbt->compare = 0;
             ins_head = WT_COL_UPDATE_SLOT(page, cbt->slot);
             F_SET(cbt, WT_CBT_VAR_ONPAGE_MATCH);
+            BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_NON_COL_FIX_OK);
         }
     }
 
@@ -271,11 +291,16 @@ leaf_only:
      * want. For that reason, don't set the cursor's WT_INSERT_HEAD/WT_INSERT pair until we know we
      * have a useful entry.
      */
-    if ((ins = __col_insert_search(ins_head, cbt->ins_stack, cbt->next_stack, recno)) != NULL)
+    if ((ins = __col_insert_search(ins_head, cbt->ins_stack, cbt->next_stack, recno)) != NULL) {
+        BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_UPDATE_PRESENT);
         if (recno == WT_INSERT_RECNO(ins)) {
+            BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_UPDATE_PRESENT_INSERT);
             cbt->ins_head = ins_head;
             cbt->ins = ins;
         }
+    }
+
+    BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_HAPPY);
     return (0);
 
 past_end:
@@ -288,16 +313,21 @@ past_end:
      */
     cbt->ins_head = WT_COL_APPEND(page);
     if ((cbt->ins = __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, recno)) ==
-      NULL)
+      NULL) {
+        BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_PAST_END_FAIL);
         cbt->compare = -1;
-    else {
+    } else {
         cbt->recno = WT_INSERT_RECNO(cbt->ins);
-        if (recno == cbt->recno)
+        if (recno == cbt->recno) {
+            BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_PAST_END_EQ);
             cbt->compare = 0;
-        else if (recno < cbt->recno)
+        } else if (recno < cbt->recno) {
+            BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_PAST_END_GT);
             cbt->compare = 1;
-        else
+        } else {
+            BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_PAST_END_LT);
             cbt->compare = -1;
+        }
     }
     return (0);
 }
