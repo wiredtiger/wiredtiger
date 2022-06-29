@@ -954,7 +954,7 @@ err:
     }
 #endif
 
-    if (ret == WT_NOTFOUND && cbt->iface.search_near_must_find) {
+    if (ret == 0 && *exactp != 0 && cbt->iface.search_near_must_find) {
         printf("event_ptr=%d\n", btree->events_ptr);
         for (i = 0; i < 64; i++)
             printf("log[%d]=%d\n", i, btree->events[i]);
