@@ -592,8 +592,14 @@ restart_read_insert:
              * If a lower bound has been set ensure that the key is within the range, otherwise
              * early exit.
              */
-            if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER))
-                WT_RET(__wt_btcur_bounds_early_exit(session, cbt, false, key_out_of_bounds));
+            if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER)) {
+                WT_RET(__wt_row_compare_bounds(
+                  session, &cbt->iface, S2BT(session)->collator, false, key_out_of_bounds));
+                if (*key_out_of_bounds) {
+                    WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
+                    return (WT_NOTFOUND);
+                }
+            }
 
             WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
             if (cbt->upd_value->type == WT_UPDATE_INVALID) {
@@ -647,8 +653,15 @@ restart_read_page:
          * If a lower bound has been set ensure that the key is within the range, otherwise early
          * exit.
          */
-        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER))
-            WT_RET(__wt_btcur_bounds_early_exit(session, cbt, false, key_out_of_bounds));
+        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER)) {
+            WT_RET(__wt_row_compare_bounds(
+              session, &cbt->iface, S2BT(session)->collator, false, key_out_of_bounds));
+            if (*key_out_of_bounds) {
+                WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
+                return (WT_NOTFOUND);
+            }
+        }
+
         /*
          * Read the on-disk value and/or history. Pass an update list: the update list may contain
          * the base update for a modify chain after rollback-to-stable, required for correctness.
