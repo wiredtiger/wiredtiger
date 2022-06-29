@@ -262,6 +262,12 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     }
 
     /*
+     * If everything is successful to this point, remove any tiered work associated with this tiered
+     * handle before closing it.
+     */
+    __wt_tiered_remove_work(session, tiered);
+
+    /*
      * Close all btree handles associated with this table. This must be done after we're done using
      * the tiered structure because that is from the dhandle.
      */
