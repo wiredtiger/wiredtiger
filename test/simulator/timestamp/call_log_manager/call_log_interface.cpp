@@ -26,25 +26,23 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CALL_LOG_MANAGER_H
-#define CALL_LOG_MANAGER_H
+#include <iostream>
+#include <memory>
 
-#include "connection_simulator.h"
-#include "json.hpp"
+#include "call_log_manager.h"
 
-using json = nlohmann::json;
+int
+main(int argc, char *argv[])
+{
+    /* Return if call log file was not passed. */
+    if (argc != 2) {
+        std::cout << "call_log_interface: missing call log file path" << std::endl;
+        return (-1);
+    }
 
-class call_log_manager {
-    /* Member variables */
-    private:
-        json call_log;
+    std::string call_log_file = argv[1];
 
-    /* Methods */
-    public:
-        call_log_manager(std::string);
-        int process_call_log();
-    private:
-        int process_call_log_entry(json);
-};
-
-#endif
+    std::unique_ptr<call_log_manager> cl_manager = std::make_unique<call_log_manager>(call_log_file);
+    
+    return (cl_manager->process_call_log());
+}

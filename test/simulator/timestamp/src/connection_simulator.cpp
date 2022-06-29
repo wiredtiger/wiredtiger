@@ -26,25 +26,33 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CALL_LOG_MANAGER_H
-#define CALL_LOG_MANAGER_H
-
 #include "connection_simulator.h"
-#include "json.hpp"
 
-using json = nlohmann::json;
+/* Get an instance of connection_simulator class. */
+connection_simulator &
+connection_simulator::get_connection()
+{
+    static connection_simulator _connection_instance;
+    return (_connection_instance);
+}
 
-class call_log_manager {
-    /* Member variables */
-    private:
-        json call_log;
+std::shared_ptr<session_simulator> connection_simulator::open_session()
+{
+    std::shared_ptr<session_simulator> session = std::make_shared<session_simulator>();
 
-    /* Methods */
-    public:
-        call_log_manager(std::string);
-        int process_call_log();
-    private:
-        int process_call_log_entry(json);
-};
+    session_list.push_back(session);
 
-#endif
+    return (session);
+}
+
+int connection_simulator::query_timestamp() 
+{
+    return (0);
+}
+
+int connection_simulator::set_timestamp() 
+{
+    return (0);
+}
+
+connection_simulator::connection_simulator() {}

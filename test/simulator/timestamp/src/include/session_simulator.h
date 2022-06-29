@@ -26,25 +26,18 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CALL_LOG_MANAGER_H
-#define CALL_LOG_MANAGER_H
+#ifndef SESSION_SIMULATOR_H
+#define SESSION_SIMULATOR_H
 
-#include "connection_simulator.h"
-#include "json.hpp"
-
-using json = nlohmann::json;
-
-class call_log_manager {
-    /* Member variables */
-    private:
-        json call_log;
-
-    /* Methods */
+class session_simulator {
     public:
-        call_log_manager(std::string);
-        int process_call_log();
-    private:
-        int process_call_log_entry(json);
+        session_simulator();
+        ~session_simulator() = default;
+
+    public:
+        /* Deleted functions should generally be public as it results in better error messages. */
+        session_simulator(session_simulator const &) = delete;
+        session_simulator &operator=(session_simulator const &) = delete;
 };
 
 #endif

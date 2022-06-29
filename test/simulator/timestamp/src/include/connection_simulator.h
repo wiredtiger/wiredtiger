@@ -26,25 +26,35 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CALL_LOG_MANAGER_H
-#define CALL_LOG_MANAGER_H
+#ifndef CONNECTION_SIMULATOR_H
+#define CONNECTION_SIMULATOR_H
 
-#include "connection_simulator.h"
-#include "json.hpp"
+#include <vector>
+#include <memory>
 
-using json = nlohmann::json;
+#include "session_simulator.h"
 
-class call_log_manager {
+/* connection_simulator is a singleton class (Global access of one and only one instance). */
+class connection_simulator {
     /* Member variables */
     private:
-        json call_log;
-
+        std::vector<std::shared_ptr<session_simulator>> session_list;
+    
     /* Methods */
     public:
-        call_log_manager(std::string);
-        int process_call_log();
+        static connection_simulator &get_connection();
+        std::shared_ptr<session_simulator> open_session();
+        int query_timestamp();
+        int set_timestamp();
+        ~connection_simulator() = default;
+
+    /* No copies of the singleton allowed. */
     private:
-        int process_call_log_entry(json);
+        connection_simulator();
+    public:
+        /* Deleted functions should generally be public as it results in better error messages. */
+        connection_simulator(connection_simulator const &) = delete;
+        connection_simulator &operator=(connection_simulator const &) = delete;
 };
 
 #endif

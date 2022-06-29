@@ -26,35 +26,6 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <iostream>
-#include <map>
-#include <fstream>
-// #include "connection_sim.h"
-#include "call_log_manager.h"
-#include "json.hpp"
+#include "session_simulator.h"
 
-using json = nlohmann::json;
-
-std::map<unsigned int, Connection> connection_map;
-
-void print_connection_map();
-
-void print_connection_map() {
-    for (std::map<unsigned int, Connection>::iterator it = connection_map.begin(); it != connection_map.end(); ++it) {
-        std::cout << it->first << " => " << &it->second << std::endl;
-    }
-}
-
-// JSON object for wiredtiger_open
-
-int
-main()
-{
-    CallLogManager *clm = new CallLogManager();
-
-    clm->dumpCallLog();
-    clm->processCallLog();
-
-
-    return (0);
-}
+session_simulator::session_simulator() {}
