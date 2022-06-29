@@ -296,7 +296,7 @@ restart_read:
  *     Return the previous variable-length entry on the append list.
  */
 static inline int
-__cursor_var_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp)
+__cursor_var_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_bounds)
 {
     WT_SESSION_IMPL *session;
 
@@ -322,6 +322,14 @@ new_page:
 
         if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
             return (0);
+        
+        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER)) {
+            WT_RET(__wt_col_compare_bounds(session, &cbt->iface, false, key_out_of_bounds));
+            if (*key_out_of_bounds) {
+                WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
+                return (WT_NOTFOUND);
+            }
+        }
 
 restart_read:
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
@@ -347,7 +355,7 @@ restart_read:
  *     Move to the previous, variable-length column-store item.
  */
 static inline int
-__cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp)
+__cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_bounds)
 {
     WT_CELL *cell;
     WT_CELL_UNPACK_KV unpack;
@@ -390,6 +398,13 @@ new_page:
         if (cbt->recno < cbt->ref->ref_recno)
             return (WT_NOTFOUND);
 
+        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER)) {
+            WT_RET(__wt_col_compare_bounds(session, &cbt->iface, false, key_out_of_bounds));
+            if (*key_out_of_bounds) {
+                WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
+                return (WT_NOTFOUND);
+            }
+        }
 restart_read:
         /* Find the matching WT_COL slot. */
         if ((cip = __col_var_search(cbt->ref, cbt->recno, &rle_start)) == NULL)
@@ -758,7 +773,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
                 ret = __cursor_fix_append_prev(cbt, newpage, restart);
                 break;
             case WT_PAGE_COL_VAR:
-                ret = __cursor_var_append_prev(cbt, newpage, restart, &skipped);
+                ret = __cursor_var_append_prev(cbt, newpage, restart, &skipped, &key_out_of_bounds);
                 total_skipped += skipped;
                 break;
             default:
@@ -769,6 +784,16 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
             F_CLR(cbt, WT_CBT_ITERATE_APPEND);
             if (ret != WT_NOTFOUND)
                 break;
+
+            /*
+             * If we are doing a search near with prefix key configured or the cursor has bounds
+             * set, we need to check if we have exited the next function due to a prefix key
+             * mismatch or the key is out of bounds. If so, we break instead of walking onto the
+             * next page. We're not directly returning here to allow the cursor to be reset first
+             * before we return WT_NOTFOUND.
+             */
+            if (key_out_of_bounds)
+                break;
             newpage = true;
         }
         if (page != NULL) {
@@ -777,7 +802,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
                 ret = __cursor_fix_prev(cbt, newpage, restart);
                 break;
             case WT_PAGE_COL_VAR:
-                ret = __cursor_var_prev(cbt, newpage, restart, &skipped);
+                ret = __cursor_var_prev(cbt, newpage, restart, &skipped, &key_out_of_bounds);
                 total_skipped += skipped;
                 break;
             case WT_PAGE_ROW_LEAF:
@@ -842,15 +867,6 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 
 done:
 err:
-    if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER) && ret == 0 &&
-      S2BT(session)->type == BTREE_COL_VAR) {
-        WT_RET(__wt_col_compare_bounds(session, cursor, false, &key_out_of_bounds));
-        if (key_out_of_bounds) {
-            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
-            ret = WT_NOTFOUND;
-        }
-    }
-
     if (total_skipped < 100)
         WT_STAT_CONN_DATA_INCR(session, cursor_prev_skip_lt_100);
     else
