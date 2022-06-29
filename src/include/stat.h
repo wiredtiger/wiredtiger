@@ -554,6 +554,10 @@ struct __wt_connection_stats {
     int64_t cursor_cached_count;
     int64_t cursor_bound_error;
     int64_t cursor_bounds_reset;
+    int64_t cursor_bounds_next_unpositioned;
+    int64_t cursor_bounds_next_early_exit;
+    int64_t cursor_bounds_prev_unpositioned;
+    int64_t cursor_bounds_prev_early_exit;
     int64_t cursor_insert_bulk;
     int64_t cursor_cache_error;
     int64_t cursor_cache;
@@ -603,6 +607,7 @@ struct __wt_connection_stats {
     int64_t cursor_sweep_examined;
     int64_t cursor_sweep;
     int64_t cursor_truncate;
+    int64_t cursor_truncate_keys_deleted;
     int64_t cursor_update;
     int64_t cursor_update_error;
     int64_t cursor_update_bytes;
@@ -1037,6 +1042,10 @@ struct __wt_dsrc_stats {
     int64_t cursor_create;
     int64_t cursor_bound_error;
     int64_t cursor_bounds_reset;
+    int64_t cursor_bounds_next_unpositioned;
+    int64_t cursor_bounds_next_early_exit;
+    int64_t cursor_bounds_prev_unpositioned;
+    int64_t cursor_bounds_prev_early_exit;
     int64_t cursor_cache_error;
     int64_t cursor_close_error;
     int64_t cursor_compare_error;

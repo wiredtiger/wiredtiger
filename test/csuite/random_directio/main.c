@@ -103,7 +103,7 @@ static const char *const uri_rev = "table:rev";
     "create,log=(file_max=10M,enabled)," \
     "transaction_sync=(enabled,method=%s)"
 #define ENV_CONFIG_TIER \
-    ",tiered_storage=(bucket=./bucket,bucket_prefix=rdio-,local_retention=2,name=dir_store)"
+    ",tiered_storage=(bucket=./bucket,bucket_prefix=pfx-,local_retention=2,name=dir_store)"
 #define ENV_CONFIG_TIER_EXT                                  \
     ",extensions=(%s../../../ext/storage_sources/dir_store/" \
     "libwiredtiger_dir_store.so=(early_load=true))"
@@ -481,7 +481,7 @@ thread_ckpt_run(void *arg)
      * Keep a separate file with the records we wrote for checking.
      */
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    for (i = 0;; ++i) {
+    for (i = 1;; ++i) {
         sleep_time = __wt_random(&rnd) % MAX_CKPT_INVL;
         sleep(sleep_time);
         testutil_check(session->checkpoint(session, NULL));
@@ -507,7 +507,7 @@ thread_flush_run(void *arg)
 
     td = (WT_THREAD_DATA *)arg;
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    for (i = 0;;) {
+    for (i = 1;; ++i) {
         sleep_time = __wt_random(&rnd) % MAX_FLUSH_INVL;
         sleep(sleep_time);
         /*

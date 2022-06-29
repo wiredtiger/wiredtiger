@@ -662,11 +662,12 @@ __wt_cell_leaf_value_parse(WT_PAGE *page, WT_CELL *cell)
  * case, make sure all reads are inside the page image. If an error occurs, return an error code but
  * don't output messages, our caller handles that.
  */
-#define WT_CELL_LEN_CHK(t, len)                                                             \
-    do {                                                                                    \
-        if (end != NULL &&                                                                  \
-          ((uint8_t *)(t) < (uint8_t *)dsk || (((uint8_t *)(t)) + (len)) > (uint8_t *)end)) \
-            return (WT_ERROR);                                                              \
+#define WT_CELL_LEN_CHK(start, len, dsk, end)                   \
+    do {                                                        \
+        if ((end) != NULL &&                                    \
+          ((uint8_t *)(start) < (uint8_t *)(dsk) ||             \
+            (((uint8_t *)(start)) + (len)) > (uint8_t *)(end))) \
+            return (WT_ERROR);                                  \
     } while (0)
 
 /*
@@ -717,7 +718,7 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     unpack->cell = cell;
 
 copy_cell_restart:
-    WT_CELL_LEN_CHK(cell, 0);
+    WT_CELL_LEN_CHK(cell, 0, dsk, end);
 
     /*
      * This path is performance critical for read-only trees, we're parsing on-page structures. For
@@ -737,7 +738,7 @@ copy_cell_restart:
      */
     switch (unpack->raw) {
     case WT_CELL_KEY_SHORT_PFX:
-        WT_CELL_LEN_CHK(cell, 1); /* skip prefix */
+        WT_CELL_LEN_CHK(cell, 1, dsk, end); /* skip prefix */
         unpack->prefix = cell->__chunk[1];
         unpack->data = cell->__chunk + 2;
         unpack->size = cell->__chunk[0] >> WT_CELL_SHORT_SHIFT;
@@ -765,7 +766,7 @@ copy_cell_restart:
      */
     if (unpack->raw == WT_CELL_KEY_PFX) {
         unpack->prefix = *p++; /* skip prefix */
-        WT_CELL_LEN_CHK(p, 0);
+        WT_CELL_LEN_CHK(p, 0, dsk, end);
     }
 
     /* Check for a validity window. */
@@ -781,7 +782,7 @@ copy_cell_restart:
         if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
             break;
         flags = *p++; /* skip second descriptor byte */
-        WT_CELL_LEN_CHK(p, 0);
+        WT_CELL_LEN_CHK(p, 0, dsk, end);
 
         if (LF_ISSET(WT_CELL_PREPARE))
             ta->prepare = 1;
@@ -825,7 +826,7 @@ copy_cell_restart:
         if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
             break;
         flags = *p++; /* skip second descriptor byte */
-        WT_CELL_LEN_CHK(p, 0);
+        WT_CELL_LEN_CHK(p, 0, dsk, end);
 
         if (LF_ISSET(WT_CELL_PREPARE))
             tw->prepare = 1;
@@ -964,8 +965,32 @@ done:
      * Check the original cell against the full cell length (this is a diagnostic as well, we may be
      * copying the cell from the page and we need the right length).
      */
-    WT_CELL_LEN_CHK(cell, unpack->__len);
+    WT_CELL_LEN_CHK(cell, unpack->__len, dsk, end);
     return (0);
+}
+
+/*
+ * __cell_page_del_window_cleanup --
+ *     Clean up a page_del structure loaded from a previous run.
+ */
+static inline void
+__cell_page_del_window_cleanup(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool *clearedp)
+{
+    /*
+     * The fast-truncate times are a stop time for the whole page; this code should match the stop
+     * txn and stop time logic for KV cells.
+     */
+    if (page_del->txnid != WT_TXN_MAX) {
+        if (clearedp != NULL)
+            *clearedp = true;
+        page_del->txnid = WT_TXN_NONE;
+        /* As above, only for non-timestamped tables. */
+        if (page_del->timestamp == WT_TS_MAX) {
+            page_del->timestamp = WT_TS_NONE;
+            WT_ASSERT(session, page_del->durable_timestamp == WT_TS_NONE);
+        }
+    } else
+        WT_ASSERT(session, page_del->timestamp == WT_TS_MAX);
 }
 
 /*
@@ -976,8 +1001,10 @@ static inline void
 __cell_addr_window_cleanup(
   WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unpack_addr)
 {
-    WT_PAGE_DELETED *page_del;
     WT_TIME_AGGREGATE *ta;
+    bool cleared;
+
+    cleared = false;
 
     /* Tell reconciliation we cleared the transaction ids and the cell needs to be rebuilt. */
     if (unpack_addr != NULL) {
@@ -1005,22 +1032,9 @@ __cell_addr_window_cleanup(
 
         /* Also handle any fast-truncate information. */
         if (unpack_addr->raw == WT_CELL_ADDR_DEL && F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
-            page_del = &unpack_addr->page_del;
-
-            /*
-             * The fast-truncate times are a stop time for the whole page; this code should match
-             * the stop txn and stop time logic for KV cells.
-             */
-            if (page_del->txnid != WT_TXN_MAX) {
-                page_del->txnid = WT_TXN_NONE;
+            __cell_page_del_window_cleanup(session, &unpack_addr->page_del, &cleared);
+            if (cleared)
                 F_SET(unpack_addr, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
-                /* As above, only for non-timestamped tables. */
-                if (page_del->timestamp == WT_TS_MAX) {
-                    page_del->timestamp = WT_TS_NONE;
-                    WT_ASSERT(session, page_del->durable_timestamp == WT_TS_NONE);
-                }
-            } else
-                WT_ASSERT(session, page_del->timestamp == WT_TS_MAX);
         }
     }
 }
@@ -1057,6 +1071,32 @@ __cell_kv_window_cleanup(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack_kv)
         } else
             WT_ASSERT(session, tw->stop_ts == WT_TS_MAX);
     }
+}
+
+/*
+ * __cell_redo_page_del_cleanup --
+ *     Redo the window cleanup logic on a page_del structure after the write generations have been
+ *     bumped. Note: the name of this function is abusive (there are no cells involved) but as the
+ *     logic is a copy of __cell_unpack_window_cleanup it seems worthwhile to keep the two together.
+ */
+static inline void
+__cell_redo_page_del_cleanup(
+  WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_PAGE_DELETED *page_del)
+{
+    uint64_t write_gen;
+
+    WT_ASSERT(session, !WT_READING_CHECKPOINT(session));
+
+    write_gen = S2BT(session)->base_write_gen;
+
+    WT_ASSERT(session, dsk->write_gen != 0);
+    if (dsk->write_gen > write_gen)
+        return;
+
+    if (F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID))
+        return;
+
+    __cell_page_del_window_cleanup(session, page_del, NULL);
 }
 
 /*
