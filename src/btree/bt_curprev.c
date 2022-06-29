@@ -296,7 +296,8 @@ restart_read:
  *     Return the previous variable-length entry on the append list.
  */
 static inline int
-__cursor_var_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_bounds)
+__cursor_var_append_prev(
+  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_bounds)
 {
     WT_SESSION_IMPL *session;
 
@@ -322,7 +323,7 @@ new_page:
 
         if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
             return (0);
-        
+
         if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER)) {
             WT_RET(__wt_col_compare_bounds(session, &cbt->iface, false, key_out_of_bounds));
             if (*key_out_of_bounds) {
@@ -355,7 +356,8 @@ restart_read:
  *     Move to the previous, variable-length column-store item.
  */
 static inline int
-__cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_bounds)
+__cursor_var_prev(
+  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_bounds)
 {
     WT_CELL *cell;
     WT_CELL_UNPACK_KV unpack;

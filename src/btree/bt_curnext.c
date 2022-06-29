@@ -149,7 +149,8 @@ restart_read:
  *     Return the next variable-length entry on the append list.
  */
 static inline int
-__cursor_var_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_bounds)
+__cursor_var_append_next(
+  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_bounds)
 {
     WT_SESSION_IMPL *session;
 
@@ -205,7 +206,8 @@ restart_read:
  *     Move to the next, variable-length column-store item.
  */
 static inline int
-__cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_bounds)
+__cursor_var_next(
+  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_bounds)
 {
     WT_CELL *cell;
     WT_CELL_UNPACK_KV unpack;
