@@ -1462,8 +1462,8 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
      * Truncate only works with the underlying file cursor.
      *
      * It's OK for the truncate call to return not found. Within truncate, it does search near again
-     * on the cursors, which may lead the pages to being evicted and the keys removed if they have
-     * a globally visible tombstone.
+     * on the cursors, which may lead the pages to being evicted and the keys removed if they have a
+     * globally visible tombstone.
      */
     WT_ERR_NOTFOUND_OK(truncate_session->truncate(truncate_session, NULL,
                          ((WT_CURSOR_HS *)hs_cursor_start)->file_cursor,
