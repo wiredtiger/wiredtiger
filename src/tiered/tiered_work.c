@@ -48,13 +48,14 @@ __wt_tiered_work_free(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
  *     Remove all work on the queue that applies to the given tiered handle.
  */
 void
-__wt_tiered_remove_work(WT_SESSION_IMPL *session, WT_TIERED *tiered)
+__wt_tiered_remove_work(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool locked)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TIERED_WORK_UNIT *entry, *entry_tmp;
 
     conn = S2C(session);
-    __wt_spin_lock(session, &conn->tiered_lock);
+    if (!locked)
+        __wt_spin_lock(session, &conn->tiered_lock);
     TAILQ_FOREACH_SAFE(entry, &conn->tieredqh, q, entry_tmp)
     {
         /* Remove and free any entry for this tiered handle. */
@@ -64,7 +65,8 @@ __wt_tiered_remove_work(WT_SESSION_IMPL *session, WT_TIERED *tiered)
             __wt_tiered_work_free(session, entry);
         }
     }
-    __wt_spin_unlock(session, &conn->tiered_lock);
+    if (!locked)
+        __wt_spin_unlock(session, &conn->tiered_lock);
     return;
 }
 
