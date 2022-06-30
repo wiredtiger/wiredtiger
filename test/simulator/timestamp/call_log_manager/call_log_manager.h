@@ -30,7 +30,7 @@
 #define CALL_LOG_MANAGER_H
 
 #include "connection_simulator.h"
-#include "json.hpp"
+#include "nlohmann/json.hpp"
 
 using json = nlohmann::json;
 
