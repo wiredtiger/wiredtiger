@@ -132,19 +132,24 @@ class test_cursor_bound05(bound_base):
         cursor.reset()
 
         # Search for a key equal to the bound. 
-        self.set_bounds(cursor, 60, "upper", False)
+        self.set_bounds(cursor, 60, "upper", self.inclusive)
         cursor.set_key(self.gen_key(60))
         ret = cursor.search()
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        if(self.inclusive):
+            self.assertEqual(ret, 0)
+        else:
+            self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         cursor.reset()
 
         # Search for a key equal to the bound. 
-        self.set_bounds(cursor, 20, "upper", True)
+        self.set_bounds(cursor, 20, "upper", self.inclusive)
         cursor.set_key(self.gen_key(20))
         ret = cursor.search()
-        self.assertEqual(ret, 0)
+        if(self.inclusive):
+            self.assertEqual(ret, 0)
+        else:
+            self.assertEqual(ret, wiredtiger.WT_NOTFOUND)        
         cursor.reset()
-
         cursor.close()
 
 if __name__ == '__main__':
