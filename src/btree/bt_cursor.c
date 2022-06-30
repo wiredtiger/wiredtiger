@@ -698,14 +698,15 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     __cursor_novalue(cursor);
     __cursor_state_save(cursor, &state);
 
-    /* Check that the provided search key is within bounds. If not, return WT_NOTFOUND and early
+    /*
+     * Check that the provided search key is within bounds. If not, return WT_NOTFOUND and early
      * exit.
      */
     if (btree->type == BTREE_ROW && WT_CURSOR_BOUNDS_SET(cursor)) {
         if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER))
             WT_ERR(__wt_row_compare_bounds(
               session, &cbt->iface, S2BT(session)->collator, false, &key_out_of_bounds));
-        if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER))
+        if (!key_out_of_bounds && F_ISSET(cursor, WT_CURSTD_BOUND_UPPER))
             WT_ERR(__wt_row_compare_bounds(
               session, &cbt->iface, S2BT(session)->collator, true, &key_out_of_bounds));
         if (key_out_of_bounds) {

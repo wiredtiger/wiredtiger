@@ -439,7 +439,7 @@ restart_read_insert:
              * If an upper bound has been set ensure that the key is within the range, otherwise
              * early exit.
              */
-            if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
+            if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER)) {
                 WT_RET(__wt_row_compare_bounds(
                   session, &cbt->iface, S2BT(session)->collator, true, key_out_of_bounds));
                 if (*key_out_of_bounds) {
@@ -505,7 +505,7 @@ restart_read_page:
          * If an upper bound has been set ensure that the key is within the range, otherwise early
          * exit.
          */
-        if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
+        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER)) {
             WT_RET(__wt_row_compare_bounds(
               session, &cbt->iface, S2BT(session)->collator, true, key_out_of_bounds));
             if (*key_out_of_bounds) {
