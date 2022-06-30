@@ -38,6 +38,9 @@ class call_log_manager {
     /* Member variables */
     private:
     json call_log;
+    enum api_method { wiredtiger_open, open_session };
+    std::map<std::string, api_method> api_map;
+    connection_simulator *conn;
 
     /* Methods */
     public:
@@ -46,6 +49,7 @@ class call_log_manager {
 
     private:
     int process_call_log_entry(json);
+    void api_map_setup();
 };
 
 #endif

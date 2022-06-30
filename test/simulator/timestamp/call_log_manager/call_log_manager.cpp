@@ -27,6 +27,7 @@
  */
 
 #include <fstream>
+#include <iostream>
 
 #include "call_log_manager.h"
 
@@ -34,20 +35,39 @@ call_log_manager::call_log_manager(std::string call_log_file)
 {
     std::ifstream file(call_log_file);
     call_log = json::parse(file);
+    api_map_setup();
 }
+
+void call_log_manager::api_map_setup(){
+    api_map["wiredtiger_open"] = wiredtiger_open;
+    api_map["open_session"] = open_session;
+}
+
 
 int
 call_log_manager::process_call_log()
 {
     for (const auto &call_log_entry : call_log)
         process_call_log_entry(call_log_entry);
+
+    return (0);
 }
 
 int
 call_log_manager::process_call_log_entry(json call_log_entry)
 {
     /* call_log_entry: wiredtiger_open() */
-    if (call_log_entry["MethodName"] == "wiredtiger_open") {
-        std::cout << "WiredTiger open call" << std::endl;
+
+    switch(api_map[call_log_entry["MethodName"]]){
+        case wiredtiger_open:
+            std::cout << "WiredTiger open call" << std::endl;
+            conn = &connection_simulator::get_connection();
+            break;
+        case open_session:
+            break;
     }
+
+    (void)conn;
+    
+    return (0);
 }
