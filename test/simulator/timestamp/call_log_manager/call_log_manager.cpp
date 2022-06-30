@@ -38,11 +38,12 @@ call_log_manager::call_log_manager(std::string call_log_file)
     api_map_setup();
 }
 
-void call_log_manager::api_map_setup(){
+void
+call_log_manager::api_map_setup()
+{
     api_map["wiredtiger_open"] = wiredtiger_open;
     api_map["open_session"] = open_session;
 }
-
 
 int
 call_log_manager::process_call_log()
@@ -56,18 +57,24 @@ call_log_manager::process_call_log()
 int
 call_log_manager::process_call_log_entry(json call_log_entry)
 {
-    /* call_log_entry: wiredtiger_open() */
 
-    switch(api_map[call_log_entry["MethodName"]]){
-        case wiredtiger_open:
-            std::cout << "WiredTiger open call" << std::endl;
-            conn = &connection_simulator::get_connection();
-            break;
-        case open_session:
-            break;
+    if (call_log_entry.empty())
+        return (0);
+
+    switch (api_map[call_log_entry["MethodName"]]) {
+    case wiredtiger_open:
+        std::cout << "WiredTiger open call" << std::endl;
+        conn = &connection_simulator::get_connection();
+        break;
+    case open_session:
+        std::cout << "Open session call" << std::endl;
+        std::shared_ptr<session_simulator> session = conn->open_session();
+        /* Insert this session into the mapping between the simulator session object and the
+         * wiredtiger session object. */
+        session_map.insert(std::pair<std::string, std::shared_ptr<session_simulator>>(
+          call_log_entry["Output"]["objectId"], session));
+        break;
     }
 
-    (void)conn;
-    
     return (0);
 }
