@@ -630,7 +630,7 @@ thread_flush_run(void *arg)
             if (ret != EBUSY)
                 testutil_die(ret, "session.flush_tier");
         } else
-            printf("Flush tier %" PRIu32 " completed.\n", ++i);
+            printf("Flush tier %" PRIu32 " completed.\n", i);
         testutil_check(pthread_rwlock_unlock(&flush_lock));
         fflush(stdout);
     }
