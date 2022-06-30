@@ -176,8 +176,8 @@ err:
 static int
 __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[])
 {
-    WT_CONNECTION_IMPL *conn;
     WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *tier;
     WT_DECL_RET;
     WT_TIERED *tiered;
@@ -280,10 +280,8 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
       session, ret = __wt_conn_dhandle_close_all(session, uri, true, force));
     WT_ERR(ret);
-    /*
-     * If everything is successful to this point, remove any tiered work associated with this tiered
-     * handle before closing it.
-     */
+
+    /* If everything is successful, remove any tiered work associated with this tiered handle. */
     __wt_tiered_remove_work(session, tiered, locked);
     __wt_spin_unlock(session, &conn->tiered_lock);
     locked = false;
