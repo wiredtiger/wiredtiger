@@ -41,10 +41,10 @@ class test_rollback_to_stable38(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
     format_values = [
-        ('column', dict(key_format='r', value_format='S', extraconfig=',allocation_size=1MB,leaf_page_max=1MB,internal_page_max=1MB,leaf_value_max=1MB,split_pct=99')),
+        ('column', dict(key_format='r', value_format='S', extraconfig='')),
         ('column_fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=128KB,leaf_page_max=128KB,internal_page_max=128KB,leaf_value_max=128KB,split_pct=99')),
-        ('integer_row', dict(key_format='i', value_format='S', extraconfig=',allocation_size=1MB,leaf_page_max=1MB,internal_page_max=1MB,leaf_value_max=1MB,split_pct=99')),
+            extraconfig='')),
+        ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
     ]
     rollback_modes = [
         ('runtime', dict(crash=False)),
@@ -103,14 +103,11 @@ class test_rollback_to_stable38(wttest.WiredTigerTestCase):
         session2.rollback_transaction()
         session2.close()
 
-        start = time.time()
         # Roll back, either via crashing or by explicit RTS.
         if self.crash:
             simulate_crash_restart(self, ".", "RESTART")
         else:
             self.conn.rollback_to_stable()
-        end = time.time()
-        self.assertLess(end - start, 2)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         fastdelete_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
