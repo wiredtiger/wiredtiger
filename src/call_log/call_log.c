@@ -52,7 +52,7 @@ __wt_conn_call_log_teardown(WT_SESSION_IMPL *session)
     if (!F_ISSET(conn, WT_CONN_CALL_LOG_ENABLED))
         return (0);
 
-    WT_RET(__wt_fprintf(session, conn->call_log_fst, "]\n"));
+    WT_RET(__wt_fprintf(session, conn->call_log_fst, "{}]\n"));
 
     return (__wt_fclose(session, &conn->call_log_fst));
 }
@@ -172,7 +172,7 @@ __call_log_print_return(WT_SESSION_IMPL *session, int ret_val, const char *err_m
       "        \"ReturnVal\" : %d,\n"
       "        \"errMsg\" : \"%s\"\n"
       "    }\n"
-      "}\n",
+      "},\n",
       ret_val, err_msg));
 
     return (0);
@@ -193,6 +193,24 @@ __wt_call_log_wiredtiger_open(WT_SESSION_IMPL *session, int ret_val)
     WT_RET(__call_log_print_start(session, "global", "wiredtiger_open"));
     WT_RET(__call_log_print_input(session, 0));
     WT_RET(__wt_snprintf(buf, sizeof(buf), "\"objectId\": \"%p\"", conn));
+    WT_RET(__call_log_print_output(session, 1, buf));
+    WT_RET(__call_log_print_return(session, ret_val, ""));
+
+    return (0);
+}
+
+/*
+ * __wt_call_log_open_session --
+ *     Print the call log entry for the open session API call.
+ */
+int
+__wt_call_log_open_session(WT_SESSION_IMPL *session, int ret_val)
+{
+    char buf[128];
+
+    WT_RET(__call_log_print_start(session, "connection", "open_session"));
+    WT_RET(__call_log_print_input(session, 0));
+    WT_RET(__wt_snprintf(buf, sizeof(buf), "\"objectId\": \"%p\"", session));
     WT_RET(__call_log_print_output(session, 1, buf));
     WT_RET(__call_log_print_return(session, ret_val, ""));
 

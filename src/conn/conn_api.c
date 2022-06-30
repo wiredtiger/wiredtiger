@@ -1284,6 +1284,9 @@ __conn_open_session(WT_CONNECTION *wt_conn, WT_EVENT_HANDLER *event_handler, con
     *wt_sessionp = &session_ret->iface;
 
 err:
+#ifdef HAVE_CALL_LOG
+    WT_TRET(__wt_call_log_open_session(session_ret, ret));
+#endif
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
