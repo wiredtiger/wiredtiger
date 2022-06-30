@@ -1130,9 +1130,9 @@ def getTimeUnitString(unitsPerSecond):
 #       <func_name> <outlier_threshold> [units]
 #
 # For example, if you would like to flag as outliers all instances of
-# __wt_cursor_row_search that took longer than 200ms, you would specify this as:
+# __cursor_row_search that took longer than 200ms, you would specify this as:
 #
-#        __wt_cursor_row_search 200 ms
+#        __cursor_row_search 200 ms
 #
 # You can use * as the wildcard for all function. No other wildcard options are
 # supported at the moment.

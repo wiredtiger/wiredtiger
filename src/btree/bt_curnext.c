@@ -763,9 +763,9 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     if (truncating)
         LF_SET(WT_READ_TRUNCATE);
 
-    WT_ERR(__wt_cursor_func_init(cbt, false));
-
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+
+    WT_ERR(__wt_cursor_func_init(cbt, false));
 
     /*
      * If we have a bound set we should position our cursor appropriately if it isn't already
