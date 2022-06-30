@@ -702,6 +702,8 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 
     WT_ERR(__wt_cursor_func_init(cbt, false));
 
+    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+
     /*
      * If we have a bound set we should position our cursor appropriately if it isn't already
      * positioned. In one scenario this function returns and needs to walk to the next record. In
@@ -714,8 +716,6 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
             return (0);
         }
     }
-
-    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
     /*
      * If we aren't already iterating in the right direction, there's some setup to do.
