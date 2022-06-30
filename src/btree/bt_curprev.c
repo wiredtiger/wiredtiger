@@ -325,7 +325,7 @@ new_page:
             return (0);
 
         if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER)) {
-            WT_RET(__wt_col_compare_bounds(session, &cbt->iface, false, key_out_of_bounds));
+            WT_RET(__wt_compare_bounds(session, &cbt->iface, NULL, false, key_out_of_bounds));
             if (*key_out_of_bounds) {
                 WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
                 return (WT_NOTFOUND);
@@ -401,7 +401,7 @@ new_page:
             return (WT_NOTFOUND);
 
         if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER)) {
-            WT_RET(__wt_col_compare_bounds(session, &cbt->iface, false, key_out_of_bounds));
+            WT_RET(__wt_compare_bounds(session, &cbt->iface, NULL, false, key_out_of_bounds));
             if (*key_out_of_bounds) {
                 WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
                 return (WT_NOTFOUND);
