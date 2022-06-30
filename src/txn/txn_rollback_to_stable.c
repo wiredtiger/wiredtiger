@@ -1549,8 +1549,9 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
         for (i = 0; conn->partial_backup_remove_ids[i] != 0; ++i)
             WT_ERR(
               __rollback_to_stable_btree_hs_truncate(session, conn->partial_backup_remove_ids[i]));
-    WT_TRET(__wt_session_release_dhandle(session));
 err:
+    if (session->dhandle != NULL)
+        WT_TRET(__wt_session_release_dhandle(session));
     __wt_free(session, config);
     return (ret);
 }
