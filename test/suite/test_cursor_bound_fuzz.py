@@ -102,6 +102,12 @@ class key():
     def is_deleted(self):
         return self.key_state == key_states.DELETED
 
+    def is_out_of_bounds(self, bound_set):
+        return not bound_set.in_bounds_key(self.data)
+
+    def is_deleted_or_oob(self, bound_set):
+        return self.is_deleted() or self.is_out_of_bounds(bound_set)
+
     def update(self, value, key_state):
         self.value = value
         self.key_state = key_state
@@ -117,8 +123,8 @@ class key():
 
 # test_cursor_bound01.py
 #    Basic cursor bound API validation.
-class test_cursor_bound01(wttest.WiredTigerTestCase):
-    file_name = 'test_cursor_bound_fuzzz'
+class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
+    file_name = 'test_fuzz.wt'
 
     types = [
         ('file', dict(uri='file:')),
@@ -131,10 +137,11 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
     ]
     scenarios = make_scenarios(types, data_format)
 
-    iteration_count = 500
-    value_size = 10
-    key_count = 100
     key_range = []
+
+    def dump_key_range(self):
+        for i in range(0, self.key_count):
+            self.pr(self.key_range[i].to_string())
 
     def generate_value(self):
         return ''.join(random.choice(string.ascii_lowercase) for _ in range(self.value_size))
@@ -143,10 +150,14 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
         value = self.generate_value()
         cursor[key_id] = value
         self.key_range[key_id].update(value, key_states.UPSERTED)
+        self.pr("Updating key: " + str(key_id))
 
     def apply_remove(self, cursor, key_id):
+        if (self.key_range[key_id].is_deleted()):
+            return
+        self.pr("Removing key: " + str(key_id))
         cursor.set_key(key_id)
-        cursor.remove()
+        self.assertEqual(cursor.remove(), 0)
         self.key_range[key_id].update(None, key_states.DELETED)
 
     def apply_ops(self, cursor):
@@ -161,26 +172,57 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
                 raise Exception("Unhandled operation generated")
 
     def run_next_prev(self, bound_set, next, cursor):
+        # This array gives us confidence that we have validated the full key range.
+        checked_keys = []
         if (next):
-            self.pr("Running scenario next")
-            key_range_it = 0
+            self.pr("Running scenario: NEXT")
+            key_range_it = -1
             while (cursor.next() != wiredtiger.WT_NOTFOUND):
                 current_key = cursor.get_key()
-                #self.assertTrue(bound_set.in_bounds_key(current_key))
-                # Check that the key range between key_range_it and current_key isn't visible
-                self.pr(str(current_key))
-                if (current_key != key_range_it + 1):
-                    for i in range(key_range_it, current_key):
-                        self.pr(self.key_range[i].to_string())
-                        self.assertTrue(self.key_range[i].is_deleted())
                 current_value = cursor.get_value()
+                self.pr("Cursor next walked to key: " + str(current_key) + " value: " + current_value)
+                self.assertTrue(bound_set.in_bounds_key(current_key))
                 self.assertTrue(self.key_range[current_key].equals(current_key, current_value))
-                key_range_it = current_key + 1
+                checked_keys.append(current_key)
+                if (current_key != key_range_it + 1):
+                    # Check that the key range between key_range_it and current_key isn't visible
+                    for i in range(key_range_it + 1, current_key):
+                        checked_keys.append(i)
+                        self.pr("Determining key state of " + self.key_range[i].to_string())
+                        self.assertTrue(self.key_range[i].is_deleted_or_oob(bound_set))
+                key_range_it = current_key
             # If key_range_it is < key_count then the rest of the range was deleted
+            # Remember to increment it by one to get it to the first not in bounds key.
+            self.pr("key_range_it = " + str(key_range_it))
+            key_range_it = key_range_it + 1
             for i in range(key_range_it, self.key_count):
-                self.assertTrue(self.key_range[i].is_deleted())
+                checked_keys.append(i)
+                self.assertTrue(self.key_range[i].is_deleted_or_oob(bound_set))
         else:
-            pass
+            self.pr("Running scenario: PREV")
+            key_range_it = self.key_count
+            while (cursor.prev() != wiredtiger.WT_NOTFOUND):
+                current_key = cursor.get_key()
+                current_value = cursor.get_value()
+                self.pr("Cursor prev walked to key: " + str(current_key) + " value: " + current_value)
+                self.assertTrue(bound_set.in_bounds_key(current_key))
+                self.assertTrue(self.key_range[current_key].equals(current_key, current_value))
+                checked_keys.append(current_key)
+                if (current_key != key_range_it - 1):
+                    # Check that the key range between key_range_it and current_key isn't visible
+                    for i in range(current_key + 1, key_range_it):
+                        checked_keys.append(i)
+                        self.pr("Determining key state of " + self.key_range[i].to_string())
+                        self.assertTrue(self.key_range[i].is_deleted_or_oob(bound_set))
+                key_range_it = current_key
+            # If key_range_it is > key_count then the rest of the range was deleted
+            # Remember to increment it by one to get it to the first not in bounds key.
+            self.pr("key_range_it = " + str(key_range_it))
+            for i in range(0, key_range_it):
+                checked_keys.append(i)
+                self.pr("Determining key state of " + self.key_range[i].to_string())
+                self.assertTrue(self.key_range[i].is_deleted_or_oob(bound_set))
+        self.assertTrue(len(checked_keys) == self.key_count)
 
     def run_search(self, bound_set, cursor):
         # Choose a random key and preform a search
@@ -205,14 +247,18 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
                 continue
             if (i == bound_set.upper.key and not bound_set.upper.inclusive):
                 continue
+            self.pr(self.key_range[i].to_string())
             if (not self.key_range[i].is_deleted()):
                 return False
         return True
 
     def run_search_near(self, bound_set, cursor):
         # Choose a random key and perform a search near.
+        self.session.breakpoint()
         search_key = random.randrange(self.key_count)
         cursor.set_key(search_key)
+        self.pr(str(search_key))
+        self.pr(bound_set.to_string())
         ret = cursor.search_near()
         if (ret == wiredtiger.WT_NOTFOUND):
             # Nothing visible within the bound range.
@@ -223,12 +269,12 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
             pass
         else:
             key_found = cursor.get_key()
+            current_key = key_found
             # Assert the value we found matches.
             # Equals also validates that the key is visible.
             self.assertTrue(self.key_range[current_key].equals(current_key, cursor.get_value()))
-            if (bound_set.in_bound_key(search_key)):
-                current_key = key_found
-                # We returned a key within the range, validate that that key is the one that should've been returned.
+            if (bound_set.in_bounds_key(search_key)):
+                # We returned a key within the range, validate that key is the one that should've been returned.
                 if (key_found == search_key):
                     # We've already deteremined the key matches. We can return.
                     pass
@@ -251,10 +297,10 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
                     # Validate that the we returned the nearest value to the lower bound.
                     if (bound_set.lower.inclusive):
                         self.assertTrue(key_found >= bound_set.lower.key)
-                        current_key = bound_set.lower
+                        current_key = bound_set.lower.key
                     else:
                         self.assertTrue(key_found > bound_set.lower.key)
-                        current_key = bound_set.lower + 1
+                        current_key = bound_set.lower.key + 1
                     while (current_key != key_found):
                         self.assertTrue(self.key_range[current_key].is_deleted())
                         current_key = current_key + 1
@@ -264,10 +310,10 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
                     # Validate that the we returned the nearest value to the upper bound.
                     if (bound_set.upper.inclusive):
                         self.assertTrue(key_found <= bound_set.upper.key)
-                        current_key = bound_set.upper
+                        current_key = bound_set.upper.key
                     else:
                         self.assertTrue(key_found < bound_set.upper.key)
-                        current_key = bound_set.upper - 1
+                        current_key = bound_set.upper.key - 1
                     while (current_key != key_found):
                         self.assertTrue(self.key_range[current_key].is_deleted())
                         current_key = current_key - 1
@@ -275,11 +321,11 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
                     raise Exception('Illegal state found in search_near')
 
     def run_bound_scenarios(self, bound_set, cursor):
-        scenario = random.choice(list(bound_scenarios))
+        scenario = bound_scenarios.PREV
+        #scenario = random.choice(list(bound_scenarios))
         if (scenario is bound_scenarios.NEXT):
             self.run_next_prev(bound_set, True, cursor)
         elif (scenario is bound_scenarios.PREV):
-            #TODO: Implement prev
             self.run_next_prev(bound_set, False, cursor)
         elif (scenario is bound_scenarios.SEARCH):
             self.run_search(bound_set, cursor)
@@ -314,14 +360,28 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
         for i in range(0, self.key_count):
             key_value = self.generate_value()
             self.key_range.append(key(i, key_value, key_states.UPSERTED))
+            cursor[i] = key_value
+
+        self.session.checkpoint()
+        #self.dump_key_range()
+        self.session.breakpoint()
 
         # Begin main loop
         for  i in range(0, self.iteration_count):
             self.pr("Iteration: " + str(i))
             bound_set = self.apply_bounds(cursor)
+            #self.pr(bound_set.to_string())
             self.run_bound_scenarios(bound_set, cursor)
-            self.apply_ops(cursor)
 
+            # Before we apply our new operations clear the bounds.
+            cursor.reset()
+            self.apply_ops(cursor)
+            self.session.checkpoint()
+            #self.dump_key_range()
+
+    iteration_count = 2
+    value_size = 10
+    key_count = 100
 
 
 if __name__ == '__main__':
