@@ -2234,8 +2234,8 @@ unlock:
 /*
  * __wt_btcur_bounds_row_position --
  *     A unpositioned bounded cursor need to start its cursor next and prev walk from the lower or
- *     upper bound depending on which direction it is going. This function calls search near to
- *     position the cursor appropriately.
+ *     upper bound depending on which direction it is going. This function calls cursor row search
+ *     to position the cursor appropriately.
  */
 static inline int
 __wt_btcur_bounds_row_position(
@@ -2243,10 +2243,8 @@ __wt_btcur_bounds_row_position(
 {
 
     WT_CURSOR *cursor;
-    WT_DECL_RET;
     WT_ITEM *bound;
-    int exact;
-    bool key_out_of_bounds;
+    bool key_out_of_bounds, valid;
     uint64_t bound_flag, bound_flag_inclusive;
 
     key_out_of_bounds = false;
@@ -2254,7 +2252,6 @@ __wt_btcur_bounds_row_position(
     bound = next ? &cursor->lower_bound : &cursor->upper_bound;
     bound_flag = next ? WT_CURSTD_BOUND_UPPER : WT_CURSTD_BOUND_LOWER;
     bound_flag_inclusive = next ? WT_CURSTD_BOUND_LOWER_INCLUSIVE : WT_CURSTD_BOUND_UPPER_INCLUSIVE;
-    exact = 0;
 
     if (next)
         WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_unpositioned);
@@ -2263,18 +2260,24 @@ __wt_btcur_bounds_row_position(
 
     WT_ASSERT(session, WT_DATA_IN_ITEM(bound));
     __wt_cursor_set_raw_key(cursor, bound);
-    F_SET(cursor, WT_CURSTD_BOUND_ENTRY);
-    ret = cursor->search_near(cursor, &exact);
-    F_CLR(cursor, WT_CURSTD_BOUND_ENTRY);
-    WT_RET(ret);
+    WT_RET(__wt_cursor_row_search(cbt, false, NULL, NULL));
+    /*
+     * If there's an exact match, the row-store search function built the key in the cursor's
+     * temporary buffer.
+     */
+    WT_RET(__wt_cursor_valid(cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, &valid));
+
+    /* If the record is valid, set the cursor's key to the record. */
+    if (valid)
+        WT_RET(__wt_key_return(cbt));
 
     /*
      * FIXME-WT-9324: When search_near_bounded is implemented then remove this. If search near
-     * returns a higher value, ensure it's within the upper bound.
+     * returns a value, ensure it's within the bounds.
      */
-    if (exact == 0 && F_ISSET(cursor, bound_flag_inclusive)) {
+    if (valid && cbt->compare == 0 && F_ISSET(cursor, bound_flag_inclusive)) {
         return (0);
-    } else if (next ? exact > 0 : exact < 0) {
+    } else if ((next ? cbt->compare > 0 : cbt->compare < 0) && valid) {
         /*
          * If search near returns a non-exact key, check the returned key against the upper bound if
          * doing a next, and the lower bound if doing a prev to ensure the key is within bounds. If

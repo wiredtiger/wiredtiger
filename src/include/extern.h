@@ -595,6 +595,8 @@ extern int __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_reopen_notsup(WT_CURSOR *cursor, bool check_only)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_cursor_row_search(WT_CURSOR_BTREE *cbt, bool insert, WT_REF *leaf,
+  bool *leaf_foundp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_search_near_notsup(WT_CURSOR *cursor, int *exact)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_set_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
