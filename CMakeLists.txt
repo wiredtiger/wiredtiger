@@ -60,6 +60,17 @@ if(NOT ENABLE_SHARED AND NOT ENABLE_STATIC)
     message(FATAL_ERROR "Both ENABLE_SHARED & ENABLE_STATIC are disabled. Need to enable at least one build flavour.")
 endif()
 
+# Set the C++ 17 standard. Have to use this method to make it consistent across the platforms
+# as cmake is doing funny things with the versions we have (including setting -std on MSVC).
+if(MSVC)
+    set(CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17")
+else()
+    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_CXX_EXTENSIONS OFF)
+endif()
+
 if(ENABLE_STRICT)
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
         include(cmake/strict/gcc_strict.cmake)
