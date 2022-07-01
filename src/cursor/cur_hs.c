@@ -99,6 +99,26 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __curhs_compare --
+ *     WT_CURSOR->compare method for the history store cursor type.
+ */
+static int
+__curhs_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    CURSOR_API_CALL(a, session, compare, NULL);
+
+    WT_ERR(__cursor_checkkey(a));
+    WT_ERR(__cursor_checkkey(b));
+
+    ret = __wt_compare(session, NULL, &a->key, &b->key, cmpp);
+err:
+    API_END_RET_STAT(session, ret, cursor_compare);
+}
+
+/*
  * __curhs_file_cursor_next --
  *     Execute a next operation on a history store cursor with the appropriate isolation level.
  */
@@ -1004,6 +1024,7 @@ __curhs_remove_int(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type
     WT_UPDATE *hs_tombstone;
 
     WT_UNUSED(value);
+    WT_UNUSED(modify_type);
     session = CUR2S(cbt);
     WT_ASSERT(session, modify_type == WT_UPDATE_TOMBSTONE);
 
@@ -1182,7 +1203,7 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
       __wt_cursor_get_value,                          /* get-value */
       __curhs_set_key,                                /* set-key */
       __curhs_set_value,                              /* set-value */
-      __wt_cursor_compare_notsup,                     /* compare */
+      __curhs_compare,                                /* compare */
       __wt_cursor_equals_notsup,                      /* equals */
       __curhs_next,                                   /* next */
       __curhs_prev,                                   /* prev */
