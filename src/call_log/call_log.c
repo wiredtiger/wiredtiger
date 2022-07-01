@@ -217,4 +217,27 @@ __wt_call_log_open_session(WT_SESSION_IMPL *session, int ret_val)
     return (0);
 }
 
+/*
+ * __wt_call_log_set_timestamp --
+ *     Print the call log entry for the set timestamp API call.
+ */
+int
+__wt_call_log_set_timestamp(WT_SESSION_IMPL *session, const char *config, int ret_val)
+{
+    WT_CONNECTION_IMPL *conn;
+    char config_buf[128];
+    char objectid_buf[128];
+
+    conn = S2C(session);
+
+    WT_RET(__call_log_print_start(session, "connection", "set_timestamp"));
+    WT_RET(__wt_snprintf(objectid_buf, sizeof(objectid_buf), "\"objectId\": \"%p\",", conn));
+    WT_RET(__wt_snprintf(config_buf, sizeof(config_buf), "\"Config\": \"%s\",", config));
+    WT_RET(__call_log_print_input(session, 2, objectid_buf, config_buf));
+    WT_RET(__call_log_print_output(session, 0));
+    WT_RET(__call_log_print_return(session, ret_val, ""));
+
+    return (0);
+}
+
 #endif
