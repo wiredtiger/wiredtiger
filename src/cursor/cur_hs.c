@@ -993,35 +993,19 @@ err:
 }
 
 /*
- * __curhs_remove --
- *     WT_CURSOR->remove method for the history store cursor type.
+ * __curhs_remove_int --
+ *     Remove a record from the history store.
  */
-static int
-__curhs_remove(WT_CURSOR *cursor)
+static inline int
+__curhs_remove_int(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type)
 {
-    WT_CURSOR *file_cursor;
-    WT_CURSOR_BTREE *cbt;
-    WT_CURSOR_HS *hs_cursor;
     WT_DECL_RET;
-    WT_ITEM hs_key;
     WT_SESSION_IMPL *session;
     WT_UPDATE *hs_tombstone;
-    wt_timestamp_t hs_start_ts;
-    uint64_t hs_counter;
-    uint32_t hs_btree_id;
 
-    WT_CLEAR(hs_key);
-    hs_cursor = (WT_CURSOR_HS *)cursor;
-    file_cursor = hs_cursor->file_cursor;
-    cbt = (WT_CURSOR_BTREE *)file_cursor;
-    hs_tombstone = NULL;
-
-    CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, remove, CUR2BT(file_cursor));
-
-    /* Remove must be called with cursor positioned. */
-    WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
-
-    WT_ERR(cursor->get_key(cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
+    WT_UNUSED(value);
+    session = CUR2S(cbt);
+    WT_ASSERT(session, modify_type == WT_UPDATE_TOMBSTONE);
 
     /*
      * Since we're using internal functions to modify the row structure, we need to manually set the
@@ -1037,6 +1021,38 @@ __curhs_remove(WT_CURSOR *cursor)
         WT_ERR(ret);
     }
 
+    if (0) {
+err:
+        __wt_free(session, hs_tombstone);
+    }
+
+    return (ret);
+}
+
+/*
+ * __curhs_remove --
+ *     WT_CURSOR->remove method for the history store cursor type.
+ */
+static int
+__curhs_remove(WT_CURSOR *cursor)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_CURSOR_HS *hs_cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+    file_cursor = hs_cursor->file_cursor;
+    cbt = (WT_CURSOR_BTREE *)file_cursor;
+
+    CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, remove, CUR2BT(file_cursor));
+
+    /* Remove must be called with cursor positioned. */
+    WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
+
+    WT_ERR(__curhs_remove_int(cbt, NULL, WT_UPDATE_TOMBSTONE));
+
     /* We must still hold the cursor position after the remove call. */
     WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
 
@@ -1046,7 +1062,6 @@ __curhs_remove(WT_CURSOR *cursor)
 
     if (0) {
 err:
-        __wt_free(session, hs_tombstone);
         WT_TRET(cursor->reset(cursor));
     }
 
@@ -1123,6 +1138,34 @@ err:
         WT_TRET(cursor->reset(cursor));
     }
     API_END_RET(session, ret);
+}
+
+/*
+ * __wt_curhs_range_truncate --
+ *     Discard a cursor range from the history store tree.
+ */
+int
+__wt_curhs_range_truncate(WT_CURSOR *start, WT_CURSOR *stop)
+{
+    WT_CURSOR *start_file_cursor, *stop_file_cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = CUR2S(start);
+    start_file_cursor = ((WT_CURSOR_HS *)start)->file_cursor;
+    stop_file_cursor = stop != NULL ? ((WT_CURSOR_HS *)stop)->file_cursor : NULL;
+
+    WT_STAT_DATA_INCR(session, cursor_truncate);
+
+    WT_ERR(__wt_cursor_localkey(start_file_cursor));
+    if (stop != NULL)
+        WT_ERR(__wt_cursor_localkey(stop_file_cursor));
+
+    WT_ERR(__wt_cursor_truncate((WT_CURSOR_BTREE *)start_file_cursor,
+      (WT_CURSOR_BTREE *)stop_file_cursor, __curhs_remove_int));
+
+err:
+    return (ret);
 }
 
 /*

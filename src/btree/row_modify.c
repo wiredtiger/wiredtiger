@@ -110,20 +110,14 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
 
         if (upd_arg == NULL) {
             old_upd = *upd_entry;
-            if (!WT_IS_HS(session->dhandle)) {
-                /* Make sure the modify can proceed. */
-                WT_ERR(__wt_txn_modify_check(session, cbt, old_upd, &prev_upd_ts, modify_type));
+            /* Make sure the modify can proceed. */
+            WT_ERR(__wt_txn_modify_check(session, cbt, old_upd, &prev_upd_ts, modify_type));
 
-                /* Allocate a WT_UPDATE structure and transaction ID. */
-                WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
-                upd->prev_durable_ts = prev_upd_ts;
-                WT_ERR(__wt_txn_modify(session, upd));
-                added_to_txn = true;
-            } else {
-                WT_ASSERT(session, modify_type == WT_UPDATE_TOMBSTONE);
-                /* Allocate a WT_UPDATE structure. */
-                WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
-            }
+            /* Allocate a WT_UPDATE structure and transaction ID. */
+            WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
+            upd->prev_durable_ts = prev_upd_ts;
+            WT_ERR(__wt_txn_modify(session, upd));
+            added_to_txn = true;
 
             /* Avoid WT_CURSOR.update data copy. */
             __wt_upd_value_assign(cbt->modify_update, upd);
@@ -208,11 +202,8 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
 
         if (upd_arg == NULL) {
             WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
-            if (!WT_IS_HS(session->dhandle)) {
-                WT_ERR(__wt_txn_modify(session, upd));
-                added_to_txn = true;
-            } else
-                WT_ASSERT(session, modify_type == WT_UPDATE_TOMBSTONE);
+            WT_ERR(__wt_txn_modify(session, upd));
+            added_to_txn = true;
 
             /* Avoid a data copy in WT_CURSOR.update. */
             __wt_upd_value_assign(cbt->modify_update, upd);

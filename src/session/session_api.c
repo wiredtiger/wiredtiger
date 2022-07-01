@@ -1413,13 +1413,13 @@ __wt_session_range_truncate(
      * table. If we fail to move forward or backward in a range, there are no keys in the range. In
      * either of those cases, we're done.
      */
-    if (start != NULL)
+    if (start != NULL && !F_ISSET(start, WT_CURSTD_KEY_INT))
         if ((ret = start->search_near(start, &cmp)) != 0 ||
           (cmp < 0 && (ret = start->next(start)) != 0)) {
             WT_ERR_NOTFOUND_OK(ret, false);
             goto done;
         }
-    if (stop != NULL)
+    if (stop != NULL && !F_ISSET(stop, WT_CURSTD_KEY_INT))
         if ((ret = stop->search_near(stop, &cmp)) != 0 ||
           (cmp > 0 && (ret = stop->prev(stop)) != 0)) {
             WT_ERR_NOTFOUND_OK(ret, false);
