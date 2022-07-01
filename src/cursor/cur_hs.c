@@ -1157,9 +1157,12 @@ __wt_curhs_range_truncate(WT_CURSOR *start, WT_CURSOR *stop)
 
     WT_STAT_DATA_INCR(session, cursor_truncate);
 
+    WT_ASSERT(session, F_ISSET(start_file_cursor, WT_CURSTD_KEY_INT));
     WT_ERR(__wt_cursor_localkey(start_file_cursor));
-    if (stop != NULL)
+    if (stop != NULL) {
+        WT_ASSERT(session, F_ISSET(start_file_cursor, WT_CURSTD_KEY_INT));
         WT_ERR(__wt_cursor_localkey(stop_file_cursor));
+    }
 
     WT_ERR(__wt_cursor_truncate((WT_CURSOR_BTREE *)start_file_cursor,
       (WT_CURSOR_BTREE *)stop_file_cursor, __curhs_remove_int));
