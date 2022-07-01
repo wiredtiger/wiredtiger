@@ -2123,7 +2123,7 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
  */
 int
 __wt_btcur_bounds_row_position(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next, bool *need_walk)
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next, bool *need_walkp)
 {
 
     WT_CURSOR *cursor;
@@ -2132,6 +2132,7 @@ __wt_btcur_bounds_row_position(
     uint64_t bound_flag, bound_flag_inclusive;
 
     key_out_of_bounds = false;
+    *need_walkp = false;
     cursor = &cbt->iface;
     bound = next ? &cursor->lower_bound : &cursor->upper_bound;
     bound_flag = next ? WT_CURSTD_BOUND_UPPER : WT_CURSTD_BOUND_LOWER;
@@ -2163,9 +2164,9 @@ __wt_btcur_bounds_row_position(
      * FIXME-WT-9324: When search_near_bounded is implemented then remove this. If search near
      * returns a value, ensure it's within the bounds.
      */
-    if (valid && cbt->compare == 0 && F_ISSET(cursor, bound_flag_inclusive)) {
+    if (valid && cbt->compare == 0 && F_ISSET(cursor, bound_flag_inclusive))
         return (0);
-    } else if ((next ? cbt->compare > 0 : cbt->compare < 0) && valid) {
+    else if ((next ? cbt->compare > 0 : cbt->compare < 0) && valid) {
         /*
          * If cursor row search returns a non-exact key, check the returned key against the upper
          * bound if doing a next, and the lower bound if doing a prev to ensure the key is within
@@ -2179,6 +2180,6 @@ __wt_btcur_bounds_row_position(
         }
         return (0);
     }
-    *need_walk = true;
+    *need_walkp = true;
     return (0);
 }

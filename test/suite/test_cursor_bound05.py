@@ -109,6 +109,7 @@ class test_cursor_bound04(bound_base):
         self.cursor_traversal_bound(cursor, None, 40, True, 1000)
         self.cursor_traversal_bound(cursor, None, 40, False, 1000)
         self.assertEqual(cursor.bound("action=clear"), 0)
+
         cursor.close()
 
 if __name__ == '__main__':
