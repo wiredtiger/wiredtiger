@@ -1008,7 +1008,14 @@ __curhs_remove(WT_CURSOR *cursor)
     file_cursor = hs_cursor->file_cursor;
 
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, remove, CUR2BT(file_cursor));
-    WT_ERR(file_cursor->remove(file_cursor));
+
+    /* Remove must be called with cursor positioned. */
+    WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
+
+    WT_ERR_NOTFOUND_OK(file_cursor->remove(file_cursor), false);
+
+    /* We must still hold the cursor position after the remove call. */
+    WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
     F_CLR(cursor, WT_CURSTD_VALUE_SET);
 
     if (0) {
