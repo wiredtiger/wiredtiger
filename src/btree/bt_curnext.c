@@ -769,10 +769,10 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
 
     /*
      * If we have a bound set we should position our cursor appropriately if it isn't already
-     * positioned. It is possible that the positioning function can directly return the record that
-     * it is positioned on. For that to happen the cursor must be placed on a valid record and must
-     * be positioned on the first record within the bounds. If the record is not valid or is not
-     * positioned within the bounds, continue the next traversal logic.
+     * positioned. It is possible that the positioning function can directly return the record. For
+     * that to happen, the cursor must be placed on a valid record and must be positioned on the
+     * first record within the bounds. If the record is not valid or is not positioned within the
+     * bounds, continue the next traversal logic.
      */
     if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER) && !WT_CURSOR_IS_POSITIONED(cbt)) {
         WT_ERR(__wt_btcur_bounds_row_position(session, cbt, true, &need_walk));
