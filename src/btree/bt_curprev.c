@@ -715,7 +715,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
         WT_ERR(__wt_btcur_bounds_row_position(session, cbt, false, &need_walk));
         if (!need_walk) {
             __wt_value_return(cbt, cbt->upd_value);
-            return (0);
+            goto done;
         }
     }
 
@@ -834,6 +834,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
         WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND, false);
     }
 
+done:
 err:
     if (total_skipped < 100)
         WT_STAT_CONN_DATA_INCR(session, cursor_prev_skip_lt_100);
