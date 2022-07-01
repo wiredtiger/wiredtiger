@@ -897,7 +897,7 @@ __wt_session_check_checkpoint_state(WT_SESSION_IMPL *session, WT_DATA_HANDLE *ne
         /* Ensure checkpoint handles have an associated transaction. */
         WT_ASSERT(session, F_ISSET(txn, WT_TXN_IS_CHECKPOINT));
     }
-    if (new_handle->checkpoint != NULL) {
+    if (new_handle != NULL && new_handle->checkpoint != NULL) {
         /*
          * If the new handle has a checkpoint, it better match the previous one. TODO: I think the
          * checkpoint information should travel with the dhandle, not the cursor structure. I don't
