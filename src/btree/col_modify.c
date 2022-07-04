@@ -75,7 +75,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
         WT_ASSERT(session, recno != WT_RECNO_OOB || cbt->compare != 0);
         if (cbt->compare != 0 &&
           (recno == WT_RECNO_OOB ||
-            recno > (btree->type == BTREE_COL_VAR ? __col_var_last_recno(cbt->ref) :
+           recno > (btree->type == BTREE_COL_VAR ? __col_var_last_recno(NULL, cbt->ref, false) :
                                                     __col_fix_last_recno(cbt->ref)))) {
             append = true;
             cbt->ins = NULL;
@@ -86,7 +86,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
         WT_ASSERT(session, recno != WT_RECNO_OOB);
         WT_ASSERT(session,
           cbt->compare == 0 ||
-            recno <= (btree->type == BTREE_COL_VAR ? __col_var_last_recno(cbt->ref) :
+            recno <= (btree->type == BTREE_COL_VAR ? __col_var_last_recno(NULL, cbt->ref, false) :
                                                      __col_fix_last_recno(cbt->ref)));
     }
 

@@ -851,7 +851,7 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
         return (WT_NOTFOUND);
 
     page = next_walk->page;
-    btree->last_recno = page->type == WT_PAGE_COL_VAR ? __col_var_last_recno(next_walk) :
+    btree->last_recno = page->type == WT_PAGE_COL_VAR ? __col_var_last_recno(NULL, next_walk, false) :
                                                         __col_fix_last_recno(next_walk);
 
     return (__wt_page_release(session, next_walk, 0));

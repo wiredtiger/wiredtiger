@@ -124,7 +124,7 @@ restart_read:
          * Read the on-disk value and/or history. Pass an update list: the update list may contain
          * the base update for a modify chain after rollback-to-stable, required for correctness.
          */
-        WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins ? cbt->ins->upd : NULL));
+        WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins ? cbt->ins->upd : NULL, false));
     if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE || cbt->upd_value->type == WT_UPDATE_INVALID) {
         /*
          * Deleted values read as 0.
@@ -223,7 +223,7 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skip
          * Be paranoid and set the slot out of bounds when moving to a new page.
          */
         cbt->slot = UINT32_MAX;
-        cbt->last_standard_recno = __col_var_last_recno(cbt->ref);
+        cbt->last_standard_recno = __col_var_last_recno(NULL, cbt->ref, false);
         if (cbt->last_standard_recno == 0)
             return (WT_NOTFOUND);
         __cursor_set_recno(cbt, cbt->ref->ref_recno);
@@ -316,7 +316,7 @@ restart_read:
          * Read the on-disk value and/or history. Pass an update list: the update list may contain
          * the base update for a modify chain after rollback-to-stable, required for correctness.
          */
-        WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins ? cbt->ins->upd : NULL));
+        WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins ? cbt->ins->upd : NULL, false));
         if (cbt->upd_value->type == WT_UPDATE_INVALID ||
           cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
             ++*skippedp;
@@ -490,7 +490,7 @@ restart_read_page:
          * the base update for a modify chain after rollback-to-stable, required for correctness.
          */
         WT_RET(
-          __wt_txn_read(session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip)));
+          __wt_txn_read(session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip), false));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
             continue;
@@ -709,7 +709,7 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
         /*
          * For column-store pages, calculate the largest record on the page.
          */
-        cbt->last_standard_recno = page->type == WT_PAGE_COL_VAR ? __col_var_last_recno(cbt->ref) :
+        cbt->last_standard_recno = page->type == WT_PAGE_COL_VAR ? __col_var_last_recno(NULL, cbt->ref, false) :
                                                                    __col_fix_last_recno(cbt->ref);
 
         /* If we're traversing the append list, set the reference. */

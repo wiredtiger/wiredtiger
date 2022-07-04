@@ -226,7 +226,7 @@ __col_insert_search(
  *     Return the last record number for a variable-length column-store page.
  */
 static inline uint64_t
-__col_var_last_recno(WT_REF *ref)
+__col_var_last_recno(WT_CURSOR_BTREE *cbt, WT_REF *ref, bool trace)
 {
     WT_COL_RLE *repeat;
     WT_PAGE *page;
@@ -241,6 +241,8 @@ __col_var_last_recno(WT_REF *ref)
         return (page->entries == 0 ? 0 : ref->ref_recno + (page->entries - 1));
 
     repeat = &page->pg_var_repeats[page->pg_var_nrepeats - 1];
+    if (trace)
+        BTCUR_SEARCH_NEAR_EVENT(CUR2BT(cbt), COL_VAR_LAST_RECNO_REPEAT);
     return ((repeat->recno + repeat->rle) - 1 + (page->entries - (repeat->indx + 1)));
 }
 

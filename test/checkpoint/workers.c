@@ -204,8 +204,10 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
     int cmp, cmp_two, ret;
     int nentries;
     char valuebuf[64];
+    uint64_t tmp1, tmp2, tmp3;
 
     cursor->set_key(cursor, keyno);
+    testutil_check(cursor->get_key(cursor, &tmp1));
     /* Roughly half inserts, then balanced inserts / range removes. */
     if (new_val > g.nops / 2 && new_val % 39 == 0) {
         if ((ret = cursor->search_near(cursor, &cmp)) != 0) {
@@ -216,6 +218,8 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
             return (log_print_err("cursor.search_near", ret, 1));
         }
 
+        testutil_check(cursor->get_key(cursor, &tmp2));
+
         /* Do another search_near to assert the first call landed somewhere valid. */
         if (ret == 0)
             cursor->search_near_must_find = true;
@@ -223,11 +227,16 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
         testutil_assert(cmp_two == 0);
         cursor->search_near_must_find = false;
 
+        testutil_check(cursor->get_key(cursor, &tmp3));
+
         /* Retry the result of search_near again to confirm the result. */
         if (new_val % 2 == 0) {
             if ((ret = cursor->search(cursor)) != 0) {
                 if (ret == WT_ROLLBACK)
                     return (WT_ROLLBACK);
+
+                printf("tmp1=%lu, tmp2=%lu, tmp3=%lu\n", tmp1, tmp2, tmp3);
+                testutil_assert(tmp2 == tmp3);
                 return (log_print_err("cursor.search", ret, 1));
             }
         }

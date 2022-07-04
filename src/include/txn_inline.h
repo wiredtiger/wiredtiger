@@ -1037,12 +1037,14 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE
  *     function will search the history store for a visible update.
  */
 static inline int
-__wt_txn_read(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE *upd)
+__wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE *upd, bool trace)
 {
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd, *restored_upd;
     bool have_stop_tw, retry;
+    WT_BTREE *btree;
+
+    btree = CUR2BT(cbt);
 
     prepare_upd = restored_upd = NULL;
     retry = true;
@@ -1087,6 +1089,8 @@ retry:
          */
         if (!have_stop_tw && __wt_txn_tw_stop_visible(session, &tw) &&
           !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE)) {
+            if (trace)
+                BTCUR_SEARCH_NEAR_EVENT(btree, TXN_READ_STOP_VISIBLE);
             cbt->upd_value->buf.data = NULL;
             cbt->upd_value->buf.size = 0;
             cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;
@@ -1111,7 +1115,11 @@ retry:
          * 2. It is visible to the reader.
          */
         if (WT_IS_HS(session->dhandle) || __wt_txn_tw_start_visible(session, &tw)) {
+            if (trace)
+                BTCUR_SEARCH_NEAR_EVENT(btree, TXN_READ_DHANDLE_IS_HS);
             if (cbt->upd_value->skip_buf) {
+                if (trace)
+                    BTCUR_SEARCH_NEAR_EVENT(btree, TXN_READ_DHANDLE_IS_HS_SKIP_BUF);
                 cbt->upd_value->buf.data = NULL;
                 cbt->upd_value->buf.size = 0;
             }
@@ -1126,9 +1134,15 @@ retry:
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
+        if (trace) {
+            BTCUR_SEARCH_NEAR_VALUE(btree, (uint16_t)(recno & 0xffff));
+            BTCUR_SEARCH_NEAR_EVENT(btree, TXN_READ_CHECK_HS);
+        }
         __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH);
         WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format, recno,
           cbt->upd_value, &cbt->upd_value->buf));
+        if (trace)
+            BTCUR_SEARCH_NEAR_EVENT(btree, TXN_READ_CHECK_HS_NOTFOUND);
     }
 
     /*

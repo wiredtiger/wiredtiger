@@ -347,7 +347,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
      * a history store record into the update list, the base update may be in the update list and we
      * must use it rather than falling back to the on-disk value as the base update.
      */
-    WT_RET(__wt_txn_read(session, cbt, key, recno, upd));
+    WT_RET(__wt_txn_read(session, cbt, key, recno, upd, true));
     if (cbt->upd_value->type != WT_UPDATE_INVALID) {
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
             return (0);

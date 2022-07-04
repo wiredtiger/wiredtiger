@@ -270,7 +270,7 @@ leaf_only:
             return (0);
         }
         if ((cip = __col_var_search(current, recno, NULL)) == NULL) {
-            cbt->recno = __col_var_last_recno(current);
+            cbt->recno = __col_var_last_recno(cbt, current, true);
             cbt->slot = page->entries == 0 ? 0 : page->entries - 1;
             BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_NON_COL_FIX_RECNO_GT);
             goto past_end;
