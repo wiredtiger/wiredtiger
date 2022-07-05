@@ -2119,6 +2119,27 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
 }
 
 /*
+ * __wt_btcur_bounds_early_exit --
+ *     Performs bound comparison to check if the key is within bounds, if not, increment the
+ *     appropriate stat, early exit, and return WT_NOTFOUND.
+ */
+static inline int
+__wt_btcur_bounds_early_exit(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next, bool *key_out_of_bounds)
+{
+    WT_RET(__wt_row_compare_bounds(
+      session, &cbt->iface, S2BT(session)->collator, next, key_out_of_bounds));
+    if (*key_out_of_bounds) {
+        if (next)
+            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
+        else
+            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
+        return (WT_NOTFOUND);
+    }
+    return (0);
+}
+
+/*
  * __wt_btcur_skip_page --
  *     Return if the cursor is pointing to a page with deleted records and can be skipped for cursor
  *     traversal.
