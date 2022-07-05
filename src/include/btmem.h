@@ -1030,8 +1030,8 @@ struct __wt_ref {
 
 #ifdef HAVE_REF_TRACK
 /*
- * If ref tracking is enabled, we overwrite the WT_REF on free to force failures. Don't clear the history in
- * that case.
+ * If ref tracking is enabled, we overwrite the WT_REF on free to force failures. Don't clear the
+ * history in that case.
  */
 #define WT_REF_CLEAR_SIZE (offsetof(WT_REF, hist))
 #define WT_REF_SAVE_STATE_MAX 3
