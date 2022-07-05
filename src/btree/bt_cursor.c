@@ -187,17 +187,14 @@ __key_within_bounds(WT_CURSOR_BTREE *cbt, WT_ITEM *key, bool *key_out_of_bounds)
     WT_ASSERT(session, WT_CURSOR_HAS_BOUNDS(cursor));
     WT_ASSERT(session, key != NULL);
 
+    if (btree->type != BTREE_ROW)
+        WT_RET(ENOTSUP);
+
     if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
-        if (btree->type == BTREE_ROW)
-            WT_RET(__wt_row_compare_bounds(session, cursor, key, false, false, key_out_of_bounds));
-        else
-            WT_RET(ENOTSUP);
+        WT_RET(__wt_row_compare_bounds(session, cursor, key, false, false, key_out_of_bounds));
     }
     if (!(*key_out_of_bounds) && F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
-        if (btree->type == BTREE_ROW)
-            WT_RET(__wt_row_compare_bounds(session, cursor, key, true, false, key_out_of_bounds));
-        else
-            WT_RET(ENOTSUP);
+        WT_RET(__wt_row_compare_bounds(session, cursor, key, true, false, key_out_of_bounds));
     }
     return (0);
 }
@@ -848,33 +845,26 @@ __btcur_search_near_bounds_reposition(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
     lower_out_of_bounds = upper_out_of_bounds = false;
 
     WT_ASSERT(session, WT_CURSOR_HAS_BOUNDS(cursor));
+    if (btree->type != BTREE_ROW)
+        WT_RET(ENOTSUP);
 
     if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
-        if (btree->type == BTREE_ROW)
-            /*
-             * We need to assume that the bounds are inclusive here, suppose a caller calls with the
-             * search key set to the lower bound but also specifies that the lower bound isn't
-             * inclusive. We cannot know which key to set the lower bound to so we set it to the
-             * lower bound. The same is true for the upper bound check.
-             */
-            WT_RET(__wt_row_compare_bounds(
-              session, cursor, &cursor->key, false, true, &lower_out_of_bounds));
-        else
-            WT_RET(ENOTSUP);
+        /*
+         * We need to assume that the bounds are inclusive here, suppose a caller calls with the
+         * search key set to the lower bound but also specifies that the lower bound isn't
+         * inclusive. We cannot know which key to set the lower bound to so we set it to the lower
+         * bound. The same is true for the upper bound check.
+         */
+        WT_RET(__wt_row_compare_bounds(
+          session, cursor, &cursor->key, false, true, &lower_out_of_bounds));
     }
     if (!lower_out_of_bounds && F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
-        if (btree->type == BTREE_ROW)
-            WT_RET(__wt_row_compare_bounds(
-              session, cursor, &cursor->key, true, true, &upper_out_of_bounds));
-        else
-            WT_RET(ENOTSUP);
+        WT_RET(
+          __wt_row_compare_bounds(session, cursor, &cursor->key, true, true, &upper_out_of_bounds));
     }
     if (lower_out_of_bounds || upper_out_of_bounds) {
-        if (btree->type == BTREE_ROW)
-            __wt_cursor_set_raw_key(
-              cursor, lower_out_of_bounds ? &cursor->lower_bound : &cursor->upper_bound);
-        else
-            WT_RET(ENOTSUP);
+        __wt_cursor_set_raw_key(
+          cursor, lower_out_of_bounds ? &cursor->lower_bound : &cursor->upper_bound);
     }
     return (0);
 }
@@ -2237,9 +2227,8 @@ __wt_btcur_bounds_row_position(
 
     WT_CURSOR *cursor;
     WT_ITEM *bound;
-    bool key_out_of_bounds, valid;
+    bool valid;
 
-    key_out_of_bounds = false;
     *need_walkp = false;
     cursor = &cbt->iface;
     bound = next ? &cursor->lower_bound : &cursor->upper_bound;
