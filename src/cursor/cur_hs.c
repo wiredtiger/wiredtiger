@@ -1162,11 +1162,11 @@ err:
 }
 
 /*
- * __wt_curhs_range_truncate --
+ * __curhs_range_truncate --
  *     Discard a cursor range from the history store tree.
  */
-int
-__wt_curhs_range_truncate(WT_CURSOR *start, WT_CURSOR *stop)
+static int
+__curhs_range_truncate(WT_CURSOR *start, WT_CURSOR *stop)
 {
     WT_CURSOR *start_file_cursor, *stop_file_cursor;
     WT_DECL_RET;
@@ -1178,17 +1178,32 @@ __wt_curhs_range_truncate(WT_CURSOR *start, WT_CURSOR *stop)
 
     WT_STAT_DATA_INCR(session, cursor_truncate);
 
-    WT_ASSERT(session, F_ISSET(start_file_cursor, WT_CURSTD_KEY_INT));
     WT_ERR(__wt_cursor_localkey(start_file_cursor));
-    if (stop != NULL) {
-        WT_ASSERT(session, F_ISSET(start_file_cursor, WT_CURSTD_KEY_INT));
+    if (stop != NULL)
         WT_ERR(__wt_cursor_localkey(stop_file_cursor));
-    }
 
     WT_ERR(__wt_cursor_truncate((WT_CURSOR_BTREE *)start_file_cursor,
       (WT_CURSOR_BTREE *)stop_file_cursor, __curhs_remove_int));
 
 err:
+    return (ret);
+}
+
+/*
+ * __wt_curhs_range_truncate --
+ *     Discard a cursor range from the history store tree.
+ */
+int
+__wt_curhs_range_truncate(WT_CURSOR *start, WT_CURSOR *stop)
+{
+    WT_CURSOR *start_file_cursor;
+    WT_DECL_RET;
+
+    start_file_cursor = ((WT_CURSOR_HS *)start)->file_cursor;
+
+    WT_WITH_BTREE(
+      CUR2S(start), CUR2BT(start_file_cursor), ret = __curhs_range_truncate(start, stop));
+
     return (ret);
 }
 
