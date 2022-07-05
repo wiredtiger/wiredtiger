@@ -290,7 +290,7 @@ class cursor_bound_01 : public test {
         return std::make_pair(lower_bound, upper_bound);
     }
     /*
-     * Validate the bound search call. If the key is within range, the range cursor should return 
+     * Validate the bound search call. If the key is within range, the range cursor should return
      * back the search key.
      */
     void
@@ -308,7 +308,7 @@ class cursor_bound_01 : public test {
           "bounded search found key: " + std::string(key) + " with lower bound: " + lower_key +
             " upper bound: " + upper_key);
 
-        /* 
+        /*
          * Assert that if range cursor returned with a key, the search key has to be within range.
          */
         auto above_lower_key = lower_key.empty() ||
@@ -322,8 +322,8 @@ class cursor_bound_01 : public test {
 
         /*
          * If bounded cursor returns a valid key, search key must have been in bounds. If normal
-         * cursor returns a valid key, but bounded cursor returns WT_NOTFOUND, the search key
-         * must have been out of bounds.
+         * cursor returns a valid key, but bounded cursor returns WT_NOTFOUND, the search key must
+         * have been out of bounds.
          */
         if (range_ret == 0 && normal_ret == 0) {
             testutil_assert(above_lower_key && below_upper_key);
