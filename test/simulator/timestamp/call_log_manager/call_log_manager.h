@@ -37,18 +37,18 @@ using json = nlohmann::json;
 class call_log_manager {
     /* Member variables */
     private:
+    connection_simulator *conn;
     json call_log;
     enum api_method { wiredtiger_open, open_session };
     std::map<std::string, api_method> api_map;
-    connection_simulator *conn;
 
     /* Methods */
     public:
     call_log_manager(std::string);
-    int process_call_log();
+    void process_call_log();
 
     private:
-    int process_call_log_entry(json);
+    void process_call_log_entry(json);
     void api_map_setup();
 };
 

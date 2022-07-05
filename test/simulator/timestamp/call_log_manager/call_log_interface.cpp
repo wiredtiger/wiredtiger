@@ -34,13 +34,14 @@
 int
 main(int argc, char *argv[])
 {
-    /* Return if call log file was not passed. */
+    /* Throw an error if call log file was not passed. */
     if (argc != 2)
-      throw std::invalid_argument("call_log_interface: missing call log file path");
+        throw std::invalid_argument("call_log_interface: missing call log file path");
 
     std::string call_log_file = argv[1];
 
     auto cl_manager = std::make_unique<call_log_manager>(call_log_file);
+    cl_manager->process_call_log();
 
-    return (cl_manager->process_call_log());
+    return (0);
 }

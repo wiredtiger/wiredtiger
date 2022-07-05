@@ -33,40 +33,44 @@
 
 call_log_manager::call_log_manager(std::string call_log_file)
 {
-    std::ifstream file(call_log_file);
+    std::ifstream file;
+    file.exceptions(std::ifstream::failbit);
+    try {
+        file.open(call_log_file);
+    } catch (const std::exception &e) {
+        std::ostringstream msg;
+        msg << "Opening file '" << call_log_file
+            << "' failed, it either doesn't exist or is not accessible.";
+        throw std::runtime_error(msg.str());
+    }
+
     call_log = json::parse(file);
     api_map_setup();
 }
 
-void call_log_manager::api_map_setup(){
+void
+call_log_manager::api_map_setup()
+{
     api_map["wiredtiger_open"] = wiredtiger_open;
     api_map["open_session"] = open_session;
 }
 
-int
+void
 call_log_manager::process_call_log()
 {
     for (const auto &call_log_entry : call_log)
         process_call_log_entry(call_log_entry);
-
-    return (0);
 }
 
-int
+void
 call_log_manager::process_call_log_entry(json call_log_entry)
 {
-    /* call_log_entry: wiredtiger_open() */
-
-    switch(api_map[call_log_entry["MethodName"]]){
-        case wiredtiger_open:
-            std::cout << "WiredTiger open call" << std::endl;
-            conn = &connection_simulator::get_connection();
-            break;
-        case open_session:
-            break;
+    std::string method_name = call_log_entry["MethodName"].get<std::string>();
+    switch (api_map.at(method_name)) {
+    case wiredtiger_open:
+        /* conn = &connection_simulator::get_connection(); */
+        break;
+    case open_session:
+        break;
     }
-
-    (void)conn;
-    
-    return (0);
 }

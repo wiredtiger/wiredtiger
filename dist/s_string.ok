@@ -1208,6 +1208,7 @@ newv
 nextprev
 nfilename
 nhex
+nlohmann
 nlpo
 nocase
 noclear
