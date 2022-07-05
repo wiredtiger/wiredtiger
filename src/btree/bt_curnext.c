@@ -361,10 +361,11 @@ restart_read:
  */
 static inline int
 __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp,
-  WT_ITEM *prefix, bool *key_out_of_bounds)
+  WT_ITEM *prefix, bool *key_out_of_boundsp)
 {
     WT_CELL_UNPACK_KV kpack;
     WT_CURSOR *cursor;
+    WT_DECL_RET;
     WT_INSERT *ins;
     WT_ITEM *key;
     WT_PAGE *page;
@@ -376,7 +377,7 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skip
     key = &cbt->iface.key;
     page = cbt->ref->page;
     session = CUR2S(cbt);
-    *key_out_of_bounds = false;
+    *key_out_of_boundsp = false;
     prefix_search = prefix != NULL && F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH);
     *skippedp = 0;
 
@@ -430,7 +431,7 @@ restart_read_insert:
              * are visiting is after our prefix.
              */
             if (prefix_search && __wt_prefix_match(prefix, key) < 0) {
-                *key_out_of_bounds = true;
+                *key_out_of_boundsp = true;
                 WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
                 return (WT_NOTFOUND);
             }
@@ -439,13 +440,11 @@ restart_read_insert:
              * If an upper bound has been set ensure that the key is within the range, otherwise
              * early exit.
              */
-            if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER)) {
-                WT_RET(__wt_row_compare_bounds(
-                  session, &cbt->iface, S2BT(session)->collator, true, key_out_of_bounds));
-                if (*key_out_of_bounds) {
-                    WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
-                    return (WT_NOTFOUND);
-                }
+            ret = __wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_boundsp);
+
+            if (ret == WT_NOTFOUND) {
+                WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
+                return (WT_NOTFOUND);
             }
 
             WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
@@ -496,7 +495,7 @@ restart_read_page:
          * visiting is after our prefix.
          */
         if (prefix_search && __wt_prefix_match(prefix, &cbt->iface.key) < 0) {
-            *key_out_of_bounds = true;
+            *key_out_of_boundsp = true;
             WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
             return (WT_NOTFOUND);
         }
@@ -505,13 +504,11 @@ restart_read_page:
          * If an upper bound has been set ensure that the key is within the range, otherwise early
          * exit.
          */
-        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER)) {
-            WT_RET(__wt_row_compare_bounds(
-              session, &cbt->iface, S2BT(session)->collator, true, key_out_of_bounds));
-            if (*key_out_of_bounds) {
-                WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
-                return (WT_NOTFOUND);
-            }
+        ret = __wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_boundsp);
+
+        if (ret == WT_NOTFOUND) {
+            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
+            return (WT_NOTFOUND);
         }
 
         /*
@@ -761,10 +758,10 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     WT_SESSION_IMPL *session;
     size_t total_skipped, skipped;
     uint32_t flags;
-    bool key_out_of_bounds, newpage, restart, need_walk;
+    bool key_out_of_boundsp, newpage, restart, need_walk;
 
     cursor = &cbt->iface;
-    key_out_of_bounds = false;
+    key_out_of_boundsp = false;
     need_walk = false;
     session = CUR2S(cbt);
     total_skipped = 0;
@@ -843,7 +840,7 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
                 break;
             case WT_PAGE_ROW_LEAF:
                 ret =
-                  __cursor_row_next(cbt, newpage, restart, &skipped, prefix, &key_out_of_bounds);
+                  __cursor_row_next(cbt, newpage, restart, &skipped, prefix, &key_out_of_boundsp);
                 total_skipped += skipped;
                 break;
             default:
@@ -859,7 +856,7 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
              * next page. We're not directly returning here to allow the cursor to be reset first
              * before we return WT_NOTFOUND.
              */
-            if (key_out_of_bounds)
+            if (key_out_of_boundsp)
                 break;
 
             /*

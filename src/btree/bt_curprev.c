@@ -519,9 +519,10 @@ restart_read:
  */
 static inline int
 __cursor_row_prev(
-  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_bounds)
+  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_boundsp)
 {
     WT_CELL_UNPACK_KV kpack;
+    WT_DECL_RET;
     WT_INSERT *ins;
     WT_ITEM *key;
     WT_PAGE *page;
@@ -592,13 +593,11 @@ restart_read_insert:
              * If a lower bound has been set ensure that the key is within the range, otherwise
              * early exit.
              */
-            if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER)) {
-                WT_RET(__wt_row_compare_bounds(
-                  session, &cbt->iface, S2BT(session)->collator, false, key_out_of_bounds));
-                if (*key_out_of_bounds) {
-                    WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
-                    return (WT_NOTFOUND);
-                }
+            ret = __wt_btcur_bounds_early_exit(session, cbt, false, key_out_of_boundsp);
+
+            if (ret == WT_NOTFOUND) {
+                WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
+                return (WT_NOTFOUND);
             }
 
             WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
@@ -653,13 +652,11 @@ restart_read_page:
          * If a lower bound has been set ensure that the key is within the range, otherwise early
          * exit.
          */
-        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER)) {
-            WT_RET(__wt_row_compare_bounds(
-              session, &cbt->iface, S2BT(session)->collator, false, key_out_of_bounds));
-            if (*key_out_of_bounds) {
-                WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
-                return (WT_NOTFOUND);
-            }
+        ret = __wt_btcur_bounds_early_exit(session, cbt, false, key_out_of_boundsp);
+
+        if (ret == WT_NOTFOUND) {
+            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
+            return (WT_NOTFOUND);
         }
 
         /*
@@ -698,10 +695,10 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     WT_SESSION_IMPL *session;
     size_t total_skipped, skipped;
     uint32_t flags;
-    bool key_out_of_bounds, newpage, restart, need_walk;
+    bool key_out_of_boundsp, newpage, restart, need_walk;
 
     cursor = &cbt->iface;
-    key_out_of_bounds = false;
+    key_out_of_boundsp = false;
     need_walk = false;
     session = CUR2S(cbt);
     total_skipped = 0;
@@ -792,7 +789,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
                 total_skipped += skipped;
                 break;
             case WT_PAGE_ROW_LEAF:
-                ret = __cursor_row_prev(cbt, newpage, restart, &skipped, &key_out_of_bounds);
+                ret = __cursor_row_prev(cbt, newpage, restart, &skipped, &key_out_of_boundsp);
                 total_skipped += skipped;
                 break;
             default:
@@ -807,7 +804,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
              * next page. We're not directly returning here to allow the cursor to be reset first
              * before we return WT_NOTFOUND.
              */
-            if (key_out_of_bounds)
+            if (key_out_of_boundsp)
                 break;
         }
         /*

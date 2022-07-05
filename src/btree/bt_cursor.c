@@ -676,11 +676,11 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    bool key_out_of_bounds, leaf_found, valid;
+    bool key_out_of_boundsp, leaf_found, valid;
 
     btree = CUR2BT(cbt);
     cursor = &cbt->iface;
-    key_out_of_bounds = false;
+    key_out_of_boundsp = false;
     session = CUR2S(cbt);
 
     WT_STAT_CONN_DATA_INCR(session, cursor_search);
@@ -703,13 +703,12 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
      * exit.
      */
     if (btree->type == BTREE_ROW && WT_CURSOR_BOUNDS_SET(cursor)) {
-        if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER))
-            WT_ERR(__wt_row_compare_bounds(
-              session, &cbt->iface, S2BT(session)->collator, false, &key_out_of_bounds));
-        if (!key_out_of_bounds && F_ISSET(cursor, WT_CURSTD_BOUND_UPPER))
-            WT_ERR(__wt_row_compare_bounds(
-              session, &cbt->iface, S2BT(session)->collator, true, &key_out_of_bounds));
-        if (key_out_of_bounds) {
+        WT_ERR(__wt_btcur_bounds_early_exit(session, cbt, true, &key_out_of_boundsp));
+
+        if (!key_out_of_boundsp)
+            WT_ERR(__wt_btcur_bounds_early_exit(session, cbt, false, &key_out_of_boundsp));
+
+        if (key_out_of_boundsp) {
             WT_STAT_CONN_DATA_INCR(session, cursor_bounds_search_early_exit);
             WT_ERR(WT_NOTFOUND);
         }

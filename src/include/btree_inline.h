@@ -2119,6 +2119,32 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
 }
 
 /*
+ * __wt_btcur_bounds_early_exit --
+ *     Performs bound comparison to check if the key is within bounds, if not, increment the
+ *     appropriate stat, early exit, and return WT_NOTFOUND.
+ */
+static inline int
+__wt_btcur_bounds_early_exit(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next, bool *key_out_of_boundsp)
+{
+    uint64_t bound_flag;
+
+    bound_flag = next ? WT_CURSTD_BOUND_UPPER : WT_CURSTD_BOUND_LOWER;
+
+    if (!WT_CURSOR_BOUNDS_SET(&cbt->iface))
+        return (0);
+    if (!F_ISSET((&cbt->iface), bound_flag))
+        return (0);
+
+    WT_RET(__wt_row_compare_bounds(
+      session, &cbt->iface, S2BT(session)->collator, next, key_out_of_boundsp));
+    if (*key_out_of_boundsp)
+        return (WT_NOTFOUND);
+
+    return (0);
+}
+
+/*
  * __wt_btcur_skip_page --
  *     Return if the cursor is pointing to a page with deleted records and can be skipped for cursor
  *     traversal.
@@ -2225,10 +2251,10 @@ __wt_btcur_bounds_row_position(
     WT_DECL_RET;
     WT_ITEM *bound;
     int exact;
-    bool key_out_of_bounds;
+    bool key_out_of_boundsp;
     uint64_t bound_flag, bound_flag_inclusive;
 
-    key_out_of_bounds = false;
+    key_out_of_boundsp = false;
     cursor = &cbt->iface;
     bound = next ? &cursor->lower_bound : &cursor->upper_bound;
     bound_flag = next ? WT_CURSTD_BOUND_UPPER : WT_CURSTD_BOUND_LOWER;
@@ -2261,8 +2287,8 @@ __wt_btcur_bounds_row_position(
          */
         if (F_ISSET(cursor, bound_flag)) {
             WT_RET(__wt_row_compare_bounds(
-              session, cursor, S2BT(session)->collator, next, &key_out_of_bounds));
-            if (key_out_of_bounds)
+              session, cursor, S2BT(session)->collator, next, &key_out_of_boundsp));
+            if (key_out_of_boundsp)
                 return (WT_NOTFOUND);
         }
         return (0);
