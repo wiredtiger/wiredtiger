@@ -216,7 +216,6 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                         self.assertTrue(self.key_range[i].is_deleted_or_oob(bound_set))
                 key_range_it = current_key
             # If key_range_it is > key_count then the rest of the range was deleted
-            # Remember to increment it by one to get it to the first not in bounds key.
             self.pr("key_range_it = " + str(key_range_it))
             for i in range(0, key_range_it):
                 checked_keys.append(i)
@@ -321,7 +320,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                     raise Exception('Illegal state found in search_near')
 
     def run_bound_scenarios(self, bound_set, cursor):
-        scenario = bound_scenarios.PREV
+        scenario = bound_scenarios.NEXT
         #scenario = random.choice(list(bound_scenarios))
         if (scenario is bound_scenarios.NEXT):
             self.run_next_prev(bound_set, True, cursor)
@@ -379,7 +378,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             self.session.checkpoint()
             #self.dump_key_range()
 
-    iteration_count = 2
+    iteration_count = 20
     value_size = 10
     key_count = 100
 
