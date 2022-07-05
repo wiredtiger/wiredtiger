@@ -38,7 +38,7 @@ class call_log_manager {
     /* Member variables */
     private:
     json call_log;
-    enum api_method { wiredtiger_open, open_session };
+    enum api_method { wiredtiger_open, open_session, set_timestamp};
     std::map<std::string, api_method> api_map;
     connection_simulator *conn;
     std::map<std::string, std::shared_ptr<session_simulator>> session_map;

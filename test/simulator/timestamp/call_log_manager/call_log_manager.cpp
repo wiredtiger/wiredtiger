@@ -43,6 +43,7 @@ call_log_manager::api_map_setup()
 {
     api_map["wiredtiger_open"] = wiredtiger_open;
     api_map["open_session"] = open_session;
+    api_map["set_timestamp"] = set_timestamp;
 }
 
 int
@@ -61,6 +62,8 @@ call_log_manager::process_call_log_entry(json call_log_entry)
     if (call_log_entry.empty())
         return (0);
 
+    std::shared_ptr<session_simulator> session = nullptr;
+
     switch (api_map[call_log_entry["MethodName"]]) {
     case wiredtiger_open:
         std::cout << "WiredTiger open call" << std::endl;
@@ -68,11 +71,17 @@ call_log_manager::process_call_log_entry(json call_log_entry)
         break;
     case open_session:
         std::cout << "Open session call" << std::endl;
-        std::shared_ptr<session_simulator> session = conn->open_session();
+        session = conn->open_session();
         /* Insert this session into the mapping between the simulator session object and the
          * wiredtiger session object. */
         session_map.insert(std::pair<std::string, std::shared_ptr<session_simulator>>(
           call_log_entry["Output"]["objectId"], session));
+        break;
+    case set_timestamp:
+        std::cout << "Set timestamp call" << std::endl;
+        /* Convert the config char * to a string object. */
+        std::string config(call_log_entry["Input"]["Config"]);
+        conn->set_timestamp(config);
         break;
     }
 

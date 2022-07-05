@@ -27,6 +27,8 @@
  */
 
 #include "connection_simulator.h"
+#include <iostream>
+#include <string.h>
 
 /* Get an instance of connection_simulator class. */
 connection_simulator &
@@ -53,8 +55,22 @@ connection_simulator::query_timestamp()
 }
 
 int
-connection_simulator::set_timestamp()
+connection_simulator::set_timestamp(std::string config)
 {
+
+    std::cout << "config: " << config << std::endl;
+
+    if (config.find("oldest_timestamp") != std::string::npos){
+        std::cout << "Setting oldest timestamp to ";
+        // Copy the substring after the '=' to get the timestamp value from the config string.
+        std::string ts = config.substr(config.find("=") + 1);
+        std::cout << "setting timestamp to: " << ts << std::endl;
+        oldest_ts.set_ts(std::stoi(ts));
+    }
+
+    // Check to see if the oldest timestamp has been set correctly.
+    std::cout << "conneciton_simulator::oldest_ts = " << oldest_ts.get_ts() << std::endl;
+
     return (0);
 }
 

@@ -33,19 +33,21 @@
 #include <memory>
 
 #include "session_simulator.h"
+#include "timestamp_simulator.h"
 
 /* connection_simulator is a singleton class (Global access of one and only one instance). */
 class connection_simulator {
     /* Member variables */
     private:
     std::vector<std::shared_ptr<session_simulator>> session_list;
+    oldest_timestamp oldest_ts;
 
     /* Methods */
     public:
     static connection_simulator &get_connection();
     std::shared_ptr<session_simulator> open_session();
     int query_timestamp();
-    int set_timestamp();
+    int set_timestamp(std::string config);
     ~connection_simulator() = default;
 
     /* No copies of the singleton allowed. */
