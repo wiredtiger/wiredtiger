@@ -845,7 +845,7 @@ __btcur_search_near_bounds_reposition(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
 
     btree = CUR2BT(cbt);
     cursor = &cbt->iface;
-    lower_out_of_bounds = upper_out_of_bounds;
+    lower_out_of_bounds = upper_out_of_bounds = false;
 
     WT_ASSERT(session, WT_CURSOR_HAS_BOUNDS(cursor));
 
