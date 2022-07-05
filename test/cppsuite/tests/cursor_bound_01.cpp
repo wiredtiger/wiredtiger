@@ -289,6 +289,7 @@ class cursor_bound_01 : public test {
 
         return std::make_pair(lower_bound, upper_bound);
     }
+
     /*
      * Validate the bound search call. If the key is within range, the range cursor should return
      * back the search key.
@@ -297,6 +298,7 @@ class cursor_bound_01 : public test {
     validate_bound_search(int range_ret, scoped_cursor &range_cursor, scoped_cursor &normal_cursor,
       const std::string &search_key, const bound &lower_bound, const bound &upper_bound)
     {
+
         auto lower_key = lower_bound.get_key();
         auto upper_key = upper_bound.get_key();
         auto lower_inclusive = lower_bound.get_inclusive();
@@ -314,22 +316,18 @@ class cursor_bound_01 : public test {
         auto above_lower_key = lower_key.empty() ||
           custom_lexicographical_compare(lower_key, search_key, lower_inclusive);
         auto below_upper_key = upper_key.empty() ||
-          custom_lexicographical_compare(search_key, upper_key, upper_inclusive);
-
-        /* Position the normal cursor on the search key. */
-        normal_cursor->set_key(normal_cursor.get(), search_key.c_str());
-        auto normal_ret = normal_cursor->search(normal_cursor.get());
+          custom_lexicographical_compare(search_key, search_key, upper_inclusive);
 
         /*
          * If bounded cursor returns a valid key, search key must have been in bounds. If normal
          * cursor returns a valid key, but bounded cursor returns WT_NOTFOUND, the search key must
          * have been out of bounds.
          */
-        if (range_ret == 0 && normal_ret == 0) {
+        if (range_ret == 0) {
             testutil_assert(above_lower_key && below_upper_key);
             /* Check that the returned key should be equal to the search key. */
             testutil_assert(std::string(key).compare(search_key) == 0);
-        } else if (normal_ret == 0) {
+        } else if (range_ret == WT_NOTFOUND) {
             testutil_assert(!(above_lower_key && below_upper_key));
         }
     }
