@@ -174,13 +174,9 @@ new_page:
 
         __cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
 
-        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER)) {
-            WT_RET(__wt_compare_bounds(session, &cbt->iface, NULL, true, key_out_of_bounds));
-            if (*key_out_of_bounds) {
-                WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
-                return (WT_NOTFOUND);
-            }
-        }
+        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER))
+            WT_RET(__wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_bounds));
+
 restart_read:
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
 
@@ -249,13 +245,12 @@ __cursor_var_next(
         __cursor_set_recno(cbt, cbt->recno + 1);
 
 new_page:
-        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER)) {
-            WT_RET(__wt_compare_bounds(session, &cbt->iface, NULL, true, key_out_of_bounds));
-            if (*key_out_of_bounds) {
-                WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
-                return (WT_NOTFOUND);
-            }
-        }
+        /*
+         * If an upper bound has been set ensure that the key is within the range, otherwise early
+         * exit.
+         */
+        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER))
+            WT_RET(__wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_bounds));
 
 restart_read:
         /* Find the matching WT_COL slot. */
@@ -798,7 +793,7 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
      * bounds, continue the next traversal logic.
      */
     if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER) && !WT_CURSOR_IS_POSITIONED(cbt)) {
-        WT_ERR(__wt_btcur_bounds_row_position(session, cbt, true, &need_walk));
+        WT_ERR(__wt_btcur_bounds_position(session, cbt, true, &need_walk));
         if (!need_walk) {
             __wt_value_return(cbt, cbt->upd_value);
             goto done;

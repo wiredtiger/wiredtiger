@@ -2223,13 +2223,13 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
 }
 
 /*
- * __wt_btcur_bounds_row_position --
+ * __wt_btcur_bounds_position --
  *     A unpositioned bounded cursor need to start its cursor next and prev walk from the lower or
  *     upper bound depending on which direction it is going. This function calls cursor row search
  *     to position the cursor appropriately.
  */
 int
-__wt_btcur_bounds_row_position(
+__wt_btcur_bounds_position(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next, bool *need_walkp)
 {
 
@@ -2248,12 +2248,18 @@ __wt_btcur_bounds_row_position(
 
     WT_ASSERT(session, WT_DATA_IN_ITEM(bound));
     __wt_cursor_set_raw_key(cursor, bound);
-    WT_RET(__cursor_row_search(cbt, false, NULL, NULL));
-    /*
-     * If there's an exact match, the row-store search function built the key in the cursor's
-     * temporary buffer.
-     */
-    WT_RET(__wt_cursor_valid(cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, &valid));
+
+    if (S2BT(session)->type == BTREE_ROW) {
+        WT_RET(__cursor_row_search(cbt, false, NULL, NULL));
+        /*
+         * If there's an exact match, the row-store search function built the key in the cursor's
+         * temporary buffer.
+         */
+        WT_RET(__wt_cursor_valid(cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, &valid));
+    } else {
+        WT_RET(__cursor_col_search(cbt, NULL, NULL));
+        WT_RET(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
+    }
 
     /*
      * Clear the cursor key set flag, as we don't want to return the internal set key to the user.
