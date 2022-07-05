@@ -869,8 +869,8 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
          * Column-store pages may have appended entries. Handle it separately from the usual cursor
          * code, it's in a simple format.
          */
-        if (page != NULL && page->type != WT_PAGE_ROW_LEAF &&
-          (cbt->ins_head = WT_COL_APPEND(page)) != NULL) {
+        if (!F_ISSET(cbt, WT_CBT_ITERATE_APPEND) && page != NULL &&
+          page->type != WT_PAGE_ROW_LEAF && (cbt->ins_head = WT_COL_APPEND(page)) != NULL) {
             F_SET(cbt, WT_CBT_ITERATE_APPEND);
             continue;
         }
