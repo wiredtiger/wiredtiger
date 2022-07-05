@@ -1169,7 +1169,6 @@ static int
 __curhs_range_truncate(WT_CURSOR *start, WT_CURSOR *stop)
 {
     WT_CURSOR *start_file_cursor, *stop_file_cursor;
-    WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = CUR2S(start);
@@ -1178,15 +1177,14 @@ __curhs_range_truncate(WT_CURSOR *start, WT_CURSOR *stop)
 
     WT_STAT_DATA_INCR(session, cursor_truncate);
 
-    WT_ERR(__wt_cursor_localkey(start_file_cursor));
+    WT_RET(__wt_cursor_localkey(start_file_cursor));
     if (stop != NULL)
-        WT_ERR(__wt_cursor_localkey(stop_file_cursor));
+        WT_RET(__wt_cursor_localkey(stop_file_cursor));
 
-    WT_ERR(__wt_cursor_truncate((WT_CURSOR_BTREE *)start_file_cursor,
+    WT_RET(__wt_cursor_truncate((WT_CURSOR_BTREE *)start_file_cursor,
       (WT_CURSOR_BTREE *)stop_file_cursor, __curhs_remove_int));
 
-err:
-    return (ret);
+    return (0);
 }
 
 /*
