@@ -26,40 +26,32 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CONNECTION_SIMULATOR_H
-#define CONNECTION_SIMULATOR_H
-
-#include <vector>
-#include <memory>
-
-#include "session_simulator.h"
 #include "timestamp_simulator.h"
-#include "timestamp_manager.h"
+#include <iostream>
 
-/* connection_simulator is a singleton class (Global access of one and only one instance). */
-class connection_simulator {
-    /* Member variables */
-    private:
-    std::vector<std::shared_ptr<session_simulator>> session_list;
-    oldest_timestamp oldest_ts;
-    timestamp_manager ts_mgr;
+int timestamp_simulator::set_ts(int ts){
+    timestamp = ts;
+    std::cout << "timestamp_simulator::set_ts: " << timestamp << std::endl;
+    return 0;
+}
 
-    /* Methods */
-    public:
-    static connection_simulator &get_connection();
-    std::shared_ptr<session_simulator> open_session();
-    int query_timestamp();
-    int set_timestamp(std::string config);
-    ~connection_simulator() = default;
+int timestamp_simulator::get_ts(){
+    return timestamp;
+}
 
-    /* No copies of the singleton allowed. */
-    private:
-    connection_simulator();
+oldest_timestamp::oldest_timestamp() {
+    std::cout << "Creating oldest timestamp" << std::endl;
+}
 
-    public:
-    /* Deleted functions should generally be public as it results in better error messages. */
-    connection_simulator(connection_simulator const &) = delete;
-    connection_simulator &operator=(connection_simulator const &) = delete;
-};
+void oldest_timestamp::get_specs(){
+    std::cout << "=== Oldest Timestamp ===" << std::endl;
+    std::cout << "Constraints:" << std::endl;
+    std::cout << "<= stable; may not move backward, set to the value as of the last checkpoint during recovery" << std::endl;
+    std::cout << "Description:" << std::endl;
+    std::cout << "Inform the system future reads and writes will never be earlier than the specified timestamp." << std::endl;
+}
 
-#endif
+int oldest_timestamp::validate(){
+    std::cout << "validate" << std::endl;
+    return (0);
+}

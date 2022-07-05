@@ -26,40 +26,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CONNECTION_SIMULATOR_H
-#define CONNECTION_SIMULATOR_H
-
-#include <vector>
-#include <memory>
-
-#include "session_simulator.h"
-#include "timestamp_simulator.h"
 #include "timestamp_manager.h"
+#include <iostream>
 
-/* connection_simulator is a singleton class (Global access of one and only one instance). */
-class connection_simulator {
-    /* Member variables */
-    private:
-    std::vector<std::shared_ptr<session_simulator>> session_list;
-    oldest_timestamp oldest_ts;
-    timestamp_manager ts_mgr;
+timestamp_manager::timestamp_manager(){
 
-    /* Methods */
-    public:
-    static connection_simulator &get_connection();
-    std::shared_ptr<session_simulator> open_session();
-    int query_timestamp();
-    int set_timestamp(std::string config);
-    ~connection_simulator() = default;
-
-    /* No copies of the singleton allowed. */
-    private:
-    connection_simulator();
-
-    public:
-    /* Deleted functions should generally be public as it results in better error messages. */
-    connection_simulator(connection_simulator const &) = delete;
-    connection_simulator &operator=(connection_simulator const &) = delete;
-};
-
-#endif
+}
