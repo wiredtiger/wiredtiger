@@ -31,125 +31,84 @@ from wtscenario import make_scenarios
 from wtbound import bound_base
 
 # test_cursor_bound05.py
-# Test the search() call in the cursor bound API. 
+# Test special scenario with cursor bound API. Make sure that internal cursor search properly 
+# positions the cursor with bounds set as the prefix of the records.
 class test_cursor_bound05(bound_base):
     file_name = 'test_cursor_bound05'
+    key_format = 'S'
+    start_key = 1000
+    end_key = 2000
 
     types = [
         ('file', dict(uri='file:', use_colgroup=False)),
-        ('table', dict(uri='table:', use_colgroup=False)),
-        ('colgroup', dict(uri='table:', use_colgroup=True))
+        ('table', dict(uri='table:', use_colgroup=False))
     ]
 
-    key_format_values = [
-        ('string', dict(key_format='S')),
-        # FIXME-WT-9474: Uncomment once column store is implemented.
-        #('var', dict(key_format='r')),
-        ('int', dict(key_format='i')),
-        ('bytes', dict(key_format='u')),
-        ('composite_string', dict(key_format='SSS')),
-        ('composite_int_string', dict(key_format='iS')),
-        ('composite_complex', dict(key_format='iSru')),
+    config = [
+        ('evict', dict(evict=True)),
+        ('no-evict', dict(evict=False))
     ]
-
-    inclusive = [
-        ('inclusive', dict(inclusive=True)),
-        ('no-inclusive', dict(inclusive=False))
-    ]
-    scenarios = make_scenarios(types, key_format_values, inclusive)
+    scenarios = make_scenarios(types, config)
 
     def create_session_and_cursor(self):
         uri = self.uri + self.file_name
-        create_params = 'value_format=S,key_format={}'.format(self.key_format)    
-        if self.use_colgroup:
-            create_params += self.gen_colgroup_create_param()
+        create_params = 'value_format=S,key_format={}'.format(self.key_format)
         self.session.create(uri, create_params)
-
-        # Add in column group.
-        if self.use_colgroup:
-            create_params = 'columns=(v),'
-            suburi = 'colgroup:{0}:g0'.format(self.file_name)
-            self.session.create(suburi, create_params)
 
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
-
         for i in range(self.start_key, self.end_key + 1):
             cursor[self.gen_key(i)] = "value" + str(i)
         self.session.commit_transaction()
 
+        if (self.evict):
+            evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
+            for i in range(self.start_key, self.end_key):
+                evict_cursor.set_key(self.gen_key(i))
+                evict_cursor.search()
+                evict_cursor.reset() 
         return cursor
 
-    def test_bound_search_scenario(self):
+    def test_bound_special_scenario(self):
         cursor = self.create_session_and_cursor()
-    
-        # Search for a non-existant key with no bounds.
-        cursor.set_key(self.gen_key(10))
-        ret = cursor.search()
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        cursor.reset()
 
-        # Search for an existing key with no bounds.
-        cursor.set_key(self.gen_key(50))
-        ret = cursor.search()
-        self.assertEqual(ret, 0)
-        cursor.reset()
+        # Test bound api: Test prefix key with lower bound.
+        self.set_bounds(cursor, 10, "lower", True)
+        self.cursor_traversal_bound(cursor, 10, None, True)
+        self.cursor_traversal_bound(cursor, 10, None, False)
+        self.assertEqual(cursor.bound("action=clear"), 0)
 
-        # Search for a key outside of lower bound.
-        self.set_bounds(cursor, 30, "lower", self.inclusive)
-        cursor.set_key(self.gen_key(20))
-        ret = cursor.search()
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        cursor.reset()
+        # Test bound api: Test prefix key with upper bound.
+        self.set_bounds(cursor, 20, "upper", False)
+        self.cursor_traversal_bound(cursor, None, 20, True, 999)
+        self.cursor_traversal_bound(cursor, None, 20, False, 999)
+        self.assertEqual(cursor.bound("action=clear"), 0)
 
-        # Search for a key outside of upper bound.
-        self.set_bounds(cursor, 40, "upper", self.inclusive)
-        cursor.set_key(self.gen_key(60))
-        ret = cursor.search()
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        cursor.reset()
+        # Test bound api: Test prefix key works with both bounds.
+        self.set_bounds(cursor, 10, "lower", True)
+        self.set_bounds(cursor, 20, "upper", False)
+        self.cursor_traversal_bound(cursor, 10, 20, True, 999)
+        self.cursor_traversal_bound(cursor, 10, 20, False, 999)
+        self.assertEqual(cursor.bound("action=clear"), 0)
 
-        # Search for a valid key in the middle of the range.
-        self.set_bounds(cursor, 20, "lower", self.inclusive)
-        self.set_bounds(cursor, 40, "upper", self.inclusive)
-        cursor.set_key(self.gen_key(35))
-        ret = cursor.search()
-        self.assertEqual(ret, 0)
-        cursor.reset()
+        self.set_bounds(cursor, 10, "lower", True)
+        self.set_bounds(cursor, 11, "upper", False)
+        self.cursor_traversal_bound(cursor, 10, 11, True, 99)
+        self.cursor_traversal_bound(cursor, 10, 11, False, 99)
+        self.assertEqual(cursor.bound("action=clear"), 0)
 
-        # Search for a key next to the lower bound.
-        self.set_bounds(cursor, 20, "lower", self.inclusive)
-        cursor.set_key(self.gen_key(21))
-        ret = cursor.search()
-        self.assertEqual(ret, 0)
-        cursor.reset()
+        # Test bound api: Test early exit works with lower bound (Greater than data range).
+        self.set_bounds(cursor, 30, "lower", True)
+        self.cursor_traversal_bound(cursor, 30, None, True, 0)
+        self.cursor_traversal_bound(cursor, 30, None, False, 0)
+        self.assertEqual(cursor.bound("action=clear"), 0)
 
-        # Search for a key next to the upper bound.
-        self.set_bounds(cursor, 40, "upper", self.inclusive)
-        cursor.set_key(self.gen_key(39))
-        ret = cursor.search()
-        self.assertEqual(ret, 0)
-        cursor.reset()
+        # Test bound api: Test early exit works with upper bound (Greater than data range).
+        self.set_bounds(cursor, 40, "upper", False)
+        self.cursor_traversal_bound(cursor, None, 40, True, 1000)
+        self.cursor_traversal_bound(cursor, None, 40, False, 1000)
+        self.assertEqual(cursor.bound("action=clear"), 0)
 
-        # Search for a key equal to the bound. 
-        self.set_bounds(cursor, 60, "upper", self.inclusive)
-        cursor.set_key(self.gen_key(60))
-        ret = cursor.search()
-        if(self.inclusive):
-            self.assertEqual(ret, 0)
-        else:
-            self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        cursor.reset()
-
-        # Search for a key equal to the bound. 
-        self.set_bounds(cursor, 20, "upper", self.inclusive)
-        cursor.set_key(self.gen_key(20))
-        ret = cursor.search()
-        if(self.inclusive):
-            self.assertEqual(ret, 0)
-        else:
-            self.assertEqual(ret, wiredtiger.WT_NOTFOUND)        
-        cursor.reset()
         cursor.close()
 
 if __name__ == '__main__':
