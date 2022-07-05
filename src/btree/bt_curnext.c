@@ -440,12 +440,10 @@ restart_read_insert:
              * If an upper bound has been set ensure that the key is within the range, otherwise
              * early exit.
              */
-            ret = __wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_boundsp);
-
-            if (ret == WT_NOTFOUND) {
+            if ((ret = __wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_boundsp)) ==
+              WT_NOTFOUND)
                 WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
-                return (WT_NOTFOUND);
-            }
+            WT_RET(ret);
 
             WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
             if (cbt->upd_value->type == WT_UPDATE_INVALID) {
@@ -504,12 +502,10 @@ restart_read_page:
          * If an upper bound has been set ensure that the key is within the range, otherwise early
          * exit.
          */
-        ret = __wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_boundsp);
-
-        if (ret == WT_NOTFOUND) {
+        if ((ret = __wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_boundsp)) ==
+          WT_NOTFOUND)
             WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
-            return (WT_NOTFOUND);
-        }
+        WT_RET(ret);
 
         /*
          * Read the on-disk value and/or history. Pass an update list: the update list may contain

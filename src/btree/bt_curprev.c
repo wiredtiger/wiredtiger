@@ -593,7 +593,10 @@ restart_read_insert:
              * If a lower bound has been set ensure that the key is within the range, otherwise
              * early exit.
              */
-            ret = __wt_btcur_bounds_early_exit(session, cbt, false, key_out_of_boundsp);
+            if ((ret = __wt_btcur_bounds_early_exit(session, cbt, false, key_out_of_boundsp)) ==
+              WT_NOTFOUND)
+                WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
+            WT_RET(ret);
 
             if (ret == WT_NOTFOUND) {
                 WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
@@ -652,7 +655,10 @@ restart_read_page:
          * If a lower bound has been set ensure that the key is within the range, otherwise early
          * exit.
          */
-        ret = __wt_btcur_bounds_early_exit(session, cbt, false, key_out_of_boundsp);
+        if ((ret = __wt_btcur_bounds_early_exit(session, cbt, false, key_out_of_boundsp)) ==
+          WT_NOTFOUND)
+            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
+        WT_RET(ret);
 
         if (ret == WT_NOTFOUND) {
             WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
