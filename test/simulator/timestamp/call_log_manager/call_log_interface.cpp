@@ -35,10 +35,8 @@ int
 main(int argc, char *argv[])
 {
     /* Return if call log file was not passed. */
-    if (argc != 2) {
-        std::cout << "call_log_interface: missing call log file path" << std::endl;
-        return (-1);
-    }
+    if (argc != 2)
+      throw std::invalid_argument("call_log_interface: missing call log file path");
 
     std::string call_log_file = argv[1];
 
