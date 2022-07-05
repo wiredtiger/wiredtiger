@@ -598,11 +598,6 @@ restart_read_insert:
                 WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
             WT_RET(ret);
 
-            if (ret == WT_NOTFOUND) {
-                WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
-                return (WT_NOTFOUND);
-            }
-
             WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
             if (cbt->upd_value->type == WT_UPDATE_INVALID) {
                 ++*skippedp;
@@ -659,11 +654,6 @@ restart_read_page:
           WT_NOTFOUND)
             WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
         WT_RET(ret);
-
-        if (ret == WT_NOTFOUND) {
-            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
-            return (WT_NOTFOUND);
-        }
 
         /*
          * Read the on-disk value and/or history. Pass an update list: the update list may contain
