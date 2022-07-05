@@ -173,8 +173,8 @@ __cursor_fix_implicit(WT_BTREE *btree, WT_CURSOR_BTREE *cbt)
  *     Determine if a given key is within the bounds set on a cursor.
  */
 static int
-__key_within_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key,
-  bool *key_out_of_boundsp, bool *upperp, bool force_inclusive)
+__key_within_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, bool force_inclusive,
+  bool *key_out_of_boundsp, bool *upperp)
 {
     WT_BTREE *btree;
 
@@ -277,7 +277,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
                 key->data = WT_INSERT_KEY(cbt->ins);
                 key->size = WT_INSERT_KEY_SIZE(cbt->ins);
             }
-            WT_RET(__key_within_bounds(session, &cbt->iface, key, &key_out_of_bounds, NULL, false));
+            WT_RET(__key_within_bounds(session, &cbt->iface, key, false, &key_out_of_bounds, NULL));
             /* The key value pair we were trying to return weren't within the given bounds. */
             if (key_out_of_bounds)
                 return (0);
@@ -381,7 +381,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
         }
 
         if (WT_CURSOR_HAS_BOUNDS(&cbt->iface)) {
-            WT_RET(__key_within_bounds(session, &cbt->iface, key, &key_out_of_bounds, NULL, false));
+            WT_RET(__key_within_bounds(session, &cbt->iface, key, false, &key_out_of_bounds, NULL));
             /* The key value pair were trying to return weren't within the given bounds. */
             if (key_out_of_bounds)
                 return (0);
@@ -835,7 +835,8 @@ err:
 
 /*
  * __btcur_search_near_bounds_reposition --
- *     This function validates whether a given key is whithin
+ *     This function validates whether a given key is whithin the provided cursor bounds. If not
+ *     the search near key is updated to the nearest bound.
  */
 static int
 __btcur_search_near_bounds_reposition(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
@@ -858,7 +859,7 @@ __btcur_search_near_bounds_reposition(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
      * know which key to set the lower bound to so we set it to the lower bound. The same is true
      * for the upper bound check.
      */
-    WT_RET(__key_within_bounds(session, cursor, &cursor->key, &key_out_of_bounds, &upper, true));
+    WT_RET(__key_within_bounds(session, cursor, &cursor->key, true, &key_out_of_bounds, &upper));
     if (key_out_of_bounds)
         __wt_cursor_set_raw_key(cursor, upper ? &cursor->upper_bound : &cursor->lower_bound);
     return (0);
