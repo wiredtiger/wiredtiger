@@ -304,7 +304,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     def test_bound_fuzz(self):
         uri = self.uri + self.file_name
-        create_params = 'value_format=S,key_format=i'
+        create_params = 'value_format=S,key_format={}'.format(self.key_format)
 
         # Setup a reproducable random seed.
         seed = time.time()

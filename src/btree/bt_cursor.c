@@ -382,7 +382,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
 
         if (WT_CURSOR_HAS_BOUNDS(&cbt->iface)) {
             WT_RET(__key_within_bounds(session, &cbt->iface, key, false, &key_out_of_bounds, NULL));
-            /* The key value pair were trying to return weren't within the given bounds. */
+            /* The key value pair we were trying to return weren't within the given bounds. */
             if (key_out_of_bounds)
                 return (0);
         }
@@ -835,8 +835,8 @@ err:
 
 /*
  * __btcur_search_near_bounds_reposition --
- *     This function validates whether a given key is whithin the provided cursor bounds. If not
- *     the search near key is updated to the nearest bound.
+ *     This function validates whether a given key is within the provided cursor bounds. If not the
+ *     search near key is updated to the nearest bound.
  */
 static int
 __btcur_search_near_bounds_reposition(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
