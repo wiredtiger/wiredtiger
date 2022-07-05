@@ -258,6 +258,8 @@ extern int __wt_bm_corrupt(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *a
   size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr,
   size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_btcur_bounds_row_position(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next,
+  bool *need_walkp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_compare(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *cmpp)
@@ -279,8 +281,8 @@ extern int __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
-  bool *is_col_fix) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_reserve(WT_CURSOR_BTREE *cbt)
@@ -1357,8 +1359,8 @@ extern int __wt_schema_project_out(WT_SESSION_IMPL *session, WT_CURSOR **cp, con
 extern int __wt_schema_project_slice(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *proj_arg,
   bool key_only, const char *vformat, WT_ITEM *value)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_schema_range_truncate(WT_SESSION_IMPL *session, WT_CURSOR *start, WT_CURSOR *stop,
-  bool *is_col_fix) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_schema_range_truncate(WT_SESSION_IMPL *session, WT_CURSOR *start, WT_CURSOR *stop)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_release_table(WT_SESSION_IMPL *session, WT_TABLE **tablep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_release_tiered(WT_SESSION_IMPL *session, WT_TIERED **tieredp)
@@ -2026,8 +2028,6 @@ static inline double __wt_eviction_dirty_target(WT_CACHE *cache)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_btcur_bounds_early_exit(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
   bool next, bool *key_out_of_bounds) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_btcur_bounds_row_position(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
-  bool next, bool *need_walk) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_btcur_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, void *context,
   bool visible_all, bool *skipp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_btree_block_free(WT_SESSION_IMPL *session, const uint8_t *addr,
