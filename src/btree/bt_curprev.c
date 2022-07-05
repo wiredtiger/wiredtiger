@@ -778,15 +778,6 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
             if (ret != WT_NOTFOUND)
                 break;
 
-            /*
-             * If we are doing a search near with prefix key configured or the cursor has bounds
-             * set, we need to check if we have exited the next function due to a prefix key
-             * mismatch or the key is out of bounds. If so, we break instead of walking onto the
-             * next page. We're not directly returning here to allow the cursor to be reset first
-             * before we return WT_NOTFOUND.
-             */
-            if (key_out_of_bounds)
-                break;
             newpage = true;
         }
         if (page != NULL) {
@@ -807,16 +798,18 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
             }
             if (ret != WT_NOTFOUND)
                 break;
-            /*
-             * If we are doing a search near with prefix key configured or the cursor has bounds
-             * set, we need to check if we have exited the prev function due to a prefix key
-             * mismatch or the key is out of bounds. If so, we break instead of walking onto the
-             * next page. We're not directly returning here to allow the cursor to be reset first
-             * before we return WT_NOTFOUND.
-             */
-            if (key_out_of_bounds)
-                break;
         }
+
+        /*
+         * If we are doing a search near with prefix key configured or the cursor has bounds
+         * set, we need to check if we have exited the next function due to a prefix key
+         * mismatch or the key is out of bounds. If so, we break instead of walking onto the
+         * next page. We're not directly returning here to allow the cursor to be reset first
+         * before we return WT_NOTFOUND.
+         */
+        if (key_out_of_bounds)
+            break;
+        
         /*
          * If we saw a lot of deleted records on this page, or we went all the way through a page
          * and only saw deleted records, try to evict the page when we release it. Otherwise
