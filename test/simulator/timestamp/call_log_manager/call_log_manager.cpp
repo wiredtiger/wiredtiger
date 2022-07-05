@@ -43,7 +43,6 @@ void call_log_manager::api_map_setup(){
     api_map["open_session"] = open_session;
 }
 
-
 int
 call_log_manager::process_call_log()
 {

@@ -42,8 +42,7 @@ main(int argc, char *argv[])
 
     std::string call_log_file = argv[1];
 
-    std::unique_ptr<call_log_manager> cl_manager =
-      std::make_unique<call_log_manager>(call_log_file);
+    auto cl_manager = std::make_unique<call_log_manager>(call_log_file);
 
     return (cl_manager->process_call_log());
 }
