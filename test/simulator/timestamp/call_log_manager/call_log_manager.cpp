@@ -28,6 +28,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <memory>
 
 #include "call_log_manager.h"
 
@@ -73,4 +74,19 @@ call_log_manager::process_call_log_entry(json call_log_entry)
     case open_session:
         break;
     }
+}
+
+int
+main(int argc, char *argv[])
+{
+    /* Throw an error if call log file was not passed. */
+    if (argc != 2)
+        throw std::invalid_argument("call_log_interface: missing call log file path");
+
+    std::string call_log_file = argv[1];
+
+    auto cl_manager = std::make_unique<call_log_manager>(call_log_file);
+    cl_manager->process_call_log();
+
+    return (0);
 }

@@ -38,15 +38,15 @@
 class connection_simulator {
     /* Member variables */
     private:
-    std::vector<std::shared_ptr<session_simulator>> session_list;
+    std::vector<session_simulator*> session_list;
 
     /* Methods */
     public:
     static connection_simulator &get_connection();
-    std::shared_ptr<session_simulator> open_session();
+    session_simulator* open_session();
     int query_timestamp();
     int set_timestamp();
-    ~connection_simulator() = default;
+    ~connection_simulator();
 
     /* No copies of the singleton allowed. */
     private:
