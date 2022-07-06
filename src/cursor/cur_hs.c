@@ -250,6 +250,7 @@ __curhs_next(WT_CURSOR *cursor)
      */
     WT_ERR(__curhs_next_visible(session, hs_cursor));
 
+    WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
     __curhs_set_key_ptr(cursor, file_cursor);
     __curhs_set_value_ptr(cursor, file_cursor);
 
@@ -284,6 +285,7 @@ __curhs_prev(WT_CURSOR *cursor)
      */
     WT_ERR(__curhs_prev_visible(session, hs_cursor));
 
+    WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
     __curhs_set_key_ptr(cursor, file_cursor);
     __curhs_set_value_ptr(cursor, file_cursor);
 
@@ -872,6 +874,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
       session, (cmp == 0 && *exactp == 0) || (cmp < 0 && *exactp < 0) || (cmp > 0 && *exactp > 0));
 #endif
 
+    WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
     __curhs_set_key_ptr(cursor, file_cursor);
     __curhs_set_value_ptr(cursor, file_cursor);
 
@@ -1177,9 +1180,12 @@ __curhs_range_truncate(WT_CURSOR *start, WT_CURSOR *stop)
 
     WT_STAT_DATA_INCR(session, cursor_truncate);
 
+    WT_ASSERT(session, F_ISSET(start_file_cursor, WT_CURSTD_KEY_INT));
     WT_RET(__wt_cursor_localkey(start_file_cursor));
-    if (stop != NULL)
+    if (stop != NULL) {
+        WT_ASSERT(session, F_ISSET(stop_file_cursor, WT_CURSTD_KEY_INT));
         WT_RET(__wt_cursor_localkey(stop_file_cursor));
+    }
 
     WT_RET(__wt_cursor_truncate((WT_CURSOR_BTREE *)start_file_cursor,
       (WT_CURSOR_BTREE *)stop_file_cursor, __curhs_remove_int));

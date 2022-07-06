@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time, wttest
+import wttest
 from helper import simulate_crash_restart
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
@@ -46,11 +46,7 @@ class test_rollback_to_stable38(wttest.WiredTigerTestCase):
             extraconfig='')),
         ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
     ]
-    rollback_modes = [
-        ('runtime', dict(crash=False)),
-        ('recovery', dict(crash=True)),
-    ]
-    scenarios = make_scenarios(format_values, rollback_modes)
+    scenarios = make_scenarios(format_values)
 
     def check(self, ds, value, nrows, ts):
         cursor = self.session.open_cursor(ds.uri)
@@ -103,16 +99,14 @@ class test_rollback_to_stable38(wttest.WiredTigerTestCase):
         session2.rollback_transaction()
         session2.close()
 
-        # Roll back, either via crashing or by explicit RTS.
-        if self.crash:
-            simulate_crash_restart(self, ".", "RESTART")
-        else:
-            self.conn.rollback_to_stable()
+        # Roll back via crashing.
+        simulate_crash_restart(self, ".", "RESTART")
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
+        hs_btree_truncate = stat_cursor[stat.conn.cache_hs_btree_truncate][2]
         fastdelete_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
-        if self.crash:
-            self.assertGreater(fastdelete_pages, 0)
+        self.assertGreater(hs_btree_truncate, 0)
+        self.assertGreater(fastdelete_pages, 0)
         stat_cursor.close()
 
 if __name__ == '__main__':
