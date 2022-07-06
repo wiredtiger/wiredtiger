@@ -36,10 +36,10 @@ connection_simulator::get_connection()
     return (_connection_instance);
 }
 
-session_simulator*
+session_simulator *
 connection_simulator::open_session()
 {
-    session_simulator* session = new session_simulator();
+    session_simulator *session = new session_simulator();
 
     session_list.push_back(session);
 

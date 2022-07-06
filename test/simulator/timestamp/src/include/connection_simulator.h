@@ -38,12 +38,12 @@
 class connection_simulator {
     /* Member variables */
     private:
-    std::vector<session_simulator*> session_list;
+    std::vector<session_simulator *> session_list;
 
     /* Methods */
     public:
     static connection_simulator &get_connection();
-    session_simulator* open_session();
+    session_simulator *open_session();
     int query_timestamp();
     int set_timestamp();
     ~connection_simulator();
