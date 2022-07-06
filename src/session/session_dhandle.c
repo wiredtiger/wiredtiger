@@ -801,8 +801,7 @@ void
 __wt_session_dhandle_writeunlock(WT_SESSION_IMPL *session)
 {
     WT_ASSERT(session, session->dhandle != NULL);
-    WT_ASSERT(
-      session, (session->dhandle->lock_flags | WT_DHANDLE_LOCK_WRITE) == WT_DHANDLE_LOCK_WRITE);
+    WT_ASSERT(session, FLD_ISSET(session->dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE));
     FLD_CLR(session->dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE);
     __wt_writeunlock(session, &session->dhandle->rwlock);
 }

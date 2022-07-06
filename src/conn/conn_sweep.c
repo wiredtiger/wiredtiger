@@ -63,7 +63,7 @@ __sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
     btree = WT_DHANDLE_BTREE(dhandle) ? dhandle->handle : NULL;
 
     /* This method expects dhandle write lock. */
-    WT_ASSERT(session, (dhandle->lock_flags | WT_DHANDLE_LOCK_WRITE) == WT_DHANDLE_LOCK_WRITE);
+    WT_ASSERT(session, FLD_ISSET(dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE));
 
     /* Only sweep clean trees. */
     if (btree != NULL && btree->modified)
