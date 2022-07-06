@@ -295,10 +295,9 @@ class cursor_bound_01 : public test {
      * back the search key.
      */
     void
-    validate_bound_search(int range_ret, scoped_cursor &range_cursor, scoped_cursor &normal_cursor,
-      const std::string &search_key, const bound &lower_bound, const bound &upper_bound)
+    validate_bound_search(int range_ret, scoped_cursor &range_cursor, const std::string &search_key,
+      const bound &lower_bound, const bound &upper_bound)
     {
-
         auto lower_key = lower_bound.get_key();
         auto upper_key = upper_bound.get_key();
         auto lower_inclusive = lower_bound.get_inclusive();
@@ -316,8 +315,9 @@ class cursor_bound_01 : public test {
         auto above_lower_key = lower_key.empty() ||
           custom_lexicographical_compare(lower_key, search_key, lower_inclusive);
         auto below_upper_key = upper_key.empty() ||
-          custom_lexicographical_compare(search_key, search_key, upper_inclusive);
+          custom_lexicographical_compare(search_key, upper_key, upper_inclusive);
 
+        testutil_assert(range_ret == 0 || range_ret == WT_NOTFOUND);
         /*
          * If bounded cursor returns a valid key, search key must have been in bounds. If normal
          * cursor returns a valid key, but bounded cursor returns WT_NOTFOUND, the search key must
@@ -326,10 +326,9 @@ class cursor_bound_01 : public test {
         if (range_ret == 0) {
             testutil_assert(above_lower_key && below_upper_key);
             /* Check that the returned key should be equal to the search key. */
-            testutil_assert(std::string(key).compare(search_key) == 0);
-        } else if (range_ret == WT_NOTFOUND) {
+            testutil_assert(search_key.compare(key) == 0);
+        } else if (range_ret == WT_NOTFOUND)
             testutil_assert(!(above_lower_key && below_upper_key));
-        }
     }
 
     /*
@@ -415,7 +414,7 @@ class cursor_bound_01 : public test {
             search_key + " and exact: " + std::to_string(range_exact));
         /* When exact = 0, the returned key should be equal to the search key. */
         if (range_exact == 0) {
-            testutil_assert(std::string(key).compare(search_key) == 0);
+            testutil_assert(search_key.compare(key) == 0);
         } else if (range_exact > 0) {
             /*
              * When exact > 0, the returned key should be greater than the search key and performing
@@ -723,8 +722,8 @@ class cursor_bound_01 : public test {
                     ret = range_cursor->search(range_cursor.get());
 
                     testutil_assert(ret == 0 || ret == WT_NOTFOUND);
-                    validate_bound_search(ret, range_cursor, normal_cursor, srch_key,
-                      bound_pair.first, bound_pair.second);
+                    validate_bound_search(
+                      ret, range_cursor, srch_key, bound_pair.first, bound_pair.second);
                 }
 
                 tc->txn.add_op();
