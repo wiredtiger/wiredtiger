@@ -41,19 +41,19 @@ connection_simulator::open_session()
 {
     session_simulator *session = new session_simulator();
 
-    session_list.push_back(session);
+    _session_list.push_back(session);
 
     return (session);
 }
 
 int
-connection_simulator::query_timestamp()
+connection_simulator::query_timestamp() const
 {
     return (0);
 }
 
 int
-connection_simulator::set_timestamp()
+connection_simulator::set_timestamp() const
 {
     return (0);
 }
@@ -62,6 +62,6 @@ connection_simulator::connection_simulator() {}
 
 connection_simulator::~connection_simulator()
 {
-    for (auto session : session_list)
+    for (auto session : _session_list)
         delete session;
 }

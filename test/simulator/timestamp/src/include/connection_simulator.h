@@ -26,26 +26,21 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CONNECTION_SIMULATOR_H
-#define CONNECTION_SIMULATOR_H
+#pragma once
 
-#include <vector>
 #include <memory>
+#include <vector>
 
 #include "session_simulator.h"
 
-/* connection_simulator is a singleton class (Global access of one and only one instance). */
+/* The connection simulator is a Singleton class. */
 class connection_simulator {
-    /* Member variables */
-    private:
-    std::vector<session_simulator *> session_list;
-
     /* Methods */
     public:
     static connection_simulator &get_connection();
     session_simulator *open_session();
-    int query_timestamp();
-    int set_timestamp();
+    int query_timestamp() const;
+    int set_timestamp() const;
     ~connection_simulator();
 
     /* No copies of the singleton allowed. */
@@ -56,6 +51,8 @@ class connection_simulator {
     /* Deleted functions should generally be public as it results in better error messages. */
     connection_simulator(connection_simulator const &) = delete;
     connection_simulator &operator=(connection_simulator const &) = delete;
-};
 
-#endif
+    /* Member variables */
+    private:
+    std::vector<session_simulator *> _session_list;
+};

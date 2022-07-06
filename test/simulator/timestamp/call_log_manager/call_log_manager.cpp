@@ -32,7 +32,7 @@
 
 #include "call_log_manager.h"
 
-call_log_manager::call_log_manager(std::string call_log_file)
+call_log_manager::call_log_manager(const std::string& call_log_file)
 {
     std::ifstream file(call_log_file);
     if (file.fail()) {
@@ -41,33 +41,33 @@ call_log_manager::call_log_manager(std::string call_log_file)
         exit(1);
     }
 
-    call_log = json::parse(file);
+    _call_log = json::parse(file);
     api_map_setup();
 }
 
 void
 call_log_manager::api_map_setup()
 {
-    api_map["wiredtiger_open"] = wiredtiger_open;
-    api_map["open_session"] = open_session;
+    _api_map["wiredtiger_open"] = api_method::wiredtiger_open;
+    _api_map["open_session"] = api_method::open_session;
 }
 
 void
 call_log_manager::process_call_log()
 {
-    for (const auto &call_log_entry : call_log)
+    for (const auto &call_log_entry : _call_log)
         process_call_log_entry(call_log_entry);
 }
 
 void
 call_log_manager::process_call_log_entry(json call_log_entry)
 {
-    std::string method_name = call_log_entry["MethodName"].get<std::string>();
-    switch (api_map.at(method_name)) {
-    case wiredtiger_open:
+    const std::string method_name = call_log_entry["MethodName"].get<std::string>();
+    switch (_api_map.at(method_name)) {
+    case api_method::wiredtiger_open:
         /* conn = &connection_simulator::get_connection(); */
         break;
-    case open_session:
+    case api_method::open_session:
         break;
     }
 }
@@ -81,7 +81,7 @@ main(int argc, char *argv[])
         exit(1);
     }
 
-    std::string call_log_file = argv[1];
+    const std::string call_log_file = argv[1];
 
     auto cl_manager = std::make_unique<call_log_manager>(call_log_file);
     cl_manager->process_call_log();

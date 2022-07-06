@@ -26,30 +26,28 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CALL_LOG_MANAGER_H
-#define CALL_LOG_MANAGER_H
+#pragma once
 
 #include "connection_simulator.h"
 #include "nlohmann/json.hpp"
 
 using json = nlohmann::json;
 
-class call_log_manager {
-    /* Member variables */
-    private:
-    connection_simulator *conn;
-    json call_log;
-    enum api_method { wiredtiger_open, open_session };
-    std::map<std::string, api_method> api_map;
+enum class api_method { wiredtiger_open, open_session };
 
+class call_log_manager {
     /* Methods */
     public:
-    call_log_manager(std::string);
+    call_log_manager(const std::string&);
     void process_call_log();
 
     private:
     void process_call_log_entry(json);
     void api_map_setup();
-};
 
-#endif
+    /* Member variables */
+    private:
+    connection_simulator *_conn;
+    json _call_log;
+    std::map<std::string, api_method> _api_map;
+};
