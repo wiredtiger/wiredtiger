@@ -31,9 +31,11 @@ from wtscenario import make_scenarios
 from wtbound import bound_base
 
 # test_cursor_bound06.py
-# Test the search() call in the cursor bound API. 
+# Test history store scenarios with cursor bound API.
 class test_cursor_bound06(bound_base):
     file_name = 'test_cursor_bound06'
+    lower_inclusive = True
+    upper_inclusive = True
 
     types = [
         ('file', dict(uri='file:', use_colgroup=False)),
