@@ -237,6 +237,9 @@ leaf_only:
         if (recno >= current->ref_recno + page->entries) {
             cbt->recno = current->ref_recno + page->entries;
             cbt->slot = 0;
+            ins = __col_insert_search(ins_head, cbt->ins_stack, cbt->next_stack, cbt->recno);
+            if (ins != NULL && cbt->recno == WT_INSERT_RECNO(ins))
+                cbt->ins = ins;
             goto past_end;
         } else {
             cbt->recno = recno;
@@ -254,6 +257,9 @@ leaf_only:
         if ((cip = __col_var_search(current, recno, NULL)) == NULL) {
             cbt->recno = __col_var_last_recno(current);
             cbt->slot = page->entries == 0 ? 0 : page->entries - 1;
+            ins = __col_insert_search(ins_head, cbt->ins_stack, cbt->next_stack, cbt->recno);
+            if (ins != NULL && cbt->recno == WT_INSERT_RECNO(ins))
+                cbt->ins = ins;
             goto past_end;
         } else {
             cbt->recno = recno;
@@ -287,10 +293,13 @@ past_end:
      * the table.
      */
     cbt->ins_head = WT_COL_APPEND(page);
-    if ((cbt->ins = __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, recno)) ==
-      NULL)
+    ins = __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, recno);
+    if (ins != NULL && cbt->recno == WT_INSERT_RECNO(ins))
+        cbt->ins = ins;
+    if (ins == NULL)
         cbt->compare = -1;
     else {
+        cbt->ins = ins;
         cbt->recno = WT_INSERT_RECNO(cbt->ins);
         if (recno == cbt->recno)
             cbt->compare = 0;
