@@ -415,7 +415,8 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
         }
 
         if (WT_CURSOR_BOUNDS_SET(&cbt->iface)) {
-            WT_RET(__btcur_bounds_contains_key(session, &cbt->iface, key, &key_out_of_bounds, NULL));
+            WT_RET(
+              __btcur_bounds_contains_key(session, &cbt->iface, key, &key_out_of_bounds, NULL));
             /* The key value pair we were trying to return weren't within the given bounds. */
             if (key_out_of_bounds)
                 return (0);
@@ -792,11 +793,8 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
      * exit.
      */
     if (btree->type == BTREE_ROW && WT_CURSOR_BOUNDS_SET(cursor)) {
-        WT_ERR(__wt_btcur_bounds_early_exit(session, cbt, true, &key_out_of_bounds));
-
-        if (!key_out_of_bounds)
-            WT_ERR(__wt_btcur_bounds_early_exit(session, cbt, false, &key_out_of_bounds));
-
+        WT_ERR(
+          __btcur_bounds_contains_key(session, cursor, &cursor->key, &key_out_of_bounds, NULL));
         if (key_out_of_bounds) {
             WT_STAT_CONN_DATA_INCR(session, cursor_bounds_search_early_exit);
             WT_ERR(WT_NOTFOUND);
