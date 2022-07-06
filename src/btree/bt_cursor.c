@@ -213,6 +213,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
     WT_BTREE *btree;
     WT_CELL *cell;
     WT_COL *cip;
+    WT_ITEM tmp_key;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
     WT_UPDATE *upd;
@@ -274,10 +275,10 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
         if (WT_CURSOR_HAS_BOUNDS(&cbt->iface) && btree->type == BTREE_ROW) {
             /* Get the insert list key. */
             if (key == NULL) {
-                key->data = WT_INSERT_KEY(cbt->ins);
-                key->size = WT_INSERT_KEY_SIZE(cbt->ins);
+                tmp_key.data = WT_INSERT_KEY(cbt->ins);
+                tmp_key.size = WT_INSERT_KEY_SIZE(cbt->ins);
             }
-            WT_RET(__key_within_bounds(session, &cbt->iface, key, false, &key_out_of_bounds, NULL));
+            WT_RET(__key_within_bounds(session, &cbt->iface, key != NULL ? key : &tmp_key, false, &key_out_of_bounds, NULL));
             /* The key value pair we were trying to return weren't within the given bounds. */
             if (key_out_of_bounds)
                 return (0);
