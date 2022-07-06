@@ -591,6 +591,13 @@ struct __wt_cursor_version {
     F_ISSET((cursor), WT_CURSTD_BOUND_LOWER | WT_CURSTD_BOUND_UPPER)
 
 /*
+ * This macro provides a consistent way of checking if a cursor has either its lower or upper bound
+ * set.
+ */
+#define WT_CURSOR_BOUNDS_SET(cursor) \
+    F_ISSET((cursor), WT_CURSTD_BOUND_LOWER | WT_CURSTD_BOUND_UPPER)
+
+/*
  * A positioned cursor must have a page, this is a requirement of the cursor logic within the
  * wiredtiger API. As such if the page on the cursor is not null we can safely assume that the
  * cursor is positioned.
