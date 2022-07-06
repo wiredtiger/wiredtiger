@@ -41,6 +41,8 @@ class connection_simulator {
     /* Member variables */
     private:
     std::vector<std::shared_ptr<session_simulator>> session_list;
+    // PM-2564-TODO: Do we want to have timestamps such as oldest and stable here in the connection?
+    // Or should the timestamp manager be wholly responsible for these and other timestamps.
     oldest_timestamp oldest_ts;
     timestamp_manager ts_mgr;
 

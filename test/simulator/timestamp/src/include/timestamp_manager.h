@@ -34,13 +34,20 @@
 
 class timestamp_manager {
     private:
-    oldest_timestamp oldest_ts;
+    // PM-2564-TODO: oldest timestamp is an object here but we could replace this with an int.
+    // oldest_timestamp oldest_ts;
+
+    // PM-2564-TODO: Timestamp as ints alternative.
+    int oldest_ts_int;
+    int stable_ts_int;
     /* Add more system timestamps here. */
 
     public:
-    timestamp_manager();
-    int set_timestamp(std::string config);
+    // PM-2564-TODO: oldest_ts as a public attribute allows its get_specs method to be called in the connection class.
+    oldest_timestamp oldest_ts;
 
+    timestamp_manager();
+    int set_oldest_ts(int ts);
 };
 
 #endif

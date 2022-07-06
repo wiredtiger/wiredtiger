@@ -32,3 +32,22 @@
 timestamp_manager::timestamp_manager(){
 
 }
+
+int timestamp_manager::set_oldest_ts(int ts){
+
+    /* PM-2564-TODO: Validation goes here since timestamp manager is aware of all the system timestamps. 
+    Currently using ints here to simplify the example. */
+    
+    // Oldest timestamp can't move backward.
+    if (ts <= oldest_ts_int){
+        std::cout << "Oldest timestamp cannot move backwards." << std::endl;
+        return 1;
+    }
+
+    /* All validations passed after this point. */
+    oldest_ts.set_ts(ts);
+
+    oldest_ts_int = ts;
+
+    return 0;
+}

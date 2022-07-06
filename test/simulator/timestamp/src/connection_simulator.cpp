@@ -60,23 +60,34 @@ connection_simulator::set_timestamp(std::string config)
 
     std::cout << "config: " << config << std::endl;
 
-    // PM-2564-TODO
+    // PM-2564-TODO: Question
     // What is the purpose of the timestamp manager why would we do this?
     // ts_mgr.set_timestamp(config);
 
+    // PM-2564-TODO: First approach
     // Instead of just handling it here?
     // Check if the config string contains an oldest timestamp.
+    // if (config.find("oldest_timestamp") != std::string::npos){
+    //     oldest_ts.get_specs();
+    //     std::cout << "Setting oldest timestamp to ";
+    //     // Copy the substring after the '=' to get the timestamp value from the config string.
+    //     std::string ts = config.substr(config.find("=") + 1);
+    //     std::cout << "setting timestamp to: " << ts << std::endl;
+    //     oldest_ts.set_ts(std::stoi(ts));
+    // }
+
+    // PM-2564-TODO: Proposed idea.
     if (config.find("oldest_timestamp") != std::string::npos){
-        oldest_ts.get_specs();
-        std::cout << "Setting oldest timestamp to ";
+        /* Example use of getting timestamp specs. */
+        ts_mgr.oldest_ts.get_specs();
         // Copy the substring after the '=' to get the timestamp value from the config string.
         std::string ts = config.substr(config.find("=") + 1);
-        std::cout << "setting timestamp to: " << ts << std::endl;
-        oldest_ts.set_ts(std::stoi(ts));
+        std::cout << "setting oldest timestamp to: " << ts << std::endl;
+        ts_mgr.set_oldest_ts(std::stoi(ts));
     }
 
+
     // Check to see if the oldest timestamp has been set correctly.
-    std::cout << "conneciton_simulator::oldest_ts = " << oldest_ts.get_ts() << std::endl;
 
     return (0);
 }
