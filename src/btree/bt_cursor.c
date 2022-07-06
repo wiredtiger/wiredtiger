@@ -907,9 +907,8 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
      * the search key is outside the bounds. Otherwise search near should behave as normal with an
      * additional bounds check after the call to row/col search.
      */
-    if (WT_CURSOR_HAS_BOUNDS(cursor)) {
+    if (WT_CURSOR_HAS_BOUNDS(cursor))
         WT_ERR(__btcur_search_near_bounds_reposition(session, cbt));
-    }
 
     /*
      * If we have a row-store page pinned, search it; if we don't have a page pinned, or the search
