@@ -587,9 +587,6 @@ struct __wt_cursor_version {
 #define WT_CURSOR_RAW_OK \
     (WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRETTY | WT_CURSTD_DUMP_PRINT | WT_CURSTD_RAW)
 
-#define WT_CURSOR_HAS_BOUNDS(cursor) \
-    F_ISSET((cursor), WT_CURSTD_BOUND_LOWER | WT_CURSTD_BOUND_UPPER)
-
 /*
  * This macro provides a consistent way of checking if a cursor has either its lower or upper bound
  * set.

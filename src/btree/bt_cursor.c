@@ -36,7 +36,7 @@ __btcur_bounds_contains_key(
     if (upperp != NULL)
         *upperp = false;
 
-    WT_ASSERT(session, WT_CURSOR_HAS_BOUNDS(cursor));
+    WT_ASSERT(session, WT_CURSOR_BOUNDS_SET(cursor));
     WT_ASSERT(session, key != NULL);
 
     if (btree->type != BTREE_ROW)
@@ -69,7 +69,7 @@ __btcur_bounds_search_near_reposition(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
     cursor = &cbt->iface;
     key_out_of_bounds = upper = false;
 
-    WT_ASSERT(session, WT_CURSOR_HAS_BOUNDS(cursor));
+    WT_ASSERT(session, WT_CURSOR_BOUNDS_SET(cursor));
     if (btree->type != BTREE_ROW)
         WT_RET(ENOTSUP);
 
@@ -304,7 +304,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
      * update that's been deleted is not a valid key/value pair).
      */
     if (cbt->ins != NULL) {
-        if (WT_CURSOR_HAS_BOUNDS(&cbt->iface) && btree->type == BTREE_ROW) {
+        if (WT_CURSOR_BOUNDS_SET(&cbt->iface) && btree->type == BTREE_ROW) {
             /* Get the insert list key. */
             if (key == NULL) {
                 tmp_key.data = WT_INSERT_KEY(cbt->ins);
@@ -414,7 +414,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
             key = cbt->tmp;
         }
 
-        if (WT_CURSOR_HAS_BOUNDS(&cbt->iface)) {
+        if (WT_CURSOR_BOUNDS_SET(&cbt->iface)) {
             WT_RET(__btcur_bounds_contains_key(session, &cbt->iface, key, &key_out_of_bounds, NULL));
             /* The key value pair we were trying to return weren't within the given bounds. */
             if (key_out_of_bounds)
@@ -923,7 +923,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
      * the search key is outside the bounds. Otherwise search near should behave as normal with an
      * additional bounds check after the call to row/col search.
      */
-    if (WT_CURSOR_HAS_BOUNDS(cursor))
+    if (WT_CURSOR_BOUNDS_SET(cursor))
         WT_ERR(__btcur_bounds_search_near_reposition(session, cbt));
 
     /*
