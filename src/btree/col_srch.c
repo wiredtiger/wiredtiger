@@ -333,7 +333,7 @@ past_end:
      * the table.
      */
     cbt->ins_head = WT_COL_APPEND(page);
-    if ((cbt->ins = __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, recno)) ==
+    if ((cbt->ins = __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, cbt->recno)) ==
       NULL) {
         if (trace)
             BTCUR_SEARCH_NEAR_EVENT(btree, COL_SRCH_PAST_END_FAIL);

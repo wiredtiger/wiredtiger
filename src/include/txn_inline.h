@@ -933,10 +933,13 @@ __wt_upd_alloc_tombstone(WT_SESSION_IMPL *session, WT_UPDATE **updp, size_t *siz
  */
 static inline int
 __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd,
-  WT_UPDATE **prepare_updp, WT_UPDATE **restored_updp)
+  WT_UPDATE **prepare_updp, WT_UPDATE **restored_updp, bool trace)
 {
     WT_VISIBLE_TYPE upd_visible;
     uint8_t prepare_state, type;
+    WT_BTREE* btree;
+
+    btree = CUR2BT(cbt);
 
     if (prepare_updp != NULL)
         *prepare_updp = NULL;
@@ -970,8 +973,15 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
 
         upd_visible = __wt_txn_upd_visible_type(session, upd);
 
-        if (upd_visible == WT_VISIBLE_TRUE)
+        if (upd_visible == WT_VISIBLE_TRUE) {
+            if (trace) {
+                btree->values[btree->events_ptr - 0] = upd->prepare_state;
+                btree->values[btree->events_ptr - 1] = upd->txnid;
+                btree->values[btree->events_ptr - 2] = upd->start_ts;
+                BTCUR_SEARCH_NEAR_EVENT(btree, TXN_READ_UPD_LIST_GOT_VISIBLE);
+            }
             break;
+        }
 
         /*
          * Save the prepared update to help us detect if we race with prepared commit or rollback
@@ -1001,8 +1011,11 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
         }
     }
 
-    if (upd == NULL)
+    if (upd == NULL) {
+        if (trace)
+            BTCUR_SEARCH_NEAR_EVENT(btree, TXN_READ_UPD_LIST_UPD_NULL);
         return (0);
+    }
 
     /*
      * Now assign to the update value. If it's not a modify, we're free to simply point the value at
@@ -1016,6 +1029,9 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
         __wt_upd_value_assign(cbt->upd_value, upd);
     else
         WT_RET(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
+
+    if (trace)
+        BTCUR_SEARCH_NEAR_EVENT(btree, TXN_READ_UPD_LIST_HAPPY);
     return (0);
 }
 
@@ -1026,7 +1042,13 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
 static inline int
 __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
-    return (__wt_txn_read_upd_list_internal(session, cbt, upd, NULL, NULL));
+    return (__wt_txn_read_upd_list_internal(session, cbt, upd, NULL, NULL, false));
+}
+
+static inline int
+__wt_txn_read_upd_list_trace(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+{
+    return (__wt_txn_read_upd_list_internal(session, cbt, upd, NULL, NULL, true));
 }
 
 /*
@@ -1050,7 +1072,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     retry = true;
 
 retry:
-    WT_RET(__wt_txn_read_upd_list_internal(session, cbt, upd, &prepare_upd, &restored_upd));
+    WT_RET(__wt_txn_read_upd_list_internal(session, cbt, upd, &prepare_upd, &restored_upd, trace));
     if (WT_UPDATE_DATA_VALUE(cbt->upd_value) ||
       (cbt->upd_value->type == WT_UPDATE_MODIFY && cbt->upd_value->skip_buf))
         return (0);

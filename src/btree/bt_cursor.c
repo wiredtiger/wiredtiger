@@ -239,7 +239,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
     if (cbt->ins != NULL) {
         if (trace)
             BTCUR_SEARCH_NEAR_EVENT(btree, CUR_VALID_CBT_INS_EXISTS);
-        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
+        WT_RET(__wt_txn_read_upd_list_trace(session, cbt, cbt->ins->upd));
         if (cbt->upd_value->type != WT_UPDATE_INVALID) {
             if (trace)
                 BTCUR_SEARCH_NEAR_EVENT(btree, CUR_VALID_CBT_INS_NOT_INVALID);

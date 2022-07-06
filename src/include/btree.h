@@ -314,19 +314,23 @@ struct __wt_btree {
 #define BTCUR_SEARCH_NEAR_EVENT_CUR_VALID_END_TYPE_NOT_INVALID 65
 #define BTCUR_SEARCH_NEAR_EVENT_CUR_VALID_END_TYPE_NOT_INVALID_TOMBSTONE 66
 #define BTCUR_SEARCH_NEAR_EVENT_CUR_VALID_END 67
+#define BTCUR_SEARCH_NEAR_EVENT_CUR_VALID_END 67
+#define BTCUR_SEARCH_NEAR_EVENT_TXN_READ_UPD_LIST_GOT_VISIBLE 68
+#define BTCUR_SEARCH_NEAR_EVENT_TXN_READ_UPD_LIST_UPD_NULL 69
+#define BTCUR_SEARCH_NEAR_EVENT_TXN_READ_UPD_LIST_HAPPY 70
 
 #define BTCUR_SEARCH_NEAR_EVENT(btree, ev)                              \
     do {                                                                \
         (btree)->events[(btree)->events_ptr++] = BTCUR_SEARCH_NEAR_EVENT_##ev; \
-        (btree)->events_ptr %= 64;                                      \
+        (btree)->events_ptr %= 128;                                     \
     } while (0)
 
 #define BTCUR_SEARCH_NEAR_VALUE(btree, val)                             \
     do {                                                                \
         (btree)->values[(btree)->events_ptr] = val;                     \
     } while (0)
-    uint8_t  events[64];
-    uint16_t values[64];
+    uint8_t  events[128];
+    uint64_t values[128];
     uint8_t  events_ptr;
 
 /*

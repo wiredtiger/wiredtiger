@@ -2207,7 +2207,7 @@ static inline int __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
 static inline int __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
   WT_UPDATE *upd) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
-  WT_UPDATE *upd, WT_UPDATE **prepare_updp, WT_UPDATE **restored_updp)
+  WT_UPDATE *upd, WT_UPDATE **prepare_updp, WT_UPDATE **restored_updp, bool trace)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_search_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
