@@ -173,8 +173,8 @@ __cursor_fix_implicit(WT_BTREE *btree, WT_CURSOR_BTREE *cbt)
  *     Determine if a given key is within the bounds set on a cursor.
  */
 static int
-__key_within_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, bool force_inclusive,
-  bool *key_out_of_boundsp, bool *upperp)
+__key_within_bounds(
+  WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, bool *key_out_of_boundsp, bool *upperp)
 {
     WT_BTREE *btree;
 
@@ -191,12 +191,10 @@ __key_within_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, b
         WT_RET(ENOTSUP);
 
     if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
-        WT_RET(__wt_row_compare_bounds(
-          session, cursor, key, false, force_inclusive, key_out_of_boundsp));
+        WT_RET(__wt_row_compare_bounds(session, cursor, key, false, key_out_of_boundsp));
     }
     if (!(*key_out_of_boundsp) && F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
-        WT_RET(
-          __wt_row_compare_bounds(session, cursor, key, true, force_inclusive, key_out_of_boundsp));
+        WT_RET(__wt_row_compare_bounds(session, cursor, key, true, key_out_of_boundsp));
         if (*key_out_of_boundsp && upperp != NULL)
             *upperp = true;
     }
@@ -278,7 +276,8 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
                 tmp_key.data = WT_INSERT_KEY(cbt->ins);
                 tmp_key.size = WT_INSERT_KEY_SIZE(cbt->ins);
             }
-            WT_RET(__key_within_bounds(session, &cbt->iface, key != NULL ? key : &tmp_key, false, &key_out_of_bounds, NULL));
+            WT_RET(__key_within_bounds(
+              session, &cbt->iface, key != NULL ? key : &tmp_key, &key_out_of_bounds, NULL));
             /* The key value pair we were trying to return weren't within the given bounds. */
             if (key_out_of_bounds)
                 return (0);
@@ -382,7 +381,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
         }
 
         if (WT_CURSOR_HAS_BOUNDS(&cbt->iface)) {
-            WT_RET(__key_within_bounds(session, &cbt->iface, key, false, &key_out_of_bounds, NULL));
+            WT_RET(__key_within_bounds(session, &cbt->iface, key, &key_out_of_bounds, NULL));
             /* The key value pair we were trying to return weren't within the given bounds. */
             if (key_out_of_bounds)
                 return (0);
@@ -855,12 +854,14 @@ __btcur_search_near_bounds_reposition(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
         WT_RET(ENOTSUP);
 
     /*
-     * We need to assume that the bounds are inclusive here, suppose a caller calls with the search
-     * key set to the lower bound but also specifies that the lower bound isn't inclusive. We cannot
-     * know which key to set the lower bound to so we set it to the lower bound. The same is true
-     * for the upper bound check.
+     * Suppose a caller calls with the search key set to the lower bound but also specifies that the
+     * lower bound isn't inclusive. We cannot know which key to set the lower bound to so we would
+     * set it to the lower bound. The same is true for the upper bound. We can optimize for this
+     * scenario by either disabling and re-enabling the flags or passing a boolean to the key within
+     * bounds calls. However for the time being we will leave it as is as it is unlikely to present
+     * a performance issue.
      */
-    WT_RET(__key_within_bounds(session, cursor, &cursor->key, true, &key_out_of_bounds, &upper));
+    WT_RET(__key_within_bounds(session, cursor, &cursor->key, &key_out_of_bounds, &upper));
     if (key_out_of_bounds)
         __wt_cursor_set_raw_key(cursor, upper ? &cursor->upper_bound : &cursor->lower_bound);
     return (0);
