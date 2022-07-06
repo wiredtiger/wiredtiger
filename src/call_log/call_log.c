@@ -71,8 +71,8 @@ __call_log_print_start(WT_SESSION_IMPL *session, const char *class_name, const c
 
     WT_RET(__wt_fprintf(session, conn->call_log_fst,
       "{\n"
-      "    \"ClassName\" : \"%s\",\n"
-      "    \"MethodName\" : \"%s\",\n",
+      "    \"class_name\" : \"%s\",\n"
+      "    \"method_name\" : \"%s\",\n",
       class_name, method_name));
 
     return (0);
@@ -96,7 +96,7 @@ __call_log_print_input(WT_SESSION_IMPL *session, int n, ...)
 
     va_start(valist, n);
 
-    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "    \"Input\" : {\n"));
+    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "    \"input\" : {\n"));
 
     for (int i = 0; i < n; i++) {
         /* Don't print the comma at the end of the input entry if it's the last one. */
@@ -134,7 +134,7 @@ __call_log_print_output(WT_SESSION_IMPL *session, int n, ...)
 
     va_start(valist, n);
 
-    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "    \"Output\" : {\n"));
+    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "    \"output\" : {\n"));
 
     for (int i = 0; i < n; i++) {
         /* Don't print the comma at the end of the output entry if it's the last one. */
@@ -168,9 +168,9 @@ __call_log_print_return(WT_SESSION_IMPL *session, int ret_val, const char *err_m
     conn = S2C(session);
 
     WT_RET(__wt_fprintf(session, conn->call_log_fst,
-      "    \"Return\" : {\n"
-      "        \"ReturnVal\" : %d,\n"
-      "        \"errMsg\" : \"%s\"\n"
+      "    \"return\" : {\n"
+      "        \"return_val\" : %d,\n"
+      "        \"error_message\" : \"%s\"\n"
       "    }\n"
       "},\n",
       ret_val, err_msg));
@@ -192,7 +192,7 @@ __wt_call_log_wiredtiger_open(WT_SESSION_IMPL *session, int ret_val)
 
     WT_RET(__call_log_print_start(session, "global", "wiredtiger_open"));
     WT_RET(__call_log_print_input(session, 0));
-    WT_RET(__wt_snprintf(buf, sizeof(buf), "\"objectId\": \"%p\"", conn));
+    WT_RET(__wt_snprintf(buf, sizeof(buf), "\"object_id\": \"%p\"", conn));
     WT_RET(__call_log_print_output(session, 1, buf));
     WT_RET(__call_log_print_return(session, ret_val, ""));
 
@@ -210,7 +210,7 @@ __wt_call_log_open_session(WT_SESSION_IMPL *session, int ret_val)
 
     WT_RET(__call_log_print_start(session, "connection", "open_session"));
     WT_RET(__call_log_print_input(session, 0));
-    WT_RET(__wt_snprintf(buf, sizeof(buf), "\"objectId\": \"%p\"", session));
+    WT_RET(__wt_snprintf(buf, sizeof(buf), "\"object_id\": \"%p\"", session));
     WT_RET(__call_log_print_output(session, 1, buf));
     WT_RET(__call_log_print_return(session, ret_val, ""));
 
@@ -231,8 +231,8 @@ __wt_call_log_set_timestamp(WT_SESSION_IMPL *session, const char *config, int re
     conn = S2C(session);
 
     WT_RET(__call_log_print_start(session, "connection", "set_timestamp"));
-    WT_RET(__wt_snprintf(objectid_buf, sizeof(objectid_buf), "\"objectId\": \"%p\"", conn));
-    WT_RET(__wt_snprintf(config_buf, sizeof(config_buf), "\"Config\": \"%s\"", config));
+    WT_RET(__wt_snprintf(objectid_buf, sizeof(objectid_buf), "\"object_id\": \"%p\"", conn));
+    WT_RET(__wt_snprintf(config_buf, sizeof(config_buf), "\"config\": \"%s\"", config));
     WT_RET(__call_log_print_input(session, 2, objectid_buf, config_buf));
     WT_RET(__call_log_print_output(session, 0));
     WT_RET(__call_log_print_return(session, ret_val, ""));
