@@ -33,10 +33,6 @@ This is version $WIREDTIGER_VERSION of WiredTiger.
 
 WiredTiger release packages and documentation can be found at:
 
-	https://source.wiredtiger.com/
-
-The documentation can be found at:
-
 	https://source.wiredtiger.com
 
 The WiredTiger source code can be found at:
