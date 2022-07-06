@@ -1482,7 +1482,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             recno = WT_INSERT_RECNO(supd->ins);
 
             /* Search the page. */
-            WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL));
+            WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL, false));
+            BTCUR_SEARCH_NEAR_EVENT(S2BT(session), PG_SPLIT);
 
             /* Apply the modification. */
 #ifdef HAVE_DIAGNOSTIC

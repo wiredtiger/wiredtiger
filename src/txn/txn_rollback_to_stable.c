@@ -223,7 +223,7 @@ __rollback_col_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, uin
     __wt_btcur_open(&cbt);
 
     /* Search the page. */
-    WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL));
+    WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL, false));
 
     /* Apply the modification. */
 #ifdef HAVE_DIAGNOSTIC

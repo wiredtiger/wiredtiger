@@ -1058,6 +1058,7 @@ retry:
 
     /* If there is no ondisk value, there can't be anything in the history store either. */
     if (cbt->ref->page->dsk == NULL) {
+        BTCUR_SEARCH_NEAR_EVENT(btree, TXN_READ_SKIP_NO_ONDISK);
         cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
         return (0);
     }

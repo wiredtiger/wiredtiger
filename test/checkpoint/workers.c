@@ -209,7 +209,7 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
     cursor->set_key(cursor, keyno);
     testutil_check(cursor->get_key(cursor, &tmp1));
     /* Roughly half inserts, then balanced inserts / range removes. */
-    if (new_val > g.nops / 2 && new_val % 39 == 0) {
+    if (new_val > g.nops / 2 && new_val % 2 == 0) {
         if ((ret = cursor->search_near(cursor, &cmp)) != 0) {
             if (ret == WT_NOTFOUND)
                 return (0);
@@ -237,6 +237,7 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
 
                 printf("tmp1=%lu, tmp2=%lu, tmp3=%lu\n", tmp1, tmp2, tmp3);
                 testutil_assert(tmp2 == tmp3);
+                __wt_abort((WT_SESSION_IMPL*)cursor->session);
                 return (log_print_err("cursor.search", ret, 1));
             }
         }

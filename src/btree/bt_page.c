@@ -199,7 +199,7 @@ __page_inmem_prepare_update_col(WT_SESSION_IMPL *session, WT_REF *ref, WT_CURSOR
     WT_RET(__page_inmem_prepare_update(session, value, unpack, updp, sizep));
 
     /* Search the page and apply the modification. */
-    WT_RET(__wt_col_search(cbt, recno, ref, true, NULL));
+    WT_RET(__wt_col_search(cbt, recno, ref, true, NULL, false));
 #ifdef HAVE_DIAGNOSTIC
     WT_RET(__wt_col_modify(cbt, recno, NULL, *updp, WT_UPDATE_INVALID, true, true));
 #else
