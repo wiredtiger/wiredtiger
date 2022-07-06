@@ -2190,12 +2190,14 @@ __wt_btcur_skip_page(
      * Check the fast-truncate information, there are 4 cases:
      *
      * (1) The page is in the WT_REF_DELETED state and ft_info.del is NULL. The page is deleted.
-     * (2) The page is in the WT_REF_DELETED state and ft_info.del is not NULL. The page is
-     * deleted if the truncate operation is visible. Look at ft_info.del; we could use the info
-     * from the address cell below too, but that's slower. (3) The page is in the WT_REF_DISK
-     * state. The page may be deleted; check the delete info from the address cell. (4) The page
-     * is in memory and has been instantiated. The delete info from the address cell will serve
-     * for readonly/unmodified pages, and for modified pages we can't skip the page anyway.
+     * (2) The page is in the WT_REF_DELETED state and ft_info.del is not NULL. The page is deleted
+     *     if the truncate operation is visible. Look at ft_info.del; we could use the info from the
+     *     address cell below too, but that's slower.
+     * (3) The page is in the WT_REF_DISK state. The page may be deleted; check the delete info from
+     *     the address cell.
+     * (4) The page is in memory and has been instantiated. The delete info from the address cell
+     *     will serve for readonly/unmodified pages, and for modified pages we can't skip the page
+     *     anyway.
      */
     if (previous_state == WT_REF_DELETED &&
       (ref->ft_info.del == NULL ||
