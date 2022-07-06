@@ -77,6 +77,7 @@ __wt_col_search(
     session = CUR2S(cbt);
     btree = S2BT(session);
     current = NULL;
+    ins_head = NULL;
 
     /*
      * Assert the session and cursor have the right relationship (not search specific, but search is
