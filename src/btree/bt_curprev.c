@@ -691,10 +691,10 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     WT_SESSION_IMPL *session;
     size_t total_skipped, skipped;
     uint32_t flags;
-    bool key_out_of_boundsp, newpage, restart, need_walk;
+    bool key_out_of_bounds, newpage, restart, need_walk;
 
     cursor = &cbt->iface;
-    key_out_of_boundsp = false;
+    key_out_of_bounds = false;
     need_walk = false;
     session = CUR2S(cbt);
     total_skipped = 0;
@@ -781,7 +781,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
                 total_skipped += skipped;
                 break;
             case WT_PAGE_ROW_LEAF:
-                ret = __cursor_row_prev(cbt, newpage, restart, &skipped, &key_out_of_boundsp);
+                ret = __cursor_row_prev(cbt, newpage, restart, &skipped, &key_out_of_bounds);
                 total_skipped += skipped;
                 break;
             default:
@@ -796,7 +796,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
              * next page. We're not directly returning here to allow the cursor to be reset first
              * before we return WT_NOTFOUND.
              */
-            if (key_out_of_boundsp)
+            if (key_out_of_bounds)
                 break;
         }
         /*
