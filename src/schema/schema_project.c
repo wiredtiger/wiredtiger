@@ -27,6 +27,7 @@ __wt_schema_project_in(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *pro
     const uint8_t *next;
     char *proj;
 
+    len = 0;
     p = end = NULL; /* -Wuninitialized */
 
     /* Reset any of the buffers we will be setting. */
