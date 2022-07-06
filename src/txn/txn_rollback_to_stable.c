@@ -1461,6 +1461,8 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
     WT_ERR(
       truncate_session->truncate(truncate_session, NULL, hs_cursor_start, hs_cursor_stop, NULL));
 
+    WT_STAT_CONN_DATA_INCR(session, cache_hs_btree_truncate);
+
 done:
 err:
     __wt_scr_free(session, &hs_key);
