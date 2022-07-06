@@ -40,6 +40,7 @@ class key_states(Enum):
     UPSERTED = 1
     DELETED = 2
     NONE = 3
+    #PREPARED = 4
 
 class bound_scenarios(Enum):
     NEXT = 1
@@ -80,8 +81,9 @@ class key():
         else:
             return False
 
-# test_cursor_bound01.py
-#    Basic cursor bound API validation.
+# test_cursor_bound_fuzz.py
+#    A python test fuzzer that generates a random key range and applies bounds to it, then runs
+#    randomized operations and validates them for correctness.
 class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     file_name = 'test_fuzz.wt'
 
