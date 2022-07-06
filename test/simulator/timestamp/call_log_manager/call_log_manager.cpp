@@ -34,15 +34,11 @@
 
 call_log_manager::call_log_manager(std::string call_log_file)
 {
-    std::ifstream file;
-    file.exceptions(std::ifstream::failbit);
-    try {
-        file.open(call_log_file);
-    } catch (const std::exception &e) {
-        std::ostringstream msg;
-        msg << "Opening file '" << call_log_file
-            << "' failed, it either doesn't exist or is not accessible.";
-        throw std::runtime_error(msg.str());
+    std::ifstream file(call_log_file);
+    if (file.fail()) {
+        std::cout << "File '" << call_log_file << "' either doesn't exist or is not accessible."
+                  << std::endl;
+        exit(1);
     }
 
     call_log = json::parse(file);
@@ -79,9 +75,11 @@ call_log_manager::process_call_log_entry(json call_log_entry)
 int
 main(int argc, char *argv[])
 {
-    /* Throw an error if call log file was not passed. */
-    if (argc != 2)
-        throw std::invalid_argument("call_log_interface: missing call log file path");
+    /* Exit if call log file was not passed. */
+    if (argc != 2) {
+        std::cout << "call_log_interface: missing call log file path" << std::endl;
+        exit(1);
+    }
 
     std::string call_log_file = argv[1];
 
