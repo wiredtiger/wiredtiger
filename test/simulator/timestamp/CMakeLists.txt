@@ -1,10 +1,17 @@
 project(timestamp_simulator CXX)
 
-add_executable(timestamp_simulator timestamp_simulator.cpp)
-target_include_directories(timestamp_simulator PUBLIC ${SIMULATOR_ROOT_DIR}/third_party/nlohmann)
+# Create a timestamp_simulator library.
+add_library(timestamp_simulator SHARED
+    src/connection_simulator.cpp
+    src/session_simulator.cpp
+)
+target_include_directories(timestamp_simulator PUBLIC src/include)
 
 target_compile_options(
     timestamp_simulator
     PUBLIC -std=c++17
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
+
+# Build call log manager.
+add_subdirectory(call_log_manager)

@@ -19,7 +19,6 @@ add_subdirectory(huge)
 add_subdirectory(manydbs)
 add_subdirectory(csuite)
 add_subdirectory(packing)
-add_subdirectory(simulator)
 
 if(HAVE_UNITTEST)
     add_subdirectory(unittest)
@@ -35,6 +34,7 @@ if(WT_POSIX)
     add_subdirectory(syscall)
     add_subdirectory(thread)
     add_subdirectory(cppsuite)
+    add_subdirectory(simulator)
 
     if(ENABLE_LLVM)
         # The fuzz test only works with llvm compilers. Restrict compilation of this test to only
