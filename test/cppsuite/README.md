@@ -42,13 +42,13 @@ A read operation selects a random collection and uses a random cursor to read it
 There is no default implementation as this function is intended to be user-defined. The number of threads, operations performed in each transaction, sleep time between each operation, size of the keys and values are defined in the configuration file. 
 
 ## Checkpoint
-A checkpoint operation executes a checkpoint on the database every 60 seconds. Checkpoints are enabled or disabled by assigning one or zero threads in the configuration file, they are enabled by default. Checkpoints are executed periodically according to the configured operation rate.
+A checkpoint operation executes a checkpoint on the database every 60 seconds. Checkpoints are enabled or disabled by assigning one or zero threads in the configuration file, and are enabled by default. Checkpoints frequency is defined in the configuration file.
 
 ## Validate
 The default validation algorithm requires the default [operation tracker](#operation-tracker) configuration. If the operation tracker is reconfigured, the default validation is skipped. The default validator checks if the WiredTiger tables are consistent with the tables tracked by the operation tracker by comparing their content. The validation (and hence the test) fails if there is any mismatch.
 
 # Components
-The framework provides built-in components that each offer a set of features to enhance the testing experience. Their behaviour is customized through a configuration file.  A component has a life cycle made of three stages: *load*, *run*, and *finish*. Each of these stages is described for each component below.
+The framework provides built-in components that each offer a set of features to enhance the testing experience. Their behavior is customized through a configuration file.  A component has a life cycle made of three stages: *load*, *run*, and *finish*. Each of these stages is described for each component below.
 
 
 ## Workload Manager
@@ -61,7 +61,7 @@ The workload manager is responsible for calling the populate function and the li
 | Finish   | Ends each thread started in the run phase. |
 
 ## Operation Tracker
-During the execution of the test, by default the operation tracker saves test metadata every time a thread performs an update, insertion, or removal operation. The user can also manually save test metadata by calling the `save_operation` function from the `operation_tracker` class. The framework defines a set of default data to track during a test but the user can customise it by editing the test configuration file and overriding the `set_tracking_cursor` function. See [here](HOWTO.md) for more details.
+During the execution of the test, the operation tracker saves test metadata every time a thread performs an update, insertion, or removal operation. The user can also manually save test metadata by calling the `save_operation` function from the `operation_tracker` class. The framework defines a set of default data to track during a test but the user can customize it by editing the test configuration file and overriding the `set_tracking_cursor` function. See [here](HOWTO.md) for more details.
 Any saved data can be used at the [validation](#validation) stage.
 
 | Phase    | Description |
@@ -75,7 +75,7 @@ The timestamp manager is responsible for managing the stable and oldest timestam
 
 | Phase    | Description |
 | -------- | ----------- |
-| Load     | Initialises the oldest and stable lags using the values retrieved from the configuration file. |
+| Load     | Initializes the oldest and stable lags using the values retrieved from the configuration file. |
 | Run      | Updates the oldest and stable lags as well as the oldest and stable timestamps. |
 | Finish   | N/A |
 
@@ -91,7 +91,7 @@ The metrics monitor polls database metrics during and after test execution. If a
 All the components and their implementation can be found in the [component](https://github.com/wiredtiger/wiredtiger/tree/develop/test/cppsuite/src/component) folder.
 
 # Test configuration file
-A test configuration is a text file that is associated with a test and which defines the workload. The test configuration file contains top-level settings such as the test duration or cache size and component level settings that define their behaviour. The format is the following:
+A test configuration is a text file that is associated with a test and defines the workload. The test configuration file contains top-level settings such as the test duration or cache size and component level settings that define their behavior. The format is the following:
 
 ```cpp
 # Top level settings
