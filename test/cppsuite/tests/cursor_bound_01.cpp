@@ -293,6 +293,9 @@ class cursor_bound_01 : public test {
     /*
      * Validate the bound search call. If the key is within range, the range cursor should return
      * back the search key.
+     *
+     * Prior to this function call, it's asserted that bounded cursor returns with either a valid
+     * key or with WT_NOTFOUND.
      */
     void
     validate_bound_search(int range_ret, scoped_cursor &range_cursor, const std::string &search_key,
@@ -310,14 +313,13 @@ class cursor_bound_01 : public test {
             " upper bound: " + upper_key);
 
         /*
-         * Assert that if range cursor returned with a key, the search key has to be within range.
+         * Assert that if bounded cursor returned with a key, the search key has to be within range.
          */
         auto above_lower_key = lower_key.empty() ||
           custom_lexicographical_compare(lower_key, search_key, lower_inclusive);
         auto below_upper_key = upper_key.empty() ||
           custom_lexicographical_compare(search_key, upper_key, upper_inclusive);
 
-        testutil_assert(range_ret == 0 || range_ret == WT_NOTFOUND);
         /*
          * If bounded cursor returns a valid key, search key must have been in bounds. If normal
          * cursor returns a valid key, but bounded cursor returns WT_NOTFOUND, the search key must
@@ -327,7 +329,7 @@ class cursor_bound_01 : public test {
             testutil_assert(above_lower_key && below_upper_key);
             /* Check that the returned key should be equal to the search key. */
             testutil_assert(search_key.compare(key) == 0);
-        } else if (range_ret == WT_NOTFOUND)
+        } else
             testutil_assert(!(above_lower_key && below_upper_key));
     }
 
@@ -342,6 +344,9 @@ class cursor_bound_01 : public test {
      *  Scenario 3: Range cursor has returned a key and the search key is inside the range bounds.
      * Validate that the returned key is visible and that it is indeed the closest key that range
      * cursor could find.
+     *
+     * Prior to this function call, it's asserted that bounded cursor returns with either a
+     * valid key or with WT_NOTFOUND.
      */
     void
     validate_bound_search_near(int range_ret, int range_exact, scoped_cursor &range_cursor,
