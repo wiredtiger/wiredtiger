@@ -33,7 +33,7 @@
 
 using json = nlohmann::json;
 
-enum class api_method { wiredtiger_open, open_session };
+enum class api_method { open_session, wiredtiger_open };
 
 class call_log_manager {
     /* Methods */
