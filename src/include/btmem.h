@@ -1029,7 +1029,10 @@ struct __wt_ref {
     } ft_info;
 
 #ifdef HAVE_REF_TRACK
-/* If ref tracking is enabled, don't clear the ref history in that case. */
+/*
+ * In DIAGNOSTIC mode we overwrite the WT_REF on free to force failures, but we want to retain ref
+ * state history. Don't overwrite these fields.
+ */
 #define WT_REF_CLEAR_SIZE (offsetof(WT_REF, hist))
 #define WT_REF_SAVE_STATE_MAX 3
     /* Capture history of ref state changes. */
