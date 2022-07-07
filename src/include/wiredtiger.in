@@ -5786,7 +5786,9 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cursor: cursor bounds prev called on an unpositioned cursor */
 #define	WT_STAT_CONN_CURSOR_BOUNDS_PREV_UNPOSITIONED	1225
 /*! cursor: cursor bounds prev early exit */
-#define	WT_STAT_CONN_CURSOR_BOUNDS_PREV_EARLY_EXIT	1226
+#define	WT_STAT_CONN_CURSOR_BOUNDS_PREV_EARLY_EXIT	1225
+/*! cursor: cursor bounds search early exit */
+#define	WT_STAT_CONN_CURSOR_BOUNDS_SEARCH_EARLY_EXIT	1226
 /*! cursor: cursor bulk loaded cursor insert calls */
 #define	WT_STAT_CONN_CURSOR_INSERT_BULK			1227
 /*! cursor: cursor cache calls that return an error */
@@ -7043,7 +7045,9 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cursor: cursor bounds prev called on an unpositioned cursor */
 #define	WT_STAT_DSRC_CURSOR_BOUNDS_PREV_UNPOSITIONED	2159
 /*! cursor: cursor bounds prev early exit */
-#define	WT_STAT_DSRC_CURSOR_BOUNDS_PREV_EARLY_EXIT	2160
+#define	WT_STAT_DSRC_CURSOR_BOUNDS_PREV_EARLY_EXIT	2159
+/*! cursor: cursor bounds search early exit */
+#define	WT_STAT_DSRC_CURSOR_BOUNDS_SEARCH_EARLY_EXIT	2160
 /*! cursor: cursor cache calls that return an error */
 #define	WT_STAT_DSRC_CURSOR_CACHE_ERROR			2161
 /*! cursor: cursor close calls that return an error */
