@@ -51,9 +51,11 @@ insert_operation(thread_worker *tw) override final
         tw->txn.begin();
 
         bool success = true;
+        // Each transaction should have target_op_count insert operations. This value is set in the config file
         for(int i = 0; i < tw->txn.get_target_op_count(); ++i) {
             tw->sleep();
     
+            // Populate the key and value with random strings. We only care about the size of the value in this test
             const std::string key = random_generator::instance().generate_pseudo_random_string(tw->key_size);
             const std::string value = random_generator::instance().generate_pseudo_random_string(value_size_bytes);
 
