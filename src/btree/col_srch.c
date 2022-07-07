@@ -298,8 +298,6 @@ past_end:
      */
     cbt->ins_head = WT_COL_APPEND(page);
     ins = __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, recno);
-    if (ins != NULL && cbt->recno == WT_INSERT_RECNO(ins))
-        cbt->ins = ins;
     if (ins == NULL)
         cbt->compare = -1;
     else {
