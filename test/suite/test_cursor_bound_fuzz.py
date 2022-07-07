@@ -34,12 +34,14 @@ from wtscenario import make_scenarios
 class operations(Enum):
     UPSERT = 1
     REMOVE = 2
+    # FIXME-WT-9554 Implement truncate operations.
     #TRUNCATE = 3
 
 class key_states(Enum):
     UPSERTED = 1
     DELETED = 2
     NONE = 3
+    # FIXME-WT-9554 Implement prepared operations.
     #PREPARED = 4
 
 class bound_scenarios(Enum):
@@ -89,16 +91,15 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     types = [
         ('file', dict(uri='file:')),
-        #('table', dict(uri='table:'))
+        ('table', dict(uri='table:'))
     ]
 
     data_format = [
         ('row', dict(key_format='i')),
+        # FIXME Enable once column store is completed.
         #('column', dict(key_format='r'))
     ]
     scenarios = make_scenarios(types, data_format)
-
-    key_range = []
 
     def dump_key_range(self):
         for i in range(0, self.key_count):
@@ -107,8 +108,11 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     def generate_value(self):
         return ''.join(random.choice(string.ascii_lowercase) for _ in range(self.value_size))
 
+    def get_value(self):
+        return self.value_array[random.randrange(self.value_array_size)]
+
     def apply_update(self, cursor, key_id):
-        value = self.generate_value()
+        value = self.get_value()
         cursor[key_id] = value
         self.key_range[key_id].update(value, key_states.UPSERTED)
         self.verbose(3, "Updating key: " + str(key_id))
@@ -307,18 +311,28 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     def test_bound_fuzz(self):
         uri = self.uri + self.file_name
         create_params = 'value_format=S,key_format={}'.format(self.key_format)
-
-        # Setup a reproducable random seed.
+        # Reset the key range for every scenario.
+        self.key_range = []
+        # Setup a reproducible random seed.
+        # If this test fails inspect the file WT_TEST/results.txt and replace the time.time()
+        # with a given seed. e.g.:
+        #seed = 1657150934.9222412
+        # Additionally this test is configured for verbose logging which can make debugging a bit
+        # easier.
         seed = time.time()
-        self.verbose(2, "Using seed: " + str(seed))
+        self.pr("Using seed: " + str(seed))
         random.seed(seed)
 
         self.session.create(uri, create_params)
         cursor = self.session.open_cursor(uri)
 
+        # Initialize the value array.
+        for i in range(0, self.value_array_size):
+            self.value_array.append(self.generate_value())
+
         # Initialize the key range.
         for i in range(0, self.key_count):
-            key_value = self.generate_value()
+            key_value = self.get_value()
             self.key_range.append(key(i, key_value, key_states.UPSERTED))
             cursor[i] = key_value
         self.session.checkpoint()
@@ -336,13 +350,17 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
         #self.dump_key_range()
 
-    iteration_count = 100
-    value_size = 10
-    key_count = 100
+    # A lot of time was spent generating values, to achieve some amount of randomness we pre
+    # generate N values and keep them in memory.
+    value_array = []
+    iteration_count = 50
+    value_size = 10000
+    value_array_size = 20
+    key_count = 1000
     # For each iteration we do search_count searches that way we test more cases without having to
     # generate as many key ranges.
     search_count = 20
-
+    key_range = []
 
 if __name__ == '__main__':
     wttest.run()
