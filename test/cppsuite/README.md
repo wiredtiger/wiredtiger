@@ -24,22 +24,28 @@ The cppsuite is a C++ framework designed to help developers write multithreaded 
 The database operations and their default implementation are described in the subsections below. During a test, a user-defined number of threads can be associated to each of those operations. Currently, the framework only supports operations on keys and values of type string. The values are randomly generated using a uniform distribution.
 
 ## Populate
-Populate is the first operation called in a test, before any other operation. It fills the database with an initial dataset. The number of collections, keys per collection, size of keys and values are defined in the configuration file. For each collection, we insert the configured number of key/value pairs which are all unique. If more than one thread is configured for this operation, the framework divides the number of collections across the number of threads.
+Populate is the first operation called in a test, before any other operation. It fills the database with an initial dataset.  
+The number of collections, keys per collection, size of keys and values are defined in the configuration file. For each collection, we insert the configured number of key/value pairs which are all unique. If more than one thread is configured for this operation, the framework divides the number of collections across the number of threads.
 
 ## Insert
-An insert operation inserts a unique key with a random value into a collection. The number of insert threads, insertions performed in each transaction, sleep time between each insert, size of keys and values are defined in the configuration file. The insert threads are evenly divided between the number of collections created during the populate phase. Only one thread works on a collection at any given time.
+An insert operation inserts a unique key with a random value into a collection.  
+The number of insert threads, insertions performed in each transaction, sleep time between each insert, size of keys and values are defined in the configuration file. The insert threads are evenly divided between the number of collections created during the populate phase. Only one thread works on a collection at any given time.
 
 ## Update
-An update operation uses a random cursor to select a key in the database and updates it with a random value. The number of update threads, updates performed in each transaction, sleep time between each update, size of keys and values are defined in the configuration file.
+An update operation uses a random cursor to select a key in the database and updates it with a random value.  
+The number of update threads, updates performed in each transaction, sleep time between each update, size of keys and values are defined in the configuration file.
 
 ## Remove
-A remove operation uses a random cursor to select and remove a key from the database. The number of remove threads, removals performed in each transaction and sleep time between each removal are defined in the configuration file.
+A remove operation uses a random cursor to select and remove a key from the database.  
+The number of remove threads, removals performed in each transaction and sleep time between each removal are defined in the configuration file.
 
 ## Read
-A read operation selects a random collection and uses a random cursor to read items from it. The number of read threads, reads performed in each transaction and the sleep time between each read are defined in the configuration file.
+A read operation selects a random collection and uses a random cursor to read items from it.  
+The number of read threads, reads performed in each transaction and the sleep time between each read are defined in the configuration file.
 
 ## Custom
-There is no default implementation as this function is intended to be user-defined. The number of threads, operations performed in each transaction, sleep time between each operation, size of the keys and values are defined in the configuration file. 
+There is no default implementation as this function is intended to be user-defined.  
+The number of threads, operations performed in each transaction, sleep time between each operation, size of the keys and values are defined in the configuration file.
 
 ## Checkpoint
 A checkpoint operation executes a checkpoint on the database every 60 seconds. Checkpoints are enabled or disabled by assigning one or zero threads in the configuration file, and are enabled by default. Checkpoints frequency is defined in the configuration file.
