@@ -37,8 +37,10 @@ BBBBBBBBBB
 BBBBBBBBBBBBB
 BBBBBBBBBBBBBBBB
 BBBBBBBBBBBBBBBBBB
+BCmvxz
 BDB
 BDB's
+BDmpvXx
 BIGENDIAN
 BLKCACHE
 BOOL
@@ -92,7 +94,6 @@ Checksums
 CityHash
 ClassName
 CloseHandle
-Cmvxz
 Cmvz
 Collet
 Comparator
@@ -126,7 +127,6 @@ Decrypt
 DeleteFileW
 Destructor
 Deterministically
-DmpvXx
 EACCES
 EAGAIN
 EB
@@ -1508,6 +1508,7 @@ tokname
 tokstart
 toktype
 tolower
+tombstoned
 toolchain
 toplevel
 totalsec
@@ -1519,6 +1520,7 @@ trk
 trk's
 trun
 trunc
+truncations
 trylock
 tryrdlock
 trywrlock
@@ -1568,6 +1570,7 @@ unmodify
 unordered
 unpackv
 unpadded
+unpositioned
 unreconciled
 unreferenced
 unregister
