@@ -24,36 +24,28 @@ The cppsuite is a C++ framework designed to help developers write multithreaded 
 The database operations and their default implementation are described in the subsections below. During a test, a user-defined number of threads can be associated to each of those operations. Currently, the framework only supports operations on keys and values of type string. The values are randomly generated using a uniform distribution.
 
 ## Populate
-Populate is the first operation called in a test, before any other operation. It fills the database with an initial dataset.
-The number of collections, keys per collection, size of keys and values are defined in the configuration file. For each collection, we insert the configured number of key/value pairs which are all unique. If more than one thread is configured for this operation, the framework divides the number of collections across the number of threads.
+Populate is the first operation called in a test, before any other operation. It fills the database with an initial dataset. The number of collections, keys per collection, size of keys and values are defined in the configuration file. For each collection, we insert the configured number of key/value pairs which are all unique. If more than one thread is configured for this operation, the framework divides the number of collections across the number of threads.
 
 ## Insert
-An insert operation inserts a unique key with a random value into a collection.
-The number of insert threads, insertions performed in each transaction, sleep time between each insert, size of keys and values are defined in the configuration file. The insert threads are evenly divided between the number of collections created during the populate phase. Only one thread works on a collection at any given time.
+An insert operation inserts a unique key with a random value into a collection. The number of insert threads, insertions performed in each transaction, sleep time between each insert, size of keys and values are defined in the configuration file. The insert threads are evenly divided between the number of collections created during the populate phase. Only one thread works on a collection at any given time.
 
 ## Update
-An update operation uses a random cursor to select a key in the database and updates it with a random value.
-The number of update threads, updates performed in each transaction, sleep time between each update, size of keys and values are defined in the configuration file.
+An update operation uses a random cursor to select a key in the database and updates it with a random value. The number of update threads, updates performed in each transaction, sleep time between each update, size of keys and values are defined in the configuration file.
 
 ## Remove
-A remove operation uses a random cursor to select and remove a key from the database.
-The number of remove threads, removals performed in each transaction and sleep time between each removal are defined in the configuration file.
+A remove operation uses a random cursor to select and remove a key from the database. The number of remove threads, removals performed in each transaction and sleep time between each removal are defined in the configuration file.
 
 ## Read
-A read operation selects a random collection and uses a random cursor to read items from it.
-The number of read threads, reads performed in each transaction and the sleep time between each read are defined in the configuration file.
+A read operation selects a random collection and uses a random cursor to read items from it. The number of read threads, reads performed in each transaction and the sleep time between each read are defined in the configuration file.
 
 ## Custom
-There is no default implementation as this function is intended to be user-defined.
-The number of threads, operations performed in each transaction, sleep time between each operation, size of the keys and values are defined in the configuration file. 
+There is no default implementation as this function is intended to be user-defined. The number of threads, operations performed in each transaction, sleep time between each operation, size of the keys and values are defined in the configuration file. 
 
 ## Checkpoint
-A checkpoint operation executes a checkpoint on the database every 60 seconds.
-Checkpoints are enabled or disabled by assigning one or zero threads in the configuration file, they are enabled by default. Checkpoints are executed periodically according to the configured operation rate.
+A checkpoint operation executes a checkpoint on the database every 60 seconds. Checkpoints are enabled or disabled by assigning one or zero threads in the configuration file, they are enabled by default. Checkpoints are executed periodically according to the configured operation rate.
 
 ## Validate
-The default validation algorithm requires the default [operation tracker](#operation-tracker) configuration. If the operation tracker is reconfigured, the default validation is skipped.
-The default validator checks if the WiredTiger tables are consistent with the tables tracked by the operation tracker by comparing their content. The validation (and hence the test) fails if there is any mismatch.
+The default validation algorithm requires the default [operation tracker](#operation-tracker) configuration. If the operation tracker is reconfigured, the default validation is skipped. The default validator checks if the WiredTiger tables are consistent with the tables tracked by the operation tracker by comparing their content. The validation (and hence the test) fails if there is any mismatch.
 
 # Components
 The framework provides built-in components that each offer a set of features to enhance the testing experience. Their behaviour is customized through a configuration file.  A component has a life cycle made of three stages: *load*, *run*, and *finish*. Each of these stages is described for each component below.
@@ -69,8 +61,7 @@ The workload manager is responsible for calling the populate function and the li
 | Finish   | Ends each thread started in the run phase. |
 
 ## Operation Tracker
-During the execution of the test, by default the operation tracker saves test metadata every time a thread performs an update, insertion, or removal operation. The user can also manually save test metadata by calling the `save_operation` function from the `operation_tracker` class.
-The framework defines a set of default data to track during a test but the user can customise it by editing the test configuration file and overriding the `set_tracking_cursor` function. See [here](HOWTO.md) for more details.
+During the execution of the test, by default the operation tracker saves test metadata every time a thread performs an update, insertion, or removal operation. The user can also manually save test metadata by calling the `save_operation` function from the `operation_tracker` class. The framework defines a set of default data to track during a test but the user can customise it by editing the test configuration file and overriding the `set_tracking_cursor` function. See [here](HOWTO.md) for more details.
 Any saved data can be used at the [validation](#validation) stage.
 
 | Phase    | Description |
@@ -100,7 +91,6 @@ The metrics monitor polls database metrics during and after test execution. If a
 All the components and their implementation can be found in the [component](https://github.com/wiredtiger/wiredtiger/tree/develop/test/cppsuite/src/component) folder.
 
 # Test configuration file
-
 A test configuration is a text file that is associated with a test and which defines the workload. The test configuration file contains top-level settings such as the test duration or cache size and component level settings that define their behaviour. The format is the following:
 
 ```cpp
