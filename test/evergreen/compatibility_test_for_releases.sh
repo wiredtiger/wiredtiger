@@ -567,7 +567,7 @@ scopes[wt_standalone]="WiredTiger standalone releases"
 scopes[two_versions]="any two given versions"
 
 #############################################################
-# Retrive the build system used by a particular release,
+# Retrieve the build system used by a particular release,
 # since WiredTiger switched from autoconf to cmake.
 #       arg1: branch name to check against
 #       output: string as name of build system
@@ -734,13 +734,13 @@ if [ "$patch_version" = true ]; then
         if [ -n "$pv" ]; then
             (build_branch $pv)
             rtn=$(is_test_checkpoint_recovery_supported $pv)
-            patch_fix_included=$(git log --oneline --grep=WT-8708 -b "$pv" --)
+            patch_fix_included=$(git log --format=%h -1 --grep=WT-8708 -b "$pv" --)
 
             # Only run verify if the picked version supports test checkpoint recovery
             if [ $rtn == "no" ]; then
                 echo -e "\n\"$pv\" does not support test checkpoint with recovery, skipping ...\n"
             # Apply patch fix from WT-8708 to already released compatible versions to avoid test/checkpoint setting commit timestamp less than stable timestamp
-            elif [ $rtn == "yes" ] && [ ! $patch_fix_included ]; then
+            elif [ $rtn == "yes" ] && [ -z$patch_fix_included ]; then
                 cd $pv;
 
                 git format-patch -1 d4b0ad6cacb874fdc20bcc76311d789dd5a01441;
