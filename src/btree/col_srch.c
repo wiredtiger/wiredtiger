@@ -261,6 +261,8 @@ leaf_only:
                 ins = __col_insert_search(ins_head, cbt->ins_stack, cbt->next_stack, cbt->recno);
                 if (ins != NULL && cbt->recno == WT_INSERT_RECNO(ins))
                     cbt->ins = ins;
+                else
+                    cbt->ins = NULL;
             }
             goto past_end;
         } else {
