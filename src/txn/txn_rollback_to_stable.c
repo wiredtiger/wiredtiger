@@ -1454,7 +1454,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
         /* We can find the start point then we must be able to find the stop point. */
         if (ret == WT_NOTFOUND)
             WT_ERR_PANIC(
-              session, ret, "cannot locate the stop point to truncate the history store");
+              session, ret, "cannot locate the stop point to truncate the history store.");
         hs_cursor_stop->get_key(hs_cursor_stop, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter);
     } while (hs_btree_id != btree_id);
 
@@ -1462,6 +1462,9 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
       truncate_session->truncate(truncate_session, NULL, hs_cursor_start, hs_cursor_stop, NULL));
 
     WT_STAT_CONN_DATA_INCR(session, cache_hs_btree_truncate);
+
+    __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+      "Rollback to stable has truncated records for btree %u from the history store", btree_id);
 
 done:
 err:

@@ -81,14 +81,14 @@ class test_rollback_to_stable38(wttest.WiredTigerTestCase):
 
         # Write a value to table.
         cursor1 = self.session.open_cursor(ds.uri)
-        for i in range(2, nrows + 1):
+        for i in range(1, nrows + 1):
             self.session.begin_transaction()
             cursor1[ds.key(i)] = value_a
             self.session.commit_transaction()
 
          # Write another value to table.
         cursor1 = self.session.open_cursor(ds.uri)
-        for i in range(2, nrows + 1):
+        for i in range(1, nrows + 1):
             self.session.begin_transaction()
             cursor1[ds.key(i)] = value_a
             self.session.commit_transaction()
