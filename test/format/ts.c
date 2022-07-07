@@ -150,7 +150,7 @@ timestamp(void *arg)
 
     /* Locks need session */
     memset(&sap, 0, sizeof(sap));
-    wiredtiger_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, &session);
 
     /* Update the oldest and stable timestamps at least once every 15 seconds. */
     while (!g.workers_finished) {
@@ -159,7 +159,7 @@ timestamp(void *arg)
         timestamp_once(session, true, false);
     }
 
-    wiredtiger_close_session(session);
+    wt_wrap_close_session(session);
     return (WT_THREAD_RET_VALUE);
 }
 

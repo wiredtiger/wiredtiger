@@ -253,11 +253,11 @@ table_select_type(table_type type)
 }
 
 /*
- * wiredtiger_open_session --
+ * wt_wrap_open_session --
  *     Open a WiredTiger session.
  */
 static inline void
-wiredtiger_open_session(WT_CONNECTION *conn, SAP *sap, const char *track, WT_SESSION **sessionp)
+wt_wrap_open_session(WT_CONNECTION *conn, SAP *sap, const char *track, WT_SESSION **sessionp)
 {
     WT_SESSION *session;
 
@@ -275,11 +275,11 @@ wiredtiger_open_session(WT_CONNECTION *conn, SAP *sap, const char *track, WT_SES
 }
 
 /*
- * wiredtiger_close_session --
+ * wt_wrap_close_session --
  *     Close a WiredTiger session.
  */
 static inline void
-wiredtiger_close_session(WT_SESSION *session)
+wt_wrap_close_session(WT_SESSION *session)
 {
     SAP *sap;
     WT_SESSION *trace;
@@ -296,11 +296,11 @@ wiredtiger_close_session(WT_SESSION *session)
 }
 
 /*
- * wiredtiger_open_cursor --
+ * wt_wrap_open_cursor --
  *     Open a WiredTiger cursor.
  */
 static inline void
-wiredtiger_open_cursor(
+wt_wrap_open_cursor(
   WT_SESSION *session, const char *uri, const char *config, WT_CURSOR **cursorp)
 {
     WT_DECL_RET;
@@ -330,17 +330,17 @@ table_cursor(TINFO *tinfo, u_int id)
     if (tinfo->cursors[id] == NULL) {
         /* Configure "append", in the case of column stores, we append when inserting new rows. */
         config = table->type == ROW ? NULL : "append";
-        wiredtiger_open_cursor(tinfo->session, table->uri, config, &tinfo->cursors[id]);
+        wt_wrap_open_cursor(tinfo->session, table->uri, config, &tinfo->cursors[id]);
     }
     return (tinfo->cursors[id]);
 }
 
 /*
- * wiredtiger_begin_transaction --
+ * wt_wrap_begin_transaction --
  *     Start a WiredTiger transaction.
  */
 static inline void
-wiredtiger_begin_transaction(WT_SESSION *session, const char *config)
+wt_wrap_begin_transaction(WT_SESSION *session, const char *config)
 {
     WT_DECL_RET;
 

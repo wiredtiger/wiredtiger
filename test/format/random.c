@@ -64,7 +64,7 @@ random_kv(void *arg)
 
     /* Open a session. */
     memset(&sap, 0, sizeof(sap));
-    wiredtiger_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, &session);
 
     for (simple = false;;) {
         /* Alternate between simple random cursors and sample-size random cursors. */
@@ -73,7 +73,7 @@ random_kv(void *arg)
 
         /* Select a table and open a cursor. */
         table = table_select_type(ROW);
-        wiredtiger_open_cursor(session, table->uri, config, &cursor);
+        wt_wrap_open_cursor(session, table->uri, config, &cursor);
 
         /* This is just a smoke-test, get some key/value pairs. */
         for (i = mmrand(NULL, 0, 1000); i > 0; --i) {
@@ -106,7 +106,7 @@ random_kv(void *arg)
             break;
     }
 
-    wiredtiger_close_session(session);
+    wt_wrap_close_session(session);
 
     return (WT_THREAD_RET_VALUE);
 }

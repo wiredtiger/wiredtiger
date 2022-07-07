@@ -44,12 +44,12 @@ table_verify(TABLE *table, void *arg)
     testutil_assert(table != NULL);
 
     memset(&sap, 0, sizeof(sap));
-    wiredtiger_open_session(conn, &sap, table->track_prefix, &session);
+    wt_wrap_open_session(conn, &sap, table->track_prefix, &session);
     ret = session->verify(session, table->uri, "strict");
     testutil_assert(ret == 0 || ret == EBUSY);
     if (ret == EBUSY)
         WARN("table.%u skipped verify because of EBUSY", table->id);
-    wiredtiger_close_session(session);
+    wt_wrap_close_session(session);
 }
 
 /*
@@ -160,7 +160,7 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
     last_match = 0;
 
     memset(&sap, 0, sizeof(sap));
-    wiredtiger_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, &session);
 
     /* Optionally open a checkpoint to verify. */
     if (checkpoint != NULL)
@@ -171,9 +171,9 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
      * checkpoint happened between the two open calls.
      */
     for (;;) {
-        wiredtiger_open_cursor(session, base->uri, checkpoint == NULL ? NULL : buf, &base_cursor);
+        wt_wrap_open_cursor(session, base->uri, checkpoint == NULL ? NULL : buf, &base_cursor);
         base_id = base_cursor->checkpoint_id(base_cursor);
-        wiredtiger_open_cursor(session, table->uri, checkpoint == NULL ? NULL : buf, &table_cursor);
+        wt_wrap_open_cursor(session, table->uri, checkpoint == NULL ? NULL : buf, &table_cursor);
         table_id = table_cursor->checkpoint_id(table_cursor);
 
         testutil_assert((checkpoint == NULL && base_id == 0 && table_id == 0) ||
@@ -321,7 +321,7 @@ page_dump:
     testutil_assert(failures == 0);
 
     trace_msg(session, "%s: stop", buf);
-    wiredtiger_close_session(session);
+    wt_wrap_close_session(session);
 }
 
 /*

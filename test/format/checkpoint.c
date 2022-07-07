@@ -76,7 +76,7 @@ checkpoint(void *arg)
     counter = 0;
 
     memset(&sap, 0, sizeof(sap));
-    wiredtiger_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, &session);
 
     named_checkpoints = !g.lsm_config;
     for (secs = mmrand(NULL, 1, 10); !g.workers_finished;) {
@@ -141,6 +141,6 @@ checkpoint(void *arg)
         secs = mmrand(NULL, 5, 40);
     }
 
-    wiredtiger_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, &session);
     return (WT_THREAD_RET_VALUE);
 }

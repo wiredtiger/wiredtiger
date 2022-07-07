@@ -56,7 +56,7 @@ alter(void *arg)
 
     /* Open a session */
     memset(&sap, 0, sizeof(sap));
-    wiredtiger_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, &session);
     counter = 0;
 
     while (!g.workers_finished) {
@@ -79,6 +79,6 @@ alter(void *arg)
         }
     }
 
-    wiredtiger_close_session(session);
+    wt_wrap_close_session(session);
     return (WT_THREAD_RET_VALUE);
 }

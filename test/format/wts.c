@@ -422,9 +422,9 @@ create_object(TABLE *table, void *arg)
      * Create the underlying store.
      */
     memset(&sap, 0, sizeof(sap));
-    wiredtiger_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, &session);
     testutil_checkfmt(session->create(session, table->uri, config), "%s", table->uri);
-    wiredtiger_close_session(session);
+    wt_wrap_close_session(session);
 }
 
 /*
@@ -558,7 +558,7 @@ stats_data_print(WT_SESSION *session, const char *uri, FILE *fp)
     uint64_t v;
     const char *desc, *pval;
 
-    wiredtiger_open_cursor(session, uri, NULL, &cursor);
+    wt_wrap_open_cursor(session, uri, NULL, &cursor);
     while (
       (ret = cursor->next(cursor)) == 0 && (ret = cursor->get_value(cursor, &desc, &pval, &v)) == 0)
         testutil_assert(fprintf(fp, "%s=%s\n", desc, pval) >= 0);
@@ -614,7 +614,7 @@ wts_stats(void)
     testutil_assert(fprintf(fp, "====== Connection statistics:\n") >= 0);
 
     memset(&sap, 0, sizeof(sap));
-    wiredtiger_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, &session);
     stats_data_print(session, "statistics:", fp);
 
     /* Data source statistics. */
@@ -622,7 +622,7 @@ wts_stats(void)
     args.session = session;
     tables_apply(stats_data_source, &args);
 
-    wiredtiger_close_session(session);
+    wt_wrap_close_session(session);
 
     fclose_and_clear(&fp);
 }

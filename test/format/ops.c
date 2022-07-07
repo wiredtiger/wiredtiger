@@ -285,7 +285,7 @@ operations(u_int ops_seconds, bool lastrun)
 
     /* Get a session. */
     memset(&sap, 0, sizeof(sap));
-    wiredtiger_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, &session);
 
     /* Initialize and start the worker threads. */
     tinfo_init();
@@ -420,7 +420,7 @@ operations(u_int ops_seconds, bool lastrun)
         timestamp_teardown(session);
     }
 
-    wiredtiger_close_session(session);
+    wt_wrap_close_session(session);
 }
 
 /*
@@ -445,7 +445,7 @@ begin_transaction_ts(TINFO *tinfo)
      */
     ts = mmrand(&tinfo->rnd, 1, 4) == 1 ? 0 : maximum_committed_ts();
     if (ts != 0) {
-        wiredtiger_begin_transaction(session, NULL);
+        wt_wrap_begin_transaction(session, NULL);
 
         /*
          * If the timestamp has aged out of the system, we'll get EINVAL when we try and set it.
@@ -461,7 +461,7 @@ begin_transaction_ts(TINFO *tinfo)
         testutil_check(session->rollback_transaction(session, NULL));
     }
 
-    wiredtiger_begin_transaction(session, NULL);
+    wt_wrap_begin_transaction(session, NULL);
 
     snap_op_init(tinfo, ts, false);
     trace_uri_op(tinfo, NULL, "begin snapshot read-ts=%" PRIu64 " (not repeatable)", ts);
@@ -478,7 +478,7 @@ begin_transaction(TINFO *tinfo, const char *iso_config)
 
     session = tinfo->session;
 
-    wiredtiger_begin_transaction(session, iso_config);
+    wt_wrap_begin_transaction(session, iso_config);
 
     snap_op_init(tinfo, WT_TS_NONE, false);
     trace_uri_op(tinfo, NULL, "begin %s", iso_config);
@@ -825,11 +825,11 @@ ops_session_open(TINFO *tinfo)
 
     /* Close any open session (which closes all open cursors as well). */
     if ((session = tinfo->session) != NULL)
-        wiredtiger_close_session(session);
+        wt_wrap_close_session(session);
     tinfo->session = NULL;
     memset(tinfo->cursors, 0, WT_MAX(ntables, 1) * sizeof(tinfo->cursors[0]));
 
-    wiredtiger_open_session(conn, &tinfo->sap, NULL, &session);
+    wt_wrap_open_session(conn, &tinfo->sap, NULL, &session);
     tinfo->session = session;
 }
 
@@ -1303,8 +1303,8 @@ wts_read_scan(TABLE *table, void *arg)
 
     /* Open a session and cursor pair. */
     memset(&sap, 0, sizeof(sap));
-    wiredtiger_open_session(conn, &sap, NULL, &session);
-    wiredtiger_open_cursor(session, table->uri, NULL, &cursor);
+    wt_wrap_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_cursor(session, table->uri, NULL, &cursor);
 
     /* Scan the first 50 rows for tiny, debugging runs, then scan a random subset of records. */
     WT_ORDERED_READ(max_rows, table->rows_current);
@@ -1326,7 +1326,7 @@ wts_read_scan(TABLE *table, void *arg)
         }
     }
 
-    wiredtiger_close_session(session);
+    wt_wrap_close_session(session);
 
     key_gen_teardown(&key);
     val_gen_teardown(&value);

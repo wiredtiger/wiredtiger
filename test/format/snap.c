@@ -632,7 +632,7 @@ snap_repeat(TINFO *tinfo, SNAP_OPS *snap)
 
     /* Start a transaction with a read-timestamp and verify the record. */
     for (max_retry = 0; max_retry < MAX_RETRY_ON_ROLLBACK; ++max_retry, __wt_yield()) {
-        wiredtiger_begin_transaction(session, "isolation=snapshot");
+        wt_wrap_begin_transaction(session, "isolation=snapshot");
 
         /* EINVAL means the timestamp has aged out of the system. */
         if ((ret = session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_READ, snap->ts)) ==

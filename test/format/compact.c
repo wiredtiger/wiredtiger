@@ -48,7 +48,7 @@ compact(void *arg)
 
     /* Open a session. */
     memset(&sap, 0, sizeof(sap));
-    wiredtiger_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, &session);
 
     /*
      * Perform compaction at somewhere under 15 seconds (so we get at least one done), and then at
@@ -77,7 +77,7 @@ compact(void *arg)
           "WT_SESSION.compact failed: %s: %d", table->uri, ret);
     }
 
-    wiredtiger_close_session(session);
+    wt_wrap_close_session(session);
 
     return (WT_THREAD_RET_VALUE);
 }

@@ -304,7 +304,7 @@ table_dump_page(
     if (checkpoint != NULL)
         testutil_check(__wt_snprintf(cfg, sizeof(cfg), "checkpoint=%s", checkpoint));
 
-    wiredtiger_open_cursor(session, tbl->uri, checkpoint == NULL ? NULL : cfg, &cursor);
+    wt_wrap_open_cursor(session, tbl->uri, checkpoint == NULL ? NULL : cfg, &cursor);
     switch (tbl->type) {
     case FIX:
     case VAR:

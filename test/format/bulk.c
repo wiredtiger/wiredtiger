@@ -38,7 +38,7 @@ bulk_begin_transaction(WT_SESSION *session)
     uint64_t ts;
 
     /* Writes require snapshot isolation. */
-    wiredtiger_begin_transaction(session, NULL);
+    wt_wrap_begin_transaction(session, NULL);
     ts = __wt_atomic_fetch_addv64(&g.timestamp, 1);
     testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_READ, ts));
 }
@@ -91,7 +91,7 @@ table_load(TABLE *base, TABLE *table)
     conn = g.wts_conn;
 
     memset(&sap, 0, sizeof(sap));
-    wiredtiger_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, &session);
 
     testutil_check(__wt_snprintf(track_buf, sizeof(track_buf), "table %u %s load", table->id,
       base == NULL ? "bulk" : "mirror"));
@@ -100,11 +100,11 @@ table_load(TABLE *base, TABLE *table)
     /* Optionally open the base mirror. */
     base_cursor = NULL;
     if (base != NULL)
-        wiredtiger_open_cursor(session, base->uri, NULL, &base_cursor);
+        wt_wrap_open_cursor(session, base->uri, NULL, &base_cursor);
 
     /* No bulk load with custom collators, insertion order won't match collation order. */
     is_bulk = TV(BTREE_REVERSE) == 0;
-    wiredtiger_open_cursor(session, table->uri, is_bulk ? "bulk,append" : NULL, &cursor);
+    wt_wrap_open_cursor(session, table->uri, is_bulk ? "bulk,append" : NULL, &cursor);
 
     /* Set up the key/value buffers. */
     key_gen_init(&key);
@@ -207,7 +207,7 @@ table_load(TABLE *base, TABLE *table)
         bulk_commit_transaction(session);
 
     trace_msg(session, "=============== %s bulk load stop", table->uri);
-    wiredtiger_close_session(session);
+    wt_wrap_close_session(session);
 
     /*
      * Ideally, the insert loop runs until the number of rows plus one, in which case row counts are
@@ -263,8 +263,8 @@ wts_load(void)
     /* Checkpoint to ensure bulk loaded records are durable. */
     if (!GV(RUNS_IN_MEMORY)) {
         memset(&sap, 0, sizeof(sap));
-        wiredtiger_open_session(conn, &sap, NULL, &session);
+        wt_wrap_open_session(conn, &sap, NULL, &session);
         testutil_check(session->checkpoint(session, NULL));
-        wiredtiger_close_session(session);
+        wt_wrap_close_session(session);
     }
 }
