@@ -353,7 +353,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     # A lot of time was spent generating values, to achieve some amount of randomness we pre
     # generate N values and keep them in memory.
     value_array = []
-    iteration_count = 50
+    iteration_count = 1000 if wttest.islongtest() else 50
     value_size = 10000
     value_array_size = 20
     key_count = 1000
