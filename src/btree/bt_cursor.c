@@ -82,8 +82,10 @@ __btcur_bounds_search_near_reposition(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
      * a performance issue.
      */
     WT_RET(__btcur_bounds_contains_key(session, cursor, &cursor->key, &key_out_of_bounds, &upper));
-    if (key_out_of_bounds)
+    if (key_out_of_bounds) {
         __wt_cursor_set_raw_key(cursor, upper ? &cursor->upper_bound : &cursor->lower_bound);
+        WT_STAT_CONN_DATA_INCR(session, cursor_bounds_search_near_repositioned_cursor);
+    }
     return (0);
 }
 
