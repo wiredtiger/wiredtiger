@@ -566,21 +566,9 @@ scopes[upgrade_to_latest]="upgrade/downgrade databases to the latest versions of
 scopes[wt_standalone]="WiredTiger standalone releases"
 scopes[two_versions]="any two given versions"
 
-# The following associative array maps the 'official' build system to use for each branch.
-# CMake build support is reliably mature in newer release branches, whilst earlier revisions
-# primarily use Autoconf (note: some earlier branches may have CMake support, but these aren't
-# considered 'mature' versions.)
-declare -A build_sys
-build_sys['develop']="cmake"
-build_sys['mongodb-6.0']="cmake"
-build_sys['mongodb-5.0']="autoconf"
-build_sys['mongodb-4.4']="autoconf"
-build_sys['mongodb-4.2']="autoconf"
-build_sys['mongodb-4.0']="autoconf"
-
 #############################################################
 # Retrive the build system used by a particular release,
-# since WiredTiger swtiched from autoconf to cmake.
+# since WiredTiger switched from autoconf to cmake.
 #       arg1: branch name to check against
 #       output: string as name of build system
 #############################################################
@@ -590,6 +578,7 @@ get_build_system()
     # Default to cmake.
     local build_system="cmake"
 
+    # As of MongoDB 6.0, WiredTiger standalone builds switched to CMake
     if [[ $branch == mongodb-* ]]; then
         major=`echo $branch | cut -d '-' -f 2 | cut -d '.' -f 1`
         if [ $major -lt 6 ]; then
