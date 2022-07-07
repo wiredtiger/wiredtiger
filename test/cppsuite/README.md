@@ -61,7 +61,7 @@ The workload manager is responsible for calling the populate function and the li
 | Finish   | Ends each thread started in the run phase. |
 
 ## Operation Tracker
-During the execution of the test, the operation tracker saves test metadata every time a thread performs an update, insertion, or removal operation. The user can also manually save test metadata by calling the `save_operation` function from the `operation_tracker` class. The framework defines a set of default data to track during a test but the user can customize it by editing the test configuration file and overriding the `set_tracking_cursor` function. See [here](HOWTO.md) for more details.
+During the execution of the test, the operation tracker saves test metadata every time a thread performs an update, insertion, or removal operation. The user can also manually save test metadata by calling the `save_operation` function from the `operation_tracker` class. The framework defines a set of default data to track during a test but the user can customize it by editing the test configuration file and overriding the `set_tracking_cursor` function. See [here](how_to_use_cppsuite.md) for more details.
 Any saved data can be used at the [validation](#validation) stage.
 
 | Phase    | Description |
@@ -109,10 +109,10 @@ timestamp_manager=
 ...,
 ```
 
-Each test has a default configuration file which is the test name followed by the suffix `_default` and the extension `.txt`. It is possible to use any configuration file when executing a test, see [here](HOWTO.md) for more details.
+Each test has a default configuration file which is the test name followed by the suffix `_default` and the extension `.txt`. It is possible to use any configuration file when executing a test, see [here](how_to_use_cppsuite.md) for more details.
 
 All the different configurable items are defined in [test_data.py](https://github.com/wiredtiger/wiredtiger/blob/develop/dist/test_data.py).
 
 
 # How to execute a test
-A tutorial is available [here](HOWTO.md).
+A tutorial is available [here](how_to_use_cppsuite.md).
