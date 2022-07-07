@@ -258,9 +258,14 @@ leaf_only:
         if ((cip = __col_var_search(current, recno, NULL)) == NULL) {
             cbt->recno = __col_var_last_recno(current);
             cbt->slot = page->entries == 0 ? 0 : page->entries - 1;
-            ins = __col_insert_search(ins_head, cbt->ins_stack, cbt->next_stack, cbt->recno);
-            if (ins != NULL && cbt->recno == WT_INSERT_RECNO(ins))
-                cbt->ins = ins;
+            if (page->entries == 0)
+                cbt->slot = 0;
+            else {
+                cbt->slot = page->entries - 1;
+                ins = __col_insert_search(ins_head, cbt->ins_stack, cbt->next_stack, cbt->recno);
+                if (ins != NULL && cbt->recno == WT_INSERT_RECNO(ins))
+                    cbt->ins = ins;
+            }
             goto past_end;
         } else {
             cbt->recno = recno;
