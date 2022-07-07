@@ -28,9 +28,6 @@ static int
 __btcur_bounds_contains_key(
   WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, bool *key_out_of_boundsp, bool *upperp)
 {
-    WT_BTREE *btree;
-
-    btree = CUR2BT(cursor);
     *key_out_of_boundsp = false;
 
     if (upperp != NULL)
@@ -39,12 +36,12 @@ __btcur_bounds_contains_key(
     WT_ASSERT(session, WT_CURSOR_BOUNDS_SET(cursor));
     WT_ASSERT(session, key != NULL);
 
-    if (btree->type != BTREE_ROW)
+    if (CUR2BT(cursor)->type != BTREE_ROW)
         WT_RET(ENOTSUP);
 
-    if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
+    if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER))
         WT_RET(__wt_row_compare_bounds(session, cursor, key, false, key_out_of_boundsp));
-    }
+
     if (!(*key_out_of_boundsp) && F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
         WT_RET(__wt_row_compare_bounds(session, cursor, key, true, key_out_of_boundsp));
         if (*key_out_of_boundsp && upperp != NULL)
@@ -61,16 +58,14 @@ __btcur_bounds_contains_key(
 static int
 __btcur_bounds_search_near_reposition(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
-    WT_BTREE *btree;
     WT_CURSOR *cursor;
     bool key_out_of_bounds, upper;
 
-    btree = CUR2BT(cbt);
     cursor = &cbt->iface;
     key_out_of_bounds = upper = false;
 
     WT_ASSERT(session, WT_CURSOR_BOUNDS_SET(cursor));
-    if (btree->type != BTREE_ROW)
+    if (CUR2BT(cbt)->type != BTREE_ROW)
         WT_RET(ENOTSUP);
 
     /*

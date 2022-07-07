@@ -149,8 +149,10 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                 self.assertTrue(bound_set.in_bounds_key(current_key))
                 self.assertTrue(self.key_range[current_key].equals(current_key, current_value))
                 checked_keys.append(current_key)
+                # If the cursor has walked to a record that isn't +1 our current record then it
+                # skipped something internally.
+                # Check that the key range between key_range_it and current_key isn't visible
                 if (current_key != key_range_it + 1):
-                    # Check that the key range between key_range_it and current_key isn't visible
                     for i in range(key_range_it + 1, current_key):
                         checked_keys.append(i)
                         self.assertTrue(self.key_range[i].is_deleted_or_oob(bound_set))
@@ -192,7 +194,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             if (ret == wiredtiger.WT_PREPARE_CONFLICT):
                 pass
             elif (ret == wiredtiger.WT_NOTFOUND):
-                self.assertTrue(self.key_range[rand_key].is_deleted())
+                self.assertTrue(self.key_range[rand_key].is_deleted_or_oob(bound_set))
             elif (ret == 0):
                 # Assert that the key exists, and is within the range.
                 self.assertTrue(self.key_range[rand_key].equals(cursor.get_key(), cursor.get_value()))
@@ -278,15 +280,13 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                         raise Exception('Illegal state found in search_near')
 
     def run_bound_scenarios(self, bound_set, cursor):
-        #scenario = bound_scenarios.SEARCH_NEAR
         scenario = random.choice(list(bound_scenarios))
         if (scenario is bound_scenarios.NEXT):
             self.run_next_prev(bound_set, True, cursor)
         elif (scenario is bound_scenarios.PREV):
             self.run_next_prev(bound_set, False, cursor)
         elif (scenario is bound_scenarios.SEARCH):
-            #self.run_search(bound_set, cursor)
-            pass
+            self.run_search(bound_set, cursor)
         elif (scenario is bound_scenarios.SEARCH_NEAR):
             self.run_search_near(bound_set, cursor)
         else:
