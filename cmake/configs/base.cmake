@@ -44,7 +44,7 @@ config_bool(
 
 config_bool(
     HAVE_REF_TRACK
-    "Enable WiredTiger ref tracking (always enabled in diagnostic build)"
+    "Enable WiredTiger to track recent state transitions for WT_REF structures (always enabled in diagnostic build)"
     DEFAULT OFF
 )
 
