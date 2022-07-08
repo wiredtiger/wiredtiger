@@ -254,6 +254,10 @@ leaf_only:
         if ((cip = __col_var_search(current, recno, NULL)) == NULL) {
             cbt->recno = __col_var_last_recno(current);
             cbt->slot = page->entries == 0 ? 0 : page->entries - 1;
+            /*
+             * We need to search the insert list in case there is nothing on the append list when we
+             * search it later on (which would be closer to the search record).
+             */
             if (cbt->recno != WT_RECNO_OOB) {
                 ins_head = WT_COL_UPDATE_SLOT(page, cbt->slot);
                 ins = WT_SKIP_LAST(ins_head);

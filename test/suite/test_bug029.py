@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_bug029.py
-#       Variable column store search near key past the end.
+#       Row and variable column store search_near with a key past the end.
 
 import wttest
 from wtscenario import make_scenarios
@@ -36,8 +36,9 @@ class test_bug029(wttest.WiredTigerTestCase):
     uri = 'file:test_bug029'
 
     key_format_values = [
-        ('var', dict(key_format='r', value_format='I')),
-        ('row', dict(key_format='Q', value_format='I')),
+        ('fix', dict(key_format='r', value_format='8t', format="flcs")),
+        ('var', dict(key_format='r', value_format='I', format="vlcs")),
+        ('row', dict(key_format='Q', value_format='I', format="row")),
     ]
 
     ops = [
@@ -84,8 +85,12 @@ class test_bug029(wttest.WiredTigerTestCase):
         cursor.search_near()
 
         if self.delete:
-            self.assertEqual(cursor.get_key(), 999)
-            self.assertEqual(cursor.get_value(), value1)
+            if self.format == "flcs":
+                self.assertEqual(cursor.get_key(), 1000)
+                self.assertEqual(cursor.get_value(), 0)
+            else:
+                self.assertEqual(cursor.get_key(), 999)
+                self.assertEqual(cursor.get_value(), value1)
         else:
             self.assertEqual(cursor.get_key(), 1000)
             self.assertEqual(cursor.get_value(), value2)
