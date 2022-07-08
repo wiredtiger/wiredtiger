@@ -17,8 +17,8 @@ The cppsuite is a C++ framework designed to help developers write multithreaded 
   * [Operation Tracker](#operation-tracker)
   * [Timestamp Manager](#timestamp-manager)
   * [Metrics Monitor](#metrics-monitor)
-- [Logging](#logging)
 - [Test configuration file](#test-configuration-file)
+- [Logging](#logging)
 - [How to execute a test](#how-to-execute-a-test)
 
 # Database operations
@@ -69,7 +69,7 @@ The workload manager is responsible for calling the populate function and the li
 
 ## Operation Tracker
 During the execution of the test, the operation tracker saves test metadata every time a thread performs an update, insertion, or removal operation. The user can also manually save test metadata by calling the `save_operation` function from the `operation_tracker` class. The framework defines a set of default data to track during a test but the user can customize it by editing the test configuration file and overriding the `set_tracking_cursor` function. See [here](how_to_use_cppsuite.md) for more details.
-Any saved data can be used at the [validation](#validation) stage.
+Any saved data can be used at the [validation](#validate) stage.
 
 | Phase    | Description |
 | -------- | ----------- |
@@ -116,7 +116,7 @@ timestamp_manager=
 ...,
 ```
 
-Each test has a default configuration file which is the test name followed by the suffix `_default` and the extension `.txt`. It is possible to use any configuration file when executing a test, see [here](how_to_use_cppsuite.md) for more details.
+Each test has a default configuration file which is the test name followed by the suffix `_default` and the extension `.txt`. It is possible to use any configuration file when executing a test, see [here](how_to_use_cppsuite.md#running-tests) for more details.
 
 All the different configurable items are defined in [test_data.py](https://github.com/wiredtiger/wiredtiger/blob/develop/dist/test_data.py).
 
@@ -138,7 +138,7 @@ To call the logger both a logging level and message need to be provided:
 logger::log_msg(LOG_TRACE, "A logging message with the LOG_TRACE level");
 ```
 
-It is possible to indicate the logging level used by the framework when executing a test. Refer to [this section](how_to_use_cppsuite.md) to how.
+It is possible to indicate the logging level used by the framework when executing a test. Refer to [this section](how_to_use_cppsuite.md#running-tests) to see how.
 
 # How to execute a test
 A tutorial is available [here](how_to_use_cppsuite.md).
