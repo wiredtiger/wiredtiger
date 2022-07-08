@@ -170,7 +170,7 @@ class test_hs22(wttest.WiredTigerTestCase):
 
     def test_out_of_order_timestamp_update_same_txn(self):
         uri = 'table:test_hs22'
-        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        format = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, format)
         cursor = self.session.open_cursor(uri)
         self.conn.set_timestamp(
@@ -213,7 +213,7 @@ class test_hs22(wttest.WiredTigerTestCase):
 
     def test_out_of_order_timestamp_squash_updates(self):
         uri = 'table:test_hs22'
-        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        format = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, format)
         cursor = self.session.open_cursor(uri)
         self.conn.set_timestamp(
