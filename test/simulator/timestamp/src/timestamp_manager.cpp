@@ -39,22 +39,20 @@ timestamp_manager::get_timestamp_manager()
     return (_timestamp_manager_instance);
 }
 
+bool timestamp_manager::validate_oldest_ts(int new_oldest_ts){
+    connection_simulator *conn = &connection_simulator::get_connection();
 
-int timestamp_manager::set_oldest_ts(int *ts){
-
-    oldest_ts = ts;
-
-    return 0;
-}
-
-bool timestamp_manager::validate_oldest_ts(int ts){
-
-    /* PM-2564-TODO: Validation goes here since timestamp manager is aware of all the system timestamps. 
-    Currently using ints here to simplify the example. */
-    
     // Oldest timestamp can't move backward.
-    if (ts <= *oldest_ts){
+    if (new_oldest_ts <= conn->get_oldest_ts()){
         std::cout << "Oldest timestamp cannot move backwards." << std::endl;
+        return false;
+    }
+
+    /*
+     * The oldest and stable timestamps must always satisfy the condition that oldest <= stable.
+     */
+    if (new_oldest_ts > conn->get_stable_ts()){
+        std::cout << "set_timestamp: oldest timestamp " << new_oldest_ts << "must not be later than stable timestamp " << conn->get_stable_ts() << "." << std::endl;
         return false;
     }
 

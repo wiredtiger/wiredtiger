@@ -39,8 +39,7 @@ class timestamp_manager {
     // oldest_timestamp oldest_ts;
 
     // PM-2564-TODO: Timestamp as ints alternative.
-    int *oldest_ts;
-    int stable_ts_int;
+    // connection_simulator *conn = &connection_simulator::get_connection();
     /* Add more system timestamps here. */
 
     // public:
@@ -49,7 +48,6 @@ class timestamp_manager {
 
     public:
     static timestamp_manager &get_timestamp_manager();
-    int set_oldest_ts(int *ts);
     bool validate_oldest_ts(int ts);
 
     private:

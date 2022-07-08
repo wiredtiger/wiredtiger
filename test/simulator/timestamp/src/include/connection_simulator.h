@@ -37,6 +37,8 @@
 #include "timestamp_simulator.h"
 #include "timestamp_manager.h"
 
+class timestamp_manager;
+
 /* connection_simulator is a singleton class (Global access of one and only one instance). */
 class connection_simulator {
     /* Member variables */
@@ -50,7 +52,7 @@ class connection_simulator {
     int durable_ts;
 
     // PM-2564-TODO: Approach 2 - timestamp manager is responsible for the system level timestamps.
-    // timestamp_manager *ts_mgr = &timestamp_manager::get_timestamp_manager();
+    timestamp_manager *ts_mgr;
 
     /* Methods */
     public:
@@ -58,6 +60,9 @@ class connection_simulator {
     std::shared_ptr<session_simulator> open_session();
     int query_timestamp();
     int set_timestamp(std::string config);
+
+    int get_oldest_ts() { return oldest_ts; }
+    int get_stable_ts() { return stable_ts; }
     ~connection_simulator() = default;
 
     /* No copies of the singleton allowed. */
