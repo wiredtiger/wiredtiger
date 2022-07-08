@@ -17,6 +17,7 @@ The cppsuite is a C++ framework designed to help developers write multithreaded 
   * [Operation Tracker](#operation-tracker)
   * [Timestamp Manager](#timestamp-manager)
   * [Metrics Monitor](#metrics-monitor)
+- [Logging](#logging)
 - [Test configuration file](#test-configuration-file)
 - [How to execute a test](#how-to-execute-a-test)
 
@@ -119,6 +120,25 @@ Each test has a default configuration file which is the test name followed by th
 
 All the different configurable items are defined in [test_data.py](https://github.com/wiredtiger/wiredtiger/blob/develop/dist/test_data.py).
 
+# Logging
+The framework writes traces to stdout using a [logger](https://github.com/wiredtiger/wiredtiger/blob/develop/test/cppsuite/src/common/logger.cpp) and supports the following log levels:
+
+| Logging level | Logging value |
+| ------------- | ------------- |
+| 0             | LOG_ERROR     |
+| 1             | LOG_WARN      |
+| 2             | LOG_INFO      |
+| 3             | LOG_TRACE     |
+
+Each logging level prints lower logging levels, for example the `WARN` level prints `ERROR` traces.
+
+To call the logger both a logging level and message need to be provided:
+
+```cpp
+logger::log_msg(LOG_TRACE, "A logging message with the LOG_TRACE level");
+```
+
+It is possible to indicate the logging level used by the framework when executing a test. Refer to [this section](how_to_use_cppsuite.md) to how.
 
 # How to execute a test
 A tutorial is available [here](how_to_use_cppsuite.md).
