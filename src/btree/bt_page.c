@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 static int __inmem_col_fix(WT_SESSION_IMPL *, WT_PAGE *, bool *, size_t *);
-static void __inmem_col_int(WT_SESSION_IMPL *, WT_PAGE *);
+static int __inmem_col_int(WT_SESSION_IMPL *, WT_PAGE *);
 static int __inmem_col_var(WT_SESSION_IMPL *, WT_PAGE *, uint64_t, bool *, size_t *);
 static int __inmem_row_int(WT_SESSION_IMPL *, WT_PAGE *, size_t *);
 static int __inmem_row_leaf(WT_SESSION_IMPL *, WT_PAGE *, bool *);
@@ -413,7 +413,7 @@ __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32
         WT_ERR(__inmem_col_fix(session, page, preparedp, &size));
         break;
     case WT_PAGE_COL_INT:
-        __inmem_col_int(session, page);
+        WT_ERR(__inmem_col_int(session, page));
         break;
     case WT_PAGE_COL_VAR:
         WT_ERR(__inmem_col_var(session, page, dsk->recno, preparedp, &size));
@@ -616,7 +616,7 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
  * __inmem_col_int --
  *     Build in-memory index for column-store internal pages.
  */
-static void
+static int
 __inmem_col_int(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_CELL_UNPACK_ADDR unpack;
@@ -635,12 +635,30 @@ __inmem_col_int(WT_SESSION_IMPL *session, WT_PAGE *page)
         ref = *refp++;
         ref->home = page;
         ref->pindex_hint = hint++;
-        ref->addr = unpack.cell;
-        ref->ref_recno = unpack.v;
 
         F_SET(ref, unpack.type == WT_CELL_ADDR_INT ? WT_REF_FLAG_INTERNAL : WT_REF_FLAG_LEAF);
+
+        if (unpack.type == WT_CELL_ADDR_DEL) {
+            /*
+             * If a page was deleted without being read (fast truncate), and the delete committed,
+             * but older transactions in the system required the previous version of the page to
+             * remain available or the delete can still be rolled back by RTS, a deleted-address
+             * type cell is written. We'll see that cell on a page if we read from a checkpoint
+             * including a deleted cell or if we crash/recover and start off from such a checkpoint.
+             * Recreate the fast-delete state for the page.
+             */
+            if (F_ISSET(page->dsk, WT_PAGE_FT_UPDATE)) {
+                WT_RET(__wt_calloc_one(session, &ref->ft_info.del));
+                *ref->ft_info.del = unpack.page_del;
+            }
+            WT_REF_SET_STATE(ref, WT_REF_DELETED);
+        }
+        ref->addr = unpack.cell;
+        ref->ref_recno = unpack.v;
     }
     WT_CELL_FOREACH_END;
+
+    return (0);
 }
 
 /*

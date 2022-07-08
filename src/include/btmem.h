@@ -400,8 +400,9 @@ struct __wt_page_modify {
 #define mod_root_split u2.intl.root_split
         struct {
             /*
-             * Appended items to column-stores: there is only a single one of these active at a time
-             * per column-store tree.
+             * Appended items to column-stores. Actual appends to the tree only happen on the last
+             * page, but gaps created in the namespace by truncate operations can result in the
+             * append lists of other pages becoming populated.
              */
             WT_INSERT_HEAD **append;
 
