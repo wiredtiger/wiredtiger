@@ -176,6 +176,6 @@ Having written our test we can now run it. Compile WiredTiger and then navigate 
 The `./run` binary executes the test. Further details are provided via the `-h` help flag, but the most common usage is 
 `./run -t multi_size_inserts -f configs/multi_size_inserts_default.txt -l 2`.  
 
-In this command the `-t` flag tells cppsuite to use the `test/multi_size_inserts.cpp` test configuration, the `-f` flag to use the `configs/multi_size_inserts_default.txt` cppsuite configuration, and the `-l` flag to run the test with level 2 verbosity. The available trace levels range from 0 which prints only errors up to 3 which prints all traces.
+In this command the `-t` flag tells cppsuite to use the `test/multi_size_inserts.cpp` test configuration, the `-f` flag to use the `configs/multi_size_inserts_default.txt` cppsuite configuration, and the `-l` flag to run the test with level 2 verbosity. Further details on log levels can be [found here](./README.md#logging).
 
 **Warning: If you change your configuration file you will need to recompile WiredTiger to have the changes propagate into the build folder. Make sure you update the file in the `test/cppsuite` folder and not the `<build_dir>/test/cppsuite` folder as the latter will be overwritten when WiredTiger is recompiled.**
