@@ -186,21 +186,22 @@ int
 __wt_call_log_wiredtiger_open(WT_SESSION_IMPL *session, int ret_val)
 {
     WT_CONNECTION_IMPL *conn;
-    char buf[128];
+    // char buf[128];
 
     conn = S2C(session);
 
     WT_RET(__call_log_print_start(session, "global", "wiredtiger_open"));
 
+    /*
+     * WiredTiger open call log entry includes the connection address as and ID. This ID
+     * is used to map the connection used by wiredtiger to a new connection in the simulator.
+     */
+    WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"connection_id\": \"%p\",\n", conn));
+
     /* WiredTiger open has no input arguments. */
     WT_RET(__call_log_print_input(session, 0));
 
-    /*
-     * WiredTiger open returns the connection address as an ID in the output field. This ID
-     * is used to map the connection used by wiredtiger to a new connection in the simulator.
-     */
-    WT_RET(__wt_snprintf(buf, sizeof(buf), "\"connection_id\": \"%p\"", conn));
-    WT_RET(__call_log_print_output(session, 1, buf));
+    WT_RET(__call_log_print_output(session, 0));
     WT_RET(__call_log_print_return(session, ret_val, ""));
 
     return (0);
@@ -213,19 +214,20 @@ __wt_call_log_wiredtiger_open(WT_SESSION_IMPL *session, int ret_val)
 int
 __wt_call_log_open_session(WT_SESSION_IMPL *session, int ret_val)
 {
-    char buf[128];
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
 
     WT_RET(__call_log_print_start(session, "connection", "open_session"));
-
-    /* Open session has no input arguments. */
-    WT_RET(__call_log_print_input(session, 0));
-
     /*
-     * Open session returns the session address as an id in the output field. This ID is used
+     * Open session includes the session address as an id in the call log entry. This ID is used
      * to map the session used by wiredtiger to a new session in the simulator.
      */
-    WT_RET(__wt_snprintf(buf, sizeof(buf), "\"session_id\": \"%p\"", session));
-    WT_RET(__call_log_print_output(session, 1, buf));
+    WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"session_id\": \"%p\",\n", session));
+
+    /* Open session has no input or output arguments. */
+    WT_RET(__call_log_print_input(session, 0));
+    WT_RET(__call_log_print_output(session, 0));
     WT_RET(__call_log_print_return(session, ret_val, ""));
 
     return (0);
@@ -240,20 +242,20 @@ __wt_call_log_set_timestamp(WT_SESSION_IMPL *session, const char *config, int re
 {
     WT_CONNECTION_IMPL *conn;
     char config_buf[128];
-    char objectid_buf[128];
 
     conn = S2C(session);
 
     WT_RET(__call_log_print_start(session, "connection", "set_timestamp"));
 
+    /* Connection ID to be used by the call log manager. */
+    WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"connection_id\": \"%p\",\n", conn));
+
     /*
-     * The Set timestamp entry includes the connection address as the object ID so that the
-     * simulator can identify which connection used this API call. The timestamp configuration
-     * string is also copied from the original API call.
+     * The Set timestamp entry includes the timestamp configuration string which is copied from the 
+     * original API call.
      */
-    WT_RET(__wt_snprintf(objectid_buf, sizeof(objectid_buf), "\"connection_id\": \"%p\"", conn));
     WT_RET(__wt_snprintf(config_buf, sizeof(config_buf), "\"config\": \"%s\"", config));
-    WT_RET(__call_log_print_input(session, 2, objectid_buf, config_buf));
+    WT_RET(__call_log_print_input(session, 1, config_buf));
 
     /* Set timestamp has no output arguments. */
     WT_RET(__call_log_print_output(session, 0));
