@@ -196,10 +196,10 @@ __wt_call_log_wiredtiger_open(WT_SESSION_IMPL *session, int ret_val)
     WT_RET(__call_log_print_input(session, 0));
 
     /*
-     * WiredTiger open returns the connection object address as an id in the output field. This ID
+     * WiredTiger open returns the connection address as an ID in the output field. This ID
      * is used to map the connection used by wiredtiger to a new connection in the simulator.
      */
-    WT_RET(__wt_snprintf(buf, sizeof(buf), "\"object_id\": \"%p\"", conn));
+    WT_RET(__wt_snprintf(buf, sizeof(buf), "\"connection_id\": \"%p\"", conn));
     WT_RET(__call_log_print_output(session, 1, buf));
     WT_RET(__call_log_print_return(session, ret_val, ""));
 
@@ -221,10 +221,10 @@ __wt_call_log_open_session(WT_SESSION_IMPL *session, int ret_val)
     WT_RET(__call_log_print_input(session, 0));
 
     /*
-     * Open session returns the session object address as an id in the output field. This ID is used
+     * Open session returns the session address as an id in the output field. This ID is used
      * to map the session used by wiredtiger to a new session in the simulator.
      */
-    WT_RET(__wt_snprintf(buf, sizeof(buf), "\"object_id\": \"%p\"", session));
+    WT_RET(__wt_snprintf(buf, sizeof(buf), "\"session_id\": \"%p\"", session));
     WT_RET(__call_log_print_output(session, 1, buf));
     WT_RET(__call_log_print_return(session, ret_val, ""));
 
@@ -251,7 +251,7 @@ __wt_call_log_set_timestamp(WT_SESSION_IMPL *session, const char *config, int re
      * simulator can identify which connection used this API call. The timestamp configuration
      * string is also copied from the original API call.
      */
-    WT_RET(__wt_snprintf(objectid_buf, sizeof(objectid_buf), "\"object_id\": \"%p\"", conn));
+    WT_RET(__wt_snprintf(objectid_buf, sizeof(objectid_buf), "\"connection_id\": \"%p\"", conn));
     WT_RET(__wt_snprintf(config_buf, sizeof(config_buf), "\"config\": \"%s\"", config));
     WT_RET(__call_log_print_input(session, 2, objectid_buf, config_buf));
 
