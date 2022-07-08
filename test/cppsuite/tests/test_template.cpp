@@ -42,13 +42,13 @@ class operation_tracker_template : public operation_tracker {
     }
 
     void
-    set_tracking_cursor(const uint64_t txn_id, const tracking_operation &operation,
+    set_tracking_cursor(WT_SESSION *session, const tracking_operation &operation,
       const uint64_t &collection_id, const std::string &key, const std::string &value,
       wt_timestamp_t ts, scoped_cursor &op_track_cursor) override final
     {
         /* You can replace this call to define your own tracking table contents. */
         operation_tracker::set_tracking_cursor(
-          txn_id, operation, collection_id, key, value, ts, op_track_cursor);
+          session, operation, collection_id, key, value, ts, op_track_cursor);
     }
 };
 
@@ -115,7 +115,7 @@ class test_template : public test {
     }
 
     void
-    validate(const std::string &, const std::string &, const std::vector<uint64_t> &) override final
+    validate(const std::string &, const std::string &, database &) override final
     {
         logger::log_msg(LOG_WARN, "validate: nothing done");
     }

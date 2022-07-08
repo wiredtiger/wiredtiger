@@ -676,10 +676,11 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    bool leaf_found, valid;
+    bool key_out_of_bounds, leaf_found, valid;
 
     btree = CUR2BT(cbt);
     cursor = &cbt->iface;
+    key_out_of_bounds = false;
     session = CUR2S(cbt);
 
     WT_STAT_CONN_DATA_INCR(session, cursor_search);
@@ -697,6 +698,21 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     __cursor_novalue(cursor);
     __cursor_state_save(cursor, &state);
 
+    /*
+     * Check that the provided search key is within bounds. If not, return WT_NOTFOUND and early
+     * exit.
+     */
+    if (btree->type == BTREE_ROW && WT_CURSOR_BOUNDS_SET(cursor)) {
+        WT_ERR(__wt_btcur_bounds_early_exit(session, cbt, true, &key_out_of_bounds));
+
+        if (!key_out_of_bounds)
+            WT_ERR(__wt_btcur_bounds_early_exit(session, cbt, false, &key_out_of_bounds));
+
+        if (key_out_of_bounds) {
+            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_search_early_exit);
+            WT_ERR(WT_NOTFOUND);
+        }
+    }
     /*
      * If we have a page pinned, search it; if we don't have a page pinned, or the search of the
      * pinned page doesn't find an exact match, search from the root.
@@ -1970,7 +1986,7 @@ err:
  *     Discard a cursor range from the tree.
  */
 int
-__wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop, bool *is_col_fix)
+__wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -2011,7 +2027,6 @@ __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop, bool *i
     switch (btree->type) {
     case BTREE_COL_FIX:
         WT_ERR(__cursor_truncate_fix(start, stop, __cursor_col_modify));
-        *is_col_fix = true;
         break;
     case BTREE_COL_VAR:
         WT_ERR(__cursor_truncate(start, stop, __cursor_col_modify));
@@ -2113,4 +2128,73 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
 #endif
 
     return (ret);
+}
+
+/*
+ * __wt_btcur_bounds_row_position --
+ *     A unpositioned bounded cursor need to start its cursor next and prev walk from the lower or
+ *     upper bound depending on which direction it is going. This function calls cursor row search
+ *     to position the cursor appropriately.
+ */
+int
+__wt_btcur_bounds_row_position(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next, bool *need_walkp)
+{
+
+    WT_CURSOR *cursor;
+    WT_ITEM *bound;
+    bool key_out_of_bounds, valid;
+    uint64_t bound_flag, bound_flag_inclusive;
+
+    key_out_of_bounds = false;
+    *need_walkp = false;
+    cursor = &cbt->iface;
+    bound = next ? &cursor->lower_bound : &cursor->upper_bound;
+    bound_flag = next ? WT_CURSTD_BOUND_UPPER : WT_CURSTD_BOUND_LOWER;
+    bound_flag_inclusive = next ? WT_CURSTD_BOUND_LOWER_INCLUSIVE : WT_CURSTD_BOUND_UPPER_INCLUSIVE;
+
+    if (next)
+        WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_unpositioned);
+    else
+        WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_unpositioned);
+
+    WT_ASSERT(session, WT_DATA_IN_ITEM(bound));
+    __wt_cursor_set_raw_key(cursor, bound);
+    WT_RET(__cursor_row_search(cbt, false, NULL, NULL));
+    /*
+     * If there's an exact match, the row-store search function built the key in the cursor's
+     * temporary buffer.
+     */
+    WT_RET(__wt_cursor_valid(cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, &valid));
+
+    /*
+     * Clear the cursor key set flag, as we don't want to return the internal set key to the user.
+     */
+    F_CLR(cursor, WT_CURSTD_KEY_SET);
+    /* If the record is valid, set the cursor's key to the record. */
+    if (valid)
+        WT_RET(__wt_key_return(cbt));
+
+    /*
+     * FIXME-WT-9324: When search_near_bounded is implemented then remove this. If search near
+     * returns a value, ensure it's within the bounds.
+     */
+    if (valid && cbt->compare == 0 && F_ISSET(cursor, bound_flag_inclusive))
+        return (0);
+    else if ((next ? cbt->compare > 0 : cbt->compare < 0) && valid) {
+        /*
+         * If cursor row search returns a non-exact key, check the returned key against the upper
+         * bound if doing a next, and the lower bound if doing a prev to ensure the key is within
+         * bounds. If not, there are no visible records, return WT_NOTFOUND.
+         */
+        if (F_ISSET(cursor, bound_flag)) {
+            WT_RET(__wt_row_compare_bounds(
+              session, cursor, S2BT(session)->collator, next, &key_out_of_bounds));
+            if (key_out_of_bounds)
+                return (WT_NOTFOUND);
+        }
+        return (0);
+    }
+    *need_walkp = true;
+    return (0);
 }

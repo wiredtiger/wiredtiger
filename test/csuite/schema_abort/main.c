@@ -97,8 +97,9 @@ static pthread_rwlock_t flush_lock;
     "create,"                                                 \
     "eviction_updates_trigger=95,eviction_updates_target=80," \
     "log=(enabled,file_max=10M,remove=false)"
-#define ENV_CONFIG_TIER \
-    ",tiered_storage=(bucket=./bucket,bucket_prefix=pfx-,local_retention=2,name=dir_store)"
+#define ENV_CONFIG_TIER          \
+    ",tiered_storage=(bucket=./" \
+    "bucket,bucket_prefix=pfx-,local_retention=2,name=dir_store)"
 #define ENV_CONFIG_TIER_EXT                                   \
     ",extensions=(../../../../ext/storage_sources/dir_store/" \
     "libwiredtiger_dir_store.so=(early_load=true))"
@@ -149,7 +150,7 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s [-h dir] [-T threads] [-t time] [-Cmvxz]\n", progname);
+    fprintf(stderr, "usage: %s [-h dir] [-T threads] [-t time] [-BCmvxz]\n", progname);
     exit(EXIT_FAILURE);
 }
 
@@ -353,7 +354,7 @@ test_create_unique(THREAD_DATA *td, int force)
     WT_DECL_RET;
     WT_SESSION *session;
     uint64_t my_uid;
-    char new_uri[64];
+    char dropconf[128], new_uri[64];
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
@@ -370,7 +371,12 @@ test_create_unique(THREAD_DATA *td, int force)
     __wt_yield();
     if (use_txn)
         testutil_check(session->begin_transaction(session, NULL));
-    while ((ret = session->drop(session, new_uri, force ? "force" : NULL)) != 0)
+
+    testutil_check(__wt_snprintf(dropconf, sizeof(dropconf), "force=%s", force ? "true" : "false"));
+    /* For testing we want to remove objects too. */
+    if (tiered)
+        strcat(dropconf, ",remove_shared=true");
+    while ((ret = session->drop(session, new_uri, dropconf)) != 0)
         if (ret != EBUSY)
             testutil_die(ret, "session.drop: %s", new_uri);
     if (use_txn && (ret = session->commit_transaction(session, NULL)) != 0 && ret != EINVAL)
@@ -388,12 +394,17 @@ test_drop(THREAD_DATA *td, int force)
 {
     WT_DECL_RET;
     WT_SESSION *session;
+    char dropconf[128];
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
     if (use_txn)
         testutil_check(session->begin_transaction(session, NULL));
-    if ((ret = session->drop(session, uri, force ? "force" : NULL)) != 0)
+    testutil_check(__wt_snprintf(dropconf, sizeof(dropconf), "force=%s", force ? "true" : "false"));
+    /* For testing we want to remove objects too. */
+    if (tiered)
+        strcat(dropconf, ",remove_shared=true");
+    if ((ret = session->drop(session, uri, dropconf)) != 0)
         if (ret != ENOENT && ret != EBUSY)
             testutil_die(ret, "session.drop");
 
@@ -545,7 +556,7 @@ thread_ckpt_run(void *arg)
      * Keep writing checkpoints until killed by parent.
      */
     __wt_epoch(NULL, &start);
-    for (i = 0;;) {
+    for (i = 1;; ++i) {
         sleep_time = __wt_random(&rnd) % MAX_CKPT_INVL;
         sleep(sleep_time);
         if (use_ts) {
@@ -573,7 +584,7 @@ thread_ckpt_run(void *arg)
          * Since this is the default, send in this string even if running without timestamps.
          */
         testutil_check(session->checkpoint(session, "use_timestamp=true"));
-        printf("Checkpoint %d complete.  Minimum ts %" PRIu64 "\n", ++i, ts);
+        printf("Checkpoint %d complete.  Minimum ts %" PRIu64 "\n", i, ts);
         fflush(stdout);
         /*
          * Create the checkpoint file so that the parent process knows at least one checkpoint has
@@ -598,6 +609,7 @@ static WT_THREAD_RET
 thread_flush_run(void *arg)
 {
     THREAD_DATA *td;
+    WT_DECL_RET;
     WT_RAND_STATE rnd;
     WT_SESSION *session;
     uint32_t i, sleep_time;
@@ -606,7 +618,7 @@ thread_flush_run(void *arg)
 
     td = (THREAD_DATA *)arg;
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    for (i = 0;;) {
+    for (i = 1;; ++i) {
         sleep_time = __wt_random(&rnd) % MAX_FLUSH_INVL;
         sleep(sleep_time);
         /*
@@ -614,9 +626,12 @@ thread_flush_run(void *arg)
          * expect the defaults are what MongoDB wants for now.
          */
         testutil_check(pthread_rwlock_wrlock(&flush_lock));
-        testutil_check(session->flush_tier(session, NULL));
+        if ((ret = session->flush_tier(session, NULL)) != 0) {
+            if (ret != EBUSY)
+                testutil_die(ret, "session.flush_tier");
+        } else
+            printf("Flush tier %" PRIu32 " completed.\n", i);
         testutil_check(pthread_rwlock_unlock(&flush_lock));
-        printf("Flush tier %" PRIu32 " completed.\n", ++i);
         fflush(stdout);
     }
     /* NOTREACHED */
