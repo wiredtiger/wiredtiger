@@ -294,12 +294,13 @@ past_end:
      * because column-store files are dense, but in this case the caller searched past the end of
      * the table.
      */
-    cbt->ins_head = WT_COL_APPEND(page);
-    ins = __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, recno);
+    ins_head = WT_COL_APPEND(page);
+    ins = __col_insert_search(ins_head, cbt->ins_stack, cbt->next_stack, recno);
     if (ins == NULL)
         cbt->compare = -1;
     else {
         cbt->ins = ins;
+        cbt->ins_head = ins_head;
         cbt->recno = WT_INSERT_RECNO(cbt->ins);
         if (recno == cbt->recno)
             cbt->compare = 0;
