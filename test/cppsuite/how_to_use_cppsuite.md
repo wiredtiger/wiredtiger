@@ -1,6 +1,6 @@
 # How to use cppsuite
-This README demonstrates the process to create and run a cppsuite test from scratch. As an example, we will work through the steps of creating a new test `multi_size_inserts` that creates transactions that are either within or greater than the database cache size.  
-We will cover in order the steps to [create your new test](#creating-a-new-test), [configure it](#configuring-tests), and finally [run the test](#running-tests).
+This README demonstrates the process to create and run a cppsuite test from scratch. As an example, we will create a new test `multi_size_inserts` that performs transactions that are either within or greater than the database cache size.  
+We will cover the steps to [create your new test](#creating-a-new-test), [configure it](#configuring-tests), and finally [run the test](#running-tests).
 
 ## Creating a new test
 New tests are created using the [create_test.sh](./create_test.sh) script in the root directory. This script takes the test name as its only argument, so we will call it with:  
@@ -19,7 +19,7 @@ The `.cpp` file allows users to define the behaviour of database operations for 
 
 #### Defining workloads
 In our example test `multi_size_inserts` we will first update the functions that define `insert` and `populate`.
-The default behavior of populate will create the table in the database, so we can delete the stubbed implementation of `populate` and make sure that it is defined in the [configuration file](#the-configuration-file) later.
+The default behavior of populate (implemented in [database_operation.cpp](./src/main/database_operation.cpp)) will create the table in the database, so we can delete the stubbed implementation of `populate` and make sure that it is defined in the [configuration file](#the-configuration-file) later.
 When cppsuite executes the test it will create threads that run the `insert_operation` function.  
 
 Initially, the insert function is stubbed as follows:
