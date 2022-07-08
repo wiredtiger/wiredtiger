@@ -740,7 +740,7 @@ if [ "$patch_version" = true ]; then
             if [ $rtn == "no" ]; then
                 echo -e "\n\"$pv\" does not support test checkpoint with recovery, skipping ...\n"
             # Apply patch fix from WT-8708 to already released compatible versions to avoid
-           #  test/checkpoint setting commit timestamp less than stable timestamp
+            # test/checkpoint setting commit timestamp less than stable timestamp
             elif [ $rtn == "yes" ] && [ -z $patch_fix_included ]; then
                 cd $pv;
 
