@@ -186,15 +186,14 @@ int
 __wt_call_log_wiredtiger_open(WT_SESSION_IMPL *session, int ret_val)
 {
     WT_CONNECTION_IMPL *conn;
-    // char buf[128];
 
     conn = S2C(session);
 
     WT_RET(__call_log_print_start(session, "global", "wiredtiger_open"));
 
     /*
-     * WiredTiger open call log entry includes the connection address as and ID. This ID
-     * is used to map the connection used by wiredtiger to a new connection in the simulator.
+     * WiredTiger open call log entry includes the connection address as and ID. This ID is used to
+     * map the connection used by wiredtiger to a new connection in the simulator.
      */
     WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"connection_id\": \"%p\",\n", conn));
 
@@ -219,9 +218,10 @@ __wt_call_log_open_session(WT_SESSION_IMPL *session, int ret_val)
     conn = S2C(session);
 
     WT_RET(__call_log_print_start(session, "connection", "open_session"));
+
     /*
-     * Open session includes the session address as an id in the call log entry. This ID is used
-     * to map the session used by wiredtiger to a new session in the simulator.
+     * Open session includes the session address as an id in the call log entry. This ID is used to
+     * map the session used by wiredtiger to a new session in the simulator.
      */
     WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"session_id\": \"%p\",\n", session));
 
@@ -251,7 +251,7 @@ __wt_call_log_set_timestamp(WT_SESSION_IMPL *session, const char *config, int re
     WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"connection_id\": \"%p\",\n", conn));
 
     /*
-     * The Set timestamp entry includes the timestamp configuration string which is copied from the 
+     * The Set timestamp entry includes the timestamp configuration string which is copied from the
      * original API call.
      */
     WT_RET(__wt_snprintf(config_buf, sizeof(config_buf), "\"config\": \"%s\"", config));
