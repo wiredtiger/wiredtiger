@@ -33,7 +33,7 @@ __wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t old_state,
 
     cas_result = __wt_atomic_casv8(&ref->state, old_state, new_state);
 
-#ifdef HAVE_DIAGNOSTIC
+#ifdef HAVE_REF_TRACK
     /*
      * The history update here has potential to race; if the state gets updated again after the CAS
      * above but before the history has been updated.
@@ -2116,6 +2116,32 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
         WT_RET_MSG(session, EINVAL, "page-release WT_RESTART error mapped to EINVAL");
 
     return (ret);
+}
+
+/*
+ * __wt_btcur_bounds_early_exit --
+ *     Performs bound comparison to check if the key is within bounds, if not, increment the
+ *     appropriate stat, early exit, and return WT_NOTFOUND.
+ */
+static inline int
+__wt_btcur_bounds_early_exit(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next, bool *key_out_of_boundsp)
+{
+    uint64_t bound_flag;
+
+    bound_flag = next ? WT_CURSTD_BOUND_UPPER : WT_CURSTD_BOUND_LOWER;
+
+    if (!WT_CURSOR_BOUNDS_SET(&cbt->iface))
+        return (0);
+    if (!F_ISSET((&cbt->iface), bound_flag))
+        return (0);
+
+    WT_RET(
+      __wt_row_compare_bounds(session, &cbt->iface, &cbt->iface.key, next, key_out_of_boundsp));
+    if (*key_out_of_boundsp)
+        return (WT_NOTFOUND);
+
+    return (0);
 }
 
 /*

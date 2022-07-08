@@ -172,6 +172,12 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: create calls",
   "cursor: cursor bound calls that return an error",
   "cursor: cursor bounds cleared from reset",
+  "cursor: cursor bounds next called on an unpositioned cursor",
+  "cursor: cursor bounds next early exit",
+  "cursor: cursor bounds prev called on an unpositioned cursor",
+  "cursor: cursor bounds prev early exit",
+  "cursor: cursor bounds search early exit",
+  "cursor: cursor bounds search near call repositioned cursor",
   "cursor: cursor cache calls that return an error",
   "cursor: cursor close calls that return an error",
   "cursor: cursor compare calls that return an error",
@@ -466,6 +472,12 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_create = 0;
     stats->cursor_bound_error = 0;
     stats->cursor_bounds_reset = 0;
+    stats->cursor_bounds_next_unpositioned = 0;
+    stats->cursor_bounds_next_early_exit = 0;
+    stats->cursor_bounds_prev_unpositioned = 0;
+    stats->cursor_bounds_prev_early_exit = 0;
+    stats->cursor_bounds_search_early_exit = 0;
+    stats->cursor_bounds_search_near_repositioned_cursor = 0;
     stats->cursor_cache_error = 0;
     stats->cursor_close_error = 0;
     stats->cursor_compare_error = 0;
@@ -749,6 +761,13 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_create += from->cursor_create;
     to->cursor_bound_error += from->cursor_bound_error;
     to->cursor_bounds_reset += from->cursor_bounds_reset;
+    to->cursor_bounds_next_unpositioned += from->cursor_bounds_next_unpositioned;
+    to->cursor_bounds_next_early_exit += from->cursor_bounds_next_early_exit;
+    to->cursor_bounds_prev_unpositioned += from->cursor_bounds_prev_unpositioned;
+    to->cursor_bounds_prev_early_exit += from->cursor_bounds_prev_early_exit;
+    to->cursor_bounds_search_early_exit += from->cursor_bounds_search_early_exit;
+    to->cursor_bounds_search_near_repositioned_cursor +=
+      from->cursor_bounds_search_near_repositioned_cursor;
     to->cursor_cache_error += from->cursor_cache_error;
     to->cursor_close_error += from->cursor_close_error;
     to->cursor_compare_error += from->cursor_compare_error;
@@ -1036,6 +1055,13 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_create += WT_STAT_READ(from, cursor_create);
     to->cursor_bound_error += WT_STAT_READ(from, cursor_bound_error);
     to->cursor_bounds_reset += WT_STAT_READ(from, cursor_bounds_reset);
+    to->cursor_bounds_next_unpositioned += WT_STAT_READ(from, cursor_bounds_next_unpositioned);
+    to->cursor_bounds_next_early_exit += WT_STAT_READ(from, cursor_bounds_next_early_exit);
+    to->cursor_bounds_prev_unpositioned += WT_STAT_READ(from, cursor_bounds_prev_unpositioned);
+    to->cursor_bounds_prev_early_exit += WT_STAT_READ(from, cursor_bounds_prev_early_exit);
+    to->cursor_bounds_search_early_exit += WT_STAT_READ(from, cursor_bounds_search_early_exit);
+    to->cursor_bounds_search_near_repositioned_cursor +=
+      WT_STAT_READ(from, cursor_bounds_search_near_repositioned_cursor);
     to->cursor_cache_error += WT_STAT_READ(from, cursor_cache_error);
     to->cursor_close_error += WT_STAT_READ(from, cursor_close_error);
     to->cursor_compare_error += WT_STAT_READ(from, cursor_compare_error);
@@ -1381,6 +1407,12 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cached cursor count",
   "cursor: cursor bound calls that return an error",
   "cursor: cursor bounds cleared from reset",
+  "cursor: cursor bounds next called on an unpositioned cursor",
+  "cursor: cursor bounds next early exit",
+  "cursor: cursor bounds prev called on an unpositioned cursor",
+  "cursor: cursor bounds prev early exit",
+  "cursor: cursor bounds search early exit",
+  "cursor: cursor bounds search near call repositioned cursor",
   "cursor: cursor bulk loaded cursor insert calls",
   "cursor: cursor cache calls that return an error",
   "cursor: cursor close calls that result in cache",
@@ -1611,6 +1643,7 @@ static const char *const __stats_connection_desc[] = {
   "session: table verify failed calls",
   "session: table verify successful calls",
   "session: tiered operations dequeued and processed",
+  "session: tiered operations removed without processing",
   "session: tiered operations scheduled",
   "session: tiered storage local retention time (secs)",
   "thread-state: active filesystem fsync calls",
@@ -1967,6 +2000,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cursor_cached_count */
     stats->cursor_bound_error = 0;
     stats->cursor_bounds_reset = 0;
+    stats->cursor_bounds_next_unpositioned = 0;
+    stats->cursor_bounds_next_early_exit = 0;
+    stats->cursor_bounds_prev_unpositioned = 0;
+    stats->cursor_bounds_prev_early_exit = 0;
+    stats->cursor_bounds_search_early_exit = 0;
+    stats->cursor_bounds_search_near_repositioned_cursor = 0;
     stats->cursor_insert_bulk = 0;
     stats->cursor_cache_error = 0;
     stats->cursor_cache = 0;
@@ -2196,6 +2235,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing session_table_verify_fail */
     /* not clearing session_table_verify_success */
     stats->tiered_work_units_dequeued = 0;
+    stats->tiered_work_units_removed = 0;
     stats->tiered_work_units_created = 0;
     /* not clearing tiered_retention */
     /* not clearing thread_fsync_active */
@@ -2557,6 +2597,13 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_cached_count += WT_STAT_READ(from, cursor_cached_count);
     to->cursor_bound_error += WT_STAT_READ(from, cursor_bound_error);
     to->cursor_bounds_reset += WT_STAT_READ(from, cursor_bounds_reset);
+    to->cursor_bounds_next_unpositioned += WT_STAT_READ(from, cursor_bounds_next_unpositioned);
+    to->cursor_bounds_next_early_exit += WT_STAT_READ(from, cursor_bounds_next_early_exit);
+    to->cursor_bounds_prev_unpositioned += WT_STAT_READ(from, cursor_bounds_prev_unpositioned);
+    to->cursor_bounds_prev_early_exit += WT_STAT_READ(from, cursor_bounds_prev_early_exit);
+    to->cursor_bounds_search_early_exit += WT_STAT_READ(from, cursor_bounds_search_early_exit);
+    to->cursor_bounds_search_near_repositioned_cursor +=
+      WT_STAT_READ(from, cursor_bounds_search_near_repositioned_cursor);
     to->cursor_insert_bulk += WT_STAT_READ(from, cursor_insert_bulk);
     to->cursor_cache_error += WT_STAT_READ(from, cursor_cache_error);
     to->cursor_cache += WT_STAT_READ(from, cursor_cache);
@@ -2797,6 +2844,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->session_table_verify_fail += WT_STAT_READ(from, session_table_verify_fail);
     to->session_table_verify_success += WT_STAT_READ(from, session_table_verify_success);
     to->tiered_work_units_dequeued += WT_STAT_READ(from, tiered_work_units_dequeued);
+    to->tiered_work_units_removed += WT_STAT_READ(from, tiered_work_units_removed);
     to->tiered_work_units_created += WT_STAT_READ(from, tiered_work_units_created);
     to->tiered_retention += WT_STAT_READ(from, tiered_retention);
     to->thread_fsync_active += WT_STAT_READ(from, thread_fsync_active);
