@@ -178,16 +178,10 @@ class test_hs22(wttest.WiredTigerTestCase):
 
         key1 = self.key1
 
-        if self.value_format == '8t':
-            value1 = 97  # 'a'
-            value2 = 98  # 'b'
-            value3 = 99  # 'c'
-            value4 = 100 # 'd'
-        else:
-            value1 = 'a'
-            value2 = 'b'
-            value3 = 'c'
-            value4 = 'd'
+        value1 = 'a'
+        value2 = 'b'
+        value3 = 'c'
+        value4 = 'd'
 
         self.session.begin_transaction()
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(1))
@@ -227,18 +221,11 @@ class test_hs22(wttest.WiredTigerTestCase):
 
         key1 = self.key1
 
-        if self.value_format == '8t':
-            value1 = 97  # 'a'
-            value2 = 98  # 'b'
-            value3 = 99  # 'c'
-            value4 = 100 # 'd'
-            value5 = 101 # 'e'
-        else:
-            value1 = 'a'
-            value2 = 'b'
-            value3 = 'c'
-            value4 = 'd'
-            value5 = 'e'
+        value1 = 'a'
+        value2 = 'b'
+        value3 = 'c'
+        value4 = 'd'
+        value5 = 'e'
 
         self.session.begin_transaction()
         cursor[key1] = value1
