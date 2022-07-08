@@ -327,13 +327,15 @@ void triggerEviction(WT_SESSION* session, std::string const& table_name, int key
     std::cout << "Try to trigger eviction" << std::endl;
     WT_CURSOR* cursor = nullptr;
     REQUIRE(session->open_cursor(session, table_name.c_str(), nullptr, "debug=(release_evict=true)", &cursor) == 0);
-    for (int i = keyMin; i <= keyMax; i += 10000) {
+    int step = (keyMax - keyMin) / 10;
+    for (int i = keyMin; i <= keyMax; i += step) {
         std::string key = testcase_key_base + std::to_string(i);
         std::cout << "  attempt to trigger eviction using key " << key << std::endl;
         cursor->set_key(cursor, key.c_str());
         cursor->search(cursor);
         cursor->reset(cursor);
         //REQUIRE(session->compact(session, table_name.c_str(), nullptr) == 0);
+        //std::this_thread::sleep_for(std::chrono::milliseconds (10));
     }
     REQUIRE(cursor->close(cursor) == 0);
     //dump_stats(sessionImpl);
@@ -402,7 +404,7 @@ void test_truncate_and_evict()
     int compactResult = 0;
     std::thread compactThread(compactThreadFunction, compactSession, table_name, std::ref(compactResult), truncateEventHandler.get());
 
-    dump_stats(sessionImpl);
+    //dump_stats(sessionImpl);
 
     {
         WT_CURSOR* cursor = nullptr;
@@ -427,7 +429,7 @@ void test_truncate_and_evict()
         }
 
         REQUIRE(cursor->close(cursor) == 0);
-        dump_stats(sessionImpl);
+        //dump_stats(sessionImpl);
     }
 
     {
@@ -454,11 +456,11 @@ void test_truncate_and_evict()
         REQUIRE(truncate_start->close(truncate_start) == 0);
         REQUIRE(truncate_end->close(truncate_end) == 0);
 
-        dump_stats(sessionImpl);
+        //dump_stats(sessionImpl);
         std::cout << "Commit the truncate" << std::endl;
         std::string transactionConfig = std::string("commit_timestamp=30");
         REQUIRE(session->commit_transaction(session, transactionConfig.data()) == 0); // set ts here.
-        dump_stats(sessionImpl);
+        //dump_stats(sessionImpl);
         //sleep(5);
     }
 
@@ -476,11 +478,12 @@ void test_truncate_and_evict()
     std::cout << "Set oldest and stable timestamps to 0x35" << std::endl;
     REQUIRE(conn.getWtConnection()->set_timestamp(conn.getWtConnection(), "stable_timestamp=35") == 0);
     REQUIRE(conn.getWtConnection()->set_timestamp(conn.getWtConnection(), "oldest_timestamp=35") == 0);
-    dump_stats(sessionImpl);
+    //dump_stats(sessionImpl);
 
     std::cout << std::flush;
 
     triggerEviction(session, table_name, truncateMin, truncateMax);
+    REQUIRE(session->compact(session, table_name.c_str(), nullptr) == 0);
 
 #ifdef HAVE_DIAGNOSTIC
     analyse_tree(sessionImpl, file_name);
@@ -506,6 +509,6 @@ TEST_CASE("Truncate and compact: table", "[compact]")
         std::cout << "Truncate and compact: table - iteration: " << i << std::endl;
         test_truncate_and_evict();
         std::cout << "Sleeping() Zzz..." << std::endl;
-        sleep(2);
+        sleep(1);
     }
 }

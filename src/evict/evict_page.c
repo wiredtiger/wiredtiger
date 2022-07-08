@@ -99,6 +99,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     bool was_clean;
     bool is_urgent;
     uint8_t page_type;
+    uint8_t ref_flags;
 
     conn = S2C(session);
     page = ref->page;
@@ -107,6 +108,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     local_gen = false;
 
     page_type = page->type;
+    ref_flags = ref->flags;
+    //TODO check consistency here for the ref too
 
     __wt_verbose(
       session, WT_VERB_EVICT, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
@@ -235,6 +238,26 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         }
     }
 
+    if (ref->flags != ref_flags) {
+        static int count = 0;
+        count++;
+        fprintf(stderr, "Evicted page and flags don't match: ref %p, page %p (original type: %s), "
+          "clean_page %d, tree_dead %d, was_clean %d, is_urgent %d, closing %d, "
+          "force_evict_hs %d, old flags %d, current flags %d, count %d\n",
+          (void *)ref,
+          (void *)page,
+          __wt_page_type_string(page_type),
+          clean_page,
+          tree_dead,
+          was_clean,
+          is_urgent,
+          closing,
+          force_evict_hs,
+          ref_flags,
+          ref->flags,
+          count);
+    }
+
     if (time_start != 0) {
         time_stop = __wt_clock(session);
         if (force_evict_hs)
@@ -326,6 +349,13 @@ __evict_delete_ref(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
              */
             WT_ASSERT(session, ref->state == WT_REF_LOCKED);
         }
+    }
+
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+        fprintf(stderr, "Switching internal ref %p to deleted\n", ref);
+
+        if (ref->addr == NULL)
+            fprintf(stderr, "************** WT_REF_FLAG_INTERNAL with NULL address\n");
     }
 
     WT_REF_SET_STATE(ref, WT_REF_DELETED);
@@ -456,6 +486,9 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 {
     WT_REF *child;
     bool active;
+    bool all_deleted;
+
+    all_deleted = true;
 
     /*
      * There may be cursors in the tree walking the list of child pages. The parent is locked, so
@@ -468,6 +501,8 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
     WT_INTL_FOREACH_BEGIN (session, parent->page, child) {
         switch (child->state) {
         case WT_REF_DISK:    /* On-disk */
+            all_deleted = false;
+            break;
         case WT_REF_DELETED: /* On-disk, deleted */
             break;
         default:
@@ -478,6 +513,8 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
     WT_INTL_FOREACH_REVERSE_BEGIN (session, parent->page, child) {
         switch (child->state) {
         case WT_REF_DISK:    /* On-disk */
+            all_deleted = false;
+            break;
         case WT_REF_DELETED: /* On-disk, deleted */
             break;
         default:
@@ -519,6 +556,9 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
         }
     }
     WT_INTL_FOREACH_END;
+
+    if (all_deleted)
+        fprintf(stderr, "Evicting an internal page (ref %p) with all deleted children\n", parent);
 
     return (0);
 }

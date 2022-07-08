@@ -787,10 +787,18 @@ __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
 
     was_internal = false;
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+        WT_PAGE* page;
+        WT_PAGE_INDEX *__pindex;
         static int count = 0;
         was_internal = true;
         count++;
         fprintf(stderr, "************** We're changing a REF from internal to leaf - ref %p, page %p (count %d) ***************\n", (void*)ref, (void*)ref->page, count);
+
+        page = ref->page;
+        __pindex = WT_INTL_INDEX_GET_SAFE(page);
+        if (__pindex == NULL)
+            fprintf(stderr, "************** __pindex == NULL\n");
+            //__wt_abort(session);
         //WT_RET(session->iface.compact(&(session->iface), "table:access2", NULL));
         //sleep(5);
 //        WT_ASSERT(session, false);
@@ -798,10 +806,10 @@ __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     F_CLR(ref, WT_REF_FLAG_INTERNAL);
-    if (was_internal) {
-        session->event_handler->handle_message(session->event_handler, (WT_SESSION *)session, "We're changing a REF from internal to leaf");
-        sleep(5);
-    }
+//    if (was_internal) {
+//        session->event_handler->handle_message(session->event_handler, (WT_SESSION *)session, "We're changing a REF from internal to leaf");
+//        sleep(5);
+//    }
     F_SET(ref, WT_REF_FLAG_LEAF);
 
     return (0);

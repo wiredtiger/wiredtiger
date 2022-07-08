@@ -218,6 +218,8 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 {
     bool skip;
 
+    return (false);
+
     /*
      * Deleted pages come from two sources: either it's a truncate as described above, or the page
      * has been emptied by other operations and eviction deleted it.

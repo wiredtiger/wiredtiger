@@ -37,7 +37,7 @@ WT_EVENT_HANDLER* ConnectionWrapper::getWtEventHandler()
 void ConnectionWrapper::initConnection()
 {
     utils::throwIfNonZero(mkdir(_db_home.c_str(), 0700));
-    utils::throwIfNonZero(wiredtiger_open(_db_home.c_str(), getWtEventHandler(), "create,statistics=[all,clear]", &_conn));
+    utils::throwIfNonZero(wiredtiger_open(_db_home.c_str(), getWtEventHandler(), "create,statistics=[all,clear],debug_mode=[eviction],cache_size=50MB,eviction_target=10,eviction_dirty_target=1", &_conn));
 }
 
 ConnectionWrapper::~ConnectionWrapper()

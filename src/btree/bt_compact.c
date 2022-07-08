@@ -233,6 +233,9 @@ __compact_walk_internal(WT_SESSION_IMPL *session, WT_REF *parent)
      */
     WT_RET(__wt_spin_trylock(session, &S2BT(session)->flush_lock));
 
+    bool is_parent_leaf = F_ISSET(parent, WT_REF_FLAG_LEAF);
+    //WT_ASSERT(session, !is_parent_leaf);
+
     /*
      * Walk the internal page and check any leaf pages it references; skip internal pages, we'll
      * visit them individually.
@@ -306,6 +309,10 @@ __compact_walk_page_skip(
 
     /* All we want are the internal pages. */
     *skipp = F_ISSET(ref, WT_REF_FLAG_LEAF) ? true : false;
+
+    if (!*skipp && ref->state == WT_REF_DELETED)
+        fprintf(stderr, "In compact skip with an internal page\n");
+
     return (0);
 }
 
@@ -335,12 +342,12 @@ __wt_compact(WT_SESSION_IMPL *session)
      * Check if compaction might be useful (the API layer will quit trying to compact the data
      * source if we make no progress).
      */
-    WT_RET(bm->compact_skip(bm, session, &skip));
-    if (skip) {
-        WT_STAT_CONN_INCR(session, session_table_compact_skipped);
-        WT_STAT_DATA_INCR(session, btree_compact_skipped);
-        return (0);
-    }
+//    WT_RET(bm->compact_skip(bm, session, &skip));
+//    if (skip) {
+//        WT_STAT_CONN_INCR(session, session_table_compact_skipped);
+//        WT_STAT_DATA_INCR(session, btree_compact_skipped);
+//        return (0);
+//    }
 
     /* Walk the tree reviewing pages to see if they should be re-written. */
     for (i = 0;;) {
