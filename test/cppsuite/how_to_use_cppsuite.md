@@ -37,16 +37,19 @@ For our `multi_size_inserts` example, we add code to to write transactions with 
 void
 insert_operation(thread_worker *tw) override final
 {
+    const int64_t ten_mb = 10 * 1024 * 1024;
+    const int64_t one_kb = 1024;
+
     // Retrieve the collection created by the populate operation.
     collection &coll = tw->db.get_collection(0);
     scoped_cursor cursor = tw->session.open_scoped_cursor(coll.name);
 
-    int value_size_bytes = 1000;
+    int value_size_bytes = one_kb;
 
     while (tw->running()) {
 
         // Swap value size between 1KB and 10MB.
-        value_size_bytes = value_size_bytes == 1000 ? 10000000 : 1000;
+        value_size_bytes = value_size_bytes == one_kb ? ten_mb : one_kb;
 
         tw->txn.begin();
 
@@ -85,7 +88,7 @@ set_tracking_cursor(WT_SESSION *session, const tracking_operation &operation, co
     const std::string &key, const std::string &value, wt_timestamp_t ts,
     scoped_cursor &op_track_cursor) override final
 {
-    uint64_t txn_id = ((WT_SESSION_IMPL *)session)->txn->id;
+    uint64_t txn_id = reinterpret_cast<WT_SESSION_IMPL *>(session)->txn->id;
 
     op_track_cursor->set_key(op_track_cursor.get(), ts, txn_id);
     op_track_cursor->set_value(op_track_cursor.get(), key.c_str(), value.size());
@@ -103,6 +106,9 @@ void
 validate(const std::string &operation_table_name, const std::string &schema_table_name,
     database &db) override final
 {
+    const int64_t ten_mb = 10 * 1024 * 1024;
+    const int64_t one_kb = 1024;
+
     scoped_session session = connection_manager::instance().create_session();
 
     // For this test we only need to check the insert operations data saved by the operation tracker.
@@ -111,17 +117,17 @@ validate(const std::string &operation_table_name, const std::string &schema_tabl
     scoped_cursor cursor = session.open_scoped_cursor(db.get_collection(0).name);
 
     while (tracked_operations_cursor->next(tracked_operations_cursor.get()) == 0) {
-        int ts, txn_id, value_size;
-        char *key;
+        int ts = 0, txn_id = 0, value_size = 0;
+        char *key = nullptr;
 
         testutil_check(tracked_operations_cursor->get_key(tracked_operations_cursor.get(), &ts, &txn_id));
         testutil_check(tracked_operations_cursor->get_value(tracked_operations_cursor.get(), &key, &value_size));
 
-        testutil_assert(value_size == 1000 || value_size == 10000000);
+        testutil_assert(value_size == one_kb || value_size == ten_mb);
         cursor->set_key(cursor.get(), key);
-        if(value_size == 1000) {
+        if(value_size == one_kb) {
             testutil_assert(cursor->search(cursor.get()) == 0);
-        } else if(value_size == 10000000) {
+        } else if(value_size == ten_mb) {
             testutil_assert(cursor->search(cursor.get()) == WT_NOTFOUND);
         }
     }
