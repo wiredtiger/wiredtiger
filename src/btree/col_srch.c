@@ -258,9 +258,10 @@ leaf_only:
                 ins_head = WT_COL_UPDATE_SLOT(page, cbt->slot);
                 ins = WT_SKIP_LAST(ins_head);
                 if (ins != NULL && cbt->recno == WT_INSERT_RECNO(ins)) {
-                    cbt->ins = ins;
                     cbt->ins_head = ins_head;
+                    cbt->ins = ins;
                 }
+                cbt->ins_stack[0] = NULL;
             }
             goto past_end;
         } else {
@@ -299,8 +300,8 @@ past_end:
     if (ins == NULL)
         cbt->compare = -1;
     else {
-        cbt->ins = ins;
         cbt->ins_head = ins_head;
+        cbt->ins = ins;
         cbt->recno = WT_INSERT_RECNO(cbt->ins);
         if (recno == cbt->recno)
             cbt->compare = 0;
