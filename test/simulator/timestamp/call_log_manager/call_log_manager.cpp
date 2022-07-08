@@ -71,8 +71,10 @@ call_log_manager::process_call_log_entry(json call_log_entry)
             break;
         case api_method::open_session:
             session_simulator *session = _conn->open_session();
-            /* Insert this session into the mapping between the simulator session object and the
-             * wiredtiger session object. */
+            /* 
+             * Insert this session into the mapping between the simulator session object and the
+             * wiredtiger session object. 
+             */
             _session_map.insert(std::pair<std::string, session_simulator *>(
               call_log_entry["output"]["session_id"], session));
             break;
@@ -80,7 +82,6 @@ call_log_manager::process_call_log_entry(json call_log_entry)
     } catch (const std::exception &e) {
         std::cerr << "process_call_log_entry: Cannot process call log entry. " << e.what()
                   << std::endl;
-        return;
     }
 }
 
