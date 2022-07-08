@@ -31,6 +31,7 @@
 
 #include <string>
 #include "timestamp_simulator.h"
+#include "connection_simulator.h"
 
 class timestamp_manager {
     private:
@@ -38,16 +39,25 @@ class timestamp_manager {
     // oldest_timestamp oldest_ts;
 
     // PM-2564-TODO: Timestamp as ints alternative.
-    int oldest_ts_int;
+    int *oldest_ts;
     int stable_ts_int;
     /* Add more system timestamps here. */
 
-    public:
-    // PM-2564-TODO: oldest_ts as a public attribute allows its get_specs method to be called in the connection class.
-    oldest_timestamp oldest_ts;
+    // public:
+    // // PM-2564-TODO: oldest_ts as a public attribute allows its get_specs method to be called in the connection class.
+    // oldest_timestamp oldest_ts;
 
+    public:
+    static timestamp_manager &get_timestamp_manager();
+    int set_oldest_ts(int *ts);
+    bool validate_oldest_ts(int ts);
+
+    private:
     timestamp_manager();
-    int set_oldest_ts(int ts);
+
+    public:
+    timestamp_manager(timestamp_manager const &) = delete;
+    timestamp_manager &operator=(timestamp_manager const &) = delete;
 };
 
 #endif

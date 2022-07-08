@@ -31,6 +31,7 @@
 
 #include <vector>
 #include <memory>
+#include <map>
 
 #include "session_simulator.h"
 #include "timestamp_simulator.h"
@@ -41,10 +42,15 @@ class connection_simulator {
     /* Member variables */
     private:
     std::vector<std::shared_ptr<session_simulator>> session_list;
-    // PM-2564-TODO: Do we want to have timestamps such as oldest and stable here in the connection?
-    // Or should the timestamp manager be wholly responsible for these and other timestamps.
-    oldest_timestamp oldest_ts;
-    timestamp_manager ts_mgr;
+    enum system_timestamps { oldest_timestamp, stable_timestamp, durable_timestamp };
+    std::map<std::string, system_timestamps> system_timestamps_map;
+    // PM-2564-TODO: Approach 1 - Connection is responsible for the system level timestamps.
+    int oldest_ts;
+    int stable_ts;
+    int durable_ts;
+
+    // PM-2564-TODO: Approach 2 - timestamp manager is responsible for the system level timestamps.
+    // timestamp_manager *ts_mgr = &timestamp_manager::get_timestamp_manager();
 
     /* Methods */
     public:
@@ -57,6 +63,11 @@ class connection_simulator {
     /* No copies of the singleton allowed. */
     private:
     connection_simulator();
+    int parse_timestamp_config(std::string config, std::string *ts_type, int *ts);
+    bool validate_oldest_ts(int new_oldest_ts);
+    bool validate_stable_ts(int new_stable_ts);
+    bool validate_durable_ts(int new_durable_ts);
+    void system_timestamps_map_setup();
 
     public:
     /* Deleted functions should generally be public as it results in better error messages. */

@@ -29,25 +29,34 @@
 #include "timestamp_manager.h"
 #include <iostream>
 
-timestamp_manager::timestamp_manager(){
+timestamp_manager::timestamp_manager() {}
 
+/* Get an instance of connection_simulator class. */
+timestamp_manager &
+timestamp_manager::get_timestamp_manager()
+{
+    static timestamp_manager _timestamp_manager_instance;
+    return (_timestamp_manager_instance);
 }
 
-int timestamp_manager::set_oldest_ts(int ts){
+
+int timestamp_manager::set_oldest_ts(int *ts){
+
+    oldest_ts = ts;
+
+    return 0;
+}
+
+bool timestamp_manager::validate_oldest_ts(int ts){
 
     /* PM-2564-TODO: Validation goes here since timestamp manager is aware of all the system timestamps. 
     Currently using ints here to simplify the example. */
     
     // Oldest timestamp can't move backward.
-    if (ts <= oldest_ts_int){
+    if (ts <= *oldest_ts){
         std::cout << "Oldest timestamp cannot move backwards." << std::endl;
-        return 1;
+        return false;
     }
 
-    /* All validations passed after this point. */
-    oldest_ts.set_ts(ts);
-
-    oldest_ts_int = ts;
-
-    return 0;
+    return true;
 }
