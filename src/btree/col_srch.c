@@ -255,8 +255,8 @@ leaf_only:
             cbt->recno = __col_var_last_recno(current);
             cbt->slot = page->entries == 0 ? 0 : page->entries - 1;
             if (cbt->recno != WT_RECNO_OOB) {
-                ins_head = WT_COL_UPDATE_SLOT(page, cbt->slot);
-                ins = __col_insert_search(ins_head, cbt->ins_stack, cbt->next_stack, cbt->recno);
+                cbt->ins_head = WT_COL_UPDATE_SLOT(page, cbt->slot);
+                ins = __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, cbt->recno);
                 if (ins != NULL && cbt->recno == WT_INSERT_RECNO(ins))
                     cbt->ins = ins;
             }
