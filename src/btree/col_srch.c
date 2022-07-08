@@ -261,7 +261,6 @@ leaf_only:
                     cbt->ins_head = ins_head;
                     cbt->ins = ins;
                 }
-                cbt->ins_stack[0] = NULL;
             }
             goto past_end;
         } else {
