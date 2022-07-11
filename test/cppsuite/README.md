@@ -49,13 +49,32 @@ The workload manager is responsible for calling the populate function and the li
 | Finish   | Ends each thread started in the run phase. |
 
 ### Operation tracker
-During the execution of the test, the operation tracker saves test metadata every time a thread performs an update, insertion, or removal operation. The user can also manually save test metadata by calling the `save_operation` function from the `operation_tracker` class. The framework defines a set of default data to track during a test but the user can customize it by editing the test configuration file and overriding the `set_tracking_cursor` function. See [here](how_to_use_cppsuite.md) for more details.
+During the execution of a test, the operation tracker saves schema and non-schema operations.
+
+#### Schema operations
+The cppsuite schema operations represent the creation and deletion of tables and are tracked in a dedicated table. This data is automatically saved during the `populate` operation via the `save_schema_operation` function. The user cannot customize what data is saved. The table below represents the data associated with each record:
+
+| Key                      | Value            |
+| ------------------------ | ---------------- |
+| collection id, timestamp | schema operation |
+
+The `collection id` is the identifier of the collection the schema operation is applied to. The `timestamp` is the time at which the operation occurred. The `schema operation` is a value from the enumeration `tracking_operation`, either `CREATE_COLLECTION` or `DELETE_COLLECTION`.
+
+#### Non-schema operations
+Non-schema operations in the cppsuite are insertions, removals or updates of records which are automatically saved during the `insert`, `update`, and `remove` operations via the `save_operation` function. The framework defines a set of default data to track in this table during a test but the user can customize it by editing the test configuration file and overriding the `set_tracking_cursor` function. The table below represents the data associated with each record by default:
+
+| Key                           | Value            |
+| ----------------------------- | ---------------- |
+| collection id, key, timestamp | operation, value |
+
+The `collection id` is the identifier of the collection the schema operation is applied to. The `timestamp` is the time at which the operation occurred. The `operation` is a value from the enumeration `tracking_operation`, either `CUSTOM`, `DELETE_KEY` or `INSERT`. The `key` and `value` represent the key/value pair the operation is applied to. For the database operation `remove`, the field `value` is empty.
+
 Any saved data can be used at the [validation](#validate) stage.
 
 | Phase    | Description |
 | -------- | ----------- |
-| Load     | Creates two tables to save the test metadata. One (A) is dedicated to schema operations and the second (B) is dedicated to any other operation. |
-| Run      | If the key/value format of table (B) is not overridden by the user, it prunes any data not applicable to the validation stage. |
+| Load     | Creates the tables required to track the test data. |
+| Run      | Prunes any data not applicable to the validation stage when the framework tracks the default data. |
 | Finish   | N/A |
 
 ### Timestamp manager
