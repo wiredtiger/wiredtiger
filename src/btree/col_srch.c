@@ -254,18 +254,6 @@ leaf_only:
         if ((cip = __col_var_search(current, recno, NULL)) == NULL) {
             cbt->recno = __col_var_last_recno(current);
             cbt->slot = page->entries == 0 ? 0 : page->entries - 1;
-            /*
-             * We need to search the insert list in case there is nothing on the append list when we
-             * search it later on (which would be closer to the search record).
-             */
-            if (cbt->recno != WT_RECNO_OOB) {
-                ins_head = WT_COL_UPDATE_SLOT(page, cbt->slot);
-                ins = WT_SKIP_LAST(ins_head);
-                if (ins != NULL && cbt->recno == WT_INSERT_RECNO(ins)) {
-                    cbt->ins_head = ins_head;
-                    cbt->ins = ins;
-                }
-            }
             goto past_end;
         } else {
             cbt->recno = recno;
@@ -300,9 +288,33 @@ past_end:
      */
     ins_head = WT_COL_APPEND(page);
     ins = __col_insert_search(ins_head, cbt->ins_stack, cbt->next_stack, recno);
-    if (ins == NULL)
+    if (ins == NULL) {
+        /*
+         * Set this, otherwise the code in cursor_valid will assume there's no on-disk value
+         * underneath ins_head.
+         */
+        if (page->type != WT_PAGE_COL_FIX)
+            F_SET(cbt, WT_CBT_VAR_ONPAGE_MATCH);
+
+        /*
+         * There is nothing on the append list, so search the insert list. (The append list would
+         * have been closer to the search record).
+         */
+        if (cbt->recno != WT_RECNO_OOB) {
+            ins_head = (page->type == WT_PAGE_COL_FIX) ? WT_COL_UPDATE_SINGLE(page) :
+                                                         WT_COL_UPDATE_SLOT(page, cbt->slot);
+            ins = WT_SKIP_LAST(ins_head);
+            if (ins != NULL && cbt->recno == WT_INSERT_RECNO(ins)) {
+                cbt->ins_head = ins_head;
+                cbt->ins = ins;
+            }
+        }
+
         cbt->compare = -1;
-    else {
+    } else {
+        if (page->type != WT_PAGE_COL_FIX)
+            F_CLR(cbt, WT_CBT_VAR_ONPAGE_MATCH);
+
         cbt->ins_head = ins_head;
         cbt->ins = ins;
         cbt->recno = WT_INSERT_RECNO(cbt->ins);
