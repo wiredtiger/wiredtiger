@@ -48,7 +48,9 @@ class timestamp_manager {
 
     public:
     static timestamp_manager &get_timestamp_manager();
-    bool validate_oldest_ts(int ts);
+    int validate_oldest_ts(int new_oldest_ts);
+    int validate_stable_ts(int new_stable_ts);
+    int validate_durable_ts(int new_durable_ts);
 
     private:
     timestamp_manager();

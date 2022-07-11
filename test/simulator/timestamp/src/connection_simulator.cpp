@@ -124,17 +124,15 @@ connection_simulator::set_timestamp(std::string config)
 
     switch (system_timestamps_map[ts_type]) {
         case oldest_timestamp:
-            if(ts_mgr->validate_oldest_ts(ts)) 
+            if(!ts_mgr->validate_oldest_ts(ts)) 
                 oldest_ts = ts;
-            // if(validate_oldest_ts(ts))
-            //     oldest_ts = ts;
             break;
         case stable_timestamp:
-            if(validate_stable_ts(ts))
+            if(!ts_mgr->validate_stable_ts(ts))
                 stable_ts = ts;
             break;
         case durable_timestamp:
-            if(validate_durable_ts(ts))
+            if(!ts_mgr->validate_durable_ts(ts))
                 durable_ts = ts;
             break;
     }
