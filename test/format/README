@@ -1,17 +1,17 @@
 Tracing format operations can be useful in debugging.
 
-Turn on tracing with the "-t" flag:
+Turn on tracing with the "-T" flag:
 
-    -t	Trace operations into a WiredTiger log
+    -T	Trace operations into a WiredTiger log
 
 That causes format to write trace messages into a WiredTiger log, using WT_SESSION.log_printf()
 to track operations.  Operations are logged into a separate database from the run, "OPS.TRACE"
 in the run's home directory.
 
 By default only modifications and transactions are traced to limit how much data is stored. The
--t option takes an argument, so to configure the default use an empty string, '-t ""'.
+-T option takes an argument, so to configure the default use an empty string, '-T ""'.
 
-You can trace more operations by adding comma or white-space separated arguments to the -t option:
+You can trace more operations by adding comma or white-space separated arguments to the -T option:
 
     all         trace everything
     bulk        trace bulk loads
@@ -24,13 +24,13 @@ You can trace more operations by adding comma or white-space separated arguments
 
 For example, to trace the usual operations plus bulk load, and retain 25 log files, use:
 
-    -t "bulk,retain=25"
+    -T "bulk,retain=25"
 
 Additionally if tracing is configured, verbose messages written by the database itself will be
 logged as well. For example, to trace the usual operations and include verbose block manager
 operations, use:
 
-    -C 'verbose=(block)' -t ""
+    -C 'verbose=(block)' -T ""
 
 After the run, you can dump the trace records from the WiredTiger log files with the wt utility,
 for example:
@@ -70,7 +70,7 @@ And that gives you the complete transaction.
 
 Or, something like:
 
-    % grep -w 224868 | sort -t: -k2,3 LOG
+    % grep -w 224868 | sort -T: -k2,3 LOG
 
 will list all of the operations ID appearances in the log, sorted by session ID.
 

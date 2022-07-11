@@ -173,7 +173,7 @@ while :; do
 		smoke_test=1
 		shift ;;
 	-T)
-		trace='-t ,,'
+		trace='-T ,,'
 		shift ;;
 	-t)
 		minutes="$2"
