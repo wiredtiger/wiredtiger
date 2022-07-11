@@ -1325,6 +1325,9 @@ __conn_set_timestamp(WT_CONNECTION *wt_conn, const char *config)
     CONNECTION_API_CALL(conn, session, set_timestamp, config, cfg);
     ret = __wt_txn_global_set_timestamp(session, cfg);
 err:
+#ifdef HAVE_CALL_LOG
+    WT_TRET(__wt_call_log_set_timestamp(session, config, ret));
+#endif
     API_END_RET(session, ret);
 }
 
