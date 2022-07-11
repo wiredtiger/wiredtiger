@@ -13,10 +13,10 @@ The cppsuite is a C++ framework designed to help developers write multithreaded 
   * [Checkpoint](#checkpoint)
   * [Validate](#validate)
 - [Components](#components)
-  * [Workload Manager](#workload-manager)
-  * [Operation Tracker](#operation-tracker)
-  * [Timestamp Manager](#timestamp-manager)
-  * [Metrics Monitor](#metrics-monitor)
+  * [Workload manager](#workload-manager)
+  * [Operation tracker](#operation-tracker)
+  * [Timestamp manager](#timestamp-manager)
+  * [Metrics monitor](#metrics-monitor)
 - [Test configuration file](#test-configuration-file)
 - [Logging](#logging)
 - [Tutorial](#tutorial)
@@ -58,7 +58,7 @@ The default validation algorithm requires the default [operation tracker](#opera
 The framework provides built-in components that each offer a set of features to enhance the testing experience. Their behavior is customized through a configuration file.  A component has a life cycle made of three stages: *load*, *run*, and *finish*. Each of these stages is described for each component below.
 
 
-## Workload Manager
+## Workload manager
 The workload manager is responsible for calling the populate function and the lifecycle of the threads dedicated to each of the database operations described above.
 
 | Phase    | Description |
@@ -67,7 +67,7 @@ The workload manager is responsible for calling the populate function and the li
 | Run      | Calls the populate function, then parses the configuration for each operation and spawns threads for each of them. |
 | Finish   | Ends each thread started in the run phase. |
 
-## Operation Tracker
+## Operation tracker
 During the execution of the test, the operation tracker saves test metadata every time a thread performs an update, insertion, or removal operation. The user can also manually save test metadata by calling the `save_operation` function from the `operation_tracker` class. The framework defines a set of default data to track during a test but the user can customize it by editing the test configuration file and overriding the `set_tracking_cursor` function. See [here](how_to_use_cppsuite.md) for more details.
 Any saved data can be used at the [validation](#validate) stage.
 
@@ -77,7 +77,7 @@ Any saved data can be used at the [validation](#validate) stage.
 | Run      | If the key/value format of table (B) is not overridden by the user, it prunes any data not applicable to the validation stage. |
 | Finish   | N/A |
 
-## Timestamp Manager
+## Timestamp manager
 The timestamp manager is responsible for managing the stable and oldest timestamps as well as providing timestamps to the user on demand. The stable and oldest timestamps are updated according to the definitions of the `oldest_lag` and `stable_lag` in the test configuration file. The `oldest_lag` is the difference in time between the oldest and stable timestamps, and `stable_lag` is the difference in time between the stable timestamp and the current time. When the timestamp manager updates the different timestamps it is possible that concurrent operations may fail. For instance, if the oldest timestamp moves to a time more recent than a commit timestamp of a concurrent transaction, the transaction will fail. 
 
 | Phase    | Description |
@@ -86,7 +86,7 @@ The timestamp manager is responsible for managing the stable and oldest timestam
 | Run      | Updates the oldest and stable lags as well as the oldest and stable timestamps. |
 | Finish   | N/A |
 
-## Metrics Monitor
+## Metrics monitor
 The metrics monitor polls database metrics during and after test execution. If a metric is found to be outside the acceptable range defined in the configuration file then the test will fail. When a test ends, the metrics monitor can export the value of these statistics to a JSON file that can be uploaded to Evergreen or Atlas.
 
 | Phase    | Description |
@@ -95,7 +95,7 @@ The metrics monitor polls database metrics during and after test execution. If a
 | Run      | Checks runtime metrics and fails the test if one is found outside the range defined in the configuration file. |
 | Finish   | Checks post run metrics and fails the test if one is found outside the range defined in the configuration file. Exports any required metrics to a JSON file if the test is successful. |
 
-All the components and their implementation can be found in the [component](https://github.com/wiredtiger/wiredtiger/tree/develop/test/cppsuite/src/component) folder.
+The components and their implementation can be found in the [component](https://github.com/wiredtiger/wiredtiger/tree/develop/test/cppsuite/src/component) folder.
 
 # Test configuration file
 A test configuration is a text file that is associated with a test and defines the workload. The test configuration file contains top-level settings such as the test duration or cache size and component level settings that define their behavior. The format is the following:
