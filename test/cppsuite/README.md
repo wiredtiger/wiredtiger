@@ -125,8 +125,8 @@ The framework writes traces to stdout using a [logger](https://github.com/wiredt
 A message will not be filtered if the configured logging level is higher or equal to the logging level of the message:
 
 - The `LOG_WARN` level prints `LOG_WARN` and `LOG_ERROR` messages.
-- The `LOG_INFO` level prints `LOG_INFO`, `LOG_WARN` and `ERROR` messages.
-- The `LOG_TRACE` level prints `LOG_TRACE`, `LOG_INFO`, `LOG_WARN` and `ERROR` messages.
+- The `LOG_INFO` level prints `LOG_INFO`, `LOG_WARN` and `LOG_ERROR` messages.
+- The `LOG_TRACE` level prints `LOG_TRACE`, `LOG_INFO`, `LOG_WARN` and `LOG_ERROR` messages.
 
 To call the logger both a logging level and message need to be provided:
 
