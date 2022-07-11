@@ -49,10 +49,10 @@ The workload manager is responsible for calling the populate function and the li
 | Finish   | Ends each thread started in the run phase. |
 
 ### Operation tracker
-During the execution of a test, the operation tracker saves schema and non-schema operations.
+During the execution of a test, the operation tracker saves schema and non-schema operations to their own respective tables.
 
 #### Schema operations
-The cppsuite schema operations represent the creation and deletion of tables and are tracked in a dedicated table. This data is automatically saved during the `populate` operation via the `save_schema_operation` function. The user cannot customize what data is saved. The table below represents the data associated with each record:
+The cppsuite schema operations represent the creation and deletion of tables. This data is automatically saved during the `populate` operation via the `save_schema_operation` function. The user cannot customize what data is saved. The table below represents the data associated with each record:
 
 | Key                      | Value            |
 | ------------------------ | ---------------- |
