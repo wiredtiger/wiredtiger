@@ -290,19 +290,22 @@ past_end:
     ins = __col_insert_search(ins_head, cbt->ins_stack, cbt->next_stack, recno);
     if (ins == NULL) {
         /*
-         * Set this, otherwise the code in cursor_valid will assume there's no on-disk value
-         * underneath ins_head.
-         */
-        if (page->type != WT_PAGE_COL_FIX)
-            F_SET(cbt, WT_CBT_VAR_ONPAGE_MATCH);
-
-        /*
          * There is nothing on the append list, so search the insert list. (The append list would
          * have been closer to the search record).
          */
         if (cbt->recno != WT_RECNO_OOB) {
-            ins_head = (page->type == WT_PAGE_COL_FIX) ? WT_COL_UPDATE_SINGLE(page) :
-                                                         WT_COL_UPDATE_SLOT(page, cbt->slot);
+            if (page->type == WT_PAGE_COL_FIX)
+                ins_head = WT_COL_UPDATE_SINGLE(page);
+            else {
+                ins_head = WT_COL_UPDATE_SLOT(page, cbt->slot);
+
+                /*
+                 * Set this, otherwise the code in cursor_valid will assume there's no on-disk value
+                 * underneath ins_head.
+                 */
+                F_SET(cbt, WT_CBT_VAR_ONPAGE_MATCH);
+            }
+
             ins = WT_SKIP_LAST(ins_head);
             if (ins != NULL && cbt->recno == WT_INSERT_RECNO(ins)) {
                 cbt->ins_head = ins_head;
@@ -313,7 +316,7 @@ past_end:
         cbt->compare = -1;
     } else {
         if (page->type != WT_PAGE_COL_FIX)
-            F_CLR(cbt, WT_CBT_VAR_ONPAGE_MATCH);
+            WT_ASSERT(session, !F_ISSET(cbt, WT_CBT_VAR_ONPAGE_MATCH));
 
         cbt->ins_head = ins_head;
         cbt->ins = ins;
