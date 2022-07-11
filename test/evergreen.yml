@@ -1217,6 +1217,16 @@ tasks:
           test_config_filename: configs/burst_inserts_stress.txt
           test_name: burst_inserts
 
+  - name: cppsuite-cursor-bound-01-stress
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/cursor_bound_01_stress.txt
+          test_name: cursor_bound_01
+
   - name: cppsuite-search-near-01-stress
     depends_on:
       - name: compile
@@ -4262,6 +4272,7 @@ buildvariants:
     - name: compile
     - name: cppsuite-operations-test-stress
     - name: cppsuite-burst-inserts-stress
+    - name: cppsuite-cursor-bound-01-stress
     - name: cppsuite-hs-cleanup-stress
     - name: cppsuite-search-near-01-stress
     - name: cppsuite-search-near-02-stress
