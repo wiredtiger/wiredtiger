@@ -251,7 +251,7 @@ __wt_call_log_set_timestamp(WT_SESSION_IMPL *session, const char *config, int re
     WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"connection_id\": \"%p\",\n", conn));
 
     /*
-     * The Set timestamp entry includes the timestamp configuration string which is copied from the
+     * The set timestamp entry includes the timestamp configuration string which is copied from the
      * original API call.
      */
     WT_RET(__wt_snprintf(config_buf, sizeof(config_buf), "\"config\": \"%s\"", config));
@@ -259,6 +259,41 @@ __wt_call_log_set_timestamp(WT_SESSION_IMPL *session, const char *config, int re
 
     /* Set timestamp has no output arguments. */
     WT_RET(__call_log_print_output(session, 0));
+    WT_RET(__call_log_print_return(session, ret_val, ""));
+
+    return (0);
+}
+
+/*
+ * __wt_call_log_query_timestamp --
+ *     Print the call log entry for the query timestamp API call.
+ */
+int
+__wt_call_log_query_timestamp(
+  WT_SESSION_IMPL *session, const char *config, const char *hex_timestamp, int ret_val)
+{
+    WT_CONNECTION_IMPL *conn;
+    char config_buf[128], hex_ts_buf[128];
+
+    conn = S2C(session);
+
+    WT_RET(__call_log_print_start(session, "connection", "query_timestamp"));
+
+    /* Connection ID to be used by the call log manager. */
+    WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"connection_id\": \"%p\",\n", conn));
+
+    /*
+     * The query timestamp entry includes the timestamp configuration string which is copied from
+     * the original API call.
+     */
+    WT_RET(__wt_snprintf(config_buf, sizeof(config_buf), "\"config\": \"%s\"", config));
+    WT_RET(__call_log_print_input(session, 1, config_buf));
+
+    /* The timestamp queried is the output from the original query timestamp API call. */
+    WT_RET(__wt_snprintf(
+      hex_ts_buf, sizeof(hex_ts_buf), "\"timestamp_queried\": \"%s\"", hex_timestamp));
+    WT_RET(__call_log_print_output(session, 1, hex_ts_buf));
+
     WT_RET(__call_log_print_return(session, ret_val, ""));
 
     return (0);

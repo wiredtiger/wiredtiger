@@ -38,7 +38,7 @@ enum class api_method { open_session, wiredtiger_open };
 class call_log_manager {
     /* Methods */
     public:
-    call_log_manager(const std::string&);
+    call_log_manager(const std::string &);
     void process_call_log();
 
     private:
