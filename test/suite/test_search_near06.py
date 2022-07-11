@@ -33,8 +33,8 @@
 import wttest
 from wtscenario import make_scenarios
 
-class test_bug029(wttest.WiredTigerTestCase):
-    uri = 'file:test_search_near05'
+class test_search_near06(wttest.WiredTigerTestCase):
+    uri = 'file:test_search_near06'
 
     key_format_values = [
         ('fix', dict(key_format='r', value_format='8t')),
