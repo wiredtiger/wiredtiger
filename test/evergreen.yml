@@ -97,13 +97,6 @@ functions:
       working_dir: "wiredtiger"
       shell: bash
       script: |
-        # Fetch the gperftools library.
-        if [[ "${posix_configure_flags|}" =~ (tcmalloc|TCMALLOC) ]]; then
-          is_cmake_build=true
-          git clone git@github.com:wiredtiger/automation-scripts.git
-          . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
-        fi
-        
         set -o errexit
         set -o verbose
 
@@ -127,6 +120,13 @@ functions:
           ${IMPORT_S3_SDK|} \
           ${SPINLOCK_TYPE|} \
           ${CC_OPTIMIZE_LEVEL|}" 
+
+        # Fetch the gperftools library. This will also get tcmalloc.
+        if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}" =~ (tcmalloc|TCMALLOC) ]]; then
+          is_cmake_build=true
+          git clone git@github.com:wiredtiger/automation-scripts.git
+          . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
+        fi
 
         if [ "$OS" = "Windows_NT" ]; then
           # Use the Windows powershell script to configure the CMake build.
