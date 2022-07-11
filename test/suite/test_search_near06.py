@@ -26,8 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_search_near05.py
-#       Search_near with a key past the end.
+# test_search_near06.py
+#       Search_near with a key past the end much like search_near_05, but
+#       this time use timestamps to ensure the update isn't visible.
 
 import wttest
 from wtscenario import make_scenarios
@@ -75,24 +76,18 @@ class test_bug029(wttest.WiredTigerTestCase):
             self.session.begin_transaction()
             cursor.set_key(1000)
             cursor.remove()
-            self.session.commit_transaction()
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
         else:
+            self.session.begin_transaction()
             cursor[1000] = value2
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
 
-        self.session.begin_transaction()
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(5))
         cursor.set_key(1100)
         cursor.search_near()
 
-        if self.delete:
-            if self.value_format == "8t":
-                self.assertEqual(cursor.get_key(), 1000)
-                self.assertEqual(cursor.get_value(), 0)
-            else:
-                self.assertEqual(cursor.get_key(), 999)
-                self.assertEqual(cursor.get_value(), value1)
-        else:
-            self.assertEqual(cursor.get_key(), 1000)
-            self.assertEqual(cursor.get_value(), value2)
+        self.assertEqual(cursor.get_key(), 1000)
+        self.assertEqual(cursor.get_value(), value1)
 
 if __name__ == '__main__':
     wttest.run()
