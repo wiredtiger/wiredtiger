@@ -134,29 +134,6 @@ restart:
         base = pindex->entries;
         descent = pindex->index[base - 1];
 
-        /*
-         * It is possible to arrive at an internal page whose first child starts at a recno that is
-         * greater than the page's own starting recno. This is not supposed to happen, but it can if
-         * a gap in the namespace has been introduced (by truncation or checkpoint cleanup or
-         * whatnot) such that the leftmost child of a subtree has gone away.
-         *
-         * If this happens, take the first child and "split" it by inserting a new empty page in
-         * front of it with the internal page's starting recno.
-         */
-        if (recno < pindex->index[0]->ref_recno) {
-            /* No longer needed. */
-            WT_ASSERT(session, false);
-
-            /* Make sure we should actually be here. */
-            WT_ASSERT(session, recno >= current->ref_recno);
-            WT_RET(__wt_split_col_prepend(session, current));
-            /*
-             * In principle all we need to do is re-fetch the index pointer, base, and descent, but
-             * this doesn't happen often and it's better to be safe.
-             */
-            goto restart;
-        }
-
         /* Fast path appends. */
         if (recno >= descent->ref_recno) {
             /*
