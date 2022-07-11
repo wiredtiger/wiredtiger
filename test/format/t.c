@@ -209,7 +209,7 @@ main(int argc, char *argv[])
     /* Set values from the command line. */
     home = NULL;
     quiet_flag = syntax_check = verify_only = false;
-    while ((ch = __wt_getopt(progname, argc, argv, "1BC:c:h:qRSrt:v")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "1BC:c:h:qRSrT:v")) != EOF)
         switch (ch) {
         case '1':
             /* Ignored for backward compatibility. */
@@ -235,7 +235,7 @@ main(int argc, char *argv[])
         case 'S': /* Configuration syntax check */
             syntax_check = true;
             break;
-        case 't': /* Trace  */
+        case 'T': /* Trace  */
             trace_config(__wt_optarg);
             break;
         case 'v': /* Verify only */
@@ -446,7 +446,7 @@ usage(void)
 {
     fprintf(stderr,
       "usage: %s [-BqRv]\n    "
-      "[-C wiredtiger-config] [-c config-file] [-h home] [-t trace-config] [name=value ...]\n",
+      "[-C wiredtiger-config] [-c config-file] [-h home] [-T trace-config] [name=value ...]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-B maintain 3.3 release log and configuration option compatibility\n"
@@ -455,7 +455,7 @@ usage(void)
       "\t-h run directory (default 'RUNDIR')\n"
       "\t-q quiet\n"
       "\t-R reopen an existing database\n"
-      "\t-t trace operations in the WiredTiger log\n"
+      "\t-T trace operations in the WiredTiger log\n"
       "\t-v verify database and exit\n");
 
     config_error();
