@@ -1655,6 +1655,9 @@ __session_begin_transaction(WT_SESSION *wt_session, const char *config)
     ret = __wt_txn_begin(session, cfg);
 
 err:
+#ifdef HAVE_CALL_LOG
+    WT_TRET(__wt_call_log_begin_transaction(session, config, ret));
+#endif
     API_END_RET(session, ret);
 }
 

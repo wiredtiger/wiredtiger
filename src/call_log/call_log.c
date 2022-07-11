@@ -71,8 +71,8 @@ __call_log_print_start(WT_SESSION_IMPL *session, const char *class_name, const c
 
     WT_RET(__wt_fprintf(session, conn->call_log_fst,
       "{\n"
-      "    \"ClassName\" : \"%s\",\n"
-      "    \"MethodName\" : \"%s\",\n",
+      "    \"class_name\" : \"%s\",\n"
+      "    \"method_name\" : \"%s\",\n",
       class_name, method_name));
 
     return (0);
@@ -96,7 +96,7 @@ __call_log_print_input(WT_SESSION_IMPL *session, int n, ...)
 
     va_start(valist, n);
 
-    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "    \"Input\" : {\n"));
+    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "    \"input\" : {\n"));
 
     for (int i = 0; i < n; i++) {
         /* Don't print the comma at the end of the input entry if it's the last one. */
@@ -134,7 +134,7 @@ __call_log_print_output(WT_SESSION_IMPL *session, int n, ...)
 
     va_start(valist, n);
 
-    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "    \"Output\" : {\n"));
+    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "    \"output\" : {\n"));
 
     for (int i = 0; i < n; i++) {
         /* Don't print the comma at the end of the output entry if it's the last one. */
@@ -168,9 +168,9 @@ __call_log_print_return(WT_SESSION_IMPL *session, int ret_val, const char *err_m
     conn = S2C(session);
 
     WT_RET(__wt_fprintf(session, conn->call_log_fst,
-      "    \"Return\" : {\n"
-      "        \"ReturnVal\" : %d,\n"
-      "        \"errMsg\" : \"%s\"\n"
+      "    \"return\" : {\n"
+      "        \"return_val\" : %d,\n"
+      "        \"error_message\" : \"%s\"\n"
       "    }\n"
       "},\n",
       ret_val, err_msg));
@@ -186,14 +186,21 @@ int
 __wt_call_log_wiredtiger_open(WT_SESSION_IMPL *session, int ret_val)
 {
     WT_CONNECTION_IMPL *conn;
-    char buf[128];
 
     conn = S2C(session);
 
     WT_RET(__call_log_print_start(session, "global", "wiredtiger_open"));
+
+    /*
+     * WiredTiger open call log entry includes the connection address as and ID. This ID is used to
+     * map the connection used by wiredtiger to a new connection in the simulator.
+     */
+    WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"connection_id\": \"%p\",\n", conn));
+
+    /* WiredTiger open has no input arguments. */
     WT_RET(__call_log_print_input(session, 0));
-    WT_RET(__wt_snprintf(buf, sizeof(buf), "\"objectId\": \"%p\"", conn));
-    WT_RET(__call_log_print_output(session, 1, buf));
+
+    WT_RET(__call_log_print_output(session, 0));
     WT_RET(__call_log_print_return(session, ret_val, ""));
 
     return (0);
@@ -206,12 +213,116 @@ __wt_call_log_wiredtiger_open(WT_SESSION_IMPL *session, int ret_val)
 int
 __wt_call_log_open_session(WT_SESSION_IMPL *session, int ret_val)
 {
-    char buf[128];
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
 
     WT_RET(__call_log_print_start(session, "connection", "open_session"));
+
+    /*
+     * Open session includes the session address as an id in the call log entry. This ID is used to
+     * map the session used by wiredtiger to a new session in the simulator.
+     */
+    WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"session_id\": \"%p\",\n", session));
+
+    /* Open session has no input or output arguments. */
     WT_RET(__call_log_print_input(session, 0));
-    WT_RET(__wt_snprintf(buf, sizeof(buf), "\"objectId\": \"%p\"", session));
-    WT_RET(__call_log_print_output(session, 1, buf));
+    WT_RET(__call_log_print_output(session, 0));
+    WT_RET(__call_log_print_return(session, ret_val, ""));
+
+    return (0);
+}
+
+/*
+ * __wt_call_log_set_timestamp --
+ *     Print the call log entry for the set timestamp API call.
+ */
+int
+__wt_call_log_set_timestamp(WT_SESSION_IMPL *session, const char *config, int ret_val)
+{
+    WT_CONNECTION_IMPL *conn;
+    char config_buf[128];
+
+    conn = S2C(session);
+
+    WT_RET(__call_log_print_start(session, "connection", "set_timestamp"));
+
+    /* Connection ID to be used by the call log manager. */
+    WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"connection_id\": \"%p\",\n", conn));
+
+    /*
+     * The set timestamp entry includes the timestamp configuration string which is copied from the
+     * original API call.
+     */
+    WT_RET(__wt_snprintf(config_buf, sizeof(config_buf), "\"config\": \"%s\"", config));
+    WT_RET(__call_log_print_input(session, 1, config_buf));
+
+    /* Set timestamp has no output arguments. */
+    WT_RET(__call_log_print_output(session, 0));
+    WT_RET(__call_log_print_return(session, ret_val, ""));
+
+    return (0);
+}
+
+/*
+ * __wt_call_log_query_timestamp --
+ *     Print the call log entry for the query timestamp API call.
+ */
+int
+__wt_call_log_query_timestamp(
+  WT_SESSION_IMPL *session, const char *config, const char *hex_timestamp, int ret_val)
+{
+    WT_CONNECTION_IMPL *conn;
+    char config_buf[128], hex_ts_buf[128];
+
+    conn = S2C(session);
+
+    WT_RET(__call_log_print_start(session, "connection", "query_timestamp"));
+
+    /* Connection ID to be used by the call log manager. */
+    WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"connection_id\": \"%p\",\n", conn));
+
+    /*
+     * The query timestamp entry includes the timestamp configuration string which is copied from
+     * the original API call.
+     */
+    WT_RET(__wt_snprintf(config_buf, sizeof(config_buf), "\"config\": \"%s\"", config));
+    WT_RET(__call_log_print_input(session, 1, config_buf));
+
+    /* The timestamp queried is the output from the original query timestamp API call. */
+    WT_RET(__wt_snprintf(
+      hex_ts_buf, sizeof(hex_ts_buf), "\"timestamp_queried\": \"%s\"", hex_timestamp));
+    WT_RET(__call_log_print_output(session, 1, hex_ts_buf));
+
+    WT_RET(__call_log_print_return(session, ret_val, ""));
+
+    return (0);
+}
+
+/*
+ * __wt_call_log_begin_transaction --
+ *     Print the call log entry for the begin transaction API call.
+ */
+int
+__wt_call_log_begin_transaction(WT_SESSION_IMPL *session, const char *config, int ret_val)
+{
+    WT_CONNECTION_IMPL *conn;
+    char config_buf[128];
+
+    conn = S2C(session);
+
+    WT_RET(__call_log_print_start(session, "session", "begin_transaction"));
+    WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"session_id\": \"%p\",\n", session));
+
+    /*
+     * The begin transaction entry includes the timestamp configuration string which is copied from
+     * the original API call.
+     */
+    WT_RET(__wt_snprintf(config_buf, sizeof(config_buf), "\"config\": \"%s\"", config));
+    WT_RET(__call_log_print_input(session, 1, config_buf));
+
+    /* Begin transaction has no output arguments. */
+    WT_RET(__call_log_print_output(session, 0));
     WT_RET(__call_log_print_return(session, ret_val, ""));
 
     return (0);

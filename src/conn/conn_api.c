@@ -1306,6 +1306,9 @@ __conn_query_timestamp(WT_CONNECTION *wt_conn, char *hex_timestamp, const char *
     CONNECTION_API_CALL(conn, session, query_timestamp, config, cfg);
     ret = __wt_txn_query_timestamp(session, hex_timestamp, cfg, true);
 err:
+#ifdef HAVE_CALL_LOG
+    WT_TRET(__wt_call_log_query_timestamp(session, config, hex_timestamp, ret));
+#endif
     API_END_RET(session, ret);
 }
 
@@ -1325,6 +1328,9 @@ __conn_set_timestamp(WT_CONNECTION *wt_conn, const char *config)
     CONNECTION_API_CALL(conn, session, set_timestamp, config, cfg);
     ret = __wt_txn_global_set_timestamp(session, cfg);
 err:
+#ifdef HAVE_CALL_LOG
+    WT_TRET(__wt_call_log_set_timestamp(session, config, ret));
+#endif
     API_END_RET(session, ret);
 }
 
