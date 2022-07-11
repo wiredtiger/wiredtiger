@@ -440,7 +440,16 @@ __instantiate_col_var(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *pa
     page = ref->page;
     upd = NULL;
 
-    /* Open a cursor to use with col_modify. */
+    /*
+     * Open a cursor to use with col_modify. We use col_modify here (and thus a cursor) because
+     * setting up the append list inserts properly, even given the special case that we just loaded
+     * the page and have it locked so it's empty and there are no races, requires a lot of
+     * cut-and-paste code. Repeatedly searching the page while also iterating it is untidy and
+     * somewhat wasteful, but this doesn't need to be a fast path and isn't a common case.
+     *
+     * (Note that also we can't use next -- it is subject to visibility checks. A version of next at
+     * the same layer as __wt_col_search would be nice for this, but doesn't currently exist.)
+     */
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 
