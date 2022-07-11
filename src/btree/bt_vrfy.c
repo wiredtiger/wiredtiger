@@ -537,6 +537,21 @@ celltype_err:
                   vs->records_so_far + 1);
             }
 
+            /*
+             * If there is no address, it should be the first entry in the page. This is the case
+             * where inmem inserts a blank page to fill a namespace gap on the left-hand side of the
+             * tree. If the situation is what we expect, go to the next entry; otherwise complain.
+             */
+            if (child_ref->addr == NULL) {
+                /* The entry number has already been incremented above, so 1 is the first. */
+                if (entry == 1)
+                    continue;
+                WT_RET_MSG(session, WT_ERROR,
+                  "found a page with no address in entry %" PRIu32
+                  " of the column internal page at %s",
+                  entry, __verify_addr_string(session, child_ref, vs->tmp1));
+            }
+
             /* Unpack the address block and check timestamps */
             __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));

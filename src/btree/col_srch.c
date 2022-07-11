@@ -144,6 +144,9 @@ restart:
          * front of it with the internal page's starting recno.
          */
         if (recno < pindex->index[0]->ref_recno) {
+            /* No longer needed. */
+            WT_ASSERT(session, false);
+
             /* Make sure we should actually be here. */
             WT_ASSERT(session, recno >= current->ref_recno);
             WT_RET(__wt_split_col_prepend(session, current));
