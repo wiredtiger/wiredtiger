@@ -19,7 +19,7 @@ The cppsuite is a C++ framework designed to help developers write multithreaded 
   * [Metrics Monitor](#metrics-monitor)
 - [Test configuration file](#test-configuration-file)
 - [Logging](#logging)
-- [How to execute a test](#how-to-execute-a-test)
+- [Tutorial](#tutorial)
 
 # Database operations
 The database operations and their default implementation are described in the subsections below. During a test, a user-defined number of threads can be associated to each of those operations. Currently, the framework only supports operations on keys and values of type string. The values are randomly generated using a uniform distribution.
@@ -140,5 +140,5 @@ logger::log_msg(LOG_TRACE, "A logging message with the LOG_TRACE level");
 
 It is possible to indicate the logging level used by the framework when executing a test. Refer to [this section](how_to_use_cppsuite.md#running-tests) to see how.
 
-# How to execute a test
-A tutorial is available [here](how_to_use_cppsuite.md).
+# Tutorial
+Learn how to create and run cppsuite tests in [How to use cppsuite](how_to_use_cppsuite.md).
