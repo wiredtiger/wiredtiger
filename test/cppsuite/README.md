@@ -43,7 +43,7 @@ A read operation selects a random collection and uses a random cursor to read it
 There is no default implementation as this function is intended to be user-defined. The number of threads, operations performed in each transaction, sleep time between each operation, size of the keys and values are defined in the configuration file. 
 
 ## Checkpoint
-A checkpoint operation executes a checkpoint on the database every 60 seconds. Checkpoints are enabled or disabled by assigning one or zero threads in the configuration file, and are enabled by default. Checkpoints frequency is defined in the configuration file.
+A checkpoint operation executes a checkpoint on the database every 60 seconds. Checkpoints are enabled or disabled by assigning one or zero threads in the configuration file, and are enabled by default. The checkpoint frequency is defined in the configuration file.
 
 ## Validate
 The default validation algorithm requires the default [operation tracker](#operation-tracker) configuration. If the operation tracker is reconfigured, the default validation is skipped. The default validator checks if the WiredTiger tables are consistent with the tables tracked by the operation tracker by comparing their content. The validation (and hence the test) fails if there is any mismatch.
@@ -110,9 +110,7 @@ timestamp_manager=
 ...,
 ```
 
-Each test has a default configuration file which is the test name followed by the suffix `_default` and the extension `.txt`. It is possible to use any configuration file when executing a test, see [here](how_to_use_cppsuite.md#running-tests) for more details.
-
-All the different configurable items are defined in [test_data.py](https://github.com/wiredtiger/wiredtiger/blob/develop/dist/test_data.py).
+A configuration file is required to run a test. Each test can have one or more associated configuration files. The configurable fields and default settings are defined in [test_data.py](https://github.com/wiredtiger/wiredtiger/blob/develop/dist/test_data.py).
 
 # Logging
 The framework writes traces to stdout using a [logger](https://github.com/wiredtiger/wiredtiger/blob/develop/test/cppsuite/src/common/logger.cpp) and supports the following log levels:
