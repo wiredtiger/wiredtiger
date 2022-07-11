@@ -32,7 +32,7 @@
 
 #include "call_log_manager.h"
 
-call_log_manager::call_log_manager(const std::string& call_log_file)
+call_log_manager::call_log_manager(const std::string &call_log_file)
 {
     std::ifstream file(call_log_file);
     if (file.fail()) {
