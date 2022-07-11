@@ -2,7 +2,6 @@
 The cppsuite is a C++ framework designed to help developers write multithreaded and highly configurable testing for WiredTiger. It is intended to make stress testing as well as scenario-driven testing easy to implement. The framework provides built-in [components](#components) that each offers a set of features to enhance the testing experience and [database operations](#database-operations) with a default implementation that can be overridden at the test level. Each test has a corresponding [configuration file](#test-configuration-file) that defines the workload.
 
 # Table of contents
-- [Introduction](#introduction)
 - [Database operations](#database-operations)
 - [Components](#components)
 - [Test configuration file](#test-configuration-file)
