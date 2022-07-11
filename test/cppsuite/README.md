@@ -123,22 +123,32 @@ All the different configurable items are defined in [test_data.py](https://githu
 # Logging
 The framework writes traces to stdout using a [logger](https://github.com/wiredtiger/wiredtiger/blob/develop/test/cppsuite/src/common/logger.cpp) and supports the following log levels:
 
-| Logging level | Logging value |
-| ------------- | ------------- |
-| 0             | LOG_ERROR     |
-| 1             | LOG_WARN      |
-| 2             | LOG_INFO      |
-| 3             | LOG_TRACE     |
+| Logging level | Logging value | Description |
+| ------------- | ------------- | ----------- |
+| 0             | LOG_ERROR     | Message indicated an error faced by the framework or a failure of the test. |
+| 1             | LOG_WARN      | Warning conditions potentially signaling non-imminent errors and behaviors. |
+| 2             | LOG_INFO      | Informational style messages. |
+| 3             | LOG_TRACE     | Low severity messages, useful for debugging purposes. |
 
-Each logging level prints lower logging levels, for example the `WARN` level prints `ERROR` traces.
+A message will not be filtered if the configured logging level is higher or equal to the logging level of the message:
+
+- The `LOG_WARN` level prints `LOG_WARN` and `LOG_ERROR` messages.
+- The `LOG_INFO` level prints `LOG_INFO`, `LOG_WARN` and `ERROR` messages.
+- The `LOG_TRACE` level prints `LOG_TRACE`, `LOG_INFO`, `LOG_WARN` and `ERROR` messages.
 
 To call the logger both a logging level and message need to be provided:
 
 ```cpp
 logger::log_msg(LOG_TRACE, "A logging message with the LOG_TRACE level");
+
+logger::log_msg(LOG_INFO, "A logging message with the LOG_INFO level");
+
+logger::log_msg(LOG_WARN, "A logging message with the LOG_WARN level");
+
+logger::log_msg(LOG_ERROR, "A logging message with the LOG_ERROR level");
 ```
 
-It is possible to indicate the logging level used by the framework when executing a test. Refer to [this section](how_to_use_cppsuite.md#running-tests) to see how.
+The log level is specified as a command line argument when running a test.
 
 # Tutorial
 Learn how to create and run cppsuite tests in [How to use cppsuite](how_to_use_cppsuite.md).
