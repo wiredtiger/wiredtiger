@@ -1862,7 +1862,6 @@ extern void __wt_scr_discard(WT_SESSION_IMPL *session);
 extern void __wt_session_close_cache(WT_SESSION_IMPL *session);
 extern void __wt_session_dhandle_readlock(WT_SESSION_IMPL *session);
 extern void __wt_session_dhandle_readunlock(WT_SESSION_IMPL *session);
-extern void __wt_session_dhandle_writelock(WT_SESSION_IMPL *session);
 extern void __wt_session_dhandle_writeunlock(WT_SESSION_IMPL *session);
 extern void __wt_session_gen_enter(WT_SESSION_IMPL *session, int which);
 extern void __wt_session_gen_leave(WT_SESSION_IMPL *session, int which);

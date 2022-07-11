@@ -58,25 +58,10 @@
 #define WT_DHANDLE_IS_CHECKPOINT(dhandle) ((dhandle)->checkpoint != NULL)
 
 /*
- * WT_WITH_DHANDLE_READ_LOCK, WT_WITH_DHANDLE_WRITE_LOCK,
  * WT_WITH_DHANDLE_WRITE_LOCK_NOWAIT --
- *	Acquire read/write lock for the session's current dhandle, perform an operation, drop the
+ *	Try to acquire write lock for the session's current dhandle, perform an operation, drop the
  *  lock.
  */
-#define WT_WITH_DHANDLE_READ_LOCK(session, op)    \
-    do {                                          \
-        __wt_session_dhandle_readlock(session);   \
-        op;                                       \
-        __wt_session_dhandle_readunlock(session); \
-    } while (0)
-
-#define WT_WITH_DHANDLE_WRITE_LOCK(session, op)    \
-    do {                                           \
-        __wt_session_dhandle_writelock(session);   \
-        op;                                        \
-        __wt_session_dhandle_writeunlock(session); \
-    } while (0)
-
 #define WT_WITH_DHANDLE_WRITE_LOCK_NOWAIT(session, ret, op)               \
     do {                                                                  \
         if (((ret) = __wt_session_dhandle_try_writelock(session)) == 0) { \

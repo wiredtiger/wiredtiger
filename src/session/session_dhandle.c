@@ -783,18 +783,6 @@ __wt_session_dhandle_readunlock(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_session_dhandle_writelock --
- *     Acquire write lock for the session's current dhandle.
- */
-void
-__wt_session_dhandle_writelock(WT_SESSION_IMPL *session)
-{
-    WT_ASSERT(session, session->dhandle != NULL);
-    __wt_writelock(session, &session->dhandle->rwlock);
-    FLD_SET(session->dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE);
-}
-
-/*
  * __wt_session_dhandle_writeunlock --
  *     Release write lock for the session's current dhandle.
  */
