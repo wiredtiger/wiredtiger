@@ -26,19 +26,19 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_bug029.py
-#       Row and variable column store search_near with a key past the end.
+# test_search_near05.py
+#       Search_near with a key past the end.
 
 import wttest
 from wtscenario import make_scenarios
 
 class test_bug029(wttest.WiredTigerTestCase):
-    uri = 'file:test_bug029'
+    uri = 'file:test_search_near05'
 
     key_format_values = [
-        ('fix', dict(key_format='r', value_format='8t', format="flcs")),
-        ('var', dict(key_format='r', value_format='I', format="vlcs")),
-        ('row', dict(key_format='Q', value_format='I', format="row")),
+        ('fix', dict(key_format='r', value_format='8t')),
+        ('var', dict(key_format='r', value_format='I')),
+        ('row', dict(key_format='Q', value_format='I')),
     ]
 
     ops = [
@@ -85,7 +85,7 @@ class test_bug029(wttest.WiredTigerTestCase):
         cursor.search_near()
 
         if self.delete:
-            if self.format == "flcs":
+            if self.value_format == "8t":
                 self.assertEqual(cursor.get_key(), 1000)
                 self.assertEqual(cursor.get_value(), 0)
             else:
