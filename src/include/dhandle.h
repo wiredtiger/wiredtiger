@@ -153,7 +153,6 @@ struct __wt_data_handle {
                                                /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t ts_flags;
 
-#define WT_DHANDLE_LOCK_READ 0x01u  /* Read lock is acquired. */
-#define WT_DHANDLE_LOCK_WRITE 0x02u /* Write lock is acquired. */
+#define WT_DHANDLE_LOCK_WRITE 0x01u /* Write lock is acquired. */
     uint16_t lock_flags;
 };
