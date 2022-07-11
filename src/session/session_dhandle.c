@@ -776,8 +776,7 @@ void
 __wt_session_dhandle_readunlock(WT_SESSION_IMPL *session)
 {
     WT_ASSERT(session, session->dhandle != NULL);
-    WT_ASSERT(
-      session, (session->dhandle->lock_flags | WT_DHANDLE_LOCK_READ) == WT_DHANDLE_LOCK_READ);
+    WT_ASSERT(session, FLD_ISSET(session->dhandle->lock_flags, WT_DHANDLE_LOCK_READ));
     FLD_CLR(session->dhandle->lock_flags, WT_DHANDLE_LOCK_READ);
     __wt_readunlock(session, &session->dhandle->rwlock);
 }
