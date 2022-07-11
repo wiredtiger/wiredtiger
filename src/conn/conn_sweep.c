@@ -187,7 +187,7 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
  *     Remove a closed handle from the connection list.
  */
 static int
-__sweep_remove_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
+__sweep_remove_one(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
 
@@ -197,10 +197,10 @@ __sweep_remove_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
     /*
      * If there are no longer any references to the handle in any sessions, attempt to discard it.
      */
-    if (!WT_DHANDLE_CAN_DISCARD(dhandle))
+    if (!WT_DHANDLE_CAN_DISCARD(session->dhandle))
         WT_ERR(EBUSY);
 
-    WT_WITH_DHANDLE(session, dhandle, ret = __wt_conn_dhandle_discard_single(session, false, true));
+    ret = __wt_conn_dhandle_discard_single(session, false, true);
 
     /*
      * If the handle was not successfully discarded, unlock it and don't retry the discard until it
@@ -236,9 +236,11 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
 
         if (dhandle->type == WT_DHANDLE_TYPE_TABLE)
             WT_WITH_TABLE_WRITE_LOCK(session,
-              WT_WITH_HANDLE_LIST_WRITE_LOCK(session, ret = __sweep_remove_one(session, dhandle)));
+              WT_WITH_HANDLE_LIST_WRITE_LOCK(
+                session, WT_WITH_DHANDLE(session, dhandle, ret = __sweep_remove_one(session))));
         else
-            WT_WITH_HANDLE_LIST_WRITE_LOCK(session, ret = __sweep_remove_one(session, dhandle));
+            WT_WITH_HANDLE_LIST_WRITE_LOCK(
+              session, WT_WITH_DHANDLE(session, dhandle, ret = __sweep_remove_one(session)));
         if (ret == 0)
             WT_STAT_CONN_INCR(session, dh_sweep_remove);
         else
