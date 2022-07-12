@@ -150,8 +150,9 @@ restart_read:
  */
 static inline int
 __cursor_var_append_next(
-  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_bounds)
+  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_boundsp)
 {
+    WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = CUR2S(cbt);
@@ -174,8 +175,14 @@ new_page:
 
         __cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
 
-        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER))
-            WT_RET(__wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_bounds));
+        /*
+         * If an upper bound has been set ensure that the key is within the range, otherwise early
+         * exit.
+         */
+        if ((ret = __wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_boundsp)) ==
+          WT_NOTFOUND)
+            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
+        WT_RET(ret);
 
 restart_read:
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
@@ -203,11 +210,12 @@ restart_read:
  */
 static inline int
 __cursor_var_next(
-  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_bounds)
+  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_boundsp)
 {
     WT_CELL *cell;
     WT_CELL_UNPACK_KV unpack;
     WT_COL *cip;
+    WT_DECL_RET;
     WT_INSERT *ins;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
@@ -249,8 +257,10 @@ new_page:
          * If an upper bound has been set ensure that the key is within the range, otherwise early
          * exit.
          */
-        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER))
-            WT_RET(__wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_bounds));
+        if ((ret = __wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_boundsp)) ==
+          WT_NOTFOUND)
+            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
+        WT_RET(ret);
 
 restart_read:
         /* Find the matching WT_COL slot. */
@@ -834,6 +844,16 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
             F_CLR(cbt, WT_CBT_ITERATE_APPEND);
             if (ret != WT_NOTFOUND)
                 break;
+
+            /*
+            * If we are doing a search near with prefix key configured or the cursor has bounds set, we
+            * need to check if we have exited the next function due to a prefix key mismatch or the key
+            * is out of bounds. If so, we break instead of walking onto the next page. We're not
+            * directly returning here to allow the cursor to be reset first before we return
+            * WT_NOTFOUND.
+            */
+            if (key_out_of_bounds)
+                break;
         } else if (page != NULL) {
             switch (page->type) {
             case WT_PAGE_COL_FIX:
@@ -853,26 +873,26 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
             }
             if (ret != WT_NOTFOUND)
                 break;
-        }
 
-        /*
-         * If we are doing a search near with prefix key configured or the cursor has bounds set, we
-         * need to check if we have exited the next function due to a prefix key mismatch or the key
-         * is out of bounds. If so, we break instead of walking onto the next page. We're not
-         * directly returning here to allow the cursor to be reset first before we return
-         * WT_NOTFOUND.
-         */
-        if (key_out_of_bounds)
-            break;
+            /*
+             * If we are doing a search near with prefix key configured or the cursor has bounds set, we
+             * need to check if we have exited the next function due to a prefix key mismatch or the key
+             * is out of bounds. If so, we break instead of walking onto the next page. We're not
+             * directly returning here to allow the cursor to be reset first before we return
+             * WT_NOTFOUND.
+             */
+            if (key_out_of_bounds)
+                break;
 
-        /*
-         * Column-store pages may have appended entries. Handle it separately from the usual cursor
-         * code, it's in a simple format.
-         */
-        if (!F_ISSET(cbt, WT_CBT_ITERATE_APPEND) && page != NULL &&
-          page->type != WT_PAGE_ROW_LEAF && (cbt->ins_head = WT_COL_APPEND(page)) != NULL) {
-            F_SET(cbt, WT_CBT_ITERATE_APPEND);
-            continue;
+            /*
+             * Column-store pages may have appended entries. Handle it separately from the usual cursor
+             * code, it's in a simple format.
+             */
+            if (page != NULL &&
+            page->type != WT_PAGE_ROW_LEAF && (cbt->ins_head = WT_COL_APPEND(page)) != NULL) {
+                F_SET(cbt, WT_CBT_ITERATE_APPEND);
+                continue;
+            }
         }
 
         /*

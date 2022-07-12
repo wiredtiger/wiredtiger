@@ -2138,11 +2138,7 @@ __wt_btcur_bounds_early_exit(
 
     WT_RET(__wt_compare_bounds(session, &cbt->iface, &cbt->iface.key, next, key_out_of_boundsp));
     if (*key_out_of_boundsp)
-        if (next)
-            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
-        else
-            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
-    return (WT_NOTFOUND);
+        return (WT_NOTFOUND);
 
     return (0);
 }

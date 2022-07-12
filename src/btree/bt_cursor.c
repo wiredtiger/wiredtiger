@@ -28,22 +28,25 @@ static int
 __btcur_bounds_contains_key(
   WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, bool *key_out_of_boundsp, bool *upperp)
 {
+    WT_CURSOR_BTREE *cbt;
+
+    cbt = (WT_CURSOR_BTREE *) cursor;
     *key_out_of_boundsp = false;
 
     if (upperp != NULL)
         *upperp = false;
 
     WT_ASSERT(session, WT_CURSOR_BOUNDS_SET(cursor));
-    WT_ASSERT(session, key != NULL);
-
-    if (CUR2BT(cursor)->type != BTREE_ROW)
-        WT_RET(ENOTSUP);
+    if (CUR2BT(cursor)->type == BTREE_ROW)
+        WT_ASSERT(session, key != NULL);
+    else
+        WT_ASSERT(session, cbt->recno != 0);
 
     if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER))
-        WT_RET(__wt_row_compare_bounds(session, cursor, key, false, key_out_of_boundsp));
+        WT_RET(__wt_compare_bounds(session, cursor, key, false, key_out_of_boundsp));
 
     if (!(*key_out_of_boundsp) && F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
-        WT_RET(__wt_row_compare_bounds(session, cursor, key, true, key_out_of_boundsp));
+        WT_RET(__wt_compare_bounds(session, cursor, key, true, key_out_of_boundsp));
         if (*key_out_of_boundsp && upperp != NULL)
             *upperp = true;
     }
@@ -65,8 +68,6 @@ __btcur_bounds_search_near_reposition(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
     key_out_of_bounds = upper = false;
 
     WT_ASSERT(session, WT_CURSOR_BOUNDS_SET(cursor));
-    if (CUR2BT(cbt)->type != BTREE_ROW)
-        WT_RET(ENOTSUP);
 
     /*
      * Suppose a caller calls with the search key set to the lower bound but also specifies that the
@@ -301,9 +302,9 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
      * update that's been deleted is not a valid key/value pair).
      */
     if (cbt->ins != NULL) {
-        if (WT_CURSOR_BOUNDS_SET(&cbt->iface) && btree->type == BTREE_ROW) {
+        if (WT_CURSOR_BOUNDS_SET(&cbt->iface)) {
             /* Get the insert list key. */
-            if (key == NULL) {
+            if (key == NULL && btree->type == BTREE_ROW) {
                 tmp_key.data = WT_INSERT_KEY(cbt->ins);
                 tmp_key.size = WT_INSERT_KEY_SIZE(cbt->ins);
             }
@@ -373,6 +374,14 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
         cell = WT_COL_PTR(page, cip);
         if (__wt_cell_type(cell) == WT_CELL_DEL)
             return (0);
+
+        if (WT_CURSOR_BOUNDS_SET(&cbt->iface)) {
+            WT_RET(
+              __btcur_bounds_contains_key(session, &cbt->iface, key, &key_out_of_bounds, NULL));
+            /* The key value pair we were trying to return weren't within the given bounds. */
+            if (key_out_of_bounds)
+                return (0);
+        }
 
         /*
          * Check for an update. For column store, modifications are handled with insert lists, so an

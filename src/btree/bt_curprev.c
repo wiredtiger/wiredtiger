@@ -297,8 +297,9 @@ restart_read:
  */
 static inline int
 __cursor_var_append_prev(
-  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_bounds)
+  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_boundsp)
 {
+    WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = CUR2S(cbt);
@@ -324,8 +325,14 @@ new_page:
         if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
             return (0);
 
-        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER))
-            WT_RET(__wt_btcur_bounds_early_exit(session, cbt, false, key_out_of_bounds));
+        /*
+         * If a lower bound has been set ensure that the key is within the range, otherwise early
+         * exit.
+         */
+        if ((ret = __wt_btcur_bounds_early_exit(session, cbt, false, key_out_of_boundsp)) ==
+          WT_NOTFOUND)
+            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
+        WT_RET(ret);
 
 restart_read:
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
@@ -352,11 +359,12 @@ restart_read:
  */
 static inline int
 __cursor_var_prev(
-  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_bounds)
+  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_boundsp)
 {
     WT_CELL *cell;
     WT_CELL_UNPACK_KV unpack;
     WT_COL *cip;
+    WT_DECL_RET;
     WT_INSERT *ins;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
@@ -395,8 +403,14 @@ new_page:
         if (cbt->recno < cbt->ref->ref_recno)
             return (WT_NOTFOUND);
 
-        if (F_ISSET(&cbt->iface, WT_CURSTD_BOUND_LOWER))
-            WT_RET(__wt_btcur_bounds_early_exit(session, cbt, false, key_out_of_bounds));
+        /*
+         * If a lower bound has been set ensure that the key is within the range, otherwise early
+         * exit.
+         */
+        if ((ret = __wt_btcur_bounds_early_exit(session, cbt, false, key_out_of_boundsp)) ==
+          WT_NOTFOUND)
+            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
+        WT_RET(ret);
 
 restart_read:
         /* Find the matching WT_COL slot. */

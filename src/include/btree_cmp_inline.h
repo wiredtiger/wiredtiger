@@ -139,13 +139,13 @@ __wt_prefix_match(const WT_ITEM *prefix, const WT_ITEM *tree_item)
 
 /*
  * __wt_compare_bounds --
- *     Return if the cursor key is within the bounded range. If next is True, this indicates a next
- *     call and the key is checked against the upper bound. If next is False, this indicates a prev
- *     call and the key is then checked against the lower bound.
+ *     Return if the cursor key is within the bounded range. If upper is True, this indicates a
+ *     upper call and the key is checked against the upper bound. If upper is False, this indicates
+ *     a prev call and the key is then checked against the lower bound.
  */
 static inline int
-__wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_COLLATOR *collator, bool next,
-  bool *key_out_of_bounds)
+__wt_compare_bounds(
+  WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, bool upper, bool *key_out_of_bounds)
 {
     WT_CURSOR_BTREE *cbt;
     uint64_t recno_bound;
@@ -155,10 +155,11 @@ __wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_COLLATOR *co
     cmpp = 0;
     recno_bound = 0;
 
-    if (next) {
+    if (upper) {
         WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->upper_bound));
         if (S2BT(session)->type == BTREE_ROW)
-            WT_RET(__wt_compare(session, collator, &cursor->key, &cursor->upper_bound, &cmpp));
+            WT_RET(
+              __wt_compare(session, S2BT(session)->collator, key, &cursor->upper_bound, &cmpp));
         else
             /* Unpack the raw recno buffer into integer variable. */
             WT_RET(__wt_struct_unpack(
@@ -173,7 +174,8 @@ __wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_COLLATOR *co
     } else {
         WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->lower_bound));
         if (S2BT(session)->type == BTREE_ROW)
-            WT_RET(__wt_compare(session, collator, &cursor->key, &cursor->lower_bound, &cmpp));
+            WT_RET(
+              __wt_compare(session, S2BT(session)->collator, key, &cursor->lower_bound, &cmpp));
         else
             /* Unpack the raw recno buffer into integer variable. */
             WT_RET(__wt_struct_unpack(
