@@ -58,31 +58,34 @@ call_log_manager::process_call_log()
 int
 call_log_manager::process_call_log_entry(json call_log_entry)
 {
+    try {
+        if (call_log_entry.empty())
+            return (0);
 
-    if (call_log_entry.empty())
-        return (0);
+        std::shared_ptr<session_simulator> session = nullptr;
 
-    std::shared_ptr<session_simulator> session = nullptr;
-
-    switch (api_map[call_log_entry["method_name"]]) {
-    case wiredtiger_open:
-        std::cout << "WiredTiger open call" << std::endl;
-        conn = &connection_simulator::get_connection();
-        break;
-    case open_session:
-        std::cout << "Open session call" << std::endl;
-        session = conn->open_session();
-        /* Insert this session into the mapping between the simulator session object and the
-         * wiredtiger session object. */
-        session_map.insert(std::pair<std::string, std::shared_ptr<session_simulator>>(
-          call_log_entry["session_id"], session));
-        break;
-    case set_timestamp:
-        std::cout << "Set timestamp call" << std::endl;
-        /* Convert the config char * to a string object. */
-        std::string config(call_log_entry["input"]["config"]);
-        conn->set_timestamp(config);
-        break;
+        switch (api_map[call_log_entry["method_name"]]) {
+        case wiredtiger_open:
+            std::cout << "WiredTiger open call" << std::endl;
+            conn = &connection_simulator::get_connection();
+            break;
+        case open_session:
+            std::cout << "Open session call" << std::endl;
+            session = conn->open_session();
+            /* Insert this session into the mapping between the simulator session object and the
+            * wiredtiger session object. */
+            session_map.insert(std::pair<std::string, std::shared_ptr<session_simulator>>(
+            call_log_entry["session_id"], session));
+            break;
+        case set_timestamp:
+            std::cout << "Set timestamp call" << std::endl;
+            /* Convert the config char * to a string object. */
+            std::string config(call_log_entry["input"]["config"]);
+            conn->set_timestamp(config);
+            break;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Exception: " << e.what() << std::endl;
     }
 
     return (0);

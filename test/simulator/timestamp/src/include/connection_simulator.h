@@ -46,13 +46,15 @@ class connection_simulator {
     std::vector<std::shared_ptr<session_simulator>> session_list;
     enum system_timestamps { oldest_timestamp, stable_timestamp, durable_timestamp };
     std::map<std::string, system_timestamps> system_timestamps_map;
-    // PM-2564-TODO: Approach 1 - Connection is responsible for the system level timestamps.
+
+    /* 
+     * Timestamp manager is responsible for validating all the timestamps, including the global
+     * timestamps; stable, oldest and durable in the connection.
+     */
+    timestamp_manager *ts_mgr;
     int oldest_ts;
     int stable_ts;
     int durable_ts;
-
-    // PM-2564-TODO: Approach 2 - timestamp manager is responsible for the system level timestamps.
-    timestamp_manager *ts_mgr;
 
     /* Methods */
     public:
@@ -63,15 +65,14 @@ class connection_simulator {
 
     int get_oldest_ts() { return oldest_ts; }
     int get_stable_ts() { return stable_ts; }
+
     ~connection_simulator() = default;
 
     /* No copies of the singleton allowed. */
     private:
     connection_simulator();
-    int parse_timestamp_config(std::string config, std::string *ts_type, int *ts);
-    bool validate_oldest_ts(int new_oldest_ts);
-    bool validate_stable_ts(int new_stable_ts);
-    bool validate_durable_ts(int new_durable_ts);
+    int parse_timestamp_config_single(std::string config, std::string *ts_type, int *ts);
+    int parse_timestamp_config(std::string config, int *new_oldest_ts, int *new_stable_ts);
     void system_timestamps_map_setup();
 
     public:

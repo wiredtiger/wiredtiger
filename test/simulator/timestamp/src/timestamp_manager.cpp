@@ -39,7 +39,7 @@ timestamp_manager::get_timestamp_manager()
     return (_timestamp_manager_instance);
 }
 
-int timestamp_manager::validate_oldest_ts(int new_oldest_ts){
+int timestamp_manager::validate_oldest_ts(int new_stable_ts, int new_oldest_ts){
     connection_simulator *conn = &connection_simulator::get_connection();
 
     // Oldest timestamp can't move backward.
@@ -51,15 +51,15 @@ int timestamp_manager::validate_oldest_ts(int new_oldest_ts){
     /*
      * The oldest and stable timestamps must always satisfy the condition that oldest <= stable.
      */
-    if (new_oldest_ts > conn->get_stable_ts()){
-        std::cout << "set_timestamp: oldest timestamp " << new_oldest_ts << "must not be later than stable timestamp " << conn->get_stable_ts() << "." << std::endl;
+    if (new_oldest_ts > new_stable_ts){
+        std::cout << "set_timestamp: oldest timestamp " << new_oldest_ts << " must not be later than stable timestamp " << new_stable_ts << "." << std::endl;
         return 1;
     }
 
     return 0;
 }
 
-int timestamp_manager::validate_stable_ts(int new_stable_ts){
+int timestamp_manager::validate_stable_ts(int new_stable_ts, int new_oldest_ts){
     connection_simulator *conn = &connection_simulator::get_connection();
 
     // Stable timestamp can't move backward.
@@ -71,8 +71,8 @@ int timestamp_manager::validate_stable_ts(int new_stable_ts){
     /*
      * The oldest and stable timestamps must always satisfy the condition that oldest <= stable.
      */
-    if (conn->get_oldest_ts() > new_stable_ts){
-        std::cout << "set_timestamp: oldest timestamp " << conn->get_oldest_ts() << "must not be later than stable timestamp " << new_stable_ts << "." << std::endl;
+    if (new_oldest_ts > new_stable_ts){
+        std::cout << "set_timestamp: oldest timestamp " << conn->get_oldest_ts() << " must not be later than stable timestamp " << new_stable_ts << "." << std::endl;
         return 1;
     }
 

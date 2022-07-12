@@ -55,57 +55,58 @@ connection_simulator::query_timestamp()
     return (0);
 }
 
-bool connection_simulator::validate_oldest_ts(int new_oldest_ts){
-    // Oldest timestamp can't move backward.
-    if (new_oldest_ts <= oldest_ts){
-        std::cout << "Oldest timestamp cannot move backwards." << std::endl;
-        return false;
-    }
-
-    /*
-     * The oldest and stable timestamps must always satisfy the condition that oldest <= stable.
-     */
-    if (new_oldest_ts > stable_ts){
-        std::cout << "set_timestamp: oldest timestamp " << new_oldest_ts << "must not be later than stable timestamp " << stable_ts << "." << std::endl;
-        return false;
-    }
-
-    return true;
-
-}
-
-bool connection_simulator::validate_stable_ts(int new_stable_ts){
-    // Oldest timestamp can't move backward.
-    if (new_stable_ts <= stable_ts){
-        std::cout << "Stable timestamp cannot move backwards." << std::endl;
-        return false;
-    }
-
-    /*
-     * The oldest and stable timestamps must always satisfy the condition that oldest <= stable.
-     */
-    if (oldest_ts > new_stable_ts){
-        std::cout << "set_timestamp: oldest timestamp " << new_stable_ts << "must not be later than stable timestamp " << stable_ts << "." << std::endl;
-        return false;
-    }
-
-    return true;
-}
-
-bool connection_simulator::validate_durable_ts(int new_durable_ts){
-    // No constraints on setting the durable ts.
-    return true;
-}
-
-int connection_simulator::parse_timestamp_config(std::string config, std::string *ts_type, int *ts){
+int connection_simulator::parse_timestamp_config_single(std::string config, std::string *ts_type, int *ts){
 
     
     *ts_type = config.substr(0, config.find("="));
     // Copy the substring after the '=' to get the timestamp value from the config string.
     std::string ts_string = config.substr(config.find("=") + 1);
-    std::cout << "setting oldest timestamp to: " << ts_string << std::endl;
+    std::cout << "setting " << *ts_type << " to: " << ts_string << std::endl;
     // Convert the ts to an int.
     *ts = std::stoi(ts_string);
+
+    return 0;
+}
+
+int connection_simulator::parse_timestamp_config(std::string config, int *new_oldest_ts, int *new_stable_ts){
+    std::string s = config;
+    size_t pos = 0;
+    std::string token;
+
+    while ((pos = s.find(",")) != std::string::npos) {
+        token = s.substr(0, pos);
+        std::cout << token << std::endl;
+
+        std::string ts_type;
+        int ts;
+        parse_timestamp_config_single(token, &ts_type, &ts);
+        switch (system_timestamps_map[ts_type]) {
+            case oldest_timestamp:
+                *new_oldest_ts = ts;
+                break;
+            case stable_timestamp:
+                *new_stable_ts =  ts;
+                break;
+            case durable_timestamp:
+                break;
+        }
+        
+        s.erase(0, pos + 1);
+    }
+
+    std::string ts_type;
+    int ts;
+    parse_timestamp_config_single(s, &ts_type, &ts);
+    switch (system_timestamps_map[ts_type]) {
+        case oldest_timestamp:
+            *new_oldest_ts = ts;
+            break;
+        case stable_timestamp:
+            *new_stable_ts =  ts;
+            break;
+        case durable_timestamp:
+            break;
+    }
 
     return 0;
 }
@@ -113,91 +114,18 @@ int connection_simulator::parse_timestamp_config(std::string config, std::string
 int
 connection_simulator::set_timestamp(std::string config)
 {
+    int new_stable_ts = stable_ts;
+    int new_oldest_ts = oldest_ts;
 
-    std::cout << "config: " << config << std::endl;
-    std::string ts_type;
-    int ts;
-    parse_timestamp_config(config, &ts_type, &ts);
+    parse_timestamp_config(config, &new_oldest_ts, &new_stable_ts);
 
-    std::cout << "ts_type: " << ts_type << std::endl;
-    std::cout << "ts: " << ts << std::endl;
-
-    switch (system_timestamps_map[ts_type]) {
-        case oldest_timestamp:
-            if(!ts_mgr->validate_oldest_ts(ts)) 
-                oldest_ts = ts;
-            break;
-        case stable_timestamp:
-            if(!ts_mgr->validate_stable_ts(ts))
-                stable_ts = ts;
-            break;
-        case durable_timestamp:
-            if(!ts_mgr->validate_durable_ts(ts))
-                durable_ts = ts;
-            break;
+    if (new_oldest_ts != oldest_ts && ts_mgr->validate_oldest_ts(new_stable_ts, new_oldest_ts) != 0) {
+        return 1;
     }
 
-    // if (config.find("oldest_timestamp") != std::string::npos){
-    //     // Copy the substring after the '=' to get the timestamp value from the config string.
-    //     std::string ts_string = config.substr(config.find("=") + 1);
-    //     std::cout << "setting oldest timestamp to: " << ts_string << std::endl;
-    //     // Convert the ts to an int.
-    //     int ts = std::stoi(ts_string);
-
-    //     // Validate the timestamp
-    //     if(!validate_oldest_ts(ts))
-    //         return 1;
-
-    //     // If the validation was successful update the oldest timestamp.
-    //     oldest_ts = ts;
-    // } else if (config.find("stable_ts") != std::string::npos){
-    //     // Copy the substring after the '=' to get the timestamp value from the config string.
-    //     std::string ts_string = config.substr(config.find("=") + 1);
-    //     std::cout << "setting oldest timestamp to: " << ts_string << std::endl;
-    //     // Convert the ts to an int.
-    //     int ts = std::stoi(ts_string);
-
-    //     // Validate the timestamp
-    //     if(!validate_stable_ts(ts))
-    //         return 1;
-
-    //     // If the validation was successful update the oldest timestamp.
-    //     stable_ts = ts;
-    // } else if (config.find("durable_ts") != std::string::npos){
-    //     // Copy the substring after the '=' to get the timestamp value from the config string.
-    //     std::string ts_string = config.substr(config.find("=") + 1);
-    //     std::cout << "setting oldest timestamp to: " << ts_string << std::endl;
-    //     // Convert the ts to an int.
-    //     int ts = std::stoi(ts_string);
-
-    //     // Validate the timestamp
-    //     if(!validate_durable_ts(ts))
-    //         return 1;
-
-    //     // If the validation was successful update the oldest timestamp.
-    //     durable_ts = ts;
-    // }
-
-    // // PM-2564-TODO: Using timestamp manager idea.
-    // if (config.find("oldest_timestamp") != std::string::npos){
-    //     /* Example use of getting timestamp specs. */
-    //     // ts_mgr->oldest_ts.get_specs();
-
-    //     // Copy the substring after the '=' to get the timestamp value from the config string.
-    //     std::string ts_string = config.substr(config.find("=") + 1);
-    //     std::cout << "setting oldest timestamp to: " << ts_string << std::endl;
-    //     // Convert the ts to an int.
-    //     int ts = std::stoi(ts_string);
-    //     // Validate the timestamp using the timestamp manager.
-    //     ts_mgr->validate_oldest_ts(ts);
-    //     // If the validation is successful then update the connection oldest timestamp member.
-    //     oldest_ts = ts;
-    //     // Then update the timestamp managers pointer to the oldest timestamp so that it is aware of it.
-    //     ts_mgr->set_oldest_ts(&oldest_ts);
-    // }
-
-
-    // Check to see if the oldest timestamp has been set correctly.
+    if (new_stable_ts != stable_ts && ts_mgr->validate_stable_ts(new_stable_ts, new_oldest_ts) != 0) {
+        return 1;
+    }
 
     return (0);
 }
