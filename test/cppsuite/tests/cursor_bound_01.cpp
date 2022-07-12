@@ -270,10 +270,13 @@ class cursor_bound_01 : public test {
         }
 
         if (bound_choice == UPPER_BOUND_SET || bound_choice == ALL_BOUNDS_SET) {
-            if (bound_choice == ALL_BOUNDS_SET)
-                /* Ensure that the upper bound is greater than the lower bound. */
-                upper_bound = bound(tc->key_size, false, lower_bound.get_key()[0] + 1);
-            else
+            if (bound_choice == ALL_BOUNDS_SET) {
+                /* Ensure that the lower and upper bounds are never overlapping. */
+                if (_reverse_collator_enabled)
+                    upper_bound = bound(tc->key_size, false, lower_bound.get_key()[0] - 1);
+                else
+                    upper_bound = bound(tc->key_size, false, lower_bound.get_key()[0] + 1);
+            } else
                 upper_bound = bound(tc->key_size, false);
             range_cursor->set_key(range_cursor.get(), upper_bound.get_key().c_str());
             testutil_check(
