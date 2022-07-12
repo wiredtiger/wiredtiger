@@ -328,4 +328,47 @@ __wt_call_log_begin_transaction(WT_SESSION_IMPL *session, const char *config, in
     return (0);
 }
 
+/*
+ * __wt_call_log_close_session --
+ *     Print the call log entry for the close session API call.
+ */
+int
+__wt_call_log_close_session(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    WT_RET(__call_log_print_start(session, "session", "close_session"));
+
+    /*
+     * Close session includes the session address as an id in the call log entry. This ID is used to
+     * map the session used by wiredtiger to a new session in the simulator.
+     */
+    WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"session_id\": \"%p\",\n", session));
+
+    /* Close session has no input or output arguments. */
+    WT_RET(__call_log_print_input(session, 0));
+    WT_RET(__call_log_print_output(session, 0));
+
+    return (0);
+}
+
+/*
+ * __wt_call_log_close_session_ret --
+ *     Print the call log entry for the close session API call.
+ */
+int
+__wt_call_log_close_session_ret(
+  WT_CONNECTION_IMPL *conn, WT_SESSION_IMPL *session, int ret_val, const char *err_msg)
+{
+    return (__wt_fprintf(session, conn->call_log_fst,
+      "    \"return\" : {\n"
+      "        \"return_val\" : %d,\n"
+      "        \"error_message\" : \"%s\"\n"
+      "    }\n"
+      "},\n",
+      ret_val, err_msg));
+}
+
 #endif

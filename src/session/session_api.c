@@ -271,15 +271,34 @@ __session_close_cached_cursors(WT_SESSION_IMPL *session)
 static int
 __session_close(WT_SESSION *wt_session, const char *config)
 {
+#ifdef HAVE_CALL_LOG
+    WT_CONNECTION_IMPL *conn;
+#endif
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+#ifdef HAVE_CALL_LOG
+    bool internal_session;
+#endif
 
     session = (WT_SESSION_IMPL *)wt_session;
 
     SESSION_API_CALL_PREPARE_ALLOWED(session, close, config, cfg);
     WT_UNUSED(cfg);
 
+#ifdef HAVE_CALL_LOG
+    conn = S2C(session);
+    internal_session = F_ISSET(session, WT_SESSION_INTERNAL);
+    if (!internal_session)
+        WT_TRET(__wt_call_log_close_session(session));
+#endif
+
     WT_TRET(__wt_session_close_internal(session));
+
+#ifdef HAVE_CALL_LOG
+    if (!internal_session)
+        WT_TRET(__wt_call_log_close_session_ret(conn, session, ret, ""));
+#endif
+
     session = NULL;
 
 err:
