@@ -282,7 +282,8 @@ class cursor_bound_01 : public test {
         }
 
         if (bound_choice == ALL_BOUNDS_SET)
-            testutil_assert(upper_bound.get_key().compare(lower_bound.get_key()) > 0);
+            testutil_assert(
+              custom_lexicographical_compare(lower_bound.get_key(), upper_bound.get_key(), false));
 
         return std::make_pair(lower_bound, upper_bound);
     }
