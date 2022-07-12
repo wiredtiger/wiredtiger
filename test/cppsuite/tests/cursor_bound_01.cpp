@@ -63,7 +63,8 @@ class cursor_bound_01 : public test {
             _inclusive = random_generator::instance().generate_integer(0, 1);
         }
 
-        bound(uint64_t key_size_max, bool lower_bound, char start) : bound(key_size_max, lower_bound)
+        bound(uint64_t key_size_max, bool lower_bound, char start)
+            : bound(key_size_max, lower_bound)
         {
             _key[0] = start;
         }
@@ -266,7 +267,8 @@ class cursor_bound_01 : public test {
         if (bound_choice == LOWER_BOUND_SET || bound_choice == ALL_BOUNDS_SET) {
             lower_bound = bound(tc->key_size, true);
             range_cursor->set_key(range_cursor.get(), lower_bound.get_key().c_str());
-            testutil_check(range_cursor->bound(range_cursor.get(), lower_bound.get_config().c_str()));
+            testutil_check(
+              range_cursor->bound(range_cursor.get(), lower_bound.get_config().c_str()));
         }
 
         if (bound_choice == UPPER_BOUND_SET || bound_choice == ALL_BOUNDS_SET) {
@@ -276,7 +278,8 @@ class cursor_bound_01 : public test {
                 upper_bound = bound(tc->key_size, false);
             }
             range_cursor->set_key(range_cursor.get(), upper_bound.get_key().c_str());
-            testutil_check(range_cursor->bound(range_cursor.get(), upper_bound.get_config().c_str()));
+            testutil_check(
+              range_cursor->bound(range_cursor.get(), upper_bound.get_config().c_str()));
         }
 
         if (bound_choice == ALL_BOUNDS_SET) {
@@ -557,7 +560,8 @@ class cursor_bound_01 : public test {
 
                 /* Generate a random key. */
                 auto key = random_generator::instance().generate_random_string(tc->key_size);
-                auto value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
+                auto value =
+                  random_generator::instance().generate_pseudo_random_string(tc->value_size);
                 /* Insert a key/value pair. */
                 if (tc->insert(cursor, coll.id, key, value)) {
                     if (tc->txn.can_commit()) {
@@ -621,7 +625,8 @@ class cursor_bound_01 : public test {
                 testutil_check(rnd_cursor->get_key(rnd_cursor.get(), &key));
 
                 /* Update the found key with a randomized value. */
-                auto value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
+                auto value =
+                  random_generator::instance().generate_pseudo_random_string(tc->value_size);
                 if (tc->update(cursor, coll.id, key, value)) {
                     if (tc->txn.can_commit()) {
                         /* We are not checking the result of commit as it is not necessary. */
