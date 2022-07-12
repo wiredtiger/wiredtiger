@@ -324,7 +324,7 @@ main(int argc, char *argv[])
             is_backup = true;
         wts_open(g.home, &g.wts_conn, !is_backup);
         timestamp_init();
-        set_oldest_timestamp();
+        timestamp_set_oldest();
     } else {
         wts_create_home();
         config_print(false);

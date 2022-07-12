@@ -29,11 +29,11 @@
 #include "format.h"
 
 /*
- * maximum_committed_timestamp --
+ * timestamp_maximum_committed --
  *     Return the largest timestamp that's no longer in use.
  */
 uint64_t
-maximum_committed_timestamp(void)
+timestamp_maximum_committed(void)
 {
     TINFO **tlp;
     uint64_t commit_ts, ts;
@@ -59,11 +59,11 @@ maximum_committed_timestamp(void)
 }
 
 /*
- * query_timestamp --
+ * timestamp_query --
  *     Query a timestamp.
  */
 void
-query_timestamp(const char *query, uint64_t *tsp)
+timestamp_query(const char *query, uint64_t *tsp)
 {
     WT_CONNECTION *conn;
     char tsbuf[WT_TS_HEX_STRING_SIZE];
@@ -81,7 +81,7 @@ query_timestamp(const char *query, uint64_t *tsp)
 void
 timestamp_init(void)
 {
-    query_timestamp("get=recovery", &g.timestamp);
+    timestamp_query("get=recovery", &g.timestamp);
     if (g.timestamp == 0)
         g.timestamp = 5;
 }
@@ -102,7 +102,7 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
     conn = g.wts_conn;
 
     /* Get the maximum not-in-use timestamp, noting that it may not be set. */
-    oldest_timestamp = stable_timestamp = maximum_committed_timestamp();
+    oldest_timestamp = stable_timestamp = timestamp_maximum_committed();
     if (oldest_timestamp == 0)
         return;
 
@@ -178,12 +178,12 @@ timestamp_teardown(WT_SESSION *session)
 }
 
 /*
- * set_oldest_timestamp --
+ * timestamp_set_oldest --
  *     Query the oldest timestamp from wiredtiger and set it as our global oldest timestamp. This
  *     should only be called on runs for pre existing databases.
  */
 void
-set_oldest_timestamp(void)
+timestamp_set_oldest(void)
 {
     static const char *oldest_timestamp_str = "oldest_timestamp=";
 

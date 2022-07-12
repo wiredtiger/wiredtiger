@@ -219,7 +219,7 @@ rollback_to_stable(WT_SESSION *session)
      * Get the stable timestamp, and update ours. They should be the same, but there's no point in
      * debugging the race.
      */
-    query_timestamp("get=stable", &g.stable_timestamp);
+    timestamp_query("get=stable", &g.stable_timestamp);
     trace_msg(session, "rollback-to-stable: stable timestamp %" PRIu64, g.stable_timestamp);
 
     /* Check the saved snap operations for consistency. */
@@ -443,7 +443,7 @@ begin_transaction_ts(TINFO *tinfo)
      * 75% of the time, pick a read timestamp before any commit timestamp still in use, 25% of the
      * time don't set a timestamp at all.
      */
-    ts = mmrand(&tinfo->rnd, 1, 4) == 1 ? 0 : maximum_committed_timestamp();
+    ts = mmrand(&tinfo->rnd, 1, 4) == 1 ? 0 : timestamp_maximum_committed();
     if (ts != 0) {
         wt_wrap_begin_transaction(session, NULL);
 
