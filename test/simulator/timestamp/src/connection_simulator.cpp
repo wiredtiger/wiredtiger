@@ -55,6 +55,10 @@ connection_simulator::query_timestamp() const
     return (0);
 }
 
+/* 
+ * Parse a single timestamp configuration string eg. oldest_timestamp=10. The string is split on the
+ * '=' and the new timestamp is assigned.
+ */
 int
 connection_simulator::parse_timestamp_config_single(
   std::string config, int *new_oldest_ts, int *new_stable_ts)
@@ -84,24 +88,28 @@ connection_simulator::parse_timestamp_config_single(
     return 0;
 }
 
+/*
+ *  Parse the timestamp configuration string with timestamps separated by ','.
+ */
 int
 connection_simulator::parse_timestamp_config(
   std::string config, int *new_oldest_ts, int *new_stable_ts)
 {
-    std::string s = config;
     size_t pos = 0;
     std::string token;
 
-    while ((pos = s.find(",")) != std::string::npos) {
-        token = s.substr(0, pos);
+    /* Loop over the timestamp configuration strings separated by ','. */
+    while ((pos = config.find(",")) != std::string::npos) {
+        token = config.substr(0, pos);
         std::cout << token << std::endl;
 
         parse_timestamp_config_single(token, new_oldest_ts, new_stable_ts);
 
-        s.erase(0, pos + 1);
+        config.erase(0, pos + 1);
     }
 
-    parse_timestamp_config_single(s, new_oldest_ts, new_stable_ts);
+    /* Parse the final timestamp configuration string. */
+    parse_timestamp_config_single(config, new_oldest_ts, new_stable_ts);
 
     return 0;
 }
@@ -109,16 +117,19 @@ connection_simulator::parse_timestamp_config(
 int
 connection_simulator::set_timestamp(std::string config)
 {
+    /* Set the new stable and oldest timestamps to the previous global values by default. */
     int new_stable_ts = stable_ts;
     int new_oldest_ts = oldest_ts;
 
     parse_timestamp_config(config, &new_oldest_ts, &new_stable_ts);
 
+    /* Validate the new oldest timestamp if it is being updated. */
     if (new_oldest_ts != oldest_ts &&
       ts_mgr->validate_oldest_ts(new_stable_ts, new_oldest_ts) != 0) {
         return 1;
     }
 
+    /* Validate the new stable timestamp if it is being updated. */
     if (new_stable_ts != stable_ts &&
       ts_mgr->validate_stable_ts(new_stable_ts, new_oldest_ts) != 0) {
         return 1;
