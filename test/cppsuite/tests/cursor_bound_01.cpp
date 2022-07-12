@@ -176,7 +176,7 @@ class cursor_bound_01 : public test {
                 normal_ret = normal_cursor->prev(normal_cursor.get());
         }
 
-        if (normal_ret == WT_NOTFOUND || normal_ret == WT_ROLLBACK)
+        if (normal_ret == WT_NOTFOUND || normal_ret == WT_ROLLBACK || range_ret == WT_ROLLBACK)
             return;
 
         const char *normal_key;
@@ -195,8 +195,7 @@ class cursor_bound_01 : public test {
             }
             return;
         }
-        if (range_ret == WT_ROLLBACK)
-            return;
+
         testutil_assert(range_ret == 0 && normal_ret == 0);
 
         /* Retrieve the key the cursor is pointing at. */
@@ -502,11 +501,9 @@ class cursor_bound_01 : public test {
         } else
             ret = normal_cursor->next(normal_cursor.get());
 
+        testutil_assert(ret == 0 || ret == WT_NOTFOUND || ret == WT_ROLLBACK);
         if (ret == WT_ROLLBACK)
             return;
-
-        testutil_assert(ret == 0 || ret == WT_NOTFOUND);
-
         /*
          * If search near has positioned the cursor before the lower key, perform a next() to to
          * place the cursor in the first record in the range.
@@ -683,7 +680,7 @@ class cursor_bound_01 : public test {
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value.
              */
-            tc->txn.begin(
+            tc->txn.try_begin(
               "roundup_timestamps=(read=true),read_timestamp=" + tc->tsm->decimal_to_hex(ts));
             while (tc->txn.active() && tc->running()) {
                 /* Generate a random string. */
@@ -722,7 +719,8 @@ class cursor_bound_01 : public test {
                 }
 
                 tc->txn.add_op();
-                tc->txn.commit();
+                if (tc->txn.can_commit())
+                    tc->txn.commit();
                 tc->sleep();
             }
             range_cursor->reset(range_cursor.get());
@@ -776,7 +774,6 @@ class cursor_bound_01 : public test {
                 tc->sleep();
             }
             normal_cursor->reset(normal_cursor.get());
-            range_cursor->reset(range_cursor.get());
         }
         /* Roll back the last transaction if still active now the work is finished. */
         if (tc->txn.active())
