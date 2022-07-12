@@ -29,11 +29,11 @@
 #include "format.h"
 
 /*
- * maximum_committed_ts --
+ * maximum_committed_timestamp --
  *     Return the largest timestamp that's no longer in use.
  */
 uint64_t
-maximum_committed_ts(void)
+maximum_committed_timestamp(void)
 {
     TINFO **tlp;
     uint64_t commit_ts, ts;
@@ -59,11 +59,11 @@ maximum_committed_ts(void)
 }
 
 /*
- * query_ts --
+ * query_timestamp --
  *     Query a timestamp.
  */
 void
-query_ts(const char *query, uint64_t *tsp)
+query_timestamp(const char *query, uint64_t *tsp)
 {
     WT_CONNECTION *conn;
     char tsbuf[WT_TS_HEX_STRING_SIZE];
@@ -81,7 +81,7 @@ query_ts(const char *query, uint64_t *tsp)
 void
 timestamp_init(void)
 {
-    query_ts("get=recovery", &g.timestamp);
+    query_timestamp("get=recovery", &g.timestamp);
     if (g.timestamp == 0)
         g.timestamp = 5;
 }
@@ -102,7 +102,7 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
     conn = g.wts_conn;
 
     /* Get the maximum not-in-use timestamp, noting that it may not be set. */
-    oldest_timestamp = stable_timestamp = maximum_committed_ts();
+    oldest_timestamp = stable_timestamp = maximum_committed_timestamp();
     if (oldest_timestamp == 0)
         return;
 
