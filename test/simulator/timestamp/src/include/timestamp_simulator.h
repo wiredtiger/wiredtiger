@@ -42,13 +42,12 @@ class timestamp_simulator {
     virtual int validate() = 0;
 };
 
-class oldest_timestamp: public timestamp_simulator {
+class oldest_timestamp : public timestamp_simulator {
     public:
-        oldest_timestamp();
-        ~oldest_timestamp() = default;
-        void get_specs();
-        int validate();
+    oldest_timestamp();
+    ~oldest_timestamp() = default;
+    void get_specs();
+    int validate();
 };
-
 
 #endif

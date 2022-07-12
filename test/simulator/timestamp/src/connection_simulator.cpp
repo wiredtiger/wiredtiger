@@ -55,7 +55,10 @@ connection_simulator::query_timestamp()
     return (0);
 }
 
-int connection_simulator::parse_timestamp_config_single(std::string config, int *new_oldest_ts, int *new_stable_ts){
+int
+connection_simulator::parse_timestamp_config_single(
+  std::string config, int *new_oldest_ts, int *new_stable_ts)
+{
 
     std::string ts_type;
     int ts;
@@ -68,20 +71,23 @@ int connection_simulator::parse_timestamp_config_single(std::string config, int 
     ts = std::stoi(ts_string);
 
     switch (system_timestamps_map[ts_type]) {
-        case oldest_timestamp:
-            *new_oldest_ts = ts;
-            break;
-        case stable_timestamp:
-            *new_stable_ts =  ts;
-            break;
-        case durable_timestamp:
-            break;
+    case oldest_timestamp:
+        *new_oldest_ts = ts;
+        break;
+    case stable_timestamp:
+        *new_stable_ts = ts;
+        break;
+    case durable_timestamp:
+        break;
     }
 
     return 0;
 }
 
-int connection_simulator::parse_timestamp_config(std::string config, int *new_oldest_ts, int *new_stable_ts){
+int
+connection_simulator::parse_timestamp_config(
+  std::string config, int *new_oldest_ts, int *new_stable_ts)
+{
     std::string s = config;
     size_t pos = 0;
     std::string token;
@@ -91,7 +97,7 @@ int connection_simulator::parse_timestamp_config(std::string config, int *new_ol
         std::cout << token << std::endl;
 
         parse_timestamp_config_single(token, new_oldest_ts, new_stable_ts);
-        
+
         s.erase(0, pos + 1);
     }
 
@@ -108,11 +114,13 @@ connection_simulator::set_timestamp(std::string config)
 
     parse_timestamp_config(config, &new_oldest_ts, &new_stable_ts);
 
-    if (new_oldest_ts != oldest_ts && ts_mgr->validate_oldest_ts(new_stable_ts, new_oldest_ts) != 0) {
+    if (new_oldest_ts != oldest_ts &&
+      ts_mgr->validate_oldest_ts(new_stable_ts, new_oldest_ts) != 0) {
         return 1;
     }
 
-    if (new_stable_ts != stable_ts && ts_mgr->validate_stable_ts(new_stable_ts, new_oldest_ts) != 0) {
+    if (new_stable_ts != stable_ts &&
+      ts_mgr->validate_stable_ts(new_stable_ts, new_oldest_ts) != 0) {
         return 1;
     }
 
@@ -129,8 +137,7 @@ connection_simulator::system_timestamps_map_setup()
     return;
 }
 
-
-connection_simulator::connection_simulator() {
+connection_simulator::connection_simulator()
+{
     system_timestamps_map_setup();
 }
-

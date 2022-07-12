@@ -43,8 +43,8 @@ class timestamp_manager {
     /* Add more system timestamps here. */
 
     // public:
-    // // PM-2564-TODO: oldest_ts as a public attribute allows its get_specs method to be called in the connection class.
-    // oldest_timestamp oldest_ts;
+    // // PM-2564-TODO: oldest_ts as a public attribute allows its get_specs method to be called in
+    // the connection class. oldest_timestamp oldest_ts;
 
     public:
     static timestamp_manager &get_timestamp_manager();

@@ -73,9 +73,9 @@ call_log_manager::process_call_log_entry(json call_log_entry)
             std::cout << "Open session call" << std::endl;
             session = conn->open_session();
             /* Insert this session into the mapping between the simulator session object and the
-            * wiredtiger session object. */
+             * wiredtiger session object. */
             session_map.insert(std::pair<std::string, std::shared_ptr<session_simulator>>(
-            call_log_entry["session_id"], session));
+              call_log_entry["session_id"], session));
             break;
         case set_timestamp:
             std::cout << "Set timestamp call" << std::endl;
@@ -84,7 +84,7 @@ call_log_manager::process_call_log_entry(json call_log_entry)
             conn->set_timestamp(config);
             break;
         }
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         std::cerr << "Exception: " << e.what() << std::endl;
     }
 

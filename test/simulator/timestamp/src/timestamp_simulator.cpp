@@ -29,29 +29,42 @@
 #include "timestamp_simulator.h"
 #include <iostream>
 
-int timestamp_simulator::set_ts(int ts){
+int
+timestamp_simulator::set_ts(int ts)
+{
     timestamp = ts;
     std::cout << "timestamp_simulator::set_ts: " << timestamp << std::endl;
     return 0;
 }
 
-int timestamp_simulator::get_ts(){
+int
+timestamp_simulator::get_ts()
+{
     return timestamp;
 }
 
-oldest_timestamp::oldest_timestamp() {
+oldest_timestamp::oldest_timestamp()
+{
     std::cout << "Creating oldest timestamp" << std::endl;
 }
 
-void oldest_timestamp::get_specs(){
+void
+oldest_timestamp::get_specs()
+{
     std::cout << "=== Oldest Timestamp ===" << std::endl;
     std::cout << "Constraints:" << std::endl;
-    std::cout << "<= stable; may not move backward, set to the value as of the last checkpoint during recovery" << std::endl;
+    std::cout << "<= stable; may not move backward, set to the value as of the last checkpoint "
+                 "during recovery"
+              << std::endl;
     std::cout << "Description:" << std::endl;
-    std::cout << "Inform the system future reads and writes will never be earlier than the specified timestamp." << std::endl;
+    std::cout << "Inform the system future reads and writes will never be earlier than the "
+                 "specified timestamp."
+              << std::endl;
 }
 
-int oldest_timestamp::validate(){
+int
+oldest_timestamp::validate()
+{
     std::cout << "validate" << std::endl;
     return (0);
 }

@@ -47,7 +47,7 @@ class connection_simulator {
     enum system_timestamps { oldest_timestamp, stable_timestamp, durable_timestamp };
     std::map<std::string, system_timestamps> system_timestamps_map;
 
-    /* 
+    /*
      * Timestamp manager is responsible for validating all the timestamps, including the global
      * timestamps; stable, oldest and durable in the connection.
      */
@@ -63,8 +63,16 @@ class connection_simulator {
     int query_timestamp();
     int set_timestamp(std::string config);
 
-    int get_oldest_ts() { return oldest_ts; }
-    int get_stable_ts() { return stable_ts; }
+    int
+    get_oldest_ts()
+    {
+        return oldest_ts;
+    }
+    int
+    get_stable_ts()
+    {
+        return stable_ts;
+    }
 
     ~connection_simulator() = default;
 
