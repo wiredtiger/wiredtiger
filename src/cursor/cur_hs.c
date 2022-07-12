@@ -549,8 +549,15 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
     for (; ret == 0; ret = __curhs_file_cursor_next(session, file_cursor)) {
         WT_ERR(file_cursor->get_key(file_cursor, &btree_id, datastore_key, &start_ts, &counter));
 
-        /* Stop before crossing over to the next btree. */
-        if (F_ISSET(hs_cursor, WT_HS_CUR_BTREE_ID_SET) && btree_id != hs_cursor->btree_id) {
+        /*
+         * Stop before crossing over to the next btree except when the
+         * WT_CURSTD_HS_READ_ACROSS_BTREE flag is set. This flag is needed when we try to place the
+         * cursor at the end of the btree range. In that case, We first place the cursor at the
+         * smallest record that has a larger btree and then move the cursor backwards to the end of
+         * the target btree range.
+         */
+        if (F_ISSET(hs_cursor, WT_HS_CUR_BTREE_ID_SET) &&
+          !F_ISSET(std_cursor, WT_CURSTD_HS_READ_ACROSS_BTREE) && btree_id != hs_cursor->btree_id) {
             ret = WT_NOTFOUND;
             goto err;
         }
