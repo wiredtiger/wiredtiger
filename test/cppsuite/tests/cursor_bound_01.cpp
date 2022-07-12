@@ -195,9 +195,8 @@ class cursor_bound_01 : public test {
             }
             return;
         }
-        if (range_ret == WT_ROLLBACK) {
+        if (range_ret == WT_ROLLBACK)
             return;
-        }
         testutil_assert(range_ret == 0 && normal_ret == 0);
 
         /* Retrieve the key the cursor is pointing at. */
@@ -272,19 +271,18 @@ class cursor_bound_01 : public test {
         }
 
         if (bound_choice == UPPER_BOUND_SET || bound_choice == ALL_BOUNDS_SET) {
-            if (bound_choice == ALL_BOUNDS_SET) {
+            if (bound_choice == ALL_BOUNDS_SET)
+                /* Ensure that the upper bound is greater than the lower bound. */
                 upper_bound = bound(tc->key_size, false, lower_bound.get_key()[0] + 1);
-            } else {
+            else
                 upper_bound = bound(tc->key_size, false);
-            }
             range_cursor->set_key(range_cursor.get(), upper_bound.get_key().c_str());
             testutil_check(
               range_cursor->bound(range_cursor.get(), upper_bound.get_config().c_str()));
         }
 
-        if (bound_choice == ALL_BOUNDS_SET) {
+        if (bound_choice == ALL_BOUNDS_SET)
             testutil_assert(upper_bound.get_key().compare(lower_bound.get_key()) > 0);
-        }
 
         return std::make_pair(lower_bound, upper_bound);
     }
@@ -617,9 +615,8 @@ class cursor_bound_01 : public test {
                      */
                     WT_IGNORE_RET_BOOL(tc->txn.commit());
                     continue;
-                } else if (ret == WT_ROLLBACK) {
+                } else if (ret == WT_ROLLBACK)
                     break;
-                }
 
                 const char *key;
                 testutil_check(rnd_cursor->get_key(rnd_cursor.get(), &key));
