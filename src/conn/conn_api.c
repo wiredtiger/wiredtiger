@@ -1306,6 +1306,9 @@ __conn_query_timestamp(WT_CONNECTION *wt_conn, char *hex_timestamp, const char *
     CONNECTION_API_CALL(conn, session, query_timestamp, config, cfg);
     ret = __wt_txn_query_timestamp(session, hex_timestamp, cfg, true);
 err:
+#ifdef HAVE_CALL_LOG
+    WT_TRET(__wt_call_log_query_timestamp(session, config, hex_timestamp, ret));
+#endif
     API_END_RET(session, ret);
 }
 
@@ -2254,6 +2257,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
     static const WT_NAME_FLAG stress_types[] = {
       {"aggressive_sweep", WT_TIMING_STRESS_AGGRESSIVE_SWEEP},
       {"backup_rename", WT_TIMING_STRESS_BACKUP_RENAME},
+      {"checkpoint_evict_page", WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE},
       {"checkpoint_reserved_txnid_delay", WT_TIMING_STRESS_CHECKPOINT_RESERVED_TXNID_DELAY},
       {"checkpoint_slow", WT_TIMING_STRESS_CHECKPOINT_SLOW},
       {"checkpoint_stop", WT_TIMING_STRESS_CHECKPOINT_STOP},

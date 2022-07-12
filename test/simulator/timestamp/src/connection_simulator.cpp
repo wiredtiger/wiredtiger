@@ -39,18 +39,18 @@ connection_simulator::get_connection()
     return (_connection_instance);
 }
 
-std::shared_ptr<session_simulator>
+session_simulator *
 connection_simulator::open_session()
 {
-    std::shared_ptr<session_simulator> session = std::make_shared<session_simulator>();
+    session_simulator *session = new session_simulator();
 
-    session_list.push_back(session);
+    _session_list.push_back(session);
 
     return (session);
 }
 
 int
-connection_simulator::query_timestamp()
+connection_simulator::query_timestamp() const
 {
     return (0);
 }
@@ -137,7 +137,12 @@ connection_simulator::system_timestamps_map_setup()
     return;
 }
 
-connection_simulator::connection_simulator()
-{
+connection_simulator::connection_simulator() {
     system_timestamps_map_setup();
+}
+
+connection_simulator::~connection_simulator()
+{
+    for (auto session : _session_list)
+        delete session;
 }

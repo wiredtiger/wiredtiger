@@ -26,11 +26,10 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CONNECTION_SIMULATOR_H
-#define CONNECTION_SIMULATOR_H
+#pragma once
 
-#include <vector>
 #include <memory>
+#include <vector>
 #include <map>
 
 #include "session_simulator.h"
@@ -38,30 +37,15 @@
 
 class timestamp_manager;
 
-/* connection_simulator is a singleton class (Global access of one and only one instance). */
+/* The connection simulator is a Singleton class. */
 class connection_simulator {
-    /* Member variables */
-    private:
-    std::vector<std::shared_ptr<session_simulator>> session_list;
-    enum system_timestamps { oldest_timestamp, stable_timestamp, durable_timestamp };
-    std::map<std::string, system_timestamps> system_timestamps_map;
-
-    /*
-     * Timestamp manager is responsible for validating all the timestamps, including the global
-     * timestamps; stable, oldest and durable in the connection.
-     */
-    timestamp_manager *ts_mgr;
-    int oldest_ts;
-    int stable_ts;
-    int durable_ts;
-
     /* Methods */
     public:
     static connection_simulator &get_connection();
-    std::shared_ptr<session_simulator> open_session();
-    int query_timestamp();
+    session_simulator *open_session();
+    int query_timestamp() const;
     int set_timestamp(std::string config);
-
+    ~connection_simulator();
     int
     get_oldest_ts()
     {
@@ -72,8 +56,6 @@ class connection_simulator {
     {
         return stable_ts;
     }
-
-    ~connection_simulator() = default;
 
     /* No copies of the singleton allowed. */
     private:
@@ -86,6 +68,19 @@ class connection_simulator {
     /* Deleted functions should generally be public as it results in better error messages. */
     connection_simulator(connection_simulator const &) = delete;
     connection_simulator &operator=(connection_simulator const &) = delete;
-};
 
-#endif
+    /* Member variables */
+    private:
+    std::vector<session_simulator *> _session_list;
+    enum system_timestamps { oldest_timestamp, stable_timestamp, durable_timestamp };
+    std::map<std::string, system_timestamps> system_timestamps_map;
+
+    /*
+     * Timestamp manager is responsible for validating all the timestamps, including the global
+     * timestamps; stable, oldest and durable in the connection.
+     */
+    timestamp_manager *ts_mgr;
+    int oldest_ts;
+    int stable_ts;
+    int durable_ts;
+};

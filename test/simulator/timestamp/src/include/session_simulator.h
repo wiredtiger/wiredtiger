@@ -26,10 +26,10 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef SESSION_SIMULATOR_H
-#define SESSION_SIMULATOR_H
+#pragma once
 
 class session_simulator {
+    /* Methods */
     public:
     session_simulator();
     ~session_simulator() = default;
@@ -39,5 +39,3 @@ class session_simulator {
     session_simulator(session_simulator const &) = delete;
     session_simulator &operator=(session_simulator const &) = delete;
 };
-
-#endif
