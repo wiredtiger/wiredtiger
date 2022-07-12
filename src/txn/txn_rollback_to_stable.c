@@ -1423,7 +1423,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
 
     /* Open a history store start cursor. */
     WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor_start));
-    F_SET(hs_cursor_start, WT_CURSTD_HS_READ_ALL);
+    F_SET(hs_cursor_start, WT_CURSTD_HS_READ_COMMITTED);
 
     hs_cursor_start->set_key(hs_cursor_start, 1, btree_id);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor_start), true);
@@ -1434,7 +1434,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
 
     /* Open a history store stop cursor. */
     WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor_stop));
-    F_SET(hs_cursor_stop, WT_CURSTD_HS_READ_ALL | WT_CURSTD_HS_READ_ACROSS_BTREE);
+    F_SET(hs_cursor_stop, WT_CURSTD_HS_READ_COMMITTED | WT_CURSTD_HS_READ_ACROSS_BTREE);
 
     hs_cursor_stop->set_key(hs_cursor_stop, 1, btree_id + 1);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor_stop), true);
