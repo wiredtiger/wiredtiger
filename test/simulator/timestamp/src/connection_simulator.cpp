@@ -55,15 +55,28 @@ connection_simulator::query_timestamp()
     return (0);
 }
 
-int connection_simulator::parse_timestamp_config_single(std::string config, std::string *ts_type, int *ts){
+int connection_simulator::parse_timestamp_config_single(std::string config, int *new_oldest_ts, int *new_stable_ts){
 
-    
-    *ts_type = config.substr(0, config.find("="));
+    std::string ts_type;
+    int ts;
+
+    ts_type = config.substr(0, config.find("="));
     // Copy the substring after the '=' to get the timestamp value from the config string.
     std::string ts_string = config.substr(config.find("=") + 1);
-    std::cout << "setting " << *ts_type << " to: " << ts_string << std::endl;
+    std::cout << "setting " << ts_type << " to: " << ts_string << std::endl;
     // Convert the ts to an int.
-    *ts = std::stoi(ts_string);
+    ts = std::stoi(ts_string);
+
+    switch (system_timestamps_map[ts_type]) {
+        case oldest_timestamp:
+            *new_oldest_ts = ts;
+            break;
+        case stable_timestamp:
+            *new_stable_ts =  ts;
+            break;
+        case durable_timestamp:
+            break;
+    }
 
     return 0;
 }
@@ -77,36 +90,12 @@ int connection_simulator::parse_timestamp_config(std::string config, int *new_ol
         token = s.substr(0, pos);
         std::cout << token << std::endl;
 
-        std::string ts_type;
-        int ts;
-        parse_timestamp_config_single(token, &ts_type, &ts);
-        switch (system_timestamps_map[ts_type]) {
-            case oldest_timestamp:
-                *new_oldest_ts = ts;
-                break;
-            case stable_timestamp:
-                *new_stable_ts =  ts;
-                break;
-            case durable_timestamp:
-                break;
-        }
+        parse_timestamp_config_single(token, new_oldest_ts, new_stable_ts);
         
         s.erase(0, pos + 1);
     }
 
-    std::string ts_type;
-    int ts;
-    parse_timestamp_config_single(s, &ts_type, &ts);
-    switch (system_timestamps_map[ts_type]) {
-        case oldest_timestamp:
-            *new_oldest_ts = ts;
-            break;
-        case stable_timestamp:
-            *new_stable_ts =  ts;
-            break;
-        case durable_timestamp:
-            break;
-    }
+    parse_timestamp_config_single(s, new_oldest_ts, new_stable_ts);
 
     return 0;
 }

@@ -71,7 +71,7 @@ class connection_simulator {
     /* No copies of the singleton allowed. */
     private:
     connection_simulator();
-    int parse_timestamp_config_single(std::string config, std::string *ts_type, int *ts);
+    int parse_timestamp_config_single(std::string config, int *new_oldest_ts, int *new_stable_ts);
     int parse_timestamp_config(std::string config, int *new_oldest_ts, int *new_stable_ts);
     void system_timestamps_map_setup();
 
