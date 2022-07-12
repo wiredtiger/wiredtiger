@@ -30,7 +30,7 @@ __btcur_bounds_contains_key(
 {
     WT_CURSOR_BTREE *cbt;
 
-    cbt = (WT_CURSOR_BTREE *) cursor;
+    cbt = (WT_CURSOR_BTREE *)cursor;
     *key_out_of_boundsp = false;
 
     if (upperp != NULL)
