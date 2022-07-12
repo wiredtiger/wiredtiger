@@ -1858,6 +1858,9 @@ __rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
 
     WT_ERR(__rollback_to_stable_check(session));
 
+    /* Update the oldest id to get a consistent view of global visibility. */
+    WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
+
     /*
      * Copy the stable timestamp, otherwise we'd need to lock it each time it's accessed. Even
      * though the stable timestamp isn't supposed to be updated while rolling back, accessing it
@@ -1875,9 +1878,6 @@ __rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
           ", snapshot count: %" PRIu32,
           conn->recovery_ckpt_snap_min, conn->recovery_ckpt_snap_max,
           conn->recovery_ckpt_snapshot_count);
-    else
-        /* Update the oldest id to get a consistent view of global visibility. */
-        WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
     WT_ERR(__rollback_to_stable_btree_apply_all(session, rollback_timestamp));
 
