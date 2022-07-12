@@ -34,7 +34,6 @@
 #include <map>
 
 #include "session_simulator.h"
-#include "timestamp_simulator.h"
 #include "timestamp_manager.h"
 
 class timestamp_manager;

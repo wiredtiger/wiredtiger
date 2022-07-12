@@ -30,22 +30,10 @@
 #define TIMESTAMP_MANAGER_H
 
 #include <string>
-#include "timestamp_simulator.h"
 #include "connection_simulator.h"
 
 class timestamp_manager {
-    private:
-    // PM-2564-TODO: oldest timestamp is an object here but we could replace this with an int.
-    // oldest_timestamp oldest_ts;
-
-    // PM-2564-TODO: Timestamp as ints alternative.
-    // connection_simulator *conn = &connection_simulator::get_connection();
-    /* Add more system timestamps here. */
-
-    // public:
-    // // PM-2564-TODO: oldest_ts as a public attribute allows its get_specs method to be called in
-    // the connection class. oldest_timestamp oldest_ts;
-
+    
     public:
     static timestamp_manager &get_timestamp_manager();
     int validate_oldest_ts(int new_stable_ts, int new_oldest_ts);
