@@ -121,19 +121,23 @@ functions:
           ${SPINLOCK_TYPE|} \
           ${CC_OPTIMIZE_LEVEL|}" 
 
-        # Fetch the gperftools library. This will also get tcmalloc.
-        if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}" =~ (tcmalloc|TCMALLOC) ]]; then
-          is_cmake_build=true
-          git clone git@github.com:wiredtiger/automation-scripts.git
-          . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
-        fi
-
         if [ "$OS" = "Windows_NT" ]; then
           # Use the Windows powershell script to configure the CMake build.
           # We execute it in a powershell environment as its easier to detect and source the Visual Studio
           # toolchain in a native Windows environment. We can't easily execute the build in a cygwin environment.
           powershell.exe  -NonInteractive '.\test\evergreen\build_windows.ps1' -configure 1 $DEFINED_EVERGREEN_CONFIG_FLAGS ${windows_configure_flags|}
         else
+          # Fetch the gperftools library if needed. This will also get tcmalloc.
+          if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}" =~ (tcmalloc|TCMALLOC) ] && [! -d "./automation-scripts" ]]; then
+            # Turn off verbose because of S3 keys (remember to turn it back on).
+            set +o verbose
+
+            is_cmake_build=true
+            git clone git@github.com:wiredtiger/automation-scripts.git
+            . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
+
+            set -o verbose
+          fi
           # Compiling with CMake.
           . test/evergreen/find_cmake.sh
           # If we've fetched the wiredtiger artifact from a previous compilation/build, it's best to remove
