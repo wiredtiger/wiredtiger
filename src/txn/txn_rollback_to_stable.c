@@ -1451,14 +1451,10 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
         WT_ASSERT(session, ret == WT_NOTFOUND || hs_btree_id > btree_id);
 
         WT_ERR_NOTFOUND_OK(hs_cursor_stop->prev(hs_cursor_stop), true);
-        /*
-         * It's possible we find the start point but not the stop point if oldest id is updated
-         * concurrently. No need to delete anything in this case.
-         */
-        if (ret == WT_NOTFOUND) {
-            ret = 0;
-            goto done;
-        }
+        /* We can find the start point then we must be able to find the stop point. */
+        if (ret == WT_NOTFOUND)
+            WT_ERR_PANIC(
+              session, ret, "cannot locate the stop point to truncate the history store.");
         hs_cursor_stop->get_key(hs_cursor_stop, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter);
     } while (hs_btree_id != btree_id);
 
