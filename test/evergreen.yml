@@ -1195,6 +1195,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "cppsuite test"
         vars:
+          test_config: debug_mode=(cursor_copy=true)
           test_config_filename: configs/cursor_bound_01_default.txt
           test_name: cursor_bound_01
 
@@ -1206,6 +1207,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "cppsuite test"
         vars:
+          test_config: debug_mode=(cursor_copy=true)
           test_config_filename: configs/cursor_bound_01_reverse_default.txt
           test_name: cursor_bound_01
 
