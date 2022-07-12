@@ -8,11 +8,11 @@ add_library(timestamp_simulator SHARED
 )
 target_include_directories(timestamp_simulator PUBLIC src/include)
 
-# target_compile_options(
-#     simulator
-#     PUBLIC -std=c++17
-#     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
-# )
+target_compile_options(
+    timestamp_simulator
+    PUBLIC -std=c++17
+    PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
+)
 
 # Build call log manager.
 add_subdirectory(call_log_manager)
