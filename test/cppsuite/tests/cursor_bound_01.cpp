@@ -710,6 +710,10 @@ class cursor_bound_01 : public test {
                 if (ret == 0) {
                     const char *range_srch_key;
                     testutil_check(range_cursor->get_key(range_cursor.get(), &range_srch_key));
+                    /*
+                     * Take a copy of the range search key as it the buffer returned by WiredTiger
+                     * won't be valid after the call to set_key.
+                     */
                     std::string range_key_copy(range_srch_key);
                     range_cursor->set_key(range_cursor.get(), range_key_copy.c_str());
                     ret = range_cursor->search(range_cursor.get());
