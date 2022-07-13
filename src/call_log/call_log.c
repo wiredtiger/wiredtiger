@@ -155,27 +155,22 @@ err:
 }
 
 /*
- * __call_log_print_return --
+ * __wt_call_log_print_return --
  *     Helper function for printing the return section of the call log entry. Each return section of
  *     the call log entry expects to have the return value of the API call and an error message if
  *     it exists.
  */
-static int
-__call_log_print_return(WT_SESSION_IMPL *session, int ret_val, const char *err_msg)
+int
+__wt_call_log_print_return(
+  WT_CONNECTION_IMPL *conn, WT_SESSION_IMPL *session, int ret_val, const char *err_msg)
 {
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
-
-    WT_RET(__wt_fprintf(session, conn->call_log_fst,
+    return (__wt_fprintf(session, conn->call_log_fst,
       "    \"return\" : {\n"
       "        \"return_val\" : %d,\n"
       "        \"error_message\" : \"%s\"\n"
       "    }\n"
       "},\n",
       ret_val, err_msg));
-
-    return (0);
 }
 
 /*
@@ -201,7 +196,7 @@ __wt_call_log_wiredtiger_open(WT_SESSION_IMPL *session, int ret_val)
     WT_RET(__call_log_print_input(session, 0));
 
     WT_RET(__call_log_print_output(session, 0));
-    WT_RET(__call_log_print_return(session, ret_val, ""));
+    WT_RET(__wt_call_log_print_return(conn, session, ret_val, ""));
 
     return (0);
 }
@@ -228,7 +223,7 @@ __wt_call_log_open_session(WT_SESSION_IMPL *session, int ret_val)
     /* Open session has no input or output arguments. */
     WT_RET(__call_log_print_input(session, 0));
     WT_RET(__call_log_print_output(session, 0));
-    WT_RET(__call_log_print_return(session, ret_val, ""));
+    WT_RET(__wt_call_log_print_return(conn, session, ret_val, ""));
 
     return (0);
 }
@@ -259,7 +254,7 @@ __wt_call_log_set_timestamp(WT_SESSION_IMPL *session, const char *config, int re
 
     /* Set timestamp has no output arguments. */
     WT_RET(__call_log_print_output(session, 0));
-    WT_RET(__call_log_print_return(session, ret_val, ""));
+    WT_RET(__wt_call_log_print_return(conn, session, ret_val, ""));
 
     return (0);
 }
@@ -294,7 +289,7 @@ __wt_call_log_query_timestamp(
       hex_ts_buf, sizeof(hex_ts_buf), "\"timestamp_queried\": \"%s\"", hex_timestamp));
     WT_RET(__call_log_print_output(session, 1, hex_ts_buf));
 
-    WT_RET(__call_log_print_return(session, ret_val, ""));
+    WT_RET(__wt_call_log_print_return(conn, session, ret_val, ""));
 
     return (0);
 }
@@ -323,7 +318,33 @@ __wt_call_log_begin_transaction(WT_SESSION_IMPL *session, const char *config, in
 
     /* Begin transaction has no output arguments. */
     WT_RET(__call_log_print_output(session, 0));
-    WT_RET(__call_log_print_return(session, ret_val, ""));
+    WT_RET(__wt_call_log_print_return(conn, session, ret_val, ""));
+
+    return (0);
+}
+
+/*
+ * __wt_call_log_close_session --
+ *     Print the call log entry for the close session API call.
+ */
+int
+__wt_call_log_close_session(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    WT_RET(__call_log_print_start(session, "session", "close_session"));
+
+    /*
+     * Close session includes the session address as an id in the call log entry. This ID is used to
+     * map the session used by wiredtiger to a new session in the simulator.
+     */
+    WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"session_id\": \"%p\",\n", session));
+
+    /* Close session has no input or output arguments. */
+    WT_RET(__call_log_print_input(session, 0));
+    WT_RET(__call_log_print_output(session, 0));
 
     return (0);
 }
