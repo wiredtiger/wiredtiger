@@ -171,7 +171,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                 self.assertTrue(self.key_range[i].is_deleted_or_oob(bound_set))
         else:
             self.verbose(2, "Running scenario: PREV")
-            key_range_it = self.key_count
+            key_range_it = self.max_key
             while (cursor.prev() != wiredtiger.WT_NOTFOUND):
                 current_key = cursor.get_key()
                 current_value = cursor.get_value()
@@ -182,12 +182,14 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                 if (current_key != key_range_it - 1):
                     # Check that the key range between key_range_it and current_key isn't visible
                     for i in range(current_key + 1, key_range_it):
+                        self.verbose(3, "Checking key is deleted or oob: " + str(i))
                         checked_keys.append(i)
                         self.assertTrue(self.key_range[i].is_deleted_or_oob(bound_set))
                 key_range_it = current_key
             # If key_range_it is > key_count then the rest of the range was deleted
-            for i in range(0, key_range_it):
+            for i in range(self.min_key, key_range_it):
                 checked_keys.append(i)
+                self.verbose(3, "Checking key is deleted or oob: " + str(i))
                 self.assertTrue(self.key_range[i].is_deleted_or_oob(bound_set))
         self.assertTrue(len(checked_keys) == self.key_count)
 
