@@ -279,6 +279,10 @@ leaf_only:
     return (0);
 
 past_end:
+    /* We don't always set these below, add a catch-all. */
+    cbt->ins_head = NULL;
+    cbt->ins = NULL;
+
     /*
      * A record past the end of the page's standard information. Check the append list; by
      * definition, any record on the append list is closer than the last record on the page, so it's
