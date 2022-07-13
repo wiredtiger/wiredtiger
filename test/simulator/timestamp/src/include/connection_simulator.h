@@ -39,6 +39,7 @@ class connection_simulator {
     public:
     static connection_simulator &get_connection();
     session_simulator *open_session();
+    bool close_session(session_simulator *);
     int query_timestamp() const;
     int set_timestamp() const;
     ~connection_simulator();
