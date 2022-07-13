@@ -325,6 +325,7 @@ new_page:
         if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
             return (0);
 
+restart_read:
         /*
          * If a lower bound has been set ensure that the key is within the range, otherwise early
          * exit.
@@ -334,7 +335,6 @@ new_page:
             WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
         WT_RET(ret);
 
-restart_read:
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
@@ -403,6 +403,7 @@ new_page:
         if (cbt->recno < cbt->ref->ref_recno)
             return (WT_NOTFOUND);
 
+restart_read:
         /*
          * If a lower bound has been set ensure that the key is within the range, otherwise early
          * exit.
@@ -412,7 +413,6 @@ new_page:
             WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
         WT_RET(ret);
 
-restart_read:
         /* Find the matching WT_COL slot. */
         if ((cip = __col_var_search(cbt->ref, cbt->recno, &rle_start)) == NULL)
             return (WT_NOTFOUND);

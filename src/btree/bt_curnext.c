@@ -175,6 +175,7 @@ new_page:
 
         __cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
 
+restart_read:
         /*
          * If an upper bound has been set ensure that the key is within the range, otherwise early
          * exit.
@@ -184,7 +185,6 @@ new_page:
             WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
         WT_RET(ret);
 
-restart_read:
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
 
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
@@ -253,6 +253,7 @@ __cursor_var_next(
         __cursor_set_recno(cbt, cbt->recno + 1);
 
 new_page:
+restart_read:
         /*
          * If an upper bound has been set ensure that the key is within the range, otherwise early
          * exit.
@@ -262,7 +263,6 @@ new_page:
             WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
         WT_RET(ret);
 
-restart_read:
         /* Find the matching WT_COL slot. */
         if ((cip = __col_var_search(cbt->ref, cbt->recno, &rle_start)) == NULL)
             return (WT_NOTFOUND);
@@ -846,11 +846,10 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
                 break;
 
             /*
-             * If we are doing a search near with prefix key configured or the cursor has bounds
-             * set, we need to check if we have exited the next function due to a prefix key
-             * mismatch or the key is out of bounds. If so, we break instead of walking onto the
-             * next page. We're not directly returning here to allow the cursor to be reset first
-             * before we return WT_NOTFOUND.
+             * If we are doing an operation when the cursor has bounds set, we need to check if we
+             * have exited the next function due to the key being out of bounds. If so, we break
+             * instead of walking onto the next page. We're not directly returning here to allow the
+             * cursor to be reset first before we return WT_NOTFOUND.
              */
             if (key_out_of_bounds)
                 break;
@@ -888,13 +887,11 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
              * Column-store pages may have appended entries. Handle it separately from the usual
              * cursor code, it's in a simple format.
              */
-            if (page != NULL && page->type != WT_PAGE_ROW_LEAF &&
-              (cbt->ins_head = WT_COL_APPEND(page)) != NULL) {
+            if (page->type != WT_PAGE_ROW_LEAF && (cbt->ins_head = WT_COL_APPEND(page)) != NULL) {
                 F_SET(cbt, WT_CBT_ITERATE_APPEND);
                 continue;
             }
         }
-
         /*
          * If we saw a lot of deleted records on this page, or we went all the way through a page
          * and only saw deleted records, try to evict the page when we release it. Otherwise
