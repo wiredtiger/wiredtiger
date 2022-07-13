@@ -33,6 +33,10 @@ __btcur_bounds_contains_key(
     cbt = (WT_CURSOR_BTREE *)cursor;
     *key_out_of_boundsp = false;
 
+#ifndef HAVE_DIAGNOSTIC
+    WT_UNUSED(cbt);
+#endif
+
     if (upperp != NULL)
         *upperp = false;
 
