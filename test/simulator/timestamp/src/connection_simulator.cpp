@@ -55,23 +55,23 @@ connection_simulator::query_timestamp() const
     return (0);
 }
 
-/* 
+/*
  * Parse a single timestamp configuration string eg. oldest_timestamp=10. The string is split on the
  * '=' and the new timestamp is assigned.
  */
 int
 connection_simulator::parse_timestamp_config_single(
-  std::string config, int *new_oldest_ts, int *new_stable_ts)
+  std::string config, uint64_t *new_oldest_ts, uint64_t *new_stable_ts)
 {
 
     std::string ts_type;
-    int ts;
+    uint64_t ts;
 
+    /* The substring before the '=' indicates the type of timestamp to be set. */
     ts_type = config.substr(0, config.find("="));
-    // Copy the substring after the '=' to get the timestamp value from the config string.
+    /* Copy the substring after the '=' to get the timestamp value from the config string. */
     std::string ts_string = config.substr(config.find("=") + 1);
-    std::cout << "setting " << ts_type << " to: " << ts_string << std::endl;
-    // Convert the ts to an int.
+    /* Convert the timestamp to an int. */
     ts = std::stoi(ts_string);
 
     switch (system_timestamps_map[ts_type]) {
@@ -82,6 +82,7 @@ connection_simulator::parse_timestamp_config_single(
         *new_stable_ts = ts;
         break;
     case durable_timestamp:
+        durable_ts = ts;
         break;
     }
 
@@ -93,7 +94,7 @@ connection_simulator::parse_timestamp_config_single(
  */
 int
 connection_simulator::parse_timestamp_config(
-  std::string config, int *new_oldest_ts, int *new_stable_ts)
+  std::string config, uint64_t *new_oldest_ts, uint64_t *new_stable_ts)
 {
     size_t pos = 0;
     std::string token;
@@ -118,8 +119,8 @@ int
 connection_simulator::set_timestamp(std::string config)
 {
     /* Set the new stable and oldest timestamps to the previous global values by default. */
-    int new_stable_ts = stable_ts;
-    int new_oldest_ts = oldest_ts;
+    uint64_t new_stable_ts = stable_ts;
+    uint64_t new_oldest_ts = oldest_ts;
 
     parse_timestamp_config(config, &new_oldest_ts, &new_stable_ts);
 
@@ -135,6 +136,13 @@ connection_simulator::set_timestamp(std::string config)
         return 1;
     }
 
+    /*
+     * The new timestamps have been validated up to this point. Now we can update the connection
+     * timestamps.
+     */
+    stable_ts = new_stable_ts;
+    oldest_ts = new_oldest_ts;
+
     return (0);
 }
 
@@ -148,7 +156,8 @@ connection_simulator::system_timestamps_map_setup()
     return;
 }
 
-connection_simulator::connection_simulator() {
+connection_simulator::connection_simulator()
+{
     system_timestamps_map_setup();
 }
 

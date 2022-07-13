@@ -74,11 +74,11 @@ call_log_manager::process_call_log_entry(json call_log_entry)
         case api_method::set_timestamp:
             std::cout << "Set timestamp call" << std::endl;
             /* Convert the config char * to a string object. */
-            std::string config(call_log_entry["input"]["config"]);
+            const std::string config = call_log_entry["input"]["config"].get<std::string>();
             _conn->set_timestamp(config);
             break;
         }
-    } catch (const std::exception &e){
+    } catch (const std::exception &e) {
         std::cerr << "exception: " << e.what() << std::endl;
     }
 }

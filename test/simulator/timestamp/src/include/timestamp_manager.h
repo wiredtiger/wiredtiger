@@ -33,12 +33,13 @@
 #include "connection_simulator.h"
 
 class timestamp_manager {
-    
+
     public:
     static timestamp_manager &get_timestamp_manager();
-    int validate_oldest_ts(int new_stable_ts, int new_oldest_ts);
-    int validate_stable_ts(int new_stable_ts, int new_oldest_ts);
-    int validate_durable_ts(int new_durable_ts);
+    /* Methods for validating timestamps */
+    int validate_oldest_ts(uint64_t new_stable_ts, uint64_t new_oldest_ts);
+    int validate_stable_ts(uint64_t new_stable_ts, uint64_t new_oldest_ts);
+    int validate_durable_ts(uint64_t new_durable_ts);
 
     private:
     timestamp_manager();

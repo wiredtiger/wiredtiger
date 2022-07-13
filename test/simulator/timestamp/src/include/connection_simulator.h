@@ -46,12 +46,12 @@ class connection_simulator {
     int query_timestamp() const;
     int set_timestamp(std::string config);
     ~connection_simulator();
-    int
+    uint64_t
     get_oldest_ts()
     {
         return oldest_ts;
     }
-    int
+    uint64_t
     get_stable_ts()
     {
         return stable_ts;
@@ -60,8 +60,10 @@ class connection_simulator {
     /* No copies of the singleton allowed. */
     private:
     connection_simulator();
-    int parse_timestamp_config_single(std::string config, int *new_oldest_ts, int *new_stable_ts);
-    int parse_timestamp_config(std::string config, int *new_oldest_ts, int *new_stable_ts);
+    int parse_timestamp_config_single(
+      std::string config, uint64_t *new_oldest_ts, uint64_t *new_stable_ts);
+    int parse_timestamp_config(
+      std::string config, uint64_t *new_oldest_ts, uint64_t *new_stable_ts);
     void system_timestamps_map_setup();
 
     public:
@@ -74,13 +76,12 @@ class connection_simulator {
     std::vector<session_simulator *> _session_list;
     enum system_timestamps { oldest_timestamp, stable_timestamp, durable_timestamp };
     std::map<std::string, system_timestamps> system_timestamps_map;
-
     /*
      * Timestamp manager is responsible for validating all the timestamps, including the global
      * timestamps; stable, oldest and durable in the connection.
      */
     timestamp_manager *ts_mgr;
-    int oldest_ts;
-    int stable_ts;
-    int durable_ts;
+    uint64_t oldest_ts;
+    uint64_t stable_ts;
+    uint64_t durable_ts;
 };

@@ -40,7 +40,7 @@ timestamp_manager::get_timestamp_manager()
 }
 
 int
-timestamp_manager::validate_oldest_ts(int new_stable_ts, int new_oldest_ts)
+timestamp_manager::validate_oldest_ts(uint64_t new_stable_ts, uint64_t new_oldest_ts)
 {
     connection_simulator *conn = &connection_simulator::get_connection();
 
@@ -64,7 +64,7 @@ timestamp_manager::validate_oldest_ts(int new_stable_ts, int new_oldest_ts)
 }
 
 int
-timestamp_manager::validate_stable_ts(int new_stable_ts, int new_oldest_ts)
+timestamp_manager::validate_stable_ts(uint64_t new_stable_ts, uint64_t new_oldest_ts)
 {
     connection_simulator *conn = &connection_simulator::get_connection();
 
@@ -88,7 +88,7 @@ timestamp_manager::validate_stable_ts(int new_stable_ts, int new_oldest_ts)
 }
 
 int
-timestamp_manager::validate_durable_ts(int new_durable_ts)
+timestamp_manager::validate_durable_ts(uint64_t new_durable_ts)
 {
     return 0;
 }
