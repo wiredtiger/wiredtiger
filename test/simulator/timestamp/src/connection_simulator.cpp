@@ -26,10 +26,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "connection_simulator.h"
-#include "timestamp_manager.h"
 #include <iostream>
 #include <string.h>
+
+#include "connection_simulator.h"
+#include "timestamp_manager.h"
 
 /* Get an instance of connection_simulator class. */
 connection_simulator &

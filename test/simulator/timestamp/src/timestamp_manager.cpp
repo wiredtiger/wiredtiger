@@ -26,12 +26,13 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "timestamp_manager.h"
 #include <iostream>
+
+#include "timestamp_manager.h"
 
 timestamp_manager::timestamp_manager() {}
 
-/* Get an instance of connection_simulator class. */
+/* Get an instance of timestamp_manager class. */
 timestamp_manager &
 timestamp_manager::get_timestamp_manager()
 {
@@ -44,15 +45,13 @@ timestamp_manager::validate_oldest_ts(uint64_t new_stable_ts, uint64_t new_oldes
 {
     connection_simulator *conn = &connection_simulator::get_connection();
 
-    // Oldest timestamp can't move backward.
+    /* Oldest timestamp can't move backward. */
     if (new_oldest_ts <= conn->get_oldest_ts()) {
         std::cout << "Oldest timestamp cannot move backwards." << std::endl;
         return 1;
     }
 
-    /*
-     * The oldest and stable timestamps must always satisfy the condition that oldest <= stable.
-     */
+    /* The oldest and stable timestamps must always satisfy the condition that oldest <= stable. */
     if (new_oldest_ts > new_stable_ts) {
         std::cout << "set_timestamp: oldest timestamp " << new_oldest_ts
                   << " must not be later than stable timestamp " << new_stable_ts << "."
@@ -68,15 +67,13 @@ timestamp_manager::validate_stable_ts(uint64_t new_stable_ts, uint64_t new_oldes
 {
     connection_simulator *conn = &connection_simulator::get_connection();
 
-    // Stable timestamp can't move backward.
+    /* Stable timestamp can't move backward. */
     if (new_stable_ts <= conn->get_stable_ts()) {
         std::cout << "Stable timestamp cannot move backwards." << std::endl;
         return 1;
     }
 
-    /*
-     * The oldest and stable timestamps must always satisfy the condition that oldest <= stable.
-     */
+    /* The oldest and stable timestamps must always satisfy the condition that oldest <= stable. */
     if (new_oldest_ts > new_stable_ts) {
         std::cout << "set_timestamp: oldest timestamp " << conn->get_oldest_ts()
                   << " must not be later than stable timestamp " << new_stable_ts << "."

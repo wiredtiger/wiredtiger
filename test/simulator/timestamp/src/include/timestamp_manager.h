@@ -26,14 +26,13 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef TIMESTAMP_MANAGER_H
-#define TIMESTAMP_MANAGER_H
+#pragma once
 
 #include <string>
 #include "connection_simulator.h"
 
+/* Timestamp is a global singleton class responsible for validating the timestamps. */
 class timestamp_manager {
-
     public:
     static timestamp_manager &get_timestamp_manager();
     /* Methods for validating timestamps */
@@ -48,5 +47,3 @@ class timestamp_manager {
     timestamp_manager(timestamp_manager const &) = delete;
     timestamp_manager &operator=(timestamp_manager const &) = delete;
 };
-
-#endif
