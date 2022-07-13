@@ -396,7 +396,7 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
 
 #ifdef HAVE_CALL_LOG
     if (!internal_session)
-        WT_TRET(__wt_call_log_close_session_ret(conn, session, ret, ""));
+        WT_TRET(__wt_call_log_print_return(conn, session, ret, ""));
 #endif
 
     return (ret);
