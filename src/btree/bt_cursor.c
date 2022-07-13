@@ -867,8 +867,8 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
      * failure. It sets up a callback for that purpose, and we pay a cache miss per search to make
      * that work.
      */
-    if (session->format_private != NULL && (ret == 0 || ret == WT_NOTFOUND))
-        session->format_private(ret, session->format_private_arg);
+    if (cursor->format_private != NULL && (ret == 0 || ret == WT_NOTFOUND))
+        cursor->format_private(ret, cursor->format_private_arg);
 
 #ifdef HAVE_DIAGNOSTIC
     if (ret == 0)

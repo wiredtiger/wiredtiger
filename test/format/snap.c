@@ -399,10 +399,10 @@ snap_verify(TINFO *tinfo, SNAP_OPS *snap)
     callback.cursor = cursor;
     callback.key = key;
     callback.keyno = keyno;
-    CUR2S(cursor)->format_private = snap_verify_callback;
-    CUR2S(cursor)->format_private_arg = &callback;
+    cursor->format_private = snap_verify_callback;
+    cursor->format_private_arg = &callback;
     ret = read_op(cursor, SEARCH, NULL);
-    CUR2S(cursor)->format_private = NULL;
+    cursor->format_private = NULL;
 
     testutil_assert(ret == 0 || ret == WT_NOTFOUND || ret == WT_ROLLBACK);
     return (ret == WT_NOTFOUND ? 0 : ret);
