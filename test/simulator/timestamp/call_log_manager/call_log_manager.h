@@ -47,7 +47,7 @@ class call_log_manager {
 
     /* Member variables */
     private:
-    connection_simulator *_conn;
+    connection_simulator *_conn = nullptr;
     json _call_log;
     std::map<std::string, api_method> _api_map;
     std::map<std::string, session_simulator *> _session_map;
