@@ -49,9 +49,9 @@ call_log_manager::call_log_manager(const std::string &call_log_file)
 void
 call_log_manager::api_map_setup()
 {
-    _api_map["wiredtiger_open"] = api_method::wiredtiger_open;
-    _api_map["open_session"] = api_method::open_session;
     _api_map["close_session"] = api_method::close_session;
+    _api_map["open_session"] = api_method::open_session;
+    _api_map["wiredtiger_open"] = api_method::wiredtiger_open;
 }
 
 void
