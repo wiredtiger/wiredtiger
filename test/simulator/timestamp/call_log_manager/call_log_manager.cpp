@@ -70,10 +70,14 @@ call_log_manager::process_call_log_entry(json call_log_entry)
     case api_method::open_session:
         const std::string session_id = call_log_entry["session_id"].get<std::string>();
 
-        if (_conn == nullptr) {
+        /*
+         * Not having a valid connection is a fatal error since no other operations can happen
+         * without a connection.
+         */
+        if (_conn == nullptr)
             throw std::runtime_error("Could not open session, connection does not exist");
-            break;
-        } else if (_session_map.find(session_id) != _session_map.end()) {
+        /* We should not open sessions with an ID that is already in use. */
+        else if (_session_map.find(session_id) != _session_map.end()) {
             std::cerr << "Could not open duplicate session, session already exists." << std::endl;
             break;
         }
