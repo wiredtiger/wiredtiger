@@ -172,7 +172,6 @@ __cursor_var_append_next(
 new_page:
         if (cbt->ins == NULL)
             return (WT_NOTFOUND);
-
         __cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
 
 restart_read:
@@ -256,7 +255,11 @@ new_page:
 restart_read:
         /*
          * If an upper bound has been set ensure that the key is within the range, otherwise early
-         * exit.
+         * exit. In the case where there is a large set of RLE deleted records it is possible that
+         * calculated recno will be off the end of the page. We don't need to add an additional
+         * check for this case as the next iteration, either on a page or append list will check the
+         * recno and early exit. It does present a potential optimization but to keep the bounded
+         * cursor logic simple we will forego it for now.
          */
         if ((ret = __wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_boundsp)) ==
           WT_NOTFOUND)

@@ -2237,9 +2237,9 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
 
 /*
  * __wt_btcur_bounds_position --
- *     A unpositioned bounded cursor need to start its cursor next and prev walk from the lower or
+ *     An unpositioned bounded cursor need to start its cursor next and prev walk from the lower or
  *     upper bound depending on which direction it is going. This function calls cursor row search
- *     to position the cursor appropriately.
+ *     or cursor col search to position the cursor appropriately.
  */
 int
 __wt_btcur_bounds_position(
