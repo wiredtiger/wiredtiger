@@ -253,49 +253,6 @@ table_select_type(table_type type)
 }
 
 /*
- * wt_wrap_open_session --
- *     Open a WiredTiger session.
- */
-static inline void
-wt_wrap_open_session(WT_CONNECTION *conn, SAP *sap, const char *track, WT_SESSION **sessionp)
-{
-    WT_SESSION *session;
-
-    *sessionp = NULL;
-
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
-
-    if (g.trace_conn != NULL && sap->trace == NULL)
-        testutil_check(g.trace_conn->open_session(g.trace_conn, NULL, NULL, &sap->trace));
-
-    sap->track = track;
-    session->app_private = sap;
-
-    *sessionp = session;
-}
-
-/*
- * wt_wrap_close_session --
- *     Close a WiredTiger session.
- */
-static inline void
-wt_wrap_close_session(WT_SESSION *session)
-{
-    SAP *sap;
-    WT_SESSION *trace;
-
-    trace = NULL;
-    if ((sap = session->app_private) != NULL) {
-        trace = sap->trace;
-        if (trace != NULL)
-            testutil_check(trace->close(trace, NULL));
-        memset(sap, 0, sizeof(*sap));
-    }
-
-    testutil_check(session->close(session, NULL));
-}
-
-/*
  * wt_wrap_open_cursor --
  *     Open a WiredTiger cursor.
  */

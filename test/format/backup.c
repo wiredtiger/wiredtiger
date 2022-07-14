@@ -581,8 +581,11 @@ backup(void *arg)
         /*
          * open_cursor can return EBUSY if concurrent with a metadata operation, retry in that case.
          */
-        trace_msg(session, "Backup #%u start%s%s%s", ++counter, config == NULL ? "" : ": (",
-          config == NULL ? "" : config, config == NULL ? "" : ")");
+        if (config == NULL)
+            trace_msg(session, "Backup #%u start", ++counter);
+        else
+            trace_msg(session, "Backup #%u start: (%s)", ++counter, config);
+
         while (
           (ret = session->open_cursor(session, "backup:", NULL, config, &backup_cursor)) == EBUSY)
             __wt_yield();
