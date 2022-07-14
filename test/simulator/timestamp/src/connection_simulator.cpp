@@ -57,7 +57,7 @@ connection_simulator::close_session(session_simulator *session)
 
     /* If session doesn't exist in the session_list return false. */
     if (position == _session_list.end()) {
-        std::cerr << "Error: Session is not present in the session list" << std::endl;
+        std::cerr << "Error: session is not present in the session list" << std::endl;
         return (false);
     }
 
