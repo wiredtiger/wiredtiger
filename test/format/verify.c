@@ -309,7 +309,8 @@ page_dump:
                  * We can't continue if the keys don't match, otherwise, optionally continue showing
                  * failures, up to 20.
                  */
-                testutil_assert(base_keyno == table_keyno && g.trace_mirror_fail && failures < 20);
+                testutil_assert(
+                  base_keyno == table_keyno || (g.trace_mirror_fail && failures < 20));
             }
         }
 
