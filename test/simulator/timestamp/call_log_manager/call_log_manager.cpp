@@ -32,7 +32,7 @@
 
 #include "call_log_manager.h"
 
-call_log_manager::call_log_manager(const std::string &call_log_file)
+call_log_manager::call_log_manager(const std::string &call_log_file): _conn(nullptr)
 {
     std::ifstream file(call_log_file);
     if (file.fail()) {
@@ -43,7 +43,6 @@ call_log_manager::call_log_manager(const std::string &call_log_file)
 
     _call_log = json::parse(file);
     api_map_setup();
-    _conn = nullptr;
 }
 
 void
