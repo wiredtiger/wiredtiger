@@ -32,7 +32,7 @@
 
 #include "call_log_manager.h"
 
-call_log_manager::call_log_manager(const std::string &call_log_file): _conn(nullptr)
+call_log_manager::call_log_manager(const std::string &call_log_file) : _conn(nullptr)
 {
     std::ifstream file(call_log_file);
     if (file.fail()) {
@@ -65,13 +65,11 @@ call_log_manager::process_call_log_entry(json call_log_entry)
 {
     const std::string method_name = call_log_entry["method_name"].get<std::string>();
     switch (_api_map.at(method_name)) {
-    case api_method::wiredtiger_open: 
-    {
+    case api_method::wiredtiger_open: {
         _conn = &connection_simulator::get_connection();
         break;
     }
-    case api_method::open_session: 
-    {
+    case api_method::open_session: {
         const std::string session_id = call_log_entry["session_id"].get<std::string>();
         /*
          * Not having a valid connection is a fatal error since no other operations can happen
@@ -95,8 +93,7 @@ call_log_manager::process_call_log_entry(json call_log_entry)
         _session_map.insert(std::pair<std::string, session_simulator *>(session_id, session));
         break;
     }
-    case api_method::close_session: 
-    {
+    case api_method::close_session: {
         const std::string session_id = call_log_entry["session_id"].get<std::string>();
         /*
          * Not having a valid connection is a fatal error since no other operations can happen
