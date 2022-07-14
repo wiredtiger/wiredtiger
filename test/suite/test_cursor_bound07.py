@@ -71,18 +71,20 @@ class test_cursor_bound07(bound_base):
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
         for i in range(10, 31):
-            value = "value" + str(i) if self.records_rle == False else "value"
+            value = "value" + str(i) if not self.records_rle else "value"
             cursor[self.gen_key(i)] = value
         self.session.commit_transaction()
 
         self.session.begin_transaction()
         for i in range(71, 101):
-            cursor[self.gen_key(i)] = value = "value" + str(i) if self.records_rle == False else "value"
+            value = "value" + str(i) if not self.records_rle else "value"
+            cursor[self.gen_key(i)] = value
         self.session.commit_transaction()
         
         self.session.begin_transaction()
         for i in range(31, 71):
-            cursor[self.gen_key(i)] = value = "value" + str(i) if self.deleted_rle == False else "value"
+            value = "value" + str(i) if not self.deleted_rle else "value"
+            cursor[self.gen_key(i)] = value
             cursor.set_key(self.gen_key(i))
             self.assertEqual(cursor.remove(), 0)
         self.session.commit_transaction()
