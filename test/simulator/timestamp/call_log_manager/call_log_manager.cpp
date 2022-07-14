@@ -78,11 +78,11 @@ call_log_manager::process_call_log_entry(json call_log_entry)
          * without a connection.
          */
         if (_conn == nullptr)
-            throw std::runtime_error("Could not open session (Session ID: " + session_id + ")" +
+            throw std::runtime_error("Could not open session (session ID: " + session_id + ")" +
               ", connection does not exist");
         /* We should not open sessions with an ID that is already in use. */
         else if (_session_map.find(session_id) != _session_map.end()) {
-            std::cerr << "Could not open duplicate session, session already exists (Session ID: "
+            std::cerr << "Could not open duplicate session, session already exists (session ID: "
                       << session_id << ")" << std::endl;
             break;
         }
@@ -103,7 +103,7 @@ call_log_manager::process_call_log_entry(json call_log_entry)
          * without a connection.
          */
         if (_conn == nullptr)
-            throw std::runtime_error("Could not close the session (Session ID: " + session_id +
+            throw std::runtime_error("Could not close the session (session ID: " + session_id +
               ")" + ", connection does not exist");
 
         session_simulator *session = _session_map.at(session_id);
@@ -112,7 +112,7 @@ call_log_manager::process_call_log_entry(json call_log_entry)
         if (_conn->close_session(session))
             _session_map.erase(session_id);
         else
-            std::cerr << "Could not close the session (Session ID: " << session_id << ")"
+            std::cerr << "Could not close the session (session ID: " << session_id << ")"
                       << std::endl;
         break;
     }
