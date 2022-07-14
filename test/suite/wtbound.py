@@ -89,7 +89,7 @@ class bounds():
 class bound_base(wttest.WiredTigerTestCase):
     start_key = 20
     end_key = 80
-    lower_inclusve = True
+    lower_inclusive = True
     upper_inclusive = True
     timestamps = {}
 
