@@ -27,8 +27,10 @@
  */
 
 #include <iostream>
+#include <string>
 
 #include "timestamp_manager.h"
+#include "connection_simulator.h"
 
 timestamp_manager::timestamp_manager() {}
 

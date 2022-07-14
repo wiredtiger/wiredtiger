@@ -48,9 +48,9 @@ call_log_manager::call_log_manager(const std::string &call_log_file)
 void
 call_log_manager::api_map_setup()
 {
-    _api_map["wiredtiger_open"] = api_method::wiredtiger_open;
     _api_map["open_session"] = api_method::open_session;
     _api_map["set_timestamp"] = api_method::set_timestamp;
+    _api_map["wiredtiger_open"] = api_method::wiredtiger_open;
 }
 
 void
@@ -75,7 +75,13 @@ call_log_manager::process_call_log_entry(json call_log_entry)
             std::cout << "Set timestamp call" << std::endl;
             /* Convert the config char * to a string object. */
             const std::string config = call_log_entry["input"]["config"].get<std::string>();
-            _conn->set_timestamp(config);
+            /* 
+             * A generated call log without a configuration string in the set timestamp entry will 
+             * have the string "(null)". We can ignore the set timestamp call if there is no 
+             * configuration.
+             */
+            if (config != "(null)")
+                _conn->set_timestamp(config);
             break;
         }
     } catch (const std::exception &e) {
