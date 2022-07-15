@@ -64,7 +64,7 @@ functions:
         set -o verbose
         mongo_repo=https://github.com/mongodb/mongo
         branch=${branch_name}
-        if [[ $branch =~ "mongodb-" ]]; then   
+        if [[ $branch =~ "mongodb-" ]]; then
           mongo_branch=v$(echo $branch | cut -d'-' -f 2)
         else
           mongo_branch=master
@@ -102,6 +102,7 @@ functions:
 
         # Define common config flags for the tasks to make it cleaner when configuring the tasks.
         # Note that the config flags are resolved prior to changing to cmake_build directory.
+        # Unittest is enabled by default in cmake but disabled here because it causes failures in the s_all processing.
         DEFINED_EVERGREEN_CONFIG_FLAGS="${CMAKE_BUILD_TYPE|} \
           ${CMAKE_INSTALL_PREFIX|} \
           ${CMAKE_PREFIX_PATH|} \
@@ -113,6 +114,7 @@ functions:
           ${HAVE_BUILTIN_EXTENSION_ZLIB|} \
           ${HAVE_BUILTIN_EXTENSION_ZSTD|} \
           ${HAVE_FTRUNCATE|} \
+          ${HAVE_UNITTEST|-DHAVE_UNITTEST=0} \
           ${NON_BARRIER_DIAGNOSTIC_YIELDS|} \
           ${HAVE_DIAGNOSTIC|} \
           ${GNU_C_VERSION|} \
@@ -120,7 +122,7 @@ functions:
           ${ENABLE_S3|} \
           ${IMPORT_S3_SDK|} \
           ${SPINLOCK_TYPE|} \
-          ${CC_OPTIMIZE_LEVEL|}" 
+          ${CC_OPTIMIZE_LEVEL|}"
 
         if [ "$OS" = "Windows_NT" ]; then
           # Use the Windows powershell script to configure the CMake build.
@@ -144,7 +146,7 @@ functions:
           if [ -d cmake_build ]; then rm -r cmake_build; fi
           mkdir -p cmake_build
           cd cmake_build
-          
+
           $CMAKE $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|} -G "${cmake_generator|Ninja}" ./..
         fi
   "make wiredtiger": &make_wiredtiger
@@ -205,8 +207,6 @@ functions:
           source venv/bin/activate
           pip3 install boto3
 
-          # Run S3 extension unit testing.
-          ext/storage_sources/s3_store/test/run_s3_unit_tests
           # Run Python testing for all tiered tests.
           ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) ${tiered_storage_test_name}
   "compile wiredtiger docs":
@@ -421,7 +421,7 @@ functions:
         set -o errexit
         set -o verbose
         ${test_env_vars|} $(pwd)/test/csuite/${test_name}/test_${test_name} ${test_args|} 2>&1
-        
+
   "unit test":
     command: shell.exec
     params:
@@ -583,7 +583,7 @@ functions:
           set -o verbose
           # Parse through any failures inside the WT_TEST directory.
           ${python_binary|python3} ../test/evergreen/print_stack_trace.py --unit_test -e ${python_binary|python3} -c WT_TEST -l .
-          
+
           # Look through the stress format directory for any coredumps.
           cd test/format
           ${python_binary|python3} ../../../test/evergreen/print_stack_trace.py --format -e ./t -c . -l .
@@ -771,9 +771,10 @@ variables:
   - &configure_flags_tiered_storage_s3
     ENABLE_S3: -DENABLE_S3=1
     IMPORT_S3_SDK: -DIMPORT_S3_SDK=external
+    CMAKE_PREFIX_PATH: # FIX ME - the S3 extension tests fail with TCMALLOC.
 
   # Configure flags for address sanitizer for mongodb toolchain v4 clang (include builtins).
-  - &configure_flags_address_sanitizer_mongodb_v4_clang
+  - &configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
     <<: *configure_flags_with_builtins
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
@@ -781,7 +782,7 @@ variables:
   # Configure flags for address sanitizer ppc ubuntu.
   # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
   # due to platform issues. On completion of WT-8981 this can be deleted.
-  - &configure_flags_address_sanitizer_clang
+  - &configure_flags_address_sanitizer_clang_with_builtins
     <<: *configure_flags_with_builtins
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
@@ -811,7 +812,7 @@ variables:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_flags_address_sanitizer_mongodb_v4_clang
+          <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
       - func: "format test script"
         vars:
           format_test_script_args: -t 360
@@ -819,7 +820,7 @@ variables:
             ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
 
-  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled 
+  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
   # due to platform issues. On completion of WT-8981 this can be deleted.
   - &format-stress-sanitizer-test-ppc-ubuntu
     exec_timeout_secs: 25200
@@ -827,7 +828,7 @@ variables:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_flags_address_sanitizer_clang
+          <<: *configure_flags_address_sanitizer_clang_with_builtins
       - func: "format test script"
         vars:
           format_test_script_args: -t 360
@@ -841,7 +842,7 @@ variables:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_flags_address_sanitizer_mongodb_v4_clang
+          <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
       - func: "format test script"
         vars:
           format_test_script_args: -R -t 360
@@ -933,7 +934,7 @@ tasks:
           DGNU_CXX_VERSION: -DDGNU_CXX_VERSION=8
       - func: "compile wiredtiger"
         vars:
-          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake 
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
           GNU_C_VERSION: -DGNU_C_VERSION=9
           DGNU_CXX_VERSION: -DDGNU_CXX_VERSION=9
 
@@ -1130,13 +1131,15 @@ tasks:
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
+        vars:
+          HAVE_UNITTEST: -DHAVE_UNITTEST=1
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
           script: |
             set -o errexit
             set -o verbose
-            test/unittest/unittests
+            ${test_env_vars|} test/unittest/unittests
   # End of normal make check test tasks
 
   # Start of cppsuite test tasks.
@@ -1177,6 +1180,18 @@ tasks:
           test_config: debug_mode=(cursor_copy=true)
           test_config_filename: configs/hs_cleanup_default.txt
           test_name: hs_cleanup
+
+  - name: cppsuite-burst-inserts-default
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config: debug_mode=(cursor_copy=true)
+          test_config_filename: configs/burst_inserts_default.txt
+          test_name: burst_inserts
 
   - name: cppsuite-search-near-01-default
     tags: ["pull_request"]
@@ -2155,8 +2170,8 @@ tasks:
   # Use format.sh to run tests in parallel for just under two hours (the
   # default Evergreen timeout) on the higher spec build distros. This allows
   # us to perform multiple test runs while ensuring a long-running config does
-  # not result in an Evergreen test timeout failure. This test is run on a 
-  # higher spec distro due to historical issues with timeout failures. Consider 
+  # not result in an Evergreen test timeout failure. This test is run on a
+  # higher spec distro due to historical issues with timeout failures. Consider
   # reducing the parallelism if frequent timeouts occur.
   - name: linux-directio
     commands:
@@ -2322,6 +2337,7 @@ tasks:
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/1_coverage_report_main.html
 
   - name: tiered-storage-extensions-test
+    tags: ["python", "ext"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2329,9 +2345,10 @@ tasks:
           <<: *configure_flags_tiered_storage_s3
       - func: "run tiered storage test"
         vars:
+          python_binary: venv/bin/python3 # Set this in case of a core to get the correct python binary.
           tiered_storage_test_name: tiered
   - name: tiered-test-small
-    tags: ["pull_request"]
+    tags: ["pull_request", "python", "ext"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2339,7 +2356,31 @@ tasks:
           <<: *configure_flags_tiered_storage_s3
       - func: "run tiered storage test"
         vars:
+          python_binary: venv/bin/python3  # Set this in case of a core to get the correct python binary.
           tiered_storage_test_name: tiered06
+  - name: tiered-unittest-test
+    tags: ["pull_request", "ext"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_tiered_storage_s3
+          HAVE_UNITTEST: -DHAVE_UNITTEST=1
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          silent: true
+          script: |
+            set -o errexit
+            export AWS_ACCESS_KEY_ID=${aws_sdk_s3_ext_access_key}
+            export AWS_SECRET_ACCESS_KEY=${aws_sdk_s3_ext_secret_key}
+
+            # Only set verbose after having put the AWS access credentials into the environment.
+            set -o verbose
+
+            # Run S3 extension unit testing.
+            ext/storage_sources/s3_store/test/run_s3_unit_tests
   - name: spinlock-gcc-test
     commands:
       - func: "get project"
@@ -2541,7 +2582,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_flags_address_sanitizer_mongodb_v4_clang
+          <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
       - func: "format test script"
         vars:
           test_env_vars:
@@ -2549,14 +2590,14 @@ tasks:
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
           format_test_script_args: -S
 
-  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled 
+  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
   # due to platform issues. On completion of WT-8981 this can be deleted.
   - name: format-asan-smoke-ppc-test
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_flags_address_sanitizer_clang
+          <<: *configure_flags_address_sanitizer_clang_with_builtins
       - func: "format test script"
         # Run smoke tests, don't stop at failed tests, use default config
         vars:
@@ -2719,7 +2760,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_flags_address_sanitizer_mongodb_v4_clang
+          <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
       - func: "format test script"
         vars:
           test_env_vars:
@@ -2787,7 +2828,7 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           # CC is set to the system default "clang" binary here as a workaround to mongo toolchains not supporting ASAN on Ubuntu PPC.
-          <<: *configure_flags_address_sanitizer_clang
+          <<: *configure_flags_address_sanitizer_clang_with_builtins
       - func: "format test script"
         vars:
           test_env_vars:
@@ -2866,7 +2907,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_flags_address_sanitizer_mongodb_v4_clang
+          <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
@@ -2882,7 +2923,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_flags_address_sanitizer_mongodb_v4_clang
+          <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
@@ -3479,7 +3520,7 @@ tasks:
     # Performance Tests for eviction #
     ##################################
 
-  - name: perf-test-evict-btree 
+  - name: perf-test-evict-btree
     tags: ["evict-perf"]
     depends_on:
       - name: compile
@@ -3494,7 +3535,7 @@ tasks:
         vars:
           perf-test-name: evict-btree.wtperf
 
-  - name: perf-test-evict-btree-1 
+  - name: perf-test-evict-btree-1
     tags: ["evict-perf"]
     depends_on:
       - name: compile
@@ -3509,7 +3550,7 @@ tasks:
         vars:
           perf-test-name: evict-btree-1.wtperf
 
-  - name: perf-test-evict-lsm 
+  - name: perf-test-evict-lsm
     # Disable/Un-tag the LSM perf test till the support for LSM is restored.
     # tags: ["evict-perf"]
     depends_on:
@@ -3524,8 +3565,8 @@ tasks:
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: evict-lsm.wtperf
-      
-  - name: perf-test-evict-lsm-1 
+
+  - name: perf-test-evict-lsm-1
     # Disable/Un-tag the LSM perf test till the support for LSM is restored.
     # tags: ["evict-perf"]
     depends_on:
@@ -3911,13 +3952,31 @@ buildvariants:
       LSAN_OPTIONS="print_suppressions=0:suppressions=$WT_TOPDIR/test/evergreen/asan_leaks.supp"
       ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
       TESTUTIL_BYPASS_ASAN=1
-      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so 
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python"
+    - name: ".pull_request !.pull_request_compilers !.python !tiered-unittest-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
+
+# Very minimal set without any extensions
+- name: ubuntu2004-minimal
+  display_name: "! Ubuntu 20.04 Minimal"
+  run_on:
+  - ubuntu2004-test
+  expansions:
+    posix_configure_flags: -DENABLE_PYTHON=0 -DENABLE_LZ4=0 -DENABLE_SNAPPY=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    make_command: ninja
+  tasks:
+    - name: compile
+    - name: make-check-test
+    - name: unit-test
+    - name: fops
+    - name: unittest-test
+    - name: examples-c-test
 
 - name: ubuntu2004-msan
   display_name: "! Ubuntu 20.04 MSAN"
@@ -4062,6 +4121,7 @@ buildvariants:
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_BUILDDIR/test/utility/
     CC_OPTIMIZE_LEVEL: -O3
+    HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
@@ -4430,7 +4490,7 @@ buildvariants:
     test_env_vars:
       WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake 
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     # Use half number of vCPU to avoid OOM kill failure

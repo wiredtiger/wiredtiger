@@ -188,8 +188,8 @@ define_build_mode(Coverage
 
 define_build_mode(Debug)
 
-# Setup the WiredTiger build to use Debug settings as unless the build type was explicitly
-# configured. Primary users of the build are our developers, who want as much help diagnosing
+# Set the WiredTiger default build type to Debug.
+# Primary users of the build are our developers, who want as much help diagnosing
 # issues as possible. Builds targeted for release to customers should switch to a "Release" setting.
 if(NOT CMAKE_BUILD_TYPE)
     string(REPLACE ";" " " build_modes_doc "${BUILD_MODES}")
@@ -204,7 +204,7 @@ endif()
 
 set(CMAKE_CONFIGURATION_TYPES ${BUILD_MODES})
 
-# We want to use the optimisation level from CC_OPTIMIZE_LEVEL and our DEBUG settings as well.
+# We want to use the optimization level from CC_OPTIMIZE_LEVEL and our DEBUG settings as well.
 # Remove the default values from Release and RelWithDebInfo.
 if("${WT_OS}" STREQUAL "windows")
     string(REPLACE "/O3" "" CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE})

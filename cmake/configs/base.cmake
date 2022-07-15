@@ -14,7 +14,7 @@ set(default_enable_static OFF)
 set(default_enable_shared ON)
 set(default_have_unittest ON)
 
-if("${CMAKE_BUILD_TYPE}" MATCHES "^(Debug|Release|RelWithDebInfo|Coverage)$")
+if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo)$")
     set(default_have_diagnostics OFF)
 endif()
 
@@ -90,7 +90,7 @@ config_string(
 
 config_bool(
     HAVE_DIAGNOSTIC
-    "Enable WiredTiger diagnostics"
+    "Enable WiredTiger diagnostics. Automatically enables debug info."
     DEFAULT ${default_have_diagnostics}
 )
 
@@ -272,12 +272,12 @@ config_bool(
 
 config_bool(
     ENABLE_DEBUG_INFO
-    "Enable debug information."
+    "Enable debug information. Will be automatically enabled if diagnostics is enabled."
     DEFAULT ${default_enable_debug_info}
 )
 
-# Ideally this would choose an optimization level of Og. Which is the recommended configuration
-# for build-debug cycles when using GCC and is a synonym in clang for O1.
+# FIXME-WT-9481: Ideally this would choose an optimization level of Og. Which is the recommended
+# configuration for build-debug cycles when using GCC and is a synonym in clang for O1.
 # Unfortunately at the moment, WiredTiger code generates compiler warnings (as errors) when
 # built with Og.
 set(default_optimize_level "-O1")
@@ -338,6 +338,7 @@ if(ENABLE_DEBUG_INFO)
         # Ensure a PDB file can be generated for debugging symbols.
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG")
     else()
+        add_compile_options(-g)
         add_compile_options(-ggdb)
     endif()
 endif()

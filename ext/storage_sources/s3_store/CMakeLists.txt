@@ -46,5 +46,7 @@ target_link_libraries(
         aws-sdk::core
 )
 
-# Add the unit tests.
-add_subdirectory(test)
+# Add the unit tests, need Catch2 which is resolved with HAVE_UNITTEST.
+if(HAVE_UNITTEST)
+    add_subdirectory(test)
+endif()
