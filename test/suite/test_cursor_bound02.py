@@ -43,30 +43,22 @@ class test_cursor_bound02(bound_base):
         ('colgroup', dict(uri='table:', use_colgroup=True))
     ]
 
-    format_values = [
-        ('string', dict(key_format='S',value_format='S')),
+    key_format_values = [
+        ('string', dict(key_format='S')),
         # FIXME-WT-9474: Uncomment once column store is implemented.
-        #('var', dict(key_format='r',value_format='S')),
-        ('int', dict(key_format='i',value_format='S')),
-        ('bytes', dict(key_format='u',value_format='S')),
-        ('composite_string', dict(key_format='SSS',value_format='S')),
-        ('composite_int_string', dict(key_format='iS',value_format='S')),
-        ('composite_complex', dict(key_format='iSru',value_format='S')),
-        ('string', dict(key_format='S',value_format='Si')),
-        # FIXME-WT-9474: Uncomment once column store is implemented.
-        #('var', dict(key_format='r',value_format='Si')),
-        ('int', dict(key_format='i',value_format='Si')),
-        ('bytes', dict(key_format='u',value_format='Si')),
-        ('composite_string', dict(key_format='SSS',value_format='Si')),
-        ('composite_int_string', dict(key_format='iS',value_format='Si')),
-        ('composite_complex', dict(key_format='iSru',value_format='Si')),
+        #('var', dict(key_format='r')),
+        ('int', dict(key_format='i')),
+        ('bytes', dict(key_format='u')),
+        ('composite_string', dict(key_format='SSS')),
+        ('composite_int_string', dict(key_format='iS')),
+        ('composite_complex', dict(key_format='iSru')),
     ]
 
     inclusive = [
         ('inclusive', dict(inclusive=True)),
         ('no-inclusive', dict(inclusive=False))
     ]
-    scenarios = make_scenarios(types, format_values, inclusive)
+    scenarios = make_scenarios(types, key_format_values, inclusive)
 
     def test_bound_api(self):
         uri = self.uri + self.file_name

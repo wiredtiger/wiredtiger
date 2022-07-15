@@ -41,10 +41,10 @@ class test_cursor_bound06(bound_base):
         ('colgroup', dict(uri='table:', use_colgroup=True))
     ]
 
-    key_format_values = [
+    key_formats = [
         ('string', dict(key_format='S')),
         # FIXME-WT-9474: Uncomment once column store is implemented.
-        #('var', dict(key_format='r')),
+        # ('var', dict(key_format='r')),
         ('int', dict(key_format='i')),
         ('bytes', dict(key_format='u')),
         ('composite_string', dict(key_format='SSS')),
@@ -52,30 +52,36 @@ class test_cursor_bound06(bound_base):
         ('composite_complex', dict(key_format='iSru')),
     ]
 
+    value_formats = [
+        ('string', dict(value_format='S')),
+        ('complex-string', dict(value_format='SS')),
+    ]
+
     inclusive = [
         ('inclusive', dict(inclusive=True)),
         ('no-inclusive', dict(inclusive=False))
     ]
-    scenarios = make_scenarios(types, key_format_values, inclusive)
+    scenarios = make_scenarios(types, key_formats, value_formats, inclusive)
 
     def create_session_and_cursor(self):
         uri = self.uri + self.file_name
-        create_params = 'value_format=S,key_format={}'.format(self.key_format)    
+        create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
         if self.use_colgroup:
             create_params += self.gen_colgroup_create_param()
         self.session.create(uri, create_params)
 
         # Add in column group.
         if self.use_colgroup:
-            create_params = 'columns=(v),'
-            suburi = 'colgroup:{0}:g0'.format(self.file_name)
-            self.session.create(suburi, create_params)
+            for i in range(0, len(self.value_format)):
+                create_params = 'columns=(v{0}),'.format(i)
+                suburi = 'colgroup:{0}:g{1}'.format(self.file_name, i)
+                self.session.create(suburi, create_params)
 
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
 
         for i in range(self.start_key, self.end_key + 1):
-            cursor[self.gen_key(i)] = "value" + str(i)
+            cursor[self.gen_key(i)] = self.gen_val("value" + str(i))
         self.session.commit_transaction()
 
         return cursor
