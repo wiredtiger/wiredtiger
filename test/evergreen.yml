@@ -3984,7 +3984,6 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
-    - name: unit-test
     - name: fops
     - name: unittest-test
     - name: examples-c-test
@@ -4049,6 +4048,7 @@ buildvariants:
     - name: make-check-test
     - name: cppsuite-operations-test-default
     - name: cppsuite-hs-cleanup-default
+    - name: cppsuite-burst-inserts-default
     - name: cppsuite-search-near-01-default
     - name: cppsuite-search-near-02-default
     - name: cppsuite-search-near-03-default
