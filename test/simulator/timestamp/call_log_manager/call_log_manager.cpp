@@ -125,6 +125,13 @@ call_log_manager::process_call_log_entry(json call_log_entry)
             break;
         }
         case api_method::set_timestamp: {
+            /*
+             * Not having a valid connection is a fatal error since no other operations can happen
+             * without a connection.
+             */
+            if (_conn == nullptr)
+                throw std::runtime_error("Could not set the timestamp as connection does not exist");
+
             /* Convert the config char * to a string object. */
             const std::string config = call_log_entry["input"]["config"].get<std::string>();
             /*
