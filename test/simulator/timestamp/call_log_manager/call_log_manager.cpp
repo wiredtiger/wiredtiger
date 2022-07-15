@@ -72,7 +72,6 @@ call_log_manager::process_call_log_entry(json call_log_entry)
         case api_method::open_session:
             break;
         case api_method::set_timestamp:
-            std::cout << "Set timestamp call" << std::endl;
             /* Convert the config char * to a string object. */
             const std::string config = call_log_entry["input"]["config"].get<std::string>();
             /* 
