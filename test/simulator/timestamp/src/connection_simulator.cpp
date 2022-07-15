@@ -41,12 +41,14 @@ connection_simulator::get_connection()
     return (_connection_instance);
 }
 
-uint64_t connection_simulator::get_oldest_ts() const
+uint64_t
+connection_simulator::get_oldest_ts() const
 {
     return _oldest_ts;
 }
 
-uint64_t connection_simulator::get_stable_ts() const
+uint64_t
+connection_simulator::get_stable_ts() const
 {
     return _stable_ts;
 }
@@ -90,7 +92,7 @@ connection_simulator::query_timestamp() const
  */
 int
 connection_simulator::parse_timestamp_config_single(
-  const std::string& config, uint64_t *new_oldest_ts, uint64_t *new_stable_ts)
+  const std::string &config, uint64_t *new_oldest_ts, uint64_t *new_stable_ts)
 {
 
     /* The substring before the '=' indicates the type of timestamp to be set. */
@@ -100,7 +102,7 @@ connection_simulator::parse_timestamp_config_single(
     /* Convert the timestamp to an int. */
     uint64_t ts = std::stoi(ts_string);
 
-    switch (system_timestamps_map.at(ts_type)){
+    switch (system_timestamps_map.at(ts_type)) {
     case oldest_timestamp:
         *new_oldest_ts = ts;
         break;

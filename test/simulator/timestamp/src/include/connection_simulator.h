@@ -52,7 +52,7 @@ class connection_simulator {
     private:
     connection_simulator();
     int parse_timestamp_config_single(
-      const std::string& config, uint64_t *new_oldest_ts, uint64_t *new_stable_ts);
+      const std::string &config, uint64_t *new_oldest_ts, uint64_t *new_stable_ts);
     void parse_timestamp_config(
       std::string config, uint64_t *new_oldest_ts, uint64_t *new_stable_ts);
     void system_timestamps_map_setup();
