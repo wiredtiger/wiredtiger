@@ -26,6 +26,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <algorithm>
+#include <iostream>
+
 #include "connection_simulator.h"
 
 /* Get an instance of connection_simulator class. */
@@ -44,6 +47,23 @@ connection_simulator::open_session()
     _session_list.push_back(session);
 
     return (session);
+}
+
+bool
+connection_simulator::close_session(session_simulator *session)
+{
+    std::vector<session_simulator *>::iterator position =
+      std::find(_session_list.begin(), _session_list.end(), session);
+
+    /* If session doesn't exist in the session_list return false. */
+    if (position == _session_list.end()) {
+        std::cerr << "Error: session is not present in the session list" << std::endl;
+        return (false);
+    }
+
+    _session_list.erase(position);
+    delete session;
+    return (true);
 }
 
 int
