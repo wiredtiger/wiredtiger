@@ -1281,6 +1281,16 @@ tasks:
           test_config_filename: configs/hs_cleanup_stress.txt
           test_name: hs_cleanup
 
+  - name: cppsuite-burst-inserts-stress
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/burst_inserts_stress.txt
+          test_name: burst_inserts
+
   - name: cppsuite-cursor-bound-01-stress
     depends_on:
       - name: compile
