@@ -33,7 +33,7 @@
 
 using json = nlohmann::json;
 
-enum class api_method { open_session, set_timestamp, wiredtiger_open };
+enum class api_method { close_session, open_session, set_timestamp, wiredtiger_open };
 
 class call_log_manager {
     /* Methods */
@@ -50,4 +50,5 @@ class call_log_manager {
     connection_simulator *_conn;
     json _call_log;
     std::map<std::string, api_method> _api_map;
+    std::map<std::string, session_simulator *> _session_map;
 };
