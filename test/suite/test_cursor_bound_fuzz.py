@@ -95,8 +95,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     ]
 
     data_format = [
-        #('row', dict(key_format='i')),
-        # FIXME Enable once column store is completed.
+        ('row', dict(key_format='i')),
         ('column', dict(key_format='r'))
     ]
     scenarios = make_scenarios(types, data_format)
@@ -288,8 +287,12 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                         raise Exception('Illegal state found in search_near')
 
     def run_bound_scenarios(self, bound_set, cursor):
-        #scenario = random.choice(list(bound_scenarios))
-        scenario = bound_scenarios.NEXT
+        if (self.data_format == 'column'):
+            scenario = random.choice([bound_scenarios.NEXT, bound_scenarios.PREV])
+        else:
+            scenario = random.choice(list(bound_scenarios))
+
+        scenario = bound_scenarios.PREV
         if (scenario is bound_scenarios.NEXT):
             self.run_next_prev(bound_set, True, cursor)
         elif (scenario is bound_scenarios.PREV):
@@ -364,9 +367,9 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     # generate N values and keep them in memory.
     value_array = []
     iteration_count = 1000 if wttest.islongtest() else 50
-    value_size = 10000
+    value_size = 1000000 if wttest.islongtest() else 100
     value_array_size = 20
-    key_count = 10000
+    key_count = 100000 if wttest.islongtest() else 1000
     min_key = 1
     max_key = min_key + key_count
     # For each iteration we do search_count searches that way we test more cases without having to
