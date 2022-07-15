@@ -32,8 +32,8 @@ from wtbound import bound_base
 from wiredtiger import stat
 
 # test_cursor_bound08.py
-# Test the next() and prev() calls in the cursor bound API. Test general use cases of bound API,
-# including setting lower bounds and upper bounds.
+# Test that the statistics added for cursor bound API is appropiately incremented for all different cursor
+# operations and edge cases.
 class test_cursor_bound08(bound_base):
     conn_config = 'statistics=(all)'
     file_name = 'test_cursor_bound08'
@@ -79,7 +79,8 @@ class test_cursor_bound08(bound_base):
             for i in range(self.start_key, self.end_key):
                 evict_cursor.set_key(self.gen_key(i))
                 evict_cursor.search()
-                evict_cursor.reset() 
+                evict_cursor.reset()
+            evict_cursor.close()
         return cursor
 
     def create_session_and_cursor_timestamp(self):
@@ -89,28 +90,28 @@ class test_cursor_bound08(bound_base):
 
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        for i in range(0, 101):
+        for i in range(100, 301):
             cursor[self.gen_key(i)] = "value" + str(i)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(100))
 
         self.session.begin_transaction()
-        for i in range(101, 601):
+        for i in range(301, 601):
             cursor[self.gen_key(i)] = "value" + str(i)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(200))
 
         self.session.begin_transaction()
-        for i in range(601, 1001):
+        for i in range(601, 1000):
             cursor[self.gen_key(i)] = "value" + str(i)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(100))
 
         if (self.evict):
             evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
-            for i in range(0, 1001):
+            for i in range(0, 1000):
                 evict_cursor.set_key(self.gen_key(i))
                 evict_cursor.search()
                 evict_cursor.reset()
+            evict_cursor.close()
         return cursor
- 
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
@@ -118,7 +119,7 @@ class test_cursor_bound08(bound_base):
         stat_cursor.close()
         return val
 
-    def test_bound_basic_stat_scenario(self):
+    def bound_basic_stat_scenario(self):
         cursor = self.create_session_and_cursor()
 
         # Test bound api: Test that early exit stat gets incremented with a upper bound.
@@ -209,24 +210,62 @@ class test_cursor_bound08(bound_base):
     def test_bound_perf_stat_scenario(self):
         cursor = self.create_session_and_cursor_timestamp()
 
-        # Test bound api: Test that cursor bound search near next early exit stats get incremented.
+        key_count = 900
+        # Make sure to run the test with no records visible.
         self.session.begin_transaction('read_timestamp=' +  self.timestamp_str(50))
-        ret = cursor.search_near()
-        self.assertEqual(ret, 0)
-        self.session.commit_transaction()
-        skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100)
-        self.assertGreater(skip_count, 100 * 2)
 
-        self.set_bounds(cursor, 100, "upper")
-        self.session.begin_transaction('read_timestamp=' +  self.timestamp_str(150))
-        self.cursor_traversal_bound(cursor, None, 100, self.next, 100)
-        self.session.commit_transaction()
-        self.assertEqual(cursor.bound("action=clear"), 0)
-
-        skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100)
+        # Test bound api: Test that cursor bound search near traverses less entries perf on upper bounds.
+        cursor.set_key(self.gen_key(200))
+        self.assertEqual(cursor.search_near(), wiredtiger.WT_NOTFOUND)
+        skip_count = self.get_stat(stat.conn.cursor_next_skip_total) + self.get_stat(stat.conn.cursor_prev_skip_total)
         # This should be equal to roughly key_count * 2 as we're going to traverse the whole
         # range forward, and then the whole range backwards.
-        pass 
+        self.assertGreater(skip_count, 2 * key_count - 200)
+
+        prev_skip_count = skip_count
+        self.set_bounds(cursor, 300, "upper")
+        cursor.set_key(self.gen_key(200))
+        self.assertEqual(cursor.search_near(), wiredtiger.WT_NOTFOUND)
+        skip_count = self.get_stat(stat.conn.cursor_next_skip_total) + self.get_stat(stat.conn.cursor_prev_skip_total)
+        self.assertEqual(cursor.bound("action=clear"), 0)
+        self.assertGreater(skip_count - prev_skip_count, 50 * 2)
+
+        # Test bound api: Test that cursor bound search near traverses less entries perf on lower bounds.
+        prev_skip_count = skip_count
+        cursor.set_key(self.gen_key(900))
+        self.assertEqual(cursor.search_near(), wiredtiger.WT_NOTFOUND)
+        skip_count = self.get_stat(stat.conn.cursor_next_skip_total) + self.get_stat(stat.conn.cursor_prev_skip_total)
+        # This should be equal to roughly key_count * 2 as we're going to traverse the whole
+        # range forward, and then the whole range backwards.
+        self.assertGreater(skip_count - prev_skip_count, 2 * key_count - 900)
+
+        prev_skip_count = skip_count
+        self.set_bounds(cursor, 900, "lower")
+        cursor.set_key(self.gen_key(900))
+        self.assertEqual(cursor.search_near(), wiredtiger.WT_NOTFOUND)
+        skip_count = self.get_stat(stat.conn.cursor_next_skip_total) + self.get_stat(stat.conn.cursor_prev_skip_total)
+        self.assertEqual(cursor.bound("action=clear"), 0)
+        self.assertGreater(skip_count - prev_skip_count, 100)
+
+        # Test bound api: Test that cursor bound search near traverses less entries perf on both bounds.
+        prev_skip_count = skip_count
+        cursor.set_key(self.gen_key(750))
+        self.assertEqual(cursor.search_near(), wiredtiger.WT_NOTFOUND)
+        skip_count = self.get_stat(stat.conn.cursor_next_skip_total) + self.get_stat(stat.conn.cursor_prev_skip_total)
+        # This should be equal to roughly key_count * 2 as we're going to traverse the whole
+        # range forward, and then the whole range backwards.
+        self.assertGreater(skip_count - prev_skip_count, 2 * key_count - 750)
+
+        prev_skip_count = skip_count
+        self.set_bounds(cursor, 600, "lower")
+        self.set_bounds(cursor, 900, "upper")
+        cursor.set_key(self.gen_key(750))
+        self.assertEqual(cursor.search_near(), wiredtiger.WT_NOTFOUND)
+        skip_count = self.get_stat(stat.conn.cursor_next_skip_total) + self.get_stat(stat.conn.cursor_prev_skip_total)
+        self.assertEqual(cursor.bound("action=clear"), 0)
+        self.assertGreater(skip_count - prev_skip_count, 150 * 2)
+
+        cursor.close()
 
 if __name__ == '__main__':
     wttest.run()
