@@ -3963,6 +3963,7 @@ buildvariants:
 # Very minimal set without any extensions
 - name: ubuntu2004-minimal
   display_name: "! Ubuntu 20.04 Minimal"
+  batchtime: 480 # 3 times a day
   run_on:
   - ubuntu2004-test
   expansions:
