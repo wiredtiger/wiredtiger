@@ -663,7 +663,7 @@ __rec_fill_tw_from_upd_select(
          */
         WT_ASSERT_ALWAYS(session,
           !F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS),
-          "Tombstone have been written to the disk image or history store should accompanied by "
+          "Tombstone have been written to the disk image or history store should be accompanied by "
           "the full value.");
         WT_RET(__rec_append_orig_value(session, page, tombstone, vpack));
 
