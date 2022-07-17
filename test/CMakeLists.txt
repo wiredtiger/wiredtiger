@@ -34,10 +34,11 @@ if(WT_POSIX)
     add_subdirectory(syscall)
     add_subdirectory(thread)
     add_subdirectory(cppsuite)
+    add_subdirectory(tsan)
 
     if(ENABLE_LLVM)
-        # The fuzz test only works with llvm compilers. Restrict compilation of this test to only
-        # when using Clang.
+        # The fuzz and tsan tests only work with llvm compilers. Restrict compilation of this test
+        # to only when using Clang.
         add_subdirectory(fuzz)
     endif()
 endif()
