@@ -145,7 +145,7 @@ set(msan_compiler_cxx_flag "-fsanitize=memory" "-fno-optimize-sibling-calls")
 
 # TSAN build variant flags.
 set(tsan_link_flags "-fsanitize=thread")
-set(tsan_compiler_c_flag "-fsanitize=thread")
+set(tsan_compiler_c_flag "-fsanitize=thread" "-fsanitize-blacklist=${CMAKE_SOURCE_DIR}/dist/tsan_blocklist.txt")
 set(tsan_compiler_cxx_flag "-fsanitize=thread")
 
 # Define our custom build variants.
