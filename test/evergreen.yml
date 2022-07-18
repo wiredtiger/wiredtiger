@@ -4055,6 +4055,41 @@ buildvariants:
     - name: format-stress-pull-request-test
     - name: make-check-test
 
+- name: ubuntu2004-tsan
+  display_name: "! Ubuntu 20.04 TSAN"
+  run_on:
+  - ubuntu2004-test
+  expansions:
+    posix_configure_flags:
+      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_clang.cmake
+      -DCMAKE_BUILD_TYPE=TSan
+      -DCC_OPTIMIZE_LEVEL=-O1
+      -DENABLE_STRICT=1
+      -DHAVE_DIAGNOSTIC=1
+      -DENABLE_STATIC=0
+      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+      -DCMAKE_C_FLAGS="-ggdb"
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    make_command: ninja
+    test_env_vars:
+      TSAN_OPTIONS="abort_on_error=1:external_symbolizer_path=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer"
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_LIBRARY_PATH=$WT_BUILDDIR
+    # We don't run C++ thread sanitized testing as it creates false positives.
+    check_args: -LE cppsuite
+  tasks:
+    - name: clang-analyzer
+    - name: compile
+    - name: compile-production-disable-shared
+    - name: compile-production-disable-static
+    - name: examples-c-production-disable-shared-test
+    - name: examples-c-production-disable-static-test
+    - name: format-stress-pull-request-test
+    - name: make-check-test
+
 - name: ubuntu2004-ubsan
   display_name: "! Ubuntu 20.04 UBSAN"
   run_on:
