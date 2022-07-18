@@ -4081,14 +4081,13 @@ buildvariants:
     # We don't run C++ thread sanitized testing as it creates false positives.
     check_args: -LE cppsuite
   tasks:
-    - name: clang-analyzer
     - name: compile
+    - name: fops
+    - name: examples-c-test
     - name: compile-production-disable-shared
     - name: compile-production-disable-static
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
-    - name: format-stress-pull-request-test
-    - name: make-check-test
 
 - name: ubuntu2004-ubsan
   display_name: "! Ubuntu 20.04 UBSAN"
