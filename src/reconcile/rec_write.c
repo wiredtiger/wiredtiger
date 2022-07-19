@@ -618,6 +618,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     /* The list of saved updates is reused. */
     r->supd_next = 0;
+    r->supd_restore_count = 0;
     r->supd_memsize = 0;
 
     /* The list of pages we've written. */

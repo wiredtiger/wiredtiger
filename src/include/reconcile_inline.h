@@ -183,7 +183,7 @@ __wt_rec_need_split(WT_RECONCILE *r, size_t len)
 {
     uint32_t page_items;
 
-    page_items = r->entries + r->supd_next;
+    page_items = r->entries + r->supd_restore_count;
 
     /*
      * In the case of a row-store leaf page, we want to encourage a split if we see lots of

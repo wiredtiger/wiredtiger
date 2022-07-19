@@ -224,6 +224,7 @@ struct __wt_reconcile {
      */
     WT_SAVE_UPD *supd; /* Saved updates */
     uint32_t supd_next;
+    uint32_t supd_restore_count;
     size_t supd_allocated;
     size_t supd_memsize; /* Size of saved update structures */
 

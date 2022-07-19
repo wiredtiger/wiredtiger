@@ -35,7 +35,10 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_
     supd->onpage_tombstone = tombstone;
     supd->restore = supd_restore;
     ++r->supd_next;
-    r->supd_memsize += upd_memsize;
+    if (supd_restore) {
+        r->supd_memsize += upd_memsize;
+        ++r->supd_restore_count;
+    }
     return (0);
 }
 
