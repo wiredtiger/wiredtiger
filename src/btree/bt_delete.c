@@ -434,8 +434,8 @@ __instantiate_col_var(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *pa
     WT_DECL_RET;
     WT_PAGE *page;
     WT_UPDATE *upd;
-    uint64_t recno;
-    uint32_t i, j, rle;
+    uint64_t j, recno, rle;
+    uint32_t i;
 
     page = ref->page;
     upd = NULL;
@@ -630,7 +630,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELE
         switch (page->type) {
         case WT_PAGE_COL_VAR:
             /* One tombstone for each recno on the page. */
-            count = __col_var_last_recno(ref) - ref->ref_recno + 1;
+            count = (uint32_t)(__col_var_last_recno(ref) - ref->ref_recno + 1);
             break;
         case WT_PAGE_ROW_LEAF:
             /* One tombstone for each row on the page. */
