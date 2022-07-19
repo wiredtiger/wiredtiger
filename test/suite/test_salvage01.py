@@ -62,8 +62,8 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
             # set value_modulus to some smaller value. It had better be < 127 so the mandatory
             # Python trip through UTF-8 doesn't blow up. Currently it is set to 125, which at
             # least gets to the salvage code; 126 apparently corrupts the root page and then
-            # nothing works.
-            self.unique = 125
+            # nothing works. Update: 125 started failing, so it's now 122.
+            self.unique = 122
             self.value_modulus = 113
             self.uniquebytes = bytes([self.unique])
 
