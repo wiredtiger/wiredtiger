@@ -138,6 +138,20 @@ src:*/src/os_posix/os_getenv.c
 src:*/src/os_posix/os_map.c
 
 # src:*/src/os_posix/os_mtx_cond.c
+# TSAN doesn't like the "fast path" here, where we check that the condition
+# variable is in a state where the next waiter will immediately return and
+# skip the mutex lock/unlock. In this scenario, the signalling thread does
+# something like:
+#
+#     if (cond->waiters == -1
+#         || (cond->waiters == 0
+#             && __wt_atomic_casi32(&cond->waiters, 0, -1)))
+#
+# That's clearly OK (since we're either in the "next waiter immediately
+# returns" state, or atomically transitioned to it) but TSAN sees the read
+# as being non-atomic, and complains.
+fun:__wt_cond_signal
+fun:__wt_cond_wait_signal
 
 src:*/src/os_posix/os_once.c
 src:*/src/os_posix/os_pagesize.c
