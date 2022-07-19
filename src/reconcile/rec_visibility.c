@@ -35,10 +35,9 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_
     supd->onpage_tombstone = tombstone;
     supd->restore = supd_restore;
     ++r->supd_next;
-    if (supd_restore) {
-        r->supd_memsize += upd_memsize;
+    r->supd_memsize += upd_memsize;
+    if (supd_restore)
         ++r->supd_restore_count;
-    }
     return (0);
 }
 
@@ -401,30 +400,6 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     }
 
     return (0);
-}
-
-/*
- * __rec_calc_upd_memsize --
- *     Calculate the saved update size.
- */
-static inline size_t
-__rec_calc_upd_memsize(WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, size_t upd_memsize)
-{
-    WT_UPDATE *upd;
-
-    /*
-     * The total update size only contains uncommitted updates. Add the size for the rest of the
-     * chain.
-     *
-     * FIXME-WT-9182: figure out what should be included in the calculation of the size of the saved
-     * update chains.
-     */
-    if (onpage_upd != NULL) {
-        for (upd = tombstone != NULL ? tombstone : onpage_upd; upd != NULL; upd = upd->next)
-            if (upd->txnid != WT_TXN_ABORTED)
-                upd_memsize += WT_UPDATE_MEMSIZE(upd);
-    }
-    return (upd_memsize);
 }
 
 /*
@@ -862,7 +837,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         supd_restore = F_ISSET(r, WT_REC_EVICT) &&
           (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
 
-        upd_memsize = __rec_calc_upd_memsize(onpage_upd, upd_select->tombstone, upd_memsize);
         WT_RET(__rec_update_save(
           session, r, ins, rip, onpage_upd, upd_select->tombstone, supd_restore, upd_memsize));
 
