@@ -136,7 +136,9 @@ src:*/src/os_posix/os_fallocate.c
 src:*/src/os_posix/os_fs.c
 src:*/src/os_posix/os_getenv.c
 src:*/src/os_posix/os_map.c
-src:*/src/os_posix/os_mtx_cond.c
+
+# src:*/src/os_posix/os_mtx_cond.c
+
 src:*/src/os_posix/os_once.c
 src:*/src/os_posix/os_pagesize.c
 src:*/src/os_posix/os_path.c
@@ -202,7 +204,20 @@ src:*/src/support/hex.c
 src:*/src/support/huffman.c
 src:*/src/support/lock_ext.c
 src:*/src/support/modify.c
-src:*/src/support/mtx_rw.c
+
+# src:*/src/support/mtx_rw.c
+# The race here is fine, but TSAN has no way to know. Imagine two threads,
+# one in __wt_readlock and one in __wt_read_unlock. The read lock is doing
+# `old.u.v = l->u.v`, while the write thread is doing the atomic CAS on
+# l->u.v. The read thread doesn't have a lock/mutex/whatever protecting the
+# read, but it's only saving the value in l->u.v so it can do a later CAS.
+#
+# __wt_try_readlock has the same (non-)issue as __wt_readlock: the read of
+# l->u.v is simply done to have an "expected" value to pass into the CAS.
+fun:__wt_readlock
+fun:__wt_readunlock
+fun:__wt_try_readlock
+
 src:*/src/support/pow.c
 src:*/src/support/rand.c
 src:*/src/support/scratch.c

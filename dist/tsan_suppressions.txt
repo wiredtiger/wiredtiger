@@ -1,1 +1,2 @@
 race:compiler-rt/lib/tsan/*
+deadlock:compiler-rt/lib/tsan/*
