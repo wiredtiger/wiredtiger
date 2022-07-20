@@ -31,7 +31,7 @@ dictionary = {
     'backup.incremental=': ["on", "off"],
     'block_cache=': [0, 1000],
     'cache=' : [0,1000],
-    'disk.encryption=': ["none"],
+    'btree.compression=': ["none", "zlib"],
     'runs.rows=': [0, 2200000],
     'runs.threads=': [1, 10],
     'runs.type=': ["variable-length column-store", "row-store"],
@@ -77,8 +77,11 @@ for idx, line in enumerate(lines):
                 values = dictionary[field_to_change[idx]]
                 # Generate a random value
                 new_value = None
-                current_value = line.split('=')[1]
+                field_value = line.split('=')
+                current_field = field_value[0]
+                current_value = field_value[1]
                 # We want to make sure the new value is not the same as the input configuration.
+                # TODO - Maybe we don't want to make this mandatory.
                 while new_value is None or current_value == new_value:
                     if isinstance(values[0], str):
                         new_value = random.choice(values)
@@ -90,9 +93,12 @@ for idx, line in enumerate(lines):
                 if verbose:
                     print("new value", new_value)
 
-                new_line = field_to_change[idx] + str(new_value)
+                new_line = current_field + "=" + str(new_value)
                 new_config.write(new_line + "\n")
-                config_modified[idx] = True
+                # The field might appear for different tables in the configurations. Since we want
+                # to change all of them, don't mark the config as modified otherwise we will change
+                # only the value for one table.
+                # config_modified[idx] = True
             else:
                 # Write the same line.
                 new_config.write(line + "\n")
