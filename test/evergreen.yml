@@ -4102,10 +4102,10 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
-      LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libeatmydata.so
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
@@ -4205,7 +4205,7 @@ buildvariants:
   display_name: "Cppsuite Stress Tests"
   batchtime: 480 # 3 times a day
   run_on:
-  - ubuntu2004-test
+  - ubuntu2004-large
   expansions:
     test_env_vars:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
@@ -4541,7 +4541,7 @@ buildvariants:
     - name: unit-test-zstd
     - name: unit-test-long
       run_on:
-      - ubuntu2004-arm64-medium
+      - ubuntu2004-arm64-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
     - name: compile-wtperf
