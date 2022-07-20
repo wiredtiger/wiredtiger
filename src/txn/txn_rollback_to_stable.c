@@ -124,7 +124,7 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
                     if (stable_upd->txnid != WT_TXN_ABORTED) {
                         WT_ASSERT(session,
                           stable_upd->type != WT_UPDATE_TOMBSTONE &&
-                            F_ISSET(stable_upd, WT_UPDATE_HS));
+                            F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS));
                         break;
                     }
                 }
