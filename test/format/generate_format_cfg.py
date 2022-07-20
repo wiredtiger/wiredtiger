@@ -115,6 +115,9 @@ for idx, line in enumerate(lines):
 
                 values = dictionary[key]
 
+                field_value = line.split('=')
+                current_field = field_value[0]
+
                 # TODO - Do we want to write to all files?
                 # Generate a different value for each new config.
                 for new_config in new_configs:
@@ -133,7 +136,7 @@ for idx, line in enumerate(lines):
                     if verbose:
                         print("new value", new_value)
 
-                    new_line = key + str(new_value)
+                    new_line = current_field + "=" + str(new_value)
                     new_config.write(new_line + "\n")
 
                 written = True
