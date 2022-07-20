@@ -140,13 +140,13 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
               session, key, stable_upd == NULL ? tombstone->start_ts : stable_upd->start_ts));
 
             /*
-             * Clear the history store flag for the first stable update. Otherwise, it will not be
+             * Clear the history store flags for the first stable update. Otherwise, it will not be
              * moved to history store again.
              */
             if (stable_upd != NULL)
-                F_CLR(stable_upd, WT_UPDATE_HS);
+                F_CLR(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
             if (tombstone != NULL)
-                F_CLR(tombstone, WT_UPDATE_HS);
+                F_CLR(tombstone, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
         }
         if (stable_update_found != NULL)
             *stable_update_found = true;
