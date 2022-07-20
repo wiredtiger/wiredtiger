@@ -169,10 +169,66 @@
  * constant might be a negative integer), and to ensure the hex constant is the correct size before
  * applying the bitwise not operator.
  */
+
+#if defined(__has_feature) && __has_feature(thread_sanitizer)
+
+/* TODO move these? */
+
+#define WT_FLD_MASK_GEN(sz) static inline uint##sz##_t          \
+    __wt_fld_mask_##sz(uint##sz##_t field, uint64_t mask)       \
+    {                                                           \
+        return (field & mask);                                  \
+    }
+
+WT_FLD_MASK_GEN(8)
+WT_FLD_MASK_GEN(16)
+WT_FLD_MASK_GEN(32)
+WT_FLD_MASK_GEN(64)
+
+#define FLD_MASK(field, mask) _Generic((field), uint8_t: __wt_fld_mask_8, \
+                                       uint16_t: __wt_fld_mask_16,\
+                                       uint32_t: __wt_fld_mask_32,\
+                                       uint64_t: __wt_fld_mask_64)(field, mask)
+
+#define WT_FLD_CLR_GEN(sz) static inline void                   \
+    __wt_fld_clr_##sz(uint##sz##_t *field, uint64_t mask)       \
+    {                                                           \
+        *field &= ~mask;                                        \
+    }
+
+WT_FLD_CLR_GEN(8)
+WT_FLD_CLR_GEN(16)
+WT_FLD_CLR_GEN(32)
+WT_FLD_CLR_GEN(64)
+
+#define FLD_CLR(field, mask) _Generic((field), uint8_t: __wt_fld_clr_8, \
+                                      uint16_t: __wt_fld_clr_16,        \
+                                      uint32_t: __wt_fld_clr_32,        \
+                                      uint64_t: __wt_fld_clr_64)(&field, mask)
+
+#define WT_FLD_SET_GEN(sz) static inline void                   \
+    __wt_fld_set_##sz(uint##sz##_t *field, uint64_t mask)       \
+    {                                                           \
+        *field |= mask;                                         \
+    }
+
+WT_FLD_SET_GEN(8)
+WT_FLD_SET_GEN(16)
+WT_FLD_SET_GEN(32)
+WT_FLD_SET_GEN(64)
+
+#define FLD_SET(field, mask) _Generic((field), uint8_t: __wt_fld_set_8, \
+                                      uint16_t: __wt_fld_set_16,        \
+                                      uint32_t: __wt_fld_set_32,        \
+                                      uint64_t: __wt_fld_set_64)(&field, mask)
+
+#define FLD_ISSET(field, mask) (FLD_MASK(field, mask) != 0)
+#else
 #define FLD_CLR(field, mask) ((void)((field) &= ~(mask)))
 #define FLD_MASK(field, mask) ((field) & (mask))
 #define FLD_ISSET(field, mask) (FLD_MASK(field, mask) != 0)
 #define FLD_SET(field, mask) ((void)((field) |= (mask)))
+#endif
 
 #define F_CLR(p, mask) FLD_CLR((p)->flags, mask)
 #define F_ISSET(p, mask) FLD_ISSET((p)->flags, mask)

@@ -74,8 +74,29 @@ src:*/src/conn/conn_log.c
 src:*/src/conn/conn_open.c
 src:*/src/conn/conn_reconfig.c
 src:*/src/conn/conn_stat.c
-src:*/src/conn/conn_sweep.c
-src:*/src/conn/conn_tiered.c
+
+# src:*/src/conn/conn_sweep.c
+# src:*/src/conn/conn_tiered.c
+# This bit sucks. There are a bunch of positives from flag accesses, e.g. T1
+# says FLD_SET(flags, SWEEP) and T2 says FLD_ISSET(flags, TIERED). This is
+# OK since they're accessing different bits of the flag. However, the case
+# with two writes could easily be invalid. The cleaner solution here would
+# be to just blocklist the flags, but we can only block to function
+# granularity, so we do that here.
+#
+# Suppressions wouldn't work here, since the variables in question aren't
+# global and it would likely be much slower.
+#
+# Putting the flag accesses into functions (ifdef'd for the TSAN build)
+# could work, but only with C11 and generics. The flag macros are untyped,
+# so we need a way to manipulate uint8_t flags with a separate function to
+# uint64_t flags. The dispatch is possible with other mechanisms
+# (e.g. typeof()) but then the problem is the flag macros that return a
+# value.
+fun:__wt_fld_mask*
+fun:__wt_fld_clr*
+fun:__wt_fld_set*
+
 src:*/src/cursor/cur_backup.c
 src:*/src/cursor/cur_backup_incr.c
 src:*/src/cursor/cur_bulk.c
