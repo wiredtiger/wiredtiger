@@ -62,11 +62,11 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
             # that sequence when we want to corrupt the table. This eliminates the problem
             # earlier versions of this test had where it was looking for a single row value,
             # namely a single byte, and would sometimes find it in unintended places, such as
-            # the root page, resulting in unsalvageable corruption and tes failure. However,
+            # the root page, resulting in unsalvageable corruption and test failure. However,
             # it's still possible for the test to fail arbitrarily if the target sequence ends
             # up spanning a page boundary. Make it only 8 bytes long to reduce the chance of
             # this while still making false matches unlikely. If the test starts failing for
-            # no obvious reason, try changing uniquepos by offets of 8; if that fixes it, the
+            # no obvious reason, try changing uniquepos by offsets of 8; if that fixes it, the
             # problem is almost certainly this (accidentally spanning a page boundary) and not
             # a real bug.
 
@@ -123,6 +123,22 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
         else:
             return key + key
 
+    def getval(self, entry, key):
+        if self.value_format == '8t':
+            if entry >= self.uniquepos and entry < self.uniquepos + self.uniquelen:
+                # Get the proper byte from the corruption target string.
+                val = self.uniqueval()
+                val = val[entry - self.uniquepos]
+            else:
+                val = self.ordinaryval(key)
+        else:
+            if entry == self.uniquepos:
+                # Get the corruption target string.
+                val = self.uniqueval()
+            else:
+                val = self.ordinaryval(key)
+        return val
+
     def populate(self, tablename):
         """
         Insert some simple entries into the table
@@ -131,20 +147,7 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
         key = self.firstkey()
         for i in range(0, self.nentries):
             key = self.nextkey(key, i)
-            if self.value_format == '8t':
-                if i >= self.uniquepos and i < self.uniquepos + self.uniquelen:
-                    # Get the proper byte from the corruption target string.
-                    val = self.uniqueval()
-                    val = val[i - self.uniquepos]
-                else:
-                    val = self.ordinaryval(key)
-            else:
-                if i == self.uniquepos:
-                    # Get the corruption target string.
-                    val = self.uniqueval()
-                else:
-                    val = self.ordinaryval(key)
-            cursor[key] = val
+            cursor[key] = self.getval(i, key)
         cursor.close()
 
     def check_populate(self, tablename):
@@ -163,21 +166,10 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
                 self.assertEqual(gotval, 0)
                 zeros += 1
                 continue
-            wantkey = nextkey
 
-            if self.value_format == '8t':
-                if i >= self.uniquepos and i < self.uniquepos + self.uniquelen:
-                    # Get the proper byte from the corruption target string.
-                    wantval = self.uniqueval()
-                    wantval = wantval[i - self.uniquepos]
-                else:
-                    wantval = self.ordinaryval(wantkey)
-            else:
-                if i == self.uniquepos:
-                    # Get the corruption target string.
-                    wantval = self.uniqueval()
-                else:
-                    wantval = self.ordinaryval(wantkey)
+            wantkey = nextkey
+            wantval = self.getval(i, wantkey)
+
             self.assertEqual(gotkey, wantkey)
             self.assertEqual(gotval, wantval)
             i += 1
@@ -204,19 +196,7 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
                 # Note that if a chunk in the middle of the table got lost,
                 # this will never sync up again.
                 continue
-            if self.value_format == '8t':
-                if i >= self.uniquepos and i < self.uniquepos + self.uniquelen:
-                    # Get the proper byte from the corruption target string.
-                    wantval = self.uniqueval()
-                    wantval = wantval[i - self.uniquepos]
-                else:
-                    wantval = self.ordinaryval(wantkey)
-            else:
-                if i == self.uniquepos:
-                    # Get the corruption target string.
-                    wantval = self.uniqueval()
-                else:
-                    wantval = self.ordinaryval(wantkey)
+            wantval = self.getval(i, wantkey)
             self.assertEqual(gotkey, wantkey)
             self.assertTrue(gotval, wantval)
             correct += 1
