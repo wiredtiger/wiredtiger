@@ -29,6 +29,8 @@ create_test_executable(test_format
         ${CMAKE_CURRENT_SOURCE_DIR}/CONFIG.stress
         ${CMAKE_CURRENT_SOURCE_DIR}/format.sh
         ${CMAKE_CURRENT_SOURCE_DIR}/smoke.sh
+        ${CMAKE_CURRENT_SOURCE_DIR}/smart_reproducer.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/generate_format_cfg.py
 )
 
 target_compile_options(test_format PRIVATE -DEXT_LIBPATH="")
