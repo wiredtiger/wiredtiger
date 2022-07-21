@@ -339,6 +339,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
 
         # Initialize the value array.
+        self.verbose(2, "Generating value array")
         for i in range(0, self.value_array_size):
             self.value_array.append(self.generate_value())
 
@@ -348,7 +349,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             self.key_range[i] = key(i, key_value, key_states.UPSERTED)
             cursor[i] = key_value
 
-        self.dump_key_range()
+        #self.dump_key_range()
         self.session.checkpoint()
         # Begin main loop
         for  i in range(0, self.iteration_count):
@@ -366,10 +367,10 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     # A lot of time was spent generating values, to achieve some amount of randomness we pre
     # generate N values and keep them in memory.
     value_array = []
-    iteration_count = 1000 if wttest.islongtest() else 50
+    iteration_count = 200 if wttest.islongtest() else 50
     value_size = 1000000 if wttest.islongtest() else 100
     value_array_size = 20
-    key_count = 100000 if wttest.islongtest() else 1000
+    key_count = 10000 if wttest.islongtest() else 1000
     min_key = 1
     max_key = min_key + key_count
     # For each iteration we do search_count searches that way we test more cases without having to
