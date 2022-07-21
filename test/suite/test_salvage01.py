@@ -58,7 +58,7 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
         self.session_params = format
 
         if self.value_format == '8t':
-            # For FLCS, we write out a sequence of known bytes in adacent rows and search for
+            # For FLCS, we write out a sequence of known bytes in adjacent rows and search for
             # that sequence when we want to corrupt the table. This eliminates the problem
             # earlier versions of this test had where it was looking for a single row value,
             # namely a single byte, and would sometimes find it in unintended places, such as
