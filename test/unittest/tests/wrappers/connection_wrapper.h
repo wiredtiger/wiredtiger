@@ -24,7 +24,7 @@
  */
 class ConnectionWrapper {
     public:
-    ConnectionWrapper(const std::string &db_home);
+    explicit ConnectionWrapper(const std::string &db_home);
     ~ConnectionWrapper();
 
     /*
@@ -34,8 +34,8 @@ class ConnectionWrapper {
      */
     WT_SESSION_IMPL *createSession();
 
-    WT_CONNECTION_IMPL *getWtConnectionImpl() const;
-    WT_CONNECTION *getWtConnection() const;
+    [[nodiscard]] WT_CONNECTION_IMPL *getWtConnectionImpl() const;
+    [[nodiscard]] WT_CONNECTION *getWtConnection() const;
 
     private:
     WT_CONNECTION_IMPL *_conn_impl;

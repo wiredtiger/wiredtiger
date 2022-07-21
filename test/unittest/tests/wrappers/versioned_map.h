@@ -13,6 +13,9 @@
 #include <string>
 #include "wiredtiger.h"
 #include "../utils.h"
+#include "cursor_wrapper.h"
+#include "transaction_wrapper.h"
+
 
 template<class Key, class Value>
 class VersionedMap
@@ -53,21 +56,15 @@ template <class Key, class Value>
 Value
 VersionedMap<Key, Value>::get(const Key& key) const
 {
-    WT_CURSOR* cursor = nullptr;
-    utils::throwIfNonZero(_session->open_cursor(_session, _tableName.c_str(), nullptr, nullptr, &cursor));
-    utils::throwIfNonZero(_session->begin_transaction(_session, nullptr));
+    CursorWrapper cursorWrapper(_session, _tableName);
+    TransactionWrapper transactionWrapper(_session, "");
 
-    const char* pKey = key.c_str();  // TODO: This only works it Value is a std::string, so we need to change this
-    cursor->set_key(cursor, pKey);
-    utils::throwIfNonZero(cursor->search(cursor));
+    cursorWrapper.setKey(key);
+    cursorWrapper.search();
+    std::string value = cursorWrapper.getValue();
+    cursorWrapper.reset();
 
-    char const *pValue = nullptr;
-    utils::throwIfNonZero(cursor->get_value(cursor, &pValue));
-    utils::throwIfNonZero(cursor->reset(cursor));
-
-    utils::throwIfNonZero(_session->rollback_transaction(_session, nullptr));
-    utils::throwIfNonZero(cursor->close(cursor));
-    return (Value(pValue));
+    return (value);
 }
 
 
@@ -75,18 +72,15 @@ template <class Key, class Value>
 void
 VersionedMap<Key, Value>::set(const Key& key, const Value& value)
 {
-    WT_CURSOR* cursor = nullptr;
-    utils::throwIfNonZero(_session->open_cursor(_session, _tableName.c_str(), nullptr, nullptr, &cursor));
-    utils::throwIfNonZero(_session->begin_transaction(_session, nullptr));
+    CursorWrapper cursorWrapper(_session, _tableName);
+    TransactionWrapper transactionWrapper(_session, "");
 
-    // TODO: This only works it Value is a std::string, so we need to change this
-    cursor->set_key(cursor, key.c_str());
-    cursor->set_value(cursor, value.c_str());
-    utils::throwIfNonZero(cursor->insert(cursor));
-    utils::throwIfNonZero(cursor->reset(cursor));
+    cursorWrapper.setKey(key);
+    cursorWrapper.setValue(value);
+    cursorWrapper.insert();
+    cursorWrapper.reset();
 
-    utils::throwIfNonZero(_session->commit_transaction(_session, nullptr));
-    utils::throwIfNonZero(cursor->close(cursor));
+    transactionWrapper.commit();
 }
 
 
@@ -94,22 +88,19 @@ template <class Key, class Value>
 uint64_t
 VersionedMap<Key, Value>::size() const
 {
-    WT_CURSOR* cursor = nullptr;
-    utils::throwIfNonZero(_session->open_cursor(_session, _tableName.c_str(), nullptr, nullptr, &cursor));
-    utils::throwIfNonZero(_session->begin_transaction(_session, nullptr));
-    utils::throwIfNonZero(cursor->reset(cursor));
-    int ret = cursor->next(cursor);
+    CursorWrapper cursorWrapper(_session, _tableName);
+    TransactionWrapper transactionWrapper(_session, "");
+    cursorWrapper.reset();
+    int ret = cursorWrapper.next();
     utils::throwIfNonZero(ret);
 
     uint64_t numValues = 0;
     while (ret == 0) {
         numValues++;
-        ret = cursor->next(cursor);
+        ret = cursorWrapper.next();
     }
     utils::throwIfNotEqual(ret, WT_NOTFOUND); // Check for end-of-table.
 
-    utils::throwIfNonZero(_session->rollback_transaction(_session, nullptr));
-    utils::throwIfNonZero(cursor->close(cursor));
     return numValues;
 }
 

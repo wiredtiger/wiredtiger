@@ -12,6 +12,8 @@
 #include "wt_internal.h"
 #include "wrappers/versioned_map.h"
 #include "wrappers/connection_wrapper.h"
+#include "wrappers/cursor_wrapper.h"
+#include "wrappers/transaction_wrapper.h"
 
 
 TEST_CASE("VersionedMap", "[versioned_map]")
@@ -47,7 +49,33 @@ TEST_CASE("VersionedMap", "[versioned_map]")
         REQUIRE(value == testcase_value1);
 
         REQUIRE_THROWS(versionedMap.get("fred"));  // Key "fred" should not exist.
-        //REQUIRE_THROWS(versionedMap.get("bill"));  // Key "bill" should not exist.
+        REQUIRE_THROWS(versionedMap.get("bill"));  // Key "bill" should not exist.
+    }
+
+    SECTION("simple with wrappers") {
+        const std::string testcase_key1 = "key1";
+        const std::string testcase_value1 = "value1";
+        const std::string testcase_key2 = "key2";
+        const std::string testcase_value2 = "value2";
+
+        CursorWrapper cursorWrapper(session, table_name);
+        cursorWrapper.setKey(testcase_key1);
+        cursorWrapper.setValue(testcase_value1);
+        cursorWrapper.insert();
+
+        REQUIRE(versionedMap.size() == 1);
+
+        cursorWrapper.setKey(testcase_key2);
+        cursorWrapper.setValue(testcase_value2);
+        cursorWrapper.insert();
+        cursorWrapper.reset();
+        REQUIRE(versionedMap.size() == 2);
+
+        std::string value = versionedMap.get(testcase_key1);
+        REQUIRE(value == testcase_value1);
+
+        REQUIRE_THROWS(versionedMap.get("fred"));  // Key "fred" should not exist.
+        REQUIRE_THROWS(versionedMap.get("bill"));  // Key "bill" should not exist.
     }
 
     SECTION("set() and get()") {
@@ -70,6 +98,6 @@ TEST_CASE("VersionedMap", "[versioned_map]")
         REQUIRE(versionedMap.get("key8") == "value8");
         REQUIRE(versionedMap.get("key9") == "value9");
         REQUIRE_THROWS(versionedMap.get("fred"));   // Key "fred" should not exist.
-        //REQUIRE_THROWS(versionedMap.get("key11"));  // Key "key11" should not exist.
+        REQUIRE_THROWS(versionedMap.get("key11"));  // Key "key11" should not exist.
     }
 }

@@ -15,8 +15,10 @@ set(unittest_sources
     tests/packing/test_intpack.cpp
     tests/wrappers/block_mods.cpp
     tests/wrappers/connection_wrapper.cpp
+    tests/wrappers/cursor_wrapper.cpp
     tests/wrappers/mock_connection.cpp
     tests/wrappers/mock_session.cpp
+    tests/wrappers/transaction_wrapper.cpp
     tests/wrappers/versioned_map.cpp
 )
 
