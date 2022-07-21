@@ -651,7 +651,6 @@ functions:
               # Skip the below lines from nohup output file because they are very verbose and
               # print only the errors to evergreen log file.
               grep -v "Finished verifying" nohup.out.* | grep -v "Finished a checkpoint" | grep -v "thread starting"
-              echo $t
             fi
             exit $ret
           done

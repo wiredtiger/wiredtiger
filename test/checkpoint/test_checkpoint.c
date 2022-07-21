@@ -258,7 +258,6 @@ run_complete:
     /* Ensure that cleanup is done on error. */
     (void)wt_shutdown();
     free(g.cookies);
-    printf("return value %d\n", g.status);
     return (g.status);
 }
 
@@ -433,7 +432,6 @@ log_print_err_worker(const char *func, int line, const char *m, int e, int fatal
     if (fatal) {
         g.running = 0;
         g.status = e;
-        abort();
     }
     fprintf(stderr, "%s: %s,%d: %s: %s\n", progname, func, line, m, wiredtiger_strerror(e));
     fflush(stderr);
