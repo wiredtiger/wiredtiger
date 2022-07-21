@@ -83,7 +83,7 @@ build_branch()
         . ./test/evergreen/find_cmake.sh
         config=""
         config+="-DENABLE_SNAPPY=1 "
-	# Need to disable configs since WT-9455
+        # Need to disable configs since WT-9455
 	config+="-DENABLE_LZ4=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0 "
         config+="-DWT_STANDALONE_BUILD=0 "
         (mkdir -p build && cd build &&
