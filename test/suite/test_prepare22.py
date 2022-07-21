@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest
+import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 # test_prepare22.py
@@ -39,7 +39,12 @@ class test_prepare22(wttest.WiredTigerTestCase):
         ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
-    scenarios = make_scenarios(format_values)
+    delete = [
+        ('delete', dict(delete=True)),
+        ('non-delete', dict(delete=False)),
+    ]
+
+    scenarios = make_scenarios(format_values, delete)
 
     def test_prepare22(self):
         uri = "table:test_prepare22"
@@ -68,15 +73,21 @@ class test_prepare22(wttest.WiredTigerTestCase):
         cursor[1] = value_b
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
 
+        if self.delete:
+            self.session.begin_transaction()
+            cursor.set_key(1)
+            cursor.remove()
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+
         # Do a prepared update
         self.session.begin_transaction()
         cursor[1] = value_c
-        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(30))
+        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(40))
 
         # Evict the page
         session2 = self.conn.open_session()
-        evict_cursor = session2.open_cursor(uri, None, "debug=(release_evict)")
-        session2.begin_transaction("ignore_prepare=true")
+        evict_cursor = session2.open_cursor(uri, None, 'debug=(release_evict)')
+        session2.begin_transaction('ignore_prepare=true,read_timestamp=' + self.timestamp_str(20))
         self.assertEquals(evict_cursor[1], value_b)
         evict_cursor.reset()
         evict_cursor.close()
@@ -88,15 +99,15 @@ class test_prepare22(wttest.WiredTigerTestCase):
         # Rollback the prepared transaction
         self.session.rollback_transaction()
 
-        # Set stable timestamp to 20
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+        # Set stable timestamp to 30
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
 
         # Call rollback to stable
         self.conn.rollback_to_stable()
 
         # Evict the page again
-        evict_cursor = session2.open_cursor(uri, None, "debug=(release_evict)")
-        session2.begin_transaction()
+        evict_cursor = session2.open_cursor(uri, None, 'debug=(release_evict)')
+        session2.begin_transaction('read_timestamp=' + self.timestamp_str(20))
         self.assertEquals(evict_cursor[1], value_b)
         evict_cursor.reset()
         evict_cursor.close()
@@ -111,6 +122,13 @@ class test_prepare22(wttest.WiredTigerTestCase):
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(20))
         self.assertEquals(cursor[1], value_b)
         self.session.rollback_transaction()
+
+        # Verify we can still read back the deletion
+        if self.delete and self.value_format != '8t':
+            self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
+            cursor.set_key(1)
+            self.assertEquals(cursor.search(), wiredtiger.WT_NOTFOUND)
+            self.session.rollback_transaction()
 
 if __name__ == '__main__':
     wttest.run()
