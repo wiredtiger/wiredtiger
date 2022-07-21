@@ -439,7 +439,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
          * Special handling for application threads evicting their own updates.
          */
         if (!is_hs_page && F_ISSET(r, WT_REC_APP_EVICTION_SNAPSHOT) && txnid == session_txnid) {
-            *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+            *upd_memsizep += upd->size;
             *has_newer_updatesp = true;
             continue;
         }
@@ -478,7 +478,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
                 return (__wt_set_return(session, EBUSY));
             }
 
-            *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+            *upd_memsizep += upd->size;
             *has_newer_updatesp = true;
             continue;
         }
@@ -490,7 +490,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
               upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid,
               "Cannot have two different prepared transactions active on the same key");
             if (F_ISSET(r, WT_REC_CHECKPOINT)) {
-                *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+                *upd_memsizep += upd->size;
                 *has_newer_updatesp = true;
                 if (upd->start_ts > max_ts)
                     max_ts = upd->start_ts;

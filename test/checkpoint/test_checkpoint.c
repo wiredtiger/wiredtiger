@@ -433,7 +433,7 @@ log_print_err_worker(const char *func, int line, const char *m, int e, int fatal
     if (fatal) {
         g.running = 0;
         g.status = e;
-        abort();;
+        abort();
     }
     fprintf(stderr, "%s: %s,%d: %s: %s\n", progname, func, line, m, wiredtiger_strerror(e));
     fflush(stderr);
