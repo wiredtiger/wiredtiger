@@ -23,6 +23,16 @@ throwIfNonZero(int result)
     }
 }
 
+void
+throwIfNotEqual(int value, int requiredValue)
+{
+    if (value != requiredValue) {
+        std::string errorMessage("Result is " + std::to_string(value) +
+          " when it should be " + std::to_string(requiredValue));
+        throw std::runtime_error(errorMessage);
+    }
+}
+
 int
 remove_wrapper(std::string const &path)
 {
@@ -39,6 +49,7 @@ wiredtigerCleanup(std::string const &home)
     remove_wrapper(home + "/WiredTiger.turtle");
     remove_wrapper(home + "/WiredTiger.wt");
     remove_wrapper(home + "/WiredTigerHS.wt");
+    remove_wrapper(home + "/map_table.wt");
 
     remove_wrapper(home);
 }

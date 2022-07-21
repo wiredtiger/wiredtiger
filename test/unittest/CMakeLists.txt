@@ -8,6 +8,7 @@ set(unittest_sources
     tests/test_pow.cpp
     tests/test_reconciliation_tracking.cpp
     tests/test_tailq.cpp
+    tests/test_versioned_map.cpp
     tests/utils.cpp
     tests/block/test_bitstring.cpp
     tests/block/test_block_ckpt.cpp
@@ -16,6 +17,7 @@ set(unittest_sources
     tests/wrappers/connection_wrapper.cpp
     tests/wrappers/mock_connection.cpp
     tests/wrappers/mock_session.cpp
+    tests/wrappers/versioned_map.cpp
 )
 
 # Disable 4200 warning on windows, its related to struct definitions with zero sized arrays.
