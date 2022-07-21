@@ -1804,13 +1804,19 @@ __rec_split_write_supd(
          */
         r->supd_memsize = 0;
         for (j = 0; i < r->supd_next; ++j, ++i) {
-            /* Account for the remaining update memory. */
-            if (r->supd[i].ins == NULL)
-                /* Note: ins is never NULL for column-store */
-                upd = page->modify->mod_row_update[WT_ROW_SLOT(page, r->supd[i].rip)];
-            else
-                upd = r->supd[i].ins->upd;
-            r->supd_memsize += __wt_update_list_memsize(upd);
+            /* Only aggregate the size of updates that are restored. */
+            if (r->supd[i].restore) {
+                ++r->supd_restore_count;
+                if (r->supd[i].ins == NULL)
+                    /* Note: ins is never NULL for column-store */
+                    upd = page->modify->mod_row_update[WT_ROW_SLOT(page, r->supd[i].rip)];
+                else
+                    upd = r->supd[i].ins->upd;
+                for (; upd != NULL && upd != r->supd[i].onpage_upd &&
+                     upd != r->supd[i].onpage_tombstone;
+                     upd = upd->next)
+                    r->supd_memsize += upd->size;
+            }
             r->supd[j] = r->supd[i];
         }
         r->supd_next = j;
