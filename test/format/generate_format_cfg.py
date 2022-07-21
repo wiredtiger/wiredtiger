@@ -5,7 +5,7 @@ import sys
 
 # TODO - Ideas
 
-parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter, allow_abbrev=True)
+parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument("-i", "--input", help="Input configuration", default="CONFIG.stress")
 parser.add_argument("-o", "--output", help="Output configuration", default="CONFIG_NEW")
 parser.add_argument("-n", "--number", help="Number of generated configurations", type=int,
@@ -28,13 +28,13 @@ if verbose:
 # - Keep the same range?
 # - Modify the field at all?
 dictionary = {
-    'backup.incremental=': ["on", "off"],
-    'block_cache=': [0, 1000],
-    'cache=' : [0,1000],
-    'btree.compression=': ["none", "zlib"],
-    'runs.rows=': [0, 2200000],
-    'runs.threads=': [1, 10],
-    'runs.type=': ["variable-length column-store", "row-store"],
+    'cache=' : [800,1200],
+    'runs.rows=': [1500000, 3000000],
+    'runs.threads=': [6, 18],
+    'btree.internal_page_max': [9, 17],
+    'btree.leaf_page_max': [9, 17],
+    'btree.split_pct': [70, 90],
+    'runs.timer': [6, 12]
     }
 
 fields = list(dictionary.keys())
