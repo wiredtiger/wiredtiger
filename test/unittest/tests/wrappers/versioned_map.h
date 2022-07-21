@@ -56,8 +56,8 @@ template <class Key, class Value>
 Value
 VersionedMap<Key, Value>::get(const Key& key) const
 {
-    CursorWrapper cursorWrapper(_session, _tableName);
     TransactionWrapper transactionWrapper(_session, "");
+    CursorWrapper cursorWrapper(_session, _tableName);
 
     cursorWrapper.setKey(key);
     cursorWrapper.search();
@@ -72,15 +72,15 @@ template <class Key, class Value>
 void
 VersionedMap<Key, Value>::set(const Key& key, const Value& value)
 {
-    CursorWrapper cursorWrapper(_session, _tableName);
     TransactionWrapper transactionWrapper(_session, "");
+    CursorWrapper cursorWrapper(_session, _tableName);
 
     cursorWrapper.setKey(key);
     cursorWrapper.setValue(value);
     cursorWrapper.insert();
     cursorWrapper.reset();
 
-    transactionWrapper.commit();
+    transactionWrapper.commit("");
 }
 
 
@@ -88,12 +88,11 @@ template <class Key, class Value>
 uint64_t
 VersionedMap<Key, Value>::size() const
 {
-    CursorWrapper cursorWrapper(_session, _tableName);
     TransactionWrapper transactionWrapper(_session, "");
-    cursorWrapper.reset();
+    CursorWrapper cursorWrapper(_session, _tableName);
+
     int ret = cursorWrapper.next();
     utils::throwIfNonZero(ret);
-
     uint64_t numValues = 0;
     while (ret == 0) {
         numValues++;

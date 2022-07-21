@@ -26,12 +26,12 @@ TEST_CASE("VersionedMap", "[versioned_map]")
     REQUIRE(session->create(session, table_name.c_str(), "key_format=S,value_format=S") == 0);
     VersionedMap<std::string, std::string> versionedMap(session, table_name);
 
-    SECTION("simple") {
-        const std::string testcase_key1 = "key1";
-        const std::string testcase_value1 = "value1";
-        const std::string testcase_key2 = "key2";
-        const std::string testcase_value2 = "value2";
+    const std::string testcase_key1 = "key1";
+    const std::string testcase_value1 = "value1";
+    const std::string testcase_key2 = "key2";
+    const std::string testcase_value2 = "value2";
 
+    SECTION("simple") {
         WT_CURSOR* cursor = nullptr;
         REQUIRE(session->open_cursor(session, table_name.c_str(), nullptr, nullptr, &cursor) == 0);
         cursor->set_key(cursor, testcase_key1.c_str());
@@ -53,11 +53,6 @@ TEST_CASE("VersionedMap", "[versioned_map]")
     }
 
     SECTION("simple with wrappers") {
-        const std::string testcase_key1 = "key1";
-        const std::string testcase_value1 = "value1";
-        const std::string testcase_key2 = "key2";
-        const std::string testcase_value2 = "value2";
-
         CursorWrapper cursorWrapper(session, table_name);
         cursorWrapper.setKey(testcase_key1);
         cursorWrapper.setValue(testcase_value1);

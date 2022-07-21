@@ -16,7 +16,7 @@ class TransactionWrapper {
     public:
     TransactionWrapper(WT_SESSION* session, std::string config);
     ~TransactionWrapper();
-    void commit();
+    void commit(std::string const& commitConfig);
 
     private:
     WT_SESSION* _session;
