@@ -21,14 +21,23 @@ template<class Key, class Value>
 class VersionedMap
 {
     public:
+
+    typedef Key key_map;
+    typedef Value mapped_type;
+    typedef uint64_t size_type;
+
     VersionedMap(WT_SESSION* session, std::string& tableName);
 
     Value get(const Key& key) const;
+    Value get_transaction_wrapped(const Key& key, const std::string& config, std::optional<uint64_t> timeStamp) const;
+
     void set(const Key& key, const Value& value);
+    void set_transaction_wrapped(const Key& key, const Value& value, const std::string& config);
 
     // Methods that are the same or similar to those in std::map
     Value&& at(const Key& key) const;
-    [[nodiscard]] uint64_t size() const;
+    [[nodiscard]] size_type size() const;
+    [[nodiscard]] size_type size_transaction_wrapped(const std::string& config) const;
 
     private:
     WT_SESSION* _session; // This class does not own this pointer so should not free it.
@@ -56,7 +65,6 @@ template <class Key, class Value>
 Value
 VersionedMap<Key, Value>::get(const Key& key) const
 {
-    TransactionWrapper transactionWrapper(_session, "");
     CursorWrapper cursorWrapper(_session, _tableName);
 
     cursorWrapper.setKey(key);
@@ -69,31 +77,50 @@ VersionedMap<Key, Value>::get(const Key& key) const
 
 
 template <class Key, class Value>
+Value
+VersionedMap<Key, Value>::get_transaction_wrapped(const Key& key, const std::string& config, std::optional<uint64_t> timeStamp) const
+{
+    TransactionWrapper transactionWrapper(_session, config);
+    if (timeStamp) {
+        uint64_t ts = timeStamp.value();
+        int ret = _session->timestamp_transaction_uint(_session, WT_TS_TXN_TYPE_READ, ts);
+        utils::throwIfNonZero(ret);
+    }
+    return (get(key));
+}
+
+
+template <class Key, class Value>
 void
 VersionedMap<Key, Value>::set(const Key& key, const Value& value)
 {
-    TransactionWrapper transactionWrapper(_session, "");
     CursorWrapper cursorWrapper(_session, _tableName);
-
     cursorWrapper.setKey(key);
     cursorWrapper.setValue(value);
     cursorWrapper.insert();
     cursorWrapper.reset();
+}
 
+
+template <class Key, class Value>
+void
+VersionedMap<Key, Value>::set_transaction_wrapped(const Key &key, const Value &value, const std::string& config)
+{
+    TransactionWrapper transactionWrapper(_session, config);
+    set(key, value);
     transactionWrapper.commit("");
 }
 
 
 template <class Key, class Value>
-uint64_t
+typename VersionedMap<Key, Value>::size_type
 VersionedMap<Key, Value>::size() const
 {
-    TransactionWrapper transactionWrapper(_session, "");
     CursorWrapper cursorWrapper(_session, _tableName);
 
     int ret = cursorWrapper.next();
     utils::throwIfNonZero(ret);
-    uint64_t numValues = 0;
+    size_type numValues = 0;
     while (ret == 0) {
         numValues++;
         ret = cursorWrapper.next();
@@ -101,6 +128,15 @@ VersionedMap<Key, Value>::size() const
     utils::throwIfNotEqual(ret, WT_NOTFOUND); // Check for end-of-table.
 
     return numValues;
+}
+
+
+template <class Key, class Value>
+typename VersionedMap<Key, Value>::size_type
+VersionedMap<Key, Value>::size_transaction_wrapped(const std::string& config) const
+{
+    TransactionWrapper transactionWrapper(_session, config);
+    return size();
 }
 
 #endif // WIREDTIGER_VERSIONED_MAP_H

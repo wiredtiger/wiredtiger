@@ -15,6 +15,29 @@
 #include "wrappers/cursor_wrapper.h"
 #include "wrappers/transaction_wrapper.h"
 
+TEST_CASE("std::map iterator")
+{
+    std::map<int, std::string> testMap;
+    testMap[1] = "One";
+    testMap[2] = "Two";
+    testMap[3] = "Three";
+    testMap[4] = "Four";
+
+    REQUIRE(testMap[1] == "One");
+    REQUIRE(testMap[2] == "Two");
+    REQUIRE(testMap[3] == "Three");
+    REQUIRE(testMap[4] == "Four");
+    REQUIRE(testMap.size() == 4);
+
+    int count = 0;
+    for (const auto& iter : testMap)
+    {
+        count++;
+        REQUIRE(testMap[iter.first] == iter.second);
+    }
+    REQUIRE(count == 4);
+}
+
 
 TEST_CASE("VersionedMap", "[versioned_map]")
 {
@@ -75,13 +98,17 @@ TEST_CASE("VersionedMap", "[versioned_map]")
 
     SECTION("set() and get()") {
         constexpr int numToAdd = 10;
-        for (int i = 0; i < numToAdd; i++) {
-            std::string key = std::string("key") + std::to_string(i);
-            std::string value = std::string("value") + std::to_string(i);
-            versionedMap.set(key, value);
+        {
+            TransactionWrapper transactionWrapper(session, "");
+            for (int i = 0; i < numToAdd; i++) {
+                std::string key = std::string("key") + std::to_string(i);
+                std::string value = std::string("value") + std::to_string(i);
+                versionedMap.set(key, value);
+            }
+            transactionWrapper.commit("");
         }
 
-        REQUIRE(versionedMap.size() == 10);
+        REQUIRE(versionedMap.size() == numToAdd);
         REQUIRE(versionedMap.get("key0") == "value0");
         REQUIRE(versionedMap.get("key1") == "value1");
         REQUIRE(versionedMap.get("key2") == "value2");
@@ -92,6 +119,53 @@ TEST_CASE("VersionedMap", "[versioned_map]")
         REQUIRE(versionedMap.get("key7") == "value7");
         REQUIRE(versionedMap.get("key8") == "value8");
         REQUIRE(versionedMap.get("key9") == "value9");
+        REQUIRE_THROWS(versionedMap.get("fred"));   // Key "fred" should not exist.
+        REQUIRE_THROWS(versionedMap.get("key11"));  // Key "key11" should not exist.
+    }
+
+    SECTION("set() and get() with timestamps") {
+        REQUIRE(conn.getWtConnection()->set_timestamp(conn.getWtConnection(), "oldest_timestamp=1") == 0);
+        REQUIRE(conn.getWtConnection()->set_timestamp(conn.getWtConnection(), "stable_timestamp=1") == 0);
+
+        constexpr int numToAdd = 10;
+        {
+            TransactionWrapper transactionWrapper(session, "");
+            for (int i = 0; i < numToAdd; i++) {
+                std::string key = std::string("key") + std::to_string(i);
+                std::string value = std::string("value") + std::to_string(i);
+                versionedMap.set(key, value);
+            }
+            transactionWrapper.commit("commit_timestamp=10");
+        }
+        {
+            TransactionWrapper transactionWrapper(session, "");
+            versionedMap.set("key5", "value5-ts20");
+            transactionWrapper.commit("commit_timestamp=20");
+        }
+        {
+            TransactionWrapper transactionWrapper(session, "");
+            versionedMap.set("key5", "value5-ts30");
+            transactionWrapper.commit("commit_timestamp=30");
+        }
+
+        REQUIRE(versionedMap.size() == numToAdd);
+        REQUIRE(versionedMap.get("key0") == "value0");
+        REQUIRE(versionedMap.get("key1") == "value1");
+        REQUIRE(versionedMap.get("key2") == "value2");
+        REQUIRE(versionedMap.get("key3") == "value3");
+        REQUIRE(versionedMap.get("key4") == "value4");
+        REQUIRE(versionedMap.get("key5") == "value5-ts30");
+        REQUIRE(versionedMap.get("key6") == "value6");
+        REQUIRE(versionedMap.get("key7") == "value7");
+        REQUIRE(versionedMap.get("key8") == "value8");
+        REQUIRE(versionedMap.get("key9") == "value9");
+        REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x10) == "value5");
+        REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x15) == "value5");
+        REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x20) == "value5-ts20");
+        REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x25) == "value5-ts20");
+        REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x30) == "value5-ts30");
+        REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x35) == "value5-ts30");
+        REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x10) == "value5");
         REQUIRE_THROWS(versionedMap.get("fred"));   // Key "fred" should not exist.
         REQUIRE_THROWS(versionedMap.get("key11"));  // Key "key11" should not exist.
     }
