@@ -3,19 +3,10 @@ import random
 import re
 import sys
 
-# TODO - Ideas
-# I need to return the changes done for each config.
-# Dict of dict
-# First key is the config name
-# Then I have:
-# {
-#   field_1: [prev_value, new_value],
-#   field_2: [prev_value, new_value]
-# }
-
-def my_func(input_config, output_config, num_generated_configs, unique, dictionary, verbose):
+def generate_config(input_config, output_config, num_generated_configs, unique, dictionary, verbose):
     """
-    Return a dictionary with the config name and the changes.
+    Generate N different configurations given a set of fields to modify.
+    Return a dictionary of the changes made for each configuration.
     """
 
     assert dictionary is not None
@@ -186,5 +177,4 @@ if __name__ == '__main__':
         # 'runs.type': ["variable-length column-store", "row-store"],
         }
 
-    changes = my_func(input_config, output_config, num_generated_configs, unique, dictionary, verbose)
-    print(changes)
+    changes = generate_config(input_config, output_config, num_generated_configs, unique, dictionary, verbose)
