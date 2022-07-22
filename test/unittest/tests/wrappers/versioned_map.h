@@ -82,7 +82,6 @@ VersionedMap<Key, T>::Iterator::get() const
     return std::pair<Key, T>(_cursor->getKey(), _cursor->getValue());
 };
 
-
 template <class Key, class T>
 typename VersionedMap<Key, T>::Iterator &
 VersionedMap<Key, T>::Iterator::next()
@@ -90,7 +89,6 @@ VersionedMap<Key, T>::Iterator::next()
     _wtRet = _cursor->next();
     return (*this);
 };
-
 
 template <class Key, class T>
 typename VersionedMap<Key, T>::Iterator &
@@ -100,7 +98,6 @@ VersionedMap<Key, T>::Iterator::prev()
     return (*this);
 };
 
-
 template <class Key, class T>
 bool
 VersionedMap<Key, T>::Iterator::isOk()
@@ -108,14 +105,11 @@ VersionedMap<Key, T>::Iterator::isOk()
     return (_wtRet == 0);
 };
 
-
-
 template <class Key, class T>
 VersionedMap<Key, T>::VersionedMap(WT_SESSION *session, std::string &tableName)
     : _session(session), _tableName(tableName)
 {
 }
-
 
 template <class Key, class T>
 std::string const &
@@ -130,7 +124,6 @@ VersionedMap<Key, T>::getSession()
 {
     return _session;
 };
-
 
 template <class Key, class T>
 T
