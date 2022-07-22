@@ -67,7 +67,7 @@ def generate_config(input_config, output_config, num_generated_configs, unique, 
                         if isinstance(values[0], str):
                             new_value = random.choice(values)
                         elif isinstance(values[0], int):
-                            new_value = random.randint(values[0], values[1])
+                            new_value = str(random.randint(values[0], values[1]))
                         else:
                             sys.exit("Error type", type(values[0]))
 
@@ -114,10 +114,10 @@ def generate_config(input_config, output_config, num_generated_configs, unique, 
                         if isinstance(values[0], str):
                             new_value = random.choice(values)
                         elif isinstance(values[0], int):
-                            new_value = random.randint(values[0], values[1])
+                            new_value = str(random.randint(values[0], values[1]))
                         else:
                             sys.exit("Error type", type(values[0]))
-                        
+
                         if verbose:
                             print("new value", new_value)
 
