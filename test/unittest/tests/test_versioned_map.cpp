@@ -134,12 +134,20 @@ TEST_CASE("VersionedMap", "[versioned_map]")
             }
             transactionWrapper.commit("commit_timestamp=10");
         }
+
+        REQUIRE(versionedMap.get("key3") == "value3");
+        REQUIRE(versionedMap.get("key5") == "value5");
+
         {
             TransactionWrapper transactionWrapper(session, "");
             versionedMap.set("key3", "value3-ts20");
             versionedMap.set("key5", "value5-ts20");
             transactionWrapper.commit("commit_timestamp=20");
         }
+
+        REQUIRE(versionedMap.get("key3") == "value3-ts20");
+        REQUIRE(versionedMap.get("key5") == "value5-ts20");
+
         {
             TransactionWrapper transactionWrapper(session, "");
             versionedMap.set("key5", "value5-ts30");
