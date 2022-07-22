@@ -80,7 +80,6 @@ TEST_CASE("VersionedMap", "[versioned_map]")
         cursorWrapper.setKey(testcase_key1);
         cursorWrapper.setValue(testcase_value1);
         cursorWrapper.insert();
-
         REQUIRE(versionedMap.size() == 1);
 
         cursorWrapper.setKey(testcase_key2);
@@ -89,8 +88,8 @@ TEST_CASE("VersionedMap", "[versioned_map]")
         cursorWrapper.reset();
         REQUIRE(versionedMap.size() == 2);
 
-        std::string value = versionedMap.get(testcase_key1);
-        REQUIRE(value == testcase_value1);
+        REQUIRE(versionedMap.get(testcase_key1) == testcase_value1);
+        REQUIRE(versionedMap.get(testcase_key2) == testcase_value2);
 
         REQUIRE_THROWS(versionedMap.get("fred"));  // Key "fred" should not exist.
         REQUIRE_THROWS(versionedMap.get("bill"));  // Key "bill" should not exist.
@@ -139,6 +138,7 @@ TEST_CASE("VersionedMap", "[versioned_map]")
         }
         {
             TransactionWrapper transactionWrapper(session, "");
+            versionedMap.set("key3", "value3-ts20");
             versionedMap.set("key5", "value5-ts20");
             transactionWrapper.commit("commit_timestamp=20");
         }
@@ -149,16 +149,27 @@ TEST_CASE("VersionedMap", "[versioned_map]")
         }
 
         REQUIRE(versionedMap.size() == numToAdd);
+
         REQUIRE(versionedMap.get("key0") == "value0");
         REQUIRE(versionedMap.get("key1") == "value1");
         REQUIRE(versionedMap.get("key2") == "value2");
-        REQUIRE(versionedMap.get("key3") == "value3");
+        REQUIRE(versionedMap.get("key3") == "value3-ts20");
         REQUIRE(versionedMap.get("key4") == "value4");
         REQUIRE(versionedMap.get("key5") == "value5-ts30");
         REQUIRE(versionedMap.get("key6") == "value6");
         REQUIRE(versionedMap.get("key7") == "value7");
         REQUIRE(versionedMap.get("key8") == "value8");
         REQUIRE(versionedMap.get("key9") == "value9");
+
+        REQUIRE_THROWS(versionedMap.get_transaction_wrapped("key3", "", 0x5));
+        REQUIRE(versionedMap.get_transaction_wrapped("key3", "", 0x10) == "value3");
+        REQUIRE(versionedMap.get_transaction_wrapped("key3", "", 0x15) == "value3");
+        REQUIRE(versionedMap.get_transaction_wrapped("key3", "", 0x20) == "value3-ts20");
+        REQUIRE(versionedMap.get_transaction_wrapped("key3", "", 0x25) == "value3-ts20");
+        REQUIRE(versionedMap.get_transaction_wrapped("key3", "", 0x30) == "value3-ts20");
+        REQUIRE(versionedMap.get_transaction_wrapped("key3", "", 0x35) == "value3-ts20");
+
+        REQUIRE_THROWS(versionedMap.get_transaction_wrapped("key5", "", 0x5));
         REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x10) == "value5");
         REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x15) == "value5");
         REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x20) == "value5-ts20");
@@ -166,6 +177,14 @@ TEST_CASE("VersionedMap", "[versioned_map]")
         REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x30) == "value5-ts30");
         REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x35) == "value5-ts30");
         REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x10) == "value5");
+
+        REQUIRE_THROWS(versionedMap.get_transaction_wrapped("key7", "", 0x5));
+        REQUIRE(versionedMap.get_transaction_wrapped("key7", "", 0x15) == "value7");
+        REQUIRE(versionedMap.get_transaction_wrapped("key7", "", 0x20) == "value7");
+        REQUIRE(versionedMap.get_transaction_wrapped("key7", "", 0x25) == "value7");
+        REQUIRE(versionedMap.get_transaction_wrapped("key7", "", 0x30) == "value7");
+        REQUIRE(versionedMap.get_transaction_wrapped("key7", "", 0x35) == "value7");
+
         REQUIRE_THROWS(versionedMap.get("fred"));   // Key "fred" should not exist.
         REQUIRE_THROWS(versionedMap.get("key11"));  // Key "key11" should not exist.
     }
