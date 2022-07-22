@@ -11,6 +11,7 @@
 
 #include <optional>
 #include <map>
+#include <memory>
 #include <string>
 #include "wiredtiger.h"
 #include "../utils.h"
