@@ -7,6 +7,10 @@ import sys
 import threading
 import generate_format_cfg as gen_format_cfg
 
+base_config_range = {
+  'cache=' : [800, 1000]
+}
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config_name',
@@ -29,7 +33,8 @@ def main():
     best_config_dict['result'] = 0
     best_config_dict['frequency'] = 0
     best_config_dict['max_time'] = sys.maxsize
-    format_recursion("base", args.tries, args.parallel, best_config_dict)
+
+    format_recursion("base", args.tries, args.parallel, best_config_dict, base_config_range, None)
     print(best_config_dict)
 
 def thread_run_test_format_func(test_command, thread_return, tries, best_config_dict):
@@ -56,18 +61,38 @@ def thread_run_test_format_func(test_command, thread_return, tries, best_config_
       thread_return['max_time'] = max_time
       thread_return['frequency'] = frequency
 
-def format_recursion(base_config, tries, parallel, best_config_dict):
+def generate_new_config(config, config_range):
+  change_list = gen_format_cfg.my_func("smart_configs/base", "smart_configs/{0}_test".format(config), 3, True, config_range, False)
+  print("change list1")
+  print(change_list)
+  return change_list
+
+def generate_new_config_range(config_range, change_list):
+    # get the config
+    print("change list2")
+    print(change_list)
+    # check whether decrease or increase
+    # change the range by +10% or -10% in the change list for that config and return it.
+    return config_range
+
+def format_recursion(base_config, tries, parallel, best_config_dict, config_range, change_list):
   for config in os.listdir("."):
     if config.startswith("dump_t."):
       os.remove(config)
 
-
-  change_list = gen_format_cfg.my_func("smart_configs/base", "smart_configs/{0}_test".format(base_config), true, config_dict_range, false)
-  print(change_list)
+  # If change list is None, this is the first time we call this function. Hence, just create a new config.
+  # If this function is called again, then we need to create a new config range, "smartly" with the help of
+  # a change list. Once we have the new config range we create a new config.
+  # This process continues until a consistent repro is found.
+  if change_list is None:
+    change_list = generate_new_config(base_config, config_range)
+  else:
+    config_range = generate_new_config_range(config_range, change_list)
+    change_list = generate_new_config(base_config, config_range)
 
   threads = list()
   thread_id = 0
-  for config in os.listdir("smart_configs"):
+  for index, config in enumerate(os.listdir("smart_configs")):
     if config.startswith("{0}_test".format(base_config)):
       test_command = "./t -h RUNDIR.{0} -c smart_configs/{1}".format(thread_id, config)
 
@@ -100,12 +125,12 @@ def format_recursion(base_config, tries, parallel, best_config_dict):
             best_config_dict['frequency'] = frequency
             best_config_dict['max_time'] = max_time
             best_config_dict['result'] = failed
-            format_recursion(config, tries, parallel, best_config_dict)
+            format_recursion(config, tries, parallel, best_config_dict, config_range, change_list[index])
           elif (frequency == best_config_dict['frequency'] and max_time < best_config_dict['max_time']):
             best_config_dict['frequency'] = frequency
             best_config_dict['max_time'] = max_time
             best_config_dict['result'] = failed
-            format_recursion(config, tries, parallel, best_config_dict)
+            format_recursion(config, tries, parallel, best_config_dict, config_range, change_list[index])
         
 
   if (parallel):
