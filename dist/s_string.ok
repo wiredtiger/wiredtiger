@@ -490,6 +490,7 @@ VR
 VRFY
 VX
 Vc
+VersionedMap
 Vfprintf
 Vigenere
 Vixie
@@ -910,6 +911,7 @@ foward
 fp
 fprintf
 fread
+fred
 free'd
 fs
 fscanf
