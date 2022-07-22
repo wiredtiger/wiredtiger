@@ -14,7 +14,11 @@
 namespace utils {
 const std::basic_string UnitTestDatabaseHome = "test_db";
 
-inline bool isSuccessResult(int result) { return result == 0; };
+inline bool
+isSuccessResult(int result)
+{
+    return result == 0;
+};
 
 void throwIfNonZero(int result);
 void throwIfNotEqual(int value, int requiredValue);

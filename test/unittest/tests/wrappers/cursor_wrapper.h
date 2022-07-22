@@ -12,13 +12,12 @@
 #include <string>
 #include "wiredtiger.h"
 
-
 class CursorWrapper {
     public:
-    CursorWrapper(WT_SESSION* _session, std::string const& tableName);
+    CursorWrapper(WT_SESSION *_session, std::string const &tableName);
     ~CursorWrapper();
-    void setKey(std::string const& key);
-    void setValue(std::string const& value);
+    void setKey(std::string const &key);
+    void setValue(std::string const &value);
     [[nodiscard]] std::string getKey();
     [[nodiscard]] std::string getValue();
     void insert();
@@ -28,10 +27,14 @@ class CursorWrapper {
     void close();
     void search();
 
-    WT_CURSOR* getWtCursor() { return _wtCursor; };
+    WT_CURSOR *
+    getWtCursor()
+    {
+        return _wtCursor;
+    };
 
     private:
-    WT_CURSOR* _wtCursor;
+    WT_CURSOR *_wtCursor;
 };
 
 #endif // WIREDTIGER_CURSOR_WRAPPER_H

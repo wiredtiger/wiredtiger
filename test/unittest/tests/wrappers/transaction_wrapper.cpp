@@ -15,16 +15,14 @@ TransactionWrapper::TransactionWrapper(WT_SESSION *session, std::string config)
     utils::throwIfNonZero(_session->begin_transaction(_session, _config.c_str()));
 }
 
-
 TransactionWrapper::~TransactionWrapper()
 {
     if (_rollbackInDestructor)
         _session->rollback_transaction(_session, _config.c_str());
 }
 
-
 void
-TransactionWrapper::commit(std::string const& commitConfig)
+TransactionWrapper::commit(std::string const &commitConfig)
 {
     utils::throwIfNonZero(_session->commit_transaction(_session, commitConfig.c_str()));
     _rollbackInDestructor = false;

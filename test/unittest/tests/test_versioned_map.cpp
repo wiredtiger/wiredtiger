@@ -28,20 +28,18 @@ TEST_CASE("std::map iterator")
     REQUIRE(testMap.size() == 4);
 
     int count = 0;
-    for (const auto& iter : testMap)
-    {
+    for (const auto &iter : testMap) {
         count++;
         REQUIRE(testMap[iter.first] == iter.second);
     }
     REQUIRE(count == 4);
 }
 
-
 TEST_CASE("VersionedMap", "[versioned_map]")
 {
     ConnectionWrapper conn(utils::UnitTestDatabaseHome);
-    WT_SESSION_IMPL* sessionImpl = conn.createSession();
-    WT_SESSION* session = &(sessionImpl->iface);
+    WT_SESSION_IMPL *sessionImpl = conn.createSession();
+    WT_SESSION *session = &(sessionImpl->iface);
 
     std::string table_name = "table:map_table";
     REQUIRE(session->create(session, table_name.c_str(), "key_format=S,value_format=S") == 0);
@@ -52,8 +50,9 @@ TEST_CASE("VersionedMap", "[versioned_map]")
     const std::string testcase_key2 = "key2";
     const std::string testcase_value2 = "value2";
 
-    SECTION("simple") {
-        WT_CURSOR* cursor = nullptr;
+    SECTION("simple")
+    {
+        WT_CURSOR *cursor = nullptr;
         REQUIRE(session->open_cursor(session, table_name.c_str(), nullptr, nullptr, &cursor) == 0);
         cursor->set_key(cursor, testcase_key1.c_str());
         cursor->set_value(cursor, testcase_value1.c_str());
@@ -69,11 +68,12 @@ TEST_CASE("VersionedMap", "[versioned_map]")
         std::string value = versionedMap.get(testcase_key1);
         REQUIRE(value == testcase_value1);
 
-        REQUIRE_THROWS(versionedMap.get("fred"));  // Key "fred" should not exist.
-        REQUIRE_THROWS(versionedMap.get("bill"));  // Key "bill" should not exist.
+        REQUIRE_THROWS(versionedMap.get("fred")); // Key "fred" should not exist.
+        REQUIRE_THROWS(versionedMap.get("bill")); // Key "bill" should not exist.
     }
 
-    SECTION("simple with wrappers") {
+    SECTION("simple with wrappers")
+    {
         CursorWrapper cursorWrapper(session, table_name);
         cursorWrapper.setKey(testcase_key1);
         cursorWrapper.setValue(testcase_value1);
@@ -89,11 +89,12 @@ TEST_CASE("VersionedMap", "[versioned_map]")
         REQUIRE(versionedMap.get(testcase_key1) == testcase_value1);
         REQUIRE(versionedMap.get(testcase_key2) == testcase_value2);
 
-        REQUIRE_THROWS(versionedMap.get("fred"));  // Key "fred" should not exist.
-        REQUIRE_THROWS(versionedMap.get("bill"));  // Key "bill" should not exist.
+        REQUIRE_THROWS(versionedMap.get("fred")); // Key "fred" should not exist.
+        REQUIRE_THROWS(versionedMap.get("bill")); // Key "bill" should not exist.
     }
 
-    SECTION("set() and get()") {
+    SECTION("set() and get()")
+    {
         constexpr int numToAdd = 10;
         {
             TransactionWrapper transactionWrapper(session, "");
@@ -116,13 +117,16 @@ TEST_CASE("VersionedMap", "[versioned_map]")
         REQUIRE(versionedMap.get("key7") == "value7");
         REQUIRE(versionedMap.get("key8") == "value8");
         REQUIRE(versionedMap.get("key9") == "value9");
-        REQUIRE_THROWS(versionedMap.get("fred"));   // Key "fred" should not exist.
-        REQUIRE_THROWS(versionedMap.get("key11"));  // Key "key11" should not exist.
+        REQUIRE_THROWS(versionedMap.get("fred"));  // Key "fred" should not exist.
+        REQUIRE_THROWS(versionedMap.get("key11")); // Key "key11" should not exist.
     }
 
-    SECTION("set() and get() with timestamps + iterators") {
-        REQUIRE(conn.getWtConnection()->set_timestamp(conn.getWtConnection(), "oldest_timestamp=1") == 0);
-        REQUIRE(conn.getWtConnection()->set_timestamp(conn.getWtConnection(), "stable_timestamp=1") == 0);
+    SECTION("set() and get() with timestamps + iterators")
+    {
+        REQUIRE(
+          conn.getWtConnection()->set_timestamp(conn.getWtConnection(), "oldest_timestamp=1") == 0);
+        REQUIRE(
+          conn.getWtConnection()->set_timestamp(conn.getWtConnection(), "stable_timestamp=1") == 0);
 
         constexpr int numToAdd = 10;
         {
@@ -191,8 +195,8 @@ TEST_CASE("VersionedMap", "[versioned_map]")
         REQUIRE(versionedMap.getTransactionWrapped("key7", "", 0x30) == "value7");
         REQUIRE(versionedMap.getTransactionWrapped("key7", "", 0x35) == "value7");
 
-        REQUIRE_THROWS(versionedMap.get("fred"));   // Key "fred" should not exist.
-        REQUIRE_THROWS(versionedMap.get("key11"));  // Key "key11" should not exist.
+        REQUIRE_THROWS(versionedMap.get("fred"));  // Key "fred" should not exist.
+        REQUIRE_THROWS(versionedMap.get("key11")); // Key "key11" should not exist.
 
         {
             int count = 0;

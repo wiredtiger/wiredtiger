@@ -1,10 +1,10 @@
 /*-
-* Copyright (c) 2014-present MongoDB, Inc.
-* Copyright (c) 2008-2014 WiredTiger, Inc.
-*	All rights reserved.
-*
-* See the file LICENSE for redistribution information.
-*/
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
 
 #ifndef WIREDTIGER_VERSIONED_MAP_H
 #define WIREDTIGER_VERSIONED_MAP_H
@@ -16,84 +16,105 @@
 #include "cursor_wrapper.h"
 #include "transaction_wrapper.h"
 
-
-template<class Key, class T>
-class VersionedMap
-{
+template <class Key, class T> class VersionedMap {
     public:
-
     typedef Key key_map;
     typedef T mapped_type;
     typedef std::pair<Key, T> value_type;
     typedef uint64_t size_type;
 
-    VersionedMap(WT_SESSION* session, std::string& tableName);
+    VersionedMap(WT_SESSION *session, std::string &tableName);
 
-    T get(const Key& key) const;
-    T getTransactionWrapped(const Key& key, const std::string& config, std::optional<uint64_t> timeStamp) const;
+    T get(const Key &key) const;
+    T getTransactionWrapped(
+      const Key &key, const std::string &config, std::optional<uint64_t> timeStamp) const;
 
-    void set(const Key& key, const T& value);
-    void setTransactionWrapped(const Key& key, const T& value, const std::string& config);
+    void set(const Key &key, const T &value);
+    void setTransactionWrapped(const Key &key, const T &value, const std::string &config);
 
-    std::string const& getTableName() { return _tableName; };
-    WT_SESSION* getSession() { return _session; };
+    std::string const &
+    getTableName()
+    {
+        return _tableName;
+    };
+    WT_SESSION *
+    getSession()
+    {
+        return _session;
+    };
 
     class Iterator {
         public:
-        explicit Iterator(VersionedMap& map);
+        explicit Iterator(VersionedMap &map);
         ~Iterator() = default;
-        value_type get() const { return std::pair<Key, T>(_cursor->getKey(), _cursor->getValue()); };
-        Iterator& next() { _wtRet = _cursor->next(); return (*this); };
-        Iterator& prev() { _wtRet = _cursor->prev(); return (*this); };
-        bool isOk() { return (_wtRet == 0); };
+        value_type
+        get() const
+        {
+            return std::pair<Key, T>(_cursor->getKey(), _cursor->getValue());
+        };
+        Iterator &
+        next()
+        {
+            _wtRet = _cursor->next();
+            return (*this);
+        };
+        Iterator &
+        prev()
+        {
+            _wtRet = _cursor->prev();
+            return (*this);
+        };
+        bool
+        isOk()
+        {
+            return (_wtRet == 0);
+        };
 
         private:
         std::shared_ptr<CursorWrapper> _cursor;
         int _wtRet;
     };
 
-    Iterator begin() { return Iterator(*this); };
+    Iterator
+    begin()
+    {
+        return Iterator(*this);
+    };
 
     // Methods that are the same or similar to those in std::map
-    T&& at(const Key& key) const;
+    T &&at(const Key &key) const;
     [[nodiscard]] size_type size() const;
-    [[nodiscard]] size_type size_transaction_wrapped(const std::string& config) const;
+    [[nodiscard]] size_type size_transaction_wrapped(const std::string &config) const;
 
     private:
-    WT_SESSION* _session; // This class does not own this pointer so should not free it.
+    WT_SESSION *_session; // This class does not own this pointer so should not free it.
     std::string _tableName;
 };
 
-
 template <class Key, class T>
-VersionedMap<Key, T>::Iterator::Iterator(VersionedMap& map)
-  : _wtRet(0),
-    _cursor(std::make_shared<CursorWrapper>(map.getSession(), map.getTableName()))
+VersionedMap<Key, T>::Iterator::Iterator(VersionedMap &map)
+    : _wtRet(0), _cursor(std::make_shared<CursorWrapper>(map.getSession(), map.getTableName()))
 {
     _cursor->reset();
     _wtRet = _cursor->next();
 }
 
-
 template <class Key, class T>
-VersionedMap<Key, T>::VersionedMap(WT_SESSION* session, std::string& tableName)
-  : _session(session),
-    _tableName(tableName)
+VersionedMap<Key, T>::VersionedMap(WT_SESSION *session, std::string &tableName)
+    : _session(session), _tableName(tableName)
 {
 }
 
-
 template <class Key, class T>
-T&&
-VersionedMap<Key, T>::at(const Key& key) const
+T &&
+VersionedMap<Key, T>::at(const Key &key) const
 {
     return nullptr;
 }
 
-
 template <class Key, class T>
 T
-VersionedMap<Key, T>::get(const Key& key) const
+VersionedMap<Key, T>::get(const Key &key) const
 {
     CursorWrapper cursorWrapper(_session, _tableName);
 
@@ -105,10 +126,10 @@ VersionedMap<Key, T>::get(const Key& key) const
     return (value);
 }
 
-
 template <class Key, class T>
 T
-VersionedMap<Key, T>::getTransactionWrapped(const Key& key, const std::string& config, std::optional<uint64_t> timeStamp) const
+VersionedMap<Key, T>::getTransactionWrapped(
+  const Key &key, const std::string &config, std::optional<uint64_t> timeStamp) const
 {
     TransactionWrapper transactionWrapper(_session, config);
     if (timeStamp) {
@@ -119,10 +140,9 @@ VersionedMap<Key, T>::getTransactionWrapped(const Key& key, const std::string& c
     return (get(key));
 }
 
-
 template <class Key, class T>
 void
-VersionedMap<Key, T>::set(const Key& key, const T& value)
+VersionedMap<Key, T>::set(const Key &key, const T &value)
 {
     CursorWrapper cursorWrapper(_session, _tableName);
     cursorWrapper.setKey(key);
@@ -131,16 +151,15 @@ VersionedMap<Key, T>::set(const Key& key, const T& value)
     cursorWrapper.reset();
 }
 
-
 template <class Key, class T>
 void
-VersionedMap<Key, T>::setTransactionWrapped(const Key &key, const T &value, const std::string& config)
+VersionedMap<Key, T>::setTransactionWrapped(
+  const Key &key, const T &value, const std::string &config)
 {
     TransactionWrapper transactionWrapper(_session, config);
     set(key, value);
     transactionWrapper.commit("");
 }
-
 
 template <class Key, class T>
 typename VersionedMap<Key, T>::size_type
@@ -160,10 +179,9 @@ VersionedMap<Key, T>::size() const
     return numValues;
 }
 
-
 template <class Key, class T>
 typename VersionedMap<Key, T>::size_type
-VersionedMap<Key, T>::size_transaction_wrapped(const std::string& config) const
+VersionedMap<Key, T>::size_transaction_wrapped(const std::string &config) const
 {
     TransactionWrapper transactionWrapper(_session, config);
     return size();

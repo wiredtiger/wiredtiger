@@ -14,12 +14,12 @@
 
 class TransactionWrapper {
     public:
-    TransactionWrapper(WT_SESSION* session, std::string config);
+    TransactionWrapper(WT_SESSION *session, std::string config);
     ~TransactionWrapper();
-    void commit(std::string const& commitConfig);
+    void commit(std::string const &commitConfig);
 
     private:
-    WT_SESSION* _session;
+    WT_SESSION *_session;
     std::string _config;
     bool _rollbackInDestructor;
 };

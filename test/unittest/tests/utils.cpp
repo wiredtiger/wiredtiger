@@ -27,8 +27,8 @@ void
 throwIfNotEqual(int value, int requiredValue)
 {
     if (value != requiredValue) {
-        std::string errorMessage("Result is " + std::to_string(value) +
-          " when it should be " + std::to_string(requiredValue));
+        std::string errorMessage("Result is " + std::to_string(value) + " when it should be " +
+          std::to_string(requiredValue));
         throw std::runtime_error(errorMessage);
     }
 }
