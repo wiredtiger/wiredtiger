@@ -33,43 +33,18 @@ template <class Key, class T> class VersionedMap {
     void set(const Key &key, const T &value);
     void setTransactionWrapped(const Key &key, const T &value, const std::string &config);
 
-    std::string const &
-    getTableName()
-    {
-        return _tableName;
-    };
-    WT_SESSION *
-    getSession()
-    {
-        return _session;
-    };
+    std::string const &getTableName();
+    WT_SESSION *getSession();
 
     class Iterator {
         public:
         explicit Iterator(VersionedMap &map);
         ~Iterator() = default;
-        value_type
-        get() const
-        {
-            return std::pair<Key, T>(_cursor->getKey(), _cursor->getValue());
-        };
-        Iterator &
-        next()
-        {
-            _wtRet = _cursor->next();
-            return (*this);
-        };
-        Iterator &
-        prev()
-        {
-            _wtRet = _cursor->prev();
-            return (*this);
-        };
-        bool
-        isOk()
-        {
-            return (_wtRet == 0);
-        };
+
+        value_type get() const;
+        Iterator &next();
+        Iterator &prev();
+        bool isOk();
 
         private:
         std::shared_ptr<CursorWrapper> _cursor;
@@ -83,7 +58,6 @@ template <class Key, class T> class VersionedMap {
     };
 
     // Methods that are the same or similar to those in std::map
-    T &&at(const Key &key) const;
     [[nodiscard]] size_type size() const;
     [[nodiscard]] size_type size_transaction_wrapped(const std::string &config) const;
 
@@ -101,17 +75,61 @@ VersionedMap<Key, T>::Iterator::Iterator(VersionedMap &map)
 }
 
 template <class Key, class T>
+typename VersionedMap<Key, T>::value_type
+VersionedMap<Key, T>::Iterator::get() const
+{
+    return std::pair<Key, T>(_cursor->getKey(), _cursor->getValue());
+};
+
+
+template <class Key, class T>
+typename VersionedMap<Key, T>::Iterator &
+VersionedMap<Key, T>::Iterator::next()
+{
+    _wtRet = _cursor->next();
+    return (*this);
+};
+
+
+template <class Key, class T>
+typename VersionedMap<Key, T>::Iterator &
+VersionedMap<Key, T>::Iterator::prev()
+{
+    _wtRet = _cursor->prev();
+    return (*this);
+};
+
+
+template <class Key, class T>
+bool
+VersionedMap<Key, T>::Iterator::isOk()
+{
+    return (_wtRet == 0);
+};
+
+
+
+template <class Key, class T>
 VersionedMap<Key, T>::VersionedMap(WT_SESSION *session, std::string &tableName)
     : _session(session), _tableName(tableName)
 {
 }
 
+
 template <class Key, class T>
-T &&
-VersionedMap<Key, T>::at(const Key &key) const
+std::string const &
+VersionedMap<Key, T>::getTableName()
 {
-    return nullptr;
-}
+    return _tableName;
+};
+
+template <class Key, class T>
+WT_SESSION *
+VersionedMap<Key, T>::getSession()
+{
+    return _session;
+};
+
 
 template <class Key, class T>
 T
