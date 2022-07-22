@@ -122,7 +122,7 @@ TEST_CASE("VersionedMap", "[versioned_map]")
         REQUIRE_THROWS(versionedMap.get("key11"));  // Key "key11" should not exist.
     }
 
-    SECTION("set() and get() with timestamps") {
+    SECTION("set() and get() with timestamps + iterators") {
         REQUIRE(conn.getWtConnection()->set_timestamp(conn.getWtConnection(), "oldest_timestamp=1") == 0);
         REQUIRE(conn.getWtConnection()->set_timestamp(conn.getWtConnection(), "stable_timestamp=1") == 0);
 
