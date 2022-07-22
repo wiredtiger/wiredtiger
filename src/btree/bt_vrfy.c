@@ -441,6 +441,11 @@ __verify_tree(
     case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_INT:
     case WT_PAGE_COL_VAR:
+        /*
+         * FLCS trees can have WT_PAGE_COL_INT or WT_PAGE_COL_FIX pages, and gaps in the namespace
+         * are not allowed; VLCS trees can have WT_PAGE_COL_INT or WT_PAGE_COL_VAR pages, and gaps
+         * in the namespace *are* allowed. Use the tree type to pick the check logic.
+         */
         if (btree->type == BTREE_COL_FIX && ref->ref_recno != vs->records_so_far + 1)
             WT_RET_MSG(session, WT_ERROR,
               "page at %s has a starting record of %" PRIu64

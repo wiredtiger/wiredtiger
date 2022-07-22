@@ -446,7 +446,7 @@ __instantiate_tombstone(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del,
 
 /*
  * __instantiate_col_var --
- *     Iterate a variable-length column-store page and instantiate tombstones.
+ *     Iterate over a variable-length column-store page and instantiate tombstones.
  */
 static int
 __instantiate_col_var(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *page_del,
@@ -527,7 +527,7 @@ err:
 
 /*
  * __instantiate_row --
- *     Iterate a row-store page and instantiate tombstones.
+ *     Iterate over a row-store page and instantiate tombstones.
  */
 static int
 __instantiate_row(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *page_del,

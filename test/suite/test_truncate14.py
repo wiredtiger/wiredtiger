@@ -146,6 +146,9 @@ class test_truncate14(wttest.WiredTigerTestCase):
 
         cursor = self.session.open_cursor(uri)
 
+        # Write out some data at time 20. This won't fit in a single transaction,
+        # but we'll treat it all as a single logical unit with the same commit
+        # timestamp.
         self.session.begin_transaction()
 
         # Write out a dense blob of data at the beginning of the namespace.
@@ -164,6 +167,9 @@ class test_truncate14(wttest.WiredTigerTestCase):
         first = k
 
         # Write out a bunch of very sparse data.
+        # (Intentionally don't commit at this specific point. If something goes wrong on a
+        # per-transaction basis, it'll be easier to figure out what and how if that doesn't
+        # intersect the test's logical groupings.)
         for i in range (1, sparse_rows + 1):
             cursor[k] = self.mkdata(value_a, k)
             k += sparse_gap
