@@ -8,8 +8,8 @@ To build with CMake we **require** the following dependencies:
   * `gcc` : Version 8.5 or later, or 
   * `clang`: Version 7.01 or later, or
   * `Visual Studio 2017`: If compiling on Windows
-* `cmake` : Official CMake install instructions found here: https://cmake.org/install/
-  * *WiredTiger supports CMake 3.10+*
+  * `cmake` : Official CMake install instructions found here: https://cmake.org/install/ (*WiredTiger supports CMake 3.10+*)
+  * `python` : Version 3 or later for building the Python API or running the tests
 
 We also suggest the following dependencies are also installed (for improved build times):
 
