@@ -5,6 +5,7 @@ import shutil
 import time
 import sys
 import threading
+import generate_format_cfg as gen_format_cfg
 
 def main():
     parser = argparse.ArgumentParser()
@@ -24,27 +25,45 @@ def main():
     os.mkdir("smart_configs")
     shutil.copyfile(args.config_name, "smart_configs/base")
 
-    format_recursion("base", sys.maxsize, args.tries, args.parallel)
+    best_config_dict = {}
+    best_config_dict['result'] = 0
+    best_config_dict['frequency'] = 0
+    best_config_dict['max_time'] = sys.maxsize
+    format_recursion("base", args.tries, args.parallel, best_config_dict)
+    print(best_config_dict)
 
-def thread_run_test_format_func(test_command, thread_return, max_time, tries):
-  for _ in range(0, tries):
+def thread_run_test_format_func(test_command, thread_return, tries, best_config_dict):
+  failed = 0
+  max_time = 0
+  frequency = 0
+  for i in range(0, tries):
     st = time.time()
-    return_code = subprocess.call(test_command, shell=True)
+    return_code = subprocess.call(test_command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     et = time.time()
-    if (return_code != 0 and et - st < max_time):
-      thread_return['result'] = return_code
-      thread_return['max_time'] = et - st
-      break
+    print("I am in {0} iteration out of {1}\n".format(i, tries))
+    if (return_code != 0):
+      failed = return_code
+      max_time = max_time + et - st
+      frequency = frequency + 1
 
-def format_recursion(base_config, max_time, tries, parallel):
+  if (failed != 0):
+    if (frequency > best_config_dict['frequency']):
+      thread_return['result'] = failed
+      thread_return['max_time'] = max_time
+      thread_return['frequency'] = frequency
+    elif (frequency == best_config_dict['frequency'] and max_time < best_config_dict['max_time']):
+      thread_return['result'] = failed
+      thread_return['max_time'] = max_time
+      thread_return['frequency'] = frequency
+
+def format_recursion(base_config, tries, parallel, best_config_dict):
   for config in os.listdir("."):
     if config.startswith("dump_t."):
       os.remove(config)
 
-  return_code = subprocess.call("python generate_format_cfg.py -n 5 -i smart_configs/{0} -o smart_configs/{0}_test".format(base_config), shell=True)
-  if (return_code != 0):
-    print("not working")
-    exit(-1)
+
+  change_list = gen_format_cfg.my_func("smart_configs/base", "smart_configs/{0}_test".format(base_config), true, config_dict_range, false)
+  print(change_list)
 
   threads = list()
   thread_id = 0
@@ -55,28 +74,59 @@ def format_recursion(base_config, max_time, tries, parallel):
       if (parallel):
         thread_return = {}
         thread_return['result'] = 0
-        thread_return['max_time'] = max_time
+        thread_return['max_time'] = 0
+        thread_return['frequency'] = 0
     
-        x = threading.Thread(target=thread_run_test_format_func, args=(test_command,thread_return,max_time,tries))
+        x = threading.Thread(target=thread_run_test_format_func, args=(test_command,thread_return,tries,best_config_dict))
+        print("Thread {0}: Starting test format\n".format(thread_id))
         x.start()
         threads.append((x, config, thread_return))
         thread_id = thread_id + 1
       else:
+        frequency = 0
+        failed = 0
+        max_time = 0
         for _ in range(0, tries):
           st = time.time()
           return_code = subprocess.call(test_command, shell=True)
           et = time.time()
-          if (return_code != 0 and et - st < max_time):
-            print(return_code, et - st, config)
-            format_recursion(config, et - st, tries, parallel)
-            break
+          if (return_code != 0):
+            failed = return_code
+            max_time = max_time + et - st
+            frequency = frequency + 1
+
+        if (failed != 0):
+          if (frequency > best_config_dict['frequency']):
+            best_config_dict['frequency'] = frequency
+            best_config_dict['max_time'] = max_time
+            best_config_dict['result'] = failed
+            format_recursion(config, tries, parallel, best_config_dict)
+          elif (frequency == best_config_dict['frequency'] and max_time < best_config_dict['max_time']):
+            best_config_dict['frequency'] = frequency
+            best_config_dict['max_time'] = max_time
+            best_config_dict['result'] = failed
+            format_recursion(config, tries, parallel, best_config_dict)
+        
 
   if (parallel):
-    for (t, config, ret) in threads:
-        t.join()
-        if (thread_return['result'] != 0):
-          print(thread_return.result, thread_return['max_time'], config)
-          format_recursion(config, thread_return['max_time'], tries, parallel)
+    for (t, config, thread_ret) in threads:
+      t.join()
+      print("Waiting for test format to finish test format\n")
+      # Result 
+      if (thread_ret['result'] != 0):
+        print(thread_ret['result'], thread_ret['max_time'], best_config_dict)
+        if (thread_ret['frequency'] > best_config_dict['frequency']):
+          best_config_dict['frequency'] = thread_ret['frequency']
+          best_config_dict['max_time'] = thread_ret['max_time']
+          best_config_dict['result'] = thread_ret['result']
+        elif (thread_ret['frequency'] == best_config_dict['frequency'] and thread_ret['max_time'] < best_config_dict['max_time']):
+          best_config_dict['frequency'] = thread_ret['frequency']
+          best_config_dict['max_time'] = thread_ret['max_time']
+          best_config_dict['result'] = thread_ret['result']
+        
+    for (t, config, thread_ret) in threads:
+      if (thread_ret['result'] != 0):
+        format_recursion(config, tries, parallel, best_config_dict)
 
 if __name__ == "__main__":
     main()
