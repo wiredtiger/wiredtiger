@@ -161,31 +161,43 @@ TEST_CASE("VersionedMap", "[versioned_map]")
         REQUIRE(versionedMap.get("key8") == "value8");
         REQUIRE(versionedMap.get("key9") == "value9");
 
-        REQUIRE_THROWS(versionedMap.get_transaction_wrapped("key3", "", 0x5));
-        REQUIRE(versionedMap.get_transaction_wrapped("key3", "", 0x10) == "value3");
-        REQUIRE(versionedMap.get_transaction_wrapped("key3", "", 0x15) == "value3");
-        REQUIRE(versionedMap.get_transaction_wrapped("key3", "", 0x20) == "value3-ts20");
-        REQUIRE(versionedMap.get_transaction_wrapped("key3", "", 0x25) == "value3-ts20");
-        REQUIRE(versionedMap.get_transaction_wrapped("key3", "", 0x30) == "value3-ts20");
-        REQUIRE(versionedMap.get_transaction_wrapped("key3", "", 0x35) == "value3-ts20");
+        REQUIRE_THROWS(versionedMap.getTransactionWrapped("key3", "", 0x5));
+        REQUIRE(versionedMap.getTransactionWrapped("key3", "", 0x10) == "value3");
+        REQUIRE(versionedMap.getTransactionWrapped("key3", "", 0x15) == "value3");
+        REQUIRE(versionedMap.getTransactionWrapped("key3", "", 0x20) == "value3-ts20");
+        REQUIRE(versionedMap.getTransactionWrapped("key3", "", 0x25) == "value3-ts20");
+        REQUIRE(versionedMap.getTransactionWrapped("key3", "", 0x30) == "value3-ts20");
+        REQUIRE(versionedMap.getTransactionWrapped("key3", "", 0x35) == "value3-ts20");
 
-        REQUIRE_THROWS(versionedMap.get_transaction_wrapped("key5", "", 0x5));
-        REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x10) == "value5");
-        REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x15) == "value5");
-        REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x20) == "value5-ts20");
-        REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x25) == "value5-ts20");
-        REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x30) == "value5-ts30");
-        REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x35) == "value5-ts30");
-        REQUIRE(versionedMap.get_transaction_wrapped("key5", "", 0x10) == "value5");
+        REQUIRE_THROWS(versionedMap.getTransactionWrapped("key5", "", 0x5));
+        REQUIRE(versionedMap.getTransactionWrapped("key5", "", 0x10) == "value5");
+        REQUIRE(versionedMap.getTransactionWrapped("key5", "", 0x15) == "value5");
+        REQUIRE(versionedMap.getTransactionWrapped("key5", "", 0x20) == "value5-ts20");
+        REQUIRE(versionedMap.getTransactionWrapped("key5", "", 0x25) == "value5-ts20");
+        REQUIRE(versionedMap.getTransactionWrapped("key5", "", 0x30) == "value5-ts30");
+        REQUIRE(versionedMap.getTransactionWrapped("key5", "", 0x35) == "value5-ts30");
+        REQUIRE(versionedMap.getTransactionWrapped("key5", "", 0x10) == "value5");
 
-        REQUIRE_THROWS(versionedMap.get_transaction_wrapped("key7", "", 0x5));
-        REQUIRE(versionedMap.get_transaction_wrapped("key7", "", 0x15) == "value7");
-        REQUIRE(versionedMap.get_transaction_wrapped("key7", "", 0x20) == "value7");
-        REQUIRE(versionedMap.get_transaction_wrapped("key7", "", 0x25) == "value7");
-        REQUIRE(versionedMap.get_transaction_wrapped("key7", "", 0x30) == "value7");
-        REQUIRE(versionedMap.get_transaction_wrapped("key7", "", 0x35) == "value7");
+        REQUIRE_THROWS(versionedMap.getTransactionWrapped("key7", "", 0x5));
+        REQUIRE(versionedMap.getTransactionWrapped("key7", "", 0x15) == "value7");
+        REQUIRE(versionedMap.getTransactionWrapped("key7", "", 0x20) == "value7");
+        REQUIRE(versionedMap.getTransactionWrapped("key7", "", 0x25) == "value7");
+        REQUIRE(versionedMap.getTransactionWrapped("key7", "", 0x30) == "value7");
+        REQUIRE(versionedMap.getTransactionWrapped("key7", "", 0x35) == "value7");
 
         REQUIRE_THROWS(versionedMap.get("fred"));   // Key "fred" should not exist.
         REQUIRE_THROWS(versionedMap.get("key11"));  // Key "key11" should not exist.
+
+        {
+            int count = 0;
+            auto iterator = versionedMap.begin();
+            while (iterator.isOk()) {
+                auto value = iterator.get();
+                REQUIRE(versionedMap.get(value.first) == value.second);
+                iterator.next();
+                count++;
+            }
+            REQUIRE(count == 10);
+        }
     }
 }

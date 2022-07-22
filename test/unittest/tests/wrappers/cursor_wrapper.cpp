@@ -37,6 +37,15 @@ CursorWrapper::setValue(const std::string &value)
 }
 
 
+
+std::string
+CursorWrapper::getKey()
+{
+    char const *pKey = nullptr;
+    utils::throwIfNonZero(_wtCursor->get_key(_wtCursor, &pKey));
+    return { pKey };}
+
+
 std::string
 CursorWrapper::getValue()
 {
@@ -79,3 +88,11 @@ CursorWrapper::next()
 {
     return (_wtCursor->next(_wtCursor));
 }
+
+
+int
+CursorWrapper::prev()
+{
+    return (_wtCursor->prev(_wtCursor));
+}
+

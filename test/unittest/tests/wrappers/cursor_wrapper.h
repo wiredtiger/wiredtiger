@@ -19,9 +19,11 @@ class CursorWrapper {
     ~CursorWrapper();
     void setKey(std::string const& key);
     void setValue(std::string const& value);
+    [[nodiscard]] std::string getKey();
     [[nodiscard]] std::string getValue();
     void insert();
     int next();
+    int prev();
     void reset();
     void close();
     void search();
