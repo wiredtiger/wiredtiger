@@ -9,6 +9,7 @@
 #ifndef WIREDTIGER_VERSIONED_MAP_H
 #define WIREDTIGER_VERSIONED_MAP_H
 
+#include <optional>
 #include <map>
 #include <string>
 #include "wiredtiger.h"
