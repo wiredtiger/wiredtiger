@@ -94,7 +94,7 @@ Configure WiredTiger to sleep and wait for a debugger to attach on failure.
 <b>DO NOT</b> configure this option in production environments.
 
 @par \c -DHAVE_DIAGNOSTIC=1
-Configure WiredTiger to perform various run-time diagnostic tests (enabled by default).
+Configure WiredTiger to perform various run-time diagnostic tests (enabled by default for non Release build types).
 <b>DO NOT</b> configure this option in production environments.
 
 @par \c -DNON_BARRIER_DIAGNOSTIC_YIELDS=1

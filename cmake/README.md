@@ -97,7 +97,7 @@ There are a number of additional configuration options you can pass to the CMake
 * `-DENABLE_ZLIB=1` : Build the zlib compressor extension (enabled by default if the ZLIB library is present)
 * `-DENABLE_ZSTD=1` : Build the libzstd compressor extension (enabled by default if the ZSTD library is present)
 * `-DENABLE_SODIUM=1` : Build the libsodium encryptor extension
-* `-DHAVE_DIAGNOSTIC=1` : Enable WiredTiger diagnostics
+* `-DHAVE_DIAGNOSTIC=1` : Enable WiredTiger diagnostics (enabled by default for non Release build types)
 * `-DHAVE_REF_TRACK=1` : Enable WiredTiger to track recent state transitions for WT_REF structures (always enabled in diagnostic build)
 * `-DHAVE_UNITTEST=1` : Enable WiredTiger unit tests (enabled by default)
 * `-DHAVE_ATTACH=1` : Enable to pause for debugger attach on failure

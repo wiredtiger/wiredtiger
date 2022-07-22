@@ -10,7 +10,7 @@ To build from the WiredTiger GitHub repository requires
 <a href="https://gcc.gnu.org/">GCC 8.5 or later</a> or
 <a href="https://clang.llvm.org/">Clang 7.01 or later</a>, and
 <a href="https://cmake.org/">CMake 3.10.0 or later</a>, and
-<a href="https://python.org/">Python 3 or later</a> (if building to support the Python API or running the tests), and
+<a href="https://python.org/">Python 3 or later</a> (if building to support the Python API), and
 <a href="http://www.swig.org/">SWIG</a> (if building to support the Python API).
 We also suggest <a href="https://ninja-build.org/">Ninja</a> and
 <a href="https://ccache.dev/">ccache</a> for improved incremental build times.
@@ -103,7 +103,7 @@ Configure WiredTiger to sleep and wait for a debugger to attach on failure.
 <b>DO NOT</b> configure this option in production environments.
 
 @par \c -DHAVE_DIAGNOSTIC=1
-Configure WiredTiger to perform various run-time diagnostic tests (enabled by default).
+Configure WiredTiger to perform various run-time diagnostic tests (enabled by default for non Release build types).
 <b>DO NOT</b> configure this option in production environments.
 
 @par \c -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
