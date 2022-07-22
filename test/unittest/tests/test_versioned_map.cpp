@@ -6,8 +6,6 @@
  * See the file LICENSE for redistribution information.
  */
 
-#include <iostream>
-#include <optional>
 #include <catch2/catch.hpp>
 #include "wt_internal.h"
 #include "wrappers/versioned_map.h"

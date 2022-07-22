@@ -41,20 +41,18 @@ class VersionedMap
     class Iterator {
         public:
         explicit Iterator(VersionedMap& map);
-        //Iterator() = default;
         ~Iterator() = default;
         value_type get() const { return std::pair<Key, T>(_cursor->getKey(), _cursor->getValue()); };
         Iterator& next() { _wtRet = _cursor->next(); return (*this); };
         Iterator& prev() { _wtRet = _cursor->prev(); return (*this); };
         bool isOk() { return (_wtRet == 0); };
+
         private:
-//        VersionedMap& _versionedMap;
         std::shared_ptr<CursorWrapper> _cursor;
         int _wtRet;
     };
 
     Iterator begin() { return Iterator(*this); };
-//    Iterator end() { return Iterator(); };
 
     // Methods that are the same or similar to those in std::map
     T&& at(const Key& key) const;
