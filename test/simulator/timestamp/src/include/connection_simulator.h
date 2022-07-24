@@ -42,9 +42,9 @@ class connection_simulator {
     session_simulator *open_session();
     bool close_session(session_simulator *);
     bool set_timestamp(const std::string &);
-    int query_timestamp() const;
     uint64_t get_oldest_ts() const;
     uint64_t get_stable_ts() const;
+    int query_timestamp() const;
     ~connection_simulator();
 
     private:
@@ -63,11 +63,6 @@ class connection_simulator {
     /* Member variables */
     private:
     std::vector<session_simulator *> _session_list;
-    /*
-     * Timestamp manager is responsible for validating all the timestamps, including the global
-     * timestamps; stable, oldest and durable in the connection.
-     */
-    timestamp_manager *_ts_mgr;
     uint64_t _oldest_ts;
     uint64_t _stable_ts;
     uint64_t _durable_ts;

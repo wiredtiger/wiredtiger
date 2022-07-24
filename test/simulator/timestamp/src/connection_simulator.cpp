@@ -28,7 +28,7 @@
 
 #include <algorithm>
 #include <iostream>
-#include <string.h>
+#include <string>
 
 #include "connection_simulator.h"
 #include "timestamp_manager.h"
@@ -144,7 +144,7 @@ connection_simulator::parse_timestamp_config(const std::string &config, uint64_t
 bool
 connection_simulator::set_timestamp(const std::string &config)
 {
-    /* Set the new stable and oldest timestamps to the previous global values by default. */
+    /* Set the new stable, oldest and durable timestamps to the previous global values by default. */
     uint64_t new_stable_ts = _stable_ts;
     uint64_t new_oldest_ts = _oldest_ts;
     uint64_t new_durable_ts = _durable_ts;
@@ -153,13 +153,13 @@ connection_simulator::set_timestamp(const std::string &config)
 
     /* Validate the new oldest timestamp if it is being updated. */
     if (new_oldest_ts != _oldest_ts &&
-      _ts_mgr->validate_oldest_ts(new_stable_ts, new_oldest_ts) != 0) {
+      timestamp_manager::get_timestamp_manager().validate_oldest_ts(new_stable_ts, new_oldest_ts) != 0) {
         return (false);
     }
 
     /* Validate the new stable timestamp if it is being updated. */
     if (new_stable_ts != _stable_ts &&
-      _ts_mgr->validate_stable_ts(new_stable_ts, new_oldest_ts) != 0) {
+      timestamp_manager::get_timestamp_manager().validate_stable_ts(new_stable_ts, new_oldest_ts) != 0) {
         return (false);
     }
 
