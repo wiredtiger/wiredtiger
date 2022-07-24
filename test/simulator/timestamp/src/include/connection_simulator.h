@@ -44,18 +44,20 @@ class connection_simulator {
     bool close_session(session_simulator *);
     int query_timestamp() const;
     int set_timestamp(const std::string config);
-    ~connection_simulator();
     uint64_t get_oldest_ts() const;
     uint64_t get_stable_ts() const;
+    ~connection_simulator();
 
-    /* No copies of the singleton allowed. */
     private:
-    connection_simulator();
     int parse_timestamp_config_single(
       const std::string &config, uint64_t *new_oldest_ts, uint64_t *new_stable_ts);
     void parse_timestamp_config(
       std::string config, uint64_t *new_oldest_ts, uint64_t *new_stable_ts);
     void system_timestamps_map_setup();
+
+    /* No copies of the singleton allowed. */
+    private:
+    connection_simulator();
 
     public:
     /* Deleted functions should generally be public as it results in better error messages. */
