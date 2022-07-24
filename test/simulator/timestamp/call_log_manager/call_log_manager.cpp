@@ -142,7 +142,9 @@ call_log_manager::process_call_log_entry(json call_log_entry)
              * configuration.
              */
             if (config != "(null)")
-                _conn->set_timestamp(config);
+                if (!_conn->set_timestamp(config))
+                    throw std::runtime_error(
+                      "Failure to set timestamp. Timestamps may not be valid!");
             break;
         }
         }

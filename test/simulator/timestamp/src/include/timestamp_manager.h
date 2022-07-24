@@ -34,9 +34,8 @@ class timestamp_manager {
     public:
     static timestamp_manager &get_timestamp_manager();
     /* Methods for validating timestamps */
-    int validate_oldest_ts(uint64_t new_stable_ts, uint64_t new_oldest_ts);
-    int validate_stable_ts(uint64_t new_stable_ts, uint64_t new_oldest_ts);
-    int validate_durable_ts(uint64_t new_durable_ts);
+    bool validate_oldest_and_stable_ts(uint64_t &, uint64_t &, bool &, bool &);
+    bool validate_durable_ts(uint64_t &, bool &);
 
     /* No copies of the singleton allowed. */
     private:

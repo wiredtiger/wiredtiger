@@ -28,6 +28,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <sstream>
 #include <string>
 
 #include "connection_simulator.h"
@@ -44,13 +45,13 @@ connection_simulator::get_connection()
 uint64_t
 connection_simulator::get_oldest_ts() const
 {
-    return _oldest_ts;
+    return (_oldest_ts);
 }
 
 uint64_t
 connection_simulator::get_stable_ts() const
 {
-    return _stable_ts;
+    return (_stable_ts);
 }
 
 session_simulator *
@@ -88,27 +89,36 @@ connection_simulator::query_timestamp() const
 
 /* Parse a single timestamp configuration string eg. oldest_timestamp=10. */
 bool
-connection_simulator::parse_timestamp_config_single(const std::string &config,
-  uint64_t *new_oldest_ts, uint64_t *new_stable_ts, uint64_t *new_durable_ts)
+connection_simulator::parse_and_decode_timestamp_config_single(const std::string &config,
+  uint64_t &new_oldest_ts, uint64_t &new_stable_ts, uint64_t &new_durable_ts, bool &has_oldest,
+  bool &has_stable, bool &has_durable)
 {
+
     int durable_found = config.find("durable_timestamp=");
     int oldest_found = config.find("oldest_timestamp=");
     int stable_found = config.find("stable_timestamp=");
 
-    std::string ts_string;
+    std::stringstream stream;
+    std::string hex_ts;
     if (oldest_found != -1) {
-        ts_string = config.substr(oldest_found + 17);
-        *new_oldest_ts = std::stoi(ts_string);
+        hex_ts = config.substr(oldest_found + 17);
+        stream << hex_ts;
+        stream >> std::hex >> new_oldest_ts;
+        has_oldest = true;
         return (true);
     }
     if (stable_found != -1) {
-        ts_string = config.substr(stable_found + 17);
-        *new_stable_ts = std::stoi(ts_string);
+        hex_ts = config.substr(stable_found + 17);
+        stream << hex_ts;
+        stream >> std::hex >> new_stable_ts;
+        has_stable = true;
         return (true);
     }
     if (durable_found != -1) {
-        ts_string = config.substr(durable_found + 18);
-        *new_durable_ts = std::stoi(ts_string);
+        hex_ts = config.substr(durable_found + 18);
+        stream << hex_ts;
+        stream >> std::hex >> new_durable_ts;
+        has_durable = true;
         return (true);
     }
 
@@ -117,8 +127,9 @@ connection_simulator::parse_timestamp_config_single(const std::string &config,
 
 /* Parse the timestamp configuration string with timestamps separated by ','. */
 void
-connection_simulator::parse_timestamp_config(const std::string &config, uint64_t *new_oldest_ts,
-  uint64_t *new_stable_ts, uint64_t *new_durable_ts)
+connection_simulator::parse_and_decode_timestamp_config(const std::string &config,
+  uint64_t &new_oldest_ts, uint64_t &new_stable_ts, uint64_t &new_durable_ts, bool &has_oldest,
+  bool &has_stable, bool &has_durable)
 {
     std::string conf = config;
     /* Loop over the timestamp configuration strings separated by ','. */
@@ -126,7 +137,9 @@ connection_simulator::parse_timestamp_config(const std::string &config, uint64_t
     while ((pos = conf.find(",")) != std::string::npos) {
         std::string token = conf.substr(0, pos);
 
-        if (!parse_timestamp_config_single(token, new_oldest_ts, new_stable_ts, new_durable_ts))
+        /* Throw an error for an unknown config. */
+        if (!parse_and_decode_timestamp_config_single(token, new_oldest_ts, new_stable_ts,
+              new_durable_ts, has_oldest, has_stable, has_durable))
             throw std::runtime_error(
               "Could not set the timestamp as there is no system level timestamp called '" + token +
               "'");
@@ -134,8 +147,9 @@ connection_simulator::parse_timestamp_config(const std::string &config, uint64_t
         conf.erase(0, pos + 1);
     }
 
-    /* Parse the final timestamp configuration string. */
-    if (!parse_timestamp_config_single(conf, new_oldest_ts, new_stable_ts, new_durable_ts))
+    /* Parse the final timestamp configuration string, and throw an error for an unknown config. */
+    if (!parse_and_decode_timestamp_config_single(
+          conf, new_oldest_ts, new_stable_ts, new_durable_ts, has_oldest, has_stable, has_durable))
         throw std::runtime_error(
           "Could not set the timestamp as there is no system level timestamp called '" + conf +
           "'");
@@ -144,37 +158,33 @@ connection_simulator::parse_timestamp_config(const std::string &config, uint64_t
 bool
 connection_simulator::set_timestamp(const std::string &config)
 {
-    /* Set the new stable, oldest and durable timestamps to the previous global values by default. */
-    uint64_t new_stable_ts = _stable_ts;
-    uint64_t new_oldest_ts = _oldest_ts;
-    uint64_t new_durable_ts = _durable_ts;
+    /* If no timestamp was supplied, there's nothing to do. */
+    if (config.empty())
+        return (true);
 
-    parse_timestamp_config(config, &new_oldest_ts, &new_stable_ts, &new_durable_ts);
+    uint64_t new_stable_ts = 0, new_oldest_ts = 0, new_durable_ts = 0;
+    bool has_stable = false, has_oldest = false, has_durable = false;
 
-    /* Validate the new oldest timestamp if it is being updated. */
-    if (new_oldest_ts != _oldest_ts &&
-      timestamp_manager::get_timestamp_manager().validate_oldest_ts(new_stable_ts, new_oldest_ts) != 0) {
+    parse_and_decode_timestamp_config(
+      config, new_oldest_ts, new_stable_ts, new_durable_ts, has_oldest, has_stable, has_durable);
+
+    /* Validate the new oldest and stable timestamp. */
+    if (!timestamp_manager::get_timestamp_manager().validate_oldest_and_stable_ts(
+          new_stable_ts, new_oldest_ts, has_oldest, has_stable) ||
+      !timestamp_manager::get_timestamp_manager().validate_durable_ts(new_durable_ts, has_durable))
         return (false);
-    }
 
-    /* Validate the new stable timestamp if it is being updated. */
-    if (new_stable_ts != _stable_ts &&
-      timestamp_manager::get_timestamp_manager().validate_stable_ts(new_stable_ts, new_oldest_ts) != 0) {
-        return (false);
-    }
-
-    /*
-     * The new timestamps have been validated up to this point. Now we can update the connection
-     * timestamps.
-     */
-    _stable_ts = new_stable_ts;
-    _oldest_ts = new_oldest_ts;
-    _durable_ts = new_durable_ts;
+    if (has_stable)
+        _stable_ts = new_stable_ts;
+    if (has_oldest)
+        _oldest_ts = new_oldest_ts;
+    if (has_durable)
+        _durable_ts = new_durable_ts;
 
     return (true);
 }
 
-connection_simulator::connection_simulator() {}
+connection_simulator::connection_simulator() : _oldest_ts(0), _stable_ts(0), _durable_ts(0) {}
 
 connection_simulator::~connection_simulator()
 {

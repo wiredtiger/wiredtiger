@@ -42,52 +42,85 @@ timestamp_manager::get_timestamp_manager()
     return (_timestamp_manager_instance);
 }
 
-int
-timestamp_manager::validate_oldest_ts(uint64_t new_stable_ts, uint64_t new_oldest_ts)
+/*
+ * validate_oldest_and_stable_ts --
+ *     Validate both oldest and stable timestamps. - If stable and oldest were not passed in the
+ *     config, simply return. - Validation fails if Illegal timestamp value is passed (if less than
+ *     or equal to 0). - It is a no-op to set the oldest or stable timestamps behind the global
+ *     values. Hence, ignore and continue validating. - Ensure that the stable is greater than the
+ *     oldest timestamp.
+ */
+bool
+timestamp_manager::validate_oldest_and_stable_ts(
+  uint64_t &new_stable_ts, uint64_t &new_oldest_ts, bool &has_oldest, bool &has_stable)
 {
+    /* No need to validate timestamps if timestamps are not passed in the config. */
+    if (!has_oldest && !has_stable)
+        return (true);
+
     connection_simulator *conn = &connection_simulator::get_connection();
 
-    /* Oldest timestamp can't move backward. */
-    if (new_oldest_ts <= conn->get_oldest_ts()) {
-        std::cout << "Oldest timestamp cannot move backwards." << std::endl;
-        return 1;
+    /* If config has oldest timestamp */
+    if (has_oldest) {
+        /* Cannot proceed any further, if oldest timestamp value <= 0 */
+        if ((int64_t)new_oldest_ts <= 0)
+            return (false);
+        /* It is a no-op to set the new oldest timestamps behind the current oldest timestamp. */
+        if (new_oldest_ts <= conn->get_oldest_ts())
+            has_oldest = false;
     }
 
-    /* The oldest and stable timestamps must always satisfy the condition that oldest <= stable. */
-    if (new_oldest_ts > new_stable_ts) {
-        std::cout << "set_timestamp: oldest timestamp " << new_oldest_ts
-                  << " must not be later than stable timestamp " << new_stable_ts << "."
-                  << std::endl;
-        return 1;
+    /* If config has stable timestamp */
+    if (has_stable) {
+        /* Cannot proceed any further, if stable timestamp value <= 0 */
+        if ((int64_t)new_stable_ts <= 0)
+            return (false);
+        /* It is a no-op to set the new stable timestamps behind the current stable timestamp. */
+        if (new_stable_ts <= conn->get_stable_ts())
+            has_stable = false;
     }
 
-    return 0;
+    /* No need to validate timestamps if stable or/and oldest were behind the global values. */
+    if (!has_oldest && !has_stable)
+        return (true);
+
+    /* No need to validate timestamps if there is no new and no current oldest timestamp. */
+    if (!has_oldest && conn->get_oldest_ts() == 0)
+        return (true);
+
+    /* No need to validate timestamps if there is no new and no current stable timestamp. */
+    if (!has_stable && conn->get_stable_ts() == 0)
+        return (true);
+
+    /*
+     * If the oldest timestamp was not passed in the config or was behind the current oldest
+     * timestamp, modify the new_oldest_ts to the current oldest timestamp.
+     */
+    if ((!has_oldest && conn->get_oldest_ts() != 0))
+        new_oldest_ts = conn->get_oldest_ts();
+
+    /*
+     * If the stable timestamp was not passed in the config or was behind the current stable
+     * timestamp, modify the new_stable_ts to the current stable timestamp
+     */
+    if ((!has_stable && conn->get_stable_ts() != 0))
+        new_stable_ts = conn->get_stable_ts();
+
+    /* Validate if stable is greater than the oldest timestamp. */
+    if (new_oldest_ts > new_stable_ts)
+        return (false);
+
+    return (true);
 }
 
-int
-timestamp_manager::validate_stable_ts(uint64_t new_stable_ts, uint64_t new_oldest_ts)
+bool
+timestamp_manager::validate_durable_ts(uint64_t &new_durable_ts, bool &has_durable)
 {
-    connection_simulator *conn = &connection_simulator::get_connection();
+    /* If durable timestamp was not passed in the config, no validation is needed. */
+    if (!has_durable)
+        return (true);
 
-    /* Stable timestamp can't move backward. */
-    if (new_stable_ts <= conn->get_stable_ts()) {
-        std::cout << "Stable timestamp cannot move backwards." << std::endl;
-        return 1;
-    }
-
-    /* The oldest and stable timestamps must always satisfy the condition that oldest <= stable. */
-    if (new_oldest_ts > new_stable_ts) {
-        std::cout << "set_timestamp: oldest timestamp " << conn->get_oldest_ts()
-                  << " must not be later than stable timestamp " << new_stable_ts << "."
-                  << std::endl;
-        return 1;
-    }
-
-    return 0;
-}
-
-int
-timestamp_manager::validate_durable_ts(uint64_t new_durable_ts)
-{
-    return 0;
+    /* Illegal timestamp value (if less than or equal to 0). */
+    if ((int64_t)new_durable_ts <= 0)
+        return (false);
 }

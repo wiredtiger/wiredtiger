@@ -48,8 +48,10 @@ class connection_simulator {
     ~connection_simulator();
 
     private:
-    bool parse_timestamp_config_single(const std::string &, uint64_t *, uint64_t *, uint64_t *);
-    void parse_timestamp_config(const std::string &, uint64_t *, uint64_t *, uint64_t *);
+    bool parse_and_decode_timestamp_config_single(
+      const std::string &, uint64_t &, uint64_t &, uint64_t &, bool &, bool &, bool &);
+    void parse_and_decode_timestamp_config(
+      const std::string &, uint64_t &, uint64_t &, uint64_t &, bool &, bool &, bool &);
 
     /* No copies of the singleton allowed. */
     private:
