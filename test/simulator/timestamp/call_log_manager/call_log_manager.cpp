@@ -130,10 +130,12 @@ call_log_manager::process_call_log_entry(json call_log_entry)
              * without a connection.
              */
             if (_conn == nullptr)
-                throw std::runtime_error("Could not set the timestamp as connection does not exist");
+                throw std::runtime_error(
+                  "Could not set the timestamp as connection does not exist");
 
             /* Convert the config char * to a string object. */
             const std::string config = call_log_entry["input"]["config"].get<std::string>();
+
             /*
              * A generated call log without a configuration string in the set timestamp entry will
              * have the string "(null)". We can ignore the set timestamp call if there is no

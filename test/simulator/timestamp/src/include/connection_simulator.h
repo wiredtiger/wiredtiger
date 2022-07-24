@@ -28,9 +28,8 @@
 
 #pragma once
 
-#include <memory>
+#include <string>
 #include <vector>
-#include <map>
 
 #include "session_simulator.h"
 #include "timestamp_manager.h"
@@ -42,18 +41,15 @@ class connection_simulator {
     static connection_simulator &get_connection();
     session_simulator *open_session();
     bool close_session(session_simulator *);
+    bool set_timestamp(const std::string &);
     int query_timestamp() const;
-    int set_timestamp(const std::string config);
     uint64_t get_oldest_ts() const;
     uint64_t get_stable_ts() const;
     ~connection_simulator();
 
     private:
-    int parse_timestamp_config_single(
-      const std::string &config, uint64_t *new_oldest_ts, uint64_t *new_stable_ts);
-    void parse_timestamp_config(
-      std::string config, uint64_t *new_oldest_ts, uint64_t *new_stable_ts);
-    void system_timestamps_map_setup();
+    bool parse_timestamp_config_single(const std::string &, uint64_t *, uint64_t *, uint64_t *);
+    void parse_timestamp_config(const std::string &, uint64_t *, uint64_t *, uint64_t *);
 
     /* No copies of the singleton allowed. */
     private:
@@ -67,13 +63,11 @@ class connection_simulator {
     /* Member variables */
     private:
     std::vector<session_simulator *> _session_list;
-    enum system_timestamps { oldest_timestamp, stable_timestamp, durable_timestamp };
-    std::map<std::string, system_timestamps> system_timestamps_map;
     /*
      * Timestamp manager is responsible for validating all the timestamps, including the global
      * timestamps; stable, oldest and durable in the connection.
      */
-    timestamp_manager *ts_mgr;
+    timestamp_manager *_ts_mgr;
     uint64_t _oldest_ts;
     uint64_t _stable_ts;
     uint64_t _durable_ts;

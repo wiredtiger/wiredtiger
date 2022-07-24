@@ -86,78 +86,81 @@ connection_simulator::query_timestamp() const
     return (0);
 }
 
-/*
- * Parse a single timestamp configuration string eg. oldest_timestamp=10. The string is split on the
- * '=' and the new timestamp is assigned.
- */
-int
-connection_simulator::parse_timestamp_config_single(
-  const std::string &config, uint64_t *new_oldest_ts, uint64_t *new_stable_ts)
+/* Parse a single timestamp configuration string eg. oldest_timestamp=10. */
+bool
+connection_simulator::parse_timestamp_config_single(const std::string &config,
+  uint64_t *new_oldest_ts, uint64_t *new_stable_ts, uint64_t *new_durable_ts)
 {
+    int durable_found = config.find("durable_timestamp=");
+    int oldest_found = config.find("oldest_timestamp=");
+    int stable_found = config.find("stable_timestamp=");
 
-    /* The substring before the '=' indicates the type of timestamp to be set. */
-    const std::string ts_type = config.substr(0, config.find("="));
-    /* Copy the substring after the '=' to get the timestamp value from the config string. */
-    std::string ts_string = config.substr(config.find("=") + 1);
-    /* Convert the timestamp to an int. */
-    uint64_t ts = std::stoi(ts_string);
-
-    switch (system_timestamps_map.at(ts_type)) {
-    case oldest_timestamp:
-        *new_oldest_ts = ts;
-        break;
-    case stable_timestamp:
-        *new_stable_ts = ts;
-        break;
-    case durable_timestamp:
-        _durable_ts = ts;
-        break;
+    std::string ts_string;
+    if (oldest_found != -1) {
+        ts_string = config.substr(oldest_found + 17);
+        *new_oldest_ts = std::stoi(ts_string);
+        return (true);
+    }
+    if (stable_found != -1) {
+        ts_string = config.substr(stable_found + 17);
+        *new_stable_ts = std::stoi(ts_string);
+        return (true);
+    }
+    if (durable_found != -1) {
+        ts_string = config.substr(durable_found + 18);
+        *new_durable_ts = std::stoi(ts_string);
+        return (true);
     }
 
-    return 0;
+    return (false);
 }
 
 /* Parse the timestamp configuration string with timestamps separated by ','. */
 void
-connection_simulator::parse_timestamp_config(
-  std::string config, uint64_t *new_oldest_ts, uint64_t *new_stable_ts)
+connection_simulator::parse_timestamp_config(const std::string &config, uint64_t *new_oldest_ts,
+  uint64_t *new_stable_ts, uint64_t *new_durable_ts)
 {
-
+    std::string conf = config;
     /* Loop over the timestamp configuration strings separated by ','. */
     size_t pos;
-    while ((pos = config.find(",")) != std::string::npos) {
-        std::string token = config.substr(0, pos);
+    while ((pos = conf.find(",")) != std::string::npos) {
+        std::string token = conf.substr(0, pos);
 
-        parse_timestamp_config_single(token, new_oldest_ts, new_stable_ts);
+        if (!parse_timestamp_config_single(token, new_oldest_ts, new_stable_ts, new_durable_ts))
+            throw std::runtime_error(
+              "Could not set the timestamp as there is no system level timestamp called '" + token +
+              "'");
 
-        config.erase(0, pos + 1);
+        conf.erase(0, pos + 1);
     }
 
     /* Parse the final timestamp configuration string. */
-    parse_timestamp_config_single(config, new_oldest_ts, new_stable_ts);
-
-    return;
+    if (!parse_timestamp_config_single(conf, new_oldest_ts, new_stable_ts, new_durable_ts))
+        throw std::runtime_error(
+          "Could not set the timestamp as there is no system level timestamp called '" + conf +
+          "'");
 }
 
-int
-connection_simulator::set_timestamp(const std::string config)
+bool
+connection_simulator::set_timestamp(const std::string &config)
 {
     /* Set the new stable and oldest timestamps to the previous global values by default. */
     uint64_t new_stable_ts = _stable_ts;
     uint64_t new_oldest_ts = _oldest_ts;
+    uint64_t new_durable_ts = _durable_ts;
 
-    parse_timestamp_config(config, &new_oldest_ts, &new_stable_ts);
+    parse_timestamp_config(config, &new_oldest_ts, &new_stable_ts, &new_durable_ts);
 
     /* Validate the new oldest timestamp if it is being updated. */
     if (new_oldest_ts != _oldest_ts &&
-      ts_mgr->validate_oldest_ts(new_stable_ts, new_oldest_ts) != 0) {
-        return 1;
+      _ts_mgr->validate_oldest_ts(new_stable_ts, new_oldest_ts) != 0) {
+        return (false);
     }
 
     /* Validate the new stable timestamp if it is being updated. */
     if (new_stable_ts != _stable_ts &&
-      ts_mgr->validate_stable_ts(new_stable_ts, new_oldest_ts) != 0) {
-        return 1;
+      _ts_mgr->validate_stable_ts(new_stable_ts, new_oldest_ts) != 0) {
+        return (false);
     }
 
     /*
@@ -166,24 +169,12 @@ connection_simulator::set_timestamp(const std::string config)
      */
     _stable_ts = new_stable_ts;
     _oldest_ts = new_oldest_ts;
+    _durable_ts = new_durable_ts;
 
-    return (0);
+    return (true);
 }
 
-void
-connection_simulator::system_timestamps_map_setup()
-{
-    system_timestamps_map["oldest_timestamp"] = oldest_timestamp;
-    system_timestamps_map["stable_timestamp"] = stable_timestamp;
-    system_timestamps_map["durable_timestamp"] = durable_timestamp;
-
-    return;
-}
-
-connection_simulator::connection_simulator()
-{
-    system_timestamps_map_setup();
-}
+connection_simulator::connection_simulator() {}
 
 connection_simulator::~connection_simulator()
 {
