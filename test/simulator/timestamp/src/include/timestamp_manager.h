@@ -30,6 +30,7 @@
 
 /* Timestamp is a global singleton class responsible for validating the timestamps. */
 class timestamp_manager {
+    /* Methods */
     public:
     static timestamp_manager &get_timestamp_manager();
     /* Methods for validating timestamps */
@@ -37,6 +38,7 @@ class timestamp_manager {
     int validate_stable_ts(uint64_t new_stable_ts, uint64_t new_oldest_ts);
     int validate_durable_ts(uint64_t new_durable_ts);
 
+    /* No copies of the singleton allowed. */
     private:
     timestamp_manager();
 
