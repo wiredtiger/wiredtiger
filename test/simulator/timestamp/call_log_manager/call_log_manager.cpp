@@ -141,10 +141,9 @@ call_log_manager::process_call_log_entry(json call_log_entry)
              * have the string "(null)". We can ignore the set timestamp call if there is no
              * configuration.
              */
-            if (config != "(null)")
-                if (!_conn->set_timestamp(config))
-                    throw std::runtime_error(
-                      "Failure to set timestamp. Timestamps may not be valid!");
+            if (config != "(null)" && !_conn->set_timestamp(config)) {
+                throw std::runtime_error("Failure to set timestamp. Timestamps may not be valid!");
+            }
             break;
         }
         }
