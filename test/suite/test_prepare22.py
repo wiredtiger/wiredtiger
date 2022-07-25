@@ -124,10 +124,13 @@ class test_prepare22(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
         # Verify we can still read back the deletion
-        if self.delete and self.value_format != '8t':
+        if self.delete:
             self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
-            cursor.set_key(1)
-            self.assertEquals(cursor.search(), wiredtiger.WT_NOTFOUND)
+            if self.value_format == '8t':
+                self.assertEquals(cursor[1], 0)
+            else:
+                cursor.set_key(1)
+                self.assertEquals(cursor.search(), wiredtiger.WT_NOTFOUND)
             self.session.rollback_transaction()
 
 if __name__ == '__main__':
