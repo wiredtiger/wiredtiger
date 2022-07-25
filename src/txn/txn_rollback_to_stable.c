@@ -109,10 +109,9 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
     }
 
     /*
-     * Clear the history store flags for the stable update to indicate that this update should not
-     * be written into the history store later, when all the aborted updates are removed from the
-     * history store. The next time when this update is moved into the history store, it will have a
-     * different stop time point.
+     * Clear the history store flags for the stable update to indicate that this update should be
+     * written to the history store later. The next time when this update is moved into the history
+     * store, it will have a different stop time point.
      */
     if (stable_upd != NULL) {
         if (F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS)) {
