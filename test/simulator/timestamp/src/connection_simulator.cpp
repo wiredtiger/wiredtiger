@@ -26,12 +26,13 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "connection_simulator.h"
+
 #include <algorithm>
 #include <iostream>
 #include <sstream>
 #include <string>
 
-#include "connection_simulator.h"
 #include "timestamp_manager.h"
 
 /* Get an instance of connection_simulator class. */
@@ -87,7 +88,10 @@ connection_simulator::query_timestamp() const
     return (0);
 }
 
-/* Parse a single timestamp configuration string eg. oldest_timestamp=10. */
+/*
+ * Parse a single timestamp configuration string eg. oldest_timestamp=10, and then decode it from
+ * hex to decimal.
+ */
 bool
 connection_simulator::parse_and_decode_timestamp_config_single(const std::string &config,
   uint64_t &new_oldest_ts, uint64_t &new_stable_ts, uint64_t &new_durable_ts, bool &has_oldest,
@@ -128,7 +132,10 @@ connection_simulator::parse_and_decode_timestamp_config_single(const std::string
     return (false);
 }
 
-/* Parse the timestamp configuration string with timestamps separated by ','. */
+/*
+ * Parse the timestamp configuration string with timestamps separated by ',', and then decode it
+ * from hex to decimal.
+ */
 void
 connection_simulator::parse_and_decode_timestamp_config(const std::string &config,
   uint64_t &new_oldest_ts, uint64_t &new_stable_ts, uint64_t &new_durable_ts, bool &has_oldest,

@@ -26,11 +26,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "call_log_manager.h"
+
 #include <fstream>
 #include <iostream>
 #include <memory>
-
-#include "call_log_manager.h"
 
 call_log_manager::call_log_manager(const std::string &call_log_file) : _conn(nullptr)
 {

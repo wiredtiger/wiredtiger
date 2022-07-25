@@ -44,12 +44,11 @@ timestamp_manager::get_timestamp_manager()
 }
 
 /*
- * validate_oldest_and_stable_ts --
- *     Validate both oldest and stable timestamps. - If stable and oldest were not passed in the
- *     config, simply return. - Validation fails if Illegal timestamp value is passed (if less than
- *     or equal to 0). - It is a no-op to set the oldest or stable timestamps behind the global
- *     values. Hence, ignore and continue validating. - Ensure that the stable is greater than the
- *     oldest timestamp.
+ * Validate both oldest and stable timestamps.
+ * 1) Validation fails if Illegal timestamp value is passed (if less than or equal to 0).
+ * 2) It is a no-op to set the oldest or stable timestamps behind the global
+ *    values. Hence, ignore and continue validating.
+ * 3) Validation fails if oldest is greater than the stable timestamp.
  */
 bool
 timestamp_manager::validate_oldest_and_stable_ts(
@@ -63,7 +62,7 @@ timestamp_manager::validate_oldest_and_stable_ts(
 
     /* If config has oldest timestamp */
     if (has_oldest) {
-        /* Cannot proceed any further, if oldest timestamp value <= 0 */
+        /* Cannot proceed any further, if oldest timestamp value <= 0 validation fails! */
         if ((int64_t)new_oldest_ts <= 0)
             return (false);
         /* It is a no-op to set the new oldest timestamps behind the current oldest timestamp. */
@@ -73,7 +72,7 @@ timestamp_manager::validate_oldest_and_stable_ts(
 
     /* If config has stable timestamp */
     if (has_stable) {
-        /* Cannot proceed any further, if stable timestamp value <= 0 */
+        /* Cannot proceed any further, if stable timestamp value <= 0 validation fails! */
         if ((int64_t)new_stable_ts <= 0)
             return (false);
         /* It is a no-op to set the new stable timestamps behind the current stable timestamp. */
@@ -107,13 +106,17 @@ timestamp_manager::validate_oldest_and_stable_ts(
     if ((!has_stable && conn->get_stable_ts() != 0))
         new_stable_ts = conn->get_stable_ts();
 
-    /* Validate if stable is greater than the oldest timestamp. */
+    /* Validation fails if oldest is greater than the stable timestamp. */
     if (new_oldest_ts > new_stable_ts)
         return (false);
 
     return (true);
 }
 
+/*
+ * Validate durable timestamp.
+ * 1) Validation fails if Illegal timestamp value is passed (if less than or equal to 0).
+ */
 bool
 timestamp_manager::validate_durable_ts(
   const uint64_t &new_durable_ts, const bool &has_durable) const
@@ -122,7 +125,7 @@ timestamp_manager::validate_durable_ts(
     if (!has_durable)
         return (true);
 
-    /* Illegal timestamp value (if less than or equal to 0). */
+    /* Illegal timestamp value (if less than or equal to 0). Validation fails!  */
     if ((int64_t)new_durable_ts <= 0)
         return (false);
 
