@@ -165,16 +165,20 @@ connection_simulator::set_timestamp(const std::string &config)
     if (config.empty())
         return (true);
 
+    timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     uint64_t new_stable_ts = 0, new_oldest_ts = 0, new_durable_ts = 0;
     bool has_stable = false, has_oldest = false, has_durable = false;
 
     parse_and_decode_timestamp_config(
       config, new_oldest_ts, new_stable_ts, new_durable_ts, has_oldest, has_stable, has_durable);
 
+    /* Validate the new durable timestamp. */
+    if (!ts_manager->validate_durable_ts(new_durable_ts, has_durable))
+        return (false);
+
     /* Validate the new oldest and stable timestamp. */
-    if (!timestamp_manager::get_timestamp_manager().validate_oldest_and_stable_ts(
-          new_stable_ts, new_oldest_ts, has_oldest, has_stable) ||
-      !timestamp_manager::get_timestamp_manager().validate_durable_ts(new_durable_ts, has_durable))
+    if (!ts_manager->validate_oldest_and_stable_ts(
+          new_stable_ts, new_oldest_ts, has_oldest, has_stable))
         return (false);
 
     if (has_stable)

@@ -114,7 +114,8 @@ timestamp_manager::validate_oldest_and_stable_ts(
 }
 
 bool
-timestamp_manager::validate_durable_ts(uint64_t &new_durable_ts, bool &has_durable)
+timestamp_manager::validate_durable_ts(
+  const uint64_t &new_durable_ts, const bool &has_durable) const
 {
     /* If durable timestamp was not passed in the config, no validation is needed. */
     if (!has_durable)
