@@ -2142,7 +2142,8 @@ __wt_btcur_bounds_early_exit(
           session, &cbt->iface, &cbt->iface.key, WT_RECNO_OOB, next, key_out_of_boundsp));
     } else {
         WT_ASSERT(session, cbt->recno != 0);
-        WT_RET(__wt_compare_bounds(session, &cbt->iface, NULL, cbt->recno, next, key_out_of_boundsp));
+        WT_RET(
+          __wt_compare_bounds(session, &cbt->iface, NULL, cbt->recno, next, key_out_of_boundsp));
     }
 
     if (*key_out_of_boundsp)
