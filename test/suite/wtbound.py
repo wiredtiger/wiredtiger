@@ -89,8 +89,9 @@ class bounds():
 class bound_base(wttest.WiredTigerTestCase):
     start_key = 20
     end_key = 80
-    lower_inclusve = True
+    lower_inclusive = True
     upper_inclusive = True
+    timestamps = {}
 
     def gen_colgroup_create_param(self):
         create_params = ",columns=("
@@ -98,7 +99,18 @@ class bound_base(wttest.WiredTigerTestCase):
         for _ in self.key_format:
             create_params += "k{0},".format(str(start)) 
             start += 1
-        create_params += "v),colgroups=(g0)"
+
+        start = 0
+        for _ in self.value_format:
+            create_params += "v{0},".format(str(start)) 
+            start += 1
+        create_params += "),colgroups=("
+
+        start = 0
+        for _ in self.value_format:
+            create_params += "g{0},".format(str(start)) 
+            start += 1
+        create_params += ")"
         return create_params
 
     def gen_key(self, i):
@@ -115,6 +127,21 @@ class bound_base(wttest.WiredTigerTestCase):
             return tuple_key[0]
         else:
             return tuple(tuple_key)
+
+    def gen_val(self, i):
+        tuple_val = []
+        for key in self.value_format:
+            if key == 'S' or key == 'u':
+                tuple_val.append(str(i))
+            elif key == "r":
+                tuple_val.append(self.recno(i))
+            elif key == "i":
+                tuple_val.append(i)
+        
+        if (len(self.value_format) == 1):
+            return tuple_val[0]
+        else:
+            return tuple(tuple_val)
 
     def check_key(self, i):
         list_key = []
