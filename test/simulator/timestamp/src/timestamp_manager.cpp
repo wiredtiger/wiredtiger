@@ -123,4 +123,6 @@ timestamp_manager::validate_durable_ts(uint64_t &new_durable_ts, bool &has_durab
     /* Illegal timestamp value (if less than or equal to 0). */
     if ((int64_t)new_durable_ts <= 0)
         return (false);
+
+    return (true);
 }

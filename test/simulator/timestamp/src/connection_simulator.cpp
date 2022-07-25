@@ -93,29 +93,32 @@ connection_simulator::parse_and_decode_timestamp_config_single(const std::string
   uint64_t &new_oldest_ts, uint64_t &new_stable_ts, uint64_t &new_durable_ts, bool &has_oldest,
   bool &has_stable, bool &has_durable)
 {
+    const std::string oldest_ts_str = "oldest_timestamp=";
+    const std::string stable_ts_str = "stable_timestamp=";
+    const std::string durable_ts_str = "durable_timestamp=";
 
-    int durable_found = config.find("durable_timestamp=");
-    int oldest_found = config.find("oldest_timestamp=");
-    int stable_found = config.find("stable_timestamp=");
+    int durable_found = config.find(durable_ts_str);
+    int oldest_found = config.find(oldest_ts_str);
+    int stable_found = config.find(stable_ts_str);
 
     std::stringstream stream;
     std::string hex_ts;
     if (oldest_found != -1) {
-        hex_ts = config.substr(oldest_found + 17);
+        hex_ts = config.substr(oldest_found + oldest_ts_str.size());
         stream << hex_ts;
         stream >> std::hex >> new_oldest_ts;
         has_oldest = true;
         return (true);
     }
     if (stable_found != -1) {
-        hex_ts = config.substr(stable_found + 17);
+        hex_ts = config.substr(stable_found + stable_ts_str.size());
         stream << hex_ts;
         stream >> std::hex >> new_stable_ts;
         has_stable = true;
         return (true);
     }
     if (durable_found != -1) {
-        hex_ts = config.substr(durable_found + 18);
+        hex_ts = config.substr(durable_found + durable_ts_str.size());
         stream << hex_ts;
         stream >> std::hex >> new_durable_ts;
         has_durable = true;
