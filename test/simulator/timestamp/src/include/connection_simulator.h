@@ -28,10 +28,11 @@
 
 #pragma once
 
-#include <memory>
+#include <string>
 #include <vector>
 
 #include "session_simulator.h"
+#include "timestamp_manager.h"
 
 /* The connection simulator is a Singleton class. */
 class connection_simulator {
@@ -40,9 +41,17 @@ class connection_simulator {
     static connection_simulator &get_connection();
     session_simulator *open_session();
     bool close_session(session_simulator *);
+    bool set_timestamp(const std::string &);
+    uint64_t get_oldest_ts() const;
+    uint64_t get_stable_ts() const;
     int query_timestamp() const;
-    int set_timestamp() const;
     ~connection_simulator();
+
+    private:
+    bool parse_and_decode_timestamp_config_single(
+      const std::string &, uint64_t &, uint64_t &, uint64_t &, bool &, bool &, bool &);
+    void parse_and_decode_timestamp_config(
+      const std::string &, uint64_t &, uint64_t &, uint64_t &, bool &, bool &, bool &);
 
     /* No copies of the singleton allowed. */
     private:
@@ -56,4 +65,7 @@ class connection_simulator {
     /* Member variables */
     private:
     std::vector<session_simulator *> _session_list;
+    uint64_t _oldest_ts;
+    uint64_t _stable_ts;
+    uint64_t _durable_ts;
 };

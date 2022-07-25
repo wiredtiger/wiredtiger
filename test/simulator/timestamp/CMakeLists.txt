@@ -4,6 +4,7 @@ project(timestamp_simulator CXX)
 add_library(timestamp_simulator SHARED
     src/connection_simulator.cpp
     src/session_simulator.cpp
+    src/timestamp_manager.cpp
 )
 target_include_directories(timestamp_simulator PUBLIC src/include)
 

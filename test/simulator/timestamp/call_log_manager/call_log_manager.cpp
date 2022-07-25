@@ -26,11 +26,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "call_log_manager.h"
+
 #include <fstream>
 #include <iostream>
 #include <memory>
-
-#include "call_log_manager.h"
 
 call_log_manager::call_log_manager(const std::string &call_log_file) : _conn(nullptr)
 {
@@ -50,6 +50,7 @@ call_log_manager::api_map_setup()
 {
     _api_map["close_session"] = api_method::close_session;
     _api_map["open_session"] = api_method::open_session;
+    _api_map["set_timestamp"] = api_method::set_timestamp;
     _api_map["wiredtiger_open"] = api_method::wiredtiger_open;
 }
 
@@ -63,64 +64,91 @@ call_log_manager::process_call_log()
 void
 call_log_manager::process_call_log_entry(json call_log_entry)
 {
-    const std::string method_name = call_log_entry["method_name"].get<std::string>();
-    switch (_api_map.at(method_name)) {
-    case api_method::wiredtiger_open: {
-        _conn = &connection_simulator::get_connection();
-        break;
-    }
-    case api_method::open_session: {
-        const std::string session_id = call_log_entry["session_id"].get<std::string>();
-        /*
-         * Not having a valid connection is a fatal error since no other operations can happen
-         * without a connection.
-         */
-        if (_conn == nullptr)
-            throw std::runtime_error("Could not open session (session ID: " + session_id + ")" +
-              ", connection does not exist");
-
-        /* We should not open sessions with an ID that is already in use. */
-        if (_session_map.find(session_id) != _session_map.end()) {
-            std::cerr << "Could not open duplicate session, session already exists (session ID: "
-                      << session_id << ")" << std::endl;
+    try {
+        const std::string method_name = call_log_entry["method_name"].get<std::string>();
+        switch (_api_map.at(method_name)) {
+        case api_method::wiredtiger_open: {
+            _conn = &connection_simulator::get_connection();
             break;
         }
+        case api_method::open_session: {
+            const std::string session_id = call_log_entry["session_id"].get<std::string>();
+            /*
+             * Not having a valid connection is a fatal error since no other operations can happen
+             * without a connection.
+             */
+            if (_conn == nullptr)
+                throw std::runtime_error("Could not open session (session ID: " + session_id + ")" +
+                  ", connection does not exist");
 
-        session_simulator *session = _conn->open_session();
-        /*
-         * Insert this session into the mapping between the simulator session object and the
-         * wiredtiger session object.
-         */
-        _session_map.insert(std::pair<std::string, session_simulator *>(session_id, session));
-        break;
-    }
-    case api_method::close_session: {
-        const std::string session_id = call_log_entry["session_id"].get<std::string>();
-        /*
-         * Not having a valid connection is a fatal error since no other operations can happen
-         * without a connection.
-         */
-        if (_conn == nullptr)
-            throw std::runtime_error("Could not close the session (session ID: " + session_id +
-              ")" + ", connection does not exist");
+            /* We should not open sessions with an ID that is already in use. */
+            if (_session_map.find(session_id) != _session_map.end()) {
+                std::cerr
+                  << "Could not open duplicate session, session already exists (session ID: "
+                  << session_id << ")" << std::endl;
+                break;
+            }
 
-        /* We should not close sessions with an ID that does not exist in the session map. */
-        if (_session_map.find(session_id) == _session_map.end()) {
-            std::cerr << "Could not close session, session does not exist (session ID: "
-                      << session_id << ")" << std::endl;
+            session_simulator *session = _conn->open_session();
+            /*
+             * Insert this session into the mapping between the simulator session object and the
+             * wiredtiger session object.
+             */
+            _session_map.insert(std::pair<std::string, session_simulator *>(session_id, session));
             break;
         }
+        case api_method::close_session: {
+            const std::string session_id = call_log_entry["session_id"].get<std::string>();
+            /*
+             * Not having a valid connection is a fatal error since no other operations can happen
+             * without a connection.
+             */
+            if (_conn == nullptr)
+                throw std::runtime_error("Could not close the session (session ID: " + session_id +
+                  ")" + ", connection does not exist");
 
-        session_simulator *session = _session_map.at(session_id);
+            /* We should not close sessions with an ID that does not exist in the session map. */
+            if (_session_map.find(session_id) == _session_map.end()) {
+                std::cerr << "Could not close session, session does not exist (session ID: "
+                          << session_id << ")" << std::endl;
+                break;
+            }
 
-        /* Remove the session from the connection and the session map. */
-        if (_conn->close_session(session))
-            _session_map.erase(session_id);
-        else
-            std::cerr << "Could not close the session (session ID: " << session_id << ")"
-                      << std::endl;
-        break;
-    }
+            session_simulator *session = _session_map.at(session_id);
+
+            /* Remove the session from the connection and the session map. */
+            if (_conn->close_session(session))
+                _session_map.erase(session_id);
+            else
+                std::cerr << "Could not close the session (session ID: " << session_id << ")"
+                          << std::endl;
+            break;
+        }
+        case api_method::set_timestamp: {
+            /*
+             * Not having a valid connection is a fatal error since no other operations can happen
+             * without a connection.
+             */
+            if (_conn == nullptr)
+                throw std::runtime_error(
+                  "Could not set the timestamp as connection does not exist");
+
+            /* Convert the config char * to a string object. */
+            const std::string config = call_log_entry["input"]["config"].get<std::string>();
+
+            /*
+             * A generated call log without a configuration string in the set timestamp entry will
+             * have the string "(null)". We can ignore the set timestamp call if there is no
+             * configuration.
+             */
+            if (config != "(null)" && !_conn->set_timestamp(config)) {
+                throw std::runtime_error("Failure to set timestamp. Timestamps may not be valid!");
+            }
+            break;
+        }
+        }
+    } catch (const std::exception &e) {
+        std::cerr << "exception: " << e.what() << std::endl;
     }
 }
 

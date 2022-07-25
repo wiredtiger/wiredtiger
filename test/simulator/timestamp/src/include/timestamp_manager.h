@@ -28,27 +28,20 @@
 
 #pragma once
 
-#include "connection_simulator.h"
-#include "nlohmann/json.hpp"
-
-using json = nlohmann::json;
-
-enum class api_method { close_session, open_session, set_timestamp, wiredtiger_open };
-
-class call_log_manager {
+/* Timestamp is a global singleton class responsible for validating the timestamps. */
+class timestamp_manager {
     /* Methods */
     public:
-    call_log_manager(const std::string &);
-    void process_call_log();
+    static timestamp_manager &get_timestamp_manager();
+    /* Methods for validating timestamps */
+    bool validate_oldest_and_stable_ts(uint64_t &, uint64_t &, bool &, bool &);
+    bool validate_durable_ts(const uint64_t &, const bool &) const;
 
+    /* No copies of the singleton allowed. */
     private:
-    void process_call_log_entry(json);
-    void api_map_setup();
+    timestamp_manager();
 
-    /* Member variables */
-    private:
-    connection_simulator *_conn;
-    json _call_log;
-    std::map<std::string, api_method> _api_map;
-    std::map<std::string, session_simulator *> _session_map;
+    public:
+    timestamp_manager(timestamp_manager const &) = delete;
+    timestamp_manager &operator=(timestamp_manager const &) = delete;
 };
