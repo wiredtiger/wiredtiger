@@ -26,11 +26,12 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "timestamp_manager.h"
+
 #include <iostream>
 #include <string>
 
 #include "connection_simulator.h"
-#include "timestamp_manager.h"
 
 timestamp_manager::timestamp_manager() {}
 
