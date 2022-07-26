@@ -52,11 +52,7 @@ template <class Key, class T> class VersionedMap {
         int _wtRet;
     };
 
-    Iterator
-    begin()
-    {
-        return Iterator(*this);
-    };
+    Iterator begin();
 
     // Methods that are the same or similar to those in std::map
     [[nodiscard]] size_type size() const;
@@ -79,7 +75,7 @@ template <class Key, class T>
 typename VersionedMap<Key, T>::value_type
 VersionedMap<Key, T>::Iterator::get() const
 {
-    return std::pair<Key, T>(_cursor->getKey(), _cursor->getValue());
+    return { _cursor->getKey(), _cursor->getValue() };
 };
 
 template <class Key, class T>
@@ -87,7 +83,7 @@ typename VersionedMap<Key, T>::Iterator &
 VersionedMap<Key, T>::Iterator::next()
 {
     _wtRet = _cursor->next();
-    return (*this);
+    return *this;
 };
 
 template <class Key, class T>
@@ -95,14 +91,14 @@ typename VersionedMap<Key, T>::Iterator &
 VersionedMap<Key, T>::Iterator::prev()
 {
     _wtRet = _cursor->prev();
-    return (*this);
+    return *this;
 };
 
 template <class Key, class T>
 bool
 VersionedMap<Key, T>::Iterator::isOk()
 {
-    return (_wtRet == 0);
+    return _wtRet == 0;
 };
 
 template <class Key, class T>
@@ -126,6 +122,13 @@ VersionedMap<Key, T>::getSession()
 };
 
 template <class Key, class T>
+typename VersionedMap<Key, T>::Iterator
+VersionedMap<Key, T>::begin()
+{
+    return Iterator(*this);
+};
+
+template <class Key, class T>
 T
 VersionedMap<Key, T>::get(const Key &key) const
 {
@@ -136,7 +139,7 @@ VersionedMap<Key, T>::get(const Key &key) const
     std::string value = cursorWrapper.getValue();
     cursorWrapper.reset();
 
-    return (value);
+    return value;
 }
 
 template <class Key, class T>
@@ -150,7 +153,7 @@ VersionedMap<Key, T>::getTransactionWrapped(
         int ret = _session->timestamp_transaction_uint(_session, WT_TS_TXN_TYPE_READ, ts);
         utils::throwIfNonZero(ret);
     }
-    return (get(key));
+    return get(key);
 }
 
 template <class Key, class T>
