@@ -102,7 +102,6 @@ connection_simulator::query_timestamp(const std::string &config, std::string &he
      * For now, the simulator only supports all_durable, oldest_timestamp, and stable_timestamp.
      * Hence, we ignore last_checkpoint, oldest_reader, pinned and recovery.
      */
-
     uint64_t ts;
     if (query_timestamp == "all_durable")
         ts = _durable_ts;
