@@ -2225,6 +2225,7 @@ tasks:
       - func: "compile wiredtiger docs"
 
   - name: doc-update
+    patchable: false
     stepback: false
     commands:
       - func: "get project"
