@@ -86,11 +86,8 @@ bool
 connection_simulator::query_timestamp(const std::string &config, std::string &hex_ts)
 {
     std::string query_timestamp;
-    std::stringstream ss;
-    uint64_t ts;
-
     /* For an empty config default to all_durable. */
-    if (config == "")
+    if (config.empty())
         query_timestamp = "all_durable";
     else {
         std::string get = "get=";
@@ -105,6 +102,8 @@ connection_simulator::query_timestamp(const std::string &config, std::string &he
      * For now, the simulator only supports all_durable, oldest_timestamp, and stable_timestamp.
      * Hence, we ignore last_checkpoint, oldest_reader, pinned and recovery.
      */
+
+    uint64_t ts;
     if (query_timestamp == "all_durable")
         ts = _durable_ts;
     else if (query_timestamp == "oldest_timestamp" || query_timestamp == "oldest")
@@ -123,6 +122,7 @@ connection_simulator::query_timestamp(const std::string &config, std::string &he
         throw std::runtime_error("Incorrect config (" + config + ") passed in query timestamp");
 
     /* Convert the timestamp from decimal to hexa-decimal. */
+    std::stringstream ss;
     ss << std::hex << ts;
     hex_ts = ss.str();
     return (true);
