@@ -66,6 +66,9 @@ call_log_manager::process_call_log_entry(json call_log_entry)
 {
     try {
         const std::string method_name = call_log_entry["method_name"].get<std::string>();
+        if (_api_map.at(method_name) != api_method::wiredtiger_open && _conn == nullptr)
+            
+
         switch (_api_map.at(method_name)) {
         case api_method::wiredtiger_open: {
             _conn = &connection_simulator::get_connection();
@@ -145,6 +148,37 @@ call_log_manager::process_call_log_entry(json call_log_entry)
                 throw std::runtime_error("Failure to set timestamp. Timestamps may not be valid!");
             }
             break;
+        }
+        case api_method::begin_transaction: {
+            const std::string session_id = call_log_entry["session_id"].get<std::string>();
+            /*
+             * Not having a valid connection is a fatal error since no other operations can happen
+             * without a connection.
+             */
+            if (_conn == nullptr)
+                throw std::runtime_error("Could not close the session (session ID: " + session_id +
+                  ")" + ", connection does not exist");
+
+            /* We should not begin transactions on sessions with an ID that does not exist in the
+             * session map. */
+            if (_session_map.find(session_id) == _session_map.end()) {
+                std::cerr << "Could not begin transaction, session does not exist (session ID: "
+                          << session_id << ")" << std::endl;
+                break;
+            }
+
+            /* Get the session from the session map. */
+            session_simulator *session = _session_map.at(session_id);
+
+            /*
+             * Check no other transactions are running. There should be a 1:1 relationship between
+             * session and transaction.
+             */
+            if (session->is_txn_running())
+                break;
+
+            /* Get the session from the session map and set the txn_running to be true. */
+            session->set_txn_running(true);
         }
         }
     } catch (const std::exception &e) {

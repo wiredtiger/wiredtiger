@@ -29,3 +29,15 @@
 #include "session_simulator.h"
 
 session_simulator::session_simulator() {}
+
+void
+session_simulator::set_txn_running(bool txn_running)
+{
+    _txn_running = txn_running;
+}
+
+bool
+session_simulator::is_txn_running() const
+{
+    return _txn_running;
+}

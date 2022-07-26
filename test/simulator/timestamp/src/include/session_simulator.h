@@ -33,9 +33,15 @@ class session_simulator {
     public:
     session_simulator();
     ~session_simulator() = default;
+    void set_txn_running(bool txn_running);
+    bool is_txn_running() const;
 
     public:
     /* Deleted functions should generally be public as it results in better error messages. */
     session_simulator(session_simulator const &) = delete;
     session_simulator &operator=(session_simulator const &) = delete;
+
+    /* Member variables */
+    private:
+    bool _txn_running;
 };
