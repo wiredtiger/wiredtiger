@@ -619,7 +619,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     /* The list of saved updates is reused. */
     r->supd_next = 0;
     r->supd_restore_count = 0;
-    r->supd_memsize = 0;
+    r->supd_restore_memsize = 0;
 
     /* The list of pages we've written. */
     r->multi = NULL;
@@ -1761,7 +1761,7 @@ __rec_split_write_supd(
     if (last_block) {
         WT_RET(__rec_supd_move(session, multi, r->supd, r->supd_next));
         r->supd_next = 0;
-        r->supd_memsize = 0;
+        r->supd_restore_memsize = 0;
         return (ret);
     }
 
@@ -1802,7 +1802,7 @@ __rec_split_write_supd(
          * the cached list (we maintain the saved updates in sorted order, new saved updates must be
          * appended to the list).
          */
-        r->supd_memsize = 0;
+        r->supd_restore_memsize = 0;
         for (j = 0; i < r->supd_next; ++j, ++i) {
             /* Only aggregate the size of updates that are restored. */
             if (r->supd[i].restore) {
@@ -1815,7 +1815,7 @@ __rec_split_write_supd(
                 for (; upd != NULL && upd != r->supd[i].onpage_upd &&
                      upd != r->supd[i].onpage_tombstone;
                      upd = upd->next)
-                    r->supd_memsize += upd->size;
+                    r->supd_restore_memsize += upd->size;
             }
             r->supd[j] = r->supd[i];
         }

@@ -199,7 +199,7 @@ __wt_rec_need_split(WT_RECONCILE *r, size_t len)
      * value in the saved updates' memory size
      */
     if (r->page->type == WT_PAGE_ROW_LEAF && page_items > WT_REC_SPLIT_MIN_ITEMS_USE_MEM)
-        len += r->supd_memsize / 10;
+        len += r->supd_restore_memsize / 10;
 
     /* Check for the disk image crossing a boundary. */
     return (WT_CHECK_CROSSING_BND(r, len));
