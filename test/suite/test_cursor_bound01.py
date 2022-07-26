@@ -82,7 +82,11 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
         cursor.bound("bound=lower")
         cursor.set_key(10)
         cursor.bound("bound=upper")
-
+        cursor.set_key(20)
+        cursor.bound("bound=prefix")
+        # Check that an invalid configuration is rejected.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=blah"),
+            '/Invalid argument/')
         # Clear and inclusive configuration are not compatible with each other. 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=clear,inclusive=true"),
             '/Invalid argument/')
