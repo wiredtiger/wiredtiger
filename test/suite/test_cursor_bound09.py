@@ -34,12 +34,7 @@ from wtbound import bound_base
 # test_cursor_bound09.py
 #    Test that cursor API usage generates expected error in prepared state with bounded cursors.
 class test_cursor_bound09(bound_base):
-    """
-    Test basic operations
-    """
     file_name = 'test_cursor_bound09'
-    nentries = 10
-    ignore_prepare = True
 
     types = [
         ('file', dict(uri='file:', use_colgroup=False)),
@@ -49,7 +44,7 @@ class test_cursor_bound09(bound_base):
 
     key_format_values = [
         ('string', dict(key_format='S')),
-        # FIXME-WT-9474: Uncomment once column store is implemented.
+        # FIXME-WT-9489: Uncomment once column store search near is implemented.
         # ('var', dict(key_format='r')),
         ('int', dict(key_format='i')),
         ('bytes', dict(key_format='u')),
@@ -92,7 +87,7 @@ class test_cursor_bound09(bound_base):
     # Test ignore prepare.
     def test_cursor_bound_prepared(self):
 
-        #Scenario 1: Prepare conflict on search, search_near and next with key set in middle of bounds.
+        # Scenario 1: Prepare conflict on search, search_near and next with key set in middle of bounds.
         cursor = self.create_session_and_cursor()
         session2 = self.conn.open_session()
         
@@ -128,7 +123,7 @@ class test_cursor_bound09(bound_base):
                     raise e
         session2.rollback_transaction()    
 
-        #Scenario 2: Prepare conflict on search, search_near and next with key set on the bounds.
+        # Scenario 2: Prepare conflict on search, search_near and next with key set on the bounds.
         if (self.ignore_prepare):
             session2.begin_transaction('ignore_prepare=true')
         else:
@@ -156,7 +151,7 @@ class test_cursor_bound09(bound_base):
                     raise e
         session2.rollback_transaction()
 
-        #Scenario 3: Prepare conflict with prev. Validate keys that aren't in prepared range.
+        # Scenario 3: Prepare conflict with prev. Validate keys that aren't in prepared range.
         if (self.ignore_prepare):
             session2.begin_transaction('ignore_prepare=true')
         else:
@@ -182,7 +177,7 @@ class test_cursor_bound09(bound_base):
                     raise (e)
         session2.rollback_transaction()
 
-        #Scenario 4: Prepare conflict with search_near out of the bounds.
+        # Scenario 4: Prepare conflict with search_near out of the bounds.
         self.session.rollback_transaction()
 
         # Prepare keys 29-30
@@ -212,7 +207,7 @@ class test_cursor_bound09(bound_base):
                 raise e
         session2.rollback_transaction() 
 
-        #Scenario 4: Prepare conflict with next with non-inclusive bounds.
+        # Scenario 4: Prepare conflict with next with non-inclusive bounds.
         if (self.ignore_prepare):
             session2.begin_transaction('ignore_prepare=true')
         else:

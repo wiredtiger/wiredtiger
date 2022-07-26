@@ -38,18 +38,18 @@ class test_cursor_bound03(bound_base):
 
     types = [
         ('file', dict(uri='file:', use_colgroup=False)),
-        #('table', dict(uri='table:', use_colgroup=False)),
-        #('colgroup', dict(uri='table:', use_colgroup=True))
+        ('table', dict(uri='table:', use_colgroup=False)),
+        ('colgroup', dict(uri='table:', use_colgroup=True))
     ]
 
     key_formats = [
         ('string', dict(key_format='S')),
-        # ('var', dict(key_format='r')),
-        # ('int', dict(key_format='i')),
-        # ('bytes', dict(key_format='u')),
-        # ('composite_string', dict(key_format='SSS')),
-        # ('composite_int_string', dict(key_format='iS')),
-        # ('composite_complex', dict(key_format='iSru')),
+        ('var', dict(key_format='r')),
+        ('int', dict(key_format='i')),
+        ('bytes', dict(key_format='u')),
+        ('composite_string', dict(key_format='SSS')),
+        ('composite_int_string', dict(key_format='iS')),
+        ('composite_complex', dict(key_format='iSru')),
     ]
 
     value_formats = [
@@ -59,18 +59,18 @@ class test_cursor_bound03(bound_base):
     ]
 
     config = [
-        #('inclusive-evict', dict(lower_inclusive=True,upper_inclusive=True,evict=True)),
-        # ('no-inclusive-evict', dict(lower_inclusive=False,upper_inclusive=False,evict=True)),
-        # ('lower-inclusive-evict', dict(lower_inclusive=True,upper_inclusive=False,evict=True)),
-        # ('upper-inclusive-evict', dict(lower_inclusive=False,upper_inclusive=True,evict=True)),
-        # ('inclusive-no-evict', dict(lower_inclusive=True,upper_inclusive=True,evict=False)),
-        # ('lower-inclusive-no-evict', dict(lower_inclusive=True,upper_inclusive=False,evict=False)),
-        # ('upper-inclusive-no-evict', dict(lower_inclusive=False,upper_inclusive=True,evict=False)),
+        ('inclusive-evict', dict(lower_inclusive=True,upper_inclusive=True,evict=True)),
+        ('no-inclusive-evict', dict(lower_inclusive=False,upper_inclusive=False,evict=True)),
+        ('lower-inclusive-evict', dict(lower_inclusive=True,upper_inclusive=False,evict=True)),
+        ('upper-inclusive-evict', dict(lower_inclusive=False,upper_inclusive=True,evict=True)),
+        ('inclusive-no-evict', dict(lower_inclusive=True,upper_inclusive=True,evict=False)),
+        ('lower-inclusive-no-evict', dict(lower_inclusive=True,upper_inclusive=False,evict=False)),
+        ('upper-inclusive-no-evict', dict(lower_inclusive=False,upper_inclusive=True,evict=False)),
         ('no-inclusive-no-evict', dict(lower_inclusive=False,upper_inclusive=False,evict=False))
     ]
 
     direction = [
-        # ('prev', dict(next=False)),
+        ('prev', dict(next=False)),
         ('next', dict(next=True)),
     ]
 
