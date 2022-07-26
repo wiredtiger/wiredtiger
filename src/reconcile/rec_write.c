@@ -1803,6 +1803,7 @@ __rec_split_write_supd(
          * appended to the list).
          */
         r->supd_restore_memsize = 0;
+        r->supd_restore_count = 0;
         for (j = 0; i < r->supd_next; ++j, ++i) {
             /* Only aggregate the size of updates that are restored. */
             if (r->supd[i].restore) {
