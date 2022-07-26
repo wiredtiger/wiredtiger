@@ -48,7 +48,7 @@
             break;                                                                            \
         do {                                                                                  \
             __orig = (p)->flags_atomic;                                                       \
-        } while (!__wt_atomic_cas16(&(p)->flags_atomic, __orig, __orig & ~(uint16_t)(mask))); \
+        } while (!__wt_atomic_cas16(&(p)->flags_atomic, __orig, __orig & (uint16_t)(~(mask)))); \
     } while (0)
 
 /*
