@@ -85,14 +85,47 @@ connection_simulator::close_session(session_simulator *session)
 bool
 connection_simulator::query_timestamp(const std::string &config, std::string &hex_ts)
 {
+    std::string query_timestamp;
+    std::stringstream ss;
     uint64_t ts;
 
-    /* parse the timestamp config and get what we need, for now oldest, stable and durable. error if
-     * incorrect config */
-    /* if no config is passed then return all durable */
-    /* in case of a unsup ts return false*/
+    /* For an empty config default to all_durable. */
+    if (config == "")
+        query_timestamp = "all_durable";
+    else {
+        std::string get = "get=";
+        int get_found = config.find(get);
+        if (get_found != -1)
+            query_timestamp = config.substr(get_found + get.size());
+        else
+            throw std::runtime_error("Incorrect config (" + config + ") passed in query timestamp");
+    }
 
-    /* conveert to hex and set the hex_ts */
+    /*
+     * For now, the simulator only supports all_durable, oldest_timestamp, and stable_timestamp.
+     * Hence, we ignore last_checkpoint, oldest_reader, pinned and recovery.
+     */
+    if (query_timestamp == "all_durable")
+        ts = _durable_ts;
+    else if (query_timestamp == "oldest_timestamp" || query_timestamp == "oldest")
+        ts = _oldest_ts;
+    else if (query_timestamp == "stable_timestamp" || query_timestamp == "stable")
+        ts = _stable_ts;
+    else if (query_timestamp == "last_checkpoint")
+        return (false);
+    else if (query_timestamp == "oldest_reader")
+        return (false);
+    else if (query_timestamp == "pinned")
+        return (false);
+    else if (query_timestamp == "recovery")
+        return (false);
+    else
+        throw std::runtime_error("Incorrect config (" + config + ") passed in query timestamp");
+
+    /* Convert the timestamp from decimal to hexa-decimal. */
+    ss << std::hex << ts;
+    hex_ts = ss.str();
+    return (true);
 }
 
 /*

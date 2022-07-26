@@ -168,9 +168,12 @@ call_log_manager::process_call_log_entry(json call_log_entry)
                 config = "get=all_durable";
 
             if (_conn->query_timestamp(config, hex_ts)) {
-                /* Ensure that the timestamp returned from query timestamp is equal to the expected
-                 * timestamp. */
-                std::string hex_ts_expected = call_log_entry["output"]["timestamp_queried"].get<std::string>();
+                /*
+                 * Ensure that the timestamp returned from query timestamp is equal to the expected
+                 * timestamp.
+                 */
+                std::string hex_ts_expected =
+                  call_log_entry["output"]["timestamp_queried"].get<std::string>();
                 if (hex_ts != hex_ts_expected)
                     throw std::runtime_error("The expected timestamp (" + hex_ts_expected +
                       ") is not equal to the timestamp queried (" + hex_ts + ") in the simulator");
