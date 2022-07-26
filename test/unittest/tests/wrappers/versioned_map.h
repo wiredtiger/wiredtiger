@@ -75,7 +75,7 @@ template <class Key, class T>
 typename VersionedMap<Key, T>::value_type
 VersionedMap<Key, T>::Iterator::get() const
 {
-    return { _cursor->getKey(), _cursor->getValue() };
+    return {_cursor->getKey(), _cursor->getValue()};
 };
 
 template <class Key, class T>
