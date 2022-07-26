@@ -43,42 +43,42 @@ class test_cursor_bound02(bound_base):
         ('colgroup', dict(uri='table:', use_colgroup=True))
     ]
 
-    format_values = [
-        ('string', dict(key_format='S',value_format='S')),
+    key_formats = [
+        ('string', dict(key_format='S')),
         # FIXME-WT-9474: Uncomment once column store is implemented.
-        #('var', dict(key_format='r',value_format='S')),
-        ('int', dict(key_format='i',value_format='S')),
-        ('bytes', dict(key_format='u',value_format='S')),
-        ('composite_string', dict(key_format='SSS',value_format='S')),
-        ('composite_int_string', dict(key_format='iS',value_format='S')),
-        ('composite_complex', dict(key_format='iSru',value_format='S')),
-        ('string', dict(key_format='S',value_format='Si')),
-        # FIXME-WT-9474: Uncomment once column store is implemented.
-        #('var', dict(key_format='r',value_format='Si')),
-        ('int', dict(key_format='i',value_format='Si')),
-        ('bytes', dict(key_format='u',value_format='Si')),
-        ('composite_string', dict(key_format='SSS',value_format='Si')),
-        ('composite_int_string', dict(key_format='iS',value_format='Si')),
-        ('composite_complex', dict(key_format='iSru',value_format='Si')),
+        #('var', dict(key_format='r')),
+        ('int', dict(key_format='i')),
+        ('bytes', dict(key_format='u')),
+        ('composite_string', dict(key_format='SSS')),
+        ('composite_int_string', dict(key_format='iS')),
+        ('composite_complex', dict(key_format='iSru')),
     ]
+
+    value_formats = [
+        ('string', dict(value_format='S')),
+        ('complex-string', dict(value_format='SS')),
+    ]
+
 
     inclusive = [
         ('inclusive', dict(inclusive=True)),
         ('no-inclusive', dict(inclusive=False))
     ]
-    scenarios = make_scenarios(types, format_values, inclusive)
+    scenarios = make_scenarios(types, key_formats, value_formats, inclusive)
 
     def test_bound_api(self):
         uri = self.uri + self.file_name
-        create_params = 'value_format=S,key_format={}'.format(self.key_format)
+        create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
         if self.use_colgroup:
             create_params += self.gen_colgroup_create_param()
         self.session.create(uri, create_params)
-        # Add in column group.
+
+        # Add in column groups.
         if self.use_colgroup:
-            create_params = 'columns=(v),'
-            suburi = 'colgroup:{0}:g0'.format(self.file_name)
-            self.session.create(suburi, create_params)
+            for i in range(0, len(self.value_format)):
+                create_params = 'columns=(v{0}),'.format(i)
+                suburi = 'colgroup:{0}:g{1}'.format(self.file_name, i)
+                self.session.create(suburi, create_params)
 
         cursor = self.session.open_cursor(uri)
 
@@ -109,12 +109,12 @@ class test_cursor_bound02(bound_base):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=upper"), '/Invalid argument/')
 
         # Test bound API: Test that the key persists after lower bound call.
-        cursor.set_value("30")
+        cursor.set_value(self.gen_val("30"))
         self.assertEqual(self.set_bounds(cursor, 30, "lower"), 0)
         cursor.insert()
 
         # Test bound API: Test that the key persists after upper bound call.
-        cursor.set_value("90")
+        cursor.set_value(self.gen_val("90"))
         self.assertEqual(self.set_bounds(cursor, 90, "upper"), 0)
         cursor.insert()
 
@@ -141,15 +141,16 @@ class test_cursor_bound02(bound_base):
 
     def test_bound_api_reset(self):
         uri = self.uri + self.file_name
-        create_params = 'value_format=S,key_format={}'.format(self.key_format)
+        create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
         if self.use_colgroup:
             create_params += self.gen_colgroup_create_param()
         self.session.create(uri, create_params)
-        # Add in column group.
+        # Add in column groups.
         if self.use_colgroup:
-            create_params = 'columns=(v),'
-            suburi = 'colgroup:{0}:g0'.format(self.file_name)
-            self.session.create(suburi, create_params)
+            for i in range(0, len(self.value_format)):
+                create_params = 'columns=(v{0}),'.format(i)
+                suburi = 'colgroup:{0}:g{1}'.format(self.file_name, i)
+                self.session.create(suburi, create_params)
         cursor = self.session.open_cursor(uri)
 
         self.assertEqual(self.set_bounds(cursor, 30, "lower"), 0)
@@ -193,15 +194,16 @@ class test_cursor_bound02(bound_base):
 
     def test_bound_api_clear(self):
         uri = self.uri + self.file_name
-        create_params = 'value_format=S,key_format={}'.format(self.key_format)
+        create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
         if self.use_colgroup:
             create_params += self.gen_colgroup_create_param()
         self.session.create(uri, create_params)
-        # Add in column group.
+        # Add in column groups.
         if self.use_colgroup:
-            create_params = 'columns=(v),'
-            suburi = 'colgroup:{0}:g0'.format(self.file_name)
-            self.session.create(suburi, create_params)
+            for i in range(0, len(self.value_format)):
+                create_params = 'columns=(v{0}),'.format(i)
+                suburi = 'colgroup:{0}:g{1}'.format(self.file_name, i)
+                self.session.create(suburi, create_params)
         cursor = self.session.open_cursor(uri)
 
         self.assertEqual(self.set_bounds(cursor, 30, "lower"), 0)
