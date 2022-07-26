@@ -78,14 +78,7 @@ class test_cursor_bound09(bound_base):
     def create_session_and_cursor(self):
         uri = self.uri + self.file_name
         create_params = 'value_format=S,key_format={}'.format(self.key_format)
-        if self.use_colgroup:
-            create_params += self.gen_colgroup_create_param()
         self.session.create(uri, create_params)
-        # Add in column group.
-        if self.use_colgroup:
-            create_params = 'columns=(v),'
-            suburi = 'colgroup:{0}:g0'.format(self.file_name)
-            self.session.create(suburi, create_params)
 
         cursor = self.session.open_cursor(uri)
 
@@ -148,8 +141,12 @@ class test_cursor_bound09(bound_base):
             self.set_bounds(cursor2, 40, "upper", self.upper_inclusive)
             cursor2.set_key(self.gen_key(30))
             try:
-                if(self.ignore_prepare):
-                    self.assertEqual(op(),0)
+                if (self.ignore_prepare):
+                    # Search on the non-inclusive lower bound is not expected to suceed.
+                    if (not self.lower_inclusive and op == cursor2.search):
+                        self.assertEqual(op(), wiredtiger.WT_NOTFOUND)
+                    else:
+                        self.assertGreaterEqual(op(),0)
                 else:
                     op()
             except WiredTigerError as e:
@@ -171,7 +168,7 @@ class test_cursor_bound09(bound_base):
 
         while True:
             try:
-                if(self.ignore_prepare):
+                if (self.ignore_prepare):
                     ret = cursor2.prev()
                     if(ret == wiredtiger.WT_NOTFOUND): 
                         break
@@ -185,7 +182,7 @@ class test_cursor_bound09(bound_base):
                     raise (e)
         session2.rollback_transaction()
 
-        #Scenario 3: Prepare conflict with search on the bounds.
+        #Scenario 4: Prepare conflict with search_near out of the bounds.
         self.session.rollback_transaction()
 
         # Prepare keys 29-30
@@ -204,10 +201,12 @@ class test_cursor_bound09(bound_base):
         cursor2.set_key(self.gen_key(20))
 
         try:
-            cursor2.search_near()
+            if (not(self.ignore_prepare)):
+                self.assertGreaterEqual(cursor2.search_near(), 0)
+                self.assertEqual(cursor2.get_key(), self.check_key(31))
         except WiredTigerError as e:
             if wiredtiger_strerror(WT_PREPARE_CONFLICT) in str(e):
-                self.assertEqual(cursor2.get_key(),self.check_key(30))
+                self.assertEqual(cursor2.get_key(),self.check_key(20))
                 pass
             else:
                 raise e
