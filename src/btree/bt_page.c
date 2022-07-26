@@ -649,16 +649,19 @@ __inmem_col_int(WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t page_recno)
         if (first && unpack.v != page_recno) {
             /*
              * There's a gap in the namespace. Create a deleted leaf page (with no address) to cover
-             * that gap. We allocated an extra slot in the array above to make room for this case.
-             * (Note that this doesn't result in all gaps being covered, just ones on the left side
-             * of the tree where we need to be able to search to them. Other gaps end up covered by
-             * the insert list of the preceding leaf page.)
+             * that gap. We allocated an extra slot in the array in __wt_page_alloc to make room for
+             * this case. (Note that this doesn't result in all gaps being covered, just ones on the
+             * left side of the tree where we need to be able to search to them. Other gaps end up
+             * covered by the insert list of the preceding leaf page.)
              */
             ref->addr = NULL;
             ref->ref_recno = page_recno;
             F_SET(ref, WT_REF_FLAG_LEAF);
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
             gap = true;
+
+            /* Assert that we allocated enough space for the extra ref. */
+            WT_ASSERT(session, pindex->entries == page->dsk->u.entries + 1);
 
             /* Get the next ref. */
             ref = *refp++;
@@ -695,8 +698,6 @@ __inmem_col_int(WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t page_recno)
         pindex->entries--;
         WT_ASSERT(session, pindex->entries == page->dsk->u.entries);
         __wt_cache_page_inmem_decr(session, page, sizeof(WT_REF));
-    } else {
-        WT_ASSERT(session, pindex->entries == page->dsk->u.entries + 1);
     }
 
     return (0);
