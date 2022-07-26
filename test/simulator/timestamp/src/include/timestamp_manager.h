@@ -28,6 +28,8 @@
 
 #pragma once
 
+#include <string>
+
 /* Timestamp is a global singleton class responsible for validating the timestamps. */
 class timestamp_manager {
     /* Methods */

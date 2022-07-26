@@ -44,7 +44,7 @@ class connection_simulator {
     bool set_timestamp(const std::string &);
     uint64_t get_oldest_ts() const;
     uint64_t get_stable_ts() const;
-    int query_timestamp() const;
+    bool query_timestamp(const std::string &, std::string &);
     ~connection_simulator();
 
     private:

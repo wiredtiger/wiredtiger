@@ -82,10 +82,17 @@ connection_simulator::close_session(session_simulator *session)
     return (true);
 }
 
-int
-connection_simulator::query_timestamp() const
+bool
+connection_simulator::query_timestamp(const std::string &config, std::string &hex_ts)
 {
-    return (0);
+    uint64_t ts;
+
+    /* parse the timestamp config and get what we need, for now oldest, stable and durable. error if
+     * incorrect config */
+    /* if no config is passed then return all durable */
+    /* in case of a unsup ts return false*/
+
+    /* conveert to hex and set the hex_ts */
 }
 
 /*

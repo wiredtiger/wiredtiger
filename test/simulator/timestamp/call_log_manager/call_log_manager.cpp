@@ -51,6 +51,7 @@ call_log_manager::api_map_setup()
     _api_map["close_session"] = api_method::close_session;
     _api_map["open_session"] = api_method::open_session;
     _api_map["set_timestamp"] = api_method::set_timestamp;
+    _api_map["query_timestamp"] = api_method::query_timestamp;
     _api_map["wiredtiger_open"] = api_method::wiredtiger_open;
 }
 
@@ -144,6 +145,37 @@ call_log_manager::process_call_log_entry(json call_log_entry)
             if (config != "(null)" && !_conn->set_timestamp(config)) {
                 throw std::runtime_error("Failure to set timestamp. Timestamps may not be valid!");
             }
+            break;
+        }
+        case api_method::query_timestamp: {
+            /*
+             * Not having a valid connection is a fatal error since no other operations can happen
+             * without a connection.
+             */
+            if (_conn == nullptr)
+                throw std::runtime_error(
+                  "Could not query the timestamp as connection does not exist");
+
+            /* Convert the config char * to a string object. */
+            std::string config = call_log_entry["input"]["config"].get<std::string>();
+            std::string hex_ts, hex_ts_expected;
+
+            /*
+             * A generated call log without a configuration string in the set timestamp entry will
+             * have the string "(null)", default to all_durable.
+             */
+            if (config == "(null)")
+                config = "get=all_durable";
+
+            if (_conn->query_timestamp(config, hex_ts)) {
+                /* Ensure that the timestamp returned from query timestamp is equal to the expected
+                 * timestamp. */
+                hex_ts_expected = call_log_entry["output"]["timestamp_queried"].get<std::string>();
+                if (hex_ts != hex_ts_expected)
+                    throw std::runtime_error("The expected timestamp (" + hex_ts_expected +
+                      ") is not equal to the timestamp queried (" + hex_ts + ") in the simulator");
+            }
+
             break;
         }
         }
