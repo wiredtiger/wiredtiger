@@ -91,7 +91,6 @@ class bound_base(wttest.WiredTigerTestCase):
     end_key = 80
     lower_inclusive = True
     upper_inclusive = True
-    timestamps = {}
 
     def gen_colgroup_create_param(self):
         create_params = ",columns=("
