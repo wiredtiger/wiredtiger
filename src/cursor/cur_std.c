@@ -1254,10 +1254,21 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
             else
                 F_CLR(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
             WT_ERR(__wt_buf_set(session, &cursor->lower_bound, key.data, key.size));
-        } else
-            WT_ERR_MSG(session, EINVAL,
-              "setting bounds only accepts \"upper\" or \"lower\" as the configuration");
-
+        } else if (WT_STRING_MATCH("prefix", cval.str, cval.len)) {
+            /* This configuration is special and sets both the lower and upper bound. */
+            WT_ERR(__wt_cursor_get_raw_key(cursor, &key));
+            WT_ERR(__wt_buf_set(session, &cursor->lower_bound, key.data, key.size));
+            WT_ERR(__wt_buf_set(session, &cursor->upper_bound, key.data, key.size));
+            /*
+             * Increment the given prefix for the upper bound. Make sure we only modify memory owned
+             * by us.
+             */
+            ((char *)cursor->upper_bound.data)[cursor->upper_bound.size - 1]++;
+            /* Set the appropriate bounds on the cursor. */
+            F_CLR(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
+            F_SET(cursor,
+              WT_CURSTD_BOUND_LOWER | WT_CURSTD_BOUND_UPPER | WT_CURSTD_BOUND_LOWER_INCLUSIVE);
+        }
     } else if (WT_STRING_MATCH("clear", cval.str, cval.len)) {
         /* Inclusive should not be supplied from the application with action clear configuration. */
         if (__wt_config_getones(session, config, "inclusive", &cval) != WT_NOTFOUND)

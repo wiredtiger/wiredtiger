@@ -1209,17 +1209,17 @@ cursor_bound_config = [
         cursor. It takes one of two values, "set" or "clear". If "set" is specified then "bound"
         must also be specified. If "clear" is specified without any bounds then both bounds will
         be cleared. The keys relevant to the given bound must have been set prior to the call using
-        WT_CURSOR::set_key. This configuration is currently a work in progress and should not be
-        used.''',
+        WT_CURSOR::set_key.''',
         choices=['clear','set']),
     Config('inclusive', 'true', r'''
-        configures whether the given bound is inclusive or not. This configuration is currently a
-        work in progress and should not be used.''',
+        configures whether the given bound is inclusive or not.''',
         type='boolean'),
     Config('bound', '', r'''
-        configures which bound is being operated on. It takes one of two values, "lower" or "upper".
-        This configuration is currently a work in progress and should not be used.''',
-        choices=['lower','upper']),
+        configures which bound is being operated on. It takes one of three values, "lower", "upper"
+        or "prefix". "prefix" is special as it sets both the lower and upper bound, where the upper
+        bound is equal to the lower bound +1. The inclusive configuration is not required in this
+        instance, the lower bound is considered to be inclusive and the upper is not.''',
+        choices=['lower','upper','prefix']),
 ]
 
 cursor_runtime_config = [

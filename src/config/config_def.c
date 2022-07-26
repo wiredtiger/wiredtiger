@@ -185,7 +185,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_set_timestamp[] = {
 
 static const WT_CONFIG_CHECK confchk_WT_CURSOR_bound[] = {
   {"action", "string", NULL, "choices=[\"clear\",\"set\"]", NULL, 0},
-  {"bound", "string", NULL, "choices=[\"lower\",\"upper\"]", NULL, 0},
+  {"bound", "string", NULL, "choices=[\"lower\",\"upper\",\"prefix\"]", NULL, 0},
   {"inclusive", "boolean", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_CURSOR_reconfigure[] = {
