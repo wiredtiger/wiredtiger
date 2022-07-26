@@ -36,8 +36,8 @@ using json = nlohmann::json;
 enum class api_method {
     close_session,
     open_session,
-    set_timestamp,
     query_timestamp,
+    set_timestamp,
     wiredtiger_open
 };
 

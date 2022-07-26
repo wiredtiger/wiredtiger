@@ -50,8 +50,8 @@ call_log_manager::api_map_setup()
 {
     _api_map["close_session"] = api_method::close_session;
     _api_map["open_session"] = api_method::open_session;
-    _api_map["set_timestamp"] = api_method::set_timestamp;
     _api_map["query_timestamp"] = api_method::query_timestamp;
+    _api_map["set_timestamp"] = api_method::set_timestamp;
     _api_map["wiredtiger_open"] = api_method::wiredtiger_open;
 }
 
@@ -158,7 +158,7 @@ call_log_manager::process_call_log_entry(json call_log_entry)
 
             /* Convert the config char * to a string object. */
             std::string config = call_log_entry["input"]["config"].get<std::string>();
-            std::string hex_ts, hex_ts_expected;
+            std::string hex_ts;
 
             /*
              * A generated call log without a configuration string in the set timestamp entry will
@@ -170,7 +170,7 @@ call_log_manager::process_call_log_entry(json call_log_entry)
             if (_conn->query_timestamp(config, hex_ts)) {
                 /* Ensure that the timestamp returned from query timestamp is equal to the expected
                  * timestamp. */
-                hex_ts_expected = call_log_entry["output"]["timestamp_queried"].get<std::string>();
+                std::string hex_ts_expected = call_log_entry["output"]["timestamp_queried"].get<std::string>();
                 if (hex_ts != hex_ts_expected)
                     throw std::runtime_error("The expected timestamp (" + hex_ts_expected +
                       ") is not equal to the timestamp queried (" + hex_ts + ") in the simulator");
