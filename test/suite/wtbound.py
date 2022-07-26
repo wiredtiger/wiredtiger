@@ -88,7 +88,7 @@ class bounds():
 # Shared base class used by cursor bound tests.
 class bound_base(wttest.WiredTigerTestCase):
     start_key = 20
-    end_key = 80
+    end_key = 79
     lower_inclusive = True
     upper_inclusive = True
 
@@ -188,14 +188,15 @@ class bound_base(wttest.WiredTigerTestCase):
         if (upper_key):
             if (upper_key < end_range):
                 end_range = upper_key
-                if (self.upper_inclusive == False):
+                if (not self.upper_inclusive):
                     end_range -= 1
-        
+
         if (lower_key):
             if (lower_key > start_range):
                 start_range = lower_key
-                if (self.lower_inclusive == False):
+                if (not self.lower_inclusive):
                     start_range += 1
+
 
         count = ret = 0
         while True:
@@ -208,6 +209,7 @@ class bound_base(wttest.WiredTigerTestCase):
                 break
             count += 1
             key = cursor.get_key()
+            #print(key)
 
             if (self.lower_inclusive and lower_key):
                 self.assertTrue(self.check_key(lower_key) <= key)
@@ -219,8 +221,7 @@ class bound_base(wttest.WiredTigerTestCase):
             elif (upper_key):
                 self.assertTrue(key < self.check_key(upper_key))
                 
-        count = max(count - 1, 0)
         if (expected_count != None):
             self.assertEqual(expected_count, count)
         else:
-            self.assertEqual(end_range - start_range, count)
+            self.assertEqual(end_range - start_range + 1, count)

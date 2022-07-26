@@ -30,10 +30,10 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtbound import bound_base
 
-# test_cursor_bound06.py
+# test_cursor_bound10.py
 # Test history store scenarios with cursor bound API.
-class test_cursor_bound06(bound_base):
-    file_name = 'test_cursor_bound06'
+class test_cursor_bound10(bound_base):
+    file_name = 'test_cursor_bound10'
     lower_inclusive = True
     upper_inclusive = True
 
@@ -70,23 +70,23 @@ class test_cursor_bound06(bound_base):
 
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        for i in range(0, 101):
+        for i in range(0, 100):
             cursor[self.gen_key(i)] = "value" + str(i)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(50))
 
         self.session.begin_transaction()
-        for i in range(101, 601):
+        for i in range(100, 600):
             cursor[self.gen_key(i)] = "value" + str(i)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(200))
 
         self.session.begin_transaction()
-        for i in range(601, 1001):
+        for i in range(600, 1000):
             cursor[self.gen_key(i)] = "value" + str(i)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(100))
 
         if (self.evict):
             evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
-            for i in range(0, 1001):
+            for i in range(0, 1000):
                 evict_cursor.set_key(self.gen_key(i))
                 evict_cursor.search()
                 evict_cursor.reset() 
@@ -110,13 +110,13 @@ class test_cursor_bound06(bound_base):
         
         self.set_bounds(cursor, 900, "upper")
         self.session.begin_transaction('read_timestamp=' +  self.timestamp_str(150))
-        self.cursor_traversal_bound(cursor, None, 900, self.next, 400)
+        self.cursor_traversal_bound(cursor, None, 900, self.next, 401)
         self.session.commit_transaction()
         self.assertEqual(cursor.bound("action=clear"), 0)
 
         self.set_bounds(cursor, 900, "upper")
         self.session.begin_transaction('read_timestamp=' +  self.timestamp_str(250))
-        self.cursor_traversal_bound(cursor, None, 900, self.next, 900)
+        self.cursor_traversal_bound(cursor, None, 900, self.next, 901)
         self.session.commit_transaction()
         self.assertEqual(cursor.bound("action=clear"), 0)
 
@@ -163,14 +163,14 @@ class test_cursor_bound06(bound_base):
         self.set_bounds(cursor, 50, "lower")
         self.set_bounds(cursor, 900, "upper")
         self.session.begin_transaction('read_timestamp=' +  self.timestamp_str(150))
-        self.cursor_traversal_bound(cursor, 50, 900, self.next, 350)
+        self.cursor_traversal_bound(cursor, 50, 900, self.next, 351)
         self.session.commit_transaction()
         self.assertEqual(cursor.bound("action=clear"), 0)
         
         self.set_bounds(cursor, 50, "lower")
         self.set_bounds(cursor, 900, "upper")
         self.session.begin_transaction('read_timestamp=' +  self.timestamp_str(250))
-        self.cursor_traversal_bound(cursor, 50, 900, self.next, 850)
+        self.cursor_traversal_bound(cursor, 50, 900, self.next, 851)
         self.session.commit_transaction()
         self.assertEqual(cursor.bound("action=clear"), 0)
         cursor.close()

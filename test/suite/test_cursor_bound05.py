@@ -37,7 +37,7 @@ class test_cursor_bound05(bound_base):
     file_name = 'test_cursor_bound05'
     key_format = 'S'
     start_key = 1000
-    end_key = 2000
+    end_key = 1999
 
     types = [
         ('file', dict(uri='file:', use_colgroup=False)),
@@ -80,21 +80,21 @@ class test_cursor_bound05(bound_base):
 
         # Test bound api: Test prefix key with upper bound.
         self.set_bounds(cursor, 20, "upper", False)
-        self.cursor_traversal_bound(cursor, None, 20, True, 999)
-        self.cursor_traversal_bound(cursor, None, 20, False, 999)
+        self.cursor_traversal_bound(cursor, None, 20, True, 1000)
+        self.cursor_traversal_bound(cursor, None, 20, False, 1000)
         self.assertEqual(cursor.bound("action=clear"), 0)
 
         # Test bound api: Test prefix key works with both bounds.
         self.set_bounds(cursor, 10, "lower", True)
         self.set_bounds(cursor, 20, "upper", False)
-        self.cursor_traversal_bound(cursor, 10, 20, True, 999)
-        self.cursor_traversal_bound(cursor, 10, 20, False, 999)
+        self.cursor_traversal_bound(cursor, 10, 20, True, 1000)
+        self.cursor_traversal_bound(cursor, 10, 20, False, 1000)
         self.assertEqual(cursor.bound("action=clear"), 0)
 
         self.set_bounds(cursor, 10, "lower", True)
         self.set_bounds(cursor, 11, "upper", False)
-        self.cursor_traversal_bound(cursor, 10, 11, True, 99)
-        self.cursor_traversal_bound(cursor, 10, 11, False, 99)
+        self.cursor_traversal_bound(cursor, 10, 11, True, 100)
+        self.cursor_traversal_bound(cursor, 10, 11, False, 100)
         self.assertEqual(cursor.bound("action=clear"), 0)
 
         # Test bound api: Test early exit works with lower bound (Greater than data range).

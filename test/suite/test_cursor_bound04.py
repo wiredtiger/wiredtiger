@@ -87,7 +87,7 @@ class test_cursor_bound04(bound_base):
 
         if (self.evict):
             evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
-            for i in range(self.start_key, self.end_key):
+            for i in range(self.start_key, self.end_key + 1):
                 evict_cursor.set_key(self.gen_key(i))
                 evict_cursor.search()
                 evict_cursor.reset() 
@@ -188,7 +188,7 @@ class test_cursor_bound04(bound_base):
         key = cursor.get_key()
         self.assertEqual(key, self.check_key(55))
         self.assertEqual(cursor.bound("action=clear"), 0)
-        self.cursor_traversal_bound(cursor, None, None, True, self.end_key - 55 - 1)
+        self.cursor_traversal_bound(cursor, None, None, True,  self.end_key - 55)
         cursor.reset()
 
         self.set_bounds(cursor, 55, "upper")
@@ -196,7 +196,7 @@ class test_cursor_bound04(bound_base):
         key = cursor.get_key()
         self.assertEqual(key, self.check_key(self.start_key))
         self.assertEqual(cursor.bound("action=clear"), 0)
-        self.cursor_traversal_bound(cursor, None, None, True,  self.end_key - self.start_key - 1)
+        self.cursor_traversal_bound(cursor, None, None, True,  self.end_key - self.start_key)
         cursor.reset()
         cursor.close()
 
@@ -256,7 +256,7 @@ class test_cursor_bound04(bound_base):
         key = cursor.get_key()
         self.assertEqual(key, self.check_key(45))
         self.assertEqual(cursor.bound("action=clear"), 0)
-        self.cursor_traversal_bound(cursor, None, None, False,  45 - self.start_key - 1)
+        self.cursor_traversal_bound(cursor, None, None, False,  45 - self.start_key)
         cursor.reset()
 
         self.set_bounds(cursor, 45, "upper")
@@ -264,7 +264,7 @@ class test_cursor_bound04(bound_base):
         key = cursor.get_key()
         self.assertEqual(key, self.check_key(45))
         self.assertEqual(cursor.bound("action=clear"), 0)
-        self.cursor_traversal_bound(cursor, None, None, True,  self.end_key - 45 - 1)
+        self.cursor_traversal_bound(cursor, None, None, True,  self.end_key - 45)
         cursor.reset()
 
         cursor.close()
