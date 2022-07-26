@@ -3976,7 +3976,6 @@ buildvariants:
     - name: ".long-perf"
     - name: many-dhandle-stress
     - name: ".wt2853-perf"
-    - name: cppsuite-bounded-cursor-perf-stress
   display_tasks:
     - name: Wiredtiger-perf-btree-jobs
       execution_tasks:
