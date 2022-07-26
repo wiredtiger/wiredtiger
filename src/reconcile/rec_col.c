@@ -1698,6 +1698,7 @@ next:
     if (!wrote_real_values && salvage == NULL && r->leave_dirty == false) {
         WT_ASSERT(session, r->entries == 1);
         r->entries = 0;
+        WT_STAT_CONN_DATA_INCR(session, rec_vlcs_emptied_pages);
         /* Don't bother adjusting r->space_avail or r->first_free. */
     }
 

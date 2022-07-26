@@ -293,16 +293,21 @@ __evict_delete_ref(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
          * situation will be handled safely if another child gets deleted, or if eviction comes for
          * a visit.
          */
-        if (ndeleted > pindex->entries / 10 && pindex->entries > 1 &&
-          (S2BT(session)->type != BTREE_COL_VAR || pindex->index[0] != ref)) {
-            if ((ret = __wt_split_reverse(session, ref)) == 0)
-                return (0);
-            WT_RET_BUSY_OK(ret);
+        if (ndeleted > pindex->entries / 10 && pindex->entries > 1) {
+            if (S2BT(session)->type == BTREE_COL_VAR && ref == pindex->index[0])
+                WT_STAT_CONN_DATA_INCR(session, cache_reverse_splits_skipped_vlcs);
+            else {
+                if ((ret = __wt_split_reverse(session, ref)) == 0) {
+                    WT_STAT_CONN_DATA_INCR(session, cache_reverse_splits);
+                    return (0);
+                }
+                WT_RET_BUSY_OK(ret);
 
-            /*
-             * The child must be locked after a failed reverse split.
-             */
-            WT_ASSERT(session, ref->state == WT_REF_LOCKED);
+                /*
+                 * The child must be locked after a failed reverse split.
+                 */
+                WT_ASSERT(session, ref->state == WT_REF_LOCKED);
+            }
         }
     }
 
