@@ -49,9 +49,6 @@ bool
 timestamp_manager::parse_config(
   const std::string &config, std::map<std::string, std::string> &config_map)
 {
-    if (config.empty())
-        return (false);
-
     std::istringstream conf(config);
     std::string token;
 
@@ -61,7 +58,7 @@ timestamp_manager::parse_config(
             return (false);
         config_map.insert({token.substr(0, pos), token.substr(pos + 1)});
     }
-    return (true);
+    return (!config_map.empty());
 }
 
 /*
