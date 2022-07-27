@@ -29,6 +29,7 @@
 #include "timestamp_manager.h"
 
 #include <iostream>
+#include <sstream>
 #include <string>
 
 #include "connection_simulator.h"
@@ -41,6 +42,26 @@ timestamp_manager::get_timestamp_manager()
 {
     static timestamp_manager _timestamp_manager_instance;
     return (_timestamp_manager_instance);
+}
+
+/* Parse config string to a config map. */
+bool
+timestamp_manager::parse_config(
+  const std::string &config, std::map<std::string, std::string> &config_map)
+{
+    if (config.empty())
+        return (false);
+
+    std::istringstream conf(config);
+    std::string token;
+
+    while (std::getline(conf, token, ',')) {
+        int pos = token.find('=');
+        if (pos == -1)
+            return (false);
+        config_map.insert({token.substr(0, pos), token.substr(pos + 1)});
+    }
+    return (true);
 }
 
 /*

@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -48,10 +49,9 @@ class connection_simulator {
     ~connection_simulator();
 
     private:
-    bool parse_and_decode_timestamp_config_single(
-      const std::string &, uint64_t &, uint64_t &, uint64_t &, bool &, bool &, bool &);
-    void parse_and_decode_timestamp_config(
-      const std::string &, uint64_t &, uint64_t &, uint64_t &, bool &, bool &, bool &);
+    bool decode_timestamp_config_map(std::map<std::string, std::string> &, uint64_t &, uint64_t &,
+      uint64_t &, bool &, bool &, bool &);
+    inline uint64_t hex_to_decimal(const std::string &);
 
     /* No copies of the singleton allowed. */
     private:

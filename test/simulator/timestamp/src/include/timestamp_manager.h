@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <map>
 #include <string>
 
 /* Timestamp is a global singleton class responsible for validating the timestamps. */
@@ -35,6 +36,7 @@ class timestamp_manager {
     /* Methods */
     public:
     static timestamp_manager &get_timestamp_manager();
+    bool parse_config(const std::string &, std::map<std::string, std::string> &);
     /* Methods for validating timestamps */
     bool validate_oldest_and_stable_ts(uint64_t &, uint64_t &, bool &, bool &);
     bool validate_durable_ts(const uint64_t &, const bool &) const;
