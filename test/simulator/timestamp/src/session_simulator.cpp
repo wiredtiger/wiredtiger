@@ -36,8 +36,7 @@ bool
 session_simulator::begin_transaction()
 {
     /*
-     * Check no other transactions are running. There should be a 1:1 relationship between session
-     * and transaction.
+     * Cannot begin a new transaction if there is an existing transaction that is currently running.
      */
     if (_txn_running) {
         std::cerr << "Could not begin transaction, session already has a running "
