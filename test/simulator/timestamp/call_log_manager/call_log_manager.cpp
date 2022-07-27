@@ -48,6 +48,7 @@ call_log_manager::call_log_manager(const std::string &call_log_file) : _conn(nul
 void
 call_log_manager::api_map_setup()
 {
+    _api_map["begin_transaction"] = api_method::begin_transaction;
     _api_map["close_session"] = api_method::close_session;
     _api_map["open_session"] = api_method::open_session;
     _api_map["set_timestamp"] = api_method::set_timestamp;
@@ -162,8 +163,9 @@ call_log_manager::process_call_log_entry(json call_log_entry)
             /* Get the session from the session map. */
             session_simulator *session = _session_map.at(session_id);
 
-            if (!session->begin_transaction())
-                break;
+            session->begin_transaction();
+
+            break;
         }
         }
     } catch (const std::exception &e) {
