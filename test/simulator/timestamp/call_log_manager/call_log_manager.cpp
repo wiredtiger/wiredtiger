@@ -162,19 +162,11 @@ call_log_manager::process_call_log_entry(json call_log_entry)
             /* Get the session from the session map. */
             session_simulator *session = _session_map.at(session_id);
 
-            /*
-             * Check no other transactions are running. There should be a 1:1 relationship between
-             * session and transaction.
-             */
-            if (session->is_txn_running()) {
+            if (session->begin_transaction() != 0) {
                 std::cerr << "Could not begin transaction, session already has a running "
                              "transaction (session ID: "
                           << session_id << ")" << std::endl;
-                break;
             }
-
-            /* Get the session from the session map and set the txn_running to be true. */
-            session->set_txn_running(true);
         }
         }
     } catch (const std::exception &e) {

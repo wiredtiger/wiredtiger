@@ -33,8 +33,7 @@ class session_simulator {
     public:
     session_simulator();
     ~session_simulator() = default;
-    void set_txn_running(bool txn_running);
-    bool is_txn_running() const;
+    int begin_transaction();
 
     public:
     /* Deleted functions should generally be public as it results in better error messages. */

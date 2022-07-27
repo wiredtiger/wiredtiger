@@ -28,16 +28,22 @@
 
 #include "session_simulator.h"
 
+#include <iostream>
+
 session_simulator::session_simulator() {}
 
-void
-session_simulator::set_txn_running(bool txn_running)
+int
+session_simulator::begin_transaction()
 {
-    _txn_running = txn_running;
-}
+    /*
+     * Check no other transactions are running. There should be a 1:1 relationship between session
+     * and transaction.
+     */
+    if (_txn_running)
+        return (1);
 
-bool
-session_simulator::is_txn_running() const
-{
-    return _txn_running;
+    /* Get the session from the session map and set the txn_running to be true. */
+    _txn_running = true;
+
+    return (0);
 }
