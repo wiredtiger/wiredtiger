@@ -33,7 +33,6 @@
 #include <vector>
 
 #include "session_simulator.h"
-#include "timestamp_manager.h"
 
 /* The connection simulator is a Singleton class. */
 class connection_simulator {

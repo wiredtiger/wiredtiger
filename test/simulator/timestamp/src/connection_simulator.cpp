@@ -99,7 +99,7 @@ connection_simulator::query_timestamp(const std::string &config, std::string &he
             throw std::runtime_error("Incorrect config passed to set timestamp: " + config);
 
         auto pos = config_map.find("get");
-        if (pos == config_map.end()) {
+        if (pos != config_map.end()) {
             query_timestamp = pos->second;
             config_map.erase(pos);
         } else
@@ -156,25 +156,22 @@ connection_simulator::decode_timestamp_config_map(std::map<std::string, std::str
   uint64_t &new_oldest_ts, uint64_t &new_stable_ts, uint64_t &new_durable_ts, bool &has_oldest,
   bool &has_stable, bool &has_durable)
 {
-
-    std::string hex_ts;
-
     auto pos = config_map.find("oldest_timestamp");
-    if (pos == config_map.end()) {
+    if (pos != config_map.end()) {
         new_oldest_ts = hex_to_decimal(pos->second);
         has_oldest = true;
         config_map.erase(pos);
     }
 
     pos = config_map.find("stable_timestamp");
-    if (pos == config_map.end()) {
+    if (pos != config_map.end()) {
         new_stable_ts = hex_to_decimal(pos->second);
         has_stable = true;
         config_map.erase(pos);
     }
 
     pos = config_map.find("durable_timestamp");
-    if (pos == config_map.end()) {
+    if (pos != config_map.end()) {
         new_durable_ts = hex_to_decimal(pos->second);
         has_durable = true;
         config_map.erase(pos);
