@@ -66,9 +66,6 @@ call_log_manager::process_call_log_entry(json call_log_entry)
 {
     try {
         const std::string method_name = call_log_entry["method_name"].get<std::string>();
-        if (_api_map.at(method_name) != api_method::wiredtiger_open && _conn == nullptr)
-            
-
         switch (_api_map.at(method_name)) {
         case api_method::wiredtiger_open: {
             _conn = &connection_simulator::get_connection();
