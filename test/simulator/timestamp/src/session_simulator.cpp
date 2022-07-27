@@ -32,18 +32,21 @@
 
 session_simulator::session_simulator() {}
 
-int
+bool
 session_simulator::begin_transaction()
 {
     /*
      * Check no other transactions are running. There should be a 1:1 relationship between session
      * and transaction.
      */
-    if (_txn_running)
-        return (1);
+    if (_txn_running) {
+        std::cerr << "Could not begin transaction, session already has a running "
+                     "transaction."
+                  << std::endl;
+        return (false);
+    }
 
-    /* Get the session from the session map and set the txn_running to be true. */
     _txn_running = true;
 
-    return (0);
+    return (true);
 }

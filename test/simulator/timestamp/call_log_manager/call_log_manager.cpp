@@ -162,11 +162,8 @@ call_log_manager::process_call_log_entry(json call_log_entry)
             /* Get the session from the session map. */
             session_simulator *session = _session_map.at(session_id);
 
-            if (session->begin_transaction() != 0) {
-                std::cerr << "Could not begin transaction, session already has a running "
-                             "transaction (session ID: "
-                          << session_id << ")" << std::endl;
-            }
+            if (!session->begin_transaction())
+                break;
         }
         }
     } catch (const std::exception &e) {

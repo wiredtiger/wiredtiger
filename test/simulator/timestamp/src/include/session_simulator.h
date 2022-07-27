@@ -33,7 +33,7 @@ class session_simulator {
     public:
     session_simulator();
     ~session_simulator() = default;
-    int begin_transaction();
+    bool begin_transaction();
 
     public:
     /* Deleted functions should generally be public as it results in better error messages. */
