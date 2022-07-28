@@ -38,6 +38,7 @@ enum class api_method {
     close_session,
     open_session,
     query_timestamp,
+    rollback_transaction,
     set_timestamp,
 };
 

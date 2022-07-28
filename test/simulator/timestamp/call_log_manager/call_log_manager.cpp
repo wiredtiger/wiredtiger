@@ -53,6 +53,7 @@ call_log_manager::api_map_setup()
     _api_map["close_session"] = api_method::close_session;
     _api_map["open_session"] = api_method::open_session;
     _api_map["query_timestamp"] = api_method::query_timestamp;
+    _api_map["rollback_transaction"] = api_method::rollback_transaction;
     _api_map["set_timestamp"] = api_method::set_timestamp;
 }
 
@@ -166,6 +167,26 @@ call_log_manager::process_call_log_entry(json call_log_entry)
                     throw std::runtime_error("The expected timestamp (" + hex_ts_expected +
                       ") is not equal to the timestamp queried (" + hex_ts + ") in the simulator");
             }
+
+            break;
+        }
+        case api_method::rollback_transaction: {
+            const std::string session_id = call_log_entry["session_id"].get<std::string>();
+
+            /*
+             * We cannot rollback a transaction on a session with an ID that does not exist in the
+             * session map.
+             */
+            if (_session_map.find(session_id) == _session_map.end()) {
+                std::cerr << "Could not rollback transaction, session does not exist (session ID: "
+                          << session_id << ")" << std::endl;
+                break;
+            }
+
+            /* Get the session from the session map. */
+            session_simulator *session = _session_map.at(session_id);
+
+            session->rollback_transaction();
 
             break;
         }
