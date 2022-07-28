@@ -36,6 +36,9 @@ from wtbound import bound_base
 class test_cursor_bound05(bound_base):
     file_name = 'test_cursor_bound05'
     key_format = 'S'
+
+    # The start and end key denotes the first and last key in the table. Since 1000 is a key itself, 
+    # there are 1000 entries between the start and end key.
     start_key = 1000
     end_key = 1999
 
