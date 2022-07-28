@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-import wiredtiger, wttest, wtbound
+import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtbound import set_prefix_bound
 
