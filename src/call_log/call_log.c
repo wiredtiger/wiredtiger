@@ -174,34 +174,6 @@ __wt_call_log_print_return(
 }
 
 /*
- * __wt_call_log_wiredtiger_open --
- *     Print the call log entry for the wiredtiger_open API call.
- */
-int
-__wt_call_log_wiredtiger_open(WT_SESSION_IMPL *session, int ret_val)
-{
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
-
-    WT_RET(__call_log_print_start(session, "global", "wiredtiger_open"));
-
-    /*
-     * WiredTiger open call log entry includes the connection address as and ID. This ID is used to
-     * map the connection used by wiredtiger to a new connection in the simulator.
-     */
-    WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"connection_id\": \"%p\",\n", conn));
-
-    /* WiredTiger open has no input arguments. */
-    WT_RET(__call_log_print_input(session, 0));
-
-    WT_RET(__call_log_print_output(session, 0));
-    WT_RET(__wt_call_log_print_return(conn, session, ret_val, ""));
-
-    return (0);
-}
-
-/*
  * __wt_call_log_open_session --
  *     Print the call log entry for the open session API call.
  */

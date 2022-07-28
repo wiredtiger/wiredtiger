@@ -30,6 +30,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <map>
 #include <sstream>
 #include <string>
 
@@ -82,87 +83,112 @@ connection_simulator::close_session(session_simulator *session)
     return (true);
 }
 
-int
-connection_simulator::query_timestamp() const
+bool
+connection_simulator::query_timestamp(const std::string &config, std::string &hex_ts)
 {
-    return (0);
+    std::string query_timestamp;
+    /* For an empty config default to all_durable. */
+    if (config.empty())
+        query_timestamp = "all_durable";
+    else {
+        timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
+        std::map<std::string, std::string> config_map;
+
+        /* Throw an error if the config cannot be parsed. */
+        if (!ts_manager->parse_config(config, config_map))
+            throw std::runtime_error("Incorrect config passed to set timestamp: " + config);
+
+        auto pos = config_map.find("get");
+        if (pos != config_map.end()) {
+            query_timestamp = pos->second;
+            config_map.erase(pos);
+        } else
+            throw std::runtime_error("Incorrect config (" + config + ") passed in query timestamp");
+
+        if (!config_map.empty())
+            throw std::runtime_error("Incorrect config (" + config + ") passed in query timestamp");
+    }
+
+    /*
+     * For now, the simulator only supports all_durable, oldest_timestamp, and stable_timestamp.
+     * Hence, we ignore last_checkpoint, oldest_reader, pinned and recovery.
+     */
+    uint64_t ts;
+    if (query_timestamp == "all_durable")
+        ts = _durable_ts;
+    else if (query_timestamp == "oldest_timestamp" || query_timestamp == "oldest")
+        ts = _oldest_ts;
+    else if (query_timestamp == "stable_timestamp" || query_timestamp == "stable")
+        ts = _stable_ts;
+    else if (query_timestamp == "last_checkpoint")
+        return (false);
+    else if (query_timestamp == "oldest_reader")
+        return (false);
+    else if (query_timestamp == "pinned")
+        return (false);
+    else if (query_timestamp == "recovery")
+        return (false);
+    else
+        throw std::runtime_error("Incorrect config (" + config + ") passed in query timestamp");
+
+    /* Convert the timestamp from decimal to hex-decimal. */
+    hex_ts = decimal_to_hex(ts);
+
+    return (true);
 }
 
-/*
- * Parse a single timestamp configuration string eg. oldest_timestamp=10, and then decode it from
- * hex to decimal.
- */
-bool
-connection_simulator::parse_and_decode_timestamp_config_single(const std::string &config,
-  uint64_t &new_oldest_ts, uint64_t &new_stable_ts, uint64_t &new_durable_ts, bool &has_oldest,
-  bool &has_stable, bool &has_durable)
+inline uint64_t
+connection_simulator::hex_to_decimal(const std::string &hex_ts)
 {
-    const std::string oldest_ts_str = "oldest_timestamp=";
-    const std::string stable_ts_str = "stable_timestamp=";
-    const std::string durable_ts_str = "durable_timestamp=";
+    std::stringstream stream;
+    uint64_t ts;
 
-    int durable_found = config.find(durable_ts_str);
-    int oldest_found = config.find(oldest_ts_str);
-    int stable_found = config.find(stable_ts_str);
+    stream << hex_ts;
+    stream >> std::hex >> ts;
 
+    return (ts);
+}
+
+inline std::string
+connection_simulator::decimal_to_hex(const u_int64_t ts)
+{
     std::stringstream stream;
     std::string hex_ts;
-    if (oldest_found != -1) {
-        hex_ts = config.substr(oldest_found + oldest_ts_str.size());
-        stream << hex_ts;
-        stream >> std::hex >> new_oldest_ts;
-        has_oldest = true;
-        return (true);
-    }
-    if (stable_found != -1) {
-        hex_ts = config.substr(stable_found + stable_ts_str.size());
-        stream << hex_ts;
-        stream >> std::hex >> new_stable_ts;
-        has_stable = true;
-        return (true);
-    }
-    if (durable_found != -1) {
-        hex_ts = config.substr(durable_found + durable_ts_str.size());
-        stream << hex_ts;
-        stream >> std::hex >> new_durable_ts;
-        has_durable = true;
-        return (true);
-    }
 
-    return (false);
+    stream << std::hex << ts;
+    hex_ts = stream.str();
+
+    return (hex_ts);
 }
 
-/*
- * Parse the timestamp configuration string with timestamps separated by ',', and then decode it
- * from hex to decimal.
- */
-void
-connection_simulator::parse_and_decode_timestamp_config(const std::string &config,
+/* Get the timestamps and decode config map. */
+bool
+connection_simulator::decode_timestamp_config_map(std::map<std::string, std::string> &config_map,
   uint64_t &new_oldest_ts, uint64_t &new_stable_ts, uint64_t &new_durable_ts, bool &has_oldest,
   bool &has_stable, bool &has_durable)
 {
-    std::string conf = config;
-    /* Loop over the timestamp configuration strings separated by ','. */
-    size_t pos;
-    while ((pos = conf.find(",")) != std::string::npos) {
-        std::string token = conf.substr(0, pos);
-
-        /* Throw an error for an unknown config. */
-        if (!parse_and_decode_timestamp_config_single(token, new_oldest_ts, new_stable_ts,
-              new_durable_ts, has_oldest, has_stable, has_durable))
-            throw std::runtime_error(
-              "Could not set the timestamp as there is no system level timestamp called '" + token +
-              "'");
-
-        conf.erase(0, pos + 1);
+    auto pos = config_map.find("oldest_timestamp");
+    if (pos != config_map.end()) {
+        new_oldest_ts = hex_to_decimal(pos->second);
+        has_oldest = true;
+        config_map.erase(pos);
     }
 
-    /* Parse the final timestamp configuration string, and throw an error for an unknown config. */
-    if (!parse_and_decode_timestamp_config_single(
-          conf, new_oldest_ts, new_stable_ts, new_durable_ts, has_oldest, has_stable, has_durable))
-        throw std::runtime_error(
-          "Could not set the timestamp as there is no system level timestamp called '" + conf +
-          "'");
+    pos = config_map.find("stable_timestamp");
+    if (pos != config_map.end()) {
+        new_stable_ts = hex_to_decimal(pos->second);
+        has_stable = true;
+        config_map.erase(pos);
+    }
+
+    pos = config_map.find("durable_timestamp");
+    if (pos != config_map.end()) {
+        new_durable_ts = hex_to_decimal(pos->second);
+        has_durable = true;
+        config_map.erase(pos);
+    }
+
+    return (config_map.empty());
 }
 
 bool
@@ -173,11 +199,18 @@ connection_simulator::set_timestamp(const std::string &config)
         return (true);
 
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
+    std::map<std::string, std::string> config_map;
+
+    /* Throw an error if the config cannot be parsed. */
+    if (!ts_manager->parse_config(config, config_map))
+        throw std::runtime_error("Incorrect config passed to set timestamp: " + config);
+
     uint64_t new_stable_ts = 0, new_oldest_ts = 0, new_durable_ts = 0;
     bool has_stable = false, has_oldest = false, has_durable = false;
 
-    parse_and_decode_timestamp_config(
-      config, new_oldest_ts, new_stable_ts, new_durable_ts, has_oldest, has_stable, has_durable);
+    if (!decode_timestamp_config_map(config_map, new_oldest_ts, new_stable_ts, new_durable_ts,
+          has_oldest, has_stable, has_durable))
+        throw std::runtime_error("Incorrect config passed to set timestamp: " + config);
 
     /* Validate the new durable timestamp. */
     if (!ts_manager->validate_durable_ts(new_durable_ts, has_durable))

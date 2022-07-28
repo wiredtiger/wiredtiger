@@ -32,7 +32,7 @@
 #include <iostream>
 #include <memory>
 
-call_log_manager::call_log_manager(const std::string &call_log_file) : _conn(nullptr)
+call_log_manager::call_log_manager(const std::string &call_log_file)
 {
     std::ifstream file(call_log_file);
     if (file.fail()) {
@@ -42,6 +42,7 @@ call_log_manager::call_log_manager(const std::string &call_log_file) : _conn(nul
     }
 
     _call_log = json::parse(file);
+    _conn = &connection_simulator::get_connection();
     api_map_setup();
 }
 
@@ -50,8 +51,8 @@ call_log_manager::api_map_setup()
 {
     _api_map["close_session"] = api_method::close_session;
     _api_map["open_session"] = api_method::open_session;
+    _api_map["query_timestamp"] = api_method::query_timestamp;
     _api_map["set_timestamp"] = api_method::set_timestamp;
-    _api_map["wiredtiger_open"] = api_method::wiredtiger_open;
 }
 
 void
@@ -66,20 +67,10 @@ call_log_manager::process_call_log_entry(json call_log_entry)
 {
     try {
         const std::string method_name = call_log_entry["method_name"].get<std::string>();
+
         switch (_api_map.at(method_name)) {
-        case api_method::wiredtiger_open: {
-            _conn = &connection_simulator::get_connection();
-            break;
-        }
         case api_method::open_session: {
             const std::string session_id = call_log_entry["session_id"].get<std::string>();
-            /*
-             * Not having a valid connection is a fatal error since no other operations can happen
-             * without a connection.
-             */
-            if (_conn == nullptr)
-                throw std::runtime_error("Could not open session (session ID: " + session_id + ")" +
-                  ", connection does not exist");
 
             /* We should not open sessions with an ID that is already in use. */
             if (_session_map.find(session_id) != _session_map.end()) {
@@ -99,13 +90,6 @@ call_log_manager::process_call_log_entry(json call_log_entry)
         }
         case api_method::close_session: {
             const std::string session_id = call_log_entry["session_id"].get<std::string>();
-            /*
-             * Not having a valid connection is a fatal error since no other operations can happen
-             * without a connection.
-             */
-            if (_conn == nullptr)
-                throw std::runtime_error("Could not close the session (session ID: " + session_id +
-                  ")" + ", connection does not exist");
 
             /* We should not close sessions with an ID that does not exist in the session map. */
             if (_session_map.find(session_id) == _session_map.end()) {
@@ -125,14 +109,6 @@ call_log_manager::process_call_log_entry(json call_log_entry)
             break;
         }
         case api_method::set_timestamp: {
-            /*
-             * Not having a valid connection is a fatal error since no other operations can happen
-             * without a connection.
-             */
-            if (_conn == nullptr)
-                throw std::runtime_error(
-                  "Could not set the timestamp as connection does not exist");
-
             /* Convert the config char * to a string object. */
             const std::string config = call_log_entry["input"]["config"].get<std::string>();
 
@@ -144,6 +120,32 @@ call_log_manager::process_call_log_entry(json call_log_entry)
             if (config != "(null)" && !_conn->set_timestamp(config)) {
                 throw std::runtime_error("Failure to set timestamp. Timestamps may not be valid!");
             }
+            break;
+        }
+        case api_method::query_timestamp: {
+            /* Convert the config char * to a string object. */
+            std::string config = call_log_entry["input"]["config"].get<std::string>();
+            std::string hex_ts;
+
+            /*
+             * A generated call log without a configuration string in the set timestamp entry will
+             * have the string "(null)", default to all_durable.
+             */
+            if (config == "(null)")
+                config = "get=all_durable";
+
+            if (_conn->query_timestamp(config, hex_ts)) {
+                /*
+                 * Ensure that the timestamp returned from query timestamp is equal to the expected
+                 * timestamp.
+                 */
+                std::string hex_ts_expected =
+                  call_log_entry["output"]["timestamp_queried"].get<std::string>();
+                if (hex_ts != hex_ts_expected)
+                    throw std::runtime_error("The expected timestamp (" + hex_ts_expected +
+                      ") is not equal to the timestamp queried (" + hex_ts + ") in the simulator");
+            }
+
             break;
         }
         }
