@@ -29,7 +29,7 @@
 import wiredtiger, wttest
 
 def set_prefix_bound(test, cursor, lower_bound):
-    test.assertEqual(cursor.bound("action=clear"), 0)
+    test.assertEqual(cursor.reset(), 0)
     cursor.set_key(lower_bound)
     test.assertEqual(cursor.bound("action=set,bound=lower,inclusive=true"), 0)
     # Strings are immutable in python.
