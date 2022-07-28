@@ -37,6 +37,7 @@ from wiredtiger import stat
 class test_cursor_bound08(bound_base):
     conn_config = 'statistics=(all)'
     file_name = 'test_cursor_bound08'
+    value_format = 'S'
     lower_inclusive = True
     upper_inclusive = True
 
@@ -62,26 +63,6 @@ class test_cursor_bound08(bound_base):
     ]
 
     scenarios = make_scenarios(types, key_format_values, evict)
-
-    def create_session_and_cursor(self):
-        uri = self.uri + self.file_name
-        create_params = 'value_format=S,key_format={}'.format(self.key_format)
-        self.session.create(uri, create_params)
-        
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        for i in range(self.start_key, self.end_key + 1):
-            cursor[self.gen_key(i)] = "value" + str(i)
-        self.session.commit_transaction()
-
-        if (self.evict):
-            evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
-            for i in range(self.start_key, self.end_key):
-                evict_cursor.set_key(self.gen_key(i))
-                evict_cursor.search()
-                evict_cursor.reset()
-            evict_cursor.close()
-        return cursor
 
     def create_session_and_cursor_timestamp(self):
         uri = self.uri + self.file_name
@@ -119,7 +100,7 @@ class test_cursor_bound08(bound_base):
         stat_cursor.close()
         return val
 
-    def bound_basic_stat_scenario(self):
+    def test_bound_basic_stat_scenario(self):
         cursor = self.create_session_and_cursor()
 
         # Test bound api: Test that early exit stat gets incremented with a upper bound.
@@ -182,7 +163,7 @@ class test_cursor_bound08(bound_base):
         self.assertEqual(cursor.bound("action=clear"), 0)
         self.assertEqual(self.get_stat(stat.conn.cursor_bounds_search_early_exit), 2)
 
-        self.set_bounds(cursor, 30, "upper")
+        self.set_bounds(cursor, 30, "lower")
         cursor.set_key(self.gen_key(20))
         self.assertEqual(cursor.search_near(), 0)
         self.assertEqual(cursor.get_key(), self.check_key(30))
@@ -196,14 +177,14 @@ class test_cursor_bound08(bound_base):
         self.assertEqual(cursor.search_near(), 0)
         self.assertEqual(cursor.get_key(), self.check_key(30))
         self.assertEqual(cursor.reset(), 0)
-        self.assertEqual(self.get_stat(stat.conn.cursor_bounds_search_near_repositioned_cursor), 1)
+        self.assertEqual(self.get_stat(stat.conn.cursor_bounds_search_near_repositioned_cursor), 2)
 
         self.set_bounds(cursor, 40, "upper")
         cursor.set_key(self.gen_key(60))
         self.assertEqual(cursor.search_near(), 0)
         self.assertEqual(cursor.get_key(), self.check_key(40))
         self.assertEqual(cursor.reset(), 0)
-        self.assertEqual(self.get_stat(stat.conn.cursor_bounds_search_near_repositioned_cursor), 2)
+        self.assertEqual(self.get_stat(stat.conn.cursor_bounds_search_near_repositioned_cursor), 3)
 
         cursor.close()
 

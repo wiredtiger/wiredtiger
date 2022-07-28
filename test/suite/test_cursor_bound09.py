@@ -35,6 +35,7 @@ from wtbound import bound_base
 #    Test that cursor API usage generates expected error in prepared state with bounded cursors.
 class test_cursor_bound09(bound_base):
     file_name = 'test_cursor_bound09'
+    value_format= 'S'
 
     types = [
         ('file', dict(uri='file:', use_colgroup=False)),
@@ -69,20 +70,6 @@ class test_cursor_bound09(bound_base):
     ]
 
     scenarios = make_scenarios(types, key_format_values, config, ignore_prepare)
-
-    def create_session_and_cursor(self):
-        uri = self.uri + self.file_name
-        create_params = 'value_format=S,key_format={}'.format(self.key_format)
-        self.session.create(uri, create_params)
-
-        cursor = self.session.open_cursor(uri)
-
-        self.session.begin_transaction()
-        for i in range(self.start_key, self.end_key + 1):
-            cursor[self.gen_key(i)] = "value" + str(i)
-        self.session.commit_transaction()
-
-        return cursor
     
     # Test ignore prepare.
     def test_cursor_bound_prepared(self):

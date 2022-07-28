@@ -66,33 +66,6 @@ class test_cursor_bound04(bound_base):
     ]
     scenarios = make_scenarios(types, key_formats, value_formats, config)
 
-    def create_session_and_cursor(self):
-        uri = self.uri + self.file_name
-        create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
-        if self.use_colgroup:
-            create_params += self.gen_colgroup_create_param()
-        self.session.create(uri, create_params)
-        # Add in column group.
-        if self.use_colgroup:
-            for i in range(0, len(self.value_format)):
-                create_params = 'columns=(v{0}),'.format(i)
-                suburi = 'colgroup:{0}:g{1}'.format(self.file_name, i)
-                self.session.create(suburi, create_params)
-
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        for i in range(self.start_key, self.end_key + 1):
-            cursor[self.gen_key(i)] = self.gen_val("value" + str(i))
-        self.session.commit_transaction()
-
-        if (self.evict):
-            evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
-            for i in range(self.start_key, self.end_key + 1):
-                evict_cursor.set_key(self.gen_key(i))
-                evict_cursor.search()
-                evict_cursor.reset() 
-        return cursor
-
     def test_bound_special_scenario(self):
         cursor = self.create_session_and_cursor()
 
