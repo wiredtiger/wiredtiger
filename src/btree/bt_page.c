@@ -335,6 +335,7 @@ int
 __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32_t flags,
   WT_PAGE **pagep, bool *preparedp)
 {
+    WT_CELL_UNPACK_ADDR unpack_addr;
     WT_DECL_RET;
     WT_PAGE *page;
     const WT_PAGE_HEADER *dsk;
@@ -366,12 +367,18 @@ __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32
     case WT_PAGE_COL_INT:
         /*
          * Column-store internal page entries map one-to-one to the number of physical entries on
-         * the page (each entry is a location cookie), but allocate one extra slot. This will be a
-         * blank (deleted) first entry on a page where there's a gap between the page's own start
-         * recno and the first physical entry's start recno. (Such gaps can be created by truncation
-         * or checkpoint cleanup.)
+         * the page (each entry is a location cookie), but in some cases we need to allocate one
+         * extra slot. This arises if there's a gap between the page's own start recno and the first
+         * child's start recno; we need to insert a blank (deleted) page to cover that chunk of the
+         * namespace. Examine the first cell on the page to decide.
          */
-        alloc_entries = dsk->u.entries + 1;
+        alloc_entries = dsk->u.entries;
+        WT_CELL_FOREACH_ADDR (session, dsk, unpack_addr) {
+            if (unpack_addr.v != dsk->recno)
+                alloc_entries++;
+            break;
+        }
+        WT_CELL_FOREACH_END;
         break;
     case WT_PAGE_ROW_INT:
         /*
@@ -661,10 +668,9 @@ __inmem_col_int(WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t page_recno)
     WT_PAGE_INDEX *pindex;
     WT_REF **refp, *ref;
     uint32_t hint;
-    bool first, gap;
+    bool first;
 
     first = true;
-    gap = false;
 
     /*
      * Walk the page, building references: the page contains value items. The value items are
@@ -684,7 +690,6 @@ __inmem_col_int(WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t page_recno)
              * left side of the tree where we need to be able to search to them. Other gaps end up
              * covered by the insert list of the preceding leaf page.)
              */
-            gap = true;
 
             /* Assert that we allocated enough space for the extra ref. */
             WT_ASSERT(session, pindex->entries == page->dsk->u.entries + 1);
@@ -702,14 +707,6 @@ __inmem_col_int(WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t page_recno)
           unpack.type == WT_CELL_ADDR_INT, unpack.type == WT_CELL_ADDR_DEL, &unpack.page_del));
     }
     WT_CELL_FOREACH_END;
-
-    if (gap == false) {
-        /* There is an extra ref at the end of the array we didn't use. Drop it. */
-        __wt_free(session, *refp);
-        pindex->entries--;
-        WT_ASSERT(session, pindex->entries == page->dsk->u.entries);
-        __wt_cache_page_inmem_decr(session, page, sizeof(WT_REF));
-    }
 
     return (0);
 }
