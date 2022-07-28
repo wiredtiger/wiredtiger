@@ -988,7 +988,7 @@ done:
          * Forcibly log a checkpoint so the next open is fast and keep the metadata up to date with
          * the checkpoint LSN and removal.
          */
-        WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
+        WT_ERR(session->iface.checkpoint(&session->iface, NULL));
 
     /*
      * Update the open dhandles write generations and base write generation with the connection's
