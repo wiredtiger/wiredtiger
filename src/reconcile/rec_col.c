@@ -1524,32 +1524,16 @@ compare:
 
     /* Walk any append list. */
     for (ins = WT_SKIP_FIRST(WT_COL_APPEND(page));; ins = WT_SKIP_NEXT(ins)) {
-        if (ins == NULL) {
+        if (ins == NULL)
             /*
-             * If the page split, instantiate any missing records in
-             * the page's name space. (Imagine record 98 is
-             * transactionally visible, 99 wasn't created or is not
-             * yet visible, 100 is visible. Then the page splits and
-             * record 100 moves to another page. When we reconcile
-             * the original page, we write record 98, then we don't
-             * see record 99 for whatever reason. If we've moved
-             * record 100, we don't know to write a deleted record
-             * 99 on the page.)
-             *
-             * Assert the recorded record number is past the end of
-             * the page.
-             *
-             * The record number recorded during the split is the
-             * first key on the split page, that is, one larger than
-             * the last key on this page, we have to decrement it.
+             * Stop when we reach the end of the append list. There might be a gap between that and
+             * the beginning of the next page. (Imagine record 98 is written, then record 100 is
+             * written, then the page splits and record 100 moves to another page. There is no entry
+             * for record 99 and we don't write one out.) In VLCS we (now) tolerate such gaps as
+             * they are, though likely smaller, equivalent to gaps created by fast-truncate.
              */
-            if ((n = page->modify->mod_col_split_recno) == WT_RECNO_OOB)
-                break;
-            WT_ASSERT(session, n >= src_recno);
-            n -= 1;
-
-            upd = NULL;
-        } else {
+            break;
+        else {
             WT_ERR(__wt_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
             upd = upd_select.upd;
             n = WT_INSERT_RECNO(ins);
@@ -1704,12 +1688,6 @@ next:
 
     /* Write the remnant page. */
     WT_ERR(__wt_rec_split_finish(session, r));
-
-    /*
-     * Clear the split recno so that if we reuse the append list again later after a truncate, the
-     * old bound on it doesn't come back to life and cause confusion and consternation.
-     */
-    page->modify->mod_col_split_recno = WT_RECNO_OOB;
 
 err:
     __wt_scr_free(session, &orig);

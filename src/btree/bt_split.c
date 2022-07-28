@@ -1854,9 +1854,9 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * Allocation operations completed, we're going to split.
      *
-     * Record the split column-store page record, used in reconciliation.
+     * Record the fixed-length column-store split page record, used in reconciliation.
      */
-    if (type != WT_PAGE_ROW_LEAF) {
+    if (type == WT_PAGE_COL_FIX) {
         WT_ASSERT(session, page->modify->mod_col_split_recno == WT_RECNO_OOB);
         page->modify->mod_col_split_recno = child->ref_recno;
     }
@@ -1986,9 +1986,9 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * Failure.
      *
-     * Reset the split column-store page record.
+     * Reset the fixed-length column-store split page record.
      */
-    if (type != WT_PAGE_ROW_LEAF)
+    if (type == WT_PAGE_COL_FIX)
         page->modify->mod_col_split_recno = WT_RECNO_OOB;
 
     /*

@@ -416,9 +416,10 @@ struct __wt_page_modify {
             WT_INSERT_HEAD **update;
 
             /*
-             * Split-saved last column-store page record. If a column-store page is split, we save
-             * the first record number moved so that during reconciliation we know the page's last
-             * record and can write any implicitly created deleted records for the page.
+             * Split-saved last column-store page record. If a fixed-length column-store page is
+             * split, we save the first record number moved so that during reconciliation we know
+             * the page's last record and can write any implicitly created deleted records for the
+             * page. No longer used by VLCS.
              */
             uint64_t split_recno;
         } column_leaf;
