@@ -982,7 +982,7 @@ config_mirrors(void)
     /*
      * Mirror configuration is potentially confusing: it's a per-table configuration (because it has
      * to be set for subsequent runs so we can tell which tables are part of the mirror group), but
-     * it's configured on global basis, causing the random selection of a group of tables for the
+     * it's configured on a global basis, causing the random selection of a group of tables for the
      * mirror group. If it's configured anywhere, it's configured everywhere; otherwise configure it
      * 20% of the time. Once that's done, turn off all mirroring, it's turned back on for selected
      * tables.
