@@ -131,10 +131,9 @@ connection_simulator::query_timestamp(const std::string &config, std::string &he
     else
         throw std::runtime_error("Incorrect config (" + config + ") passed in query timestamp");
 
-    /* Convert the timestamp from decimal to hexa-decimal. */
-    std::stringstream ss;
-    ss << std::hex << ts;
-    hex_ts = ss.str();
+    /* Convert the timestamp from decimal to hex-decimal. */
+    hex_ts = decimal_to_hex(ts);
+
     return (true);
 }
 
@@ -148,6 +147,18 @@ connection_simulator::hex_to_decimal(const std::string &hex_ts)
     stream >> std::hex >> ts;
 
     return (ts);
+}
+
+inline std::string
+connection_simulator::decimal_to_hex(const u_int64_t ts)
+{
+    std::stringstream stream;
+    std::string hex_ts;
+
+    stream << std::hex << ts;
+    hex_ts = stream.str();
+
+    return (hex_ts);
 }
 
 /* Get the timestamps and decode config map. */

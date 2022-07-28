@@ -51,6 +51,7 @@ class connection_simulator {
     bool decode_timestamp_config_map(std::map<std::string, std::string> &, uint64_t &, uint64_t &,
       uint64_t &, bool &, bool &, bool &);
     inline uint64_t hex_to_decimal(const std::string &);
+    inline std::string decimal_to_hex(const u_int64_t);
 
     /* No copies of the singleton allowed. */
     private:
