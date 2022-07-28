@@ -28,6 +28,17 @@
 
 import wiredtiger, wttest
 
+def set_prefix_bound(test, cursor, lower_bound):
+    test.assertEqual(cursor.bound("action=clear"), 0)
+    cursor.set_key(lower_bound)
+    test.assertEqual(cursor.bound("action=set,bound=lower,inclusive=true"), 0)
+    # Strings are immutable in python.
+    upper_bound = list(lower_bound)
+    upper_bound[len(upper_bound) - 1] = chr(ord(upper_bound[len(upper_bound) - 1]) + 1)
+    upper_bound = ''.join(upper_bound)
+    cursor.set_key(upper_bound)
+    test.assertEqual(cursor.bound("action=set,bound=upper,inclusive=false"), 0)
+
 class bound():
     def __init__(self, key, inclusive, enabled):
         self.key = key
