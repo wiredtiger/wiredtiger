@@ -41,32 +41,32 @@ TEST_CASE("VersionedMap", "[versioned_map]")
     WT_SESSION_IMPL *sessionImpl = conn.createSession();
     WT_SESSION *session = &(sessionImpl->iface);
 
-    std::string table_name = "table:map_table";
-    REQUIRE(session->create(session, table_name.c_str(), "key_format=S,value_format=S") == 0);
-    VersionedMap<std::string, std::string> versionedMap(session, table_name);
+    std::string tableName = "table:map_table";
+    REQUIRE(session->create(session, tableName.c_str(), "key_format=S,value_format=S") == 0);
+    VersionedMap<std::string, std::string> versionedMap(session, tableName);
 
-    const std::string testcase_key1 = "key1";
-    const std::string testcase_value1 = "value1";
-    const std::string testcase_key2 = "key2";
-    const std::string testcase_value2 = "value2";
+    const std::string testcaseKey1 = "key1";
+    const std::string testcaseValue1 = "value1";
+    const std::string testcaseKey2 = "key2";
+    const std::string testcaseValue2 = "value2";
 
     SECTION("simple")
     {
         WT_CURSOR *cursor = nullptr;
-        REQUIRE(session->open_cursor(session, table_name.c_str(), nullptr, nullptr, &cursor) == 0);
-        cursor->set_key(cursor, testcase_key1.c_str());
-        cursor->set_value(cursor, testcase_value1.c_str());
+        REQUIRE(session->open_cursor(session, tableName.c_str(), nullptr, nullptr, &cursor) == 0);
+        cursor->set_key(cursor, testcaseKey1.c_str());
+        cursor->set_value(cursor, testcaseValue1.c_str());
         REQUIRE(cursor->insert(cursor) == 0);
         REQUIRE(versionedMap.size() == 1);
 
-        cursor->set_key(cursor, testcase_key2.c_str());
-        cursor->set_value(cursor, testcase_value2.c_str());
+        cursor->set_key(cursor, testcaseKey2.c_str());
+        cursor->set_value(cursor, testcaseValue2.c_str());
         REQUIRE(cursor->insert(cursor) == 0);
         REQUIRE(cursor->reset(cursor) == 0);
         REQUIRE(versionedMap.size() == 2);
 
-        std::string value = versionedMap.get(testcase_key1);
-        REQUIRE(value == testcase_value1);
+        std::string value = versionedMap.get(testcaseKey1);
+        REQUIRE(value == testcaseValue1);
 
         REQUIRE_THROWS(versionedMap.get("fred")); // Key "fred" should not exist.
         REQUIRE_THROWS(versionedMap.get("bill")); // Key "bill" should not exist.
@@ -74,20 +74,20 @@ TEST_CASE("VersionedMap", "[versioned_map]")
 
     SECTION("simple with wrappers")
     {
-        CursorWrapper cursorWrapper(session, table_name);
-        cursorWrapper.setKey(testcase_key1);
-        cursorWrapper.setValue(testcase_value1);
+        CursorWrapper cursorWrapper(session, tableName);
+        cursorWrapper.setKey(testcaseKey1);
+        cursorWrapper.setValue(testcaseValue1);
         cursorWrapper.insert();
         REQUIRE(versionedMap.size() == 1);
 
-        cursorWrapper.setKey(testcase_key2);
-        cursorWrapper.setValue(testcase_value2);
+        cursorWrapper.setKey(testcaseKey2);
+        cursorWrapper.setValue(testcaseValue2);
         cursorWrapper.insert();
         cursorWrapper.reset();
         REQUIRE(versionedMap.size() == 2);
 
-        REQUIRE(versionedMap.get(testcase_key1) == testcase_value1);
-        REQUIRE(versionedMap.get(testcase_key2) == testcase_value2);
+        REQUIRE(versionedMap.get(testcaseKey1) == testcaseValue1);
+        REQUIRE(versionedMap.get(testcaseKey2) == testcaseValue2);
 
         REQUIRE_THROWS(versionedMap.get("fred")); // Key "fred" should not exist.
         REQUIRE_THROWS(versionedMap.get("bill")); // Key "bill" should not exist.

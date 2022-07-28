@@ -56,7 +56,7 @@ template <class Key, class T> class VersionedMap {
 
     // Methods that are the same or similar to those in std::map
     [[nodiscard]] size_type size() const;
-    [[nodiscard]] size_type size_transaction_wrapped(const std::string &config) const;
+    [[nodiscard]] size_type sizeTransactionWrapped(const std::string &config) const;
 
     private:
     WT_SESSION *_session; // This class does not own this pointer so should not free it.
@@ -197,7 +197,7 @@ VersionedMap<Key, T>::size() const
 
 template <class Key, class T>
 typename VersionedMap<Key, T>::size_type
-VersionedMap<Key, T>::size_transaction_wrapped(const std::string &config) const
+VersionedMap<Key, T>::sizeTransactionWrapped(const std::string &config) const
 {
     TransactionWrapper transactionWrapper(_session, config);
     return size();
