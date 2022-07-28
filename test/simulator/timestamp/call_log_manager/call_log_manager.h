@@ -37,8 +37,8 @@ enum class api_method {
     begin_transaction,
     close_session,
     open_session,
+    query_timestamp,
     set_timestamp,
-    wiredtiger_open
 };
 
 class call_log_manager {

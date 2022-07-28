@@ -3053,12 +3053,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     *connectionp = &conn->iface;
 
 err:
-
-#ifdef HAVE_CALL_LOG
-    /* Print the call log entry for wiredtiger_open. */
-    WT_TRET(__wt_call_log_wiredtiger_open(session, ret));
-#endif
-
     /* Discard the scratch buffers. */
     __wt_scr_free(session, &encbuf);
     __wt_scr_free(session, &i1);
