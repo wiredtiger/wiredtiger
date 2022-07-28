@@ -336,7 +336,8 @@ __wt_call_log_rollback_transaction(WT_SESSION_IMPL *session, int ret_val)
     WT_RET(__call_log_print_start(session, "session", "rollback_transaction"));
     WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"session_id\": \"%p\",\n", session));
 
-    /* Rollback transaction has no output arguments. */
+    /* Rollback transaction has no input or output arguments. */
+    WT_RET(__call_log_print_input(session, 0));
     WT_RET(__call_log_print_output(session, 0));
     WT_RET(__wt_call_log_print_return(conn, session, ret_val, ""));
 
