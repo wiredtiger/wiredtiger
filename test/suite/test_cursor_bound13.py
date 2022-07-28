@@ -31,12 +31,12 @@ import wttest
 from wtscenario import make_scenarios
 from wtbound import set_prefix_bound
 
-# test_search_near04.py
+# test_cursor_bound13.py
 # This test checks that a search_near call with the prefix key
 # configuration will correctly find a key even in cases where the key
 # range is split across multiple pages.
 # This test has been migrated to use cursor bounds logic.
-class test_search_near04(wttest.WiredTigerTestCase):
+class test_cursor_bound13(wttest.WiredTigerTestCase):
     key_format_values = [
         ('var_string', dict(key_format='S')),
         ('byte_array', dict(key_format='u')),
