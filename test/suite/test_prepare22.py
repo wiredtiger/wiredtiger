@@ -30,7 +30,7 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 # test_prepare22.py
-# Test rollback to stable clears the WT_UPDATE_TO_DELETE_HS flag.
+# Test prepare with rollback to stable without failed eviction.
 class test_prepare22(wttest.WiredTigerTestCase):
 
     format_values = [
