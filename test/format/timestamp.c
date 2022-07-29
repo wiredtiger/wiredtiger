@@ -128,7 +128,7 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
     g.oldest_timestamp = oldest_timestamp;
     g.stable_timestamp = stable_timestamp;
 
-    if (g.trace_timestamp)
+    if (FLD_ISSET(g.trace_flags, TRACE_TIMESTAMP))
         trace_msg(session, "setts oldest=%" PRIu64 ", stable=%" PRIu64, g.oldest_timestamp,
           g.stable_timestamp);
 }

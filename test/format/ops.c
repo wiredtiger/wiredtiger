@@ -1247,7 +1247,7 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
         return (ret);
 
     /* Log the operation */
-    if (!g.trace_read)
+    if (!FLD_ISSET(g.trace_flags, TRACE_READ))
         return (0);
     switch (table->type) {
     case FIX:
@@ -1382,7 +1382,7 @@ nextprev(TINFO *tinfo, bool next)
         break;
     }
 
-    if (g.trace_cursor) {
+    if (FLD_ISSET(g.trace_flags, TRACE_CURSOR)) {
         which = next ? "next" : "prev";
         switch (table->type) {
         case FIX:

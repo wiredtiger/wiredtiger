@@ -310,7 +310,7 @@ page_dump:
                  * failures, up to 20.
                  */
                 testutil_assert(
-                  base_keyno == table_keyno || (g.trace_mirror_fail && failures < 20));
+                  base_keyno == table_keyno || (FLD_ISSET(g.trace_flags, TRACE_MIRROR_FAIL) && failures < 20));
             }
         }
 

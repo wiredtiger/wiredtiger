@@ -30,7 +30,7 @@
 
 #define TRACE_CONFIG_CMD(cmd, flag)        \
     if ((p = strstr(copy, cmd)) != NULL) { \
-        flag = true;                       \
+        FLD_SET(g.trace_flags, flag);      \
         memset(p, ' ', strlen(cmd));       \
         continue;                          \
     }
@@ -43,17 +43,16 @@ void
 trace_config(const char *config)
 {
     char *copy, *p;
-    bool all;
 
     copy = dstrdup(config);
-    for (all = false;;) {
-        TRACE_CONFIG_CMD("all", all);
-        TRACE_CONFIG_CMD("bulk", g.trace_bulk);
-        TRACE_CONFIG_CMD("cursor", g.trace_cursor);
-        TRACE_CONFIG_CMD("mirror_fail", g.trace_mirror_fail);
-        TRACE_CONFIG_CMD("read", g.trace_read);
-        TRACE_CONFIG_CMD("timestamp", g.trace_timestamp);
-        TRACE_CONFIG_CMD("txn", g.trace_txn);
+    for (;;) {
+        TRACE_CONFIG_CMD("all", TRACE_ALL);
+        TRACE_CONFIG_CMD("bulk", TRACE_BULK);
+        TRACE_CONFIG_CMD("cursor", TRACE_CURSOR);
+        TRACE_CONFIG_CMD("mirror_fail", TRACE_MIRROR_FAIL);
+        TRACE_CONFIG_CMD("read", TRACE_READ);
+        TRACE_CONFIG_CMD("timestamp", TRACE_TIMESTAMP);
+        TRACE_CONFIG_CMD("txn", TRACE_TXN);
 
         if ((p = strstr(copy, "retain=")) != NULL) {
             g.trace_retain = atoi(p + strlen("retain="));
@@ -65,8 +64,16 @@ trace_config(const char *config)
         }
         break;
     }
-    if (all)
-        g.trace_bulk = g.trace_cursor = g.trace_read = g.trace_timestamp = g.trace_txn = true;
+    if (FLD_ISSET(g.trace_flags, TRACE_ALL)) {
+        FLD_SET(g.trace_flags, TRACE_CURSOR);
+        FLD_SET(g.trace_flags, TRACE_BULK);
+        FLD_SET(g.trace_flags, TRACE_READ);
+        FLD_SET(g.trace_flags, TRACE_TIMESTAMP);
+        FLD_SET(g.trace_flags, TRACE_TXN);
+    }
+
+    if (!FLD_ISSET(g.trace_flags, TRACE_BULK))
+        printf("not tracing pumpkins\n");
 
     for (p = copy; *p != '\0'; ++p)
         if (*p != ',' && !__wt_isspace((u_char)*p))
@@ -74,7 +81,7 @@ trace_config(const char *config)
 
     free(copy);
 
-    g.trace = true;
+    FLD_SET(g.trace_flags, TRACE);
 }
 
 #define TRACE_DIR "OPS.TRACE"
@@ -90,7 +97,7 @@ trace_init(void)
     int retain;
     char config[100], tracedir[MAX_FORMAT_PATH * 2];
 
-    if (!g.trace)
+    if (!FLD_ISSET(g.trace_flags, TRACE))
         return;
 
     /* Retain a minimum of 10 log files. */
