@@ -1702,9 +1702,11 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     switch (page->type) {
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
+        WT_ASSERT(session, !F_ISSET(ref, WT_REF_FLAG_LEAF));
         F_SET(ref, WT_REF_FLAG_INTERNAL);
         break;
     default:
+        WT_ASSERT(session, !F_ISSET(ref, WT_REF_FLAG_INTERNAL));
         F_SET(ref, WT_REF_FLAG_LEAF);
         break;
     }
