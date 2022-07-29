@@ -65,15 +65,12 @@ trace_config(const char *config)
         break;
     }
     if (FLD_ISSET(g.trace_flags, TRACE_ALL)) {
-        FLD_SET(g.trace_flags, TRACE_CURSOR);
         FLD_SET(g.trace_flags, TRACE_BULK);
+        FLD_SET(g.trace_flags, TRACE_CURSOR);
         FLD_SET(g.trace_flags, TRACE_READ);
         FLD_SET(g.trace_flags, TRACE_TIMESTAMP);
         FLD_SET(g.trace_flags, TRACE_TXN);
     }
-
-    if (!FLD_ISSET(g.trace_flags, TRACE_BULK))
-        printf("not tracing pumpkins\n");
 
     for (p = copy; *p != '\0'; ++p)
         if (*p != ',' && !__wt_isspace((u_char)*p))
